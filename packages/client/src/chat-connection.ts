@@ -47,9 +47,7 @@ type SessionEvents = (abortSignal: AbortSignal) => AsyncIterable<ChatEvent>
 
 type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncGenerator<ChatEvent>
 
-type Relay = SubscribeConnectionAdapter & {follow: (chunks: AsyncIterable<ChatEvent>) => Promise<void>}
-
-type Turns = {adapter: Relay; joinRun: JoinRun}
+type Turns = {adapter: SubscribeConnectionAdapter; joinRun: JoinRun; handovers: EventTarget}
 
 function within(lifetime: AbortSignal, abortSignal: AbortSignal | undefined): AbortSignal {
   return abortSignal === undefined ? lifetime : AbortSignal.any([lifetime, abortSignal])
@@ -124,21 +122,12 @@ function overRpc(rpc: RpcClient, apiBase: string, sessionId: string, lifetime: A
       ),
     {joinRun},
   )
-  return {adapter: subscribeOver(turns), joinRun}
+  return {adapter: subscribeOver(turns), joinRun, handovers: new EventTarget()}
 }
 
-function subscribeOver(adapter: ConnectConnectionAdapter): Relay {
+function subscribeOver(adapter: ConnectConnectionAdapter): SubscribeConnectionAdapter {
   const listeners = new Set<RelaySink<ChatEvent>>()
   return {
-    follow: async (chunks) => {
-      try {
-        for await (const chunk of chunks) {
-          for (const sink of listeners) sink.emit(chunk)
-        }
-      } catch (error) {
-        for (const sink of listeners) sink.fail(error)
-      }
-    },
     subscribe: (abortSignal) =>
       relayedValues<ChatEvent>((sink) => {
         listeners.add(sink)
@@ -220,7 +209,6 @@ async function* joinedOrHandedOver(
   turns: Turns,
   runId: string,
   abortSignal: AbortSignal | undefined,
-  threadId: string,
 ): AsyncGenerator<ChatEvent> {
   const joined = turns.joinRun(runId, abortSignal)
   const first = await joined.next()
@@ -230,7 +218,25 @@ async function* joinedOrHandedOver(
     return
   }
   if (abortSignal?.aborted !== true) return
-  void turns.adapter.follow(finishedOnItsLifecycle(turns.joinRun(runId), threadId, runId))
+  turns.handovers.dispatchEvent(new CustomEvent(HANDOVER, {detail: runId}))
+}
+
+const HANDOVER = 'handover'
+
+function handedOverRunIds(handovers: EventTarget, scope: AbortSignal): AsyncGenerator<string> {
+  return relayedValues<string>((sink) => {
+    const relay = (event: Event): void => {
+      if (event instanceof CustomEvent && typeof event.detail === 'string') sink.emit(event.detail)
+    }
+    handovers.addEventListener(HANDOVER, relay)
+    return () => handovers.removeEventListener(HANDOVER, relay)
+  }, scope)
+}
+
+async function* handedOverRuns(turns: Turns, scope: AbortSignal, threadId: string): AsyncGenerator<ChatEvent> {
+  for await (const runId of handedOverRunIds(turns.handovers, scope)) {
+    yield* finishedOnItsLifecycle(turns.joinRun(runId, scope), threadId, runId)
+  }
 }
 
 function watching(
@@ -244,6 +250,7 @@ function watching(
     (scope) => turns.adapter.subscribe(scope),
     events,
     (scope) => announcedRuns(turns, events, options, scope, threadId),
+    (scope) => handedOverRuns(turns, scope, threadId),
   ]
   return noticing(merged(sources, abortSignal), options)
 }
@@ -342,10 +349,7 @@ export function chatConnection(
       await adapter.send(messages, data, abortSignal, runContext)
     },
     joinRun: (runId, abortSignal) =>
-      noticing(
-        finishedOnItsLifecycle(joinedOrHandedOver(turns, runId, abortSignal, sessionId), sessionId, runId),
-        options,
-      ),
+      noticing(finishedOnItsLifecycle(joinedOrHandedOver(turns, runId, abortSignal), sessionId, runId), options),
     hydrate,
     refresh: (before) =>
       hydrate(

@@ -12,7 +12,7 @@ import {
 import {chatConnection, type ChatConnection} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers.js'
 import {pageTabs, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
-import {createServer, type IncomingMessage, type Server} from 'node:http'
+import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {
   type ChatEvent,
@@ -347,14 +347,56 @@ describe('chat connection', () => {
       }
     }, 10_000)
 
-    it('aborting a live subscription ends it cleanly, with no error', async () => {
-      const {sessionId, connection} = await opened()
-      const watcher = watch(connection)
-      await sendTurn(connection, sessionId, 'abort-1')
-      await watcher.finished
-      watcher.abort()
-      await expect(watcher.ended).resolves.toBeUndefined()
-    }, 30_000)
+    it('a run the chat client gave up on is followed by the subscription until the user leaves, never after', async () => {
+      const threadId = 'conciv_handed_over'
+      const joins = Array.from({length: 3}, () => Promise.withResolvers<{runId: string; response: ServerResponse}>())
+      const joinCalls: string[] = []
+      const server = await eventsServer((request, runId, response) => {
+        if (request.url?.endsWith('/events')) return {frames: [], ending: 'held'}
+        if (!request.url?.endsWith('/join')) return null
+        joins[joinCalls.length - 1]?.resolve({runId, response})
+        return {frames: [], ending: 'held'}
+      })
+      const rpc = makeRpcClient(server.base, {
+        interceptors: [
+          ({path, input, next}) => {
+            if (path.join('.') === 'chat.join') joinCalls.push(readRunId(JSON.stringify(input)))
+            return next()
+          },
+        ],
+      })
+      const connection = chatConnection(rpc, server.base, threadId)
+      try {
+        const leaving = watch(connection)
+        const detached = new AbortController()
+        const leftBehind = collected(connection.joinRun('left-behind', detached.signal))
+        await joins[0]?.promise
+        detached.abort()
+        leaving.abort()
+        expect(await leftBehind).toEqual([])
+        await leaving.ended
+        expect({joinCalls, seen: leaving.seen}).toEqual({joinCalls: ['left-behind'], seen: []})
+        const staying = watch(connection)
+        const deadline = new AbortController()
+        const givenUp = collected(connection.joinRun('given-up', deadline.signal))
+        await joins[1]?.promise
+        deadline.abort()
+        await givenUp
+        const handedOver = await joins[2]?.promise
+        handedOver?.response.write(
+          sse({type: ChatEventType.RUN_FINISHED, threadId, runId: 'given-up', finishReason: 'stop'}),
+        )
+        await staying.finished
+        const followEnded = new Promise((closed) => handedOver?.response.on('close', closed))
+        staying.abort()
+        await followEnded
+        await staying.ended
+        expect(joinCalls).toEqual(['left-behind', 'given-up', 'given-up'])
+      } finally {
+        connection.close()
+        await server.close()
+      }
+    }, 10_000)
 
     it('every subscriber gets each chunk, and one that aborts stops receiving', async () => {
       const clientKit = await bootClientKit()
@@ -387,7 +429,7 @@ describe('chat connection', () => {
     }, 30_000)
   })
 
-  type Served = {frames: object[]; ending: 'broken' | 'ended'}
+  type Served = {frames: object[]; ending: 'broken' | 'ended' | 'held'}
 
   function breakingEventsServer(): Promise<{base: string; close: () => Promise<void>}> {
     const run = {threadId: 'conciv_breaking', runId: 'breaking-run'}
@@ -400,18 +442,23 @@ describe('chat connection', () => {
   }
 
   async function eventsServer(
-    served: (request: IncomingMessage, runId: string) => Served | null,
+    served: (request: IncomingMessage, runId: string, response: ServerResponse) => Served | null,
   ): Promise<{base: string; close: () => Promise<void>}> {
     const server: Server = createServer(async (request, response) => {
       const url = new URL(request.url ?? '/', 'http://127.0.0.1')
       const body = Buffer.concat(await collected<Buffer>(request)).toString()
-      const reply = RPC_CHAT_PATHS.includes(url.pathname) ? served(request, readRunId(body)) : null
+      const reply = RPC_CHAT_PATHS.includes(url.pathname) ? served(request, readRunId(body), response) : null
       if (reply === null) {
         response.writeHead(404).end()
         return
       }
       response.writeHead(200, {'content-type': 'text/event-stream'})
-      const frames = reply.frames.map((frame) => `event: message\ndata: ${JSON.stringify({json: frame})}\n\n`).join('')
+      const frames = reply.frames.map(sse).join('')
+      if (reply.ending === 'held') {
+        response.flushHeaders()
+        response.write(frames)
+        return
+      }
       if (reply.ending === 'broken') response.write(frames, () => response.destroy())
       else response.end(`${frames}event: done\ndata: ${JSON.stringify({json: null})}\n\n`)
     })
@@ -424,7 +471,11 @@ describe('chat connection', () => {
     }
   }
 
-  const RPC_CHAT_PATHS = ['/rpc/chat/send', '/rpc/chat/join']
+  const RPC_CHAT_PATHS = ['/rpc/chat/send', '/rpc/chat/join', '/rpc/chat/events']
+
+  function sse(frame: object): string {
+    return `event: message\ndata: ${JSON.stringify({json: frame})}\n\n`
+  }
 
   function readRunId(body: string): string {
     return /"runId":"([^"]+)"/.exec(body)?.[1] ?? ''
@@ -450,18 +501,6 @@ describe('chat connection', () => {
       ended,
       abort: () => abort.abort(),
     }
-  }
-
-  function sendTurn(connection: ChatConnection, sessionId: string, runId: string): Promise<void> {
-    return connection.send(
-      [{id: `${runId}-user`, role: 'user', parts: [{type: 'text', content: runId}]}],
-      undefined,
-      undefined,
-      {
-        threadId: sessionId,
-        runId,
-      },
-    )
   }
 })
 
@@ -603,18 +642,6 @@ describe('session streams on the rpc socket', () => {
     const next = await source.next()
     if (next.done) throw new Error('the chat stream closed before a session event arrived')
     return next.value
-  }
-
-  function sendTurn(connection: ChatConnection, sessionId: string, runId: string): Promise<void> {
-    return connection.send(
-      [{id: `${runId}-user`, role: 'user', parts: [{type: 'text', content: runId}]}],
-      undefined,
-      undefined,
-      {
-        threadId: sessionId,
-        runId,
-      },
-    )
   }
 
   describe('the rpc socket of the api base', () => {
@@ -960,4 +987,13 @@ async function collected<T>(source: AsyncIterable<T>): Promise<T[]> {
   const seen: T[] = []
   for await (const value of source) seen.push(value)
   return seen
+}
+
+function sendTurn(connection: ChatConnection, sessionId: string, runId: string): Promise<void> {
+  return connection.send(
+    [{id: `${runId}-user`, role: 'user', parts: [{type: 'text', content: runId}]}],
+    undefined,
+    undefined,
+    {threadId: sessionId, runId},
+  )
 }
