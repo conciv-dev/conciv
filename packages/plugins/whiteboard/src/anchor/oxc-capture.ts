@@ -1,4 +1,5 @@
 import {readFile} from 'node:fs/promises'
+import {isPlainObject} from 'es-toolkit'
 import {parseSync} from 'oxc-parser'
 import {confineToRoot, isSecretPath, redactSnippet} from './confine.js'
 
@@ -15,8 +16,7 @@ export type SourceAnchor = {
 
 type OxcNode = Record<string, unknown>
 
-const asNode = (value: unknown): OxcNode | null =>
-  value !== null && typeof value === 'object' ? (value as OxcNode) : null
+const asNode = (value: unknown): OxcNode | null => (isPlainObject(value) ? value : null)
 
 const str = (value: unknown): string | null => (typeof value === 'string' ? value : null)
 const num = (value: unknown): number | null => (typeof value === 'number' ? value : null)

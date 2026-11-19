@@ -1,6 +1,11 @@
 import {AsyncQueuer} from '@tanstack/pacer'
 import {createPacedMutations, throttleStrategy} from '@tanstack/solid-db'
-import type {DeleteMutationFnParams, InsertMutationFnParams, SyncConfig} from '@tanstack/solid-db'
+import type {
+  DeleteMutationFnParams,
+  InsertMutationFnParams,
+  SyncConfig,
+  UpdateMutationFnParams,
+} from '@tanstack/solid-db'
 import {z} from 'zod'
 import {elementRow, type ElementRow} from '../shared/rows.js'
 import type {ChangeFeed, ChangeMessage} from './change-feed.js'
@@ -31,7 +36,6 @@ const buildSync = <Row extends object>(deps: {
     sync: (params) => {
       onReady(params)
       const write = (key: string, row: Row | undefined): void => {
-        if (!row && !params.collection.has(key)) return
         params.begin()
         if (!row) params.write({type: 'delete', key})
         if (row) params.write({type: params.collection.has(key) ? 'update' : 'insert', value: row})
@@ -79,6 +83,7 @@ type TableClient<Row extends {id: string}, Insert> = {
   list: () => Promise<Row[]>
   get: (id: string) => Promise<Row>
   insert: (row: Insert) => Promise<Row>
+  update: (id: string, patch: Partial<Row>) => Promise<Row>
   remove: (id: string) => Promise<{deleted: boolean}>
 }
 
@@ -88,8 +93,9 @@ export function whiteboardCollectionOptions<Row extends {id: string}, Insert>(de
   table: string
   ops: TableClient<Row, Insert>
   toInsert: (row: Row) => Insert
+  onWriteFailed: (error: unknown) => void
 }) {
-  const {feed, room, table, ops, toInsert} = deps
+  const {feed, room, table, ops, toInsert, onWriteFailed} = deps
   const sync: {params?: SyncParams<Row>} = {}
 
   const confirm = (row: Row): void => {
@@ -99,9 +105,17 @@ export function whiteboardCollectionOptions<Row extends {id: string}, Insert>(de
     params.write({type: params.collection.has(row.id) ? 'update' : 'insert', value: row})
     params.commit()
   }
+  const reported = (write: () => Promise<void>): Promise<{refetch: false}> =>
+    write().then(
+      () => ({refetch: false}),
+      (error: unknown) => {
+        onWriteFailed(error)
+        throw error
+      },
+    )
   const confirmDelete = (key: string): void => {
     const params = sync.params
-    if (!params || !params.collection.has(key)) return
+    if (!params) return
     params.begin({immediate: true})
     params.write({type: 'delete', key})
     params.commit()
@@ -117,19 +131,25 @@ export function whiteboardCollectionOptions<Row extends {id: string}, Insert>(de
       readRow: ops.get,
       onReady: (params) => void (sync.params = params),
     }),
-    onInsert: async ({transaction}: InsertMutationFnParams<Row, string>) => {
-      for (const mutation of transaction.mutations) {
-        confirm(await ops.insert(toInsert(mutation.modified)))
-      }
-      return {refetch: false}
-    },
-    onDelete: async ({transaction}: DeleteMutationFnParams<Row, string>) => {
-      for (const mutation of transaction.mutations) {
-        await ops.remove(String(mutation.key))
-        confirmDelete(String(mutation.key))
-      }
-      return {refetch: false}
-    },
+    onInsert: ({transaction}: InsertMutationFnParams<Row, string>) =>
+      reported(async () => {
+        for (const mutation of transaction.mutations) {
+          confirm(await ops.insert(toInsert(mutation.modified)))
+        }
+      }),
+    onUpdate: ({transaction}: UpdateMutationFnParams<Row, string>) =>
+      reported(async () => {
+        for (const mutation of transaction.mutations) {
+          confirm(await ops.update(String(mutation.key), mutation.changes))
+        }
+      }),
+    onDelete: ({transaction}: DeleteMutationFnParams<Row, string>) =>
+      reported(async () => {
+        for (const mutation of transaction.mutations) {
+          await ops.remove(String(mutation.key))
+          confirmDelete(String(mutation.key))
+        }
+      }),
   }
 }
 

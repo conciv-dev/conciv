@@ -56,6 +56,8 @@
     "@takumi-rs/core": "catalog:",
     "@takumi-rs/helpers": "catalog:",
     "drizzle-orm": "^0.45.4",
+    "effect": "catalog:",
+    "es-toolkit": "catalog:",
     "oxc-parser": "catalog:",
     "zod": "catalog:"
   },
@@ -82,6 +84,7 @@
     "playwright": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-error-boundary": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

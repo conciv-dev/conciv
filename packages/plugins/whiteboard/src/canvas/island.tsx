@@ -1,18 +1,21 @@
-import {createSignal, onCleanup, onMount, untrack, type JSX} from 'solid-js'
+import {observable, onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {AsyncRetryer, Batcher} from '@tanstack/pacer'
 import type {Transaction} from '@tanstack/solid-db'
-import {Component, createElement, type PropsWithChildren, type ReactNode} from 'react'
+import {createElement, useSyncExternalStore, type ReactNode} from 'react'
+import {ErrorBoundary} from 'react-error-boundary'
 import {createRoot, type Root} from 'react-dom/client'
 import {Excalidraw, THEME, convertToExcalidrawElements, exportToBlob} from '@excalidraw/excalidraw'
-import type {ExcalidrawImperativeAPI} from '@excalidraw/excalidraw/types'
+import type {AppState, ExcalidrawImperativeAPI, ExcalidrawProps} from '@excalidraw/excalidraw/types'
 import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
 import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
+import {isPlainObject} from 'es-toolkit'
 import {z} from 'zod'
 import {useWhiteboardDb} from '../client/db.js'
 import {json, type ElementRow, type JsonValue, type PendingRow} from '../shared/rows.js'
 import {validateSvg} from '../shared/svg-caps.js'
+import type {Viewport} from './coords.js'
 import {replayDraft, type ReplayHandle, type ReplayStep} from './replay.js'
 
 type SceneElement = OrderedExcalidrawElement
@@ -23,9 +26,8 @@ const PENDING_DRAIN_TASK_MS = 0
 const PENDING_REMOVE_RETRY_MS = 100
 const PENDING_REMOVE_MAX_WAIT_MS = 10_000
 
-const isObject = (value: unknown): boolean => typeof value === 'object' && value !== null
-const sceneElement = z.custom<SceneElement>(isObject)
-const skeleton = z.custom<ExcalidrawElementSkeleton>(isObject)
+const sceneElement = z.custom<SceneElement>(isPlainObject)
+const skeleton = z.custom<ExcalidrawElementSkeleton>(isPlainObject)
 const SkeletonsPayload = z.object({elements: z.array(skeleton)})
 const MermaidPayload = z.object({source: z.string()})
 const SvgPayload = z.object({svg: z.string(), x: z.number(), y: z.number(), width: z.number(), roughness: z.number()})
@@ -54,22 +56,12 @@ async function buildSkeletons(row: PendingRow): Promise<ExcalidrawElementSkeleto
   return withStableIds(SkeletonsPayload.parse(row.payload).elements, row.id)
 }
 
+const CANVAS = 'fixed inset-0 pointer-events-auto'
+
 const reportMountError = (error: unknown): void =>
   console.error(`[whiteboard] the excalidraw canvas failed to mount: ${String(error)}`)
 
-class IslandBoundary extends Component<PropsWithChildren<{onError: (error: unknown) => void}>, {failed: boolean}> {
-  override state = {failed: false}
-  static getDerivedStateFromError(): {failed: boolean} {
-    return {failed: true}
-  }
-  override componentDidCatch(error: unknown): void {
-    this.props.onError(error)
-  }
-  override render(): ReactNode {
-    if (this.state.failed) return createElement('div', {'data-whiteboard-error': ''}, 'canvas failed')
-    return this.props.children
-  }
-}
+const mountFailedFallback = createElement('div', {'data-whiteboard-error': ''}, 'canvas failed')
 
 function toBase64(bytes: Uint8Array): string {
   let binary = ''
@@ -79,18 +71,30 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
-export function Island(props: {doc: Document; room: string; theme: 'light' | 'dark'; visible: boolean}): JSX.Element {
+type Theme = 'light' | 'dark'
+
+const keptSidebar = (state: AppState): AppState['openSidebar'] =>
+  state.defaultSidebarDockedPreference ? state.openSidebar : null
+
+export function Island(props: {
+  mount: HTMLElement
+  room: string
+  theme: Theme
+  visible: boolean
+  onViewport: (viewport: Viewport) => void
+}): JSX.Element {
   const db = useWhiteboardDb()
   let container: HTMLDivElement | undefined
   let root: Root | undefined
+  let unsubscribeScroll: (() => void) | undefined
   const guard = {applyingRemote: false}
   const versions = new Map<string, number>()
   let bufferedScene: readonly ElementRow[] | undefined
 
-  const [api, setApi] = createSignal<ExcalidrawImperativeAPI | undefined>(undefined)
+  let api: ExcalidrawImperativeAPI | undefined
 
   const applyRemote = (rows: readonly ElementRow[]): void => {
-    const instance = untrack(api)
+    const instance = api
     if (!instance) {
       bufferedScene = rows
       return
@@ -216,7 +220,7 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
   }
 
   const liveExportElements = (scope: ExportScope): readonly SceneElement[] =>
-    scope === 'draft' ? [] : (untrack(api)?.getSceneElements() ?? [])
+    scope === 'draft' ? [] : (api?.getSceneElements() ?? [])
 
   const draftExportElements = async (scope: ExportScope): Promise<SceneElement[]> => {
     if (scope === 'live') return []
@@ -225,14 +229,14 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
   }
 
   const exportReply = async (scope: ExportScope): Promise<JsonValue> => {
-    if (scope !== 'draft' && !untrack(api)) {
+    if (scope !== 'draft' && !api) {
       throw new Error(`[whiteboard] the canvas has not attached yet, so a ${scope} export has nothing to render`)
     }
     const elements = [...liveExportElements(scope), ...(await draftExportElements(scope))]
     const blob = await exportToBlob({
       elements,
-      files: untrack(api)?.getFiles() ?? {},
-      appState: {exportBackground: true, viewBackgroundColor: '#ffffff'},
+      files: api?.getFiles() ?? {},
+      appState: {exportBackground: true},
     })
     return {dataBase64: toBase64(new Uint8Array(await blob.arrayBuffer()))}
   }
@@ -295,6 +299,25 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
     lifetime.abort()
   })
 
+  const themes = observable(() => props.theme)
+  const subscribeTheme = (onChange: () => void): (() => void) => {
+    const subscription = themes.subscribe(() => onChange())
+    return () => subscription.unsubscribe()
+  }
+  const readTheme = (): Theme => untrack(() => props.theme)
+  const ThemedExcalidraw = (canvasProps: ExcalidrawProps): ReactNode => {
+    const theme = useSyncExternalStore(subscribeTheme, readTheme)
+    return createElement(Excalidraw, {...canvasProps, theme: theme === 'dark' ? THEME.DARK : THEME.LIGHT})
+  }
+
+  const closeLayersOnCanvasPointer = (): void => {
+    const state = api?.getAppState()
+    if (!state) return
+    const openSidebar = keptSidebar(state)
+    if (state.openMenu === null && openSidebar === state.openSidebar) return
+    api?.updateScene({appState: {openMenu: null, openSidebar}, captureUpdate: CAPTURE_NEVER})
+  }
+
   const renderExcalidraw = (): void => {
     if (!container || !container.isConnected) {
       return reportMountError(new Error('the canvas container never attached to the document'))
@@ -302,16 +325,27 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
     root = createRoot(container)
     root.render(
       createElement(
-        IslandBoundary,
-        {onError: reportMountError},
-        createElement(Excalidraw, {
-          initialData: {elements: [], appState: {viewBackgroundColor: 'transparent'}},
+        ErrorBoundary,
+        {fallback: mountFailedFallback, onError: reportMountError},
+        createElement(ThemedExcalidraw, {
+          initialData: {elements: []},
           zenModeEnabled: true,
           viewModeEnabled: false,
-          theme: props.theme === 'dark' ? THEME.DARK : THEME.LIGHT,
           isCollaborating: true,
           excalidrawAPI: (instance: ExcalidrawImperativeAPI) => {
-            setApi(instance)
+            api = instance
+            const pushViewport = (): void => {
+              const state = instance.getAppState()
+              props.onViewport({
+                scrollX: state.scrollX,
+                scrollY: state.scrollY,
+                zoom: state.zoom,
+                offsetLeft: state.offsetLeft,
+                offsetTop: state.offsetTop,
+              })
+            }
+            pushViewport()
+            unsubscribeScroll = instance.onScrollChange(pushViewport)
             requestAnimationFrame(() => {
               if (!bufferedScene) return
               applyRemote(bufferedScene)
@@ -319,6 +353,7 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
             })
           },
           onChange: (elements: readonly OrderedExcalidrawElement[]) => writeLocal(elements),
+          onPointerDown: closeLayersOnCanvasPointer,
         }),
       ),
     )
@@ -326,20 +361,17 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
 
   onMount(renderExcalidraw)
 
-  onCleanup(() => root?.unmount())
+  onCleanup(() => {
+    unsubscribeScroll?.()
+    root?.unmount()
+  })
 
   return (
-    <Portal mount={props.doc.body}>
+    <Portal mount={props.mount}>
       <div
         ref={(element) => (container = element)}
         inert={!props.visible}
-        style={{
-          position: 'fixed',
-          inset: '0',
-          'z-index': '2147482000',
-          visibility: props.visible ? 'visible' : 'hidden',
-          'content-visibility': props.visible ? 'visible' : 'hidden',
-        }}
+        class={props.visible ? CANVAS : `${CANVAS} invisible content-visibility-hidden`}
       />
     </Portal>
   )
