@@ -61,7 +61,7 @@ import {
   type SessionPort,
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
-import {differenceBy, isNotNil, memoize, pickBy, uniqBy} from 'es-toolkit'
+import {differenceBy, intersectionBy, isNotNil, memoize, pickBy, uniqBy} from 'es-toolkit'
 import {Cause, Effect, Exit, Fiber, FiberMap, Scope} from 'effect'
 import {Bus, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
@@ -745,8 +745,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const sessionTools = async (sessionId: SessionId): Promise<ChatTool[]> => {
     const offered = offeredCapabilities(sessionId)
     try {
-      const added = differenceBy(await withPluginTools(sessionId, offered), offered, (capability) => capability.name)
-      return [...extensionTools, ...added.map(({name, description}) => ({name, description}))]
+      const given = await withPluginTools(sessionId, offered)
+      const added = differenceBy(given, offered, (capability) => capability.name)
+      return [
+        ...intersectionBy(extensionTools, given, (tool) => tool.name),
+        ...added.map(({name, description}) => ({name, description})),
+      ]
     } catch (error) {
       logError(`[core] listing the plugin tools of session ${sessionId} failed: ${String(error)}`)
       return extensionTools
