@@ -45,7 +45,7 @@ export function RecorderPanel(props: {
         viewerId,
         refresh,
         flush: flushNow,
-        readPiece: videoPieceReader(ctx, followedClientId),
+        readPiece: videoPieceReader(ctx),
         saveFile: (file) => Effect.sync(() => saveFileToDisk(file)),
         noteSaved: ({recordingId, summary}) => {
           props.host.screen.composer.attach({

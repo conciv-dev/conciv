@@ -18,7 +18,7 @@ export type ConnectEffect =
   | {readonly type: 'stopSlow'}
   | {readonly type: 'startHold'}
 
-export type ConnectTransition = {readonly state: ConnectState; readonly effects: readonly ConnectEffect[]}
+type ConnectTransition = {readonly state: ConnectState; readonly effects: readonly ConnectEffect[]}
 
 const FIRST_ATTEMPT = 1
 

@@ -189,7 +189,6 @@ function registerComments(
     description:
       'List top-level comments of this session, optionally by file or status. Use it to find existing comments before adding more.',
     input: z.object({
-      scope: z.enum(['session', 'all']),
       file: z.string().optional(),
       status: z.enum(['open', 'resolved', 'drifted', 'orphaned']).optional(),
     }),

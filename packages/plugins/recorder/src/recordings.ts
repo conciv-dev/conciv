@@ -11,17 +11,17 @@ const RECORDING_ID = /^[A-Za-z0-9-]+$/
 
 const SAVED_RECORDING_ID = /^(\d+)-[0-9a-z]{6}-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
-export type SaveResult =
+type SaveResult =
   | {saved: true; recordingId: string; events: RrwebEvent[]}
   | {saved: false; error: 'too-large' | 'empty' | 'io-error'}
 
-export const RecordingNotFound = Schema.TaggedStruct('RecorderRecordingNotFound', {id: Schema.String})
-export type RecordingNotFound = typeof RecordingNotFound.Type
+const RecordingNotFound = Schema.TaggedStruct('RecorderRecordingNotFound', {id: Schema.String})
+type RecordingNotFound = typeof RecordingNotFound.Type
 
-export const RecordingExpired = Schema.TaggedStruct('RecorderRecordingExpired', {id: Schema.String})
-export type RecordingExpired = typeof RecordingExpired.Type
+const RecordingExpired = Schema.TaggedStruct('RecorderRecordingExpired', {id: Schema.String})
+type RecordingExpired = typeof RecordingExpired.Type
 
-export type RecordingStoreInterface = {
+type RecordingStoreInterface = {
   readonly save: (events: RrwebEvent[]) => Effect.Effect<SaveResult>
   readonly get: (id: string) => Effect.Effect<RrwebEvent[], RecordingNotFound | RecordingExpired>
   readonly videoFile: (id: string) => Effect.Effect<string, RecordingNotFound>

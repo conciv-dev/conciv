@@ -1,12 +1,12 @@
 import type {RecorderControl} from './rpc.js'
 
-export const CAPTURE_TTL_MS = 10 * 60 * 1000
+const CAPTURE_TTL_MS = 10 * 60 * 1000
 
-export const VIEWER_LEASE_MS = 20_000
+const VIEWER_LEASE_MS = 20_000
 
-export type Capture = {readonly captureId: string; readonly startTs: number; readonly expiresAt: number}
+type Capture = {readonly captureId: string; readonly startTs: number; readonly expiresAt: number}
 
-export type Viewer = {readonly viewerId: string; readonly expiresAt: number}
+type Viewer = {readonly viewerId: string; readonly expiresAt: number}
 
 export type CaptureRange = {readonly startTs: number; readonly stopTs: number}
 
@@ -27,7 +27,7 @@ export type CaptureControlEffect =
   | {readonly type: 'emit'; readonly control: RecorderControl}
   | {readonly type: 'answer-stop'; readonly captureId: string; readonly range: CaptureRange | undefined}
 
-export type CaptureControlTransition = {
+type CaptureControlTransition = {
   readonly state: CaptureControlState
   readonly effects: readonly CaptureControlEffect[]
 }

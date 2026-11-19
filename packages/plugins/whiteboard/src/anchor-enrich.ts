@@ -17,7 +17,7 @@ const AnchorSource = z.object({
   }),
 })
 
-export type EnrichedAnchor = {anchor: unknown; file: string | null; component: string | null; hash: string | null}
+type EnrichedAnchor = {anchor: unknown; file: string | null; component: string | null; hash: string | null}
 
 const readSource = (anchor: unknown): {file: string | null; component: string | null; hash: string | null} => {
   const parsed = AnchorSource.safeParse(anchor)

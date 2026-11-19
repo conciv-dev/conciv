@@ -9,12 +9,11 @@ import {
   type PanelCommandEventMap,
 } from '@conciv/protocol/event-bus'
 import type {ElementRect, GrabActions, GrabProvider} from '@conciv/grab'
-import type {GrabMode} from './bridge.js'
-import {makeNativeClient, type NativeClient, type NativeTransport} from './bridge-client.js'
-import {readIncompatible, type NativeSignal} from './bridge-machine.js'
-import {nativePageBase} from './page-base.js'
+import type {GrabMode} from './rpc.js'
+import * as IosBridge from './bridge.js'
+import * as IosBridgeMachine from './bridge-machine.js'
 
-export {nativePageBase} from './page-base.js'
+export {nativePageBase} from './bridge.js'
 
 type NativeCall = (message: Record<string, unknown>) => void
 
@@ -67,7 +66,7 @@ const installTransport = Effect.acquireRelease(
       grabResult: forward('grabResult'),
       grabCapability: forward('grabCapability'),
     }
-    const transport: NativeTransport = {
+    const transport: IosBridge.NativeTransport = {
       calls: Stream.fromQueue(calls),
       post: (message) => Effect.sync(() => window.webkit?.messageHandlers?.concivBridge?.postMessage(message)),
     }
@@ -89,13 +88,13 @@ const listenPanelToggled = (listener: (event: WindowEventMap['conciv:panel-toggl
     () => Effect.sync(() => window.removeEventListener('conciv:panel-toggled', listener)),
   )
 
-function followSignal(commands: PanelCommands, signal: NativeSignal): void {
+function followSignal(commands: PanelCommands, signal: IosBridgeMachine.NativeSignal): void {
   if (signal.type === 'open') return commands.emit('open', undefined)
   if (signal.type === 'close') return commands.emit('close', undefined)
   window.dispatchEvent(new CustomEvent('conciv:rebind', {detail: {apiBase: signal.apiBase}}))
 }
 
-function isPicking(client: NativeClient): boolean {
+function isPicking(client: IosBridge.NativeClient): boolean {
   return Effect.runSync(SubscriptionRef.get(client.state)).pick.status === 'picking'
 }
 
@@ -118,17 +117,19 @@ function IncompatibleBridgeAlert(props: {view: BridgeView}): JSX.Element {
 const startNativeService = Effect.fn('Ios.startNativeService')(function* () {
   const commands = yield* openPanelCommands
   const transport = yield* installTransport
-  const client = yield* makeNativeClient({
+  const client = yield* IosBridge.makeNativeClient({
     transport,
     clientId: `native-${crypto.randomUUID()}`,
-    apiBase: nativePageBase(window.location),
+    apiBase: IosBridge.nativePageBase(window.location),
   })
   const run = yield* FiberSet.makeRuntime<never, unknown, unknown>()
   const runPromise = yield* FiberSet.makeRuntimePromise<never, unknown, unknown>()
   const [view, setView] = createStore<BridgeView>({incompatible: null, grabbable: false})
 
   yield* Stream.runForEach(SubscriptionRef.changes(client.state), (state) =>
-    Effect.sync(() => setView(reconcile({incompatible: readIncompatible(state), grabbable: state.grabbable}))),
+    Effect.sync(() =>
+      setView(reconcile({incompatible: IosBridgeMachine.readIncompatible(state), grabbable: state.grabbable})),
+    ),
   ).pipe(Effect.forkScoped)
   yield* Stream.runForEach(client.signals, (signal) => Effect.sync(() => followSignal(commands, signal))).pipe(
     Effect.forkScoped,

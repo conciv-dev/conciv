@@ -4,7 +4,7 @@ import {TestClock} from 'effect/testing'
 import {afterAll, describe, expect, it} from 'vitest'
 import {listenLocal} from '@conciv/plugin-testkit/listen-local'
 import {connect} from '../src/connect.js'
-import {initialConnect, transitionConnect, type ConnectEvent, type ConnectState} from '../src/connect-machine.js'
+import * as TryItConnectMachine from '../src/connect-machine.js'
 import {makeProbeSilent, probeCore, TryItProbe} from '../src/probe.js'
 
 const closers: Array<() => Promise<void>> = []
@@ -40,13 +40,13 @@ describe('probeCore', () => {
   })
 })
 
-function replay(events: readonly ConnectEvent[]) {
+function replay(events: readonly TryItConnectMachine.ConnectEvent[]) {
   return events.reduce(
     (step, event) => {
-      const next = transitionConnect(step.state, event)
+      const next = TryItConnectMachine.transitionConnect(step.state, event)
       return {state: next.state, effects: [...step.effects, ...next.effects]}
     },
-    {state: initialConnect.state, effects: initialConnect.effects},
+    {state: TryItConnectMachine.initialConnect.state, effects: TryItConnectMachine.initialConnect.effects},
   )
 }
 
@@ -54,7 +54,7 @@ describe('connect machine', () => {
   const base = 'http://127.0.0.1:4000/t/tok'
 
   it('starts probing with one unspaced first sweep', () => {
-    expect(initialConnect).toEqual({
+    expect(TryItConnectMachine.initialConnect).toEqual({
       state: {status: 'probing', attempt: 1, slow: false, copied: false},
       effects: [{type: 'sweep', attempt: 1, retry: false}],
     })
@@ -68,7 +68,7 @@ describe('connect machine', () => {
   })
 
   it('a silent first sweep starts the slow hint and a spaced sweep, and a later answer holds before connecting', () => {
-    const events: ConnectEvent[] = [
+    const events: TryItConnectMachine.ConnectEvent[] = [
       {type: 'silent', attempt: 1},
       {type: 'copied'},
       {type: 'answered', attempt: 2, base},
@@ -89,51 +89,58 @@ describe('connect machine', () => {
   it('the slow hint marks probing slow once', () => {
     const slow = replay([{type: 'silent', attempt: 1}, {type: 'slowElapsed'}]).state
     expect(slow).toEqual({status: 'probing', attempt: 2, slow: true, copied: false})
-    expect(transitionConnect(slow, {type: 'slowElapsed'}).state).toBe(slow)
+    expect(TryItConnectMachine.transitionConnect(slow, {type: 'slowElapsed'}).state).toBe(slow)
   })
 
   it('copying marks probing and holding copied, once', () => {
     const copied = replay([{type: 'copied'}]).state
     expect(copied).toEqual({status: 'probing', attempt: 1, slow: false, copied: true})
-    expect(transitionConnect(copied, {type: 'copied'}).state).toBe(copied)
+    expect(TryItConnectMachine.transitionConnect(copied, {type: 'copied'}).state).toBe(copied)
     const holding = replay([{type: 'silent', attempt: 1}, {type: 'answered', attempt: 2, base}, {type: 'copied'}])
     expect(holding.state).toEqual({status: 'holding', base, copied: true})
   })
 
   it('stale attempts return the same state object', () => {
     const probing = replay([{type: 'silent', attempt: 1}]).state
-    expect(transitionConnect(probing, {type: 'silent', attempt: 1})).toEqual({state: probing, effects: []})
-    expect(transitionConnect(probing, {type: 'silent', attempt: 1}).state).toBe(probing)
-    expect(transitionConnect(probing, {type: 'answered', attempt: 1, base}).state).toBe(probing)
-    expect(transitionConnect(probing, {type: 'answered', attempt: 3, base}).state).toBe(probing)
+    expect(TryItConnectMachine.transitionConnect(probing, {type: 'silent', attempt: 1})).toEqual({
+      state: probing,
+      effects: [],
+    })
+    expect(TryItConnectMachine.transitionConnect(probing, {type: 'silent', attempt: 1}).state).toBe(probing)
+    expect(TryItConnectMachine.transitionConnect(probing, {type: 'answered', attempt: 1, base}).state).toBe(probing)
+    expect(TryItConnectMachine.transitionConnect(probing, {type: 'answered', attempt: 3, base}).state).toBe(probing)
   })
 
   it('events that do not apply return the same state object', () => {
-    const probing = initialConnect.state
-    expect(transitionConnect(probing, {type: 'holdElapsed'}).state).toBe(probing)
+    const probing = TryItConnectMachine.initialConnect.state
+    expect(TryItConnectMachine.transitionConnect(probing, {type: 'holdElapsed'}).state).toBe(probing)
     const connected = replay([{type: 'answered', attempt: 1, base}]).state
-    const ignored: ConnectEvent[] = [
+    const ignored: TryItConnectMachine.ConnectEvent[] = [
       {type: 'answered', attempt: 1, base},
       {type: 'silent', attempt: 1},
       {type: 'slowElapsed'},
       {type: 'holdElapsed'},
       {type: 'copied'},
     ]
-    ignored.forEach((event) => expect(transitionConnect(connected, event)).toEqual({state: connected, effects: []}))
+    ignored.forEach((event) =>
+      expect(TryItConnectMachine.transitionConnect(connected, event)).toEqual({state: connected, effects: []}),
+    )
     const holding = replay([
       {type: 'silent', attempt: 1},
       {type: 'answered', attempt: 2, base},
     ]).state
-    expect(transitionConnect(holding, {type: 'slowElapsed'}).state).toBe(holding)
-    expect(transitionConnect(holding, {type: 'answered', attempt: 2, base}).state).toBe(holding)
+    expect(TryItConnectMachine.transitionConnect(holding, {type: 'slowElapsed'}).state).toBe(holding)
+    expect(TryItConnectMachine.transitionConnect(holding, {type: 'answered', attempt: 2, base}).state).toBe(holding)
   })
 
   it('disposal ends every state, and nothing applies after it', () => {
-    expect(transitionConnect(initialConnect.state, {type: 'disposed'})).toEqual({
-      state: {status: 'disposed'},
-      effects: [{type: 'stopSlow'}],
-    })
-    const states: ConnectState[] = [
+    expect(TryItConnectMachine.transitionConnect(TryItConnectMachine.initialConnect.state, {type: 'disposed'})).toEqual(
+      {
+        state: {status: 'disposed'},
+        effects: [{type: 'stopSlow'}],
+      },
+    )
+    const states: TryItConnectMachine.ConnectState[] = [
       replay([
         {type: 'silent', attempt: 1},
         {type: 'answered', attempt: 2, base},
@@ -141,10 +148,15 @@ describe('connect machine', () => {
       replay([{type: 'answered', attempt: 1, base}]).state,
     ]
     states.forEach((state) =>
-      expect(transitionConnect(state, {type: 'disposed'})).toEqual({state: {status: 'disposed'}, effects: []}),
+      expect(TryItConnectMachine.transitionConnect(state, {type: 'disposed'})).toEqual({
+        state: {status: 'disposed'},
+        effects: [],
+      }),
     )
-    const disposed = transitionConnect(initialConnect.state, {type: 'disposed'}).state
-    const late: ConnectEvent[] = [
+    const disposed = TryItConnectMachine.transitionConnect(TryItConnectMachine.initialConnect.state, {
+      type: 'disposed',
+    }).state
+    const late: TryItConnectMachine.ConnectEvent[] = [
       {type: 'answered', attempt: 1, base},
       {type: 'silent', attempt: 1},
       {type: 'slowElapsed'},
@@ -152,7 +164,9 @@ describe('connect machine', () => {
       {type: 'copied'},
       {type: 'disposed'},
     ]
-    late.forEach((event) => expect(transitionConnect(disposed, event)).toEqual({state: disposed, effects: []}))
+    late.forEach((event) =>
+      expect(TryItConnectMachine.transitionConnect(disposed, event)).toEqual({state: disposed, effects: []}),
+    )
   })
 })
 
@@ -168,12 +182,14 @@ const scriptedProbe = (outcomes: Queue.Queue<Outcome>) =>
     ),
   })
 
-const reach = (state: SubscriptionRef.SubscriptionRef<ConnectState>, done: (current: ConnectState) => boolean) =>
-  SubscriptionRef.changes(state).pipe(Stream.filter(done), Stream.runHead)
+const reach = (
+  state: SubscriptionRef.SubscriptionRef<TryItConnectMachine.ConnectState>,
+  done: (current: TryItConnectMachine.ConnectState) => boolean,
+) => SubscriptionRef.changes(state).pipe(Stream.filter(done), Stream.runHead)
 
 const collectUntil = Effect.fn(function* (
-  state: SubscriptionRef.SubscriptionRef<ConnectState>,
-  done: (current: ConnectState) => boolean,
+  state: SubscriptionRef.SubscriptionRef<TryItConnectMachine.ConnectState>,
+  done: (current: TryItConnectMachine.ConnectState) => boolean,
 ) {
   const subscribed = yield* Deferred.make<void>()
   const collected = yield* SubscriptionRef.changes(state).pipe(

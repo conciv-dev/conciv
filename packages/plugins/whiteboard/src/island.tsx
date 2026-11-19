@@ -41,7 +41,7 @@ const reportMountError = (error: unknown): void =>
     ),
   )
 
-const mountFailedFallback = createElement('div', {'data-whiteboard-error': ''}, 'canvas failed')
+const mountFailedFallback = createElement('div', null, 'canvas failed')
 
 type Theme = 'light' | 'dark'
 

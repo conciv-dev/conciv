@@ -11,7 +11,7 @@ plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]
 - Tools: `test_runner_run({pattern?})` and `test_runner_status()` are direct tools the agent calls by name;
   `external_test_runner_list()` stays in code mode.
 - Skill: `test-runner`, how to use the tools.
-- RPC `test-runner`: `status`, `list`, `ui`, `run`, `stop` (error `UNAVAILABLE` with `{available: false, error}` when
+- RPC `test-runner`: `status`, `current`, `list`, `run`, `stop` (error `UNAVAILABLE` with `{available: false, error}` when
   the runner cannot start) and the event `event`, one per live run step (`run-start`, `test`, `file-end`, `run-end`).
 
 ## Invariants
@@ -19,7 +19,7 @@ plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]
 - The engine needs the Effect `ChildProcessSpawner` service from the plugin host. Each run or list spawns
   `node <runner>-child.js` with fd 3 as an output pipe; the child writes one JSON `ChildMessage` per line on it.
   Lines that are blank, not JSON or not a `ChildMessage` are dropped.
-- `NODE_OPTIONS` and every `VIBE_*` variable are removed from the child's environment.
+- `NODE_OPTIONS` is removed from the child's environment.
 - `run-machine.ts` holds the run: one child at a time (a second list or run waits its turn), the events of the
   run in progress (replayed to a new subscriber, returned by `current`), the last finished result and the last
   start failure, which lasts until the next `run-start`. A child that reports `error`, or exits non-zero or by a

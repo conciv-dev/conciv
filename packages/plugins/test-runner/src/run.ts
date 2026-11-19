@@ -4,32 +4,17 @@ import {ChildProcess, ChildProcessSpawner} from 'effect/process'
 import {readChildExit} from './child-exit.js'
 import {ChildMessageSchema, type ChildMessage} from './child-protocol.js'
 import type {TestEvent} from './events.js'
-import {
-  createRunState,
-  selectCurrentRun,
-  selectReplay,
-  transitionRun,
-  type RunEffect,
-  type RunEvent,
-  type Settlement,
-} from './run-machine.js'
-import {
-  makeRunnerUnavailable,
-  type RunArgs,
-  type TestRunnerAdapter,
-  type TestRunnerCapabilities,
-  type TestRunnerManager,
-} from './runner.js'
+import * as TestRunnerRunMachine from './run-machine.js'
+import {makeRunnerUnavailable, type RunArgs, type TestRunnerAdapter, type TestRunnerManager} from './runner.js'
 
-export type ChildRunnerSpec = {
+type ChildRunnerSpec = {
   id: string
-  capabilities: TestRunnerCapabilities
   childUrl: URL
   buildRunArgs: (args: RunArgs, cwd: string) => string[]
   buildListArgs: (failedOnly: boolean, cwd: string) => string[]
 }
 
-type Settled = {readonly attempt: number; readonly settlement: Settlement}
+type Settled = {readonly attempt: number; readonly settlement: TestRunnerRunMachine.Settlement}
 
 const STOP_GRACE = Duration.seconds(5)
 
@@ -43,12 +28,12 @@ function decodeLine(line: string): Result.Result<ChildMessage, string> {
 }
 
 function cleanEnv(base: NodeJS.ProcessEnv): Record<string, string | undefined> {
-  return Object.fromEntries(Object.entries(base).filter(([key]) => key !== 'NODE_OPTIONS' && !key.startsWith('VIBE_')))
+  return Object.fromEntries(Object.entries(base).filter(([key]) => key !== 'NODE_OPTIONS'))
 }
 
 const makeChildManager = Effect.fn('TestRunner.makeChildManager')(function* (spec: ChildRunnerSpec, cwd: string) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-  const state = yield* SubscriptionRef.make(createRunState(spec.id))
+  const state = yield* SubscriptionRef.make(TestRunnerRunMachine.createRunState(spec.id))
   const events = yield* PubSub.unbounded<TestEvent>()
   const settlements = yield* PubSub.unbounded<Settled>()
   const child = yield* FiberHandle.make<void, never>()
@@ -90,7 +75,7 @@ const makeChildManager = Effect.fn('TestRunner.makeChildManager')(function* (spe
       Effect.withSpan('TestRunner.child'),
     )
 
-  const perform = (effect: RunEffect): Effect.Effect<void> => {
+  const perform = (effect: TestRunnerRunMachine.RunEffect): Effect.Effect<void> => {
     if (effect.type === 'spawn')
       return FiberHandle.run(child, runChild(effect.attempt, effect.args)).pipe(Effect.asVoid)
     if (effect.type === 'kill')
@@ -101,15 +86,15 @@ const makeChildManager = Effect.fn('TestRunner.makeChildManager')(function* (spe
     return PubSub.publish(settlements, {attempt: effect.attempt, settlement: effect.settlement}).pipe(Effect.asVoid)
   }
 
-  const step = (event: RunEvent): Effect.Effect<void> =>
+  const step = (event: TestRunnerRunMachine.RunEvent): Effect.Effect<void> =>
     Effect.gen(function* () {
       const current = yield* SubscriptionRef.get(state)
-      const next = transitionRun(current, event)
+      const next = TestRunnerRunMachine.transitionRun(current, event)
       if (next.state !== current) yield* SubscriptionRef.set(state, next.state)
       yield* Effect.forEach(next.effects, perform, {discard: true})
     })
 
-  const dispatch = (event: RunEvent) => transitions.withPermits(1)(step(event))
+  const dispatch = (event: TestRunnerRunMachine.RunEvent) => transitions.withPermits(1)(step(event))
 
   const request = (type: 'run-requested' | 'list-requested', args: readonly string[]) =>
     requests.withPermits(1)(
@@ -150,7 +135,7 @@ const makeChildManager = Effect.fn('TestRunner.makeChildManager')(function* (spe
     transitions.withPermits(1)(
       Effect.gen(function* () {
         const subscription = yield* PubSub.subscribe(events)
-        const replay = selectReplay(yield* SubscriptionRef.get(state))
+        const replay = TestRunnerRunMachine.selectReplay(yield* SubscriptionRef.get(state))
         return Stream.concat(Stream.fromIterable(replay), Stream.fromSubscription(subscription))
       }),
     ),
@@ -162,26 +147,20 @@ const makeChildManager = Effect.fn('TestRunner.makeChildManager')(function* (spe
     list,
     run,
     status: SubscriptionRef.get(state).pipe(Effect.map((current) => current.last)),
-    current: SubscriptionRef.get(state).pipe(Effect.map(selectCurrentRun)),
+    current: SubscriptionRef.get(state).pipe(Effect.map(TestRunnerRunMachine.selectCurrentRun)),
     events: liveEvents,
-    openUiServer: Effect.succeed({available: false}),
     stop: dispatch({type: 'stop-requested'}),
   }
   return manager
 })
 
 export function defineChildRunner(spec: ChildRunnerSpec): TestRunnerAdapter {
-  return {id: spec.id, capabilities: spec.capabilities, create: (cwd) => makeChildManager(spec, cwd)}
+  return {id: spec.id, create: (cwd) => makeChildManager(spec, cwd)}
 }
 
-export function defineStubRunner(options: {
-  id: string
-  capabilities: TestRunnerCapabilities
-  reason: string
-}): TestRunnerAdapter {
+export function defineStubRunner(options: {id: string; reason: string}): TestRunnerAdapter {
   return {
     id: options.id,
-    capabilities: options.capabilities,
     create: () => Effect.fail(makeRunnerUnavailable({message: options.reason})),
   }
 }

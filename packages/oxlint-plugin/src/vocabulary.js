@@ -189,7 +189,7 @@ const DEV_BUNDLER_BRIDGE_PATHS = [
 ]
 
 const NATIVE_AND_REACT_BRIDGE_PATHS = [
-  'packages/plugins/ios/src/bridge.ts',
+  'packages/plugins/ios/src/rpc.ts',
   'packages/plugins/ios/src/client.tsx',
   'packages/publish/src/cli.ts',
   'packages/publish/src/swift-mirror.ts',

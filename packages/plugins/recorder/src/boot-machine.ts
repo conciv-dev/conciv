@@ -20,7 +20,7 @@ export type BootEffect<Prepared> =
   | {readonly type: 'finish-session'}
   | {readonly type: 'report-start-failed'; readonly error: unknown}
 
-export type BootTransition<Prepared> = {readonly state: BootState; readonly effects: readonly BootEffect<Prepared>[]}
+type BootTransition<Prepared> = {readonly state: BootState; readonly effects: readonly BootEffect<Prepared>[]}
 
 export const initialBoot: BootState = {status: 'off', attempt: 0, live: false}
 

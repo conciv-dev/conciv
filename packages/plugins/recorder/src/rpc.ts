@@ -23,7 +23,7 @@ export function jsonByteLength(value: unknown): number {
   return encoder.encode(JSON.stringify(value)).length
 }
 
-export const RecorderControlSchema = z.object({
+const RecorderControlSchema = z.object({
   live: z.boolean().optional(),
   flush: z.boolean().optional(),
   snapshot: z.boolean().optional(),
@@ -88,7 +88,7 @@ export const Recorder = Rpc.define({
     'recordings.save': {input: RangeInput, output: SaveOutput},
     'recordings.get': {input: z.object({recordingId: z.string()}), output: RecordingOutput},
     'recordings.exportVideo': {
-      input: z.object({clientId: ClientId, id: z.string().min(1).max(256), offset: z.number().int().nonnegative()}),
+      input: z.object({id: z.string().min(1).max(256), offset: z.number().int().nonnegative()}),
       output: VideoPieceOutput,
       errors: {
         expired: z.undefined(),

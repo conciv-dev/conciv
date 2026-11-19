@@ -195,9 +195,9 @@ function containsWidget(el: Element): boolean {
   return el.querySelector(CONCIV_UI_SELECTOR) !== null
 }
 
-export type CaptureDeps = {document: Document; snapshot: SnapshotLibrary | null}
+type CaptureDeps = {document: Document; snapshot: SnapshotLibrary | null}
 
-export type TakenCapture = {capture: ElementCapture; pendingCss: PendingCssText | null}
+type TakenCapture = {capture: ElementCapture; pendingCss: PendingCssText | null}
 
 export function takeElementCapture(el: Element, kind: ElementCaptureKind, deps: CaptureDeps): TakenCapture | null {
   if (!el.isConnected) return null

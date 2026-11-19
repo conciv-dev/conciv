@@ -24,7 +24,7 @@ plugins: [['@conciv/plugin-ios', {projectRoot: 'ios/PayApp', bundleId: 'dev.conc
 
 ## Browser part
 
-- `./bridge`: the zod schemas of the versioned page and native messages (`PageToNativeSchema`, `NativeToPageSchema`,
+- `./rpc`: the zod schemas of the versioned page and native messages (`PageToNativeSchema`, `NativeToPageSchema`,
   `BridgeMessageSchema`) and their types, the single source the Swift `BridgeMessages.swift` mirrors.
 - `./client`: `makeNativeService`, a scoped Effect that, on a page whose `window.webkit.messageHandlers.concivBridge`
   exists, starts the bridge and returns the native service (`undefined` on any other page, which then gets nothing).
@@ -155,9 +155,9 @@ shipped source).
    native view, and confirm the staged image preview, text, and class appear in the
    composer.
 6. Ask the agent about the grabbed view; it uses the subtree folded into `grab.text`
-   plus `source` and grep to locate the Swift and can act. Run `ios_screenshot` (returns
-   an `imageResult` image) to verify a change after `ios_build`/`ios_run`. There is no
-   `ios.viewHierarchy` tool in v1.
+   plus `source` and grep to locate the Swift and can act. Run `ios_screenshot` (answers
+   the screen as a PNG file part) to verify a change after `ios_build`/`ios_run`. There is no
+   `ios_view_hierarchy` tool in v1.
 7. Restart the **same** core on a new port; confirm re-handshake re-binds without
    relaunching the app, with nav and session preserved (same-core drift). Point the SDK
    at a **different** core; confirm it fresh-mounts (no stale nav or session). Kill the

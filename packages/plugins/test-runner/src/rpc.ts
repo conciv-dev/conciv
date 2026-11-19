@@ -3,10 +3,8 @@ import {z} from 'zod'
 import {TestEventSchema, TestRunResultSchema} from './events.js'
 
 export const ListResultSchema = z.object({
-  files: z.array(z.object({file: z.string(), relPath: z.string(), lastState: z.string().optional()})),
+  files: z.array(z.object({file: z.string(), relPath: z.string()})),
 })
-
-const UiServerInfoSchema = z.object({available: z.boolean(), url: z.string().optional()})
 
 const RunArgsSchema = z.object({
   patterns: z.array(z.string()).optional(),
@@ -28,7 +26,6 @@ export const TestRunner = Rpc.define({
     status: {input: NoInputSchema, output: TestRunResultSchema},
     current: {input: NoInputSchema, output: CurrentRunSchema},
     list: {input: ListInputSchema, output: ListResultSchema, errors: unavailable},
-    ui: {input: NoInputSchema, output: UiServerInfoSchema, errors: unavailable},
     run: {input: RunArgsSchema, output: TestRunResultSchema, errors: unavailable},
     stop: {input: NoInputSchema, output: z.object({ok: z.boolean()})},
   },

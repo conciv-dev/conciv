@@ -74,7 +74,7 @@ const CARD_TURN = {
       },
       result: {cid: 'c_42'},
     },
-    {name: 'whiteboard_comment_list', input: {scope: 'session'}, result: {comments: [{}, {}]}},
+    {name: 'whiteboard_comment_list', input: {}, result: {comments: [{}, {}]}},
     {name: 'whiteboard_comment_delete', input: {cid: 'c_42'}, result: {cid: 'c_42', deleted: true}},
     {
       name: 'whiteboard_pin_set_state',
@@ -1118,7 +1118,7 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(page.getByRole('button', {name: /^AI comment, open/})).toHaveCount(0)
       await observer.completed(whiteboardCall('comments.remove', deleted))
       await observer.completed(whiteboardCall('pins.remove', deleted))
-      const left = CommentList.parse(await widget.kit.callTool('whiteboard_comment_list', {scope: 'session'}))
+      const left = CommentList.parse(await widget.kit.callTool('whiteboard_comment_list', {}))
       expect(left.comments.map((comment) => comment.cid)).toEqual(['older'])
 
       await widget.kit.callTool('whiteboard_comment_create', {

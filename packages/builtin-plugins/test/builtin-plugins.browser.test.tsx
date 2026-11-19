@@ -2504,7 +2504,6 @@ describe('the tanstack cards', () => {
           message: 'Cannot find module ./missing',
           stack: null,
           source: {file: 'src/routes/about.tsx', line: 4, column: 1},
-          digest: null,
           at: 1,
         },
       ],

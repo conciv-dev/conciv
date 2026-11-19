@@ -1,6 +1,6 @@
 import {z} from 'zod'
 
-export type SerializedNode = {
+type SerializedNode = {
   readonly id: number
   readonly type: number
   readonly tagName?: string

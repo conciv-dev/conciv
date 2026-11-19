@@ -4226,9 +4226,6 @@ importers:
 
   packages/plugins/whiteboard:
     dependencies:
-      '@conciv/protocol':
-        specifier: workspace:^
-        version: link:../../protocol
       '@takumi-rs/core':
         specifier: 'catalog:'
         version: 2.20.0(csstype@3.2.3)(preact@11.1.0)(react@19.3.1)
@@ -4266,6 +4263,9 @@ importers:
       '@conciv/plugin-testkit':
         specifier: workspace:^
         version: link:../../plugin-testkit
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../../protocol
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig

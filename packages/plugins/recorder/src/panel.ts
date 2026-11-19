@@ -1,29 +1,29 @@
 import {Effect, FiberSet, PubSub, Schedule, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
 import type {Context} from '@conciv/plugin/experimental'
 import {makeMachineDriver} from './machine-driver.js'
-import {initialPanel, transitionPanel, type PanelEffect, type PanelState, type SaveFailure} from './panel-machine.js'
+import * as RecorderPanelMachine from './panel-machine.js'
 import {Recorder} from './rpc.js'
 
-export const PresenceFailed = Schema.TaggedStruct('RecorderPresenceFailed', {cause: Schema.Defect()})
-export type PresenceFailed = typeof PresenceFailed.Type
+const PresenceFailed = Schema.TaggedStruct('RecorderPresenceFailed', {cause: Schema.Defect()})
+type PresenceFailed = typeof PresenceFailed.Type
 
 export const ExportFailed = Schema.TaggedStruct('RecorderExportFailed', {cause: Schema.Defect()})
 export type ExportFailed = typeof ExportFailed.Type
 
-export const SendFailed = Schema.TaggedStruct('RecorderSendFailed', {cause: Schema.Defect()})
-export type SendFailed = typeof SendFailed.Type
+const SendFailed = Schema.TaggedStruct('RecorderSendFailed', {cause: Schema.Defect()})
+type SendFailed = typeof SendFailed.Type
 
 const SaveRefused = Schema.TaggedStruct('RecorderSaveRefused', {
   reason: Schema.Literals(['empty', 'too-large', 'io-error']),
 })
 type SaveRefused = typeof SaveRefused.Type
 
-export const ResetFailed = Schema.TaggedStruct('RecorderResetFailed', {cause: Schema.Defect()})
-export type ResetFailed = typeof ResetFailed.Type
+const ResetFailed = Schema.TaggedStruct('RecorderResetFailed', {cause: Schema.Defect()})
+type ResetFailed = typeof ResetFailed.Type
 
 const VIEWER_RENEW = '7 seconds'
 
-const SAVE_REFUSALS: Record<SaveFailure, string> = {
+const SAVE_REFUSALS: Record<RecorderPanelMachine.SaveFailure, string> = {
   empty: 'Nothing to save yet: interact with the page first.',
   'too-large': 'The recording is too large to save. Start a new recording.',
   'io-error': 'Could not write the recording to the project folder. Try again.',
@@ -32,7 +32,7 @@ const SAVE_REFUSALS: Record<SaveFailure, string> = {
 type PanelWork = Effect.Effect<void, ExportFailed | SendFailed | SaveRefused | ResetFailed>
 
 export type Panel = {
-  readonly state: SubscriptionRef.SubscriptionRef<PanelState>
+  readonly state: SubscriptionRef.SubscriptionRef<RecorderPanelMachine.PanelState>
   readonly renewPresence: Effect.Effect<void>
   readonly requestExport: Effect.Effect<void>
   readonly requestSend: Effect.Effect<void>
@@ -64,7 +64,7 @@ export const openPanel = Effect.fn('recorder.panel')(function* (options: {
   const settle = (
     work: PanelWork,
     attempt: number,
-    dispatch: (event: Parameters<typeof transitionPanel>[1]) => Effect.Effect<void>,
+    dispatch: (event: Parameters<typeof RecorderPanelMachine.transitionPanel>[1]) => Effect.Effect<void>,
   ) =>
     work.pipe(
       Effect.andThen(dispatch({type: 'settled', attempt})),
@@ -77,9 +77,9 @@ export const openPanel = Effect.fn('recorder.panel')(function* (options: {
   const work = {export: options.exportRecording, send: options.sendToAgent, reset: options.reset}
 
   const driver = yield* makeMachineDriver({
-    initial: initialPanel,
-    transition: transitionPanel,
-    run: (command: PanelEffect, current) => {
+    initial: RecorderPanelMachine.initialPanel,
+    transition: RecorderPanelMachine.transitionPanel,
+    run: (command: RecorderPanelMachine.PanelEffect, current) => {
       if (command.type === 'export' || command.type === 'send' || command.type === 'reset')
         return Effect.asVoid(
           FiberSet.run(running, settle(work[command.type], command.attempt, current.dispatch), {
@@ -116,10 +116,10 @@ type SaveOutput =
   | {readonly saved: true; readonly recordingId: string; readonly summary: string}
   | {
       readonly saved: false
-      readonly error: SaveFailure
+      readonly error: RecorderPanelMachine.SaveFailure
     }
 
-export function saveRecording<Failure>(options: {
+function saveRecording<Failure>(options: {
   readonly flush: Effect.Effect<void>
   readonly save: Effect.Effect<SaveOutput, Failure>
 }): Effect.Effect<SavedRecording, Failure | SaveRefused> {

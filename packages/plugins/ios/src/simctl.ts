@@ -9,7 +9,7 @@ export const SpawnFailed = Schema.TaggedStruct('SpawnFailed', {command: Schema.S
 
 export const OutputTooLarge = Schema.TaggedStruct('OutputTooLarge', {command: Schema.String})
 
-export type RunError = typeof SpawnFailed.Type | typeof OutputTooLarge.Type
+type RunError = typeof SpawnFailed.Type | typeof OutputTooLarge.Type
 
 export interface Interface {
   readonly run: (command: string, args: readonly string[], options?: RunOptions) => Effect.Effect<RunResult, RunError>

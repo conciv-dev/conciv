@@ -1,17 +1,51 @@
-import {getOwner, onCleanup} from 'solid-js'
+import {from, getOwner, onCleanup, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
-import {Effect, Exit, Scope, SubscriptionRef} from 'effect'
+import {Effect, Exit, Fiber, Scope, Stream, SubscriptionRef} from 'effect'
 import {useQuery} from '@conciv/client'
-import {ComposerPill, Plugin, SettingsPage, Slot} from '@conciv/plugin/experimental'
+import {ComposerPill, Plugin, SettingsPage, Slot, usePlugin} from '@conciv/plugin/experimental'
 import {GrabApi} from '@conciv/plugin/experimental/grab'
 import {makeCommentCompose, type ComposePhase} from './comment-compose.js'
 import {ComposePopover} from './compose-popover.js'
-import {refAccessor} from './ref-accessor.js'
 import {WhiteboardCanvas, WhiteboardNotices} from './overlay.js'
 import {readCanvasBackground, whiteboardStores, type CanvasBackground} from './stores.js'
-import {CANVAS_BACKGROUND_ROW, CanvasBackgroundRow} from './canvas-background-row.js'
 import type {ChatCover} from './comments-model.js'
+
+const CANVAS_BACKGROUND_ROW = 'settings-whiteboard-canvas-background'
+const LABEL = 'Canvas background: see the page through the canvas'
+
+function CanvasBackgroundRow(): JSX.Element {
+  const ctx = usePlugin<{stores: typeof whiteboardStores}>()
+  const ui = ctx.ui
+  const canvas = ctx.stores.canvas
+  return (
+    <ui.SettingsRow
+      id={CANVAS_BACKGROUND_ROW}
+      title={LABEL}
+      description="Off, the whiteboard draws on a solid background that follows the theme."
+    >
+      <ui.Switch
+        label={LABEL}
+        hideLabel
+        checked={canvas.value.transparent}
+        onChange={(checked) =>
+          canvas.update((draft) => {
+            draft.transparent = checked
+          })
+        }
+      />
+    </ui.SettingsRow>
+  )
+}
+
+function refAccessor<A>(ref: SubscriptionRef.SubscriptionRef<A>, initial: A): Accessor<A> {
+  return from<A>((set) => {
+    const fiber = Effect.runFork(
+      Stream.runForEach(SubscriptionRef.changes(ref), (value) => Effect.sync(() => void set(() => value))),
+    )
+    return () => void Effect.runFork(Fiber.interrupt(fiber))
+  }, initial)
+}
 
 export default Plugin.define({
   stores: whiteboardStores,

@@ -15,12 +15,12 @@ function maskingOptions(masking: RecorderConfig['masking']): {
   return {maskAllInputs: false, maskInputOptions: {password: true}}
 }
 
-export type CaptureLibrary = {record: typeof record; getRecordConsolePlugin: typeof getRecordConsolePlugin}
+type CaptureLibrary = {record: typeof record; getRecordConsolePlugin: typeof getRecordConsolePlugin}
 
-export const CaptureLibraryLoadFailed = Schema.TaggedStruct('RecorderCaptureLibraryLoadFailed', {
+const CaptureLibraryLoadFailed = Schema.TaggedStruct('RecorderCaptureLibraryLoadFailed', {
   cause: Schema.Defect(),
 })
-export type CaptureLibraryLoadFailed = typeof CaptureLibraryLoadFailed.Type
+type CaptureLibraryLoadFailed = typeof CaptureLibraryLoadFailed.Type
 
 export const loadCaptureLibrary: Effect.Effect<CaptureLibrary, CaptureLibraryLoadFailed> = Effect.tryPromise({
   try: () => Promise.all([import('rrweb'), import('@rrweb/rrweb-plugin-console-record')]),

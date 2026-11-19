@@ -19,16 +19,12 @@ import * as ClientRingsModel from '../src/rings.js'
 import * as RendererCacheModel from '../src/renderer-cache.js'
 import {RenderFailed, RendererUnavailable, launchChromiumRenderer, type KeyframeRenderer} from '../src/render.js'
 import {pullWindow} from '../src/runtime.js'
-import {
-  initialCaptureControl,
-  transitionCaptureControl,
-  type CaptureControlState,
-} from '../src/capture-control-machine.js'
-import {initialBoot, transitionBoot} from '../src/boot-machine.js'
-import {initialCaptureSession, transitionCaptureSession} from '../src/capture-session-machine.js'
-import {initialFlusher, transitionFlusher, type FlusherState} from '../src/flusher-machine.js'
-import {initialPanel, transitionPanel} from '../src/panel-machine.js'
-import {initialVisibilityPause, transitionVisibilityPause} from '../src/visibility-pause-machine.js'
+import * as RecorderCaptureControlMachine from '../src/capture-control-machine.js'
+import * as RecorderBootMachine from '../src/boot-machine.js'
+import * as RecorderCaptureSessionMachine from '../src/capture-session-machine.js'
+import * as RecorderFlusherMachine from '../src/flusher-machine.js'
+import * as RecorderPanelMachine from '../src/panel-machine.js'
+import * as RecorderVisibilityPauseMachine from '../src/visibility-pause-machine.js'
 import {runBoot} from '../src/boot.js'
 import {openCaptureSession} from '../src/capture-session.js'
 import {openPanel} from '../src/panel.js'
@@ -597,9 +593,7 @@ describe('the recording tools', () => {
       `the recording ${recordingId} has expired`,
     )
     expect(await call(kit, 'recordings.get', {recordingId})).toEqual({kind: 'expired'})
-    expect(await failureType(call(kit, 'recordings.exportVideo', {clientId: 'kept', id: recordingId, offset: 0}))).toBe(
-      'expired',
-    )
+    expect(await failureType(call(kit, 'recordings.exportVideo', {id: recordingId, offset: 0}))).toBe('expired')
   })
 
   it('answers the log as output and the keyframes rendered in Chromium as image file parts after the untrusted-data note', async () => {
@@ -709,12 +703,11 @@ const VideoPieceSchema = z.strictObject({data: z.string(), eof: z.boolean(), nam
 
 async function readVideo(
   kit: CoreKit,
-  clientId: string,
   id: string,
 ): Promise<{bytes: Buffer; pieces: z.infer<typeof VideoPieceSchema>[]}> {
   const pieces: z.infer<typeof VideoPieceSchema>[] = []
   const read = async (offset: number): Promise<void> => {
-    const piece = VideoPieceSchema.parse(await call(kit, 'recordings.exportVideo', {clientId, id, offset}))
+    const piece = VideoPieceSchema.parse(await call(kit, 'recordings.exportVideo', {id, offset}))
     pieces.push(piece)
     if (!piece.eof) await read(offset + Buffer.from(piece.data, 'base64').length)
   }
@@ -726,7 +719,7 @@ describe('the recording video export', () => {
   it('renders a short recording once into <id>.webm beside its json and answers it in one piece', async () => {
     const kit = await bootRecorder()
     const saved = await flushAndSave(kit, 'video', renderStream(Date.now() - 2000))
-    const {bytes, pieces} = await readVideo(kit, 'video', saved.recordingId)
+    const {bytes, pieces} = await readVideo(kit, saved.recordingId)
     expect(pieces).toHaveLength(1)
     expect(pieces[0]).toMatchObject({eof: true, name: 'recording.webm', mime: 'video/webm'})
     expect(bytes.length).toBeGreaterThan(0)
@@ -746,7 +739,7 @@ describe('the recording video export', () => {
     )
     const kit = await bootRecorder(folder)
 
-    const reads = await Promise.all(Array.from({length: 4}, () => readVideo(kit, 'racing-video', id)))
+    const reads = await Promise.all(Array.from({length: 4}, () => readVideo(kit, id)))
     const webmHeader = Buffer.from([0x1a, 0x45, 0xdf, 0xa3])
     for (const read of reads) expect(read.bytes.subarray(0, 4).equals(webmHeader)).toBe(true)
     const published = await readFile(join(recordingsDir, `${id}.webm`))
@@ -764,20 +757,18 @@ describe('the recording video export', () => {
     await writeFile(join(recordingsDir, `${id}.webm`), video)
     const kit = await bootRecorder(folder)
 
-    const {bytes, pieces} = await readVideo(kit, 'stored', id)
+    const {bytes, pieces} = await readVideo(kit, id)
     expect(pieces.length).toBeGreaterThan(1)
     for (const piece of pieces) expect(Buffer.from(piece.data, 'base64').length).toBeLessThanOrEqual(MAX_FILE_BYTES)
     expect(bytes.equals(video)).toBe(true)
 
-    expect(await call(kit, 'recordings.exportVideo', {clientId: 'stored', id, offset: video.length})).toEqual({
+    expect(await call(kit, 'recordings.exportVideo', {id, offset: video.length})).toEqual({
       data: '',
       eof: true,
       name: 'recording.webm',
       mime: 'video/webm',
     })
-    expect(
-      await failureType(call(kit, 'recordings.exportVideo', {clientId: 'stored', id: 'missing-recording', offset: 0})),
-    ).toBe('missing')
+    expect(await failureType(call(kit, 'recordings.exportVideo', {id: 'missing-recording', offset: 0}))).toBe('missing')
   })
 })
 
@@ -1015,14 +1006,14 @@ describe('the recorder failure shapes', () => {
       error: {message: 'no active capture not-a-capture', name: 'Error'},
     })
 
-    expect(await rpcFailure(call(kit, 'recordings.exportVideo', {clientId: 'flat', id: flat, offset: 0}))).toEqual({
+    expect(await rpcFailure(call(kit, 'recordings.exportVideo', {id: flat, offset: 0}))).toEqual({
       code: 'PLUGIN_RPC',
       status: 400,
       message: `The recording ${flat} could not be rendered to video`,
       data: {type: 'render-failed', message: `The recording ${flat} could not be rendered to video`},
     })
 
-    expect(await rpcFailure(call(kit, 'recordings.exportVideo', {clientId: 'locked', id: locked, offset: 0}))).toEqual({
+    expect(await rpcFailure(call(kit, 'recordings.exportVideo', {id: locked, offset: 0}))).toEqual({
       code: 'PLUGIN_RPC',
       status: 400,
       message: `The video of the recording ${locked} could not be read`,
@@ -1064,50 +1055,86 @@ describe('the recorder capture sweep', () => {
 
 describe('the capture control machine', () => {
   it('claims and releases captures and viewer leases, expires both by the clock on any event, and ignores everything once disposed', () => {
-    const started = transitionCaptureControl(initialCaptureControl, {
-      type: 'capture.started',
-      captureId: 'one',
-      now: 1000,
-    })
+    const started = RecorderCaptureControlMachine.transitionCaptureControl(
+      RecorderCaptureControlMachine.initialCaptureControl,
+      {
+        type: 'capture.started',
+        captureId: 'one',
+        now: 1000,
+      },
+    )
     expect(started.state.status).toBe('live')
     expect(started.effects).toEqual([{type: 'emit', control: {live: true, snapshot: true, flush: true}}])
 
-    const joined = transitionCaptureControl(started.state, {type: 'viewer.renewed', viewerId: 'v', now: 2000})
+    const joined = RecorderCaptureControlMachine.transitionCaptureControl(started.state, {
+      type: 'viewer.renewed',
+      viewerId: 'v',
+      now: 2000,
+    })
     expect(joined.effects).toEqual([{type: 'emit', control: {snapshot: true, flush: true}}])
-    const renewed = transitionCaptureControl(joined.state, {type: 'viewer.renewed', viewerId: 'v', now: 3000})
+    const renewed = RecorderCaptureControlMachine.transitionCaptureControl(joined.state, {
+      type: 'viewer.renewed',
+      viewerId: 'v',
+      now: 3000,
+    })
     expect(renewed.effects).toEqual([])
 
-    const stopped = transitionCaptureControl(renewed.state, {type: 'capture.stopped', captureId: 'one', now: 4000})
+    const stopped = RecorderCaptureControlMachine.transitionCaptureControl(renewed.state, {
+      type: 'capture.stopped',
+      captureId: 'one',
+      now: 4000,
+    })
     expect(stopped.effects).toEqual([
       {type: 'emit', control: {flush: true, live: true}},
       {type: 'answer-stop', captureId: 'one', range: {startTs: 1000, stopTs: 4000}},
     ])
     expect(
-      transitionCaptureControl(stopped.state, {type: 'capture.stopped', captureId: 'one', now: 4500}).effects,
+      RecorderCaptureControlMachine.transitionCaptureControl(stopped.state, {
+        type: 'capture.stopped',
+        captureId: 'one',
+        now: 4500,
+      }).effects,
     ).toEqual([{type: 'answer-stop', captureId: 'one', range: undefined}])
 
-    const quiet = transitionCaptureControl(stopped.state, {type: 'clock.ticked', now: 22_999})
+    const quiet = RecorderCaptureControlMachine.transitionCaptureControl(stopped.state, {
+      type: 'clock.ticked',
+      now: 22_999,
+    })
     expect(quiet.state).toBe(stopped.state)
-    const lapsed = transitionCaptureControl(stopped.state, {type: 'clock.ticked', now: 23_000})
+    const lapsed = RecorderCaptureControlMachine.transitionCaptureControl(stopped.state, {
+      type: 'clock.ticked',
+      now: 23_000,
+    })
     expect(lapsed.state).toEqual({status: 'idle'})
     expect(lapsed.effects).toEqual([{type: 'emit', control: {live: false}}])
 
-    const alone = transitionCaptureControl(initialCaptureControl, {type: 'viewer.renewed', viewerId: 'w', now: 0})
+    const alone = RecorderCaptureControlMachine.transitionCaptureControl(
+      RecorderCaptureControlMachine.initialCaptureControl,
+      {type: 'viewer.renewed', viewerId: 'w', now: 0},
+    )
     expect(alone.effects).toEqual([
       {type: 'emit', control: {live: true}},
       {type: 'emit', control: {snapshot: true, flush: true}},
     ])
-    expect(transitionCaptureControl(alone.state, {type: 'viewer.dropped', viewerId: 'w', now: 1}).effects).toEqual([
-      {type: 'emit', control: {live: false}},
-    ])
-    const restarted = transitionCaptureControl(alone.state, {type: 'capture.started', captureId: 'two', now: 30_000})
+    expect(
+      RecorderCaptureControlMachine.transitionCaptureControl(alone.state, {
+        type: 'viewer.dropped',
+        viewerId: 'w',
+        now: 1,
+      }).effects,
+    ).toEqual([{type: 'emit', control: {live: false}}])
+    const restarted = RecorderCaptureControlMachine.transitionCaptureControl(alone.state, {
+      type: 'capture.started',
+      captureId: 'two',
+      now: 30_000,
+    })
     expect(restarted.effects).toEqual([
       {type: 'emit', control: {live: false}},
       {type: 'emit', control: {live: true, snapshot: true, flush: true}},
     ])
 
-    const ttl: CaptureControlState = restarted.state
-    const expired = transitionCaptureControl(ttl, {
+    const ttl: RecorderCaptureControlMachine.CaptureControlState = restarted.state
+    const expired = RecorderCaptureControlMachine.transitionCaptureControl(ttl, {
       type: 'capture.stopped',
       captureId: 'two',
       now: 30_000 + 10 * 60_000,
@@ -1117,141 +1144,213 @@ describe('the capture control machine', () => {
       {type: 'answer-stop', captureId: 'two', range: undefined},
     ])
 
-    const disposed = transitionCaptureControl(ttl, {type: 'disposed'})
+    const disposed = RecorderCaptureControlMachine.transitionCaptureControl(ttl, {type: 'disposed'})
     expect(disposed.state).toEqual({status: 'disposed'})
-    const after = transitionCaptureControl(disposed.state, {type: 'viewer.renewed', viewerId: 'late', now: 0})
+    const after = RecorderCaptureControlMachine.transitionCaptureControl(disposed.state, {
+      type: 'viewer.renewed',
+      viewerId: 'late',
+      now: 0,
+    })
     expect(after).toEqual({state: disposed.state, effects: []})
   })
 })
 
 describe('the visibility pause machine', () => {
   it('pauses after the hidden wait elapses, cancels the wait when shown first, ignores a stale wait, resumes when shown after a pause, and stops on dispose', () => {
-    const hidden = transitionVisibilityPause(initialVisibilityPause, {type: 'hidden'})
+    const hidden = RecorderVisibilityPauseMachine.transitionVisibilityPause(
+      RecorderVisibilityPauseMachine.initialVisibilityPause,
+      {type: 'hidden'},
+    )
     expect(hidden.effects).toEqual([{type: 'wait', attempt: 1}])
-    const shown = transitionVisibilityPause(hidden.state, {type: 'shown'})
+    const shown = RecorderVisibilityPauseMachine.transitionVisibilityPause(hidden.state, {type: 'shown'})
     expect(shown.effects).toEqual([{type: 'cancel-wait'}])
-    expect(transitionVisibilityPause(shown.state, {type: 'hide.elapsed', attempt: 1}).state).toBe(shown.state)
+    expect(
+      RecorderVisibilityPauseMachine.transitionVisibilityPause(shown.state, {type: 'hide.elapsed', attempt: 1}).state,
+    ).toBe(shown.state)
 
-    const again = transitionVisibilityPause(shown.state, {type: 'hidden'})
+    const again = RecorderVisibilityPauseMachine.transitionVisibilityPause(shown.state, {type: 'hidden'})
     expect(again.effects).toEqual([{type: 'wait', attempt: 2}])
-    expect(transitionVisibilityPause(again.state, {type: 'hide.elapsed', attempt: 1}).state).toBe(again.state)
-    const paused = transitionVisibilityPause(again.state, {type: 'hide.elapsed', attempt: 2})
+    expect(
+      RecorderVisibilityPauseMachine.transitionVisibilityPause(again.state, {type: 'hide.elapsed', attempt: 1}).state,
+    ).toBe(again.state)
+    const paused = RecorderVisibilityPauseMachine.transitionVisibilityPause(again.state, {
+      type: 'hide.elapsed',
+      attempt: 2,
+    })
     expect(paused.effects).toEqual([{type: 'pause'}])
-    expect(transitionVisibilityPause(paused.state, {type: 'hidden'}).state).toBe(paused.state)
-    expect(transitionVisibilityPause(paused.state, {type: 'shown'}).effects).toEqual([{type: 'resume'}])
+    expect(RecorderVisibilityPauseMachine.transitionVisibilityPause(paused.state, {type: 'hidden'}).state).toBe(
+      paused.state,
+    )
+    expect(RecorderVisibilityPauseMachine.transitionVisibilityPause(paused.state, {type: 'shown'}).effects).toEqual([
+      {type: 'resume'},
+    ])
 
-    const disposed = transitionVisibilityPause(again.state, {type: 'disposed'})
+    const disposed = RecorderVisibilityPauseMachine.transitionVisibilityPause(again.state, {type: 'disposed'})
     expect(disposed.effects).toEqual([{type: 'cancel-wait'}])
-    expect(transitionVisibilityPause(disposed.state, {type: 'hidden'}).state).toBe(disposed.state)
+    expect(RecorderVisibilityPauseMachine.transitionVisibilityPause(disposed.state, {type: 'hidden'}).state).toBe(
+      disposed.state,
+    )
   })
 })
 
 describe('the capture session machine', () => {
   it('stops on pause, reads the config again on resume and starts with it, drops a config read made stale by a later pause, fails on a failed read and can resume from there, and detaches once', () => {
     const config: RecorderConfig = {windowMinutes: 5, masking: 'inputs', console: true}
-    const paused = transitionCaptureSession(initialCaptureSession, {type: 'paused'})
+    const paused = RecorderCaptureSessionMachine.transitionCaptureSession(
+      RecorderCaptureSessionMachine.initialCaptureSession,
+      {type: 'paused'},
+    )
     expect(paused.effects).toEqual([{type: 'stop-record'}, {type: 'flush'}])
-    const resuming = transitionCaptureSession(paused.state, {type: 'resumed'})
+    const resuming = RecorderCaptureSessionMachine.transitionCaptureSession(paused.state, {type: 'resumed'})
     expect(resuming.effects).toEqual([{type: 'read-config', attempt: 2}])
 
-    const pausedAgain = transitionCaptureSession(resuming.state, {type: 'paused'})
+    const pausedAgain = RecorderCaptureSessionMachine.transitionCaptureSession(resuming.state, {type: 'paused'})
     expect(pausedAgain.effects).toEqual([{type: 'flush'}])
-    expect(transitionCaptureSession(pausedAgain.state, {type: 'config.read', attempt: 2, config}).state).toBe(
-      pausedAgain.state,
-    )
+    expect(
+      RecorderCaptureSessionMachine.transitionCaptureSession(pausedAgain.state, {
+        type: 'config.read',
+        attempt: 2,
+        config,
+      }).state,
+    ).toBe(pausedAgain.state)
 
-    const resumed = transitionCaptureSession(pausedAgain.state, {type: 'resumed'})
-    const capturing = transitionCaptureSession(resumed.state, {type: 'config.read', attempt: 4, config})
+    const resumed = RecorderCaptureSessionMachine.transitionCaptureSession(pausedAgain.state, {type: 'resumed'})
+    const capturing = RecorderCaptureSessionMachine.transitionCaptureSession(resumed.state, {
+      type: 'config.read',
+      attempt: 4,
+      config,
+    })
     expect(capturing.state.status).toBe('capturing')
     expect(capturing.effects).toEqual([{type: 'start-record', config}])
 
-    const failing = transitionCaptureSession(resumed.state, {type: 'config.failed', attempt: 4, error: 'offline'})
+    const failing = RecorderCaptureSessionMachine.transitionCaptureSession(resumed.state, {
+      type: 'config.failed',
+      attempt: 4,
+      error: 'offline',
+    })
     expect(failing.state.status).toBe('failed')
     expect(failing.effects).toEqual([{type: 'report-failed', error: 'offline'}])
-    expect(transitionCaptureSession(failing.state, {type: 'resumed'}).state.status).toBe('resuming')
+    expect(RecorderCaptureSessionMachine.transitionCaptureSession(failing.state, {type: 'resumed'}).state.status).toBe(
+      'resuming',
+    )
 
-    const finished = transitionCaptureSession(capturing.state, {type: 'disposed'})
+    const finished = RecorderCaptureSessionMachine.transitionCaptureSession(capturing.state, {type: 'disposed'})
     expect(finished.effects).toEqual([{type: 'stop-record'}, {type: 'detach'}])
-    expect(transitionCaptureSession(finished.state, {type: 'disposed'}).effects).toEqual([])
+    expect(RecorderCaptureSessionMachine.transitionCaptureSession(finished.state, {type: 'disposed'}).effects).toEqual(
+      [],
+    )
   })
 })
 
 describe('the boot machine', () => {
   it('follows the live state, starts a session per selector, ignores a start made stale by a newer selector, fails and recovers, and finishes on dispose', () => {
-    const live = transitionBoot<string>(initialBoot, {type: 'live.read', live: true})
+    const live = RecorderBootMachine.transitionBoot<string>(RecorderBootMachine.initialBoot, {
+      type: 'live.read',
+      live: true,
+    })
     expect(live.state.live).toBe(true)
-    expect(transitionBoot<string>(live.state, {type: 'live.read', live: true}).state).toBe(live.state)
-
-    const first = transitionBoot<string>(live.state, {type: 'selector.set', selector: '.a'})
-    expect(first.effects).toEqual([{type: 'finish-session'}, {type: 'prepare', attempt: 1, selector: '.a'}])
-    const second = transitionBoot<string>(first.state, {type: 'selector.set', selector: '.b'})
-    expect(transitionBoot<string>(second.state, {type: 'prepared', attempt: 1, prepared: 'stale'}).state).toBe(
-      second.state,
+    expect(RecorderBootMachine.transitionBoot<string>(live.state, {type: 'live.read', live: true}).state).toBe(
+      live.state,
     )
-    const opened = transitionBoot<string>(second.state, {type: 'prepared', attempt: 2, prepared: 'ready'})
+
+    const first = RecorderBootMachine.transitionBoot<string>(live.state, {type: 'selector.set', selector: '.a'})
+    expect(first.effects).toEqual([{type: 'finish-session'}, {type: 'prepare', attempt: 1, selector: '.a'}])
+    const second = RecorderBootMachine.transitionBoot<string>(first.state, {type: 'selector.set', selector: '.b'})
+    expect(
+      RecorderBootMachine.transitionBoot<string>(second.state, {type: 'prepared', attempt: 1, prepared: 'stale'}).state,
+    ).toBe(second.state)
+    const opened = RecorderBootMachine.transitionBoot<string>(second.state, {
+      type: 'prepared',
+      attempt: 2,
+      prepared: 'ready',
+    })
     expect(opened.effects).toEqual([{type: 'open-session', attempt: 2, prepared: 'ready'}])
 
-    const sessionFailed = transitionBoot<string>(opened.state, {type: 'session.failed', attempt: 2})
+    const sessionFailed = RecorderBootMachine.transitionBoot<string>(opened.state, {type: 'session.failed', attempt: 2})
     expect(sessionFailed.state.status).toBe('failed')
-    expect(transitionBoot<string>(sessionFailed.state, {type: 'selector.cleared'}).state.status).toBe('failed')
+    expect(
+      RecorderBootMachine.transitionBoot<string>(sessionFailed.state, {type: 'selector.cleared'}).state.status,
+    ).toBe('failed')
 
-    const retried = transitionBoot<string>(sessionFailed.state, {type: 'selector.set', selector: '.c'})
-    const startFailed = transitionBoot<string>(retried.state, {type: 'start.failed', attempt: 3, error: 'no rrweb'})
+    const retried = RecorderBootMachine.transitionBoot<string>(sessionFailed.state, {
+      type: 'selector.set',
+      selector: '.c',
+    })
+    const startFailed = RecorderBootMachine.transitionBoot<string>(retried.state, {
+      type: 'start.failed',
+      attempt: 3,
+      error: 'no rrweb',
+    })
     expect(startFailed.state.status).toBe('failed')
     expect(startFailed.effects).toEqual([{type: 'report-start-failed', error: 'no rrweb'}])
 
-    const disposed = transitionBoot<string>(opened.state, {type: 'disposed'})
+    const disposed = RecorderBootMachine.transitionBoot<string>(opened.state, {type: 'disposed'})
     expect(disposed.effects).toEqual([{type: 'finish-session'}])
-    expect(transitionBoot<string>(disposed.state, {type: 'selector.set', selector: '.d'}).effects).toEqual([])
+    expect(
+      RecorderBootMachine.transitionBoot<string>(disposed.state, {type: 'selector.set', selector: '.d'}).effects,
+    ).toEqual([])
   })
 })
 
 describe('the flusher machine', () => {
   it('splits the queue into posts under the cap, requeues a failed post at the front, ignores a stale result, keeps the last snapshot when trimming, and drains once on dispose', () => {
     const big = (timestamp: number, type = 3) => ({type, data: {padding: 'x'.repeat(600 * 1024)}, timestamp})
-    const pushAll = (state: FlusherState, events: ReturnType<typeof big>[]): FlusherState =>
-      events.reduce((current, event) => transitionFlusher(current, {type: 'pushed', event}).state, state)
+    const pushAll = (
+      state: RecorderFlusherMachine.FlusherState,
+      events: ReturnType<typeof big>[],
+    ): RecorderFlusherMachine.FlusherState =>
+      events.reduce(
+        (current, event) => RecorderFlusherMachine.transitionFlusher(current, {type: 'pushed', event}).state,
+        state,
+      )
 
-    const queued = pushAll(initialFlusher, [big(1), big(2), big(3)])
+    const queued = pushAll(RecorderFlusherMachine.initialFlusher, [big(1), big(2), big(3)])
     expect(queued.queue).toHaveLength(3)
-    const first = transitionFlusher(queued, {type: 'drain.requested'})
+    const first = RecorderFlusherMachine.transitionFlusher(queued, {type: 'drain.requested'})
     expect(first.effects).toEqual([{type: 'send', attempt: 1, events: [big(1)]}])
-    expect(transitionFlusher(first.state, {type: 'drain.requested'}).state).toBe(first.state)
-    expect(transitionFlusher(first.state, {type: 'chunk.sent', attempt: 0}).state).toBe(first.state)
+    expect(RecorderFlusherMachine.transitionFlusher(first.state, {type: 'drain.requested'}).state).toBe(first.state)
+    expect(RecorderFlusherMachine.transitionFlusher(first.state, {type: 'chunk.sent', attempt: 0}).state).toBe(
+      first.state,
+    )
 
-    const second = transitionFlusher(first.state, {type: 'chunk.sent', attempt: 1})
+    const second = RecorderFlusherMachine.transitionFlusher(first.state, {type: 'chunk.sent', attempt: 1})
     expect(second.effects).toEqual([{type: 'send', attempt: 2, events: [big(2)]}])
-    const failed = transitionFlusher(second.state, {type: 'chunk.failed', attempt: 2})
+    const failed = RecorderFlusherMachine.transitionFlusher(second.state, {type: 'chunk.failed', attempt: 2})
     expect(failed.state.status).toBe('waiting')
     expect(failed.state.queue.map((item) => item.event.timestamp)).toEqual([2, 3])
     expect(failed.effects).toEqual([{type: 'arm', live: false}, {type: 'settled'}])
 
-    const live = transitionFlusher(failed.state, {type: 'live.changed', live: true})
+    const live = RecorderFlusherMachine.transitionFlusher(failed.state, {type: 'live.changed', live: true})
     expect(live.effects).toEqual([{type: 'arm', live: true}])
 
-    const oversized = transitionFlusher(initialFlusher, {
+    const oversized = RecorderFlusherMachine.transitionFlusher(RecorderFlusherMachine.initialFlusher, {
       type: 'pushed',
       event: {type: 3, data: {padding: 'x'.repeat(MAX_FLUSH_BYTES)}, timestamp: 1},
     })
-    expect(oversized.state).toBe(initialFlusher)
+    expect(oversized.state).toBe(RecorderFlusherMachine.initialFlusher)
 
-    const trimmed = pushAll(initialFlusher, [
+    const trimmed = pushAll(RecorderFlusherMachine.initialFlusher, [
       ...Array.from({length: 8}, (_, index) => big(index)),
       big(8, 2),
       ...Array.from({length: 6}, (_, index) => big(9 + index)),
     ])
     expect(trimmed.queueBytes).toBeLessThanOrEqual(8 * 1024 * 1024)
     expect(trimmed.queue[0]?.event.timestamp).toBe(2)
-    const anchored = pushAll(initialFlusher, [big(0, 2), ...Array.from({length: 14}, (_, index) => big(1 + index))])
+    const anchored = pushAll(RecorderFlusherMachine.initialFlusher, [
+      big(0, 2),
+      ...Array.from({length: 14}, (_, index) => big(1 + index)),
+    ])
     expect(anchored.queue).toHaveLength(15)
 
-    const closing = transitionFlusher(second.state, {type: 'disposed'})
+    const closing = RecorderFlusherMachine.transitionFlusher(second.state, {type: 'disposed'})
     expect(closing.state.status).toBe('closing')
     expect(closing.effects).toEqual([{type: 'cancel-arm'}])
-    expect(transitionFlusher(closing.state, {type: 'pushed', event: big(9)}).state).toBe(closing.state)
-    const last = transitionFlusher(closing.state, {type: 'chunk.sent', attempt: 2})
+    expect(RecorderFlusherMachine.transitionFlusher(closing.state, {type: 'pushed', event: big(9)}).state).toBe(
+      closing.state,
+    )
+    const last = RecorderFlusherMachine.transitionFlusher(closing.state, {type: 'chunk.sent', attempt: 2})
     expect(last.effects).toEqual([{type: 'send', attempt: 3, events: [big(3)]}])
-    const closed = transitionFlusher(last.state, {type: 'chunk.failed', attempt: 3})
+    const closed = RecorderFlusherMachine.transitionFlusher(last.state, {type: 'chunk.failed', attempt: 3})
     expect(closed.state.status).toBe('disposed')
     expect(closed.effects).toEqual([{type: 'settled'}])
   })
@@ -1259,21 +1358,25 @@ describe('the flusher machine', () => {
 
 describe('the panel machine', () => {
   it('runs one export or reset at a time, reports a failure once, and ignores a result after dispose', () => {
-    const exporting = transitionPanel(initialPanel, {type: 'export.requested'})
+    const exporting = RecorderPanelMachine.transitionPanel(RecorderPanelMachine.initialPanel, {
+      type: 'export.requested',
+    })
     expect(exporting.effects).toEqual([{type: 'export', attempt: 1}])
-    expect(transitionPanel(exporting.state, {type: 'reset.requested'}).state).toBe(exporting.state)
-    const failed = transitionPanel(exporting.state, {type: 'failed', attempt: 1})
+    expect(RecorderPanelMachine.transitionPanel(exporting.state, {type: 'reset.requested'}).state).toBe(exporting.state)
+    const failed = RecorderPanelMachine.transitionPanel(exporting.state, {type: 'failed', attempt: 1})
     expect(failed.state.status).toBe('idle')
     expect(failed.effects).toEqual([{type: 'report-export-failed'}])
-    expect(transitionPanel(failed.state, {type: 'settled', attempt: 1}).state).toBe(failed.state)
+    expect(RecorderPanelMachine.transitionPanel(failed.state, {type: 'settled', attempt: 1}).state).toBe(failed.state)
 
-    const resetting = transitionPanel(failed.state, {type: 'reset.requested'})
+    const resetting = RecorderPanelMachine.transitionPanel(failed.state, {type: 'reset.requested'})
     expect(resetting.effects).toEqual([{type: 'reset', attempt: 2}])
-    expect(transitionPanel(resetting.state, {type: 'failed', attempt: 2}).effects).toEqual([
+    expect(RecorderPanelMachine.transitionPanel(resetting.state, {type: 'failed', attempt: 2}).effects).toEqual([
       {type: 'report-reset-failed'},
     ])
-    const disposed = transitionPanel(resetting.state, {type: 'disposed'})
-    expect(transitionPanel(disposed.state, {type: 'settled', attempt: 2}).state).toBe(disposed.state)
+    const disposed = RecorderPanelMachine.transitionPanel(resetting.state, {type: 'disposed'})
+    expect(RecorderPanelMachine.transitionPanel(disposed.state, {type: 'settled', attempt: 2}).state).toBe(
+      disposed.state,
+    )
   })
 })
 

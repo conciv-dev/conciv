@@ -1,30 +1,24 @@
 import {Duration, Effect, FiberHandle, FiberSet, Schedule, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
 import type {RrwebEvent} from './rpc.js'
-import {
-  initialFlusher,
-  transitionFlusher,
-  type FlusherEffect,
-  type FlusherEvent,
-  type FlusherState,
-} from './flusher-machine.js'
+import * as RecorderFlusherMachine from './flusher-machine.js'
 import {makeMachineDriver, type MachineDriver} from './machine-driver.js'
 
 export const FlushFailed = Schema.TaggedStruct('RecorderFlushFailed', {cause: Schema.Defect()})
 export type FlushFailed = typeof FlushFailed.Type
 
 export type Flusher = {
-  readonly state: SubscriptionRef.SubscriptionRef<FlusherState>
+  readonly state: SubscriptionRef.SubscriptionRef<RecorderFlusherMachine.FlusherState>
   readonly push: (event: RrwebEvent) => Effect.Effect<void>
   readonly setLive: (live: boolean) => Effect.Effect<void>
   readonly requestFlush: Effect.Effect<void>
   readonly flushNow: Effect.Effect<void>
 }
 
-type FlusherDriver = MachineDriver<FlusherState, FlusherEvent>
+type FlusherDriver = MachineDriver<RecorderFlusherMachine.FlusherState, RecorderFlusherMachine.FlusherEvent>
 
 const FLUSH_BACKOFF = Schedule.min([Schedule.exponential('1 second'), Schedule.spaced('30 seconds')])
 
-function isSettled(state: FlusherState): boolean {
+function isSettled(state: RecorderFlusherMachine.FlusherState): boolean {
   return state.status === 'waiting' || state.status === 'disposed'
 }
 
@@ -38,7 +32,10 @@ export const makeFlusher = Effect.fn('recorder.flusher')(function* (options: {
   const cadence = (live: boolean): Duration.Input =>
     live ? (options.live ?? '200 millis') : (options.idle ?? '5 seconds')
 
-  const send = (command: Extract<FlusherEffect, {readonly type: 'send'}>, driver: FlusherDriver) =>
+  const send = (
+    command: Extract<RecorderFlusherMachine.FlusherEffect, {readonly type: 'send'}>,
+    driver: FlusherDriver,
+  ) =>
     options.send(command.events).pipe(
       Effect.tapError((error) => Effect.logWarning('recorder: a flush failed', error.cause)),
       Effect.retry({
@@ -67,9 +64,9 @@ export const makeFlusher = Effect.fn('recorder.flusher')(function* (options: {
     )
 
   const driver = yield* makeMachineDriver({
-    initial: initialFlusher,
-    transition: transitionFlusher,
-    run: (command: FlusherEffect, current: FlusherDriver) => {
+    initial: RecorderFlusherMachine.initialFlusher,
+    transition: RecorderFlusherMachine.transitionFlusher,
+    run: (command: RecorderFlusherMachine.FlusherEffect, current: FlusherDriver) => {
       if (command.type === 'arm') return arm(command.live, current)
       if (command.type === 'cancel-arm') return FiberHandle.clear(arming)
       if (command.type === 'send')

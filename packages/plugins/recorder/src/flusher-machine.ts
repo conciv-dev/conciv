@@ -1,10 +1,10 @@
 import {MAX_FLUSH_BYTES, jsonByteLength, type RrwebEvent} from './rpc.js'
 
-export const MAX_QUEUE_BYTES = 8 * 1024 * 1024
+const MAX_QUEUE_BYTES = 8 * 1024 * 1024
 
-export const MAX_POST_BYTES = 1024 * 1024
+const MAX_POST_BYTES = 1024 * 1024
 
-export type Queued = {readonly event: RrwebEvent; readonly bytes: number}
+type Queued = {readonly event: RrwebEvent; readonly bytes: number}
 
 type Backlog = {readonly queue: readonly Queued[]; readonly queueBytes: number}
 
@@ -33,7 +33,7 @@ export type FlusherEffect =
   | {readonly type: 'cancel-arm'}
   | {readonly type: 'settled'}
 
-export type FlusherTransition = {readonly state: FlusherState; readonly effects: readonly FlusherEffect[]}
+type FlusherTransition = {readonly state: FlusherState; readonly effects: readonly FlusherEffect[]}
 
 export const initialFlusher: FlusherState = {status: 'waiting', attempt: 0, live: false, queue: [], queueBytes: 0}
 

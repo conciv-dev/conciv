@@ -22,10 +22,9 @@ What enabling it gives today:
   wait that starts at the `catchUpRetryMs` option (1000 ms by default), and when the event stream itself fails the
   tab reads its position and lists every table again.
 
-What it does not give yet: comments, pins, threads, the inbox, cursors and the "Comment on an element" pill in the
-widget. Once opened, the canvas stays mounted and hidden after Escape, so the agent keeps drawing into it. In a tab
+Once opened, the canvas stays mounted and hidden after Escape, so the agent keeps drawing into it. In a tab
 where the canvas was never opened, drawing answers `NO_CANVAS` after 8 seconds and a PNG export answers `EXPORT_TIMEOUT`.
-Excalidraw loads its fonts from esm.sh, as the old whiteboard does.
+Excalidraw loads its fonts from esm.sh.
 
 ```ts
 plugins: ['@conciv/plugin-whiteboard']
@@ -39,4 +38,3 @@ The canvas is transparent so the page shows through it. The "Canvas background" 
 that off for a solid canvas that follows the theme. PNG exports are always white.
 
 The board lives in the plugin storage of the engine's state root, so a second engine on that state root reads it back.
-A board kept by an older version in `.conciv/whiteboard/whiteboard.db` is not read.

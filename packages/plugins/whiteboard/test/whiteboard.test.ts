@@ -30,14 +30,15 @@ import {
 } from 'effect'
 import {TestClock} from 'effect/testing'
 import {makeChangeFeed, SinceFailed, EventsStopped, type ChangeMessage, type FeedEvent} from '../src/change-feed.js'
-import {startChangeFeed, transitionChangeFeed, type FeedChange} from '../src/change-feed-machine.js'
-import {startDrain, transitionDrain, type DrainState} from '../src/drain-machine.js'
-import {makePendingDrain, makeSceneVersions, RemoveFailed} from '../src/island-model.js'
-import {replayDraft} from '../src/replay.js'
+import * as WhiteboardChangeFeedMachine from '../src/change-feed-machine.js'
+import * as WhiteboardDrainMachine from '../src/drain-machine.js'
+import {makePendingDrain, RemoveFailed} from '../src/drain.js'
+import {makeSceneVersions, replayDraft} from '../src/island-model.js'
 import type {PendingRow} from '../src/rows.js'
-import {startPending, transitionPending, type PendingState} from '../src/pending-machine.js'
+import * as WhiteboardPendingMachine from '../src/pending-machine.js'
 import {makeWhiteboardStore} from '../src/store.js'
-import {awaitDrawing, commitDraft, exportPng} from '../src/canvas-tools.js'
+import {awaitDrawing} from '../src/pending.js'
+import {commitDraft, exportPng} from '../src/canvas-tools.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const OTHER_ROOM = 'conciv_other_room'
@@ -88,7 +89,7 @@ const ElementSchema = z.object({room: z.string(), elementId: z.string(), data: z
 const PendingSchema = z.object({
   id: z.string(),
   room: z.string(),
-  kind: z.enum(['skeletons', 'mermaid', 'svg', 'export', 'commit', 'discard']),
+  kind: z.enum(['skeletons', 'mermaid', 'svg', 'export', 'commit']),
   stage: z.enum(['draft', 'live']),
   payload: z.unknown(),
 })
@@ -737,7 +738,7 @@ describe('the whiteboard comment tools', () => {
     expect(
       z
         .object({comments: z.array(CommentSchema)})
-        .parse(await useTool(kit, 'comment_list', {scope: 'session'}))
+        .parse(await useTool(kit, 'comment_list', {}))
         .comments.map((row) => row.cid),
     ).toEqual(['root'])
 
@@ -878,18 +879,33 @@ describe('the whiteboard anchors', () => {
 
 describe('the pending request machine', () => {
   it('waits for the deadline, follows a claim lease, ignores stale attempts and ends once', () => {
-    const started = startPending(8_000)
+    const started = WhiteboardPendingMachine.startPending(8_000)
     expect(started.effects).toEqual([{type: 'wait', attempt: 0, ms: 8_000}])
-    const stale = transitionPending(started.state, {type: 'waitExpired', attempt: 3, claim: {status: 'gone'}, now: 0})
+    const stale = WhiteboardPendingMachine.transitionPending(started.state, {
+      type: 'waitExpired',
+      attempt: 3,
+      claim: {status: 'gone'},
+      now: 0,
+    })
     expect(stale.state).toBe(started.state)
     expect(stale.effects).toEqual([])
     expect(
-      transitionPending(started.state, {type: 'waitExpired', attempt: 0, claim: {status: 'unclaimed'}, now: 8_000}),
+      WhiteboardPendingMachine.transitionPending(started.state, {
+        type: 'waitExpired',
+        attempt: 0,
+        claim: {status: 'unclaimed'},
+        now: 8_000,
+      }),
     ).toEqual({state: {status: 'done', outcome: 'unclaimed'}, effects: [{type: 'finish', outcome: 'unclaimed'}]})
     expect(
-      transitionPending(started.state, {type: 'waitExpired', attempt: 0, claim: {status: 'gone'}, now: 8_000}).state,
+      WhiteboardPendingMachine.transitionPending(started.state, {
+        type: 'waitExpired',
+        attempt: 0,
+        claim: {status: 'gone'},
+        now: 8_000,
+      }).state,
     ).toEqual({status: 'done', outcome: 'drawn'})
-    const claimed = transitionPending(started.state, {
+    const claimed = WhiteboardPendingMachine.transitionPending(started.state, {
       type: 'waitExpired',
       attempt: 0,
       claim: {status: 'claimed', until: 30_000},
@@ -899,19 +915,22 @@ describe('the pending request machine', () => {
       state: {status: 'claimed', attempt: 1, leaseUntil: 30_000},
       effects: [{type: 'wait', attempt: 1, ms: 22_000}],
     })
-    const expired = transitionPending(claimed.state, {
+    const expired = WhiteboardPendingMachine.transitionPending(claimed.state, {
       type: 'waitExpired',
       attempt: 1,
       claim: {status: 'claimed', until: 30_000},
       now: 30_000,
     })
     expect(expired.state).toEqual({status: 'done', outcome: 'unfinished'})
-    expect(transitionPending(claimed.state, {type: 'drained'}).state).toEqual({status: 'done', outcome: 'drawn'})
-    const disposed = transitionPending(claimed.state, {type: 'disposed'})
+    expect(WhiteboardPendingMachine.transitionPending(claimed.state, {type: 'drained'}).state).toEqual({
+      status: 'done',
+      outcome: 'drawn',
+    })
+    const disposed = WhiteboardPendingMachine.transitionPending(claimed.state, {type: 'disposed'})
     expect(disposed).toEqual({state: {status: 'disposed'}, effects: []})
-    const after: PendingState = disposed.state
-    expect(transitionPending(after, {type: 'drained'}).state).toBe(after)
-    expect(transitionPending(expired.state, {type: 'drained'}).state).toBe(expired.state)
+    const after: WhiteboardPendingMachine.PendingState = disposed.state
+    expect(WhiteboardPendingMachine.transitionPending(after, {type: 'drained'}).state).toBe(after)
+    expect(WhiteboardPendingMachine.transitionPending(expired.state, {type: 'drained'}).state).toBe(expired.state)
   })
 })
 
@@ -1003,51 +1022,86 @@ describe('the pending request driver on the test clock', () => {
 
 describe('the change feed machine', () => {
   it('reads the position, catches up, routes only newer changes, reloads when the stream stops, and is disposed once', () => {
-    const change = (cursor: number): FeedChange => ({table: 'pins', key: `pin-${cursor}`, type: 'upsert', cursor})
-    const opening = startChangeFeed()
+    const change = (cursor: number): WhiteboardChangeFeedMachine.FeedChange => ({
+      table: 'pins',
+      key: `pin-${cursor}`,
+      type: 'upsert',
+      cursor,
+    })
+    const opening = WhiteboardChangeFeedMachine.startChangeFeed()
     expect(opening.effects).toEqual([{type: 'readPosition', attempt: 0}, {type: 'subscribe'}])
-    expect(transitionChangeFeed(opening.state, {type: 'connected'}).state).toBe(opening.state)
-    const early = transitionChangeFeed(opening.state, {type: 'changed', change: change(3)})
+    expect(WhiteboardChangeFeedMachine.transitionChangeFeed(opening.state, {type: 'connected'}).state).toBe(
+      opening.state,
+    )
+    const early = WhiteboardChangeFeedMachine.transitionChangeFeed(opening.state, {type: 'changed', change: change(3)})
     expect(early.effects).toEqual([{type: 'route', changes: [change(3)]}])
-    expect(transitionChangeFeed(early.state, {type: 'positionRead', attempt: 9, cursor: 5}).state).toBe(early.state)
-    const catching = transitionChangeFeed(early.state, {type: 'positionRead', attempt: 0, cursor: 5})
+    expect(
+      WhiteboardChangeFeedMachine.transitionChangeFeed(early.state, {type: 'positionRead', attempt: 9, cursor: 5})
+        .state,
+    ).toBe(early.state)
+    const catching = WhiteboardChangeFeedMachine.transitionChangeFeed(early.state, {
+      type: 'positionRead',
+      attempt: 0,
+      cursor: 5,
+    })
     expect(catching).toEqual({
       state: {status: 'catchingUp', attempt: 1, cursor: 5},
       effects: [{type: 'opened'}, {type: 'readSince', attempt: 1, cursor: 5}],
     })
-    expect(transitionChangeFeed(catching.state, {type: 'sinceRead', attempt: 0, changes: []}).state).toBe(
-      catching.state,
-    )
-    const during = transitionChangeFeed(catching.state, {type: 'changed', change: change(6)})
+    expect(
+      WhiteboardChangeFeedMachine.transitionChangeFeed(catching.state, {type: 'sinceRead', attempt: 0, changes: []})
+        .state,
+    ).toBe(catching.state)
+    const during = WhiteboardChangeFeedMachine.transitionChangeFeed(catching.state, {
+      type: 'changed',
+      change: change(6),
+    })
     expect(during.state).toEqual({status: 'catchingUp', attempt: 1, cursor: 6})
-    const live = transitionChangeFeed(during.state, {type: 'sinceRead', attempt: 1, changes: [change(5), change(7)]})
+    const live = WhiteboardChangeFeedMachine.transitionChangeFeed(during.state, {
+      type: 'sinceRead',
+      attempt: 1,
+      changes: [change(5), change(7)],
+    })
     expect(live).toEqual({
       state: {status: 'live', attempt: 1, cursor: 7},
       effects: [{type: 'route', changes: [change(7)]}],
     })
-    expect(transitionChangeFeed(live.state, {type: 'connected'}).effects).toEqual([
+    expect(WhiteboardChangeFeedMachine.transitionChangeFeed(live.state, {type: 'connected'}).effects).toEqual([
       {type: 'readSince', attempt: 2, cursor: 7},
     ])
-    const reloading = transitionChangeFeed(live.state, {type: 'streamStopped'})
+    const reloading = WhiteboardChangeFeedMachine.transitionChangeFeed(live.state, {type: 'streamStopped'})
     expect(reloading.effects).toEqual([{type: 'readPosition', attempt: 2}])
-    expect(transitionChangeFeed(reloading.state, {type: 'positionRead', attempt: 2, cursor: 4})).toEqual({
+    expect(
+      WhiteboardChangeFeedMachine.transitionChangeFeed(reloading.state, {type: 'positionRead', attempt: 2, cursor: 4}),
+    ).toEqual({
       state: {status: 'live', attempt: 2, cursor: 7},
       effects: [{type: 'reload'}, {type: 'subscribe'}],
     })
-    const disposed = transitionChangeFeed(reloading.state, {type: 'disposed'})
+    const disposed = WhiteboardChangeFeedMachine.transitionChangeFeed(reloading.state, {type: 'disposed'})
     expect(disposed).toEqual({state: {status: 'disposed'}, effects: []})
-    expect(transitionChangeFeed(disposed.state, {type: 'changed', change: change(9)}).state).toBe(disposed.state)
+    expect(
+      WhiteboardChangeFeedMachine.transitionChangeFeed(disposed.state, {type: 'changed', change: change(9)}).state,
+    ).toBe(disposed.state)
   })
 })
 
 describe('the change feed driver on the test clock', () => {
   it('retries the position read with backoff, catches up, routes per table, reloads when the events stop, and disposes with its scope', async () => {
-    const pin = (cursor: number): FeedChange => ({table: 'pins', key: `pin-${cursor}`, type: 'upsert', cursor})
+    const pin = (cursor: number): WhiteboardChangeFeedMachine.FeedChange => ({
+      table: 'pins',
+      key: `pin-${cursor}`,
+      type: 'upsert',
+      cursor,
+    })
     const result = await clocked(
       Effect.gen(function* () {
         const calls = yield* Ref.make<readonly number[]>([])
         const bus = yield* PubSub.unbounded<FeedEvent | 'stop'>()
-        const changes: readonly FeedChange[] = [pin(5), pin(6), {...pin(7), table: 'comments'}]
+        const changes: readonly WhiteboardChangeFeedMachine.FeedChange[] = [
+          pin(5),
+          pin(6),
+          {...pin(7), table: 'comments'},
+        ]
         const source = {
           since: (cursor: number) =>
             Ref.updateAndGet(calls, (all) => [...all, cursor]).pipe(
@@ -1122,27 +1176,45 @@ const pendingRow = (id: string): PendingRow => ({
 describe('the canvas drain machine', () => {
   it('claims each new row once, runs then removes it, forgets a refused claim, ignores stale results, and stops on dispose', () => {
     const row = pendingRow
-    const seen = transitionDrain(startDrain().state, {type: 'seen', rows: [row('a'), row('b')]})
+    const seen = WhiteboardDrainMachine.transitionDrain(WhiteboardDrainMachine.startDrain().state, {
+      type: 'seen',
+      rows: [row('a'), row('b')],
+    })
     expect(seen.effects).toEqual([
       {type: 'claim', attempt: 0, row: row('a')},
       {type: 'claim', attempt: 1, row: row('b')},
     ])
-    expect(transitionDrain(seen.state, {type: 'seen', rows: [row('a'), row('b')]}).state).toBe(seen.state)
-    const running = transitionDrain(seen.state, {type: 'claimed', id: 'a', attempt: 0, claimed: true})
-    expect(running.effects).toEqual([{type: 'run', attempt: 0, row: row('a')}])
-    const refused = transitionDrain(running.state, {type: 'claimed', id: 'b', attempt: 1, claimed: false})
-    const again = transitionDrain(refused.state, {type: 'seen', rows: [row('b')]})
-    expect(again.effects).toEqual([{type: 'claim', attempt: 2, row: row('b')}])
-    expect(transitionDrain(again.state, {type: 'claimed', id: 'b', attempt: 1, claimed: true}).state).toBe(again.state)
-    const removing = transitionDrain(again.state, {type: 'ran', id: 'a', attempt: 0})
-    expect(removing.effects).toEqual([{type: 'remove', attempt: 0, row: row('a')}])
-    const done = transitionDrain(removing.state, {type: 'removed', id: 'a', attempt: 0})
-    expect(transitionDrain(done.state, {type: 'seen', rows: [row('a')]}).effects).toEqual([])
-    const disposed = transitionDrain(done.state, {type: 'disposed'})
-    expect(disposed).toEqual({state: {status: 'disposed'}, effects: []})
-    expect(transitionDrain(disposed.state, {type: 'claimed', id: 'b', attempt: 2, claimed: true}).state).toBe(
-      disposed.state,
+    expect(WhiteboardDrainMachine.transitionDrain(seen.state, {type: 'seen', rows: [row('a'), row('b')]}).state).toBe(
+      seen.state,
     )
+    const running = WhiteboardDrainMachine.transitionDrain(seen.state, {
+      type: 'claimed',
+      id: 'a',
+      attempt: 0,
+      claimed: true,
+    })
+    expect(running.effects).toEqual([{type: 'run', attempt: 0, row: row('a')}])
+    const refused = WhiteboardDrainMachine.transitionDrain(running.state, {
+      type: 'claimed',
+      id: 'b',
+      attempt: 1,
+      claimed: false,
+    })
+    const again = WhiteboardDrainMachine.transitionDrain(refused.state, {type: 'seen', rows: [row('b')]})
+    expect(again.effects).toEqual([{type: 'claim', attempt: 2, row: row('b')}])
+    expect(
+      WhiteboardDrainMachine.transitionDrain(again.state, {type: 'claimed', id: 'b', attempt: 1, claimed: true}).state,
+    ).toBe(again.state)
+    const removing = WhiteboardDrainMachine.transitionDrain(again.state, {type: 'ran', id: 'a', attempt: 0})
+    expect(removing.effects).toEqual([{type: 'remove', attempt: 0, row: row('a')}])
+    const done = WhiteboardDrainMachine.transitionDrain(removing.state, {type: 'removed', id: 'a', attempt: 0})
+    expect(WhiteboardDrainMachine.transitionDrain(done.state, {type: 'seen', rows: [row('a')]}).effects).toEqual([])
+    const disposed = WhiteboardDrainMachine.transitionDrain(done.state, {type: 'disposed'})
+    expect(disposed).toEqual({state: {status: 'disposed'}, effects: []})
+    expect(
+      WhiteboardDrainMachine.transitionDrain(disposed.state, {type: 'claimed', id: 'b', attempt: 2, claimed: true})
+        .state,
+    ).toBe(disposed.state)
   })
 })
 
@@ -1208,7 +1280,7 @@ describe('the canvas drain driver on the test clock', () => {
         }
         const scope = yield* Scope.make()
         const drain = yield* makePendingDrain(work, {removeRetryMs: 100}).pipe(Scope.provide(scope))
-        const phases = (state: DrainState) =>
+        const phases = (state: WhiteboardDrainMachine.DrainState) =>
           state.status === 'active' ? mapValues(state.rows, (row) => row.phase) : {}
         const until = (wanted: Record<string, string>) =>
           SubscriptionRef.changes(drain.state).pipe(

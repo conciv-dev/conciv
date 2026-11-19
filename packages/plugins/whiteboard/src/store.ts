@@ -33,9 +33,9 @@ type Change = {
 }[TableName]
 type RowTableName = 'comments' | 'pins' | 'reads' | 'canvasPending' | 'canvasReplies'
 
-export type WhiteboardChange = Change & {cursor: number}
+type WhiteboardChange = Change & {cursor: number}
 export type WhiteboardEvent = WhiteboardChange | {table: 'cursor'; room: string; cursor: CursorEvent}
-export type ElementScope = 'live' | 'draft'
+type ElementScope = 'live' | 'draft'
 
 export const StoreError = Schema.TaggedStruct('StoreError', {key: Schema.String, message: Schema.String})
 export type StoreError = typeof StoreError.Type
@@ -253,7 +253,6 @@ export function makeWhiteboardStore(storage: PluginContext['storage']) {
     }
 
     return {
-      changes: Stream.fromPubSub(events),
       follow: PubSub.subscribe(events).pipe(Effect.map(Stream.fromSubscription)),
       cursor: (event: CursorEvent) =>
         Clock.currentTimeMillis.pipe(

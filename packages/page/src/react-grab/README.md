@@ -19,7 +19,7 @@ Element picking through `react-grab`: a lazily created adapter that activates pi
 
 ## Side Effects
 
-- `adapter.ts:create` - sets `window.__REACT_GRAB_DISABLED__ = true`, dynamically imports `react-grab`, and sets `registerPlugin` / `unregisterPlugin` on `window.__CONCIV__`.
+- `adapter.ts:create` - sets `window.__REACT_GRAB_DISABLED__ = true`, dynamically imports `react-grab` and registers the `conciv` react-grab plugin.
 - `fallback-metrics.ts` - appends a temporary `<iframe>` and a holder element to `document.body` to measure fonts.
 - `capture-element.ts:captureElement` - waits one `requestAnimationFrame`, clones the element with inlined computed styles into a detached `<div>`, and returns its `outerHTML`.
 

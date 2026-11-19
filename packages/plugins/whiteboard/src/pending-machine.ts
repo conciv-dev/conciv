@@ -11,12 +11,12 @@ export type PendingState =
   | {readonly status: 'done'; readonly outcome: PendingOutcome}
   | {readonly status: 'disposed'}
 
-export type PendingEvent =
+type PendingEvent =
   | {readonly type: 'drained'}
   | {readonly type: 'waitExpired'; readonly attempt: number; readonly claim: PendingClaim; readonly now: number}
   | {readonly type: 'disposed'}
 
-export type PendingEffect =
+type PendingEffect =
   | {readonly type: 'wait'; readonly attempt: number; readonly ms: number}
   | {readonly type: 'finish'; readonly outcome: PendingOutcome}
 

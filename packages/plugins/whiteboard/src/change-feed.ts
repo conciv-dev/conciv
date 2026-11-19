@@ -2,18 +2,13 @@ import type {Context} from '@conciv/plugin/experimental'
 import {Deferred, Effect, FiberHandle, PubSub, Queue, Schedule, Schema, Stream, SubscriptionRef} from 'effect'
 import {z} from 'zod'
 import {Whiteboard} from './rpc.js'
-import {
-  startChangeFeed,
-  transitionChangeFeed,
-  type ChangeFeedEffect,
-  type ChangeFeedEvent,
-  type ChangeFeedState,
-  type FeedChange,
-} from './change-feed-machine.js'
+import * as WhiteboardChangeFeedMachine from './change-feed-machine.js'
 
 export type ChangeMessage = {type: 'upsert' | 'delete'; key: string} | {type: 'reload'}
-export type FeedEvent = {readonly type: 'connected'} | {readonly type: 'changed'; readonly change: FeedChange}
-type FeedSince = {readonly cursor: number; readonly changes: readonly FeedChange[]}
+export type FeedEvent =
+  | {readonly type: 'connected'}
+  | {readonly type: 'changed'; readonly change: WhiteboardChangeFeedMachine.FeedChange}
+type FeedSince = {readonly cursor: number; readonly changes: readonly WhiteboardChangeFeedMachine.FeedChange[]}
 
 export const SinceFailed = Schema.TaggedStruct('SinceFailed', {message: Schema.String})
 type SinceFailed = typeof SinceFailed.Type
@@ -73,9 +68,9 @@ export const makeChangeFeed = Effect.fn('whiteboard.changeFeed')(function* (
   source: ChangeSource,
   options: {retryMs: number},
 ) {
-  const start = startChangeFeed()
-  const state = yield* SubscriptionRef.make<ChangeFeedState>(start.state)
-  const inbox = yield* Queue.unbounded<ChangeFeedEvent>()
+  const start = WhiteboardChangeFeedMachine.startChangeFeed()
+  const state = yield* SubscriptionRef.make<WhiteboardChangeFeedMachine.ChangeFeedState>(start.state)
+  const inbox = yield* Queue.unbounded<WhiteboardChangeFeedMachine.ChangeFeedEvent>()
   const routed = yield* PubSub.unbounded<Routed>()
   const opened = yield* Deferred.make<void>()
   const reads = yield* FiberHandle.make()
@@ -89,9 +84,9 @@ export const makeChangeFeed = Effect.fn('whiteboard.changeFeed')(function* (
       Effect.tapError((failure) => Effect.logWarning('the change feed could not be read; retrying', failure.message)),
       Effect.retry(retry),
     )
-  const offer = (event: ChangeFeedEvent) => Queue.offer(inbox, event)
+  const offer = (event: WhiteboardChangeFeedMachine.ChangeFeedEvent) => Queue.offer(inbox, event)
 
-  const run = (effect: ChangeFeedEffect): Effect.Effect<unknown> => {
+  const run = (effect: WhiteboardChangeFeedMachine.ChangeFeedEffect): Effect.Effect<unknown> => {
     if (effect.type === 'readPosition')
       return FiberHandle.run(
         reads,
@@ -125,9 +120,9 @@ export const makeChangeFeed = Effect.fn('whiteboard.changeFeed')(function* (
     )
   }
 
-  const step = (event: ChangeFeedEvent) =>
+  const step = (event: WhiteboardChangeFeedMachine.ChangeFeedEvent) =>
     SubscriptionRef.modify(state, (current) => {
-      const next = transitionChangeFeed(current, event)
+      const next = WhiteboardChangeFeedMachine.transitionChangeFeed(current, event)
       return [next.effects, next.state]
     }).pipe(Effect.flatMap((effects) => Effect.forEach(effects, run, {discard: true})))
 

@@ -4,8 +4,8 @@ import {Effect, Option, Schema} from 'effect'
 
 const run = promisify(execFile)
 
-export const GitFailed = Schema.TaggedStruct('GitFailed', {message: Schema.String})
-export type GitFailed = typeof GitFailed.Type
+const GitFailed = Schema.TaggedStruct('GitFailed', {message: Schema.String})
+type GitFailed = typeof GitFailed.Type
 
 const git = (root: string, args: string[]) =>
   Effect.tryPromise({

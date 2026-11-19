@@ -10,8 +10,8 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {Effect, Exit, Fiber, Layer, Logger, Ref, Scope, Sink, Stream} from 'effect'
 import * as PlatformError from 'effect/PlatformError'
 import {ChildProcess, ChildProcessSpawner} from 'effect/process'
-import * as FollowMachine from '../src/follow-machine.js'
-import * as RunMachine from '../src/run-machine.js'
+import * as TestRunnerFollowMachine from '../src/follow-machine.js'
+import * as TestRunnerRunMachine from '../src/run-machine.js'
 import * as VitestAdapter from '../src/vitest.js'
 import type {TestEvent, TestRow} from '../src/events.js'
 
@@ -40,7 +40,7 @@ const RunResultSchema = z.strictObject({
   tests: z.array(TestRowSchema),
 })
 const ListSchema = z.strictObject({
-  files: z.array(z.object({file: z.string(), relPath: z.string(), lastState: z.string().optional()})),
+  files: z.array(z.object({file: z.string(), relPath: z.string()})),
 })
 const LiveEventSchema = z.object({type: z.string(), id: z.string().optional(), name: z.string().optional()})
 const UnavailableSchema = z.object({
@@ -339,13 +339,13 @@ describe('the test-runner plugin with a runner that is not implemented', () => {
   })
 })
 
-function replayRun(runner: string, ...events: RunMachine.RunEvent[]) {
+function replayRun(runner: string, ...events: TestRunnerRunMachine.RunEvent[]) {
   return events.reduce(
     (result, event) => {
-      const next = RunMachine.transitionRun(result.state, event)
+      const next = TestRunnerRunMachine.transitionRun(result.state, event)
       return {state: next.state, effects: [...result.effects, ...next.effects]}
     },
-    {state: RunMachine.createRunState(runner), effects: new Array<RunMachine.RunEffect>()},
+    {state: TestRunnerRunMachine.createRunState(runner), effects: new Array<TestRunnerRunMachine.RunEffect>()},
   )
 }
 
@@ -370,7 +370,7 @@ describe('the run machine of the test-runner driver', () => {
       {type: 'child-event', attempt: 1, message: PASSED},
     )
     expect(state).toMatchObject({status: 'running', attempt: 1, buffer: [RUN_START, PASSED]})
-    expect(RunMachine.selectCurrentRun(state)).toEqual({events: [RUN_START, PASSED], unavailable: null})
+    expect(TestRunnerRunMachine.selectCurrentRun(state)).toEqual({events: [RUN_START, PASSED], unavailable: null})
     expect(effects).toEqual([
       {type: 'spawn', attempt: 1, args: ['--mode', 'run']},
       {type: 'publish', event: RUN_START},
@@ -383,7 +383,7 @@ describe('the run machine of the test-runner driver', () => {
       {type: 'child-exited', attempt: 1, exit: {type: 'exited', code: 0, signal: null}},
     )
     expect(ended.state.status).toBe('idle')
-    expect(RunMachine.selectCurrentRun(ended.state)).toEqual({events: null, unavailable: null})
+    expect(TestRunnerRunMachine.selectCurrentRun(ended.state)).toEqual({events: null, unavailable: null})
     expect(ended.effects.at(-1)).toEqual({
       type: 'settle',
       attempt: 1,
@@ -412,8 +412,8 @@ describe('the run machine of the test-runner driver', () => {
     expect(killed.state.unavailable).toBe(
       'vitest unavailable: child exited without producing results (exit code null, signal SIGKILL)',
     )
-    const cleared = RunMachine.transitionRun(
-      RunMachine.transitionRun(killed.state, {type: 'run-requested', attempt: 2, args: []}).state,
+    const cleared = TestRunnerRunMachine.transitionRun(
+      TestRunnerRunMachine.transitionRun(killed.state, {type: 'run-requested', attempt: 2, args: []}).state,
       {type: 'child-event', attempt: 2, message: RUN_START},
     )
     expect(cleared.state.unavailable).toBeNull()
@@ -430,12 +430,16 @@ describe('the run machine of the test-runner driver', () => {
     expect(listed.effects.at(-1)).toMatchObject({type: 'settle', attempt: 1, settlement: {ok: true, files}})
 
     const running = replayRun('vitest', {type: 'run-requested', attempt: 1, args: []})
-    const stale = RunMachine.transitionRun(running.state, {type: 'child-event', attempt: 7, message: RUN_START})
+    const stale = TestRunnerRunMachine.transitionRun(running.state, {
+      type: 'child-event',
+      attempt: 7,
+      message: RUN_START,
+    })
     expect(stale.state).toBe(running.state)
-    expect(RunMachine.transitionRun(running.state, {type: 'run-requested', attempt: 9, args: []}).state).toBe(
+    expect(TestRunnerRunMachine.transitionRun(running.state, {type: 'run-requested', attempt: 9, args: []}).state).toBe(
       running.state,
     )
-    const refused = RunMachine.transitionRun(running.state, {type: 'list-requested', attempt: 2, args: []})
+    const refused = TestRunnerRunMachine.transitionRun(running.state, {type: 'list-requested', attempt: 2, args: []})
     expect(refused.effects).toEqual([
       {
         type: 'settle',
@@ -444,37 +448,42 @@ describe('the run machine of the test-runner driver', () => {
       },
     ])
 
-    const stopping = RunMachine.transitionRun(running.state, {type: 'stop-requested'})
-    expect(stopping.state).toMatchObject({status: 'stopping', attempt: 1, mode: 'run'})
+    const stopping = TestRunnerRunMachine.transitionRun(running.state, {type: 'stop-requested'})
+    expect(stopping.state).toMatchObject({status: 'stopping', attempt: 1})
     expect(stopping.effects).toEqual([{type: 'kill', attempt: 1}])
-    const late = RunMachine.transitionRun(stopping.state, {type: 'child-event', attempt: 1, message: RUN_START})
+    const late = TestRunnerRunMachine.transitionRun(stopping.state, {
+      type: 'child-event',
+      attempt: 1,
+      message: RUN_START,
+    })
     expect(late.state).toBe(stopping.state)
-    const stopped = RunMachine.transitionRun(stopping.state, {
+    const stopped = TestRunnerRunMachine.transitionRun(stopping.state, {
       type: 'child-exited',
       attempt: 1,
       exit: {type: 'stopped'},
     })
     expect(stopped.state.status).toBe('idle')
     expect(stopped.effects).toMatchObject([{type: 'settle', attempt: 1, settlement: {ok: true}}])
-    expect(RunMachine.transitionRun(stopped.state, {type: 'stop-requested'}).state).toBe(stopped.state)
+    expect(TestRunnerRunMachine.transitionRun(stopped.state, {type: 'stop-requested'}).state).toBe(stopped.state)
   })
 
   it('on dispose kills the running child, settles its caller and refuses every later request', () => {
     const running = replayRun('vitest', {type: 'run-requested', attempt: 1, args: []})
-    const disposed = RunMachine.transitionRun(running.state, {type: 'disposed'})
+    const disposed = TestRunnerRunMachine.transitionRun(running.state, {type: 'disposed'})
     const message = 'vitest unavailable: the test runner stopped'
     expect(disposed.state.status).toBe('disposed')
     expect(disposed.effects).toEqual([
       {type: 'kill', attempt: 1},
       {type: 'settle', attempt: 1, settlement: {ok: false, message}},
     ])
-    expect(RunMachine.transitionRun(disposed.state, {type: 'disposed'}).state).toBe(disposed.state)
+    expect(TestRunnerRunMachine.transitionRun(disposed.state, {type: 'disposed'}).state).toBe(disposed.state)
     expect(
-      RunMachine.transitionRun(disposed.state, {type: 'child-exited', attempt: 1, exit: {type: 'stopped'}}).state,
+      TestRunnerRunMachine.transitionRun(disposed.state, {type: 'child-exited', attempt: 1, exit: {type: 'stopped'}})
+        .state,
     ).toBe(disposed.state)
-    expect(RunMachine.transitionRun(disposed.state, {type: 'run-requested', attempt: 2, args: []}).effects).toEqual([
-      {type: 'settle', attempt: 2, settlement: {ok: false, message}},
-    ])
+    expect(
+      TestRunnerRunMachine.transitionRun(disposed.state, {type: 'run-requested', attempt: 2, args: []}).effects,
+    ).toEqual([{type: 'settle', attempt: 2, settlement: {ok: false, message}}])
   })
 })
 
@@ -482,14 +491,16 @@ describe('the follow machine of the Tests panel', () => {
   const status = {summary: {passed: 1, failed: 0, skipped: 0, durationMs: 2}, failures: [], tests: [PASSED_ROW]}
 
   it('reads the run on each connect, applies only the newest read, forwards live events and stops when disposed', () => {
-    const connected = FollowMachine.transitionFollow(FollowMachine.createFollowState(), {type: 'server-connected'})
+    const connected = TestRunnerFollowMachine.transitionFollow(TestRunnerFollowMachine.createFollowState(), {
+      type: 'server-connected',
+    })
     expect(connected.effects).toEqual([
       {type: 'apply', action: {type: 'connected'}},
       {type: 'read', attempt: 1},
     ])
-    const reconnected = FollowMachine.transitionFollow(connected.state, {type: 'server-connected'})
+    const reconnected = TestRunnerFollowMachine.transitionFollow(connected.state, {type: 'server-connected'})
     expect(reconnected.effects).toContainEqual({type: 'read', attempt: 2})
-    const staleRead = FollowMachine.transitionFollow(reconnected.state, {
+    const staleRead = TestRunnerFollowMachine.transitionFollow(reconnected.state, {
       type: 'read-done',
       attempt: 1,
       status,
@@ -497,7 +508,7 @@ describe('the follow machine of the Tests panel', () => {
     })
     expect(staleRead.state).toBe(reconnected.state)
     expect(staleRead.effects).toEqual([])
-    const read = FollowMachine.transitionFollow(reconnected.state, {
+    const read = TestRunnerFollowMachine.transitionFollow(reconnected.state, {
       type: 'read-done',
       attempt: 2,
       status,
@@ -508,21 +519,21 @@ describe('the follow machine of the Tests panel', () => {
       {type: 'apply', action: {type: 'status', result: status}},
       {type: 'apply', action: {type: 'current', events: [RUN_START], unavailable: null}},
     ])
-    expect(FollowMachine.transitionFollow(read.state, {type: 'event', event: PASSED}).effects).toEqual([
+    expect(TestRunnerFollowMachine.transitionFollow(read.state, {type: 'event', event: PASSED}).effects).toEqual([
       {type: 'apply', action: PASSED},
     ])
-    const failed = FollowMachine.transitionFollow(
-      FollowMachine.transitionFollow(read.state, {type: 'server-connected'}).state,
+    const failed = TestRunnerFollowMachine.transitionFollow(
+      TestRunnerFollowMachine.transitionFollow(read.state, {type: 'server-connected'}).state,
       {type: 'read-failed', attempt: 3, error: 'offline'},
     )
     expect(failed.effects).toEqual([
       {type: 'log', message: '[test-runner] the test run could not be read', error: 'offline'},
     ])
-    const disposed = FollowMachine.transitionFollow(failed.state, {type: 'disposed'})
-    expect(FollowMachine.transitionFollow(disposed.state, {type: 'event', event: PASSED}).effects).toEqual([])
-    expect(FollowMachine.transitionFollow(disposed.state, {type: 'stream-failed', error: 'aborted'}).state).toBe(
-      disposed.state,
-    )
+    const disposed = TestRunnerFollowMachine.transitionFollow(failed.state, {type: 'disposed'})
+    expect(TestRunnerFollowMachine.transitionFollow(disposed.state, {type: 'event', event: PASSED}).effects).toEqual([])
+    expect(
+      TestRunnerFollowMachine.transitionFollow(disposed.state, {type: 'stream-failed', error: 'aborted'}).state,
+    ).toBe(disposed.state)
   })
 })
 

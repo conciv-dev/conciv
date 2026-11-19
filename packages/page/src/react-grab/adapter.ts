@@ -5,9 +5,8 @@ import {groundGrabText} from './grab-text.js'
 import {framesForElement} from '../react-bridge.js'
 import type {ElementSource, Grab, GrabFrame} from '@conciv/grab'
 import type {SourceLoc} from '@conciv/plugin/experimental/page'
-import '../conciv-global.js'
 
-export type GrabSink = (grab: Grab) => void
+type GrabSink = (grab: Grab) => void
 
 function toElementSource(info: SourceInfo | null): ElementSource | null {
   if (!info) return null
@@ -112,11 +111,6 @@ async function create(): Promise<ReactGrabAdapter> {
 
   setCancelPick(() => api.deactivate())
 
-  window.__CONCIV__ = {
-    ...window.__CONCIV__,
-    registerPlugin: api.registerPlugin,
-    unregisterPlugin: api.unregisterPlugin,
-  }
   return {
     activate: (onGrab) => {
       sink = onGrab

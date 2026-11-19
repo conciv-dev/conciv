@@ -28,7 +28,7 @@ export type ChangeFeedEffect =
   | {readonly type: 'reload'}
   | {readonly type: 'subscribe'}
 
-export type ChangeFeedTransition = {readonly state: ChangeFeedState; readonly effects: readonly ChangeFeedEffect[]}
+type ChangeFeedTransition = {readonly state: ChangeFeedState; readonly effects: readonly ChangeFeedEffect[]}
 
 type OpenFeed = Exclude<ChangeFeedState, {readonly status: 'disposed'}>
 

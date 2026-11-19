@@ -41,9 +41,7 @@ export default Plugin.define({
     })
     ctx.add(NoteCard, {
       origins: [ctx.id],
-      render: (props) => (
-        <RecordingCard note={props.note} session={props.session} clientId={clientId} runtime={runtime} />
-      ),
+      render: (props) => <RecordingCard note={props.note} session={props.session} runtime={runtime} />,
     })
   },
 })

@@ -2,9 +2,9 @@ import {z} from 'zod'
 import {Rpc} from '@conciv/plugin/rpc'
 
 export const FrameworkInfo = z.object({
-  name: z.enum(['nextjs', 'tanstack-start', 'vue', 'solid-start', 'astro']),
+  name: z.enum(['tanstack-start']),
   version: z.string().nullable(),
-  router: z.enum(['app', 'pages', 'file-based', 'unknown']),
+  router: z.enum(['file-based']),
   dev: z.boolean(),
 })
 export type FrameworkInfo = z.infer<typeof FrameworkInfo>
@@ -22,7 +22,6 @@ export const RouteMatch = z.object({
   isFetching: z.boolean(),
 })
 export type RouteMatch = z.infer<typeof RouteMatch>
-export type RouteStatus = RouteMatch['status']
 
 export const RouterCurrent = z.object({
   location: z.object({pathname: z.string(), search: z.string(), hash: z.string()}),
@@ -31,7 +30,7 @@ export const RouterCurrent = z.object({
 export type RouterCurrent = z.infer<typeof RouterCurrent>
 export type RouterLocation = RouterCurrent['location']
 
-const RouteKind = z.enum(['static', 'dynamic', 'catch-all', 'layout', 'index', 'group'])
+const RouteKind = z.enum(['static', 'dynamic', 'catch-all', 'layout', 'index'])
 export type RouteNodeKind = z.infer<typeof RouteKind>
 
 export const RouteNode = z.object({
@@ -60,18 +59,17 @@ export type CacheEntryState = CacheEntry['state']
 
 export const AppError = z.object({
   id: z.string(),
-  kind: z.enum(['build', 'runtime', 'server', 'hydration']),
+  kind: z.enum(['build', 'runtime']),
   message: z.string(),
   stack: z.string().nullable(),
   source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullable(),
-  digest: z.string().nullable(),
   at: z.number(),
 })
 export type AppError = z.infer<typeof AppError>
 
 export const RouteInfo = z.object({
   path: z.string(),
-  kind: z.enum(['page', 'layout', 'api', 'middleware']),
+  kind: z.enum(['page', 'layout']),
   dynamic: z.boolean(),
   file: z.string().nullable(),
 })
@@ -94,7 +92,6 @@ export const ServerFnTraces = z.object({
 })
 export type ServerFnTraces = z.infer<typeof ServerFnTraces>
 export type ServerFnTrace = ServerFnTraces['traces'][number]
-export type ServerFnInfo = ServerFnTraces['functions'][number]
 
 const TabId = z.string().regex(/^tab_[a-f0-9-]{36}$/u)
 export const SHORT_MAX = 2_048
@@ -230,7 +227,6 @@ export const Action = z.discriminatedUnion('type', [
 export type Action = z.infer<typeof Action>
 const ENGINE_CODES: readonly string[] = [
   'disconnected',
-  'connecting',
   'tab_unavailable',
   'disconnected_before_dispatch',
   'disconnected_after_dispatch',

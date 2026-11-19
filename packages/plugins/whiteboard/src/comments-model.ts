@@ -22,7 +22,7 @@ export type CommentsModel = ReturnType<typeof createCommentsModel>
 
 export type ComposeTarget = {source: {file: string; line: number | null} | null; screen: {x: number; y: number}}
 
-export type InboxSort = 'date' | 'unread'
+type InboxSort = 'date' | 'unread'
 
 export type ChatCover = {
   room: string

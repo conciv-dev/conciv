@@ -43,7 +43,6 @@ const makeErrorRing = Effect.fn('tanstack.errorRing.make')(function* () {
       message: message.slice(0, MESSAGE_MAX),
       stack: stack?.slice(0, STACK_MAX) ?? null,
       source: null,
-      digest: null,
       at,
     }
     yield* Ref.update(ring, (stored) => [...stored, error].slice(-CAPACITY))

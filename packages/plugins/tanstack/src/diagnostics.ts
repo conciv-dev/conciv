@@ -23,7 +23,6 @@ function buildErrorToAppError(diagnostic: BuildErrorDiagnostic): AppError {
     message: diagnostic.message,
     stack: null,
     source,
-    digest: null,
     at: diagnostic.timestamp,
   }
 }

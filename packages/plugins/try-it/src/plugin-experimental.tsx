@@ -3,11 +3,20 @@ import {from, onCleanup, type Accessor} from 'solid-js'
 import {Plugin, Server, type ServerEntry} from '@conciv/plugin/experimental'
 import {connectPorts} from '@conciv/protocol/connect-ports'
 import {connect} from './connect.js'
-import {awaitingFirstSweep, type ConnectState} from './connect-machine.js'
+import * as TryItConnectMachine from './connect-machine.js'
 import {ConnectPane} from './connect-pane.js'
 import {localNetworkAccess} from './local-network-access.js'
-import {TryItOptions} from './options.js'
 import {probeCore, TryItProbe} from './probe.js'
+import {z} from 'zod'
+
+const Milliseconds = z.number().int().positive()
+
+const TryItOptions = z.object({
+  token: z.uuid(),
+  probeMs: Milliseconds.default(2_000),
+  holdMs: Milliseconds.default(600),
+  slowMs: Milliseconds.default(60_000),
+})
 
 function follow<A>(ref: SubscriptionRef.SubscriptionRef<A>): Accessor<A> {
   return from<A>((set) => {
@@ -18,7 +27,7 @@ function follow<A>(ref: SubscriptionRef.SubscriptionRef<A>): Accessor<A> {
   }, SubscriptionRef.getUnsafe(ref))
 }
 
-function entry(state: ConnectState, cover: ServerEntry['cover']): ServerEntry {
+function entry(state: TryItConnectMachine.ConnectState, cover: ServerEntry['cover']): ServerEntry {
   if (state.status === 'connected') return {id: 'core', name: 'conciv', state: 'ready', http: {url: state.base}, cover}
   return {id: 'core', name: 'conciv', state: 'starting', cover}
 }
@@ -44,6 +53,10 @@ export default Plugin.define({
       <ConnectPane token={options.token} state={state} localNetworkAccess={access} onCopied={copied} />
     )
 
-    ctx.add(Server, () => ({ready: !awaitingFirstSweep(state()), order: 0, entries: [entry(state(), cover)]}))
+    ctx.add(Server, () => ({
+      ready: !TryItConnectMachine.awaitingFirstSweep(state()),
+      order: 0,
+      entries: [entry(state(), cover)],
+    }))
   },
 })

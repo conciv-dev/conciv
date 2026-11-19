@@ -15,7 +15,7 @@ import {
 } from './view.js'
 import {selectEndedFiles, selectSummary, selectTests, type RunView, type RunViewStatus} from './run-state.js'
 
-export type TestsPanelProps = {
+type TestsPanelProps = {
   readonly ui: Ui
   readonly run: RunView
   readonly directory: string

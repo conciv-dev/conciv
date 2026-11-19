@@ -20,13 +20,6 @@ const SummarySchema = z.object({
 })
 export type Summary = z.infer<typeof SummarySchema>
 
-const FileStateSchema = z.object({
-  file: z.string(),
-  state: z.enum(['pass', 'fail', 'skip', 'running']),
-  durationMs: z.number().optional(),
-})
-export type FileState = z.infer<typeof FileStateSchema>
-
 const TestRowSchema = z.object({
   id: z.string(),
   file: z.string(),
@@ -45,12 +38,6 @@ export const TestRunResultSchema = z.object({
 export type TestRunResult = z.infer<typeof TestRunResultSchema>
 
 export const TestEventSchema = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal('snapshot'),
-    files: z.array(FileStateSchema),
-    summary: SummarySchema,
-    watching: z.boolean(),
-  }),
   z.object({type: z.literal('run-start'), runId: z.string(), files: z.array(z.string())}),
   TestRowSchema.extend({type: z.literal('test')}),
   z.object({type: z.literal('file-end'), file: z.string(), ok: z.boolean(), durationMs: z.number()}),

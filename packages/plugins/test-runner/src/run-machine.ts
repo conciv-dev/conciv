@@ -2,12 +2,10 @@ import type {ChildMessage} from './child-protocol.js'
 import type {Summary, TestEvent, TestRunResult} from './events.js'
 import type {ListFile} from './runner.js'
 
-export type ChildExit =
+type ChildExit =
   | {readonly type: 'exited'; readonly code: number | null; readonly signal: string | null}
   | {readonly type: 'failed'; readonly reason: string}
   | {readonly type: 'stopped'}
-
-type Mode = 'run' | 'list'
 
 type Phase =
   | {readonly status: 'idle'}
@@ -23,7 +21,7 @@ type Phase =
       readonly buffer: readonly TestEvent[]
       readonly error: string | null
     }
-  | {readonly status: 'stopping'; readonly attempt: number; readonly mode: Mode}
+  | {readonly status: 'stopping'; readonly attempt: number}
   | {readonly status: 'disposed'}
 
 type Cache = {
@@ -33,7 +31,7 @@ type Cache = {
   readonly unavailable: string | null
 }
 
-export type RunState = Phase & Cache
+type RunState = Phase & Cache
 
 export type Settlement =
   | {readonly ok: true; readonly result: TestRunResult; readonly files: readonly ListFile[]}
@@ -53,7 +51,7 @@ export type RunEffect =
   | {readonly type: 'publish'; readonly event: TestEvent}
   | {readonly type: 'settle'; readonly attempt: number; readonly settlement: Settlement}
 
-export type RunTransition = {readonly state: RunState; readonly effects: readonly RunEffect[]}
+type RunTransition = {readonly state: RunState; readonly effects: readonly RunEffect[]}
 
 type Busy = Extract<RunState, {readonly status: 'listing' | 'running' | 'stopping'}>
 
@@ -197,12 +195,7 @@ function stop(state: RunState): RunTransition {
   if (state.status !== 'running' && state.status !== 'listing') return {state, effects: []}
 
   return {
-    state: {
-      ...cache(state),
-      status: 'stopping',
-      attempt: state.attempt,
-      mode: state.status === 'running' ? 'run' : 'list',
-    },
+    state: {...cache(state), status: 'stopping', attempt: state.attempt},
     effects: [{type: 'kill', attempt: state.attempt}],
   }
 }

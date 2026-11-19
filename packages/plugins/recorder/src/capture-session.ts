@@ -1,11 +1,6 @@
 import {Effect, FiberHandle, FiberSet, Stream, type Scope, type SubscriptionRef, Schema} from 'effect'
 import type {RecorderConfig, RecorderControl} from './rpc.js'
-import {
-  initialCaptureSession,
-  transitionCaptureSession,
-  type CaptureSessionEffect,
-  type CaptureSessionState,
-} from './capture-session-machine.js'
+import * as RecorderCaptureSessionMachine from './capture-session-machine.js'
 import type {Flusher} from './flusher.js'
 import {makeMachineDriver} from './machine-driver.js'
 import {runVisibilityPause} from './visibility-pause.js'
@@ -23,16 +18,20 @@ export const openCaptureSession = Effect.fn('recorder.captureSession')(function*
   readonly flushCues: Stream.Stream<unknown>
   readonly hidden: Stream.Stream<boolean>
   readonly onFailed: Effect.Effect<void>
-}): Effect.fn.Return<SubscriptionRef.SubscriptionRef<CaptureSessionState>, never, Scope.Scope> {
+}): Effect.fn.Return<
+  SubscriptionRef.SubscriptionRef<RecorderCaptureSessionMachine.CaptureSessionState>,
+  never,
+  Scope.Scope
+> {
   const recording = yield* FiberHandle.make()
   const reading = yield* FiberSet.make()
   const startRecord = (config: RecorderConfig) =>
     Effect.asVoid(FiberHandle.run(recording, Effect.scoped(Effect.andThen(options.record(config), Effect.never))))
 
   const driver = yield* makeMachineDriver({
-    initial: initialCaptureSession,
-    transition: transitionCaptureSession,
-    run: (command: CaptureSessionEffect, current) => {
+    initial: RecorderCaptureSessionMachine.initialCaptureSession,
+    transition: RecorderCaptureSessionMachine.transitionCaptureSession,
+    run: (command: RecorderCaptureSessionMachine.CaptureSessionEffect, current) => {
       if (command.type === 'stop-record') return FiberHandle.clear(recording)
       if (command.type === 'start-record') return startRecord(command.config)
       if (command.type === 'read-config')

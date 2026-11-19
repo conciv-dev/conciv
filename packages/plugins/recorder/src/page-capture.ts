@@ -3,7 +3,7 @@ import {z} from 'zod'
 import type {Context} from '@conciv/plugin/experimental'
 import {Page} from '@conciv/plugin/experimental/page'
 import {Recorder, type RecorderControl} from './rpc.js'
-import type {BootState} from './boot-machine.js'
+import type * as RecorderBootMachine from './boot-machine.js'
 import {ConfigReadFailed, StateReadFailed, runBoot} from './boot.js'
 import {loadCaptureLibrary, recordPage, takeFreshSnapshot} from './capture.js'
 import {ConfigReloadFailed, openCaptureSession} from './capture-session.js'
@@ -18,8 +18,8 @@ const FLUSH_CUES: readonly [Window | Document, string][] = [
   [document, 'visibilitychange'],
 ]
 
-export type PageCapture = {
-  readonly boot: SubscriptionRef.SubscriptionRef<BootState>
+type PageCapture = {
+  readonly boot: SubscriptionRef.SubscriptionRef<RecorderBootMachine.BootState>
   readonly flushNow: Effect.Effect<void>
 }
 

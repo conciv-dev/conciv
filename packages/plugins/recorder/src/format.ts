@@ -23,7 +23,7 @@ function formatLog(log: ActionLogEntry[], opts: {keyframesSkipped: boolean}): st
   return `${lines.join('\n')}${note}`
 }
 
-export type RecordingResult = {output: string; content: Tool.Content[]}
+type RecordingResult = {output: string; content: Tool.Content[]}
 
 const UNTRUSTED_NOTE: Tool.TextContent = {
   type: 'text',

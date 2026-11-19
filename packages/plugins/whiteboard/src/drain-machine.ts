@@ -1,7 +1,7 @@
 import {keyBy, mapValues, omit} from 'es-toolkit'
 import type {PendingRow} from './rows.js'
 
-export type DrainPhase =
+type DrainPhase =
   | {readonly phase: 'claiming' | 'running' | 'removing'; readonly attempt: number; readonly row: PendingRow}
   | {readonly phase: 'done'}
 
@@ -22,7 +22,7 @@ export type DrainEffect = {
   readonly row: PendingRow
 }
 
-export type DrainTransition = {readonly state: DrainState; readonly effects: readonly DrainEffect[]}
+type DrainTransition = {readonly state: DrainState; readonly effects: readonly DrainEffect[]}
 
 type ActiveDrain = Extract<DrainState, {readonly status: 'active'}>
 

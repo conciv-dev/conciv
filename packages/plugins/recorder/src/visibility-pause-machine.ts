@@ -6,7 +6,7 @@ export type VisibilityPauseState =
   | {readonly status: 'paused'; readonly attempt: number}
   | {readonly status: 'disposed'; readonly attempt: number}
 
-export type VisibilityPauseEvent =
+type VisibilityPauseEvent =
   | {readonly type: 'hidden'}
   | {readonly type: 'shown'}
   | {readonly type: 'hide.elapsed'; readonly attempt: number}
@@ -18,7 +18,7 @@ export type VisibilityPauseEffect =
   | {readonly type: 'pause'}
   | {readonly type: 'resume'}
 
-export type VisibilityPauseTransition = {
+type VisibilityPauseTransition = {
   readonly state: VisibilityPauseState
   readonly effects: readonly VisibilityPauseEffect[]
 }

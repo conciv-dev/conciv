@@ -7,7 +7,7 @@ export type PanelState =
 
 export type SaveFailure = 'empty' | 'too-large' | 'io-error'
 
-export type PanelEvent =
+type PanelEvent =
   | {readonly type: 'export.requested'}
   | {readonly type: 'send.requested'}
   | {readonly type: 'reset.requested'}
@@ -24,7 +24,7 @@ export type PanelEffect =
   | {readonly type: 'report-save-refused'; readonly reason: SaveFailure}
   | {readonly type: 'report-reset-failed'}
 
-export type PanelTransition = {readonly state: PanelState; readonly effects: readonly PanelEffect[]}
+type PanelTransition = {readonly state: PanelState; readonly effects: readonly PanelEffect[]}
 
 const FAILURE_REPORTS: {
   readonly exporting: 'report-export-failed'

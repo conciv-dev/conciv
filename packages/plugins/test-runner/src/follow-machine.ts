@@ -2,7 +2,7 @@ import type {CurrentRun} from './runner.js'
 import type {TestEvent, TestRunResult} from './events.js'
 import type {RunViewAction} from './run-state.js'
 
-export type FollowState =
+type FollowState =
   | {readonly status: 'subscribed'; readonly nextAttempt: number}
   | {readonly status: 'reading'; readonly attempt: number; readonly nextAttempt: number}
   | {readonly status: 'connected'; readonly attempt: number; readonly nextAttempt: number}
@@ -27,7 +27,7 @@ export type FollowEffect =
   | {readonly type: 'apply'; readonly action: RunViewAction}
   | {readonly type: 'log'; readonly message: string; readonly error: unknown}
 
-export type FollowTransition = {readonly state: FollowState; readonly effects: readonly FollowEffect[]}
+type FollowTransition = {readonly state: FollowState; readonly effects: readonly FollowEffect[]}
 
 export function createFollowState(): FollowState {
   return {status: 'subscribed', nextAttempt: 1}

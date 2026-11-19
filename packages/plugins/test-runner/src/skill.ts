@@ -14,7 +14,7 @@ export const info: Skill.Info = {
     '',
     '## Tools',
     '',
-    '- `external_test_runner_list()`, in code mode, lists the test files without running them. It answers `{files: [{file, relPath, lastState?}]}`: `file` is the absolute path, `relPath` the path from the project root.',
+    '- `external_test_runner_list()`, in code mode, lists the test files without running them. It answers `{files: [{file, relPath}]}`: `file` is the absolute path, `relPath` the path from the project root.',
     '- `test_runner_run({pattern?})` runs every test and waits for the run to finish. Add `pattern` to run only the test files whose path matches it, such as `test_runner_run({pattern: "math"})`.',
     '- `test_runner_status()` answers the result of the last finished run without starting one.',
     '',

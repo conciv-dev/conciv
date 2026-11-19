@@ -13,7 +13,7 @@ export const elementRow = z.object({
 export const pendingRow = z.object({
   id: z.string(),
   room: z.string(),
-  kind: z.enum(['skeletons', 'mermaid', 'svg', 'export', 'commit', 'discard']),
+  kind: z.enum(['skeletons', 'mermaid', 'svg', 'export', 'commit']),
   stage: z.enum(['draft', 'live']),
   payload: json,
 })
@@ -97,12 +97,6 @@ export const readRowInsert = readRow.omit({sessionId: true})
 export const cursorEventInsert = cursorEvent.omit({room: true})
 
 export type ElementRowInsert = z.infer<typeof elementRowInsert>
-export type PendingRowInsert = z.infer<typeof pendingRowInsert>
-export type ReplyRowInsert = z.infer<typeof replyRowInsert>
-export type CommentRowInsert = z.infer<typeof commentRowInsert>
-export type PinRowInsert = z.infer<typeof pinRowInsert>
-export type ReadRowInsert = z.infer<typeof readRowInsert>
-export type CursorEventInsert = z.infer<typeof cursorEventInsert>
 
 export const elementRowToInsert = (row: ElementRow): ElementRowInsert => {
   const {room: _room, ...insert} = row

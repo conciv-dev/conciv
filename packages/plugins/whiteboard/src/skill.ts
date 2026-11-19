@@ -56,7 +56,7 @@ export const info: Skill.Info = {
     '',
     '## When something fails',
     '',
-    '- `NO_CANVAS`: no canvas is open. Ask the user to open the canvas panel in the widget, then draw again.',
+    '- `NO_CANVAS`: no canvas is open. Ask the user to open the canvas from the Whiteboard pill above the composer, then draw again.',
     '- `EXPORT_TIMEOUT` or `COMMIT_TIMEOUT`: no canvas tab replied. `canvas_preview` works without one.',
     '- `INVALID_SVG` or `DIAGRAM_TOO_LARGE`: fix the input; repeating it unchanged will not help.',
     '- `COMMENT_NOT_FOUND` or `PIN_NOT_FOUND`: list the comments again instead of guessing a cid.',

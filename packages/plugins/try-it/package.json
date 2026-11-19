@@ -25,10 +25,6 @@
       "types": "./dist/plugin-experimental.d.ts",
       "import": "./dist/plugin-experimental.js"
     },
-    "./plugin-experimental": {
-      "types": "./dist/plugin-experimental.d.ts",
-      "import": "./dist/plugin-experimental.js"
-    },
     "./package.json": "./package.json"
   },
   "publishConfig": {

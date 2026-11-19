@@ -51,7 +51,7 @@ import {
 import {fileURLToPath} from 'node:url'
 import {execFile} from 'node:child_process'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
-import type {PageToNativeMessage} from '@conciv/plugin-ios/bridge'
+import type {PageToNativeMessage} from '@conciv/plugin-ios/rpc'
 import {Buffer} from 'node:buffer'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'

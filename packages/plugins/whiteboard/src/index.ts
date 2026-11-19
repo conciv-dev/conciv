@@ -2,16 +2,29 @@ import {Plugin, type Rpc} from '@conciv/plugin/effect'
 import {Effect, Stream} from 'effect'
 import {z} from 'zod'
 import {Whiteboard} from './rpc.js'
-import {loadResolver} from './load-resolver.js'
-import {autoCommitDraft} from './auto-commit.js'
 import {enrichComments} from './enrich-worker.js'
 import {whiteboardHandlers} from './rpc-handlers.js'
-import {layer, WhiteboardStore, type WhiteboardEvent} from './store.js'
+import {layer, WhiteboardStore, type Store, type WhiteboardEvent} from './store.js'
 import {info} from './skill.js'
 import {makeAgentCursor} from './agent-cursor.js'
 import {makeRenderer} from './preview.js'
 import {CONFIRMATION_RULES} from './refusal.js'
 import {register} from './tools.js'
+import {unreadable} from './anchor-confine.js'
+
+const loadResolver = (root: string) =>
+  Effect.tryPromise({try: () => import('./anchor-resolver.js'), catch: unreadable(root)}).pipe(
+    Effect.map((module) => module.createReactAnchorResolver({root})),
+  )
+
+const autoCommitDraft = Effect.fn('whiteboard.autoCommitDraft')(function* (store: Store, room: string) {
+  const drafts = yield* store.listElements('draft', room)
+  if (!drafts.length) return false
+  const pendingCommits = (yield* store.pending.list(room)).filter((row) => row.kind === 'commit')
+  if (pendingCommits.length) return false
+  yield* store.pending.insert(room, {id: crypto.randomUUID(), room, kind: 'commit', stage: 'live', payload: {}})
+  return true
+})
 
 const DRAW_DEADLINE_MS = 8_000
 const AGENT_CURSOR_MS = 50

@@ -48,23 +48,14 @@ import {
   type PageToNativeMessage,
   SUBTREE_MAX_DEPTH,
   SUBTREE_MAX_NODES,
-} from '../src/bridge.js'
-import {makeNativeClient, type NativeTransport} from '../src/bridge-client.js'
-import {
-  createNativeState,
-  isAnnouncing,
-  readIncompatible,
-  transitionNative,
-  type NativeEffect,
-  type NativeEvent,
-  type NativeState,
-} from '../src/bridge-machine.js'
+} from '../src/rpc.js'
+import * as IosBridge from '../src/bridge.js'
+import * as IosBridgeMachine from '../src/bridge-machine.js'
 import {makeBuild, parseXcodebuildAppPath} from '../src/build.js'
 import {IosConfigSchema, type IosConfig} from '../src/config.js'
 import {iosSystemPrompt} from '../src/prompt.js'
 import type {IosRuntime} from '../src/config.js'
 import * as Simctl from '../src/simctl.js'
-import {nativePageBase} from '../src/page-base.js'
 import {logs, run, screenshot, type RunFailure} from '../src/tools.js'
 import {bridgeFixtures, nativeEncodeFixtures} from './fixtures/bridge/bridge.fixtures.js'
 
@@ -985,21 +976,23 @@ describe('bridge conformance', () => {
 describe('page base', () => {
   describe('nativePageBase', () => {
     it('returns the bare origin when the page has no token prefix', () => {
-      expect(nativePageBase({origin: 'http://127.0.0.1:4599', pathname: '/native'})).toBe('http://127.0.0.1:4599')
+      expect(IosBridge.nativePageBase({origin: 'http://127.0.0.1:4599', pathname: '/native'})).toBe(
+        'http://127.0.0.1:4599',
+      )
     })
 
     it('keeps the /t/<token> prefix when the page is token-scoped', () => {
-      expect(nativePageBase({origin: 'http://127.0.0.1:4599', pathname: '/t/tok-abc/native'})).toBe(
+      expect(IosBridge.nativePageBase({origin: 'http://127.0.0.1:4599', pathname: '/t/tok-abc/native'})).toBe(
         'http://127.0.0.1:4599/t/tok-abc',
       )
     })
 
     it('tolerates a trailing slash on the native route', () => {
-      expect(nativePageBase({origin: 'http://host', pathname: '/t/tok/native/'})).toBe('http://host/t/tok')
+      expect(IosBridge.nativePageBase({origin: 'http://host', pathname: '/t/tok/native/'})).toBe('http://host/t/tok')
     })
 
     it('falls back to the origin when the path is not the native route', () => {
-      expect(nativePageBase({origin: 'http://host', pathname: '/'})).toBe('http://host')
+      expect(IosBridge.nativePageBase({origin: 'http://host', pathname: '/'})).toBe('http://host')
     })
   })
 })
@@ -1022,21 +1015,24 @@ const NEUTRAL = {
   },
 } satisfies NeutralGrab
 
-function native(message: Record<string, unknown>): NativeEvent {
+function native(message: Record<string, unknown>): IosBridgeMachine.NativeEvent {
   return {type: 'native-parsed', message: NativeToPageSchema.parse(message)}
 }
 
-function replay(events: readonly NativeEvent[], from: NativeState = createNativeState(CLIENT)) {
-  return events.reduce<{state: NativeState; effects: NativeEffect[]}>(
+function replay(
+  events: readonly IosBridgeMachine.NativeEvent[],
+  from: IosBridgeMachine.NativeState = IosBridgeMachine.createNativeState(CLIENT),
+) {
+  return events.reduce<{state: IosBridgeMachine.NativeState; effects: IosBridgeMachine.NativeEffect[]}>(
     (folded, event) => {
-      const next = transitionNative(folded.state, event)
+      const next = IosBridgeMachine.transitionNative(folded.state, event)
       return {state: next.state, effects: [...folded.effects, ...next.effects]}
     },
     {state: from, effects: []},
   )
 }
 
-function posted(effects: readonly NativeEffect[]): unknown[] {
+function posted(effects: readonly IosBridgeMachine.NativeEffect[]): unknown[] {
   return effects.flatMap((effect) => (effect.type === 'post' ? [effect.message] : []))
 }
 
@@ -1049,7 +1045,7 @@ describe('bridge machine', () => {
       {type: 'post', message: {v: 1, type: 'bridge.ready'}},
       {type: 'post', message: HELLO},
     ])
-    expect(isAnnouncing(started.state)).toBe(true)
+    expect(IosBridgeMachine.isAnnouncing(started.state)).toBe(true)
 
     const acked = replay([native({v: 1, seq: 1, type: 'open'}), {type: 'tick'}], started.state)
     expect(acked.effects).toEqual([
@@ -1064,7 +1060,7 @@ describe('bridge machine', () => {
     )
     expect(ready.state.link).toEqual({status: 'ready', version: 1, apiBase: CLIENT.apiBase})
     expect(ready.effects).toEqual([{type: 'post', message: {v: 1, type: 'bridge.ack', seq: 2}}])
-    expect(isAnnouncing(ready.state)).toBe(false)
+    expect(IosBridgeMachine.isAnnouncing(ready.state)).toBe(false)
   })
 
   it('rebinds when a handshake names another api base, before and after ready', () => {
@@ -1092,8 +1088,8 @@ describe('bridge machine', () => {
       native({v: 2, seq: 1, type: 'handshake', apiBase: CLIENT.apiBase, token: null}),
       {type: 'tick'},
     ])
-    expect(readIncompatible(mismatch.state)).toEqual({nativeMinV: 2, nativeMaxV: 2})
-    expect(isAnnouncing(mismatch.state)).toBe(true)
+    expect(IosBridgeMachine.readIncompatible(mismatch.state)).toEqual({nativeMinV: 2, nativeMaxV: 2})
+    expect(IosBridgeMachine.isAnnouncing(mismatch.state)).toBe(true)
     expect(mismatch.effects).toEqual([
       {type: 'schedule-tick'},
       {type: 'post', message: {v: 1, type: 'bridge.ack', seq: 1}},
@@ -1107,8 +1103,8 @@ describe('bridge machine', () => {
       ],
       mismatch.state,
     )
-    expect(readIncompatible(reported.state)).toEqual({nativeMinV: 2, nativeMaxV: 3})
-    expect(isAnnouncing(reported.state)).toBe(false)
+    expect(IosBridgeMachine.readIncompatible(reported.state)).toEqual({nativeMinV: 2, nativeMaxV: 3})
+    expect(IosBridgeMachine.isAnnouncing(reported.state)).toBe(false)
   })
 
   it('picks with an attempt id, drops a stale grabResult, settles the live one and folds the subtree', () => {
@@ -1182,7 +1178,7 @@ describe('bridge machine', () => {
     ])
     const disposed = replay([{type: 'disposed'}], ready.state)
     expect(disposed.effects).toEqual([{type: 'settle', attempt: 1, outcome: {type: 'cancelled'}}])
-    const late: NativeEvent[] = [
+    const late: IosBridgeMachine.NativeEvent[] = [
       {type: 'started'},
       {type: 'tick'},
       native({v: 1, seq: 9, type: 'open'}),
@@ -1193,7 +1189,7 @@ describe('bridge machine', () => {
       {type: 'disposed'},
     ]
     late.forEach((event) =>
-      expect(transitionNative(disposed.state, event)).toEqual({state: disposed.state, effects: []}),
+      expect(IosBridgeMachine.transitionNative(disposed.state, event)).toEqual({state: disposed.state, effects: []}),
     )
   })
 
@@ -1217,7 +1213,7 @@ describe('bridge machine', () => {
 const makeFakeTransport = Effect.gen(function* () {
   const calls = yield* Queue.unbounded<unknown>()
   const posts = yield* SubscriptionRef.make<readonly PageToNativeMessage[]>([])
-  const transport: NativeTransport = {
+  const transport: IosBridge.NativeTransport = {
     calls: Stream.fromQueue(calls),
     post: (message) => SubscriptionRef.update(posts, (current) => [...current, message]),
   }
@@ -1240,7 +1236,9 @@ describe('bridge driver', () => {
       Effect.gen(function* () {
         const fake = yield* makeFakeTransport
         const signals = yield* Effect.forkScoped(
-          Stream.runCollect(Stream.take((yield* makeNativeClient({...CLIENT, transport: fake.transport})).signals, 2)),
+          Stream.runCollect(
+            Stream.take((yield* IosBridge.makeNativeClient({...CLIENT, transport: fake.transport})).signals, 2),
+          ),
         )
         expect(yield* fake.postedCount(2)).toEqual([{v: 1, type: 'bridge.ready'}, HELLO])
         yield* TestClock.adjust('299 millis')
@@ -1267,7 +1265,7 @@ describe('bridge driver', () => {
     await runClocked(
       Effect.gen(function* () {
         const fake = yield* makeFakeTransport
-        const client = yield* makeNativeClient({...CLIENT, transport: fake.transport})
+        const client = yield* IosBridge.makeNativeClient({...CLIENT, transport: fake.transport})
         yield* fake.postedCount(2)
         const timedOut = yield* Effect.forkScoped(Effect.flip(client.pick('activate')))
         const pick = {v: 1, type: 'grab.pick', requestId: 'native-test-pick-1', mode: 'activate'}
@@ -1304,7 +1302,9 @@ describe('bridge driver', () => {
       Effect.gen(function* () {
         const fake = yield* makeFakeTransport
         const scope = yield* Scope.make()
-        const client = yield* makeNativeClient({...CLIENT, transport: fake.transport}).pipe(Scope.provide(scope))
+        const client = yield* IosBridge.makeNativeClient({...CLIENT, transport: fake.transport}).pipe(
+          Scope.provide(scope),
+        )
         const open = yield* Effect.forkScoped(client.pick('activate'))
         yield* fake.postedCount(3)
         yield* Scope.close(scope, Exit.void)

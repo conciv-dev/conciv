@@ -1,229 +1,147 @@
+import {Effect, FiberHandle, Option, PubSub, Schedule, Schema, Semaphore, Stream, SubscriptionRef} from 'effect'
 import {z} from 'zod'
-import type {ElementRect, ElementSource, ImagePreview} from '@conciv/grab'
+import type {Grab} from '@conciv/grab'
+import {NativeToPageSchema, type GrabMode, type PageToNativeMessage} from './rpc.js'
+import * as IosBridgeMachine from './bridge-machine.js'
 
-export const BRIDGE_MIN_VERSION = 1
-export const BRIDGE_MAX_VERSION = 1
+const NATIVE_ROUTE = '/native'
 
-export const SUBTREE_MAX_DEPTH = 3
-export const SUBTREE_MAX_NODES = 40
-
-const VersionSchema = z.number().int()
-const SeqSchema = z.number().int()
-
-const nullish = <Schema extends z.ZodType>(schema: Schema) => schema.nullish().transform((value) => value ?? null)
-
-export const RectSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-  width: z.number(),
-  height: z.number(),
-}) satisfies z.ZodType<ElementRect>
-
-export const SourceSchema = z.object({
-  componentName: nullish(z.string()),
-  filePath: z.string(),
-  lineNumber: nullish(z.number().int()),
-}) satisfies z.ZodType<ElementSource>
-
-export const GrabImagePreviewSchema = z.object({
-  kind: z.literal('image'),
-  dataUrl: z.string(),
-  width: z.number(),
-  height: z.number(),
-}) satisfies z.ZodType<ImagePreview>
-
-export type ViewNode = {
-  class: string
-  a11yId: string | null
-  text: string | null
-  rect: ElementRect
-  children: ViewNode[]
+export function nativePageBase(location: {origin: string; pathname: string}): string {
+  const index = location.pathname.lastIndexOf(NATIVE_ROUTE)
+  const prefix = index >= 0 ? location.pathname.slice(0, index) : ''
+  return `${location.origin}${prefix}`
 }
 
-export const ViewNodeSchema: z.ZodType<ViewNode> = z.lazy(() =>
-  z.object({
-    class: z.string(),
-    a11yId: nullish(z.string()),
-    text: nullish(z.string()),
-    rect: RectSchema,
-    children: z.array(ViewNodeSchema),
-  }),
-)
+export const PickTimedOut = Schema.TaggedStruct('Ios.PickTimedOut', {requestId: Schema.String})
+export type PickTimedOut = typeof PickTimedOut.Type
 
-function subtreeWithinLimits(node: ViewNode, depth: number, budget: {count: number}): boolean {
-  if (depth > SUBTREE_MAX_DEPTH) return false
-  budget.count += 1
-  if (budget.count > SUBTREE_MAX_NODES) return false
-  return node.children.every((child) => subtreeWithinLimits(child, depth + 1, budget))
+const PickFailed = Schema.TaggedStruct('Ios.PickFailed', {requestId: Schema.String})
+type PickFailed = typeof PickFailed.Type
+
+export const PickUnparseable = Schema.TaggedStruct('Ios.PickUnparseable', {requestId: Schema.String})
+export type PickUnparseable = typeof PickUnparseable.Type
+
+type PickError = PickTimedOut | PickFailed | PickUnparseable
+
+export type NativeTransport = {
+  readonly calls: Stream.Stream<unknown>
+  readonly post: (message: PageToNativeMessage) => Effect.Effect<void>
 }
 
-export const BoundedViewNodeSchema = ViewNodeSchema.superRefine((node, ctx) => {
-  if (subtreeWithinLimits(node, 0, {count: 0})) return
-  ctx.addIssue({
-    code: z.ZodIssueCode.custom,
-    message: `subtree exceeds the wire bounds (depth ${SUBTREE_MAX_DEPTH}, nodes ${SUBTREE_MAX_NODES})`,
+export type NativeClient = {
+  readonly state: SubscriptionRef.SubscriptionRef<IosBridgeMachine.NativeState>
+  readonly signals: Stream.Stream<IosBridgeMachine.NativeSignal>
+  readonly pick: (mode: GrabMode) => Effect.Effect<Grab | null, PickError>
+  readonly cancel: Effect.Effect<void>
+  readonly panelToggled: (toggle: IosBridgeMachine.PanelToggle) => Effect.Effect<void>
+}
+
+type Settled = {readonly attempt: number; readonly outcome: IosBridgeMachine.PickOutcome}
+
+const READY_INTERVAL = '300 millis'
+const PICK_TIMEOUT = '10 seconds'
+
+const GrabResultCallSchema = z.object({type: z.literal('grabResult'), requestId: z.string()})
+
+function decodeCall(raw: unknown): IosBridgeMachine.NativeEvent {
+  const parsed = NativeToPageSchema.safeParse(raw)
+  if (parsed.success) return {type: 'native-parsed', message: parsed.data}
+  const grabResult = GrabResultCallSchema.safeParse(raw)
+  return {type: 'native-unparseable', grabRequestId: grabResult.success ? grabResult.data.requestId : undefined}
+}
+
+function settleOutcome(outcome: IosBridgeMachine.PickOutcome): Effect.Effect<Grab | null, PickError> {
+  if (outcome.type === 'picked') return Effect.succeed(outcome.grab)
+  if (outcome.type === 'cancelled') return Effect.succeed(null)
+  if (outcome.failure === 'timed-out') return Effect.fail(PickTimedOut.make({requestId: outcome.requestId}))
+  if (outcome.failure === 'unparseable') return Effect.fail(PickUnparseable.make({requestId: outcome.requestId}))
+  return Effect.fail(PickFailed.make({requestId: outcome.requestId}))
+}
+
+export const makeNativeClient = Effect.fn('Ios.makeNativeClient')(function* (options: {
+  readonly transport: NativeTransport
+  readonly clientId: string
+  readonly apiBase: string
+}) {
+  const state = yield* SubscriptionRef.make(IosBridgeMachine.createNativeState(options))
+  const signals = yield* PubSub.unbounded<IosBridgeMachine.NativeSignal>()
+  const signalSubscription = yield* PubSub.subscribe(signals)
+  const settlements = yield* PubSub.unbounded<Settled>()
+  const ticker = yield* FiberHandle.make<void, never>()
+  const pickTimer = yield* FiberHandle.make<void, never>()
+  const transitions = yield* Semaphore.make(1)
+  const picks = yield* Semaphore.make(1)
+
+  const tickOnce: Effect.Effect<boolean> = Effect.suspend(() => dispatch({type: 'tick'})).pipe(
+    Effect.andThen(SubscriptionRef.get(state)),
+    Effect.map(IosBridgeMachine.isAnnouncing),
+  )
+
+  const perform = (effect: IosBridgeMachine.NativeEffect): Effect.Effect<void> => {
+    if (effect.type === 'post') return options.transport.post(effect.message)
+    if (effect.type === 'schedule-tick')
+      return FiberHandle.run(
+        ticker,
+        Effect.repeat(tickOnce, {schedule: Schedule.spaced(READY_INTERVAL), while: (announcing) => announcing}).pipe(
+          Effect.asVoid,
+        ),
+      ).pipe(Effect.asVoid)
+    if (effect.type === 'schedule-timeout')
+      return FiberHandle.run(
+        pickTimer,
+        Effect.sleep(PICK_TIMEOUT).pipe(Effect.andThen(dispatch({type: 'pick-timeout', attempt: effect.attempt}))),
+      ).pipe(Effect.asVoid)
+    if (effect.type === 'settle')
+      return PubSub.publish(settlements, {attempt: effect.attempt, outcome: effect.outcome}).pipe(Effect.asVoid)
+    if (effect.type === 'publish') return PubSub.publish(signals, effect.signal).pipe(Effect.asVoid)
+    return Effect.logWarning(effect.message).pipe(Effect.annotateLogs({plugin: 'ios', part: 'bridge'}))
+  }
+
+  const dispatch = (event: IosBridgeMachine.NativeEvent): Effect.Effect<void> =>
+    transitions.withPermits(1)(
+      Effect.gen(function* () {
+        const current = yield* SubscriptionRef.get(state)
+        const next = IosBridgeMachine.transitionNative(current, event)
+        if (next.state !== current) yield* SubscriptionRef.set(state, next.state)
+        yield* Effect.forEach(next.effects, perform, {discard: true})
+      }),
+    )
+
+  const pick = Effect.fn('Ios.nativePick')(function* (mode: GrabMode) {
+    const outcome = yield* Effect.scoped(
+      Effect.gen(function* () {
+        const subscription = yield* PubSub.subscribe(settlements)
+        const attempt = yield* picks.withPermits(1)(
+          dispatch({type: 'pick-requested', mode}).pipe(
+            Effect.andThen(SubscriptionRef.get(state)),
+            Effect.map((current) => current.attempts),
+          ),
+        )
+        return yield* Stream.fromSubscription(subscription).pipe(
+          Stream.filter((settled) => settled.attempt === attempt),
+          Stream.runHead,
+        )
+      }),
+    )
+    if (Option.isNone(outcome)) return null
+    return yield* settleOutcome(outcome.value.outcome)
   })
+
+  yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}))
+
+  yield* options.transport.calls.pipe(
+    Stream.runForEach((raw) => dispatch(decodeCall(raw))),
+    Effect.forkScoped,
+  )
+
+  yield* dispatch({type: 'started'})
+
+  const client: NativeClient = {
+    state,
+    signals: Stream.fromSubscription(signalSubscription),
+    pick,
+    cancel: dispatch({type: 'cancel-requested'}),
+    panelToggled: (toggle) => dispatch({type: 'panel-toggled', toggle}),
+  }
+  return client
 })
-
-export const NeutralGrabSchema = z.object({
-  text: z.string(),
-  preview: GrabImagePreviewSchema,
-  rect: nullish(RectSchema),
-  source: nullish(SourceSchema),
-  subtree: BoundedViewNodeSchema.optional(),
-})
-
-export type NeutralGrab = z.infer<typeof NeutralGrabSchema>
-
-export type NeutralGrabAsGrab = Omit<NeutralGrab, 'subtree'>
-
-export const GrabModeSchema = z.enum(['activate', 'comment'])
-export type GrabMode = z.infer<typeof GrabModeSchema>
-
-export const GrabResultReasonSchema = z.enum(['cancelled', 'failed'])
-export type GrabResultReason = z.infer<typeof GrabResultReasonSchema>
-
-export const BridgeReadySchema = z.object({
-  v: VersionSchema,
-  type: z.literal('bridge.ready'),
-})
-
-export const HandshakeHelloSchema = z.object({
-  v: VersionSchema,
-  type: z.literal('handshake.hello'),
-  minV: VersionSchema,
-  maxV: VersionSchema,
-  clientId: z.string(),
-  bundleReady: z.boolean(),
-})
-
-export const GrabPickSchema = z.object({
-  v: VersionSchema,
-  type: z.literal('grab.pick'),
-  requestId: z.string(),
-  mode: GrabModeSchema,
-})
-
-export const GrabCancelSchema = z.object({
-  v: VersionSchema,
-  type: z.literal('grab.cancel'),
-  requestId: z.string(),
-})
-
-export const BridgeAckSchema = z.object({
-  v: VersionSchema,
-  type: z.literal('bridge.ack'),
-  seq: SeqSchema,
-})
-
-export const HostPanelToggledSchema = z.object({
-  v: VersionSchema,
-  type: z.literal('host.panelToggled'),
-  open: z.boolean(),
-  connected: z.boolean(),
-  mascotRect: RectSchema.optional(),
-})
-
-export const HostLogSchema = z.object({
-  v: VersionSchema,
-  type: z.literal('host.log'),
-  level: z.enum(['info', 'warn', 'error']),
-  message: z.string(),
-})
-
-export const HandshakeSchema = z.object({
-  v: VersionSchema,
-  seq: SeqSchema,
-  type: z.literal('handshake'),
-  apiBase: z.string(),
-  token: nullish(z.string()),
-})
-
-export const BridgeIncompatibleSchema = z.object({
-  v: VersionSchema,
-  seq: SeqSchema,
-  type: z.literal('bridge.incompatible'),
-  nativeMinV: VersionSchema,
-  nativeMaxV: VersionSchema,
-})
-
-export const OpenSchema = z.object({
-  v: VersionSchema,
-  seq: SeqSchema,
-  type: z.literal('open'),
-})
-
-export const CloseSchema = z.object({
-  v: VersionSchema,
-  seq: SeqSchema,
-  type: z.literal('close'),
-})
-
-export const GrabResultSchema = z.object({
-  v: VersionSchema,
-  seq: SeqSchema,
-  type: z.literal('grabResult'),
-  requestId: z.string(),
-  grab: nullish(NeutralGrabSchema),
-  reason: nullish(GrabResultReasonSchema),
-})
-
-export const GrabCapabilitySchema = z.object({
-  v: VersionSchema,
-  seq: SeqSchema,
-  type: z.literal('grabCapability'),
-  grabbable: z.boolean(),
-})
-
-export const PageToNativeSchema = z.discriminatedUnion('type', [
-  BridgeReadySchema,
-  HandshakeHelloSchema,
-  GrabPickSchema,
-  GrabCancelSchema,
-  BridgeAckSchema,
-  HostPanelToggledSchema,
-  HostLogSchema,
-])
-
-export const NativeToPageSchema = z.discriminatedUnion('type', [
-  HandshakeSchema,
-  BridgeIncompatibleSchema,
-  OpenSchema,
-  CloseSchema,
-  GrabResultSchema,
-  GrabCapabilitySchema,
-])
-
-export const BridgeMessageSchema = z.discriminatedUnion('type', [
-  BridgeReadySchema,
-  HandshakeHelloSchema,
-  GrabPickSchema,
-  GrabCancelSchema,
-  BridgeAckSchema,
-  HostPanelToggledSchema,
-  HostLogSchema,
-  HandshakeSchema,
-  BridgeIncompatibleSchema,
-  OpenSchema,
-  CloseSchema,
-  GrabResultSchema,
-  GrabCapabilitySchema,
-])
-
-export type PageToNativeMessage = z.infer<typeof PageToNativeSchema>
-export type NativeToPageMessage = z.infer<typeof NativeToPageSchema>
-export type BridgeMessage = z.infer<typeof BridgeMessageSchema>
-
-export type BridgeReady = z.infer<typeof BridgeReadySchema>
-export type HandshakeHello = z.infer<typeof HandshakeHelloSchema>
-export type GrabPick = z.infer<typeof GrabPickSchema>
-export type GrabCancel = z.infer<typeof GrabCancelSchema>
-export type BridgeAck = z.infer<typeof BridgeAckSchema>
-export type HostPanelToggled = z.infer<typeof HostPanelToggledSchema>
-export type HostLog = z.infer<typeof HostLogSchema>
-export type Handshake = z.infer<typeof HandshakeSchema>
-export type BridgeIncompatible = z.infer<typeof BridgeIncompatibleSchema>
-export type Open = z.infer<typeof OpenSchema>
-export type Close = z.infer<typeof CloseSchema>
-export type GrabResult = z.infer<typeof GrabResultSchema>
-export type GrabCapability = z.infer<typeof GrabCapabilitySchema>

@@ -7,8 +7,7 @@ Chrome's local-network prompt). It probes `http://127.0.0.1:<port>/t/<token>/hea
 seconds, shows "Agent connected" for a moment once one answers, then turns the entry ready with that core's URL, and
 the widget binds to it in place.
 
-The window entry is `src/plugin-experimental.tsx`, published as `@conciv/plugin-try-it/plugin-experimental` and as the
-package root. Only a host composes it, with the pairing token as its option:
+The window entry is `src/plugin-experimental.tsx`, published as the package root. Only a host composes it, with the pairing token as its option:
 
 ```ts
 import {compose} from '@conciv/plugin/experimental/host'

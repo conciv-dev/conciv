@@ -2,23 +2,60 @@ import {Match, Show, Switch, createMemo, onCleanup, type JSX} from 'solid-js'
 import {useQuery} from '@conciv/client'
 import {usePlugin, type NoteCardProps} from '@conciv/plugin/experimental'
 import {REPLAY_MIN_EVENTS, Recorder, type RrwebEvent} from './rpc.js'
-import {ExportVideoButton} from './export-video-button.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {mountPlayer, type PlayerKit} from './player.js'
 import {PlayerKitSwitch, usePlayerKit} from './player-kit.js'
+import {createStore} from 'solid-js/store'
+import {Effect} from 'effect'
+import {saveFileToDisk, videoPieceReader} from './download.js'
+import {exportRecording} from './panel.js'
 import type {PluginRuntime} from './subscription-ref-signal.js'
+
+function ExportVideoButton(props: {recordingId: string; runtime: PluginRuntime; disabled?: boolean}): JSX.Element {
+  const ctx = usePlugin()
+  const [state, setState] = createStore({exporting: false})
+
+  const exportVideo = (): void => {
+    setState('exporting', true)
+    void props.runtime.runPromise(
+      exportRecording({
+        save: Effect.succeed({recordingId: props.recordingId}),
+        readPiece: videoPieceReader(ctx),
+        saveFile: (file) => Effect.sync(() => saveFileToDisk(file)),
+      }).pipe(
+        Effect.catch((error) =>
+          Effect.andThen(
+            Effect.logError('recorder: the recording could not be exported', error),
+            Effect.sync(
+              () => void ctx.toast.show({title: 'Could not export the recording. Try again.', variant: 'error'}),
+            ),
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => setState('exporting', false))),
+      ),
+    )
+  }
+
+  return (
+    <ctx.ui.Button
+      variant="neutral"
+      size="small"
+      disabled={state.exporting || props.disabled}
+      busy={state.exporting}
+      onClick={exportVideo}
+    >
+      {state.exporting ? 'Exporting…' : 'Export video'}
+    </ctx.ui.Button>
+  )
+}
 
 type RecordingNote = {readonly recordingId: string; readonly summary?: string}
 
-export function RecordingCard(props: NoteCardProps & {clientId: string; runtime: PluginRuntime}): JSX.Element {
+export function RecordingCard(props: NoteCardProps & {runtime: PluginRuntime}): JSX.Element {
   const ctx = usePlugin()
   const play = (recordingId: string): void =>
     void ctx.dialogs.open(() => (
-      <RecordingReplay
-        recording={{recordingId, summary: props.note.subtitle}}
-        clientId={props.clientId}
-        runtime={props.runtime}
-      />
+      <RecordingReplay recording={{recordingId, summary: props.note.subtitle}} runtime={props.runtime} />
     ))
 
   return (
@@ -41,7 +78,7 @@ export function RecordingCard(props: NoteCardProps & {clientId: string; runtime:
   )
 }
 
-function RecordingReplay(props: {recording: RecordingNote; clientId: string; runtime: PluginRuntime}): JSX.Element {
+function RecordingReplay(props: {recording: RecordingNote; runtime: PluginRuntime}): JSX.Element {
   const ctx = usePlugin()
   const saved = useQuery(() => ({
     ...ctx.client.rpc(Recorder)['recordings.get'].queryOptions({input: {recordingId: props.recording.recordingId}}),
@@ -66,7 +103,6 @@ function RecordingReplay(props: {recording: RecordingNote; clientId: string; run
       size="x-large"
       footer={
         <ExportVideoButton
-          clientId={props.clientId}
           recordingId={props.recording.recordingId}
           runtime={props.runtime}
           disabled={saved.isFetching || !events()}

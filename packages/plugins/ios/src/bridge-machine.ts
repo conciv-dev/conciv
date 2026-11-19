@@ -9,13 +9,13 @@ import {
   SUBTREE_MAX_DEPTH,
   SUBTREE_MAX_NODES,
   type ViewNode,
-} from './bridge.js'
+} from './rpc.js'
 
-export type NativeLink =
+type NativeLink =
   | {readonly status: 'announcing'; readonly acked: boolean; readonly apiBase: string}
   | {readonly status: 'ready'; readonly version: number; readonly apiBase: string}
 
-export type NativeStatus =
+type NativeStatus =
   | {readonly status: 'idle'; readonly apiBase: string}
   | NativeLink
   | {
@@ -26,7 +26,7 @@ export type NativeStatus =
     }
   | {readonly status: 'disposed'}
 
-export type PickState =
+type PickState =
   | {readonly status: 'idle'}
   | {readonly status: 'picking'; readonly requestId: string; readonly attempt: number}
 
@@ -55,7 +55,7 @@ export type NativeEvent =
   | {readonly type: 'panel-toggled'; readonly toggle: PanelToggle}
   | {readonly type: 'disposed'}
 
-export type PickFailure = 'timed-out' | 'failed' | 'unparseable'
+type PickFailure = 'timed-out' | 'failed' | 'unparseable'
 
 export type PickOutcome =
   | {readonly type: 'picked'; readonly grab: Grab}
@@ -75,7 +75,7 @@ export type NativeEffect =
   | {readonly type: 'publish'; readonly signal: NativeSignal}
   | {readonly type: 'log'; readonly message: string}
 
-export type NativeTransition = {readonly state: NativeState; readonly effects: readonly NativeEffect[]}
+type NativeTransition = {readonly state: NativeState; readonly effects: readonly NativeEffect[]}
 
 export function createNativeState(options: {readonly clientId: string; readonly apiBase: string}): NativeState {
   return {
@@ -133,7 +133,7 @@ function formatViewNode(node: ViewNode, depth: number, remaining: number): {line
   )
 }
 
-export function neutralGrabToGrab(neutral: NeutralGrab): Grab {
+function neutralGrabToGrab(neutral: NeutralGrab): Grab {
   const text =
     neutral.subtree === undefined
       ? neutral.text

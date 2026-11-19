@@ -14,8 +14,6 @@ import {installTracker} from './render-tracker.js'
 import {sourceFromAttr} from './source-attr.js'
 import type {RefAdder} from './page-snapshot.js'
 
-export type {RawFrame, SourceLoc, Owner, LocateResult} from '@conciv/plugin/experimental/page'
-export type {Rect, TreeNode, HookNode, InspectResult, TreeResult} from '@conciv/protocol/page-introspect-types'
 import type {RawFrame, Owner, LocateResult} from '@conciv/plugin/experimental/page'
 import type {TreeNode, HookNode, InspectResult, TreeResult} from '@conciv/protocol/page-introspect-types'
 
@@ -159,8 +157,8 @@ export async function inspect(el: Element): Promise<InspectResult | null> {
   }
 }
 
-export type OverrideTarget = 'props' | 'state' | 'hooks' | 'context'
-export type OverrideResult = {ok: true} | {error: string}
+type OverrideTarget = 'props' | 'state' | 'hooks' | 'context'
+type OverrideResult = {ok: true} | {error: string}
 
 function copyWithSet(obj: unknown, path: (string | number)[], value: unknown): unknown {
   if (path.length === 0) return value

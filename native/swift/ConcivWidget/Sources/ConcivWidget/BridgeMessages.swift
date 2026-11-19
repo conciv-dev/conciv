@@ -1,6 +1,6 @@
 import Foundation
 
-// Codable mirror of packages/plugins/ios/src/bridge.ts.
+// Codable mirror of packages/plugins/ios/src/rpc.ts.
 //
 // Every per-message struct uses the compiler-synthesized Codable, which ignores
 // unknown keys on decode. That is the wire contract (additive evolution within a

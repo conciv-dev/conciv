@@ -5,7 +5,7 @@ import UIKit
 // PickSelectionTests, no WebView) and a drag overlay. UIKit selection is the
 // spike's hit-test walk (appendix A.3); SwiftUI selection reads the anchor
 // registry (04 D5). Both assemble a fixture-shaped NeutralGrab whose bounded
-// subtree matches the TS fold caps in bridge-client.ts (depth 3, 40 nodes).
+// subtree matches the TS fold caps in bridge-machine.ts (depth 3, 40 nodes).
 
 let subtreeMaxDepth = 3
 let subtreeMaxNodes = 40

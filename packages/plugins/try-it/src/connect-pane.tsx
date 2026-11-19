@@ -3,9 +3,17 @@ import Check from 'lucide-solid/icons/check'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import {autofocus} from '@solid-primitives/autofocus'
 import {Show, type Accessor, type JSX} from 'solid-js'
-import type {ConnectState} from './connect-machine.js'
+import type * as TryItConnectMachine from './connect-machine.js'
 import type {LocalNetworkAccessState} from './local-network-access.js'
-import {stepStates, type StepState, type TryStep} from './try-steps.js'
+
+type TryStep = 'copy' | 'run' | 'approve'
+type StepState = 'pending' | 'active' | 'done'
+
+function stepStates(opts: {copied: boolean; connected: boolean}): Record<TryStep, StepState> {
+  if (opts.connected) return {copy: 'done', run: 'done', approve: 'done'}
+  if (opts.copied) return {copy: 'done', run: 'active', approve: 'pending'}
+  return {copy: 'active', run: 'pending', approve: 'pending'}
+}
 
 const COPY_FEEDBACK_MS = 1_400
 
@@ -66,7 +74,7 @@ function Step(props: {index: number; state: StepState; title: string; children?:
 
 export function ConnectPane(props: {
   token: string
-  state: Accessor<ConnectState>
+  state: Accessor<TryItConnectMachine.ConnectState>
   localNetworkAccess: Accessor<LocalNetworkAccessState>
   onCopied: () => void
 }): JSX.Element {

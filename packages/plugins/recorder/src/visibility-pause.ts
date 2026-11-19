@@ -1,29 +1,27 @@
 import {Effect, FiberHandle, Stream, type Scope, type SubscriptionRef} from 'effect'
 import {makeMachineDriver} from './machine-driver.js'
-import {
-  HIDDEN_PAUSE_MS,
-  initialVisibilityPause,
-  transitionVisibilityPause,
-  type VisibilityPauseEffect,
-  type VisibilityPauseState,
-} from './visibility-pause-machine.js'
+import * as RecorderVisibilityPauseMachine from './visibility-pause-machine.js'
 
 export const runVisibilityPause = Effect.fn('recorder.visibilityPause')(function* (options: {
   readonly hidden: Stream.Stream<boolean>
   readonly pause: Effect.Effect<void>
   readonly resume: Effect.Effect<void>
-}): Effect.fn.Return<SubscriptionRef.SubscriptionRef<VisibilityPauseState>, never, Scope.Scope> {
+}): Effect.fn.Return<
+  SubscriptionRef.SubscriptionRef<RecorderVisibilityPauseMachine.VisibilityPauseState>,
+  never,
+  Scope.Scope
+> {
   const waiting = yield* FiberHandle.make()
   const driver = yield* makeMachineDriver({
-    initial: initialVisibilityPause,
-    transition: transitionVisibilityPause,
-    run: (command: VisibilityPauseEffect, current) => {
+    initial: RecorderVisibilityPauseMachine.initialVisibilityPause,
+    transition: RecorderVisibilityPauseMachine.transitionVisibilityPause,
+    run: (command: RecorderVisibilityPauseMachine.VisibilityPauseEffect, current) => {
       if (command.type === 'wait')
         return Effect.asVoid(
           FiberHandle.run(
             waiting,
             Effect.andThen(
-              Effect.sleep(HIDDEN_PAUSE_MS),
+              Effect.sleep(RecorderVisibilityPauseMachine.HIDDEN_PAUSE_MS),
               current.dispatch({type: 'hide.elapsed', attempt: command.attempt}),
             ),
           ),

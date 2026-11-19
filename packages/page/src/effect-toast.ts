@@ -1,4 +1,11 @@
-import {overlayLayer} from './overlay.js'
+const MAX_Z = '2147483647'
+
+function overlayLayer(el: HTMLElement, z = MAX_Z): void {
+  el.style.position = 'fixed'
+  el.style.zIndex = z
+  el.style.pointerEvents = 'none'
+  el.setAttribute('aria-hidden', 'true')
+}
 
 const TOAST_MS = 2200
 const EXIT_MS = 200

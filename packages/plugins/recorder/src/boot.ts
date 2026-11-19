@@ -1,6 +1,6 @@
 import {Effect, FiberHandle, FiberSet, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
 import type {RecorderControl} from './rpc.js'
-import {initialBoot, transitionBoot, type BootEffect, type BootEvent, type BootState} from './boot-machine.js'
+import * as RecorderBootMachine from './boot-machine.js'
 import {makeMachineDriver} from './machine-driver.js'
 
 export const ConfigReadFailed = Schema.TaggedStruct('RecorderConfigReadFailed', {cause: Schema.Defect()})
@@ -16,15 +16,16 @@ export function runBoot<Prepared, PrepareFailed>(options: {
   readonly selector: Stream.Stream<string | undefined>
   readonly prepare: (selector: string) => Effect.Effect<Prepared, PrepareFailed>
   readonly open: (prepared: Prepared, onFailed: Effect.Effect<void>) => Effect.Effect<void, never, Scope.Scope>
-}): Effect.Effect<SubscriptionRef.SubscriptionRef<BootState>, never, Scope.Scope> {
+}): Effect.Effect<SubscriptionRef.SubscriptionRef<RecorderBootMachine.BootState>, never, Scope.Scope> {
   return Effect.gen(function* () {
     const reading = yield* FiberHandle.make()
     const preparing = yield* FiberSet.make()
     const session = yield* FiberHandle.make()
     const driver = yield* makeMachineDriver({
-      initial: initialBoot,
-      transition: (state: BootState, event: BootEvent<Prepared>) => transitionBoot(state, event),
-      run: (command: BootEffect<Prepared>, current) => {
+      initial: RecorderBootMachine.initialBoot,
+      transition: (state: RecorderBootMachine.BootState, event: RecorderBootMachine.BootEvent<Prepared>) =>
+        RecorderBootMachine.transitionBoot(state, event),
+      run: (command: RecorderBootMachine.BootEffect<Prepared>, current) => {
         if (command.type === 'prepare')
           return Effect.asVoid(
             FiberSet.run(

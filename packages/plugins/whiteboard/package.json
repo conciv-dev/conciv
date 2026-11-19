@@ -50,7 +50,6 @@
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental"
   },
   "dependencies": {
-    "@conciv/protocol": "workspace:^",
     "@takumi-rs/core": "catalog:",
     "@takumi-rs/helpers": "catalog:",
     "effect": "catalog:",
@@ -65,6 +64,7 @@
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
+    "@conciv/protocol": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/ui-kit-tap": "workspace:*",
     "@conciv/uno-preset": "workspace:*",

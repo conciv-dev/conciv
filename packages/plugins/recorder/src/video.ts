@@ -2,13 +2,11 @@ import {Effect, FileSystem, Option, Schema} from 'effect'
 import type {RrwebEvent} from './rpc.js'
 import {RendererCache} from './renderer-cache.js'
 
-export type VideoPiece = {data: string; eof: boolean}
+const VideoUnrendered = Schema.TaggedStruct('RecorderVideoUnrendered', {cause: Schema.Defect()})
+type VideoUnrendered = typeof VideoUnrendered.Type
 
-export const VideoUnrendered = Schema.TaggedStruct('RecorderVideoUnrendered', {cause: Schema.Defect()})
-export type VideoUnrendered = typeof VideoUnrendered.Type
-
-export const VideoUnreadable = Schema.TaggedStruct('RecorderVideoUnreadable', {cause: Schema.Defect()})
-export type VideoUnreadable = typeof VideoUnreadable.Type
+const VideoUnreadable = Schema.TaggedStruct('RecorderVideoUnreadable', {cause: Schema.Defect()})
+type VideoUnreadable = typeof VideoUnreadable.Type
 
 const unrendered = (cause: unknown) => VideoUnrendered.make({cause})
 

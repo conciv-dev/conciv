@@ -7,7 +7,7 @@ export type CaptureSessionState =
   | {readonly status: 'failed'; readonly attempt: number}
   | {readonly status: 'disposed'; readonly attempt: number}
 
-export type CaptureSessionEvent =
+type CaptureSessionEvent =
   | {readonly type: 'paused'}
   | {readonly type: 'resumed'}
   | {readonly type: 'config.read'; readonly attempt: number; readonly config: RecorderConfig}
@@ -22,7 +22,7 @@ export type CaptureSessionEffect =
   | {readonly type: 'report-failed'; readonly error: unknown}
   | {readonly type: 'detach'}
 
-export type CaptureSessionTransition = {
+type CaptureSessionTransition = {
   readonly state: CaptureSessionState
   readonly effects: readonly CaptureSessionEffect[]
 }

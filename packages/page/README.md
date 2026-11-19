@@ -16,7 +16,7 @@ Package root for `@conciv/page`, inlined by `@conciv/embed`. Builds `src/index.t
 
 ## Side Effects
 
-- The package root (configs and manifest) has none. At runtime the page plane replaces `console.*`, installs window error listeners and answers engine page queries against the host DOM. Full list in [src/README.md](./src/README.md#side-effects).
+- The package root (configs and manifest) has none. At runtime the helpers touch the host page only when called: React instrumentation, toast overlays and the react-grab picker. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 

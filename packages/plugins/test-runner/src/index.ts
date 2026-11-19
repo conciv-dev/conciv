@@ -2,12 +2,29 @@ import {Plugin} from '@conciv/plugin/effect'
 import type {Context} from '@conciv/plugin/effect/plugin'
 import {Effect, Stream} from 'effect'
 import {z} from 'zod'
-import {getRunner} from './registry.js'
-import type {RunnerServices, RunnerUnavailable, TestRunnerManager} from './runner.js'
+import type {RunnerServices, RunnerUnavailable, TestRunnerAdapter, TestRunnerManager} from './runner.js'
 import {TestRunner} from './rpc.js'
 import {info} from './skill.js'
 import {register} from './tools.js'
 import {vitest} from './vitest.js'
+import {playwright} from './playwright.js'
+import {defineStubRunner} from './run.js'
+
+const jest = defineStubRunner({
+  id: 'jest',
+  reason: 'jest runner not implemented',
+})
+
+const nodeTest = defineStubRunner({
+  id: 'node-test',
+  reason: 'node-test runner not implemented',
+})
+
+const adapters: TestRunnerAdapter[] = [vitest, jest, nodeTest, playwright]
+
+function getRunner(id: string): TestRunnerAdapter | undefined {
+  return adapters.find((adapter) => adapter.id === id)
+}
 
 const testRunnerConfig = z.object({
   runner: z.enum(['vitest', 'jest', 'node-test', 'playwright']).default('vitest'),
@@ -29,7 +46,6 @@ function registerRpc(rpc: Context['rpc'], manager: TestRunnerManager) {
             Effect.fail(call.error('UNAVAILABLE', UNAVAILABLE_MESSAGE, {available: false, error: error.message})),
           ),
         ),
-    ui: () => manager.openUiServer,
     run: (input, call) =>
       manager
         .run(input)

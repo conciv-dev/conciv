@@ -1,6 +1,6 @@
 import {join} from 'node:path'
 import {Clock, Effect, FileSystem, Option, Path, Schema, Semaphore, type PlatformError} from 'effect'
-import {uniq} from 'es-toolkit'
+import {uniq, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import {
   destination,
@@ -11,9 +11,36 @@ import {
   type IosConfig,
   type IosRuntime,
 } from './config.js'
-import {DiagnosticSchema, parseDiagnostics, type Diagnostic} from './diagnostics.js'
 import * as Simctl from './simctl.js'
 import {boundedCommandError, stdoutText} from './simctl.js'
+
+const DiagnosticSchema = z.object({
+  file: z.string(),
+  line: z.number(),
+  message: z.string(),
+  severity: z.enum(['error', 'warning']),
+})
+
+type Diagnostic = z.infer<typeof DiagnosticSchema>
+
+const DIAGNOSTIC_LINE = /^(.*?):(\d+):(?:\d+): (error|warning): (.*)$/
+
+function parseDiagnosticLine(raw: string): Diagnostic | null {
+  const match = DIAGNOSTIC_LINE.exec(raw)
+  if (!match) return null
+  const [, file, line, severity, message] = match
+  if (file === undefined || line === undefined || severity === undefined || message === undefined) return null
+  return {file, line: Number(line), message, severity: severity === 'warning' ? 'warning' : 'error'}
+}
+
+function diagnosticKey(diagnostic: Diagnostic): string {
+  return `${diagnostic.file}:${diagnostic.line}:${diagnostic.severity}:${diagnostic.message}`
+}
+
+function parseDiagnostics(output: string): Diagnostic[] {
+  const parsed = output.split('\n').flatMap((raw) => parseDiagnosticLine(raw) ?? [])
+  return uniqBy(parsed, diagnosticKey)
+}
 
 export const BuildFileFailed = Schema.TaggedStruct('BuildFileFailed', {message: Schema.String, cause: Schema.Unknown})
 

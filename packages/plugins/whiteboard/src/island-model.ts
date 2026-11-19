@@ -1,89 +1,32 @@
 import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
-import {Deferred, Effect, FiberMap, Queue, Ref, Schedule, Schema, Scope, SubscriptionRef} from 'effect'
+import {Deferred, Effect, Ref, Scope} from 'effect'
 import {isPlainObject, keyBy, pickBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {WhiteboardDb} from './whiteboard-db.js'
 import {json, type ElementRow, type JsonValue, type PendingRow} from './rows.js'
 import {validateSvg} from './svg-caps.js'
-import {replayDraft} from './replay.js'
-import {startDrain, transitionDrain, type DrainEffect, type DrainEvent, type DrainState} from './drain-machine.js'
+import * as WhiteboardDrain from './drain.js'
 
-export const RemoveFailed = Schema.TaggedStruct('RemoveFailed', {message: Schema.String})
-type RemoveFailed = typeof RemoveFailed.Type
+type ReplayStep<Result> = {elementId: string; write: () => Result}
 
-type PendingWork = {
-  readonly claim: (row: PendingRow) => Effect.Effect<boolean, unknown>
-  readonly perform: (row: PendingRow) => Effect.Effect<void, unknown>
-  readonly remove: (row: PendingRow) => Effect.Effect<void, RemoveFailed>
+export function replayDraft<Result>(
+  steps: readonly ReplayStep<Result>[],
+  skipped: Deferred.Deferred<void>,
+): Effect.Effect<Result[]> {
+  const perStep = Math.max(60, Math.min(3000 / Math.max(steps.length, 1), 400))
+  const pause = Effect.race(Effect.sleep(perStep), Deferred.await(skipped))
+  return Effect.forEach(steps, (step, index) =>
+    (index === 0 ? Effect.void : pause).pipe(Effect.andThen(Effect.sync(step.write))),
+  ).pipe(Effect.withSpan('whiteboard.replay'))
 }
-
-const REMOVE_MAX_WAIT_MS = 10_000
-
-export const makePendingDrain = Effect.fn('whiteboard.pendingDrain')(function* (
-  work: PendingWork,
-  options: {removeRetryMs: number},
-) {
-  const start = startDrain()
-  const state = yield* SubscriptionRef.make<DrainState>(start.state)
-  const inbox = yield* Queue.unbounded<DrainEvent>()
-  const rows = yield* FiberMap.make<string>()
-  const retry = Schedule.min([Schedule.exponential(options.removeRetryMs), Schedule.spaced(REMOVE_MAX_WAIT_MS)]).pipe(
-    Schedule.jittered,
-  )
-  const offer = (event: DrainEvent) => Queue.offer(inbox, event)
-
-  const run = ({type, attempt, row}: DrainEffect): Effect.Effect<unknown> => {
-    const label = `pending ${row.kind} ${row.id}`
-    if (type === 'claim')
-      return FiberMap.run(
-        rows,
-        row.id,
-        work.claim(row).pipe(
-          Effect.catchCause((cause) => Effect.logError(`claiming ${label} failed`, cause).pipe(Effect.as(false))),
-          Effect.flatMap((claimed) => offer({type: 'claimed', id: row.id, attempt, claimed})),
-        ),
-      )
-    if (type === 'run')
-      return FiberMap.run(
-        rows,
-        row.id,
-        work.perform(row).pipe(
-          Effect.catchCause((cause) => Effect.logError(`running ${label} failed`, cause)),
-          Effect.andThen(offer({type: 'ran', id: row.id, attempt})),
-        ),
-      )
-    return FiberMap.run(
-      rows,
-      row.id,
-      work.remove(row).pipe(
-        Effect.tapError((failure) => Effect.logWarning(`removing ${label} failed; retrying`, failure.message)),
-        Effect.retry(retry),
-        Effect.andThen(offer({type: 'removed', id: row.id, attempt})),
-      ),
-    )
-  }
-
-  const step = (event: DrainEvent) =>
-    SubscriptionRef.modify(state, (current) => {
-      const next = transitionDrain(current, event)
-      return [next.effects, next.state]
-    }).pipe(Effect.flatMap((effects) => Effect.forEach(effects, run, {discard: true})))
-
-  yield* Queue.take(inbox).pipe(Effect.flatMap(step), Effect.forever, Effect.forkScoped)
-  yield* Effect.addFinalizer(() => step({type: 'disposed'}))
-
-  return {state, see: (seen: readonly PendingRow[]) => offer({type: 'seen', rows: seen})}
-})
-
-export type PendingDrain = Effect.Success<ReturnType<typeof makePendingDrain>>
 
 export type SceneElement = OrderedExcalidrawElement
 type Versioned = Pick<SceneElement, 'id' | 'version' | 'versionNonce'>
 type Versions = Readonly<Partial<Record<string, number>>>
 
 const sceneElement = z.custom<SceneElement>(isPlainObject)
-export const asScene = (data: JsonValue): SceneElement => sceneElement.parse(data)
+const asScene = (data: JsonValue): SceneElement => sceneElement.parse(data)
 
 export const makeSceneVersions = Effect.fn('whiteboard.sceneVersions')(function* () {
   const versions = yield* Ref.make<Versions>({})
@@ -123,7 +66,7 @@ export const makeSceneVersions = Effect.fn('whiteboard.sceneVersions')(function*
   return {seed, acceptRemote, takeLocal}
 })
 
-export const asJson = (element: ExcalidrawElement): JsonValue => json.parse(JSON.parse(JSON.stringify(element)))
+const asJson = (element: ExcalidrawElement): JsonValue => json.parse(JSON.parse(JSON.stringify(element)))
 export const rowsToScene = (rows: readonly ElementRow[]): SceneElement[] => rows.map((row) => asScene(row.data))
 export const elementsToRows = (room: string, elements: readonly ExcalidrawElement[]): ElementRow[] =>
   elements.map((element) => ({room, elementId: element.id, data: asJson(element), version: element.version}))
@@ -278,7 +221,7 @@ export const makeCanvasPending = Effect.fn('whiteboard.canvasPending')(function*
     commit: commitPending,
     export: exportPending,
   }
-  const drain = yield* makePendingDrain(
+  const drain = yield* WhiteboardDrain.makePendingDrain(
     {
       claim: (row) => Effect.tryPromise(() => db.claimPending(row.id)).pipe(Effect.map(({claimed}) => claimed)),
       perform: (row) => handlers[row.kind]?.(row) ?? Effect.void,
@@ -288,7 +231,7 @@ export const makeCanvasPending = Effect.fn('whiteboard.canvasPending')(function*
             db.canvasPending.has(row.id)
               ? db.canvasPending.delete(row.id).isPersisted.promise.then(() => undefined)
               : Promise.resolve(),
-          catch: (cause) => RemoveFailed.make({message: String(cause)}),
+          catch: (cause) => WhiteboardDrain.RemoveFailed.make({message: String(cause)}),
         }),
     },
     options,

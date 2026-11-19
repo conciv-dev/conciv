@@ -40,7 +40,7 @@ const UNTRUSTED = {type: 'text' as const, text: UNTRUSTED_NOTE}
 
 export type Options = {readonly bundlerWaitMs: number}
 
-export type Capabilities = Effect.Success<ReturnType<typeof capabilities>>
+type Capabilities = Effect.Success<ReturnType<typeof capabilities>>
 
 export const capabilities = Effect.fn('tanstack.capabilities')(function* (
   ctx: Pick<Context, 'event'>,

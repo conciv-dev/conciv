@@ -1,6 +1,6 @@
 import {Effect, SubscriptionRef} from 'effect'
 
-export type MachineTransition<State, Command> = {readonly state: State; readonly effects: readonly Command[]}
+type MachineTransition<State, Command> = {readonly state: State; readonly effects: readonly Command[]}
 
 export type MachineDriver<State, Event> = {
   readonly state: SubscriptionRef.SubscriptionRef<State>

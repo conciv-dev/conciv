@@ -15,7 +15,7 @@ export type ComposePhase =
 const CommentsUnbound = Schema.TaggedStruct('Whiteboard.CommentsUnbound', {})
 type CommentsUnbound = typeof CommentsUnbound.Type
 
-export type ComposeSteps = {
+type ComposeSteps = {
   readonly pick: () => Promise<Grab | null>
   readonly canvasOpen: () => boolean
   readonly added: () => void

@@ -5,7 +5,7 @@ type Fiber = any
 
 type Stat = {component: string; renders: number; lastReason: string; changedProps: string[]; selfTimeMaxMs: number}
 
-export type TrackReport = {
+type TrackReport = {
   tracking: boolean
   tracked: number
 

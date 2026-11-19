@@ -4,7 +4,7 @@ import {createStore, reconcile} from 'solid-js/store'
 import type {Context} from '@conciv/plugin/experimental'
 import {TestRunner} from './rpc.js'
 import {TestEventSchema} from './events.js'
-import {createFollowState, transitionFollow, type FollowEffect, type FollowEvent} from './follow-machine.js'
+import * as TestRunnerFollowMachine from './follow-machine.js'
 import {initialRunView, transitionRunView, type RunView} from './run-state.js'
 
 type Client = Context['client']
@@ -33,7 +33,7 @@ function readRun(client: Client) {
   })
 }
 
-function decodeEvent(event: {readonly type: string; readonly data?: unknown}): FollowEvent {
+function decodeEvent(event: {readonly type: string; readonly data?: unknown}): TestRunnerFollowMachine.FollowEvent {
   if (event.type === 'server.connected') return {type: 'server-connected'}
   const parsed = TestEventSchema.safeParse(event.data)
   return parsed.success ? {type: 'event', event: parsed.data} : {type: 'event-invalid', error: parsed.error}
@@ -43,7 +43,7 @@ const followTestRun = Effect.fn('TestRunner.follow')(function* (
   client: Client,
   view: SubscriptionRef.SubscriptionRef<RunView>,
 ) {
-  const state = yield* Ref.make(createFollowState())
+  const state = yield* Ref.make(TestRunnerFollowMachine.createFollowState())
   const reads = yield* FiberHandle.make<void, never>()
   const transitions = yield* Semaphore.make(1)
 
@@ -55,7 +55,7 @@ const followTestRun = Effect.fn('TestRunner.follow')(function* (
       }),
     )
 
-  const perform = (effect: FollowEffect): Effect.Effect<void> => {
+  const perform = (effect: TestRunnerFollowMachine.FollowEffect): Effect.Effect<void> => {
     if (effect.type === 'apply')
       return SubscriptionRef.update(view, (current) => transitionRunView(current, effect.action))
     if (effect.type === 'log')
@@ -63,11 +63,11 @@ const followTestRun = Effect.fn('TestRunner.follow')(function* (
     return FiberHandle.run(reads, read(effect.attempt)).pipe(Effect.asVoid)
   }
 
-  const dispatch = (event: FollowEvent): Effect.Effect<void> =>
+  const dispatch = (event: TestRunnerFollowMachine.FollowEvent): Effect.Effect<void> =>
     transitions.withPermits(1)(
       Effect.gen(function* () {
         const effects = yield* Ref.modify(state, (current) => {
-          const next = transitionFollow(current, event)
+          const next = TestRunnerFollowMachine.transitionFollow(current, event)
           return [next.effects, next.state]
         })
         yield* Effect.forEach(effects, perform, {discard: true})
