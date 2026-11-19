@@ -10,6 +10,7 @@ import noOfSuffix from './no-of-suffix.js'
 import noPredicateWaits from './no-predicate-waits.js'
 import noSignalRef from './no-signal-ref.js'
 import noTimersInTests from './no-timers-in-tests.js'
+import pluginViewReadsThroughQuery from './plugin-view-reads-through-query.js'
 import routerIdioms from './router-idioms.js'
 import solidTestRender from './solid-test-render.js'
 import testFileBudget from './test-file-budget.js'
@@ -30,6 +31,7 @@ export default {
     'no-predicate-waits': noPredicateWaits,
     'no-signal-ref': noSignalRef,
     'no-timers-in-tests': noTimersInTests,
+    'plugin-view-reads-through-query': pluginViewReadsThroughQuery,
     'router-idioms': routerIdioms,
     'solid-test-render': solidTestRender,
     'test-file-budget': testFileBudget,

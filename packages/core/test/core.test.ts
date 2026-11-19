@@ -2440,7 +2440,10 @@ describe('a stalled event stream gets a new socket', () => {
     const network = await relay(served.port)
     const client = makeBrowserRpcClient(network.origin)
     const connection = browserRpcConnection(network.origin)
-    const conciv = Conciv.make(client.rpc, {idleTimeout: idleTimeoutShorterThanTheHeartbeat})
+    const conciv = Conciv.make(client.rpc, {
+      server: () => network.origin,
+      idleTimeout: idleTimeoutShorterThanTheHeartbeat,
+    })
     const statuses: string[] = []
     const stopWatching = conciv.connection.on((status) => statuses.push(status))
     const lastTwoStatusesOfAnyNumberOfCuts = () => statuses.slice(-2)
@@ -4176,7 +4179,7 @@ describe('plugin rpc over the socket', () => {
           }),
         ).pipe(Scope.provide(host.runSync(Scope.make()))),
       )
-      const conciv = Conciv.make(client.rpc)
+      const conciv = Conciv.make(client.rpc, {server: () => served.origin})
       const api = conciv.rpc
       const acme = api(AcmeClient)
       expect(await acme.search({query: 'docs'})).toEqual({hits: ['docs']})

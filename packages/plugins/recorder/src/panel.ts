@@ -1,6 +1,8 @@
 import {Effect, FiberSet, PubSub, Schedule, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
+import type {Context} from '@conciv/plugin/experimental'
 import {makeMachineDriver} from './machine-driver.js'
 import {initialPanel, transitionPanel, type PanelEffect, type PanelState, type SaveFailure} from './panel-machine.js'
+import {Recorder} from './rpc.js'
 
 export const PresenceFailed = Schema.TaggedStruct('RecorderPresenceFailed', {cause: Schema.Defect()})
 export type PresenceFailed = typeof PresenceFailed.Type
@@ -151,4 +153,54 @@ export function exportRecording<Failure>(options: {
     Effect.flatMap((saved) => readVideo(saved.recordingId, 0, [])),
     Effect.flatMap(options.saveFile),
   )
+}
+
+export function recorderPanelCalls(options: {
+  readonly client: () => Context['client']
+  readonly clientId: string
+  readonly viewerId: string
+  readonly refresh: () => Promise<void>
+  readonly flush: Effect.Effect<void>
+  readonly readPiece: (id: string, offset: number) => Effect.Effect<VideoPiece, ExportFailed>
+  readonly saveFile: (file: File) => Effect.Effect<void>
+  readonly noteSaved: (saved: SavedRecording) => void
+}) {
+  const recorder = () => options.client().rpc(Recorder)
+  const save = <Failure>(failure: (cause: unknown) => Failure) =>
+    saveRecording({
+      flush: options.flush,
+      save: Effect.tryPromise({
+        try: () => recorder()['recordings.save']({clientId: options.clientId}),
+        catch: failure,
+      }),
+    })
+  return {
+    presence: (live: boolean) =>
+      Effect.asVoid(
+        Effect.tryPromise({
+          try: () => recorder().presence({viewerId: options.viewerId, live}),
+          catch: (cause) => PresenceFailed.make({cause}),
+        }),
+      ),
+    exportRecording: exportRecording({
+      save: save((cause) => ExportFailed.make({cause})),
+      readPiece: options.readPiece,
+      saveFile: options.saveFile,
+    }),
+    sendToAgent: save((cause) => SendFailed.make({cause})).pipe(
+      Effect.flatMap((saved) =>
+        Effect.try({
+          try: () => options.noteSaved(saved),
+          catch: (cause) => SendFailed.make({cause}),
+        }),
+      ),
+    ),
+    reset: Effect.tryPromise({
+      try: async () => {
+        await recorder().reset(undefined)
+        await options.refresh()
+      },
+      catch: (cause) => ResetFailed.make({cause}),
+    }),
+  }
 }

@@ -1,10 +1,8 @@
 import type {IncomingMessage, OutgoingHttpHeader, ServerResponse} from 'node:http'
-import {EXTENSIONS_DOCK_ROUTE, EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
+import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE} from './widget-module.js'
 import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void
-
-export {EXTENSIONS_DOCK_ROUTE, EXTENSIONS_ROUTE}
 
 function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
@@ -44,8 +42,8 @@ function widgetTags(apiBase: string, widgetConfig?: ConcivSettingsInit | false):
       html: `<meta name="conciv-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">`,
     },
     {
-      present: (html) => html.includes(EXTENSIONS_ROUTE) || html.includes(EXTENSIONS_DOCK_ROUTE),
-      html: `<script type="module" src="${escapeAttr(EXTENSIONS_ROUTE)}"></script>`,
+      present: (html) => html.includes(WIDGET_ROUTE) || html.includes(WIDGET_DOCK_ROUTE),
+      html: `<script type="module" src="${escapeAttr(WIDGET_ROUTE)}"></script>`,
     },
   ]
 }
