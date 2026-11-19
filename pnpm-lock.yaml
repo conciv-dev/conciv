@@ -447,9 +447,6 @@ catalogs:
     oxlint:
       specifier: 1.90.0
       version: 1.90.0
-    p-queue:
-      specifier: ^10.0.0
-      version: 10.0.0
     p-timeout:
       specifier: ^8.0.0
       version: 8.0.0
@@ -892,9 +889,6 @@ importers:
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../../packages/embed
-      '@conciv/extension-whiteboard':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/whiteboard
       '@conciv/it':
         specifier: workspace:*
         version: link:../../../packages/it
@@ -904,6 +898,9 @@ importers:
       '@conciv/plugin-test-runner':
         specifier: workspace:*
         version: link:../../../packages/plugins/test-runner
+      '@conciv/plugin-whiteboard':
+        specifier: workspace:*
+        version: link:../../../packages/plugins/whiteboard
       next:
         specifier: 'catalog:'
         version: 16.4.3(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0)
@@ -941,21 +938,21 @@ importers:
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../../packages/embed
-      '@conciv/extension-recorder':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/recorder
-      '@conciv/extension-whiteboard':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/whiteboard
       '@conciv/it':
         specifier: workspace:*
         version: link:../../../packages/it
+      '@conciv/plugin-recorder':
+        specifier: workspace:*
+        version: link:../../../packages/plugins/recorder
       '@conciv/plugin-tanstack':
         specifier: workspace:*
         version: link:../../../packages/plugins/tanstack
       '@conciv/plugin-test-runner':
         specifier: workspace:*
         version: link:../../../packages/plugins/test-runner
+      '@conciv/plugin-whiteboard':
+        specifier: workspace:*
+        version: link:../../../packages/plugins/whiteboard
       '@conciv/protocol':
         specifier: workspace:*
         version: link:../../../packages/protocol
@@ -2471,9 +2468,6 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
@@ -2748,9 +2742,6 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
@@ -3030,9 +3021,6 @@ importers:
       '@conciv/extension-recorder':
         specifier: workspace:^
         version: link:../extensions/recorder
-      '@conciv/extension-whiteboard':
-        specifier: workspace:*
-        version: link:../extensions/whiteboard
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
@@ -18028,10 +18016,6 @@ packages:
   p-map@7.1.1:
     resolution: {integrity: sha512-6Lh3jQPLthYujSrlw6ccWXBGZTkoTCz27Hd92g79LH/kjAbgoEu0t442cCCNbegPSJsA0lwDX8z0bcKtkpA32g==}
     engines: {node: '>=18'}
-
-  p-queue@10.0.0:
-    resolution: {integrity: sha512-P2wrCri3bhGLPo3kX7qYVXbo/5GvaVATU0DpO24CbeT53Y4z35t8JUWku04ERpXHUYB5rPMi3TkWE3fmJgx5rA==}
-    engines: {node: '>=22'}
 
   p-queue@9.3.5:
     resolution: {integrity: sha512-Lki/zhXFVmDhesBUn/yHRLW9Bte7mE7xoFHzTR8sIomV7a2z+LxYAPkGvdfidNiu4fKSfjtawixxSHcZci5QcQ==}
@@ -33159,8 +33143,6 @@ snapshots:
       p-limit: 3.1.0
 
   p-map@7.1.1: {}
-
-  p-queue@10.0.0: {}
 
   p-queue@9.3.5:
     dependencies:

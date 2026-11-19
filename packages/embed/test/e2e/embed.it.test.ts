@@ -2176,6 +2176,14 @@ test.describe('rebind', () => {
     await kit.cleanup()
   })
 
+  const AttachedSchema = z.array(z.string())
+
+  async function attachedSessions(): Promise<string[]> {
+    return AttachedSchema.parse(
+      await kit.rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}),
+    )
+  }
+
   async function panelSession(): Promise<string | null> {
     const state = await kit.rpc.navigation.get(undefined)
     const entry = state?.entries.find((row) => row.href.startsWith('/panel/'))
@@ -2207,12 +2215,13 @@ test.describe('rebind', () => {
       await mountHandle(page, proxyA.base)
       await openChatPanel(page)
 
-      const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
-      await expect(apiBaseProbe).toHaveText(browserBase(proxyA.base), {timeout: 30_000})
-
       await until(async () => (await panelSession()) !== null, {hangGuardMs: 30_000, intervalMs: 100})
       const sessionBefore = await panelSession()
       expect(sessionBefore).not.toBeNull()
+      await until(async () => (await attachedSessions()).includes(String(sessionBefore)), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
 
       await sendChatMessage(page, USER_TEXT)
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
@@ -2227,7 +2236,10 @@ test.describe('rebind', () => {
       await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
       await expect(chatBox(page)).toBeVisible({timeout: 30_000})
 
-      await expect(apiBaseProbe).toHaveText(browserBase(proxyB.base), {timeout: 30_000})
+      await until(async () => (await attachedSessions()).includes(String(sessionBefore)), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
       await page.getByRole('button', {name: 'Session options'}).click()
       await expect(page.getByRole('button', {name: `Session: ${renamed}`})).toBeVisible({timeout: 30_000})
       await page.keyboard.press('Escape')

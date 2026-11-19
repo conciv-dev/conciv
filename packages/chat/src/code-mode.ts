@@ -16,7 +16,6 @@ import {
 import {defineTool, type ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {ChatContentPart} from '@conciv/protocol/chat-types'
 import type {ToolRequest} from '@conciv/protocol/tool-call-types'
-import {type SandboxTool} from '@conciv/extension/registry'
 import type {ConcivServerTool} from '@conciv/tools'
 
 type SchemaInput = NonNullable<Parameters<typeof defineTool>[0]['inputSchema']>
@@ -43,47 +42,11 @@ export type ToolDomain = {snapshot: Tool.Snapshot; agent: Agent.Id}
 
 const ATTACHED_FILE_TEXT = 'Attached document or image follows.'
 
-const JsonSchemaObject = z.record(z.string(), z.unknown())
-
 const PLUGIN_TEXT_OUTPUT: SchemaInput = {type: ['string', 'null']}
-
-export type CapabilityCall = (name: string, input: unknown, request: ToolRequest) => Promise<unknown>
-
-function discoverableDescription(tool: SandboxTool): string {
-  const summary = tool.hint === undefined ? tool.summary : `${tool.summary}. ${tool.hint}`
-  const errors = tool.errors.map(({code, message}) => `${code}: ${message}`).join('; ')
-  return [
-    /[.!?]$/.test(summary) ? summary : `${summary}.`,
-    `Returns JSON matching: ${JSON.stringify(tool.outputSchema)}`,
-    ...(errors === '' ? [] : [`Declared errors: ${errors}`]),
-  ].join('\n\n')
-}
 
 function groupedPath(name: string, group: string | undefined): string {
   const prefix = group ?? name.split('_', 1)[0] ?? name
   return name.startsWith(`${prefix}_`) ? `${prefix}.${name.slice(prefix.length + 1)}` : name
-}
-
-export function registryCapabilities(
-  tools: readonly SandboxTool[],
-  call: CapabilityCall,
-  extensionFor: (name: string) => string | undefined,
-): CodeCapability[] {
-  return tools.map((tool) => ({
-    name: tool.name,
-    path: groupedPath(tool.name, extensionFor(tool.name)),
-    description: discoverableDescription(tool),
-    ...(tool.approval === undefined ? {} : {approval: tool.approval}),
-    errors: tool.errors.map(({code, message}) => ({code, message})),
-    inputSchema: tool.schema,
-    ...registryOutput(tool.outputSchema),
-    execute: async (input, request) => ({value: await call(tool.name, input, request), files: []}),
-  }))
-}
-
-function registryOutput(schema: unknown): {outputSchema?: SchemaInput} {
-  const parsed = JsonSchemaObject.safeParse(schema)
-  return parsed.success ? {outputSchema: parsed.data} : {}
 }
 
 export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] {

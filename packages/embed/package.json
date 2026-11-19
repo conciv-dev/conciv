@@ -71,7 +71,6 @@
     "@conciv/browser-fixture": "workspace:*",
     "@conciv/cli": "workspace:*",
     "@conciv/extension-recorder": "workspace:^",
-    "@conciv/extension-whiteboard": "workspace:*",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",

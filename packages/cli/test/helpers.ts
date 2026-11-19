@@ -15,7 +15,6 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 export type BootExtras = {
   bridge?: Parameters<typeof makeApp>[0]['bridge']
-  extensions?: Parameters<typeof makeApp>[0]['extensions']
 }
 
 function bootCliApp(extras: BootExtras): BootApp {
@@ -40,7 +39,6 @@ function bootCliApp(extras: BootExtras): BootApp {
       openInEditor: () => {},
       harness: env.harness,
       bridge: extras.bridge,
-      extensions: extras.extensions,
     })
     await awaitActivation()
     return {fetch, dispose, agentToken}

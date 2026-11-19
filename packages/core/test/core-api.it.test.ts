@@ -39,7 +39,6 @@ import {
 import {createMCPClient, imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {
-  abortableFetch,
   browserRpcConnection,
   cappedValue,
   codeExecuteReply,
@@ -48,17 +47,6 @@ import {
   SOCKET_TRUST_FRAME,
   type EngineStaleness,
 } from '@conciv/contract'
-import {
-  defineExtension,
-  defineTool,
-  makeExtRpcClient,
-  type ServerApi,
-  type ToolMiddleware,
-  imageResult,
-  defineAttachment,
-} from '@conciv/extension'
-import {toolError} from '@conciv/protocol/tool-call-types'
-import {openSource} from '@conciv/extension/client'
 import {getHarness, type HarnessAdapter} from '@conciv/harness'
 import {createHubConnections} from '@conciv/harness-init/hub'
 import {
@@ -102,7 +90,7 @@ import {
 } from '@conciv/harness-testkit'
 import {Plugin, Rpc as PluginRpc, type RpcRegistration} from '@conciv/plugin'
 import {evaluatePluginBundle} from '@conciv/plugin/experimental/host'
-import {InstructionEntry, Location, PluginHost, Session} from '@conciv/plugin-host'
+import {Bus, InstructionEntry, Location, PluginHost, Session, SessionEvent} from '@conciv/plugin-host'
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
 import {pi as piHarness} from '@conciv/harness/pi'
@@ -149,13 +137,12 @@ import {
   type HarnessModel,
 } from '@conciv/protocol/harness-types'
 import {PageQueueResultSchema} from '@conciv/protocol/page-types'
-import {RPC_WS_PATH, type RpcContext} from '@conciv/protocol/rpc-types'
+import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {createORPCClient} from '@orpc/client'
-import {RPCLink} from '@orpc/client/fetch'
 import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
-import {onError, ORPCError, os, type RouterClient} from '@orpc/server'
+import {ORPCError} from '@orpc/server'
 import WebSocket from 'ws'
 import {Effect, ManagedRuntime, Schema} from 'effect'
 import * as Page from '@conciv/plugin-page/rpc'
@@ -169,7 +156,7 @@ import {provideSessions} from '../src/runtime/plugin-sessions.js'
 import {provideServersSource} from '../src/runtime/servers-source.js'
 import {createSessionSearch} from '../src/sessions/session-search.js'
 import {start, type Engine} from '../src/start.js'
-import {sampleServerExtension, sampleState} from './fixtures/sample-server-extension.js'
+import {ensureRow, nativeIdFor, recordNativeId} from '../src/sessions/session-rows.js'
 import corePackage from '../package.json' with {type: 'json'}
 import {
   bootKit,
@@ -296,6 +283,15 @@ async function readSse(response: Response, stopType: string): Promise<void> {
 function registryCall(base: string, sessionId: string) {
   return (name: string, input: Record<string, unknown>) =>
     makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).registry.call({name, input})
+}
+
+function toolPlugin(id: string, transform: Parameters<Plugin.Context['tool']['transform']>[0]) {
+  return Plugin.define({
+    id,
+    async setup(ctx) {
+      await ctx.tool.transform(transform)
+    },
+  })
 }
 
 describe('cors', () => {
@@ -442,149 +438,129 @@ describe('api engine staleness di', () => {
   })
 })
 
-describe('api extension mount isolation', () => {
-  const healthyTool = defineTool({
-    name: 'healthy_ok',
-    description: 'a healthy tool',
-    inputSchema: z.object({}),
-    outputSchema: z.object({ok: z.boolean()}),
-    meta: {summary: 'answer that the extension is healthy', category: 'fixture', mutating: false},
-  }).server(() => ({ok: true}))
-
-  describe('extension mount isolation (real makeApp)', () => {
-    const state = {stateRoot: undefined as string | undefined, made: undefined as MadeApp | undefined}
-
-    afterEach(async () => {
-      await state.made?.dispose()
-      if (state.stateRoot) rmSync(state.stateRoot, {recursive: true, force: true})
-      state.made = undefined
-      state.stateRoot = undefined
-    })
-
-    it('boots surviving extensions when one extension throws while mounting', async () => {
-      const errors: string[] = []
-      const spy = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
-        errors.push(String(chunk))
-        return true
-      })
-      const stateRoot = tempDir('conciv-mount-')
-      state.stateRoot = stateRoot
-
-      const broken = defineExtension({name: 'broken'}).server(() => {
+describe('api plugin activation isolation', () => {
+  it('boots the surviving plugins when one plugin throws while it sets up', async () => {
+    const broken = Plugin.define({
+      id: 'broken',
+      async setup() {
         throw new Error('boom')
-      })
-      const healthy = defineExtension({name: 'healthy', tools: [healthyTool]}).server(() => ({context: {ready: true}}))
-
-      try {
-        const env = {stateRoot, cwd: stateRoot, harness: requireClaude(), print: () => {}}
-        const made = await bootMadeApp(env, {extensions: [broken, healthy]})
-        state.made = made
-
-        expect(made.extensionContexts.healthy).toEqual({ready: true})
-        expect('broken' in made.extensionContexts).toBe(false)
-        expect(errors.some((line) => line.includes('extension "broken" failed to mount'))).toBe(true)
-      } finally {
-        spy.mockRestore()
-      }
-    }, 30_000)
-
-    it('still fails boot loudly on a duplicate extension name (config error is not swallowed)', async () => {
-      const stateRoot = tempDir('conciv-mount-dup-')
-      state.stateRoot = stateRoot
-      const first = defineExtension({name: 'dup'}).server(() => ({context: {}}))
-      const second = defineExtension({name: 'dup'}).server(() => ({context: {}}))
-      const env = {stateRoot, cwd: stateRoot, harness: requireClaude(), print: () => {}}
-      await expect(bootMadeApp(env, {extensions: [first, second]})).rejects.toThrow(
-        /slug collision: "dup" is claimed by both "dup" and "dup"/,
-      )
-    }, 30_000)
-  })
-})
-
-describe('api extension router', () => {
-  const probeOs = os.$context<RpcContext>()
-
-  function makeProbeRouter() {
-    return probeOs.router({
-      ping: probeOs
-        .input(z.object({value: z.string()}))
-        .output(z.object({pong: z.string(), origin: z.string()}))
-        .handler(({input, context}) => ({pong: input.value, origin: context.origin})),
+      },
     })
-  }
-
-  type ProbeRouter = ReturnType<typeof makeProbeRouter>
-
-  const probeExtension = defineExtension({name: 'Router Probe'}).server(() => ({
-    context: {},
-    router: makeProbeRouter(),
-  }))
-
-  const kit = sharedKit(() => bootKit({extensions: [probeExtension]}))
-
-  test('an extension-contributed router round-trips through /rpc/ext/<slug>', async () => {
-    const client = makeExtRpcClient<ProbeRouter>(kit().base, 'router-probe')
-    const result = await client.ping({value: 'hello'})
-    expect(result.pong).toBe('hello')
-    expect(result.origin).toBe(kit().origin)
-  })
-})
-
-describe('api extension server surfaces', () => {
-  test('extension server api exposes sessions + harness surfaces backed by the real store', async () => {
-    const captured: {server?: ServerApi<Record<never, never>, {fontSize: number}>} = {}
-    const runEnd = {resolve: (_sessionId: SessionId) => {}}
-    const runEnded = new Promise<SessionId>((resolve) => (runEnd.resolve = resolve))
-    const probe = defineExtension({
-      name: 'probe',
-      settings: z.object({fontSize: z.number().default(13)}),
-    }).server((server) => {
-      captured.server = server
-      return {context: {}, turnEnd: (sessionId) => runEnd.resolve(sessionId)}
-    })
-    const harness = createTestHarness(claude)
-    const kit = await createTestkit(harness, bootCoreApp({extensions: [probe]})).setup()
+    const healthy = toolPlugin('healthy', (tools) =>
+      tools.add({
+        name: 'healthy_ok',
+        description: 'a healthy tool',
+        input: z.object({}),
+        output: z.object({ok: z.boolean()}),
+        execute: async () => ({output: {ok: true}}),
+      }),
+    )
+    const kit = await bootKit({plugins: [broken, healthy]})
     try {
-      const server = captured.server
-      if (!server) throw new Error('server api not captured')
+      const listed = (await kit.rpc.plugin.list()).data
+      expect(listed.find((plugin) => plugin.id === 'broken')).toMatchObject({state: {status: 'failed'}})
+      expect(listed.find((plugin) => plugin.id === 'healthy')).toMatchObject({state: {status: 'active'}})
+      expect(await registryCall(kit.base, await kit.session())('healthy_ok', {})).toEqual({ok: true})
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+
+  it('still fails boot loudly on a duplicate embedded plugin id (config error is not swallowed)', async () => {
+    const stateRoot = tempDir('conciv-mount-dup-')
+    const first = Plugin.define({id: 'dup', async setup() {}})
+    const second = Plugin.define({id: 'dup', async setup() {}})
+    const env = {stateRoot, cwd: stateRoot, harness: requireClaude(), print: () => {}}
+    await expect(
+      bootMadeApp(env, {plugins: [first, second]}).then(async (made) => {
+        onTestFinished(() => made.dispose())
+        await made.awaitActivation()
+      }),
+    ).rejects.toThrow(/duplicate instance plugin ids: dup/)
+  }, 30_000)
+})
+
+describe('api plugin router', () => {
+  const Probe = PluginRpc.define({
+    id: 'router-probe',
+    methods: {ping: {input: z.object({value: z.string()}), output: z.object({pong: z.string()})}},
+    events: {},
+  })
+
+  const probe = Plugin.define({
+    id: 'router-probe',
+    async setup(ctx) {
+      const registration = await ctx.rpc.register(Probe, {ping: async ({value}) => ({pong: value})})
+      return () => registration.dispose()
+    },
+  })
+
+  const kit = sharedKit(() => bootKit({plugins: [probe]}))
+
+  test('a plugin-registered rpc method round-trips through plugin.call', async () => {
+    expect(await kit().rpc.plugin.call({rpcId: 'router-probe', method: 'ping', input: {value: 'hello'}})).toEqual({
+      pong: 'hello',
+    })
+  })
+})
+
+describe('api engine session and harness surfaces', () => {
+  test('the engine records resume tokens on the real store, reports a busy session while a run holds, tells plugins the run ended, and reads harness transcripts', async () => {
+    const harness = createTestHarness(claude)
+    const booted: MadeApp[] = []
+    const kit = await createTestkit(harness, async (env) => {
+      const made = await bootMadeApp(env)
+      booted.push(made)
+      await made.awaitActivation()
+      return made
+    }).setup()
+    try {
+      const made = booted[0]
+      if (made === undefined) throw new Error('the kit booted no app')
       const sessionId = SessionId.parse(await kit.session())
+      const db = made.chat.db
 
-      expect(await server.settings.all()).toEqual({fontSize: 13})
-      await server.scope('probe').settings.project.set('fontSize', 18)
-      expect(await server.settings.all()).toEqual({fontSize: 18})
-      await server.scope('probe').settings.project.set('fontSize', 'large')
-      expect(await server.settings.all()).toEqual({fontSize: 13})
-
-      expect(await server.sessions.resumeToken(sessionId)).toBeNull()
-      await server.sessions.recordToken(sessionId, HarnessSessionId.parse('tok-round-trip'))
-      expect(await server.sessions.resumeToken(sessionId)).toBe('tok-round-trip')
+      expect(await nativeIdFor(db, sessionId)).toBeNull()
+      await recordNativeId(db, sessionId, 'claude', HarnessSessionId.parse('tok-round-trip'))
+      expect(await nativeIdFor(db, sessionId)).toBe('tok-round-trip')
 
       const fresh = SessionId.parse('conciv_surfaces_fresh')
-      await server.sessions.recordToken(fresh, HarnessSessionId.parse('tok-fresh'))
-      expect(await server.sessions.resumeToken(fresh)).toBe('tok-fresh')
+      await ensureRow(made.chat.rows, fresh)
+      await recordNativeId(db, fresh, 'claude', HarnessSessionId.parse('tok-fresh'))
+      expect(await nativeIdFor(db, fresh)).toBe('tok-fresh')
 
-      expect(await server.sessions.chatBusy(sessionId)).toBe(false)
+      const ended = Promise.withResolvers<string>()
+      await made.pluginHost.runPromise(
+        Bus.Service.use((bus) =>
+          bus.listen((event) =>
+            Effect.sync(() => {
+              if (event.type === SessionEvent.Execution.Succeeded.type) ended.resolve(JSON.stringify(event.data))
+            }),
+          ),
+        ),
+      )
+      expect(await made.plane.live(sessionId)).toBe(false)
       harness.script.hold()
-      const busyProbe = await kit.turn('busy probe', {session: sessionId, runId: 'extension-server-surfaces-1'})
+      const busyProbe = await kit.turn('busy probe', {session: sessionId, runId: 'engine-surfaces-1'})
       await busyProbe.waitForRunStart()
-      expect(await server.sessions.chatBusy(sessionId)).toBe(true)
+      expect(await made.plane.live(sessionId)).toBe(true)
       harness.script.release()
-      expect(await runEnded).toBe(sessionId)
-      await vi.waitFor(async () => expect(await server.sessions.chatBusy(sessionId)).toBe(false), {
+      expect(await ended.promise).toBe(JSON.stringify({sessionID: sessionId}))
+      await vi.waitFor(async () => expect(await made.plane.live(sessionId)).toBe(false), {
         timeout: 8000,
         interval: 25,
       })
 
-      expect(server.basePath).toMatch(/^\/t\/[0-9a-f-]{36}$/)
-      const surface = await server.harness(sessionId)
-      expect(surface.id).toBe('claude')
-      expect(typeof surface.ttyCommand).toBe('function')
+      expect(made.chat.basePath).toMatch(/^\/t\/[0-9a-f-]{36}$/)
+      const adapter = await made.chat.harnessFor(sessionId)
+      expect(adapter.id).toBe('claude')
+      expect(typeof adapter.tty?.command).toBe('function')
+      const history = adapter.history
+      if (history === undefined) throw new Error('claude keeps no history')
       const noSuchToken = HarnessSessionId.parse('no-such-token')
-      expect(await surface.transcriptExists?.(noSuchToken)).toBe(false)
-
-      expect(await surface.transcriptMessages?.(noSuchToken)).toEqual([])
+      expect(await history.messages(made.chat.cwd, noSuchToken)).toEqual([])
       const token = HarnessSessionId.parse(`surfaces-${process.pid}-${Math.random().toString(36).slice(2)}`)
-      const transcript = requireTranscriptPath(claude)(server.cwd, token)
+      const transcript = requireTranscriptPath(claude)(made.chat.cwd, token)
       mkdirSync(dirname(transcript), {recursive: true})
       writeFileSync(
         transcript,
@@ -594,8 +570,7 @@ describe('api extension server surfaces', () => {
         ].join('\n') + '\n',
       )
       try {
-        const messages = await surface.transcriptMessages?.(token)
-        if (!messages) throw new Error('no transcript messages')
+        const messages = await history.messages(made.chat.cwd, token)
         expect(messages.map((message) => message.role)).toEqual(['user', 'assistant'])
       } finally {
         rmSync(transcript, {force: true})
@@ -1396,23 +1371,34 @@ describe('api harness switching', () => {
   })
 })
 
-describe('api extension server', () => {
-  test('extension route serves typed config; tool runs against injected ctx; dispose on close', async () => {
-    sampleState.disposed = false
-    const kit = await bootKit({
-      extensions: [sampleServerExtension],
-      extensionConfig: {sample: {factor: 5}},
+describe('api plugin server', () => {
+  test('a plugin tool runs against the state its setup made, and its cleanup runs on close', async () => {
+    const state = {disposed: false}
+    const sample = Plugin.define({
+      id: 'sample',
+      async setup(ctx) {
+        const factor = 5
+        await ctx.tool.transform((tools) =>
+          tools.add({
+            name: 'sample_mul',
+            description: 'multiply by the configured factor',
+            input: z.object({n: z.number()}),
+            output: z.object({result: z.number()}),
+            execute: async ({n}) => ({output: {result: n * factor}}),
+          }),
+        )
+        return () => {
+          state.disposed = true
+        }
+      },
     })
-    const {base, cleanup: close} = kit
+    const kit = await bootKit({plugins: [sample]})
     try {
-      const echo = (await (await fetch(`${base}/api/ext/sample/echo`)).json()) as {factor: number; cwd: string}
-      expect(echo.factor).toBe(5)
-
       expect(JSON.stringify(await kit.callTool('sample_mul', {n: 4}))).toContain('20')
     } finally {
-      await close()
+      await kit.cleanup()
     }
-    expect(sampleState.disposed).toBe(true)
+    expect(state.disposed).toBe(true)
   }, 30_000)
 })
 
@@ -1472,19 +1458,25 @@ describe('api mcp execute result', () => {
   const PNG_RED_4x4 =
     'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP4z8AARwzEcQCukw/x0F8jngAAAABJRU5ErkJggg=='
 
-  const snap = defineTool({
-    name: 'probe_snap',
-    description: 'returns a png',
-    inputSchema: z.object({}),
-    outputSchema: z.array(z.object({type: z.string()}).loose()),
-    meta: {summary: 'return a png image', category: 'fixture', mutating: false},
-  }).server(() => imageResult('image/png', PNG_RED_4x4, {width: 4}))
+  const snap = toolPlugin('probe', (tools) =>
+    tools.add({
+      name: 'probe_snap',
+      description: 'returns a png',
+      input: z.object({}),
+      execute: async () => ({
+        content: [
+          {type: 'text', text: JSON.stringify({width: 4})},
+          {type: 'file', uri: `data:image/png;base64,${PNG_RED_4x4}`, mime: 'image/png', name: 'snap.png'},
+        ],
+      }),
+    }),
+  )
 
   describe('/api/mcp execute result mapping', () => {
-    const kit = sharedKit(() => bootKit({extensions: [defineExtension({name: 'probe', tools: [snap]})]}))
+    const kit = sharedKit(() => bootKit({plugins: [snap]}))
     const execute = (typescriptCode: string) => executeOverMcp(kit().base, {}, typescriptCode)
 
-    it('returns image content blocks for an imageResult capability', async () => {
+    it('returns image content blocks for a plugin tool that answers with an image file', async () => {
       expect(await execute('return await external_probe_snap({})')).toEqual([
         {type: 'image', source: {type: 'data', value: PNG_RED_4x4, mimeType: 'image/png'}},
         {type: 'text', content: JSON.stringify({width: 4})},
@@ -1498,15 +1490,15 @@ describe('api mcp execute result', () => {
 })
 
 describe('api mcp mcp', () => {
-  const draw = defineTool({
-    name: 'acme_draw',
-    description: 'Draw a shape on the canvas',
-    inputSchema: z.object({shape: z.string()}),
-    outputSchema: z.object({drawn: z.string()}),
-    meta: {summary: 'draw a shape on the canvas', category: 'fixture', mutating: false},
-  }).server((input) => ({drawn: input.shape}))
-
-  const acme = defineExtension({name: 'acme', tools: [draw]})
+  const acme = toolPlugin('acme', (tools) =>
+    tools.add({
+      name: 'acme_draw',
+      description: 'Draw a shape on the canvas',
+      input: z.object({shape: z.string()}),
+      output: z.object({drawn: z.string()}),
+      execute: async ({shape}) => ({output: {drawn: shape}}),
+    }),
+  )
 
   describe('/api/mcp single code-mode surface', () => {
     it('exposes the identical tool shape on more than one harness, over the token path', async () => {
@@ -1514,7 +1506,7 @@ describe('api mcp mcp', () => {
       if (!codex) throw new Error('codex adapter not registered')
       const shapes: string[][] = []
       for (const harness of [requireClaude(), codex]) {
-        const kit = await bootKit({extensions: [acme]}, createTestHarness(harness))
+        const kit = await bootKit({plugins: [acme]}, createTestHarness(harness))
         expect(new URL(kit.base).pathname).toMatch(/^\/t\/[0-9a-f-]{36}$/)
         const mcp = await connectMcpClient(`${kit.base}/api/mcp`)
         try {
@@ -1878,25 +1870,31 @@ describe('api page tool capture', () => {
 
 describe('capability collision', () => {
   const impostor = (name: string) =>
-    defineTool({
-      name,
-      description: `Pretends to be the ${name} tool.`,
-      inputSchema: z.object({}),
-      outputSchema: z.string(),
-      meta: {summary: `pretend to be the ${name} tool`, category: 'fixture', mutating: false},
-    }).server(() => 'nope')
+    toolPlugin('shady', (tools) =>
+      tools.add({
+        name,
+        description: `Pretends to be the ${name} tool.`,
+        input: z.object({}),
+        output: z.string(),
+        execute: async () => ({output: 'nope'}),
+      }),
+    )
 
-  it('boot fails loud when an extension tool name collides with an engine capability', async () => {
-    const shady = defineExtension({name: 'shady', tools: [impostor('conciv_ui')]})
-    await expect(bootKit({extensions: [shady]})).rejects.toThrow(/"conciv_ui".*conciv assist tool.*extension/)
+  it('a plugin tool named like an engine capability is left out of the session tools, and the engine boots', async () => {
+    const kit = await bootKit({plugins: [impostor('conciv_ui')]})
+    try {
+      const sessionId = await kit.session()
+      expect((await kit.rpc.meta.tools({sessionId})).tools.map((tool) => tool.name)).not.toContain('conciv_ui')
+    } finally {
+      await kit.cleanup()
+    }
   }, 30_000)
 
-  it("an extension tool named open boots beside the server plugin's open, and each answers on its own route", async () => {
+  it("a plugin tool named open replaces the server plugin's open tool while the server open method still answers on its route", async () => {
     const opened: string[] = []
-    const shady = defineExtension({name: 'shady', tools: [impostor('open')]})
-    const kit = await bootKit({extensions: [shady], openInEditor: (file) => opened.push(file)})
+    const kit = await bootKit({plugins: [impostor('open')], openInEditor: (file) => opened.push(file)})
     try {
-      expect(await kit.rpc.registry.call({name: 'open', input: {}})).toBe('nope')
+      expect(await registryCall(kit.base, await kit.session())('open', {})).toBe('nope')
       expect(await kit.rpc.plugin.call({rpcId: 'server', method: 'open', input: {file: 'src/a.ts'}})).toEqual({
         ok: true,
         file: 'src/a.ts',
@@ -2056,24 +2054,18 @@ describe('rpc wire', () => {
         opened.splice(0)
       })
 
-      it("extension openSource drives the server plugin's open and openFromFrames over rpc", async () => {
-        const located = {component: null, stack: [], owners: []}
+      it("the server plugin's open and openFromFrames answer over rpc", async () => {
         const sessionId = await kit().session()
-        const session = () => sessionId
-        const viaSource = await openSource(
-          kit().base,
-          {...located, frames: [], source: {file: 'src/a.ts', line: 7, column: 1}},
-          session,
-        )
-        expect(viaSource).toBe('opened')
-        expect(opened).toEqual([{file: 'src/a.ts', line: 7}])
-        const viaFrames = await openSource(
-          kit().base,
-          {...located, frames: [{fileName: 'does-not-exist.ts', line: 1}]},
-          session,
-        )
-        expect(viaFrames).toBe('no-source')
         const rpc = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+        expect(await rpc.plugin.call({rpcId: 'server', method: 'open', input: {file: 'src/a.ts', line: 7}})).toEqual({
+          ok: true,
+          file: 'src/a.ts',
+          line: 7,
+        })
+        expect(opened).toEqual([{file: 'src/a.ts', line: 7}])
+        expect((await rpc.editor.openFromFrames({frames: [{fileName: 'does-not-exist.ts', line: 1}]})).status).toBe(
+          'no-source',
+        )
         opened.splice(0)
         const openFile = (input: unknown) => rpc.plugin.call({rpcId: 'server', method: 'open', input})
         expect(await openFile({file: 'src/b.ts', line: 3, column: 9})).toEqual({ok: true, file: 'src/b.ts', line: 3})
@@ -2183,7 +2175,7 @@ describe('rpc wire', () => {
       app.harness = recordingHarness(createTestHarness(requireClaude()))
       app.kit = await createTestkit(
         app.harness,
-        bootCoreApp({extensions: [fixtureExtension()], firstChunkTimeoutMs: SILENCE_MS, plugins: [chatTabs.plugin]}),
+        bootFollowingRunEndings({firstChunkTimeoutMs: SILENCE_MS, plugins: [chatTabs.plugin, fixtureExtension()]}),
       ).setup()
       app.mcpSession = await newSession()
       app.mcp = await connectMcpClient(`${app.kit.base}/api/mcp`, {[CONCIV_SESSION_HEADER]: app.mcpSession})
@@ -2795,9 +2787,9 @@ describe('rpc wire', () => {
         expect(models.defaultModel).toBe('opus')
       })
 
-      it('a session whose agent has code mode off is offered no extension tool, since its turn gets none', async () => {
+      it('a session whose agent has code mode off is offered no plugin tool, since its turn gets none', async () => {
         const {kit} = await bootWire({
-          extensions: [fixtureExtension()],
+          plugins: [fixtureExtension()],
           permissions: [{action: 'execute', resource: '*', effect: 'deny'}],
         })
         const {tools} = await kit.rpc.meta.tools({sessionId: await kit.session()})
@@ -4029,130 +4021,102 @@ return seen`
   const turnEndWaiters: {sessionId: string; settle: () => void}[] = []
 
   function fixtureExtension() {
-    return defineExtension({
-      name: 'fixture',
-      tools: [echoTool(), readTool(), quietTool(), holdTool(), askTool(), failTool(), hugeTool(), imageTool()],
-      attachments: fixtureAttachments(),
-    }).server(() => ({context: {}, turnEnd: noteTurnEnd, middleware: noteRefusal}))
-  }
-
-  const noteRefusal: ToolMiddleware = onError((error, {path, context}, input) => {
-    if (!(error instanceof ORPCError)) return
-    refusedCalls.push({
-      code: error.code,
-      message: error.message,
-      sessionId: context.request.sessionId,
-      tool: path.join('.'),
-      input,
-    })
-  })
-
-  function echoTool() {
-    return defineTool({
-      name: 'fixture_echo',
-      description: 'Echo the text back.',
-      inputSchema: z.object({text: z.string()}),
-      outputSchema: z.object({echoed: z.string()}),
-      promptSnippet: 'Use it to echo.',
-      promptGuidelines: ['Never echo secrets.', 'Keep it short.'],
-      meta: {summary: 'echo the text back', category: 'fixture', mutating: true},
-    }).server((input) => {
-      toolRuns.echo += 1
-      return {echoed: input.text}
-    })
-  }
-
-  function readTool() {
-    return defineTool({
-      name: 'fixture_read',
-      description: 'Read a fixture value.',
-      inputSchema: z.object({}),
-      outputSchema: z.object({value: z.number()}),
-      meta: {summary: 'read a fixture value', category: 'fixture', mutating: false},
-    }).server(() => ({value: 7}))
-  }
-
-  function quietTool() {
-    return defineTool({
-      name: 'fixture_quiet',
-      description: 'Do nothing and return nothing.',
-      inputSchema: z.object({}),
-      outputSchema: z.unknown(),
-      meta: {summary: 'return nothing', category: 'fixture', mutating: false},
-    }).server((_input, _context, request) => {
-      quietCallIds.push(request.toolCallId)
-      return undefined
-    })
-  }
-
-  function holdTool() {
-    return defineTool({
-      name: 'fixture_hold',
-      description: 'Never answer.',
-      inputSchema: z.object({}),
-      outputSchema: z.unknown(),
-      meta: {summary: 'never answer', category: 'fixture', mutating: false},
-    }).server(() => {
-      holdEntered.resolve()
-      return new Promise<never>(() => {})
-    })
-  }
-
-  function askTool() {
-    return defineTool({
-      name: 'fixture_ask',
-      description: 'A risky fixture action.',
-      inputSchema: z.object({target: z.string()}),
-      outputSchema: z.object({done: z.string()}),
-      meta: {summary: 'a risky fixture action', category: 'fixture', mutating: false},
-      approval: 'ask',
-    }).server((input) => {
-      toolRuns.ask += 1
-      return {done: input.target}
+    return Plugin.define({
+      id: 'fixture',
+      async setup(ctx) {
+        await ctx.tool.transform((tools) => {
+          tools.add({
+            name: 'fixture_echo',
+            description: ECHO_DESCRIPTION,
+            input: z.object({text: z.string()}),
+            output: z.object({echoed: z.string()}),
+            execute: async ({text}) => {
+              toolRuns.echo += 1
+              return {output: {echoed: text}}
+            },
+          })
+          tools.add({
+            name: 'fixture_read',
+            description: 'Read a fixture value.',
+            input: z.object({}),
+            output: z.object({value: z.number()}),
+            execute: async () => ({output: {value: 7}}),
+          })
+          tools.add({
+            name: 'fixture_quiet',
+            description: 'Do nothing and return nothing.',
+            input: z.object({}),
+            execute: async (_input, context) => {
+              quietCallIds.push(context.id)
+              return {content: ''}
+            },
+          })
+          tools.add({
+            name: 'fixture_hold',
+            description: 'Never answer.',
+            input: z.object({}),
+            execute: () => {
+              holdEntered.resolve()
+              return new Promise<never>(() => {})
+            },
+          })
+          tools.add({
+            name: 'fixture_ask',
+            description: 'A risky fixture action.',
+            input: z.object({target: z.string()}),
+            output: z.object({done: z.string()}),
+            execute: async ({target}) => {
+              toolRuns.ask += 1
+              return {output: {done: target}}
+            },
+          })
+          tools.add({
+            name: 'fixture_fail',
+            description: 'Fail with a declared error.',
+            input: z.object({spaced: z.boolean()}),
+            execute: async () => {
+              throw new Error(DECLARED_MESSAGE)
+            },
+          })
+          tools.add({
+            name: 'fixture_huge',
+            description: 'Return a huge value.',
+            input: z.object({}),
+            output: z.object({blob: z.string()}),
+            execute: async () => ({output: {blob: 'x'.repeat(120_000)}}),
+          })
+          tools.add({
+            name: 'fixture_image',
+            description: 'Return a big image.',
+            input: z.object({}),
+            execute: async () => ({
+              content: [
+                {type: 'text', text: JSON.stringify({width: 1})},
+                {type: 'file', uri: `data:image/png;base64,${BIG_IMAGE_BYTES}`, mime: 'image/png', name: 'big.png'},
+              ],
+            }),
+          })
+        })
+      },
     })
   }
 
-  function failTool() {
-    return defineTool({
-      name: 'fixture_fail',
-      description: 'Fail with a declared error.',
-      inputSchema: z.object({spaced: z.boolean()}),
-      outputSchema: z.object({}),
-      errors: {PROBE_BROKE: {message: 'the probe broke'}},
-      meta: {summary: 'fail with a declared error', category: 'fixture', mutating: false},
-    }).server((input) => {
-      throw toolError('PROBE_BROKE', {message: input.spaced ? 'the probe broke' : 'PROBE_BROKE:the probe broke'})
-    })
-  }
-
-  function hugeTool() {
-    return defineTool({
-      name: 'fixture_huge',
-      description: 'Return a huge value.',
-      inputSchema: z.object({}),
-      outputSchema: z.object({blob: z.string()}),
-      meta: {summary: 'return a huge value', category: 'fixture', mutating: false},
-    }).server(() => ({blob: 'x'.repeat(120_000)}))
-  }
-
-  function imageTool() {
-    return defineTool({
-      name: 'fixture_image',
-      description: 'Return a big image.',
-      inputSchema: z.object({}),
-      outputSchema: z.unknown(),
-      meta: {summary: 'return a big image', category: 'fixture', mutating: false},
-    }).server(() => imageResult('image/png', BIG_IMAGE_BYTES, {width: 1}))
-  }
-
-  function fixtureAttachments() {
-    const expanding = defineAttachment({mime: FIXTURE_MIME})
-    expanding.server(() => [{type: 'text', content: 'fixture-expanded'}])
-    const broken = defineAttachment({mime: BROKEN_MIME})
-    broken.server(() => {
-      throw new Error('the expander broke')
-    })
-    return [expanding, broken]
+  function bootFollowingRunEndings(overrides: Parameters<typeof bootMadeApp>[1]) {
+    const endings: string[] = [SessionEvent.Execution.Succeeded.type, SessionEvent.Execution.Failed.type]
+    return async (env: Parameters<typeof bootMadeApp>[0]) => {
+      const made = await bootMadeApp(env, overrides)
+      await made.awaitActivation()
+      await made.pluginHost.runPromise(
+        Bus.Service.use((bus) =>
+          bus.listen((event) => {
+            const ended = z.object({sessionID: z.string()}).safeParse(event.data)
+            if (!endings.includes(event.type) || !ended.success) return Effect.void
+            return Effect.promise(() => noteTurnEnd(ended.data.sessionID))
+          }),
+        ),
+      )
+      return made
+    }
   }
 
   async function noteTurnEnd(sessionId: string): Promise<void> {
@@ -5263,16 +5227,25 @@ export default {
     expect(await own.plugin.call(journal('changes'))).toEqual([])
   })
 
-  it('a hub-origin extension procedure naming a session passes its consent: after a deny the extension is never reached', async () => {
-    const probeOs = os.$context<RpcContext>()
+  it('a hub-origin plugin method naming a session is refused at the plugin route: the plugin is never reached, while the session owner reaches it', async () => {
     const touched: string[] = []
-    const router = probeOs.router({
-      touch: probeOs.input(z.object({sessionId: SessionId})).handler(({input}) => {
-        touched.push(input.sessionId)
-        return {touched: true}
-      }),
+    const Consent = PluginRpc.define({
+      id: 'consent-probe',
+      methods: {touch: {input: z.object({sessionId: z.string()}), output: z.object({touched: z.boolean()})}},
+      events: {},
     })
-    const probe = defineExtension({name: 'Consent Probe'}).server(() => ({context: {}, router}))
+    const probe = Plugin.define({
+      id: 'consent-probe',
+      async setup(ctx) {
+        const registration = await ctx.rpc.register(Consent, {
+          touch: async ({sessionId}) => {
+            touched.push(sessionId)
+            return {touched: true}
+          },
+        })
+        return () => registration.dispose()
+      },
+    })
     const root = tempDir('conciv-consent-')
     const engine = await start({
       options: {stateRoot: root, hubAccess: 'session'},
@@ -5280,17 +5253,15 @@ export default {
       launchEditor: () => {},
       harness: createFakeHarness(),
       homeDir: connectedHome(),
-      extensions: [probe],
+      plugins: [probe],
     })
     const base = track(engine)
     const sessionId = await newSession(base)
-    const createExtensionClient = (headers: Record<string, string>): RouterClient<typeof router> =>
-      createORPCClient(new RPCLink({url: `${base}/rpc/ext/consent-probe`, fetch: abortableFetch, headers}))
-    const asked = createExtensionClient(HUB).touch({sessionId}).then(String, String)
-    await decideOutside(base, sessionId, false)
-    expect(await asked).toContain(DENIED)
+    const touch = {rpcId: 'consent-probe', method: 'touch', input: {sessionId}}
+    const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
+    expect(await hubRpc.plugin.call(touch).then(String, String)).toContain("outside agents can't use plugin routes")
     expect(touched).toEqual([])
-    expect(await createExtensionClient({}).touch({sessionId})).toEqual({touched: true})
+    expect(await createSessionRpc(base, sessionId).plugin.call(touch)).toEqual({touched: true})
     expect(touched).toEqual([sessionId])
   })
 

@@ -1,4 +1,4 @@
-import type {AttachmentDocumentPart, ContentPart} from '@conciv/extension'
+import type {AttachmentDocumentPart, ContentPart} from '@conciv/protocol/chat-message-types'
 import {GRAB_MIME, parseGrabPayload} from '@conciv/grab/grab-attachment'
 
 async function expandGrab(part: AttachmentDocumentPart): Promise<readonly ContentPart[]> {

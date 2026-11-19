@@ -67,10 +67,24 @@ function cliInput(schema: unknown) {
 }
 
 function signature(tool: Parameters<typeof ToolRuntime.definition>[0] & {readonly id: string}): ToolCommandSignature[] {
+  const definition = ToolRuntime.definition(tool)
   const operation = pageOperations[tool.id]
   const entry = operation === undefined ? undefined : CliTools[operation.name]
-  if (operation === undefined || entry === undefined || !entry.terminal) return []
-  const definition = ToolRuntime.definition(tool)
+  if (operation === undefined || entry === undefined)
+    return [
+      {
+        name: tool.id,
+        path: [tool.id],
+        binding: 'server',
+        summary: tool.description,
+        mutating: false,
+        reachable: true,
+        inputSchema: cliInput(definition.inputSchema),
+        outputSchema: definition.outputSchema,
+        errors: [],
+      },
+    ]
+  if (!entry.terminal) return []
   return [
     {
       name: tool.id,

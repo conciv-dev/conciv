@@ -124,7 +124,7 @@ async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, cal
   const asked = askedPagePermission(name, input)
   if (asked === undefined && widget) return
   if (asked === undefined && callTrace((header) => rpcHeader(call.context, header)).hub?.namedTab === true) return
-  const catalog = [...deps.runtime.engine.catalog(), ...(await deps.pluginHost.runPromise(pluginSignatures))]
+  const catalog = await deps.pluginHost.runPromise(pluginSignatures)
   const asks = catalog.find((tool) => tool.name === name)?.approval === 'ask'
   if (!asks) return
   const scope = call.context.session
@@ -345,15 +345,12 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       set: os.navigation.set.handler(({input}) => engine.navigation.set(input)),
     },
     registry: {
-      catalog: os.registry.catalog.handler(async ({signal}) => [
-        ...engine.catalog(),
-        ...(await deps.pluginHost.runPromise(pluginSignatures, {signal})),
-      ]),
+      catalog: os.registry.catalog.handler(({signal}) => deps.pluginHost.runPromise(pluginSignatures, {signal})),
       call: toolCallOs.registry.call.handler(async ({input, context, errors, signal, path}) => {
         const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
-        const registered = assist !== undefined || context.session.tools.has(input.name)
-        const plugin = registered ? undefined : await deps.pluginHost.runPromise(pluginSignature(input.name), {signal})
-        if (!registered && plugin === undefined) throw errors.UNKNOWN_TOOL()
+        const plugin =
+          assist === undefined ? await deps.pluginHost.runPromise(pluginSignature(input.name), {signal}) : undefined
+        if (assist === undefined && plugin === undefined) throw errors.UNKNOWN_TOOL()
         const trace = callTrace((header) => rpcHeader(context, header))
         if (trace.hub !== null) deps.code.hubCall(context.session.id, trace.callId)
         const gate: RegistryCallGate = async (run) => {
@@ -368,15 +365,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
             errors,
           )
         const call = (): Promise<unknown> =>
-          plugin !== undefined
-            ? gate(pluginRun)
-            : assist === undefined
-              ? context.session.tools.call(input.name, input.input, {
-                  toolCallId: trace.callId,
-                  signal,
-                  gate,
-                })
-              : gate(() => assist.execute(input.input))
+          assist === undefined ? gate(pluginRun) : gate(() => assist.execute(input.input))
         return call()
           .catch((error: unknown) => {
             throw registryCallError(error, errors)

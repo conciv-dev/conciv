@@ -31,6 +31,8 @@ export type ModelMessage = LibraryModelMessage
 
 export type ContentPart = LibraryContentPart
 
+export type AttachmentDocumentPart = {type: 'document'; source: {type: 'data'; mimeType: string; value: string}}
+
 export type SendContent = {content: string | ContentPart[]; id?: string; metadata?: Record<string, unknown>}
 
 export const CompactionMetadataSchema = z.object({conciv: z.object({compaction: z.literal(true)})})

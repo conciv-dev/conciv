@@ -2,31 +2,8 @@ import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {NavigationWrite} from '@conciv/protocol/chat-types'
-import type {
-  ChatHistoryWindow,
-  ChatHydration,
-  EngineStaleness,
-  RawFrame,
-  SourceLoc,
-  ToolCommandSignature,
-} from '@conciv/contract'
-import type {ToolRegistry} from '@conciv/extension/registry'
-import type {RegistryCallGate, ToolRequest} from '@conciv/protocol/tool-call-types'
+import type {ChatHistoryWindow, ChatHydration, EngineStaleness, RawFrame, SourceLoc} from '@conciv/contract'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
-
-export type ToolCatalog = ToolRegistry['catalog']
-
-export type ScopedToolCall = (name: string, input: unknown, request: ToolRequest) => Promise<unknown>
-
-export type SessionTools = {
-  call: (
-    name: string,
-    input: unknown,
-    options?: {toolCallId?: string; signal?: AbortSignal; gate?: RegistryCallGate},
-  ) => Promise<unknown>
-  has: (name: string) => boolean
-  catalog: ToolCatalog
-}
 
 export type SessionStream = {
   publish: (chunk: ChatEvent) => void
@@ -52,7 +29,6 @@ export type SessionRun = {
 
 export type SessionScope = {
   readonly id: SessionId
-  tools: SessionTools
   stream: SessionStream
   asks: SessionAsks
   history: SessionHistory
@@ -60,7 +36,6 @@ export type SessionScope = {
 }
 
 export type EngineScope = {
-  catalog: () => ToolCommandSignature[]
   staleness: () => EngineStaleness
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
   navigation: {

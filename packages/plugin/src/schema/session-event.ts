@@ -78,6 +78,13 @@ export namespace Execution {
   export const Succeeded = Event.durable({type: 'session.execution.succeeded', ...options, schema: Base})
   export type Succeeded = typeof Succeeded.Type
 
+  export const Failed = Event.durable({
+    type: 'session.execution.failed',
+    ...options,
+    schema: {...Base, error: Schema.String},
+  })
+  export type Failed = typeof Failed.Type
+
   export const Interrupted = Event.durable({
     type: 'session.execution.interrupted',
     ...options,
@@ -121,6 +128,7 @@ export const Definitions = Event.inventory(
   Deleted,
   Execution.Started,
   Execution.Succeeded,
+  Execution.Failed,
   Execution.Interrupted,
   InstructionsUpdated,
   Synthetic,

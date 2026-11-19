@@ -1,15 +1,14 @@
 import {eq, lt} from 'drizzle-orm'
 import {Effect} from 'effect'
 import type {SessionId, NavigationWrite} from '@conciv/protocol/chat-types'
-import type {EngineStaleness, RawFrame, SourceLoc, ToolCommandSignature} from '@conciv/contract'
-import type {ToolRequest} from '@conciv/protocol/tool-call-types'
+import type {EngineStaleness, RawFrame, SourceLoc} from '@conciv/contract'
 import {navigation, type ConcivDb} from '@conciv/db'
 import type {ChatPlane} from '@conciv/chat'
 import {sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {logError} from '../lib/debug.js'
 import type {SessionPrimitives} from './primitives.js'
 import {runWithSession} from './session-context.js'
-import type {CoreRuntime, EngineScope, SessionScope, ToolCatalog} from './scope-types.js'
+import type {CoreRuntime, EngineScope, SessionScope} from './scope-types.js'
 
 const MAX_NAVIGATION_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000
 
@@ -23,33 +22,9 @@ export type CoreRuntimeDeps = {
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
 }
 
-function catalogSignatures(catalog: ToolCatalog): ToolCommandSignature[] {
-  return catalog.list().map((entry) => {
-    const signature = catalog.get(entry.name)
-    return {
-      name: entry.name,
-      path: [...entry.path],
-      binding: entry.binding,
-      summary: entry.summary,
-      category: entry.category,
-      hint: entry.hint,
-      positional: signature.positional,
-      icon: entry.icon,
-      label: entry.label,
-      mutating: signature.mutating,
-      reachable: entry.reachable,
-      approval: signature.approval,
-      inputSchema: signature.inputSchema,
-      outputSchema: signature.outputSchema,
-      errors: signature.errors,
-    }
-  })
-}
-
 function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
   const db = deps.db
   return {
-    catalog: () => catalogSignatures(deps.primitives.registry.catalog),
     staleness: deps.staleness,
     symbolicate: deps.symbolicate,
     navigation: {
@@ -74,26 +49,9 @@ function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
 }
 
 function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
-  const {registry, stream} = deps.primitives
-  const agentId: string = id
-  const requestFor = async (options: {toolCallId?: string; signal?: AbortSignal} = {}): Promise<ToolRequest> => ({
-    sessionId: id,
-    agentId,
-    model: await deps.model(id),
-    ...(options.toolCallId === undefined ? {} : {toolCallId: options.toolCallId}),
-    ...(options.signal === undefined ? {} : {signal: options.signal}),
-  })
+  const {stream} = deps.primitives
   return {
     id,
-    tools: {
-      call: async (name, input, options) =>
-        registry.call(name, input, {
-          request: await requestFor(options),
-          ...(options?.gate === undefined ? {} : {gate: options.gate}),
-        }),
-      has: (name) => registry.has(name),
-      catalog: registry.catalog,
-    },
     stream: {
       publish: (chunk) => stream.publish(id, chunk),
       listen: (onChunk) => stream.listen(id, onChunk),
@@ -147,7 +105,6 @@ function established(raw: SessionScope): SessionScope {
   }
   const scope: SessionScope = {
     ...raw,
-    tools: {...raw.tools, call: inScope(raw.tools.call)},
     stream: {
       ...raw.stream,
       publish: inScope(raw.stream.publish),

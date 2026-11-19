@@ -1,4 +1,3 @@
-import type {AnyExtension} from '@conciv/extension'
 import type {GrabProvider} from '@conciv/grab'
 import type {PluginOptions} from '@conciv/plugin/experimental'
 import type {Entry} from '@conciv/plugin/experimental/host'
@@ -7,12 +6,9 @@ import type {EventBusClient, PanelCommandEventMap} from '@conciv/protocol/event-
 
 export type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 
-export type ExtensionsInput = AnyExtension[] | (() => Promise<AnyExtension[]>)
-
 export type PluginEntry = readonly [plugin: Entry, options: PluginOptions]
 
 export type ConcivInit = {
-  extensions?: ExtensionsInput
   plugins?: readonly PluginEntry[]
   settings?: ConcivSettingsInit
   apiBase?: string
@@ -128,14 +124,14 @@ function insideCaptureFrame(): boolean {
   }
 }
 
-export function mountConciv(extensions: AnyExtension[], plugins: readonly PluginEntry[] = []): Promise<void> {
+export function mountConciv(plugins: readonly PluginEntry[] = []): Promise<void> {
   if (typeof document === 'undefined') return Promise.resolve()
   if (insideCaptureFrame()) return Promise.resolve()
   if (document.querySelector('[data-conciv-script-root]')) return Promise.resolve()
   const el = document.createElement('div')
   el.setAttribute('data-conciv-script-root', '')
   document.body.appendChild(el)
-  return createConciv({extensions, plugins})
+  return createConciv({plugins})
     .mount(el)
     .catch((error: unknown) => {
       el.remove()
