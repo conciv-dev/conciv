@@ -1,15 +1,13 @@
-import type {ExtensionApi} from '@conciv/extension'
 import {ClipboardCopyButton, Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import Check from 'lucide-solid/icons/check'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
-import {createSignal, onMount, Show, type JSX} from 'solid-js'
-import {useCoreProbe} from './use-core-probe.js'
-import {stepStates, type StepState, type TryStep} from '../shared/try-steps.js'
-import {useLocalNetworkAccessPermission} from './use-lna-permission.js'
+import {autofocus} from '@solid-primitives/autofocus'
+import {createSignal, Show, type Accessor, type JSX} from 'solid-js'
+import type {ConnectState} from './connect-model.js'
+import {useLocalNetworkAccessPermission} from './local-network-access.js'
+import {stepStates, type StepState, type TryStep} from './try-steps.js'
 
 const COPY_FEEDBACK_MS = 1_400
-
-export type ConnectCapability = ReturnType<ExtensionApi['useConnect']>
 
 const STEP_TITLES: Record<TryStep, string> = {
   copy: 'Copy the connect command',
@@ -66,36 +64,31 @@ function Step(props: {index: number; state: StepState; title: string; children?:
   )
 }
 
-export function ConnectPane(props: {token: string; connect: ConnectCapability}): JSX.Element {
+export function ConnectPane(props: {token: string; state: Accessor<ConnectState | undefined>}): JSX.Element {
   const [copied, setCopied] = createSignal(false)
-  const probe = useCoreProbe({token: () => props.token, onFound: (base) => props.connect.found(base)})
-  const connected = probe.connected
-  const slow = probe.slow
+  const connected = () => {
+    const phase = props.state()?.phase
+    return phase === 'holding' || phase === 'connected'
+  }
+  const slow = () => {
+    const current = props.state()
+    return current?.phase === 'probing' && current.slow
+  }
   const localNetworkAccess = useLocalNetworkAccessPermission()
   const localNetworkBlocked = () => localNetworkAccess() === 'denied'
   const states = () => stepStates({copied: copied(), connected: connected()})
+  const origin = window.location.origin
   const promptText = () =>
-    `I'm pairing my browser tab at ${props.connect.origin} with a local conciv core so you can drive the page. ` +
+    `I'm pairing my browser tab at ${origin} with a local conciv core so you can drive the page. ` +
     `Run \`npx @conciv/try --token ${props.token}\` and keep it running; it binds to 127.0.0.1 only and ` +
     `only my tab can reach it. The package source is packages/try in https://github.com/conciv-dev/conciv; ` +
-    `inspect it first if you want (details: ${props.connect.origin}/pair/${props.token}). ` +
+    `inspect it first if you want (details: ${origin}/pair/${props.token}). ` +
     `If you'd rather not run it, tell me and I'll run it in my own terminal.`
   const npxText = () => `npx @conciv/try --token ${props.token}`
   const markCopied = () => setCopied(true)
 
-  let paneEl: HTMLDivElement | undefined
-  onMount(() => {
-    requestAnimationFrame(() => paneEl?.focus())
-  })
-
   return (
-    <div
-      ref={(el) => {
-        paneEl = el
-      }}
-      tabindex={-1}
-      class="p-5 outline-none flex flex-col gap-3.5 h-full"
-    >
+    <div ref={autofocus} autofocus tabindex={-1} class="p-5 outline-none flex flex-col gap-3.5 h-full">
       <div class="flex shrink-0 flex-col gap-1.5 anim-rise">
         <h2 class="text-[15px] text-chat-text-hi font-semibold">Drive this page with your agent.</h2>
         <p class="text-[13px] text-chat-text-2 leading-relaxed">
@@ -112,7 +105,7 @@ export function ConnectPane(props: {token: string; connect: ConnectCapability}):
               or hand it to your coding agent
             </Collapsible.Trigger>
             <Collapsible.Content>
-              <div class="mt-2 flex flex-col gap-1.5">
+              <div class="pt-2 flex flex-col gap-1.5">
                 <CopyRow label="Copy agent prompt" text={promptText()} onCopy={markCopied} />
                 <p class="text-[11.5px] text-chat-text-3">
                   Some agents will ask you to run the command yourself, and that works too.
