@@ -45,9 +45,11 @@ export type ChatConnection = SubscribeConnectionAdapter & {
 
 type SessionEvents = (abortSignal: AbortSignal) => AsyncIterable<ChatEvent>
 
-type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>
+type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncGenerator<ChatEvent>
 
-type Turns = {adapter: SubscribeConnectionAdapter; joinRun: JoinRun}
+type Relay = SubscribeConnectionAdapter & {follow: (chunks: AsyncIterable<ChatEvent>) => Promise<void>}
+
+type Turns = {adapter: Relay; joinRun: JoinRun}
 
 function within(lifetime: AbortSignal, abortSignal: AbortSignal | undefined): AbortSignal {
   return abortSignal === undefined ? lifetime : AbortSignal.any([lifetime, abortSignal])
@@ -125,9 +127,18 @@ function overRpc(rpc: RpcClient, apiBase: string, sessionId: string, lifetime: A
   return {adapter: subscribeOver(turns), joinRun}
 }
 
-function subscribeOver(adapter: ConnectConnectionAdapter): SubscribeConnectionAdapter {
+function subscribeOver(adapter: ConnectConnectionAdapter): Relay {
   const listeners = new Set<RelaySink<ChatEvent>>()
   return {
+    follow: async (chunks) => {
+      try {
+        for await (const chunk of chunks) {
+          for (const sink of listeners) sink.emit(chunk)
+        }
+      } catch (error) {
+        for (const sink of listeners) sink.fail(error)
+      }
+    },
     subscribe: (abortSignal) =>
       relayedValues<ChatEvent>((sink) => {
         listeners.add(sink)
@@ -203,6 +214,23 @@ async function* finishedOnItsLifecycle(
     yield {type: ChatEventType.RUN_FINISHED, threadId, runId, finishReason: 'stop', timestamp: Date.now()}
     return
   }
+}
+
+async function* joinedOrHandedOver(
+  turns: Turns,
+  runId: string,
+  abortSignal: AbortSignal | undefined,
+  threadId: string,
+): AsyncGenerator<ChatEvent> {
+  const joined = turns.joinRun(runId, abortSignal)
+  const first = await joined.next()
+  if (first.done !== true) {
+    yield first.value
+    yield* joined
+    return
+  }
+  if (abortSignal?.aborted !== true) return
+  void turns.adapter.follow(finishedOnItsLifecycle(turns.joinRun(runId), threadId, runId))
 }
 
 function watching(
@@ -314,7 +342,10 @@ export function chatConnection(
       await adapter.send(messages, data, abortSignal, runContext)
     },
     joinRun: (runId, abortSignal) =>
-      noticing(finishedOnItsLifecycle(turns.joinRun(runId, abortSignal), sessionId, runId), options),
+      noticing(
+        finishedOnItsLifecycle(joinedOrHandedOver(turns, runId, abortSignal, sessionId), sessionId, runId),
+        options,
+      ),
     hydrate,
     refresh: (before) =>
       hydrate(
