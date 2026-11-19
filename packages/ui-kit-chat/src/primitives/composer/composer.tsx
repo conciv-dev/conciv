@@ -1,5 +1,6 @@
 import {
   createEffect,
+  createMemo,
   createSignal,
   For,
   onMount,
@@ -10,6 +11,7 @@ import {
   type ValidComponent,
 } from 'solid-js'
 import {createStore} from 'solid-js/store'
+import {differenceWith, isEqual, uniqBy} from 'es-toolkit'
 import {Dynamic} from 'solid-js/web'
 import type {SendContent} from '@conciv/protocol/chat-message-types'
 import {TextArea, type TextAreaProps} from '@conciv/ui-kit-system'
@@ -18,6 +20,7 @@ import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {readComposerDraft} from '../../behaviors/composer-draft-storage.js'
 import {useComposerDraftPersistence, type ComposerDraftWriter} from '../../behaviors/use-composer-draft.js'
 import {Primitive} from '../util/primitive.js'
+import type {DraftItem} from '@conciv/protocol/chat-types'
 import {ComposerProvider, useComposerContext, type ComposerDraft} from './composer-context.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
 import {
@@ -43,6 +46,7 @@ type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {
 type ComposerState = {
   attachments: Attachment[]
   quote: string | null
+  items: DraftItem[]
   editing: boolean
   dictating: boolean
   sendingAttachments: boolean
@@ -65,16 +69,17 @@ function invokeSubmit(handler: FormProps['onSubmit'], event: SubmitEvent): void 
   if (typeof handler === 'function') handler(event)
 }
 
-function canSubmit(canSend: boolean, attachmentCount: number, unavailable: boolean): boolean {
-  return !unavailable && (canSend || attachmentCount > 0)
+function canSubmit(canSend: boolean, stagedCount: number, unavailable: boolean): boolean {
+  return !unavailable && (canSend || stagedCount > 0)
 }
 
 async function sendContent(
-  handler: ((content: string | SendContent) => void | Promise<unknown>) | undefined,
+  handler: ((content: string | SendContent, draft: ComposerDraft) => void | Promise<unknown>) | undefined,
   fallback: (content: string | SendContent) => Promise<unknown>,
   content: string | SendContent,
+  draft: ComposerDraft,
 ): Promise<void> {
-  if (handler) await handler(content)
+  if (handler) await handler(content, draft)
   else await fallback(content)
 }
 
@@ -189,6 +194,7 @@ function Root(props: FormProps): JSX.Element {
   const [state, setState] = createStore<ComposerState>({
     attachments: [],
     quote: null,
+    items: [],
     editing: false,
     dictating: false,
     sendingAttachments: false,
@@ -198,6 +204,8 @@ function Root(props: FormProps): JSX.Element {
   const removedIds = new Set<string>()
   const attachmentAdapter = () => local.attachmentAdapter
   const attachments = () => state.attachments
+  const deliversItems = () => handlers.onSend !== undefined
+  const staged = createMemo(() => state.attachments.length + (deliversItems() ? state.items.length : 0))
   const draftKey = () => local.draftKey ?? DEFAULT_DRAFT_KEY
   const upsertAttachment = (attachment: PendingAttachment) => {
     if (removedIds.has(attachment.id)) return
@@ -261,34 +269,48 @@ function Root(props: FormProps): JSX.Element {
     draft: chat.view.draft,
     attachments: [...state.attachments],
     quote: state.quote,
+    items: [...state.items],
   })
-  const mergeAttachments = (original: ComposerDraft) => {
+  const mergeStaged = (original: ComposerDraft) => {
     setState('attachments', (current) => {
       const currentIds = new Set(current.map((value) => value.id))
       return [...current, ...original.attachments.filter((value) => !currentIds.has(value.id))]
     })
+    setState('items', (current) => uniqBy([...current, ...original.items], (item) => item.key))
   }
   const restoreDraft = (original: ComposerDraft) => {
-    mergeAttachments(original)
+    mergeStaged(original)
     if (chat.view.draft !== '' || state.quote !== null) return
     chat.setView('draft', original.draft)
     setState({quote: original.quote})
   }
   const putBackUnsentMessage = (original: ComposerDraft) => {
-    mergeAttachments(original)
+    mergeStaged(original)
     chat.setView('draft', [original.draft, chat.view.draft].filter((text) => text !== '').join('\n'))
     setState('quote', (current) => current ?? original.quote)
   }
-  const clearDraft = () => {
+  const clearSent = (sent: ComposerDraft) => {
     chat.setView('draft', '')
     setState({attachments: [], quote: null})
+    setState('items', (current) => differenceWith(current, sent.items, isEqual))
+  }
+  const clearDraft = () => clearSent(snapshotDraft())
+  const addItem = (item: DraftItem) => {
+    if (state.items.some((value) => value.key === item.key)) return
+    setState('items', (current) => [...current, item])
+  }
+  const removeItem = (key: string) => {
+    setState('items', (current) => current.filter((value) => value.key !== key))
+  }
+  const updateItem = (key: string, value: DraftItem['value']) => {
+    setState('items', (current) => current.map((item) => (item.key === key ? {key, value} : item)))
   }
   onMount(() => {
     const storage = local.draftStorage
     const restored = storage ? readComposerDraft(storage, draftKey()) : null
     if (!restored) return
     chat.setView('draft', restored.draft)
-    setState({attachments: restored.attachments, quote: restored.quote})
+    setState({attachments: restored.attachments, quote: restored.quote, items: restored.items})
   })
   useComposerDraftPersistence({
     storage: () => local.draftStorage,
@@ -310,10 +332,10 @@ function Root(props: FormProps): JSX.Element {
       setState('sendingAttachments', false)
     }
   }
-  const runSend = async (content: string | SendContent): Promise<SendOutcome> => {
+  const runSend = async (content: string | SendContent, original: ComposerDraft): Promise<SendOutcome> => {
     const before = chat.error()
     try {
-      await sendContent(handlers.onSend, (value) => chat.sendMessage(value), content)
+      await sendContent(handlers.onSend, (value) => chat.sendMessage(value), content, original)
     } catch (error) {
       return {failure: sendFailure(error), left: false}
     }
@@ -325,8 +347,8 @@ function Root(props: FormProps): JSX.Element {
     setState('sendingAttachments', true)
     const content = await completedContent(original)
     if (content === null) return
-    clearDraft()
-    const outcome = await runSend(content)
+    clearSent(deliversItems() ? original : {...original, items: []})
+    const outcome = await runSend(content, original)
     if (!outcome.failure) return
     if (!outcome.left) putBackUnsentMessage(original)
     handlers.onSendError?.(outcome.failure)
@@ -334,8 +356,7 @@ function Root(props: FormProps): JSX.Element {
   const submit = async (event: SubmitEvent) => {
     event.preventDefault()
     invokeSubmit(local.onSubmit, event)
-    if (!canSubmit(composer.canSend(), state.attachments.length, state.sendingAttachments || composer.isStopping()))
-      return
+    if (!canSubmit(composer.canSend(), staged(), state.sendingAttachments || composer.isStopping())) return
     await sendFromUser(deliverDraft)
   }
   return (
@@ -353,6 +374,11 @@ function Root(props: FormProps): JSX.Element {
         clearDraft,
         quote: () => state.quote,
         setQuote: (value) => setState('quote', value),
+        items: () => state.items,
+        staged,
+        addItem,
+        removeItem,
+        updateItem,
         editing: () => state.editing,
         setEditing: (value) => setState('editing', value),
         dictating: () => state.dictating,
@@ -459,7 +485,7 @@ function Send(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
         local.disabled ||
         context.sendingAttachments() ||
         composer.isStopping() ||
-        (!composer.canSend() && context.attachments().length === 0)
+        (!composer.canSend() && context.staged() === 0)
       }
       {...rest}
       type="submit"

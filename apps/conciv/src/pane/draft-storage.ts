@@ -1,8 +1,9 @@
 import {z} from 'zod'
-import {differenceBy, intersectionBy, isEqual, keyBy, union} from 'es-toolkit'
+import {differenceBy, intersectionBy, isEqual, keyBy, union, uniqBy} from 'es-toolkit'
 import {untrack} from 'solid-js'
 import {createStore, unwrap} from 'solid-js/store'
 import type {DraftRow} from '@conciv/contract'
+import {DraftItemSchema, type DraftItem} from '@conciv/protocol/chat-types'
 import type {AttachmentState, ComposerDraft, ComposerDraftWriter} from '@conciv/ui-kit-chat'
 import {encodeAttachments} from '@conciv/ui-kit-chat/draft-storage'
 import {persistStore} from '../runtime/persistence/persist.js'
@@ -18,6 +19,7 @@ import type {AppData, PendingDraftAttachment} from '../data/app-data.js'
 import type {SelectionOffsets} from './composer-input-adapter.js'
 import type {DraftSink} from './pane-attachments.js'
 import {reconcileDraft, type DraftReconcile} from './draft-reconcile.js'
+import {decodeNotes, durableNote, noteValue} from '../composer/note-schema.js'
 
 const PersistedAttachmentSchema = z.object({
   id: z.string(),
@@ -30,6 +32,7 @@ const PersistedAttachmentSchema = z.object({
 const PersistedDraftSchema = z.object({
   text: z.string().catch(''),
   attachments: z.array(PersistedAttachmentSchema).catch([]),
+  items: z.array(DraftItemSchema).catch([]),
 })
 
 type PersistedDraft = z.infer<typeof PersistedDraftSchema>
@@ -59,7 +62,7 @@ function parseDraft(raw: string): PersistedDraft | null {
 }
 
 function isCleared(draft: PersistedDraft): boolean {
-  return draft.text === '' && draft.attachments.length === 0
+  return draft.text === '' && draft.attachments.length === 0 && draft.items.length === 0
 }
 
 function clampSelection(offsets: SelectionOffsets | null, text: string): SelectionOffsets {
@@ -80,6 +83,7 @@ const LocalDraftSchema = z.object({
   selectionStart: z.number(),
   selectionEnd: z.number(),
   attachments: z.array(LocalAttachmentSchema),
+  items: z.array(DraftItemSchema).default([]),
   syncedAt: z.number().optional(),
   sent: z.array(z.number()).default([]),
 })
@@ -114,6 +118,7 @@ function rowLocalDraft(row: DraftRow): LocalDraft {
     selectionStart: row.selectionStart,
     selectionEnd: row.selectionEnd,
     attachments: row.attachments.map(({id, type, name, contentType}) => ({id, type, name, contentType})),
+    items: row.items,
     syncedAt: row.updatedAt,
     sent: [],
   }
@@ -171,6 +176,7 @@ function localAttachment(attachment: AttachmentState): LocalAttachment {
 
 type DraftRowContent = Pick<DraftRow, 'text' | 'selectionStart' | 'selectionEnd'> & {
   attachments: readonly {id: string}[]
+  items: readonly DraftItem[]
 }
 
 function sameAsRow(draft: DraftRowContent, row: DraftRow | null | undefined): boolean {
@@ -179,6 +185,7 @@ function sameAsRow(draft: DraftRowContent, row: DraftRow | null | undefined): bo
     row.text === draft.text &&
     row.selectionStart === draft.selectionStart &&
     row.selectionEnd === draft.selectionEnd &&
+    isEqual(row.items, draft.items) &&
     isEqual(
       row.attachments.map((attachment) => attachment.id),
       draft.attachments.map((attachment) => attachment.id),
@@ -263,6 +270,7 @@ function makeLocalDraftWriter(
             selectionStart: recorded.selectionStart,
             selectionEnd: recorded.selectionEnd,
             attachments,
+            items: recorded.items,
             updatedAt,
           })
           return {saving}
@@ -321,6 +329,7 @@ function makeLocalDraftWriter(
       selectionStart: offsets.start,
       selectionEnd: offsets.end,
       attachments: draft.attachments.map(localAttachment),
+      items: draft.items,
       syncedAt: untrack(() => document.draft?.syncedAt),
       sent: untrack(() => document.draft?.sent ?? []),
     })
@@ -346,12 +355,26 @@ function makeLocalDraftWriter(
   return {writer, typed: () => document.draft, feed, resend, read, kept, takeStored, settle}
 }
 
-function serializeDraft(text: string, attachments: DraftRow['attachments']): string {
-  return JSON.stringify({text, quote: null, attachments})
+const ClaimsNoteSchema = z.object({type: z.literal('note')})
+
+function durableItems(items: readonly DraftItem[]): DraftItem[] {
+  const notes = new Map(decodeNotes(items).map((entry) => [entry.key, entry]))
+
+  return items.flatMap((item) => {
+    const note = notes.get(item.key)
+
+    if (note) return [{key: item.key, value: noteValue(durableNote(note.note))}]
+
+    return ClaimsNoteSchema.safeParse(item.value).success ? [] : [item]
+  })
+}
+
+function serializeDraft(text: string, attachments: DraftRow['attachments'], items: readonly DraftItem[]): string {
+  return JSON.stringify({text, quote: null, attachments, items: durableItems(items)})
 }
 
 function serializeRow(row: DraftRow): string {
-  return serializeDraft(row.text, row.attachments)
+  return serializeDraft(row.text, row.attachments, row.items)
 }
 
 function restoredDraft(
@@ -359,8 +382,9 @@ function restoredDraft(
   offsets: SelectionOffsets,
   encoded: DraftRow['attachments'],
   attachments: AttachmentState[],
+  items: readonly DraftItem[],
 ): RestoredDraft {
-  const serialized = serializeDraft(text, encoded)
+  const serialized = serializeDraft(text, encoded, items)
   return {
     snapshot: {getItem: () => serialized, setItem: () => {}},
     selection: clampSelection(offsets, text),
@@ -376,10 +400,16 @@ async function readKeptFiles(stored: LocalDraft | null): Promise<AttachmentState
 function localRestored(stored: LocalDraft, kept: AttachmentState[], row: DraftRow | null): RestoredDraft {
   const missing = differenceBy(stored.attachments, kept, (attachment) => attachment.id)
   const fromRow = intersectionBy(row?.attachments ?? [], missing, (attachment) => attachment.id)
-  return restoredDraft(stored.text, {start: stored.selectionStart, end: stored.selectionEnd}, fromRow, kept)
+  return restoredDraft(
+    stored.text,
+    {start: stored.selectionStart, end: stored.selectionEnd},
+    fromRow,
+    kept,
+    stored.items,
+  )
 }
 
-const CLEARED_DRAFT = restoredDraft('', {start: 0, end: 0}, [], [])
+const CLEARED_DRAFT = restoredDraft('', {start: 0, end: 0}, [], [], [])
 
 function rowRestored(
   verdict: DraftReconcile,
@@ -388,7 +418,7 @@ function rowRestored(
   row: DraftRow | null,
 ): RestoredDraft | null {
   if (verdict.kind === 'engine' && row) {
-    return restoredDraft(row.text, {start: row.selectionStart, end: row.selectionEnd}, row.attachments, [])
+    return restoredDraft(row.text, {start: row.selectionStart, end: row.selectionEnd}, row.attachments, [], row.items)
   }
   if (verdict.kind === 'cleared') return CLEARED_DRAFT
   if (verdict.kind === 'local' && stored) return localRestored(stored, kept, row)
@@ -405,11 +435,12 @@ type DraftPlace = 'first' | 'last'
 
 type RestorePhase = {kind: 'reading'} | {kind: 'unread'; shown: LocalDraft | null} | {kind: 'read'}
 
-export type DraftContent = {text: string; attachments: readonly {id: string}[]}
+export type DraftContent = {text: string; attachments: readonly {id: string}[]; items: readonly DraftItem[]}
 
 export function sameContent(draft: DraftContent, other: DraftContent): boolean {
   return (
     draft.text === other.text &&
+    isEqual(draft.items, other.items) &&
     isEqual(
       draft.attachments.map((attachment) => attachment.id),
       other.attachments.map((attachment) => attachment.id),
@@ -421,6 +452,7 @@ function holdsDraft(kept: DraftContent | null | undefined, draft: DraftContent):
   if (!kept) return false
   return (
     kept.text === draft.text &&
+    isEqual(kept.items, draft.items) &&
     differenceBy(draft.attachments, kept.attachments, (attachment) => attachment.id).length === 0
   )
 }
@@ -435,7 +467,14 @@ function maySend(phase: RestorePhase, typed: DraftContent | null): boolean {
   return phase.kind === 'read'
 }
 
-const EMPTY_LOCAL_DRAFT: LocalDraft = {text: '', selectionStart: 0, selectionEnd: 0, attachments: [], sent: []}
+const EMPTY_LOCAL_DRAFT: LocalDraft = {
+  text: '',
+  selectionStart: 0,
+  selectionEnd: 0,
+  attachments: [],
+  items: [],
+  sent: [],
+}
 
 function withoutOneSend(sent: number[], updatedAt: number): number[] {
   const at = sent.indexOf(updatedAt)
@@ -453,7 +492,7 @@ function withSent(draft: LocalDraft, updatedAt: number): LocalDraft {
 }
 
 function isEmptied(typed: DraftContent): boolean {
-  return typed.text === '' && typed.attachments.length === 0
+  return typed.text === '' && typed.attachments.length === 0 && typed.items.length === 0
 }
 
 type KeptBase = {base: LocalDraft; encoded: DraftRow['attachments'] | undefined}
@@ -466,13 +505,20 @@ async function readLocalOnlyEncoded(stored: LocalDraft): Promise<DraftRow['attac
   return sendableAttachments(stored, files, await encodeAttachments(files), undefined)
 }
 
-async function readKeptBase(appData: AppData, sessionId: string): Promise<KeptBase> {
+type ReadRow = (appData: AppData, sessionId: string) => Promise<DraftRow | null>
+
+const readRowOrNone: ReadRow = (appData, sessionId) =>
+  appData.readDraft(sessionId).catch((error: unknown) => {
+    console.error('[conciv] could not read the saved draft', error)
+    return null
+  })
+
+const readRowOrFail: ReadRow = (appData, sessionId) => appData.readDraft(sessionId)
+
+async function readKeptBase(appData: AppData, sessionId: string, readRow: ReadRow): Promise<KeptBase> {
   const stored = appData.drafts ? await readLocalDraft(appData.drafts, sessionId) : null
   if (!stored) {
-    const row = await appData.readDraft(sessionId).catch((error: unknown) => {
-      console.error('[conciv] could not read the saved draft', error)
-      return null
-    })
+    const row = await readRow(appData, sessionId)
     return row ? {base: rowLocalDraft(row), encoded: row.attachments} : {base: EMPTY_LOCAL_DRAFT, encoded: []}
   }
   const row = appData.cachedDraft(sessionId)
@@ -498,9 +544,14 @@ function keepLocally(drafts: DraftStore, sessionId: string, draft: LocalDraft): 
   )
 }
 
-export type MovedDraft = {text: string; attachments: LocalAttachment[]; encoded: DraftRow['attachments']}
+export type MovedDraft = {
+  text: string
+  attachments: LocalAttachment[]
+  encoded: DraftRow['attachments']
+  items: readonly DraftItem[]
+}
 
-const NOTHING_MOVED: MovedDraft = {text: '', attachments: [], encoded: []}
+const NOTHING_MOVED: MovedDraft = {text: '', attachments: [], encoded: [], items: []}
 
 export function movesNothing(moved: MovedDraft | undefined): boolean {
   return !moved || isEmptied(moved)
@@ -508,25 +559,27 @@ export function movesNothing(moved: MovedDraft | undefined): boolean {
 
 function addToDraft(base: LocalDraft, added: MovedDraft, place: DraftPlace): LocalDraft {
   const attachments = [...base.attachments, ...added.attachments]
-  if (added.text === '') return {...base, attachments}
+  const items = uniqBy([...base.items, ...added.items], (item) => item.key)
+  if (added.text === '') return {...base, attachments, items}
   const {text, caret} = joinReturned(base.text, added.text, place)
-  return {...base, text, selectionStart: caret, selectionEnd: caret, attachments}
+  return {...base, text, selectionStart: caret, selectionEnd: caret, attachments, items}
 }
 
 type KeptSave = {updatedAt: number; keptLocally: boolean; saving: Promise<boolean>}
 
-function keepInDraft(
+type DraftChange = {draft: LocalDraft; added: DraftRow['attachments']}
+
+function keepChangedDraft(
   appData: AppData,
   keep: DraftWriteChain,
   sessionId: string,
-  place: DraftPlace,
-  readAdded: () => Promise<MovedDraft>,
+  readRow: ReadRow,
+  change: (base: LocalDraft) => Promise<DraftChange>,
 ): Promise<KeptSave> {
   return keep(async () => {
     const drafts = appData.drafts
-    const {base, encoded} = await readKeptBase(appData, sessionId)
-    const added = await readAdded()
-    const draft = addToDraft(base, added, place)
+    const {base, encoded} = await readKeptBase(appData, sessionId, readRow)
+    const {draft, added} = await change(base)
     const updatedAt = Date.now()
     if (encoded === undefined) {
       const keptLocally = drafts ? await keepLocally(drafts, sessionId, draft) : false
@@ -538,11 +591,58 @@ function keepInDraft(
       text: draft.text,
       selectionStart: draft.selectionStart,
       selectionEnd: draft.selectionEnd,
-      attachments: [...encoded, ...added.encoded],
+      attachments: [...encoded, ...added],
+      items: draft.items,
       updatedAt,
     })
+    if (!keptLocally) await saving
     return {updatedAt, keptLocally, saving}
   })
+}
+
+function keepInDraft(
+  appData: AppData,
+  keep: DraftWriteChain,
+  sessionId: string,
+  place: DraftPlace,
+  readAdded: () => Promise<MovedDraft>,
+): Promise<KeptSave> {
+  return keepChangedDraft(appData, keep, sessionId, readRowOrNone, async (base) => {
+    const added = await readAdded()
+    return {draft: addToDraft(base, added, place), added: added.encoded}
+  })
+}
+
+export type SavedDraft = {
+  readonly text: string
+  readonly selection: SelectionOffsets
+  readonly items: readonly DraftItem[]
+}
+
+export async function editDraft(
+  appData: AppData,
+  keep: DraftWriteChain,
+  sessionId: string,
+  edit: (draft: SavedDraft) => SavedDraft,
+): Promise<void> {
+  const kept = await keepChangedDraft(appData, keep, sessionId, readRowOrFail, async (base) => {
+    const edited = edit({
+      text: base.text,
+      selection: clampSelection({start: base.selectionStart, end: base.selectionEnd}, base.text),
+      items: base.items,
+    })
+    const draft = {
+      ...base,
+      text: edited.text,
+      selectionStart: edited.selection.start,
+      selectionEnd: edited.selection.end,
+      items: [...edited.items],
+    }
+    return {draft, added: []}
+  })
+  settleKeptSave(appData, keep, sessionId, kept)
+  if (kept.keptLocally || (await kept.saving)) return
+  throw new Error('neither this browser nor the engine holds the edited draft')
 }
 
 async function settleKept(drafts: DraftStore, sessionId: string, updatedAt: number, saved: boolean): Promise<void> {
@@ -576,6 +676,7 @@ async function readAddedImage(drafts: DraftStore | null, file: File): Promise<Mo
     text: '',
     attachments: [blob ? {...local, blob: {id: blob.id}} : local],
     encoded: await encodeAttachments([{...attachment, file}]),
+    items: [],
   }
 }
 
@@ -585,7 +686,7 @@ function keepImageInDraft(appData: AppData, keep: DraftWriteChain, sessionId: st
 
 function readRowMoved(row: DraftRow | null): MovedDraft {
   if (!row) return NOTHING_MOVED
-  return {text: row.text, attachments: rowLocalDraft(row).attachments, encoded: row.attachments}
+  return {text: row.text, attachments: rowLocalDraft(row).attachments, encoded: row.attachments, items: row.items}
 }
 
 async function readStoredMoved(appData: AppData, sessionId: string, stored: LocalDraft): Promise<MovedDraft> {
@@ -601,7 +702,7 @@ async function readStoredMoved(appData: AppData, sessionId: string, stored: Loca
           return null
         })
   const encoded = sendableAttachments(stored, files, await encodeAttachments(files), row)
-  return {text: stored.text, attachments: stored.attachments, encoded}
+  return {text: stored.text, attachments: stored.attachments, encoded, items: stored.items}
 }
 
 export async function readMovedDraft(appData: AppData, keep: DraftWriteChain, sessionId: string): Promise<MovedDraft> {
@@ -619,12 +720,13 @@ export async function clearMovedDraft(appData: AppData, keep: DraftWriteChain, s
         console.error('[conciv] could not remove the local draft of the deleted session', error)
       }),
     )
-  await appData.saveDraft({
+  void appData.saveDraft({
     sessionId,
     text: '',
     selectionStart: 0,
     selectionEnd: 0,
     attachments: [],
+    items: [],
     updatedAt: Date.now(),
   })
 }
@@ -641,15 +743,17 @@ export async function carryMovedDraft(
   throw new Error('neither this browser nor the engine holds the moved draft')
 }
 
-const textAdded = (text: string) => (): Promise<MovedDraft> => Promise.resolve({...NOTHING_MOVED, text})
+const textAdded = (text: string, items: readonly DraftItem[]) => (): Promise<MovedDraft> =>
+  Promise.resolve({...NOTHING_MOVED, text, items})
 
 export function appendDraft(
   appData: AppData,
   keep: DraftWriteChain,
   sessionId: string,
   text: string,
+  items: readonly DraftItem[] = [],
 ): Promise<KeptSave> {
-  return keepInDraft(appData, keep, sessionId, 'last', textAdded(text))
+  return keepInDraft(appData, keep, sessionId, 'last', textAdded(text, items))
 }
 
 export function prependDraft(
@@ -657,11 +761,18 @@ export function prependDraft(
   keep: DraftWriteChain,
   sessionId: string,
   text: string,
+  items: readonly DraftItem[] = [],
 ): Promise<KeptSave> {
-  return keepInDraft(appData, keep, sessionId, 'first', textAdded(text))
+  return keepInDraft(appData, keep, sessionId, 'first', textAdded(text, items))
 }
 
-type DraftWrite = (appData: AppData, keep: DraftWriteChain, sessionId: string, text: string) => Promise<KeptSave>
+type DraftWrite = (
+  appData: AppData,
+  keep: DraftWriteChain,
+  sessionId: string,
+  text: string,
+  items: readonly DraftItem[],
+) => Promise<KeptSave>
 
 export type DraftWriteChain = <T>(step: () => Promise<T>) => Promise<T>
 
@@ -679,13 +790,22 @@ export function draftCacheSink(
   appData: AppData,
   sessionId: string,
   write: DraftWrite,
+  onFailure: () => void,
 ): DraftSink {
-  const logKeepFailure = (error: unknown) =>
+  const logKeepFailure = (error: unknown) => {
     console.error('[conciv] could not keep the queued message as a draft', error)
-  const settleLater = (kept: KeptSave): void => settleKeptSave(appData, keep, sessionId, kept)
-  return {
-    insert: (text) => void write(appData, keep, sessionId, text).then(settleLater).catch(logKeepFailure),
-    addFile: (file) => void keepImageInDraft(appData, keep, sessionId, file).then(settleLater).catch(logKeepFailure),
+    onFailure()
+  }
+  const settleLater = async (kept: KeptSave): Promise<void> => {
+    settleKeptSave(appData, keep, sessionId, kept)
+    if (kept.keptLocally || (await kept.saving)) return
+    onFailure()
+  }
+  return (returned) => {
+    if (returned.text !== '' || returned.items.length > 0)
+      void write(appData, keep, sessionId, returned.text, returned.items).then(settleLater).catch(logKeepFailure)
+    for (const file of returned.files)
+      void keepImageInDraft(appData, keep, sessionId, file).then(settleLater).catch(logKeepFailure)
   }
 }
 
@@ -701,6 +821,7 @@ export function makeDraftStorage(appData: AppData, keep: DraftWriteChain, sessio
       selectionStart: offsets.start,
       selectionEnd: offsets.end,
       attachments: draft.attachments,
+      items: draft.items,
     }
   }
   const persist = (draft: PersistedDraft) => {

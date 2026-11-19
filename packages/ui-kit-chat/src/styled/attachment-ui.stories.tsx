@@ -43,11 +43,16 @@ function Frame(): JSX.Element {
         replaceAttachment: async () => null,
         removeAttachment: async (id) => remove(id),
         sendingAttachments: () => false,
-        snapshotDraft: () => ({draft: '', attachments: [], quote: null}),
+        snapshotDraft: () => ({draft: '', attachments: [], quote: null, items: []}),
         restoreDraft: () => {},
         clearDraft: () => {},
         quote: () => null,
         setQuote: () => {},
+        items: () => [],
+        staged: () => attachments().length,
+        addItem: () => {},
+        removeItem: () => {},
+        updateItem: () => {},
         editing: () => false,
         setEditing: () => {},
         dictating: () => false,
@@ -76,8 +81,11 @@ export const ImageAndFileTiles: Story = {
     await waitFor(() => expect(c.getByRole('img', {name: 'diagram.png'})).toBeVisible())
     await expect(c.getByRole('button', {name: 'Remove diagram.png'})).toBeInTheDocument()
 
-    await userEvent.hover(c.getByRole('button', {name: 'Remove diagram.png'}))
-    await waitFor(() => expect(page.getByRole('tooltip')).toHaveTextContent('Remove diagram.png'))
+    await userEvent.tab()
+    await userEvent.tab()
+    await waitFor(() => expect(c.getByRole('button', {name: 'Remove diagram.png'})).toHaveFocus())
+    expect(c.getByRole('button', {name: 'Remove diagram.png'}).matches(':focus-visible')).toBe(true)
+    await waitFor(() => expect(c.getByRole('button', {name: 'Remove diagram.png'})).toBeVisible())
 
     await userEvent.click(c.getByRole('button', {name: 'Open diagram.png'}))
     const viewer = await page.findByRole('dialog', {name: 'diagram.png'})
