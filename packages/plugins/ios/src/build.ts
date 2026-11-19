@@ -1,4 +1,3 @@
-import {arch} from 'node:os'
 import {join} from 'node:path'
 import {Clock, Effect, FileSystem, Option, Path, Schema, Semaphore, type PlatformError} from 'effect'
 import {uniq} from 'es-toolkit'
@@ -55,11 +54,9 @@ const collectSwiftSources = Effect.fn('ios.build.collectSwiftSources')(function*
   return uniq(files.flat()).toSorted()
 })
 
-function swiftTarget(): string {
-  const cpus: Record<string, string> = {arm64: 'arm64', x64: 'x86_64'}
-  const cpu = cpus[arch()] ?? arch()
-  return `${cpu}-apple-ios17.0-simulator`
-}
+const SWIFT_CPUS: Record<string, string> = {arm64: 'arm64', x64: 'x86_64'}
+
+const SWIFT_TARGET = `${SWIFT_CPUS[process.arch] ?? process.arch}-apple-ios17.0-simulator`
 
 const BuildSettingsEntrySchema = Schema.Struct({
   buildSettings: Schema.Struct({
@@ -189,7 +186,7 @@ const buildSwiftc = Effect.fn('ios.build.swiftc')(function* (runtime: IosRuntime
       '-sdk',
       sdkPath,
       '-target',
-      swiftTarget(),
+      SWIFT_TARGET,
       '-module-name',
       module,
       '-O',

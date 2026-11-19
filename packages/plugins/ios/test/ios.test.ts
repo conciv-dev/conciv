@@ -295,6 +295,22 @@ describe('the real simctl runner', () => {
     await Effect.runPromise(Fiber.interrupt(running))
     expect(alive(pid)).toBe(false)
   })
+
+  it('collects stdout up to 128 MiB and fails with OutputTooLarge one byte past it', async () => {
+    const limit = 128 * 1024 * 1024
+    const writing = (size: number) => `process.stdout.write(Buffer.alloc(${size}, 1))`
+    const running = (size: number) =>
+      Effect.gen(function* () {
+        const simctl = yield* Simctl.Service
+        return yield* simctl.run(process.execPath, ['-e', writing(size)])
+      }).pipe(Effect.provide(Simctl.layer.pipe(Layer.provide(NodeChildProcessSpawner.layer), Layer.provide(platform))))
+    const atLimit = await Effect.runPromise(running(limit))
+    expect(atLimit.code).toBe(0)
+    expect(atLimit.stdout.length).toBe(limit)
+    expect(await Effect.runPromise(Effect.flip(running(limit + 1)))).toEqual(
+      Simctl.OutputTooLarge.make({command: process.execPath}),
+    )
+  })
 })
 
 describe('the ios tools against a fake simctl', () => {

@@ -19,31 +19,22 @@ export const Service = Context.Service<Interface>('@conciv/plugin-ios/Simctl')
 
 const MAX_OUTPUT_BYTES = 128 * 1024 * 1024
 
-type Collected = {readonly chunks: readonly Uint8Array[]; readonly size: number}
-
-function joinChunks(collected: Collected): Uint8Array {
-  const bytes = new Uint8Array(collected.size)
-  collected.chunks.reduce((offset, chunk) => {
-    bytes.set(chunk, offset)
-    return offset + chunk.length
-  }, 0)
-  return bytes
-}
-
 function collectBytes<Failure>(
   command: string,
   stream: Stream.Stream<Uint8Array, Failure>,
 ): Effect.Effect<Uint8Array, Failure | typeof OutputTooLarge.Type> {
-  return Stream.runFoldEffect(
-    stream,
-    (): Collected => ({chunks: [], size: 0}),
-    (collected, chunk) => {
-      const size = collected.size + chunk.length
-      if (size > MAX_OUTPUT_BYTES) return Effect.fail(OutputTooLarge.make({command}))
-      const next: Collected = {chunks: [...collected.chunks, chunk], size}
-      return Effect.succeed(next)
-    },
-  ).pipe(Effect.map(joinChunks))
+  return stream.pipe(
+    Stream.mapAccumEffect(
+      () => 0,
+      (size, chunk): Effect.Effect<readonly [number, readonly Uint8Array[]], typeof OutputTooLarge.Type> => {
+        const next = size + chunk.length
+        if (next > MAX_OUTPUT_BYTES) return Effect.fail(OutputTooLarge.make({command}))
+        return Effect.succeed([next, [chunk]])
+      },
+    ),
+    Stream.runCollect,
+    Effect.map((chunks) => Buffer.concat(chunks)),
+  )
 }
 
 export const layer = Layer.effect(
