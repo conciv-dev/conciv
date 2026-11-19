@@ -10,10 +10,10 @@ TipTap editors for SolidJS: `RichTextField`, a plain-text composer with slash an
 - `rich-text-field.tsx:RichTextFieldHandle` - `focus({end?})`, `clear()`, `insertText(text)`, `appendText(text)`, `select({start, end})`; `RichTextFieldSelection` is `{start, end}`.
 - `mention-field.tsx:MentionField` - props `items(query)`, `onSubmit(segments)`, `onReady(api)`, `onEmptyChange`, `placeholder`, `ariaLabel`, `class`.
 - `mention-field.tsx:MentionFieldApi` / `MentionItem` / `MentionSegment` - exported types.
-- `trigger-suggestions.ts:RichTextFieldTriggerSource` - `{label, categories?, items(query)}` (sync or async items); `RichTextFieldTriggerItem` (`{id, label, description?, group?, categoryId?, run?}`), `RichTextFieldTriggerCategory`.
+- `trigger-suggestions.ts:RichTextFieldTriggerSource` - `{label, categories?, items(query)}` (sync or async items); `RichTextFieldTriggerItem` (`{id, label, description?, group?, categoryId?, icon?, insert?, run?}`; the row shows `label`, a picked chip shows and lowers to `insert` when set, else shows `label` and lowers to the trigger character plus `id`), `RichTextFieldTriggerCategory`.
 - `trigger-suggestions.ts:triggerSuggestion` / `triggerMenuKeyDown` / `dismissTrigger` / `ChipForwardDelete` - suggestion config, menu keys and the Delete shortcut for chips.
 - `trigger-menu.tsx:TriggerMenu` / `createTriggerMenu` / `triggerPopupAttributes` - the suggestion popup and its controller.
-- `field-schema.ts:fieldSchema` / `documentExtensions` / `chipExtension` - the schema (Document, Paragraph, Text, mention chip).
+- `field-schema.ts:fieldSchema` / `documentExtensions` / `chipExtension` - the schema (Document, Paragraph, Text, mention chip); the chip carries an `insert` attribute (`data-insert` in HTML) that, when set, is its lowered text.
 - `lowering.ts:projectDocument` / `buildDocument` / `paragraphFragment` / `offsetToPosition` / `positionToOffset` - map between plain text offsets and ProseMirror positions.
 - `index.tsx` - exports `MentionField`, `RichTextField` and their types.
 - `*.stories.tsx` - Storybook stories for the two fields.
