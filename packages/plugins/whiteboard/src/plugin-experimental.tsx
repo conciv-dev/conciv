@@ -2,9 +2,9 @@ import {createResource, getOwner, onCleanup} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
-import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
-import {whiteboardStores} from './client/stores.js'
-import type {ChatCover} from './client/model/comments-model.js'
+import {WhiteboardCanvas, WhiteboardNotices} from './overlay.js'
+import {whiteboardStores} from './stores.js'
+import type {ChatCover} from './comments-model.js'
 
 export default Plugin.define({
   stores: whiteboardStores,
@@ -16,7 +16,7 @@ export default Plugin.define({
     })
     const [surface, {refetch}] = createResource(
       () => canvas.engaged,
-      () => import('./client/canvas-surface.js'),
+      () => import('./canvas-surface.js'),
     )
     const close = (): void => setCanvas('open', false)
     const layer = document.createElement('div')

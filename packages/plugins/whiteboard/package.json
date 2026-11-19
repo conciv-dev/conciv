@@ -2,7 +2,7 @@
   "name": "@conciv/plugin-whiteboard",
   "version": "0.0.22",
   "private": true,
-  "description": "The conciv whiteboard plugin: a canvas the user and the agent share, with source-anchored comments and pins, on the plugin's own libSQL database.",
+  "description": "The conciv whiteboard plugin: a canvas the user and the agent share, with source-anchored comments and pins, on the plugin storage the host keeps.",
   "keywords": [
     "canvas",
     "conciv",
@@ -19,8 +19,7 @@
     "directory": "packages/plugins/whiteboard"
   },
   "files": [
-    "dist",
-    "drizzle"
+    "dist"
   ],
   "type": "module",
   "exports": {
@@ -52,10 +51,8 @@
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
-    "@libsql/client": "catalog:",
     "@takumi-rs/core": "catalog:",
     "@takumi-rs/helpers": "catalog:",
-    "drizzle-orm": "^0.45.4",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
     "oxc-parser": "catalog:",
@@ -74,13 +71,11 @@
     "@excalidraw/mermaid-to-excalidraw": "catalog:",
     "@playwright/test": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
-    "@tanstack/pacer": "catalog:",
     "@tanstack/solid-db": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitest/coverage-v8": "catalog:",
-    "drizzle-kit": "^0.31.11",
     "playwright": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

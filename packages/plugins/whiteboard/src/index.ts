@@ -1,16 +1,15 @@
-import {join} from 'node:path'
 import {Plugin, type Rpc} from '@conciv/plugin/effect'
-import type {Context} from '@conciv/plugin/effect/plugin'
-import {Effect, Queue, Stream} from 'effect'
+import {Effect, Stream} from 'effect'
 import {z} from 'zod'
-import {concivStateDir} from '@conciv/protocol/state-types'
 import {Whiteboard} from './rpc.js'
-import {autoCommitDraft} from './server/auto-commit.js'
-import {createStore} from './server/db/store.js'
-import {enrichComments} from './server/enrich-worker.js'
-import {whiteboardHandlers} from './server/rpc-handlers.js'
+import {loadResolver} from './load-resolver.js'
+import {autoCommitDraft} from './auto-commit.js'
+import {enrichComments} from './enrich-worker.js'
+import {whiteboardHandlers} from './rpc-handlers.js'
+import {layer, WhiteboardStore, type WhiteboardEvent} from './store.js'
 import {info} from './skill.js'
-import {CONFIRMATION_RULES} from './tool/refusal.js'
+import {makeRenderer} from './preview.js'
+import {CONFIRMATION_RULES} from './refusal.js'
 import {register} from './tools.js'
 
 const DRAW_DEADLINE_MS = 8_000
@@ -19,56 +18,50 @@ const WhiteboardOptions = z.object({
 })
 
 type Announcement = Rpc.EventInput<typeof Whiteboard>
+type StoredChange = Exclude<WhiteboardEvent, {table: 'cursor'}>
 
-function databaseDirectory(location: Context['location']): string {
-  return join(concivStateDir(location.directory), 'whiteboard')
-}
+const isStoredChange = (event: WhiteboardEvent): event is StoredChange => event.table !== 'cursor'
+
+const announcement = ({room, table, key, type, cursor}: StoredChange): Announcement => [
+  'changed',
+  {room, table, key, type, cursor},
+]
 
 function reportUnannounced([, change]: Announcement) {
   return (error: unknown) =>
-    Effect.sync(() => {
-      console.error(`[whiteboard] change ${change.table} ${change.key} was not announced: ${String(error)}`)
-    })
+    Effect.logError(`[whiteboard] change ${change.table} ${change.key} was not announced`, error)
 }
 
 export default Plugin.define({
   id: 'whiteboard',
   effect: (ctx) =>
     Effect.gen(function* () {
-      const directory = ctx.location.directory
       const {drawDeadlineMs} = yield* Effect.sync(() => WhiteboardOptions.parse(ctx.options))
-      const store = yield* Effect.acquireRelease(
-        Effect.promise(() => createStore(databaseDirectory(ctx.location))),
-        (opened) => Effect.sync(() => opened.close()),
-      )
+      const store = yield* WhiteboardStore
+      const resolver = yield* Effect.cached(loadResolver(ctx.location.directory))
+      const renderer = yield* Effect.cached(makeRenderer)
       const registration = yield* ctx.rpc.register(Whiteboard, whiteboardHandlers(store)).pipe(Effect.orDie)
-      const announcements = yield* Queue.unbounded<Announcement>()
-      yield* Effect.acquireRelease(
-        Effect.sync(() =>
-          store.onEvent((event) => {
-            if (event.table === 'cursor') return
-            const {room, table, key, type, cursor} = event
-            Queue.offerUnsafe(announcements, ['changed', {room, table, key, type, cursor}])
-          }),
-        ),
-        (stopAnnouncing) => Effect.sync(stopAnnouncing),
-      )
-      yield* Stream.fromQueue(announcements).pipe(
-        Stream.runForEach((announcement) =>
+      const changes = yield* store.follow
+      yield* changes.pipe(
+        Stream.filter(isStoredChange),
+        Stream.map(announcement),
+        Stream.runForEach((announced) =>
           registration.events
-            .emit(...announcement)
-            .pipe(Effect.catch(reportUnannounced(announcement)), Effect.catchDefect(reportUnannounced(announcement))),
+            .emit(...announced)
+            .pipe(Effect.catch(reportUnannounced(announced)), Effect.catchDefect(reportUnannounced(announced))),
         ),
         Effect.forkScoped({startImmediately: true}),
       )
-      yield* enrichComments(store, directory)
+      yield* enrichComments(store, resolver)
       yield* ctx.agent.transform((editor) =>
         editor.list().forEach((agent) => agent.permissions.push(...CONFIRMATION_RULES)),
       )
-      yield* register(ctx, store, directory, drawDeadlineMs)
+      yield* register(ctx, store, resolver, renderer, drawDeadlineMs)
       yield* ctx.skill.transform((editor) => editor.add(info))
       yield* ctx.session.hook('experimental.idle', ({sessionId}) =>
-        Effect.promise(() => autoCommitDraft(store, sessionId)),
+        autoCommitDraft(store, sessionId).pipe(
+          Effect.catch((error) => Effect.logError(`[whiteboard] the draft of ${sessionId} was not committed`, error)),
+        ),
       )
-    }),
+    }).pipe(Effect.provide(layer(ctx.storage))),
 })
