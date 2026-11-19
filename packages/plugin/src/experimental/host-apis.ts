@@ -959,6 +959,7 @@ export interface UiChipProps {
   readonly value: string
   readonly tone?: 'neutral' | 'accent' | 'success' | 'danger'
   readonly tooltip?: string
+  readonly compact?: boolean
   readonly class?: string
 }
 
@@ -1237,11 +1238,13 @@ export interface Ui {
    * A short label in a pill, the chip the tool cards show for a state, a path or a name. A value too long for its
    * room is cut with an ellipsis and shows in full in a tooltip on hover, above the tooltip text when one is given.
    *
-   * @param props - The label, its tone, and an optional tooltip that explains it, which makes the chip focusable.
+   * @param props - The label, its tone, an optional tooltip that explains it, which makes the chip focusable, and
+   * `compact`, which caps the chip at a short width so a long value is cut sooner instead of taking the whole row.
    *
    * @example
    * ```tsx
    * <ctx.ui.Chip value={run.status} tone={run.status === "error" ? "danger" : "neutral"} tooltip="Last run" />
+   * <ctx.ui.Chip value={run.branch} compact />
    * ```
    */
   Chip(props: UiChipProps): JSX.Element

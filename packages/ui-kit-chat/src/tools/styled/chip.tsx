@@ -6,9 +6,9 @@ const chip = cva(
   'inline-flex min-w-0 items-center gap-1.25 overflow-hidden text-ellipsis whitespace-nowrap leading-none rounded-[var(--chat-radius-pill)] [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)]',
   {
     variants: {
-      maxWidth: {
-        full: 'max-w-full',
-        compact: 'max-w-40',
+      compact: {
+        true: 'max-w-40',
+        false: 'max-w-full',
       },
       kind: {
         field: 'px-2.25 pt-1.25 pb-1',
@@ -69,11 +69,11 @@ const chip = cva(
         class: '[background:var(--chat-sunken)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)]',
       },
     ],
-    defaultVariants: {kind: 'field', tone: 'neutral', maxWidth: 'full'},
+    defaultVariants: {kind: 'field', tone: 'neutral', compact: false},
   },
 )
 
-export const CHIP = chip({kind: 'field', tone: 'neutral', maxWidth: 'full'})
+export const CHIP = chip({kind: 'field', tone: 'neutral', compact: false})
 
 const FIELD_KEY = 'text-chat-text-3 m-0'
 const FIELD_VALUE = 'whitespace-nowrap text-ellipsis overflow-hidden [color:var(--chat-text)] m-0'
@@ -132,15 +132,15 @@ export function Chip(props: {
   value: string
   kind?: 'field' | 'pill'
   tone?: 'neutral' | 'accent' | 'success' | 'danger'
-  maxWidth?: 'full' | 'compact'
+  compact?: boolean
   tooltip?: string
   class?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['name', 'value', 'kind', 'tone', 'maxWidth', 'tooltip', 'class'])
+  const [local] = splitProps(props, ['name', 'value', 'kind', 'tone', 'compact', 'tooltip', 'class'])
   const reveal = createClipReveal()
   const kind = (): 'field' | 'pill' => local.kind ?? 'field'
   const chipClass = (): string =>
-    `${chip({kind: kind(), tone: local.tone ?? 'neutral', maxWidth: local.maxWidth ?? 'full'})} ${local.class ?? ''}`
+    `${chip({kind: kind(), tone: local.tone ?? 'neutral', compact: local.compact ?? false})} ${local.class ?? ''}`
   const showsContent = (): boolean => reveal.clipped() || local.tooltip !== undefined
 
   return (

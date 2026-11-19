@@ -354,7 +354,14 @@ export const ui: Ui = {
     </Select.Root>
   ),
   Chip: (props) => (
-    <Chip kind="pill" value={props.value} tone={props.tone} tooltip={props.tooltip} class={props.class} />
+    <Chip
+      kind="pill"
+      value={props.value}
+      tone={props.tone}
+      tooltip={props.tooltip}
+      compact={props.compact}
+      class={props.class}
+    />
   ),
   Keybind: (props) => (
     <Show when={props.keys.length > 0}>

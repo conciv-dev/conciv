@@ -138,7 +138,7 @@ export function BasicTool(props: BasicToolProps): JSX.Element {
           </Match>
           <Match when={true}>{triggerElement()}</Match>
         </Switch>
-        <Show when={tag()}>{(value) => <Chip kind="pill" maxWidth="compact" value={value()} />}</Show>
+        <Show when={tag()}>{(value) => <Chip kind="pill" compact value={value()} />}</Show>
         <Show when={durationText()}>{(text) => <span class={DURATION}>{text()}</span>}</Show>
         {showToggle() ? <FoldIndicator /> : <span aria-hidden="true" class={FOLD_SLOT} />}
       </Collapsible.Trigger>

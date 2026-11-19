@@ -221,7 +221,7 @@ function StepRow(props: {step: PageSessionStep; index: number; streaming: boolea
         text={props.step.state === 'streaming' ? activeSentence(props.step) : props.step.target}
       />
       <Show when={props.step.value}>
-        {(value) => <Chip kind="pill" tone="accent" maxWidth="compact" value={`“${value()}”`} class={ROW_VALUE} />}
+        {(value) => <Chip kind="pill" tone="accent" compact value={`“${value()}”`} class={ROW_VALUE} />}
       </Show>
     </li>
   )

@@ -11119,7 +11119,7 @@ module.exports = {default: {stores: {
         createComponent(ctx.ui.Chip, {
           value: 'Reviewed in full by Ada Lovelace and Alan Turing',
           tooltip: 'Both reviewers signed off',
-          class: 'max-w-40',
+          compact: true,
         }),
         createComponent(ctx.ui.Menu, {
           label: 'View options',

@@ -509,7 +509,7 @@ describe('chip', () => {
     mountView(() => (
       <ul class={CHIP_LIST}>
         <li class={CHIP_SLOT} aria-label="clipped chip">
-          <Chip kind="pill" maxWidth="compact" value={LONG_VALUE} />
+          <Chip kind="pill" compact value={LONG_VALUE} />
         </li>
       </ul>
     ))
@@ -523,10 +523,10 @@ describe('chip', () => {
     const host = mountView(() => (
       <ul class={CHIP_LIST}>
         <li class={CHIP_SLOT} aria-label="clipped chip">
-          <Chip kind="pill" maxWidth="compact" value={LONG_VALUE} />
+          <Chip kind="pill" compact value={LONG_VALUE} />
         </li>
         <li class={CHIP_SLOT} aria-label="fitting chip">
-          <Chip kind="pill" maxWidth="compact" value="idle" />
+          <Chip kind="pill" compact value="idle" />
         </li>
       </ul>
     ))

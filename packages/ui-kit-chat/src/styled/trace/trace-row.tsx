@@ -148,7 +148,7 @@ export function TraceToolRow(props: {
       {running() ? <TraceRing /> : <TraceMark mark={local.projection.mark} />}
       <span class={running() ? RUN_LABEL : LABEL}>{local.projection.label}</span>
       <TruncatedText class={TARGET} text={local.projection.target} />
-      {local.tag ? <Chip kind="pill" maxWidth="compact" value={local.tag ?? ''} /> : undefined}
+      {local.tag ? <Chip kind="pill" compact value={local.tag ?? ''} /> : undefined}
       {local.projection.meta ? <TruncatedText class={metaClass()} text={local.projection.meta ?? ''} /> : undefined}
     </>
   )
