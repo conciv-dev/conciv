@@ -1,7 +1,6 @@
 ---
 '@conciv/embed': patch
 '@conciv/app': patch
-'@conciv/extension-compiler': patch
 '@conciv/unplugin': patch
 '@conciv/react': patch
 '@conciv/preact': patch
