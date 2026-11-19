@@ -1,7 +1,7 @@
 import '../src/styles.css'
 import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
-import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
+import {cdp, page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {range, uniq} from 'es-toolkit'
 import {createElement} from 'react'
 import {createRoot as createReactRoot} from 'react-dom/client'
@@ -9139,36 +9139,6 @@ module.exports = {default: {setup(ctx) {
   }, 45_000)
 })
 
-describe('the session panel end slot', () => {
-  const coreBase = bootedCore('plugin-panel-end', {
-    plugins: ['./panel-end'],
-    files: {
-      'panel-end/index.ts': `export default {id: 'panel-end', async setup() {}}
-`,
-      'panel-end/plugin-experimental.js': `const {Slot} = require('@conciv/plugin/experimental')
-module.exports = {default: {setup(ctx) {
-  ctx.add(Slot, {
-    at: 'session.panel.end',
-    render: (input) => Object.assign(document.createElement('span'), {textContent: 'Panel end of ' + input.session.id}),
-  })
-}}}
-`,
-    },
-  })
-  const harness = createShellHarness(coreBase)
-
-  afterEach(harness.dispose)
-
-  test('a plugin slot at session.panel.end draws in the status bar beside the view tabs, for the routed session', async () => {
-    const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(`/panel/${sessionId}?open=true`)
-
-    const bar = page.getByRole('toolbar', {name: 'Session status'})
-    await expect.element(bar.getByRole('tab', {name: 'Chat'}), {timeout: 15_000}).toBeVisible()
-    await expect.element(bar.getByText(`Panel end of ${sessionId}`, {exact: true}), {timeout: 15_000}).toBeVisible()
-  }, 45_000)
-})
-
 describe('terminal panel', () => {
   const coreBase = bootedCore('terminal-panel', {
     tty: true,
@@ -9177,7 +9147,7 @@ describe('terminal panel', () => {
       {id: 'calm-model', name: 'Calm model'},
       {id: 'busy-model', name: 'Busy model'},
     ],
-    alternates: [{id: 'plain', displayName: 'Plain'}],
+    alternates: [{id: 'plain', displayName: 'Plain', models: [{id: 'plain-model', name: 'Plain model'}]}],
     files: {
       'dist/chunk.js': `console.log('chunk')
 `,
@@ -9193,6 +9163,7 @@ describe('terminal panel', () => {
   const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
   const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
   const terminalPanel = () => page.getByRole('tabpanel', {name: 'Terminal'})
+  const terminalBar = () => terminalPanel().getByRole('toolbar', {name: 'Terminal'})
   const output = (text: string) => terminalPanel().getByRole('list').getByText(text, {exact: true})
   const connecting = () => terminalPanel().getByRole('status').filter({hasText: 'connecting'})
   const terminalRoute = (sessionId: string) =>
@@ -9268,9 +9239,19 @@ describe('terminal panel', () => {
     await expect.element(terminalTab()).not.toBeInTheDocument()
   }, 60_000)
 
+  test('a fresh session with no saved pick starts the CLI on the model the toolbar picker shows', async () => {
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+
+    await expect.element(output('model first-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker()).toHaveTextContent('First model')
+    await expect.element(output('model none')).not.toBeInTheDocument()
+  }, 60_000)
+
   test('the toolbar picks the CLI model and keeps it across a reload, starts a new terminal, locks while the CLI is busy, and shows only on the Terminal tab', async () => {
-    const picker = () => bar().getByRole('button', {name: 'Select model'})
-    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
+    const newTerminal = () => terminalBar().getByRole('button', {name: 'New terminal'})
     const pick = async (name: string) => {
       await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
       await picker().click()
@@ -9279,7 +9260,7 @@ describe('terminal panel', () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(terminalRoute(sessionId))
 
-    await expect.element(output('model none'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('model first-model'), {timeout: 15_000}).toBeInTheDocument()
     await typeLine('echo $((6*7))')
     await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
 
@@ -9304,10 +9285,15 @@ describe('terminal panel', () => {
     await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
     await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
     await expect.element(output('model none')).not.toBeInTheDocument()
+    await pick('Busy model')
+    await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
 
     harness.dispose()
     harness.mountShell(terminalRoute(sessionId))
     await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
+    await expect.element(output('model calm-model')).toBeInTheDocument()
+    await expect.element(output('model busy-model')).not.toBeInTheDocument()
 
     await newTerminal().click()
     await expect.element(output('25'), {timeout: 15_000}).not.toBeInTheDocument()
@@ -9342,7 +9328,7 @@ describe('terminal panel', () => {
     const failingPick = async (): Promise<Grab | null> => {
       throw new Error('the page refused the pick')
     }
-    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const pickButton = () => terminalBar().getByRole('button', {name: 'Select an element from the page'})
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(terminalRoute(sessionId), {
       grabProvider: () => ({pick: failingPick, comment: failingPick, cancel: () => {}, isActive: () => false}),
@@ -9355,7 +9341,7 @@ describe('terminal panel', () => {
   }, 60_000)
 
   test('a grab picked in the terminal is grounded in place, and its Remove takes it away', async () => {
-    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const pickButton = () => terminalBar().getByRole('button', {name: 'Select an element from the page'})
     const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
     const unsourced: Grab = {...HERO_GRAB, source: null, frames: [{fileName: 'dist/chunk.js', line: 1, column: 1}]}
     const sessionId = await createSession(coreRpc(coreBase()))
@@ -9371,7 +9357,7 @@ describe('terminal panel', () => {
   }, 60_000)
 
   test('a grab lives in one place: one picked in Chat stays in the chat draft, a waiting one picked in the terminal moves into the chat draft when Chat opens', async () => {
-    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const pickButton = () => terminalBar().getByRole('button', {name: 'Select an element from the page'})
     const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
     const composerInput = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
     const chatTab = () => bar().getByRole('tab', {name: 'Chat', exact: true})
@@ -9419,7 +9405,7 @@ describe('terminal panel', () => {
   }, 60_000)
 
   test('the crosshair picks an element and Enter in the terminal sends it to the CLI, then clears the staging', async () => {
-    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const pickButton = () => terminalBar().getByRole('button', {name: 'Select an element from the page'})
     const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
     const readsOneLine = {...HERO_GRAB, text: 'read -r line; echo "got[$line]"'}
     const buttonGrab = {...HERO_GRAB, text: '<button>\nSave\n</button>'}
@@ -9481,7 +9467,7 @@ describe('terminal panel', () => {
   }, 60_000)
 
   test('a pick that lands after the user moved to another session stages nothing in that session', async () => {
-    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const pickButton = () => terminalBar().getByRole('button', {name: 'Select an element from the page'})
     const release: {pick: (grab: Grab) => void} = {pick: () => {}}
     const held = new Promise<Grab>((resolve) => {
       release.pick = resolve
@@ -9515,9 +9501,12 @@ describe('terminal panel', () => {
 
   test('the page flipping between light and dark with the terminal open paints it the way a fresh mount in that scheme does', async () => {
     const pageScheme = document.documentElement.classList
-    onTestFinished(() => pageScheme.remove('dark'))
-    const panel = () => page.getByRole('tabpanel', {name: 'Terminal'})
-    const shot = () => panel().screenshot({save: false})
+    onTestFinished(async () => {
+      pageScheme.remove('dark')
+      await cdp().send('Emulation.setEmulatedMedia', {features: []})
+    })
+    await cdp().send('Emulation.setEmulatedMedia', {features: [{name: 'prefers-reduced-motion', value: 'reduce'}]})
+    const shot = () => terminalPanel().screenshot({save: false})
     const sessionId = await createSession(coreRpc(coreBase()))
     const mountSettled = async () => {
       harness.dispose()
@@ -9547,9 +9536,43 @@ describe('terminal panel', () => {
     expect(await shot()).toBe(freshLight)
   }, 60_000)
 
+  test('under reduced motion the terminal opens in the colours it has with full motion, in light and in dark', async () => {
+    const pageScheme = document.documentElement.classList
+    onTestFinished(async () => {
+      pageScheme.remove('dark')
+      await cdp().send('Emulation.setEmulatedMedia', {features: []})
+    })
+    const shot = () => terminalPanel().screenshot({save: false})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const mountSettled = async () => {
+      harness.dispose()
+      harness.mountShell(terminalRoute(sessionId))
+      await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+      await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+      await expect.element(terminalInput(), {timeout: 15_000}).toHaveFocus()
+    }
+    harness.mountShell(terminalRoute(sessionId))
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+
+    await mountSettled()
+    const fullMotionLight = await shot()
+    pageScheme.add('dark')
+    await mountSettled()
+    const fullMotionDark = await shot()
+    pageScheme.remove('dark')
+
+    await cdp().send('Emulation.setEmulatedMedia', {features: [{name: 'prefers-reduced-motion', value: 'reduce'}]})
+    await mountSettled()
+    expect(await shot()).toBe(fullMotionLight)
+    pageScheme.add('dark')
+    await mountSettled()
+    expect(await shot()).toBe(fullMotionDark)
+  }, 60_000)
+
   test('the host page keeps its own keys: a click there leaves the terminal unfocused, Escape there reaches the page and leaves a busy CLI running, and only Escape in the terminal interrupts it', async () => {
     await page.viewport(1200, 900)
-    const picker = () => bar().getByRole('button', {name: 'Select model'})
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
     const launcher = () => page.getByRole('button', {name: 'Open conciv chat'})
     const hostText = () => page.getByText('Host page text', {exact: true})
     const hostSawEscape = (count: number) => page.getByText(`Host page saw Escape ${count}`, {exact: true})
@@ -9585,7 +9608,7 @@ describe('terminal panel', () => {
     await userEvent.keyboard('{Enter}')
     await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
     await expect.element(output('42')).toBeInTheDocument()
-    await expect.element(output('hostmarker').first()).not.toBeInTheDocument()
+    await expect.element(output('hostmarker')).not.toBeInTheDocument()
 
     await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
     await picker().click()
@@ -9619,8 +9642,8 @@ describe('terminal panel', () => {
   }, 60_000)
 
   test('Escape in the composer on the Chat view stops the chat turn and leaves a busy CLI in the terminal running', async () => {
-    const picker = () => bar().getByRole('button', {name: 'Select model'})
-    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
+    const newTerminal = () => terminalBar().getByRole('button', {name: 'New terminal'})
     const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
     const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
     const stoppedLine = () => page.getByRole('separator', {name: 'Stopped'})
@@ -9658,6 +9681,152 @@ describe('terminal panel', () => {
     await expect.element(picker()).toBeDisabled()
     await expect.element(newTerminal()).toBeDisabled()
     await expect.element(output('interrupted')).not.toBeInTheDocument()
+
+    await terminalPanel().click()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(output('interrupted'), {timeout: 15_000}).toBeInTheDocument()
+    await pick('First model')
+    await expect.element(output('model first-model'), {timeout: 15_000}).toBeInTheDocument()
+  }, 60_000)
+
+  test('the model picker says Models… while the list is read, then lists the models', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const modelsRead = await faults.install({kind: 'gate', path: ['meta', 'models']})
+    harness.mountShell(terminalRoute(sessionId))
+
+    await expect.element(terminalBar().getByRole('button', {name: 'Models…'}), {timeout: 15_000}).toBeEnabled()
+    await coreControl.awaitFaultPending(modelsRead, 1)
+    await faults.releaseAll()
+    await expect.element(terminalBar().getByRole('button', {name: 'Select model'}), {timeout: 15_000}).toBeEnabled()
+    await expect.element(terminalBar().getByRole('button', {name: 'Models…'})).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a model list that failed to load offers Retry inside the model selector, which says Models… while Retry reads it, then lists the models', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
+    harness.mountShell(terminalRoute(sessionId))
+
+    const menu = () => page.getByRole('dialog', {name: 'Model'})
+    const retry = () => menu().getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
+    await terminalBar().getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
+    await expect.element(retry(), {timeout: 15_000}).toBeVisible()
+    await coreControl.releaseFault(broken)
+    const retried = await faults.install({kind: 'gate', path: ['meta', 'models']})
+    await retry().click()
+    await expect.element(terminalBar().getByRole('button', {name: 'Models…'}), {timeout: 15_000}).toBeVisible()
+    await expect.element(menu().getByRole('status')).toHaveTextContent('Loading models…')
+    await expect.element(retry()).not.toBeInTheDocument()
+    await coreControl.awaitFaultPending(retried, 1)
+    await faults.releaseAll()
+    await expect.element(menu().getByRole('option', {name: 'First model'}), {timeout: 15_000}).toBeVisible()
+    await expect.element(menu().getByRole('option', {name: 'Calm model'})).toBeVisible()
+    await expect.element(terminalBar().getByRole('button', {name: 'Models…'})).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a CLI that started while the model list failed restarts with the saved pick once Retry lists the models', async () => {
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
+    const newTerminal = () => terminalBar().getByRole('button', {name: 'New terminal'})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
+    await picker().click()
+    await page.getByRole('option', {name: 'Calm model'}).click()
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+
+    const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
+    harness.dispose()
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await newTerminal().click()
+    const retry = () =>
+      page
+        .getByRole('dialog', {name: 'Model'})
+        .getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
+    await expect.element(output('model none'), {timeout: 15_000}).toBeInTheDocument()
+    await terminalBar().getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
+    await expect.element(retry()).toBeVisible()
+
+    await coreControl.releaseFault(broken)
+    await retry().click()
+    await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('model none')).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a session switched to a harness without a terminal drops its Terminal tab', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(terminalTab(), {timeout: 15_000}).toBeVisible()
+
+    await page.getByRole('button', {name: /^Model: First model/}).click()
+    await page.getByRole('option', {name: 'Plain model (Plain)'}).click()
+    await expect.element(page.getByRole('button', {name: /^Model: Plain model/}), {timeout: 15_000}).toBeVisible()
+    await expect.element(terminalTab(), {timeout: 15_000}).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a CLI that was busy when Retry listed the models restarts with the saved pick once it is idle', async () => {
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
+    const newTerminal = () => terminalBar().getByRole('button', {name: 'New terminal'})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
+    await picker().click()
+    await page.getByRole('option', {name: 'Calm model'}).click()
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+
+    const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
+    harness.dispose()
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await newTerminal().click()
+    const retry = () =>
+      page
+        .getByRole('dialog', {name: 'Model'})
+        .getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
+    await expect.element(output('model none'), {timeout: 15_000}).toBeInTheDocument()
+    await terminalBar().getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
+    await coreControl.releaseFault(broken)
+    const held = await faults.install({kind: 'gate', path: ['meta', 'models']})
+    await retry().click()
+    await coreControl.awaitFaultPending(held, 1)
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('dialog', {name: 'Model'})).not.toBeInTheDocument()
+
+    await terminalPanel().click()
+    await typeLine(`printf '\\033\\1359;4;1\\007'; read; printf '\\033\\1359;4;0\\007'`)
+    await expect.element(newTerminal(), {timeout: 15_000}).toBeDisabled()
+    await faults.releaseAll()
+    await expect.element(picker(), {timeout: 15_000}).toBeDisabled()
+    await expect.element(output('model calm-model')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('model none')).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a model list that failed while the CLI is busy still offers Retry, which lists the models', async () => {
+    const newTerminal = () => terminalBar().getByRole('button', {name: 'New terminal'})
+    const failed = () => terminalBar().getByRole('button', {name: 'Couldn’t load models', exact: true})
+    const menu = () => page.getByRole('dialog', {name: 'Model'})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(output('model none'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(failed(), {timeout: 15_000}).toBeVisible()
+
+    await terminalPanel().click()
+    await typeLine(`printf '\\033\\1359;4;1\\007'; read; printf '\\033\\1359;4;0\\007'`)
+    await expect.element(newTerminal(), {timeout: 15_000}).toBeDisabled()
+    await coreControl.releaseFault(broken)
+
+    await expect.element(failed()).toBeEnabled()
+    await failed().click()
+    await menu().getByRole('button', {name: 'Couldn’t load models: Retry loading models'}).click()
+    await expect.element(menu().getByRole('option', {name: 'First model'}), {timeout: 15_000}).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await terminalPanel().click()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(newTerminal(), {timeout: 15_000}).toBeEnabled()
   }, 60_000)
 
   test('a control the user opened before the terminal starts keeps focus and stays open once the terminal starts', async () => {
@@ -9677,6 +9846,120 @@ describe('terminal panel', () => {
     await expect.element(page.getByText(/^model /), {timeout: 15_000}).toBeInTheDocument()
     await expect.element(terminalInput()).not.toHaveFocus()
     await expect.element(menu()).toBeVisible()
+  }, 60_000)
+
+  test('deleting a session drops its saved model pick and keeps the other sessions and the last pick', async () => {
+    const prefsKey = 'conciv.global:plugin.terminal.prefs'
+    const readPrefs = (): unknown => JSON.parse(localStorage.getItem(prefsKey) ?? '{}')
+    const savedPicks = () => z.object({sessions: z.record(z.string(), z.string())}).parse(readPrefs()).sessions
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
+    const pick = async (name: string) => {
+      await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
+      await picker().click()
+      await page.getByRole('option', {name}).click()
+    }
+    const rpc = coreRpc(coreBase())
+    const kept = await createSession(rpc)
+    const deleted = await createSession(rpc)
+
+    harness.mountShell(terminalRoute(deleted))
+    await pick('Calm model')
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    harness.dispose()
+    harness.mountShell(terminalRoute(kept))
+    await pick('First model')
+    await expect.element(output('model first-model'), {timeout: 15_000}).toBeInTheDocument()
+    harness.dispose()
+    harness.mountShell(terminalRoute(deleted))
+    await pick('Busy model')
+    await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
+    expect(savedPicks()).toMatchObject({[kept]: 'first-model', [deleted]: 'busy-model'})
+
+    await rpc.sessions.delete({sessionId: deleted})
+
+    await expect.poll(savedPicks, {timeout: 8000}).not.toHaveProperty(deleted)
+    expect(savedPicks()).toMatchObject({[kept]: 'first-model'})
+    expect(readPrefs()).toMatchObject({model: 'busy-model'})
+  }, 60_000)
+})
+
+describe('terminal panel for a plain shell with no models', () => {
+  const coreBase = bootedCore('terminal-panel-no-models', {tty: true})
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const terminalBar = () => page.getByRole('tabpanel', {name: 'Terminal'}).getByRole('toolbar', {name: 'Terminal'})
+  const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
+  const output = (text: string) =>
+    page.getByRole('tabpanel', {name: 'Terminal'}).getByRole('list').getByText(text, {exact: true})
+  const terminalRoute = (sessionId: string) =>
+    `/panel/${sessionId}/${encodeURIComponent('terminal:terminal')}?open=true`
+
+  const typeLine = async (line: string) => {
+    await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(terminalInput(), {timeout: 15_000}).toHaveFocus()
+    await userEvent.keyboard(line)
+    await userEvent.keyboard('{Enter}')
+  }
+
+  test('the model picker says No models', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+
+    await expect.element(terminalBar().getByRole('button', {name: 'No models'}), {timeout: 15_000}).toBeDisabled()
+    await expect.element(terminalBar().getByRole('button', {name: 'Select model'})).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a terminal opened in a chat too short to show it starts once the user makes the chat taller', async () => {
+    const hostTop = () => page.getByText('Host page top', {exact: true})
+    const hostSpot = Object.assign(document.createElement('p'), {textContent: 'Host page top'})
+    document.body.prepend(hostSpot)
+    onTestFinished(() => {
+      hostSpot.remove()
+      localStorage.removeItem('conciv-modal-height')
+    })
+    await page.viewport(1000, 200)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(terminalInput(), {timeout: 15_000}).toBeInTheDocument()
+
+    await page.viewport(1000, 700)
+    await userEvent.dragAndDrop(page.getByRole('separator', {name: 'Resize chat height'}), hostTop())
+    await expect.element(output('SPAWNEND'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(page.getByText('Couldn’t open the terminal.')).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('what the CLI paints as it starts is sized for the terminal the user sees', async () => {
+    await page.viewport(1000, 700)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+
+    await expect.element(output('P>'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('SPAWNEND')).toBeInTheDocument()
+  }, 60_000)
+
+  test('a terminal opened again shows the earlier lines and runs at the size the user sees', async () => {
+    await page.viewport(1000, 700)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+
+    await typeLine(`printf '=%.0s' $(seq 1 $(tput cols)); echo FIRSTEND`)
+    await expect.element(output('FIRSTEND'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+
+    harness.dispose()
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(output('FIRSTEND'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('42')).toBeInTheDocument()
+
+    await typeLine(`printf '=%.0s' $(seq 1 $(tput cols)); echo SECONDEND`)
+    await expect.element(output('SECONDEND'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine(`seq -f 'ROW%g' 1 $(tput lines)`)
+    await expect.element(output('ROW2'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('ROW1')).not.toBeInTheDocument()
   }, 60_000)
 })
 
@@ -9768,7 +10051,8 @@ describe('plugins before a core is bound', () => {
   const PREFS_KEY = 'conciv.global:plugin.terminal.prefs'
   const bar = () => page.getByRole('toolbar', {name: 'Session status'})
   const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
-  const picker = () => bar().getByRole('button', {name: 'Select model'})
+  const terminalBar = () => page.getByRole('tabpanel', {name: 'Terminal'}).getByRole('toolbar', {name: 'Terminal'})
+  const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
   const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
   const notSaved = () => page.getByText('Some changes are not being saved', {exact: true})
   const enginePluginStoreReads = (scope: 'global' | 'project') =>

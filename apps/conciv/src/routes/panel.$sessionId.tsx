@@ -20,6 +20,7 @@ import {
   type TurnRollup,
 } from '@conciv/ui-kit-chat'
 import X from 'lucide-solid/icons/x'
+import MessageSquare from 'lucide-solid/icons/message-square'
 import Settings from 'lucide-solid/icons/settings'
 import Pencil from 'lucide-solid/icons/pencil'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
@@ -53,7 +54,7 @@ import {useNotices} from '../shell/notice-context.js'
 import {useStartSession} from '../app/start-session.js'
 import {openPipTarget} from '../shell/pip.js'
 import {createMountedSession} from '../runtime/plugin/mounted-session.js'
-import {createPluginTabs, PluginPanelEnd, PluginRegion, PluginWindowBottom} from '../shell/plugin-surfaces.js'
+import {createPluginTabs, PluginRegion, PluginWindowBottom} from '../shell/plugin-surfaces.js'
 
 const RAIL =
   'flex h-15 shrink-0 box-border items-center gap-2.5 pe-3 ps-5 pt-[13px] pb-[13px] [border-block-end:1px_solid_var(--chat-line-soft)]'
@@ -382,7 +383,10 @@ function PanelSession(): JSX.Element {
     if (kind === 'unstarted') return undefined
     return kind === 'done' || kind === 'stopped' ? 'LAST' : 'ACTIVE'
   }
-  const statusBarViews = createMemo<StatusBarView[]>(() => [{id: 'chat', label: 'Chat'}, ...pluginTabs.views()])
+  const statusBarViews = createMemo<StatusBarView[]>(() => [
+    {id: 'chat', label: 'Chat', icon: MessageSquare},
+    ...pluginTabs.views(),
+  ])
 
   const paneValue: PaneContextValue = {
     sessionId: () => params().sessionId,
@@ -494,7 +498,6 @@ function PanelSession(): JSX.Element {
         views={statusBarViews()}
         activeView={activeView()}
         onSelectView={switchView}
-        end={<Show when={mounted.view()}>{(view) => <PluginPanelEnd view={view} screen={mounted.screen} />}</Show>}
       />
       <PluginWindowBottom />
     </PaneContext.Provider>

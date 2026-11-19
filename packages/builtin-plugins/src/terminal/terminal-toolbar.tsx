@@ -1,41 +1,40 @@
 import {createMemo, onCleanup, Show, type JSX} from 'solid-js'
-import {pick} from 'es-toolkit'
-import {ModelSelector, type ModelOption} from '@conciv/ui-kit-chat'
+import {HarnessModelSelector, useModelMenu} from '@conciv/ui-kit-chat'
 import {usePlugin, type MountedSession} from '@conciv/plugin/experimental'
 import {GrabApi} from '@conciv/plugin/experimental/grab'
 import type {TerminalState} from './terminal-state.js'
 
 export function TerminalToolbar(props: {session: MountedSession; terminal: TerminalState}): JSX.Element {
   const ctx = usePlugin()
-  const options = createMemo(() =>
-    props.terminal
-      .models(props.session.id)
-      .map((model): ModelOption => pick(model, ['id', 'name', 'description', 'disabled'])),
-  )
+  const menu = useModelMenu()
   const locked = () => props.terminal.locked(props.session.id)
   const live = ctx.use(GrabApi)
   const grab = createMemo(() => {
     const current = live()
     return current.status === 'active' ? current.value : undefined
   })
+  const status = () => {
+    if (props.terminal.modelsFailed(props.session.id)) return 'failed'
+    return props.terminal.modelsLoading(props.session.id) ? 'loading' : 'ready'
+  }
   return (
-    <div class="flex gap-1 items-center">
+    <div
+      class="px-1.5 py-1.5 border-b border-b-chat-line-soft border-b-solid flex shrink-0 gap-1 items-center"
+      role="toolbar"
+      aria-label="Terminal"
+    >
       <Show when={props.session.id} keyed>
         <Show when={grab()}>{(contract) => <PickElementButton grab={contract()} />}</Show>
       </Show>
-      <Show when={options().length > 0}>
-        <ModelSelector.Root
-          models={options()}
-          value={props.terminal.shownModel(props.session.id)}
-          onValueChange={(model) => props.terminal.pick(props.session, model)}
-        >
-          <ModelSelector.Trigger disabled={locked()} />
-          <ModelSelector.Content>
-            <ModelSelector.Search placeholder="Search models…" />
-            <ModelSelector.List />
-          </ModelSelector.Content>
-        </ModelSelector.Root>
-      </Show>
+      <HarnessModelSelector
+        menu={menu}
+        status={status()}
+        models={props.terminal.meta(props.session.id)}
+        value={props.terminal.shownModel(props.session.id) ?? null}
+        disabled={locked()}
+        onRetry={() => props.terminal.reloadModels()}
+        onModelChange={(model) => props.terminal.pick(props.session, model)}
+      />
       <ctx.ui.Tooltip value="New terminal">
         <ctx.ui.IconButton
           icon="plus"

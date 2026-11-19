@@ -44,8 +44,10 @@ export type TtySession = {
   exited(): {code: number} | null
 }
 
+export type PtySize = {cols: number; rows: number}
+
 export type TtySessions = {
-  open(sessionId: string, command: TtyCommand, cwd: string, owner: string): Promise<TtySession>
+  open(sessionId: string, command: TtyCommand, cwd: string, owner: string, size?: PtySize): Promise<TtySession>
   get(sessionId: string): TtySession | undefined
   find(id: string): TtySession | undefined
   close(sessionId: string): void
@@ -119,13 +121,13 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
     return {...Object.fromEntries(kept), ...command.env}
   }
 
-  const spawnPty = (entry: Entry, spawn: Spawn, command: TtyCommand, cwd: string): void => {
+  const spawnPty = (entry: Entry, spawn: Spawn, command: TtyCommand, cwd: string, size: PtySize | undefined): void => {
     try {
       ensureSpawnHelperExecutable()
       entry.pty = spawn(command.bin, command.args, {
         name: 'xterm-256color',
-        cols: DEFAULT_COLS,
-        rows: DEFAULT_ROWS,
+        cols: size?.cols ?? DEFAULT_COLS,
+        rows: size?.rows ?? DEFAULT_ROWS,
         cwd,
         env: spawnEnv(command),
       })
@@ -144,7 +146,13 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
     })
   }
 
-  const open = async (sessionId: string, command: TtyCommand, cwd: string, owner: string): Promise<TtySession> => {
+  const open = async (
+    sessionId: string,
+    command: TtyCommand,
+    cwd: string,
+    owner: string,
+    size?: PtySize,
+  ): Promise<TtySession> => {
     const spawn = await loadSpawn()
     drop(sessionId)
     const session: TtySession = {
@@ -217,7 +225,7 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
     }
     entry.tracker.onChange((busy) => broadcast(entry, {type: 'busy', busy}))
     entries.set(sessionId, entry)
-    spawnPty(entry, spawn, command, cwd)
+    spawnPty(entry, spawn, command, cwd, size)
     return session
   }
 

@@ -12,8 +12,8 @@ import {
 } from '../primitives/model-selector/model-selector.js'
 import {Slot} from '../primitives/util/slot.js'
 
-const TRIGGER =
-  'text-chat-sm font-chat [color:var(--chat-text-2)] pl-2.5 pr-[0.4375rem] h-7 max-w-42 min-w-0 shrink gap-1 inline-flex items-center cursor-pointer rounded-[var(--chat-radius-pill)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)] hover:[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)]'
+export const MODEL_SELECTOR_TRIGGER =
+  'text-chat-sm font-chat [color:var(--chat-text-2)] pl-2.5 pr-[0.4375rem] py-1 max-w-42 min-w-0 shrink gap-1 inline-flex items-center cursor-pointer rounded-[var(--chat-radius-pill)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)] motion-reduce:transition-none hover:[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)]'
 const VALUE =
   'min-w-0 inline-flex items-center gap-1.5 [&_[data-model-name]]:truncate [&_[data-model-effort]]:[color:var(--chat-text-3)]'
 const CONTENT =
@@ -58,7 +58,7 @@ function Trigger(
   const [local, rest] = splitProps(props, ['class', 'children'])
   return (
     <ModelSelectorPrimitive.Trigger
-      class={`${TRIGGER}  ${local.class ?? ''}`}
+      class={`${MODEL_SELECTOR_TRIGGER}  ${local.class ?? ''}`}
       aria-label="Select model"
       title="Select model"
       {...rest}

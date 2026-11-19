@@ -2,11 +2,9 @@ import {randomUUID} from 'node:crypto'
 import type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'
 import {HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
-import {createTtySessions, type TtySession} from './pty-sessions.js'
+import {createTtySessions, type PtySize, type TtySession} from './pty-sessions.js'
 
 const RESUMED_BANNER = '\u001b[2m─ conciv: resumed session ─\u001b[0m'
-
-type PtySize = {cols: number; rows: number}
 
 type PersistentPtyInfo = {id: string; sessionId: SessionId; size: PtySize; busy: boolean}
 
@@ -73,8 +71,13 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
   const spawnFresh = async (input: CreateInput, harness: ServerHarness, command: TtyLauncher): Promise<TtySession> => {
     const owner = await mintToken(input.sessionId)
     const context = await connectContext(input, harness, owner)
-    const session = await ttys.open(input.sessionId, command(context), deps.cwd, ownerKey(harness.id, owner.token))
-    resizeTo(session, input.size)
+    const session = await ttys.open(
+      input.sessionId,
+      command(context),
+      deps.cwd,
+      ownerKey(harness.id, owner.token),
+      input.size,
+    )
     if (context.resume) session.inject(RESUMED_BANNER)
     return session
   }

@@ -1,6 +1,7 @@
 import {createMemo, ErrorBoundary, lazy, Show, Suspense, type JSX} from 'solid-js'
 import {usePlugin, type MountedSession} from '@conciv/plugin/experimental'
 import {OPEN_FAILED, type TerminalState} from './terminal-state.js'
+import {TerminalToolbar} from './terminal-toolbar.js'
 
 const TerminalSurface = lazy(() => import('./terminal-surface.js'))
 
@@ -33,6 +34,7 @@ export function TerminalPanel(props: {session: MountedSession; terminal: Termina
       }}
       class="flex flex-1 flex-col min-h-0"
     >
+      <TerminalToolbar session={props.session} terminal={props.terminal} />
       <Show
         when={failure()}
         fallback={

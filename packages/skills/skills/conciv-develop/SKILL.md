@@ -172,7 +172,7 @@ export default defineConfig({
 `dist/plugin-experimental.cjs`. `vite build --watch` reloads only that plugin in the widget.
 
 Registries for `ctx.add`: `Panel` (tabs in the session pane), `Slot` (`window.bottom`,
-`session.header`, `session.status`, `session.panel.end`, `page.overlay`), `ComposerPill`, `Command`
+`session.header`, `session.status`, `page.overlay`), `ComposerPill`, `Command`
 (keybind and slash command), `SettingsPage`, `CodeBlock`, `CodeBlockAction`, `NoteCard`,
 `LinkHandler`, and the page plugin's `PageOperation`. `ctx.add` takes an item or a function that
 returns one (or `undefined` for none). Everything added is withdrawn on reload.

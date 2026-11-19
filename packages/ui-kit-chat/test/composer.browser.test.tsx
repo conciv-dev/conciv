@@ -65,6 +65,8 @@ import {
 import {ElementPreview} from '../src/tools/styled/element-preview.js'
 import {ModelSelector, type ModelOption} from '../src/primitives/model-selector/model-selector.js'
 import {ModelSelector as StyledModelSelector} from '../src/styled/model-selector.js'
+import {HarnessModelSelector} from '../src/styled/harness-model-selector.js'
+import {useModelMenu} from '../src/primitives/model-selector/model-menu.js'
 import {Thread as ThreadPrimitive} from '../src/primitives/thread/thread.js'
 import {Suggestion} from '../src/primitives/suggestion/suggestion.js'
 
@@ -1998,6 +2000,86 @@ describe('model selector', () => {
       await userEvent.click(option, {timeout: 2000})
       await expect.element(trigger).toHaveTextContent(model.name)
     }
+  })
+
+  it('the pill says Models… while the list is read, offers Retry inside itself after a failed read, and lists the models once Retry reads them', async () => {
+    const [read, setRead] = createStore<{status: 'loading' | 'failed' | 'ready'; picked: string | null}>({
+      status: 'failed',
+      picked: null,
+    })
+    const models = {
+      models: [
+        {id: 'nano', name: 'Nano'},
+        {id: 'max', name: 'Max'},
+      ],
+      defaultModel: 'nano',
+      harness: {id: 'kit', name: 'Kit', imageInput: false as const, persistentPty: true},
+    }
+    function PillSelector() {
+      const menu = useModelMenu()
+      return (
+        <HarnessModelSelector
+          menu={menu}
+          status={read.status}
+          models={read.status === 'ready' ? models : undefined}
+          value={read.picked}
+          onRetry={() => setRead('status', 'loading')}
+          onModelChange={(model) => setRead('picked', model)}
+        />
+      )
+    }
+    mountView(() => <PillSelector />)
+    const menu = () => page.getByRole('dialog', {name: 'Model'})
+    const retry = () => menu().getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
+
+    await userEvent.click(page.getByRole('button', {name: 'Couldn’t load models', exact: true}))
+    await userEvent.click(retry())
+    await expect.element(page.getByRole('button', {name: 'Models…'})).toHaveTextContent('Models…')
+    await expect.element(menu().getByRole('status')).toHaveTextContent('Loading models…')
+    await expect.element(retry()).not.toBeInTheDocument()
+
+    setRead('status', 'ready')
+    await expect.element(menu().getByRole('option', {name: 'Nano'})).toHaveAttribute('aria-selected', 'true')
+    await userEvent.click(menu().getByRole('option', {name: 'Max'}))
+    await expect.element(page.getByRole('button', {name: 'Select model'})).toHaveTextContent('Max')
+  })
+
+  it('lists four models before the rest when the default and the picked model are both among the first', async () => {
+    const models = {
+      models: [
+        {id: 'nano', name: 'Nano'},
+        {id: 'mini', name: 'Mini'},
+        {id: 'small', name: 'Small'},
+        {id: 'medium', name: 'Medium'},
+        {id: 'large', name: 'Large'},
+        {id: 'max', name: 'Max'},
+      ],
+      defaultModel: 'nano',
+      harness: {id: 'kit', name: 'Kit', imageInput: false as const, persistentPty: true},
+    }
+    function PillSelector() {
+      const menu = useModelMenu()
+      return (
+        <HarnessModelSelector
+          menu={menu}
+          status="ready"
+          models={models}
+          value="mini"
+          onRetry={() => undefined}
+          onModelChange={() => undefined}
+        />
+      )
+    }
+    mountView(() => <PillSelector />)
+    const menu = () => page.getByRole('dialog', {name: 'Model'})
+
+    await userEvent.click(page.getByRole('button', {name: 'Select model'}))
+    await expect.element(menu().getByRole('option', {name: 'Mini'})).toHaveAttribute('aria-selected', 'true')
+    await expect.element(menu().getByRole('option', {name: 'Nano'})).toBeVisible()
+    await expect.element(menu().getByRole('option', {name: 'Small'})).toBeVisible()
+    await expect.element(menu().getByRole('option', {name: 'Medium'})).toBeVisible()
+    await expect.element(menu().getByRole('option', {name: 'Large'})).not.toBeInTheDocument()
+    await expect.element(menu().getByText('2 more models, type to search')).toBeVisible()
   })
 })
 

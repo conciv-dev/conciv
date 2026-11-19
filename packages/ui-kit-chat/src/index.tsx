@@ -166,6 +166,7 @@ export {
   type ModelSelectorTriggerProps,
   type ModelSelectorValueProps,
 } from './primitives/model-selector/model-selector.js'
+export {useModelMenu, type ModelMenu, type ModelSwitchTarget} from './primitives/model-selector/model-menu.js'
 export {createControllableSignal} from './primitives/util/create-controllable-signal.js'
 export {
   SelectionToolbar,
@@ -209,6 +210,7 @@ export {CornerRemoveButton} from './styled/corner-remove-button.js'
 export {AttachmentByMime, createDocumentAttachmentAdapter} from './styled/attachment-dispatch.js'
 export type {AttachmentCardProps, AttachmentCardSlot} from './styled/attachment-dispatch.js'
 export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'
+export {HarnessModelSelector, type HarnessModelSelectorProps} from './styled/harness-model-selector.js'
 export {NowLine} from './styled/now-line.js'
 export {TURN_MEASURE_CLASS} from './styled/turn-classes.js'
 export {MorphLabel} from './styled/morph-label.js'

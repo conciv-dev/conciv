@@ -5115,14 +5115,20 @@ describe('pty sessions', () => {
       expect(late.chunks.join('')).toContain('replay-marker')
     })
 
-    it('applies resize', async () => {
+    it('starts at the size it was opened with, then applies resize', async () => {
       const sessions = make()
-      const session = await sessions.open('s3', BASH, process.cwd(), 'test-tty')
+      const session = await sessions.open('s3', BASH, process.cwd(), 'test-tty', {cols: 83, rows: 27})
+      const opened = Promise.withResolvers<string>()
       const sized = Promise.withResolvers<string>()
       const {sink} = collect((update) => {
-        if (update.kind === 'data' && update.text.includes('41 97')) sized.resolve(update.text)
+        if (update.kind !== 'data') return
+        const started = /SIZE=\d+ \d+/.exec(update.text)
+        if (started) opened.resolve(started[0])
+        if (update.text.includes('41 97')) sized.resolve(update.text)
       })
       session.attach(sink)
+      session.write('echo SIZE=$(stty size)\r')
+      expect(await opened.promise).toBe('SIZE=27 83')
       session.resize(97, 41)
       session.write('stty size\r')
       expect(await sized.promise).toContain('41 97')

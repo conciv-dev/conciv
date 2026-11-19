@@ -1,3 +1,4 @@
+import 'virtual:uno.css'
 import {describe, expect, inject, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
@@ -44,9 +45,9 @@ function safeControl(raw: string): TtyServerControl | null {
   }
 }
 
-function mount(ui: () => JSX.Element): {host: HTMLElement; dispose: () => void} {
+function mount(ui: () => JSX.Element, width = '640px'): {host: HTMLElement; dispose: () => void} {
   const host = document.createElement('div')
-  host.style.width = '640px'
+  host.style.width = width
   host.style.height = '320px'
   document.body.appendChild(host)
   const mounted = render(ui, {container: host})
@@ -222,6 +223,64 @@ describe('terminal primitives', () => {
     host.remove()
   })
 
+  it('a screen that gets its size after mounting fits without a resize observer loop', async () => {
+    const loopErrors: string[] = []
+    const collect = (event: ErrorEvent): void => {
+      if (event.message.includes('ResizeObserver loop')) loopErrors.push(event.message)
+    }
+    window.addEventListener('error', collect)
+    const host = document.createElement('div')
+    const shadow = host.attachShadow({mode: 'open'})
+    const container = document.createElement('div')
+    container.style.cssText = 'width:640px;height:320px;display:flex'
+    shadow.appendChild(container)
+    const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
+    const dispose = render(
+      () => (
+        <TerminalPrimitive.Root model={model}>
+          <TerminalPrimitive.Screen />
+        </TerminalPrimitive.Root>
+      ),
+      {container},
+    ).unmount
+    const state = mount(() => <ModelState model={model} label="late size state" />)
+    document.body.appendChild(host)
+    await expect.element(region('late size state')).toMatchTextContent('status=connecting')
+    window.removeEventListener('error', collect)
+    expect(loopErrors).toEqual([])
+    state.dispose()
+    dispose()
+    host.remove()
+  })
+
+  it('a screen in a container that shrinks to fit keeps its width across fits', async () => {
+    const container = document.createElement('div')
+    container.style.cssText = 'width:640px;height:320px;display:flex'
+    document.body.appendChild(container)
+    const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
+    const dispose = render(
+      () => (
+        <>
+          <TerminalPrimitive.Root model={model}>
+            <TerminalPrimitive.Screen />
+          </TerminalPrimitive.Root>
+          <ModelState model={model} label="shrink to fit state" />
+        </>
+      ),
+      {container},
+    ).unmount
+    await expect.element(region('shrink to fit state')).toMatchTextContent('status=connecting')
+    model.fit()
+    const fitted = model.terminal.cols
+    for (let fit = 0; fit < 5; fit += 1) {
+      await new Promise(requestAnimationFrame)
+      model.fit()
+    }
+    expect(model.terminal.cols).toBe(fitted)
+    dispose()
+    container.remove()
+  })
+
   it('shows the banner only after exit', async () => {
     const model = controlModel()
     const {host, dispose} = mount(() => (
@@ -346,6 +405,67 @@ describe('terminal reconnection', () => {
     await expect.element(region('successor log')).toMatchTextContent('solo-3')
     dropConnection(successor)
     await expect.element(region('successor log')).toMatchTextContent('solo-4')
+    dispose()
+  })
+})
+
+function engineSizedModel(key: string): TerminalModel {
+  const base = inject('controlBase')
+  return createTerminalModel({
+    transport: webSocketTransport(`${base}/?greet=${key}`),
+    beforeConnect: (terminal) => {
+      if (terminal.rows < 2 || terminal.cols > 500) throw new Error('The engine refuses that terminal size.')
+    },
+  })
+}
+
+describe('terminal size the engine takes', () => {
+  it('a connection dropped while the screen holds one row reopens once the screen is tall again', async () => {
+    const model = engineSizedModel('short')
+    const {host, dispose} = mount(() => (
+      <>
+        <SessionLog model={model} label="short log" />
+        <ModelState model={model} label="short state" />
+      </>
+    ))
+    model.terminal.open(host)
+    model.fit()
+    model.connect()
+    await expect.element(region('short log')).toMatchTextContent('short-1')
+    const shrunk = new Promise<void>((resolve) => {
+      const listener = model.terminal.onResize(({rows}) => {
+        if (rows >= 2) return
+        listener.dispose()
+        resolve()
+      })
+    })
+    host.style.height = '8px'
+    model.fit()
+    await shrunk
+    dropConnection(model)
+    await expect.element(region('short state')).toMatchTextContent('status=connecting')
+    host.style.height = '320px'
+    model.fit()
+    await expect.element(region('short log'), {timeout: 5000}).toMatchTextContent('short-2')
+    await expect.element(region('short state')).toMatchTextContent('status=open')
+    model.disconnect()
+    dispose()
+  })
+
+  it('a screen wider than the engine takes opens at the widest size it takes', async () => {
+    const model = engineSizedModel('wide')
+    const {dispose} = mount(
+      () => (
+        <>
+          <Terminal model={model} />
+          <SessionLog model={model} label="wide log" />
+          <ModelState model={model} label="wide state" />
+        </>
+      ),
+      '6000px',
+    )
+    await expect.element(region('wide log'), {timeout: 5000}).toMatchTextContent('wide-1')
+    await expect.element(region('wide state')).toMatchTextContent('status=open')
     dispose()
   })
 })

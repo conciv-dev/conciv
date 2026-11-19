@@ -1,10 +1,8 @@
-import {Show} from 'solid-js'
 import TerminalIcon from 'lucide-solid/icons/terminal'
-import {Panel, Plugin, Slot, type PanelTab} from '@conciv/plugin/experimental'
+import {Panel, Plugin, type PanelTab} from '@conciv/plugin/experimental'
 import {terminalDeclarations} from './stores.js'
 import {TerminalPanel} from './terminal-panel.js'
-import {createTerminalState, PANEL_KEY} from './terminal-state.js'
-import {TerminalToolbar} from './terminal-toolbar.js'
+import {createTerminalState} from './terminal-state.js'
 
 const TAB_ID = 'terminal'
 
@@ -13,10 +11,10 @@ const tab: PanelTab = {
   title: 'Terminal',
   pinned: true,
   label: () => (
-    <span class="flex gap-1 items-center">
-      <TerminalIcon class="shrink-0 size-3" aria-hidden="true" />
-      <span class="self-baseline">Terminal</span>
-    </span>
+    <>
+      <TerminalIcon aria-hidden="true" />
+      Terminal
+    </>
   ),
 }
 
@@ -35,15 +33,6 @@ export default Plugin.define({
         return []
       },
       render: (props) => <TerminalPanel session={props.session} terminal={terminal} />,
-    })
-
-    ctx.add(Slot, {
-      at: 'session.panel.end',
-      render: (input) => (
-        <Show when={ctx.layout.state(PANEL_KEY, input.session) === 'visible'}>
-          <TerminalToolbar session={input.session} terminal={terminal} />
-        </Show>
-      ),
     })
   },
 })

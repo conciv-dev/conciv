@@ -55,7 +55,7 @@ function fakeTerminal(context: HarnessConnectContext): TtyCommand {
     bin: 'bash',
     args: [
       '-c',
-      `echo started >> ${TERMINAL_STARTED_FILE}; echo "model $CLI_MODEL"; export PS1='P> '; ${busy}exec bash --noprofile --norc -i`,
+      `echo started >> ${TERMINAL_STARTED_FILE}; echo "model $CLI_MODEL"; printf '=%.0s' $(seq 1 $(tput cols)); echo SPAWNEND; export PS1='P> '; ${busy}exec bash --noprofile --norc -i`,
     ],
     env: {TERM: 'xterm-256color', BASH_SILENCE_DEPRECATION_WARNING: '1', CLI_MODEL: context.model ?? 'none'},
   }

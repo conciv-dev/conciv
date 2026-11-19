@@ -20,45 +20,43 @@ export type StatusBarProps = {
   views: readonly StatusBarView[]
   activeView: string
   onSelectView: (id: string) => void
-  end?: JSX.Element
 }
 
 const BAR =
-  'flex items-stretch min-h-8 [background:var(--chat-statusbar-bg)] [border-top:1px_solid_var(--chat-line-soft)] [font-family:var(--chat-mono)]'
+  'flex items-stretch min-h-10 select-none bg-chat-statusbar-bg border-t border-t-solid border-t-chat-line-soft font-chat-mono'
 type ChipKind = Exclude<SessionStatusKind, 'unstarted'>
 type ChipStatus = SessionStatus & {kind: ChipKind}
 
 const CHIP: Record<ChipKind, string> = {
-  running: '[background:var(--chat-status-running)]',
-  stopping: '[background:var(--chat-status-waiting)]',
-  waiting: '[background:var(--chat-status-waiting)]',
-  failed: '[background:var(--chat-status-failed)]',
-  stopped: '[background:var(--chat-status-done)]',
-  done: '[background:var(--chat-status-done)]',
+  running: 'bg-chat-status-running',
+  stopping: 'bg-chat-status-waiting',
+  waiting: 'bg-chat-status-waiting',
+  failed: 'bg-chat-status-failed',
+  stopped: 'bg-chat-status-done',
+  done: 'bg-chat-status-done',
 }
 const CHIP_BASE =
-  'flex-none inline-flex items-center gap-1.5 py-[5px] px-2.5 text-[length:var(--chat-text-micro)] font-bold uppercase tracking-[0.12em] [color:var(--chat-on-status)]'
-const CHIP_DOT =
-  'chat-statusbar-chip-dot inline-block flex-none size-1.5 rounded-[var(--chat-radius-pill)] [background:var(--chat-on-status)] anim-run-ring'
-const CELL =
-  'flex-none inline-flex items-center gap-1.5 py-[5px] px-[9px] text-[10.5px] [color:var(--chat-text-2)] [border-inline-end:1px_solid_var(--chat-line-soft)]'
-const DIFF_FILES = '[color:var(--chat-text-3)]'
-const DIFF_ADDS = '[color:var(--chat-success)]'
-const DIFF_DELS = '[color:var(--chat-danger)]'
+  'flex-none flex items-center gap-1.5 px-2.5 text-chat-micro font-bold uppercase tracking-[0.12em] text-chat-on-status'
+const CHIP_DOT = 'chat-statusbar-chip-dot flex-none size-1.5 rounded-chat-pill bg-chat-on-status anim-run-ring'
+const CELL_BOX = 'flex-none items-center gap-1.5 px-2.5 text-chat-xs text-chat-text-2'
+const CELL = `flex ${CELL_BOX}`
+const DIFF = `hidden @sm:flex ${CELL_BOX} border-s border-s-solid border-s-chat-line-soft`
+const DIFF_FILES = 'text-chat-text-3'
+const DIFF_ADDS = 'text-chat-success'
+const DIFF_DELS = 'text-chat-danger'
 const VIEW_GROUP = 'flex-1 flex items-stretch justify-end min-w-0'
 const VIEW_LIST = 'relative flex items-stretch min-w-0 overflow-x-auto overflow-y-hidden [scrollbar-width:none]'
 const VIEW_BTN =
-  'flex-none inline-flex items-center gap-1.5 px-2.5 text-[length:var(--chat-text-xs)] font-medium [color:var(--chat-text-2)] bg-transparent [border-block:none] [border-inline-end:none] [border-inline-start:1px_solid_var(--chat-line-soft)] cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] data-[selected]:[color:var(--chat-text-hi)] data-[selected]:[background:var(--chat-fill)]'
-const VIEW_TEXT = 'inline-flex items-baseline gap-1.5 min-w-0'
-const VIEW_END =
-  'flex-none flex items-center gap-1 px-1.5 [border-inline-start:1px_solid_var(--chat-line-soft)] empty:hidden'
-const VIEW_INDICATOR =
-  'chat-view-indicator top-0 h-0.5 [background:var(--chat-accent)] [width:var(--width)] [left:var(--left)] [--transition-duration:200ms] [--transition-timing-function:var(--chat-ease-expo)] motion-reduce:[--transition-duration:0ms]'
-const VIEW_HINT =
-  'chat-view-btn-hint [font-family:var(--chat-mono)] text-[9px] [color:var(--chat-hint)] ps-[9px] [border-inline-start:1px_solid_var(--chat-frame-line)]'
-const VIEW_LABEL = 'chat-view-btn-label [font-family:var(--chat-font)] truncate max-w-24'
+  'flex-none flex items-center px-2.5 text-chat-xs font-medium text-chat-text-2 bg-transparent border-none border-s border-s-solid border-s-chat-line-soft cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:bg-chat-fill data-[selected]:text-chat-text-hi data-[selected]:bg-chat-fill'
+const VIEW_LINE = 'flex items-baseline gap-1.5 min-w-0'
+const VIEW_ICON = 'flex-none self-center size-3'
+const VIEW_LABEL = 'hidden @sm:block font-chat truncate max-w-24'
 const PLUGIN_LABEL =
-  '[font-family:var(--chat-font)] truncate max-w-24 [&_svg]:inline-block [&_svg]:size-3 [&_svg]:align-middle [&_svg]:me-1.5'
+  'flex items-baseline gap-1.5 min-w-0 max-w-24 overflow-hidden whitespace-nowrap font-chat [&_svg]:flex-none [&_svg]:self-center [&_svg]:size-3'
+const VIEW_HINT = 'font-chat text-chat-hint ps-1.5 border-s border-s-solid border-s-chat-frame-line'
+const VIEW_HINT_DIGIT = 'font-chat-mono text-chat-micro'
+const VIEW_INDICATOR =
+  'chat-view-indicator top-0 h-0.5 bg-chat-accent [width:var(--width)] [left:var(--left)] [--transition-duration:200ms] [--transition-timing-function:var(--chat-ease-expo)] motion-reduce:[--transition-duration:0ms]'
 
 function chipStatus(status: SessionStatus): ChipStatus | undefined {
   if (status.kind === 'unstarted') return undefined
@@ -78,11 +76,9 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
           </span>
         )}
       </Show>
-      <span class={CELL}>
-        <span>{props.elapsedLabel}</span>
-      </span>
+      <span class={CELL}>{props.elapsedLabel}</span>
       <Show when={props.diff.files > 0}>
-        <span class={`${CELL} chat-statusbar-diff`}>
+        <span class={DIFF}>
           <span class={DIFF_FILES}>
             {props.diff.files} {props.diff.files === 1 ? 'file' : 'files'}
           </span>
@@ -107,17 +103,17 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
                   value={view().id}
                   aria-label={content ? (view().missing ? view().label : undefined) : view().label}
                 >
-                  <Show when={view().icon}>
-                    {(icon) => <Dynamic component={icon()} class="size-3" aria-hidden="true" />}
-                  </Show>
-                  <span class={VIEW_TEXT}>
+                  <span class={VIEW_LINE}>
+                    <Show when={view().icon}>
+                      {(icon) => <Dynamic component={icon()} class={VIEW_ICON} aria-hidden="true" />}
+                    </Show>
                     {content ? (
                       <span class={PLUGIN_LABEL}>{content()}</span>
                     ) : (
                       <TruncatedText class={VIEW_LABEL} text={view().label} />
                     )}
                     <span class={VIEW_HINT} aria-hidden="true">
-                      {index() + 1}
+                      <span class={VIEW_HINT_DIGIT}>{index() + 1}</span>
                     </span>
                   </span>
                 </Tabs.Trigger>
@@ -126,7 +122,6 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
           </Key>
           <Tabs.Indicator class={VIEW_INDICATOR} />
         </Tabs.List>
-        <div class={VIEW_END}>{props.end}</div>
       </Tabs.Root>
     </div>
   )

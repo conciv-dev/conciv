@@ -23,6 +23,7 @@ import {
   Thread,
   ToolProvider,
   useComposerContext,
+  useModelMenu,
   useThread,
   type ComposerDraft,
   type PageSessionConfig,
@@ -58,7 +59,7 @@ import {ComposerActions} from '../composer/actions.js'
 import {promptWithNotes} from '../composer/comment-note.js'
 import {ComposerNotes, SentNotes} from '../composer/note-card.js'
 import {ConnectedAgents} from '../composer/connected-agents.js'
-import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
+import {SessionModelPrompt} from '../composer/session-model-prompt.js'
 import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage, type PaneDraftStorage} from './draft-storage.js'
 import {DraftUnsavedNotice} from './draft-unsaved-notice.js'
