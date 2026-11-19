@@ -108,7 +108,7 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - A test file reads top-down like a spec: imports, one shared boot, `describe` per feature, `it`
   named by user-visible behaviour, short arrange/act/assert; helper functions hoisted at the bottom.
   Tests go through the package's public entries, never test-only exports.
-- Widget UI is tested in a REAL browser (Playwright/Chromium). Flag any jsdom/happy-dom introduction.
+- Widget and plugin behaviour tests run in vitest node + happy-dom on plugin-testkit `mount`; a real browser only for layout, scrolling, canvas, real focus and the built bundle. Flag jsdom, and flag a browser test whose behaviour needs none of those.
 - Testkits (`@conciv/plugin-testkit`, `@conciv/harness-testkit`, `apps/conciv/test/commands`, e2e
   helpers) run the real product path and fake only expensive externals (the LLM harness, CLIs). A testkit
   client that stands in for the browser uses the same transport and client as the product (browser rpc

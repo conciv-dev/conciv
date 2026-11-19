@@ -122,7 +122,7 @@ README.md; this file is the non-obvious operational rules.
   (`conciv/test-file-budget`). Never add a test file; add a `describe` to the existing one.
 - No mocks or stubs (`vi.fn`, `vi.mock`, `vi.stubGlobal`, fake modules), and no CSS/DOM implementation
   assertions (`toHaveCSS`, `getComputedStyle`, DOM reads via `page.evaluate`, class/id locators, test-ids).
-- Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
+- Widget and plugin behaviour is tested with Testing Library in vitest node + happy-dom (no browser), on `@conciv/plugin-testkit` `mount`; a REAL browser (Playwright/Chromium) only for what that cannot prove: layout, scrolling, canvas, real focus, the built bundle in a host page. Never jsdom.
 - The calm perf gate (frame-gap budgets) is `pnpm --filter @conciv/app test:perf`, kept out of `pnpm test`;
   run it locally in Chromium and Firefox before merging a chat-plane change.
 - Widget integration tests load the PREBUILT bundle (`packages/embed/dist/conciv-widget.global.js`):
