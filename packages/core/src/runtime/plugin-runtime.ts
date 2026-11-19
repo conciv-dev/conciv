@@ -5,6 +5,7 @@ import type {createChatPlane} from '@conciv/chat'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {ConcivDb} from '@conciv/db'
 import {NodeFileSystem} from '@effect/platform-node'
+import {SqliteClient} from '@effect/sql-sqlite-node'
 import {
   Agent,
   Bus,
@@ -56,7 +57,6 @@ import {provideServersSource} from './servers-source.js'
 
 export type PluginRuntimeInput = {
   db: ConcivDb
-  databaseFile: string
   cwd: string
   home: string
   fallbackRoots: string
@@ -138,7 +138,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     Layer.provideMerge(FSUtil.layer),
     Layer.provideMerge(
       Layer.mergeAll(
-        Database.layer({path: input.databaseFile}),
+        Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, input.db.$client)),
         machineRoots(input.home, input.fallbackRoots),
         NodeFileSystem.layer,
       ),

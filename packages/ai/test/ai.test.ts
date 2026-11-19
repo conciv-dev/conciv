@@ -1,7 +1,5 @@
-import {DatabaseSync} from 'node:sqlite'
-import {drizzle} from 'drizzle-orm/node-sqlite'
-import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
-import {migrations} from '@conciv/db'
+import {Effect, Scope} from 'effect'
+import {openDb} from '@conciv/db'
 import {sql} from 'drizzle-orm'
 import {defineAIPersistence} from '@tanstack/ai-persistence'
 import {runPersistenceConformance} from '@tanstack/ai-persistence/testkit'
@@ -52,9 +50,7 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('chat stores', () => {
   function chatDb() {
-    const db = drizzle({client: new DatabaseSync(':memory:')})
-    migrateSync(migrations, db._.session)
-    return db
+    return Effect.runSync(openDb(tempDir('conciv-ai-db-')).pipe(Scope.provide(Scope.makeUnsafe())))
   }
 
   describe('a paged thread read', () => {
@@ -76,7 +72,7 @@ describe('chat stores', () => {
 
     async function savedThread() {
       const db = chatDb()
-      const stores = drizzleChatStores(db, {readHarness: () => 'test-harness'})
+      const stores = drizzleChatStores(db, {readHarness: async () => 'test-harness'})
       await stores.messages.saveThread('paged', THREAD)
       return {db, messages: stores.messages}
     }
@@ -101,7 +97,9 @@ describe('chat stores', () => {
 
     it('a page read leaves the messages outside its window unread', async () => {
       const {db, messages} = await savedThread()
-      db.run(sql`UPDATE chat_messages SET message_json = 'not json' WHERE thread_id = 'paged' AND position < 2`)
+      await Effect.runPromise(
+        db.run(sql`UPDATE chat_messages SET message_json = 'not json' WHERE thread_id = 'paged' AND position < 2`),
+      )
       expect(await messages.loadThread('paged', {limit: 4})).toEqual({
         messages: THREAD.slice(2),
         truncated: true,
@@ -112,7 +110,9 @@ describe('chat stores', () => {
 
     it('a turn reads only the row of the message it prompts, so unreadable earlier rows do not stop it', async () => {
       const {db, messages} = await savedThread()
-      db.run(sql`UPDATE chat_messages SET message_json = 'not json' WHERE thread_id = 'paged' AND position < 6`)
+      await Effect.runPromise(
+        db.run(sql`UPDATE chat_messages SET message_json = 'not json' WHERE thread_id = 'paged' AND position < 6`),
+      )
       const prompted = Promise.withResolvers<string>()
       const hooks = turnHooks(() => ({
         adapter: scriptedModel([{text: 'ok'}]),
@@ -133,7 +133,7 @@ describe('chat stores', () => {
 
     it('the newest page ends on the last stored message even when a position in between is missing', async () => {
       const {db, messages} = await savedThread()
-      db.run(sql`DELETE FROM chat_messages WHERE thread_id = 'paged' AND position = 1`)
+      await Effect.runPromise(db.run(sql`DELETE FROM chat_messages WHERE thread_id = 'paged' AND position = 1`))
       expect(await messages.loadThread('paged', {limit: 2})).toEqual({
         messages: THREAD.slice(6),
         truncated: true,
@@ -194,9 +194,11 @@ describe('chat stores', () => {
     {timeout: 15_000},
     async () => {
       const db = chatDb()
-      db.$client.exec(`CREATE TRIGGER cancel_write_fails BEFORE UPDATE OF cancel_requested ON chat_runs
+      await Effect.runPromise(
+        db.$client.unsafe(`CREATE TRIGGER cancel_write_fails BEFORE UPDATE OF cancel_requested ON chat_runs
       WHEN NEW.cancel_requested = 1 AND OLD.cancel_requested IS NOT 1
-      BEGIN SELECT RAISE(ABORT, 'cancel write failed'); END`)
+      BEGIN SELECT RAISE(ABORT, 'cancel write failed'); END`).raw,
+      )
       const started = new Map(['one', 'two'].map((threadId) => [threadId, Promise.withResolvers<void>()]))
       const hooks = turnHooks((turn) => ({adapter: stalledModel(() => started.get(turn.threadId)?.resolve())}))
       const server = await chatServer(hooks, () => undefined, db)
@@ -206,7 +208,9 @@ describe('chat stores', () => {
         () => 'resolved',
         (error: unknown) => (error instanceof AggregateError ? 'aggregate' : String(error)),
       )
-      const runs = db.$client.prepare('SELECT thread_id, status FROM chat_runs ORDER BY thread_id').all()
+      const runs = await Effect.runPromise(
+        db.$client.unsafe('SELECT thread_id, status FROM chat_runs ORDER BY thread_id'),
+      )
       expect.soft(runs).toEqual([
         {thread_id: 'one', status: 'aborted'},
         {thread_id: 'two', status: 'aborted'},
@@ -436,7 +440,7 @@ const watched = require('node:net').connect(data.socket, () => {
       await agent.gone
       expect({
         phase: run.phase,
-        status: agent.db.$client.prepare('SELECT status FROM chat_runs').all(),
+        status: await Effect.runPromise(agent.db.$client.unsafe('SELECT status FROM chat_runs')),
       }).toEqual({phase: 'aborted', status: [{status: 'aborted'}]})
     })
   })
@@ -463,13 +467,13 @@ const watched = require('node:net').connect(data.socket, () => {
     const driven = say(server, 'thread', 'run')
     await toolRunning.promise
     await server.endAllRuns()
-    expect(db.$client.prepare('SELECT status FROM chat_runs').all()).toEqual([{status: 'aborted'}])
+    expect(await Effect.runPromise(db.$client.unsafe('SELECT status FROM chat_runs'))).toEqual([{status: 'aborted'}])
     await driven
   })
 
   it('a stopped run is never announced and ends aborted, even one finishing by itself', {timeout: 15_000}, async () => {
     const db = chatDb()
-    const runs = drizzleChatStores(db, {readHarness: () => 'test-harness'}).runs
+    const runs = drizzleChatStores(db, {readHarness: async () => 'test-harness'}).runs
     const announced: string[] = []
     const ended: string[] = []
     const launched: string[] = []
@@ -519,7 +523,9 @@ const watched = require('node:net').connect(data.socket, () => {
     expect({
       announced,
       launched,
-      runs: db.$client.prepare('SELECT run_id, status, cancel_requested AS cancel FROM chat_runs').all(),
+      runs: await Effect.runPromise(
+        db.$client.unsafe('SELECT run_id, status, cancel_requested AS cancel FROM chat_runs'),
+      ),
       replayEnds: await Promise.all(['in-setup', 'streaming', 'finishing'].map((runId) => replayEnd(server, runId))),
       ended,
       lastRun: (await server.hydrate('thread')).lastRun?.phase,
@@ -641,12 +647,14 @@ const watched = require('node:net').connect(data.socket, () => {
   }
 
   function turnHooks(
-    plan: (turn: Turn) => Pick<ReturnType<TurnHooks['plan']>, 'adapter'> & Partial<ReturnType<TurnHooks['plan']>>,
+    plan: (
+      turn: Turn,
+    ) => Pick<Awaited<ReturnType<TurnHooks['plan']>>, 'adapter'> & Partial<Awaited<ReturnType<TurnHooks['plan']>>>,
     hooks: Partial<Omit<TurnHooks, 'plan'>> = {},
   ): TurnHooks {
     return {
       admit: async () => undefined,
-      plan: (turn) => ({
+      plan: async (turn) => ({
         systemPrompts: async () => [],
         context: async (request) => request,
         tools: async () => ({codeMode: [], search: null, asking: [], direct: []}),
@@ -680,7 +688,7 @@ const watched = require('node:net').connect(data.socket, () => {
     driver: CodeDriver | null = null,
   ) {
     const server = await createChatServer({
-      stores: drizzleChatStores(db, {readHarness: () => 'test-harness'}),
+      stores: drizzleChatStores(db, {readHarness: async () => 'test-harness'}),
       sandbox: {dir: sandbox},
       hooks,
       codeModeResult: (value) => value,
@@ -936,7 +944,7 @@ const watched = require('node:net').connect(data.socket, () => {
 
   runPersistenceConformance(
     'conciv drizzle chat stores',
-    () => defineAIPersistence({stores: drizzleChatStores(chatDb(), {readHarness: () => 'test-harness'})}),
+    () => defineAIPersistence({stores: drizzleChatStores(chatDb(), {readHarness: async () => 'test-harness'})}),
     {
       skip: ['interrupts', 'activities', 'generationRuns', 'artifacts', 'blobs', 'log', 'sessions'],
       checks: ['messages.metadata', 'runs.listByThread.state'],

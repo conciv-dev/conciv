@@ -39,7 +39,7 @@ function chatRow(scope: RowScope, sessionId: SessionId): FreshRowInput {
 }
 
 async function markNew(db: ConcivDb, sessionId: SessionId): Promise<void> {
-  await db.insert(markers).values({id: randomUUID(), sessionId, afterMessageId: null, kind: 'new'})
+  await Effect.runPromise(db.insert(markers).values({id: randomUUID(), sessionId, afterMessageId: null, kind: 'new'}))
 }
 
 export async function createChatSession(
@@ -80,13 +80,10 @@ export async function deleteSession(deletion: SessionDeletion, sessionId: Sessio
   await deletion.queues.cancelSession(sessionId)
   await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
   await tombstoneRow(deletion.db, sessionId)
-  const draftFailures = await deletion.db
-    .delete(drafts)
-    .where(eq(drafts.sessionId, sessionId))
-    .then(
-      (): unknown[] => [],
-      (failure: unknown) => [failure],
-    )
+  const draftFailures = await Effect.runPromise(deletion.db.delete(drafts).where(eq(drafts.sessionId, sessionId))).then(
+    (): unknown[] => [],
+    (failure: unknown) => [failure],
+  )
   const publishFailures = await deletion.pluginHost
     .runPromise(
       Bus.Service.use((bus) =>

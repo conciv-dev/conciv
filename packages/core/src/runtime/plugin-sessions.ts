@@ -53,7 +53,9 @@ function sessionModel(chat: ChatContext, row: SessionRecord): ModelRef | undefin
   if (row.model === null) return undefined
   return {
     id: Model.Id.make(row.model),
-    providerId: Model.Ref.fields.providerId.make(chat.harnessFor(row.id).id),
+    providerId: Model.Ref.fields.providerId.make(
+      (chat.harnesses.find((adapter) => adapter.id === row.harnessKind) ?? chat.defaultHarness).id,
+    ),
     variant: row.effort === null ? undefined : Model.VariantId.make(row.effort),
   }
 }
@@ -208,7 +210,8 @@ export function provideSessions(started: () => SessionKeyDeps) {
         Effect.gen(function* () {
           const {chat} = started()
           yield* found(input.sessionId)
-          const choice = yield* modelChoice(chat.harnessFor(input.sessionId), input.model, chat.signal)
+          const harness = yield* Effect.promise(() => chat.harnessFor(input.sessionId))
+          const choice = yield* modelChoice(harness, input.model, chat.signal)
           if (choice === null || !(yield* applyModelChoice(chat, input.sessionId, choice))) {
             return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
           }

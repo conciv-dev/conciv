@@ -58,7 +58,7 @@ function ttyOwner(harnessId: string, harnessSessionId: HarnessSessionId | null):
 }
 
 async function liveTty({server, tty}: TerminalRuntime, sessionId: SessionId): Promise<TtySession | undefined> {
-  const owner = ttyOwner(server.harness(sessionId).id, await server.sessions.resumeToken(sessionId))
+  const owner = ttyOwner((await server.harness(sessionId)).id, await server.sessions.resumeToken(sessionId))
   const alive = tty.get(sessionId)
   if (alive === undefined || alive.owner === owner) return alive
   tty.close(sessionId)
@@ -82,7 +82,7 @@ async function connectContext(
     stateDir: server.stateDir,
     concivSessionId: sessionId,
     harnessSessionId,
-    resume: resumable(server.harness(sessionId), harnessSessionId),
+    resume: resumable(await server.harness(sessionId), harnessSessionId),
     owned: true,
     model: model ?? (await server.sessions.model(sessionId)),
     mcpUrl: `${base}/api/mcp`,
@@ -105,7 +105,7 @@ async function openTtySession(
   base: string,
 ): Promise<void> {
   const {server, tty} = runtime
-  const harness = server.harness(sessionId)
+  const harness = await server.harness(sessionId)
   const ttyCommand = harness.ttyCommand
   if (!ttyCommand) throw new Error(`harness "${harness.id}" has no terminal mode`)
   const harnessSessionId = await mintHarnessSession(runtime, sessionId)
@@ -148,7 +148,7 @@ function makeTerminalRouter(runtime: TerminalRuntime): TerminalRouter {
       .output(AliveSchema)
       .handler(async ({input, context, errors}) => {
         const {sessionId, ...size} = input
-        if (!runtime.server.harness(sessionId).ttyCommand) throw errors.NO_TTY()
+        if (!(await runtime.server.harness(sessionId)).ttyCommand) throw errors.NO_TTY()
         if (reuseAlive(await liveTty(runtime, sessionId), size)) return {alive: true}
         await openTtySession(runtime, sessionId, size, apiBase(runtime, context))
         return {alive: true}

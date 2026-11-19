@@ -9,6 +9,7 @@ import {
   toWebSocketStream,
   type DebugConfig,
   type WebSocketLike,
+  type WsRunContext,
 } from '@tanstack/ai'
 import {isRunPhaseTerminal, runLifecycleEvent, type ChatEvent, type RunPhase} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
@@ -35,10 +36,12 @@ type DeliveryDeps = {
     messages: Array<ChatMessage | ModelMessage>,
     controller: AbortController,
   ) => AsyncIterable<ChatEvent>
-  seenRun: (runId: string) => boolean
+  seenRun: (runId: string) => Promise<boolean>
   debug: DebugConfig
   log: (message: string) => void
 }
+
+async function* noStream(): AsyncGenerator<ChatEvent> {}
 
 const LIVE_BATCH = 1
 
@@ -57,8 +60,6 @@ function socketLike(sink: SocketSink, handlers: {message: SocketHandler[]; close
   }
   return {send: (data) => sink.send(data), close: (code, reason) => sink.close(code, reason), addEventListener}
 }
-
-async function* noStream(): AsyncGenerator<ChatEvent> {}
 
 export function readTerminalPhase(chunk: ChatEvent): RunPhase | null {
   if (chunk.type === EventType.RUN_ERROR) return 'failed'
@@ -96,6 +97,16 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
     await response.text()
   }
 
+  async function* driveUnlessSeen(ctx: WsRunContext): AsyncGenerator<ChatEvent> {
+    if (!(await seenRun(ctx.runId))) {
+      IdentifiedMessagesSchema.parse(ctx.messages)
+      drive({threadId: ctx.threadId, runId: ctx.runId, kind: 'chat'}, ctx.messages).catch((error: unknown) =>
+        log(`[ai] run ${ctx.runId} failed outside its stream: ${String(error)}`),
+      )
+    }
+    yield* noStream()
+  }
+
   const serveSocket = (socket: WebSocketLike, request: Request): void => {
     const resumed = memoryStream(request)
     if (resolveResumeRunId(request) !== null && resumed.resumeFrom() !== null) {
@@ -105,14 +116,7 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
     toWebSocketStream(socket, request, {
       debug,
       durability: (ctx) => memoryStream({runId: ctx.runId, offset: FROM_START}),
-      onRun: (ctx) => {
-        if (seenRun(ctx.runId)) return noStream()
-        IdentifiedMessagesSchema.parse(ctx.messages)
-        drive({threadId: ctx.threadId, runId: ctx.runId, kind: 'chat'}, ctx.messages).catch((error: unknown) =>
-          log(`[ai] run ${ctx.runId} failed outside its stream: ${String(error)}`),
-        )
-        return noStream()
-      },
+      onRun: driveUnlessSeen,
     })
   }
 
@@ -143,7 +147,7 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
     events: async (request) => {
       const params = await parsedParams(request)
       if (params === null) return Response.json({message: 'the request is not a valid chat run'}, {status: 400})
-      if (seenRun(params.runId)) {
+      if (await seenRun(params.runId)) {
         return resumeServerSentEventsResponse({adapter: memoryStream({runId: params.runId, offset: FROM_START})})
       }
       const durability = memoryStream({runId: params.runId})

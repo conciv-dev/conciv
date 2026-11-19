@@ -73,10 +73,10 @@ export function permissionSessions(db: ConcivDb) {
     Permission.PermissionSessions,
     Permission.PermissionSessions.of({
       get: (sessionId) =>
-        Effect.sync(() => {
+        Effect.gen(function* () {
           const parsed = SessionId.safeParse(sessionId)
           if (!parsed.success) return undefined
-          const stored = storedSessionRules(db, parsed.data)
+          const stored = yield* storedSessionRules(db, parsed.data).pipe(Effect.orDie)
           if (stored === null) return undefined
           return {agent: Agent.defaultId, permissions: sessionPermissions(parsed.data, stored)}
         }),

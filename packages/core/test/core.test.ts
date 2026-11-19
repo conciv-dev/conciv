@@ -121,6 +121,7 @@ import {
 } from '@conciv/plugin-host'
 import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
 import {Model as ModelSchema} from '@conciv/plugin/schema/model'
+import {SqliteClient} from '@effect/sql-sqlite-node'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual, isPlainObject, once as onceOnly} from 'es-toolkit'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
@@ -280,6 +281,13 @@ function rawRequest(port: number, path: string, headers: Record<string, string> 
   })
 }
 
+function openDatabase(root: string): ConcivDb {
+  const scope = Effect.runSync(Scope.make())
+  const db = Effect.runSync(openDb(root).pipe(Scope.provide(scope)))
+  onTestFinished(() => Effect.runPromise(Scope.close(scope, Exit.void)))
+  return db
+}
+
 describe('api native page document', () => {
   it('pins the viewport so the WebView cannot pinch-zoom or rescale the overlay', () => {
     const viewport = /<meta name="viewport" content="([^"]+)">/.exec(hostDocument())?.[1]
@@ -363,7 +371,7 @@ describe('chat plane', () => {
             ),
           ),
         ),
-        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+        Layer.provideMerge(Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, db.$client))),
       ),
     )
     onTestFinished(() => host.dispose())
@@ -573,7 +581,9 @@ describe('chat plane', () => {
     expect(told.tools.at(-1)).not.toContain('execute_typescript')
     expect(told.tools.at(-1)).not.toContain('discover_tools')
     const instructionKeys = async (id: SessionId) => {
-      const [row] = await db.select().from(InstructionStateTable).where(eq(InstructionStateTable.session_id, id))
+      const [row] = await Effect.runPromise(
+        db.select().from(InstructionStateTable).where(eq(InstructionStateTable.session_id, id)),
+      )
       return Object.keys(row?.current_values ?? {})
     }
     expect(await instructionKeys(skilled)).toContain('core/codemode')
@@ -589,7 +599,7 @@ describe('chat plane', () => {
       primitives,
       plane: withoutDriver,
       db,
-      model: () => null,
+      model: async () => null,
       staleness: () => unchanged,
       interruptIdle: async () => false,
       symbolicate: async () => null,
@@ -727,7 +737,9 @@ describe('chat plane', () => {
     const late = await rawRequest(engine.port, '/health')
     await stopping
     const db = openDatabase(root)
-    const runs = db.select({status: chatRuns.status}).from(chatRuns).where(eq(chatRuns.runId, 'engine-stop-run')).all()
+    const runs = await Effect.runPromise(
+      db.select({status: chatRuns.status}).from(chatRuns).where(eq(chatRuns.runId, 'engine-stop-run')),
+    )
     const logged = written.mock.calls.map(([chunk]) => String(chunk)).join('')
     written.mockRestore()
     cli.release()
@@ -751,16 +763,18 @@ describe('chat plane', () => {
     })
     await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
     const db = openDatabase(root)
-    const runRows = () =>
-      db.select({runId: chatRuns.runId, status: chatRuns.status, finishedAt: chatRuns.finishedAt}).from(chatRuns).all()
-    expect(runRows()).toEqual([{runId: 'cut-short-run', status: 'running', finishedAt: null}])
+    const runRows = async () =>
+      Effect.runPromise(
+        db.select({runId: chatRuns.runId, status: chatRuns.status, finishedAt: chatRuns.finishedAt}).from(chatRuns),
+      )
+    expect(await runRows()).toEqual([{runId: 'cut-short-run', status: 'running', finishedAt: null}])
     const restarted = await bootEngine(root, {harness: cliHarness(fakeCli())})
     await restarted.stop()
-    const swept = runRows()
+    const swept = await runRows()
     expect(swept).toEqual([{runId: 'cut-short-run', status: 'aborted', finishedAt: expect.any(Number)}])
     const again = await bootEngine(root, {harness: cliHarness(fakeCli())})
     await again.stop()
-    expect(runRows()).toEqual(swept)
+    expect(await runRows()).toEqual(swept)
   })
 
   it('a chat.events stream that opens on the rpc socket while a run is going is told about that run', async () => {
@@ -818,7 +832,7 @@ describe('chat plane', () => {
       primitives,
       plane: chat,
       db,
-      model: () => null,
+      model: async () => null,
       staleness: () => ({stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}),
       interruptIdle: async () => false,
       symbolicate: async () => null,
@@ -975,12 +989,12 @@ describe('chat plane', () => {
 
   function sessionPort(nativeId: HarnessSessionId | null = null, harnessKind = 'fake-cli'): SessionPort {
     return {
-      row: () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind, deletedAt: null}),
+      row: async () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind, deletedAt: null}),
       ensure: async () => undefined,
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,
       recordContextTokens: async () => undefined,
-      recordActivity: () => {},
+      recordActivity: async () => undefined,
       onRunStart: async () => undefined,
       publish: () => undefined,
       onRunEnd: async () => undefined,
@@ -999,7 +1013,7 @@ describe('chat plane', () => {
       hubAccess: 'session',
       hubGeneration: () => 0,
       cwd: root,
-      harnessFor: () => harness,
+      harnessFor: async () => harness,
       systemPrompt: {},
       sessions: sessionPort(),
       toolNames: new Set(),
@@ -1073,12 +1087,6 @@ describe('chat plane', () => {
     return messages.map((message) =>
       message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''),
     )
-  }
-
-  function openDatabase(root: string): ConcivDb {
-    const db = openDb(root)
-    onTestFinished(() => db.$client.close())
-    return db
   }
 
   function sessionId(name: string): SessionId {
@@ -1466,11 +1474,15 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
 
   it('a request that reaches the engine while its app is failing to build fails instead of hanging, and the port is released', async () => {
     const root = tempDir('conciv-core-unit-')
-    const seeded = openDb(root)
-    seeded.run(
-      sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.flatMap(openDb(root), (seeded) =>
+          seeded.run(
+            sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+          ),
+        ),
+      ),
     )
-    seeded.$client.close()
     const outcomes: Array<Promise<number | 'dropped'>> = []
     const bound = Promise.withResolvers<number>()
     const knocking = defineExtension({name: 'knocking'}).server(async () => {
@@ -1494,16 +1506,20 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
   }, 20_000)
 
   it('a start that fails to build its app leaves server.json as it found it: absent when there was none, and naming the engine still running in that project', async () => {
-    const seedUnreadableRun = (root: string): void => {
-      const seeded = openDb(root)
-      seeded.run(
-        sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    const seedUnreadableRun = async (root: string): Promise<void> => {
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.flatMap(openDb(root), (seeded) =>
+            seeded.run(
+              sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+            ),
+          ),
+        ),
       )
-      seeded.$client.close()
     }
 
     const fresh = tempDir('conciv-core-unit-')
-    seedUnreadableRun(fresh)
+    await seedUnreadableRun(fresh)
     await expect(bootEngine(fresh)).rejects.toThrow(/is not valid JSON/)
     expect.soft(existsSync(join(concivStateDir(fresh), 'server.json'))).toBe(false)
 
@@ -1511,7 +1527,7 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     const running = await bootEngine(root)
     onTestFinished(() => running.stop())
     expect(readServerRecord(root)).toEqual({port: running.port, token: running.agentToken})
-    seedUnreadableRun(root)
+    await seedUnreadableRun(root)
     await expect(bootEngine(root)).rejects.toThrow(/is not valid JSON/)
     const record = readServerRecord(root)
     expect.soft(record).toEqual({port: running.port, token: running.agentToken})
@@ -1524,12 +1540,12 @@ describe('configured session rows', () => {
   it('the configured conciv and harness session rows exist once the engine resolves, and the start leaves the database file mode alone', async () => {
     const root = tempDir('conciv-core-unit-')
     const databaseFile = join(concivStateDir(root), 'conciv.db')
-    openDb(root).$client.close()
+    await Effect.runPromise(Effect.scoped(openDb(root)))
     chmodSync(databaseFile, 0o644)
     const configured = {sessionId: 'conciv_configured', claudeSessionId: 'native-configured'}
     const made = await makeApp({cfg: resolveConfig(configured, root), cwd: root, openInEditor: () => {}})
     try {
-      const rows = await made.chat.db.select().from(sessionTable)
+      const rows = await Effect.runPromise(made.chat.db.select().from(sessionTable))
       expect(rows.map((row) => row.id)).toContain('conciv_configured')
       expect(rows.map((row) => row.harnessSessionId)).toContain('native-configured')
       expect([databaseFile, `${databaseFile}-wal`].map((file) => statSync(file).mode & 0o777)).toEqual([0o644, 0o644])
@@ -1541,11 +1557,15 @@ describe('configured session rows', () => {
   it('a start that fails once the plugin host is built closes every handle on the database', async () => {
     const root = tempDir('conciv-core-unit-')
     const databaseFile = join(concivStateDir(root), 'conciv.db')
-    const seeded = openDb(root)
-    seeded.run(
-      sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.flatMap(openDb(root), (seeded) =>
+          seeded.run(
+            sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+          ),
+        ),
+      ),
     )
-    seeded.$client.close()
     await expect(makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})).rejects.toThrow()
     expect(existsSync(`${databaseFile}-wal`)).toBe(false)
   })
@@ -1554,7 +1574,7 @@ describe('configured session rows', () => {
 describe('session metadata', () => {
   it('a session starts with no metadata, and each setMetadata replaces the whole record', async () => {
     const root = tempDir('conciv-core-unit-')
-    const db = openDb(root)
+    const db = openDatabase(root)
     const id = SessionId.parse('conciv_metadata')
     await bornRows(root, [id])
     expect((await rowById(db, id))?.metadata).toBeNull()
@@ -1563,7 +1583,7 @@ describe('session metadata', () => {
     expect((await rowById(db, id))?.metadata).toEqual({owner: 'review', tags: ['a', 'b']})
 
     await setMetadata(db, id, {round: 2, nested: {done: false}})
-    expect(currentRow(db, id)?.metadata).toEqual({round: 2, nested: {done: false}})
+    expect((await currentRow(db, id))?.metadata).toEqual({round: 2, nested: {done: false}})
   })
 })
 
@@ -1618,8 +1638,7 @@ describe('page bus and the session scope', () => {
   }
 
   function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): PageQueues {
-    const db = openDb(tempDir('conciv-core-unit-'))
-    onTestFinished(() => db.$client.close())
+    const db = openDatabase(tempDir('conciv-core-unit-'))
     const queues = makePageQueues({bus, journal: makeJournal(db), syncMs})
     for (const callId of [HUB_CALL, 'call-1']) queues.hubCall(SESSION_A, callId)
     return queues
@@ -1908,7 +1927,7 @@ describe('page bus and the session scope', () => {
         return turns.length === 1 ? starting.promise : {kind: 'delivered'}
       },
     }
-    const following = startQueueFollowUp(queues, plane, SESSION_A, () => false)
+    const following = startQueueFollowUp(queues, plane, SESSION_A, async () => false)
     await entered.promise
     for (const _ of Array.from({length: 205})) {
       const queueId = await played(true)
@@ -1917,7 +1936,7 @@ describe('page bus and the session scope', () => {
     starting.resolve({kind: 'busy'})
     await following
     expect(queues.owedTurn(SESSION_A).map((record) => record.queueId)).toEqual([owed])
-    await startQueueFollowUp(queues, plane, SESSION_A, () => false)
+    await startQueueFollowUp(queues, plane, SESSION_A, async () => false)
     expect(turns).toHaveLength(2)
     expect(turns[1]).toContain(`queue ${owed} finished`)
     expect(queues.owedTurn(SESSION_A)).toEqual([])
@@ -1949,14 +1968,16 @@ describe('page bus and the session scope', () => {
       return queueId
     }
     const owedIds = () => queues.owedTurn(fixture.sessionId).map((record) => record.queueId)
-    const runStatuses = () =>
-      fixture.db
-        .select({status: chatRuns.status})
-        .from(chatRuns)
-        .where(eq(chatRuns.threadId, fixture.sessionId))
-        .orderBy(chatRuns.startedAt)
-        .all()
-        .map((run) => run.status)
+    const runStatuses = async () =>
+      (
+        await Effect.runPromise(
+          fixture.db
+            .select({status: chatRuns.status})
+            .from(chatRuns)
+            .where(eq(chatRuns.threadId, fixture.sessionId))
+            .orderBy(chatRuns.startedAt),
+        )
+      ).map((run) => run.status)
     return {fixture, queues, played, owedIds, runStatuses}
   }
 
@@ -1967,7 +1988,7 @@ describe('page bus and the session scope', () => {
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
       isDeletedRow(fixture.db, sessionId),
     )
-    expect(runStatuses()).toEqual(['failed', 'completed'])
+    expect(await runStatuses()).toEqual(['failed', 'completed'])
     expect(owedIds()).toEqual([])
     expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
   })
@@ -1979,12 +2000,12 @@ describe('page bus and the session scope', () => {
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
       isDeletedRow(fixture.db, sessionId),
     )
-    expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
+    expect(await runStatuses()).toEqual(['failed', 'failed', 'failed'])
     expect(queues.owedTurn(fixture.sessionId).map((record) => record.delivery)).toEqual(['nextReply'])
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
       isDeletedRow(fixture.db, sessionId),
     )
-    expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
+    expect(await runStatuses()).toEqual(['failed', 'failed', 'failed'])
     expect(queues.undelivered(fixture.sessionId, false).map((result) => result.queueId)).toEqual([owed])
     expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
   })
@@ -2001,7 +2022,7 @@ describe('page bus and the session scope', () => {
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
       isDeletedRow(fixture.db, sessionId),
     )
-    expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
+    expect(await runStatuses()).toEqual(['failed', 'failed', 'failed'])
     const later = await played()
     const inputs: string[] = []
     const plane = {
@@ -2012,7 +2033,7 @@ describe('page bus and the session scope', () => {
       },
     }
     await startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) => isDeletedRow(fixture.db, sessionId))
-    expect(runStatuses()).toEqual(['failed', 'failed', 'failed', 'completed'])
+    expect(await runStatuses()).toEqual(['failed', 'failed', 'failed', 'completed'])
     expect(inputs).toHaveLength(1)
     expect(inputs[0]).toContain(`queue ${stranded} finished`)
     expect(inputs[0]).toContain(`queue ${later} finished`)
@@ -2036,7 +2057,7 @@ describe('page bus and the session scope', () => {
     await fixture.plane.stop(fixture.sessionId)
     fixture.harness.script.release()
     await following
-    expect(runStatuses()).toEqual(['aborted'])
+    expect(await runStatuses()).toEqual(['aborted'])
     expect(queues.undelivered(fixture.sessionId, false).map((result) => result.queueId)).toEqual([owed])
   })
 
@@ -2055,7 +2076,7 @@ describe('page bus and the session scope', () => {
       },
     }
     await startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) => isDeletedRow(fixture.db, sessionId))
-    expect(runStatuses()).toEqual(['completed'])
+    expect(await runStatuses()).toEqual(['completed'])
     expect(owedIds()).toEqual([owed])
   })
 
@@ -2081,7 +2102,7 @@ describe('page bus and the session scope', () => {
     const ended = fixture.plane.endRuns(fixture.sessionId)
     expect(await admitted).toEqual({kind: 'stopped'})
     await ended
-    expect(runStatuses()).toEqual([])
+    expect(await runStatuses()).toEqual([])
     const owed = await played()
     const turns: string[] = []
     const answering = Promise.withResolvers<FollowUpOutcome>()
@@ -2105,7 +2126,7 @@ describe('page bus and the session scope', () => {
     answering.resolve({kind: 'failed', error: 'the harness could not launch'})
     await following
     expect(turns).toHaveLength(1)
-    expect(runStatuses()).toEqual([])
+    expect(await runStatuses()).toEqual([])
     await expect(queues.wait(fixture.sessionId, owed, 0)).rejects.toThrow(`no queue ${owed} on this tab`)
   })
 
@@ -2133,7 +2154,7 @@ describe('page bus and the session scope', () => {
     expect(await owesFollowUp(queues, fixture.sessionId)).toBe(true)
     await startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) => isDeletedRow(fixture.db, sessionId))
     expect(turns).toEqual([])
-    expect(runStatuses()).toEqual([])
+    expect(await runStatuses()).toEqual([])
   })
 
   it('a queue result landing after the delete cancels the session queues and before the tombstone starts no turn: the page plugin no longer holds the queue', async () => {
@@ -2289,8 +2310,10 @@ describe('page bus and the session scope', () => {
     await ensureRow(made.chat.rows, id)
     const tab = await tabs.open(id, () => ({type: 'success', result: {value: {ok: true}, files: [], capture: {}}}))
     onTestFinished(() => tab.end())
-    made.chat.db.$client.exec(
-      "CREATE TRIGGER refuse_page_records BEFORE INSERT ON kv WHEN NEW.key LIKE '%:captures/%' OR NEW.key LIKE '%:changes/%' BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+    await Effect.runPromise(
+      made.chat.db.$client.unsafe(
+        "CREATE TRIGGER refuse_page_records BEFORE INSERT ON kv WHEN NEW.key LIKE '%:captures/%' OR NEW.key LIKE '%:changes/%' BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+      ).raw,
     )
     const response = await fetch(`${origin}/t/${made.agentToken}/api/mcp`, {
       method: 'POST',
@@ -2319,9 +2342,11 @@ describe('page bus and the session scope', () => {
     const output = reply.result.content.map((part) => part.text).join('')
     expect(output).not.toContain('disk full')
     expect(z.object({result: z.object({ok: z.boolean()})}).parse(JSON.parse(output)).result).toEqual({ok: true})
-    const stored = made.chat.db.$client
-      .prepare("SELECT count(*) AS count FROM kv WHERE key LIKE '%:captures/%' OR key LIKE '%:changes/%'")
-      .get()
+    const [stored] = await Effect.runPromise(
+      made.chat.db.$client.unsafe(
+        "SELECT count(*) AS count FROM kv WHERE key LIKE '%:captures/%' OR key LIKE '%:changes/%'",
+      ),
+    )
     expect(stored).toEqual({count: 0})
   })
 
@@ -2570,7 +2595,7 @@ describe('page bus and the session scope', () => {
         primitives,
         plane,
         db,
-        model: () => null,
+        model: async () => null,
         staleness: () => fresh,
         interruptIdle: async () => false,
         symbolicate: async () => null,
@@ -3292,24 +3317,26 @@ describe('plugin host bus', () => {
         expect.objectContaining({data: {sessionID: sessionId}}),
       ])
       expect(
-        db.all(
-          sql`SELECT aggregate_id FROM event WHERE aggregate_id = ${sessionId} UNION ALL SELECT aggregate_id FROM event_sequence WHERE aggregate_id = ${sessionId}`,
+        await Effect.runPromise(
+          db.all(
+            sql`SELECT aggregate_id FROM event WHERE aggregate_id = ${sessionId} UNION ALL SELECT aggregate_id FROM event_sequence WHERE aggregate_id = ${sessionId}`,
+          ),
         ),
       ).toEqual([])
       await rpc.sessions.restore({sessionId})
       expect(
-        db.select({deletedAt: sessionTable.deletedAt}).from(sessionTable).where(eq(sessionTable.id, sessionId)).all(),
+        await Effect.runPromise(
+          db.select({deletedAt: sessionTable.deletedAt}).from(sessionTable).where(eq(sessionTable.id, sessionId)),
+        ),
       ).toEqual([{deletedAt: null}])
 
       const kept = await rpc.sessions.create(undefined)
-      db.run(sql`DROP TABLE kv`)
+      await Effect.runPromise(db.run(sql`DROP TABLE kv`))
       await expect(rpc.sessions.delete({sessionId: kept.sessionId})).rejects.toThrow()
       expect(
-        db
-          .select({deletedAt: sessionTable.deletedAt})
-          .from(sessionTable)
-          .where(eq(sessionTable.id, kept.sessionId))
-          .all(),
+        await Effect.runPromise(
+          db.select({deletedAt: sessionTable.deletedAt}).from(sessionTable).where(eq(sessionTable.id, kept.sessionId)),
+        ),
       ).toEqual([{deletedAt: null}])
     } finally {
       await served.stop()
@@ -3321,6 +3348,13 @@ describe('plugin host bus', () => {
     onTestFinished(() => served.stop())
     const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
     const {sessionId} = await rpc.sessions.create(undefined)
+    const sequence = async () =>
+      (
+        await Effect.runPromise(
+          served.made.chat.db.all<{seq: number}>(sql`SELECT seq FROM event_sequence WHERE aggregate_id = ${sessionId}`),
+        )
+      ).map((row) => row.seq)
+    const [before = 0] = await sequence()
     const entered = Promise.withResolvers<void>()
     const held = Promise.withResolvers<void>()
     const renaming = served.made.pluginHost.runPromise(
@@ -3339,7 +3373,7 @@ describe('plugin host bus', () => {
       ),
     )
     await entered.promise
-    const stores = drizzleChatStores(served.made.chat.db, {readHarness: () => 'fake-cli'})
+    const stores = drizzleChatStores(served.made.chat.db, {readHarness: async () => 'fake-cli'})
     const message: ModelMessage = {id: 'saved-while-held', role: 'user', content: 'saved while the plugin host waits'}
     const saving = stores.messages.saveThread(sessionId, [message])
     held.resolve()
@@ -3347,11 +3381,7 @@ describe('plugin host bus', () => {
     expect(saved).toEqual({status: 'fulfilled', value: undefined})
     expect(renamed).toMatchObject({status: 'fulfilled'})
     expect(await stores.messages.loadThread(sessionId)).toEqual([message])
-    expect(
-      served.made.chat.db.all(
-        sql`SELECT type FROM event WHERE aggregate_id = ${sessionId} AND type LIKE 'session.renamed%'`,
-      ),
-    ).toHaveLength(1)
+    expect(await sequence()).toEqual([before + 1])
   })
 
   test('a listener that reads a session back on session.deleted finds it already gone with its draft, as a reader does after the delete', async () => {
@@ -3482,7 +3512,7 @@ describe('plugin host bus', () => {
       (await scope.page.changes()).length,
     ]
     expect(await left()).toEqual([1, 1, 1])
-    made.chat.db.run(sql`DROP TABLE event_sequence`)
+    await Effect.runPromise(made.chat.db.run(sql`DROP TABLE event_sequence`))
     await expect(key.run((sessions) => sessions.remove(SessionSchema.Id.make(id)))).rejects.toThrow(/event_sequence/)
     expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
       _tag: 'Session.NotFoundError',
@@ -3503,8 +3533,8 @@ describe('plugin host bus', () => {
     await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
     const left = async () => [(await made.plane.hydrate(id)).messages.length, (await scope.page.changes()).length]
     expect(await left()).toEqual([1, 1])
-    made.chat.db.run(sql`DROP TABLE event_sequence`)
-    made.chat.db.run(sql`DROP TABLE tool_captures`)
+    await Effect.runPromise(made.chat.db.run(sql`DROP TABLE event_sequence`))
+    await Effect.runPromise(made.chat.db.run(sql`DROP TABLE tool_captures`))
     const failure = await key
       .run((sessions) => sessions.remove(SessionSchema.Id.make(id)))
       .then(
@@ -3548,7 +3578,7 @@ describe('plugin host bus', () => {
     await made.pluginHost.runPromise(
       Bus.Service.use((bus) => bus.listen((event) => Effect.sync(() => heard.push(event)))),
     )
-    made.chat.db.run(sql`DROP TABLE drafts`)
+    await Effect.runPromise(made.chat.db.run(sql`DROP TABLE drafts`))
     const failure = await key
       .run((sessions) => sessions.remove(SessionSchema.Id.make(id)))
       .then(
@@ -3685,7 +3715,9 @@ describe('plugin host bus', () => {
     await compacting.unregister()
     expect(await made.runtime.forSession(id).run.compact()).toBeUndefined()
     expect(await waitingThenCompacted).toEqual({kind: 'delivered'})
-    const compactedBoundaries = await made.chat.db.select().from(markers).where(eq(markers.sessionId, id))
+    const compactedBoundaries = await Effect.runPromise(
+      made.chat.db.select().from(markers).where(eq(markers.sessionId, id)),
+    )
     expect(compactedBoundaries.filter((marker) => marker.kind === 'compact')).toHaveLength(1)
     expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toHaveLength(1)
 
@@ -3704,7 +3736,8 @@ describe('plugin host bus', () => {
     const key = sessionKey(made)
     const id = SessionId.parse('conciv_keyed_run')
     await ensureRow(made.chat.rows, id)
-    const runs = async () => (await made.chat.db.select().from(chatRuns).where(eq(chatRuns.threadId, id))).length
+    const runs = async () =>
+      (await Effect.runPromise(made.chat.db.select().from(chatRuns).where(eq(chatRuns.threadId, id)))).length
 
     harness.script.hold()
     const started = Promise.withResolvers<void>()
@@ -3741,7 +3774,7 @@ describe('plugin host bus', () => {
     expect(compaction.time.created).toBeGreaterThanOrEqual(before)
     expect(compaction.time.created).toBeLessThanOrEqual(after)
     await key.run((sessions) => sessions.wait(SessionSchema.Id.make(id)))
-    const boundaries = await made.chat.db.select().from(markers).where(eq(markers.sessionId, id))
+    const boundaries = await Effect.runPromise(made.chat.db.select().from(markers).where(eq(markers.sessionId, id)))
     expect(boundaries.filter((marker) => marker.kind === 'compact')).toHaveLength(1)
     expect(await runs()).toBe(ranBefore + 1)
     expect(
@@ -4027,13 +4060,13 @@ describe('plugin host bus', () => {
       runId: 'never-seen-run',
     })
     expect((await firstTurn.done()).errors()).toEqual([])
-    expect(currentRow(made.chat.db, neverSeen)?.deletedAt).toBeNull()
+    expect((await currentRow(made.chat.db, neverSeen))?.deletedAt).toBeNull()
 
     const quiet = await created()
     const quietNative = HarnessSessionId.parse(randomUUID())
     await recordNativeId(made.chat.db, quiet, harness.id, quietNative)
     await kit.rpc.sessions.delete({sessionId: quiet})
-    const tombstone = currentRow(made.chat.db, quiet)
+    const tombstone = await currentRow(made.chat.db, quiet)
     const quietTranscript = requireTranscriptPath(harness)(made.chat.cwd, quietNative)
     mkdirSync(dirname(quietTranscript), {recursive: true})
     writeFileSync(
@@ -4044,7 +4077,7 @@ describe('plugin host bus', () => {
       }),
     )
     const quietHydration = await made.plane.hydrate(quiet)
-    expect(currentRow(made.chat.db, quiet)?.updatedAt).toBe(tombstone?.updatedAt)
+    expect((await currentRow(made.chat.db, quiet))?.updatedAt).toBe(tombstone?.updatedAt)
     expect(quietHydration.messages).toEqual([])
     expect((await kit.rpc.chat.hydrate({sessionId: quiet})).messages).toEqual([])
 
@@ -4104,18 +4137,23 @@ describe('session.created on the plugin host bus', () => {
     )
     const created = () => heard.filter((event) => event.type === 'session.created').map((event) => event.data)
     const bornAs = (sessionId: string) => created().filter((data) => isEqual(data, {sessionID: sessionId}))
-    const rowOfNative = (nativeId: HarnessSessionId) =>
-      made.chat.db
-        .select({id: sessionTable.id})
-        .from(sessionTable)
-        .where(eq(sessionTable.harnessSessionId, nativeId))
-        .get()?.id ?? 'no row'
-    const externalRows = () =>
-      made.chat.db
-        .select({id: sessionTable.id})
-        .from(sessionTable)
-        .where(and(eq(sessionTable.origin, 'external'), isNull(sessionTable.harnessSessionId)))
-        .all()
+    const rowOfNative = async (nativeId: HarnessSessionId) =>
+      (
+        await Effect.runPromise(
+          made.chat.db
+            .select({id: sessionTable.id})
+            .from(sessionTable)
+            .where(eq(sessionTable.harnessSessionId, nativeId))
+            .get(),
+        )
+      )?.id ?? 'no row'
+    const externalRows = async () =>
+      Effect.runPromise(
+        made.chat.db
+          .select({id: sessionTable.id})
+          .from(sessionTable)
+          .where(and(eq(sessionTable.origin, 'external'), isNull(sessionTable.harnessSessionId))),
+      )
 
     const draft = SessionId.parse('conciv_born_on_first_send')
     await runTurn(kit, 'the first send', draft)
@@ -4141,12 +4179,12 @@ describe('session.created on the plugin host bus', () => {
     })
     await hub.tools()
     await hub.close()
-    const [external] = externalRows()
-    expect(externalRows()).toHaveLength(1)
+    const [external] = await externalRows()
+    expect(await externalRows()).toHaveLength(1)
     expect.soft(bornAs(external?.id ?? 'no external row')).toHaveLength(1)
 
     await kit.rpc.sessions.list({limit: 30})
-    const fromList = rowOfNative(listedNative)
+    const fromList = await rowOfNative(listedNative)
     expect.soft(bornAs(fromList)).toHaveLength(1)
     await kit.rpc.sessions.list({limit: 30})
     expect.soft(bornAs(fromList)).toHaveLength(1)
@@ -4650,7 +4688,7 @@ describe('session context hook', () => {
       ),
     ).toEqual(['the summary the plugin wrote'])
     expect(hydrated.lastRun?.phase).toBe('completed')
-    const [row] = await made.chat.db.select().from(sessionTable).where(eq(sessionTable.id, session))
+    const [row] = await Effect.runPromise(made.chat.db.select().from(sessionTable).where(eq(sessionTable.id, session)))
     expect(row?.usage).toMatchObject({
       inputTokens: 40,
       outputTokens: 7,
@@ -4907,7 +4945,7 @@ describe('plugin permission cards', () => {
             ),
           ),
         ),
-        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+        Layer.provideMerge(Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, db.$client))),
       ),
     )
     const clients = new AbortController()
@@ -5122,13 +5160,13 @@ describe('plugin permission cards', () => {
       expect((await plane.hydrate(id)).pendingApprovals.map((entry) => entry.approvalId)).toEqual([asked.id]),
     )
     await fixture.dispose()
-    const reopened = openDb(stateRoot)
-    onTestFinished(() => reopened.$client.close())
-    const stored = reopened
-      .select({value: chatMetadata.valueJson})
-      .from(chatMetadata)
-      .where(eq(chatMetadata.key, `${id}:pending-approvals`))
-      .all()
+    const reopened = openDatabase(stateRoot)
+    const stored = await Effect.runPromise(
+      reopened
+        .select({value: chatMetadata.valueJson})
+        .from(chatMetadata)
+        .where(eq(chatMetadata.key, `${id}:pending-approvals`)),
+    )
     expect(stored).toEqual([{value: []}])
   })
 })
@@ -5297,19 +5335,23 @@ describe('direct tools on the MCP surface', () => {
       )
         .result.content.map((part) => part.text)
         .join('')
-    await made.chat.db
-      .update(sessionTable)
-      .set({permissions: sql`'{not json'`})
-      .where(eq(sessionTable.id, id))
+    await Effect.runPromise(
+      made.chat.db
+        .update(sessionTable)
+        .set({permissions: sql`'{not json'`})
+        .where(eq(sessionTable.id, id)),
+    )
     expect(await listed()).toEqual(builtIn)
     expect(await searchedCoded()).not.toContain('external_unit_coded')
     const rpc = makeRpcClient(`${origin}/t/${made.agentToken}`)
     expect((await rpc.sessions.list(undefined)).sessions.map((session) => session.id)).toContain(id)
     expect(await rpc.sessions.get({sessionId: id})).toMatchObject({id})
-    await made.chat.db
-      .update(sessionTable)
-      .set({permissions: sql`'[{"action":"unit_coded"}]'`})
-      .where(eq(sessionTable.id, id))
+    await Effect.runPromise(
+      made.chat.db
+        .update(sessionTable)
+        .set({permissions: sql`'[{"action":"unit_coded"}]'`})
+        .where(eq(sessionTable.id, id)),
+    )
     expect(await listed()).toEqual(builtIn)
     expect(await searchedCoded()).not.toContain('external_unit_coded')
   })
@@ -5350,7 +5392,7 @@ describe('plugin context keys provided by core', () => {
       }
     }
     const sonnetVariants = [{id: 'low', settings: {effort: 'low'}}]
-    const db = openDb(root)
+    const db = openDatabase(root)
     const id = SessionId.parse('conciv_entries')
     const other = SessionId.parse('conciv_entries_other')
     await bornRows(root, [id, other])
@@ -5382,7 +5424,7 @@ describe('plugin context keys provided by core', () => {
           Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, Image.layer, permissionSessions(db)),
         ),
         Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
-        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+        Layer.provideMerge(Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, db.$client))),
       ),
     )
     onTestFinished(() => host.dispose())

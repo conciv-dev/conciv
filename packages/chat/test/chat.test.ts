@@ -7,7 +7,8 @@ import {defineHarness} from '@conciv/harness'
 import {readApprovalAsk, approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
-import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
+import {SqliteClient} from '@effect/sql-sqlite-node'
+import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
 import {defineWebSocketHelper} from 'hono/ws'
 import {
@@ -64,9 +65,10 @@ function currentDomain(agent: Agent.Id, rules: Permission.Ruleset = []) {
 
 function openDatabase() {
   const root = tempDir('conciv-chat-unit-')
-  const db = openDb(root)
-  onTestFinished(() => {
-    db.$client.close()
+  const scope = Scope.makeUnsafe()
+  const db = Effect.runSync(openDb(root).pipe(Scope.provide(scope)))
+  onTestFinished(async () => {
+    await Effect.runPromise(Scope.close(scope, Exit.void))
     rmSync(root, {recursive: true, force: true})
   })
   return {root, db}
@@ -80,15 +82,22 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
     hubAccess: 'session',
     hubGeneration: () => 0,
     cwd: root,
-    harnessFor: () => harness,
+    harnessFor: async () => harness,
     systemPrompt: {},
     sessions: {
-      row: () => ({model: null, effort: null, nativeId: null, cwd: '/workspace', harnessKind: 'fake', deletedAt: null}),
+      row: async () => ({
+        model: null,
+        effort: null,
+        nativeId: null,
+        cwd: '/workspace',
+        harnessKind: 'fake',
+        deletedAt: null,
+      }),
       ensure: async () => undefined,
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,
       recordContextTokens: async () => undefined,
-      recordActivity: () => {},
+      recordActivity: async () => undefined,
       onRunStart: async () => undefined,
       publish: () => undefined,
       onRunEnd: async () => undefined,
@@ -521,7 +530,7 @@ describe('refusal text', () => {
             ),
           ),
         ),
-        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+        Layer.provideMerge(Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, db.$client))),
       ),
     )
     onTestFinished(() => host.dispose())

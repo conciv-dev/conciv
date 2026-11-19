@@ -4,6 +4,7 @@ import path from 'path'
 import {Effect, Layer} from 'effect'
 import {Database} from '../../src/core/database/database.js'
 import {openDb} from '@conciv/db'
+import {SqliteClient} from '@effect/sql-sqlite-node'
 import {tmpdir} from './fixture/tmpdir'
 
 const openModes = (filename: string) =>
@@ -40,19 +41,19 @@ describe.skipIf(process.platform === 'win32')('Database file permissions', () =>
 describe('Database on the project database', () => {
   test('creates no table and runs no migration on a database conciv has migrated, whose plugin host tables are there', async () => {
     await using tmp = await tmpdir()
-    const conciv = openDb(tmp.path)
-    const filename = conciv.$client.location() ?? ':memory:'
-    const tableNames = () =>
-      conciv.$client
-        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
-        .all()
-        .map((row) => row.name)
-    const before = tableNames()
-    expect(before).toEqual(expect.arrayContaining(['event', 'event_sequence', 'kv', 'permission']))
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const conciv = yield* openDb(tmp.path)
+        const tableNames = conciv.$client
+          .unsafe<{name: string}>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+          .pipe(Effect.map((rows) => rows.map((row) => row.name)))
+        const before = yield* tableNames
+        expect(before).toEqual(expect.arrayContaining(['event', 'event_sequence', 'kv', 'permission']))
 
-    await Effect.runPromise(Layer.build(Database.layer({path: filename})).pipe(Effect.scoped))
+        yield* Layer.build(Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, conciv.$client)))
 
-    expect(tableNames()).toEqual(before)
-    conciv.$client.close()
+        expect(yield* tableNames).toEqual(before)
+      }).pipe(Effect.scoped),
+    )
   })
 })
