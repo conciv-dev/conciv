@@ -9,6 +9,7 @@ import type {
   UiMenuSubProps,
 } from '@conciv/plugin/experimental'
 import {Markdown} from '@conciv/ui-kit-chat'
+import {Chip} from '@conciv/ui-kit-chat/tools'
 import {
   Avatar,
   Button,
@@ -351,6 +352,9 @@ export const ui: Ui = {
       </Select.Positioner>
       <Select.HiddenSelect />
     </Select.Root>
+  ),
+  Chip: (props) => (
+    <Chip kind="pill" value={props.value} tone={props.tone} tooltip={props.tooltip} class={props.class} />
   ),
   Keybind: (props) => (
     <Show when={props.keys.length > 0}>
