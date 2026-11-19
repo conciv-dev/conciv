@@ -1918,6 +1918,13 @@ describe('rpc registry catalog cosmetics', () => {
           output: z.object({raised: z.boolean()}),
           execute: async ({height}) => ({output: {raised: height > 0}}),
         })
+        tools.add({
+          name: 'acme_signal',
+          description: 'Send a signal to the acme beacon.',
+          input: z.object({message: z.string()}),
+          output: z.object({sent: z.string()}),
+          execute: async ({message}) => ({output: {sent: message}}),
+        })
       })
     },
   })
@@ -1943,8 +1950,13 @@ describe('rpc registry catalog cosmetics', () => {
         inputSchema: expect.objectContaining({required: ['height']}),
         errors: [],
       })
+      expect(served?.positional).toBeUndefined()
       expect(served).not.toHaveProperty('icon')
       expect(served).not.toHaveProperty('label')
+      expect(catalog.find((signature) => signature.name === 'acme_signal')).toMatchObject({
+        binding: 'server',
+        positional: 'message',
+      })
       expect(await registryCall(kit.base, await kit.session())('acme_beacon', {height: 3})).toEqual({raised: true})
     } finally {
       await kit.cleanup()

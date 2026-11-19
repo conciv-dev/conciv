@@ -66,24 +66,34 @@ function cliInput(schema: unknown) {
   }
 }
 
+const StringProperty = z.object({type: z.literal('string')})
+
+function stringPositional(input: ReturnType<typeof cliInput>): string | undefined {
+  const strings = input.required.filter((field) => StringProperty.safeParse(input.properties[field]).success)
+  return strings.length === 1 && input.required.length === 1 ? strings[0] : undefined
+}
+
 function signature(tool: Parameters<typeof ToolRuntime.definition>[0] & {readonly id: string}): ToolCommandSignature[] {
   const definition = ToolRuntime.definition(tool)
   const operation = pageOperations[tool.id]
   const entry = operation === undefined ? undefined : CliTools[operation.name]
-  if (operation === undefined || entry === undefined)
+  if (operation === undefined || entry === undefined) {
+    const inputSchema = cliInput(definition.inputSchema)
     return [
       {
         name: tool.id,
         path: [tool.id],
         binding: 'server',
         summary: tool.description,
+        positional: stringPositional(inputSchema),
         mutating: false,
         reachable: true,
-        inputSchema: cliInput(definition.inputSchema),
+        inputSchema,
         outputSchema: definition.outputSchema,
         errors: [],
       },
     ]
+  }
   if (!entry.terminal) return []
   return [
     {
