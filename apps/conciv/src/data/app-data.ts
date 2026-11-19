@@ -11,6 +11,7 @@ import {
 } from '@conciv/client'
 import {Conciv, type ConcivClient} from '@conciv/plugin'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
+import {dropLeavingCopies} from '../runtime/persistence/leaving-copy.js'
 import {Definition as PageDefinition} from '@conciv/plugin-page/rpc'
 import {DraftRowSchema, SessionMetaSchema, type DraftRow, type RpcClient, type SessionMeta} from '@conciv/contract'
 
@@ -202,6 +203,7 @@ export function makeAppData(
   const forgetLocalDrafts = async (): Promise<void> => {
     queryClient.removeQueries({queryKey: utils.drafts.get.key()})
     removeDraftSaves((save) => !save.isPaused)
+    dropLeavingCopies()
     if (!drafts) return
     await drafts.clear().catch((error: unknown) => {
       console.error('[conciv] could not empty the local draft store', error)
