@@ -4,7 +4,7 @@ import type {TerminalModel} from '../model.js'
 
 const TerminalContext = createContext<TerminalModel>()
 
-const ROOT_STYLE: JSX.CSSProperties = {width: '100%', 'min-width': '0'}
+const ROOT_CLASS = 'w-full min-w-0'
 
 export function useTerminal(): TerminalModel {
   const model = useContext(TerminalContext)
@@ -15,7 +15,7 @@ export function useTerminal(): TerminalModel {
 function Root(props: {model: TerminalModel; class?: string; children: JSX.Element}): JSX.Element {
   return (
     <TerminalContext.Provider value={untrack(() => props.model)}>
-      <div class={props.class} style={ROOT_STYLE} data-terminal-root data-status={props.model.status()}>
+      <div class={`${ROOT_CLASS}  ${props.class ?? ''}`} data-terminal-root data-status={props.model.status()}>
         {props.children}
       </div>
     </TerminalContext.Provider>
@@ -83,14 +83,14 @@ function Banner(props: {children: (state: {code: number | null; message: string 
   )
 }
 
-const OVERLAY_ANCHOR_STYLE: Record<'rail' | 'top-right', JSX.CSSProperties> = {
-  rail: {display: 'flex', 'flex-direction': 'column', 'min-height': '0', 'min-width': '0', 'flex-shrink': '1'},
-  'top-right': {position: 'absolute', top: '0.5rem', right: '0.5rem', 'z-index': '10'},
+const OVERLAY_ANCHOR_CLASS: Record<'rail' | 'top-right', string> = {
+  rail: 'flex flex-col min-h-0 min-w-0 shrink',
+  'top-right': 'absolute top-2 right-2 z-10',
 }
 
 function Overlay(props: {anchor: 'rail' | 'top-right'; class?: string; children: JSX.Element}): JSX.Element {
   return (
-    <div class={props.class} style={OVERLAY_ANCHOR_STYLE[props.anchor]} data-terminal-overlay={props.anchor}>
+    <div class={`${OVERLAY_ANCHOR_CLASS[props.anchor]}  ${props.class ?? ''}`} data-terminal-overlay={props.anchor}>
       {props.children}
     </div>
   )

@@ -1,3 +1,4 @@
+import 'virtual:uno.css'
 import {describe, expect, inject, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
