@@ -7,7 +7,7 @@ import {loadCaptureLibrary} from './capture.js'
 import {createCaptureSession, type CaptureSession} from './capture-session.js'
 import {createFlusher} from './flusher.js'
 
-export type CaptureState = {readonly failed: boolean}
+export type CaptureState = {readonly failed: boolean; flushNow(): Promise<void>}
 
 export function bootCapture(ctx: Context, clientId: string): CaptureState {
   const recorder = ctx.client.rpc(Recorder)
@@ -82,5 +82,10 @@ export function bootCapture(ctx: Context, clientId: string): CaptureState {
     )
   })
 
-  return state
+  return {
+    get failed() {
+      return state.failed
+    },
+    flushNow: () => flusher.flushNow(),
+  }
 }

@@ -210,8 +210,8 @@ test.describe('composer rich input', () => {
   const composer = (page: Page) => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const panel = (page: Page) => page.getByRole('dialog', {name: 'conciv chat agent'})
 
-  const waitForDraftWrite = (sessionId: string, fragment: string) =>
-    untilPanelDraft(suite.kit(), sessionId, (draft) => draft.text.includes(fragment))
+  const waitForDraftWrite = (page: Page, sessionId: string, fragment: string) =>
+    untilPanelDraft(page, suite.kit(), sessionId, (draft) => draft.text.includes(fragment))
 
   async function openComposer(page: Page): Promise<string> {
     const sessionId = await openPanelOnNewSession(page, suite)
@@ -315,12 +315,12 @@ test.describe('composer rich input', () => {
       const input = composer(page)
 
       await input.pressSequentially('hello world')
-      await waitForDraftWrite(sessionId, 'hello world')
+      await waitForDraftWrite(page, sessionId, 'hello world')
       await expect(input).toBeFocused()
       for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowLeft')
       await input.pressSequentially('X')
       await expect(input).toHaveText('helloX world')
-      await waitForDraftWrite(sessionId, 'helloX world')
+      await waitForDraftWrite(page, sessionId, 'helloX world')
 
       await page.reload({waitUntil: 'domcontentloaded'})
       const restored = composer(page)
@@ -545,7 +545,7 @@ test.describe('draft send remount', () => {
 
       const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
       await input.fill(USER_TEXT)
-      await untilPanelDraft(suite.kit(), sessionId, (draft) => draft.text === USER_TEXT)
+      await untilPanelDraft(page, suite.kit(), sessionId, (draft) => draft.text === USER_TEXT)
 
       await page.getByRole('button', {name: 'Send message'}).click()
       await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
@@ -556,6 +556,53 @@ test.describe('draft send remount', () => {
 
       await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveText('', {timeout: 30_000})
       await expect(page.getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
+      expect((await suite.kit().rpc.drafts.get({sessionId}))?.text ?? '').toBe('')
+    })
+
+    test('a follow-up typed after a queued send is the draft once the queued run starts, also after a reload', async ({
+      page,
+    }) => {
+      test.setTimeout(240_000)
+      const RUNNING_TEXT = 'a run that keeps going'
+      const QUEUED_TEXT = 'sent while the run goes'
+      const FOLLOW_UP_TEXT = 'typed after the queued send'
+      const kit = suite.kit()
+      const sessionId = await openPanelOnNewSession(page, suite)
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const composer = chatBox(page)
+      const stop = panel.getByRole('button', {name: 'Stop generating'})
+      const queued = panel.getByRole('listitem').filter({hasText: QUEUED_TEXT})
+      kit.harness.script.hold()
+      try {
+        await composer.click()
+        await composer.pressSequentially(RUNNING_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible()
+        await expect(chatLog(page).getByText(ASSISTANT_TEXT)).toHaveCount(1)
+        await composer.click()
+        await composer.pressSequentially(QUEUED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(queued).toBeVisible()
+        await expect(composer).toHaveText('')
+
+        await composer.click()
+        await composer.pressSequentially(FOLLOW_UP_TEXT)
+        await untilPanelDraft(page, kit, sessionId, (draft) => draft.text === FOLLOW_UP_TEXT)
+
+        kit.harness.script.release()
+        await expect(queued).toBeHidden()
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(1)
+        await expect(chatLog(page).getByText(ASSISTANT_TEXT)).toHaveCount(2)
+        await expect(stop).toBeHidden()
+        expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: FOLLOW_UP_TEXT})
+
+        await page.reload({waitUntil: 'domcontentloaded'})
+        await expect(panel).toBeVisible()
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(1)
+        await expect(composer).toHaveText(FOLLOW_UP_TEXT)
+      } finally {
+        kit.harness.script.release()
+      }
     })
   })
 })
@@ -1388,7 +1435,7 @@ test.describe('native widget', () => {
       await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: pick?.requestId, grab: NEUTRAL_GRAB})
       await expect(panel(page).getByText('PaymentCardCell')).toBeVisible({timeout: 30_000})
       await expect(grabPreview(page)).toHaveAttribute('src', IMAGE_DATA_URL)
-      await untilPanelDraft(kit, sessionId, (draft) => {
+      await untilPanelDraft(page, kit, sessionId, (draft) => {
         const payload = findGrabPayload(draft)
         return payload !== null && payload.text.includes('[view]') && payload.text.includes('PaymentCardCell')
       })
@@ -2053,7 +2100,8 @@ test.describe('rebind', () => {
   const ASSISTANT_TEXT = 'Rebound reply'
   const USER_TEXT = 'first message before the drift'
   const SECOND_USER_TEXT = 'second message after the drift'
-  const TYPED_TEXT = 'typed while logged out'
+  const TYPED_TEXT = 'typed once logged in'
+  const REFUSED_TEXT = 'typed while logged out'
   const RUNNING_TEXT = 'keep this run going'
   const QUEUED_TEXT = 'steer toward this instead'
   const STARTER_TEXT = 'Explain this page'
@@ -2149,7 +2197,7 @@ test.describe('rebind', () => {
       expect(pageErrors).toEqual([])
     })
 
-    test('an empty conversation that failed to load on the untrusted port loads by itself after login', async ({
+    test('an empty conversation that failed to load on the untrusted port keeps a read-only composer and loads by itself after login', async ({
       page,
     }) => {
       test.setTimeout(240_000)
@@ -2167,20 +2215,14 @@ test.describe('rebind', () => {
 
       const composer = chatBox(page)
       const loggedOutSend = panel.getByRole('button', {name: LOGGED_OUT_SENTENCE, exact: true})
-      const loggedOutRefusal = page.getByRole('status').filter({hasText: LOGGED_OUT_SENTENCE})
-      await composer.click()
-      await composer.pressSequentially(TYPED_TEXT)
-      await expect(composer).toHaveText(TYPED_TEXT)
+      await expect(panel.getByRole('textbox', {name: 'Message the conciv agent', disabled: true})).toBeVisible()
+      await expect(panel.getByText('Log in to continue', {exact: true})).toBeVisible()
+      await composer.click({force: true})
+      await page.keyboard.type(REFUSED_TEXT)
+      await expect(composer).toHaveText('')
       await expect(loggedOutSend).toBeDisabled({timeout: 30_000})
-      await expect(loggedOutRefusal).toHaveCount(0)
-      await page.keyboard.press('Enter')
-      await expect(loggedOutRefusal.getByText(LOGGED_OUT_SENTENCE, {exact: true})).toBeVisible({timeout: 30_000})
-      await expect(composer).toHaveText(TYPED_TEXT)
-      await expect(loggedOutSend).toBeDisabled()
-      await expect(chatLog(page).getByText(TYPED_TEXT)).toHaveCount(0)
+      await expect(chatLog(page).getByText(REFUSED_TEXT)).toHaveCount(0)
       await expect(panel.getByText(STREAM_READ_FAILED)).toHaveCount(0)
-      await loggedOutRefusal.getByRole('button', {name: 'Dismiss'}).click()
-      await expect(loggedOutRefusal).toHaveCount(0)
 
       await logInFromPanelNotice(page, kit, 'Log in to use conciv on this page.')
       await expect(loginNotice).toBeHidden({timeout: 30_000})
@@ -2188,8 +2230,11 @@ test.describe('rebind', () => {
       await expect(chatBox(page)).toBeVisible({timeout: 30_000})
 
       const send = panel.getByRole('button', {name: 'Send message', exact: true})
-      await expect(send).toBeEnabled({timeout: 30_000})
+      await expect(panel.getByRole('textbox', {name: 'Message the conciv agent', disabled: false})).toBeVisible()
+      await composer.click()
+      await composer.pressSequentially(TYPED_TEXT)
       await expect(composer).toHaveText(TYPED_TEXT)
+      await expect(send).toBeEnabled({timeout: 30_000})
 
       const starter = panel.getByRole('button', {name: STARTER_TEXT})
       const revokedNotice = panel.getByRole('alert').filter({hasText: REVOKED_SENTENCE})
@@ -2330,7 +2375,7 @@ module.exports = {default: {setup(ctx) {
 test.describe('reload continuity', () => {
   const ASSISTANT_TEXT = 'Continuity reply'
 
-  const suite = setupWidgetSuite({text: ASSISTANT_TEXT, terminal: true})
+  const suite = setupWidgetSuite({text: ASSISTANT_TEXT, imageInput: 'native', terminal: true})
 
   test.describe('reload continuity through the db-backed navigation row', () => {
     test('restores the open panel route, the transcript, and the draft after a reload', async ({page}) => {
@@ -2344,7 +2389,7 @@ test.describe('reload continuity', () => {
 
       await input.fill('an unsent draft survives')
       await input.press('End')
-      await untilPanelDraft(suite.kit(), sessionId, (draft) => draft.text === 'an unsent draft survives')
+      await untilPanelDraft(page, suite.kit(), sessionId, (draft) => draft.text === 'an unsent draft survives')
 
       expect(await suite.kit().rpc.drafts.get({sessionId})).toMatchObject({text: 'an unsent draft survives'})
 
@@ -2410,6 +2455,123 @@ test.describe('reload continuity', () => {
       await page.reload({waitUntil: 'domcontentloaded'})
       await expect(launcher).toBeVisible()
       await expect(panel).toBeHidden()
+    })
+  })
+
+  test.describe('the draft is kept in this browser first and in the engine second', () => {
+    const PIXEL_PNG =
+      'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP4z8AARwzEcQCukw/x0F8jngAAAABJRU5ErkJggg=='
+    const unsaved = (page: Page) => page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+
+    test('text typed and reloaded at once is back in the composer', async ({page}) => {
+      await openPanelOnNewSession(page, suite)
+      const input = chatBox(page)
+
+      await input.click()
+      await input.pressSequentially('typed then reloaded at once')
+      await page.reload({waitUntil: 'domcontentloaded'})
+
+      await expect(chatBox(page)).toHaveText('typed then reloaded at once')
+    })
+
+    test('an image attached through the file chooser, with the engine refusing every draft save, is back after a reload', async ({
+      page,
+    }) => {
+      const refused = await failRpcCalls(page, {path: ['drafts', 'set']})
+      try {
+        const sessionId = await openPanelOnNewSession(page, suite)
+        const chip = page.getByRole('button', {name: 'Remove pixel.png'})
+
+        const chooser = page.waitForEvent('filechooser')
+        await page.getByRole('button', {name: 'Add an attachment', exact: true}).click()
+        await (
+          await chooser
+        ).setFiles({name: 'pixel.png', mimeType: 'image/png', buffer: Buffer.from(PIXEL_PNG, 'base64')})
+        await expect(chip).toBeVisible()
+        await refused.answered()
+        await page.reload({waitUntil: 'domcontentloaded'})
+
+        await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+        await expect(chip).toBeVisible()
+        await expect(chip).toHaveCount(1)
+        expect(await suite.kit().rpc.drafts.get({sessionId})).toBeNull()
+      } finally {
+        await refused.dispose()
+      }
+    })
+
+    test('a follow-up typed after a send, with the engine refusing its save, is back after a reload', async ({
+      page,
+    }) => {
+      const FOLLOW_UP = 'typed after the send'
+      const refused = await failRpcCalls(page, {path: ['drafts', 'set'], input: {text: FOLLOW_UP}})
+      try {
+        const sessionId = await openPanelOnNewSession(page, suite)
+        const input = chatBox(page)
+        await input.click()
+        await input.pressSequentially('saved, then sent')
+        await untilPanelDraft(page, suite.kit(), sessionId, (draft) => draft.text === 'saved, then sent')
+
+        await page.getByRole('button', {name: 'Send message'}).click()
+        await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible()
+        await expect(input).toHaveText('')
+        await input.click()
+        await input.pressSequentially(FOLLOW_UP)
+        await refused.answered()
+        refused.repair()
+        await page.reload({waitUntil: 'domcontentloaded'})
+
+        await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+        await untilPanelDraft(page, suite.kit(), sessionId, (draft) => draft.text === FOLLOW_UP)
+        await expect(chatBox(page)).toHaveText(FOLLOW_UP)
+      } finally {
+        await refused.dispose()
+      }
+    })
+
+    test('a page with no local copy, as in a fresh profile, gets the draft the engine holds', async ({
+      page,
+      browser,
+    }) => {
+      const sessionId = await openPanelOnNewSession(page, suite)
+      const input = chatBox(page)
+      await input.click()
+      await input.pressSequentially('held by the engine')
+      await untilPanelDraft(page, suite.kit(), sessionId, (draft) => draft.text === 'held by the engine')
+
+      const fresh = await browser.newPage()
+      try {
+        await openLoggedIn(fresh, suite.kit(), suite.host().base)
+        await openPanel(fresh)
+        await switchToSessionByTitle(fresh, `session under test ${sessionId.slice(-12)}`)
+        await expect(chatBox(fresh)).toHaveText('held by the engine')
+      } finally {
+        await fresh.close()
+      }
+    })
+
+    test('with the engine refusing every draft save, text typed and reloaded is back and the unsaved notice shows', async ({
+      page,
+    }) => {
+      const refused = await failRpcCalls(page, {path: ['drafts', 'set']})
+      try {
+        const sessionId = await openPanelOnNewSession(page, suite)
+        const input = chatBox(page)
+        await input.click()
+        await input.pressSequentially('kept while the engine refuses')
+        await page.clock.install()
+        await page.reload({waitUntil: 'domcontentloaded'})
+
+        await expect(chatBox(page)).toHaveText('kept while the engine refuses')
+        await expect(async () => {
+          await page.clock.fastForward(1000)
+          await expect(unsaved(page)).toBeVisible({timeout: 1000})
+        }).toPass()
+        await expect(chatBox(page)).toHaveText('kept while the engine refuses')
+        expect(await suite.kit().rpc.drafts.get({sessionId})).toBeNull()
+      } finally {
+        await refused.dispose()
+      }
     })
   })
 })

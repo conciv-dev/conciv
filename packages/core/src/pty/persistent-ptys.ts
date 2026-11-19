@@ -68,12 +68,12 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
     return undefined
   }
 
-  const mintToken = async (sessionId: SessionId): Promise<HarnessSessionId> => {
+  const mintToken = async (sessionId: SessionId): Promise<{token: HarnessSessionId; minted: boolean}> => {
     const existing = await deps.sessions.resumeToken(sessionId)
-    if (existing) return existing
-    const minted = HarnessSessionId.parse(randomUUID())
-    await deps.sessions.recordToken(sessionId, minted)
-    return minted
+    if (existing) return {token: existing, minted: false}
+    const token = HarnessSessionId.parse(randomUUID())
+    await deps.sessions.recordToken(sessionId, token)
+    return {token, minted: true}
   }
 
   const resizeTo = (session: TtySession, size: PtySize | undefined): void => {
@@ -83,13 +83,13 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
   const connectContext = async (
     input: CreateInput,
     harness: ServerHarness,
-    token: HarnessSessionId,
+    {token, minted}: {token: HarnessSessionId; minted: boolean},
   ): Promise<HarnessConnectContext> => ({
     cwd: deps.cwd,
     stateDir: deps.stateDir,
     concivSessionId: input.sessionId,
     harnessSessionId: token,
-    resume: harness.transcriptExists?.(token) ?? true,
+    resume: !minted && (harness.transcriptExists?.(token) ?? true),
     owned: true,
     model: input.model ?? (await deps.sessions.model(input.sessionId)),
     mcpUrl: deps.mcpUrl(),
@@ -97,9 +97,9 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
   })
 
   const spawnFresh = async (input: CreateInput, harness: ServerHarness, command: TtyLauncher): Promise<TtySession> => {
-    const token = await mintToken(input.sessionId)
-    const context = await connectContext(input, harness, token)
-    const session = await ttys.open(input.sessionId, command(context), deps.cwd, ownerKey(harness.id, token))
+    const owner = await mintToken(input.sessionId)
+    const context = await connectContext(input, harness, owner)
+    const session = await ttys.open(input.sessionId, command(context), deps.cwd, ownerKey(harness.id, owner.token))
     resizeTo(session, input.size)
     if (context.resume) session.inject(RESUMED_BANNER)
     return session

@@ -2,7 +2,7 @@ import {children, Show, type JSX} from 'solid-js'
 import {TerminalPrimitive} from '../primitives/terminal.js'
 import type {TerminalModel} from '../model.js'
 
-const ROOT = 'relative flex flex-col flex-1 min-h-0 [background:var(--chat-bg)]'
+const ROOT = 'relative flex flex-col flex-1 min-h-0'
 const SCREEN_WRAP = 'flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden [transition:opacity_200ms_var(--chat-ease)]'
 const SCREEN = 'flex-1 min-h-0 px-3.5 py-3'
 const CONNECTING = 'absolute inset-0 flex items-center justify-center text-[0.75rem] [color:var(--chat-text-3)]'

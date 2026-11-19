@@ -13,7 +13,12 @@ import type {AnyExtension} from '@conciv/extension'
 import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
-import type {HarnessCommand, HarnessConnectContext, HarnessModel} from '@conciv/protocol/harness-types'
+import type {
+  HarnessCapabilities,
+  HarnessCommand,
+  HarnessConnectContext,
+  HarnessModel,
+} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {EngineStaleness} from '@conciv/contract'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -48,6 +53,7 @@ export async function bootCoreKit(
     commands?: HarnessCommand[]
     history?: FixtureSession[]
     resumeBin?: string
+    imageInput?: HarnessCapabilities['imageInput']
     alternates?: AlternateHarness[]
     allowedOrigins?: string[]
     staleness?: () => EngineStaleness
@@ -68,6 +74,7 @@ export async function bootCoreKit(
     commands: opts.commands,
     history: opts.history,
     resumeBin: opts.resumeBin,
+    imageInput: opts.imageInput,
     tty: opts.tty,
   })
   const captured: {runtime?: CoreRuntime} = {}

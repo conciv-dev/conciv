@@ -18,7 +18,7 @@ import {TextArea, type TextAreaProps} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
 import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {readComposerDraft} from '../../behaviors/composer-draft-storage.js'
-import {useComposerDraftPersistence} from '../../behaviors/use-composer-draft.js'
+import {useComposerDraftPersistence, type ComposerDraftWriter} from '../../behaviors/use-composer-draft.js'
 import {Primitive} from '../util/primitive.js'
 import type {DraftItem} from '@conciv/protocol/chat-types'
 import {ComposerProvider, useComposerContext, type ComposerDraft} from './composer-context.js'
@@ -39,6 +39,7 @@ import {useSendFromUser} from '../thread/viewport-context.js'
 type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {
   attachmentAdapter?: AttachmentAdapter
   draftStorage?: WebStorage
+  draftWriter?: ComposerDraftWriter
   draftKey?: string
 }
 
@@ -198,7 +199,7 @@ function Root(props: FormProps): JSX.Element {
     dictating: false,
     sendingAttachments: false,
   })
-  const [local, rest] = splitProps(props, ['onSubmit', 'attachmentAdapter', 'draftStorage', 'draftKey'])
+  const [local, rest] = splitProps(props, ['onSubmit', 'attachmentAdapter', 'draftStorage', 'draftWriter', 'draftKey'])
   const sendFromUser = useSendFromUser()
   const removedIds = new Set<string>()
   const attachmentAdapter = () => local.attachmentAdapter
@@ -311,7 +312,12 @@ function Root(props: FormProps): JSX.Element {
     chat.setView('draft', restored.draft)
     setState({attachments: restored.attachments, quote: restored.quote, items: restored.items})
   })
-  useComposerDraftPersistence({storage: () => local.draftStorage, key: draftKey, draft: snapshotDraft})
+  useComposerDraftPersistence({
+    storage: () => local.draftStorage,
+    writer: () => local.draftWriter,
+    key: draftKey,
+    draft: snapshotDraft,
+  })
   const markSendFailed = (error: unknown) => {
     setState('attachments', (current) => restoredAttachments(current, error))
   }

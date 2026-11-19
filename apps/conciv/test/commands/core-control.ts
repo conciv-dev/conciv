@@ -15,7 +15,12 @@ import {
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
-import type {HarnessCommand, HarnessConnectContext, HarnessModel} from '@conciv/protocol/harness-types'
+import type {
+  HarnessCapabilities,
+  HarnessCommand,
+  HarnessConnectContext,
+  HarnessModel,
+} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -31,6 +36,7 @@ export type BootCoreInput = {
   resume?: boolean
   displayName?: string
   resumeBin?: string
+  imageInput?: HarnessCapabilities['imageInput']
   history?: FixtureSession[]
   holdTranscripts?: boolean
   commands?: HarnessCommand[]
@@ -84,7 +90,7 @@ export type FaultSpec =
   | {kind: 'chat-gate'}
   | {kind: 'chat-frame-gate'; onRelease: 'deliver' | 'cut'}
   | {kind: 'project-socket-gate'; socket: string}
-  | {kind: 'cut-on-release'; path: string[]}
+  | {kind: 'cut-on-release'; path: string[]; input?: unknown}
   | {kind: 'pre-version-engine'}
 
 type Fault = {
@@ -180,6 +186,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
     resumeBin: input.resumeBin,
+    imageInput: input.imageInput,
     plugins: input.plugins,
     files: input.files,
     tty: input.tty ? {command: fakeTerminal} : undefined,
@@ -377,18 +384,19 @@ function restoreHubCli(state: FileState): void {
 const rpcCallCount: BrowserCommand<[string[], unknown?]> = (ctx, path, input): number =>
   requireCalls(ctx).servedSince(path, input)
 
-const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][]]> = async (
+const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][], unknown?]> = async (
   ctx,
   served,
   count,
   started,
+  input,
 ): Promise<number[]> => {
   const calls = requireCalls(ctx)
   const {rpcObserverFor} = await importTestkit(ctx)
   const observer = rpcObserverFor(ctx.page)
   const settle = async (): Promise<void> => {
-    if (calls.servedSince(served) >= count) return
-    await observer.completed({path: served, served: true, since: observer.mark(), timeout: AWAIT_RPC_TIMEOUT_MS})
+    if (calls.servedSince(served, input) >= count) return
+    await observer.completed({path: served, input, served: true, since: observer.mark(), timeout: AWAIT_RPC_TIMEOUT_MS})
     await settle()
   }
   await settle()
@@ -424,15 +432,16 @@ function requireCalls(ctx: BrowserCommandContext): RpcCallCursor {
   return calls
 }
 
-type Injector = {repair: () => void; dispose: () => Promise<void>}
+type Injector = {repair: () => void; dispose: () => Promise<void>; answered?: () => Promise<unknown>}
 
 function trackedFault(handle: string, kind: FaultSpec['kind'], injector: Injector): Fault {
   return {
     pending: () => 0,
     awaitCaptured: () =>
       Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which never captures pending requests`)),
-    answered: () =>
-      Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which has no single call to await`)),
+    answered:
+      injector.answered ??
+      (() => Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which has no single call to await`))),
     release: () => {
       injector.repair()
       return Promise.resolve()
@@ -715,8 +724,8 @@ function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
   )
 }
 
-async function cutOnRelease(ctx: BrowserCommandContext, path: string[]): Promise<Fault> {
-  return (await importTestkit(ctx)).gateRpcCalls(ctx.page, {path, onRelease: 'cut'})
+async function cutOnRelease(ctx: BrowserCommandContext, path: string[], input: unknown): Promise<Fault> {
+  return (await importTestkit(ctx)).gateRpcCalls(ctx.page, {path, input, onRelease: 'cut'})
 }
 
 function pathOptions(path: string[] | undefined): {path?: string[]} {
@@ -743,7 +752,7 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   if (spec.kind === 'chat-gate') return gateChatTurns(ctx)
   if (spec.kind === 'chat-frame-gate') return gateChatFrames(ctx, spec.onRelease)
   if (spec.kind === 'project-socket-gate') return gateProjectSocket(requireKit(ctx).stateRoot, spec.socket)
-  if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
+  if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path, spec.input)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'handshake-hold') return holdEngineHandshakes(ctx)
   if (spec.kind === 'push-handshake-hold') return holdPushHandshakes(ctx)
@@ -867,8 +876,32 @@ const openedFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<st
   return url
 }
 
+const newerDraftTabs = new WeakMap<BrowserCommandContext['page'], BrowserCommandContext['page']>()
+
+const openNewerDraftTab: BrowserCommand<[version: number]> = async (ctx, version) => {
+  const tab = await ctx.page.context().newPage()
+  newerDraftTabs.set(ctx.page, tab)
+  await tab.goto(new URL('/conciv-newer-tab', ctx.page.url()).href, {waitUntil: 'domcontentloaded'})
+  await tab.evaluate(
+    (wanted) =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open('conciv-drafts', wanted)
+        request.addEventListener('success', () => resolve())
+        request.addEventListener('error', () => reject(request.error))
+      }),
+    version,
+  )
+}
+
+const closeNewerDraftTab: BrowserCommand<[]> = async (ctx) => {
+  await newerDraftTabs.get(ctx.page)?.close()
+  newerDraftTabs.delete(ctx.page)
+}
+
 export const coreCommands = {
   chooseFiles,
+  openNewerDraftTab,
+  closeNewerDraftTab,
   editorOpened,
   openedFrom,
   downloadFrom,

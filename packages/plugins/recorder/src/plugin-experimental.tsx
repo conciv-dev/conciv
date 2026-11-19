@@ -1,18 +1,27 @@
-import {NoteCard, Panel, Plugin} from '@conciv/plugin/experimental'
+import {NoteCard, Panel, Plugin, type PanelTab} from '@conciv/plugin/experimental'
 import {bootCapture} from './client/boot.js'
 import {RecorderPanel} from './client/panel-view.js'
 import {RecordingCard} from './client/recording-card.js'
 
-const RECORDER_TAB = {id: 'recorder', title: 'Recorder', pinned: true}
-
 export default Plugin.define({
   setup(ctx) {
+    const recorderTab: PanelTab = {
+      id: 'recorder',
+      title: 'Recorder',
+      pinned: true,
+      label: () => (
+        <>
+          <ctx.ui.Icon name="clapperboard" size="small" />
+          Recorder
+        </>
+      ),
+    }
     const clientId = crypto.randomUUID()
     const capture = bootCapture(ctx, clientId)
     ctx.add(Panel, {
-      id: RECORDER_TAB.id,
+      id: recorderTab.id,
       region: 'pane',
-      list: () => [RECORDER_TAB],
+      list: () => [recorderTab],
       render: (panel) => <RecorderPanel clientId={clientId} capture={capture} panel={panel} />,
     })
     ctx.add(NoteCard, {

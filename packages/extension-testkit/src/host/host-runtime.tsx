@@ -155,7 +155,10 @@ function mountHost(
 ): void {
   installStorageFixtures()
   const {rpc} = makeBrowserRpcClient(apiBase)
-  const cards = collectAttachmentCards([extension])
+  const cards = collectAttachmentCards([extension]).map((entry) => {
+    const Card = entry.render
+    return {mime: entry.mime, render: () => <Card />}
+  })
   const showCardAttachment = (file: File): void => {
     const adapter = createDocumentAttachmentAdapter(file.type)
     void Promise.resolve(adapter.add({file})).then((pending) => {

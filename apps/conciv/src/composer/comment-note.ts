@@ -60,7 +60,7 @@ export function promptWithNotes(content: string | SendContent, draft: ComposerDr
 
   return {
     ...content,
-    content: [...parts, {type: 'text', content: sentences.join('\n')}],
+    content: [...parts, {type: 'text', content: `${parts.length > 0 ? '\n\n' : ''}${sentences.join('\n')}`}],
     metadata: {...content.metadata, ...metadata},
   }
 }

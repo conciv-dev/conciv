@@ -325,8 +325,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         return rows[0] ?? null
       }),
       set: os.drafts.set.handler(async ({input}) => {
-        const row = {...input, updatedAt: Date.now()}
-        await db.insert(drafts).values(row).onConflictDoUpdate({target: drafts.sessionId, set: row})
+        await db.insert(drafts).values(input).onConflictDoUpdate({target: drafts.sessionId, set: input})
         return {ok: true as const}
       }),
     },

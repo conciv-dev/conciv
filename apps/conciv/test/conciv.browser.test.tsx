@@ -6,7 +6,7 @@ import {uniq} from 'es-toolkit'
 import {createElement} from 'react'
 import {createRoot as createReactRoot} from 'react-dom/client'
 import {installReactBridge} from '@conciv/page'
-import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, MAX_ATTACHMENT_RAW_BYTES, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {CONNECTION_CHANGED_EVENT} from '@conciv/protocol/event-bus'
 import {
   browserRpcConnection,
@@ -20,6 +20,9 @@ import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {ChatPane} from '../src/pane/chat-pane.js'
+import {appendDraft, draftCacheSink} from '../src/pane/draft-storage.js'
+import {createBrowserDraftStore, type DraftStore} from '../src/runtime/persistence/drafts.js'
+import {persistStore} from '../src/runtime/persistence/persist.js'
 import {
   bootedCore,
   keptPane,
@@ -131,6 +134,22 @@ import {
 } from '../src/runtime/plugin/plugins.js'
 
 const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
+async function runClockPastDraftSaveRetries(notice: Locator): Promise<void> {
+  if (!vi.isFakeTimers()) {
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true})
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+  }
+  await vi.waitFor(
+    async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect.element(notice, {timeout: 100}).toBeVisible()
+    },
+    {timeout: 8000},
+  )
+}
 
 describe('approval replay', () => {
   const core = bootedCore('approval-replay')
@@ -412,7 +431,7 @@ describe('attachment widget', () => {
     calm.card(() => <span>calm player</span>)
     const extension = defineExtension({name: 'crash-attachment', attachments: [crashing, calm]})
     return {
-      ...paneAttachments([extension], false),
+      ...paneAttachments([extension], false, null),
       crashingFile: new File(['{}'], 'crashing.bin', {type: 'application/x-crashing'}),
       calmFile: new File(['{}'], 'calm.bin', {type: 'application/x-fixture'}),
     }
@@ -504,7 +523,7 @@ describe('chat pane', () => {
 
   function mountChatPane(
     sessionId: string,
-    options: Pick<PaneMountOptions, 'grabProvider' | 'extensions' | 'transport'> = {},
+    options: Pick<PaneMountOptions, 'grabProvider' | 'extensions' | 'transport' | 'engineOnlyDrafts'> = {},
   ): PaneMount {
     const mount = mountPane({base: core(), sessionId, ...options}, () => <ChatPane sessionId={sessionId} />)
     active.pane = mount
@@ -512,6 +531,11 @@ describe('chat pane', () => {
   }
 
   const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const tabIntoComposer = async (presses: number): Promise<void> => {
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+    await userEvent.keyboard('{Tab}'.repeat(presses))
+    await expect.element(input()).toHaveFocus()
+  }
   const snapshot = () => page.getByTitle('Grabbed element snapshot')
   const notifications = () => page.getByRole('region', {name: /Notifications/})
   const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
@@ -544,6 +568,286 @@ describe('chat pane', () => {
     await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
   })
 
+  test('a typed draft is kept on this device first and then on the engine with the stamp it sent; after a newer tab closes the device copy, the engine still gets each edit', async () => {
+    const {rpc, sessionId} = await newSession()
+    const DRAFT_SET_PATH = ['drafts', 'set']
+    mountChatPane(sessionId)
+    await expect.element(input()).toBeVisible()
+    const saved = await coreControl.rpcCallCount(DRAFT_SET_PATH)
+
+    await input().fill('kept on this device first')
+    await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saved + 1, [])
+    const kept = await createBrowserDraftStore().getItem(sessionId)
+    expect(kept === null ? null : JSON.parse(kept)).toMatchObject({text: 'kept on this device first'})
+    expect(await rpc.drafts.get({sessionId})).toMatchObject({text: 'kept on this device first'})
+
+    await coreControl.openNewerDraftTab(2)
+    onTestFinished(async () => {
+      await coreControl.closeNewerDraftTab()
+      await new Promise<void>((resolve, reject) => {
+        const request = indexedDB.deleteDatabase('conciv-drafts')
+        request.addEventListener('success', () => resolve())
+        request.addEventListener('error', () => reject(request.error))
+      })
+    })
+    await input().fill('typed after a newer tab')
+    await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saved + 2, [])
+    await expect.element(input()).toHaveTextContent('typed after a newer tab')
+    expect(await rpc.drafts.get({sessionId})).toMatchObject({text: 'typed after a newer tab'})
+  })
+
+  test('a draft the engine never took comes back from this device when the pane mounts again, with its image', async () => {
+    const {sessionId} = await newSession()
+    const write = await faults.install({kind: 'gate', path: ['drafts', 'set']})
+    mountChatPane(sessionId)
+    await userEvent.click(input())
+    await userEvent.keyboard('typed while the engine held every save')
+    await coreControl.awaitFaultPending(write, 1)
+    active.pane?.dispose()
+
+    mountChatPane(sessionId)
+
+    await expect.element(input()).toHaveTextContent('typed while the engine held every save')
+    await coreControl.awaitFaultPending(write, 2)
+    active.pane?.dispose()
+    const store = createBrowserDraftStore()
+    const image = await store.putBlob(new Blob(['the bytes of kept.png'], {type: 'image/png'}))
+    await store.setDocument(sessionId, {
+      text: 'typed while the engine held every save',
+      selectionStart: 0,
+      selectionEnd: 0,
+      attachments: [
+        {id: 'kept-image', type: 'image', name: 'kept.png', contentType: 'image/png', blob: {id: image.id}},
+      ],
+    })
+
+    mountChatPane(sessionId)
+
+    await expect.element(page.getByRole('button', {name: 'Remove kept.png'})).toBeVisible()
+    await expect.element(input()).toHaveTextContent('typed while the engine held every save')
+  })
+
+  test('text whose batch write still waits on the draft chain when the page is left is in this browser', async () => {
+    const {sessionId} = await newSession()
+    const TEXT = 'left while the batch write waits'
+    const readLocalCopy = async (): Promise<unknown> => {
+      const kept = await createBrowserDraftStore().getItem(sessionId)
+      return kept === null ? null : JSON.parse(kept)
+    }
+    const mount = mountChatPane(sessionId)
+    await expect.element(input()).toBeVisible()
+    const earlier = Promise.withResolvers<void>()
+    void mount.keepDraft(() => earlier.promise)
+    onTestFinished(() => earlier.resolve())
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+
+    await userEvent.click(input())
+    await userEvent.keyboard(TEXT)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(await readLocalCopy()).toBeNull()
+
+    window.dispatchEvent(new PageTransitionEvent('pagehide'))
+
+    expect(await readLocalCopy()).toMatchObject({text: TEXT})
+  })
+
+  test('a queue returned while no pane is open keeps no stamp once its save is answered or refused', async () => {
+    const {rpc, sessionId} = await newSession()
+    const readLocalCopy = async (): Promise<unknown> => {
+      const kept = await createBrowserDraftStore().getItem(sessionId)
+      return kept === null ? null : JSON.parse(kept)
+    }
+    const mount = mountPane({base: core(), sessionId}, () => <></>)
+    active.pane = mount
+    const sink = draftCacheSink(mount.keepDraft, mount.data, sessionId, appendDraft, () => undefined)
+    const insert = (text: string) => sink({text, files: [], items: []})
+
+    insert('returned and saved')
+    await coreControl.rpcStartedOnceServed(['drafts', 'set'], 1, [], {sessionId, text: 'returned and saved'})
+    const saved = await rpc.drafts.get({sessionId})
+    await expect.poll(readLocalCopy).toMatchObject({text: 'returned and saved', syncedAt: saved?.updatedAt, sent: []})
+
+    await faults.install({kind: 'fail', path: ['drafts', 'set'], status: 400})
+    insert('returned and refused')
+    await expect
+      .poll(readLocalCopy)
+      .toMatchObject({text: 'returned and saved\nreturned and refused', syncedAt: saved?.updatedAt, sent: []})
+  })
+
+  describe('the local draft when the engine read fails, lags, or misses an answer', () => {
+    const DRAFT_GET_PATH = ['drafts', 'get']
+    const DRAFT_SET_PATH = ['drafts', 'set']
+
+    const readLocalCopy = async (sessionId: string): Promise<unknown> => {
+      const kept = await createBrowserDraftStore().getItem(sessionId)
+      return kept === null ? null : JSON.parse(kept)
+    }
+
+    async function typeSyncedDraft(sessionId: string, text: string): Promise<void> {
+      mountChatPane(sessionId)
+      await userEvent.click(input())
+      await userEvent.keyboard(text)
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text})
+      await expect.poll(() => readLocalCopy(sessionId)).toMatchObject({text, syncedAt: expect.any(Number)})
+      active.pane?.dispose()
+    }
+
+    test('a failed engine read keeps the synced local draft in the composer and in this browser', async () => {
+      const {sessionId} = await newSession()
+      const TEXT = 'kept when the engine read fails'
+      await typeSyncedDraft(sessionId, TEXT)
+      const failedRead = await faults.install({kind: 'fail', path: DRAFT_GET_PATH, status: 500})
+
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toHaveTextContent(TEXT)
+      await coreControl.awaitFaultAnswered(failedRead)
+      await expect.element(input()).toHaveTextContent(TEXT)
+      await coreControl.releaseFault(failedRead)
+      active.pane?.dispose()
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toHaveTextContent(TEXT)
+      expect(await readLocalCopy(sessionId)).toMatchObject({text: TEXT})
+    })
+
+    test('the stored draft is in the composer while the engine read is held, typing meanwhile is never overwritten, and an untouched composer takes a newer engine row', async () => {
+      const {rpc, sessionId} = await newSession()
+      const TEXT = 'kept before the engine went quiet'
+      const TYPED = `${TEXT} and typed while it was away`
+      await typeSyncedDraft(sessionId, TEXT)
+      await seedDraft(rpc, sessionId, {text: 'changed in another tab'})
+      const heldRead = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toHaveTextContent(TEXT)
+      await tabIntoComposer(5)
+      await userEvent.keyboard('{End} and typed while it was away')
+      await expect.element(input()).toHaveTextContent(TYPED)
+      await coreControl.releaseFault(heldRead)
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text: TYPED})
+      await expect.element(input()).toHaveTextContent(TYPED)
+      const saved = await rpc.drafts.get({sessionId})
+      await expect.poll(() => readLocalCopy(sessionId)).toMatchObject({text: TYPED, syncedAt: saved?.updatedAt})
+      active.pane?.dispose()
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toHaveTextContent(TYPED)
+      active.pane?.dispose()
+      await seedDraft(rpc, sessionId, {text: 'newer from another tab'})
+      const laterRead = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toHaveTextContent(TYPED)
+      await coreControl.releaseFault(laterRead)
+      await expect.element(input()).toHaveTextContent('newer from another tab')
+    })
+
+    test('a save in flight at reload keeps the character typed after it, because the stamps this browser sent are its own', async () => {
+      const start = Date.now()
+      vi.useFakeTimers({toFake: ['Date']})
+      onTestFinished(() => {
+        vi.useRealTimers()
+      })
+      vi.setSystemTime(start)
+      const {rpc, sessionId} = await newSession()
+      await typeSyncedDraft(sessionId, 'saved once')
+      const mount = mountChatPane(sessionId)
+      await expect.element(input()).toHaveTextContent('saved once')
+      const held = await faults.install({kind: 'gate', path: DRAFT_SET_PATH})
+      vi.setSystemTime(start + 1000)
+
+      await tabIntoComposer(5)
+      await userEvent.keyboard('{End} and hel')
+      await coreControl.awaitFaultPending(held, 1)
+      const {
+        sent: [heldStamp],
+      } = z.object({sent: z.tuple([z.number()]).rest(z.number())}).parse(await readLocalCopy(sessionId))
+      vi.useFakeTimers({toFake: ['Date', 'setTimeout', 'clearTimeout']})
+      vi.setSystemTime(heldStamp)
+      const beforeLastKey = Promise.withResolvers<void>()
+      void mount.keepDraft(() => beforeLastKey.promise)
+      await userEvent.keyboard('d')
+      await vi.advanceTimersByTimeAsync(0)
+      const lastKeySent = Promise.withResolvers<void>()
+      const afterLastKey = Promise.withResolvers<void>()
+      void mount.keepDraft(() => {
+        lastKeySent.resolve()
+        return afterLastKey.promise
+      })
+      beforeLastKey.resolve()
+      await lastKeySent.promise
+      vi.setSystemTime(heldStamp + 1000)
+      await userEvent.keyboard('!')
+      await vi.advanceTimersByTimeAsync(0)
+      afterLastKey.resolve()
+      await mount.keepDraft(async () => {})
+      mount.dispose()
+      await mount.keepDraft(async () => {})
+      vi.useFakeTimers({toFake: ['Date']})
+      vi.setSystemTime(heldStamp + 1000)
+      expect(await readLocalCopy(sessionId)).toMatchObject({text: 'saved once and held!'})
+      await coreControl.releaseFault(held)
+      await rpc.drafts.set({
+        sessionId,
+        text: 'saved once and held',
+        selectionStart: 19,
+        selectionEnd: 19,
+        attachments: [],
+        updatedAt: heldStamp,
+      })
+      mountChatPane(sessionId)
+
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text: 'saved once and held!'})
+      await expect.element(input()).toHaveTextContent('saved once and held!')
+    })
+
+    test('text typed while this browser still reads its stored draft keeps the stored stamps, so a reload before that read lands brings the text back', async () => {
+      const {rpc, sessionId} = await newSession()
+      const TYPED = 'typed while the local read waits'
+      await typeSyncedDraft(sessionId, 'saved before the reload')
+      const saved = await rpc.drafts.get({sessionId})
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('conciv-drafts', 1)
+        request.addEventListener('success', () => resolve(request.result))
+        request.addEventListener('error', () => reject(request.error))
+      })
+      const holding = database.transaction('documents', 'readwrite')
+      const documents = holding.objectStore('documents')
+      const hold = {kept: true}
+      const keepHolding = (): void => {
+        if (hold.kept) documents.count().addEventListener('success', keepHolding)
+      }
+      keepHolding()
+      const released = new Promise<void>((resolve, reject) => {
+        holding.addEventListener('complete', () => resolve())
+        holding.addEventListener('abort', () => reject(holding.error))
+      })
+      onTestFinished(() => {
+        hold.kept = false
+        database.close()
+      })
+      const mount = mountChatPane(sessionId)
+
+      await userEvent.click(input())
+      await userEvent.keyboard(TYPED)
+      await expect.element(input()).toMatchTextContent(new RegExp(`^${TYPED}$`))
+      mount.dispose()
+      hold.kept = false
+      await released
+      await mount.keepDraft(() => Promise.resolve())
+      expect(await readLocalCopy(sessionId)).toMatchObject({text: TYPED, syncedAt: saved?.updatedAt})
+      mountChatPane(sessionId)
+
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text: TYPED})
+      await expect.element(input()).toHaveTextContent(TYPED)
+    })
+  })
+
   describe('the composer never waits on the server draft', () => {
     const DRAFT_GET_PATH = ['drafts', 'get']
     const shell = createShellHarness(core)
@@ -566,10 +870,268 @@ describe('chat pane', () => {
       await coreControl.awaitFaultPending(write, 1)
       await coreControl.releaseFault(write)
       await coreControl.awaitFaultAnswered(write)
+      await coreControl.rpcStartedOnceServed(['drafts', 'set'], 1, [], {
+        sessionId,
+        text: 'typed just before a quick trip',
+      })
       shell.dispose()
       shell.mountShell(`/panel/${sessionId}?open=true`)
 
       await expect.element(input()).toHaveTextContent('typed just before a quick trip')
+    })
+
+    describe('a draft save the engine refuses', () => {
+      const DRAFT_SET_PATH = ['drafts', 'set']
+
+      const reloadShell = (sessionId: string): void => {
+        shell.dispose()
+        shell.mountShell(`/panel/${sessionId}?open=true`)
+      }
+
+      test('is tried again, and once the engine takes it a reload shows the draft', async () => {
+        const {sessionId} = await newSession()
+        shell.mountShell(`/panel/${sessionId}?open=true`)
+        await expect.element(input()).toBeVisible()
+        const saved = await coreControl.rpcCallCount(DRAFT_SET_PATH)
+        const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+
+        await input().fill('kept through a refused save')
+        await coreControl.awaitFaultAnswered(refusal)
+        await coreControl.releaseFault(refusal)
+        await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saved + 1, [])
+        reloadShell(sessionId)
+
+        await expect.element(input()).toHaveTextContent('kept through a refused save')
+      })
+
+      test('every time raises a notice whose Retry saves the draft once the engine takes it', async () => {
+        const {sessionId} = await newSession()
+        shell.mountShell(`/panel/${sessionId}?open=true`)
+        await expect.element(input()).toBeVisible()
+        const saved = await coreControl.rpcCallCount(DRAFT_SET_PATH)
+        const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+        const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+
+        await input().fill('kept through every refused save')
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect
+          .element(
+            unsaved.getByText(
+              'conciv could not save your draft. It is kept in this browser, but the engine copy failed, so it is not on your other devices or in other browsers.',
+            ),
+          )
+          .toBeVisible()
+        await coreControl.releaseFault(refusal)
+        await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
+        await expect.element(unsaved).not.toBeInTheDocument()
+        await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saved + 1, [])
+        reloadShell(sessionId)
+
+        await expect.element(input()).toHaveTextContent('kept through every refused save')
+      })
+
+      test('the unsaved notice says where the draft is kept, follows the text on screen, Retry saves it anew, and a local store that would not open is no place it is kept', async () => {
+        const KEPT_HERE =
+          'conciv could not save your draft. It is kept in this browser, but the engine copy failed, so it is not on your other devices or in other browsers.'
+        const ENGINE_ONLY = 'conciv could not save your draft. It is still in the composer, but a reload would lose it.'
+        const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+        const {rpc, sessionId} = await newSession()
+        const mount = mountChatPane(sessionId)
+        await expect.element(input()).toBeVisible()
+        const readLocalCopy = async (): Promise<unknown> => {
+          const kept = await createBrowserDraftStore().getItem(sessionId)
+          return kept === null ? null : JSON.parse(kept)
+        }
+        const failedSaves = (text: string) =>
+          mount.queryClient.getMutationCache().findAll({
+            mutationKey: mount.data.utils.drafts.set.mutationKey(),
+            predicate: (mutation) =>
+              mutation.state.status === 'error' &&
+              z.object({sessionId: z.string(), text: z.string()}).safeParse(mutation.state.variables).data?.text ===
+                text,
+          }).length
+        const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+
+        await input().fill('refused at first')
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved.getByText(KEPT_HERE)).toBeVisible()
+
+        await coreControl.releaseFault(refusal)
+        await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
+        await expect.element(unsaved).not.toBeInTheDocument()
+        await expect.poll(() => rpc.drafts.get({sessionId})).toMatchObject({text: 'refused at first'})
+        const taken = await rpc.drafts.get({sessionId})
+        await expect.poll(readLocalCopy).toMatchObject({text: 'refused at first', syncedAt: taken?.updatedAt, sent: []})
+
+        const refusedAgain = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+        await userEvent.click(input())
+        await expect.element(input()).toHaveFocus()
+        await userEvent.keyboard('{End} and more')
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved.getByText(KEPT_HERE)).toBeVisible()
+        await input().fill('refused at first')
+        await expect
+          .poll(async () => {
+            await vi.advanceTimersByTimeAsync(1000)
+            return failedSaves('refused at first')
+          })
+          .toBe(1)
+        await expect.element(unsaved).not.toBeInTheDocument()
+
+        await userEvent.keyboard(' and sent')
+        await runClockPastDraftSaveRetries(unsaved)
+        await userEvent.keyboard('{Enter}')
+        await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+        await expect.element(unsaved).not.toBeInTheDocument()
+        await coreControl.releaseFault(refusedAgain)
+        active.pane?.dispose()
+
+        const engineOnly = await newSession()
+        mountChatPane(engineOnly.sessionId, {engineOnlyDrafts: true})
+        await expect.element(input()).toBeVisible()
+        await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+        await input().fill('refused with no local store')
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved.getByText(ENGINE_ONLY)).toBeVisible()
+        active.pane?.dispose()
+
+        await coreControl.openNewerDraftTab(2)
+        onTestFinished(async () => {
+          await coreControl.closeNewerDraftTab()
+          await new Promise<void>((resolve, reject) => {
+            const request = indexedDB.deleteDatabase('conciv-drafts')
+            request.addEventListener('success', () => resolve())
+            request.addEventListener('error', () => reject(request.error))
+          })
+        })
+        const unopened = await newSession()
+        mountChatPane(unopened.sessionId)
+        await expect.element(input()).toBeVisible()
+        await input().fill('refused while the local store is closed')
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved.getByText(ENGINE_ONLY)).toBeVisible()
+      }, 30_000)
+
+      test('the unsaved notice appears in view above the composer without moving the last message out of view', async () => {
+        const CLOSING = 'the closing line of a long answer'
+        const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+        const {sessionId} = await newSession()
+        shell.mountShell(`/panel/${sessionId}?open=true`)
+        await expect.element(input()).toBeVisible()
+        const paragraphs = Array.from({length: 30}, (_, index) => `paragraph ${index + 1} of a long answer`)
+        await coreControl.scriptTurn({toolCalls: [], text: [...paragraphs, CLOSING].join('\n\n')})
+        await input().fill('ask for a long answer')
+        await userEvent.keyboard('{Enter}')
+        await expect.element(page.getByText(CLOSING)).toBeInViewport({ratio: 1})
+        await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+
+        await input().fill('typed while the engine refuses')
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved).toBeInViewport({ratio: 1})
+        await expect.element(page.getByText(CLOSING)).toBeInViewport({ratio: 1})
+        await expect.element(input()).toBeInViewport({ratio: 1})
+      }, 30_000)
+    })
+
+    test('a save that failed for good keeps the typed text across a view switch, and Retry saves what is on screen', async () => {
+      const DRAFT_SET_PATH = ['drafts', 'set']
+      const TYPED = 'typed before every save was refused'
+      const {rpc, sessionId} = await newSession()
+      shell.mountShell(`/panel/${sessionId}?open=true`)
+      await expect.element(input()).toBeVisible()
+      const saves = await coreControl.rpcCallCount(DRAFT_SET_PATH)
+      const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+      const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+
+      await input().fill(TYPED)
+      await runClockPastDraftSaveRetries(unsaved)
+      await expect.element(unsaved.getByRole('button', {name: 'Retry'})).toBeVisible()
+      await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+      await userEvent.click(page.getByRole('button', {name: 'Back to chat'}))
+      await expect.element(input()).toHaveTextContent(TYPED)
+      await coreControl.releaseFault(refusal)
+      await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
+      await expect.element(unsaved).not.toBeInTheDocument()
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saves + 1, [])
+
+      expect((await rpc.drafts.get({sessionId}))?.text).toBe(TYPED)
+    })
+
+    test('a later failed save replaces the earlier one, a later successful save clears the notice, and one save of that session stays in the cache', async () => {
+      const DRAFT_SET_PATH = ['drafts', 'set']
+      const {sessionId} = await newSession()
+      const mount = mountChatPane(sessionId)
+      await expect.element(input()).toBeVisible()
+      const saves = await coreControl.rpcCallCount(DRAFT_SET_PATH)
+      const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+      const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+
+      const failedSaves = () =>
+        mount.queryClient
+          .getMutationCache()
+          .findAll({
+            mutationKey: mount.data.utils.drafts.set.mutationKey(),
+            predicate: (mutation) =>
+              mutation.state.status === 'error' &&
+              z.object({sessionId: z.string()}).safeParse(mutation.state.variables).data?.sessionId === sessionId,
+          })
+          .map((mutation) => z.object({text: z.string()}).parse(mutation.state.variables).text)
+
+      await input().fill('refused first')
+      await runClockPastDraftSaveRetries(unsaved)
+      await expect.element(unsaved.getByRole('button', {name: 'Retry'})).toBeVisible()
+      await userEvent.click(input())
+      await userEvent.keyboard('{End}, refused again')
+      await expect
+        .poll(async () => {
+          await vi.advanceTimersByTimeAsync(1000)
+          return failedSaves().at(-1)
+        })
+        .toBe('refused first, refused again')
+      expect(failedSaves()).toEqual(['refused first, refused again'])
+      await coreControl.releaseFault(refusal)
+      await userEvent.click(input())
+      await userEvent.keyboard('{End}, then taken')
+      await expect.element(unsaved).not.toBeInTheDocument()
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saves + 1, [])
+
+      const mutationCache = mount.queryClient.getMutationCache()
+      const sessionSaves = () =>
+        mutationCache.findAll({
+          mutationKey: mount.data.utils.drafts.set.mutationKey(),
+          predicate: (mutation) =>
+            z.object({sessionId: z.string()}).safeParse(mutation.state.variables).data?.sessionId === sessionId,
+        })
+      const savesSettled = () => sessionSaves().every((mutation) => mutation.state.status !== 'pending')
+      await new Promise<void>((resolve) => {
+        if (savesSettled()) return resolve()
+        const stop = mutationCache.subscribe(() => {
+          if (!savesSettled()) return
+          stop()
+          resolve()
+        })
+      })
+      expect(sessionSaves()).toHaveLength(1)
+    })
+
+    test('a restored draft is not saved back to the engine, while the next edit is', async () => {
+      const DRAFT_SET_PATH = ['drafts', 'set']
+      const SEEDED = 'restored and never written back'
+      const {rpc, sessionId} = await newSession()
+      await seedDraft(rpc, sessionId, {text: SEEDED})
+      const saves = await coreControl.rpcCallCount(DRAFT_SET_PATH)
+      shell.mountShell(`/panel/${sessionId}?open=true`)
+      await expect.element(input()).toHaveTextContent(SEEDED)
+      await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+      await userEvent.click(page.getByRole('button', {name: 'Back to chat'}))
+      await expect.element(input()).toHaveTextContent(SEEDED)
+
+      await tabIntoComposer(6)
+      await userEvent.keyboard('{End}!')
+      await expect.element(input()).toHaveTextContent(`${SEEDED}!`)
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saves + 1, [])
+
+      expect(await coreControl.rpcCallCount(DRAFT_SET_PATH, {sessionId, text: SEEDED})).toBe(1)
     })
 
     test('a stalled draft read still renders a composer that accepts typing', async () => {
@@ -623,6 +1185,7 @@ describe('chat pane', () => {
         selectionStart: 0,
         selectionEnd: 0,
         attachments: [persistedGrab('grab-caret', HERO_GRAB)],
+        updatedAt: Date.now(),
       })
       const gate = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
       mountChatPane(sessionId, grabOptions(HERO_GRAB))
@@ -4100,7 +4663,7 @@ describe('panel view tabs', () => {
     views: [{id: 'notes', label: 'Notes', Component: NotesView}],
   })
 
-  const coreBase = bootedCore('panel-view-tabs')
+  const coreBase = bootedCore('panel-view-tabs', {imageInput: 'native'})
   const harness = createShellHarness(coreBase)
   const faults = trackedFaults()
 
@@ -4386,18 +4949,155 @@ describe('panel view tabs', () => {
       await queueRow(steered).getByRole('button', {name: 'Steer'}).click()
       await coreControl.awaitFaultPending(held, 1)
       await switchToOther(titles)
+      const draftWrite = await faults.install({kind: 'gate', path: ['drafts', 'set']})
       await coreControl.releaseFault(held)
 
       await expect
         .element(page.getByRole('region', {name: /Notifications/}))
         .toMatchTextContent(/Internal Server Error|could not be sent/)
       await coreControl.releaseFault(refused)
+      await coreControl.awaitFaultPending(draftWrite, 1)
       await openSessions(titles.other)
       await option(new RegExp(`^${titles.running}`)).click()
+      await expect.element(composer(), {timeout: 8000}).toBeVisible()
+      await coreControl.releaseFault(draftWrite)
       await expect.element(composer(), {timeout: 8000}).toMatchTextContent(new RegExp(`${steered}[\\s\\S]*${waiting}`))
       await expect.element(composer()).not.toMatchTextContent(new RegExp(`${steered}[\\s\\S]*${steered}`))
       expect(page.getByRole('log').getByText(new RegExp(steered)).elements()).toHaveLength(0)
     }, 30_000)
+
+    describe('the queue and a refused steer returned while their pane is away', () => {
+      const DRAFT_SET_PATH = ['drafts', 'set']
+
+      async function steerAwayWhileSaving(
+        tag: string,
+        draftFault: {kind: 'gate' | 'fail'; path: string[]},
+      ): Promise<{running: string; titles: Titles; joined: string; inOrder: RegExp; draftWrite: string}> {
+        const {running, titles} = await twoSessions(tag)
+        const steered = `steer the ${tag} one away`
+        const waiting = `wait in the ${tag} line`
+        const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
+        await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
+        await coreControl.holdTurn()
+        harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+        await composer().fill('start a long turn')
+        await userEvent.keyboard('{Enter}')
+        await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+        await composer().fill(steered)
+        await userEvent.keyboard('{Enter}')
+        await expect.element(queueRow(steered)).toBeVisible()
+        await composer().fill(waiting)
+        await userEvent.keyboard('{Enter}')
+        await expect.element(queueRow(waiting)).toBeVisible()
+        const refused = await faults.install({kind: 'chat-refused', status: 500})
+        const held = await faults.install({kind: 'chat-gate'})
+        await queueRow(steered).getByRole('button', {name: 'Steer'}).click()
+        await coreControl.awaitFaultPending(held, 1)
+        await switchToOther(titles)
+        const draftWrite = await faults.install(draftFault)
+        await coreControl.releaseFault(held)
+        await expect
+          .element(page.getByRole('region', {name: /Notifications/}))
+          .toMatchTextContent(/Internal Server Error|could not be sent/)
+        await coreControl.releaseFault(refused)
+        return {
+          running,
+          titles,
+          joined: `${steered}\n${waiting}`,
+          inOrder: new RegExp(`${steered}[\\s\\S]*${waiting}`),
+          draftWrite,
+        }
+      }
+
+      async function goBack(titles: Titles): Promise<void> {
+        await openSessions(titles.other)
+        await option(new RegExp(`^${titles.running}`)).click()
+      }
+
+      test('with the first save held, both texts are in the composer at once and reach the engine in order', async () => {
+        const {running, titles, joined, inOrder, draftWrite} = await steerAwayWhileSaving('held', {
+          kind: 'gate',
+          path: DRAFT_SET_PATH,
+        })
+        await coreControl.awaitFaultPending(draftWrite, 1)
+
+        await goBack(titles)
+
+        await expect.element(composer(), {timeout: 8000}).toMatchTextContent(inOrder)
+        await coreControl.releaseFault(draftWrite)
+        await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId: running, text: joined})
+        expect(await coreRpc(coreBase()).drafts.get({sessionId: running})).toMatchObject({text: joined})
+      }, 30_000)
+
+      test('with the first save refused, the notice says so, both texts stay in the composer, and Retry saves them', async () => {
+        const {running, titles, joined, inOrder, draftWrite} = await steerAwayWhileSaving('refused', {
+          kind: 'fail',
+          path: DRAFT_SET_PATH,
+        })
+        const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+
+        await goBack(titles)
+
+        await expect.element(composer(), {timeout: 8000}).toMatchTextContent(inOrder)
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved).toBeVisible()
+        await expect.element(composer()).toMatchTextContent(inOrder)
+        await coreControl.releaseFault(draftWrite)
+        await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
+        await expect.element(unsaved).not.toBeInTheDocument()
+        await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId: running, text: joined})
+        expect(await coreRpc(coreBase()).drafts.get({sessionId: running})).toMatchObject({text: joined})
+      }, 30_000)
+
+      test('a refused steer keeps its image: back in the composer from this browser while saves are refused, and Retry saves it to the engine', async () => {
+        const {running, titles} = await twoSessions('pictured')
+        const steered = 'steer the pictured one away'
+        const queueRow = page.getByRole('listitem').filter({hasText: steered})
+        const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+        await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
+        await coreControl.holdTurn()
+        harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+        await composer().fill('start a long turn')
+        await userEvent.keyboard('{Enter}')
+        await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+        await composer().fill(steered)
+        await coreControl.chooseFiles('Add an attachment', [
+          {name: 'pictured.png', mimeType: 'image/png', text: 'the bytes of pictured.png'},
+        ])
+        await expect.element(page.getByRole('button', {name: 'Remove pictured.png'})).toBeVisible()
+        await userEvent.click(composer())
+        await userEvent.keyboard('{Enter}')
+        await expect.element(queueRow).toBeVisible()
+        const refused = await faults.install({kind: 'chat-refused', status: 500})
+        const held = await faults.install({kind: 'chat-gate'})
+        await queueRow.getByRole('button', {name: 'Steer'}).click()
+        await coreControl.awaitFaultPending(held, 1)
+        await switchToOther(titles)
+        const draftWrite = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+        await coreControl.releaseFault(held)
+        await expect
+          .element(page.getByRole('region', {name: /Notifications/}))
+          .toMatchTextContent(/Internal Server Error|could not be sent/)
+        await coreControl.releaseFault(refused)
+
+        await goBack(titles)
+
+        await expect.element(composer(), {timeout: 8000}).toMatchTextContent(steered)
+        await expect.element(page.getByRole('button', {name: 'Remove image'})).toBeVisible()
+        expect(page.getByRole('button', {name: 'Remove image'}).elements()).toHaveLength(1)
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved).toBeVisible()
+        await coreControl.releaseFault(draftWrite)
+        await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
+        await expect.element(unsaved).not.toBeInTheDocument()
+        await expect
+          .poll(() => coreRpc(coreBase()).drafts.get({sessionId: running}))
+          .toMatchObject({
+            text: steered,
+            attachments: [expect.objectContaining({type: 'image', contentType: 'image/png'})],
+          })
+      }, 30_000)
+    })
 
     test('a run that ends while the connection is down settles once the replacement client hydrates', async () => {
       const {running, titles} = await twoSessions('offline')
@@ -4439,6 +5139,145 @@ describe('panel view tabs', () => {
 
       await expect.element(replied(), {timeout: 8000}).toBeInTheDocument()
       await returnToRunning(titles)
+    }, 30_000)
+  })
+
+  describe('the draft saves of a panel', () => {
+    const DRAFT_SET_PATH = ['drafts', 'set']
+    const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const LocalCopySchema = z.object({
+      text: z.string(),
+      syncedAt: z.number().optional(),
+      sent: z.array(z.number()).default([]),
+    })
+
+    const readLocalCopy = async (sessionId: string): Promise<z.infer<typeof LocalCopySchema> | null> => {
+      const kept = await createBrowserDraftStore().getItem(sessionId)
+      return kept === null ? null : LocalCopySchema.parse(JSON.parse(kept))
+    }
+
+    async function openNewPanel(): Promise<string> {
+      const sessionId = await createSession(coreRpc(coreBase()))
+      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+      await expect.element(composer(), {timeout: 8000}).toBeVisible()
+      return sessionId
+    }
+
+    test('a picture too big for the engine copy is saved once per edit, not again after every answer', async () => {
+      const rpc = coreRpc(coreBase())
+      const sessionId = await openNewPanel()
+      await coreControl.chooseFiles('Add an attachment', [
+        {name: 'large.png', mimeType: 'image/png', text: 'x'.repeat(1024 * 1024)},
+      ])
+      await expect.element(page.getByRole('button', {name: 'Remove large.png'})).toBeVisible()
+
+      const typeAndAwaitAck = async (keys: string, text: string): Promise<void> => {
+        await userEvent.keyboard(keys)
+        await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text})
+        const row = await rpc.drafts.get({sessionId})
+        await expect.poll(() => readLocalCopy(sessionId)).toMatchObject({text, syncedAt: row?.updatedAt})
+      }
+
+      await userEvent.click(composer())
+      await typeAndAwaitAck('first', 'first')
+      await typeAndAwaitAck(' then second', 'first then second')
+      await typeAndAwaitAck(' then third', 'first then second then third')
+
+      expect(await coreControl.rpcCallCount(DRAFT_SET_PATH, {sessionId, text: 'first'})).toBe(1)
+      expect(await coreControl.rpcCallCount(DRAFT_SET_PATH, {sessionId, text: 'first then second'})).toBe(1)
+    }, 30_000)
+
+    test('while the engine refuses every save, this browser keeps the stamps of unanswered saves only', async () => {
+      const sessionId = await openNewPanel()
+      await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+      vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true})
+      onTestFinished(() => {
+        vi.useRealTimers()
+      })
+
+      await userEvent.click(composer())
+      const words = ['one', ' two', ' three', ' four', ' five']
+      for (const [index, word] of words.entries()) {
+        await userEvent.keyboard(word)
+        await expect.poll(() => readLocalCopy(sessionId)).toMatchObject({text: words.slice(0, index + 1).join('')})
+      }
+
+      await expect
+        .poll(
+          async () => {
+            await vi.advanceTimersByTimeAsync(1000)
+            return (await readLocalCopy(sessionId))?.sent
+          },
+          {timeout: 20_000},
+        )
+        .toEqual([])
+      await expect.element(composer()).toHaveTextContent('one two three four five')
+    }, 40_000)
+
+    test('a message sent while a refused save waits for its retry leaves an emptied row and no draft, also after a reload', async () => {
+      const SENT = 'sent while its save waits to be tried again'
+      const rpc = coreRpc(coreBase())
+      const sessionId = await openNewPanel()
+      const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+      vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
+      onTestFinished(() => {
+        vi.useRealTimers()
+      })
+      const advanceUntil = async (check: () => Promise<boolean>, step: number): Promise<void> => {
+        await expect
+          .poll(
+            async () => {
+              await vi.advanceTimersByTimeAsync(step)
+              return check()
+            },
+            {timeout: 10_000},
+          )
+          .toBe(true)
+      }
+
+      await userEvent.click(composer())
+      await userEvent.keyboard(SENT)
+      await vi.advanceTimersByTimeAsync(400)
+      await coreControl.awaitFaultAnswered(refusal)
+      await coreControl.releaseFault(refusal)
+      await userEvent.keyboard('{Enter}')
+      await advanceUntil(async () => (await rpc.sessions.get({sessionId})).lastRunAt !== null, 10)
+      await advanceUntil(async () => (await readLocalCopy(sessionId))?.sent.length === 0, 1000)
+
+      expect(await rpc.drafts.get({sessionId})).toMatchObject({text: '', attachments: []})
+      await expect.element(composer()).not.toHaveTextContent(SENT)
+      vi.useRealTimers()
+      harness.dispose()
+      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+      await expect.element(composer(), {timeout: 8000}).toBeVisible()
+      await expect.element(composer()).not.toHaveTextContent(SENT)
+      expect(await rpc.drafts.get({sessionId})).toMatchObject({text: '', attachments: []})
+    }, 30_000)
+
+    test('a session deleted while its panel is open keeps in its local draft the text on screen when its pane closed, and gets no row', async () => {
+      const TYPED = 'typed before the delete'
+      const rpc = coreRpc(coreBase())
+      const sessionId = await openNewPanel()
+      await userEvent.click(composer())
+      await userEvent.keyboard(TYPED)
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text: TYPED})
+      await expect.poll(() => readLocalCopy(sessionId)).toMatchObject({text: TYPED})
+
+      await rpc.sessions.delete({sessionId})
+      await expect.element(page.getByText('This session was deleted.', {exact: true}), {timeout: 8000}).toBeVisible()
+      expect(await readLocalCopy(sessionId)).toMatchObject({text: TYPED})
+      vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
+      onTestFinished(() => {
+        vi.useRealTimers()
+      })
+      await userEvent.keyboard(' and after it')
+      await vi.advanceTimersByTimeAsync(1000)
+      await userEvent.keyboard('!')
+      harness.dispose()
+      vi.useRealTimers()
+
+      expect(await readLocalCopy(sessionId)).toMatchObject({text: TYPED})
+      expect(await rpc.drafts.get({sessionId})).toBeNull()
     }, 30_000)
   })
 
@@ -4858,7 +5697,7 @@ describe('quick refresh', () => {
 })
 
 describe('a deleted session', () => {
-  const core = bootedCore('deleted-session')
+  const core = bootedCore('deleted-session', {imageInput: 'native'})
   const harness = createShellHarness(core)
   const faults = trackedFaults()
 
@@ -4868,7 +5707,7 @@ describe('a deleted session', () => {
   const START_FAILED = 'Could not start a new session. Check that the engine is running, then try again.'
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const deletedTitle = () => page.getByText('This session was deleted.', {exact: true})
-  const movesLine = () => page.getByText('Your text moves to the new session.', {exact: true})
+  const movesLine = () => page.getByText('Your draft moves to the new session.', {exact: true})
   const newSessionButton = () => page.getByRole('button', {name: 'New session', exact: true})
   const sessionTrigger = () => page.getByRole('button', {name: /^Session: /})
   const notifications = () => page.getByRole('region', {name: /Notifications/})
@@ -4928,10 +5767,11 @@ describe('a deleted session', () => {
   test('a message sent as its session is deleted says it was not sent, offers no Retry, and the text moves to a new session', async () => {
     const rpc = coreRpc(core())
     const deletedId = await createSession(rpc)
+    const subscribe = await faults.install({kind: 'gate', path: ['event', 'subscribe']})
     harness.mountShell(`/panel/${deletedId}?open=true`)
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await coreControl.awaitFaultPending(subscribe, 1)
 
-    const rowRead = await faults.install({kind: 'gate', path: ['sessions', 'get']})
     const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'deliver'})
     await userEvent.click(editor())
     await userEvent.keyboard('keep this text')
@@ -4946,7 +5786,7 @@ describe('a deleted session', () => {
     await expect.element(notifications().getByText(NOT_SENT, {exact: true})).toBeVisible()
     await expect.element(editor().getByText('keep this text')).toBeVisible()
 
-    await coreControl.releaseFault(rowRead)
+    await coreControl.releaseFault(subscribe)
 
     await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
     await expect.element(editor()).not.toBeInTheDocument()
@@ -4962,6 +5802,71 @@ describe('a deleted session', () => {
 
     await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
     await expect.element(movesLine()).not.toBeInTheDocument()
+  }, 40_000)
+
+  test('text a refused send puts back on screen moves to a new session when the delete lands before the draft batch writes it', async () => {
+    const PUT_BACK = 'put back on screen'
+    const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    const subscribe = await faults.install({kind: 'gate', path: ['event', 'subscribe']})
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await coreControl.awaitFaultPending(subscribe, 1)
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const shows = (locator: Locator) =>
+      vi.waitFor(() => expect.element(locator, {timeout: 1000}).toBeVisible(), {interval: 0, timeout: 8000})
+
+    const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'deliver'})
+    await userEvent.click(editor())
+    await userEvent.keyboard(PUT_BACK)
+    await userEvent.keyboard('{Enter}')
+    await coreControl.awaitFaultPending(frame, 1)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(await readLocalCopy(deletedId)).not.toContain(PUT_BACK)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await coreControl.releaseFault(frame)
+    await shows(page.getByRole('log').getByRole('alert').getByText(NOT_SENT, {exact: true}))
+    await shows(editor().getByText(PUT_BACK))
+
+    await coreControl.releaseFault(subscribe)
+
+    await shows(deletedTitle())
+    await shows(movesLine())
+    expect(await readLocalCopy(deletedId)).toEqual(expect.stringContaining(PUT_BACK))
+    vi.useRealTimers()
+
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor().getByText(PUT_BACK), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+  }, 40_000)
+
+  test('typing in another pane reaches its local draft and the engine while New session waits on the engine', async () => {
+    const TYPED = 'typed beside a waiting move'
+    const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
+    const rpc = coreRpc(core())
+    const liveId = await createSession(rpc)
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await seedDraft(rpc, deletedId, {text: 'words to carry'})
+    harness.mountShell(`/quick?panes=${liveId},${deletedId}&focus=0`)
+    await expect.element(movesLine(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).toBeVisible()
+    const create = await faults.install({kind: 'gate', path: ['sessions', 'create']})
+
+    await userEvent.click(newSessionButton())
+    await coreControl.awaitFaultPending(create, 1)
+    await userEvent.click(editor())
+    await userEvent.keyboard(TYPED)
+
+    await coreControl.rpcStartedOnceServed(['drafts', 'set'], 1, [], {sessionId: liveId, text: TYPED})
+    expect(await readLocalCopy(liveId)).toEqual(expect.stringContaining(TYPED))
+    await coreControl.releaseFault(create)
+    await expect.element(editor().nth(1).getByText('words to carry'), {timeout: 8000}).toBeVisible()
   }, 40_000)
 
   test('a session that cannot be started says so, keeps the text with the deleted session, and the next press carries it', async () => {
@@ -5037,14 +5942,159 @@ describe('a deleted session', () => {
     expect(harness.href()).not.toContain(deletedId)
   }, 40_000)
 
+  test('text kept only in this browser stays through a delete heard while its pane is open, moves with New session, and only then leaves this browser', async () => {
+    const KEPT = 'kept only in this browser while the pane is open'
+    const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    const refusal = await faults.install({kind: 'fail', path: ['drafts', 'set']})
+    await editor().fill(KEPT)
+    await coreControl.awaitFaultAnswered(refusal)
+    expect(await readLocalCopy(deletedId)).toContain(KEPT)
+
+    await rpc.sessions.delete({sessionId: deletedId})
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    expect(await readLocalCopy(deletedId)).toEqual(expect.stringContaining(KEPT))
+    await expect.element(movesLine()).toBeVisible()
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor().getByText(KEPT), {timeout: 8000}).toBeVisible()
+    expect(await readLocalCopy(deletedId)).toBeNull()
+  }, 40_000)
+
+  test('New session shows the moved text while the engine is still clearing the deleted session draft', async () => {
+    const MOVED = 'moved while the engine clears'
+    const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await seedDraft(rpc, deletedId, {text: MOVED})
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(movesLine(), {timeout: 8000}).toBeVisible()
+    const clear = await faults.install({kind: 'gate', path: ['drafts', 'set'], input: {sessionId: deletedId, text: ''}})
+
+    await userEvent.click(newSessionButton())
+    await coreControl.awaitFaultPending(clear, 1)
+
+    await expect.element(editor().getByText(MOVED), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+    expect(await readLocalCopy(deletedId)).toBeNull()
+
+    await coreControl.releaseFault(clear)
+    await coreControl.awaitFaultAnswered(clear)
+
+    expect(await rpc.drafts.get({sessionId: deletedId})).toEqual(expect.objectContaining({text: ''}))
+  }, 40_000)
+
+  test('text kept only in this browser moves with New session, and the deleted session keeps no local copy', async () => {
+    const KEPT = 'kept only in this browser'
+    const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    const refusal = await faults.install({kind: 'fail', path: ['drafts', 'set']})
+
+    await userEvent.click(editor())
+    await userEvent.keyboard(KEPT)
+    await coreControl.awaitFaultAnswered(refusal)
+    await expect.poll(() => readLocalCopy(deletedId)).toContain(KEPT)
+    harness.dispose()
+    expect(await rpc.drafts.get({sessionId: deletedId})).toBeNull()
+    await rpc.sessions.delete({sessionId: deletedId})
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(movesLine()).toBeVisible()
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor().getByText(KEPT), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+    expect(await readLocalCopy(deletedId)).toBeNull()
+  }, 40_000)
+
+  describe('a draft with an image moves with New session', () => {
+    const chip = () => page.getByRole('button', {name: 'Remove pictured.png'})
+
+    async function draftThenDelete(text: string): Promise<string> {
+      const rpc = coreRpc(core())
+      const deletedId = await createSession(rpc)
+      harness.mountShell(`/panel/${deletedId}?open=true`)
+      await expect.element(editor(), {timeout: 8000}).toBeVisible()
+      if (text !== '') await editor().fill(text)
+      await coreControl.chooseFiles('Add an attachment', [
+        {name: 'pictured.png', mimeType: 'image/png', text: 'the bytes of pictured.png'},
+      ])
+      await expect.element(chip()).toBeVisible()
+      await coreControl.rpcStartedOnceServed(['drafts', 'set'], 1, [], {sessionId: deletedId, text})
+      await rpc.sessions.delete({sessionId: deletedId})
+      await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+      return deletedId
+    }
+
+    test('text and an image both reach the new session composer', async () => {
+      const deletedId = await draftThenDelete('words beside a picture')
+      await expect.element(movesLine()).toBeVisible()
+
+      await userEvent.click(newSessionButton())
+
+      await expect.element(editor().getByText('words beside a picture'), {timeout: 8000}).toBeVisible()
+      await expect.element(chip()).toBeVisible()
+      expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+    }, 40_000)
+
+    test('an image with no text says the draft moves and reaches the new session composer', async () => {
+      await draftThenDelete('')
+      await expect.element(movesLine()).toBeVisible()
+
+      await userEvent.click(newSessionButton())
+
+      await expect.element(editor(), {timeout: 8000}).toBeVisible()
+      await expect.element(chip()).toBeVisible()
+    }, 40_000)
+  })
+
+  test('a draft whose session was deleted while its pane was open survives a reload of that pane and moves with New session', async () => {
+    const TYPED = 'typed in a pane whose session is then deleted'
+    const origin = new URL(core()).origin
+    onTestFinished(() => {
+      localStorage.removeItem(`conciv:engine-token:${origin}`)
+    })
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    window.history.replaceState(
+      null,
+      '',
+      `${window.location.pathname}${window.location.search}#conciv_otp=${await coreControl.requestCode()}`,
+    )
+    harness.mountShell(`/panel/${deletedId}?open=true`, [], {login: {apiBase: origin}})
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await editor().fill(TYPED)
+    await coreControl.rpcStartedOnceServed(['drafts', 'set'], 1, [], {sessionId: deletedId, text: TYPED})
+    await rpc.sessions.delete({sessionId: deletedId})
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+
+    harness.dispose()
+    harness.mountShell(`/panel/${deletedId}?open=true`, [], {login: {apiBase: origin}})
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(movesLine()).toBeVisible()
+    await userEvent.click(newSessionButton())
+    await expect.element(editor().getByText(TYPED), {timeout: 8000}).toBeVisible()
+  }, 40_000)
+
   test('compacting a session deleted elsewhere and compacting an id no session ever had both say the session no longer exists', async () => {
     const NO_LONGER_EXISTS = 'This session no longer exists.'
     const OLD_DELETED_SENTENCE = 'This session was deleted, so it cannot be compacted.'
     const rpc = coreRpc(core())
     const sessionId = await createSession(rpc)
+    const subscribe = await faults.install({kind: 'gate', path: ['event', 'subscribe']})
     harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
-    await faults.install({kind: 'gate', path: ['sessions', 'get']})
+    await coreControl.awaitFaultPending(subscribe, 1)
     await rpc.sessions.delete({sessionId})
 
     await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
@@ -5215,6 +6265,41 @@ describe('engine login', () => {
     expect(window.location.hash).toBe('')
   }, 30_000)
 
+  test('once the page is trusted, the local drafts of sessions deleted while this browser was away are removed, and one whose check failed or whose session this engine never had stays', async () => {
+    const rpc = coreRpc(core())
+    const store = createBrowserDraftStore()
+    const readKept = async (sessionId: string): Promise<string | null> => {
+      const kept = await createBrowserDraftStore().getItem(sessionId)
+      return kept === null ? null : z.object({text: z.string()}).parse(JSON.parse(kept)).text
+    }
+    const first = await createSession(rpc)
+    const second = await createSession(rpc)
+    const unchecked = first < second ? first : second
+    const deleted = first < second ? second : first
+    const draft = (text: string) => ({text, selectionStart: 0, selectionEnd: 0, attachments: []})
+    await store.setDocument(deleted, draft('left by a deleted session'))
+    await store.setDocument(unchecked, draft('left by a session the engine could not answer for'))
+    const unknown = 'conciv_-kept-from-another-engine'
+    await store.setDocument(unknown, draft('left by a session of another engine'))
+    await rpc.sessions.delete({sessionId: deleted})
+    await rpc.sessions.delete({sessionId: unchecked})
+    const failedCheck = await faults.install({kind: 'garble', path: ['sessions', 'get'], input: {sessionId: unchecked}})
+    const minted = await makeRpcClient(origin()).auth.exchange({code: await coreControl.requestCode()})
+    if (!('token' in minted)) throw new Error(`the engine refused the test code: ${minted.refused}`)
+    localStorage.setItem(storageKey(), minted.token)
+    const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
+
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await coreControl.awaitFaultPending(trustAsk, 1)
+    expect(await readKept(deleted)).toBe('left by a deleted session')
+    await coreControl.releaseFault(trustAsk)
+
+    await expect.poll(() => readKept(deleted), {timeout: 8000}).toBeNull()
+    await coreControl.releaseFault(failedCheck)
+    expect(await readKept(unchecked)).toBe('left by a session the engine could not answer for')
+    expect(await readKept(unknown)).toBe('left by a session of another engine')
+  }, 30_000)
+
   test('extension surfaces start only once the engine trusts the page, on the trusted base', async () => {
     harness.mountShell('/', [surfaceProbe], {login: {apiBase: origin()}})
     await expect.element(locked()).toBeVisible()
@@ -5268,11 +6353,18 @@ describe('engine login', () => {
     expect(minted.count).toBe(2)
   }, 30_000)
 
-  test('a stored token the engine no longer trusts locks the launcher and is forgotten', async () => {
+  test('a stored token the engine no longer trusts locks the launcher, is forgotten, and empties this browser draft store', async () => {
     localStorage.setItem(storageKey(), 'a-token-the-engine-never-granted')
+    await createBrowserDraftStore().setDocument('conciv_-kept-before-the-revoke', {
+      text: 'kept before the revoke',
+      selectionStart: 0,
+      selectionEnd: 0,
+      attachments: [],
+    })
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await expect.element(locked()).toBeVisible()
     expect(localStorage.getItem(storageKey())).toBeNull()
+    expect(await createBrowserDraftStore().keys()).toEqual([])
   })
 
   const unlock = async (): Promise<void> => {
@@ -5285,15 +6377,47 @@ describe('engine login', () => {
     await faults.install({kind: 'detached-sockets'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
+    await createBrowserDraftStore().setDocument('conciv_-kept-before-the-revoke', {
+      text: 'kept before the revoke',
+      selectionStart: 0,
+      selectionEnd: 0,
+      attachments: [],
+    })
     expect(await coreControl.revokeBrowsers()).toBeGreaterThan(0)
     await page.getByRole('button', {name: /session options$/}).click()
     await page.getByRole('button', {name: 'Refresh the conversation'}).click()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(editor()).toBeVisible()
     expect(localStorage.getItem(storageKey())).toBeNull()
+    expect(await createBrowserDraftStore().keys()).toEqual([])
   }, 30_000)
 
-  test('revoking a browser while its panel is open keeps the panel open behind a log-in notice, and the code restores it in place', async () => {
+  test('a draft save on the wire when a revoke locks the panel, refused once it reaches the engine, raises no unsaved notice, neither while locked out nor after the new code', async () => {
+    const UNAUTHORIZED_STATUS = 401
+    const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await unlock()
+    const held = await faults.install({kind: 'gate', path: DRAFT_SET_PATH})
+    await userEvent.click(editor())
+    await userEvent.keyboard('typed before the revoke')
+    await coreControl.awaitFaultPending(held, 1)
+
+    expect(await coreControl.revokeBrowsers()).toBeGreaterThan(0)
+    await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+    const refusedSince = await coreControl.rpcMark()
+    await coreControl.releaseFault(held)
+    await coreControl.awaitRpcFailedCount(DRAFT_SET_PATH, UNAUTHORIZED_STATUS, 1, refusedSince)
+    await expect.element(reloginNotice()).toBeVisible()
+    await expect.element(unsaved).not.toBeInTheDocument()
+
+    await userEvent.click(reloginNotice().getByRole('button', {name: 'Log in'}))
+    await userEvent.type(firstDigit(), await coreControl.requestCode())
+    await expect.element(reloginNotice()).not.toBeInTheDocument()
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent', disabled: false})).toBeVisible()
+    await expect.element(unsaved).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('revoking a browser while its panel is open keeps the panel open behind a log-in notice with a read-only composer, moves focus from the composer to Log in, and the code restores it in place', async () => {
     const pushHandshake = await faults.install({kind: 'push-handshake-hold'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
@@ -5301,21 +6425,77 @@ describe('engine login', () => {
     const pushLive = coreControl.awaitPushSocketLive()
     await coreControl.releaseFault(pushHandshake)
     await pushLive
+    await userEvent.click(editor())
+    await expect.element(editor()).toHaveFocus()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+    await expect.element(reloginNotice().getByRole('button', {name: 'Log in'})).toHaveFocus()
     await expect.element(editor()).toBeVisible()
     await expect.poll(() => coreControl.pushSocketsLive()).toBe(0)
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent', disabled: true})).toBeVisible()
+    await expect.element(page.getByText('Log in to continue', {exact: true})).toBeVisible()
+    await userEvent.click(editor(), {force: true})
+    await userEvent.keyboard('typed while locked out')
+    await expect.element(editor()).toMatchTextContent(/^$/)
     await reloginNotice().getByRole('button', {name: 'Log in'}).click()
     await expect.element(dialog()).toBeVisible()
     await userEvent.type(firstDigit(), await coreControl.requestCode())
     await expect.element(dialog()).not.toBeInTheDocument()
     await expect.element(reloginNotice()).not.toBeInTheDocument()
     await expect.element(editor()).toHaveFocus()
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent', disabled: false})).toBeVisible()
     await coreControl.scriptTurn({toolCalls: [], text: 'Back in after the new code.'})
-    await editor().fill('are we back')
+    await userEvent.keyboard('are we back')
+    await expect.element(editor()).toMatchTextContent(/^are we back$/)
+    await expect.element(page.getByRole('button', {name: 'Send message'})).toBeEnabled()
     await page.getByRole('button', {name: 'Send message'}).click()
     await expect.element(page.getByText('Back in after the new code.')).toBeVisible()
   }, 30_000)
+
+  const DRAFT_SET_PATH = ['drafts', 'set']
+  const ENGINE_HELD = 'held by the engine'
+  const LOCAL_ONLY = 'held by the engine and kept only in this browser'
+  const keptDrafts = (): Promise<string[]> => createBrowserDraftStore().keys()
+
+  const unlockOnNewSession = async (): Promise<void> => {
+    await createSession(coreRpc(core()))
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await unlock()
+  }
+
+  const typeEngineAndLocalDrafts = async (): Promise<void> => {
+    const {sessionId} = await coreRpc(core()).sessions.resolve({})
+    const held = {sessionId, text: ENGINE_HELD}
+    const served = await coreControl.rpcCallCount(DRAFT_SET_PATH, held)
+    await editor().fill(ENGINE_HELD)
+    await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, served + 1, [], held)
+    const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+    await editor().fill(LOCAL_ONLY)
+    await coreControl.awaitFaultAnswered(refusal)
+    expect(await createBrowserDraftStore().getItem(sessionId)).toContain(LOCAL_ONLY)
+  }
+
+  test('a revoke while the panel is open empties this browser draft store, refuses typing, the text on screen is not stored again, and the reopened panel shows what the engine holds', async () => {
+    await unlockOnNewSession()
+    await typeEngineAndLocalDrafts()
+    await coreControl.awaitPushSocketLive()
+
+    await coreControl.revokeBrowsers()
+    await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+    expect(await keptDrafts()).toEqual([])
+    await expect.element(editor()).toHaveTextContent(LOCAL_ONLY)
+
+    await userEvent.click(editor(), {force: true})
+    await userEvent.keyboard('{End} and typed while locked out')
+    await expect.element(editor()).toMatchTextContent(new RegExp(`^${LOCAL_ONLY}$`))
+    await page.getByRole('button', {name: 'Close chat'}).click()
+    await expect.element(locked(), {timeout: 8000}).toBeVisible()
+    expect(await keptDrafts()).toEqual([])
+
+    await locked().click()
+    await userEvent.type(firstDigit(), await coreControl.requestCode())
+    await expect.element(editor(), {timeout: 8000}).toMatchTextContent(new RegExp(`^${ENGINE_HELD}$`))
+  }, 40_000)
 
   test('revoking a browser keeps the earlier conversation on screen behind the notice, and the code resumes it in place', async () => {
     harness.mountShell('/', [], {login: {apiBase: origin()}})
@@ -5342,17 +6522,23 @@ describe('engine login', () => {
     await expect.element(earlierAnswer()).toBeVisible()
   }, 30_000)
 
-  test('revoking a browser while its panel is closed locks the launcher', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
-    await unlock()
+  test('revoking a browser while its panel is closed locks the launcher and empties this browser draft store, and after a reload the panel shows only what the engine holds', async () => {
+    await unlockOnNewSession()
+    await typeEngineAndLocalDrafts()
     await page.getByRole('button', {name: 'Close chat'}).click()
     await expect.element(opener()).toBeVisible()
     await coreControl.revokeBrowsers()
     await expect.element(locked(), {timeout: 8000}).toBeVisible()
     await expect.element(reloginNotice()).not.toBeInTheDocument()
+    expect(await keptDrafts()).toEqual([])
+
+    harness.dispose()
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
     await locked().click()
     await expect.element(dialog()).toBeVisible()
-  }, 30_000)
+    await userEvent.type(firstDigit(), await coreControl.requestCode())
+    await expect.element(editor(), {timeout: 8000}).toMatchTextContent(new RegExp(`^${ENGINE_HELD}$`))
+  }, 40_000)
 
   test('Retry on the unreachable screen checks the login again: untrusted asks to log in inside the panel, trusted opens it', async () => {
     const retryWhileOffline = async (): Promise<void> => {
@@ -5761,6 +6947,21 @@ describe('session selector', () => {
       await expect.element(search).toHaveValue(`${typedBefore}${keys.slice(0, index + 1)}`)
     }
   }
+
+  test('a session deleted from the CLI leaves an open picker and its local draft', async () => {
+    const rpc = coreRpc(core())
+    const {sessionId: doomed} = await rpc.sessions.create()
+    await rpc.sessions.rename({sessionId: doomed, title: 'the doomed session'})
+    await createBrowserDraftStore().setItem(doomed, JSON.stringify({text: 'left behind'}))
+    await mountSelector()
+    const doomedOption = page.getByRole('option', {name: /^the doomed session,/})
+
+    await userEvent.click(page.getByRole('button', {name: 'Session: the active session'}))
+    await expect.element(doomedOption).toBeVisible()
+    await rpc.sessions.delete({sessionId: doomed})
+    await expect.element(doomedOption).not.toBeInTheDocument()
+    expect(await createBrowserDraftStore().getItem(doomed)).toBe(JSON.stringify({text: 'left behind'}))
+  })
 
   test('a user opens, searches, pages, picks by keyboard and by pointer, and the search follows the index', async () => {
     const mounted = await mountSelector()
@@ -7638,6 +8839,9 @@ describe('terminal panel', () => {
     await terminalTab().click()
     await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
     await typeLine('echo $((6*7))')
+    await expect
+      .element(terminalPanel().getByRole('listitem').filter({hasText: 'conciv: resumed session'}))
+      .not.toBeInTheDocument()
     await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
     expect(await coreControl.projectFileExists('terminal-started')).toBe(true)
 
@@ -9502,6 +10706,16 @@ module.exports = {default: {setup(ctx) {
     await userEvent.keyboard('{Enter}')
     await expect.element(fileShown('the lone file body')).toBeVisible()
     await expect.element(sentence()).not.toBeInTheDocument()
+    await expect
+      .poll(async () =>
+        (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user').at(-1),
+      )
+      .toMatchObject({
+        parts: [
+          {type: 'text', content: expect.stringMatching(/^Attachment alone\.txt:\nthe lone file body\n\nThe user /)},
+        ],
+        metadata: {comments: {length: 6}},
+      })
 
     harness.dispose()
     harness.mountShell(`/panel/${sessionId}?open=true`)
@@ -9592,6 +10806,7 @@ module.exports = {default: {setup(ctx) {
       selectionEnd: 0,
       attachments: [],
       items: [],
+      updatedAt: Date.now(),
     })
     const restore = await faults.install({kind: 'cut-on-release', path: ['drafts', 'get']})
     harness.mountShell(`/panel/${sessionId}?open=true`)
@@ -9669,7 +10884,7 @@ module.exports = {default: {setup(ctx) {
     await coreControl.awaitFaultAnswered(carriedWrite)
     await rpc.sessions.delete({sessionId: deletedId})
     await expect.element(page.getByText('This session was deleted.', {exact: true}), {timeout: 8000}).toBeVisible()
-    await expect.element(page.getByText('Your text moves to the new session.', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Your draft moves to the new session.', {exact: true})).toBeVisible()
     await userEvent.click(page.getByRole('button', {name: 'New session', exact: true}))
     await expect.element(card('the first comment'), {timeout: 8000}).toBeVisible()
     await expect.element(card('the first comment').getByText('Fixture note', {exact: true})).toBeVisible()
@@ -9699,6 +10914,7 @@ module.exports = {default: {setup(ctx) {
         {key: 'note:broken', value: {type: 'note', comment: 'a note with no origin'}},
         {key: 'note:fixture:c=kept', value: {...carriedNote, commentId: 'kept', comment: 'the kept comment'}},
       ],
+      updatedAt: Date.now(),
     })
     harness.dispose()
     harness.mountShell(`/panel/${brokenId}?open=true`)
@@ -9755,11 +10971,24 @@ module.exports = {default: {setup(ctx) {
     await expect.element(queued()).toBeVisible()
     await switchTo('the returning session', 'the session away')
     await coreControl.releaseFault(cut)
-    await expect
-      .element(page.getByRole('region', {name: /Notifications/}))
-      .toMatchTextContent(/The queued message could not be put back in its draft/)
-    await coreControl.releaseFault(refusedSave)
+    await switchTo('the session away', 'the returning session')
+    await expect.element(card('the first comment'), {timeout: 8000}).toBeVisible()
+    await expect.element(card('the first comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the other comment')).toBeVisible()
+    await expect.element(editor()).toHaveTextContent('noted')
+    await expect.element(editor()).not.toMatchTextContent(/The user made/)
+    const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+    const savedDrafts = await coreControl.rpcCallCount(['drafts', 'set'])
+    await runClockPastDraftSaveRetries(unsaved)
     expect(await rpc.drafts.get({sessionId: returningId})).toBeNull()
+    await coreControl.releaseFault(refusedSave)
+    await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
+    await expect.element(unsaved).not.toBeInTheDocument()
+    await coreControl.rpcStartedOnceServed(['drafts', 'set'], savedDrafts + 1, [])
+    expect(await rpc.drafts.get({sessionId: returningId})).toMatchObject({
+      text: 'noted',
+      items: [{value: {comment: 'the first comment'}}, {value: {comment: 'the other comment'}}],
+    })
   }, 90_000)
 
   describe('its ctx.ui.Popover', () => {
@@ -10006,15 +11235,16 @@ module.exports = {default: {setup(ctx) {
     const OUTAGE_WINDOW_MS = CALL_DEADLINE_MS + CONNECTION_LOSS_RETRY_DELAY_MS + MARGIN_MS
     const STORE_READS = 2
     const STORE_READ = ['settings', 'all']
+    const PLUGIN_STORES = {scope: 'project', namespace: 'plugins'}
     const SERVER_ERROR = 500
     await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
     const note = (text: string) => page.getByText(`Stored note: ${text}`, {exact: true})
     const visits = (text: string) => page.getByText(`Visits: ${text}`, {exact: true})
 
+    const reads = await faults.install({kind: 'cut-on-release', path: STORE_READ, input: PLUGIN_STORES})
     harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
-    const reads = await faults.install({kind: 'cut-on-release', path: STORE_READ})
     await tab('Fixture tools').click()
     await coreControl.awaitFaultPending(reads, STORE_READS)
     await expect.element(note('loading')).toBeVisible()
@@ -10758,3 +11988,210 @@ exports.big = big
       .toBeVisible()
   }, 60_000)
 })
+
+describe('the local draft store', () => {
+  const DraftDocumentSchema = z.object({text: z.string()})
+  const openRaw = () =>
+    new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('conciv-drafts')
+      request.addEventListener('success', () => resolve(request.result))
+      request.addEventListener('error', () => reject(request.error))
+    })
+  const rawRequest = <T,>(
+    run: (objects: IDBObjectStore) => IDBRequest<T>,
+    mode: IDBTransactionMode,
+    name: 'blobs' | 'documents' = 'blobs',
+  ) =>
+    openRaw().then(
+      (database) =>
+        new Promise<T>((resolve, reject) => {
+          const request = run(database.transaction(name, mode).objectStore(name))
+          request.addEventListener('success', () => {
+            database.close()
+            resolve(request.result)
+          })
+          request.addEventListener('error', () => reject(request.error))
+        }),
+    )
+  const readText = async (store: ReturnType<typeof createBrowserDraftStore>, key: string) => {
+    const raw = await store.getItem(key)
+    return raw === null ? null : DraftDocumentSchema.parse(JSON.parse(raw)).text
+  }
+
+  test('writes a draft and reads it back, skips an unchanged save, drops a superseded one and sweeps orphan blobs on open', async () => {
+    const store = createBrowserDraftStore()
+    const key = `session:${crypto.randomUUID()}`
+    await store.setItem(key, JSON.stringify({text: 'first draft'}))
+    expect(await readText(store, key)).toBe('first draft')
+
+    const rewrites: string[] = []
+    await createRoot(async (dispose) => {
+      const [draft, setDraft] = createStore({text: ''})
+      const persisted = persistStore({
+        store: draft,
+        setStore: setDraft,
+        name: key,
+        storage: store,
+        serialize: JSON.stringify,
+        deserialize: (raw) => DraftDocumentSchema.parse(JSON.parse(raw)),
+        write: (value, serialized) => {
+          rewrites.push(serialized)
+          return store.setDocument(key, value)
+        },
+      })
+      await persisted.init
+      persisted.setStore('text', 'first draft')
+      persisted.flush()
+      dispose()
+    })
+    expect(rewrites).toEqual([])
+
+    const image = await fetch(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+    ).then((response) => response.blob())
+    const older = store.setDocument(key, {
+      text: 'older edit',
+      parts: [{type: 'image', dataUrl: await blobToDataUrl(image)}],
+    })
+    await store.setDocument(key, {text: 'newer edit'})
+    await older
+    expect(await readText(store, key)).toBe('newer edit')
+
+    const kept = await store.putBlob(new Blob(['kept bytes']))
+    await store.setDocument(key, {text: 'newer edit', parts: [{type: 'image', blob: {id: kept.id}}]})
+    const orphan = `orphan-${crypto.randomUUID()}`
+    await rawRequest((blobs) => blobs.put(new Blob(['nobody points here']), orphan), 'readwrite')
+    expect(await rawRequest((blobs) => blobs.getKey(orphan), 'readonly')).toBe(orphan)
+    await createBrowserDraftStore().getItem(key)
+    expect(await rawRequest((blobs) => blobs.getKey(orphan), 'readonly')).toBeUndefined()
+    expect(await rawRequest((blobs) => blobs.getKey(kept.id), 'readonly')).toBe(kept.id)
+  })
+
+  const storedId = async (text: string) =>
+    Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))), (byte) =>
+      byte.toString(16).padStart(2, '0'),
+    ).join('')
+  const dropDatabase = () =>
+    new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase('conciv-drafts')
+      request.addEventListener('success', () => resolve())
+      request.addEventListener('error', () => reject(request.error))
+    })
+  const picture = (name: string) => ({name, mimeType: 'image/png', text: `the bytes of ${name}`})
+  const chip = (name: string) => page.getByRole('button', {name: `Remove ${name}`})
+  const message = () => page.getByRole('textbox', {name: 'Message'})
+
+  function AttachingComposer(props: {store: DraftStore}): JSX.Element {
+    const chat = useChatSession({
+      rpc: makeRpcClient('http://127.0.0.1:9'),
+      apiBase: 'http://127.0.0.1:9',
+      sessionId: 'conciv_widget',
+    })
+    return (
+      <ChatProvider chat={chat}>
+        <ComposerHandlersProvider value={{onSend: () => {}, onCancel: () => {}}}>
+          <Composer attachmentAdapter={paneAttachments([], 'native', props.store).adapter} />
+        </ComposerHandlersProvider>
+      </ChatProvider>
+    )
+  }
+
+  test('an attached image is put in the store when it is attached; guards: the same image removed and attached again, or attached twice, keeps a chip each time, an image over the 20 MiB inline limit keeps its chip with no local copy, and an image the composer refuses keeps its chip with no local copy', async () => {
+    const store = createBrowserDraftStore()
+    render(() => <AttachingComposer store={store} />)
+    const kept = picture('kept.png')
+
+    await coreControl.chooseFiles('Add an attachment', [kept])
+    await expect.element(chip('kept.png')).toBeVisible()
+    const id = await storedId(kept.text)
+    expect(await rawRequest((blobs) => blobs.getKey(id), 'readonly')).toBe(id)
+
+    await chip('kept.png').click()
+    await expect.element(chip('kept.png')).not.toBeInTheDocument()
+    await coreControl.chooseFiles('Add an attachment', [kept])
+    await expect.element(chip('kept.png')).toBeVisible()
+    await coreControl.chooseFiles('Add an attachment', [kept])
+    await expect.element(chip('kept.png').nth(1)).toBeVisible()
+
+    const oversized = {name: 'oversized.png', mimeType: 'image/png', text: 'x'.repeat(20 * 1024 * 1024 + 1)}
+    await coreControl.chooseFiles('Add an attachment', [oversized])
+    await expect.element(chip('oversized.png')).toBeVisible()
+    const oversizedId = await storedId(oversized.text)
+    expect(await rawRequest((blobs) => blobs.getKey(oversizedId), 'readonly')).toBeUndefined()
+
+    const refused = {name: 'refused.png', mimeType: 'image/png', text: 'r'.repeat(MAX_ATTACHMENT_RAW_BYTES + 1)}
+    await coreControl.chooseFiles('Add an attachment', [refused])
+    await expect.element(chip('refused.png')).toBeVisible()
+    const refusedId = await storedId(refused.text)
+    expect(await rawRequest((blobs) => blobs.getKey(refusedId), 'readonly')).toBeUndefined()
+  })
+
+  test('a newer conciv tab that bumps the schema is not blocked; the older pane keeps its text and its attachments with no local copy, and a pane opened under the newer schema still attaches', async () => {
+    const olderStore = createBrowserDraftStore()
+    const older = render(() => <AttachingComposer store={olderStore} />)
+    await coreControl.chooseFiles('Add an attachment', [picture('earlier.png')])
+    await expect.element(chip('earlier.png')).toBeVisible()
+
+    await coreControl.openNewerDraftTab(2)
+    onTestFinished(async () => {
+      await coreControl.closeNewerDraftTab()
+      await dropDatabase()
+    })
+    const unstored = async (name: string) => {
+      const id = await storedId(picture(name).text)
+      return rawRequest((blobs) => blobs.getKey(id), 'readonly')
+    }
+
+    await message().click()
+    await userEvent.keyboard('typed after the bump')
+    await coreControl.chooseFiles('Add an attachment', [picture('later.png')])
+    await expect.element(chip('later.png')).toBeVisible()
+    await expect.element(chip('earlier.png')).toBeVisible()
+    await expect.element(message()).toHaveValue('typed after the bump')
+    expect(await unstored('later.png')).toBeUndefined()
+
+    older.unmount()
+    const newestStore = createBrowserDraftStore()
+    render(() => <AttachingComposer store={newestStore} />)
+    await coreControl.chooseFiles('Add an attachment', [picture('newest.png')])
+    await expect.element(chip('newest.png')).toBeVisible()
+    expect(await unstored('newest.png')).toBeUndefined()
+  })
+
+  test('treats a corrupt stored document as absent, so the draft starts empty and the next edit is saved', async () => {
+    const store = createBrowserDraftStore()
+    const key = `session:${crypto.randomUUID()}`
+    await store.getItem(key)
+    await rawRequest((documents) => documents.put('{"text": "cut off', key), 'readwrite', 'documents')
+    expect(await store.getItem(key)).toBeNull()
+    const saved = Promise.withResolvers<void>()
+
+    await createRoot(async (dispose) => {
+      const [draft, setDraft] = createStore({text: ''})
+      const persisted = persistStore({
+        store: draft,
+        setStore: setDraft,
+        name: key,
+        storage: store,
+        serialize: JSON.stringify,
+        deserialize: (raw) => DraftDocumentSchema.parse(JSON.parse(raw)),
+        write: (value) => store.setDocument(key, value).then(saved.resolve),
+      })
+      await persisted.init
+      persisted.setStore('text', 'typed after the corrupt one')
+      persisted.flush()
+      dispose()
+    })
+    await saved.promise
+    expect(await readText(store, key)).toBe('typed after the corrupt one')
+  })
+})
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(z.string().parse(reader.result)))
+    reader.addEventListener('error', () => reject(reader.error))
+    reader.readAsDataURL(blob)
+  })
+}

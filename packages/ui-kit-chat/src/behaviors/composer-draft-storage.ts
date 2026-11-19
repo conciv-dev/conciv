@@ -2,7 +2,11 @@ import {z} from 'zod'
 import {uniqBy} from 'es-toolkit'
 import type {WebStorage} from '@conciv/storage-history'
 import {DraftItemSchema} from '@conciv/protocol/chat-types'
-import {fileToDataSource, type Attachment, type PendingAttachment} from '../primitives/attachment/attachment-adapter.js'
+import {
+  fileToDataSource,
+  type BaseAttachment,
+  type PendingAttachment,
+} from '../primitives/attachment/attachment-adapter.js'
 import type {ComposerDraft} from '../primitives/composer/composer-context.js'
 
 const MAX_PERSISTED_ATTACHMENT_CHARACTERS = 1_000_000
@@ -76,9 +80,14 @@ export function readComposerDraft(storage: WebStorage, key: string): ComposerDra
   }
 }
 
-async function encodeAttachment(attachment: Attachment, budget: number): Promise<PersistedAttachment[]> {
+export type EncodableAttachment = Pick<BaseAttachment, 'id' | 'type' | 'name'> & {file?: File}
+
+async function encodeAttachment(attachment: EncodableAttachment, budget: number): Promise<PersistedAttachment[]> {
   if (!attachment.file) return []
-  const source = await fileToDataSource(attachment.file).catch(() => null)
+  const source = await fileToDataSource(attachment.file).catch((error: unknown) => {
+    console.error(`[conciv] could not read ${attachment.name}, so the saved draft leaves it out`, error)
+    return null
+  })
   if (!source || source.value.length > budget) return []
   return [
     {
@@ -91,7 +100,9 @@ async function encodeAttachment(attachment: Attachment, budget: number): Promise
   ]
 }
 
-async function encodeAttachments(attachments: readonly Attachment[]): Promise<PersistedAttachment[]> {
+export async function encodeAttachments(
+  attachments: readonly EncodableAttachment[],
+): Promise<PersistedComposerDraft['attachments']> {
   const encoded: PersistedAttachment[] = []
   let budget = MAX_PERSISTED_ATTACHMENT_CHARACTERS
   for (const attachment of attachments) {

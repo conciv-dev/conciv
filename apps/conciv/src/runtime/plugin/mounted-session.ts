@@ -176,7 +176,9 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
 
     if (!untrack(binding) && untrack(composer).target.sessionId === target.sessionId) return write(change)
 
-    return editDraft(appData, target.sessionId, (saved) => editSavedDraft(saved, target.sessionId, change))
+    return editDraft(appData, liveSessions.keepDraft, target.sessionId, (saved) =>
+      editSavedDraft(saved, target.sessionId, change),
+    )
   }
 
   const runWrite = (effect: ComposerWriteEffect<ComposerTarget>) => {

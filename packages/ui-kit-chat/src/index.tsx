@@ -174,7 +174,11 @@ export {
 } from './primitives/selection-toolbar/selection-toolbar.js'
 
 export {readComposerDraft, writeComposerDraft, type PersistedComposerDraft} from './behaviors/composer-draft-storage.js'
-export {useComposerDraftPersistence, type ComposerDraftPersistenceOptions} from './behaviors/use-composer-draft.js'
+export {
+  useComposerDraftPersistence,
+  type ComposerDraftPersistenceOptions,
+  type ComposerDraftWriter,
+} from './behaviors/use-composer-draft.js'
 export {useSizeHandle} from './behaviors/use-size-handle.js'
 
 export {
@@ -203,7 +207,7 @@ export {FollowUpSuggestions} from './styled/follow-up-suggestions.js'
 export {AttachmentUI} from './styled/attachment-ui.js'
 export {CornerRemoveButton} from './styled/corner-remove-button.js'
 export {AttachmentByMime, createDocumentAttachmentAdapter} from './styled/attachment-dispatch.js'
-export type {AttachmentCardSlot} from './styled/attachment-dispatch.js'
+export type {AttachmentCardProps, AttachmentCardSlot} from './styled/attachment-dispatch.js'
 export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'
 export {NowLine} from './styled/now-line.js'
 export {TURN_MEASURE_CLASS} from './styled/turn-classes.js'

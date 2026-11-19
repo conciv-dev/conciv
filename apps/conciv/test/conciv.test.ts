@@ -1,7 +1,7 @@
 import {expect, test as baseTest, describe, it, test} from 'vitest'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
-import {appendDraft, makeDraftStorage, type ServerDraft} from '../src/pane/draft-storage.js'
+import {appendDraft, makeDraftStorage, makeDraftWriteChain, type RestoredDraft} from '../src/pane/draft-storage.js'
 import {QueryClient} from '@conciv/client'
 import {makeAppData, type AppData} from '../src/data/app-data.js'
 import {createSession, seedDraft, proxyTo, type ProxyCore} from './helpers.node.js'
@@ -10,6 +10,7 @@ import {resolveGrabSource} from '../src/pane/grab-source-resolve.js'
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../src/lib/quick-search.js'
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
+import {reconcileDraft} from '../src/pane/draft-reconcile.js'
 import {parseConcivSettings} from '../src/data/settings.js'
 import {contextItemKey, durableNote} from '../src/composer/note-schema.js'
 import {formatNoteComment, noteComment, promptWithNotes, readPromptPresentation} from '../src/composer/comment-note.js'
@@ -34,7 +35,7 @@ describe('draft storage', () => {
 
   type StoredDraft = {sessionId: string; text: string; selectionStart: number; selectionEnd: number}
 
-  const test = baseTest.extend<{kit: CoreKit; core: ProxyCore; sessionId: string}>({
+  const test = baseTest.extend<{kit: CoreKit; core: ProxyCore; app: AppData; sessionId: string}>({
     kit: [
       // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
       async ({}, use) => {
@@ -49,13 +50,18 @@ describe('draft storage', () => {
       await use(core)
       await core.close()
     },
+    app: async ({core}, use) => {
+      const app = makeAppData(makeRpcClient(core.base), new QueryClient(), null, () => false)
+      await use(app)
+      app.dispose()
+    },
     sessionId: async ({kit}, use) => {
       await use(await createSession(kit.rpc))
     },
   })
 
   function draftApp(base: string): AppData {
-    return makeAppData(makeRpcClient(base), new QueryClient())
+    return makeAppData(makeRpcClient(base), new QueryClient(), null, () => false)
   }
 
   type ComposerItem = {key: string; value: unknown}
@@ -75,8 +81,8 @@ describe('draft storage', () => {
     }
   }
 
-  test('clamps noted offsets that fall beyond the persisted text', async ({kit, core, sessionId}) => {
-    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
+  test('clamps noted offsets that fall beyond the persisted text', async ({kit, core, sessionId, app}) => {
+    const draftStorage = makeDraftStorage(app, makeDraftWriteChain(), sessionId)
     await draftStorage.restore(() => {}, new AbortController().signal)
 
     draftStorage.noteSelection({start: 40, end: 44})
@@ -92,13 +98,18 @@ describe('draft storage', () => {
     })
   })
 
-  test('a composer cleared before the server draft arrives clears the server draft', async ({kit, core, sessionId}) => {
+  test('a composer cleared before the server draft arrives clears the server draft', async ({
+    kit,
+    core,
+    sessionId,
+    app,
+  }) => {
     await seedDraft(kit.rpc, sessionId, {text: 'stale on the server'})
-    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
+    const draftStorage = makeDraftStorage(app, makeDraftWriteChain(), sessionId)
 
     draftStorage.storage.setItem('any', composerDraft('typed early'))
     draftStorage.storage.setItem('any', composerDraft(''))
-    const restored: ServerDraft[] = []
+    const restored: RestoredDraft[] = []
     await draftStorage.restore((draft) => restored.push(draft), new AbortController().signal)
     await core.awaitRequest(DRAFTS_SET_PATH)
 
@@ -106,9 +117,9 @@ describe('draft storage', () => {
     expect(await storedDraft(kit.rpc, sessionId)).toMatchObject({text: ''})
   })
 
-  test('clearing a restored draft before its first write reaches the server', async ({kit, core, sessionId}) => {
+  test('clearing a restored draft before its first write reaches the server', async ({kit, core, sessionId, app}) => {
     await seedDraft(kit.rpc, sessionId, {text: 'restored then cleared'})
-    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
+    const draftStorage = makeDraftStorage(app, makeDraftWriteChain(), sessionId)
     await draftStorage.restore(() => {}, new AbortController().signal)
 
     draftStorage.storage.setItem('any', composerDraft(''))
@@ -121,8 +132,9 @@ describe('draft storage', () => {
     kit,
     core,
     sessionId,
+    app,
   }) => {
-    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
+    const draftStorage = makeDraftStorage(app, makeDraftWriteChain(), sessionId)
 
     draftStorage.storage.setItem('any', composerDraft('typed while loading'))
     await draftStorage.restore(() => {}, new AbortController().signal)
@@ -131,10 +143,12 @@ describe('draft storage', () => {
     expect(await storedDraft(kit.rpc, sessionId)).toMatchObject({text: 'typed while loading'})
   })
 
-  test('appends to the stored draft on a new line with the caret at the end', async ({kit, core, sessionId}) => {
+  test('appends to the stored draft on a new line with the caret at the end', async ({kit, sessionId, app}) => {
     await seedDraft(kit.rpc, sessionId, {text: 'a first line'})
 
-    await appendDraft(draftApp(core.base), sessionId, 'a second line')
+    await (
+      await appendDraft(app, makeDraftWriteChain(), sessionId, 'a second line')
+    ).saving
 
     expect(await storedDraft(kit.rpc, sessionId)).toEqual({
       sessionId,
@@ -146,11 +160,12 @@ describe('draft storage', () => {
 
   test('two kept drafts written at once both stay, in the order they were kept', async ({kit, core, sessionId}) => {
     const appData = draftApp(core.base)
+    const keep = makeDraftWriteChain()
     const note = {key: 'note:fixture:c=1', value: {comment: 'kept with the second line'}}
 
     await Promise.all([
-      appendDraft(appData, sessionId, 'a first line'),
-      appendDraft(appData, sessionId, 'a second line', [note]),
+      appendDraft(appData, keep, sessionId, 'a first line').then((kept) => kept.saving),
+      appendDraft(appData, keep, sessionId, 'a second line', [note]).then((kept) => kept.saving),
     ])
 
     expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({
@@ -169,7 +184,7 @@ describe('draft storage', () => {
       {key: 'note:grab:c=1', value: {comment: 'make it red'}},
       {key: 'toString', value: {comment: 'an item whose key an object inherits'}},
     ]
-    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
+    const draftStorage = makeDraftStorage(draftApp(core.base), makeDraftWriteChain(), sessionId)
     await draftStorage.restore(() => {}, new AbortController().signal)
 
     draftStorage.storage.setItem('any', composerDraft('a noted draft', staged))
@@ -182,11 +197,13 @@ describe('draft storage', () => {
     await core.awaitRequest(DRAFTS_SET_PATH)
     expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: '', items: updated})
 
-    await appendDraft(draftApp(core.base), sessionId, 'a queued line')
+    await (
+      await appendDraft(draftApp(core.base), makeDraftWriteChain(), sessionId, 'a queued line')
+    ).saving
     expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: 'a queued line', items: updated})
 
-    const restored: ServerDraft[] = []
-    await makeDraftStorage(draftApp(core.base), sessionId).restore(
+    const restored: RestoredDraft[] = []
+    await makeDraftStorage(draftApp(core.base), makeDraftWriteChain(), sessionId).restore(
       (draft) => restored.push(draft),
       new AbortController().signal,
     )
@@ -214,10 +231,11 @@ describe('draft storage', () => {
       selectionEnd: 5,
       attachments: [],
       items: [{key: 'note:fixture:c=c1', value: note}, other],
+      updatedAt: Date.now(),
     })
 
-    const restored: ServerDraft[] = []
-    await makeDraftStorage(draftApp(core.base), sessionId).restore(
+    const restored: RestoredDraft[] = []
+    await makeDraftStorage(draftApp(core.base), makeDraftWriteChain(), sessionId).restore(
       (draft) => restored.push(draft),
       new AbortController().signal,
     )
@@ -227,12 +245,12 @@ describe('draft storage', () => {
     ])
   })
 
-  test('survives a failed initial read and still accepts writes', async ({kit, core, sessionId}) => {
+  test('survives a failed initial read and still accepts writes', async ({kit, core, sessionId, app}) => {
     await seedDraft(kit.rpc, sessionId, {text: 'unreachable at boot'})
     core.fail(DRAFTS_GET_PATH)
 
-    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
-    const restored: ServerDraft[] = []
+    const draftStorage = makeDraftStorage(app, makeDraftWriteChain(), sessionId)
+    const restored: RestoredDraft[] = []
     await draftStorage.restore((draft) => restored.push(draft), new AbortController().signal)
 
     expect(restored).toEqual([])
@@ -668,5 +686,63 @@ describe('launcher drag physics', () => {
       expect(presetPlacement('middle-right')).toEqual({kind: 'free', x: 100, y: 50})
       expect(presetPlacement('top-right')).toEqual({kind: 'corner', corner: 'top-right'})
     })
+  })
+})
+
+describe('draft reconcile', () => {
+  const sameText = (local: {text: string}, row: {text: string}) => local.text === row.text
+
+  test.each([
+    {
+      row: 'the engine row is the one this browser last synced, and the local copy is the same',
+      local: {text: 'kept', syncedAt: 5},
+      engine: {text: 'kept', updatedAt: 5},
+      outcome: {kind: 'local', saveToEngine: false},
+    },
+    {
+      row: 'the engine row is the one this browser last synced, and the local copy changed since',
+      local: {text: 'typed offline', syncedAt: 5},
+      engine: {text: 'kept', updatedAt: 5},
+      outcome: {kind: 'local', saveToEngine: true},
+    },
+    {
+      row: 'the engine row changed elsewhere',
+      local: {text: 'stale here', syncedAt: 5},
+      engine: {text: 'from the pop-out', updatedAt: 9},
+      outcome: {kind: 'engine'},
+    },
+    {
+      row: 'the engine row is a save this browser sent whose answer never came back',
+      local: {text: 'typed after it', syncedAt: 5, sent: [7, 8]},
+      engine: {text: 'held', updatedAt: 7},
+      outcome: {kind: 'local', saveToEngine: true},
+    },
+    {
+      row: 'a local copy whose sent saves never reached the engine, and no engine row',
+      local: {text: 'engine was down', syncedAt: undefined, sent: [7]},
+      engine: null,
+      outcome: {kind: 'local', saveToEngine: true},
+    },
+    {
+      row: 'a local copy that never synced, and no engine row',
+      local: {text: 'engine was down', syncedAt: undefined},
+      engine: null,
+      outcome: {kind: 'local', saveToEngine: true},
+    },
+    {
+      row: 'an engine row and no local copy',
+      local: null,
+      engine: {text: 'from another origin', updatedAt: 9},
+      outcome: {kind: 'engine'},
+    },
+    {
+      row: 'a synced local copy whose engine row is gone, after a send or a delete',
+      local: {text: 'already sent', syncedAt: 5},
+      engine: null,
+      outcome: {kind: 'cleared'},
+    },
+    {row: 'neither copy', local: null, engine: null, outcome: {kind: 'empty'}},
+  ])('$row', ({local, engine, outcome}) => {
+    expect(reconcileDraft(local, engine, sameText)).toEqual(outcome)
   })
 })
