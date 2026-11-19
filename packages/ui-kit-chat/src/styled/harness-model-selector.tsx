@@ -80,6 +80,12 @@ const PROMPT = `inline-flex items-center gap-1 min-h-7 overflow-hidden -ms-1.5 p
 const PROMPT_MODEL = 'max-w-[32ch] truncate text-chat-text-3 anim-word-in tracking-[-0.04em] [word-spacing:-0.3em]'
 const PROMPT_GLYPH = 'text-chat-accent'
 const PILL_NAME = 'min-w-0 truncate'
+const PILL_STACK = 'grid grid-cols-1 min-w-0'
+const PILL_LAYER = 'col-start-1 row-start-1 inline-flex items-center gap-1 min-w-0'
+const PILL_GHOST = `${PILL_LAYER} invisible`
+const PILL_GHOST_NAME = `${PILL_NAME} before:content-[attr(data-label)]`
+const PILL_STATES = [PILL_LOADING, PILL_FAILED, PILL_EMPTY]
+const FAILED_ICON = 'text-chat-text-3 shrink-0 size-3.5 block'
 const BARS = 'inline-flex items-end gap-[2px] h-[0.75em]'
 const BAR =
   'w-[2px] rounded-[1px] [transition:background-color_160ms_var(--chat-ease)_var(--bar-delay)] motion-reduce:[transition:none]'
@@ -145,7 +151,18 @@ function promptAriaLabel(name: string, effort: ReasoningEffort | null): string {
 
 function FailedMark(props: {announce: Announce | undefined}): JSX.Element {
   onMount(() => props.announce?.(MODELS_UNAVAILABLE))
-  return <RotateCw class="text-chat-text-3 shrink-0 size-3.5 block" aria-hidden="true" />
+  return <RotateCw class={FAILED_ICON} aria-hidden="true" />
+}
+
+function PillGhost(props: {label: string}): JSX.Element {
+  return (
+    <span class={PILL_GHOST} aria-hidden="true">
+      <Show when={props.label === PILL_FAILED}>
+        <RotateCw class={FAILED_ICON} aria-hidden="true" />
+      </Show>
+      <span class={PILL_GHOST_NAME} data-label={props.label} />
+    </span>
+  )
 }
 
 function RetryRow(props: {reason: string; onRetry: () => void}): JSX.Element {
@@ -476,10 +493,15 @@ export function HarnessModelSelector(props: HarnessModelSelectorProps): JSX.Elem
             >
               <Switch>
                 <Match when={pill()}>
-                  <Show when={failed()}>
-                    <FailedMark announce={props.announce} />
-                  </Show>
-                  <span class={PILL_NAME}>{pillName()}</span>
+                  <span class={PILL_STACK}>
+                    <span class={PILL_LAYER}>
+                      <Show when={failed()}>
+                        <FailedMark announce={props.announce} />
+                      </Show>
+                      <span class={PILL_NAME}>{pillName()}</span>
+                    </span>
+                    <For each={PILL_STATES}>{(label) => <PillGhost label={label} />}</For>
+                  </span>
                   <ChevronsUpDown size={13} class="opacity-70 shrink-0" aria-hidden="true" />
                 </Match>
                 <Match when={failed()}>
