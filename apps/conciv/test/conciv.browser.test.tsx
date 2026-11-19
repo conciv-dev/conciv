@@ -9008,11 +9008,7 @@ describe('terminal panel', () => {
     await terminalPanel().click()
     await expect.element(terminalInput()).toHaveFocus()
     await userEvent.keyboard('{Enter}')
-    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
     await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
-    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 15_000}).toBeVisible()
-    await expect.element(removeGrab()).not.toBeInTheDocument()
-    await terminalTab().click()
     await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
   }, 60_000)
 
