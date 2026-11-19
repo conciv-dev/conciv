@@ -31,7 +31,7 @@ export const register = Effect.fn('TestRunnerTools.register')(function* (
       execute: () =>
         manager.list(false).pipe(
           Effect.map((output) => ({output})),
-          Effect.catchTag('RunnerUnavailable', toolFailure),
+          Effect.catchTag('TestRunner.RunnerUnavailable', toolFailure),
         ),
     })
     editor.add({
@@ -43,7 +43,7 @@ export const register = Effect.fn('TestRunnerTools.register')(function* (
       execute: ({pattern}) =>
         manager.run({patterns: pattern ? [pattern] : undefined}).pipe(
           Effect.map((output) => ({output})),
-          Effect.catchTag('RunnerUnavailable', toolFailure),
+          Effect.catchTag('TestRunner.RunnerUnavailable', toolFailure),
         ),
     })
     editor.add({

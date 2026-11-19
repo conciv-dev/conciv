@@ -1,4 +1,4 @@
-import {Data, Effect, Fiber, FiberHandle, Ref, Semaphore, Stream, SubscriptionRef} from 'effect'
+import {Effect, Fiber, FiberHandle, Ref, Schema, Semaphore, Stream, SubscriptionRef} from 'effect'
 import {from, onCleanup, type Accessor} from 'solid-js'
 import type {Context} from '@conciv/plugin/experimental'
 import {TestRunner} from './rpc.js'
@@ -8,9 +8,15 @@ import {initialRunView, transitionRunView, type RunView} from './run-state.js'
 
 type Client = Context['client']
 
-const ReadFailed = Data.TaggedError('ReadFailed')<{readonly cause: unknown}>
+const ReadFailed = Schema.TaggedStruct('TestRunner.ReadFailed', {cause: Schema.Defect()})
+type ReadFailed = typeof ReadFailed.Type & globalThis.Error
+const makeReadFailed = (fields: Omit<typeof ReadFailed.Type, '_tag'>): ReadFailed =>
+  Object.assign(new globalThis.Error(), ReadFailed.make(fields), {name: 'TestRunner.ReadFailed'})
 
-const StreamFailed = Data.TaggedError('StreamFailed')<{readonly cause: unknown}>
+const StreamFailed = Schema.TaggedStruct('TestRunner.StreamFailed', {cause: Schema.Defect()})
+type StreamFailed = typeof StreamFailed.Type & globalThis.Error
+const makeStreamFailed = (fields: Omit<typeof StreamFailed.Type, '_tag'>): StreamFailed =>
+  Object.assign(new globalThis.Error(), StreamFailed.make(fields), {name: 'TestRunner.StreamFailed'})
 
 const TEST_EVENT = 'rpc.test-runner.event'
 
@@ -22,7 +28,7 @@ function readRun(client: Client) {
       const current = await runner.current(undefined, {signal})
       return {status, current}
     },
-    catch: (cause) => new ReadFailed({cause}),
+    catch: (cause) => makeReadFailed({cause}),
   })
 }
 
@@ -69,9 +75,8 @@ const followTestRun = Effect.fn('TestRunner.follow')(function* (
 
   yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}))
 
-  yield* Stream.fromAsyncIterable(
-    client.event.subscribe({types: [TEST_EVENT]}),
-    (cause) => new StreamFailed({cause}),
+  yield* Stream.fromAsyncIterable(client.event.subscribe({types: [TEST_EVENT]}), (cause) =>
+    makeStreamFailed({cause}),
   ).pipe(
     Stream.runForEach((event) => dispatch(decodeEvent(event))),
     Effect.catch((error) => dispatch({type: 'stream-failed', error: error.cause})),

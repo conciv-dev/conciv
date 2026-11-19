@@ -1,4 +1,4 @@
-import {Data, type Effect, type Scope, type Stream} from 'effect'
+import {Schema, type Effect, type Scope, type Stream} from 'effect'
 import type {ChildProcessSpawner} from 'effect/process/ChildProcessSpawner'
 import type {TestEvent, TestRunResult} from './events.js'
 
@@ -19,9 +19,12 @@ export type TestRunnerCapabilities = {
 
 export type CurrentRun = {events: TestEvent[] | null; unavailable: string | null}
 
-export const RunnerUnavailable = Data.TaggedError('RunnerUnavailable')<{readonly message: string}>
-
-export type RunnerUnavailable = InstanceType<typeof RunnerUnavailable>
+export const RunnerUnavailable = Schema.TaggedStruct('TestRunner.RunnerUnavailable', {message: Schema.String})
+export type RunnerUnavailable = typeof RunnerUnavailable.Type & globalThis.Error
+export const makeRunnerUnavailable = (fields: Omit<typeof RunnerUnavailable.Type, '_tag'>): RunnerUnavailable =>
+  Object.assign(new globalThis.Error(fields.message), RunnerUnavailable.make(fields), {
+    name: 'TestRunner.RunnerUnavailable',
+  })
 
 export type RunnerServices = Scope.Scope | ChildProcessSpawner
 

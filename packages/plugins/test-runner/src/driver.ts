@@ -14,7 +14,7 @@ import {
   type Settlement,
 } from './run-machine.js'
 import {
-  RunnerUnavailable,
+  makeRunnerUnavailable,
   type RunArgs,
   type TestRunnerAdapter,
   type TestRunnerCapabilities,
@@ -127,9 +127,10 @@ const makeChildManager = Effect.fn('TestRunner.makeChildManager')(function* (spe
             Stream.filter((entry) => entry.attempt === attempt),
             Stream.runHead,
           )
-          if (Option.isNone(settled)) return yield* new RunnerUnavailable({message: `${spec.id} unavailable: stopped`})
+          if (Option.isNone(settled))
+            return yield* Effect.fail(makeRunnerUnavailable({message: `${spec.id} unavailable: stopped`}))
           const settlement = settled.value.settlement
-          if (!settlement.ok) return yield* new RunnerUnavailable({message: settlement.message})
+          if (!settlement.ok) return yield* Effect.fail(makeRunnerUnavailable({message: settlement.message}))
           return settlement
         }),
       ),
@@ -181,6 +182,6 @@ export function defineStubRunner(options: {
   return {
     id: options.id,
     capabilities: options.capabilities,
-    create: () => Effect.fail(new RunnerUnavailable({message: options.reason})),
+    create: () => Effect.fail(makeRunnerUnavailable({message: options.reason})),
   }
 }

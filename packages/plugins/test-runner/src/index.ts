@@ -25,7 +25,7 @@ function registerRpc(rpc: Context['rpc'], manager: TestRunnerManager) {
       manager
         .list(input.failedOnly)
         .pipe(
-          Effect.catchTag('RunnerUnavailable', (error: RunnerUnavailable) =>
+          Effect.catchTag('TestRunner.RunnerUnavailable', (error: RunnerUnavailable) =>
             Effect.fail(call.error('UNAVAILABLE', UNAVAILABLE_MESSAGE, {available: false, error: error.message})),
           ),
         ),
@@ -34,7 +34,7 @@ function registerRpc(rpc: Context['rpc'], manager: TestRunnerManager) {
       manager
         .run(input)
         .pipe(
-          Effect.catchTag('RunnerUnavailable', (error: RunnerUnavailable) =>
+          Effect.catchTag('TestRunner.RunnerUnavailable', (error: RunnerUnavailable) =>
             Effect.fail(call.error('UNAVAILABLE', UNAVAILABLE_MESSAGE, {available: false, error: error.message})),
           ),
         ),
@@ -50,7 +50,7 @@ export default Plugin.define<RunnerServices>({
     const adapter = getRunner(config.data.runner) ?? vitest
     const manager = yield* adapter
       .create(ctx.location.directory)
-      .pipe(Effect.catchTag('RunnerUnavailable', (error) => Effect.die(error)))
+      .pipe(Effect.catchTag('TestRunner.RunnerUnavailable', (error) => Effect.die(error)))
     yield* register(ctx, manager)
     yield* ctx.skill.transform((editor) => editor.add(info))
     const registration = yield* registerRpc(ctx.rpc, manager).pipe(Effect.orDie)

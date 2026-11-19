@@ -1,6 +1,6 @@
 import {createRequire} from 'node:module'
 import {pathToFileURL} from 'node:url'
-import {Data, Effect} from 'effect'
+import {Effect, Schema} from 'effect'
 import {Path} from 'effect/Path'
 import {z} from 'zod'
 import {countStates, parseFailure, type TestCaseLike, type TestError, type TestRow} from './events.js'
@@ -21,8 +21,19 @@ type VitestLike = {
 }
 type TestCaseWithDiagnostic = TestCaseLike & {diagnostic?: () => {duration?: number} | undefined}
 
-const VitestLoadFailed = Data.TaggedError('VitestLoadFailed')<{readonly message: string}>
-const VitestRunFailed = Data.TaggedError('VitestRunFailed')<{readonly message: string}>
+const VitestLoadFailed = Schema.TaggedStruct('TestRunner.VitestLoadFailed', {message: Schema.String})
+type VitestLoadFailed = typeof VitestLoadFailed.Type & globalThis.Error
+const makeVitestLoadFailed = (fields: Omit<typeof VitestLoadFailed.Type, '_tag'>): VitestLoadFailed =>
+  Object.assign(new globalThis.Error(fields.message), VitestLoadFailed.make(fields), {
+    name: 'TestRunner.VitestLoadFailed',
+  })
+
+const VitestRunFailed = Schema.TaggedStruct('TestRunner.VitestRunFailed', {message: Schema.String})
+type VitestRunFailed = typeof VitestRunFailed.Type & globalThis.Error
+const makeVitestRunFailed = (fields: Omit<typeof VitestRunFailed.Type, '_tag'>): VitestRunFailed =>
+  Object.assign(new globalThis.Error(fields.message), VitestRunFailed.make(fields), {
+    name: 'TestRunner.VitestRunFailed',
+  })
 
 function describeCause(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause)
@@ -86,12 +97,12 @@ function loadVitest(cwd: string, path: Path) {
       if (!parsed.success) throw new Error('vitest/node did not expose createVitest')
       return parsed.data.createVitest('test', {watch: true, run: false, root: cwd, dir: cwd, reporters: [reporter]})
     },
-    catch: (cause) => new VitestLoadFailed({message: describeCause(cause)}),
+    catch: (cause) => makeVitestLoadFailed({message: describeCause(cause)}),
   })
 }
 
 function useVitest<A>(run: () => Promise<A>) {
-  return Effect.tryPromise({try: run, catch: (cause) => new VitestRunFailed({message: describeCause(cause)})})
+  return Effect.tryPromise({try: run, catch: (cause) => makeVitestRunFailed({message: describeCause(cause)})})
 }
 
 function closeVitest(vitest: VitestLike) {
