@@ -760,6 +760,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     attachmentExpanders,
     prompt: plugins.prompt,
     promptHooked: plugins.promptHooked,
+    context: plugins.context,
     pluginInstructions: (sessionId, reset, inventory) =>
       pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
