@@ -16,7 +16,9 @@ export const CaptureNotFound = Schema.TaggedStruct('RecorderCaptureNotFound', {c
 export type CaptureNotFound = typeof CaptureNotFound.Type & globalThis.Error
 
 export const makeCaptureNotFound = (fields: Omit<typeof CaptureNotFound.Type, '_tag'>): CaptureNotFound =>
-  Object.assign(new globalThis.Error(), CaptureNotFound.make(fields), {name: 'RecorderCaptureNotFound'})
+  Object.assign(new globalThis.Error(`The capture ${fields.captureId} was not found`), CaptureNotFound.make(fields), {
+    name: 'RecorderCaptureNotFound',
+  })
 
 export type StartedCapture = {readonly captureId: string; readonly startTs: number; readonly appendCursor: number}
 

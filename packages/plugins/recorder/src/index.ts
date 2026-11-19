@@ -20,7 +20,7 @@ const ConfigInvalid = Schema.TaggedStruct('RecorderConfigInvalid', {message: Sch
 type ConfigInvalid = typeof ConfigInvalid.Type & globalThis.Error
 
 const makeConfigInvalid = (fields: Omit<typeof ConfigInvalid.Type, '_tag'>): ConfigInvalid =>
-  Object.assign(new globalThis.Error(), ConfigInvalid.make(fields), {name: 'RecorderConfigInvalid'})
+  Object.assign(new globalThis.Error(fields.message), ConfigInvalid.make(fields), {name: 'RecorderConfigInvalid'})
 
 const RESET_SNAPSHOT_WAIT_MS = 1500
 

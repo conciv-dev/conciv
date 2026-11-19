@@ -15,7 +15,9 @@ export const RecordingNotFound = Schema.TaggedStruct('RecorderRecordingNotFound'
 export type RecordingNotFound = typeof RecordingNotFound.Type & globalThis.Error
 
 export const makeRecordingNotFound = (fields: Omit<typeof RecordingNotFound.Type, '_tag'>): RecordingNotFound =>
-  Object.assign(new globalThis.Error(), RecordingNotFound.make(fields), {name: 'RecorderRecordingNotFound'})
+  Object.assign(new globalThis.Error(`The recording ${fields.id} was not found`), RecordingNotFound.make(fields), {
+    name: 'RecorderRecordingNotFound',
+  })
 
 export type RecordingStoreInterface = {
   readonly save: (events: RrwebEvent[]) => Effect.Effect<SaveResult>

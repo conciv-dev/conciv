@@ -13,7 +13,9 @@ export const FlushFailed = Schema.TaggedStruct('RecorderFlushFailed', {cause: Sc
 export type FlushFailed = typeof FlushFailed.Type & globalThis.Error
 
 export const makeFlushFailed = (fields: Omit<typeof FlushFailed.Type, '_tag'>): FlushFailed =>
-  Object.assign(new globalThis.Error(), FlushFailed.make(fields), {name: 'RecorderFlushFailed'})
+  Object.assign(new globalThis.Error('Flushing the recorded events failed'), FlushFailed.make(fields), {
+    name: 'RecorderFlushFailed',
+  })
 
 export type Flusher = {
   readonly state: SubscriptionRef.SubscriptionRef<FlusherState>

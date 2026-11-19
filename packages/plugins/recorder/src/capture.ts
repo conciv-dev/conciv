@@ -25,9 +25,13 @@ export type CaptureLibraryLoadFailed = typeof CaptureLibraryLoadFailed.Type & gl
 export const makeCaptureLibraryLoadFailed = (
   fields: Omit<typeof CaptureLibraryLoadFailed.Type, '_tag'>,
 ): CaptureLibraryLoadFailed =>
-  Object.assign(new globalThis.Error(), CaptureLibraryLoadFailed.make(fields), {
-    name: 'RecorderCaptureLibraryLoadFailed',
-  })
+  Object.assign(
+    new globalThis.Error('Loading the rrweb capture library failed'),
+    CaptureLibraryLoadFailed.make(fields),
+    {
+      name: 'RecorderCaptureLibraryLoadFailed',
+    },
+  )
 
 export const loadCaptureLibrary: Effect.Effect<CaptureLibrary, CaptureLibraryLoadFailed> = Effect.tryPromise({
   try: () => Promise.all([import('rrweb'), import('@rrweb/rrweb-plugin-console-record')]),

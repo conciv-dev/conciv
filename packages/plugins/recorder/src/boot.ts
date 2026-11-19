@@ -7,13 +7,17 @@ export const ConfigReadFailed = Schema.TaggedStruct('RecorderConfigReadFailed', 
 export type ConfigReadFailed = typeof ConfigReadFailed.Type & globalThis.Error
 
 export const makeConfigReadFailed = (fields: Omit<typeof ConfigReadFailed.Type, '_tag'>): ConfigReadFailed =>
-  Object.assign(new globalThis.Error(), ConfigReadFailed.make(fields), {name: 'RecorderConfigReadFailed'})
+  Object.assign(new globalThis.Error('Reading the recorder config failed'), ConfigReadFailed.make(fields), {
+    name: 'RecorderConfigReadFailed',
+  })
 
 export const StateReadFailed = Schema.TaggedStruct('RecorderStateReadFailed', {cause: Schema.Defect()})
 export type StateReadFailed = typeof StateReadFailed.Type & globalThis.Error
 
 export const makeStateReadFailed = (fields: Omit<typeof StateReadFailed.Type, '_tag'>): StateReadFailed =>
-  Object.assign(new globalThis.Error(), StateReadFailed.make(fields), {name: 'RecorderStateReadFailed'})
+  Object.assign(new globalThis.Error('Reading whether the recorder is live failed'), StateReadFailed.make(fields), {
+    name: 'RecorderStateReadFailed',
+  })
 
 export function runBoot<Prepared, PrepareFailed>(options: {
   readonly connected: Stream.Stream<boolean>

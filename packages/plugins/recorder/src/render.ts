@@ -9,13 +9,17 @@ export const RendererUnavailable = Schema.TaggedStruct('RecorderRendererUnavaila
 export type RendererUnavailable = typeof RendererUnavailable.Type & globalThis.Error
 
 export const makeRendererUnavailable = (fields: Omit<typeof RendererUnavailable.Type, '_tag'>): RendererUnavailable =>
-  Object.assign(new globalThis.Error(), RendererUnavailable.make(fields), {name: 'RecorderRendererUnavailable'})
+  Object.assign(new globalThis.Error('The Chromium renderer could not be launched'), RendererUnavailable.make(fields), {
+    name: 'RecorderRendererUnavailable',
+  })
 
 export const RenderFailed = Schema.TaggedStruct('RecorderRenderFailed', {cause: Schema.Defect()})
 export type RenderFailed = typeof RenderFailed.Type & globalThis.Error
 
 export const makeRenderFailed = (fields: Omit<typeof RenderFailed.Type, '_tag'>): RenderFailed =>
-  Object.assign(new globalThis.Error(), RenderFailed.make(fields), {name: 'RecorderRenderFailed'})
+  Object.assign(new globalThis.Error('Rendering the recording failed'), RenderFailed.make(fields), {
+    name: 'RecorderRenderFailed',
+  })
 
 export type KeyframeRenderer = {
   readonly render: (events: RrwebEvent[], timestamps: number[]) => Effect.Effect<Keyframe[], RenderFailed>

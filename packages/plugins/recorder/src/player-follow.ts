@@ -5,7 +5,9 @@ export const FollowFailed = Schema.TaggedStruct('RecorderFollowFailed', {cause: 
 export type FollowFailed = typeof FollowFailed.Type & globalThis.Error
 
 export const makeFollowFailed = (fields: Omit<typeof FollowFailed.Type, '_tag'>): FollowFailed =>
-  Object.assign(new globalThis.Error(), FollowFailed.make(fields), {name: 'RecorderFollowFailed'})
+  Object.assign(new globalThis.Error('Following the recording failed'), FollowFailed.make(fields), {
+    name: 'RecorderFollowFailed',
+  })
 
 export type ReplaySource = {readonly events: RrwebEvent[]; readonly cursor: number}
 

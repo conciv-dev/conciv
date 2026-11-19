@@ -7,19 +7,25 @@ export const PresenceFailed = Schema.TaggedStruct('RecorderPresenceFailed', {cau
 export type PresenceFailed = typeof PresenceFailed.Type & globalThis.Error
 
 export const makePresenceFailed = (fields: Omit<typeof PresenceFailed.Type, '_tag'>): PresenceFailed =>
-  Object.assign(new globalThis.Error(), PresenceFailed.make(fields), {name: 'RecorderPresenceFailed'})
+  Object.assign(new globalThis.Error('Renewing the recorder panel presence failed'), PresenceFailed.make(fields), {
+    name: 'RecorderPresenceFailed',
+  })
 
 export const ExportFailed = Schema.TaggedStruct('RecorderExportFailed', {cause: Schema.Defect()})
 export type ExportFailed = typeof ExportFailed.Type & globalThis.Error
 
 export const makeExportFailed = (fields: Omit<typeof ExportFailed.Type, '_tag'>): ExportFailed =>
-  Object.assign(new globalThis.Error(), ExportFailed.make(fields), {name: 'RecorderExportFailed'})
+  Object.assign(new globalThis.Error('Exporting the recording failed'), ExportFailed.make(fields), {
+    name: 'RecorderExportFailed',
+  })
 
 export const ResetFailed = Schema.TaggedStruct('RecorderResetFailed', {cause: Schema.Defect()})
 export type ResetFailed = typeof ResetFailed.Type & globalThis.Error
 
 export const makeResetFailed = (fields: Omit<typeof ResetFailed.Type, '_tag'>): ResetFailed =>
-  Object.assign(new globalThis.Error(), ResetFailed.make(fields), {name: 'RecorderResetFailed'})
+  Object.assign(new globalThis.Error('Resetting the recorder failed'), ResetFailed.make(fields), {
+    name: 'RecorderResetFailed',
+  })
 
 const VIEWER_RENEW = '7 seconds'
 

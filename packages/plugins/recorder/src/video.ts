@@ -8,13 +8,17 @@ export const VideoUnrendered = Schema.TaggedStruct('RecorderVideoUnrendered', {c
 export type VideoUnrendered = typeof VideoUnrendered.Type & globalThis.Error
 
 export const makeVideoUnrendered = (fields: Omit<typeof VideoUnrendered.Type, '_tag'>): VideoUnrendered =>
-  Object.assign(new globalThis.Error(), VideoUnrendered.make(fields), {name: 'RecorderVideoUnrendered'})
+  Object.assign(new globalThis.Error('The recording could not be rendered to video'), VideoUnrendered.make(fields), {
+    name: 'RecorderVideoUnrendered',
+  })
 
 export const VideoUnreadable = Schema.TaggedStruct('RecorderVideoUnreadable', {cause: Schema.Defect()})
 export type VideoUnreadable = typeof VideoUnreadable.Type & globalThis.Error
 
 export const makeVideoUnreadable = (fields: Omit<typeof VideoUnreadable.Type, '_tag'>): VideoUnreadable =>
-  Object.assign(new globalThis.Error(), VideoUnreadable.make(fields), {name: 'RecorderVideoUnreadable'})
+  Object.assign(new globalThis.Error('The video of the recording could not be read'), VideoUnreadable.make(fields), {
+    name: 'RecorderVideoUnreadable',
+  })
 
 const unrendered = (cause: unknown) => makeVideoUnrendered({cause})
 

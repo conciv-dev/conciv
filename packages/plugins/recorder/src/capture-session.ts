@@ -14,7 +14,9 @@ export const ConfigReloadFailed = Schema.TaggedStruct('RecorderConfigReloadFaile
 export type ConfigReloadFailed = typeof ConfigReloadFailed.Type & globalThis.Error
 
 export const makeConfigReloadFailed = (fields: Omit<typeof ConfigReloadFailed.Type, '_tag'>): ConfigReloadFailed =>
-  Object.assign(new globalThis.Error(), ConfigReloadFailed.make(fields), {name: 'RecorderConfigReloadFailed'})
+  Object.assign(new globalThis.Error('Reloading the recorder config failed'), ConfigReloadFailed.make(fields), {
+    name: 'RecorderConfigReloadFailed',
+  })
 
 export const openCaptureSession = Effect.fn('recorder.captureSession')(function* (options: {
   readonly config: RecorderConfig
