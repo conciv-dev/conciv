@@ -10707,7 +10707,9 @@ module.exports = {default: {setup(ctx) {
         (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user').at(-1),
       )
       .toMatchObject({
-        parts: [{type: 'text', content: expect.stringMatching(/^Attachment alone\.txt:\nthe lone file body/)}],
+        parts: [
+          {type: 'text', content: expect.stringMatching(/^Attachment alone\.txt:\nthe lone file body\nThe user /)},
+        ],
         metadata: {comments: {length: 6}},
       })
 
