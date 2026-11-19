@@ -1,6 +1,7 @@
 export * as Conciv from './client.js'
 
-import {contract, type RpcClient} from '@conciv/contract'
+import {z} from 'zod'
+import {browserRpcConnection, contract, type RpcClient} from '@conciv/contract'
 import {SharedEvents} from '../shared-events.js'
 import type {EventSubscribeOutput} from './generated/types.js'
 import {makeRpc, type RpcApi} from './rpc.js'
@@ -30,7 +31,7 @@ export function make(
   const connection = makeConnection()
   const idleTimeout = options.idleTimeout ?? defaultIdleTimeout
   const events = SharedEvents.make((signal, onActivity) =>
-    received(raw, signal, onActivity, connection.set, idleTimeout),
+    received(raw, signal, onActivity, connection.set, idleTimeout, options.server),
   )
   const groups = {
     auth: raw.auth,
@@ -82,17 +83,25 @@ function makeConnection() {
 const reconnectDelay = 1_000
 export const defaultIdleTimeout = 45_000
 
+const UntrustedSchema = z.object({code: z.literal('UNAUTHORIZED')})
+
 async function* received(
   raw: RpcClient,
   signal: AbortSignal,
   onActivity: () => void,
   setStatus: (status: ClientConnectionStatus) => void,
   idleTimeout: number,
+  server: () => string,
 ) {
   signal.addEventListener('abort', () => setStatus('connecting'), {once: true})
   while (!signal.aborted) {
-    yield* attempted(raw, signal, onActivity, setStatus, idleTimeout)
+    const outcome = yield* attempted(raw, signal, onActivity, setStatus, idleTimeout)
     if (signal.aborted) return
+    if (outcome === 'untrusted') {
+      setStatus('connecting')
+      await trusted(server(), signal)
+      continue
+    }
     setStatus('reconnecting')
     await wait(reconnectDelay, signal)
   }
@@ -128,6 +137,7 @@ async function* attempted(
     if (!signal.aborted) console.info('[conciv] the event stream ended; subscribing again')
   } catch (error) {
     if (signal.aborted) return
+    if (UntrustedSchema.safeParse(error).success) return 'untrusted'
     console.info(
       '[conciv] the event stream failed; subscribing again',
       attempt.signal.aborted ? attempt.signal.reason : error,
@@ -136,6 +146,23 @@ async function* attempted(
     clearTimeout(watchdog)
     signal.removeEventListener('abort', cancel)
   }
+}
+
+function trusted(server: string, signal: AbortSignal) {
+  const {trust, release} = browserRpcConnection(server)
+  return new Promise<void>((resolve) => {
+    const settle = () => {
+      stopTrust()
+      signal.removeEventListener('abort', settle)
+      release()
+      resolve()
+    }
+    const stopTrust = trust.subscribe((status) => {
+      if (status === 'trusted') settle()
+    })
+    signal.addEventListener('abort', settle, {once: true})
+    if (trust.isTrusted() || signal.aborted) settle()
+  })
 }
 
 function wait(delay: number, signal: AbortSignal) {
