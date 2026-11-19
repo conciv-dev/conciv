@@ -90,7 +90,7 @@ import {
   pluginInstructions,
   currentToolDomain,
 } from './runtime/permission-cards.js'
-import {makePluginRuntime} from './runtime/plugin-runtime.js'
+import {makePluginRuntime, type PluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
@@ -474,12 +474,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const staleness = opts.staleness ?? engineStaleness
   const dbScope = Effect.runSync(Scope.make())
   const closeDb = () => Effect.runPromise(Scope.close(dbScope, Exit.void))
-  const db = await Effect.runPromise(openDb(opts.cfg.stateRoot).pipe(Scope.provide(dbScope))).catch(
-    async (error: unknown) => {
-      await closeDb()
+  const failedStart =
+    (steps: ShutdownStep[]) =>
+    async (error: unknown): Promise<never> => {
+      await runInOrder(
+        [endListings, ...steps, () => browsers.close(), closeDb],
+        'conciv: disposing after a failed start failed',
+      ).catch((failure: unknown) => logError(`[core] ${String(failure)}`))
       throw error
-    },
-  )
+    }
+  const db = await Effect.runPromise(openDb(opts.cfg.stateRoot).pipe(Scope.provide(dbScope))).catch(failedStart([]))
   const planeRef: {current: ChatPlane | null} = {current: null}
 
   const runStartListeners: ((sessionId: SessionId) => void)[] = []
@@ -628,70 +632,61 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     askUi: () => runtime.forSession(sessionId).asks.ui(),
   })
 
-  assertUniqueCapabilityNames([
-    ['a conciv assist tool', concivSandboxToolNames()],
-    ...mounted.map((entry): [string, string[]] => [
-      `extension "${entry.extensionName}"`,
-      entry.tools.map((tool) => tool.name),
-    ]),
-  ])
-
-  registerExtensionTools(registry, mounted)
-
   const engineId = opts.engineId ?? randomUUID()
-  const plugins = makePluginRuntime({
-    db,
-    cwd: opts.cwd,
-    home: concivHome({homeDir: opts.home, env: process.env}),
-    fallbackRoots: join(stateDir, 'plugin-host'),
-    engineId,
-    config: opts.cfg,
-    plugins: opts.plugins ?? [],
-    post: [
-      {
-        ...concivPage,
-        setup: (context) =>
-          concivPage.setup({
-            ...context,
-            options: pickBy(
-              {
-                pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
-                queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
-                permissionSyncTimeoutMs: opts.permissionSyncTimeoutMs,
-              },
-              isNotNil,
-            ),
-          }),
-      },
-    ],
-    harness,
-    signal: engineLife.signal,
-    bundler: opts.bridge,
-    openInEditor: opts.openInEditor,
-    extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
-    sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: pagePlugin}),
-  })
+  const startPlugins = (): PluginRuntime => {
+    assertUniqueCapabilityNames([
+      ['a conciv assist tool', concivSandboxToolNames()],
+      ...mounted.map((entry): [string, string[]] => [
+        `extension "${entry.extensionName}"`,
+        entry.tools.map((tool) => tool.name),
+      ]),
+    ])
+    registerExtensionTools(registry, mounted)
+    return makePluginRuntime({
+      db,
+      cwd: opts.cwd,
+      home: concivHome({homeDir: opts.home, env: process.env}),
+      fallbackRoots: join(stateDir, 'plugin-host'),
+      engineId,
+      config: opts.cfg,
+      plugins: opts.plugins ?? [],
+      post: [
+        {
+          ...concivPage,
+          setup: (context) =>
+            concivPage.setup({
+              ...context,
+              options: pickBy(
+                {
+                  pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
+                  queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
+                  permissionSyncTimeoutMs: opts.permissionSyncTimeoutMs,
+                },
+                isNotNil,
+              ),
+            }),
+        },
+      ],
+      harness,
+      signal: engineLife.signal,
+      bundler: opts.bridge,
+      openInEditor: opts.openInEditor,
+      extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
+      sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: pagePlugin}),
+    })
+  }
+  const plugins = await Promise.try(startPlugins).catch(failedStart([...disposers, settings.close]))
   const pluginHost: PluginHost = plugins.runtime
-  const startFailed =
-    (steps: ShutdownStep[]) =>
-    async (error: unknown): Promise<never> => {
-      await runInOrder(
-        [
-          endListings,
-          plugins.closeRpc,
-          plugins.closePlugins,
-          plugins.closePermissions,
-          ...steps,
-          ...disposers,
-          settings.close,
-          () => browsers.close(),
-          () => pluginHost.dispose(),
-          closeDb,
-        ],
-        'conciv: disposing after a failed start failed',
-      ).catch((failure: unknown) => logError(`[core] ${String(failure)}`))
-      throw error
-    }
+  const startFailed = (steps: ShutdownStep[]) =>
+    failedStart([
+      plugins.closeRpc,
+      plugins.closePlugins,
+      plugins.closePermissions,
+      ...steps,
+      () => pluginHost.dispose(),
+      ...disposers,
+      settings.close,
+    ])
   await pluginHost.context().catch(startFailed([]))
   const idleScope = Effect.runSync(Scope.make())
   const idleTriggers = Effect.runSync(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
