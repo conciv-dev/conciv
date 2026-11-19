@@ -1,8 +1,11 @@
 import type {Mutation, Query, QueryClient} from '@tanstack/react-query'
 import type {ReactFiber, ReactTree} from '@conciv/plugin/experimental/page'
-import {Predicate} from 'effect'
-import type {CacheEntry, CacheEntryState} from '../rpc.js'
-import {errorMessage, findInFibers} from './router-adapter.js'
+import {Effect, Predicate, Schema} from 'effect'
+import type {CacheEntry, CacheEntryState} from './rpc.js'
+import {callFailed, errorMessage, findInFibers} from './router-adapter.js'
+
+const QueryClientNotFound = Schema.TaggedStruct('Tanstack.QueryClientNotFound', {})
+export type QueryClientNotFound = typeof QueryClientNotFound.Type
 
 function isQueryClient(candidate: unknown): candidate is QueryClient {
   return Predicate.isObject(candidate) && Predicate.isFunction(candidate.getQueryCache)
@@ -20,10 +23,9 @@ function findQueryClient(tree: ReactTree): QueryClient | null {
   return findInFibers(tree, clientFromFiber)
 }
 
-function requireQueryClient(tree: ReactTree): QueryClient {
+function requireQueryClient(tree: ReactTree): Effect.Effect<QueryClient, QueryClientNotFound> {
   const client = findQueryClient(tree)
-  if (!client) throw new Error('TanStack QueryClient not found on page')
-  return client
+  return client ? Effect.succeed(client) : Effect.fail(QueryClientNotFound.make({}))
 }
 
 function queryState(query: Query): CacheEntryState {
@@ -72,21 +74,19 @@ function mutationToEntry(tree: ReactTree, mutation: Mutation): CacheEntry {
   }
 }
 
-export function readQueryCache(tree: ReactTree): CacheEntry[] {
-  const client = requireQueryClient(tree)
-  return client
-    .getQueryCache()
-    .getAll()
-    .map((query) => queryToEntry(tree, query))
-}
-
-export function readMutations(tree: ReactTree): CacheEntry[] {
-  const client = requireQueryClient(tree)
-  return client
-    .getMutationCache()
-    .getAll()
-    .map((mutation) => mutationToEntry(tree, mutation))
-}
+export const readQueryCache = Effect.fn('tanstack.query.cache')(function* (tree: ReactTree) {
+  const client = yield* requireQueryClient(tree)
+  return {
+    queries: client
+      .getQueryCache()
+      .getAll()
+      .map((query) => queryToEntry(tree, query)),
+    mutations: client
+      .getMutationCache()
+      .getAll()
+      .map((mutation) => mutationToEntry(tree, mutation)),
+  }
+})
 
 function matchingQueries(tree: ReactTree, client: QueryClient, key: string): Query[] {
   return client
@@ -95,20 +95,30 @@ function matchingQueries(tree: ReactTree, client: QueryClient, key: string): Que
     .filter((query) => JSON.stringify(query.queryKey) === key || redactedKey(tree, query.queryKey) === key)
 }
 
-export async function invalidateQuery(tree: ReactTree, key: string): Promise<{ok: true}> {
-  const client = requireQueryClient(tree)
-  await Promise.all(
-    matchingQueries(tree, client, key).map((query) =>
-      client.invalidateQueries({queryKey: query.queryKey, exact: true}),
-    ),
+export const invalidateQuery = Effect.fn('tanstack.query.invalidate')(function* (tree: ReactTree, key: string) {
+  const client = yield* requireQueryClient(tree)
+  yield* Effect.forEach(
+    matchingQueries(tree, client, key),
+    (query) =>
+      Effect.tryPromise({
+        try: () => client.invalidateQueries({queryKey: query.queryKey, exact: true}),
+        catch: callFailed,
+      }),
+    {concurrency: 'unbounded', discard: true},
   )
-  return {ok: true}
-}
+  return {ok: true as const}
+})
 
-export async function refetchQuery(tree: ReactTree, key: string): Promise<{ok: true}> {
-  const client = requireQueryClient(tree)
-  await Promise.all(
-    matchingQueries(tree, client, key).map((query) => client.refetchQueries({queryKey: query.queryKey, exact: true})),
+export const refetchQuery = Effect.fn('tanstack.query.refetch')(function* (tree: ReactTree, key: string) {
+  const client = yield* requireQueryClient(tree)
+  yield* Effect.forEach(
+    matchingQueries(tree, client, key),
+    (query) =>
+      Effect.tryPromise({
+        try: () => client.refetchQueries({queryKey: query.queryKey, exact: true}),
+        catch: callFailed,
+      }),
+    {concurrency: 'unbounded', discard: true},
   )
-  return {ok: true}
-}
+  return {ok: true as const}
+})

@@ -369,6 +369,12 @@
       }
     },
     {
+      "files": ["packages/db/**", "packages/ai/**", "packages/chat/**", "packages/core/**", "packages/plugin-host/**"],
+      "rules": {
+        "conciv/no-await-effect-query": "error"
+      }
+    },
+    {
       "files": ["**/test/**", "**/*.test.ts", "**/*.test.tsx"],
       "rules": {
         "conciv/banned-vocabulary": "off"
