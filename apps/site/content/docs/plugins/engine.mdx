@@ -426,44 +426,5 @@ a terminal, see [`conciv plugin call`](/docs/plugins/terminal).
 each `ctx` domain returns a `Promise`. `setup` may be async, and may return a cleanup that runs when the plugin stops
 or reloads.
 
-```ts title="packages/plugins/whiteboard/src/index.ts"
-export default Plugin.define({
-  id: 'whiteboard',
-  async setup(ctx) {
-    const directory = ctx.location.directory
-    const store = await createStore(databaseDirectory(ctx.location))
-    const closeStore = () => store.close()
-    const registration = await releaseOnFailure([closeStore], () =>
-      ctx.rpc.register(Whiteboard, whiteboardHandlers(store)),
-    )
-    const stopAnnouncing = store.onEvent((event) => {
-      if (event.table === 'cursor') return
-      const {room, table, key, type, cursor} = event
-      registration.events.emit('changed', {room, table, key, type, cursor}).catch((error: unknown) => {
-        console.error(`[whiteboard] change ${table} ${key} was not announced: ${String(error)}`)
-      })
-    })
-    const stopEnrichment = startCommentEnrichment(store, directory)
-    const stops = [closeStore, stopAnnouncing, stopEnrichment]
-    await releaseOnFailure(stops, async () => {
-      await ctx.agent.transform((editor) =>
-        editor.list().forEach((agent) => agent.permissions.push(...CONFIRMATION_RULES)),
-      )
-      await register(ctx.tool, store, directory, ctx.permission)
-      await ctx.skill.transform((editor) => editor.add(info))
-      await ctx.session.hook('experimental.idle', async ({sessionId}) => {
-        await autoCommitDraft(store, sessionId)
-      })
-    })
-    return () => stops.toReversed().forEach((stop) => stop())
-  },
-})
-```
-
-A tool's `execute` and an RPC handler return a `Promise`. A tool fails a call by throwing `Tool.toolError`:
-
-```ts title="packages/plugins/whiteboard/src/tool/refusal.ts"
-export function fail({code, ...failure}: Failure): never {
-  throw Tool.toolError(code === undefined ? failure : {...failure, metadata: {code}})
-}
-```
+A tool's `execute` and an RPC handler return a `Promise`. A tool fails a call by throwing a `Tool.Error` made with
+`toolError({message, metadata})`, which the entry exports.
