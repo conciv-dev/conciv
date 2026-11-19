@@ -453,9 +453,6 @@ catalogs:
     oxlint:
       specifier: 1.90.0
       version: 1.90.0
-    p-queue:
-      specifier: ^10.0.0
-      version: 10.0.0
     p-timeout:
       specifier: ^8.0.0
       version: 8.0.0
@@ -2966,9 +2963,6 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
-      '@conciv/extension-ios':
-        specifier: workspace:^
-        version: link:../extensions/ios
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
@@ -2981,6 +2975,9 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../plugin
+      '@conciv/plugin-ios':
+        specifier: workspace:^
+        version: link:../plugins/ios
       '@conciv/plugin-page':
         specifier: workspace:^
         version: link:../plugin-page
@@ -3433,49 +3430,6 @@ importers:
       vite-plugin-solid:
         specifier: 'catalog:'
         version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
-
-  packages/extensions/ios:
-    dependencies:
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../../extension
-      '@conciv/grab':
-        specifier: workspace:^
-        version: link:../../grab
-      '@conciv/protocol':
-        specifier: workspace:^
-        version: link:../../protocol
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
-    devDependencies:
-      '@conciv/tsconfig':
-        specifier: workspace:*
-        version: link:../../tsconfig
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../../vitest-config
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.6
-      solid-js:
-        specifier: 'catalog:'
-        version: 1.9.17
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vite:
-        specifier: 'catalog:'
-        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
-      vite-plugin-solid:
-        specifier: 'catalog:'
-        version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
-      vitest:
-        specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
   packages/extensions/recorder:
     dependencies:
@@ -4461,6 +4415,12 @@ importers:
 
   packages/plugins/ios:
     dependencies:
+      '@conciv/grab':
+        specifier: workspace:^
+        version: link:../../grab
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../../protocol
       effect:
         specifier: 'catalog:'
         version: 4.1.0
@@ -4480,12 +4440,12 @@ importers:
       '@conciv/plugin-testkit':
         specifier: workspace:^
         version: link:../../plugin-testkit
-      '@conciv/protocol':
-        specifier: workspace:^
-        version: link:../../protocol
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@conciv/uno-preset':
+        specifier: workspace:*
+        version: link:../../uno-preset
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -4495,12 +4455,24 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      solid-js:
+        specifier: 'catalog:'
+        version: 1.9.17
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      unocss:
+        specifier: 'catalog:'
+        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite-plugin-solid:
+        specifier: 'catalog:'
+        version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -18180,10 +18152,6 @@ packages:
   p-map@7.1.1:
     resolution: {integrity: sha512-6Lh3jQPLthYujSrlw6ccWXBGZTkoTCz27Hd92g79LH/kjAbgoEu0t442cCCNbegPSJsA0lwDX8z0bcKtkpA32g==}
     engines: {node: '>=18'}
-
-  p-queue@10.0.0:
-    resolution: {integrity: sha512-P2wrCri3bhGLPo3kX7qYVXbo/5GvaVATU0DpO24CbeT53Y4z35t8JUWku04ERpXHUYB5rPMi3TkWE3fmJgx5rA==}
-    engines: {node: '>=22'}
 
   p-queue@9.3.5:
     resolution: {integrity: sha512-Lki/zhXFVmDhesBUn/yHRLW9Bte7mE7xoFHzTR8sIomV7a2z+LxYAPkGvdfidNiu4fKSfjtawixxSHcZci5QcQ==}
@@ -33410,8 +33378,6 @@ snapshots:
       p-limit: 3.1.0
 
   p-map@7.1.1: {}
-
-  p-queue@10.0.0: {}
 
   p-queue@9.3.5:
     dependencies:
