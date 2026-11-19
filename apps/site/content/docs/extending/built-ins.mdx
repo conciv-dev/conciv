@@ -1,30 +1,26 @@
 ---
 title: Built-ins
-description: The whiteboard extension and the test-runner plugin, read as worked examples.
+description: The whiteboard and test-runner plugins, read as worked examples.
 ---
 
-Two built-ins show the public contracts at work: the whiteboard extension and the test-runner
-plugin. Neither uses anything private, so they double as reference implementations.
+Two built-ins show the public contracts at work: the whiteboard and test-runner plugins. Neither uses anything private, so they double as reference implementations.
 
 ## Whiteboard
 
-[`@conciv/extension-whiteboard`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/whiteboard)
-is the [shared Excalidraw canvas](/docs/usage/whiteboard). It demonstrates the heavyweight end of
-the contract:
+[`@conciv/plugin-whiteboard`](https://github.com/conciv-dev/conciv/tree/main/packages/plugins/whiteboard)
+is the [shared Excalidraw canvas](/docs/usage/whiteboard), a plugin like the test runner. It
+demonstrates the heavyweight end of the contract:
 
-- **Four tool groups** (`canvas`, `comment`, `anchor`, `element`) composed into one `tools` array,
-  each defined with `defineTool` and a typed shared context.
-- **A long-lived server process**: its `.server(...)` factory boots a self-hosted CRDT sync
-  server, deploys the schema, and returns `dispose` to shut everything down.
-- **Custom routes**: `server.app.get('/config', ...)` hands the client its sync endpoint.
-- **Composer UI**: its `Component` renders the whiteboard button with
-  `useSlot() === 'composer'`.
-- **Session scoping**: tools read `request.sessionId` so every chat session gets its own room.
+- **Four tool groups** (`canvas`, `comment`, `anchor`, `element`) under the `whiteboard` namespace.
+- **Plugin storage**: the board, its comments and pins live in the storage the engine keeps for
+  the plugin, with a change feed every open canvas follows over the plugin's RPC.
+- **Composer UI**: a "Whiteboard" pill above the composer opens the canvas over the page.
+- **Session scoping**: every chat session gets its own room.
 
 ## Test runner
 
 [`@conciv/plugin-test-runner`](https://github.com/conciv-dev/conciv/tree/main/packages/plugins/test-runner)
-powers [live tests](/docs/usage/live-tests). It is a plugin, not an extension. Load it with
+powers [live tests](/docs/usage/live-tests). Load it with
 `plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]`. It shows the plugin patterns:
 
 - **Options**: the `runner` option (vitest, jest, node-test, playwright) is parsed with zod in
@@ -40,5 +36,4 @@ powers [live tests](/docs/usage/live-tests). It is a plugin, not an extension. L
 ## Reading order
 
 Start with the test runner's `src/index.ts` (about eighty lines end to end), then the whiteboard's
-tool groups. Everything the whiteboard imports from `@conciv/extension` is documented in
-[Tool contract](/docs/extending/tool-contract) and [Widget UI](/docs/extending/widget-ui).
+tool groups in `src/tools.ts` and `src/canvas-tools.ts`.

@@ -16,7 +16,7 @@ A harness that runs both compiles together loses 78-136 rules every time. The lo
 and `[background:var(--chat-danger|warn)]`. Release builds are uncached and fully parallel, so they are the most
 exposed. The variable order in `:root,:host` also changes on every build, so no two builds are byte-identical.
 
-A separate cache bug: `packages/embed/uno.config.ts` scans `extensions/whiteboard`, `try-it` and `tanstack`, but none
+A separate cache bug: `packages/embed/uno.config.ts` scans the removed whiteboard extension, `try-it` and `tanstack`, but none
 of them is in embed's turbo inputs. `apps/conciv` has the same gap for whiteboard. An edit there leaves the turbo hash
 unchanged, so stale CSS is served.
 
@@ -46,7 +46,7 @@ unchanged, so stale CSS is served.
   builds are now byte-identical. If the variable order still varies, report its source.
 - **Missed rules.** The rules that went missing in the race (`.-right-1`, `.-top-1`, the danger/warn backgrounds) are
   present.
-- **Turbo.** An edit in `extensions/whiteboard` changes embed's turbo hash.
+- **Turbo.** An edit in the removed whiteboard extension changes embed's turbo hash.
 - **Tests.** The embed tests (vitest plus Playwright) and the conciv browser suite pass, and so does
   `pnpm --filter @conciv/embed test` (mount-externals guard).
 - **Screenshots.** The widget panel, a session card with danger/warn, page pins, and the PiP/effects surface, headless,

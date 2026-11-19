@@ -110,13 +110,13 @@ ships as an installable package with real client/server build outputs.
 Declare every code a tool can throw in its `errors` field, then throw with `toolError(code,
 {message?, data?})` from inside `.server`/`.client`:
 
-```ts title="packages/extensions/whiteboard/src/tool/comment/def.ts:18,59,108"
+```ts title="removed whiteboard extension: src/tool/comment/def.ts:18,59,108"
 const COMMENT_NOT_FOUND = {COMMENT_NOT_FOUND: {message: 'no comment with that cid in this session'}}
 // commentReadDef: errors: COMMENT_NOT_FOUND
 // commentResolveDef: errors: COMMENT_NOT_FOUND, approval: 'ask'
 ```
 
-```ts title="packages/extensions/whiteboard/src/tool/comment/server.ts:2,23"
+```ts title="removed whiteboard extension: src/tool/comment/server.ts:2,23"
 import {defineTool, toolError} from '@conciv/extension'
 if (!row) throw toolError('COMMENT_NOT_FOUND', {message: `comment ${cid} not found`})
 ```

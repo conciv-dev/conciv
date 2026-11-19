@@ -474,7 +474,7 @@
           "packages/plugins/whiteboard/src/oxc-capture.ts"
         ],
         "maxCognitive": 24,
-        "reason": "moved from @conciv/extension-whiteboard src/anchor: resolve and the oxc visitors keep the extension's shape until the extension is removed"
+        "reason": "resolve and the oxc visitors walk the source in one pass each, as the whiteboard anchors were first written"
       }
     ]
   },
@@ -531,7 +531,6 @@
     "@conciv/embed",
     "@conciv/extension-compiler",
     "@conciv/extension-try-it",
-    "@conciv/extension-whiteboard",
     "@conciv/grab",
     "@conciv/mascot",
     "@conciv/skills",
@@ -554,7 +553,6 @@
     "@conciv/core",
     "@conciv/embed",
     "@conciv/extension",
-    "@conciv/extension-whiteboard",
     "@conciv/grab",
     "@conciv/harness",
     "@conciv/it",

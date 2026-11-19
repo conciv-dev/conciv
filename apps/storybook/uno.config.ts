@@ -14,7 +14,6 @@ export default defineConfig({
       '../../packages/builtin-plugins/src/**/*.{ts,tsx}',
       '../../packages/extensions/tanstack/src/**/*.{ts,tsx}',
       '../../packages/extensions/recorder/src/**/*.{ts,tsx}',
-      '../../packages/extensions/whiteboard/src/**/*.{ts,tsx}',
       '../../packages/plugins/test-runner/src/**/*.{ts,tsx}',
     ],
   },

@@ -139,7 +139,7 @@ defineExtension({
 `.client(factory)` and `.server(factory)` on the returned builder for the two runtime halves — both
 optional, chain only what you need:
 
-```tsx title="packages/extensions/whiteboard/src/client.tsx:43-84 (trimmed)"
+```tsx title="removed whiteboard extension: src/client.tsx:43-84 (trimmed)"
 const whiteboard = defineExtension({
   name: WHITEBOARD_NAME,
   tools: whiteboardToolClients,
@@ -225,9 +225,9 @@ throw toolError('MANIFEST_UNREADABLE', {message: error instanceof Error ? error.
 
 (`packages/extensions/tanstack/src/tool/server.ts:1` for the import, `:19` for the throw.) Declare
 the codes you can throw in the definition's `errors` field so the contract is visible from the type
-alone — `packages/extensions/whiteboard/src/tool/comment/def.ts:18` declares
+alone — the removed whiteboard extension's `src/tool/comment/def.ts:18` declares
 `const COMMENT_NOT_FOUND = {COMMENT_NOT_FOUND: {message: 'no comment with that cid in this session'}}`
-and `packages/extensions/whiteboard/src/tool/comment/def.ts:59` attaches it via
+and the removed whiteboard extension's `src/tool/comment/def.ts:59` attaches it via
 `errors: COMMENT_NOT_FOUND` on a tool that can throw it.
 
 Full field-by-field reference and the split `def.ts`/`server.ts`/`client.ts` pattern for
@@ -304,7 +304,7 @@ declare module '@conciv/protocol/config-types' {
 `makeExtRpcClient<TRouter>(apiBase, extensionSlug)` builds a typed client for it from the browser
 (it auto-picks the browser transport when `location` exists, a node fetch client otherwise):
 
-```ts title="packages/extensions/whiteboard/src/client/db.tsx:3,28"
+```ts title="removed whiteboard extension: src/client/db.tsx:3,28"
 import {makeExtRpcClient} from '@conciv/extension'
 const client: WhiteboardClient = makeExtRpcClient<WhiteboardRouter>(apiBase, 'whiteboard')
 ```
@@ -328,7 +328,7 @@ exact signature): [rpc-and-testing](references/rpc-and-testing.md).
 page, and returns `{page, callTool, callToolApproved, runTypescript, session, apiBase,
 serverContext, secondClient, dispose}` — no mocks, the same HTTP contract the widget uses.
 
-```ts title="packages/extensions/whiteboard/test/canvas-it-helpers.ts:1-9"
+```ts title="removed whiteboard extension: test/canvas-it-helpers.ts:1-9"
 import {fixtureHost, getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
 import whiteboard from '../src/server.js'
 
@@ -397,8 +397,6 @@ non-installed extensions).
 - `packages/extension-testkit/src/get-extension-test-api.ts`
 - `packages/extension-testkit/src/fixture-host.ts`
 - `packages/protocol/src/tool-view-types.ts`
-- `packages/extensions/whiteboard/src/client.tsx`
-- `packages/extensions/whiteboard/src/tool/comment/def.ts`
 - `packages/extensions/terminal/src/client.tsx`
 - `packages/extensions/terminal/src/client/terminal-context.ts`
 - `packages/extensions/tanstack/src/tool/server.ts`
@@ -406,7 +404,6 @@ non-installed extensions).
 - `packages/extensions/tanstack/test/helpers.ts`
 - `packages/extensions/recorder/src/shared/attachment.ts`
 - `packages/extensions/recorder/src/server.ts`
-- `packages/extensions/whiteboard/test/canvas-it-helpers.ts`
 - `apps/site/content/docs/extending/index.mdx`
 - `apps/site/content/docs/extending/your-first-extension.mdx`
 - `apps/site/content/docs/extending/install-first-party.mdx`

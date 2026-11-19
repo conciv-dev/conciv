@@ -11,9 +11,9 @@
   "dependencies": {
     "@conciv/embed": "workspace:*",
     "@conciv/extension-tanstack": "workspace:*",
-    "@conciv/extension-whiteboard": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/plugin-test-runner": "workspace:*",
+    "@conciv/plugin-whiteboard": "workspace:*",
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"

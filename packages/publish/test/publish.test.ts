@@ -72,11 +72,11 @@ describe('catalog', () => {
   })
 
   test('assertSharedDependenciesCatalogued lets an exempt manifest keep its own line of a shared dep', async () => {
-    const root = await scaffoldWorkspaceRoot('catalog-exempt-', ['packages/*', 'packages/extensions/*'])
+    const root = await scaffoldWorkspaceRoot('catalog-exempt-', ['packages/*', 'packages/plugins/*'])
     await Promise.all([
       writeManifest(join(root, 'packages', 'a'), {name: '@conciv/a', dependencies: {'drizzle-orm': 'catalog:'}}),
-      writeManifest(join(root, 'packages', 'extensions', 'whiteboard'), {
-        name: '@conciv/extension-whiteboard',
+      writeManifest(join(root, 'packages', 'plugins', 'whiteboard'), {
+        name: '@conciv/plugin-whiteboard',
         dependencies: {'drizzle-orm': '^0.45.4'},
       }),
     ])

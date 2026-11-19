@@ -20,7 +20,7 @@ predates their oRPC router).
 
 ## Building the router
 
-```ts title="packages/extensions/whiteboard/src/server/router.ts"
+```ts title="removed whiteboard extension: src/server/router.ts"
 import {eventIterator, ORPCError, os} from '@orpc/server'
 import {CONCIV_SESSION_HEADER, isSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
@@ -59,7 +59,7 @@ streaming return; the handler is an async generator. `subscriptionIterator` adap
 `emit`-callback subscription (an event emitter, a store's `onEvent`) into the `AsyncGenerator` such
 a handler must `yield*`:
 
-```ts title="packages/extensions/whiteboard/src/server/router.ts"
+```ts title="removed whiteboard extension: src/server/router.ts"
 import {eventIterator, os} from '@orpc/server'
 import {subscriptionIterator} from '@conciv/extension'
 
@@ -80,7 +80,7 @@ disconnects.
 
 ## Calling it from the browser
 
-```ts title="packages/extensions/whiteboard/src/client/db.tsx:3,28"
+```ts title="removed whiteboard extension: src/client/db.tsx:3,28"
 import {makeExtRpcClient} from '@conciv/extension'
 const client: WhiteboardClient = makeExtRpcClient<WhiteboardRouter>(apiBase, 'whiteboard')
 ```
@@ -122,7 +122,7 @@ extension's default export (the one with `.server(...)` already chained on it â€
   `dist/test-host` directory and throws with a clear "run this package's build first" message if
   it's missing:
 
-```ts title="packages/extensions/whiteboard/test/canvas-it-helpers.ts:1-9"
+```ts title="removed whiteboard extension: test/canvas-it-helpers.ts:1-9"
 import {fixtureHost, getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
 import whiteboard from '../src/server.js'
 

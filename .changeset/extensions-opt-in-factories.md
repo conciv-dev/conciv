@@ -10,7 +10,6 @@
 '@conciv/extension-recorder': patch
 '@conciv/extension-tanstack': patch
 '@conciv/extension-terminal': patch
-'@conciv/extension-whiteboard': patch
 ---
 
 Extensions are opt-in. `@conciv/it` no longer installs any extension: add the ones you want by importing them and

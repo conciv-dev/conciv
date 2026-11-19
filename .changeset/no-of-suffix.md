@@ -11,7 +11,6 @@
 '@conciv/extension-recorder': patch
 '@conciv/extension-tanstack': patch
 '@conciv/extension-terminal': patch
-'@conciv/extension-whiteboard': patch
 '@conciv/grab': patch
 '@conciv/harness': patch
 '@conciv/harness-init': patch
