@@ -11536,6 +11536,18 @@ module.exports = {default: {setup(ctx) {
     await userEvent.keyboard('{Enter}')
     await expect.element(sentCard('the other comment')).toBeVisible()
     await expect.element(fileShown('the typed file body')).toBeVisible()
+    await expect
+      .poll(async () =>
+        (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user').at(-1),
+      )
+      .toMatchObject({
+        parts: [
+          {
+            type: 'text',
+            content: expect.stringMatching(/^noted\n\nAttachment typed\.txt:\nthe typed file body\n\nThe user /),
+          },
+        ],
+      })
     await tab('Fixture tools').click()
     await control('Attach six notes alone').click()
     await tab('Chat').click()

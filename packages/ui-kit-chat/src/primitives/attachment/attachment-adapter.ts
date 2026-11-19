@@ -216,7 +216,7 @@ export function createTextAttachmentAdapter(): AttachmentAdapter {
       return {
         ...attachment,
         status: {type: 'complete'},
-        content: [{type: 'text', content: `\n\nAttachment ${attachment.name}:\n${await attachment.file.text()}`}],
+        content: [{type: 'text', content: `Attachment ${attachment.name}:\n${await attachment.file.text()}`}],
       }
     },
   }

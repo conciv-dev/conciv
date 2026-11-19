@@ -62,7 +62,12 @@ function buildContent(text: string, attachments: Attachment[]): string | SendCon
     ...(text ? [{type: 'text', content: text} as const] : []),
     ...attachments.flatMap((attachment) => (isCompleteAttachment(attachment) ? attachment.content : [])),
   ]
-  return {content: parts}
+  const firstText = parts.findIndex((part) => part.type === 'text')
+  return {
+    content: parts.map((part, index) =>
+      part.type === 'text' && index > firstText ? {...part, content: `\n\n${part.content}`} : part,
+    ),
+  }
 }
 
 function invokeSubmit(handler: FormProps['onSubmit'], event: SubmitEvent): void {
