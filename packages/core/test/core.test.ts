@@ -2535,7 +2535,7 @@ describe('settings storage', () => {
     }
   }
 
-  test('the server store, the rpc client store and a second subscriber share one debounced file per scope', async () => {
+  test('two rpc client stores and a second subscriber share one debounced file per scope', async () => {
     const [root, home] = [tempDir('conciv-core-unit-'), tempDir('conciv-core-unit-')]
     const projectFolder = join(root, '.conciv', 'settings')
     const globalFolder = join(home, 'settings')
@@ -2567,9 +2567,13 @@ describe('settings storage', () => {
       await fileBecomes(projectFile, pretty(full))
       expect(readdirSync(projectFolder)).toEqual(['probe.json'])
       const globalFile = join(globalFolder, 'probe.json')
+      const dropped = await valueBecomes(engine.server.project, {theme: 'dark', tags: ['a']})
       await client.project.delete('size')
+      await dropped.reached
       expect(await engine.server.project.get('size')).toBeUndefined()
+      const light = await valueBecomes(engine.server.global, {theme: 'light'})
       await client.global.set('theme', 'light')
+      await light.reached
       expect(await engine.server.global.all()).toEqual({theme: 'light'})
       await fileBecomes(projectFile, pretty({theme: 'dark', tags: ['a']}))
       await fileBecomes(globalFile, pretty({theme: 'light'}))
@@ -2996,6 +3000,7 @@ describe('plugin host bus', () => {
     expect(await following).toEqual({kind: 'stopped'})
     expect(idles).toHaveLength(1)
     expect(endings.filter((ending) => ending.type === 'session.execution.succeeded')).toHaveLength(1)
+    expect(endings.at(-1)).toEqual({type: 'session.execution.interrupted', data: {sessionID: id, reason: 'user'}})
 
     const published: ChatEvent[] = []
     onTestFinished(made.runtime.forSession(id).stream.listen((chunk) => void published.push(chunk)))
@@ -3235,6 +3240,7 @@ describe('plugin host bus', () => {
     await kit.rpc.sessions.delete({sessionId: idling})
     expect(heardBy(idling)).toEqual([
       'session.instructions.updated during a run',
+      'session.execution.succeeded during a run',
       'idle hook ended reading [{"key":"brief","value":"ship it"}]',
       'session.deleted with no run',
     ])
@@ -3254,7 +3260,7 @@ describe('plugin host bus', () => {
     const inFlight = await kit.turn('keep going until the session is deleted', {session: running, runId: 'deleted-run'})
     await inFlight.waitForRunStart({runId: 'deleted-run'})
     await kit.rpc.sessions.delete({sessionId: running})
-    expect(heardBy(running)).toEqual(['session.deleted with no run'])
+    expect(heardBy(running)).toEqual(['session.execution.interrupted during a run', 'session.deleted with no run'])
     expect(made.plane.driving(running)).toBe(false)
     expect(await entries(running)).toEqual([])
     await inFlight.done()
@@ -3268,7 +3274,11 @@ describe('plugin host bus', () => {
     expect(await made.runtime.forSession(ending).run.stop()).toEqual({ok: true, stopped: true})
     stoppedGate.held.resolve()
     expect(await stoppedWhileEnding).toEqual({kind: 'delivered'})
-    expect(heardBy(ending)).toEqual(['session.created with no run', 'session.instructions.updated during a run'])
+    expect(heardBy(ending)).toEqual([
+      'session.created with no run',
+      'session.instructions.updated during a run',
+      'session.execution.succeeded during a run',
+    ])
 
     const heardBeforeDelete = heardBy(ending).length
     const deletedGate = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
@@ -3281,17 +3291,20 @@ describe('plugin host bus', () => {
     const deleting = kit.rpc.sessions.delete({sessionId: ending})
     deletedGate.held.resolve()
     await deleting
-    expect([['session.deleted with no run'], ['idle hook entered', 'session.deleted with no run']]).toContainEqual(
-      heardBy(ending).slice(heardBeforeDelete),
-    )
+    expect([
+      ['session.execution.succeeded during a run', 'session.deleted with no run'],
+      ['session.execution.succeeded during a run', 'idle hook entered', 'session.deleted with no run'],
+    ]).toContainEqual(heardBy(ending).slice(heardBeforeDelete))
     expect(await deletedWhileEnding).toEqual({kind: 'delivered'})
 
     expect(seen.filter((entry) => entry.sessionId !== ending)).toEqual([
       {sessionId: idling, what: 'session.instructions.updated during a run'},
+      {sessionId: idling, what: 'session.execution.succeeded during a run'},
       {sessionId: idling, what: 'idle hook ended reading [{"key":"brief","value":"ship it"}]'},
       {sessionId: idling, what: 'session.deleted with no run'},
       {sessionId: preparing, what: 'prompt hook entered'},
       {sessionId: preparing, what: 'session.deleted with no run'},
+      {sessionId: running, what: 'session.execution.interrupted during a run'},
       {sessionId: running, what: 'session.deleted with no run'},
     ])
 

@@ -321,12 +321,14 @@ function publishCreated(born: SessionRecord) {
   ).pipe(Effect.asVoid)
 }
 
-function publishRunEnd(sessionId: SessionId, run: RunLifecycle) {
+function publishRunEnd(sessionId: SessionId, run: RunLifecycle, interrupted: 'user' | 'shutdown') {
   const sessionID = SessionSchema.Id.make(sessionId)
   return Bus.Service.use((bus) => {
     if (run.phase === 'completed') return bus.publish(SessionEvent.Execution.Succeeded, {sessionID})
     if (run.phase === 'failed')
       return bus.publish(SessionEvent.Execution.Failed, {sessionID, error: run.error ?? 'the run failed'})
+    if (run.phase === 'aborted')
+      return bus.publish(SessionEvent.Execution.Interrupted, {sessionID, reason: interrupted})
     return Effect.void
   }).pipe(Effect.asVoid)
 }
@@ -422,7 +424,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   const onRunEnd = async (sessionId: SessionId, run: RunLifecycle): Promise<void> => {
     await pluginHost
-      .runPromise(publishRunEnd(sessionId, run))
+      .runPromise(
+        publishRunEnd(sessionId, run, planeRef.current === null || engineLife.signal.aborted ? 'shutdown' : 'user'),
+      )
       .catch((error: unknown) => logError(`[core] publishing how run ${run.runId} ended failed: ${String(error)}`))
     if (run.phase === 'completed' && !(await owedFollowUp(sessionId))) {
       const idled = await pluginHost

@@ -1472,8 +1472,8 @@ describe('api mcp execute result', () => {
 
     it('returns image content blocks for a plugin tool that answers with an image file', async () => {
       expect(await execute('return await external_probe_snap({})')).toEqual([
+        {type: 'text', content: JSON.stringify({result: JSON.stringify({width: 4}), logs: []})},
         {type: 'image', source: {type: 'data', value: PNG_RED_4x4, mimeType: 'image/png'}},
-        {type: 'text', content: JSON.stringify({width: 4})},
       ])
     })
 
@@ -2874,13 +2874,18 @@ describe('rpc wire', () => {
         expect(models.defaultModel).toBe('opus')
       })
 
-      it('a session whose agent has code mode off is offered no plugin tool, since its turn gets none', async () => {
-        const {kit} = await bootWire({
-          plugins: [fixtureExtension()],
-          permissions: [{action: 'execute', resource: '*', effect: 'deny'}],
-        })
-        const {tools} = await kit.rpc.meta.tools({sessionId: await kit.session()})
-        expect(tools.map((tool) => tool.name).filter((name) => FIXTURE_TOOLS.includes(name))).toEqual([])
+      it('a session whose agent has code mode off is offered every plugin tool directly, and its turn gets them', async () => {
+        const kit = await bootKit(
+          {plugins: [fixtureExtension()], permissions: [{action: 'execute', resource: '*', effect: 'deny'}]},
+          recordingHarness(createTestHarness(requireClaude())),
+        )
+        cleanups.push(() => kit.cleanup())
+        const sessionId = await kit.session()
+        const {tools} = await kit.rpc.meta.tools({sessionId})
+        expect(tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(FIXTURE_TOOLS))
+        await (await kit.turn('tools', {session: sessionId})).done()
+        expect(findLastRun(sessionId).tools).toEqual(expect.arrayContaining(FIXTURE_TOOLS))
+        expect(findLastRun(sessionId).tools).not.toContain('execute_typescript')
       })
     })
 
@@ -3761,10 +3766,11 @@ return seen`
         ])
       })
 
-      it('a tool that returns nothing resolves to undefined and the program goes on', async () => {
-        expect(
-          await executeResult('const quiet = await external_fixture_quiet({}); return [typeof quiet, "after"]'),
-        ).toEqual(['undefined', 'after'])
+      it('a tool that returns nothing resolves to null and the program goes on', async () => {
+        expect(await executeResult('const quiet = await external_fixture_quiet({}); return [quiet, "after"]')).toEqual([
+          null,
+          'after',
+        ])
       })
 
       it('a program that never ends leaves the server answering, and stopping its turn ends the program', async () => {
@@ -3892,7 +3898,7 @@ return seen`
         expect(cardMetadata(script)).toMatchObject({time: FINISHED_CALL_TIME})
         expect(children.map((part) => part.state === 'error')).toEqual([false, false, true, true, false])
         const results = collectResults(await thread(sessionId))
-        expect(results).toContain('Input validation failed for tool fixture_echo')
+        expect(results).toContain('Invalid arguments for tool \\"fixture_echo\\"')
         expect(results).toContain('the probe broke')
         expect(results).toContain('conciv:truncated')
         expect(results).toContain('120000')
@@ -4194,7 +4200,11 @@ return seen`
   }
 
   function bootFollowingRunEndings(overrides: Parameters<typeof bootMadeApp>[1]) {
-    const endings: string[] = [SessionEvent.Execution.Succeeded.type, SessionEvent.Execution.Failed.type]
+    const endings: string[] = [
+      SessionEvent.Execution.Succeeded.type,
+      SessionEvent.Execution.Failed.type,
+      SessionEvent.Execution.Interrupted.type,
+    ]
     return async (env: Parameters<typeof bootMadeApp>[0]) => {
       const made = await bootMadeApp(env, overrides)
       await made.awaitActivation()
@@ -8945,10 +8955,13 @@ describe('session terminal', () => {
       expect(cursor).toBe(late.text().length)
       late.stop()
 
+      const following = await readTerminal(terminal, pty.id, cursor)
       await terminal.write({ptyId: pty.id, data: 'echo after-$((5+5))\r'})
+      await shows(following, 'after-10')
+      following.stop()
       const resumed = await readTerminal(terminal, pty.id, cursor)
-      await shows(resumed, 'after-10')
       await until(() => metaCursor(resumed) !== undefined)
+      expect(resumed.text()).toContain('after-10')
       expect(resumed.text()).not.toContain('ws-roundtrip-42')
       expect(resumed.text()).not.toContain('bulk-2-done')
       expect(metaCursor(resumed)).toBeGreaterThan(cursor)
