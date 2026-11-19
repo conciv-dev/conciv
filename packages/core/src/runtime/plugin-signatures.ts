@@ -59,9 +59,10 @@ export function pagePermissionAllows(
 
 function cliInput(schema: unknown) {
   const parsed = ObjectSchema.parse(schema)
+  const properties: Record<string, unknown> = omit(parsed.properties ?? {}, CLI_HIDDEN_FIELDS)
   return {
     ...parsed,
-    properties: omit(parsed.properties ?? {}, CLI_HIDDEN_FIELDS),
+    properties,
     required: (parsed.required ?? []).filter((field) => !CLI_HIDDEN_FIELDS.includes(field)),
   }
 }

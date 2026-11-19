@@ -536,7 +536,7 @@ describe('chat pane', () => {
 
   function mountChatPane(
     sessionId: string,
-    options: Pick<PaneMountOptions, 'grabProvider' | 'extensions' | 'engineOnlyDrafts'> = {},
+    options: Pick<PaneMountOptions, 'grabProvider' | 'engineOnlyDrafts'> = {},
   ): PaneMount {
     const mount = mountPane({base: core(), sessionId, ...options}, () => <ChatPane sessionId={sessionId} />)
     active.pane = mount

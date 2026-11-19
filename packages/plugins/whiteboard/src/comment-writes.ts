@@ -1,6 +1,6 @@
 import type {MentionSegment} from '@conciv/ui-kit-tap'
 import type {CommentRow, PinRow, ReadRow} from './rows.js'
-import type {WhiteboardDb} from './db.js'
+import type {WhiteboardDb} from './whiteboard-db.js'
 
 export type PinPatch = Partial<Pick<PinRow, 'x' | 'y' | 'pinState' | 'anchorX' | 'anchorY'>>
 

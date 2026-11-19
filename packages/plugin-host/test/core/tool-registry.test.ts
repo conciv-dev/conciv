@@ -446,7 +446,7 @@ describe('Tool', () => {
       const capture = (tools: ReadonlyArray<Info>) =>
         Effect.scoped(
           Effect.gen(function* () {
-            yield* service.transform((editor) => tools.forEach(editor.add))
+            yield* service.transform((editor) => tools.forEach((tool) => editor.add(tool)))
             return (yield* service.snapshot()).definitions
           }),
         )

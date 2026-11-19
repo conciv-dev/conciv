@@ -158,7 +158,7 @@ function SettingsLayout(): JSX.Element {
       >
         <Tabs.List class={RAIL} aria-label="Settings sections">
           <Tabs.Indicator class={INDICATOR} />
-          <For each={[...mainTabs, ...extensionTabs, ...pageTabs()]}>{(tab) => <TabTrigger tab={tab} />}</For>
+          <For each={[...mainTabs, ...pageTabs()]}>{(tab) => <TabTrigger tab={tab} />}</For>
           <span class={SPACER} aria-hidden="true" />
           <TabTrigger tab={advancedTab} />
         </Tabs.List>
