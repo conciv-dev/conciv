@@ -16,6 +16,7 @@ import {
   EngineUnreachableNotice,
 } from '../shell/engine-notice.js'
 import {defaultPanelHeight, panelHeightCap} from './panel-height.js'
+import {PluginServerCover} from '../runtime/plugin/server-shell.js'
 
 const PANEL_BASE =
   'fixed flex flex-col text-chat-text font-normal text-[0.875rem] leading-[1.45] font-chat overflow-hidden [container-type:size]'
@@ -151,7 +152,9 @@ function PanelLayout(): JSX.Element {
                 onKeyDown={resizeX.onKeyDown}
               />
             </Show>
-            <Outlet />
+            <PluginServerCover>
+              <Outlet />
+            </PluginServerCover>
           </section>
         </FocusTrap>
       </PanelComposerFocusContext.Provider>

@@ -7,7 +7,3 @@ export async function probeCore(token: string, ports: readonly number[], signal?
   })
   return Promise.any(attempts).catch(() => null)
 }
-
-export function preflight(token: string, timeoutMs: number, ports: readonly number[]): Promise<string | null> {
-  return probeCore(token, ports, AbortSignal.timeout(timeoutMs))
-}

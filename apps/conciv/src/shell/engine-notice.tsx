@@ -56,7 +56,8 @@ export function EngineStaleNotice(): JSX.Element {
 
 export function EngineOutdatedNotice(): JSX.Element {
   const apiBase = useApiBase()
-  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase()))
+  const connected = useConnected()
+  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase(), connected()))
   const outdated = (): boolean => engineVersion.isSuccess && engineOlderThanWidget(engineVersion.data)
   return (
     <Show when={outdated()}>
@@ -65,9 +66,10 @@ export function EngineOutdatedNotice(): JSX.Element {
   )
 }
 
-export function engineVersionQueryOptions(apiBase: string) {
+export function engineVersionQueryOptions(apiBase: string, connected: boolean) {
   return {
     queryKey: ['conciv', 'engine-version', apiBase],
+    enabled: connected,
     queryFn: async () => (await fetch(`${apiBase}/health`)).headers.get(CONCIV_VERSION_HEADER),
   }
 }
