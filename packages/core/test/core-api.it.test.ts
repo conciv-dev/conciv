@@ -1080,6 +1080,23 @@ describe('api harness switching', () => {
     expect(await turn(sessionId, 'second question')).toMatchObject({harness: 'beta', model: 'b-model'})
   })
 
+  it('a switch whose row write fails is refused and leaves the session on its harness', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await turn(sessionId, 'stay on alpha when the write fails')
+    const before = await row(sessionId)
+    await Effect.runPromise(
+      db().$client.unsafe(`CREATE TRIGGER switch_write_fails BEFORE UPDATE OF harness_kind ON sessions
+      BEGIN SELECT RAISE(ABORT, 'switch write failed'); END`).raw,
+    )
+    onTestFinished(() => Effect.runPromise(db().$client.unsafe('DROP TRIGGER switch_write_fails').raw))
+
+    await expect(kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})).rejects.toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+    })
+
+    expect(await row(sessionId)).toEqual(before)
+  })
+
   it('rejects a switch naming a model the target harness does not list, and changes nothing', async () => {
     const sessionId = (await kit().rpc.sessions.create()).sessionId
     await turn(sessionId, 'stay on alpha')
