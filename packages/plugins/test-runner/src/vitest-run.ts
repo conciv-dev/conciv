@@ -89,16 +89,25 @@ const reporter = {
 }
 
 function loadVitest(cwd: string, path: Path) {
+  const failed = (cause: unknown) => makeVitestLoadFailed({message: describeCause(cause)})
   return Effect.tryPromise({
-    try: async () => {
-      const require = createRequire(path.join(cwd, 'noop.js'))
-      const module = await import(pathToFileURL(require.resolve('vitest/node')).href)
+    try: () => import(pathToFileURL(createRequire(path.join(cwd, 'noop.js')).resolve('vitest/node')).href),
+    catch: failed,
+  }).pipe(
+    Effect.flatMap((module) => {
       const parsed = VitestNodeModuleSchema.safeParse(module)
-      if (!parsed.success) throw new Error('vitest/node did not expose createVitest')
-      return parsed.data.createVitest('test', {watch: true, run: false, root: cwd, dir: cwd, reporters: [reporter]})
-    },
-    catch: (cause) => makeVitestLoadFailed({message: describeCause(cause)}),
-  })
+      return parsed.success
+        ? Effect.succeed(parsed.data)
+        : Effect.fail(makeVitestLoadFailed({message: 'vitest/node did not expose createVitest'}))
+    }),
+    Effect.flatMap((vitestNode) =>
+      Effect.tryPromise({
+        try: () =>
+          vitestNode.createVitest('test', {watch: true, run: false, root: cwd, dir: cwd, reporters: [reporter]}),
+        catch: failed,
+      }),
+    ),
+  )
 }
 
 function useVitest<A>(run: () => Promise<A>) {
