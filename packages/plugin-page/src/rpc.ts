@@ -489,10 +489,18 @@ export const Action = z.discriminatedUnion('type', [
   ...otherOperations.map((entry) => entry.action),
 ])
 export type Action = z.infer<typeof Action>
+export const Operated = z.object({
+  type: z.literal('operation'),
+  name: short.min(1).describe('the page operation another plugin registered in the tab'),
+  input: z.json(),
+})
+export type Operated = z.infer<typeof Operated>
+const Work = z.discriminatedUnion('type', [Action, Operated])
+export type Work = z.infer<typeof Work>
 export const Target = z.object({resources: z.array(text), key: text})
 export type Target = z.infer<typeof Target>
 export const Command = z.object({
-  action: Action,
+  action: Work,
   agentId: z.string().min(1).describe('the agent the page call acts for; keys its cursor on the page'),
   timeoutMs: z.number().int().positive().describe("the call's own timeout: its input timeout plus a second, else 5 s"),
   inspect: z.boolean().optional(),
@@ -503,6 +511,7 @@ export const Command = z.object({
     .describe('the queue this command plays in: index -1 is its acceptance, 0 to of - 1 its actions'),
 })
 export type Command = z.infer<typeof Command>
+export type PageCommand = Omit<Command, 'action'> & {readonly action: Action}
 export const Result = z.object({value: z.json(), files: z.array(File), capture: PageCaptureBundleSchema.optional()})
 export type Result = z.infer<typeof Result>
 export const Outcome = z.discriminatedUnion('type', [
@@ -530,11 +539,28 @@ export const Definition = Rpc.define({
     attach: {
       input: z.object({...attachment, version: z.literal(1)}),
       output: z.enum(['closed', 'replaced']),
-      errors: {...errors, missing: z.object({})},
+      errors: {...errors, missing: z.object({}), transient: z.object({})},
     },
     state: {input: z.object({...attachment, state: Tab}), output: z.void(), errors},
     command: {input: z.object(request), output: Command, errors},
     result: {input: z.object({...request, outcome: Outcome}), output: z.void(), errors},
+    operate: {
+      input: z.object({
+        sessionId: SessionId,
+        tabId: TabId.optional(),
+        name: Operated.shape.name,
+        input: z.json(),
+        reading: z
+          .boolean()
+          .describe('a reading call is sent again once when its tab reloads; a changing call never is'),
+      }),
+      output: z.json(),
+      errors: {
+        ...errors,
+        tab_gone: z.object({dispatched: z.boolean()}),
+        failed: z.object({code: short, raised: PageRaisedErrorSchema.optional()}),
+      },
+    },
     'hmr.wait': {
       input: z.object({sessionId: SessionId, ...hotUpdate}),
       output: z.object({applied: z.boolean(), waitedMs: z.number()}),
