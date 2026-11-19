@@ -2271,6 +2271,9 @@ importers:
 
   packages/builtin-plugins:
     dependencies:
+      '@conciv/client':
+        specifier: workspace:*
+        version: link:../client
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
@@ -4843,6 +4846,9 @@ importers:
       '@solid-primitives/timer':
         specifier: 'catalog:'
         version: 1.4.4(solid-js@1.9.17)
+      '@tanstack/solid-query':
+        specifier: 'catalog:'
+        version: 5.107.1(patch_hash=6ca287b8a3085f4433ba1dbacd30d21e25e9c73cb2f279264f59a24b9df6218f)(solid-js@1.9.17)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -5101,6 +5107,9 @@ importers:
       '@tanstack/solid-db':
         specifier: 'catalog:'
         version: 0.2.28(solid-js@1.9.17)(typescript@7.0.2)
+      '@tanstack/solid-query':
+        specifier: 'catalog:'
+        version: 5.107.1(patch_hash=6ca287b8a3085f4433ba1dbacd30d21e25e9c73cb2f279264f59a24b9df6218f)(solid-js@1.9.17)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6

@@ -1,7 +1,8 @@
 import {Data, Effect} from 'effect'
-import type {Desktop} from '@conciv/plugin/experimental'
+import type {Desktop, MountedSession} from '@conciv/plugin/experimental'
 import type {GrabFrame} from '@conciv/plugin/experimental/grab'
-import type {LocateResult, SourceLoc} from '@conciv/plugin/experimental/page'
+import type {LocateResult, Page, SourceLoc} from '@conciv/plugin/experimental/page'
+import {Definition} from '@conciv/plugin-page/rpc'
 
 export type OpenedSource = 'opened' | 'no-source' | 'failed'
 
@@ -9,6 +10,16 @@ export type SourceOpener = {
   locate: (element: Element) => Promise<LocateResult | null>
   symbolicate: (frames: readonly GrabFrame[]) => Promise<SourceLoc | null>
   desktop: Desktop | undefined
+}
+
+export function symbolicateInSession(routed: () => MountedSession | undefined) {
+  return (frames: Parameters<Page['symbolicate']>[0]['frames']) => {
+    const session = routed()
+
+    if (!session) return Promise.reject(new Error('Page.symbolicate needs a routed session'))
+
+    return session.server.client.rpc(Definition).symbolicate({frames: [...frames]})
+  }
 }
 
 const NoDesktop = Data.TaggedError('OpenSourceNoDesktop')<Record<never, never>>

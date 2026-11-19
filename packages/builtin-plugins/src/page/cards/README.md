@@ -43,7 +43,7 @@ Each `*Card` `ToolCardView` pairs a `render` component built on `CardShell` from
 
 ## Side Effects
 
-- `GrabCard` (`grab-card.tsx`) reads `attachment.file.text()` asynchronously via createResource
+- `GrabCard` (`grab-card.tsx`) reads `attachment.file.text()` asynchronously through `useQuery`, keyed by the attachment id
 - `GrabSnapshotFrame` (`grab-snapshot-frame.tsx`) reads `getComputedStyle` (`--chat-panel`, `--chat-fill`) on mount and renders a sandboxed srcdoc iframe
 - `sessionLocation` (`session-card.tsx`) reads global `location.host`/`location.pathname` while streaming
 - `SessionCard` (`session-card.tsx`) reads `useToolCtx().captureFor` from Solid context

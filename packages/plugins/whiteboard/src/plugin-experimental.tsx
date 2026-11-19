@@ -1,15 +1,22 @@
-import {createResource, onCleanup} from 'solid-js'
+import {onCleanup} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
+import {useQuery} from '@tanstack/solid-query'
 import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
 import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
 
 export default Plugin.define({
   setup(ctx) {
     const [canvas, setCanvas] = createStore({open: false, engaged: false})
-    const [surface, {refetch}] = createResource(
-      () => canvas.engaged,
-      () => import('./client/canvas-surface.js'),
+    const surface = useQuery(
+      () => ({
+        queryKey: ['plugin', 'whiteboard', 'canvas-surface'],
+        queryFn: () => import('./client/canvas-surface.js').then((module) => module.default),
+        enabled: canvas.engaged,
+        retry: false,
+        refetchOnWindowFocus: false,
+      }),
+      () => ctx.queryClient,
     )
     const close = (): void => setCanvas('open', false)
     const overlay: Slot = {
@@ -25,12 +32,12 @@ export default Plugin.define({
         icon: 'presentation',
         title: 'Open the whiteboard canvas',
         run: () => {
-          if (surface.error === undefined) {
+          if (!surface.isError) {
             setCanvas({engaged: true, open: !canvas.open})
             return
           }
           setCanvas('open', true)
-          void refetch()
+          void surface.refetch()
         },
       }),
     }

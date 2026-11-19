@@ -3,9 +3,9 @@ import utilities from 'virtual:uno.css?inline'
 import {createKeyed, Plugin, Slot, type MountedSession} from '@conciv/plugin/experimental'
 import {ToolCall} from '@conciv/plugin/experimental/builtin'
 import {Page, ReactTree} from '@conciv/plugin/experimental/page'
-import {Definition} from '@conciv/plugin-page/rpc'
 import {openAttachment} from './attachment.js'
 import {makeHighlight} from './highlight.js'
+import {symbolicateInSession} from './open-source.js'
 import {makeReactTree, pageMembers} from './contracts.js'
 import {makePageOperations} from './operations.js'
 import {pageToolCalls} from './cards/page-tool-cards.js'
@@ -35,13 +35,7 @@ export default Plugin.define({
     const tabId = `tab_${crypto.randomUUID()}`
     const routed = () => ctx.sessions.current()
 
-    const symbolicate = (frames: Parameters<Page['symbolicate']>[0]['frames']) => {
-      const session = routed()
-
-      if (!session) return Promise.reject(new Error('Page.symbolicate needs a routed session'))
-
-      return session.server.client.rpc(Definition).symbolicate({frames: [...frames]})
-    }
+    const symbolicate = symbolicateInSession(routed)
 
     const highlight = makeHighlight({
       opener: {symbolicate, desktop: ctx.desktop},

@@ -1,33 +1,22 @@
-import {Match, Show, Switch, createResource, onCleanup, untrack, type JSX} from 'solid-js'
+import {Match, Show, Switch, onCleanup, untrack, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
-import {z} from 'zod'
 import {makeTimer} from '@solid-primitives/timer'
+import {useMutation, useQuery} from '@tanstack/solid-query'
 import {usePlugin} from '@conciv/plugin/experimental'
 import {Page} from '@conciv/plugin/experimental/page'
 import {Recorder} from '../rpc.js'
-import {REPLAY_MIN_EVENTS, type RrwebEvent} from '../protocol.js'
+import {REPLAY_MIN_EVENTS} from '../protocol.js'
 import type {CaptureState} from './boot.js'
 import {saveFileToDisk} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {loadPlayerKit, mountStreamPlayer, type PlayerKit, type StreamPlayerHandle} from './player.js'
+import {followRecording, readVideo, type ReplaySource} from './replay.js'
 
 const VIEWER_RENEW_MS = 7000
-
-const SavedRecording = z.object({recordingId: z.string()})
-
-const AppendedHere = z.object({clientId: z.string()})
-
-const APPENDED_EVENT = 'rpc.recorder.appended'
-
-type ReplaySource = {events: RrwebEvent[]; cursor: number}
 
 function recordingWithEnoughEvents(recording: ReplaySource | undefined): ReplaySource | undefined {
   if (!recording || recording.events.length < REPLAY_MIN_EVENTS) return undefined
   return recording
-}
-
-function base64Bytes(data: string): Uint8Array<ArrayBuffer> {
-  return Uint8Array.from(atob(data), (character) => character.charCodeAt(0))
 }
 
 export function RecorderPanel(props: {clientId: string; capture: CaptureState}): JSX.Element {
@@ -35,71 +24,61 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
   const page = ctx.use(Page)
   const recorder = () => ctx.client.rpc(Recorder)
   const viewerId = crypto.randomUUID()
-  const [state, setState] = createStore({live: true, exporting: false, resetting: false})
+  const [state, setState] = createStore({live: true})
+  const clientId = (): string => props.clientId
+  const recordingKey = () => recorder().window.key({input: {clientId: props.clientId}})
 
-  const presence = (live: boolean): Promise<void> =>
-    recorder()
-      .presence({viewerId, live})
-      .then(
-        () => undefined,
-        (error: unknown) => console.error('[conciv] the recorder viewer lease could not be renewed', error),
-      )
-  makeTimer(() => void presence(true), VIEWER_RENEW_MS, setInterval)
-  onCleanup(() => void presence(false))
+  const presence = useMutation(() => ({
+    ...recorder().presence.mutationOptions(),
+    onError: (error: unknown) => console.error('[conciv] the recorder viewer lease could not be renewed', error),
+  }))
+  const announce = (live: boolean): Promise<void> =>
+    presence.mutateAsync({viewerId, live}).then(
+      () => undefined,
+      () => undefined,
+    )
+  makeTimer(() => void announce(true), VIEWER_RENEW_MS, setInterval)
+  onCleanup(() => void announce(false))
 
-  const [recording, {refetch}] = createResource(
-    () => props.clientId,
-    async (clientId) => {
-      await presence(true)
-      return recorder().window({clientId}, {signal: ctx.signal})
-    },
-  )
-  const retry = (): void => void refetch()
+  const recording = useQuery(() => {
+    const read = recorder().window.queryOptions({input: {clientId: props.clientId}})
+    return {
+      ...read,
+      queryFn: async (context: {readonly signal: AbortSignal}) => {
+        await announce(true)
+        return read.queryFn(context)
+      },
+      retry: false,
+      gcTime: 0,
+      refetchOnWindowFocus: false,
+    }
+  })
+  const retry = (): void => void recording.refetch()
 
   const stopWatching = recorder().events.on(
     'appended',
     (event) =>
       untrack(() => {
-        if (event.data.clientId !== props.clientId || recordingWithEnoughEvents(recording.latest)) return
-        void refetch()
+        if (event.data.clientId !== props.clientId || recordingWithEnoughEvents(recording.data)) return
+        void ctx.queryClient.invalidateQueries({queryKey: recordingKey()})
       }),
     {signal: ctx.signal},
   )
   onCleanup(stopWatching)
 
-  const [playerKit] = createResource(loadPlayerKit)
-  const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.state === 'ready' ? playerKit() : undefined)
-
-  const readSince = (cursor: number, signal: AbortSignal): Promise<ReplaySource | undefined> =>
-    recorder()
-      .since({clientId: props.clientId, cursor}, {signal})
-      .then(
-        (fresh): ReplaySource | undefined => fresh,
-        (error: unknown) => {
-          if (!signal.aborted) console.error('[conciv] the recorder replay could not read new events', error)
-          return undefined
-        },
-      )
-
-  const cuesRead = (event: {type: string; data?: unknown}): boolean =>
-    event.type === 'server.connected' || AppendedHere.safeParse(event.data).data?.clientId === props.clientId
-
-  async function* follow(cursor: number, signal: AbortSignal): AsyncGenerator<ReplaySource> {
-    let at = cursor
-    for await (const event of ctx.client.event.subscribe({types: [APPENDED_EVENT], signal})) {
-      if (!cuesRead(event)) continue
-      const fresh = await readSince(at, signal)
-      if (!fresh) continue
-      at = fresh.cursor
-      yield fresh
-    }
-  }
+  const playerKit = useQuery(() => ({
+    queryKey: ['plugin', 'recorder', 'player-kit'],
+    queryFn: loadPlayerKit,
+    retry: false,
+    refetchOnWindowFocus: false,
+  }))
+  const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.isSuccess ? playerKit.data : undefined)
 
   let playerHandle: StreamPlayerHandle | undefined
   const replayRef = (kit: PlayerKit, source: ReplaySource) => (container: HTMLDivElement) => {
     if (source.events.length < 2) return
     const mounted = mountStreamPlayer(kit, container, source, {
-      follow: async (cursor, signal) => follow(cursor, signal),
+      follow: async (cursor, signal) => followRecording(ctx.client, clientId, cursor, signal),
       onLive: (live) => setState('live', live),
     })
     playerHandle = mounted
@@ -109,46 +88,18 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
     })
   }
 
-  const exportFailed = (): void =>
-    void ctx.toast.show({title: 'Could not export the recording. Try again.', variant: 'error'})
+  const save = useMutation(() => ({
+    ...recorder()['recordings.save'].mutationOptions(),
+    onSuccess: async (saved: unknown) => saveFileToDisk(await readVideo(ctx.client, props.clientId, saved)),
+    onError: () => void ctx.toast.show({title: 'Could not export the recording. Try again.', variant: 'error'}),
+  }))
 
-  const readVideo = async (id: string): Promise<File> => {
-    const read = async (offset: number, parts: Uint8Array<ArrayBuffer>[]): Promise<File> => {
-      const piece = await recorder()['recordings.exportVideo']({clientId: props.clientId, id, offset})
-      const bytes = base64Bytes(piece.data)
-      if (piece.eof) return new File([...parts, bytes], piece.name, {type: piece.mime})
-      return read(offset + bytes.length, [...parts, bytes])
-    }
-    return read(0, [])
-  }
-
-  const downloadVideo = async (): Promise<void> => {
-    setState('exporting', true)
-    try {
-      const saved = SavedRecording.safeParse(await recorder()['recordings.save']({clientId: props.clientId}))
-      if (!saved.success) {
-        exportFailed()
-        return
-      }
-      saveFileToDisk(await readVideo(saved.data.recordingId))
-    } catch {
-      exportFailed()
-    } finally {
-      setState('exporting', false)
-    }
-  }
-
-  const startOver = async (): Promise<void> => {
-    setState('resetting', true)
-    try {
-      await recorder().reset(undefined)
-      await refetch()
-    } catch {
-      ctx.toast.show({title: 'Could not start a new recording. Is the page still connected?', variant: 'error'})
-    } finally {
-      setState('resetting', false)
-    }
-  }
+  const reset = useMutation(() => ({
+    ...recorder().reset.mutationOptions(),
+    onSuccess: () => ctx.queryClient.invalidateQueries({queryKey: recordingKey()}),
+    onError: () =>
+      void ctx.toast.show({title: 'Could not start a new recording. Is the page still connected?', variant: 'error'}),
+  }))
 
   return (
     <div class="p-3 flex flex-1 flex-col gap-3 min-h-0 overflow-hidden">
@@ -162,17 +113,17 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
         <Match when={props.capture.failed}>
           <RecorderNotice text="Recording is unavailable: capture failed to start on this page." />
         </Match>
-        <Match when={recording.error}>
+        <Match when={recording.isError}>
           <RecorderErrorNotice retry={retry} />
         </Match>
-        <Match when={recording.state === 'pending'}>
+        <Match when={recording.isPending}>
           <RecorderNotice text="Loading recording…" />
         </Match>
-        <Match keyed when={recordingWithEnoughEvents(recording.latest)}>
+        <Match keyed when={recordingWithEnoughEvents(recording.data)}>
           {(source) => (
             <>
               <Switch fallback={<RecorderNotice text="Loading player…" />}>
-                <Match when={playerKit.error}>
+                <Match when={playerKit.isError}>
                   <RecorderErrorNotice retry={() => location.reload()} text="Could not load the player." />
                 </Match>
                 <Match keyed when={loadedPlayerKit()}>
@@ -185,20 +136,20 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
                 <ctx.ui.Button
                   variant="neutral"
                   size="small"
-                  disabled={state.resetting}
-                  busy={state.resetting}
-                  onClick={() => void startOver()}
+                  disabled={reset.isPending}
+                  busy={reset.isPending}
+                  onClick={() => reset.mutate(undefined)}
                 >
                   New recording
                 </ctx.ui.Button>
                 <ctx.ui.Button
                   variant="neutral"
                   size="small"
-                  disabled={state.exporting}
-                  busy={state.exporting}
-                  onClick={() => void downloadVideo()}
+                  disabled={save.isPending}
+                  busy={save.isPending}
+                  onClick={() => save.mutate({clientId: props.clientId})}
                 >
-                  {state.exporting ? 'Exporting…' : 'Export video'}
+                  {save.isPending ? 'Exporting…' : 'Export video'}
                 </ctx.ui.Button>
                 <div class="ml-auto flex gap-2 items-center">
                   <Show

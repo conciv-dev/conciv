@@ -68,6 +68,7 @@
     "@rrweb/rrweb-plugin-console-record": "catalog:",
     "@rrweb/types": "catalog:",
     "@solid-primitives/timer": "catalog:",
+    "@tanstack/solid-query": "catalog:",
     "@types/node": "catalog:",
     "playwright": "catalog:",
     "rrweb-player": "catalog:",
