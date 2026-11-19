@@ -12,6 +12,7 @@ import {PinsLayer} from './pins.js'
 import {Inbox, InboxToggle} from './inbox.js'
 import type {ChatCover} from './comments-model.js'
 import {ThreadPopover} from './thread.js'
+import type {CanvasBackground} from './stores.js'
 
 const CANVAS_STYLES = excalidrawCss.replaceAll(/:root(?=\s*\{)/g, ':host')
 
@@ -37,7 +38,7 @@ type SurfaceProps = {
   client: Context['client']
   room: string
   catchUpRetryMs: number
-  background: string
+  background: CanvasBackground
   visible: boolean
   layer: HTMLElement
   close: () => void

@@ -26,6 +26,7 @@ import {
   type CanvasPort,
   type SceneElement,
 } from './island-model.js'
+import type {CanvasBackground} from './stores.js'
 
 const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
 const PENDING_REMOVE_RETRY_MS = 100
@@ -70,7 +71,7 @@ export function Island(props: {
   mount: HTMLElement
   room: string
   theme: Theme
-  background: string
+  background: CanvasBackground
   visible: boolean
   onViewport: (viewport: Viewport) => void
   registerPan: (pan: (sceneX: number, sceneY: number) => void) => void

@@ -9,11 +9,9 @@ import {makeCommentCompose, type ComposePhase} from './comment-compose.js'
 import {ComposePopover} from './compose-popover.js'
 import {refAccessor} from './ref-accessor.js'
 import {WhiteboardCanvas, WhiteboardNotices} from './overlay.js'
-import {whiteboardStores} from './stores.js'
+import {readCanvasBackground, whiteboardStores, type CanvasBackground} from './stores.js'
 import {CANVAS_BACKGROUND_ROW, CanvasBackgroundRow} from './canvas-background-row.js'
 import type {ChatCover} from './comments-model.js'
-
-const EXCALIDRAW_VIEW_BACKGROUND = '#ffffff'
 
 export default Plugin.define({
   stores: whiteboardStores,
@@ -38,7 +36,7 @@ export default Plugin.define({
       refetchOnWindowFocus: false,
     }))
     const close = (): void => setCanvas('open', false)
-    const background = (): string => (ctx.stores.canvas.value.transparent ? 'transparent' : EXCALIDRAW_VIEW_BACKGROUND)
+    const background = (): CanvasBackground => readCanvasBackground(ctx.stores.canvas.value.transparent)
     const layer = document.createElement('div')
     const overlay: Slot = {
       at: 'page.overlay',
