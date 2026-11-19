@@ -243,6 +243,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const sessionId = untrack(() => props.sessionId)
   const harness = useSessionHarness(() => sessionId)
   const chat = pane.chat()
+  let paneBody: HTMLDivElement | undefined
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
@@ -398,6 +399,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
       <div class="contents">
         <SessionHeaderSlot pane={pluginSession} />
         <div
+          ref={(element) => (paneBody = element)}
           {...viewTabPanelAttributes(props.viewTab)}
           onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
           class={`chat-density flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
@@ -485,6 +487,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     onSelectionChange={draftStorage.noteSelection}
                     busy={compactingIndicator(compacting())}
                     triggers={commandSources.triggers}
+                    menuBoundary={() => paneBody}
                     prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} running={narrating()} />}
                   >
                     <SessionComposerBinding

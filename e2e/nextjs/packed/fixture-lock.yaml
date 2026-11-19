@@ -5,39 +5,39 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@conciv/ai': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-ai-0.0.22.tgz
-  '@conciv/chat': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-chat-0.0.22.tgz
-  '@conciv/cli': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-cli-0.0.22.tgz
-  '@conciv/client': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-client-0.0.22.tgz
-  '@conciv/contract': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-contract-0.0.22.tgz
-  '@conciv/core': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-core-0.0.22.tgz
-  '@conciv/db': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-db-0.0.22.tgz
-  '@conciv/embed': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-embed-0.0.22.tgz
-  '@conciv/extension': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-extension-0.0.22.tgz
-  '@conciv/extension-compiler': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-extension-compiler-0.0.22.tgz
-  '@conciv/extension-ios': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-extension-ios-0.0.22.tgz
-  '@conciv/grab': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-grab-0.0.22.tgz
-  '@conciv/harness': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-harness-0.0.22.tgz
-  '@conciv/harness-init': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-harness-init-0.0.22.tgz
-  '@conciv/it': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-it-0.0.22.tgz
-  '@conciv/mascot': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-mascot-0.0.22.tgz
-  '@conciv/page': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-page-0.0.22.tgz
-  '@conciv/plugin': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-plugin-0.0.22.tgz
-  '@conciv/plugin-host': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-plugin-host-0.0.22.tgz
-  '@conciv/plugin-page': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-plugin-page-0.0.22.tgz
-  '@conciv/plugin-tanstack': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-plugin-tanstack-0.0.22.tgz
-  '@conciv/protocol': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-protocol-0.0.22.tgz
-  '@conciv/serve': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-serve-0.0.22.tgz
-  '@conciv/solid-diffs': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-solid-diffs-0.0.22.tgz
-  '@conciv/solid-streamdown': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-solid-streamdown-0.0.22.tgz
-  '@conciv/storage-history': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-storage-history-0.0.22.tgz
-  '@conciv/tools': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-tools-0.0.22.tgz
-  '@conciv/ui-kit-chat': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-ui-kit-chat-0.0.22.tgz
-  '@conciv/ui-kit-chat-tools': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-ui-kit-chat-tools-0.0.22.tgz
-  '@conciv/ui-kit-system': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-ui-kit-system-0.0.22.tgz
-  '@conciv/ui-kit-tap': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-ui-kit-tap-0.0.22.tgz
-  '@conciv/ui-kit-terminal': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-ui-kit-terminal-0.0.22.tgz
-  '@conciv/unplugin': file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-unplugin-0.0.22.tgz
+  '@conciv/ai': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-ai-0.0.22.tgz
+  '@conciv/chat': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-chat-0.0.22.tgz
+  '@conciv/cli': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-cli-0.0.22.tgz
+  '@conciv/client': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-client-0.0.22.tgz
+  '@conciv/contract': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-contract-0.0.22.tgz
+  '@conciv/core': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-core-0.0.22.tgz
+  '@conciv/db': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-db-0.0.22.tgz
+  '@conciv/embed': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-embed-0.0.22.tgz
+  '@conciv/extension': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-extension-0.0.22.tgz
+  '@conciv/extension-compiler': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-extension-compiler-0.0.22.tgz
+  '@conciv/extension-ios': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-extension-ios-0.0.22.tgz
+  '@conciv/grab': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-grab-0.0.22.tgz
+  '@conciv/harness': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-harness-0.0.22.tgz
+  '@conciv/harness-init': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-harness-init-0.0.22.tgz
+  '@conciv/it': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-it-0.0.22.tgz
+  '@conciv/mascot': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-mascot-0.0.22.tgz
+  '@conciv/page': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-page-0.0.22.tgz
+  '@conciv/plugin': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-plugin-0.0.22.tgz
+  '@conciv/plugin-host': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-plugin-host-0.0.22.tgz
+  '@conciv/plugin-page': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-plugin-page-0.0.22.tgz
+  '@conciv/plugin-tanstack': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-plugin-tanstack-0.0.22.tgz
+  '@conciv/protocol': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-protocol-0.0.22.tgz
+  '@conciv/serve': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-serve-0.0.22.tgz
+  '@conciv/solid-diffs': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-solid-diffs-0.0.22.tgz
+  '@conciv/solid-streamdown': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-solid-streamdown-0.0.22.tgz
+  '@conciv/storage-history': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-storage-history-0.0.22.tgz
+  '@conciv/tools': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-tools-0.0.22.tgz
+  '@conciv/ui-kit-chat': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-ui-kit-chat-0.0.22.tgz
+  '@conciv/ui-kit-chat-tools': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-ui-kit-chat-tools-0.0.22.tgz
+  '@conciv/ui-kit-system': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-ui-kit-system-0.0.22.tgz
+  '@conciv/ui-kit-tap': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-ui-kit-tap-0.0.22.tgz
+  '@conciv/ui-kit-terminal': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-ui-kit-terminal-0.0.22.tgz
+  '@conciv/unplugin': file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-unplugin-0.0.22.tgz
 
 importers:
 
@@ -46,19 +46,19 @@ importers:
   packages/app:
     dependencies:
       '@conciv/extension':
-        specifier: file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-extension-0.0.22.tgz
+        specifier: file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-extension-0.0.22.tgz
         version: file:tgz/conciv-extension-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
       '@conciv/extension-compiler':
-        specifier: file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-extension-compiler-0.0.22.tgz
+        specifier: file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-extension-compiler-0.0.22.tgz
         version: file:tgz/conciv-extension-compiler-0.0.22.tgz(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
       '@conciv/it':
-        specifier: file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-it-0.0.22.tgz
+        specifier: file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-it-0.0.22.tgz
         version: file:tgz/conciv-it-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(crossws@0.4.17(srvx@1.0.8))(next@16.2.10(@babel/core@7.29.13)(@opentelemetry/api@1.10.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(redis@6.3.1(@opentelemetry/api@1.10.0))(shiki@4.6.0)(solid-js@1.9.18)(srvx@1.0.8)(ws@8.22.2)
       '@conciv/plugin':
-        specifier: file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-plugin-0.0.22.tgz
+        specifier: file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-plugin-0.0.22.tgz
         version: file:tgz/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
       '@conciv/plugin-tanstack':
-        specifier: file:/tmp/conciv-packed-fixture-eb0opb/tgz/conciv-plugin-tanstack-0.0.22.tgz
+        specifier: file:/tmp/conciv-packed-fixture-TAKkD9/tgz/conciv-plugin-tanstack-0.0.22.tgz
         version: file:tgz/conciv-plugin-tanstack-0.0.22.tgz(@conciv/plugin@file:tgz/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18))(@opentelemetry/api@1.10.0)(@tanstack/react-router@1.170.46(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(solid-js@1.9.18)
       next:
         specifier: 16.2.10
@@ -617,6 +617,61 @@ packages:
 
   '@emnapi/wasi-threads@1.2.3':
     resolution: {integrity: sha512-ELEBe8PsLvvJ6QMr0zLt8ffvOHW/dc1m3CEzNMg7aJUv3bMaoDtw2TXyDAwkYBuroxxuHEwhRTLJSe5sya547g==}
+
+  '@ff-labs/fff-bin-android-arm64@0.10.5':
+    resolution: {integrity: sha512-idn1m9ycwv0Dzz6ih4H8e/X1WpGF6kglUxqP78oYgoC2sgAdPtLxD6hIAZK13p8isK7H8EMwrMze/4lynEDcKQ==}
+    cpu: [arm64]
+    os: [android]
+
+  '@ff-labs/fff-bin-darwin-arm64@0.10.5':
+    resolution: {integrity: sha512-tG0VSt6fs3C2/Y6NDp57YJVXGEnrJ4F/e5gDrFCbNeuwJe9LmcCKh6oHWUEZOaaymYT90kQmwuXZTvORP3G6Vw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@ff-labs/fff-bin-darwin-x64@0.10.5':
+    resolution: {integrity: sha512-pwdFJUB/oeO4S/SfmRDdE5ipbAMYoVtRMwTZ12Wn2H46PgNU5DWnSjHhUNTLuKmkQU/ZIJL5Sn9j/fzwuIzcoA==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@ff-labs/fff-bin-linux-arm64-gnu@0.10.5':
+    resolution: {integrity: sha512-prbY72gR+VPoSxl1InglwSwVHM0kErYMjUOpdvjQhS8eRdXYL3hTuYQv9L7fiB0mqaDzcwFa339uMr3p8ujDrw==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@ff-labs/fff-bin-linux-arm64-musl@0.10.5':
+    resolution: {integrity: sha512-MQN/CEKn4c4toooGCmZ6N8cP9mhgE4tnR6rr6a4k9JjH0xi05fYdG4+BabPkr+l/mDc01DsRpSKVNBmvoZ3IlQ==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@ff-labs/fff-bin-linux-x64-gnu@0.10.5':
+    resolution: {integrity: sha512-8NzFGGyqrFaCtb+SPTFd0xQGUlHCJMf0KYGwuca46IP37nN4OtDT1wnyZ9oaPDZ+2qqyxox10hCnqGlmj3PJzQ==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@ff-labs/fff-bin-linux-x64-musl@0.10.5':
+    resolution: {integrity: sha512-mioRbn8aAW2Jmm4W0w3poePo65iSE+REfO+Jc0iqsjirImEy6pKt7dswj+7LSU6RPWwPsMb4POTMENwNLMlJww==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@ff-labs/fff-bin-win32-arm64@0.10.5':
+    resolution: {integrity: sha512-GIZiea0AhuUDtJtXO2mGWs3wil1OR6lpLKOqXMW8EhHVHs8SB+xwzOgZ3Hg7YLEJm+Ui/2tFW/NLbqRuxpmtrQ==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@ff-labs/fff-bin-win32-x64@0.10.5':
+    resolution: {integrity: sha512-EvCWb7wLrtCvkziksAnTVxcGa0roaWNC978t4nG3ESKEty/Mvrj8kaLAzqWfuA2Xk+gTW+qisJYxa4FqFnqR0Q==}
+    cpu: [x64]
+    os: [win32]
+
+  '@ff-labs/fff-node@0.10.5':
+    resolution: {integrity: sha512-O4KZoO9lZluTqdHUYgd23xpEX/u7G87qQTgUIgtJ4BFTh1x/p243/M6AU2HdSHYWK+vrMRAdDXDzeUW/9rjk3Q==}
+    engines: {node: '>=18.0.0'}
+    cpu: [x64, arm64]
+    os: [darwin, linux, win32, android]
 
   '@floating-ui/core@1.8.0':
     resolution: {integrity: sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==}
@@ -2051,6 +2106,76 @@ packages:
   '@xterm/xterm@6.0.0':
     resolution: {integrity: sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==}
 
+  '@yuuang/ffi-rs-android-arm64@1.3.7':
+    resolution: {integrity: sha512-t6Wx3Xll6c07Nuk0k3xnZsxKFxlshm92i0U/BiTHc6kQbvu+fMJF+gKsj4yEj886jH51CM3EqZT9Xdhq9CdUVw==}
+    engines: {node: '>= 12'}
+    cpu: [arm64]
+    os: [android]
+
+  '@yuuang/ffi-rs-darwin-arm64@1.3.7':
+    resolution: {integrity: sha512-OueBlUFBT9IwD9pQnoYs0UszRBEySskfrEPXXfvKfGjL/DXnfn6kUheQ3oIP6sSmshVGNQUwrTCPo6feAa4QjA==}
+    engines: {node: '>= 12'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@yuuang/ffi-rs-darwin-x64@1.3.7':
+    resolution: {integrity: sha512-x4mxXOKwSgwYx6OBAKrW+Ocp8um2KoPpUwaD0Z2tmR6EekoRvFGN7s/eEK1avqCxcsLN7/MzGOnCCFyGpOVfPA==}
+    engines: {node: '>= 12'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@yuuang/ffi-rs-linux-arm-gnueabihf@1.3.7':
+    resolution: {integrity: sha512-9r//Z022QYVoIAY458Dpk8HWkisk/y4NJC3d52RlkdsLD+9p0zn0cKKSoMF/xUsOWDFSmOf+cwU/Xadi/wxFMQ==}
+    engines: {node: '>= 12'}
+    cpu: [arm]
+    os: [linux]
+
+  '@yuuang/ffi-rs-linux-arm64-gnu@1.3.7':
+    resolution: {integrity: sha512-nrW4MlFlyQInfxTsI5wtcIpbV4KlHLWo2BCk4CHIETlUT+PUspNFqDg+Byy7My3hpCZlXp0WsMVP/3N0LlybNw==}
+    engines: {node: '>= 12'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@yuuang/ffi-rs-linux-arm64-musl@1.3.7':
+    resolution: {integrity: sha512-eLLx4P8DzNnuPif19nAvKPaf88lSf6KFbDetH3nAIRZvI495h0jigN835Ayr7uAADssohGfO9MPMH33DXmFErA==}
+    engines: {node: '>= 12'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@yuuang/ffi-rs-linux-x64-gnu@1.3.7':
+    resolution: {integrity: sha512-upEz1Q98T51x2In872fsjgHCJbE3e8r9JxhJD+5NvSMk6BpieYWRodTbsMxV6oKWmfl12loKwF2j4OBSWKl0lA==}
+    engines: {node: '>= 12'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@yuuang/ffi-rs-linux-x64-musl@1.3.7':
+    resolution: {integrity: sha512-YOcOkIwVvIhpwuGJ428h15vpE0KnT3teFG0g2J31FrBxrVh9IH4HeTGXjelI3l9SI5gyiZDnD4PQnQ1U6oqTcA==}
+    engines: {node: '>= 12'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@yuuang/ffi-rs-win32-arm64-msvc@1.3.7':
+    resolution: {integrity: sha512-ZfYzLV1w7Mhzh9XRScEMpw9oazIEiwO+0+TYHHRL882d5oD0Q99YikmRhdifsoHCCQefKmWF/4BXCeFkzg8NFA==}
+    engines: {node: '>= 12'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@yuuang/ffi-rs-win32-ia32-msvc@1.3.7':
+    resolution: {integrity: sha512-ifYz+f+giKpT39lKWDru+om6QnA9J7J953ns60xHgB46ESZvPd/Y2W5+PesRNC9U+vnFEiLZ9CNC+R3fBWC1pg==}
+    engines: {node: '>= 12'}
+    cpu: [x64, ia32]
+    os: [win32]
+
+  '@yuuang/ffi-rs-win32-x64-msvc@1.3.7':
+    resolution: {integrity: sha512-H3s4wOLtZtKtmuPjUNE+bhnSKxxpXcuxG70jRC8dUMHqIm5iCvdoZ4XYDeq7/uUYlySerXFmRL4dAVCX/TUNTg==}
+    engines: {node: '>= 12'}
+    cpu: [x64]
+    os: [win32]
+
   '@zag-js/accordion@1.47.0':
     resolution: {integrity: sha512-rXij62gBLdmhMYsTiygavOL83xP2MfmD8HpArtZxW30icQeXn1mgWq9xKL/DWqNEnYj/J9W2RpZk/7Q16ckN+Q==}
 
@@ -3035,6 +3160,9 @@ packages:
       picomatch:
         optional: true
 
+  ffi-rs@1.3.7:
+    resolution: {integrity: sha512-5MMZQS2t/6f/ec3sx0f51gBcKGZPGfolPAW04lvLOSYnr7gmOKs8YzH1Rh+34WGO+VtcgcTuxaUUoJLcR4Tirg==}
+
   finalhandler@2.1.1:
     resolution: {integrity: sha512-S8KoZgRZN+a5rNwqTxlZZePjT/4cnm0ROV70LedRHZ0p8u9fRID0hJUZQpkKLzro8LfmC8sx23bY6tVNxv8pQA==}
     engines: {node: '>= 18.0.0'}
@@ -3053,6 +3181,9 @@ packages:
 
   function-bind@1.1.2:
     resolution: {integrity: sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA==}
+
+  fuzzysort@3.1.0:
+    resolution: {integrity: sha512-sR9BNCjBg6LNgwvxlBd0sBABvQitkLzoVY9MYYROQVX/FvfJ4Mai9LsGhDgd8qYdds0bY77VzYd5iuB+v5rwQQ==}
 
   gensync@1.0.0-beta.2:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
@@ -5715,6 +5846,7 @@ snapshots:
       '@conciv/plugin': file:tgz/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
       '@effect/platform-node': 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.10.0))
       '@effect/sql-sqlite-node': 4.1.0(effect@4.1.0)
+      '@ff-labs/fff-node': 0.10.5
       '@npmcli/arborist': 9.4.0
       '@npmcli/config': 10.8.1
       '@silvia-odwyer/photon-node': 0.3.4
@@ -5722,11 +5854,13 @@ snapshots:
       detect-libc: 1.0.3
       drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.10.0)(effect@4.1.0)(zod@4.6.7)
       effect: 4.1.0
+      fuzzysort: 3.1.0
       glob: 13.0.5
       js-yaml: 5.5.0
       npm-package-arg: 13.0.2
       pacote: 21.5.1
       picomatch: 4.0.7
+      which: 6.0.1
       zod: 4.6.7
     optionalDependencies:
       '@parcel/watcher-darwin-arm64': 2.5.1
@@ -5936,11 +6070,14 @@ snapshots:
       - react
       - react-dom
       - supports-color
+      - vite
+      - vite-plugin-solid
 
   '@conciv/ui-kit-chat@file:tgz/conciv-ui-kit-chat-0.0.22.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.18)':
     dependencies:
       '@ark-ui/solid': 5.40.0(solid-js@1.9.18)
       '@chenglou/pretext': 1.0.0
+      '@conciv/plugin': file:tgz/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
       '@conciv/protocol': file:tgz/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/solid-diffs': file:tgz/conciv-solid-diffs-0.0.22.tgz(@shikijs/themes@4.6.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.18)
       '@conciv/solid-streamdown': file:tgz/conciv-solid-streamdown-0.0.22.tgz(shiki@4.6.0)(solid-js@1.9.18)
@@ -5972,6 +6109,8 @@ snapshots:
       - react
       - react-dom
       - supports-color
+      - vite
+      - vite-plugin-solid
 
   '@conciv/ui-kit-system@file:tgz/conciv-ui-kit-system-0.0.22.tgz(solid-js@1.9.18)':
     dependencies:
@@ -6170,6 +6309,47 @@ snapshots:
     dependencies:
       tslib: 2.9.1
     optional: true
+
+  '@ff-labs/fff-bin-android-arm64@0.10.5':
+    optional: true
+
+  '@ff-labs/fff-bin-darwin-arm64@0.10.5':
+    optional: true
+
+  '@ff-labs/fff-bin-darwin-x64@0.10.5':
+    optional: true
+
+  '@ff-labs/fff-bin-linux-arm64-gnu@0.10.5':
+    optional: true
+
+  '@ff-labs/fff-bin-linux-arm64-musl@0.10.5':
+    optional: true
+
+  '@ff-labs/fff-bin-linux-x64-gnu@0.10.5':
+    optional: true
+
+  '@ff-labs/fff-bin-linux-x64-musl@0.10.5':
+    optional: true
+
+  '@ff-labs/fff-bin-win32-arm64@0.10.5':
+    optional: true
+
+  '@ff-labs/fff-bin-win32-x64@0.10.5':
+    optional: true
+
+  '@ff-labs/fff-node@0.10.5':
+    dependencies:
+      ffi-rs: 1.3.7
+    optionalDependencies:
+      '@ff-labs/fff-bin-android-arm64': 0.10.5
+      '@ff-labs/fff-bin-darwin-arm64': 0.10.5
+      '@ff-labs/fff-bin-darwin-x64': 0.10.5
+      '@ff-labs/fff-bin-linux-arm64-gnu': 0.10.5
+      '@ff-labs/fff-bin-linux-arm64-musl': 0.10.5
+      '@ff-labs/fff-bin-linux-x64-gnu': 0.10.5
+      '@ff-labs/fff-bin-linux-x64-musl': 0.10.5
+      '@ff-labs/fff-bin-win32-arm64': 0.10.5
+      '@ff-labs/fff-bin-win32-x64': 0.10.5
 
   '@floating-ui/core@1.8.0':
     dependencies:
@@ -7542,6 +7722,39 @@ snapshots:
 
   '@xterm/xterm@6.0.0': {}
 
+  '@yuuang/ffi-rs-android-arm64@1.3.7':
+    optional: true
+
+  '@yuuang/ffi-rs-darwin-arm64@1.3.7':
+    optional: true
+
+  '@yuuang/ffi-rs-darwin-x64@1.3.7':
+    optional: true
+
+  '@yuuang/ffi-rs-linux-arm-gnueabihf@1.3.7':
+    optional: true
+
+  '@yuuang/ffi-rs-linux-arm64-gnu@1.3.7':
+    optional: true
+
+  '@yuuang/ffi-rs-linux-arm64-musl@1.3.7':
+    optional: true
+
+  '@yuuang/ffi-rs-linux-x64-gnu@1.3.7':
+    optional: true
+
+  '@yuuang/ffi-rs-linux-x64-musl@1.3.7':
+    optional: true
+
+  '@yuuang/ffi-rs-win32-arm64-msvc@1.3.7':
+    optional: true
+
+  '@yuuang/ffi-rs-win32-ia32-msvc@1.3.7':
+    optional: true
+
+  '@yuuang/ffi-rs-win32-x64-msvc@1.3.7':
+    optional: true
+
   '@zag-js/accordion@1.47.0':
     dependencies:
       '@zag-js/anatomy': 1.47.0
@@ -8708,6 +8921,20 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.7
 
+  ffi-rs@1.3.7:
+    optionalDependencies:
+      '@yuuang/ffi-rs-android-arm64': 1.3.7
+      '@yuuang/ffi-rs-darwin-arm64': 1.3.7
+      '@yuuang/ffi-rs-darwin-x64': 1.3.7
+      '@yuuang/ffi-rs-linux-arm-gnueabihf': 1.3.7
+      '@yuuang/ffi-rs-linux-arm64-gnu': 1.3.7
+      '@yuuang/ffi-rs-linux-arm64-musl': 1.3.7
+      '@yuuang/ffi-rs-linux-x64-gnu': 1.3.7
+      '@yuuang/ffi-rs-linux-x64-musl': 1.3.7
+      '@yuuang/ffi-rs-win32-arm64-msvc': 1.3.7
+      '@yuuang/ffi-rs-win32-ia32-msvc': 1.3.7
+      '@yuuang/ffi-rs-win32-x64-msvc': 1.3.7
+
   finalhandler@2.1.1:
     dependencies:
       debug: 4.4.3
@@ -8728,6 +8955,8 @@ snapshots:
       minipass: 7.1.3
 
   function-bind@1.1.2: {}
+
+  fuzzysort@3.1.0: {}
 
   gensync@1.0.0-beta.2: {}
 

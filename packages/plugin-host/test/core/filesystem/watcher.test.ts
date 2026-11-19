@@ -1,10 +1,18 @@
-import {describe, expect} from 'vitest'
+import {describe, expect, test} from 'vitest'
 import fs from 'fs/promises'
 import path from 'path'
-import {NodeFileSystem} from '@effect/platform-node'
-import {Deferred, Effect, Fiber, Layer, Logger, Option, Schedule, Stream} from 'effect'
+import {NodeFileSystem, NodeServices} from '@effect/platform-node'
+import {Deferred, Effect, Fiber, Layer, Logger, Option, Schedule, Schema, Stream} from 'effect'
+import {FetchHttpClient} from 'effect/http'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {FSUtil} from '../../../src/util/fs-util.js'
+import {Global} from '../../../src/util/global.js'
 import {Watcher} from '../../../src/core/filesystem/watcher.js'
+import {FileSystem} from '../../../src/core/filesystem.js'
+import * as FileSystemSearch from '../../../src/core/filesystem/search.js'
+import {Location} from '../../../src/core/location.js'
+import * as Ripgrep from '../../../src/core/ripgrep.js'
+import * as RipgrepBinary from '../../../src/core/ripgrep/binary.js'
 import {tmpdir} from '../fixture/tmpdir'
 import {testEffect} from '../lib/effect'
 
@@ -319,4 +327,59 @@ describeNative('LocationWatcher', () => {
       }).pipe(Effect.provide(watcherLayer)),
     ),
   )
+})
+
+describe('FileSystem.find', () => {
+  const findLayer = (directory: string, options: FileSystemSearch.Options) =>
+    FileSystem.layer.pipe(
+      Layer.provide(FileSystemSearch.configured(options)),
+      Layer.provide(Ripgrep.layer),
+      Layer.provide(RipgrepBinary.layer),
+      Layer.provide(
+        Layer.succeed(Location.Service, {
+          ...Schema.decodeSync(Location.Info)({directory, project: {id: directory, directory, canonical: directory}}),
+          vcs: {type: 'git', store: AbsolutePath.make(path.join(directory, '.git'))},
+        }),
+      ),
+      Layer.provide(Global.layerWith({cache: path.join(directory, '.cache'), config: directory, state: directory})),
+      Layer.provide(FSUtil.layer),
+      Layer.provide(FetchHttpClient.layer),
+      Layer.provide(NodeServices.layer),
+    )
+
+  const find = (directory: string, options: FileSystemSearch.Options, input: FileSystem.FindInput) =>
+    FileSystem.Service.use((files) => files.find(input)).pipe(
+      Effect.provide(findLayer(directory, options)),
+      Effect.runPromise,
+    )
+
+  test('the ripgrep engine and the fff engine find a file and a directory by a fuzzy query', async () => {
+    await using workspace = await tmpdir()
+    await fs.mkdir(path.join(workspace.path, '.git'))
+    await fs.mkdir(path.join(workspace.path, 'src'))
+    await fs.mkdir(path.join(workspace.path, 'docs'))
+    await fs.writeFile(path.join(workspace.path, 'src', 'alpha-needle.ts'), 'export {}\n')
+    await fs.writeFile(path.join(workspace.path, 'src', 'beta.ts'), 'export {}\n')
+    await fs.writeFile(path.join(workspace.path, 'docs', 'guide.md'), '# Guide\n')
+    await fs.mkdir(path.join(workspace.path, '.github', 'workflows'), {recursive: true})
+    await fs.writeFile(path.join(workspace.path, '.github', 'workflows', 'ci.yml'), 'on: push\n')
+
+    for (const engine of [{fff: false}, {fff: true}]) {
+      expect(await find(workspace.path, engine, {query: 'needle'})).toContainEqual({
+        path: 'src/alpha-needle.ts',
+        type: 'file',
+      })
+      expect(await find(workspace.path, engine, {query: 'docs', type: 'directory'})).toContainEqual({
+        path: `docs${path.sep}`,
+        type: 'directory',
+      })
+      expect(await find(workspace.path, engine, {query: 'guide', type: 'file', limit: 1})).toEqual([
+        {path: 'docs/guide.md', type: 'file'},
+      ])
+    }
+    expect(await find(workspace.path, {fff: false}, {query: 'ci.yml', type: 'file'})).toContainEqual({
+      path: '.github/workflows/ci.yml',
+      type: 'file',
+    })
+  })
 })

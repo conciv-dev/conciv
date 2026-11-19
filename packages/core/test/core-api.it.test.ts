@@ -7206,6 +7206,26 @@ export default {
     expect(await call(base, 'embedded', 'counted')).toBe(1)
     await expect(outside.plugin.list()).rejects.toMatchObject(pluginRefusal)
     expect((await makeRpcClient(base).plugin.list()).data.map((plugin) => plugin.id)).toContain('embedded')
+    await expect(outside.skill.list()).rejects.toMatchObject(pluginRefusal)
+    await expect(outside.agent.list()).rejects.toMatchObject(pluginRefusal)
+    await expect(outside.fs.find({query: 'seer'})).rejects.toMatchObject(pluginRefusal)
+    const found = await makeRpcClient(base).fs.find({query: 'seer', type: 'file'})
+    expect(found.location).toEqual({directory: root})
+    expect(found.data).toContainEqual({path: 'conciv/plugins/seer.ts', type: 'file'})
+    const skills = await makeRpcClient(base).skill.list()
+    expect(skills.location).toEqual({directory: root})
+    expect(skills.data.find((skill) => skill.id === 'seer-look')).toMatchObject({
+      name: 'seer-look',
+      description: 'How the seer looks',
+      content: 'Look twice.',
+    })
+    const agents = await makeRpcClient(base).agent.list()
+    expect(agents.location).toEqual({directory: root})
+    expect(agents.data.find((agent) => agent.id === 'build')).toMatchObject({
+      name: 'build',
+      mode: 'primary',
+      hidden: false,
+    })
     await expect(outside.plugin.experimental({id: 'configured'})).rejects.toMatchObject(pluginRefusal)
     await expect(outside.plugin.experimentalChunk({id: 'configured', file: 'x.cjs'})).rejects.toMatchObject(
       pluginRefusal,
@@ -8639,45 +8659,50 @@ describe('session terminal', () => {
       return false
     }
   }
-  type TerminalSocket = {socket: WebSocket; text: () => string; controls: string[]}
+  type PtyClient = RpcClient['experimental']['persistentPty']
+  type PtyOutput = Awaited<ReturnType<PtyClient['output']>>
+  type PtyItem = PtyOutput extends AsyncIterable<infer Item> ? Item : never
+  type TerminalReader = {items: PtyItem[]; text: () => string; ended: Promise<unknown>; stop: () => void}
 
-  const openTerminalSocket = (url: string, origin?: string): Promise<TerminalSocket> => {
-    const socket = new WebSocket(url, origin === undefined ? {} : {headers: {origin}})
-    const received: string[] = []
-    const controls: string[] = []
-    socket.on('message', (data, isBinary) => {
-      if (isBinary) received.push(new TextDecoder().decode(Array.isArray(data) ? Buffer.concat(data) : data))
-      else controls.push(String(data))
-    })
-    return new Promise((resolve, reject) => {
-      socket.once('open', () => resolve({socket, text: () => received.join(''), controls}))
-      socket.once('error', reject)
-    })
+  const REPLAY_PIECE = 64 * 1024
+
+  const drainOutput = async (stream: PtyOutput, items: PtyItem[]): Promise<unknown> => {
+    try {
+      for await (const item of stream) items.push(item)
+      return 'ended'
+    } catch (error) {
+      return error
+    }
   }
 
-  const refusedStatus = (url: string, origin?: string): Promise<number> =>
-    new Promise((resolve, reject) => {
-      const socket = new WebSocket(url, origin === undefined ? {} : {headers: {origin}})
-      socket.once('unexpected-response', (_request, response) => resolve(response.statusCode ?? 0))
-      socket.once('open', () => reject(new Error('the upgrade completed without a valid ticket')))
-    })
+  const readTerminal = async (terminal: PtyClient, ptyId: string, cursor?: number): Promise<TerminalReader> => {
+    const stop = new AbortController()
+    const items: PtyItem[] = []
+    const stream = await terminal.output(cursor === undefined ? {ptyId} : {ptyId, cursor}, {signal: stop.signal})
+    const text = () => items.flatMap((item) => (item.type === 'output' ? [item.data] : [])).join('')
+    return {items, text, ended: drainOutput(stream, items), stop: () => stop.abort()}
+  }
 
-  const closeCode = (url: string): Promise<number> =>
-    new Promise((resolve, reject) => {
-      const socket = new WebSocket(url)
-      socket.once('close', (code) => resolve(code))
-      socket.once('error', reject)
-    })
-
-  const shows = async (terminal: TerminalSocket, text: string): Promise<void> => {
+  const shows = async (terminal: TerminalReader, text: string): Promise<void> => {
     await until(() => terminal.text().includes(text))
   }
 
-  const connectUrl = async (base: string, ptyId: string, query = '', origin?: string): Promise<string> => {
-    const client = makeRpcClient(base, origin === undefined ? {} : {headers: {origin}})
-    const {ticket, expiresIn} = await client.experimental.persistentPty.connectToken({ptyId})
-    expect(expiresIn).toBe(60)
-    return `${base.replace(/^http/, 'ws')}/api/experimental/persistent-pty/${ptyId}/connect?ticket=${ticket}${query}`
+  const metaCursor = (terminal: TerminalReader): number | undefined =>
+    terminal.items.flatMap((item) => (item.type === 'meta' ? [item.cursor] : [])).at(0)
+
+  type RpcSocketClient = {socket: WebSocket; closes: number[]; terminal: PtyClient}
+
+  const openRpcSocket = async (
+    url: string,
+    options: {origin?: string; trust?: string} = {},
+  ): Promise<RpcSocketClient> => {
+    const socket = new WebSocket(url, options.origin === undefined ? {} : {headers: {origin: options.origin}})
+    const closes: number[] = []
+    socket.on('close', (code) => closes.push(code))
+    await once(socket, 'open')
+    if (options.trust !== undefined) socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: options.trust}))
+    const rpc: RpcClient = createORPCClient(new WebsocketRpcLink({websocket: socket}))
+    return {socket, closes, terminal: rpc.experimental.persistentPty}
   }
 
   const readPid = (file: string): number => z.coerce.number().int().positive().parse(readFileSync(file, 'utf8').trim())
@@ -8741,9 +8766,9 @@ describe('session terminal', () => {
       const resumed = await terminal.create({sessionId, model: BUSY_MODEL})
       expect(resumed.id).not.toBe(created.id)
       expect(fake.connects[1]).toMatchObject({resume: true, harnessSessionId: first?.harnessSessionId})
-      const banner = await openTerminalSocket(await connectUrl(base, resumed.id))
+      const banner = await readTerminal(terminal, resumed.id)
       await shows(banner, '\u2500 conciv: resumed session \u2500')
-      banner.socket.close()
+      banner.stop()
 
       await expect.poll(async () => (await terminal.create({sessionId})).busy).toBe(true)
       await expect(terminal.remove({ptyId: resumed.id})).rejects.toMatchObject({code: 'BUSY'})
@@ -8791,156 +8816,210 @@ describe('session terminal', () => {
     },
   )
 
-  it(
-    'a ticketed socket carries the terminal both ways and replays to a late attacher, a socket with a missing, used, foreign, disallowed or other-origin ticket is refused, and outside agents cannot use the terminal',
-    {timeout: 20_000},
-    async () => {
-      const root = tempDir('conciv-terminal-socket-')
-      const fake = terminalHarness('fake-terminal-socket', join(root, 'pid'))
-      const engine = await start({
-        options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal-socket'},
-        root,
-        harness: fake.harness,
-        launchEditor: () => {},
-        homeDir: tempDir('conciv-home-'),
-      })
-      onTestFinished(() => engine.stop())
-      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
-      const rpc = makeRpcClient(base)
-      const terminal = rpc.experimental.persistentPty
-      const {sessionId} = await rpc.sessions.create(undefined)
-      const pty = await terminal.create({sessionId})
-
-      const first = await openTerminalSocket(await connectUrl(base, pty.id, '&cols=100&rows=30'))
-      first.socket.send('echo ws-roundtrip-$((40+2))\r')
-      await shows(first, 'ws-roundtrip-42')
-      expect(first.controls).toContain(JSON.stringify({type: 'busy', busy: false}))
-      first.socket.send('stty size\r')
-      await shows(first, '30 100')
-      first.socket.send(JSON.stringify({type: 'resize', cols: 91, rows: 27}))
-      first.socket.send('stty size\r')
-      await shows(first, '27 91')
-      first.socket.send(JSON.stringify({type: 'resize', cols: 900, rows: 27}))
-      first.socket.send('echo refused-resize-$((40+2))\r')
-      await shows(first, 'refused-resize-42')
-      expect(first.text()).not.toContain('"cols":900')
-      first.socket.send(JSON.stringify({type: 'inject', text: 'conciv says hi'}))
-      await shows(first, '\r\nconciv says hi\r\n')
-      first.socket.close()
-
-      const late = await openTerminalSocket(await connectUrl(base, pty.id))
-      await shows(late, 'ws-roundtrip-42')
-      await shows(late, '\r\nconciv says hi\r\n')
-      late.socket.close()
-
-      const connectPath = (ptyId: string) =>
-        `${base.replace(/^http/, 'ws')}/api/experimental/persistent-pty/${ptyId}/connect`
-      expect(await refusedStatus(connectPath(pty.id))).toBe(403)
-      expect(await refusedStatus(`${connectPath(pty.id)}?ticket=not-a-ticket`)).toBe(403)
-      const used = await connectUrl(base, pty.id)
-      const usedOnce = await openTerminalSocket(used)
-      usedOnce.socket.close()
-      expect(await refusedStatus(used)).toBe(403)
-      const foreign = new URL(await connectUrl(base, pty.id)).searchParams.get('ticket')
-      expect(await refusedStatus(`${connectPath(`pty_${randomUUID()}`)}?ticket=${foreign}`)).toBe(403)
-      expect(await refusedStatus(await connectUrl(base, pty.id), 'https://evil.example')).toBe(403)
-      await expect(terminal.connectToken({ptyId: `pty_${randomUUID()}`})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
-
-      const widget = 'http://localhost:5173'
-      const sameOrigin = await openTerminalSocket(await connectUrl(base, pty.id, '', widget), widget)
-      await shows(sameOrigin, 'ws-roundtrip-42')
-      sameOrigin.socket.close()
-      expect(await refusedStatus(await connectUrl(base, pty.id, '', widget), 'http://127.0.0.1:5173')).toBe(403)
-      expect(await refusedStatus(await connectUrl(base, pty.id, '', widget))).toBe(403)
-
-      const outside = makeRpcClient(base, {
-        headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'},
-      }).experimental.persistentPty
-      await expect(outside.create({sessionId})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      await expect(outside.remove({ptyId: pty.id})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      await expect(outside.connectToken({ptyId: pty.id})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      expect((await terminal.create({sessionId})).id).toBe(pty.id)
-
-      const gone = await connectUrl(base, pty.id)
-      expect(await terminal.remove({ptyId: pty.id})).toEqual({ok: true})
-      expect(await closeCode(gone)).toBe(4404)
-    },
-  )
-
-  const trustedBrowserTerminal = async (prefix: string) => {
+  const startTerminalEngine = async (prefix: string, id: string) => {
     const root = tempDir(prefix)
-    const fake = terminalHarness('fake-terminal-revoke', join(root, 'pid'))
+    const fake = terminalHarness(id, join(root, 'pid'))
     const engine = await start({
-      options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal-revoke'},
+      options: {stateRoot: root, systemPrompt: false, harness: id},
       root,
       harness: fake.harness,
       launchEditor: () => {},
       homeDir: tempDir('conciv-home-'),
     })
     onTestFinished(() => engine.stop())
-    const origin = `http://127.0.0.1:${engine.port}`
-    const base = `${origin}/t/${engine.agentToken}`
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const rpc = makeRpcClient(base)
     const {sessionId} = await rpc.sessions.create(undefined)
+    return {root, engine, base, rpc, sessionId, terminal: rpc.experimental.persistentPty}
+  }
+
+  it(
+    'the terminal procedures carry the terminal both ways, replay to a late reader in bounded pieces before a meta frame with the cursor, resume from that cursor without repeating output, refuse an unknown pty or a never-admitted origin, and outside agents cannot use the terminal',
+    {timeout: 30_000},
+    async () => {
+      const {engine, base, rpc, sessionId, terminal} = await startTerminalEngine(
+        'conciv-terminal-socket-',
+        'fake-terminal-socket',
+      )
+      const pty = await terminal.create({sessionId, size: {cols: 100, rows: 30}})
+
+      const first = await readTerminal(terminal, pty.id)
+      await terminal.write({ptyId: pty.id, data: 'echo ws-roundtrip-$((40+2))\r'})
+      await shows(first, 'ws-roundtrip-42')
+      expect(first.items).toContainEqual({type: 'busy', busy: false})
+      await terminal.write({ptyId: pty.id, data: 'stty size\r'})
+      await shows(first, '30 100')
+      expect(await terminal.resize({ptyId: pty.id, cols: 91, rows: 27})).toEqual({ok: true})
+      await terminal.write({ptyId: pty.id, data: 'stty size\r'})
+      await shows(first, '27 91')
+      expect(await terminal.inject({ptyId: pty.id, text: 'conciv says hi'})).toEqual({ok: true})
+      await shows(first, '\r\nconciv says hi\r\n')
+      await terminal.write({
+        ptyId: pty.id,
+        data: "head -c 200000 /dev/zero | tr '\\0' x; echo; echo bulk-$((1+1))-done\r",
+      })
+      await shows(first, 'bulk-2-done')
+      first.stop()
+
+      const late = await readTerminal(terminal, pty.id)
+      await until(() => metaCursor(late) !== undefined)
+      const replay = late.items.slice(
+        0,
+        late.items.findIndex((item) => item.type === 'meta'),
+      )
+      const pieces = replay.flatMap((item) => (item.type === 'output' ? [item.data.length] : []))
+      expect(pieces.length).toBeGreaterThan(2)
+      expect(Math.max(...pieces)).toBeLessThanOrEqual(REPLAY_PIECE)
+      expect(late.text()).toContain('ws-roundtrip-42')
+      expect(late.text()).toContain('\r\nconciv says hi\r\n')
+      const cursor = metaCursor(late) ?? 0
+      expect(cursor).toBe(late.text().length)
+      late.stop()
+
+      await terminal.write({ptyId: pty.id, data: 'echo after-$((5+5))\r'})
+      const resumed = await readTerminal(terminal, pty.id, cursor)
+      await shows(resumed, 'after-10')
+      await until(() => metaCursor(resumed) !== undefined)
+      expect(resumed.text()).not.toContain('ws-roundtrip-42')
+      expect(resumed.text()).not.toContain('bulk-2-done')
+      expect(metaCursor(resumed)).toBeGreaterThan(cursor)
+      resumed.stop()
+
+      const unknown = `pty_${randomUUID()}`
+      await expect(terminal.output({ptyId: unknown})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+      await expect(terminal.write({ptyId: unknown, data: 'x'})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+
+      const widget = 'http://localhost:5173'
+      const other = await rpc.sessions.create(undefined)
+      const fromWidget = makeRpcClient(base, {headers: {origin: widget}}).experimental.persistentPty
+      const widgetPty = await fromWidget.create({sessionId: other.sessionId})
+      const sameOrigin = await readTerminal(fromWidget, widgetPty.id)
+      await fromWidget.write({ptyId: widgetPty.id, data: 'echo widget-$((2+2))\r'})
+      await shows(sameOrigin, 'widget-4')
+      sameOrigin.stop()
+      const elsewhere = await openRpcSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${RPC_WS_PATH}`, {
+        origin: 'http://127.0.0.1:5173',
+      })
+      onTestFinished(() => elsewhere.socket.close())
+      for (const stranger of [elsewhere.terminal, terminal]) {
+        const refused = {code: 'PTY_NOT_FOUND'}
+        await expect(stranger.output({ptyId: widgetPty.id})).rejects.toMatchObject(refused)
+        await expect(stranger.write({ptyId: widgetPty.id, data: 'x'})).rejects.toMatchObject(refused)
+        await expect(stranger.resize({ptyId: widgetPty.id, cols: 80, rows: 24})).rejects.toMatchObject(refused)
+        await expect(stranger.inject({ptyId: widgetPty.id, text: 'x'})).rejects.toMatchObject(refused)
+      }
+
+      const outside = makeRpcClient(base, {
+        headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'},
+      }).experimental.persistentPty
+      const denied = {code: 'APPROVAL_DENIED'}
+      await expect(outside.create({sessionId})).rejects.toMatchObject(denied)
+      await expect(outside.remove({ptyId: pty.id})).rejects.toMatchObject(denied)
+      await expect(outside.output({ptyId: pty.id})).rejects.toMatchObject(denied)
+      await expect(outside.write({ptyId: pty.id, data: 'x'})).rejects.toMatchObject(denied)
+      await expect(outside.resize({ptyId: pty.id, cols: 80, rows: 24})).rejects.toMatchObject(denied)
+      await expect(outside.inject({ptyId: pty.id, text: 'x'})).rejects.toMatchObject(denied)
+      expect((await terminal.create({sessionId})).id).toBe(pty.id)
+
+      expect(await terminal.remove({ptyId: pty.id})).toEqual({ok: true})
+      await expect(terminal.output({ptyId: pty.id})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+    },
+  )
+
+  it(
+    'a reader that stops reading its rpc socket gets SLOW_CONSUMER instead of the engine buffering the output for it',
+    {timeout: 60_000},
+    async () => {
+      const {root, engine, sessionId, terminal} = await startTerminalEngine(
+        'conciv-terminal-slow-',
+        'fake-terminal-slow',
+      )
+      const pty = await terminal.create({sessionId})
+      const slow = await openRpcSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${RPC_WS_PATH}`)
+      onTestFinished(() => slow.socket.close())
+      const reader = await readTerminal(slow.terminal, pty.id)
+      await until(() => metaCursor(reader) !== undefined)
+      slow.socket.pause()
+      const flood = "head -c 33554432 /dev/zero | tr '\\0' x; echo; echo flood-$((3+3))-over; touch flood-done\r"
+      await terminal.write({ptyId: pty.id, data: flood})
+      await until(() => existsSync(join(root, 'flood-done')), {hangGuardMs: 30_000})
+      slow.socket.resume()
+      const delivered = until(() =>
+        reader.items
+          .slice(-8)
+          .flatMap((item) => (item.type === 'output' ? [item.data] : []))
+          .join('')
+          .includes('flood-6-over'),
+      ).then(
+        () => 'all delivered',
+        () => 'never delivered',
+      )
+      expect(await Promise.race([reader.ended, delivered])).toMatchObject({code: 'SLOW_CONSUMER'})
+    },
+  )
+
+  const trustedBrowserTerminal = async (prefix: string) => {
+    const {root, engine, rpc, sessionId, terminal} = await startTerminalEngine(prefix, 'fake-terminal-revoke')
     const pty = await rpc.experimental.persistentPty.create({sessionId})
     const browserToken = engine.trustBrowser(
       {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'},
       Date.now(),
     )
-    const browserTicketUrl = async (): Promise<string> => {
-      const url = new URL(await connectUrl(`${origin}/t/${browserToken}`, pty.id))
-      url.pathname = url.pathname.replace(`/t/${browserToken}`, '')
-      return url.toString()
-    }
-    const openAsBrowser = async (url: string) => {
-      const terminal = await openTerminalSocket(url)
-      const closes: number[] = []
-      terminal.socket.on('close', (code) => closes.push(code))
-      terminal.socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: browserToken}))
-      return {...terminal, closes}
+    const openAsBrowser = async () => {
+      const opened = await openRpcSocket(`ws://127.0.0.1:${engine.port}${RPC_WS_PATH}`, {trust: browserToken})
+      onTestFinished(() => opened.socket.close())
+      return opened
     }
     const revoke = (): void => {
       revokeBrowsers(concivStateDir(root), 'all')
     }
     const shownToEngine = async (proof: string): Promise<string> => {
-      const witness = await openTerminalSocket(await connectUrl(base, pty.id))
-      witness.socket.send(`\recho ${proof}-$((3+4))\r`)
+      const witness = await readTerminal(terminal, pty.id)
+      await terminal.write({ptyId: pty.id, data: `\recho ${proof}-$((3+4))\r`})
       await shows(witness, `${proof}-7`)
-      witness.socket.close()
+      witness.stop()
       return witness.text()
     }
-    return {browserTicketUrl, openAsBrowser, revoke, shownToEngine}
+    const written = (client: PtyClient, data: string): Promise<string> =>
+      client.write({ptyId: pty.id, data}).then(
+        () => 'written',
+        () => 'refused',
+      )
+    return {ptyId: pty.id, openAsBrowser, revoke, shownToEngine, written}
   }
 
   it(
-    'revoking a browser closes its terminal socket with 1008, and nothing it writes afterwards reaches the terminal',
+    'revoking a browser fails its terminal output with UNAUTHORIZED, closes its rpc socket with 1008, and nothing it writes afterwards reaches the terminal',
     {timeout: 20_000},
     async () => {
       const browser = await trustedBrowserTerminal('conciv-terminal-revoke-live-')
-      const kept = await browser.openAsBrowser(await browser.browserTicketUrl())
-      kept.socket.send('\recho kept-$((40+2))\r')
-      await shows(kept, 'kept-42')
+      const kept = await browser.openAsBrowser()
+      const reader = await readTerminal(kept.terminal, browser.ptyId)
+      expect(await browser.written(kept.terminal, '\recho kept-$((40+2))\r')).toBe('written')
+      await shows(reader, 'kept-42')
 
       browser.revoke()
+      expect(await reader.ended).toMatchObject({code: 'UNAUTHORIZED'})
       await until(() => kept.closes.length > 0)
       expect(kept.closes).toEqual([1008])
-      kept.socket.send('\recho late-$((5+6))\r')
+      expect(await browser.written(kept.terminal, '\recho late-$((5+6))\r')).toBe('refused')
       expect(await browser.shownToEngine('after-late')).not.toContain('late-11')
     },
   )
 
   it(
-    'a terminal ticket a browser was given before its revoke opens no terminal after it: the socket closes 1008',
+    'a browser that opens its rpc socket after its revoke gets no terminal: its output and writes are refused UNAUTHORIZED and nothing reaches the terminal',
     {timeout: 20_000},
     async () => {
-      const browser = await trustedBrowserTerminal('conciv-terminal-revoke-ticket-')
-      const minted = await browser.browserTicketUrl()
+      const browser = await trustedBrowserTerminal('conciv-terminal-revoke-stale-')
       browser.revoke()
 
-      const stale = await browser.openAsBrowser(minted)
-      stale.socket.send('\recho stale-$((2+3))\r')
-      await until(() => stale.closes.length > 0)
-      expect(stale.closes).toEqual([1008])
+      const stale = await browser.openAsBrowser()
+      const unauthorized = {code: 'UNAUTHORIZED'}
+      await expect(stale.terminal.output({ptyId: browser.ptyId})).rejects.toMatchObject(unauthorized)
+      await expect(stale.terminal.write({ptyId: browser.ptyId, data: '\recho stale-$((2+3))\r'})).rejects.toMatchObject(
+        unauthorized,
+      )
       expect(await browser.shownToEngine('after-stale')).not.toContain('stale-5')
     },
   )

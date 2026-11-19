@@ -143,3 +143,33 @@ describe('external value', () => {
     await expect.element(editable()).toHaveTextContent('@ai:opu')
   })
 })
+
+describe('trigger item insert', () => {
+  const LABEL = 'Message'
+
+  const mentionTrigger: RichTextFieldTriggerSource = {
+    label: 'Context',
+    items: () => [{id: 'session:payroll', label: 'Payroll audit', insert: '@Payroll audit'}],
+  }
+
+  it('lists the row by its label and inserts its insert text as the chip', async () => {
+    const [value, setValue] = createSignal('')
+    render(() => (
+      <>
+        <RichTextField value={value()} onValueChange={setValue} mentionTrigger={mentionTrigger} label={LABEL} />
+        <p>{`Value [${value()}]`}</p>
+      </>
+    ))
+    const editable = page.getByRole('textbox', {name: LABEL})
+
+    await userEvent.click(editable)
+    await expect.element(editable).toHaveFocus()
+    await userEvent.keyboard('@')
+    await expect.element(page.getByRole('option', {name: 'Payroll audit', exact: true})).toBeVisible()
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(page.getByRole('option')).not.toBeInTheDocument()
+    await expect.element(editable.getByText('@Payroll audit')).toBeVisible()
+    await expect.element(page.getByText('Value [@Payroll audit ]')).toBeInTheDocument()
+  })
+})

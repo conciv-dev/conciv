@@ -10,6 +10,7 @@ const INTERRUPT_BYTE = String.fromCharCode(3)
 const INTERRUPT_DEBOUNCE_MS = 1000
 const IDLE_EVICT_MS = 5 * 60 * 1000
 const REPLAY_CAP = 4 * 1024 * 1024
+const REPLAY_PIECE = 64 * 1024
 const DEFAULT_COLS = 120
 const DEFAULT_ROWS = 32
 
@@ -24,18 +25,20 @@ const loadSpawn = once((): Promise<Spawn> =>
   ),
 )
 
-export type TtySink = {data(chunk: string): void; control(frame: TtyServerControl): void}
+export type TtySink = {data(chunk: string, end: number): void; control(frame: TtyServerControl): void}
 
 export type TtySession = {
   id: string
   sessionId: string
   owner: string
+  admitted: ReadonlyArray<string | null>
   write(data: string): void
   interrupt(): void
   inject(text: string): void
   resize(cols: number, rows: number): void
   size(): {cols: number; rows: number}
-  attach(sink: TtySink): () => void
+  cursor(): number
+  attach(sink: TtySink, from?: number): () => void
   busy(): boolean
   kill(): void
   exited(): {code: number} | null
@@ -56,6 +59,7 @@ type Entry = {
   session: TtySession
   replay: string[]
   replaySize: number
+  written: number
   sinks: Set<TtySink>
   tracker: OscBusyTracker
   injector: FrameInjector
@@ -63,6 +67,15 @@ type Entry = {
   error: string | null
   idle: ReturnType<typeof setTimeout> | null
   lastInterruptAt: number
+}
+
+function replayTo(entry: Entry, sink: TtySink, from: number | undefined): void {
+  const replay = entry.replay.join('')
+  const start = entry.written - replay.length
+  for (let offset = Math.max(0, (from ?? start) - start); offset < replay.length; offset += REPLAY_PIECE) {
+    const piece = replay.slice(offset, offset + REPLAY_PIECE)
+    sink.data(piece, start + offset + piece.length)
+  }
 }
 
 export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: number}): TtySessions {
@@ -89,6 +102,7 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
   }
 
   const record = (entry: Entry, chunk: string): void => {
+    entry.written += chunk.length
     entry.replay.push(chunk)
     entry.replaySize += chunk.length
     while (entry.replaySize > replayCap && entry.replay.length > 1) {
@@ -145,6 +159,7 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
       id: `pty_${randomUUID()}`,
       sessionId,
       owner,
+      admitted: [],
       write: (data) => {
         const entry = entries.get(sessionId)
         if (entry && !entry.exit) entry.pty?.write(data)
@@ -169,13 +184,14 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
         const pty = entries.get(sessionId)?.pty
         return {cols: pty?.cols ?? DEFAULT_COLS, rows: pty?.rows ?? DEFAULT_ROWS}
       },
-      attach: (sink) => {
+      cursor: () => entries.get(sessionId)?.written ?? 0,
+      attach: (sink, from) => {
         const entry = entries.get(sessionId)
         if (!entry) {
           sink.control({type: 'error', message: 'terminal session gone'})
           return () => {}
         }
-        for (const chunk of entry.replay) sink.data(chunk)
+        replayTo(entry, sink, from)
         sink.control({type: 'busy', busy: entry.tracker.busy()})
         if (entry.error) sink.control({type: 'error', message: entry.error})
         if (entry.exit && !entry.error) sink.control({type: 'exit', code: entry.exit.code})
@@ -195,11 +211,12 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
       session,
       replay: [],
       replaySize: 0,
+      written: 0,
       sinks: new Set(),
       tracker: createOscBusyTracker(),
       injector: createFrameInjector((chunk) => {
         record(entry, chunk)
-        for (const sink of entry.sinks) sink.data(chunk)
+        for (const sink of entry.sinks) sink.data(chunk, entry.written)
       }),
       exit: null,
       error: null,

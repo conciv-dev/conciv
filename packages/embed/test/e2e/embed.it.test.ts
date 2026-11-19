@@ -265,16 +265,19 @@ test.describe('composer rich input', () => {
       await pickSuggestion(page, 'Commands', '/config')
 
       await input.pressSequentially('then ')
+      await input.pressSequentially('@report')
+      await pickSuggestion(page, 'Context', '@report')
+
       await input.pressSequentially('@recording_start')
-      await pickSuggestion(page, 'Tools', '@recording_start')
+      await pickSuggestion(page, 'Context', '@recording_start')
 
       await input.pressSequentially('@mention_probe')
-      await pickSuggestion(page, 'Tools', '@mention_probe')
+      await pickSuggestion(page, 'Context', '@mention_probe')
 
       await page.keyboard.press('Shift+Enter')
       await input.pressSequentially('second line')
 
-      const expected = 'please run /config then @recording_start @mention_probe \nsecond line'
+      const expected = 'please run /config then @report @recording_start @mention_probe \nsecond line'
       const sent = wire.nextTurn().then((turn) => turn.content)
       await page.getByRole('button', {name: 'Send message'}).click()
       expect(await sent).toBe(expected)

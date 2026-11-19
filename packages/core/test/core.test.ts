@@ -121,7 +121,7 @@ import {
 import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
 import {Model as ModelSchema} from '@conciv/plugin/schema/model'
 import {SqliteClient} from '@effect/sql-sqlite-node'
-import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
+import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope, Stream} from 'effect'
 import {isEqual, isPlainObject, once as onceOnly} from 'es-toolkit'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
@@ -172,6 +172,7 @@ import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {until} from '@conciv/harness-testkit/until'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
 import {createTtySessions, type TtySessions, type TtySink} from '../src/pty/pty-sessions.js'
+import {ptyOutput} from '../src/pty/pty-output.js'
 import coreManifest from '../package.json' with {type: 'json'}
 import {
   currentRow,
@@ -5281,6 +5282,59 @@ describe('pty sessions', () => {
       const detach = session.attach(collect().sink)
       detach()
       await until(() => sessions.get('s5') === undefined, {hangGuardMs: 3000})
+    })
+
+    it('counts output with an absolute cursor and replays from any cursor up to it, each piece carrying the cursor after it', async () => {
+      const sessions = make()
+      const session = await sessions.open('s12', BASH, process.cwd(), 'test-tty')
+      const marked = Promise.withResolvers<string>()
+      const live = collect((update) => {
+        if (update.kind === 'data' && update.text.includes('cursor-mark-9')) marked.resolve(update.text)
+      })
+      session.attach(live.sink)
+      session.write('echo cursor-mark-$((4+5))\r')
+      await marked.promise
+      const written = live.chunks.join('')
+      expect(session.cursor()).toBe(written.length)
+      const full: Array<{chunk: string; end: number}> = []
+      session.attach({data: (chunk, end) => full.push({chunk, end}), control: () => {}})
+      expect(full.map((piece) => piece.chunk).join('')).toBe(written)
+      expect(full.at(-1)?.end).toBe(written.length)
+      const middle = Math.floor(written.length / 2)
+      const tail: string[] = []
+      session.attach({data: (chunk) => tail.push(chunk), control: () => {}}, middle)
+      expect(tail.join('')).toBe(written.slice(middle))
+      const nothing: string[] = []
+      session.attach({data: (chunk) => nothing.push(chunk), control: () => {}}, written.length)
+      expect(nothing).toEqual([])
+    })
+
+    it('fails the output stream with the overflow error once its reader falls a full queue behind', async () => {
+      const sessions = make()
+      const session = await sessions.open('s13', BASH, process.cwd(), 'test-tty')
+      const overflow = new Error('the reader fell behind')
+      const items = Stream.toAsyncIterable(ptyOutput(session, {capacity: 2, overflow: () => overflow}))[
+        Symbol.asyncIterator
+      ]()
+      expect((await items.next()).done).toBe(false)
+      const seen = {text: ''}
+      session.attach({
+        data: (chunk) => {
+          seen.text += chunk
+        },
+        control: () => {},
+      })
+      for (const line of [1, 2, 3, 4, 5]) {
+        session.write(`echo line-$((${line}*11))\r`)
+        await until(() => seen.text.includes(`line-${line * 11}`))
+      }
+      const pulled = async (): Promise<unknown> => {
+        for (;;) {
+          const step = await items.next()
+          if (step.done === true) return 'ended'
+        }
+      }
+      expect(await pulled().catch((error: unknown) => error)).toBe(overflow)
     })
   })
 })
