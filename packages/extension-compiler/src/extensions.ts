@@ -11,9 +11,9 @@ import {isExtension} from './extension-guard.js'
 
 export const EXTENSIONS_VIRTUAL_ID = 'virtual:conciv-extensions'
 export const EXTENSIONS_RESOLVED_ID = '\0' + EXTENSIONS_VIRTUAL_ID
-export const EXTENSIONS_ROUTE = '/@conciv/extensions.js'
+export const WIDGET_ROUTE = '/@conciv/widget.js'
 export const EXTENSIONS_DOCK_RESOLVED_ID = `${EXTENSIONS_RESOLVED_ID}-dock`
-export const EXTENSIONS_DOCK_ROUTE = '/@conciv/extensions-dock.js'
+export const WIDGET_DOCK_ROUTE = '/@conciv/widget-dock.js'
 
 export type Builtins = {
   embedEntry?: string
@@ -39,7 +39,7 @@ const HOST_WIDGET_SETTINGS = [
   `}`,
 ]
 
-const DOCK_SCRIPT_SELECTOR = `script[src*="${EXTENSIONS_DOCK_ROUTE}"]`
+const DOCK_SCRIPT_SELECTOR = `script[src*="${WIDGET_DOCK_ROUTE}"]`
 
 const PAGE_MOUNT = [
   `if (typeof document !== 'undefined' && !document.querySelector(${JSON.stringify(DOCK_SCRIPT_SELECTOR)}))`,
