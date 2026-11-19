@@ -63,10 +63,10 @@ function currentDomain(agent: Agent.Id, rules: Permission.Ruleset = []) {
   return Tool.Service.use((tools) => tools.snapshot(rules)).pipe(Effect.map((snapshot) => ({snapshot, agent})))
 }
 
-function openDatabase() {
+async function openDatabase() {
   const root = tempDir('conciv-chat-unit-')
   const scope = Scope.makeUnsafe()
-  const db = Effect.runSync(openDb(root).pipe(Scope.provide(scope)))
+  const db = await Effect.runPromise(openDb(root).pipe(Scope.provide(scope)))
   onTestFinished(async () => {
     await Effect.runPromise(Scope.close(scope, Exit.void))
     rmSync(root, {recursive: true, force: true})
@@ -117,7 +117,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
 
 describe('permission cards', () => {
   it('a permission card is stored, replayed with its member, kept in order under overlapping writes, and removed without a grant', async () => {
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const sessionId = SessionId.parse('conciv_cards')
     const plane = await chatPlane(db, root)
     const editId = toolApprovalId('edit')
@@ -276,7 +276,7 @@ describe('plugin tools in code mode', () => {
       }).pipe(Scope.provide(scope)),
     )
 
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const chat = await chatPlane(db, root, {capabilities: async () => capabilities()})
     const published: ChatEvent[] = []
     const runner = await chat.codeRunner(SessionId.parse('conciv_plugin'), (chunk) => published.push(chunk))
@@ -425,7 +425,7 @@ describe('plugin tools in code mode', () => {
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const chat = await chatPlane(db, root, {capabilities: async () => capabilities()})
     const runner = await chat.codeRunner(SessionId.parse('conciv_search'), () => undefined)
     await expect(runner?.code?.run('return search({query: "quasar brightness"})', 'parent')).resolves.toMatchObject({
@@ -446,7 +446,7 @@ describe('plugin tools in code mode', () => {
   })
 
   it('a nested call in a resent unfinished message stays shown but out of what the model reads next', async () => {
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const sessionId = SessionId.parse('conciv_nested_history')
     const chat = await chatPlane(db, root)
     const read: ModelMessage[][] = []
@@ -499,7 +499,7 @@ describe('refusal text', () => {
   const isAsked = Schema.is(Schema.Struct({id: Permission.Id, action: Schema.String}))
 
   it('a declined call says the user denied the tool, also when a promise tool rethrew the decline, and a blocked or corrected call says its own message', async () => {
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const sessions = Layer.succeed(
       Permission.PermissionSessions,
       Permission.PermissionSessions.of({
@@ -717,7 +717,7 @@ describe('direct tools', () => {
       {name: 'unit_direct', direct: true},
       {name: 'unit_direct_snap', direct: true},
     ])
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const chat = await chatPlane(db, root, {capabilities: async (sessionId) => capabilities(sessionId)})
     const runner = await chat.codeRunner(shared, () => undefined)
     expect(names(runner?.code?.capabilities)).toEqual(['unit_builtin', 'unit_coded'])
@@ -760,7 +760,7 @@ describe('direct tools', () => {
 
 describe('plugin instructions', () => {
   it('the initial text is one more system prompt and an empty one adds none, the change text goes once in front of the user words, and the code-mode inventory reaches the instructions in place of the library listing', async () => {
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const sessionId = SessionId.parse('conciv_instructions')
     const settled = async () => undefined
     const told = [
@@ -830,7 +830,7 @@ describe('the session prompt hook', () => {
     onTestFinished(() => host.dispose())
     const scope = host.runSync(Scope.make())
     const triggered: string[] = []
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const sessionId = SessionId.parse('conciv_prompt_hook')
     const chat = await chatPlane(db, root, {
       prompt: (event) => {
@@ -883,7 +883,7 @@ describe('the session prompt hook', () => {
 
 describe('stopping a run', () => {
   it('a stop says whether it stopped a live run, a repeat stop does not, and the session settles once the run has ended', async () => {
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const sessionId = SessionId.parse('conciv_stopping')
     const chat = await chatPlane(db, root)
     const reached = Promise.withResolvers<void>()

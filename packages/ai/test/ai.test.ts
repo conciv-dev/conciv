@@ -1,5 +1,5 @@
-import {Effect, Scope} from 'effect'
-import {openDb} from '@conciv/db'
+import {Effect, Exit, Scope} from 'effect'
+import {openDb, type ConcivDb} from '@conciv/db'
 import {sql} from 'drizzle-orm'
 import {defineAIPersistence} from '@tanstack/ai-persistence'
 import {runPersistenceConformance} from '@tanstack/ai-persistence/testkit'
@@ -17,7 +17,7 @@ import {
 } from '../src/server.js'
 import type {ToolBinding} from '@tanstack/ai-code-mode'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {describe, expect, it, onTestFinished} from 'vitest'
+import {afterAll, describe, expect, it, onTestFinished} from 'vitest'
 import {z} from 'zod'
 import {
   readApprovalAsk,
@@ -49,8 +49,14 @@ import {createRoot} from 'solid-js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('chat stores', () => {
+  function openChatDb(scope: Scope.Closeable) {
+    return Effect.runPromise(openDb(tempDir('conciv-ai-db-')).pipe(Scope.provide(scope)))
+  }
+
   function chatDb() {
-    return Effect.runSync(openDb(tempDir('conciv-ai-db-')).pipe(Scope.provide(Scope.makeUnsafe())))
+    const scope = Scope.makeUnsafe()
+    onTestFinished(() => Effect.runPromise(Scope.close(scope, Exit.void)))
+    return openChatDb(scope)
   }
 
   describe('a paged thread read', () => {
@@ -71,7 +77,7 @@ describe('chat stores', () => {
     ]
 
     async function savedThread() {
-      const db = chatDb()
+      const db = await chatDb()
       const stores = drizzleChatStores(db, {readHarness: async () => 'test-harness'})
       await stores.messages.saveThread('paged', THREAD)
       return {db, messages: stores.messages}
@@ -193,7 +199,7 @@ describe('chat stores', () => {
     'a failed cancel write still ends every live run and endAllRuns settles them before it rejects',
     {timeout: 15_000},
     async () => {
-      const db = chatDb()
+      const db = await chatDb()
       await Effect.runPromise(
         db.$client.unsafe(`CREATE TRIGGER cancel_write_fails BEFORE UPDATE OF cancel_requested ON chat_runs
       WHEN NEW.cancel_requested = 1 AND OLD.cancel_requested IS NOT 1
@@ -295,7 +301,7 @@ const watched = require('node:net').connect(data.socket, () => {
       onTestFinished(() => new Promise<void>((resolve) => watcher.close(() => resolve())))
       watcher.listen(files.socket)
       await once(watcher, 'listening')
-      const db = chatDb()
+      const db = await chatDb()
       const ended = Promise.withResolvers<RunLifecycle>()
       const answered = Promise.withResolvers<void>()
       const hooks = turnHooks(
@@ -446,7 +452,7 @@ const watched = require('node:net').connect(data.socket, () => {
   })
 
   it('endAllRuns interrupts a run blocked in a tool call and records it aborted', {timeout: 15_000}, async () => {
-    const db = chatDb()
+    const db = await chatDb()
     const toolRunning = Promise.withResolvers<void>()
     const blocking = defineTool({
       name: 'blocking',
@@ -472,7 +478,7 @@ const watched = require('node:net').connect(data.socket, () => {
   })
 
   it('a stopped run is never announced and ends aborted, even one finishing by itself', {timeout: 15_000}, async () => {
-    const db = chatDb()
+    const db = await chatDb()
     const runs = drizzleChatStores(db, {readHarness: async () => 'test-harness'}).runs
     const announced: string[] = []
     const ended: string[] = []
@@ -742,14 +748,14 @@ const watched = require('node:net').connect(data.socket, () => {
   async function chatServer(
     hooks: TurnHooks,
     log: (message: string) => void,
-    db = chatDb(),
+    db: ConcivDb | Promise<ConcivDb> = chatDb(),
     firstOutputTimeoutMs = 30_000,
     sandbox = tempDir('conciv-ai-'),
     startTimeoutMs = 30_000,
     driver: CodeDriver | null = null,
   ) {
     const server = await createChatServer({
-      stores: drizzleChatStores(db, {readHarness: async () => 'test-harness'}),
+      stores: drizzleChatStores(await db, {readHarness: async () => 'test-harness'}),
       sandbox: {dir: sandbox},
       hooks,
       codeModeResult: (value) => value,
@@ -1003,9 +1009,14 @@ const watched = require('node:net').connect(data.socket, () => {
     })
   })
 
+  const conformanceScope = Scope.makeUnsafe()
+  afterAll(() => Effect.runPromise(Scope.close(conformanceScope, Exit.void)))
   runPersistenceConformance(
     'conciv drizzle chat stores',
-    () => defineAIPersistence({stores: drizzleChatStores(chatDb(), {readHarness: async () => 'test-harness'})}),
+    async () =>
+      defineAIPersistence({
+        stores: drizzleChatStores(await openChatDb(conformanceScope), {readHarness: async () => 'test-harness'}),
+      }),
     {
       skip: ['interrupts', 'activities', 'generationRuns', 'artifacts', 'blobs', 'log', 'sessions'],
       checks: ['messages.metadata', 'runs.listByThread.state'],

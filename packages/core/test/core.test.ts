@@ -281,11 +281,10 @@ function rawRequest(port: number, path: string, headers: Record<string, string> 
   })
 }
 
-function openDatabase(root: string): ConcivDb {
-  const scope = Effect.runSync(Scope.make())
-  const db = Effect.runSync(openDb(root).pipe(Scope.provide(scope)))
+function openDatabase(root: string): Promise<ConcivDb> {
+  const scope = Scope.makeUnsafe()
   onTestFinished(() => Effect.runPromise(Scope.close(scope, Exit.void)))
-  return db
+  return Effect.runPromise(openDb(root).pipe(Scope.provide(scope)))
 }
 
 describe('api native page document', () => {
@@ -352,7 +351,7 @@ describe('chat plane', () => {
     const skilled = sessionId('skills')
     const builtins = sessionId('builtins')
     const codeless = sessionId('codeless')
-    const db = openDatabase(root)
+    const db = await openDatabase(root)
     await bornRows(root, [skilled, builtins, codeless])
     const host = ManagedRuntime.make(
       Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer, Tool.layer).pipe(
@@ -736,7 +735,7 @@ describe('chat plane', () => {
     const stopping = engine.stop()
     const late = await rawRequest(engine.port, '/health')
     await stopping
-    const db = openDatabase(root)
+    const db = await openDatabase(root)
     const runs = await Effect.runPromise(
       db.select({status: chatRuns.status}).from(chatRuns).where(eq(chatRuns.runId, 'engine-stop-run')),
     )
@@ -762,7 +761,7 @@ describe('chat plane', () => {
       body: turnBody(sessionId('cut-short'), 'cut-short-run', 'keep talking'),
     })
     await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
-    const db = openDatabase(root)
+    const db = await openDatabase(root)
     const runRows = async () =>
       Effect.runPromise(
         db.select({runId: chatRuns.runId, status: chatRuns.status, finishedAt: chatRuns.finishedAt}).from(chatRuns),
@@ -814,7 +813,7 @@ describe('chat plane', () => {
 
   it('one subscriber registering just as a run starts gets exactly one announcement for it', async () => {
     const root = tempDir('conciv-core-unit-')
-    const db = openDatabase(root)
+    const db = await openDatabase(root)
     const primitives = makeSessionPrimitives({db, root, storeCapture: () => Promise.resolve()})
     const starting = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
     const chat = await plane(cliHarness(fakeCli()), root, {
@@ -1006,7 +1005,7 @@ describe('chat plane', () => {
     root = tempDir('conciv-core-unit-'),
     overrides: Partial<Parameters<typeof createChatPlane>[0]> = {},
   ): Promise<ChatPlane> {
-    const db = openDatabase(root)
+    const db = await openDatabase(root)
     const {driver = quickJSDriver(), ...given} = overrides
     return createChatPlane({
       db,
@@ -1574,7 +1573,7 @@ describe('configured session rows', () => {
 describe('session metadata', () => {
   it('a session starts with no metadata, and each setMetadata replaces the whole record', async () => {
     const root = tempDir('conciv-core-unit-')
-    const db = openDatabase(root)
+    const db = await openDatabase(root)
     const id = SessionId.parse('conciv_metadata')
     await bornRows(root, [id])
     expect((await rowById(db, id))?.metadata).toBeNull()
@@ -1637,8 +1636,8 @@ describe('page bus and the session scope', () => {
     return {queued, frame: (index) => arrival(index).promise, browserTab}
   }
 
-  function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): PageQueues {
-    const db = openDatabase(tempDir('conciv-core-unit-'))
+  async function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): Promise<PageQueues> {
+    const db = await openDatabase(tempDir('conciv-core-unit-'))
     const queues = makePageQueues({bus, journal: makeJournal(db), syncMs})
     for (const callId of [HUB_CALL, 'call-1']) queues.hubCall(SESSION_A, callId)
     return queues
@@ -1668,7 +1667,7 @@ describe('page bus and the session scope', () => {
   it('queued replies that arrive out of order are each kept for their own action', async () => {
     const bus = makePageBus(2000)
     const queued = queueingTab(bus)
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const checks = ['#first', '#second', '#third'].map((selector) => ({tool: 'page_check', selector}))
     const {queueId} = await queues.start(SESSION_A, queueStart(checks))
     const [first, second, third] = queued[0]?.queue.replies ?? []
@@ -1693,7 +1692,7 @@ describe('page bus and the session scope', () => {
   it('a queued action the page never confirms is unconfirmed: it may already have run and does not count as played', async () => {
     const bus = makePageBus(2000, 50)
     const queued = queueingTab(bus)
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const fill = {tool: 'page_fill', selector: '#name', value: 'Ada'}
     const {queueId} = await queues.start(SESSION_A, queueStart([fill, {tool: 'page_check', selector: '#agree'}]))
     const [onTab] = queued
@@ -1718,7 +1717,7 @@ describe('page bus and the session scope', () => {
   it('a sync queue returns its result in-call, and it is never announced or owed afterwards', async () => {
     const bus = makePageBus(2000)
     const tab = arrivingTab(bus)
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const announced: string[] = []
     queues.finished((record) => announced.push(record.queueId))
     const played = queues.play(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
@@ -1735,7 +1734,7 @@ describe('page bus and the session scope', () => {
   it('a sync queue that outlasts its bound returns the progress and its queueId, and the result is owed later', async () => {
     const bus = makePageBus(2000)
     const queued = queueingTab(bus)
-    const queues = pageQueues(bus, 20)
+    const queues = await pageQueues(bus, 20)
     const finished = trackFinished(queues)
     const checks = ['#first', '#second'].map((selector) => ({tool: 'page_check', selector}))
     const progress = await queues.play(SESSION_A, {...queueStart(checks), toolCallId: 'call-1'})
@@ -1754,7 +1753,7 @@ describe('page bus and the session scope', () => {
   it('a hub call keeps the queues it started as hub work after it replies, until the session is deleted', async () => {
     const bus = makePageBus(2000)
     const tab = arrivingTab(bus)
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const playOut = async (index: number): Promise<void> => {
@@ -1789,7 +1788,7 @@ describe('page bus and the session scope', () => {
   it('a session deleted while a waiter holds a claim on its result: the reply that did not go out puts nothing back', async () => {
     const bus = makePageBus(2000)
     const tab = arrivingTab(bus)
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const finished = trackFinished(queues)
     const announced: string[] = []
     queues.finished((record) => announced.push(record.queueId))
@@ -1812,7 +1811,7 @@ describe('page bus and the session scope', () => {
   it('undelivered results are never evicted: at 1000 owed a new queue is refused before it plays, and delivering one frees a place', async () => {
     const bus = makePageBus(2000)
     const queued = queueingTab(bus)
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const started: string[] = []
@@ -1836,7 +1835,7 @@ describe('page bus and the session scope', () => {
     const bus = makePageBus(2000)
     const tab = arrivingTab(bus)
     const queued = tab.queued
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const earlier = await queues.start(SESSION_A, queueStart(check))
@@ -1861,7 +1860,7 @@ describe('page bus and the session scope', () => {
     const bus = makePageBus(2000)
     const tab = arrivingTab(bus)
     const queued = tab.queued
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const earlier = await queues.start(SESSION_A, queueStart(check))
@@ -1887,7 +1886,7 @@ describe('page bus and the session scope', () => {
         bus.resolve(SESSION_A, parsed.data.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
       })
     })
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const starts = await Promise.allSettled(
@@ -1906,7 +1905,7 @@ describe('page bus and the session scope', () => {
   it('a follow-up turn that fails to start gives its results back even when 200 delivered queues pass them while it starts', async () => {
     const bus = makePageBus(2000)
     const queued = queueingTab(bus)
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const played = async (hub: boolean): Promise<string> => {
@@ -1956,7 +1955,7 @@ describe('page bus and the session scope', () => {
         }
       })
     })
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const finished = trackFinished(queues)
     const played = async (): Promise<string> => {
       const {queueId} = await queues.start(fixture.sessionId, {
@@ -2359,7 +2358,7 @@ describe('page bus and the session scope', () => {
         bus.resolve(SESSION_A, parsed.data.requestId, {ok: false, error: {code: 'invalid-args', message: 'no list'}}),
       )
     })
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const result = await queues.play(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
     expect(result).toMatchObject({
       status: 'lost',
@@ -2380,7 +2379,7 @@ describe('page bus and the session scope', () => {
       queueFrame.resolve(parsed.data)
       queueMicrotask(() => bus.resolve(SESSION_A, parsed.data.requestId, {ok: true, result: {}}))
     })
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const clicked = bus.ask(
       SESSION_A,
       {name: 'fixture_click', input: {}, agentId: SESSION_A, mutating: true},
@@ -2401,7 +2400,7 @@ describe('page bus and the session scope', () => {
     const first = queueingTab(bus, {focusedAt: 2, visible: true})
     const secondTab = arrivingTab(bus, {focusedAt: 1, visible: true})
     const second = secondTab.queued
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const earlier = await queues.start(SESSION_A, queueStart(check))
@@ -2423,7 +2422,7 @@ describe('page bus and the session scope', () => {
       onFirst.push(parsed.data)
       queueMicrotask(() => bus.resolve(SESSION_A, parsed.data.requestId, {ok: true, result: {}}))
     })
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const earlier = await queues.start(SESSION_A, queueStart(check))
@@ -2442,7 +2441,7 @@ describe('page bus and the session scope', () => {
   it('a queue wait its caller aborts rejects at once and leaves the result owed to the next reply', async () => {
     const bus = makePageBus(2000)
     const queued = queueingTab(bus)
-    const queues = pageQueues(bus)
+    const queues = await pageQueues(bus)
     const finished = trackFinished(queues)
     const {queueId} = await queues.start(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
     const caller = new AbortController()
@@ -5160,7 +5159,7 @@ describe('plugin permission cards', () => {
       expect((await plane.hydrate(id)).pendingApprovals.map((entry) => entry.approvalId)).toEqual([asked.id]),
     )
     await fixture.dispose()
-    const reopened = openDatabase(stateRoot)
+    const reopened = await openDatabase(stateRoot)
     const stored = await Effect.runPromise(
       reopened
         .select({value: chatMetadata.valueJson})
@@ -5392,7 +5391,7 @@ describe('plugin context keys provided by core', () => {
       }
     }
     const sonnetVariants = [{id: 'low', settings: {effort: 'low'}}]
-    const db = openDatabase(root)
+    const db = await openDatabase(root)
     const id = SessionId.parse('conciv_entries')
     const other = SessionId.parse('conciv_entries_other')
     await bornRows(root, [id, other])

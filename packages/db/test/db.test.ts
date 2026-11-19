@@ -13,8 +13,8 @@ import {asc, eq} from 'drizzle-orm'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {makeWithDefaults} from 'drizzle-orm/effect-sqlite-node'
 import {SqliteClient} from '@effect/sql-sqlite-node'
-import {Effect, Layer, Scope} from 'effect'
-import {describe, expect, it, expectTypeOf} from 'vitest'
+import {Effect, Exit, Layer, Scope} from 'effect'
+import {describe, expect, it, expectTypeOf, onTestFinished} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb, type ConcivDb} from '../src/db.js'
 import {importLegacyThreads} from '../src/chat-thread-import.js'
@@ -44,8 +44,11 @@ import {migrations} from '../src/migrations.gen.js'
 import {checkEngines} from '../src/engine-check.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
-const opened = (stateRoot: string): ConcivDb =>
-  Effect.runSync(openDb(stateRoot).pipe(Scope.provide(Scope.makeUnsafe())))
+function opened(stateRoot: string): Promise<ConcivDb> {
+  const scope = Scope.makeUnsafe()
+  onTestFinished(() => Effect.runPromise(Scope.close(scope, Exit.void)))
+  return Effect.runPromise(openDb(stateRoot).pipe(Scope.provide(scope)))
+}
 
 function legacyHistoryRows(db: ConcivDb, sessionId: string) {
   return Effect.runSync(db.select().from(sessionHistory).where(eq(sessionHistory.sessionId, sessionId)))
@@ -78,7 +81,7 @@ describe('capture queries', () => {
   describe('tool captures outlive the run that produced them', () => {
     it('keeps both sides of one tool call and hands them back after the database is reopened', async () => {
       const root = freshRoot()
-      await writeToolCapture(opened(root), {
+      await writeToolCapture(await opened(root), {
         sessionId: 's1',
         toolCallId: 'call-1',
         bundle: {
@@ -88,7 +91,7 @@ describe('capture queries', () => {
         },
       })
 
-      const reopened = await sessionCaptures(opened(root), 's1')
+      const reopened = await sessionCaptures(await opened(root), 's1')
       expect(reopened.captures.map((row) => row.kind).toSorted()).toEqual(['after', 'before'])
       expect(new Set(reopened.captures.map((row) => row.toolCallId))).toEqual(new Set(['call-1']))
       expect(reopened.cssBundles['cssabc']).toBe('i{}')
@@ -96,7 +99,7 @@ describe('capture queries', () => {
 
     it('stores every css bundle a single call reports, one per side', async () => {
       const root = freshRoot()
-      await writeToolCapture(opened(root), {
+      await writeToolCapture(await opened(root), {
         sessionId: 's1',
         toolCallId: 'call-1',
         bundle: {
@@ -109,14 +112,14 @@ describe('capture queries', () => {
         },
       })
 
-      const stored = await sessionCaptures(opened(root), 's1')
+      const stored = await sessionCaptures(await opened(root), 's1')
       expect(stored.cssBundles['cssbefore']).toBe('.a{}')
       expect(stored.cssBundles['cssafter']).toBe('.a{}.b{}')
     })
 
     it('replaces a side rather than duplicating it when the same call reports twice', async () => {
       const root = freshRoot()
-      const db = opened(root)
+      const db = await opened(root)
       await writeToolCapture(db, {sessionId: 's1', toolCallId: 'call-1', bundle: {after: side('after', 'first')}})
       await writeToolCapture(db, {sessionId: 's1', toolCallId: 'call-1', bundle: {after: side('after', 'second')}})
       const stored = await sessionCaptures(db, 's1')
@@ -126,7 +129,7 @@ describe('capture queries', () => {
 
     it('drops a session capture and only the css bundles nothing else references', async () => {
       const root = freshRoot()
-      const db = opened(root)
+      const db = await opened(root)
       await writeToolCapture(db, {
         sessionId: 's1',
         toolCallId: 'call-1',
@@ -143,7 +146,7 @@ describe('capture queries', () => {
 
     it('leaves no orphan css bundle behind when a capture in the same call fails to write', async () => {
       const root = freshRoot()
-      const db = opened(root)
+      const db = await opened(root)
       await expect(
         writeToolCapture(db, {
           sessionId: 's1',
@@ -269,8 +272,8 @@ describe('db', () => {
       client.close()
     })
 
-    it('boots a fresh db with the attach columns and rejects a duplicate token', () => {
-      const db = opened(tempDir('conciv-db-cwd-'))
+    it('boots a fresh db with the attach columns and rejects a duplicate token', async () => {
+      const db = await opened(tempDir('conciv-db-cwd-'))
       Effect.runSync(
         db.insert(sessions).values({
           ...record('conciv_a'),
@@ -411,16 +414,16 @@ describe('db', () => {
       client.close()
     })
 
-    it('imports a legacy run under the harness of its session', () => {
+    it('imports a legacy run under the harness of its session', async () => {
       const stateRoot = tempDir('conciv-db-legacy-run-')
-      const first = opened(stateRoot)
+      const first = await opened(stateRoot)
       Effect.runSync(first.insert(sessions).values({...record('conciv_pi'), harnessKind: 'pi'}))
       Effect.runSync(
         first
           .insert(runs)
           .values({runId: 'legacy-run', sessionId: 'conciv_pi', phase: 'completed', startedAt: 1, updatedAt: 1}),
       )
-      const second = opened(stateRoot)
+      const second = await opened(stateRoot)
       expect(
         Effect.runSync(second.select({runId: chatRuns.runId, harnessId: chatRuns.harnessId}).from(chatRuns)),
       ).toEqual([{runId: 'legacy-run', harnessId: 'pi'}])
@@ -473,8 +476,8 @@ describe('db', () => {
   })
 
   describe('openDb', () => {
-    it('sessions round-trip through the typed orm', () => {
-      const db = opened(tempDir('conciv-db-'))
+    it('sessions round-trip through the typed orm', async () => {
+      const db = await opened(tempDir('conciv-db-'))
       Effect.runSync(db.insert(sessions).values(record('conciv_a')))
       const rows = Effect.runSync(db.select().from(sessions).where(eq(sessions.id, 'conciv_a')))
       expect(rows[0]?.cwd).toBe('/w')
@@ -484,7 +487,7 @@ describe('db', () => {
 
     it('boot sweep neither folds nor wipes run rows: openDb has no harness and cannot decide', async () => {
       const stateRoot = tempDir('conciv-db-fold-')
-      const first = opened(stateRoot)
+      const first = await opened(stateRoot)
       const imageTurn = [
         {
           id: 'u1',
@@ -495,17 +498,17 @@ describe('db', () => {
       const textTurn = [{id: 't1', role: 'user', parts: [{type: 'text', content: 'hi'}]}]
       seedRunMessages(first, 'conciv_img', imageTurn)
       seedRunMessages(first, 'conciv_txt', textTurn)
-      const second = opened(stateRoot)
+      const second = await opened(stateRoot)
       expect((await runMessagesFor(second, 'conciv_img'))?.messages).toEqual(imageTurn)
       expect((await runMessagesFor(second, 'conciv_txt'))?.messages).toEqual(textTurn)
       expect(legacyHistoryRows(second, 'conciv_img')).toEqual([])
       expect(legacyHistoryRows(second, 'conciv_txt')).toEqual([])
     })
 
-    it('two connections on one stateRoot interleave writes (WAL + busy timeout)', () => {
+    it('two connections on one stateRoot interleave writes (WAL + busy timeout)', async () => {
       const stateRoot = tempDir('conciv-db-multi-')
-      const first = opened(stateRoot)
-      const second = opened(stateRoot)
+      const first = await opened(stateRoot)
+      const second = await opened(stateRoot)
       Effect.runSync(first.insert(sessions).values(record('conciv_a')))
       Effect.runSync(second.insert(sessions).values(record('conciv_b')))
       Effect.runSync(first.update(sessions).set({title: 'from-first'}).where(eq(sessions.id, 'conciv_b')))
@@ -541,14 +544,14 @@ describe('run queries', () => {
 
   describe('run lifecycle queries', () => {
     it('reads fall back safely for unknown sessions', async () => {
-      const db = fresh()
+      const db = await fresh()
       expect(await readModel(db, 'missing')).toBeNull()
       expect(await runMessagesFor(db, 'missing')).toBeNull()
       expect(legacyHistoryRows(db, 'missing')).toEqual([])
     })
 
     it('readModel reads the sessions row', async () => {
-      const db = fresh()
+      const db = await fresh()
       Effect.runSync(
         db.insert(sessions).values({
           id: 'conciv_m',

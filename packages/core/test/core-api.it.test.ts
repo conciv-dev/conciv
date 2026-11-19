@@ -1088,7 +1088,9 @@ describe('api harness switching', () => {
       db().$client.unsafe(`CREATE TRIGGER switch_write_fails BEFORE UPDATE OF harness_kind ON sessions
       BEGIN SELECT RAISE(ABORT, 'switch write failed'); END`).raw,
     )
-    onTestFinished(() => Effect.runPromise(db().$client.unsafe('DROP TRIGGER switch_write_fails').raw))
+    onTestFinished(async () => {
+      await Effect.runPromise(db().$client.unsafe('DROP TRIGGER switch_write_fails').raw)
+    })
 
     await expect(kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})).rejects.toMatchObject({
       code: 'INTERNAL_SERVER_ERROR',
