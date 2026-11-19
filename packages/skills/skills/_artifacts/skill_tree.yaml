@@ -53,8 +53,6 @@ skills:
       - '@conciv/plugin'
     description: 'Adding agent tools, skills, RPC methods and widget UI from a consuming app with a plugin in conciv/plugins/ or a package.'
     sources:
-      - 'conciv-dev/conciv:apps/site/content/docs/plugins/your-first-plugin.mdx'
-      - 'conciv-dev/conciv:apps/site/content/docs/plugins/install.mdx'
       - 'conciv-dev/conciv:packages/plugin/src/experimental/registries.ts'
       - 'conciv-dev/conciv:packages/plugin-host/src/core/tool.ts'
 

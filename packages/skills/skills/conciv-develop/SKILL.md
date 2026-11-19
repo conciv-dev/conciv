@@ -235,6 +235,5 @@ dev dependency); `effect` and `zod` are dependencies. Exclude `plugin-experiment
 - `packages/plugins/recorder/src/tools.ts`
 - `packages/plugins/ios/src/tools.ts`
 - `apps/site/content/docs/plugins/index.mdx`
-- `apps/site/content/docs/plugins/your-first-plugin.mdx`
 - `apps/site/content/docs/plugins/engine.mdx`
 - `apps/site/content/docs/plugins/browser.mdx`
