@@ -48,6 +48,42 @@ const CATCH_UP_RETRY_MS = 20
 const DRAW_DEADLINE_MS = 2_000
 const SinceRead = z.object({changes: z.array(z.object({key: z.string()}))})
 const PinRows = z.array(z.object({cid: z.string(), pinState: z.string(), x: z.number(), y: z.number()}).loose())
+const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+const CARD_TURN = {
+  toolCalls: [
+    {name: 'whiteboard_canvas_read', input: {scope: 'live'}, result: {elements: [{}, {}, {}], scope: 'live'}},
+    {
+      name: 'whiteboard_canvas_preview',
+      input: {},
+      result: [
+        {type: 'image', source: {type: 'data', value: PNG_1PX, mimeType: 'image/png'}},
+        {type: 'text', content: JSON.stringify({elements: 2})},
+      ],
+    },
+    {name: 'whiteboard_canvas_delete', input: {elementId: 'el_9'}, result: {deleted: 'el_9'}},
+    {name: 'whiteboard_canvas_export', input: {}, result: {error: 'export render failed', reason: 'no renderer'}},
+    {
+      name: 'whiteboard_comment_create',
+      input: {
+        cid: 'c_42',
+        kind: 'floating',
+        parts: [{type: 'text', text: 'Looks off-center'}],
+        x: 1,
+        y: 2,
+        authorKind: 'ai',
+      },
+      result: {cid: 'c_42'},
+    },
+    {name: 'whiteboard_comment_list', input: {scope: 'session'}, result: {comments: [{}, {}]}},
+    {name: 'whiteboard_comment_delete', input: {cid: 'c_42'}, result: {cid: 'c_42', deleted: true}},
+    {
+      name: 'whiteboard_pin_set_state',
+      input: {cid: 'c_42', pinState: 'locked'},
+      result: {cid: 'c_42', pinState: 'locked'},
+    },
+  ],
+  text: 'The board is checked',
+}
 const ThreadRead = z.object({
   comment: z.object({status: z.string()}).loose(),
   replies: z.array(z.object({parts: z.array(z.unknown())}).loose()),
@@ -955,7 +991,7 @@ describe('the comments of the whiteboard plugin', () => {
     }
   }, 120_000)
 
-  test('the thread beside a pin hides the chat while open, takes a reply with an @mention of a participant the agent reads, closes on Escape with the canvas kept, steps to the next and previous thread, resolves, deletes through its confirm, a dropped source-linked pin asks before it drifts, and an open thread whose root the agent deletes closes', async ({
+  test('the agent whiteboard tool calls show as cards in the chat, the thread beside a pin hides the chat while open, takes a reply with an @mention of a participant the agent reads, closes on Escape with the canvas kept, steps to the next and previous thread, resolves, deletes through its confirm, a dropped source-linked pin asks before it drifts, and an open thread whose root the agent deletes closes', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -971,6 +1007,28 @@ describe('the comments of the whiteboard plugin', () => {
       await page.reload({waitUntil: 'domcontentloaded'})
       await page.setViewportSize({width: 1280, height: 800})
       await openChat(page)
+      widget.kit.harness.script.scriptTurn(CARD_TURN)
+      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await composer.click()
+      await composer.pressSequentially('check the board')
+      await composer.press('Enter')
+      await expect(page.getByText('The board is checked', {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(page.getByText('whiteboard_canvas_read')).toBeVisible()
+      await expect(page.getByText('3 elements').first()).toBeVisible()
+      await page.getByRole('button', {name: /whiteboard_canvas_preview/}).click()
+      await expect(page.getByRole('img', {name: 'canvas preview'})).toBeVisible()
+      await page.getByRole('button', {name: /whiteboard_canvas_delete/}).click()
+      await expect(page.getByText('delete el_9')).toBeVisible()
+      await page.getByRole('button', {name: /whiteboard_canvas_export/}).click()
+      await expect(page.getByText('export render failed · no renderer')).toBeVisible()
+      await page.getByRole('button', {name: /whiteboard_comment_create/}).click()
+      await expect(page.getByText('Looks off-center')).toBeVisible()
+      await expect(page.getByText('c_42').first()).toBeVisible()
+      await expect(page.getByText('2 comments').first()).toBeVisible()
+      await page.getByRole('button', {name: /whiteboard_comment_delete/}).click()
+      await expect(page.getByText('delete', {exact: true}).last()).toBeVisible()
+      await expect(page.getByText('deleted').first()).toBeVisible()
+      await expect(page.getByText('locked').first()).toBeVisible()
       await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
 
