@@ -1,10 +1,8 @@
 import type {IncomingMessage, OutgoingHttpHeader, ServerResponse} from 'node:http'
-import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE} from '@conciv/extension-compiler/extensions'
+import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE} from './widget-module.js'
 import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void
-
-export {WIDGET_DOCK_ROUTE, WIDGET_ROUTE}
 
 function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')

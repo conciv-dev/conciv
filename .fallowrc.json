@@ -12,7 +12,6 @@
     "packages/plugins/tanstack/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/cli/test/fixtures/**",
-    "packages/unplugin/test/fixtures/extension/**",
     "packages/unplugin/test/fixtures/plugin/**",
     "apps/examples/**",
     "native/swift/**",

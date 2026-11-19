@@ -6,7 +6,6 @@ import {makeOpenInEditor} from './open-editor.js'
 
 export type Builtins = {
   embedEntry?: string
-  dedupeEntry?: string
   nativePageDir?: string
 }
 

@@ -6,12 +6,12 @@ import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
-import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE, htmlTags, makeWidgetInject} from './widget-middleware.js'
+import {htmlTags, makeWidgetInject} from './widget-middleware.js'
+import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE, loadWidgetModule, resolveWidgetModule} from './widget-module.js'
 import {makeOpenInEditor} from './open-editor.js'
 import {makeViteBridge} from './vite-bridge.js'
 import type {Builtins} from './boot.js'
 import {concivSolidConfig, dropIncludedFromExcludes, stampJsxSource} from './vite-plumbing.js'
-import {loadExtensionsModule, resolveExtensionsModule} from '@conciv/extension-compiler/vite-plumbing'
 
 function mountWidget(
   server: ViteDevServer,
@@ -143,7 +143,6 @@ function widgetSettings(widget: ConcivConfig['widget'], docked: boolean): Conciv
 }
 
 export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}): DevToolsPlugin {
-  const clientEntries = (options.extensions ?? []).map((extension) => extension.client)
   const engines: Engine[] = []
   let apiBase: string | undefined
 
@@ -183,7 +182,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...embedChunks(builtins.embedEntry)]
       const base = concivSolidConfig({
         root: userConfig.root ?? process.cwd(),
-        warmupFiles: [...embedFiles, ...clientEntries],
+        warmupFiles: embedFiles,
       })
       base.optimizeDeps.exclude.push('@conciv/embed')
       managedExcludes = [...base.optimizeDeps.exclude]
@@ -211,10 +210,10 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         config.plugins.some((plugin) => plugin.name === 'vite:devtools')
     },
     resolveId(id) {
-      return resolveExtensionsModule(id)
+      return resolveWidgetModule(id)
     },
     load(id) {
-      return loadExtensionsModule(id, clientEntries, apiBase, builtins.embedEntry, builtins.dedupeEntry)
+      return loadWidgetModule(id, apiBase, builtins.embedEntry)
     },
     transform(code, id) {
       if (options.enabled === false) return null

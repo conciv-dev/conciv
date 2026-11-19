@@ -6,12 +6,11 @@ import {pathToFileURL} from 'node:url'
 import {onTestFinished} from 'vitest'
 import {createLogger, createServer, type ViteDevServer} from 'vite'
 import {magicLink, recordedEngineBase} from '@conciv/harness-testkit/login'
-import type {ConcivConfig, ExtensionPackage} from '@conciv/protocol/config-types'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {Builtins} from '../../src/core/boot.js'
 import {makeViteHook} from '../../src/core/vite.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
-const FIXTURE_EXTENSION_DIR = join(import.meta.dirname, '..', 'fixtures', 'extension')
 const FIXTURE_PLUGIN_DIR = join(import.meta.dirname, '..', 'fixtures', 'plugin')
 
 export type StartedDevServer = {server: ViteDevServer; root: string}
@@ -80,10 +79,6 @@ export async function startTestDevServer(
   const server = closeWhenTestFinishes(await createDevServer(options, builtins, root))
   await server.listen()
   return {server, root}
-}
-
-export function fixtureExtension(dir = FIXTURE_EXTENSION_DIR): ExtensionPackage {
-  return {server: join(dir, 'server.mjs'), client: join(dir, 'client.mjs'), config: undefined}
 }
 
 export type PluginEntries = NonNullable<ConcivConfig['plugins']>
