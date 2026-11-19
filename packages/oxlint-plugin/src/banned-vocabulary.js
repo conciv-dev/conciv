@@ -28,7 +28,6 @@ const DEV_BUNDLER_BRIDGE_PATHS = [
   'packages/core/src/api/rpc/mount.ts',
   'packages/plugin/src/schema/bundler.ts',
   'packages/plugin-testkit/src/core-kit.ts',
-  'packages/extension/src/vite-bridge.ts',
   'packages/unplugin/src/',
 ]
 
@@ -56,11 +55,7 @@ const HARNESS_CONNECT_ATTACH_PATHS = [
   'packages/protocol/src/harness-types.ts',
 ]
 
-const COMPOSER_ATTACHMENT_INGRESS_PATHS = [
-  'apps/conciv/src/pane/chat-pane.tsx',
-  'packages/extension/src/hooks.tsx',
-  'packages/extension/src/host-context.ts',
-]
+const COMPOSER_ATTACHMENT_INGRESS_PATHS = ['apps/conciv/src/pane/chat-pane.tsx']
 
 const PRE_REWRITE_ATTACH_PATHS = [
   'apps/site/src/components/landing/',

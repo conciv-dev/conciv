@@ -174,8 +174,8 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 
 ## Widget bundle
 
-- The widget bundle must externalize every `@conciv/extension/*` subpath and the shared Ark/Solid
-  deps. A second bundled copy splits the Solid/Ark context and extension popovers render at 0,0.
+- The widget bundle must externalize the shared Ark/Solid deps. A second bundled copy splits the
+  Solid/Ark context and plugin popovers render at 0,0.
   Flag any change that bundles a second copy or weakens the mount-externals build test.
 
 ## TanStack Router

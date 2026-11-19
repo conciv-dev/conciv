@@ -65,7 +65,6 @@
   },
   "devDependencies": {
     "@conciv/db": "workspace:^",
-    "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",

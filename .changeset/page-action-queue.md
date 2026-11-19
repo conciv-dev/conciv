@@ -3,7 +3,6 @@
 '@conciv/cli': patch
 '@conciv/protocol': patch
 '@conciv/page': patch
-'@conciv/extension': patch
 '@conciv/chat': patch
 '@conciv/ai': patch
 ---

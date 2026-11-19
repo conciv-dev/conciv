@@ -2,7 +2,6 @@
 '@conciv/core': patch
 '@conciv/contract': patch
 '@conciv/db': patch
-'@conciv/extension': patch
 '@conciv/page': patch
 '@conciv/embed': patch
 '@conciv/protocol': patch

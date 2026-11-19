@@ -59,6 +59,7 @@ import {
   ComposerHandlersProvider,
   useComposerContext,
   type AttachmentAdapter,
+  type AttachmentCardSlot,
   type SessionStatus,
   useComposer,
   createTextAttachmentAdapter,
@@ -67,7 +68,6 @@ import {
 } from '@conciv/ui-kit-chat'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {useChatSession} from '@conciv/client'
-import {collectAttachmentCards, defineAttachment, defineExtension} from '@conciv/extension'
 import {guardPluginAttachmentCard} from '../src/runtime/plugin/plugin-boundary.js'
 import {composerDraftSink, paneAttachments, putBackInDraft, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import {formatNoteComment, noteComment, promptWithNotes} from '../src/composer/comment-note.js'
@@ -429,24 +429,22 @@ describe('attachment widget', () => {
   }
 
   function crashingChipSetup() {
-    const crashing = defineAttachment({mime: 'application/x-crashing'})
-    crashing.card(() => {
-      throw new Error('fixture crash')
-    })
-    const calm = defineAttachment({mime: 'application/x-fixture'})
-    calm.card(() => <span>calm player</span>)
-    const extension = defineExtension({name: 'crash-attachment', attachments: [crashing, calm]})
+    const pluginName = 'crash-attachment'
+    const pluginCards: AttachmentCardSlot[] = [
+      {
+        mime: 'application/x-crashing',
+        render: () => {
+          throw new Error('fixture crash')
+        },
+      },
+      {mime: 'application/x-fixture', render: () => <span>calm player</span>},
+    ]
     const guarded = (fallback: 'card' | 'chip') =>
-      collectAttachmentCards([extension]).map((entry) => {
-        const Card = entry.render
-        return guardPluginAttachmentCard(extension.name, fallback, {mime: entry.mime, render: () => <Card />})
-      })
+      pluginCards.map((card) => guardPluginAttachmentCard(pluginName, fallback, card))
     return {
       cards: guarded('card'),
       chips: guarded('chip'),
-      adapter: composeAttachmentAdapters(
-        [crashing, calm].map((attachment) => createDocumentAttachmentAdapter(attachment.mime)),
-      ),
+      adapter: composeAttachmentAdapters(pluginCards.map((card) => createDocumentAttachmentAdapter(card.mime))),
       crashingFile: new File(['{}'], 'crashing.bin', {type: 'application/x-crashing'}),
       calmFile: new File(['{}'], 'calm.bin', {type: 'application/x-fixture'}),
     }

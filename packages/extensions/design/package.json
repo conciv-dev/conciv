@@ -52,7 +52,6 @@
   "dependencies": {
     "@blazediff/core": "catalog:",
     "@bramus/specificity": "catalog:",
-    "@conciv/extension": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@orpc/server": "catalog:",
