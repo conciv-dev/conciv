@@ -258,7 +258,6 @@ export function panelPlacement(anchor: LauncherAnchor): JSX.CSSProperties {
   return {
     ...vertical,
     [side]: inline,
-    'max-width': `calc(100% - ${inline} - ${MARGIN_REM}rem)`,
     'transform-origin': `${above ? 'bottom' : 'top'} ${side}`,
   }
 }
@@ -271,6 +270,7 @@ export type DraggablePosition = {
   previewing: () => boolean
   growsTowardStart: (labelWidth: number) => boolean
   panelFrame: (size: {width: number; height: number}) => PanelFrame
+  panelWidthCap: () => number
   docked: () => boolean
   edgeTab: () => LauncherEdgeTab | null
   onPointerDown: (event: PointerEvent) => void
@@ -459,11 +459,12 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
   }
 
   const windowSize = createWindowSize()
-  const launcherBox = createMemo((): {at: TriggerCoords; size: number} => {
+  const launcherBox = createMemo((): {at: TriggerCoords; size: number; viewportWidth: number} => {
     const gesture = state.gesture
-    if (gesture.phase === 'dragging') return {at: gesture.at, size: gesture.measure.size}
+    if (gesture.phase === 'dragging')
+      return {at: gesture.at, size: gesture.measure.size, viewportWidth: gesture.measure.viewport.width}
     const measured = measure({width: rootSize.width ?? windowSize.width, height: windowSize.height})
-    return {at: computePixels(state.placement, measured), size: measured.size}
+    return {at: computePixels(state.placement, measured), size: measured.size, viewportWidth: measured.viewport.width}
   })
   const panelFrame = (size: {width: number; height: number}): PanelFrame => {
     const box = launcherBox()
@@ -472,6 +473,12 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
     const top = corner.startsWith('bottom') ? box.at.y - gap - size.height : box.at.y + box.size + gap
     const left = corner.endsWith('left') ? box.at.x : box.at.x + box.size - size.width
     return {top, left, right: left + size.width, bottom: top + size.height}
+  }
+  const panelWidthCap = (): number => {
+    const box = launcherBox()
+    const margin = MARGIN_REM * rootFontSizePx()
+    if (anchor().corner.endsWith('left')) return box.viewportWidth - box.at.x - margin
+    return box.at.x + box.size - margin
   }
 
   const edgeTab = (): LauncherEdgeTab | null => {
@@ -491,6 +498,7 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
     previewing: () => state.gesture.phase === 'dragging' && state.gesture.edge !== null,
     growsTowardStart,
     panelFrame,
+    panelWidthCap,
     docked: () => state.placement.kind === 'edge',
     edgeTab,
     onPointerDown,
