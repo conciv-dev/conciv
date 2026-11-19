@@ -41,7 +41,7 @@ export type RpcMethod<D extends Rpc.PortableDefinition, Name extends keyof D['me
    *
    * @example
    * ```ts
-   * ctx.queryClient.invalidateQueries({ queryKey: ctx.client.rpc(Acme).search.key() })
+   * useQueryClient().invalidateQueries({ queryKey: ctx.client.rpc(Acme).search.key() })
    * ```
    */
   readonly key: (options?: {readonly input?: MethodInput<D, Name>}) => RpcQueryKey<D, Name, MethodInput<D, Name>>

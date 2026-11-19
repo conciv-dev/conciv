@@ -1,6 +1,6 @@
 import {ErrorBoundary, Match, onMount, Show, Switch, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {UseQueryResult} from '@tanstack/solid-query'
+import type {UseQueryResult} from '@conciv/client'
 import type {Context} from '@conciv/plugin/experimental'
 import {z} from 'zod'
 

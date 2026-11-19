@@ -573,7 +573,6 @@ function createHost(input: HostInput) {
       get client() {
         return experimental?.client() ?? input.unavailableClient()
       },
-      queryClient: input.queryClient,
       signal: controller.signal,
       add<T>(registry: Registry<T>, item: T | (() => T | undefined)) {
         if (late()) return () => {}

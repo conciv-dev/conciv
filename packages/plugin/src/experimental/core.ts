@@ -1,5 +1,4 @@
 import type {StandardSchemaV1} from '@standard-schema/spec'
-import type {QueryClient} from '@tanstack/solid-query'
 import type {ConcivClient} from '../client/promise/index.js'
 
 export type Json = string | number | boolean | null | readonly Json[] | {readonly [key: string]: Json}
@@ -105,18 +104,6 @@ export interface BaseContext {
    * ```
    */
   readonly client: ConcivClient
-  /**
-   * The app's one query cache. A view reads the plugin's engine methods through `useQuery` with a method's
-   * `queryOptions`, writes through `useMutation` with its `mutationOptions`, and invalidates by its `key` when an event
-   * says the data changed.
-   *
-   * @example
-   * ```ts
-   * const acme = ctx.client.rpc(Acme)
-   * acme.events.on("indexed", () => ctx.queryClient.invalidateQueries({ queryKey: acme.search.key() }))
-   * ```
-   */
-  readonly queryClient: QueryClient
   /**
    * The plugin's id, as its engine part's `Plugin.define` declares it.
    *

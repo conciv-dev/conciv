@@ -204,15 +204,11 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@tanstack/solid-query": "^5.107.1",
     "solid-js": "^1.9.13",
     "vite": ">=8",
     "vite-plugin-solid": "^2.11.14"
   },
   "peerDependenciesMeta": {
-    "@tanstack/solid-query": {
-      "optional": true
-    },
     "vite": {
       "optional": true
     },

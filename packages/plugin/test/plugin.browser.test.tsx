@@ -3,7 +3,6 @@ import {onCleanup} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {describe, expect, it} from 'vitest'
 import {page} from 'vitest/browser'
-import {QueryClient} from '@tanstack/solid-query'
 import {makeRpcClient} from '@conciv/contract'
 import {PluginContext} from '../src/experimental/host.js'
 import {
@@ -39,7 +38,6 @@ function pluginContext(id: string, sessions: Sessions = {list: () => [], current
   return {
     options: {},
     client: server.client,
-    queryClient: new QueryClient(),
     id,
     signal: new AbortController().signal,
     add: unused,

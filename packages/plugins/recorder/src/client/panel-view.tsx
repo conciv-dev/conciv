@@ -1,7 +1,7 @@
 import {Match, Show, Switch, onCleanup, untrack, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {makeTimer} from '@solid-primitives/timer'
-import {useMutation, useQuery} from '@tanstack/solid-query'
+import {useMutation, useQuery, useQueryClient} from '@conciv/client'
 import {usePlugin} from '@conciv/plugin/experimental'
 import {Page} from '@conciv/plugin/experimental/page'
 import {Recorder} from '../rpc.js'
@@ -21,6 +21,7 @@ function recordingWithEnoughEvents(recording: ReplaySource | undefined): ReplayS
 
 export function RecorderPanel(props: {clientId: string; capture: CaptureState}): JSX.Element {
   const ctx = usePlugin()
+  const queryClient = useQueryClient()
   const page = ctx.use(Page)
   const recorder = () => ctx.client.rpc(Recorder)
   const viewerId = crypto.randomUUID()
@@ -60,7 +61,7 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
     (event) =>
       untrack(() => {
         if (event.data.clientId !== props.clientId || recordingWithEnoughEvents(recording.data)) return
-        void ctx.queryClient.invalidateQueries({queryKey: recordingKey()})
+        void queryClient.invalidateQueries({queryKey: recordingKey()})
       }),
     {signal: ctx.signal},
   )
@@ -96,7 +97,7 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
 
   const reset = useMutation(() => ({
     ...recorder().reset.mutationOptions(),
-    onSuccess: () => ctx.queryClient.invalidateQueries({queryKey: recordingKey()}),
+    onSuccess: () => queryClient.invalidateQueries({queryKey: recordingKey()}),
     onError: () =>
       void ctx.toast.show({title: 'Could not start a new recording. Is the page still connected?', variant: 'error'}),
   }))
