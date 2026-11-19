@@ -1,6 +1,7 @@
 import {Effect, Exit, Fiber, Layer, ManagedRuntime, Scope, Stream, SubscriptionRef} from 'effect'
 import {from, onCleanup, type Accessor} from 'solid-js'
-import {Plugin, Server, type ServerEntry} from '@conciv/plugin/experimental'
+import {Server, type Plugin, type ServerEntry} from '@conciv/plugin/experimental'
+import {defineInternalPlugin} from '@conciv/plugin-internal'
 import {connectPorts} from '@conciv/protocol/connect-ports'
 import {connect} from './connect.js'
 import * as TryItConnectMachine from './connect-machine.js'
@@ -35,7 +36,7 @@ function entry(state: TryItConnectMachine.ConnectState, cover: ServerEntry['cove
   return {id: 'core', name: 'conciv', state: 'starting', cover}
 }
 
-export default Plugin.define({
+const tryIt: Plugin.Definition = defineInternalPlugin({
   setup(ctx) {
     const options = TryItOptions.parse(ctx.options)
     const runtime = ManagedRuntime.make(
@@ -53,7 +54,7 @@ export default Plugin.define({
     const access = follow(runtime, started.access)
     const copied = () => void runtime.runFork(started.connection.dispatch({type: 'copied'}))
     const cover = () => (
-      <ConnectPane token={options.token} state={state} localNetworkAccess={access} onCopied={copied} />
+      <ConnectPane ui={ctx.ui} token={options.token} state={state} localNetworkAccess={access} onCopied={copied} />
     )
 
     ctx.add(Server, () => ({
@@ -63,3 +64,5 @@ export default Plugin.define({
     }))
   },
 })
+
+export default tryIt

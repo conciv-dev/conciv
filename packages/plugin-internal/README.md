@@ -4,7 +4,7 @@
 
 Marks a plugin definition as one of conciv's own first-party plugins, so the app hands its setup more of its own
 components on `ctx.ui` than the public `Ui` lists (the chat's tool row, error text, truncated text, status dot, JSON
-view, zoomable image and mention field). Third-party plugins never get them: the public `ctx.ui` stays as the SDK
+view, zoomable image, mention field, copy button and disclosure). Third-party plugins never get them: the public `ctx.ui` stays as the SDK
 documents it.
 
 ## Invariants

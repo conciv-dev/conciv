@@ -21,6 +21,8 @@ import {isPlainObject} from 'es-toolkit'
 import {
   Avatar,
   Button,
+  ClipboardCopyButton,
+  Collapsible,
   createListCollection,
   Dialog,
   Kbd,
@@ -81,6 +83,9 @@ const MENU_ITEM = `${LIST_PANEL_ITEM} data-[highlighted]:bg-chat-fill-strong dat
 const MUTED_ICON = 'shrink-0 text-chat-text-3'
 
 const MENU_CONTENT = 'w-max max-w-[calc(100vw-2rem)]'
+
+const COLLAPSIBLE_TRIGGER =
+  'text-[12px] text-chat-text-3 w-fit cursor-pointer focus-ring trans-color-bg hover:text-chat-text-2'
 
 const subtitleTone = {default: '', muted: 'text-chat-text-3', warning: 'text-chat-warn', danger: 'text-chat-danger'}
 
@@ -468,6 +473,15 @@ const internalUi: InternalUi = {
   ),
   Image: (props) => <ResultImage src={props.src} alt={props.alt} />,
   MentionField: (props) => <MentionField {...props} />,
+  CopyButton: (props) => (
+    <ClipboardCopyButton text={props.text} tooltips={{idle: props.label}} onCopied={() => props.onCopied?.()} />
+  ),
+  Collapsible: (props) => (
+    <Collapsible.Root defaultOpen={props.defaultOpen}>
+      <Collapsible.Trigger class={COLLAPSIBLE_TRIGGER}>{props.trigger}</Collapsible.Trigger>
+      <Collapsible.Content>{props.children}</Collapsible.Content>
+    </Collapsible.Root>
+  ),
 }
 
 export function pluginUi(definition: object): Ui {

@@ -1,6 +1,4 @@
-import {ClipboardCopyButton, Collapsible, TruncatedText} from '@conciv/ui-kit-system'
-import Check from 'lucide-solid/icons/check'
-import TriangleAlert from 'lucide-solid/icons/triangle-alert'
+import type {InternalUi} from '@conciv/plugin-internal'
 import {autofocus} from '@solid-primitives/autofocus'
 import {Show, type Accessor, type JSX} from 'solid-js'
 import type * as TryItConnectMachine from './connect-machine.js'
@@ -15,30 +13,25 @@ function stepStates(opts: {copied: boolean; connected: boolean}): Record<TryStep
   return {copy: 'active', run: 'pending', approve: 'pending'}
 }
 
-const COPY_FEEDBACK_MS = 1_400
-
 const STEP_TITLES: Record<TryStep, string> = {
   copy: 'Copy the connect command',
   run: 'Run it in your terminal',
   approve: "Approve Chrome's local-network prompt",
 }
 
-function CopyRow(props: {label: string; text: string; onCopy: () => void}): JSX.Element {
+function CopyRow(props: {ui: InternalUi; label: string; text: string; onCopy: () => void}): JSX.Element {
   return (
     <div class="py-1.5 pl-3 pr-1.5 border border-chat-line rounded-chat-surface-md bg-chat-fill flex gap-2 items-center">
-      <TruncatedText class="text-[12px] text-chat-text-2 font-mono text-start flex-1 min-w-0" text={props.text} />
-      <ClipboardCopyButton
+      <props.ui.TruncatedText
+        class="text-[12px] text-chat-text-2 font-mono text-start flex-1 min-w-0"
         text={props.text}
-        tooltips={{idle: props.label}}
-        resetMs={COPY_FEEDBACK_MS}
-        class="size-7"
-        onCopied={() => props.onCopy()}
       />
+      <props.ui.CopyButton text={props.text} label={props.label} onCopied={() => props.onCopy()} />
     </div>
   )
 }
 
-function StepMarker(props: {index: number; state: StepState}): JSX.Element {
+function StepMarker(props: {ui: InternalUi; index: number; state: StepState}): JSX.Element {
   return (
     <Show
       when={props.state === 'done'}
@@ -52,16 +45,22 @@ function StepMarker(props: {index: number; state: StepState}): JSX.Element {
       }
     >
       <span class="text-chat-on-accent rounded-chat-pill bg-chat-accent shrink-0 grid size-5 place-items-center anim-pop">
-        <Check class="size-3" aria-hidden="true" />
+        <props.ui.Icon name="check" size="small" />
       </span>
     </Show>
   )
 }
 
-function Step(props: {index: number; state: StepState; title: string; children?: JSX.Element}): JSX.Element {
+function Step(props: {
+  ui: InternalUi
+  index: number
+  state: StepState
+  title: string
+  children?: JSX.Element
+}): JSX.Element {
   return (
     <li data-state={props.state} class="group flex gap-3">
-      <StepMarker index={props.index} state={props.state} />
+      <StepMarker ui={props.ui} index={props.index} state={props.state} />
       <div class="pt-px flex flex-1 flex-col gap-2 min-w-0">
         <p class="text-[13px] text-chat-text font-semibold trans-color-bg group-data-[state=pending]:text-chat-text-3">
           {props.title}
@@ -73,6 +72,7 @@ function Step(props: {index: number; state: StepState; title: string; children?:
 }
 
 export function ConnectPane(props: {
+  ui: InternalUi
   token: string
   state: Accessor<TryItConnectMachine.ConnectState>
   localNetworkAccess: Accessor<LocalNetworkAccessState>
@@ -112,26 +112,21 @@ export function ConnectPane(props: {
       </div>
 
       <ol class="m-0 p-0 list-none flex flex-1 flex-col gap-3.5 min-h-0 overflow-y-auto anim-rise-d">
-        <Step index={1} state={states().copy} title={STEP_TITLES.copy}>
-          <CopyRow label="Copy connect command" text={npxText()} onCopy={props.onCopied} />
-          <Collapsible.Root>
-            <Collapsible.Trigger class="text-[12px] text-chat-text-3 w-fit cursor-pointer focus-ring trans-color-bg hover:text-chat-text-2">
-              or hand it to your coding agent
-            </Collapsible.Trigger>
-            <Collapsible.Content>
-              <div class="pt-2 flex flex-col gap-1.5">
-                <CopyRow label="Copy agent prompt" text={promptText()} onCopy={props.onCopied} />
-                <p class="text-[11.5px] text-chat-text-3">
-                  Some agents will ask you to run the command yourself, and that works too.
-                </p>
-              </div>
-            </Collapsible.Content>
-          </Collapsible.Root>
+        <Step ui={props.ui} index={1} state={states().copy} title={STEP_TITLES.copy}>
+          <CopyRow ui={props.ui} label="Copy connect command" text={npxText()} onCopy={props.onCopied} />
+          <props.ui.Collapsible trigger="or hand it to your coding agent">
+            <div class="pt-2 flex flex-col gap-1.5">
+              <CopyRow ui={props.ui} label="Copy agent prompt" text={promptText()} onCopy={props.onCopied} />
+              <p class="text-[11.5px] text-chat-text-3">
+                Some agents will ask you to run the command yourself, and that works too.
+              </p>
+            </div>
+          </props.ui.Collapsible>
         </Step>
-        <Step index={2} state={states().run} title={STEP_TITLES.run}>
+        <Step ui={props.ui} index={2} state={states().run} title={STEP_TITLES.run}>
           <p class="text-[12px] text-chat-text-3">First run installs the package (~30s).</p>
         </Step>
-        <Step index={3} state={states().approve} title={STEP_TITLES.approve}>
+        <Step ui={props.ui} index={3} state={states().approve} title={STEP_TITLES.approve}>
           <Show
             when={localNetworkBlocked()}
             fallback={
@@ -162,14 +157,14 @@ export function ConnectPane(props: {
               }
             >
               <p role="status" class="text-[12.5px] text-chat-danger flex gap-2 items-center">
-                <TriangleAlert class="shrink-0 size-4" aria-hidden="true" />
+                <props.ui.Icon name="triangle-alert" />
                 Local network access is blocked, so your agent can't reach this tab.
               </p>
             </Show>
           }
         >
           <p role="status" class="text-[13px] text-chat-accent font-semibold flex gap-2 items-center anim-rise">
-            <Check class="size-4" aria-hidden="true" />
+            <props.ui.Icon name="check" />
             Agent connected
           </p>
         </Show>

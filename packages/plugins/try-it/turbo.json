@@ -2,7 +2,7 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "dependsOn": ["@conciv/plugin#build", "@conciv/protocol#build", "@conciv/ui-kit-system#build"]
+      "dependsOn": ["@conciv/plugin#build", "@conciv/protocol#build", "@conciv/plugin-internal#build"]
     }
   }
 }

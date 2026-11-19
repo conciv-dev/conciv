@@ -11,15 +11,17 @@ The window entry is `src/plugin-experimental.tsx`, published as the package root
 
 ```ts
 import {compose} from '@conciv/plugin/experimental/host'
-import type {Plugin} from '@conciv/plugin/experimental'
 import tryIt from '@conciv/plugin-try-it'
 
-const setup: Plugin.Setup<typeof tryIt> = (ctx) => tryIt.setup?.(ctx)
-const plugins = compose({'try-it': {windowEntry: async () => ({default: setup})}}).map(
+const plugins = compose({'try-it': {...tryIt, windowEntry: async () => ({default: tryIt.setup})}}).map(
   (entry) => [entry, {token}] as const,
 )
 mountConciv(plugins)
 ```
+
+The definition is first-party (`defineInternalPlugin`): the host spreads it into the composed entry so the app sees the
+stamp and hands the setup the internal `ctx.ui` members (`TruncatedText`, `CopyButton`, `Collapsible`) the connect pane
+draws through; the bundle inlines `@conciv/plugin-internal` and imports no kit.
 
 Options: `token` (a UUID, required), and `probeMs`, `holdMs`, `slowMs` (the sweep interval, the "Agent connected" hold
 and the wait before the setup-help hint, in milliseconds).

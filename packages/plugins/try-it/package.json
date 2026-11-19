@@ -40,16 +40,15 @@
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
-    "@conciv/ui-kit-system": "workspace:^",
     "@solid-primitives/autofocus": "catalog:",
     "effect": "catalog:",
-    "lucide-solid": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/browser-fixture": "workspace:*",
     "@conciv/embed": "workspace:^",
     "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-internal": "workspace:*",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",

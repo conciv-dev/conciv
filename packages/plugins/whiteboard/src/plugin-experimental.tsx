@@ -3,7 +3,7 @@ import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {Effect, Exit, Fiber, Scope, Stream, SubscriptionRef} from 'effect'
 import {useQuery} from '@conciv/client'
-import {ComposerPill, SettingsPage, Slot, usePlugin} from '@conciv/plugin/experimental'
+import {ComposerPill, SettingsPage, Slot, usePlugin, type Plugin} from '@conciv/plugin/experimental'
 import {defineInternalPlugin} from '@conciv/plugin-internal'
 import {GrabApi} from '@conciv/plugin/experimental/grab'
 import {makeCommentCompose, type ComposePhase} from './comment-compose.js'
@@ -48,7 +48,7 @@ function refAccessor<A>(ref: SubscriptionRef.SubscriptionRef<A>, initial: A): Ac
   }, initial)
 }
 
-export default defineInternalPlugin({
+const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlugin({
   stores: whiteboardStores,
   setup(ctx) {
     const [canvas, setCanvas] = createStore({open: false, engaged: false})
@@ -179,3 +179,5 @@ export default defineInternalPlugin({
     })
   },
 })
+
+export default whiteboard

@@ -11,7 +11,7 @@ export default defineConfig({
       fileName: () => 'plugin-experimental.js',
     },
     rollupOptions: {
-      external: [/^solid-js/, /^zod/, /^effect/, /^@conciv\//, /^@solid-primitives\//, /^lucide-solid/],
+      external: [/^solid-js/, /^zod/, /^effect/, /^@conciv\/(?!plugin-internal)/, /^@solid-primitives\//],
     },
     emptyOutDir: false,
     sourcemap: true,

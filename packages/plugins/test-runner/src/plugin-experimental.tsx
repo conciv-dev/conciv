@@ -4,6 +4,7 @@ import {
   ToolRegistry,
   type Context,
   type PanelTab,
+  type Plugin,
   type SessionRef,
   type SessionScreen,
   type ToolComponent,
@@ -313,7 +314,7 @@ function testRunCard(ctx: Context, ui: InternalUi): ToolComponent {
   }
 }
 
-export default defineInternalPlugin({
+const runner: Plugin.Definition = defineInternalPlugin({
   setup(ctx) {
     const tab: PanelTab = {
       id: 'tests',
@@ -356,3 +357,5 @@ export default defineInternalPlugin({
     ctx.add(ToolRegistry, {name: 'test_runner_status', render})
   },
 })
+
+export default runner

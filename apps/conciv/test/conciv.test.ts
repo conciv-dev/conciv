@@ -788,7 +788,7 @@ describe('draft reconcile', () => {
 })
 
 describe('internal plugin definitions', () => {
-  test('defineInternalPlugin stamps the tag and types its setup and usePlugin with the internal ui members, Plugin.define does not', () => {
+  test('defineInternalPlugin stamps the tag and types its setup with the internal ui members and returns the public definition type, Plugin.define does not', () => {
     const internal = defineInternalPlugin({
       setup(ctx) {
         expectTypeOf(ctx.ui.BasicTool).toBeFunction()
@@ -803,7 +803,6 @@ describe('internal plugin definitions', () => {
       },
     })
 
-    expectTypeOf<SetupContext<typeof internal>['ui']>().toHaveProperty('Json')
     expectTypeOf<SetupContext<typeof plain>['ui']>().not.toHaveProperty('Json')
     expect(internal).toMatchObject({$$type: '@conciv/InternalPlugin'})
     expect(isInternalPlugin(internal)).toBe(true)

@@ -3,7 +3,7 @@ import {createStore} from 'solid-js/store'
 import {Effect} from 'effect'
 import {z} from 'zod'
 import {usePlugin} from '@conciv/plugin/experimental'
-import type {InternalPlugin, MentionFieldApi, MentionItem} from '@conciv/plugin-internal'
+import type {InternalPluginInput, MentionFieldApi, MentionItem} from '@conciv/plugin-internal'
 import type {CommentRow} from './rows.js'
 import {useComments} from './comments.js'
 import type {whiteboardStores} from './stores.js'
@@ -153,7 +153,7 @@ function ThreadHeader(props: {root: CommentRow}): JSX.Element {
 }
 
 function ThreadReply(props: {onReady: (field: HTMLElement) => void}): JSX.Element {
-  const ui = usePlugin<InternalPlugin<typeof whiteboardStores>>().ui
+  const ui = usePlugin<InternalPluginInput<typeof whiteboardStores>>().ui
   const model = useComments()
   const [field, setField] = createStore<{empty: boolean; api: MentionFieldApi | undefined}>({
     empty: true,

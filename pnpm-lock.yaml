@@ -4184,18 +4184,12 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
-      '@conciv/ui-kit-system':
-        specifier: workspace:^
-        version: link:../../ui-kit-system
       '@solid-primitives/autofocus':
         specifier: 'catalog:'
         version: 0.1.5(solid-js@1.9.17)
       effect:
         specifier: 'catalog:'
         version: 4.1.0
-      lucide-solid:
-        specifier: 'catalog:'
-        version: 1.66.0(solid-js@1.9.17)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4209,6 +4203,9 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../../plugin
+      '@conciv/plugin-internal':
+        specifier: workspace:*
+        version: link:../../plugin-internal
       '@conciv/plugin-testkit':
         specifier: workspace:^
         version: link:../../plugin-testkit

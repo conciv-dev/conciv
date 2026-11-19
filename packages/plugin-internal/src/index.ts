@@ -44,6 +44,18 @@ export interface InternalImageProps {
   readonly alt: string
 }
 
+export interface InternalCopyButtonProps {
+  readonly text: string
+  readonly label: string
+  readonly onCopied?: () => void
+}
+
+export interface InternalCollapsibleProps {
+  readonly trigger: string
+  readonly children: JSX.Element
+  readonly defaultOpen?: boolean
+}
+
 export type InternalMentionFieldProps = ComponentProps<typeof MentionField> & {readonly ariaLabel: string}
 
 export interface InternalUi extends Ui {
@@ -54,6 +66,8 @@ export interface InternalUi extends Ui {
   Json(props: InternalJsonProps): JSX.Element
   Image(props: InternalImageProps): JSX.Element
   MentionField(props: InternalMentionFieldProps): JSX.Element
+  CopyButton(props: InternalCopyButtonProps): JSX.Element
+  Collapsible(props: InternalCollapsibleProps): JSX.Element
 }
 
 type Stores = NonNullable<Plugin.Declarations['stores']>
@@ -64,13 +78,12 @@ export type InternalPluginInput<S extends Stores> = Plugin.Declarations<S> & {
   readonly setup: (ctx: InternalSetupContext<NoInfer<Plugin.Declarations<S>>>) => Plugin.Cleanup | void
 }
 
-export type InternalPlugin<S extends Stores = Stores> = InternalPluginInput<S> & {
-  readonly $$type: typeof INTERNAL_PLUGIN
-  readonly version: typeof VERSION
-}
-
-export function defineInternalPlugin<const S extends Stores = {}>(plugin: InternalPluginInput<S>): InternalPlugin<S> {
-  return {...plugin, $$type: INTERNAL_PLUGIN, version: VERSION}
+export function defineInternalPlugin<const S extends Stores = {}>(
+  plugin: InternalPluginInput<S>,
+): Plugin.Definition<S> {
+  const setup = plugin.setup as Plugin.Setup<NoInfer<Plugin.Declarations<S>>>
+  const stamped = {...plugin, setup, $$type: INTERNAL_PLUGIN, version: VERSION}
+  return stamped
 }
 
 export function isInternalPlugin(value: unknown): boolean {
