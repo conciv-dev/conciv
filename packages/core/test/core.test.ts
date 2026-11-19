@@ -45,6 +45,7 @@ import {
   SOCKET_TRUST_FRAME,
   type EngineStaleness,
   type HeldBrowserRpcLink,
+  type RpcClient,
   type SettingsStore,
   type TrustStatus,
 } from '@conciv/contract'
@@ -90,7 +91,6 @@ import {
   SessionId,
 } from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
-import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {and, eq, isNull, sql} from 'drizzle-orm'
 import {
   Agent,
@@ -165,7 +165,7 @@ import {
   requestPrintedCode,
 } from '@conciv/harness-testkit'
 import {os} from '@orpc/server'
-import {createORPCClient} from '@orpc/client'
+import {createORPCClient, ORPCError} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
 import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
@@ -763,7 +763,7 @@ describe('chat plane', () => {
     expect(runRows()).toEqual(swept)
   })
 
-  it('a push socket that opens while a run is going is told about that run', async () => {
+  it('a chat.events stream that opens on the rpc socket while a run is going is told about that run', async () => {
     const cli = fakeCli('streaming')
     const engine = await bootEngine(tempDir('conciv-core-unit-'), {harness: cliHarness(cli)})
     onTestFinished(async () => {
@@ -777,22 +777,122 @@ describe('chat plane', () => {
       body: turnBody(id, 'late-push-run', 'keep talking'),
     })
     await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
-    const socket = new WebSocket(`ws://127.0.0.1:${engine.port}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${id}`)
-    onTestFinished(() => socket.close())
-    const announced = new Promise<string | null>((resolve) => {
-      socket.addEventListener('message', (event) => {
-        const frame = PushFrameSchema.safeParse(JSON.parse(String(event.data)))
-        if (!frame.success || frame.data.channel !== 'chat') return
-        const run = sessionRunEvent.parse(frame.data.chunk)
-        if (run !== null) resolve(run.runId)
-      })
-      socket.addEventListener('close', () => resolve(null))
-    })
-    socket.addEventListener('open', () =>
-      socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: engine.agentToken})),
+    const websocket = new WebSocket(`ws://127.0.0.1:${engine.port}${RPC_WS_PATH}`)
+    websocket.addEventListener('open', () =>
+      websocket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: engine.agentToken})),
     )
-    expect(await announced).toBe('late-push-run')
+    const abort = new AbortController()
+    onTestFinished(() => {
+      abort.abort()
+      websocket.close()
+    })
+    const rpc: RpcClient = createORPCClient(new WebsocketRpcLink({websocket}))
+    const events = await rpc.chat.events({sessionId: id}, {signal: abort.signal})
+    const announced = async (): Promise<string | null> => {
+      for await (const chunk of events) {
+        const run = sessionRunEvent.parse(chunk)
+        if (run !== null) return run.runId
+      }
+      return null
+    }
+    expect(await announced()).toBe('late-push-run')
   }, 10_000)
+
+  it('one subscriber registering just as a run starts gets exactly one announcement for it', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const db = openDatabase(root)
+    const primitives = makeSessionPrimitives({db, root, storeCapture: () => Promise.resolve()})
+    const starting = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
+    const chat = await plane(cliHarness(fakeCli()), root, {
+      db,
+      sessions: {
+        ...sessionPort(),
+        onRunStart: async () => {
+          starting.entered.resolve()
+          await starting.held.promise
+        },
+        publish: (id, chunk) => primitives.stream.publish(id, chunk),
+      },
+    })
+    const runtime = makeCoreRuntime({
+      primitives,
+      plane: chat,
+      db,
+      model: () => null,
+      staleness: () => ({stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}),
+      interruptIdle: async () => false,
+      symbolicate: async () => null,
+    })
+    const id = sessionId('registering-as-a-run-starts')
+    const turn = startTurn(chat, id, 'racing-run', 'hi')
+    await starting.entered.promise
+    const abort = new AbortController()
+    onTestFinished(() => abort.abort())
+    const announced: string[] = []
+    const caughtUp = Promise.withResolvers<void>()
+    async function collect(): Promise<void> {
+      for await (const chunk of runtime.forSession(id).stream.events(abort.signal)) {
+        const run = sessionRunEvent.parse(chunk)
+        if (run === null) continue
+        announced.push(run.runId)
+        caughtUp.resolve()
+      }
+    }
+    const collecting = collect()
+
+    await caughtUp.promise
+    expect(announced).toEqual(['racing-run'])
+    starting.held.resolve()
+    expect(await readUntil(await turn, 'end')).toContain(ChatEventType.RUN_FINISHED)
+    abort.abort()
+    await collecting
+    expect(announced).toEqual(['racing-run'])
+  }, 10_000)
+
+  it('a page query goes to the browser tab focused last, each tab learning its id from the ready its stream opens with', async () => {
+    const reader = defineExtension({
+      name: 'focus-probe',
+      tools: [
+        defineTool({
+          name: 'focus_probe_read',
+          description: 'Read which tab answered.',
+          inputSchema: z.object({}),
+          outputSchema: z.object({tab: z.string()}),
+          meta: {summary: 'read which tab answered'},
+        }).client(),
+      ],
+    })
+    const engine = await bootEngine(tempDir('conciv-core-unit-'), {extensions: [reader]})
+    const abort = new AbortController()
+    onTestFinished(async () => {
+      abort.abort()
+      await engine.stop()
+    })
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const {sessionId: id} = await makeRpcClient(base).sessions.create(undefined)
+    const rpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: id}})
+    const openTab = async (focused: boolean) => {
+      const stream = await rpc.page.queries({focus: {focused, visible: true}}, {signal: abort.signal})
+      const first = await stream.next()
+      if (first.done || first.value.kind !== 'ready') throw new Error('a page query stream opened without its ready')
+      return {stream, browserTab: first.value.browserTab}
+    }
+    const answeredBy = async (tab: Awaited<ReturnType<typeof openTab>>, name: string): Promise<void> => {
+      const next = await tab.stream.next()
+      if (next.done || next.value.kind !== 'query') throw new Error(`tab ${name} got no page query`)
+      await rpc.page.reply({requestId: next.value.requestId, outcome: {ok: true, result: {tab: name}}})
+    }
+    const first = await openTab(true)
+    const second = await openTab(false)
+    expect(first.browserTab).not.toBe(second.browserTab)
+    const toFirst = rpc.registry.call({name: 'focus_probe_read', input: {}})
+    await answeredBy(first, 'first')
+    expect(await toFirst).toEqual({tab: 'first'})
+    expect(await rpc.page.focus({browserTab: second.browserTab, focused: true, visible: true})).toEqual({ok: true})
+    const toSecond = rpc.registry.call({name: 'focus_probe_read', input: {}})
+    await answeredBy(second, 'second')
+    expect(await toSecond).toEqual({tab: 'second'})
+  }, 15_000)
 
   type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling' | 'failing'
 
@@ -902,7 +1002,7 @@ describe('chat plane', () => {
       harnessFor: () => harness,
       systemPrompt: {},
       sessions: sessionPort(),
-      toolNames: new Set(),
+      toolNames: async () => new Set(),
       capabilities: async () => [],
       attachmentExpanders: {},
       prompt: async (event) => event,
@@ -1485,15 +1585,15 @@ describe('page bus and the session scope', () => {
 
   function queueingTab(
     bus: ReturnType<typeof makePageBus>,
-    focus?: () => {focusedAt: number; visible: boolean},
+    focus?: {focusedAt: number; visible: boolean},
   ): QueueFrame[] {
     return arrivingTab(bus, focus).queued
   }
 
   function arrivingTab(
     bus: ReturnType<typeof makePageBus>,
-    focus?: () => {focusedAt: number; visible: boolean},
-  ): {queued: QueueFrame[]; frame: (index: number) => Promise<QueueFrame>} {
+    focus?: {focusedAt: number; visible: boolean},
+  ): {queued: QueueFrame[]; frame: (index: number) => Promise<QueueFrame>; browserTab: string} {
     const queued: QueueFrame[] = []
     const arrivals = new Map<number, PromiseWithResolvers<QueueFrame>>()
     const arrival = (index: number): PromiseWithResolvers<QueueFrame> => {
@@ -1503,7 +1603,7 @@ describe('page bus and the session scope', () => {
       arrivals.set(index, made)
       return made
     }
-    bus.subscribe(
+    const {browserTab} = bus.subscribe(
       SESSION_A,
       (frame) => {
         const parsed = QueueFrameSchema.safeParse(frame)
@@ -1514,7 +1614,7 @@ describe('page bus and the session scope', () => {
       },
       focus,
     )
-    return {queued, frame: (index) => arrival(index).promise}
+    return {queued, frame: (index) => arrival(index).promise, browserTab}
   }
 
   function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): PageQueues {
@@ -2273,14 +2373,14 @@ describe('page bus and the session scope', () => {
 
   it('a queue for a session whose earlier queue still plays reaches the newly focused tab only once that queue is done', async () => {
     const bus = makePageBus(2000)
-    const focusedAt = {first: 2, second: 1}
-    const first = queueingTab(bus, () => ({focusedAt: focusedAt.first, visible: true}))
-    const second = queueingTab(bus, () => ({focusedAt: focusedAt.second, visible: true}))
+    const first = queueingTab(bus, {focusedAt: 2, visible: true})
+    const secondTab = arrivingTab(bus, {focusedAt: 1, visible: true})
+    const second = secondTab.queued
     const queues = pageQueues(bus)
     const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const earlier = await queues.start(SESSION_A, queueStart(check))
-    focusedAt.second = 3
+    bus.focus(SESSION_A, secondTab.browserTab, {focused: true, visible: true})
     const later = queues.start(SESSION_A, queueStart(check))
     expect(second).toHaveLength(0)
     expect(bus.resolve(SESSION_A, first[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
@@ -2292,7 +2392,7 @@ describe('page bus and the session scope', () => {
   it('a queue waiting behind another plays on the tab that serves the session when its turn comes, though the tab it was queued for closed', async () => {
     const bus = makePageBus(2000)
     const onFirst: z.infer<typeof QueueFrameSchema>[] = []
-    const closeFirst = bus.subscribe(SESSION_A, (frame) => {
+    const {unsubscribe: closeFirst} = bus.subscribe(SESSION_A, (frame) => {
       const parsed = QueueFrameSchema.safeParse(frame)
       if (!parsed.success) return
       onFirst.push(parsed.data)
@@ -2332,7 +2432,7 @@ describe('page bus and the session scope', () => {
   it('an ask in flight fails at once when its browser tab unsubscribes, and its late reply settles nothing', async () => {
     const bus = makePageBus(2000)
     const frames: unknown[] = []
-    const unsubscribe = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
+    const {unsubscribe} = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
     const answered = bus.ask(SESSION_A, {name: 'fixture_click', input: {}, agentId: SESSION_A})
     bus.subscribe(SESSION_A, () => {})
     unsubscribe()
@@ -2355,7 +2455,7 @@ describe('page bus and the session scope', () => {
 
   it('a reading call that loses its browser tab is sent once more to the next tab that serves the session', async () => {
     const bus = makePageBus(2000)
-    const lost = bus.subscribe(SESSION_A, () => {})
+    const {unsubscribe: lost} = bus.subscribe(SESSION_A, () => {})
     const answered = bus.ask(SESSION_A, {name: 'fixture_read', input: {}, agentId: SESSION_A}, {mutating: false})
     lost()
     await setImmediate()
@@ -2367,11 +2467,7 @@ describe('page bus and the session scope', () => {
   it('a reading call that loses its browser tab goes at once to the other tab of the session, focused last', async () => {
     const bus = makePageBus(2000)
     const other = replyingTab(bus, {href: '/other'})
-    const lost = bus.subscribe(
-      SESSION_A,
-      () => {},
-      () => ({focusedAt: 1, visible: true}),
-    )
+    const {unsubscribe: lost} = bus.subscribe(SESSION_A, () => {}, {focusedAt: 1, visible: true})
     const answered = bus.ask(SESSION_A, {name: 'fixture_snapshot', input: {}, agentId: SESSION_A}, {mutating: false})
     lost()
     expect(await answered).toEqual({result: {href: '/other'}})
@@ -2380,7 +2476,7 @@ describe('page bus and the session scope', () => {
 
   it('a reading call whose browser tab never comes back fails as before once its own timeout runs out', async () => {
     const bus = makePageBus(100)
-    const lost = bus.subscribe(SESSION_A, () => {})
+    const {unsubscribe: lost} = bus.subscribe(SESSION_A, () => {})
     const answered = bus.ask(SESSION_A, {name: 'fixture_read', input: {}, agentId: SESSION_A}, {mutating: false})
     lost()
     await expect(answered).rejects.toMatchObject({
@@ -2401,7 +2497,7 @@ describe('page bus and the session scope', () => {
 
   it('a changing call that loses its browser tab is never sent again and says it may already have run', async () => {
     const bus = makePageBus(2000)
-    const lost = bus.subscribe(SESSION_A, () => {})
+    const {unsubscribe: lost} = bus.subscribe(SESSION_A, () => {})
     const answered = bus.ask(SESSION_A, {name: 'fixture_click', input: {}, agentId: SESSION_A}, {mutating: true})
     lost()
     await expect(answered).rejects.toMatchObject({
@@ -2417,7 +2513,7 @@ describe('page bus and the session scope', () => {
   it('a call its caller aborts rejects at once, settles nothing later and is never sent again', async () => {
     const bus = makePageBus(60_000)
     const frames: unknown[] = []
-    const lost = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
+    const {unsubscribe: lost} = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
     const route = {name: 'fixture_read', input: {}, agentId: SESSION_A}
     const waiting = new AbortController()
     const answered = bus.ask(SESSION_A, route, {mutating: false}, waiting.signal)
@@ -2479,7 +2575,7 @@ describe('page bus and the session scope', () => {
         interruptIdle: async () => false,
         symbolicate: async () => null,
       })
-      const unsubscribe = primitives.page.bus.subscribe(SESSION_A, (frame) => {
+      const {unsubscribe} = primitives.page.bus.subscribe(SESSION_A, (frame) => {
         const requestId = readRequestId(frame)
         if (requestId === null) return
         queueMicrotask(() => primitives.page.bus.resolve(SESSION_A, requestId, {ok: true, result: {clicked: 'a'}}))
@@ -2620,7 +2716,7 @@ describe('engine login', () => {
         path: route.path.replaceAll(/:[^/]+|\*/g, 'x'),
       }))
       expect(routes.map((route) => route.path)).toEqual(
-        expect.arrayContaining(['/api/ext/probe/ping', '/chat-ws', '/push-ws']),
+        expect.arrayContaining(['/api/ext/probe/ping', '/chat-ws', RPC_WS_PATH]),
       )
       const versions = new Set<string | null>()
       const sent = async (url: string, init: RequestInit = {}) => {
@@ -2659,24 +2755,25 @@ describe('engine login', () => {
       const client = makeExtRpcClient<typeof versionRouter>(`${origin}/t/${made.agentToken}`, 'probe')
       expect(await client.clientVersion()).toBe(coreManifest.version)
       const {sessionId} = await makeRpcClient(`${origin}/t/${made.agentToken}`).sessions.create(undefined)
-      const pushSocket = (frame: string) =>
-        new Promise<string>((resolve) => {
-          const socket = new WebSocket(
-            `${origin.replace('http', 'ws')}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`,
-          )
-          socket.addEventListener('open', () => {
-            for (const outgoing of [frame, JSON.stringify({channel: 'page-serving', serving: true})])
-              socket.send(outgoing)
-          })
-          socket.addEventListener('message', (event) => {
-            resolve(String(event.data))
-            socket.close()
-          })
-          socket.addEventListener('close', (event) => resolve(`closed ${event.code}`))
-        })
+      const refusedStreams = async (frame: string) => {
+        const websocket = new WebSocket(`${origin.replace('http', 'ws')}${RPC_WS_PATH}`)
+        websocket.addEventListener('open', () => websocket.send(frame))
+        const headers = {[CONCIV_SESSION_HEADER]: sessionId}
+        const rpc: RpcClient = createORPCClient(new WebsocketRpcLink({websocket, headers}))
+        const refusal = (error: unknown) => (error instanceof ORPCError ? error.code : 'not served')
+        const outcomes = await Promise.all([
+          rpc.chat.events({sessionId}).then(() => 'served', refusal),
+          rpc.page.queries({focus: {focused: true, visible: true}}).then(() => 'served', refusal),
+        ])
+        websocket.close()
+        return outcomes
+      }
       const untrusted = JSON.stringify({type: SOCKET_TRUST_FRAME, token: 'not-a-token'})
-      const closed = await Promise.all([pushSocket(untrusted), pushSocket('{"channel":"ready"}')])
-      expect(closed).toEqual(['closed 1008', 'closed 1008'])
+      const streamRefusals = await Promise.all([refusedStreams(untrusted), refusedStreams('{"channel":"ready"}')])
+      expect(streamRefusals).toEqual([
+        ['UNAUTHORIZED', 'UNAUTHORIZED'],
+        ['not served', 'not served'],
+      ])
     } finally {
       await stop()
     }

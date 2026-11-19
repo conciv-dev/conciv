@@ -6,7 +6,7 @@ import BookOpen from 'lucide-solid/icons/book-open'
 import Brain from 'lucide-solid/icons/brain'
 import MessageCircle from 'lucide-solid/icons/message-circle'
 import {Command} from '@conciv/plugin/experimental'
-import type {ChatCommand} from '@conciv/protocol/chat-types'
+import type {ChatCommand, ChatTool} from '@conciv/protocol/chat-types'
 import type {RpcClient} from '@conciv/contract'
 import type {InferClientOutputs} from '@orpc/client'
 import type {RichTextFieldTriggerItem} from '@conciv/ui-kit-tap'
@@ -174,6 +174,20 @@ function sessionEntries(
     .map((ranked) => ranked.entry)
 }
 
+function toolEntry(tool: ChatTool): RichTextFieldTriggerItem {
+  return {id: tool.name, label: `@${tool.name}`, group: tool.extension ?? 'Tools', description: tool.description}
+}
+
+function settledEntries<Value>(
+  result: PromiseSettledResult<Value>,
+  catalog: string,
+  toEntries: (value: Value) => RichTextFieldTriggerItem[],
+): RichTextFieldTriggerItem[] {
+  if (result.status === 'fulfilled') return toEntries(result.value)
+  console.error(`[conciv] the @ list could not read ${catalog}`, result.reason)
+  return []
+}
+
 const readGroup = (entry: RichTextFieldTriggerItem): string => entry.group ?? ''
 
 type TextMatch = (text: string, query: string) => boolean
@@ -272,27 +286,31 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
     mention: {
       label: 'Context',
       items: async (query) => {
-        const [skills, agents, sessions] = await Promise.allSettled([
+        const [skills, agents, tools, sessions] = await Promise.allSettled([
           queryClient.fetchQuery({...appData.utils.skill.list.queryOptions(), staleTime: 0}),
           queryClient.fetchQuery({...appData.utils.agent.list.queryOptions(), staleTime: 0}),
+          queryClient.fetchQuery({
+            ...appData.utils.meta.tools.queryOptions({input: {sessionId: props.sessionId}}),
+            staleTime: 0,
+          }),
           sessionCandidates(query),
         ])
-        if (skills.status === 'rejected') console.error('[conciv] the @ list could not read skills', skills.reason)
-        if (agents.status === 'rejected') console.error('[conciv] the @ list could not read agents', agents.reason)
-        if (sessions.status === 'rejected')
-          console.error('[conciv] the @ list could not load sessions', sessions.reason)
-        if (skills.status === 'rejected' && agents.status === 'rejected' && sessions.status === 'rejected')
-          throw skills.reason
-        const skillList = skills.status === 'fulfilled' ? skills.value.data.map(skillEntry) : []
-        const agentList = agents.status === 'fulfilled' ? agentEntries(agents.value.data) : []
-        const named = matchingItems(
-          uniqBy([...skillList, ...agentList], (entry) => entry.id),
-          query,
-          matcher(),
+        const entries = uniqBy(
+          [
+            ...settledEntries(skills, 'skills', (value) => value.data.map(skillEntry)),
+            ...settledEntries(agents, 'agents', (value) => agentEntries(value.data)),
+            ...settledEntries(tools, 'tools', (value) => value.tools.map(toolEntry)),
+          ],
+          (entry) => entry.id,
         )
-        const candidates = sessions.status === 'fulfilled' ? sessions.value : []
-        const titled = sessionEntries(candidates, query, {sessionId: props.sessionId, openIds: openIds()})
-        return [...named, ...titled]
+        const sessionContext = {sessionId: props.sessionId, openIds: openIds()}
+        const titled = settledEntries(sessions, 'sessions', (candidates) =>
+          sessionEntries(candidates, query, sessionContext),
+        )
+        const settled = [skills, agents, tools, sessions]
+        const failures = settled.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+        if (failures.length === settled.length) throw failures[0]
+        return [...matchingItems(entries, query, matcher()), ...titled]
       },
     },
   }
