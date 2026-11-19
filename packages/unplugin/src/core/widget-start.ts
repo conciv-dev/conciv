@@ -2,7 +2,7 @@
 
 async function mountWidget(): Promise<void> {
   const {mountConciv} = await import('@conciv/embed')
-  await mountConciv([])
+  await mountConciv()
 }
 
 function startWhenReady(): void {

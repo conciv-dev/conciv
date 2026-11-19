@@ -56,17 +56,19 @@ import {
   ToolProvider,
   useThread,
   Composer,
-  ComposerActions,
   ComposerHandlersProvider,
   useComposerContext,
   type AttachmentAdapter,
   type SessionStatus,
   useComposer,
   createTextAttachmentAdapter,
+  createDocumentAttachmentAdapter,
+  composeAttachmentAdapters,
 } from '@conciv/ui-kit-chat'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {useChatSession} from '@conciv/client'
-import {defineAttachment, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
+import {collectAttachmentCards, defineAttachment, defineExtension} from '@conciv/extension'
+import {guardPluginAttachmentCard} from '../src/runtime/plugin/plugin-boundary.js'
 import {composerDraftSink, paneAttachments, putBackInDraft, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import {formatNoteComment, noteComment, promptWithNotes} from '../src/composer/comment-note.js'
 import {contextItemKey} from '../src/composer/note-schema.js'
@@ -87,7 +89,6 @@ import {EngineOutdatedNotice, EngineStaleNotice} from '../src/shell/engine-notic
 import {RefreshButton} from '../src/shell/refresh-button.js'
 import {makePaneGrabApi} from '../src/pane/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
-import {getHostApi} from '@conciv/extension/host'
 import {compose} from '@conciv/plugin/experimental/host'
 import {Server, type Plugin, type ServerEntry} from '@conciv/plugin/experimental'
 import tryIt from '@conciv/plugin-try-it'
@@ -128,7 +129,6 @@ import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivUiToolDef} from '@conciv/tools/defs'
-import {createToolRegistry} from '@conciv/extension/registry'
 import {Operations} from '@conciv/plugin-page/rpc'
 import {Conciv} from '@conciv/plugin'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
@@ -436,8 +436,17 @@ describe('attachment widget', () => {
     const calm = defineAttachment({mime: 'application/x-fixture'})
     calm.card(() => <span>calm player</span>)
     const extension = defineExtension({name: 'crash-attachment', attachments: [crashing, calm]})
+    const guarded = (fallback: 'card' | 'chip') =>
+      collectAttachmentCards([extension]).map((entry) => {
+        const Card = entry.render
+        return guardPluginAttachmentCard(extension.name, fallback, {mime: entry.mime, render: () => <Card />})
+      })
     return {
-      ...paneAttachments([extension], false, null),
+      cards: guarded('card'),
+      chips: guarded('chip'),
+      adapter: composeAttachmentAdapters(
+        [crashing, calm].map((attachment) => createDocumentAttachmentAdapter(attachment.mime)),
+      ),
       crashingFile: new File(['{}'], 'crashing.bin', {type: 'application/x-crashing'}),
       calmFile: new File(['{}'], 'calm.bin', {type: 'application/x-fixture'}),
     }
@@ -1835,34 +1844,6 @@ describe('chat pane', () => {
   })
 })
 
-const LONG_ACTION_NAME = 'long-composer-action'
-const LONG_ACTION_LABEL = 'AN_EXTENSION_COMPOSER_LABEL_LONG_ENOUGH_TO_CROWD_THE_WHOLE_ROW'
-const PINNED_ACTION_TOOLTIP = 'Run the pinned extension action'
-const [pinnedActionRuns, setPinnedActionRuns] = createSignal(0)
-
-const longComposerAction = defineExtension({
-  name: LONG_ACTION_NAME,
-  Component: () => (
-    <Show when={getExtensionApi(LONG_ACTION_NAME).useSlot() === 'composer'}>
-      <span>{LONG_ACTION_LABEL}</span>
-      <ComposerActions.ActionButton
-        visible="always"
-        tooltip={PINNED_ACTION_TOOLTIP}
-        onClick={() => setPinnedActionRuns((runs) => runs + 1)}
-      >
-        P
-      </ComposerActions.ActionButton>
-      <Show when={pinnedActionRuns() > 0}>
-        <p>the pinned extension action ran</p>
-      </Show>
-    </Show>
-  ),
-})
-
-declare module '@conciv/protocol/config-types' {
-  interface ExtensionRegistry extends RegisterExtension<typeof longComposerAction> {}
-}
-
 describe('composer overflow', () => {
   const menuitem = (name: string | RegExp) => page.getByRole('menuitem', {name})
 
@@ -1877,6 +1858,21 @@ describe('composer overflow', () => {
     {name: 'context', description: 'Show what fills the window'},
   ]
 
+  const LONG_PILL_LABEL = 'A_PLUGIN_COMPOSER_PILL_LABEL_LONG_ENOUGH_TO_CROWD_THE_WHOLE_ROW'
+  const PILL_TITLE = 'Run the pinned plugin action'
+  const pillBundle = `const {ComposerPill} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(ComposerPill, {
+    id: 'long',
+    show: () => ({
+      label: '${LONG_PILL_LABEL}',
+      title: '${PILL_TITLE}',
+      icon: 'sparkles',
+      run: () => ctx.toast.show({title: 'the pinned plugin action ran'}),
+    }),
+  })
+}}}
+`
   const MENTIONS_PLUGIN = `import {join} from 'node:path'
 
 export default {
@@ -1931,11 +1927,19 @@ export default {
 
   const core = bootedCore('composer-overflow', {
     commands: PICKER_COMMANDS,
-    plugins: ['./mentions'],
-    files: {'mentions/index.ts': MENTIONS_PLUGIN},
+    plugins: ['./long-pill', './mentions'],
+    files: {
+      'long-pill/index.ts': `export default {id: 'long-pill', async setup() {}}
+`,
+      'long-pill/plugin-experimental.js': pillBundle,
+      'mentions/index.ts': MENTIONS_PLUGIN,
+    },
   })
   const keep = keptPane()
   const faults = trackedFaults()
+  const harness = createShellHarness(core)
+
+  afterEach(harness.dispose)
 
   const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const grabButton = () => page.getByRole('button', {name: 'Select an element from the page'})
@@ -1946,7 +1950,7 @@ export default {
   const compactItem = () => page.getByRole('menuitem', {name: 'Compress the conversation'})
   const commandOption = (position: number) => page.getByRole('option').nth(position)
 
-  async function mountComposer(width?: number, extensions?: PaneMountOptions['extensions']): Promise<PaneMount> {
+  async function mountComposer(width?: number): Promise<PaneMount> {
     const sessionId = await createSession(coreRpc(core()))
     const [requests, setRequests] = createSignal<string[]>([])
     const mount = mountPane(
@@ -1954,7 +1958,6 @@ export default {
         base: core(),
         sessionId,
         width,
-        extensions,
         onNewSession: () => setRequests((current) => [...current, 'a new session']),
       },
       () => (
@@ -1993,14 +1996,15 @@ export default {
     await expect.element(newSessionItem()).not.toBeInTheDocument()
   })
 
-  test('a long extension action in the row leaves the message input and a pinned action reachable', async () => {
-    await mountComposer(undefined, [longComposerAction])
+  test('a long plugin pill above the composer leaves the message input and its action reachable', async () => {
+    harness.mountShell(`/panel/${await createSession(coreRpc(core()))}?open=true`)
+    await expect.element(input(), {timeout: 8000}).toBeVisible()
 
-    await expect.element(page.getByText(LONG_ACTION_LABEL)).toBeVisible()
-    const pinnedAction = page.getByRole('button', {name: PINNED_ACTION_TOOLTIP})
+    await expect.element(page.getByText(LONG_PILL_LABEL), {timeout: 15_000}).toBeVisible()
+    const pinnedAction = page.getByRole('button', {name: PILL_TITLE})
     await expect.element(pinnedAction).toBeVisible()
     await userEvent.click(pinnedAction)
-    await expect.element(page.getByText('the pinned extension action ran')).toBeVisible()
+    await expect.element(page.getByText('the pinned plugin action ran')).toBeVisible()
     await expect.element(input()).toBeVisible()
     await userEvent.click(input())
     await userEvent.keyboard('still typeable')
@@ -2688,7 +2692,7 @@ describe('engine version', () => {
   const outdated = `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`
 
   test('an engine from before release versions still answers the widget, and the widget asks to update it, a same-origin engine included', async () => {
-    harness.mountShell('/panel?open=true', [], {apiBase: () => ''})
+    harness.mountShell('/panel?open=true', {apiBase: () => ''})
 
     await expect
       .element(page.getByRole('dialog', {name: 'conciv chat agent'}).getByRole('alert'), {timeout: 10_000})
@@ -3533,23 +3537,23 @@ describe('harness switching', () => {
   })
 })
 
-const STATUS_PROBE_NAME = 'status-probe'
-
-const statusProbe = defineExtension({
-  name: STATUS_PROBE_NAME,
-  Component: () => (
-    <Show when={getExtensionApi(STATUS_PROBE_NAME).useSlot() === 'status'}>
-      <span>env: staging</span>
-    </Show>
-  ),
-})
-
-declare module '@conciv/protocol/config-types' {
-  interface ExtensionRegistry extends RegisterExtension<typeof statusProbe> {}
-}
-
 describe('connect agents', () => {
-  const core = bootedCore('connect-agents')
+  const statusBundle = `const {Slot} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(Slot, {
+    at: 'session.status',
+    render: () => Object.assign(document.createElement('span'), {textContent: 'env: staging'}),
+  })
+}}}
+`
+  const core = bootedCore('connect-agents', {
+    plugins: ['./status-probe'],
+    files: {
+      'status-probe/index.ts': `export default {id: 'status-probe', async setup() {}}
+`,
+      'status-probe/plugin-experimental.js': statusBundle,
+    },
+  })
   const harness = createShellHarness(core)
 
   afterEach(async () => {
@@ -3569,9 +3573,9 @@ describe('connect agents', () => {
     await page.viewport(1000, 900)
     await coreControl.fakeHubCli('fail')
     const sessionId = await createSession(coreRpc(core()))
-    harness.mountShell(`/panel/${sessionId}?open=true`, [statusProbe])
+    harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
-    await expect.element(page.getByText('env: staging')).toBeVisible()
+    await expect.element(page.getByText('env: staging'), {timeout: 15_000}).toBeVisible()
     await expect.element(agents()).not.toBeInTheDocument()
     await more().click()
     await expect.element(item()).toBeVisible()
@@ -3974,7 +3978,7 @@ describe('launcher drag', () => {
   const LOCKED_NAME = 'Unauthorized. Authorize conciv'
   const locked = () => page.getByRole('button', {name: LOCKED_NAME})
   const unauthorized = () => locked().getByText('Unauthorized')
-  const mountLocked = () => harness.mountShell('/', [], {login: {apiBase: new URL(core()).origin}})
+  const mountLocked = () => harness.mountShell('/', {login: {apiBase: new URL(core()).origin}})
   const leaveLocked = () => coreControl.hoverButton({name: LOCKED_NAME, settleMs: 0, moves: [{deltaX: 0, deltaY: 200}]})
 
   test('the locked launcher dropped just right of the middle grows its pill to the right and its robot stays put', async () => {
@@ -4389,7 +4393,7 @@ module.exports = {default: {setup(ctx) {
     expect(reloaded.generic).toBe(false)
 
     harness.dispose()
-    harness.mountShell(`/panel/${sessionId}?open=true`, [], {login: {apiBase: new URL(coreBase()).origin}})
+    harness.mountShell(`/panel/${sessionId}?open=true`, {login: {apiBase: new URL(coreBase()).origin}})
     const loadFailed = page.getByRole('alert').filter({hasText: 'Couldn’t load this conversation'})
     await expect.element(loadFailed, {timeout: 15_000}).toBeVisible()
     await expect.element(loadFailed.getByRole('button', {name: 'Retry', exact: true})).toBeVisible()
@@ -4714,7 +4718,7 @@ describe('panel connect', () => {
   afterEach(harness.dispose)
 
   const mountShell = (): void =>
-    harness.mountShell('/panel/connect?open=true', [], {
+    harness.mountShell('/panel/connect?open=true', {
       plugins: foundServerPlugins('connect-probe', (found) => (
         <button type="button" onClick={() => found(core())}>
           Simulate found
@@ -4807,13 +4811,13 @@ describe('server cover', () => {
   test('a composed plugin covers the panel until its server is ready, holds there while it says so, then the panel binds to it in place, keeps its id from the engine, and follows the engine plugin switches', async () => {
     const token = new URL(core()).pathname.split('/')[2] ?? ''
     expect(() =>
-      harness.mountShell('/panel/connect?open=true', [], {
+      harness.mountShell('/panel/connect?open=true', {
         plugins: [...tryItPlugins(token, 1), ...tryItPlugins(token, 1)],
       }),
     ).toThrow('The plugin id "try-it" is already taken')
     harness.dispose()
     expect(() =>
-      harness.mountShell('/panel/connect?open=true', [], {
+      harness.mountShell('/panel/connect?open=true', {
         plugins: compose({grab: {windowEntry: async () => ({default: tryItSetup})}}).map((entry): ComposedPlugin => [
           entry,
           {token},
@@ -4823,7 +4827,7 @@ describe('server cover', () => {
     harness.dispose()
 
     await coreRpc(core()).settings.set({scope: 'global', namespace: 'plugin-enable', key: 'layout', value: false})
-    harness.mountShell('/panel/connect?open=true', [], {plugins: tryItPlugins(token, 600_000)})
+    harness.mountShell('/panel/connect?open=true', {plugins: tryItPlugins(token, 600_000)})
 
     await expect.element(connectSteps(), {timeout: 10_000}).toBeVisible()
     await expect.element(panel().getByText(`npx @conciv/try --token ${token}`)).toBeVisible()
@@ -4837,7 +4841,7 @@ describe('server cover', () => {
 
     harness.dispose()
     await coreControl.closeConnectForward()
-    harness.mountShell('/panel/connect?open=true', [], {plugins: tryItPlugins(token, 1)})
+    harness.mountShell('/panel/connect?open=true', {plugins: tryItPlugins(token, 1)})
 
     await expect.element(connectSteps(), {timeout: 10_000}).toBeVisible()
     await expect.element(editor()).not.toBeInTheDocument()
@@ -4864,7 +4868,7 @@ describe('server cover', () => {
 
     harness.dispose()
     await coreControl.closeConnectForward()
-    harness.mountShell('/panel/connect?open=true', [], {
+    harness.mountShell('/panel/connect?open=true', {
       plugins: compose({servers: {windowEntry: async () => ({default: twoServers})}}).map((entry): ComposedPlugin => [
         entry,
         {},
@@ -5174,17 +5178,46 @@ describe('panel view tabs', () => {
   const SUBSCRIBE_PATH = ['chat', 'subscribe']
   const NOTES_BODY = 'the notes view body'
   const REPLY_TEXT = 'the transcript that outlives a tab switch'
-
-  function NotesView(): JSX.Element {
-    return <p>{NOTES_BODY}</p>
-  }
-
-  const notesExtension = defineExtension({
-    name: 'panel-view-survival',
-    views: [{id: 'notes', label: 'Notes', Component: NotesView}],
+  const notesBundle = `const {Panel} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(Panel, {
+    id: 'notes',
+    region: 'pane',
+    list: () => [{id: 'notes', title: 'Notes', pinned: true}],
+    render: () => Object.assign(document.createElement('p'), {textContent: '${NOTES_BODY}'}),
   })
+}}}
+`
 
-  const coreBase = bootedCore('panel-view-tabs', {imageInput: 'native'})
+  const RECOVERED_BODY = 'the recovered tab body'
+  const crashingBundle = `const {Panel} = require('@conciv/plugin/experimental')
+const renders = {count: 0}
+module.exports = {default: {setup(ctx) {
+  ctx.add(Panel, {
+    id: 'crashing',
+    region: 'pane',
+    list: () => [{id: 'crashing', title: 'Crashing', pinned: true}],
+    render: () => {
+      renders.count += 1
+      if (renders.count < 3) throw new Error('fixture crash')
+      return Object.assign(document.createElement('p'), {textContent: '${RECOVERED_BODY}'})
+    },
+  })
+}}}
+`
+
+  const coreBase = bootedCore('panel-view-tabs', {
+    imageInput: 'native',
+    plugins: ['./panel-view-survival', './crash-tab'],
+    files: {
+      'panel-view-survival/index.ts': `export default {id: 'panel-view-survival', async setup() {}}
+`,
+      'panel-view-survival/plugin-experimental.js': notesBundle,
+      'crash-tab/index.ts': `export default {id: 'crash-tab', async setup() {}}
+`,
+      'crash-tab/plugin-experimental.js': crashingBundle,
+    },
+  })
   const harness = createShellHarness(coreBase)
   const faults = trackedFaults()
 
@@ -5201,7 +5234,7 @@ describe('panel view tabs', () => {
     const sessionId = await createSession(rpc)
     await coreControl.scriptTurn({toolCalls: [], text: REPLY_TEXT})
     await runTurn(coreBase(), sessionId, 'seed the transcript')
-    harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+    harness.mountShell(`/panel/${sessionId}?open=true`)
   }
 
   test('the panel keeps its chat stream alive across a view tab round trip', async () => {
@@ -5233,65 +5266,12 @@ describe('panel view tabs', () => {
     await page.getByRole('button', {name: /session options$/}).click()
     await expect.element(menu()).toBeVisible()
     await expect.element(notes()).toBeVisible()
-    expect(harness.pathname()).toMatch(/\/notes\/options$/)
+    expect(harness.pathname()).toMatch(/\/panel-view-survival(:|%3A)notes\/options$/)
 
     await chatTab().click()
     await expect.element(reply(), {timeout: 8000}).toBeVisible()
     await expect.element(menu()).not.toBeInTheDocument()
     expect(harness.pathname()).not.toMatch(/options$/)
-  }, 30_000)
-
-  test('a locked view opens and closes its own session menu, and a session pick never leaves it', async () => {
-    const LOCKED_BODY = 'the locked view body'
-    const TITLE = 'the locked session'
-    const OTHER = 'the session a lock keeps away'
-    function LockedView(): JSX.Element {
-      const lock = getHostApi().useViewLock()
-      onMount(() => lock(true))
-      return <p>{LOCKED_BODY}</p>
-    }
-    const lockedExtension = defineExtension({
-      name: 'panel-view-lock',
-      views: [{id: 'locked', label: 'Locked', Component: LockedView}],
-    })
-    const menu = () => page.getByRole('dialog', {name: 'Session options'})
-    const titleButton = () => page.getByRole('banner').getByRole('button', {name: `${TITLE}, session options`})
-    const lockedBody = () => page.getByText(LOCKED_BODY)
-    const rpc = coreRpc(coreBase())
-    const otherId = await createSession(rpc)
-    await rpc.sessions.rename({sessionId: otherId, title: OTHER})
-    const sessionId = await createSession(rpc)
-    await rpc.sessions.rename({sessionId, title: TITLE})
-    harness.mountShell(
-      [`/panel/${otherId}?open=true`, `/panel/${sessionId}?open=true`, `/panel/${sessionId}/locked?open=true`],
-      [lockedExtension],
-    )
-
-    await expect.element(lockedBody(), {timeout: 8000}).toBeVisible()
-    await expect.element(chatTab()).toBeDisabled()
-
-    await titleButton().click()
-    await expect.element(menu()).toBeVisible()
-    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked/options`)
-    await userEvent.keyboard('{Escape}')
-    await expect.element(menu()).not.toBeInTheDocument()
-    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked`)
-
-    await titleButton().click()
-    await expect.element(menu()).toBeVisible()
-    await menu()
-      .getByRole('button', {name: `Session: ${TITLE}`})
-      .click()
-    await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
-    await expect.element(menu()).toBeVisible()
-    await expect.element(lockedBody()).toBeVisible()
-    await expect.element(titleButton()).toBeVisible()
-    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked/options`)
-
-    await userEvent.keyboard('{Escape}')
-    await expect.element(menu()).not.toBeInTheDocument()
-    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked`)
-    await expect.element(lockedBody()).toBeVisible()
   }, 30_000)
 
   describe('during a running turn', () => {
@@ -5318,7 +5298,7 @@ describe('panel view tabs', () => {
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.holdTurn()
       const turn = await sendTurn(coreBase(), sessionId, 'start a long turn')
-      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension], options)
+      harness.mountShell(`/panel/${sessionId}?open=true`, options)
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
       await expect.element(narration()).toBeVisible()
       return turn
@@ -5384,7 +5364,7 @@ describe('panel view tabs', () => {
     test('another session can open right after Send and the left run still settles in the background', async () => {
       const {running, titles} = await twoSessions('sent')
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
+      harness.mountShell(`/panel/${running}?open=true`)
       await expect.element(composer(), {timeout: 8000}).toBeVisible()
       const unsent = await faults.install({kind: 'chat-gate'})
       await composer().fill('start a long turn')
@@ -5408,7 +5388,7 @@ describe('panel view tabs', () => {
       const {running, titles} = await twoSessions('removed')
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.holdTurn()
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
+      harness.mountShell(`/panel/${running}?open=true`)
       await composer().fill('start a long turn')
       await userEvent.keyboard('{Enter}')
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5431,7 +5411,7 @@ describe('panel view tabs', () => {
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.scriptTurn({toolCalls: [], text: FOLLOW_UP_TEXT})
       await coreControl.holdTurn()
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
+      harness.mountShell(`/panel/${running}?open=true`)
       await composer().fill('start a long turn')
       await userEvent.keyboard('{Enter}')
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5454,7 +5434,7 @@ describe('panel view tabs', () => {
       const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.holdTurn()
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
+      harness.mountShell(`/panel/${running}?open=true`)
       await composer().fill('start a long turn')
       await userEvent.keyboard('{Enter}')
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5498,7 +5478,7 @@ describe('panel view tabs', () => {
         const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
         await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
         await coreControl.holdTurn()
-        harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
+        harness.mountShell(`/panel/${running}?open=true`)
         await composer().fill('start a long turn')
         await userEvent.keyboard('{Enter}')
         await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5573,7 +5553,7 @@ describe('panel view tabs', () => {
         const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
         await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
         await coreControl.holdTurn()
-        harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
+        harness.mountShell(`/panel/${running}?open=true`)
         await composer().fill('start a long turn')
         await userEvent.keyboard('{Enter}')
         await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5633,7 +5613,7 @@ describe('panel view tabs', () => {
 
     test('approving an ask and leaving while its turn is still unsent settles that turn in the background', async () => {
       const {running, titles} = await twoSessions('approved')
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
+      harness.mountShell(`/panel/${running}?open=true`)
       await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
       await coreControl.scriptCustomEvent('approval-requested', {
         approvalId: 'switch-ask',
@@ -5673,7 +5653,7 @@ describe('panel view tabs', () => {
 
     async function openNewPanel(): Promise<string> {
       const sessionId = await createSession(coreRpc(coreBase()))
-      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+      harness.mountShell(`/panel/${sessionId}?open=true`)
       await expect.element(composer(), {timeout: 8000}).toBeVisible()
       return sessionId
     }
@@ -5763,7 +5743,7 @@ describe('panel view tabs', () => {
       await expect.element(composer()).not.toHaveTextContent(SENT)
       vi.useRealTimers()
       harness.dispose()
-      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+      harness.mountShell(`/panel/${sessionId}?open=true`)
       await expect.element(composer(), {timeout: 8000}).toBeVisible()
       await expect.element(composer()).not.toHaveTextContent(SENT)
       expect(await rpc.drafts.get({sessionId})).toMatchObject({text: '', attachments: []})
@@ -5796,58 +5776,34 @@ describe('panel view tabs', () => {
     }, 30_000)
   })
 
-  describe('a crashing extension', () => {
-    const RECOVERED_BODY = 'the recovered tab body'
+  describe('a crashing plugin tab', () => {
     const AFTER_TOOLS_TEXT = 'the thread kept going after the tools'
-    const tabCrash = {armed: true}
-
-    function boom(): JSX.Element {
-      throw new Error('fixture crash')
-    }
-
-    function CrashingTab(): JSX.Element {
-      if (tabCrash.armed) boom()
-      return <p>{RECOVERED_BODY}</p>
-    }
-
-    const crashingTab = defineExtension({
-      name: 'crash-tab',
-      views: [{id: 'crashing', label: 'Crashing', Component: CrashingTab}],
-    })
-    async function mountAfterTurn(
-      toolCalls: {name: string; input: Record<string, unknown>}[],
-      extensions: Parameters<typeof harness.mountShell>[1],
-    ): Promise<void> {
-      const sessionId = await createSession(coreRpc(coreBase()))
-      await coreControl.scriptTurn({toolCalls, text: AFTER_TOOLS_TEXT})
-      await runTurn(coreBase(), sessionId, 'run the fixture tools')
-      harness.mountShell(`/panel/${sessionId}?open=true`, extensions)
-    }
 
     const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
     const retry = () => page.getByRole('button', {name: 'Retry'})
+    const crashingTab = () => page.getByRole('tab', {name: 'Crashing', exact: true})
 
-    afterEach(() => {
-      tabCrash.armed = true
-    })
+    test('a throwing tab shows its fallback, Retry re-mounts it with focus kept, and chat stays usable', async () => {
+      const sessionId = await createSession(coreRpc(coreBase()))
+      await coreControl.scriptTurn({toolCalls: [], text: AFTER_TOOLS_TEXT})
+      await runTurn(coreBase(), sessionId, 'run the fixture tools')
+      harness.mountShell(`/panel/${sessionId}?open=true`)
+      const crashed = () => page.getByText('The crash-tab plugin crashed')
 
-    test('a throwing tab shows its fallback, Retry re-mounts it, and chat stays usable', async () => {
-      await mountAfterTurn([], [crashingTab])
-      const crashed = () => page.getByText('The crash-tab extension crashed')
-
-      await expect.element(page.getByRole('tab', {name: 'Crashing', exact: true}), {timeout: 8000}).toBeVisible()
-      await page.getByRole('tab', {name: 'Crashing', exact: true}).click()
+      await expect.element(crashingTab(), {timeout: 15_000}).toBeVisible()
+      await crashingTab().click()
 
       await expect.element(crashed(), {timeout: 8000}).toBeVisible()
       await expect.element(page.getByText('Details are in the browser console.')).toBeVisible()
 
       await retry().click()
       await expect.element(crashed()).toBeVisible()
+      await expect.element(retry()).toHaveFocus()
 
-      tabCrash.armed = false
       await retry().click()
       await expect.element(page.getByText(RECOVERED_BODY)).toBeVisible()
       await expect.element(crashed()).not.toBeInTheDocument()
+      await expect.element(page.getByRole('group', {name: 'Crashing'})).toHaveFocus()
 
       await chatTab().click()
       await expect.element(page.getByText(AFTER_TOOLS_TEXT), {timeout: 8000}).toBeVisible()
@@ -6587,7 +6543,7 @@ describe('a deleted session', () => {
       '',
       `${window.location.pathname}${window.location.search}#conciv_otp=${await coreControl.requestCode()}`,
     )
-    harness.mountShell(`/panel/${deletedId}?open=true`, [], {login: {apiBase: origin}})
+    harness.mountShell(`/panel/${deletedId}?open=true`, {login: {apiBase: origin}})
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
     await editor().fill(TYPED)
     await coreControl.rpcStartedOnceServed(['drafts', 'set'], 1, [], {sessionId: deletedId, text: TYPED})
@@ -6595,7 +6551,7 @@ describe('a deleted session', () => {
     await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
 
     harness.dispose()
-    harness.mountShell(`/panel/${deletedId}?open=true`, [], {login: {apiBase: origin}})
+    harness.mountShell(`/panel/${deletedId}?open=true`, {login: {apiBase: origin}})
 
     await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
     await expect.element(movesLine()).toBeVisible()
@@ -6648,7 +6604,7 @@ describe('reachability flows', () => {
 
   async function openSessionPanel(options: ShellMountOptions = {}): Promise<void> {
     const sessionId = await createSession(coreRpc(core()))
-    harness.mountShell(`/panel/${sessionId}?open=true`, [], options)
+    harness.mountShell(`/panel/${sessionId}?open=true`, options)
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
   }
 
@@ -6679,17 +6635,6 @@ describe('reachability flows', () => {
   }, 30_000)
 })
 
-const SURFACE_PROBE_NAME = 'surface-probe'
-
-const surfaceProbe = defineExtension({
-  name: SURFACE_PROBE_NAME,
-  Surface: () => <p>surface probe on {getExtensionApi(SURFACE_PROBE_NAME).useApiBase()()}</p>,
-}).client(() => ({value: {}}))
-
-declare module '@conciv/protocol/config-types' {
-  interface ExtensionRegistry extends RegisterExtension<typeof surfaceProbe> {}
-}
-
 describe('engine login', () => {
   const core = bootedCore('engine-login')
   const harness = createShellHarness(core)
@@ -6712,7 +6657,7 @@ describe('engine login', () => {
   const loginNotice = () => page.getByRole('alert').filter({hasText: 'Log in to use conciv on this page.'})
 
   test('nothing pops up on load, the locked launcher opens the code dialog, and Escape dismisses it', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await expect.element(locked()).toBeVisible()
     await expect.element(dialog()).not.toBeInTheDocument()
     await locked().hover()
@@ -6726,7 +6671,7 @@ describe('engine login', () => {
   })
 
   test('a wrong code is refused inline and clears the boxes, and the printed code opens the panel', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await locked().click()
     await expect.element(firstDigit()).toBeVisible()
     const code = await coreControl.printedCode()
@@ -6745,11 +6690,11 @@ describe('engine login', () => {
   test('a reload while the magic link is being exchanged still logs in, and the link leaves the URL once trusted', async () => {
     openMagicLink(await coreControl.requestCode())
     const exchange = await faults.install({kind: 'cut-on-release', path: ['auth', 'exchange']})
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await coreControl.awaitFaultPending(exchange, 1)
     harness.dispose()
     await coreControl.releaseFault(exchange)
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await opener().click()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
     expect(localStorage.getItem(storageKey())).not.toBeNull()
@@ -6761,7 +6706,7 @@ describe('engine login', () => {
     if (!('token' in minted)) throw new Error(`the engine refused the test code: ${minted.refused}`)
     openMagicLink(await coreControl.requestCode())
     await faults.install({kind: 'fail', path: ['auth', 'exchange']})
-    harness.mountShell('/', [], {login: {apiBase: origin(), tokenSource: async () => minted.token}})
+    harness.mountShell('/', {login: {apiBase: origin(), tokenSource: async () => minted.token}})
     await opener().click()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
     expect(window.location.hash).toBe('')
@@ -6772,7 +6717,7 @@ describe('engine login', () => {
     expect(await makeRpcClient(origin()).auth.exchange({code})).toHaveProperty('token')
     openMagicLink(code)
     const exchange = await faults.install({kind: 'gate', path: ['auth', 'exchange']})
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await coreControl.awaitFaultPending(exchange, 1)
     await coreControl.releaseFault(exchange)
     await coreControl.awaitFaultAnswered(exchange)
@@ -6806,7 +6751,7 @@ describe('engine login', () => {
     localStorage.setItem(storageKey(), minted.token)
     const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
 
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await coreControl.awaitFaultPending(trustAsk, 1)
     expect(await readKept(deleted)).toBe('left by a deleted session')
     await coreControl.releaseFault(trustAsk)
@@ -6817,17 +6762,8 @@ describe('engine login', () => {
     expect(await readKept(unknown)).toBe('left by a session of another engine')
   }, 30_000)
 
-  test('extension surfaces start only once the engine trusts the page, on the trusted base', async () => {
-    harness.mountShell('/', [surfaceProbe], {login: {apiBase: origin()}})
-    await expect.element(locked()).toBeVisible()
-    await expect.element(page.getByText(/surface probe on/)).not.toBeInTheDocument()
-    await locked().click()
-    await userEvent.type(firstDigit(), await coreControl.printedCode())
-    await expect.element(page.getByText(`surface probe on ${origin()}`, {exact: true})).toBeInTheDocument()
-  }, 30_000)
-
   test('Send a new code prints a fresh code, and only the fresh code opens the panel', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await locked().click()
     await expect.element(firstDigit()).toBeVisible()
     await expect
@@ -6857,7 +6793,7 @@ describe('engine login', () => {
       return result.token
     }
     const mountTrusted = async (): Promise<void> => {
-      harness.mountShell('/', [], {login: {apiBase: origin(), tokenSource}})
+      harness.mountShell('/', {login: {apiBase: origin(), tokenSource}})
       await opener().click()
       await expect.element(editor(), {timeout: 8000}).toBeVisible()
       harness.dispose()
@@ -6878,7 +6814,7 @@ describe('engine login', () => {
       selectionEnd: 0,
       attachments: [],
     })
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await expect.element(locked()).toBeVisible()
     expect(localStorage.getItem(storageKey())).toBeNull()
     expect(await createBrowserDraftStore().keys()).toEqual([])
@@ -6892,7 +6828,7 @@ describe('engine login', () => {
 
   test('a revoked browser whose sockets the engine cannot reach locks on its next engine call', async () => {
     await faults.install({kind: 'detached-sockets'})
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await unlock()
     await createBrowserDraftStore().setDocument('conciv_-kept-before-the-revoke', {
       text: 'kept before the revoke',
@@ -6912,7 +6848,7 @@ describe('engine login', () => {
   test('a draft save on the wire when a revoke locks the panel, refused once it reaches the engine, raises no unsaved notice, neither while locked out nor after the new code', async () => {
     const UNAUTHORIZED_STATUS = 401
     const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await unlock()
     const held = await faults.install({kind: 'gate', path: DRAFT_SET_PATH})
     await userEvent.click(editor())
@@ -6935,7 +6871,7 @@ describe('engine login', () => {
   }, 30_000)
 
   test('revoking a browser while its panel is open keeps the panel open behind a log-in notice with a read-only composer, moves focus from the composer to Log in, and the code restores it in place', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await unlock()
     await coreControl.awaitRpcSocketLive()
     const revoked = await coreControl.rpcSocketsRevoked()
@@ -6973,7 +6909,7 @@ describe('engine login', () => {
 
   const unlockOnNewSession = async (): Promise<void> => {
     await createSession(coreRpc(core()))
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await unlock()
   }
 
@@ -7012,7 +6948,7 @@ describe('engine login', () => {
   }, 40_000)
 
   test('revoking a browser keeps the earlier conversation on screen behind the notice, and the code resumes it in place', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await unlock()
     await coreControl.scriptTurn({
       toolCalls: [{name: 'mystery_tool', input: {path: 'src/a.ts'}, result: {done: true}}],
@@ -7051,7 +6987,7 @@ describe('engine login', () => {
     expect(await keptDrafts()).toEqual([])
 
     harness.dispose()
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await locked().click()
     await expect.element(dialog()).toBeVisible()
     await userEvent.type(firstDigit(), await coreControl.requestCode())
@@ -7061,7 +6997,7 @@ describe('engine login', () => {
   test('Retry on the unreachable screen checks the login again: untrusted asks to log in inside the panel, trusted opens it', async () => {
     const retryWhileOffline = async (): Promise<void> => {
       const offline = await faults.install({kind: 'offline'})
-      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      harness.mountShell('/', {login: {apiBase: origin()}})
       await opener().click()
       const screen = page.getByRole('alert').filter({hasText: /couldn.t reach the engine/})
       await expect.element(screen, {timeout: 8000}).toBeVisible()
@@ -7080,7 +7016,7 @@ describe('engine login', () => {
   }, 30_000)
 
   test('an unreachable engine opens the panel onto the error screen instead of the login', async () => {
-    harness.mountShell('/', [], {login: {apiBase: 'http://127.0.0.1:9'}})
+    harness.mountShell('/', {login: {apiBase: 'http://127.0.0.1:9'}})
     await opener().click()
     await expect.element(page.getByText(/couldn.t reach the engine/), {timeout: 8000}).toBeVisible()
     await expect.element(dialog()).not.toBeInTheDocument()
@@ -7108,7 +7044,7 @@ describe('engine login', () => {
 
     const unreachableUntilReleased = async (watch: ReturnType<typeof watchConnection>): Promise<void> => {
       const offline = await faults.install({kind: 'offline'})
-      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      harness.mountShell('/', {login: {apiBase: origin()}})
       await expect.poll(() => watch.seen).toContain('socket closed')
       await expect.poll(() => watch.status(), {timeout: 8000}).toBe('unreachable')
       await opener().click()
@@ -7146,7 +7082,7 @@ describe('engine login', () => {
 
     test('logging in while the trust ask the reopened socket sent is still unanswered keeps the page logged in once that ask is refused', async () => {
       const offline = await faults.install({kind: 'offline'})
-      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      harness.mountShell('/', {login: {apiBase: origin()}})
       await opener().click()
       await expect
         .element(page.getByRole('alert').filter({hasText: /couldn.t reach the engine/}), {timeout: 8000})
@@ -7173,7 +7109,7 @@ describe('engine login', () => {
 
     test('logging in again after a revoke whose close arrives late sends the code request and the exchange on the reopened socket', async () => {
       const lateClose = await faults.install({kind: 'late-close'})
-      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      harness.mountShell('/', {login: {apiBase: origin()}})
       await unlock()
       await coreControl.awaitRpcSocketLive()
       const codeRequest = await faults.install({kind: 'gate', path: ['auth', 'requestCode']})
@@ -7199,7 +7135,7 @@ describe('engine login', () => {
       const watch = watchConnection()
       try {
         const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
-        harness.mountShell('/', [], {login: {apiBase: origin()}})
+        harness.mountShell('/', {login: {apiBase: origin()}})
         await coreControl.awaitFaultPending(trustAsk, 1)
         await expect.poll(() => watch.status(), {timeout: 8000}).toBe('unreachable')
         await expect.element(locked()).not.toBeInTheDocument()
@@ -7219,7 +7155,7 @@ describe('engine login', () => {
 
     test('a code request and a code exchange the engine never answers each say so in the login dialog', async () => {
       const codeRequest = await faults.install({kind: 'gate', path: ['auth', 'requestCode']})
-      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      harness.mountShell('/', {login: {apiBase: origin()}})
       await locked().click()
       await expect.element(dialog()).toBeVisible()
       await coreControl.awaitFaultPending(codeRequest, 1)
@@ -7265,7 +7201,7 @@ describe('session picker after login', () => {
   })
 
   test('a widget mounted while the engine refused it shows text matches indexed after the login, without reopening', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     const locked = page.getByRole('button', {name: 'Unauthorized. Authorize conciv'})
     await expect.element(locked).toBeVisible()
     await userEvent.click(locked)
@@ -7835,7 +7771,6 @@ describe('status bar', () => {
         views={[{id: 'chat', label: 'Chat'}]}
         activeView="chat"
         onSelectView={() => {}}
-        disabled={false}
       />
     ))
     return setStatus
@@ -7848,30 +7783,6 @@ describe('status bar', () => {
       setStatus({kind: 'done', label: 'DONE'})
       await expect.element(page.getByText('DONE', {exact: true})).toBeVisible()
       expect(page.getByText('RUNNING', {exact: true}).elements()).toHaveLength(0)
-    })
-
-    function mountViews(activeView: string, onSelectView: (id: string) => void = () => {}, disabled = false) {
-      render(() => (
-        <StatusBar
-          status={{kind: 'done', label: 'DONE'}}
-          elapsedLabel="00:12"
-          diff={{files: 0, adds: 0, dels: 0}}
-          views={[
-            {id: 'chat', label: 'Chat'},
-            {id: 'board', label: 'Board'},
-          ]}
-          activeView={activeView}
-          onSelectView={onSelectView}
-          disabled={disabled}
-        />
-      ))
-    }
-
-    it('locks the tabs a view lock blocks while keeping the active one reachable', async () => {
-      mountViews('chat', () => {}, true)
-
-      await expect.element(page.getByRole('tab', {name: 'Board'})).toBeDisabled()
-      await expect.element(page.getByRole('tab', {name: 'Chat'})).not.toBeDisabled()
     })
   })
 })
@@ -7914,13 +7825,6 @@ describe('tool card dispatch', () => {
 })
 
 describe('wire name coverage', () => {
-  function realRegistry(): ReturnType<typeof createToolRegistry> {
-    const registry = createToolRegistry()
-    return registry
-  }
-
-  const registry = realRegistry()
-
   const CATALOG_TOOL_NAME = 'catalog'
 
   const DEV_SERVER_TOOL_NAMES = [
@@ -7939,7 +7843,6 @@ describe('wire name coverage', () => {
     CATALOG_TOOL_NAME,
     concivUiToolDef.name,
     ...Operations.map((operation) => `${PAGE_TOOL_PREFIX}${operation.name}`),
-    ...registry.catalog.list().map((entry) => entry.name),
     ...SERVER_PLUGIN_TOOL_NAMES,
   ]
 
@@ -7963,10 +7866,7 @@ describe('wire name coverage', () => {
   it('every model-reachable tool name resolves to a card entry or catalog meta, or is a server plugin tool that draws through the generic card', () => {
     expect(modelReachableNames.length).toBeGreaterThan(10)
     const drawnByGenericCard = modelReachableNames.filter(
-      (name) =>
-        !cardNames.has(name) &&
-        builtinToolMeta(name) === undefined &&
-        registry.catalog.list().every((entry) => entry.name !== name),
+      (name) => !cardNames.has(name) && builtinToolMeta(name) === undefined,
     )
     expect(drawnByGenericCard).toEqual(DEV_SERVER_TOOL_NAMES)
   })
@@ -8316,34 +8216,6 @@ describe('tool outcomes', () => {
 })
 
 describe('settings page', () => {
-  const probeSettingsSchema = z.object({
-    wrap: z.boolean().default(false).meta({title: 'Wrap lines', description: 'Long lines wrap instead of scrolling.'}),
-    density: z.enum(['compact', 'cozy']).default('cozy').meta({title: 'Density'}),
-    theme: z.enum(['plain', 'ocean', 'forest', 'dusk']).default('plain').meta({title: 'Theme'}),
-    fontSize: z.number().int().min(10).max(24).default(13).meta({title: 'Font size'}),
-    greeting: z.string().default('').meta({title: 'Greeting', description: 'Shown above the notes.'}),
-  })
-
-  function SchemeProbe(): JSX.Element {
-    const scheme = getHostApi().useColorScheme()
-    const settings = settingsProbe.useSettings()
-    return (
-      <>
-        <p>Widget colors: {scheme()}</p>
-        <p>
-          {`Probe settings: wrap=${settings().wrap} density=${settings().density} theme=${settings().theme} fontSize=${settings().fontSize} greeting=${settings().greeting}`}
-        </p>
-      </>
-    )
-  }
-
-  const settingsProbe = defineExtension({
-    name: 'settings-probe',
-    settings: probeSettingsSchema,
-    Surface: SchemeProbe,
-    views: [{id: 'notes', label: 'Notes', Component: () => <p>the notes view</p>}],
-  }).client(() => ({value: {}}))
-
   const coreBase = bootedCore('settings-page')
   const harness = createShellHarness(coreBase)
 
@@ -8358,18 +8230,11 @@ describe('settings page', () => {
   const sections = () => page.getByRole('tablist', {name: 'Settings sections'})
   const widthHandle = () => page.getByRole('separator', {name: 'Resize chat width'})
   const colorMode = () => page.getByRole('radiogroup', {name: 'Color mode'})
-  const probe = (scheme: string) => page.getByText(`Widget colors: ${scheme}`)
-  const notesTab = () => page.getByRole('tab', {name: 'Notes', exact: true})
-  const notesShown = () => page.getByRole('checkbox', {name: /^Notes/})
   const command = (label: string) => page.getByRole('button', {name: label, exact: true})
   const clash = () => page.getByRole('status').getByText(/is also/)
   const quickTerminal = () => page.getByRole('dialog', {name: 'conciv quick terminal'})
-  const probeValues = (values: string) => page.getByText(`Probe settings: ${values}`, {exact: true})
-  const PROBE_DEFAULTS = 'wrap=false density=cozy theme=plain fontSize=13 greeting='
-  const PROBE_CHANGED = 'wrap=true density=compact theme=ocean fontSize=16 greeting=hi'
   const allProjects = () => page.getByRole('switch', {name: 'All projects'})
   const scopeLabel = () => page.getByText('All projects', {exact: true})
-  const PROBE_WRAPPED = 'wrap=true density=cozy theme=plain fontSize=13 greeting='
   const recordGlobalToggle = async (key: string) => {
     await scopeLabel().click()
     await command('Open or close conciv').click()
@@ -8378,9 +8243,6 @@ describe('settings page', () => {
     await scopeLabel().click()
     await expect.element(allProjects()).not.toBeChecked()
   }
-  const wrapLines = () => page.getByRole('switch', {name: 'Wrap lines'})
-  const fontSize = () => page.getByRole('spinbutton', {name: 'Font size'})
-  const greeting = () => page.getByRole('textbox', {name: 'Greeting'})
   const skin = (name: string) => page.getByRole('radio', {name, exact: true})
   const saveClash = () => page.getByRole('button', {name: 'Save', exact: true})
   const resetAll = () => page.getByRole('link', {name: 'Reset all', exact: true})
@@ -8404,12 +8266,12 @@ describe('settings page', () => {
     localStorage.removeItem('conciv-modal-width')
     const sessionId = await createSession(coreRpc(coreBase()))
     const settingsPath = (name: string) => `/panel/${sessionId}/settings/${name}`
-    harness.mountShell(`/panel/${sessionId}/settings/general?open=true`, [])
+    harness.mountShell(`/panel/${sessionId}/settings/general?open=true`)
     await expect.element(sections(), {timeout: 8000}).toHaveAttribute('aria-orientation', 'vertical')
     await expect.element(tab('Advanced')).toBeVisible()
     await tab('General').click()
     await userEvent.keyboard('{ArrowDown}')
-    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(tab('Shortcuts')).toHaveAttribute('aria-selected', 'true')
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
     await expect.element(allProjects()).toHaveFocus()
     await userEvent.keyboard('{Shift>}{Tab}{Tab}{/Shift}')
@@ -8417,9 +8279,9 @@ describe('settings page', () => {
     await userEvent.keyboard('{ArrowLeft}{ArrowLeft}')
     await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '548')
     await expect.element(sections()).toHaveAttribute('aria-orientation', 'vertical')
-    await tab('Views').click()
+    await tab('Shortcuts').click()
     await userEvent.keyboard('{ArrowDown}')
-    await expect.element(tab('Shortcuts')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
     await tab('General').click()
     await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
@@ -8439,10 +8301,8 @@ describe('settings page', () => {
     await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '936')
     localStorage.removeItem('conciv-modal-width')
     harness.dispose()
-    harness.mountShell(`/panel/${sessionId}?open=true`, [settingsProbe])
+    harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
-    await expect.element(probe('light')).toBeInTheDocument()
-    await expect.element(notesTab()).toBeVisible()
     await renameTo('renamed before settings')
     const firstVisit = await coreControl.rpcStartedOnceServed(RENAME_PATH, 1, MOUNT_READS)
 
@@ -8453,18 +8313,16 @@ describe('settings page', () => {
 
     const tabPaths: Record<string, string> = {
       General: 'general',
-      Views: 'views',
       Shortcuts: 'shortcuts',
       Plugins: 'plugins',
-      'Settings probe': 'extensions/settings-probe',
       Advanced: 'advanced',
     }
-    for (const name of ['Views', 'Shortcuts', 'Plugins', 'Settings probe', 'Advanced']) {
+    for (const name of ['Shortcuts', 'Plugins', 'Advanced']) {
       await tab(name).click()
       await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
       expect(harness.pathname()).toBe(settingsPath(tabPaths[name] ?? ''))
     }
-    for (const name of ['Settings probe', 'Plugins', 'Shortcuts', 'Views', 'General']) {
+    for (const name of ['Plugins', 'Shortcuts', 'General']) {
       await userEvent.keyboard('{ArrowUp}')
       await expect.element(tab(name)).toHaveFocus()
       await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
@@ -8472,18 +8330,14 @@ describe('settings page', () => {
     }
 
     await colorMode().getByText('Dark', {exact: true}).click()
-    await expect.element(probe('dark')).toBeInTheDocument()
+    await expect.element(colorMode().getByRole('radio', {name: 'Dark'})).toBeChecked()
 
-    await tab('Views').click()
-    await expect.element(notesShown()).toBeChecked()
-    await page.getByText(/^Notes/).click()
-    await expect.element(notesShown()).not.toBeChecked()
+    await tab('Plugins').click()
 
     await back().click()
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
     await expect.element(gear()).toHaveFocus()
     expect(harness.pathname()).toBe(`/panel/${sessionId}`)
-    await expect.element(notesTab()).not.toBeInTheDocument()
     await renameTo('renamed after settings')
     const returned = await coreControl.rpcStartedOnceServed(RENAME_PATH, 2, MOUNT_READS)
     expect(returned).toEqual(firstVisit)
@@ -8496,73 +8350,28 @@ describe('settings page', () => {
     await expect.element(titled('renamed after settings')).toBeVisible()
 
     await gear().click()
-    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
-    expect(harness.pathname()).toBe(settingsPath('views'))
+    await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('plugins'))
     await tab('Shortcuts').click()
     await expect.element(tab('Shortcuts')).toHaveAttribute('aria-selected', 'true')
     harness.back()
-    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
-    expect(harness.pathname()).toBe(settingsPath('views'))
+    await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('plugins'))
     await back().click()
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
     await gear().click()
-    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
-    expect(harness.pathname()).toBe(settingsPath('views'))
+    await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('plugins'))
 
     harness.dispose()
     document.documentElement.style.setProperty('--conciv-skin', 'terminal')
-    harness.mountShell(`${settingsPath('general')}?open=true`, [settingsProbe])
+    harness.mountShell(`${settingsPath('general')}?open=true`)
     await expect.element(colorMode().getByRole('radio', {name: 'Dark'}), {timeout: 8000}).toBeChecked()
-    await expect.element(probe('dark')).toBeInTheDocument()
     await expect.element(page.getByText('Set by the page in --conciv-skin')).toBeVisible()
     await expect.element(skin('Terminal')).toBeChecked()
     document.documentElement.style.removeProperty('--conciv-skin')
     await expect.element(page.getByText('Set by the page in --conciv-skin')).not.toBeInTheDocument()
     await expect.element(skin('Conciv')).toBeChecked()
-
-    await tab('Settings probe').click()
-    await expect.element(page.getByRole('heading', {name: 'Settings probe'})).toBeVisible()
-    await expect.element(probeValues(PROBE_DEFAULTS)).toBeInTheDocument()
-    await page.getByText('Wrap lines', {exact: true}).click()
-    await expect.element(wrapLines()).toBeChecked()
-    await page.getByRole('radiogroup', {name: 'Density'}).getByText('Compact', {exact: true}).click()
-    await page.getByRole('combobox', {name: 'Theme'}).click()
-    await expect.element(page.getByRole('option', {name: 'Ocean'})).toBeVisible()
-    await coreRpc(coreBase()).settings.set({scope: 'project', namespace: 'settings-probe', key: 'fontSize', value: 15})
-    await expect.element(probeValues('wrap=true density=compact theme=plain fontSize=15 greeting=')).toBeInTheDocument()
-    await expect.element(page.getByRole('option', {name: 'Ocean'})).toBeVisible()
-    await page.getByRole('option', {name: 'Ocean'}).click()
-    await fontSize().click()
-    await userEvent.keyboard('{End}{Backspace}{Backspace}16{Enter}')
-    await greeting().click()
-    await userEvent.keyboard('h')
-    await expect
-      .element(probeValues('wrap=true density=compact theme=ocean fontSize=16 greeting=h'))
-      .toBeInTheDocument()
-    await expect.element(greeting()).toHaveFocus()
-    await userEvent.keyboard('i')
-    await expect.element(probeValues(PROBE_CHANGED)).toBeInTheDocument()
-    await expect.element(greeting()).toHaveFocus()
-    await expect.element(greeting()).toHaveValue('hi')
-
-    harness.dispose()
-    harness.mountShell(`/panel/${sessionId}/settings?open=true`, [settingsProbe])
-    await expect.element(tab('Settings probe'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
-    expect(harness.pathname()).toBe(settingsPath('extensions/settings-probe'))
-    await expect.element(probeValues(PROBE_CHANGED)).toBeInTheDocument()
-    await expect.element(wrapLines()).toBeChecked()
-    await expect
-      .element(page.getByRole('radiogroup', {name: 'Density'}).getByRole('radio', {name: 'Compact'}))
-      .toBeChecked()
-    await expect.element(page.getByRole('combobox', {name: 'Theme'})).toHaveTextContent('Ocean')
-    await expect.element(fontSize()).toHaveValue('16')
-    await expect.element(greeting()).toHaveValue('hi')
-
-    harness.dispose()
-    harness.mountShell(`${settingsPath('extensions/nothing-here')}?open=true`, [settingsProbe])
-    await expect.element(tab('General'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
-    expect(harness.pathname()).toBe(settingsPath('general'))
-
     await tab('Shortcuts').click()
     await recordGlobalToggle('o')
     await command('Quick terminal').click()
@@ -8601,14 +8410,12 @@ describe('settings page', () => {
       .toHaveTextContent(`Split pane${formatForDisplay('Control+Shift+J')}`)
 
     harness.dispose()
-    harness.mountShell(`${settingsPath('advanced')}?open=true`, [settingsProbe])
-    await expect.element(probeValues(PROBE_CHANGED), {timeout: 8000}).toBeInTheDocument()
-    await page.getByRole('button', {name: 'Reset extension settings', exact: true}).click()
-    await expect.element(probeValues(PROBE_DEFAULTS)).toBeInTheDocument()
+    harness.mountShell(`${settingsPath('advanced')}?open=true`)
+    await expect.element(tab('Advanced'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
 
     await tab('General').click()
     await colorMode().getByText('Light', {exact: true}).click()
-    await expect.element(probe('light')).toBeInTheDocument()
+    await expect.element(colorMode().getByRole('radio', {name: 'Light'})).toBeChecked()
     await scopeLabel().click()
     await expect.element(allProjects()).toBeChecked()
     await expect.element(colorMode().getByRole('radio', {name: 'Auto'})).toBeChecked()
@@ -8619,22 +8426,8 @@ describe('settings page', () => {
     await expect.element(allProjects()).toBeChecked()
     const reloadAt = harness.href()
     harness.dispose()
-    harness.mountShell(reloadAt, [settingsProbe])
+    harness.mountShell(reloadAt)
     await expect.element(allProjects(), {timeout: 8000}).toBeChecked()
-    await expect.element(probe('light')).toBeInTheDocument()
-    await tab('Settings probe').click()
-    await page.getByText('Wrap lines', {exact: true}).click()
-    await expect.element(wrapLines()).toBeChecked()
-    await expect.element(probeValues(PROBE_WRAPPED)).toBeInTheDocument()
-    await scopeLabel().click()
-    await expect.element(allProjects()).not.toBeChecked()
-    await expect.element(page.getByText('From all projects', {exact: true})).toBeVisible()
-    await page.getByText('Wrap lines', {exact: true}).click()
-    await expect.element(wrapLines()).not.toBeChecked()
-    await expect.element(probeValues(PROBE_DEFAULTS)).toBeInTheDocument()
-    await tab('Advanced').click()
-    await page.getByRole('button', {name: 'Reset extension settings', exact: true}).click()
-    await expect.element(probeValues(PROBE_WRAPPED)).toBeInTheDocument()
 
     await resetAll().click()
     await expect.element(resetDialog()).toBeVisible()
@@ -8643,14 +8436,12 @@ describe('settings page', () => {
     await userEvent.keyboard('{Escape}')
     await expect.element(resetDialog()).not.toBeInTheDocument()
     expect(harness.pathname()).toBe(settingsPath('advanced'))
-    await expect.element(probe('light')).toBeInTheDocument()
 
     await resetAll().click()
     await resetDialog().getByRole('button', {name: 'Reset everything'}).click()
     await expect.element(page.getByRole('status').getByText('Settings reset')).toBeInTheDocument()
     await expect.element(resetDialog()).not.toBeInTheDocument()
     expect(harness.pathname()).toBe(settingsPath('advanced'))
-    await expect.element(probe('dark')).toBeInTheDocument()
     await tab('General').click()
     await expect.element(colorMode().getByRole('radio', {name: 'Dark'})).toBeChecked()
     await expect.element(page.getByText('From all projects', {exact: true})).toBeVisible()
@@ -8658,10 +8449,9 @@ describe('settings page', () => {
     await tab('Advanced').click()
     await userEvent.keyboard('{Escape}')
     await expect.element(gear()).toHaveFocus()
-    await expect.element(notesTab()).toBeVisible()
 
     harness.dispose()
-    harness.mountShell(`${settingsPath('shortcuts')}?open=true`, [settingsProbe], {
+    harness.mountShell(`${settingsPath('shortcuts')}?open=true`, {
       host: {quickTerminal: {hotkey: 'Control+Shift+K'}},
     })
     await expect.element(command('New quick terminal pane'), {timeout: 8000}).toBeVisible()
@@ -9556,7 +9346,7 @@ describe('terminal panel', () => {
     }
     const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(terminalRoute(sessionId), [], {
+    harness.mountShell(terminalRoute(sessionId), {
       grabProvider: () => ({pick: failingPick, comment: failingPick, cancel: () => {}, isActive: () => false}),
     })
 
@@ -9571,7 +9361,7 @@ describe('terminal panel', () => {
     const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
     const unsourced: Grab = {...HERO_GRAB, source: null, frames: [{fileName: 'dist/chunk.js', line: 1, column: 1}]}
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(terminalRoute(sessionId), [], {grabProvider: grabProviderFor(unsourced)})
+    harness.mountShell(terminalRoute(sessionId), {grabProvider: grabProviderFor(unsourced)})
 
     await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
     await pickButton().click()
@@ -9590,7 +9380,7 @@ describe('terminal panel', () => {
     const chatGrab = {...HERO_GRAB, text: 'echo "chat[owned]"'}
     const terminalGrab = {...HERO_GRAB, text: 'echo "terminal(owned)"'}
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(`/panel/${sessionId}?open=true`, [], {grabProvider: grabProviderFor(chatGrab, terminalGrab)})
+    harness.mountShell(`/panel/${sessionId}?open=true`, {grabProvider: grabProviderFor(chatGrab, terminalGrab)})
 
     await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
     await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
@@ -9637,7 +9427,7 @@ describe('terminal panel', () => {
     const buttonGrab = {...HERO_GRAB, text: '<button>\nSave\n</button>'}
     const linkGrab = {...HERO_GRAB, text: '<a>Next</a>'}
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(terminalRoute(sessionId), [], {
+    harness.mountShell(terminalRoute(sessionId), {
       grabProvider: grabProviderFor(readsOneLine, buttonGrab, linkGrab),
     })
 
@@ -9702,7 +9492,7 @@ describe('terminal panel', () => {
     const rpc = coreRpc(coreBase())
     const otherSession = await createSession(rpc)
     const sessionId = await createSession(rpc)
-    harness.mountShell([terminalRoute(otherSession), terminalRoute(sessionId)], [], {
+    harness.mountShell([terminalRoute(otherSession), terminalRoute(sessionId)], {
       grabProvider: () => ({pick: heldPick, comment: heldPick, cancel: () => {}, isActive: () => false}),
     })
 
@@ -9781,7 +9571,7 @@ describe('terminal panel', () => {
       hostLog.remove()
     })
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(terminalRoute(sessionId), [], {shadow: true})
+    harness.mountShell(terminalRoute(sessionId), {shadow: true})
 
     await expect.element(output('P>'), {timeout: 15_000}).toBeInTheDocument()
     await terminalPanel().click()
@@ -10000,7 +9790,7 @@ describe('plugins before a core is bound', () => {
       localStorage.removeItem(PREFS_KEY)
     })
     localStorage.removeItem('conciv:settings-tab')
-    harness.mountShell('/panel/connect?open=true', [], {
+    harness.mountShell('/panel/connect?open=true', {
       plugins: foundServerPlugins('typed-connect-probe', (found) => <TypedConnectForm found={found} />),
     })
 
@@ -10567,7 +10357,7 @@ function engineTrustedOrUnreachable(): Promise<void> {
 async function logInOnce(harness: ReturnType<typeof createShellHarness>, origin: string, at: string): Promise<void> {
   onTestFinished(() => localStorage.removeItem(`conciv:engine-token:${origin}`))
   const loginNotice = page.getByRole('alert').filter({hasText: 'Log in to use conciv on this page.'})
-  harness.mountShell(at, [], {login: {apiBase: origin}})
+  harness.mountShell(at, {login: {apiBase: origin}})
   await expect.element(loginNotice, {timeout: 15_000}).toBeVisible()
   await loginNotice.getByRole('button', {name: 'Log in'}).click()
   await userEvent.type(page.getByRole('textbox', {name: 'Digit 1 of 6'}), await coreControl.requestCode())
@@ -10595,7 +10385,7 @@ describe('plugin settings page links while plugins are not yet known', () => {
     harness.dispose()
 
     const deadPort = engineTrustedOrUnreachable()
-    harness.mountShell(pagePath('alpha:prefs'), [], {login: {apiBase: 'http://127.0.0.1:9'}})
+    harness.mountShell(pagePath('alpha:prefs'), {login: {apiBase: 'http://127.0.0.1:9'}})
     await deadPort
     await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
     expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('alpha:prefs')}`)
@@ -10605,7 +10395,7 @@ describe('plugin settings page links while plugins are not yet known', () => {
     await logInOnce(harness, origin, `/panel/${sessionId}?open=true`)
     const offline = await faults.install({kind: 'offline'})
     const trustChecked = engineTrustedOrUnreachable()
-    harness.mountShell(pagePath('alpha:prefs'), [], {login: {apiBase: origin}})
+    harness.mountShell(pagePath('alpha:prefs'), {login: {apiBase: origin}})
     await trustChecked
     await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
     expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('alpha:prefs')}`)
@@ -10804,7 +10594,7 @@ describe('installed plugins in settings', () => {
     await page.viewport(1000, 900)
     localStorage.removeItem('conciv:settings-tab')
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`)
     await expect.element(tab('General'), {timeout: 8000}).toBeVisible()
     await expect.element(tab('Plugins')).toBeVisible()
     await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
@@ -10824,7 +10614,7 @@ describe('installed plugins in settings', () => {
       'conciv/plugins/neighbour.ts',
       "export default {id: 'neighbour', async setup() {}}\n",
     )
-    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`)
     await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
     await expect.element(page.getByText('conciv.page', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
@@ -10839,7 +10629,7 @@ describe('installed plugins in settings', () => {
   test('each engine-only plugin a user adds one after another gets its own row', async () => {
     await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`)
     await expect.element(tab('Plugins'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
 
     await coreControl.writeProjectFile(
@@ -12020,7 +11810,7 @@ module.exports = {default: {setup(ctx) {
   test('its pop-out notice ends with the panel that raised it when the quick terminal replaces the panel', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     const popOutLost = () => page.getByText('The pop-out window could not be reopened.', {exact: true})
-    harness.mountShell(`/panel/${sessionId}?open=true&popOut=lost`, [], {
+    harness.mountShell(`/panel/${sessionId}?open=true&popOut=lost`, {
       host: {quickTerminal: {hotkey: 'Control+Shift+K'}},
     })
     await expect.element(popOutLost(), {timeout: 15_000}).toBeVisible()
@@ -12200,7 +11990,7 @@ module.exports = {default: {setup(ctx) {
     harness.dispose()
 
     const deadPort = engineTrustedOrUnreachable()
-    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, {
       login: {apiBase: 'http://127.0.0.1:9'},
     })
     await deadPort
@@ -12212,7 +12002,7 @@ module.exports = {default: {setup(ctx) {
     await logInOnce(harness, origin, `/panel/${sessionId}?open=true`)
     const offline = await faults.install({kind: 'offline'})
     const trustChecked = engineTrustedOrUnreachable()
-    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {login: {apiBase: origin}})
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, {login: {apiBase: origin}})
     await trustChecked
     await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Chat')).toHaveAttribute('aria-selected', 'false')
@@ -12303,7 +12093,7 @@ module.exports = {default: {setup(ctx) {
       await expect.element(notice).not.toBeInTheDocument()
     }
 
-    harness.mountShell(`/panel/${sessionId}?open=true`, [], {login: {apiBase: origin}})
+    harness.mountShell(`/panel/${sessionId}?open=true`, {login: {apiBase: origin}})
     await expect.element(loginNotice(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Chat')).toBeVisible()
     await expect.element(tab('Fixture tools')).not.toBeInTheDocument()
@@ -12357,7 +12147,7 @@ module.exports = {default: {setup(ctx) {
 
     harness.dispose()
     await coreControl.revokeBrowsers()
-    harness.mountShell(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('fixture:prefs')}?open=true`, [], {
+    harness.mountShell(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('fixture:prefs')}?open=true`, {
       login: {apiBase: origin},
     })
     await expect.element(loginNotice(), {timeout: 15_000}).toBeVisible()
@@ -13042,7 +12832,7 @@ describe('the local draft store', () => {
     return (
       <ChatProvider chat={chat}>
         <ComposerHandlersProvider value={{onSend: () => {}, onCancel: () => {}}}>
-          <Composer attachmentAdapter={paneAttachments([], 'native', props.store).adapter} />
+          <Composer attachmentAdapter={paneAttachments('native', props.store).adapter} />
         </ComposerHandlersProvider>
       </ChatProvider>
     )

@@ -121,7 +121,7 @@ function releaseWith(onRelease: 'forward' | 'cut' | 'fail'): (call: RpcSocketCal
   return (call) => {
     call
       .reply(FAILED_RELEASE_STATUS)
-      .catch((error: unknown) => console.error('[extension-testkit] the held rpc failure reply failed', error))
+      .catch((error: unknown) => console.error('[plugin-testkit] the held rpc failure reply failed', error))
   }
 }
 

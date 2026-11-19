@@ -13,8 +13,7 @@ import type {ChatCommand, ChatTool} from '@conciv/protocol/chat-types'
 import type {RpcClient} from '@conciv/contract'
 import type {InferClientOutputs} from '@orpc/client'
 import type {RichTextFieldTriggerItem} from '@conciv/ui-kit-tap'
-import {useAppData, useAppQueryClient, useInstances} from '../app/context.js'
-import type {ExtensionInstance} from '../extension/extension-slots.js'
+import {useAppData, useAppQueryClient} from '../app/context.js'
 import {usePluginHost, type Item} from '../runtime/plugin/host'
 import type {ComposerTriggerSources} from './composer-input-adapter.js'
 import {quickPaneIds} from '../lib/quick-search.js'
@@ -49,16 +48,6 @@ function guardedRun(owner: string, run: () => unknown): void {
 
 function builtinCommands(props: PaneCommandProps): WidgetCommand[] {
   return [{name: 'model', description: 'Switch the model', run: () => props.openModelMenu()}]
-}
-
-function extensionCommands(instances: ExtensionInstance[], props: PaneCommandProps): WidgetCommand[] {
-  return instances.flatMap((instance) =>
-    (instance.extension.commands ?? []).map((command) => ({
-      name: command.name,
-      description: command.description,
-      run: () => guardedRun(`[extension] ${instance.extension.name}`, () => command.run({sessionId: props.sessionId})),
-    })),
-  )
 }
 
 function pluginCommand(item: Item<Command>): WidgetCommand[] {
@@ -238,7 +227,6 @@ function matchingItems(entries: RichTextFieldTriggerItem[], query: string, match
 
 export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandSources {
   const host = usePluginHost()
-  const instances = useInstances()
   const pluginRank = (plugin: string): number => {
     const index = host.definitions().findIndex((definition) => definition.id === plugin)
     return index === -1 ? Number.POSITIVE_INFINITY : index
@@ -248,12 +236,7 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
       .items(Command)
       .toSorted((first, second) => pluginRank(first.plugin) - pluginRank(second.plugin))
       .flatMap(pluginCommand)
-    return placeAfterSlash(
-      uniqBy(
-        [...builtinCommands(props), ...pluginCommands, ...extensionCommands(instances, props)],
-        (command) => command.name,
-      ),
-    )
+    return placeAfterSlash(uniqBy([...builtinCommands(props), ...pluginCommands], (command) => command.name))
   })
   const runTyped = (text: string): boolean => {
     const typed = parseTyped(text)

@@ -702,9 +702,6 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../../packages/core
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../../packages/extension
       '@conciv/grab':
         specifier: workspace:^
         version: link:../../packages/grab
@@ -811,6 +808,9 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../../packages/db
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../../packages/extension
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../packages/harness-testkit
@@ -2936,9 +2936,6 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
@@ -3353,9 +3350,6 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness

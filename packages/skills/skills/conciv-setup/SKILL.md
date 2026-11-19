@@ -122,15 +122,14 @@ page loads from), `grabProvider`, `engineToken` (`packages/embed/src/mount.ts:14
 `rebind(apiBase)` to repoint an already-mounted widget at a different engine
 (`packages/embed/src/mount.ts:23-30`).
 
-For a single always-on instance with no manual lifecycle, `mountConciv([], plugins)` is a bare
-fire-and-forget call: it no-ops if a `[data-conciv-script-root]` element already exists, so it is
-safe to call more than once (`packages/embed/src/mount.ts:131-144`). Pass `[]` first; the second
-argument is the browser plugin entries:
+For a single always-on instance with no manual lifecycle, `mountConciv(plugins?)` is a bare
+fire-and-forget call — it no-ops if a `[data-conciv-script-root]` element already exists, so it is
+safe to call more than once (`packages/embed/src/mount.ts:127-140`):
 
 ```ts
 import {mountConciv} from '@conciv/embed'
 
-mountConciv([])
+mountConciv()
 ```
 
 (Real `mountConciv` call site: `apps/site/src/lib/mount-live-widget.ts:69`.)

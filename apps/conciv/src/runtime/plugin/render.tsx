@@ -35,6 +35,7 @@ export function Contribution(props: {
   plugin: string
   failed?: () => void
   fallback?: () => JSX.Element
+  crashed?: (retry: () => void) => JSX.Element
   children: () => JSX.Element
 }) {
   const host = usePluginHost()
@@ -43,13 +44,13 @@ export function Contribution(props: {
     <Show when={host.context(props.plugin)} keyed fallback={props.fallback?.()}>
       {(context) => (
         <ErrorBoundary
-          fallback={(error) => {
+          fallback={(error, reset) => {
             onMount(() => {
               host.fail(props.plugin, error)
               props.failed?.()
             })
 
-            return props.fallback?.() ?? null
+            return props.crashed?.(reset) ?? props.fallback?.() ?? null
           }}
         >
           <PluginContext.Provider value={context}>{untrack(props.children)}</PluginContext.Provider>
