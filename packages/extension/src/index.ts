@@ -34,7 +34,6 @@ export type {
   ClientEffect,
   ClientFactoryResult,
   InferConfig,
-  ConnectGate,
   ExtensionAttachment,
   ExtensionCommand,
   ExtensionCommandContext,
