@@ -256,7 +256,7 @@ function pickMatch(matches: AnyRouteMatch[], routeId?: string): Effect.Effect<An
 export const readLoaderData = Effect.fn('tanstack.router.loaderData')(function* (tree: ReactTree, routeId?: string) {
   const router = yield* requireRouter(tree)
   const match = yield* pickMatch(router.state.matches, routeId)
-  return {routeId: match.routeId, data: tree.dehydrate(match.loaderData)}
+  return {routeId: match.routeId, data: match.loaderData === undefined ? null : tree.dehydrate(match.loaderData)}
 })
 
 type NavigateInput = {

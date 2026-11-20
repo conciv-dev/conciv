@@ -267,6 +267,15 @@ function toEntries(payload: unknown): Entry[] {
 
 const LoaderDataPayload = z.looseObject({routeId: z.string(), data: z.unknown()})
 
+function loaderKeysSummary(count: number, routeId: string | undefined): string {
+  const keys = countLabel(count, 'key', 'keys')
+  return routeId ? `${keys} · ${routeId}` : keys
+}
+
+function emptyLoaderSummary(payload: z.infer<typeof LoaderDataPayload> | null): string {
+  return payload?.data === null ? 'no loader data' : ''
+}
+
 const loaderDataCard: Card = (ui) => (props) => {
   const payload = () => readOutput(LoaderDataPayload, props.output)
   const entries = () => {
@@ -276,10 +285,7 @@ const loaderDataCard: Card = (ui) => (props) => {
   }
   const summary = () => {
     const list = entries()
-    if (!list) return ''
-    const keys = countLabel(list.length, 'key', 'keys')
-    const routeId = payload()?.routeId
-    return routeId ? `${keys} · ${routeId}` : keys
+    return list ? loaderKeysSummary(list.length, payload()?.routeId) : emptyLoaderSummary(payload())
   }
   return (
     <InspectionCard {...props} ui={ui} summary={summary()} hasContent={entries() !== null}>

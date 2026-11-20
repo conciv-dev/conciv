@@ -567,7 +567,7 @@ describe('the tanstack plugin waiting for the bundler status', () => {
 })
 
 describe('the tanstack loader data operation', () => {
-  it('fails for a route id no match carries and names the matched route ids', async () => {
+  it('fails for a route id no match carries and names the matched route ids, and answers null data for a route with no loader', async () => {
     const rootRoute = createRootRoute()
     const indexRoute = createRoute({getParentRoute: () => rootRoute, path: '/'})
     const router = createRouter({
@@ -594,5 +594,6 @@ describe('the tanstack loader data operation', () => {
       code: 'handler_error',
       message: 'No matched route has the id "/no-such-route"; the matched routes are __root__, /.',
     })
+    expect(await loaderData('/')).toEqual({type: 'success', value: {routeId: '/', data: null}})
   })
 })
