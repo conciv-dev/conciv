@@ -424,11 +424,7 @@
       }
     },
     {
-      "files": [
-        "e2e/nextjs/test/packed-closure.spec.ts",
-        "e2e/nextjs/packed/harness.ts",
-        "e2e/nextjs/test/packed-trust-policy-install.spec.ts"
-      ],
+      "files": ["e2e/nextjs/packed/harness.ts", "e2e/nextjs/test/packed-trust-policy-install.spec.ts"],
       "rules": {
         "conciv/no-hand-made-temp-dir": "off"
       }
