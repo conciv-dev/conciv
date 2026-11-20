@@ -36,23 +36,18 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:types": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@conciv/harness-testkit": "workspace:^",
-    "@conciv/protocol": "workspace:^",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/app": "workspace:*",
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/uno-preset": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
@@ -70,6 +65,11 @@
   },
   "peerDependencies": {
     "@conciv/app": "workspace:*",
+    "@conciv/harness-testkit": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
+    "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "playwright": "^1.64.1",
     "vitest": "^5.1.0"
   }

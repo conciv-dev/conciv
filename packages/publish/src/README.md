@@ -11,7 +11,7 @@ The `conciv-publish` citty command tree. It runs release guards (workspace root,
   - `check-changesets` (`--require-coverage`, `--base <ref>`): `assertChangesetsResolve`, optionally `assertPublishedChangesCovered`.
   - `check-catalog`: `assertSharedDependenciesCatalogued`.
   - `check-typecheck-coverage`: `assertTypecheckCoversTrackedFiles`.
-  - `check-turbo-depends-on`: `assertBuildDependsOnCoversImports`.
+  - `check-turbo-depends-on`: `assertBuildDependsOnCoversImports`, then `assertTypeTasksDependOnDistReads`. A package whose `build` is `tsdown` alone and whose types come from `build:types` (the testkits) is skipped by the first, since its transpile reads no other dist; the second checks both `typecheck` and `build:types`, and asks for `<name>#build:types` when the package read has one, else `<name>#build`.
   - `check-plugin-ui-kit`: `assertPluginsDrawThroughContextUi`.
   - `check`: `pnpm exec turbo run build publint attw`.
   - `release`: `assertPublicSet`, `assertPublicDepsPublic`, `assertVersioned`, turbo build/publint/attw, `changeset publish`.

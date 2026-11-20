@@ -2819,6 +2819,12 @@ importers:
       '@conciv/serve':
         specifier: workspace:^
         version: link:../serve
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7)
@@ -2829,12 +2835,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/tsconfig':
-        specifier: workspace:*
-        version: link:../tsconfig
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -3151,19 +3151,15 @@ importers:
 
   packages/plugin-testkit:
     dependencies:
+      '@conciv/app':
+        specifier: workspace:*
+        version: link:../../apps/conciv
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
-    devDependencies:
-      '@conciv/app':
-        specifier: workspace:*
-        version: link:../../apps/conciv
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -3173,6 +3169,10 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
