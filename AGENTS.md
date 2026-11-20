@@ -135,7 +135,9 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
 - A behaviour lives in the cheapest place that proves it, and only there: node, then happy-dom, then browser mode
   (layout, scrolling, canvas, real focus), then `e2e/` (the built bundle in a real host app, real harness CLIs).
 - Budgets (`conciv/test-file-budget`): never more test files than source files in a package; one browser-mode file
-  per package (add a `describe`, never a second file); a test file is at most 1,000 lines.
+  per package (add a `describe`, never a second file); a test file is at most 1,000 lines. The app is the one
+  exception, as opencode's keeper suites (`_ref/opencode/packages/app/e2e/regression/`): `apps/conciv` has one
+  browser-mode file per product area (`src/<area>.browser.test.tsx`), and a new case goes into its area's file.
 - The kits. `@conciv/plugin-testkit/node`: `createEngine`, `TestLLM`. `@conciv/plugin-testkit/browser`: `mount`.
   `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. The engine is real and its chat is scripted
   with `replies` built by `TestLLM` (`text`, `toolCall`, `failAfter`, `hangAfter`); `engine.gate()` holds a reply.

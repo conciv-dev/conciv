@@ -52,7 +52,9 @@ behavior is proven by the app e2e keeper suites"; its plugin packages hold only 
   workspace package and name what they need as `peerDependencies` (`docs/specs/kit-build-cycle.md`).
 
 Budgets: test files next to code, never more test files than source files in a package; one browser-mode file per
-package; every file at most 1,000 lines (exceptions only with the maintainer's yes).
+package; every file at most 1,000 lines (exceptions only with the maintainer's yes). The app is the one exception, as
+opencode's keeper suites (`_ref/opencode/packages/app/e2e/regression/`, one suite per product area): `apps/conciv` has
+one browser-mode file per product area, `src/<area>.browser.test.tsx`, each at most 1,000 lines.
 
 ## The kits
 
