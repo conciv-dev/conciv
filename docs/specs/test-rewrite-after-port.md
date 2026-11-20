@@ -14,8 +14,9 @@ tests, the Swift tests (`.github/workflows/swift.yml`), `.claude/hooks/*.test.sh
 rule test `packages/oxlint-plugin/src/playwright-test-in-e2e.test.ts`, and the sample
 `packages/plugins/test-runner/src/test-runner.dom.test.tsx`.
 
-Inputs for the plans: `docs/specs/test-split/` (one row per old test with what it proves; its layer names are the
-2026-11-19 ones and are read only as "what this test covered"), `docs/specs/test-audit/` and `docs/specs/test-research/`.
+The plan is `docs/specs/test-split/`: every old test has one row with its destination and its journey group (`M-*`),
+and `worth-it.md` is the pass that dropped duplicates. It is updated in place to the 2026-11-20 rulings (see "How the
+rewrite runs", step 3). Background: `docs/specs/test-audit/` and `docs/specs/test-research/`.
 
 ## Goal
 
@@ -91,28 +92,17 @@ A past chat is made with real turns (`engine.session.send`), never by writing ro
    `d32e1cf0f`).
 2. **Prove the kit.** One test per place on a real plugin, timed: node, happy-dom (done: the test-runner sample) and
    browser mode. Nothing is planned on a place that has not run.
-3. **Plan.** One file per area in `docs/specs/test-plan/`, written by the orchestrator, seen and approved by the
-   maintainer before any writer starts on that area. The format is below.
+3. **Plan.** `docs/specs/test-split/`, updated in place by the orchestrator, one area file at a time, seen by the
+   maintainer before any writer starts on that area: old layer names to today's runners (L2 happy-dom, L3-BROWSER and
+   the browser part of flow vitest browser mode, the built-bundle part of flow e2e), every row that leans on something
+   since ruled out (connection faults, held socket calls, fake-indexeddb, the `/flow` and `chat`/`component` fixtures)
+   given a new place or a reason it is not carried, and line numbers moved to `9d4f4834f`.
 4. **Write.** The package `test` scripts are removed and the hook refuses vitest and playwright for writers, so writers
    cannot run tests. At most 5 writers, one area each, writing exactly what the area's plan says.
 5. **Verify.** Per area: the orchestrator runs every file, reads every test against its plan entry, and checks the
    area's coverage list against the old tests at `9d4f4834f`. A failing or missing journey goes back to its writer.
 6. **One PR** with the kit and all the new tests, from `test/plugin-testkit-mounts`.
 7. **Runners back.** The `test` scripts return per package and CI runs them.
-
-## The plan file of an area
-
-`docs/specs/test-plan/<area>.md`. For each package in the area:
-
-- **Files**: every new test file with its runner (node, happy-dom, browser mode, e2e, story).
-- **Journeys**: for each journey, its `describe`/`test` name, the plugins and engine options it starts with, the steps
-  as the user does them, and what the user sees at each check.
-- **Covers**: the old tests (`<path>:<line>` at `9d4f4834f`) whose behaviour the journey proves.
-- **Not carried**: every old test of the package no journey covers, with the reason (duplicate of journey X, tested
-  only code that is deleted, implementation detail with nothing user-visible).
-- **Product options needed**: timers or seams the journeys need, as product options.
-
-Every old test of the area appears exactly once, under one journey's Covers or under Not carried.
 
 ## Rulings carried from 2026-11-19 that still hold
 
