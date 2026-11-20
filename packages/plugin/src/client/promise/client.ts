@@ -1,7 +1,7 @@
 export * as Conciv from './client.js'
 
 import {z} from 'zod'
-import {browserRpcConnection, contract, type RpcClient} from '@conciv/contract'
+import {browserRpcConnection, contract, type EngineConnectionTimings, type RpcClient} from '@conciv/contract'
 import {SharedEvents} from '../shared-events.js'
 import type {EventSubscribeOutput} from './generated/types.js'
 import {makeRpc, type RpcApi} from './rpc.js'
@@ -14,6 +14,7 @@ export type ClientConnectionOptions = {
   readonly server: () => string
   readonly idleTimeout?: number
   readonly reconnectDelay?: number
+  readonly engineTimings?: Partial<EngineConnectionTimings>
 }
 
 type ClientConnection = {
@@ -33,7 +34,14 @@ export function make(
   const idleTimeout = options.idleTimeout ?? defaultIdleTimeout
   const reconnectDelay = options.reconnectDelay ?? defaultReconnectDelay
   const events = SharedEvents.make((signal, onActivity) =>
-    received(raw, signal, onActivity, connection.set, {idleTimeout, reconnectDelay}, options.server),
+    received(
+      raw,
+      signal,
+      onActivity,
+      connection.set,
+      {idleTimeout, reconnectDelay, engineTimings: options.engineTimings},
+      options.server,
+    ),
   )
   const groups = {
     auth: raw.auth,
@@ -92,7 +100,11 @@ async function* received(
   signal: AbortSignal,
   onActivity: () => void,
   setStatus: (status: ClientConnectionStatus) => void,
-  {idleTimeout, reconnectDelay}: {idleTimeout: number; reconnectDelay: number},
+  {
+    idleTimeout,
+    reconnectDelay,
+    engineTimings,
+  }: {idleTimeout: number; reconnectDelay: number; engineTimings: Partial<EngineConnectionTimings> | undefined},
   server: () => string,
 ) {
   signal.addEventListener('abort', () => setStatus('connecting'), {once: true})
@@ -101,7 +113,7 @@ async function* received(
     if (signal.aborted) return
     if (outcome === 'untrusted') {
       setStatus('connecting')
-      await trusted(server(), signal)
+      await trusted(server(), signal, engineTimings)
       continue
     }
     setStatus('reconnecting')
@@ -150,8 +162,8 @@ async function* attempted(
   }
 }
 
-function trusted(server: string, signal: AbortSignal) {
-  const {trust, release} = browserRpcConnection(server)
+function trusted(server: string, signal: AbortSignal, engineTimings: Partial<EngineConnectionTimings> | undefined) {
+  const {trust, release} = browserRpcConnection(server, undefined, engineTimings)
   return new Promise<void>((resolve) => {
     const settle = () => {
       stopTrust()

@@ -30,6 +30,7 @@ function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
   const router = useRouter()
   const apiBase = useRouteContext({strict: false, select: (context) => context.apiBase})
   const login = useRouteContext({strict: false, select: (context) => context.login})
+  const timings = useRouteContext({strict: false, select: (context) => context.timings})
   const classification = createMemo<RpcErrorClassification>(() =>
     classifyRpcError(props.error, ENGINE_UNREACHABLE_MESSAGE, GENERIC_ERROR_MESSAGE),
   )
@@ -42,7 +43,7 @@ function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
     if (becameTrusted(status, previous)) void retry()
   }
   onMount(() => {
-    const {trust, release} = browserRpcConnection(apiBase()?.() ?? '')
+    const {trust, release} = browserRpcConnection(apiBase()?.() ?? '', undefined, timings()?.engine)
     if (trust.isTrusted() && rpcErrorCode(props.error) === 'UNAUTHORIZED') void retry()
     onCleanup(trust.subscribe(onTrustChange))
     onCleanup(release)
@@ -122,7 +123,7 @@ type HeldEngine = ReturnType<typeof browserRpcConnection>
 type EngineWiring = {dispose: () => void; locked: () => boolean; watch: (handlers: TrustHandlers) => void}
 
 function holdEngine(apiBase: string, timings: Partial<EngineConnectionTimings> | undefined): HeldEngine {
-  const stopReachability = setupEngineReachability(apiBase)
+  const stopReachability = setupEngineReachability(apiBase, timings)
   const connection = browserRpcConnection(apiBase, undefined, timings)
   onCleanup(() => {
     stopReachability()
@@ -190,6 +191,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
     openDraftStore(() => !lockedOut()),
     lockedOut,
     apiBase,
+    timings.engine,
   )
   const connected = config.connected ?? (() => true)
   const dispose = once(() => {

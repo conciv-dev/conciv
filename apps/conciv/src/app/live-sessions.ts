@@ -139,6 +139,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
       },
       connection: {
         runReconnect: deps.timings?.chatRunReconnect,
+        engineTimings: deps.timings?.engine,
         onHydrated: (hydration) => hydrated(sessionId, hydration.lastRun),
         onLifecycle: (lifecycle) =>
           isRunPhaseTerminal(lifecycle.phase)

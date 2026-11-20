@@ -125,8 +125,12 @@ function holdConnection(apiBase: string, timings: Partial<EngineConnectionTiming
   })
 }
 
-export function subscribeRpcReachability(apiBase: string, listener: ReachabilityListener): () => void {
-  const {connection, release} = holdConnection(apiBase)
+export function subscribeRpcReachability(
+  apiBase: string,
+  listener: ReachabilityListener,
+  timings?: Partial<EngineConnectionTimings>,
+): () => void {
+  const {connection, release} = holdConnection(apiBase, timings)
   const unsubscribe = connection.subscribeReachability(listener)
   return () => {
     unsubscribe()
@@ -158,13 +162,17 @@ type HeldBase = {key: string | null; held: HeldConnection | undefined}
 
 const NOT_HELD: HeldBase = {key: null, held: undefined}
 
-export function heldBrowserRpcLink(currentApiBase: () => string | null, session?: SessionAccessor): HeldBrowserRpcLink {
+export function heldBrowserRpcLink(
+  currentApiBase: () => string | null,
+  session?: SessionAccessor,
+  timings?: Partial<EngineConnectionTimings>,
+): HeldBrowserRpcLink {
   const held: {current: HeldBase} = {current: NOT_HELD}
   const hold = (apiBase: string): EngineConnection => {
     const key = normalizeApiBase(apiBase)
     if (held.current.key === key && held.current.held !== undefined) return held.current.held.connection
     held.current.held?.release()
-    const next = holdConnection(key)
+    const next = holdConnection(key, timings)
     held.current = {key, held: next}
     return next.connection
   }

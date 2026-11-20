@@ -13,7 +13,14 @@ import {Conciv, type ConcivClient} from '@conciv/plugin'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {dropLeavingCopies} from '../runtime/persistence/leaving-copy.js'
 import {Definition as PageDefinition} from '@conciv/plugin-page/rpc'
-import {DraftRowSchema, SessionMetaSchema, type DraftRow, type RpcClient, type SessionMeta} from '@conciv/contract'
+import {
+  DraftRowSchema,
+  SessionMetaSchema,
+  type DraftRow,
+  type EngineConnectionTimings,
+  type RpcClient,
+  type SessionMeta,
+} from '@conciv/contract'
 
 const PendingAttachmentSchema = z.object({
   id: z.string(),
@@ -84,9 +91,10 @@ export function makeAppData(
   drafts: DraftStore | null,
   lockedOut: () => boolean,
   server: () => string,
+  engineTimings?: Partial<EngineConnectionTimings>,
 ): AppData {
   const utils = makeQueryUtils(rpc)
-  const client = Conciv.make(rpc, {server})
+  const client = Conciv.make(rpc, {server, engineTimings})
   const listKeys = [utils.sessions.list.key(), utils.sessions.search.key()]
   for (const queryKey of [...listKeys, utils.sessions.get.key()]) {
     queryClient.setQueryDefaults(queryKey, {refetchOnWindowFocus: false})

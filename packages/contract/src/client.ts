@@ -5,6 +5,7 @@ import {ResponseValidationPlugin} from '@orpc/contract/plugins'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import {contract} from './contract.js'
 import contractManifest from '../package.json' with {type: 'json'}
+import type {EngineConnectionTimings} from './engine-connection-machine.js'
 import {
   heldBrowserRpcLink,
   RPC_UNBOUND_MESSAGE,
@@ -42,7 +43,7 @@ export function engineTooOld(error: unknown): boolean {
   return error instanceof ValidationError || (error instanceof ORPCError && error.code === 'NOT_FOUND')
 }
 
-export type BrowserRpcClientOptions = {session?: SessionAccessor}
+export type BrowserRpcClientOptions = {session?: SessionAccessor; timings?: Partial<EngineConnectionTimings>}
 
 export type BrowserRpcClient = {
   rpc: RpcClient
@@ -58,7 +59,7 @@ export function makeBrowserRpcClient(
 ): BrowserRpcClient {
   const state: {accessor: () => string | null} = {accessor: typeof base === 'function' ? base : () => base}
   const currentBase = (): string | null => state.accessor()
-  const {link, release} = heldBrowserRpcLink(currentBase, options.session)
+  const {link, release} = heldBrowserRpcLink(currentBase, options.session, options.timings)
   return {
     rpc: createORPCClient(link),
     bound: () => currentBase() !== null,

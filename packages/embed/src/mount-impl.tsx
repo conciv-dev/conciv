@@ -151,6 +151,7 @@ export function mountImpl(
     plugins: init.plugins,
     grabProvider: init.grabProvider,
     onInteractive: interactive.resolve,
+    timings: init.timings,
   }
   const container = document.createElement('div')
   shadow.root.appendChild(container)

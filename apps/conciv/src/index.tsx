@@ -186,7 +186,7 @@ function BoundApp(props: AppParts): JSX.Element {
   const [bound, setBound] = createStore({apiBase: first.kind === 'bound' ? enteredApiBase(first.apiBase) : ''})
   const apiBase = (): string => bound.apiBase
   const session = {read: (): string | null => null}
-  const client = makeBrowserRpcClient(apiBase, {session: () => session.read()})
+  const client = makeBrowserRpcClient(apiBase, {session: () => session.read(), timings: platform.timings?.engine})
   const login = createEngineLogin({
     apiBase,
     tokenSource: first.kind === 'bound' ? first.token : undefined,
@@ -250,7 +250,7 @@ function ServersApp(props: AppParts): JSX.Element {
   const platform = untrack(() => props.platform)
   const [bound, setBound] = createStore({apiBase: ''})
   const session = {read: (): string | null => null}
-  const client = makeBrowserRpcClient(() => null, {session: () => session.read()})
+  const client = makeBrowserRpcClient(() => null, {session: () => session.read(), timings: platform.timings?.engine})
   const router = createConcivRouter({
     ...routerConfig(
       {platform, settings: untrack(() => props.settings), plugins: untrack(() => props.plugins)},

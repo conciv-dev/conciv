@@ -22,7 +22,7 @@ import {
   Semaphore,
   Stream,
 } from 'effect'
-import {subscribeRpcReachability} from '@conciv/contract'
+import {subscribeRpcReachability, type EngineConnectionTimings} from '@conciv/contract'
 import type {ConcivClient} from '@conciv/plugin'
 import {
   pluginEnabled,
@@ -160,7 +160,11 @@ function callbackStream<A>(subscribe: (emit: (value: A) => void, fail: (cause: u
   )
 }
 
-function livePluginEngine(client: ConcivClient, builtins: readonly string[]) {
+function livePluginEngine(
+  client: ConcivClient,
+  builtins: readonly string[],
+  engineTimings: Partial<EngineConnectionTimings> | undefined,
+) {
   const enableStore = createManager(client, builtins)
 
   return Layer.succeed(PluginEngine, {
@@ -168,7 +172,9 @@ function livePluginEngine(client: ConcivClient, builtins: readonly string[]) {
       Effect.gen(function* () {
         const votes = yield* Queue.unbounded<boolean>()
         yield* Effect.acquireRelease(
-          Effect.sync(() => subscribeRpcReachability(url, (reachable) => Queue.offerUnsafe(votes, reachable))),
+          Effect.sync(() =>
+            subscribeRpcReachability(url, (reachable) => Queue.offerUnsafe(votes, reachable), engineTimings),
+          ),
           (unsubscribe) => Effect.sync(unsubscribe),
         )
 
@@ -530,6 +536,7 @@ export function createBundleSource(input: {
   readonly client: ConcivClient
   readonly apiBase: Accessor<string>
   readonly builtins: readonly Entry[]
+  readonly engineTimings?: Partial<EngineConnectionTimings>
 }): BundleSource {
   const runtime = ManagedRuntime.make(
     Layer.effect(
@@ -544,6 +551,7 @@ export function createBundleSource(input: {
         livePluginEngine(
           input.client,
           input.builtins.map((definition) => definition.id),
+          input.engineTimings,
         ),
       ),
     ),

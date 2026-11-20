@@ -2,7 +2,7 @@ import {createEffect, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {Debouncer} from '@tanstack/pacer'
 import {onlineManager} from '@tanstack/query-core'
 import {ORPCError} from '@orpc/client'
-import {subscribeRpcReachability} from '@conciv/contract'
+import {subscribeRpcReachability, type EngineConnectionTimings} from '@conciv/contract'
 
 export const ENGINE_OFFLINE_GRACE_MS = 1000
 
@@ -60,9 +60,9 @@ function registerReachabilitySource(): () => void {
   }
 }
 
-export function setupEngineReachability(apiBase: string): () => void {
+export function setupEngineReachability(apiBase: string, timings?: Partial<EngineConnectionTimings>): () => void {
   const releaseSource = registerReachabilitySource()
-  const unsubscribeRpc = subscribeRpcReachability(apiBase, (reachable) => hub.setOnline?.(reachable))
+  const unsubscribeRpc = subscribeRpcReachability(apiBase, (reachable) => hub.setOnline?.(reachable), timings)
   let disposed = false
   return () => {
     if (disposed) return

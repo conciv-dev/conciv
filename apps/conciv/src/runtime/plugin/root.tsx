@@ -86,6 +86,7 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
   const bound = createMemo(() => !props.servers || apiBase() !== '')
   const appData = useAppData()
   const login = useRouteContext({strict: false, select: (context) => context.login})
+  const timings = useRouteContext({strict: false, select: (context) => context.timings})
   const composed = untrack(() => props.composed)
   const local = [...builtins, ...composed.map(([plugin]) => plugin)]
   const trusted = createMemo(() => {
@@ -104,7 +105,12 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
     on([trusted, bound], ([isTrusted, isBound]) => {
       if (!isTrusted || !isBound) return
 
-      const created = createBundleSource({client: apis.engine.client, apiBase, builtins: local})
+      const created = createBundleSource({
+        client: apis.engine.client,
+        apiBase,
+        builtins: local,
+        engineTimings: untrack(timings)?.engine,
+      })
 
       first.resolve(created)
       onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
