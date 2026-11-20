@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import {createServer as createHttpServer, type Server, type ServerResponse} from 'node:http'
-import {createServer as createNetServer} from 'node:net'
+import {connect, createServer as createNetServer} from 'node:net'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {promisify} from 'node:util'
@@ -865,7 +865,7 @@ describe('dev server close', () => {
     const root = servers.tempDir('conciv-vite-root-')
     const apiBase = Promise.withResolvers<string>()
     const httpClosed = Promise.withResolvers<void>()
-    const engineAnswered = Promise.withResolvers<boolean>()
+    const engineConnection = Promise.withResolvers<string>()
     const probe: Plugin = {
       name: 'probe-engine-during-vite-teardown',
       configureServer(server) {
@@ -874,12 +874,15 @@ describe('dev server close', () => {
       async buildEnd() {
         await httpClosed.promise
         const base = await apiBase.promise
-        engineAnswered.resolve(
-          await fetch(`${base}/health`).then(
-            (response) => response.ok,
-            () => false,
-          ),
-        )
+        const socket = connect({host: '127.0.0.1', port: Number(new URL(base).port)})
+        socket.once('connect', () => {
+          socket.destroy()
+          engineConnection.resolve('connected')
+        })
+        socket.once('error', (error: NodeJS.ErrnoException) => {
+          engineConnection.resolve(error.code === 'ECONNREFUSED' ? 'refused' : String(error.code))
+        })
+        await engineConnection.promise
       },
     }
     const server = await createServer({
@@ -894,7 +897,7 @@ describe('dev server close', () => {
     apiBase.resolve(await pageApiBase(server))
 
     await server.close()
-    expect(await engineAnswered.promise).toBe(false)
+    expect(await engineConnection.promise).toBe('refused')
   }, 30_000)
 })
 
