@@ -18,7 +18,7 @@ import {makeAppData, type AppData} from './data/app-data.js'
 import type {ConcivSettings} from './data/settings.js'
 import {PendingPane} from './shell/pending.js'
 import {becameTrusted, engineLock, engineLocked, type EngineLogin} from './app/engine-login.js'
-import {createBrowserDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
+import {gateDraftWrites, type DraftStore} from './runtime/persistence/drafts.js'
 import type {ComposedPlugin} from './runtime/plugin/root.js'
 import {ErrorScreen} from './shell/error-screen.js'
 import {classifyRpcError, rpcErrorCode, type RpcErrorClassification} from './shell/rpc-error-message.js'
@@ -105,15 +105,7 @@ export type ConcivRouterConfig = {
   notifyInteractive?: () => void
   login?: EngineLogin
   timings?: ConcivTimings
-}
-
-function openDraftStore(writable: () => boolean): DraftStore | null {
-  try {
-    return createBrowserDraftStore({writable})
-  } catch (error) {
-    console.error('[conciv] drafts stay engine-only', error)
-    return null
-  }
+  draftStore?: DraftStore
 }
 
 type TrustHandlers = {rerunRefused: () => void; trusted: () => void; revoked: () => void}
@@ -188,7 +180,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const data = makeAppData(
     config.rpc,
     queryClient,
-    openDraftStore(() => !lockedOut()),
+    config.draftStore ? gateDraftWrites(config.draftStore, () => !lockedOut()) : null,
     lockedOut,
     apiBase,
     timings.engine,

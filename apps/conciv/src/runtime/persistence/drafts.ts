@@ -148,7 +148,7 @@ async function detach(blob: Blob) {
   return blob instanceof File ? new Blob([await blob.arrayBuffer()], {type: blob.type}) : blob
 }
 
-function createDraftStore(driver: Driver, options: {grace?: number} = {}): DraftStore {
+export function createDraftStore(driver: Driver, options: {grace?: number} = {}): DraftStore {
   const grace = options.grace ?? retainedBlobGrace
   const storeId = retention.nextStoreId
   dispatch({type: 'store.registered'})
@@ -433,8 +433,7 @@ function split(text: string) {
   return pieces
 }
 
-export function createBrowserDraftStore(options: {writable?: () => boolean} = {}): DraftStore {
-  const writable = options.writable ?? (() => true)
+export function createBrowserDraftStore(): DraftStore {
   const request = indexedDB.open('conciv-drafts', 1)
   request.addEventListener('upgradeneeded', () => {
     request.result.createObjectStore('documents')
@@ -485,13 +484,7 @@ export function createBrowserDraftStore(options: {writable?: () => boolean} = {}
       transaction.addEventListener('abort', () => reject(transaction.error))
     })
 
-  const writeTransaction = async (stores: string | string[]) => {
-    const database = await db
-
-    if (!writable()) throw new Error('the draft store takes no writes while the engine does not trust this browser')
-
-    return database.transaction(stores, 'readwrite')
-  }
+  const writeTransaction = async (stores: string | string[]) => (await db).transaction(stores, 'readwrite')
 
   const write = async (store: string, key: string, value?: unknown) => {
     const transaction = await writeTransaction(store)
@@ -568,4 +561,16 @@ function referenced(json: string) {
   })
 
   return ids
+}
+
+export function gateDraftWrites(store: DraftStore, writable: () => boolean): DraftStore {
+  const refuse = () =>
+    Promise.reject(new Error('the draft store takes no writes while the engine does not trust this browser'))
+  return {
+    ...store,
+    setItem: (key, value) => (writable() ? store.setItem(key, value) : refuse()),
+    removeItem: (key) => (writable() ? store.removeItem(key) : refuse()),
+    setDocument: (key, document) => (writable() ? store.setDocument(key, document) : refuse()),
+    putBlob: (blob) => (writable() ? store.putBlob(blob) : refuse()),
+  }
 }

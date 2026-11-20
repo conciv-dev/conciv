@@ -12,6 +12,9 @@ import {parseConcivSettings, type ConcivSettings} from './data/settings.js'
 import {styleRoot} from './lib/shadow.js'
 import {createEngineLogin, engineConnected, startEngineLogin} from './app/engine-login.js'
 import {reserveComposedPlugins, type ComposedPlugin} from './runtime/plugin/root.js'
+import type {DraftStore} from './runtime/persistence/drafts.js'
+
+export {createBrowserDraftStore, createDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
 
 export type Platform = {
   engine: Accessor<{kind: 'bound'; apiBase: string; token?: () => Promise<string>} | {kind: 'servers'}>
@@ -22,6 +25,7 @@ export type Platform = {
   grabProvider?: GrabProvider
   onInteractive?: () => void
   timings?: ConcivTimings
+  draftStore?: DraftStore
 }
 
 declare global {
@@ -120,6 +124,7 @@ function routerConfig(
     grabProvider: parts.platform.grabProvider,
     notifyInteractive: parts.platform.onInteractive,
     timings: parts.platform.timings,
+    draftStore: parts.platform.draftStore,
     bindActiveSession: (read: () => string | null) => {
       session.read = read
     },
