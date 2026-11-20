@@ -1,9 +1,12 @@
 import {defineConfig} from 'vitest/config'
 import {ciTest} from '@conciv/vitest-config'
 
+const base = ciTest()
+
 export default defineConfig({
   test: {
-    ...ciTest(),
+    ...base,
+    coverage: {...base.coverage, include: ['src/**/*.ts']},
     environment: 'node',
     include: ['test/**/*.test.ts'],
     fileParallelism: false,
