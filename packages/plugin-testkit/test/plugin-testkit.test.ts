@@ -18,6 +18,8 @@ import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {createHash} from 'node:crypto'
 import type {Duplex} from 'node:stream'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
+import {once} from 'node:events'
+import {forkEngine} from '../src/engine-process.js'
 
 describe('core kit seams', () => {
   const STALENESS: EngineStaleness = {
@@ -633,4 +635,24 @@ describe('node fixtures', () => {
       expect(process.env[FIXTURE_ENV_KEY]).toBeUndefined()
     },
   )
+})
+
+describe('the forked engine', () => {
+  it('stops cleanly while a page close is still on its way back, and a call after the stop fails loudly', async () => {
+    const engine = await forkEngine()
+    try {
+      const routed = rpcSocketFor(engine.proxy)
+      await routed.installed
+      const url = new URL(RPC_WS_PATH, engine.proxy.apiBase)
+      url.protocol = 'ws:'
+      const page = new WebSocket(url)
+      await once(page, 'open')
+      page.close(1000)
+      await routed.awaitEngineCloses(1000, 1)
+      await engine.stop()
+      await expect(engine.call({kind: 'session'})).rejects.toThrow('the engine child has stopped')
+    } finally {
+      await engine.stop()
+    }
+  })
 })

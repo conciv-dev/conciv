@@ -118,6 +118,7 @@ export const test = base.extend<BrowserFixtures>({
     } finally {
       for (const unmount of mounted) unmount()
       localStorage.clear()
+      await engine.settled()
     }
   },
 })
