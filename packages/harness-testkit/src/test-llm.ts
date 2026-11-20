@@ -35,6 +35,10 @@ export function toolCall(id: string, name: string, input: unknown): ChatEvent[] 
   )
 }
 
+export function failAfter(error: Error, ...events: readonly ChatEvent[]): Stream.Stream<ChatEvent, Error> {
+  return Stream.concat(Stream.fromIterable(events), Stream.fail(error))
+}
+
 export function hangAfter(...events: readonly ChatEvent[]): Stream.Stream<ChatEvent, Error> {
   return Stream.concat(Stream.fromIterable(events), Stream.never)
 }

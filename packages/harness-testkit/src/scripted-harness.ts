@@ -2,10 +2,42 @@ import {Effect, Stream} from 'effect'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {defineHarness, type HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
+import type {ReasoningEffort} from '@conciv/protocol/chat-types'
+import type {HarnessChatDeps, HarnessCommand, HarnessConnectContext, HarnessModel} from '@conciv/protocol/harness-types'
+import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {Gate, Response} from './test-llm.js'
 
 const FAKE_HARNESS_ID = 'engine'
+
+const EFFORTS: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
+
+const MODELS: HarnessModel[] = [
+  {id: 'opus', name: 'Opus 5.5', group: 'Claude', efforts: EFFORTS},
+  {id: 'sonnet', name: 'Sonnet 5.5', group: 'Claude', efforts: EFFORTS},
+  {id: 'claude-opus-4-7', name: 'Opus 4.7', group: 'Older versions', efforts: EFFORTS},
+  {id: 'claude-haiku-4-5', name: 'Haiku 4.5', group: 'Older versions'},
+]
+
+const COMMANDS: HarnessCommand[] = [
+  {name: 'model', description: 'Set the AI model'},
+  {name: 'deploy', description: 'Ship the branch'},
+]
+
+const SHELL_START =
+  'printf "model %s %sx%s\\n" "$CONCIV_MODEL" "$(tput cols)" "$(tput lines)"; exec bash --noprofile --norc -i'
+
+function shellCommand(context: HarnessConnectContext): TtyCommand {
+  return {
+    bin: 'bash',
+    args: ['-c', SHELL_START],
+    env: {
+      TERM: 'xterm-256color',
+      PS1: '$ ',
+      BASH_SILENCE_DEPRECATION_WARNING: '1',
+      CONCIV_MODEL: context.model ?? 'none',
+    },
+  }
+}
 
 type Run = {threadId: string; runId: string}
 
@@ -87,6 +119,9 @@ export function replyScript(replies: readonly Response[]): ReplyScript {
         id: FAKE_HARNESS_ID,
         binName: 'true',
         chatConfig: chatConfig(FAKE_HARNESS_ID),
+        models: MODELS,
+        commands: async () => COMMANDS,
+        tty: {command: shellCommand},
         capabilities: {
           resume: false,
           permissionGate: 'none',
@@ -96,7 +131,7 @@ export function replyScript(replies: readonly Response[]): ReplyScript {
           init: 'none',
           imageInput: false,
           transcriptHistory: false,
-          slashCommands: 'none',
+          slashCommands: 'live',
         },
       })
     },

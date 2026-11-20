@@ -94,14 +94,21 @@ async function* streamed(opened: Promise<AsyncIterable<ChatEvent>>): AsyncGenera
 }
 
 function endsRun(event: ChatEvent, runId: string): boolean {
-  if (event.type === ChatEventType.RUN_ERROR) return true
   if (event.type === ChatEventType.RUN_FINISHED) return event.finishReason !== 'tool_calls'
   const lifecycle = runLifecycleEvent.parse(event)
   return lifecycle?.phase === 'aborted' && lifecycle.runId === runId
 }
 
-async function readTurn(events: AsyncIterable<ChatEvent>, runId: string, ended: () => void): Promise<void> {
-  for await (const event of events) if (endsRun(event, runId)) ended()
+async function readTurn(
+  events: AsyncIterable<ChatEvent>,
+  runId: string,
+  ended: () => void,
+  failed: (error: Error) => void,
+): Promise<void> {
+  for await (const event of events) {
+    if (event.type === ChatEventType.RUN_ERROR) failed(new Error(event.message))
+    else if (endsRun(event, runId)) ended()
+  }
   ended()
 }
 
@@ -118,7 +125,7 @@ function makeTurns(rpc: RpcClient): Turns {
       const message: TurnMessage = {id: `${runId}-user`, role: 'user', parts: [{type: 'text', content: text}]}
       const events = connection.connect([message], {}, abort.signal, {threadId: sessionId, runId})
       const {promise, resolve: ended, reject} = Promise.withResolvers<void>()
-      readTurn(events, runId, ended).catch(reject)
+      readTurn(events, runId, ended, reject).catch(reject)
       return promise
     },
     closeAll: () => {
