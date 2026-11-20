@@ -6,7 +6,7 @@ DOM and browser helpers: shadow root styling with fonts, host theme detection, d
 
 ## Interface
 
-- `styleShadowRoot`, `registerFonts`, `registerWind4Properties` (`shadow.ts`): a host's shadow root adopts the widget stylesheet, and the fonts and CSS properties go to the document
+- `styleRoot`, `registerFonts`, `registerWind4Properties` (`shadow.ts`): every app root gets the fonts on the document; a shadow root also adopts the widget stylesheet and its CSS properties go to the document
 - `widgetStyles`, `widgetSheet()`, `createStyleSheet(text, doc)` (`widget-styles.ts`): the widget CSS text, the one constructed `CSSStyleSheet` built from it for the page's `document`, and a constructed sheet from any CSS text in a document
 - `createHostTheme`, `applySchemeClass`, `applySkinClass`, `themeClasses`, `HostTheme`, `ColorScheme` (`color-scheme.ts`)
 - `createDraggablePosition({initial, storageKey})`, `DraggablePosition`, `LauncherAnchor`, `launcherPlacement`, `panelPlacement` (`draggable-position.ts`): the launcher's drag, a port of the TanStack Devtools floating trigger: a press past 4px drags with the grab point under the pointer, a release throws with friction and wall bounce, a release within 72px of a corner pins it there (holding still 2s on a corner switches that corner off for the drag, Shift steers to the corner the drag heads for), a release anywhere else stays put, a drag past an edge hides it into a tab, Escape drops the gesture; arrows nudge the focused launcher and Shift with an arrow sends it to a corner. `LauncherAnchor` holds the collapsed launcher's `left`, `right` and `top` plus the screen-half `corner`; `growsTowardStart(labelWidth)` is true when the opened pill (collapsed launcher plus the label's natural width) would cross the right margin from the launcher's resting left (or its live drag position), so hovering never flips it; `launcherPlacement` places the launcher by `left` and `top` so its pill grows to the right, or by `right` and `top` when it grows toward the start, so the robot never moves; `panelPlacement` opens the chat panel toward the free side of the launcher's screen half, aligned to its right edge on the right half; `panelFrame(size)` gives that panel's viewport rectangle from the launcher's live position and the panel's measured size, with no layout read
@@ -28,7 +28,7 @@ DOM and browser helpers: shadow root styling with fonts, host theme detection, d
 ## Side Effects
 
 - `draggable-position.ts:createDraggablePosition`: reads and writes the placement (a corner, a free spot as a percent of the free space, or a hidden edge, as JSON; a stored preset string from before still reads as that corner) under `storageKey` through `readStorage`/`writeStorage` from `@conciv/ui-kit-system`; window pointer and Escape listeners; pointer capture on the pressed launcher; a Web Animations settle or throw on release, skipped under reduced motion
-- `shadow.ts:styleShadowRoot`: sets the root's `adoptedStyleSheets` to the widget sheet; `registerFonts`/`registerWind4Properties` add fonts and CSS properties to the document
+- `shadow.ts:styleRoot`: adds the fonts to the document for any root; for a shadow root it also sets `adoptedStyleSheets` to the widget sheet and adds the CSS properties to the document
 - `color-scheme.ts:createHostTheme`: `MutationObserver` on `document.body` and `documentElement` class changes
 - `routes/__root.tsx:setShutter`: router navigation that replaces the history entry
 

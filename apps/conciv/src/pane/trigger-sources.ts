@@ -228,15 +228,8 @@ function matchingItems(entries: RichTextFieldTriggerItem[], query: string, match
 
 export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandSources {
   const host = usePluginHost()
-  const pluginRank = (plugin: string): number => {
-    const index = host.definitions().findIndex((definition) => definition.id === plugin)
-    return index === -1 ? Number.POSITIVE_INFINITY : index
-  }
   const widgetCommands = createMemo(() => {
-    const pluginCommands = host
-      .items(Command)
-      .toSorted((first, second) => pluginRank(first.plugin) - pluginRank(second.plugin))
-      .flatMap(pluginCommand)
+    const pluginCommands = host.items(Command).flatMap(pluginCommand)
     return placeAfterSlash(uniqBy([...builtinCommands(props), ...pluginCommands], (command) => command.name))
   })
   const runTyped = (text: string): boolean => {

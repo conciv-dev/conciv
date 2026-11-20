@@ -29,8 +29,9 @@ export function registerWind4Properties(doc: Document = document): void {
   doc.head.appendChild(style)
 }
 
-export function styleShadowRoot(root: ShadowRoot): void {
-  registerWind4Properties()
+export function styleRoot(root: ShadowRoot | Document): void {
   registerFonts(CHAT_FONTS)
+  if (!(root instanceof ShadowRoot)) return
+  registerWind4Properties()
   root.adoptedStyleSheets = [widgetSheet()]
 }

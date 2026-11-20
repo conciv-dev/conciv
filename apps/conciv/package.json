@@ -13,7 +13,7 @@
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run --project unit --project browser",
+    "test": "vitest run --project unit --project dom --project browser",
     "test:perf": "vitest run --project perf"
   },
   "dependencies": {
@@ -71,6 +71,8 @@
     "@solidjs/testing-library": "catalog:",
     "@tanstack/router-cli": "catalog:",
     "@tanstack/router-plugin": "catalog:",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
@@ -78,6 +80,7 @@
     "@unocss/reset": "catalog:",
     "@vitest/browser-playwright": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "happy-dom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "storybook-solidjs-vite": "catalog:",

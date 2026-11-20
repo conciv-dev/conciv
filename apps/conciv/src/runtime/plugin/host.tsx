@@ -220,12 +220,24 @@ function createHost(input: HostInput) {
     return provided.get(token.id)?.live ?? absent(token.id)
   }
 
+  const rankPlugins = createMemo(() => {
+    const ids = all().map((definition) => definition.id)
+
+    return (plugin: string) => {
+      const index = ids.indexOf(plugin)
+
+      return index === -1 ? ids.length : index
+    }
+  })
+
   const createItems = (id: string) => {
     const cache = new Map<string, Item<unknown>>()
 
     const created = runWithOwner(owner, () =>
       createMemo(() => {
-        const next = (state.entries[id] ?? []).flatMap((entry) => {
+        const rank = rankPlugins()
+        const ordered = (state.entries[id] ?? []).toSorted((a, b) => rank(a.plugin) - rank(b.plugin))
+        const next = ordered.flatMap((entry) => {
           const value = entry.value()
 
           if (value === undefined) return []

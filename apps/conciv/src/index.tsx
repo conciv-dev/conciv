@@ -9,7 +9,7 @@ import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {NavigationStateSchema, type NavigationState} from '@conciv/protocol/chat-types'
 import {createConcivRouter, disposeConcivRouter, type ConcivRouterConfig} from './router.js'
 import {parseConcivSettings, type ConcivSettings} from './data/settings.js'
-import {styleShadowRoot} from './lib/shadow.js'
+import {styleRoot} from './lib/shadow.js'
 import {createEngineLogin, engineConnected, startEngineLogin} from './app/engine-login.js'
 import {reserveComposedPlugins, type ComposedPlugin} from './runtime/plugin/root.js'
 
@@ -266,7 +266,7 @@ function ServersApp(props: AppParts): JSX.Element {
 export function ConcivApp(props: {platform: Platform}): JSX.Element {
   const platform = untrack(() => props.platform)
   const plugins = reserveComposedPlugins(platform.plugins ?? [])
-  if (platform.root instanceof ShadowRoot) styleShadowRoot(platform.root)
+  styleRoot(platform.root)
   const settings = parseConcivSettings(JSON.stringify(platform.settings ?? {}))
   return (
     <Show

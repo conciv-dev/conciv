@@ -844,6 +844,12 @@ importers:
       '@tanstack/router-plugin':
         specifier: 'catalog:'
         version: 1.168.48(@rspack/core@2.3.2(@swc/helpers@0.5.23))(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(esbuild@0.28.2)(rolldown@1.2.15)(rollup@4.62.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)(webpack@5.112.2(esbuild@0.28.2)(postcss@8.5.32))
+      '@testing-library/jest-dom':
+        specifier: 'catalog:'
+        version: 6.9.1
+      '@testing-library/user-event':
+        specifier: 'catalog:'
+        version: 14.6.8(@testing-library/dom@10.4.2)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -865,6 +871,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
+      happy-dom:
+        specifier: 'catalog:'
+        version: 21.0.4
       react:
         specifier: 'catalog:'
         version: 19.3.1
