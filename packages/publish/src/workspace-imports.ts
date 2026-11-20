@@ -1,8 +1,9 @@
 import {existsSync} from 'node:fs'
-import {readFile} from 'node:fs/promises'
-import {join, relative} from 'node:path'
+import {readFile, realpath} from 'node:fs/promises'
+import {isAbsolute, join, relative, resolve} from 'node:path'
 import {execa} from 'execa'
 import {z} from 'zod'
+import {typecheckProjects} from './typecheck-coverage.ts'
 import {findOwner, readWorkspacePackages, type WorkspacePackage} from './workspace.ts'
 
 const SOURCE_EXTENSION = /\.(?:[cm]?[jt]s|[jt]sx)$/
@@ -93,6 +94,102 @@ async function readBuildSourceImports(
 function isBuildSource(path: string): boolean {
   if (!SOURCE_EXTENSION.test(path) || NON_BUILD_FILE.test(path)) return false
   return path.startsWith('src/') || BUILD_CONFIG.test(path)
+}
+
+const RESOLVING_MODULE = /^======== Resolving module '([^']+)' from '([^']+)'\. ========$/
+
+const turboDryRunSchema = z.object({
+  tasks: z.array(z.looseObject({taskId: z.string(), dependencies: z.array(z.string())})),
+})
+
+type ProgramFile = {path: string; owner: WorkspacePackage; built: boolean}
+
+export async function assertTypecheckDependsOnDistReads(cwd: string): Promise<void> {
+  const root = await realpath(cwd)
+  const packages = await readWorkspacePackages(root)
+  const buildable = new Set(packages.filter((pkg) => pkg.manifest.scripts?.build !== undefined).map(readName))
+  const ordered = await readTaskOrder(root)
+  const violations = await Promise.all(
+    packages.map(async (pkg) => {
+      const task = `${readName(pkg)}#typecheck`
+      const before = ordered.get(task) ?? new Set<string>()
+      const reads = await readDistReads(root, packages, pkg)
+      return reads
+        .filter((name) => buildable.has(name) && !before.has(`${name}#build`))
+        .map((name) => `${task} reads ${name} dist but does not depend on ${name}#build`)
+    }),
+  )
+  const messages = violations.flat().toSorted()
+  if (messages.length === 0) return
+  throw new Error(
+    `a typecheck depends on the build of every workspace package whose dist its program reads, directly or through a package it reads from source:\n${messages.join('\n')}`,
+  )
+}
+
+async function readTaskOrder(root: string): Promise<Map<string, Set<string>>> {
+  const {stdout} = await execa('turbo', ['run', 'typecheck', '--dry=json'], {cwd: root, preferLocal: true})
+  const result = turboDryRunSchema.safeParse(parseJson('turbo run typecheck --dry=json', stdout))
+  if (!result.success) throw new Error(`turbo run typecheck --dry=json: invalid output\n${result.error.message}`)
+  const direct = new Map(result.data.tasks.map((task) => [task.taskId, task.dependencies]))
+  return new Map([...direct.keys()].map((task) => [task, collectDependencies(direct, task)]))
+}
+
+function collectDependencies(direct: Map<string, string[]>, task: string): Set<string> {
+  const seen = new Set<string>()
+  const queue = [...(direct.get(task) ?? [])]
+  while (queue.length > 0) {
+    const current = queue.shift()
+    if (current === undefined || seen.has(current)) continue
+    seen.add(current)
+    queue.push(...(direct.get(current) ?? []))
+  }
+  return seen
+}
+
+async function readDistReads(root: string, packages: WorkspacePackage[], pkg: WorkspacePackage): Promise<string[]> {
+  const script = pkg.manifest.scripts?.typecheck
+  if (script === undefined) return []
+  const traces = await Promise.all(
+    typecheckProjects(script).map((project) => traceProgram(pkg.dir, resolve(pkg.dir, project))),
+  )
+  const lines = [...new Set(traces.flat())]
+  const resolutions = lines.flatMap((line) => {
+    const match = RESOLVING_MODULE.exec(line)
+    return match?.[1] === undefined || match[2] === undefined ? [] : [{name: readPackageName(match[1]), from: match[2]}]
+  })
+  const files = lines.filter((line) => isAbsolute(line)).flatMap((file) => readProgramFile(root, packages, file))
+  const readFromSource = new Set(files.filter((file) => !file.built).map((file) => readName(file.owner)))
+  const fromSource = resolutions.filter((resolution) =>
+    readProgramFile(root, packages, resolution.from).some((file) => !file.built),
+  )
+  return [...new Set(fromSource.map((resolution) => resolution.name))].filter(
+    (name) => name !== readName(pkg) && !readFromSource.has(name),
+  )
+}
+
+async function traceProgram(packageDir: string, config: string): Promise<string[]> {
+  const {stdout} = await execa('tsc', ['-p', config, '--listFilesOnly', '--traceResolution'], {
+    cwd: packageDir,
+    preferLocal: true,
+    lines: true,
+    stdout: function* (line: string) {
+      if (isAbsolute(line) || RESOLVING_MODULE.test(line)) yield line
+    },
+  })
+  return stdout
+}
+
+function readPackageName(specifier: string): string {
+  const segments = specifier.split('/')
+  return segments.slice(0, specifier.startsWith('@') ? 2 : 1).join('/')
+}
+
+function readProgramFile(root: string, packages: WorkspacePackage[], file: string): ProgramFile[] {
+  const path = relative(root, file)
+  if (path.startsWith('..') || path.split('/').includes('node_modules')) return []
+  const owner = findOwner(packages, path)
+  if (owner === undefined) return []
+  return [{path, owner, built: relative(owner.relativeDir, path).startsWith('dist/')}]
 }
 
 export async function assertPluginsDrawThroughContextUi(cwd: string): Promise<void> {

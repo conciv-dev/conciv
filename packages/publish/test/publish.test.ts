@@ -28,35 +28,8 @@ import {
 } from '../src/swift-mirror.ts'
 import {buildDependencyGraph, readWorkspacePackages, transitiveDependents} from '../src/workspace.ts'
 import {assertTypecheckCoversTrackedFiles} from '../src/typecheck-coverage.ts'
-import {assertBuildDependsOnCoversImports, assertPluginsDrawThroughContextUi} from '../src/workspace-imports.ts'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-
-async function scaffoldWorkspaceRoot(prefix: string, packageGlobs: string[] = ['packages/*']): Promise<string> {
-  const root = tempDir(prefix)
-  onTestFinished(() => rm(root, {recursive: true, force: true}))
-  await writeFile(
-    join(root, 'pnpm-workspace.yaml'),
-    `packages:\n${packageGlobs.map((glob) => `  - ${glob}`).join('\n')}\n`,
-  )
-  await writeFile(join(root, 'package.json'), `${JSON.stringify({name: 'workspace-root', private: true}, null, 2)}\n`)
-  return root
-}
-
-async function writeManifest(dir: string, manifest: Record<string, unknown>): Promise<void> {
-  await mkdir(dir, {recursive: true})
-  await writeFile(join(dir, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
-}
-
-async function commitFiles(root: string, files: Record<string, string>): Promise<void> {
-  await Promise.all(
-    Object.entries(files).map(async ([path, content]) => {
-      await mkdir(dirname(join(root, path)), {recursive: true})
-      await writeFile(join(root, path), content)
-    }),
-  )
-  await execa('git', ['init', '-q'], {cwd: root})
-  await execa('git', ['add', '.'], {cwd: root})
-}
+import {scaffoldWorkspaceRoot, writeManifest} from './helpers.ts'
 
 describe('catalog', () => {
   test('assertSharedDependenciesCatalogued accepts catalog deps, single-manifest explicit deps, workspace: references and peer ranges', async () => {
@@ -194,65 +167,6 @@ describe('typecheck coverage', () => {
     await expect(assertTypecheckCoversTrackedFiles(root)).rejects.toThrow(
       'packages/a/tsconfig.node.json: sets "include"',
     )
-  }, 10_000)
-})
-
-describe('turbo build dependsOn', () => {
-  test('an explicit build list names every workspace build its build sources import, not test-only imports', async () => {
-    const root = await scaffoldWorkspaceRoot('turbo-depends-on-')
-    const files: Record<string, string> = {
-      'packages/a/turbo.json': JSON.stringify({tasks: {build: {dependsOn: ['@conciv/b#build']}}}),
-      'packages/a/src/index.ts': "import {b} from '@conciv/b'\nexport const c = await import('@conciv/c/view')\n",
-      'packages/a/vite.config.ts': "export const alias = import.meta.resolve('@conciv/d')\n",
-      'packages/a/vitest.config.ts': "import '@conciv/e'\n",
-      'packages/a/test/a.test.ts': "import '@conciv/e'\n",
-      'packages/a/src/a.test.ts': "import '@conciv/e'\nimport '@conciv/plain'\n",
-    }
-    await Promise.all([
-      ...['a', 'b', 'c', 'd', 'e'].map((name) =>
-        writeManifest(join(root, 'packages', name), {name: `@conciv/${name}`, scripts: {build: 'tsdown'}}),
-      ),
-      writeManifest(join(root, 'packages', 'plain'), {name: '@conciv/plain'}),
-    ])
-    await commitFiles(root, files)
-    const failure = await assertBuildDependsOnCoversImports(root).catch((error: unknown) => String(error))
-    expect(failure).toContain('packages/a/turbo.json: build imports @conciv/c but does not depend on @conciv/c#build')
-    expect(failure).toContain('packages/a/turbo.json: build imports @conciv/d but does not depend on @conciv/d#build')
-    expect(failure).not.toContain('@conciv/e')
-    const dependsOn = ['@conciv/b#build', '@conciv/c#build', '@conciv/d#build']
-    await writeFile(join(root, 'packages/a/turbo.json'), JSON.stringify({tasks: {build: {dependsOn}}}))
-    await expect(assertBuildDependsOnCoversImports(root)).resolves.toBeUndefined()
-  }, 10_000)
-})
-
-describe('plugin ui kit', () => {
-  test('a plugin draws through ctx.ui: kit imports in build sources or manifests fail, built-ins and tests pass', async () => {
-    const root = await scaffoldWorkspaceRoot('plugin-ui-kit-', ['packages/*', 'packages/plugins/*'])
-    const manifest = (value: Record<string, unknown>) => JSON.stringify(value)
-    const drawn = "import {Button} from '@conciv/ui-kit-system'\nexport const view = Button\n"
-    await commitFiles(root, {
-      'packages/ui-kit-system/package.json': manifest({name: '@conciv/ui-kit-system'}),
-      'packages/plugins/drawn/package.json': manifest({name: '@conciv/plugin-drawn'}),
-      'packages/plugins/drawn/src/view.tsx': drawn,
-      'packages/plugins/drawn/test/view.test.tsx': "import '@conciv/ui-kit-chat'\n",
-      'packages/plugins/listed/package.json': manifest({
-        name: '@conciv/plugin-listed',
-        devDependencies: {'@conciv/ui-kit-chat': 'workspace:*'},
-      }),
-      'packages/plugins/terminal/package.json': manifest({
-        name: '@conciv/plugin-terminal',
-        dependencies: {'@conciv/ui-kit-system': 'workspace:*'},
-      }),
-      'packages/plugins/terminal/src/pane.tsx': drawn,
-    })
-    const failure = await assertPluginsDrawThroughContextUi(root).catch((error: unknown) => String(error))
-    expect(failure).toContain('packages/plugins/drawn/src/view.tsx: imports @conciv/ui-kit-system')
-    expect(failure).toContain('packages/plugins/listed/package.json: devDependencies names @conciv/ui-kit-chat')
-    expect(failure).not.toContain('view.test.tsx')
-    expect(failure).not.toContain('packages/plugins/terminal')
-    await writeFile(join(root, 'packages/plugins/drawn/src/view.tsx'), 'export const view = 1\n')
-    await writeManifest(join(root, 'packages/plugins/listed'), {name: '@conciv/plugin-listed'})
-    await expect(assertPluginsDrawThroughContextUi(root)).resolves.toBeUndefined()
   }, 10_000)
 })
 

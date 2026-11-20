@@ -110,7 +110,7 @@ function extendsPreset(config: Tsconfig): boolean {
   return parents.some((parent) => parent.startsWith(PRESET_PREFIX))
 }
 
-function typecheckProjects(script: string): string[] {
+export function typecheckProjects(script: string): string[] {
   return script
     .split(/&&|\|\||;/)
     .map((command) => command.trim().split(/\s+/))

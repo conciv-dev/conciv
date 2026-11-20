@@ -17,7 +17,11 @@ import {
   assertWorkspaceRoot,
 } from './guards.ts'
 import {assertTypecheckCoversTrackedFiles} from './typecheck-coverage.ts'
-import {assertBuildDependsOnCoversImports, assertPluginsDrawThroughContextUi} from './workspace-imports.ts'
+import {
+  assertBuildDependsOnCoversImports,
+  assertPluginsDrawThroughContextUi,
+  assertTypecheckDependsOnDistReads,
+} from './workspace-imports.ts'
 import {buildSyncPlan, pushMissingTags, registryRecord, type SyncPackageState, type SyncPlanEntry} from './sync.ts'
 import {
   assembleMirrorTree,
@@ -111,11 +115,12 @@ const checkTurboDependsOn = defineCommand({
   meta: {
     name: 'check-turbo-depends-on',
     description:
-      'Fail when a turbo.json build.dependsOn without "^build" misses the build of a workspace package its build sources import',
+      'Fail when a turbo.json build.dependsOn without "^build" misses the build of a workspace package its build sources import, or a typecheck is not ordered after the build of a workspace package whose dist its program reads',
   },
   async run() {
     const {cwd} = await atRoot()
     await assertBuildDependsOnCoversImports(cwd)
+    await assertTypecheckDependsOnDistReads(cwd)
   },
 })
 

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://v2-10-3.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": [
+        "^build",
+        "@conciv/mascot#build",
+        "@conciv/plugin-internal#build",
+        "@conciv/plugin-tanstack#build",
+        "@conciv/plugin-terminal#build",
+        "@conciv/ui-kit-chat-tools#build",
+        "@conciv/ui-kit-tap#build"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": [
+        "^build",
+        "@conciv/mascot#build",
+        "@conciv/plugin-internal#build",
+        "@conciv/plugin-tanstack#build",
+        "@conciv/plugin-terminal#build",
+        "@conciv/ui-kit-chat-tools#build",
+        "@conciv/ui-kit-tap#build"
+      ],
+      "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
+    }
+  }
+}
