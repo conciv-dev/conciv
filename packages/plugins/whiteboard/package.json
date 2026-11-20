@@ -35,7 +35,10 @@
       "types": "./dist/rpc.d.ts",
       "import": "./dist/rpc.js"
     },
-    "./plugin-experimental": "./dist/plugin-experimental.cjs",
+    "./plugin-experimental": {
+      "types": "./dist/plugin-experimental.d.cts",
+      "default": "./dist/plugin-experimental.cjs"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -47,7 +50,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@takumi-rs/core": "catalog:",

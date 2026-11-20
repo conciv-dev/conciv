@@ -47,6 +47,14 @@ export function experimental(options: ExperimentalOptions = {}): Plugin[] {
           rollupOptions: {output: {exports: 'named', chunkFileNames: '[name]-[hash].cjs'}},
         },
       }),
+      generateBundle() {
+        const types = path.basename(outFile, '.cjs')
+        this.emitFile({
+          type: 'asset',
+          fileName: `${types}.d.cts`,
+          source: `declare const definition: typeof import('./${types}.js', {with: {'resolution-mode': 'import'}}).default\nexport default definition\n`,
+        })
+      },
       resolveId(source) {
         if (provided.has(source) || isBuiltin(source)) return {id: source, external: true}
 
