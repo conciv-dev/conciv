@@ -1,8 +1,9 @@
 import {test as base} from 'vitest'
 import {createComponent} from 'solid-js'
-import {configure, render, screen} from '@solidjs/testing-library'
+import {render, screen} from '@solidjs/testing-library'
 import {ConcivApp, type Platform} from '@conciv/app'
 import {forkEngine, type EngineProcess} from './engine-process.js'
+import {provideExpectLog, type ExpectLog} from './expect-log.js'
 
 export type MountOptions = {plugins?: Platform['plugins']}
 
@@ -14,12 +15,8 @@ export type Chat = {
 
 export type BrowserFixtures = {
   $file: {engine: EngineProcess}
-  $test: {chat: Chat; mount: (options?: MountOptions) => Promise<void>}
+  $test: {chat: Chat; mount: (options?: MountOptions) => Promise<void>; expectLog: ExpectLog}
 }
-
-const FIND_TIMEOUT_MS = 20_000
-
-configure({asyncUtilTimeout: FIND_TIMEOUT_MS})
 
 async function settle(call: Promise<unknown>): Promise<void> {
   await call
@@ -49,6 +46,7 @@ export const test = base.extend<BrowserFixtures>({
       await engine.call({kind: 'release'})
     }
   },
+  expectLog: provideExpectLog,
   mount: async ({engine}, use) => {
     const mounted: Array<() => void> = []
     try {
@@ -65,6 +63,7 @@ export const test = base.extend<BrowserFixtures>({
       })
     } finally {
       for (const unmount of mounted) unmount()
+      localStorage.clear()
     }
   },
 })

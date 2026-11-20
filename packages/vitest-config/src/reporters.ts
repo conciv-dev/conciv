@@ -1,4 +1,4 @@
-import {fileURLToPath} from 'node:url'
+import {join} from 'node:path'
 
 type CiReporterEntry = 'default' | ['github-actions', {jobSummary: {enabled: boolean}}] | ['json', {outputFile: string}]
 
@@ -16,10 +16,10 @@ export function ciReporters(): CiReporterEntry[] {
 
 export const TEST_TIMEOUT_MS = 30_000
 export const HOOK_TIMEOUT_MS = 30_000
-const POLL_TIMEOUT_MS = 5_000
+export const POLL_TIMEOUT_MS = 5_000
 const POLL_INTERVAL_MS = 50
-const CONCIV_HOME_SETUP = fileURLToPath(new URL('setup/conciv-home-setup.ts', import.meta.url))
-const NOTHING_LOGGED_SETUP = fileURLToPath(new URL('setup/nothing-logged-setup.ts', import.meta.url))
+const CONCIV_HOME_SETUP = join(import.meta.dirname, 'setup/conciv-home-setup.ts')
+const NOTHING_LOGGED_SETUP = join(import.meta.dirname, 'setup/nothing-logged-setup.ts')
 
 function forkCap(): number | undefined {
   const cap = Number(process.env.VITEST_MAX_FORKS)

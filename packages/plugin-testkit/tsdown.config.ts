@@ -24,5 +24,5 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   dts: false,
-  deps: {neverBundle: true},
+  deps: {neverBundle: true, alwaysBundle: ['@conciv/vitest-config/expected-log']},
 })

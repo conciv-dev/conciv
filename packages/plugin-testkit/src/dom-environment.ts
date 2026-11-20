@@ -107,6 +107,42 @@ function installNodeWebSocket(window: DomWindow, node: NodeEvents): void {
   replaceWindowProperty(window, 'WebSocket', nodeBrandedWebSocket(node))
 }
 
+function installAutofocusReflection(window: DomWindow): void {
+  Object.defineProperty(window.HTMLElement.prototype, 'autofocus', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.hasAttribute('autofocus')
+    },
+    set(this: HTMLElement, value: unknown) {
+      this.toggleAttribute('autofocus', Boolean(value))
+    },
+  })
+}
+
+const DATA_FORMAT_ALIASES: Record<string, string> = {text: 'text/plain', url: 'text/uri-list'}
+
+function installStringOnlyGetData(window: DomWindow): void {
+  Object.defineProperty(window.DataTransfer.prototype, 'getData', {
+    configurable: true,
+    value(this: DataTransfer, format: string): string {
+      const lower = format.toLowerCase()
+      const wanted = DATA_FORMAT_ALIASES[lower] ?? lower
+      const item = Array.from(this.items).find(
+        (entry) => entry.kind === 'string' && entry.type.toLowerCase() === wanted,
+      )
+      const data = {text: ''}
+      item?.getAsString((text) => {
+        data.text = text
+      })
+      return data.text
+    },
+  })
+}
+
+function installNodeStorage(global: typeof globalThis, storage: Storage): void {
+  Object.defineProperty(global, 'localStorage', {configurable: true, enumerable: true, get: () => storage})
+}
+
 const happyDom = builtinEnvironments['happy-dom']
 
 const environment: Environment = {
@@ -114,8 +150,12 @@ const environment: Environment = {
   viteEnvironment: happyDom.viteEnvironment,
   async setup(global, options) {
     const node: NodeEvents = {WebSocket: global.WebSocket, Event: global.Event}
+    const nodeStorage: Storage = global.sessionStorage
     const happy = await happyDom.setup(global, options)
     const window: DomWindow = global.window
+    installNodeStorage(global, nodeStorage)
+    installAutofocusReflection(window)
+    installStringOnlyGetData(window)
     installNodeWebSocket(window, node)
     installFonts(window)
     installResizeObserver(window)

@@ -8,6 +8,7 @@ import {expect, test as base} from 'vitest'
 import {approvePending, type RunStream} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from './core-kit.js'
 import {disposeAll} from './dispose.js'
+import {provideExpectLog, type ExpectLog} from './expect-log.js'
 
 export type EngineOptions = Parameters<typeof bootCoreKit>[0]
 
@@ -34,7 +35,7 @@ export type NodePlugin = {engine: CoreKit; tool: (name: string) => PluginTool}
 export type StartEngine = (overrides?: Partial<EngineOptions>) => Promise<CoreKit>
 
 type NodeFixtures = {
-  $test: {tmp: string; freshEngine: StartEngine; session: NodeSession; plugin: NodePlugin}
+  $test: {tmp: string; freshEngine: StartEngine; session: NodeSession; plugin: NodePlugin; expectLog: ExpectLog}
   $file: {engine: CoreKit; browser: Browser}
 }
 
@@ -106,6 +107,7 @@ export const test = base
       })
       listening.abort()
     },
+    expectLog: provideExpectLog,
     plugin: async ({engine, session}, use) => {
       await use({
         engine,
