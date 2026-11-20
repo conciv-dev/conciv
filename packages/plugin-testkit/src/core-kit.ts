@@ -7,6 +7,8 @@ import {
   type FixtureSession,
   type Kit,
 } from '@conciv/harness-testkit'
+import type {FixtureEnv} from '@conciv/harness-testkit/node'
+import {ConfigProvider} from 'effect'
 import {makeApp} from '@conciv/core/app'
 import {resolveConfig} from '@conciv/core/config'
 import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
@@ -62,8 +64,10 @@ export async function bootCoreKit(
     bundler?: Bundler.BundlerBridge
     pageReplyTimeoutMs?: number
     tty?: {command(context: HarnessConnectContext): TtyCommand}
+    env?: FixtureEnv
   },
 ): Promise<CoreKit> {
+  const configProvider = opts.env === undefined ? undefined : ConfigProvider.fromUnknown(opts.env)
   const harness = createFakeHarness({
     id: opts.id,
     text: opts.text ?? 'Hello from conciv',
@@ -94,7 +98,11 @@ export async function bootCoreKit(
           hubAccess: 'project',
           plugins: opts.plugins ?? [],
           policies: [],
-          permissions: resolveConfig({permission: opts.permission, permissions: opts.permissions}, env.cwd).permissions,
+          permissions: resolveConfig(
+            {permission: opts.permission, permissions: opts.permissions},
+            env.cwd,
+            configProvider,
+          ).permissions,
         },
         cwd: env.cwd,
         openInEditor: (file, line, column) => {
@@ -108,6 +116,7 @@ export async function bootCoreKit(
         home: kitHome(env.stateRoot),
         bridge: opts.bundler,
         pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
+        configProvider,
       })
       captured.runtime = runtime
       await awaitActivation()

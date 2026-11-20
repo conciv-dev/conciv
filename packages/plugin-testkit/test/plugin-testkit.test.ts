@@ -543,8 +543,34 @@ const ECHO_PLUGIN = `export default {
 }
 `
 
+const CONFIG_PLUGIN = `import {Config, Effect} from ${JSON.stringify(import.meta.resolve('effect'))}
+import {z} from ${JSON.stringify(import.meta.resolve('zod'))}
+import {Plugin} from ${JSON.stringify(import.meta.resolve('@conciv/plugin/effect'))}
+
+export default Plugin.define({
+  id: 'config-reader',
+  effect: (ctx) =>
+    ctx.tool.transform((tools) =>
+      tools.add({
+        name: 'read_config',
+        description: 'Answers with a value read from the engine config',
+        input: z.object({name: z.string()}),
+        execute: ({name}) =>
+          Effect.gen(function* () {
+            return {content: yield* Config.String(name).pipe(Config.withDefault('unset'))}
+          }),
+      }),
+    ),
+})
+`
+const FIXTURE_ENV_KEY = 'CONCIV_TESTKIT_FIXTURE_VALUE'
+
 nodeTest.override({
-  engineOptions: {id: 'node-fixture', text: NODE_FIXTURE_REPLY, files: {'conciv/plugins/echo.js': ECHO_PLUGIN}},
+  engineOptions: {
+    id: 'node-fixture',
+    text: NODE_FIXTURE_REPLY,
+    files: {'conciv/plugins/echo.js': ECHO_PLUGIN, 'conciv/plugins/config-reader.js': CONFIG_PLUGIN},
+  },
 })
 
 describe('node fixtures', () => {
@@ -593,6 +619,12 @@ describe('node fixtures', () => {
       expect((await after.hydrate(kept)).messages.flatMap((message) => message.parts)).toContainEqual(
         expect.objectContaining({type: 'text', content: 'kept across the restart'}),
       )
+
+      const configured = await freshEngine({env: {[FIXTURE_ENV_KEY]: 'from the engine config'}})
+      expect(await configured.callTool('read_config', {name: FIXTURE_ENV_KEY}, await configured.session())).toBe(
+        'from the engine config',
+      )
+      expect(process.env[FIXTURE_ENV_KEY]).toBeUndefined()
     },
   )
 })
