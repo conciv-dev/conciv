@@ -116,11 +116,12 @@ export function makeAppData(
       (save) =>
         statuses.includes(save.status) && DraftSessionSchema.safeParse(save.variables).data?.sessionId === sessionId,
     )
+  const reading = new AbortController()
   queryClient.setMutationDefaults<unknown, Error, DraftSave>(utils.drafts.set.mutationKey(), {
     retry: retriableDraftSave,
     gcTime: Infinity,
     mutationFn: async (input) => {
-      if (lockedOut()) return null
+      if (lockedOut() || reading.signal.aborted) return null
       const row = DraftRowSchema.parse(input)
       const held = queryClient.getQueryData(draftQuery(row.sessionId).queryKey)
       if (!held || held.updatedAt !== row.updatedAt) return null
@@ -146,6 +147,7 @@ export function makeAppData(
       queryClient.invalidateQueries({queryKey: draftQuery(input.sessionId).queryKey}),
   })
   const saveDraft = (save: DraftSave): Promise<boolean> => {
+    if (reading.signal.aborted) return Promise.resolve(false)
     const observer = new QueryMutationObserver<unknown, Error, DraftSave>(queryClient, {
       mutationKey: utils.drafts.set.mutationKey(),
       scope: {id: save.sessionId},
@@ -220,7 +222,6 @@ export function makeAppData(
       console.error('[conciv] could not empty the local draft store', error)
     })
   }
-  const reading = new AbortController()
   const forgetDeletedSessions = async () => {
     for await (const event of client.event.subscribe({signal: reading.signal})) {
       if (event.type !== 'session.deleted') continue

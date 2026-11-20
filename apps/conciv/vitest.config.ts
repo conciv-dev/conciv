@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url'
 import {configDefaults, defineConfig, type TestProjectInlineConfiguration} from 'vitest/config'
 import {coreCommands} from './test/commands/core-control.js'
 import {playwright} from '@vitest/browser-playwright'
@@ -97,6 +98,7 @@ export default defineConfig({
         test: {
           ...ciTestDom(),
           name: 'dom',
+          environment: fileURLToPath(import.meta.resolve('@conciv/plugin-testkit/dom-environment')),
           server: {deps: {inline: [BUILT_PACKAGE]}},
         },
       },

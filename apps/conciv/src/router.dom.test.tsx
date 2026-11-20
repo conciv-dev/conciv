@@ -1,9 +1,13 @@
 import {describe, expect, test, vi} from 'vitest'
 import {createMemoryHistory} from '@tanstack/solid-router'
+import {render, screen} from '@solidjs/testing-library'
+import userEvent from '@testing-library/user-event'
 import {makeRpcClient} from '@conciv/contract'
+import {test as engineTest} from '@conciv/plugin-testkit/browser'
 import {declareExpectedLog} from '@conciv/vitest-config/expected-log'
 import {createConcivRouter, disposeConcivRouter} from './router'
 import {parseConcivSettings} from './data/settings'
+import {ConcivApp, type Platform} from './index'
 
 type Timings = Parameters<typeof createConcivRouter>[0]['timings']
 
@@ -77,6 +81,34 @@ describe('the router query retry delay', () => {
       await clock.advance(7)
       expect(tries.count).toBe(2)
       expect(await fetched).toBe('failed')
+    },
+  )
+})
+
+const withEngine = engineTest.extend<{clock: Clock}>({clock: fakeClock})
+
+describe('the app torn down with a draft still to save', () => {
+  withEngine(
+    'a user types a draft and closes the app, and nothing reports a failed save',
+    async ({engine, clock, task}) => {
+      declareExpectedLog(task, /drafts stay engine-only/)
+      await engine.call({kind: 'session'})
+      const platform: Platform = {
+        engine: () => ({kind: 'bound', apiBase: engine.apiBase, token: () => Promise.resolve(engine.token)}),
+        navigation: {memory: '/'},
+        root: document,
+      }
+      const user = userEvent.setup()
+      const app = render(() => <ConcivApp platform={platform} />)
+      await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
+      const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+      await user.type(composer, 'a draft typed before close')
+      expect(composer).toHaveFocus()
+      expect(composer).toHaveTextContent('a draft typed before close')
+      clock.freeze()
+      app.unmount()
+      expect(screen.queryByRole('textbox', {name: 'Message the conciv agent'})).not.toBeInTheDocument()
+      await clock.runOut()
     },
   )
 })
