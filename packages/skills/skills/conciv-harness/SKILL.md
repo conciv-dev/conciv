@@ -117,20 +117,25 @@ HarnessChatConfig` — no async, no side effects at call time. Its `adapter` com
 typed wrappers over the published `@tanstack/ai-*` adapters); if none exists for your CLI, build one
 with `makeTextAdapter(name, stream)` from `packages/ai/src/adapters/adapters.ts`, where `stream` is your own
 `AsyncIterable<ChatEvent>` producer. Harness code never imports `@tanstack/ai*` directly. Prefer **declaring** the launch command and letting the adapter
-run it, the way `acpChatConfig` hands `acp` a `command` builder and
-`permissions: 'interactive'` (`packages/harness/src/_shared/acp.ts:4-13`): everything launched that way
+run it, the way `acpChatConfig` hands `acp` a `command` builder and an
+`onPermissionRequest` callback (`packages/harness/src/gemini-cli/index.ts:53-62`): everything launched that way
 runs under `withSandbox`'s lifecycle. Reaching for `node:child_process` inside your `stream` steps
 outside the sandbox and its abort handling (see the sandbox-virtual workdir section below).
 
 Canonical call site — codex, which needs no message prep:
 
 ```ts
-const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: codexAdapter(deps.model ?? 'gpt-5.5', {
+export function codexRunAdapter(deps: HarnessChatDeps, toolCount: number): TextAdapter {
+  return codexAdapter(deps.model ?? codexDefaultModel(codexHome(deps.env)), {
     sandboxMode: 'workspace-write',
     approvalPolicy: 'never',
+    config: {...(toolCount > 0 ? approveTanstackToolsConfig : {}), ...effortConfig(deps.effort)},
     env: definedEntries(deps.env),
-  }),
+  })
+}
+
+const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
+  adapter: codexTurnAdapter(deps),
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
 })
 ```
@@ -138,9 +143,9 @@ const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
 The tools a turn offers can change between model steps, so `deps` carries no tool flag. A CLI that must
 know whether tools ride a step reads that step's `options.tools` inside `chatStream`, the way codex builds
 its run adapter per step and auto-approves its tanstack MCP server only when that step offers tools
-(`packages/harness/src/codex/run-adapter.ts`).
+(`codexTurnAdapter`, `packages/harness/src/codex/index.ts:43-52`).
 
-(`packages/harness/src/codex/index.ts:11-19`.) `deps.env` is `Record<string, string | undefined>`
+(`packages/harness/src/codex/index.ts:20-27`, `:54-57`.) `deps.env` is `Record<string, string | undefined>`
 (it's `process.env`-shaped); most `@tanstack/ai-*` adapters want `Record<string, string>`, so run it
 through `definedEntries` (`packages/harness/src/_shared/env.ts:1-3`) to drop the `undefined` values
 rather than casting.
@@ -275,7 +280,7 @@ with different rooting rules.
   `conciv-hub` MCP server, `conciv mcp serve --agent <harness>` from `@conciv/cli` (`packages/cli/src/hub.ts`),
   which the user installs from the composer's "Connect agents" menu, `conciv mcp connect <harness>` or
   `conciv init`. That install argv lives on the harness's init contribution in `@conciv/harness-init` as
-  `hub: {name, shellEnv, add(command, env): string[], remove?: string[]}` (`packages/harness-init/src/codex.ts`),
+  `hub: {name, shellEnv, add(command, env): string[], remove?: string[]}` (`packages/harness-init/src/registry.ts:50-68`),
   not on the `HarnessAdapter`; `shellEnv` is the variable the CLI sets in its shell tool's env, so `conciv tools`
   run from that agent names it. A harness with no MCP support (pi) omits `hub`.
 - **`commands?: HarnessCommands`** — `(ctx: HarnessCommandsContext) => Promise<HarnessCommand[]>`
@@ -346,7 +351,7 @@ fit in this file's budget.
 - `packages/harness/src/_shared/contract.ts`
 - `packages/harness/src/registry.ts`
 - `packages/harness/src/codex/index.ts`
-- `packages/harness-init/src/codex.ts`
+- `packages/harness-init/src/registry.ts`
 - `packages/cli/src/hub.ts`
 - `packages/harness/src/codex/history.ts`
 - `packages/harness/src/claude/index.ts`
@@ -356,7 +361,7 @@ fit in this file's budget.
 - `packages/ai/src/adapters/adapters.ts`
 - `packages/harness/src/_shared/text-adapter.ts`
 - `packages/harness/src/_shared/env.ts`
-- `packages/harness/src/_shared/acp.ts`
+- `packages/harness/src/gemini-cli/index.ts`
 - `packages/harness/src/_shared/jsonl-handle.ts`
 - `packages/harness/src/_shared/contained-path.ts`
 - `packages/ai/src/server/chat-server.ts`

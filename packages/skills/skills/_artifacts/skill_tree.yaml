@@ -90,7 +90,7 @@ skills:
       - 'conciv-dev/conciv:packages/plugin-host/src/core/permission.ts'
       - 'conciv-dev/conciv:packages/chat/src/turn.ts'
       - 'conciv-dev/conciv:packages/chat/src/code-mode.ts'
-      - 'conciv-dev/conciv:packages/core/src/sessions/session-bus.ts'
+      - 'conciv-dev/conciv:packages/core/src/runtime/primitives.ts'
       - 'conciv-dev/conciv:packages/core/src/start.ts'
       - 'conciv-dev/conciv:packages/core/src/lib/cors.ts'
       - 'conciv-dev/conciv:packages/core/src/app.ts'

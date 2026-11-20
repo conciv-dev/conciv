@@ -188,7 +188,7 @@ skills:
           await page.waitForLoadState('networkidle')
         correct_pattern: |
           await page.waitForLoadState('domcontentloaded')
-        source: 'packages/core/src/sessions/session-bus.ts'
+        source: 'packages/core/src/runtime/primitives.ts'
         priority: 'HIGH'
         status: 'active'
         skills: ['conciv-debug']

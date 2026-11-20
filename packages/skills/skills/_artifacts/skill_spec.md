@@ -51,7 +51,7 @@ runtime once it's live.
 | #   | Mistake                                                          | Priority | Source                                          | Cross-skill? |
 | --- | ---------------------------------------------------------------- | -------- | ----------------------------------------------- | ------------ |
 | 1   | treating every permission refusal as a user denial               | MEDIUM   | `packages/core/src/runtime/permission-cards.ts` | none         |
-| 2   | using Playwright networkidle against a page with the live widget | HIGH     | `packages/core/src/sessions/session-bus.ts`     | none         |
+| 2   | using Playwright networkidle against a page with the live widget | HIGH     | `packages/core/src/runtime/primitives.ts`       | none         |
 
 ## Tensions
 

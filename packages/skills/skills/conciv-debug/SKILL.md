@@ -78,7 +78,7 @@ user, not hung.
   `packages/harness/src/claude/ask-rules.ts`, so its classifier decides. What it escalates reaches
   conciv's tool bridge as a permission prompt (`answerPrompt`,
   `packages/ai/src/server/image-tool-results.ts:41-51`); an ACP CLI (Gemini) asks through
-  `onPermissionRequest` (`packages/harness/src/_shared/acp.ts:41-58`). Both land in `askForHarness`
+  `onPermissionRequest` (`askPermission`, `packages/harness/src/gemini-cli/index.ts:41-51`, wired at `:58`). Both land in `askForHarness`
   (`packages/core/src/runtime/permission-cards.ts:249-272`), which calls `permission.assert` and waits
   on the card: allow lets the CLI run the command, reject answers the CLI with
   `The user rejected <action> <resources>.` Conciv keeps no allow, ask or deny list of its own; a
@@ -106,7 +106,7 @@ user, not hung.
   (`packages/core/src/runtime/permission-cards.ts:274-292`). `decidePermissionCard` drops a `gone` card
   and returns `false` for anything but `replied`
   (`packages/core/src/runtime/permission-cards.ts:312-319`), and the RPC turns that into
-  `UNKNOWN_REQUEST` (`packages/core/src/api/rpc/chat.ts:28-39`), so a second click on an answered card
+  `UNKNOWN_REQUEST` (`packages/core/src/api/rpc/router.ts:64-74`), so a second click on an answered card
   surfaces as "no pending approval", not silence.
 - **A card lives exactly as long as its ask.** Pending cards are read from the permission service's
   pending list (`pendingPermissionCards`, `packages/core/src/runtime/permission-cards.ts:212-218`),
@@ -135,9 +135,9 @@ rather than one subscribe call:
   drains into its durable log on its own, so an aborted stream never stops it, and a resend of a known
   run id or a `chat.join` with a resume offset REPLAYS the run from its durable log instead of starting
   one, which is how a reload rejoins a run already in flight.
-- **Out-of-band session events** ride the `chat.events` iterator, which is the session bus's `events`
-  generator and lives until its `AbortSignal` fires
-  (`packages/core/src/sessions/session-bus.ts:24-46`).
+- **Out-of-band session events** ride the `chat.events` iterator: the session scope yields a catch-up and
+  then the session bus's `events` generator (`packages/core/src/runtime/core-runtime.ts:57`), which lives
+  until its `AbortSignal` fires (`packages/core/src/runtime/primitives.ts:23-44`).
 
 Two consequences:
 
@@ -149,7 +149,7 @@ Two consequences:
   forever").
 - **A held-open browser context/page from a previous test run** keeps its subscription alive
   server-side: a bus listener is released only on abort or in the generator's `finally`
-  (`packages/core/src/sessions/session-bus.ts:24-46`). Always `unmount()`/close the page, don't just
+  (`packages/core/src/runtime/primitives.ts:23-44`). Always `unmount()`/close the page, don't just
   navigate away.
 
 ## Red flags: stop and check the mechanism, not the symptom
@@ -180,8 +180,10 @@ Two consequences:
 - `packages/chat/src/code-mode.ts`
 - `packages/chat/src/index.ts`
 - `packages/chat/src/turn.ts`
-- `packages/core/src/sessions/session-bus.ts`
-- `packages/core/src/api/rpc/chat.ts`
+- `packages/core/src/runtime/primitives.ts`
+- `packages/core/src/runtime/core-runtime.ts`
+- `packages/core/src/api/rpc/router.ts`
+- `packages/harness/src/gemini-cli/index.ts`
 - `packages/contract/src/contract.ts`
 - `packages/protocol/src/event-bus.ts`
 - `packages/core/src/start.ts`

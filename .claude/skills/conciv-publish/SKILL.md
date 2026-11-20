@@ -47,7 +47,7 @@ The release PR opens only when gates are green, both halves of the phone smoke g
 
 ### Phone smoke gate (blocking)
 
-0.0.16 shipped with every component check green and was broken on a real phone: the chat did not scroll, the panel sheet was transparent, and the composer overflowed its container. The package-level suites now cover sheet opacity at phone size but still not scrolling or a wrapped draft, so component-green is not release-green. This gate exists so that cannot recur.
+0.0.16 shipped with every component check green and was broken on a real phone: the chat did not scroll, the panel sheet was transparent, and the composer overflowed its container. The package-level suites cover none of those three at phone size, so component-green is not release-green. This gate exists so that cannot recur.
 
 Build the embed first, because both halves load the prebuilt bundle:
 
@@ -57,18 +57,16 @@ pnpm turbo run build --filter=@conciv/embed
 
 The gate has two halves and different owners. The automated half runs inside the `phone-smoke` verifier during the fan-out. The simulator half CANNOT: a subagent cannot suspend the conversation to ask the user and wait, so a verifier that owned it would always return UNVERIFIED and the gate could never go green. The simulator half is therefore an orchestrator step in the main conversation, after the fan-out returns and before the release PR opens. Neither half alone clears the gate.
 
-**Automated half (verifier, always run, no simulator needed).** What exists TODAY is the `embed at a phone viewport` describe block in `packages/embed/test/embed.it.test.ts`, three ITs against the built bundle:
+**Automated half (verifier, always run, no simulator needed).** What exists TODAY is the `embed at a phone viewport` describe block in `packages/embed/test/e2e/embed.it.test.ts`, one IT against the built bundle:
 
-- `paints an opaque sheet so the host page never shows through`: at 393x800 it opens the panel over fixture-owned striped backdrops (`?backdrop=light-stripes` and `?backdrop=dark-stripes`) and screenshots the sheet interior with `{animations: 'disabled', clip: SHEET_INTERIOR_CLIP}`. Inverting the backdrop must not change a single pixel, and a same-backdrop repeat is the determinism control. That check is COVERED.
-- `opens as a full-screen sheet with the launcher hidden and the composer reachable`: at 393x800 the launcher disappears while the sheet is open, a message round-trips, and closing restores the launcher.
-- `keeps Stop and Send inside the sheet on a narrow phone while a run streams`: at 320x800 Stop, Send, and Select model each stay fully inside the viewport (`toBeInViewport({ratio: 1})`).
+- `opens as a full-screen sheet with the launcher hidden and the composer reachable`: at 393x800 (`PHONE_VIEWPORT`) the launcher disappears while the sheet is open, a message round-trips, and closing restores the launcher.
 
-Beyond opacity that is viewport-fit and open/close behavior only. Nothing asserts the transcript scrolls, and nothing exercises a wrapped multi-line draft, so a green run is not evidence for those two checks. Two named gaps must be WRITTEN as part of this release, in the same describe block:
+That is open/close behavior only. Nothing asserts the sheet is opaque, nothing asserts the transcript scrolls, and nothing exercises a wrapped multi-line draft, so a green run is not evidence for those three checks. Two named gaps must be WRITTEN as part of this release, in the same describe block:
 
 - `scrolls the transcript to the latest turn on a phone`: a screenshot after a long turn showing the newest message at the bottom edge.
 - `keeps a multi-line draft inside the composer on a phone`: a screenshot with a wrapped draft, proving no overflow past the sheet.
 
-Assert both as screenshots, never `getBoundingClientRect` or `scrollHeight`, per the no-DOM-measurement rule. The opacity IT is the pattern to copy: clip a region, vary only the thing under test, and compare buffers.
+Assert both as screenshots, never `getBoundingClientRect` or `scrollHeight`, per the no-DOM-measurement rule. The pattern: clip a region, vary only the thing under test, and compare buffers.
 
 **Simulator half (ORCHESTRATOR step, never a verifier).** WKWebView, the native bridge, and `pick` returning a real element only exist on-device. Run this in the main conversation once the fan-out has returned and before the release PR opens.
 
