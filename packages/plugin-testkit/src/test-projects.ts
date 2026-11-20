@@ -3,6 +3,7 @@ import {dirname, join} from 'node:path'
 import type {Plugin} from 'vite'
 import {configDefaults, type TestProjectInlineConfiguration} from 'vitest/config'
 import type {BrowserCommandContext} from 'vitest/node'
+import type {Page} from 'playwright'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 import {playwright} from '@vitest/browser-playwright'
@@ -15,7 +16,7 @@ import {
 } from '@conciv/vitest-config'
 import {startEngine, type EngineSession, type StartedEngine} from './engine.js'
 import {disposeAll} from './dispose.js'
-import type {EngineCommands} from './browser-commands.js'
+import type {EngineCommands, PageCommands} from './browser-commands.js'
 
 type EngineCommandHandlers = {
   [Name in keyof EngineCommands]: (
@@ -132,6 +133,35 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
   }
 }
 
+type PageCommandHandlers = {
+  [Name in keyof PageCommands]: (context: BrowserCommandContext) => ReturnType<PageCommands[Name]>
+}
+
+type PageWatch = {page: Page; errors: string[]}
+
+function pageErrorCommands(): PageCommandHandlers {
+  const watches: Record<string, PageWatch> = {}
+  return {
+    concivWatchPage: async ({sessionId, page}) => {
+      const watched = watches[sessionId]
+      if (watched?.page === page) {
+        watched.errors.splice(0)
+        return
+      }
+      const watch: PageWatch = {page, errors: []}
+      watches[sessionId] = watch
+      page.on('console', (message) => {
+        if (message.type() === 'error') watch.errors.push(message.text())
+      })
+      page.on('pageerror', (error) => watch.errors.push(error.message))
+    },
+    concivPageErrors: async ({sessionId, page}) => {
+      await page.evaluate(() => undefined)
+      return [...(watches[sessionId]?.errors ?? [])]
+    },
+  }
+}
+
 export function testProjects(): TestProjectInlineConfiguration[] {
   const uno = appUnoConfig()
   const engines = browserEngines()
@@ -182,7 +212,7 @@ export function testProjects(): TestProjectInlineConfiguration[] {
           headless: true,
           provider: playwright(),
           instances: [{browser: 'chromium'}],
-          commands: engines.commands,
+          commands: {...engines.commands, ...pageErrorCommands()},
         },
       },
     },

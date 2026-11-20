@@ -14,8 +14,13 @@ export type EngineCommands = {
   concivToolFailure: (engineId: string, sessionId: string, name: string, input: unknown) => Promise<ToolFailure>
 }
 
+export type PageCommands = {
+  concivWatchPage: () => Promise<void>
+  concivPageErrors: () => Promise<string[]>
+}
+
 declare module 'vitest/browser' {
-  interface BrowserCommands extends EngineCommands {}
+  interface BrowserCommands extends EngineCommands, PageCommands {}
 }
 
 declare module 'vitest' {

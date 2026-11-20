@@ -4,6 +4,12 @@ import {cleanup, render, screen} from '@solidjs/testing-library'
 import {ConcivApp, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
 import type {Engine, EngineAddress} from './engine.js'
 
+declare module 'vitest' {
+  interface TestContext {
+    pageErrors: () => Promise<string[]>
+  }
+}
+
 export type MountOptions = {
   engine: Engine
   seed?: {storage?: Record<string, unknown>}
