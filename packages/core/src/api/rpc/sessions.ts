@@ -33,7 +33,7 @@ import {
   switchRowHarness,
   type NativePage,
 } from '../../sessions/session-rows.js'
-import {logError} from '../../lib/debug.js'
+import type {Log} from '../../lib/logging.js'
 import {createChatSession, deleteSession, renameSession} from '../../sessions/session-actions.js'
 import type {createSessionSearch} from '../../sessions/session-search.js'
 import {os, type ChatContext, type RpcDeps} from './mount.js'
@@ -48,8 +48,11 @@ async function loadNativePage(
   try {
     return {harnessKind: harness.id, page: await history.list({cwd: chat.cwd}, page)}
   } catch (error) {
-    logError(
-      `[core] listing the ${harness.id} native sessions failed, its sessions list from their rows: ${String(error)}`,
+    chat.log(
+      Effect.logError('[core] listing the native sessions failed, its sessions list from their rows', {
+        harness: harness.id,
+        error,
+      }),
     )
     return null
   }
@@ -62,7 +65,7 @@ async function loadNativeMeta(chat: ChatContext, row: SessionRecord): Promise<Ha
   try {
     return (await history.meta(chat.cwd, nativeId)) ?? undefined
   } catch (error) {
-    logError(`[core] reading the ${row.harnessKind} native session ${nativeId} failed: ${String(error)}`)
+    chat.log(Effect.logError('[core] reading a native session failed', {harness: row.harnessKind, nativeId, error}))
     return undefined
   }
 }
@@ -81,7 +84,7 @@ async function loadTranscriptTail(
     return await history.tail(cwd, nativeId, options)
   } catch (error) {
     if (options.signal?.aborted) throw error
-    logError(`[core] previewing the ${harnessKind} native session ${nativeId} failed: ${String(error)}`)
+    chat.log(Effect.logError('[core] previewing a native session failed', {harness: harnessKind, nativeId, error}))
     return null
   }
 }
@@ -117,6 +120,7 @@ async function sessionPage(
     search,
     running: await chat.plane.running(),
     includeHidden: input.includeHidden ?? false,
+    log: chat.log,
   })
   const counted = uniqBy([...returned, ...listed.sessions], (session) => session.id)
   if (counted.length >= input.limit || listed.next === null) return {sessions: counted, next: listed.next}
@@ -149,7 +153,11 @@ export function buildHarnessMeta(harness: HarnessAdapter): HarnessMeta {
   }
 }
 
-export async function buildHarnessMenuEntry(harness: HarnessAdapter, signal: AbortSignal): Promise<HarnessMenuEntry> {
+export async function buildHarnessMenuEntry(
+  harness: HarnessAdapter,
+  signal: AbortSignal,
+  log: Log,
+): Promise<HarnessMenuEntry> {
   try {
     const models = await resolveHarnessModels(harness, {signal})
     return {
@@ -159,7 +167,7 @@ export async function buildHarnessMenuEntry(harness: HarnessAdapter, signal: Abo
       modelsFailed: false,
     }
   } catch (error) {
-    if (!signal.aborted) logError(`[core] listing the ${harness.id} models failed: ${String(error)}`)
+    if (!signal.aborted) log(Effect.logError('[core] listing the models failed', {harness: harness.id, error}))
     return {...buildHarnessMeta(harness), models: [], defaultModel: harness.defaultModel ?? null, modelsFailed: true}
   }
 }

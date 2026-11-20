@@ -4,6 +4,8 @@ import {z} from 'zod'
 import type {SessionMeta} from '@conciv/contract'
 import type {SessionId, TabOpen, Tabs} from '@conciv/protocol/chat-types'
 import type {State} from '@conciv/plugin-page/rpc'
+import {Effect} from 'effect'
+import type {Log} from '../lib/logging.js'
 
 type TabsDeps = {
   attachedSessions: () => Promise<SessionId[]>
@@ -11,6 +13,7 @@ type TabsDeps = {
   session: (sessionId: SessionId) => Promise<SessionMeta | null>
   root: string
   instructions: string
+  log: Log
 }
 
 type BrowserTab = Tabs['tabs'][number]['browserTabs'][number]
@@ -50,8 +53,8 @@ async function listTabs(deps: TabsDeps): Promise<Tabs> {
   const [metas, pages, name, branch] = await Promise.all([
     Promise.all(open.map((sessionId) => deps.session(sessionId))),
     Promise.all(open.map((sessionId) => pageBrowserTabs(deps, sessionId))),
-    projectName(deps.root),
-    gitBranch(deps.root),
+    projectName(deps.root, deps.log),
+    gitBranch(deps.root, deps.log),
   ])
   const tabs = open.flatMap((sessionId, index) => {
     const meta = metas[index]
@@ -82,17 +85,17 @@ async function pageBrowserTabs(deps: TabsDeps, sessionId: SessionId): Promise<Br
   }))
 }
 
-function readText(path: string): Promise<string | null> {
+function readText(path: string, log: Log): Promise<string | null> {
   return readFile(path, 'utf8').catch((error: unknown) => {
     if (!AbsentFileSchema.safeParse(error).success) {
-      console.warn(`conciv: reading ${path} failed; the tab listing leaves it out`, error)
+      log(Effect.logWarning('[core] reading a file failed; the tab listing leaves it out', {path, error}))
     }
     return null
   })
 }
 
-async function projectName(root: string): Promise<string | null> {
-  const text = await readText(join(root, 'package.json'))
+async function projectName(root: string, log: Log): Promise<string | null> {
+  const text = await readText(join(root, 'package.json'), log)
   if (text === null) return null
   try {
     const parsed = PackageNameSchema.safeParse(JSON.parse(text))
@@ -103,15 +106,15 @@ async function projectName(root: string): Promise<string | null> {
   }
 }
 
-async function gitBranch(directory: string): Promise<string | null> {
-  const head = (await readText(join(directory, '.git', 'HEAD'))) ?? (await worktreeHead(directory))
+async function gitBranch(directory: string, log: Log): Promise<string | null> {
+  const head = (await readText(join(directory, '.git', 'HEAD'), log)) ?? (await worktreeHead(directory, log))
   if (head !== null) return BranchSchema.safeParse(head).data ?? null
   const parent = dirname(directory)
-  return parent === directory ? null : gitBranch(parent)
+  return parent === directory ? null : gitBranch(parent, log)
 }
 
-async function worktreeHead(root: string): Promise<string | null> {
-  const gitdir = GitdirSchema.safeParse(await readText(join(root, '.git')))
+async function worktreeHead(root: string, log: Log): Promise<string | null> {
+  const gitdir = GitdirSchema.safeParse(await readText(join(root, '.git'), log))
   if (!gitdir.success) return null
-  return readText(join(resolve(root, gitdir.data), 'HEAD'))
+  return readText(join(resolve(root, gitdir.data), 'HEAD'), log)
 }

@@ -34,7 +34,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       permissions: [],
     }
     const {fetch, dispose, agentToken, awaitActivation} = await makeApp({
-      print: env.print,
+      log: {emit: (entry) => env.print(entry.message)},
       cfg,
       cwd: env.cwd,
       openInEditor: () => {},

@@ -4,7 +4,8 @@ import {generateMessageId, type OutsideCallMetadataSchema} from '@conciv/protoco
 import {ChatEventType, toolTimeEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CONCIV_CLIENT_HEADER, CONCIV_NAMED_TAB_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
 import {safeStringify} from '@conciv/contract'
-import {logError} from '../lib/debug.js'
+import {Effect} from 'effect'
+import type {Log} from '../lib/logging.js'
 
 const HubOriginSchema = z.object({
   origin: z.enum(['hub']).optional().catch(undefined),
@@ -22,6 +23,7 @@ type MirrorSink = {
   publish: (chunk: ChatEvent) => void
   record: (chunks: readonly ChatEvent[]) => Promise<void>
   driving: () => boolean
+  log: Log
 }
 
 export function callTrace(header: (name: string) => string | null) {
@@ -55,7 +57,9 @@ function mirrorRun(run: CallRun, outside: boolean, sink: MirrorSink) {
   const save = (): Promise<void> =>
     sink
       .record(recorded.splice(0))
-      .catch((error: unknown) => logError(`[hub] saving an outside call to the chat failed: ${String(error)}`))
+      .catch((error: unknown) =>
+        sink.log(Effect.logError('[hub] saving an outside call to the chat failed', {threadId: run.threadId, error})),
+      )
   return {
     publish: (chunks: readonly ChatEvent[]): void => {
       if (kept) recorded.push(...chunks)

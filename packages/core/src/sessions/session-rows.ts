@@ -44,7 +44,7 @@ import type {
 import {anchorKey, chatMetadata, chatRuns, drafts, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
-import {logError} from '../lib/debug.js'
+import type {Log} from '../lib/logging.js'
 
 export type RowScope = {
   db: ConcivDb
@@ -430,6 +430,7 @@ export type SessionListInput = MetaContext & {
   page: HarnessListPage
   includeHidden: boolean
   search: string | null
+  log: Log
 }
 
 type NativeSession = {harnessKind: string; meta: HarnessSessionMeta; found: Found}
@@ -520,7 +521,7 @@ async function concivOnlyEntries(input: SessionListInput): Promise<PageEntry[]> 
       .orderBy(desc(sessions.updatedAt), desc(sessions.id))
       .limit(input.page.limit + 1),
   )
-  return rowsInCwd(rows, input.cwd).map((row) => ({
+  return rowsInCwd(rows, input.cwd, input.log).map((row) => ({
     kind: 'row',
     row,
     cursor: {updatedAt: row.updatedAt, id: row.id},
@@ -584,7 +585,7 @@ async function currentOwners(input: SessionListInput, natives: NativeSession[]):
       ),
   )
   return new Map(
-    validRows(SessionRecordSchema, rows.map(withReadablePermissions), 'a session row')
+    validRows(SessionRecordSchema, rows.map(withReadablePermissions), 'a session row', input.log)
       .filter((row): row is SessionRecord & {harnessSessionId: HarnessSessionId} => row.harnessSessionId !== null)
       .map((row) => [nativeKey(row.harnessKind, row.harnessSessionId), row] as const)
       .filter(([key, row]) => sameCwd(row.cwd, homes[key] ?? input.cwd)),
@@ -609,7 +610,7 @@ async function earlierOwners(input: SessionListInput, natives: NativeSession[]):
       )}`,
     ),
   )
-  const claims = validRows(EarlierOwnerSchema, found, 'an earlier native session claim').filter((claim) =>
+  const claims = validRows(EarlierOwnerSchema, found, 'an earlier native session claim', input.log).filter((claim) =>
     wanted.has(nativeKey(claim.harnessKind, claim.nativeId)),
   )
   if (claims.length === 0) return new Map()
@@ -624,7 +625,7 @@ async function earlierOwners(input: SessionListInput, natives: NativeSession[]):
         ),
       ),
   )
-  const owners = validRows(SessionRecordSchema, ownerRows.map(withReadablePermissions), 'a session row')
+  const owners = validRows(SessionRecordSchema, ownerRows.map(withReadablePermissions), 'a session row', input.log)
   const homes = resolveHomes(natives, input)
   const ownerById = keyBy(owners, (owner) => owner.id)
   const owned = claims
@@ -678,18 +679,20 @@ function resolveHomes(natives: NativeSession[], input: SessionListInput): Record
   return mapValues(keyBy(natives, buildNativeKey), (native) => resolveHome(native, input))
 }
 
-function rowsInCwd(rows: StoredSessionRow[], cwd: string): SessionRecord[] {
-  return validRows(SessionRecordSchema, rows.map(withReadablePermissions), 'a session row').filter((row) =>
+function rowsInCwd(rows: StoredSessionRow[], cwd: string, log: Log): SessionRecord[] {
+  return validRows(SessionRecordSchema, rows.map(withReadablePermissions), 'a session row', log).filter((row) =>
     sameCwd(row.cwd, cwd),
   )
 }
 
-function validRows<T>(schema: z.ZodType<T>, rows: unknown[], what: string): T[] {
+function validRows<T>(schema: z.ZodType<T>, rows: unknown[], what: string, log: Log): T[] {
   return rows
     .map((row) => schema.safeParse(row))
     .filter((parsed) => {
       if (!parsed.success)
-        logError(`[core] ${what} failed its schema and is left out of the listing: ${parsed.error.message}`)
+        log(
+          Effect.logError('[core] a row failed its schema and is left out of the listing', {what, error: parsed.error}),
+        )
       return parsed.success
     })
     .map((parsed) => parsed.data)

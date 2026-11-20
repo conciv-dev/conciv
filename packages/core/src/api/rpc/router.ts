@@ -259,6 +259,7 @@ async function hubTraced<Result>(
     publish: scope.stream.publish,
     record: scope.run.record,
     driving: () => deps.code.driving(scope.id),
+    log: deps.code.log,
   })
   mirror.publish(trace.start(mirrored, name, input))
   try {
@@ -639,7 +640,9 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         }
       }),
       harnesses: os.meta.harnesses.handler(async () => ({
-        harnesses: await Promise.all(chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, chat.signal))),
+        harnesses: await Promise.all(
+          chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, chat.signal, chat.log)),
+        ),
         defaultHarness: chat.defaultHarness.id,
       })),
       commands: os.meta.commands.handler(({input, context}) =>

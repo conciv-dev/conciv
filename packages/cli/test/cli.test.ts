@@ -995,7 +995,7 @@ describe('cli', () => {
         options: {stateRoot: project.root, systemPrompt: false},
         root: project.root,
         launchEditor: () => {},
-        print: (text) => printed.push(text),
+        log: {emit: (entry) => printed.push(entry.message)},
       })
       try {
         const origin = `http://127.0.0.1:${engine.port}`

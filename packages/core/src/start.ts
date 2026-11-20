@@ -1,5 +1,4 @@
 import {randomUUID} from 'node:crypto'
-import {inspect} from 'node:util'
 import {serveHono, type ServeFetch} from '@conciv/serve'
 import {checkEngines, registerEngine, retireEngine, withHomeDb, type EngineRow} from '@conciv/db'
 import {type ConfigProvider, Effect} from 'effect'
@@ -8,6 +7,7 @@ import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
+import {logBeforeRuntime, logOnRuntime, type Log, type LogEntry, type LogOptions} from './lib/logging.js'
 import {agentPath} from './engine-login.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
@@ -96,7 +96,6 @@ export type StartOpts = {
   accessToken?: string
   onClientRequest?: () => void
   onShutdown?: () => void
-  print?: (text: string) => void
 
   harness?: HarnessAdapter
   plugins?: readonly Plugin.Plugin[]
@@ -104,6 +103,7 @@ export type StartOpts = {
   devEndpointDir?: string
   homeDir?: string
   configProvider?: ConfigProvider.ConfigProvider
+  log?: LogOptions
 }
 
 export type Engine = {
@@ -113,6 +113,8 @@ export type Engine = {
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
 }
+
+export type {LogEntry, LogOptions}
 
 type Served = Awaited<ReturnType<typeof serveHono>>
 type FetchHandler = ServeFetch
@@ -150,12 +152,14 @@ async function servePersistedPort(fetchHandler: FetchHandler, stateFile: string)
   return serveHono({fetch: fetchHandler, port: 0})
 }
 
-async function servePreferredPort(fetchHandler: FetchHandler, preferred: number): Promise<Served> {
+async function servePreferredPort(fetchHandler: FetchHandler, preferred: number, log: Log): Promise<Served> {
   const reserved = await reservePort(fetchHandler, preferred)
   if (reserved) return reserved
   const serving = await serveHono({fetch: fetchHandler, port: 0})
-  console.warn(
-    `conciv: port ${preferred} is already in use, the engine is listening on http://127.0.0.1:${serving.port} instead`,
+  log(
+    Effect.logWarning(
+      `conciv: port ${preferred} is already in use, the engine is listening on http://127.0.0.1:${serving.port} instead`,
+    ).pipe(Effect.annotateLogs({preferred, port: serving.port, url: `http://127.0.0.1:${serving.port}`})),
   )
   return serving
 }
@@ -164,29 +168,31 @@ function serveRequestedPort(
   fetchHandler: FetchHandler,
   request: PortRequest | undefined,
   stateFile: string,
+  log: Log,
 ): Promise<Served> {
   if (request === undefined) return servePersistedPort(fetchHandler, stateFile)
   if ('exact' in request) return serveHono({fetch: fetchHandler, port: request.exact})
-  return servePreferredPort(fetchHandler, request.preferred)
+  return servePreferredPort(fetchHandler, request.preferred, log)
 }
 
 async function servePort(
   fetchHandler: FetchHandler,
   request: PortRequest | undefined,
   state: {file: string; token: string},
+  log: Log,
 ): Promise<Served & {restoreRecord: ShutdownStep}> {
-  const serving = await serveRequestedPort(fetchHandler, request, state.file)
+  const serving = await serveRequestedPort(fetchHandler, request, state.file, log)
   try {
     return {...serving, restoreRecord: writePersistedPort(state.file, {port: serving.port, token: state.token})}
   } catch (error) {
-    await cleanupAfterFailedStart([serving.close])
+    await cleanupAfterFailedStart([serving.close], log)
     throw error
   }
 }
 
-function cleanupAfterFailedStart(steps: readonly ShutdownStep[]): Promise<void> {
+function cleanupAfterFailedStart(steps: readonly ShutdownStep[], log: Log): Promise<void> {
   return runInOrder(steps, 'conciv: stopping the engine failed').catch((failure: unknown) =>
-    console.error('conciv: cleanup after a failed start also failed', inspect(failure, {depth: null})),
+    log(Effect.logError('conciv: cleanup after a failed start also failed', {failure})),
   )
 }
 
@@ -199,21 +205,21 @@ function onceNotifier(callback?: () => void): () => void {
   }
 }
 
-function registerForOutsideAgents(home: string, row: EngineRow): () => void {
+function registerForOutsideAgents(home: string, row: EngineRow, log: Log): () => void {
   try {
     withHomeDb(home, (db) => registerEngine(db, row))
   } catch (error) {
-    console.error('conciv: engine not registered for outside agents', error)
+    log(Effect.logError('conciv: engine not registered for outside agents', {engineId: row.id, error}))
     return () => {}
   }
   checkEngines(home, {timeoutMs: 300}).catch((error: unknown) =>
-    console.error('conciv: checking registered engines failed', error),
+    log(Effect.logError('conciv: checking registered engines failed', {error})),
   )
   return () => {
     try {
       withHomeDb(home, (db) => retireEngine(db, row.id, Date.now()))
     } catch (error) {
-      console.error('conciv: engine row not retired', error)
+      log(Effect.logError('conciv: engine row not retired', {engineId: row.id, error}))
     }
   }
 }
@@ -236,6 +242,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     () => Date.now(),
   )
 
+  const earlyLog = logBeforeRuntime(opts.log)
   const agentToken = opts.accessToken ?? randomUUID()
   const engineId = randomUUID()
   const portRef = {port: 0}
@@ -260,7 +267,6 @@ export async function start(opts: StartOpts): Promise<Engine> {
     cwd: opts.root,
     agentToken,
     engineId,
-    print: opts.print,
     onTrusted: onceNotifier(opts.onClientRequest),
     bridge: opts.bridge,
     openInEditor,
@@ -273,6 +279,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     nativePageDir: opts.nativePageDir,
     tokenScopedBase,
     plugins: opts.plugins,
+    log: opts.log,
   }
   const madeApp = Promise.withResolvers<MadeApp>()
   madeApp.promise.catch(() => {})
@@ -280,10 +287,11 @@ export async function start(opts: StartOpts): Promise<Engine> {
     (request, env) => madeApp.promise.then((made) => made.fetch(request, env)),
     opts.port,
     {file: paths.server, token: agentToken},
+    earlyLog,
   )
   portRef.port = port
   const abandonStart = (steps: readonly ShutdownStep[]): Promise<void> =>
-    cleanupAfterFailedStart([close, ...steps, restoreRecord])
+    cleanupAfterFailedStart([close, ...steps, restoreRecord], earlyLog)
   const made = await makeApp(appOpts).catch(async (error: unknown) => {
     madeApp.reject(error)
     await abandonStart([])
@@ -291,6 +299,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   })
   madeApp.resolve(made)
   const {dispose, trustBrowser, awaitActivation} = made
+  const log = logOnRuntime(made.pluginHost)
 
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
   const base = tokenScopedBase()
@@ -307,19 +316,23 @@ export async function start(opts: StartOpts): Promise<Engine> {
     throw error
   }
   const retire = base
-    ? registerForOutsideAgents(home, {
-        id: engineId,
-        pid: process.pid,
-        root: opts.root,
-        apiBase: base,
-      })
+    ? registerForOutsideAgents(
+        home,
+        {
+          id: engineId,
+          pid: process.pid,
+          root: opts.root,
+          apiBase: base,
+        },
+        log,
+      )
     : () => {}
   const clearEndpoint = (): void => {
     if (!opts.nativePageDir) return
     try {
       removeDevEndpoint(endpointDir, process.pid)
     } catch (error) {
-      console.error('conciv: failed to remove the dev endpoint file', error)
+      log(Effect.logError('conciv: failed to remove the dev endpoint file', {endpointDir, error}))
     }
   }
   try {

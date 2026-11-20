@@ -166,6 +166,7 @@ import {
   chunkWithInlineMap,
   hydratedSnapshot,
   runTurn,
+  silentLog,
   userTexts,
 } from './helpers.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
@@ -487,7 +488,7 @@ describe('api plugin activation isolation', () => {
     const stateRoot = tempDir('conciv-mount-dup-')
     const first = Plugin.define({id: 'dup', async setup() {}})
     const second = Plugin.define({id: 'dup', async setup() {}})
-    const env = {stateRoot, cwd: stateRoot, harness: requireClaude(), print: () => {}}
+    const env = {stateRoot, cwd: stateRoot, harness: requireClaude()}
     await expect(
       bootMadeApp(env, {plugins: [first, second]}).then(async (made) => {
         onTestFinished(() => made.dispose())
@@ -1270,7 +1271,12 @@ describe('api harness switching', () => {
 
     const app = made.app
     if (app === null) throw new Error('the app did not boot')
-    const search = createSessionSearch({db: app.chat.db, cwd: app.chat.cwd, harnesses: app.chat.harnesses})
+    const search = createSessionSearch({
+      db: app.chat.db,
+      cwd: app.chat.cwd,
+      harnesses: app.chat.harnesses,
+      log: silentLog,
+    })
     onTestFinished(() => search.dispose())
     const sessionKey = provideSessions(() => ({
       chat: app.chat,
@@ -5705,6 +5711,7 @@ describe('session activity recorded with its chat messages', () => {
       publish: () => {},
       record: (chunks) => made().plane.record(sessionId, chunks),
       driving: () => made().plane.driving(sessionId),
+      log: silentLog,
     })
     mirror.publish([...trace.start(run, 'page_route', {}), ...trace.result(run, '{}', false)])
     await mirror.settle()

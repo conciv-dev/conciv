@@ -32,7 +32,7 @@ Session persistence and plumbing: an in-memory per-session pub/sub bus for chat 
 
 - `session-rows.ts`: SQLite reads and writes on `sessions`
 - `session-actions.ts`: SQLite writes on `sessions`, `markers` and `drafts`; `deleteSession` stops the session's runs, cancels its page queue follow-up work, clears the chat plane and publishes on the plugin host bus; `renameSession` retitles the search index
-- `listSessionMetas` (`session-rows.ts`): inserts or undeletes rows while listing; `logError` for invalid rows
+- `listSessionMetas` (`session-rows.ts`): inserts or undeletes rows while listing; an Effect error log for invalid rows
 - `lastRunStarts` (`session-rows.ts`): every `SessionMeta` gets `lastRunAt`, the newest `chat_runs.started_at` for its thread (index `chat_runs_thread_started`), or null when the session has no run; a listing asks once for the whole page (`group by thread_id`), `buildSessionMeta` (async) asks for its one row; no column or migration
 - `listCommands` (`../api/rpc/router.ts`): calls the harness adapter's `commands`
 

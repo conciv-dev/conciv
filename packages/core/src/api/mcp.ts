@@ -1,3 +1,4 @@
+import {Effect} from 'effect'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
@@ -27,7 +28,7 @@ import {
   type SessionId,
 } from '@conciv/protocol/chat-types'
 import type {SessionScope} from '../runtime/scope-types.js'
-import {logError} from '../lib/debug.js'
+import type {Log} from '../lib/logging.js'
 import corePackage from '../../package.json' with {type: 'json'}
 import type {ChatPlane, CodeCapability, CodeRunner, CodeSandbox, CodeTool} from '@conciv/chat'
 import {createMCPServer} from '@conciv/ai/server'
@@ -211,6 +212,7 @@ type McpDeps = {
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   hubRefusal: (client: string | null) => string | null
   staleness: () => EngineStaleness
+  log: Log
 }
 
 export type McpVars = {mcp: McpDeps}
@@ -257,6 +259,7 @@ export async function openCodeSession(
     publish: scope.stream.publish,
     record: scope.run.record,
     driving: () => deps.driving(scope.id),
+    log: deps.log,
   })
   const childStarts = new Map<string, number>()
   const childCalls = (): ReadonlySet<string> => new Set(childStarts.keys())
@@ -354,7 +357,11 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: CodeCall
   }
   const code = await openCodeSession(deps, scope, caller)
   if (code === null) {
-    logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')
+    deps.log(
+      Effect.logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered', {
+        sessionId: scope.id,
+      }),
+    )
     return []
   }
   const sandbox = code.sandbox
@@ -387,7 +394,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: CodeCall
               try {
                 return (await sandbox.execute(args.typescriptCode)).reply
               } catch (error) {
-                logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
+                deps.log(Effect.logError('[mcp] a tool failed outside the sandbox', {tool: EXECUTE_TOOL_NAME, error}))
                 throw error
               }
             }),
@@ -411,7 +418,7 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
     name: 'conciv',
     version: corePackage.version,
     tools: await sessionTools(c.var.mcp, scope, caller),
-    onerror: (error) => logError(`[mcp] ${error.message}`),
+    onerror: (error) => c.var.mcp.log(Effect.logError('[mcp] the MCP server failed', {error})),
   })
   return server.handle(c.req.raw)
 })

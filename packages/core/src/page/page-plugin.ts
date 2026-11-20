@@ -6,7 +6,7 @@ import type {SessionId} from '@conciv/protocol/chat-types'
 import type {RawFrame, SourceLoc} from '@conciv/contract'
 import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
 import type {PluginHost} from '../api/rpc/mount.js'
-import {logError} from '../lib/debug.js'
+import {logOnRuntime, type Log} from '../lib/logging.js'
 import type {OwedQueue, QueueDelivery} from './page-queue.js'
 
 type Methods = typeof Definition.methods
@@ -27,9 +27,9 @@ function unlisted(error: unknown): boolean {
   return error instanceof Error && Unavailable.safeParse(error.cause).success
 }
 
-async function orNone<Value>(work: Promise<Value[]>, what: string): Promise<Value[]> {
+async function orNone<Value>(work: Promise<Value[]>, what: string, log: Log): Promise<Value[]> {
   return work.catch((error: unknown) => {
-    if (!unlisted(error)) logError(`[core] ${what} could not be read from the page plugin: ${String(error)}`)
+    if (!unlisted(error)) log(Effect.logError('[core] the page plugin could not be read', {what, error}))
     return []
   })
 }
@@ -37,6 +37,7 @@ async function orNone<Value>(work: Promise<Value[]>, what: string): Promise<Valu
 export function makePagePlugin(host: () => PluginHost) {
   const inFlightHubCalls = new Map<SessionId, Set<string>>()
   const heldHubCalls = new Map<SessionId, Set<string>>()
+  const log: Log = (entry) => logOnRuntime(host())(entry)
 
   const call = (method: keyof Methods, input: unknown, signal?: AbortSignal) =>
     host().runPromise(
@@ -58,6 +59,7 @@ export function makePagePlugin(host: () => PluginHost) {
         Definition.methods['queue.startedBy'].output.parse(started),
       ),
       `the queues ${sessionId} started`,
+      log,
     )
 
   const owed = async (sessionId: SessionId, claim: boolean): Promise<OwedQueue[]> =>
@@ -68,6 +70,7 @@ export function makePagePlugin(host: () => PluginHost) {
           .map(({queueId, result, before}) => ({queueId, result, before})),
       ),
       `the queue results owed to ${sessionId}`,
+      log,
     )
 
   const holding = async (sessionId: SessionId, callIds: readonly string[]): Promise<Set<string>> => {
@@ -95,7 +98,7 @@ export function makePagePlugin(host: () => PluginHost) {
     symbolicate,
     symbolicateOrNone: (frames: RawFrame[]): Promise<SourceLoc | null> =>
       symbolicate(frames).catch((error: unknown) => {
-        if (!unlisted(error)) logError(`[core] the page plugin could not symbolicate: ${String(error)}`)
+        if (!unlisted(error)) log(Effect.logError('[core] the page plugin could not symbolicate', {error}))
         return null
       }),
     queueWait: async (
@@ -119,7 +122,13 @@ export function makePagePlugin(host: () => PluginHost) {
             }),
           )
           .catch((error: unknown) =>
-            logError(`[core] the queue ${input.queueId} handed to a waiter could not be settled: ${String(error)}`),
+            log(
+              Effect.logError('[core] a queue handed to a waiter could not be settled', {
+                sessionId: input.sessionId,
+                queueId: input.queueId,
+                error,
+              }),
+            ),
           )
       return handed.result
     },
@@ -127,7 +136,7 @@ export function makePagePlugin(host: () => PluginHost) {
       try {
         return Definition.methods['tabs.list'].output.parse(await call('tabs.list', {sessionId}))
       } catch (error) {
-        if (!unlisted(error)) logError(`[core] the page tabs of ${sessionId} could not be read: ${String(error)}`)
+        if (!unlisted(error)) log(Effect.logError('[core] the page tabs could not be read', {sessionId, error}))
         return NO_TABS
       }
     },
@@ -139,6 +148,7 @@ export function makePagePlugin(host: () => PluginHost) {
       orNone(
         call('sessions.attached', {}).then((listed) => Definition.methods['sessions.attached'].output.parse(listed)),
         'the sessions with a page attached',
+        log,
       ),
     delivery,
     startedBy,
@@ -149,6 +159,7 @@ export function makePagePlugin(host: () => PluginHost) {
           hub ? {sessionId, toolCallIds: hubCalls(sessionId)} : {sessionId, excludeToolCallIds: hubCalls(sessionId)},
         ).then((finished) => Definition.methods['queue.undelivered'].output.parse(finished)),
         `the finished queues of ${sessionId}`,
+        log,
       ),
     fromHub: (sessionId: SessionId, toolCallId: string): boolean => hubCalls(sessionId).includes(toolCallId),
     hubCall: (sessionId: SessionId, callId: string): void => {
@@ -158,7 +169,7 @@ export function makePagePlugin(host: () => PluginHost) {
     hubReplied: async (sessionId: SessionId, callIds: ReadonlySet<string>): Promise<void> => {
       const candidates = [...callIds, ...(heldHubCalls.get(sessionId) ?? [])]
       const held = await holding(sessionId, candidates).catch((error: unknown) => {
-        logError(`[core] the hub queues of ${sessionId} could not be read; they stay hub work: ${String(error)}`)
+        log(Effect.logError('[core] the hub queues could not be read; they stay hub work', {sessionId, error}))
         return new Set(candidates)
       })
       if (held.size > 0) heldHubCalls.set(sessionId, held)
@@ -178,14 +189,12 @@ export function makePagePlugin(host: () => PluginHost) {
       host().runPromise(
         Effect.gen(function* () {
           const bus = yield* Bus.Service
-          return yield* bus.listen((event) =>
-            Effect.sync(() => {
-              if (event.type !== QUEUE_FINISHED) return
-              const finished = Definition.events['queue.finished'].schema.safeParse(event.data)
-              if (finished.success) listener(finished.data)
-              else logError(`[core] a page queue.finished event could not be read: ${finished.error.message}`)
-            }),
-          )
+          return yield* bus.listen((event) => {
+            if (event.type !== QUEUE_FINISHED) return Effect.void
+            const finished = Definition.events['queue.finished'].schema.safeParse(event.data)
+            if (finished.success) return Effect.sync(() => listener(finished.data))
+            return Effect.logError('[core] a page queue.finished event could not be read', {error: finished.error})
+          })
         }),
       ),
   }
