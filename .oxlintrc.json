@@ -34,6 +34,7 @@
     "conciv/no-of-suffix": "error",
     "conciv/no-signal-ref": "error",
     "conciv/no-teardown-hooks": "error",
+    "conciv/playwright-test-in-e2e": "error",
     "conciv/solid-test-render": "error",
     "conciv/test-file-budget": "error",
     "conciv/tool-card-shell": "error",
@@ -385,18 +386,12 @@
       }
     },
     {
-      "files": ["packages/plugins/*/test/**", "packages/plugin-testkit/**/test/**"],
+      "files": ["packages/plugins/*/test/**"],
       "rules": {
         "playwright/no-raw-locators": "error",
         "playwright/no-eval": "error",
         "playwright/no-element-handle": "error",
         "playwright/prefer-native-locators": "error",
-        "playwright/prefer-web-first-assertions": "error"
-      }
-    },
-    {
-      "files": ["packages/embed/test/**", "packages/plugin-testkit/src/**"],
-      "rules": {
         "playwright/prefer-web-first-assertions": "error"
       }
     },
@@ -619,8 +614,6 @@
     "**/*.gen.ts",
     "**/*.gen.tsx",
     "**/test-results",
-    "packages/unplugin/test/fixtures/**",
-    "packages/plugins/tanstack/test/fixtures/**",
     "packages/cli/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "e2e/solid-start/src",

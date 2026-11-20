@@ -770,3 +770,25 @@ describe('no teardown hooks', () => {
     expect(findings.map((finding) => finding.message)).toEqual(lines.map(() => expect.stringContaining('test.extend')))
   })
 })
+
+describe('playwright test in e2e', () => {
+  async function findings(fixture: string): Promise<number[]> {
+    const diagnostics = await lintDiagnostics(
+      'test/oxlintrc-playwright-test.json',
+      `test/fixtures/playwright-test/${fixture}`,
+    )
+    return diagnostics.filter((diagnostic) => diagnostic.code === 'conciv(playwright-test-in-e2e)').map(firstLine)
+  }
+
+  test('an e2e app imports @playwright/test', async () => {
+    expect(await findings('e2e/app/widget.spec.ts')).toEqual([])
+  })
+
+  test('a package test importing @playwright/test is flagged', async () => {
+    expect(await findings('packages/kit/test/kit.test.ts')).toEqual([1])
+  })
+
+  test('a folder named e2e inside a package is still outside the e2e apps', async () => {
+    expect(await findings('packages/kit/test/e2e/kit.config.ts')).toEqual([1])
+  })
+})

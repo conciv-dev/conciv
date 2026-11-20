@@ -9,6 +9,7 @@ import noMocks from './no-mocks.js'
 import noPredicateWaits from './no-predicate-waits.js'
 import noSignalRef from './no-signal-ref.js'
 import noTeardownHooks from './no-teardown-hooks.js'
+import playwrightTestInE2e from './playwright-test-in-e2e.js'
 import pluginViewReadsThroughQuery from './plugin-view-reads-through-query.js'
 import routerIdioms from './router-idioms.js'
 import testFileBudget from './test-file-budget.js'
@@ -233,6 +234,7 @@ export default {
     'banned-vocabulary': bannedVocabulary,
     'core-purity': corePurity,
     'lucide-per-icon': lucidePerIcon,
+    'playwright-test-in-e2e': playwrightTestInE2e,
     'no-await-effect-query': noAwaitEffectQuery,
     'no-comments': noComments,
     'no-delegated-focus': noDelegatedFocus,
