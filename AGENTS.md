@@ -125,32 +125,51 @@ README.md; this file is the non-obvious operational rules.
 
 ## Testing
 
-- Test file budget (`conciv/test-file-budget`): node, unit and happy-dom tests live next to the source they test
-  under `src/` (`src/x.tsx` beside `src/x.dom.test.tsx`, `src/x.ts` beside `src/x.test.ts`). They are not counted
-  against the budget; the only cap is that a package never has more of them than source files.
-- Browser tests stay one file per package under `test/`. Never add a second one; add a `describe` to the existing
-  file.
-- Happy-dom tests use the `@conciv/vitest-config/dom` preset (`ciTestDom()`) in a `dom` project with
-  `vite-plugin-solid`.
-- No mocks or stubs (`vi.fn`, `vi.mock`, `vi.stubGlobal`, fake modules), and no CSS/DOM implementation
-  assertions (`toHaveCSS`, `getComputedStyle`, DOM reads via `page.evaluate`, class/id locators, test-ids).
-- Widget and plugin behaviour is tested with Testing Library in vitest node + happy-dom (no browser), on `@conciv/plugin-testkit` `mount`; a REAL browser (Playwright/Chromium) only for what that cannot prove: layout, scrolling, canvas, real focus, the built bundle in a host page. Never jsdom.
+The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test plan is `docs/specs/test-split/`.
+
+- The file name picks the runner. `src/x.test.ts` beside `src/x.ts` runs in node; `src/x.dom.test.tsx` beside
+  `src/x.tsx` runs in happy-dom; one `src/<package>.browser.test.tsx` per package runs in vitest browser mode
+  (Chromium). Playwright Test exists only under `e2e/` (`conciv/playwright-test-in-e2e`). Never jsdom.
+- One `vite.config.ts` per package and no `vitest*.config` file: `conciv()` (`@conciv/unplugin`) sets the test
+  projects when vite's mode is `test`.
+- A behaviour lives in the cheapest place that proves it, and only there: node, then happy-dom, then browser mode
+  (layout, scrolling, canvas, real focus), then `e2e/` (the built bundle in a real host app, real harness CLIs).
+- Budgets (`conciv/test-file-budget`): never more test files than source files in a package; one browser-mode file
+  per package (add a `describe`, never a second file); a test file is at most 1,000 lines.
+- The kits. `@conciv/plugin-testkit/node`: `createEngine`, `TestLLM`. `@conciv/plugin-testkit/browser`: `mount`.
+  `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. The engine is real and its chat is scripted
+  with `replies` built by `TestLLM` (`text`, `toolCall`, `failAfter`, `hangAfter`); `engine.gate()` holds a reply.
+  Nothing else is exported; a new kit export or option needs the maintainer's yes.
+- A package that runs kit tests lists the kit in its own `devDependencies`. The kits are leaves: they depend on no
+  workspace package and name what they need as `peerDependencies`.
+- Who mounts the app. A package the app is made of (a dependency of `apps/conciv`: the page, terminal and tanstack
+  plugins, the plugin SDK, the ui kits, the mascot) never mounts the app: it keeps node tests of its machines, models,
+  tools and rpc, and stories of its components, and its on-screen journeys live in the app's tests under
+  `apps/conciv/src`. The app, and a plugin the app does not contain (test-runner, whiteboard, recorder, try-it), mount
+  the app from their own package.
+- Tests do what a user does: queries by role, label and text, `user-event` (never `fireEvent`, except
+  `fireEvent.keyDown` with `isComposing` for the IME guard). No CSS, DOM or geometry reads (`toHaveCSS`,
+  `getComputedStyle`, `page.evaluate` reads), no class or id locators, no test-ids.
+- No mocks or stubs (`vi.fn`, `vi.mock`, `vi.spyOn`, `vi.stubGlobal`, `vi.stubEnv`, fake modules). A fake is a real
+  implementation the product accepts (the scripted harness, an in-memory draft store). Config goes through Effect
+  `ConfigProvider`, never env writes.
+- No sleeps and no per-call timeouts. A product timer a test must cross becomes an option the product reads, default
+  unchanged; fake timers are allowed.
+- One `describe` per user flow, consecutive steps in one test; inputs as `it.each` tables. A test is never written per
+  old test or per spec line.
+- Tests never write app state outside their temp dirs, and never add `afterEach`/`onTestFinished` for kit resources:
+  the kit cleans up.
 - The calm perf gate (frame-gap budgets) is `pnpm --filter @conciv/app test:perf`, kept out of `pnpm test`;
   run it locally in Chromium and Firefox before merging a chat-plane change.
-- Widget integration tests load the PREBUILT bundle (`packages/embed/dist/conciv-widget.global.js`):
-  rebuild it (`pnpm turbo run build --filter=@conciv/embed`) before running them, or you test
-  stale code.
-- In widget ITs use `browser.newPage()`, not `newContext()` (contexts leak and spike CPU/memory).
+- `e2e/` suites load the PREBUILT bundle (`packages/embed/dist/conciv-widget.global.js`): rebuild it
+  (`pnpm turbo run build --filter=@conciv/embed`) before running them, or you test stale code. Use
+  `browser.newPage()`, not `newContext()` (contexts leak and spike CPU/memory), and never wait for Playwright
+  `networkidle` on a page with the live widget: its stream keeps the network busy forever; wait for
+  `domcontentloaded` (or a UI signal).
 - Never add tests under `apps/examples/*`: example apps are demos; verify behavior via the owning
   package's tests, `@conciv/plugin-testkit`, or an `e2e/` consumer app. Sanctioned exception:
   `apps/examples/tanstack-start` carries a handful of demo tests so the in-chat test runner has
-  something to run out of the box; they are demo content, not behavior verification — behavior
-  tests still live in the owning packages.
-- Every node test project in a Solid package's `vitest.config.ts` must pin `test: {environment: 'node'}`.
-  `vite-plugin-solid` otherwise injects a jsdom environment and the run exits 1 even with all tests
-  passing.
-- Never wait for Playwright `networkidle` on a page with the live widget: its SSE stream keeps the
-  network busy forever; wait for `domcontentloaded` (or a UI signal) instead.
+  something to run out of the box; they are demo content, not behavior verification.
 - zod validates every untrusted input where it enters: RPC procedures declare `oc.input(...)` in
   `packages/contract/src/contract.ts`; plain Hono routes zod-parse each piece they read (body,
   params, query, headers), e.g. `NativeFileSchema.safeParse(c.req.param('file'))` in
