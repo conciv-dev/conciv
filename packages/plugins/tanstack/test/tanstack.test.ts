@@ -18,6 +18,10 @@ import {diagnosticsLayer} from '../src/diagnostics.js'
 import {Definition} from '../src/rpc.js'
 import {serverFnTraceLayer} from '../src/serverfn-trace.js'
 import {capabilities} from '../src/tools.js'
+import {execute} from '../src/operations.js'
+import {ErrorRingService} from '../src/error-ring.js'
+import type {ReactTree} from '@conciv/plugin/experimental/page'
+import {createMemoryHistory, createRootRoute, createRoute, createRouter} from '@tanstack/react-router'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const FIXTURES = join(PACKAGE_DIR, 'test', 'fixtures')
@@ -560,4 +564,35 @@ describe('the tanstack plugin waiting for the bundler status', () => {
       Effect.provide(Layer.mergeAll(TestClock.layer(), FileSystem.layerNoop({}), Path.layer)),
       Effect.runPromise,
     ))
+})
+
+describe('the tanstack loader data operation', () => {
+  it('fails for a route id no match carries and names the matched route ids', async () => {
+    const rootRoute = createRootRoute()
+    const indexRoute = createRoute({getParentRoute: () => rootRoute, path: '/'})
+    const router = createRouter({
+      routeTree: rootRoute.addChildren([indexRoute]),
+      history: createMemoryHistory({initialEntries: ['/']}),
+    })
+    await router.load()
+    const tree: ReactTree = {
+      rootFibers: () => [{memoizedProps: {router}}],
+      dehydrate: (value) => (value === undefined ? 'undefined' : structuredClone(value)),
+      describe: () => ({component: 'App', file: null}),
+      locate: async () => null,
+      frames: async () => [],
+    }
+    const loaderData = (routeId: string) =>
+      Effect.runPromise(
+        execute('loader_data', {routeId}, {status: 'active', value: tree, generation: 0}).pipe(
+          Effect.provideService(ErrorRingService, {read: () => Effect.succeed({errors: []})}),
+        ),
+      )
+
+    expect(await loaderData('/no-such-route')).toEqual({
+      type: 'failure',
+      code: 'handler_error',
+      message: 'No matched route has the id "/no-such-route"; the matched routes are __root__, /.',
+    })
+  })
 })

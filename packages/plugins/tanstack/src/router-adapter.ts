@@ -243,15 +243,19 @@ export const readRouteTree = Effect.fn('tanstack.router.routeTree')(function* (t
   return mapRoute(root, 0)
 })
 
-function pickMatch(matches: AnyRouteMatch[], routeId?: string): AnyRouteMatch | null {
-  if (routeId !== undefined) return matches.find((match) => match.routeId === routeId) ?? null
-  return matches.at(-1) ?? null
+function pickMatch(matches: AnyRouteMatch[], routeId?: string): Effect.Effect<AnyRouteMatch, HandlerFailed> {
+  const match = routeId === undefined ? matches.at(-1) : matches.find((candidate) => candidate.routeId === routeId)
+  if (match) return Effect.succeed(match)
+  if (routeId === undefined) return Effect.fail(HandlerFailed.make({message: 'No route is matched yet.'}))
+  const known = matches.map((candidate) => candidate.routeId).join(', ')
+  return Effect.fail(
+    HandlerFailed.make({message: `No matched route has the id "${routeId}"; the matched routes are ${known}.`}),
+  )
 }
 
 export const readLoaderData = Effect.fn('tanstack.router.loaderData')(function* (tree: ReactTree, routeId?: string) {
   const router = yield* requireRouter(tree)
-  const match = pickMatch(router.state.matches, routeId)
-  if (!match) return {routeId: routeId ?? '', data: null}
+  const match = yield* pickMatch(router.state.matches, routeId)
   return {routeId: match.routeId, data: tree.dehydrate(match.loaderData)}
 })
 
