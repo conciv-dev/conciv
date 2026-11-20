@@ -86,7 +86,7 @@ export const Route = createRootRouteWithContext<ConcivRouterContext>()({
   search: {
     middlewares: [
       stripSearchParams({sessionSearch: '', allProjects: false}),
-      retainSearchParams(['open', 'sessionSearch', 'allProjects', 'core']),
+      retainSearchParams(['open', 'sessionSearch', 'allProjects', 'core', 'settings']),
     ],
   },
   component: RootComponent,

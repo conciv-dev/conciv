@@ -226,6 +226,12 @@ function BoundApp(props: AppParts): JSX.Element {
     login.requestTrust().catch((error: unknown) => {
       console.error('[conciv] the trust check after a rebind failed', error)
     })
+    if (router.state.location.search.core === undefined) return
+    router
+      .navigate({to: '.', search: (previous) => ({...previous, core: nextApiBase}), replace: true})
+      .catch((error: unknown) => {
+        console.error('[conciv] the address did not follow the rebind', error)
+      })
   })
   const stopRestore = storage ? restoreOnBoot(router, restore) : () => {}
   const restored = storage

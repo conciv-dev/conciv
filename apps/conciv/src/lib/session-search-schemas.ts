@@ -5,4 +5,5 @@ export const sessionPickerSearchSchema = z.object({
   sessionSearch: z.coerce.string().default('').catch(''),
   allProjects: z.boolean().default(false).catch(false),
   core: z.string().optional().catch(undefined),
+  settings: z.record(z.string(), z.unknown()).optional().catch(undefined),
 })
