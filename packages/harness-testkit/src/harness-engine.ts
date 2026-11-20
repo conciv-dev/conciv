@@ -1,32 +1,44 @@
 import {randomUUID} from 'node:crypto'
 import {mkdirSync, mkdtempSync, writeFileSync} from 'node:fs'
-import {rm} from 'node:fs/promises'
+import {readFile, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
 import {ConfigProvider} from 'effect'
 import {rpcStream} from '@conciv/ai/client'
 import {makeBrowserRpcClient, type RpcClient, type SessionMeta} from '@conciv/contract'
-import {makeApp, type MadeApp} from '@conciv/core/app'
+import {makeApp, type MadeApp, type MakeAppOpts} from '@conciv/core/app'
 import {resolveConfig} from '@conciv/core/config'
 import type {HarnessAdapter} from '@conciv/harness'
-import type {HarnessListCursor} from '@conciv/protocol/harness-types'
+import type {HarnessCommand, HarnessListCursor, HarnessModel} from '@conciv/protocol/harness-types'
 import {ChatEventType, runLifecycleEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {PermissionReply, ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
+import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveHono} from '@conciv/serve'
 import {callTool} from './call-tool.js'
-import {replyScript} from './scripted-harness.js'
+import {QUICK_HARNESS_ID, quickHarness, replyScript} from './scripted-harness.js'
 import type {Gate, RecordedRequest, Responder, Response} from './test-llm.js'
 import {until} from './until.js'
 
 export * as TestLLM from './test-llm.js'
+export {quickHarness, type QuickHarnessOptions} from './scripted-harness.js'
 
 export type HarnessEngineSetting = {scope: 'project' | 'global'; namespace: string; key: string; value: unknown}
 
+export type HarnessEngineTimings = Pick<
+  MakeAppOpts,
+  'firstChunkTimeoutMs' | 'eventHeartbeatIntervalMs' | 'stopGraceMs' | 'pageReplyTimeoutMs' | 'queuedActionTimeoutMs'
+>
+
 export type HarnessEngineOptions = {
   harness?: HarnessAdapter
+  harnesses?: readonly HarnessAdapter[]
+  models?: readonly HarnessModel[]
+  commands?: readonly HarnessCommand[]
+  env?: Record<string, string>
+  timings?: HarnessEngineTimings
   config?: ConcivConfig
   replies?: readonly Response[]
   fallback?: Response
@@ -52,7 +64,14 @@ export type HarnessEngineSession = {
   model: (id: string) => Promise<void>
   effort: (level: ReasoningEffort | null) => Promise<void>
   remove: () => Promise<void>
+  answer: (value: UiAnswerValue) => Promise<void>
+  switchHarness: (harnessId: string, model?: string) => Promise<void>
   tool: (name: string) => HarnessEngineTool
+}
+
+export type HarnessEngineFiles = {
+  read: (path: string) => Promise<string>
+  write: (path: string, text: string) => Promise<void>
 }
 
 export type HarnessEngineAddress = {apiBase: string; token: string}
@@ -69,6 +88,7 @@ export type HarnessEngine = {
   always: (reply: Response) => Promise<void>
   serve: (responder: Responder) => Promise<void>
   wait: (count: number) => Promise<void>
+  files: HarnessEngineFiles
   address: HarnessEngineAddress
   stop: () => Promise<void>
 }
@@ -104,14 +124,26 @@ async function abandonStart(error: unknown, steps: Step[]): Promise<never> {
   throw new AggregateError([error, ...failures], 'the harness engine did not start')
 }
 
-function writeInside(root: string, path: string, content: string): void {
+function insideRoot(root: string, path: string): string {
   const target = resolve(root, path)
   const inside = relative(root, target)
   if (inside === '' || inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside)) {
     throw new Error(`the project file ${path} resolves outside the project root ${root}`)
   }
+  return target
+}
+
+function writeInside(root: string, path: string, content: string): void {
+  const target = insideRoot(root, path)
   mkdirSync(dirname(target), {recursive: true})
   writeFileSync(target, content)
+}
+
+function projectFiles(root: string): HarnessEngineFiles {
+  return {
+    read: (path) => readFile(insideRoot(root, path), 'utf8'),
+    write: async (path, text) => writeInside(root, path, text),
+  }
 }
 
 async function* streamed(opened: Promise<AsyncIterable<ChatEvent>>): AsyncGenerator<ChatEvent> {
@@ -194,6 +226,37 @@ function approvePending(engine: Engine, sessionId: string, reply: PermissionRepl
   })
 }
 
+const UI_TOOL = 'conciv_ui'
+
+const NO_UI_QUESTION = 'no pending ui question'
+
+function notAsked(error: unknown): false {
+  if (error instanceof Error && error.message === NO_UI_QUESTION) return false
+  throw error
+}
+
+function openUiCalls(messages: ChatMessage[]): string[] {
+  const parts = messages.flatMap((message) => message.parts)
+  const answered = parts.flatMap((part) => (part.type === 'tool-result' ? [part.toolCallId] : []))
+  return parts.flatMap((part) =>
+    part.type === 'tool-call' && part.name.endsWith(UI_TOOL) && part.output === undefined && !answered.includes(part.id)
+      ? [part.id]
+      : [],
+  )
+}
+
+function answerUi(engine: Engine, sessionId: string, value: UiAnswerValue): Promise<void> {
+  return asSession(engine, sessionId, (rpc) => {
+    const reply = async (toolCallId: string): Promise<boolean> =>
+      rpc.chat.uiReply({sessionId, toolCallId, value}).then(() => true, notAsked)
+    return until(async () => {
+      const {messages} = await rpc.chat.hydrate({sessionId})
+      const replies = await Promise.all(openUiCalls(messages).map(reply))
+      return replies.includes(true)
+    })
+  })
+}
+
 function stopRun(engine: Engine, sessionId: string): Promise<void> {
   return asSession(engine, sessionId, async (rpc) => {
     const {activeRun} = await rpc.chat.hydrate({sessionId})
@@ -220,6 +283,9 @@ function sessionOn(engine: Engine, id: string): HarnessEngineSession {
     model: (model) => asSessionDone(engine, id, (rpc) => rpc.sessions.model({sessionId: id, model})),
     effort: (effort) => asSessionDone(engine, id, (rpc) => rpc.sessions.effort({sessionId: id, effort})),
     remove: () => asSessionDone(engine, id, (rpc) => rpc.sessions.delete({sessionId: id})),
+    answer: (value) => answerUi(engine, id, value),
+    switchHarness: (harnessId, model) =>
+      asSessionDone(engine, id, (rpc) => rpc.sessions.switchHarness({sessionId: id, harnessId, model})),
     tool: (name) => ({
       call: (input) => callTool(engine.apiBase, id, name, input),
       failure: (input) => failedTool(name, callTool(engine.apiBase, id, name, input)),
@@ -252,6 +318,7 @@ async function openFirstSession(engine: Engine, settings: HarnessEngineSetting[]
 async function bootApp(
   root: string,
   harness: HarnessAdapter,
+  harnesses: readonly HarnessAdapter[],
   options: HarnessEngineOptions,
   configProvider: ConfigProvider.ConfigProvider,
 ): Promise<MadeApp> {
@@ -268,16 +335,17 @@ async function bootApp(
       systemPrompt: '',
       hubAccess: 'project',
       plugins: config.plugins ?? [],
-      policies: [],
+      policies: config.policies ?? [],
       permissions: resolveConfig({permission: config.permission, permissions: config.permissions}, root, configProvider)
         .permissions,
     },
     cwd: root,
     openInEditor: () => {},
     harness,
-    harnesses: [],
+    harnesses,
     home: join(concivStateDir(root), 'home'),
     configProvider,
+    ...options.timings,
   })
   await app.awaitActivation().catch((error: unknown) => abandonStart(error, [() => app.dispose()]))
   return app
@@ -285,14 +353,17 @@ async function bootApp(
 
 export async function createHarnessEngine(options: HarnessEngineOptions = {}): Promise<HarnessEngine> {
   const script = replyScript(options.replies ?? [], options.fallback)
-  const harness = script.harness(options.harness)
+  const harness = script.harness(
+    options.harness ?? quickHarness({id: QUICK_HARNESS_ID, models: options.models, commands: options.commands}),
+  )
+  const harnesses = (options.harnesses ?? []).map(script.harness)
   const configProvider = ConfigProvider.fromEnvRecord(
-    {...process.env, CONCIV_DISABLE_FILEWATCHER: 'true'},
+    {...process.env, ...options.env, CONCIV_DISABLE_FILEWATCHER: 'true'},
     {preserveEmptyStrings: true},
   )
   const root = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
   const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
-  const app = await bootApp(root, harness, options, configProvider).catch((error: unknown) =>
+  const app = await bootApp(root, harness, harnesses, options, configProvider).catch((error: unknown) =>
     abandonStart(error, [removeRoot]),
   )
   const served = await serveHono({fetch: app.fetch}).catch((error: unknown) =>
@@ -325,6 +396,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     always: async (reply) => script.always(reply),
     serve: async (responder) => script.serve(responder),
     wait: (count) => script.wait(count),
+    files: projectFiles(root),
     address: {apiBase, token: app.agentToken},
     stop,
   }

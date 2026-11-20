@@ -7,18 +7,18 @@ import type {HarnessChatDeps, HarnessCommand, HarnessConnectContext, HarnessMode
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {Gate, RecordedRequest, Responder, Response} from './test-llm.js'
 
-const FAKE_HARNESS_ID = 'engine'
+export const QUICK_HARNESS_ID = 'engine'
 
 const EFFORTS: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
-const MODELS: HarnessModel[] = [
+const QUICK_MODELS: HarnessModel[] = [
   {id: 'opus', name: 'Opus 5.5', group: 'Claude', efforts: EFFORTS},
   {id: 'sonnet', name: 'Sonnet 5.5', group: 'Claude', efforts: EFFORTS},
   {id: 'claude-opus-4-7', name: 'Opus 4.7', group: 'Older versions', efforts: EFFORTS},
   {id: 'claude-haiku-4-5', name: 'Haiku 4.5', group: 'Older versions'},
 ]
 
-const COMMANDS: HarnessCommand[] = [
+const QUICK_COMMANDS: HarnessCommand[] = [
   {name: 'model', description: 'Set the AI model'},
   {name: 'deploy', description: 'Ship the branch'},
 ]
@@ -37,6 +37,42 @@ function shellCommand(context: HarnessConnectContext): TtyCommand {
       CONCIV_MODEL: context.model ?? 'none',
     },
   }
+}
+
+export type QuickHarnessOptions = {
+  id: string
+  models?: readonly HarnessModel[]
+  commands?: readonly HarnessCommand[]
+}
+
+function unscriptedChat(id: string): HarnessAdapter['chatConfig'] {
+  return () => {
+    throw new Error(`the quick harness ${id} answers only on an engine from createHarnessEngine`)
+  }
+}
+
+export function quickHarness(options: QuickHarnessOptions): HarnessAdapter {
+  const id = options.id
+  const commands = [...(options.commands ?? QUICK_COMMANDS)]
+  return defineHarness({
+    id,
+    binName: 'true',
+    chatConfig: unscriptedChat(id),
+    models: [...(options.models ?? QUICK_MODELS)],
+    commands: async () => commands,
+    tty: {command: shellCommand},
+    capabilities: {
+      resume: false,
+      permissionGate: 'none',
+      compaction: false,
+      systemPrompt: 'none',
+      mcp: 'none',
+      init: 'none',
+      imageInput: false,
+      transcriptHistory: false,
+      slashCommands: 'live',
+    },
+  })
 }
 
 type Run = {threadId: string; runId: string}
@@ -59,7 +95,7 @@ type ScriptState = {
 }
 
 export type ReplyScript = {
-  harness: (harness: HarnessAdapter | undefined) => HarnessAdapter
+  harness: (harness: HarnessAdapter) => HarnessAdapter
   gate: () => Gate
   releaseGate: () => void
   requests: () => RecordedRequest[]
@@ -162,28 +198,7 @@ export function replyScript(replies: readonly Response[], fallback: Response | u
     held?.released.resolve()
   }
   return {
-    harness: (harness) => {
-      if (harness !== undefined) return {...harness, chatConfig: chatConfig('scripted')}
-      return defineHarness({
-        id: FAKE_HARNESS_ID,
-        binName: 'true',
-        chatConfig: chatConfig(FAKE_HARNESS_ID),
-        models: MODELS,
-        commands: async () => COMMANDS,
-        tty: {command: shellCommand},
-        capabilities: {
-          resume: false,
-          permissionGate: 'none',
-          compaction: false,
-          systemPrompt: 'none',
-          mcp: 'none',
-          init: 'none',
-          imageInput: false,
-          transcriptHistory: false,
-          slashCommands: 'live',
-        },
-      })
-    },
+    harness: (harness) => ({...harness, chatConfig: chatConfig(harness.id)}),
     gate: () => {
       const held: HeldGate = {started: Promise.withResolvers<void>(), released: Promise.withResolvers<void>()}
       state.held = held

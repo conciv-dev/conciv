@@ -6,8 +6,6 @@ import type {} from './browser-commands.js'
 
 export * as TestLLM from '@conciv/harness-testkit/test-llm'
 
-const addresses = new WeakMap<Engine, EngineAddress>()
-
 function sessionOn(engineId: string, id: string): EngineSession {
   return {
     id,
@@ -20,6 +18,8 @@ function sessionOn(engineId: string, id: string): EngineSession {
     model: (model) => commands.concivModel(engineId, id, model),
     effort: (effort) => commands.concivEffort(engineId, id, effort),
     remove: () => commands.concivRemove(engineId, id),
+    answer: (value) => commands.concivAnswer(engineId, id, value),
+    switchHarness: (harnessId, model) => commands.concivSwitchHarness(engineId, id, harnessId, model),
     tool: (name) => ({
       call: (input) => commands.concivToolCall(engineId, id, name, input),
       failure: (input) => commands.concivToolFailure(engineId, id, name, input),
@@ -64,13 +64,15 @@ export async function createEngine(options: CreateEngineOptions = {}): Promise<E
       throw new Error('serve is not available in browser mode: a function cannot cross to the engine')
     },
     wait: (count) => commands.concivWait(handle.id, count),
+    files: {
+      read: (path) => commands.concivReadFile(handle.id, path),
+      write: (path, text) => commands.concivWriteFile(handle.id, path, text),
+    },
+    address: handle.address,
   }
-  addresses.set(engine, handle.address)
   return engine
 }
 
 export function engineAddress(engine: Engine): EngineAddress {
-  const address = addresses.get(engine)
-  if (!address) throw new Error('mount needs an engine made by createEngine from @conciv/plugin-testkit/node')
-  return address
+  return engine.address
 }
