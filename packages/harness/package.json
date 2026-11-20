@@ -69,6 +69,7 @@
     "@conciv/ai": "workspace:^",
     "@conciv/harness-init": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

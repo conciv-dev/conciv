@@ -14,15 +14,9 @@ import type {
 import {HarnessSessionId, SessionId, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {geminiCli} from '../src/gemini-cli/index.js'
 import {initContributions} from '@conciv/harness-init/registry'
-import {
-  listHarnesses,
-  getHarness,
-  resolveHarnessModels,
-  defineHarness,
-  registerHarness,
-  type HarnessAdapter,
-} from '../src/registry.js'
-import {claude, claudeTtyCommand, CHAT_SYSTEM_PROMPT} from '../src/claude/index.js'
+import {harnessRegistry, resolveHarnessModels, defineHarness} from '../src/registry.js'
+import {claude as claudeHarness, claudeTtyCommand, CHAT_SYSTEM_PROMPT} from '../src/claude/index.js'
+import {Config, ConfigProvider, Effect} from 'effect'
 import {
   readFileSync,
   readdirSync,
@@ -44,33 +38,68 @@ import {claudeChatConfig, claudeExecutable, CLAUDE_ASK_RULES} from '../src/claud
 import {
   parseHistory,
   parseSessionMeta,
-  claudeHistory,
+  claudeHistory as claudeHistoryAt,
   contextTokensFromTranscript,
-  withinProject,
+  withinProject as claudeWithinProject,
   parseHistory as claudeParse,
-  transcriptPath,
-  transcriptRoot,
+  transcriptPath as claudeTranscriptPath,
+  transcriptRoot as claudeTranscriptRoot,
 } from '../src/claude/history.js'
 import {claudeMcpArgs, mcpServerConfig} from '../src/claude/args.js'
 import {claudeSdkCommands, __commandsCacheSet} from '../src/claude/sdk.js'
-import {codex, codexRunAdapter} from '../src/codex/index.js'
+import {codex as codexHarness, codexRunAdapter} from '../src/codex/index.js'
 import {codexDefaultModel, codexHome, codexModels} from '../src/codex/models.js'
 import {mkdir, open, readFile, realpath, symlink, writeFile} from 'node:fs/promises'
 import {DatabaseSync} from 'node:sqlite'
-import {rolloutPath, codexHistory, sessionsRoot, stateDbPath} from '../src/codex/history.js'
+import {
+  rolloutPath as codexRolloutPath,
+  codexHistory as codexHistoryAt,
+  sessionsRoot as codexSessionsRoot,
+  stateDbPath as codexStateDbPath,
+} from '../src/codex/history.js'
 import {codexModels as CODEX_MODELS, makeTextAdapter} from '@conciv/ai/server'
 import {z} from 'zod'
 import {containedPath, transcriptPathWithin} from '../src/_shared/contained-path.js'
 import {ChatEventType} from '@conciv/protocol/chat-event-types'
 import {fakeText, runAdapterTurn} from '@conciv/ai/testkit'
 import {lastUserModelText} from '../src/_shared/text-adapter.js'
-import {opencode} from '../src/opencode/index.js'
-import {storagePath, opencodeHistory} from '../src/opencode/history.js'
-import {pi} from '../src/pi/index.js'
-import {encodeSessionDir, sessionsDir, piHistory} from '../src/pi/history.js'
+import {opencode as opencodeHarness} from '../src/opencode/index.js'
+import {storagePath as opencodeStoragePath, opencodeHistory as opencodeHistoryAt} from '../src/opencode/history.js'
+import {pi as piHarness} from '../src/pi/index.js'
+import {
+  encodeSessionDir,
+  sessionsDir as piSessionsDir,
+  piSessionsRoot,
+  piHistory as piHistoryAt,
+} from '../src/pi/history.js'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import {execFileSync} from 'node:child_process'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+
+const testEnv = ConfigProvider.fromEnv({preserveEmptyStrings: true})
+const readTestEnv = (name: string): string => Effect.runSync(Config.String(name).parse(testEnv))
+const registry = harnessRegistry(testEnv)
+const listHarnesses = registry.list
+const getHarness = registry.get
+const claude = claudeHarness(testEnv)
+const codex = codexHarness(testEnv)
+const opencode = opencodeHarness(testEnv)
+const pi = piHarness(testEnv)
+const CLAUDE_DIR = readTestEnv('CLAUDE_CONFIG_DIR')
+const CODEX_DIR = readTestEnv('CODEX_HOME')
+const PI_ROOT = piSessionsRoot(readTestEnv('PI_CODING_AGENT_DIR'))
+const transcriptRoot = (cwd: string): string => claudeTranscriptRoot(CLAUDE_DIR, cwd)
+const transcriptPath = (cwd: string, sessionId: string): string => claudeTranscriptPath(CLAUDE_DIR, cwd, sessionId)
+const withinProject = (cwd: string, sessionId: string): boolean => claudeWithinProject(CLAUDE_DIR, cwd, sessionId)
+const claudeHistory = claudeHistoryAt(CLAUDE_DIR)
+const sessionsRoot = (): string => codexSessionsRoot(CODEX_DIR)
+const stateDbPath = (): string => codexStateDbPath(CODEX_DIR)
+const rolloutPath = (sessionId: string): string | null => codexRolloutPath(CODEX_DIR, sessionId)
+const codexHistory = codexHistoryAt(CODEX_DIR)
+const storagePath = (): string => opencodeStoragePath(readTestEnv('XDG_DATA_HOME'))
+const opencodeHistory = opencodeHistoryAt(storagePath())
+const sessionsDir = (cwd: string): string => piSessionsDir(PI_ROOT, cwd)
+const piHistory = piHistoryAt(PI_ROOT)
 
 const OPENCODE_TABLES = [
   `create table if not exists session (id text primary key, project_id text not null default '', directory text not null, title text not null, time_created integer not null, time_updated integer not null, time_archived integer, model text, tokens_input integer not null default 0, tokens_output integer not null default 0)`,
@@ -246,7 +275,7 @@ describe('claude adapter', () => {
     })
 
     it('is registered and resolves models', async () => {
-      expect(getHarness('claude')).toBe(claude)
+      expect(getHarness('claude')?.id).toBe(claude.id)
       const models = await resolveHarnessModels(claude, UNSTOPPED)
       expect(models.map((model) => model.id)).toContain('sonnet')
     })
@@ -2337,31 +2366,7 @@ describe('replayed history from another harness', () => {
 })
 
 describe('registry', () => {
-  function stub(id: string): HarnessAdapter {
-    return defineHarness({
-      id,
-      binName: id,
-      capabilities: {
-        resume: false,
-        permissionGate: 'none',
-        transcriptHistory: false,
-        compaction: false,
-        systemPrompt: 'none',
-        mcp: 'none',
-        slashCommands: 'none',
-        imageInput: false,
-        init: 'none',
-      },
-      chatConfig: () => ({adapter: fakeText()}),
-    })
-  }
-
   describe('harness registry', () => {
-    it('registers and resolves an adapter by id', () => {
-      registerHarness(stub('test-x'))
-      expect(getHarness('test-x')?.id).toBe('test-x')
-    })
-
     it('lists registered ids including the bundled adapters', () => {
       const ids = listHarnesses().map((a) => a.id)
       expect(ids).toContain('claude')
@@ -2373,6 +2378,23 @@ describe('registry', () => {
 
     it('returns undefined for an unknown id', () => {
       expect(getHarness('nope')).toBeUndefined()
+    })
+  })
+
+  describe('harness registry built from a ConfigProvider', () => {
+    it('reads each harness home from the provider and leaves process.env as it was', () => {
+      const envBefore = {...process.env}
+      const providerCodexHome = tempDir('codex-provider-home-')
+      writeFileSync(join(providerCodexHome, 'config.toml'), 'model = "gpt-from-provider"\n')
+      const claudeHome = tempDir('claude-provider-home-')
+      const built = harnessRegistry(
+        ConfigProvider.fromUnknown({CODEX_HOME: providerCodexHome, CLAUDE_CONFIG_DIR: claudeHome}),
+      )
+      expect(built.get('codex')?.defaultModel).toBe('gpt-from-provider')
+      expect(built.get('claude')?.history?.transcriptRoot?.('/workspace/app')).toBe(
+        join(claudeHome, 'projects', '-workspace-app'),
+      )
+      expect(process.env).toEqual(envBefore)
     })
   })
 

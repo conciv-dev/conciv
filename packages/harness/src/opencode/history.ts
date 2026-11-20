@@ -25,12 +25,11 @@ import {pageAfter} from '../_shared/page.js'
 
 const MAX_TITLE = 80
 
-export function storagePath(): string {
-  return join(process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share'), 'opencode', 'opencode.db')
+export function storagePath(dataHome: string | undefined): string {
+  return join(dataHome || join(homedir(), '.local', 'share'), 'opencode', 'opencode.db')
 }
 
-function withDatabase<T>(absent: T, run: (db: DatabaseSync) => T): T {
-  const path = storagePath()
+function withDatabase<T>(path: string, absent: T, run: (db: DatabaseSync) => T): T {
   if (!existsSync(path)) return absent
   const db = new DatabaseSync(path, {readOnly: true})
   try {
@@ -149,12 +148,13 @@ export function buildMessages(
 }
 
 async function transcriptMessages(
+  dbPath: string,
   cwd: string,
   sessionId: string,
   options: {signal?: AbortSignal} = {},
 ): Promise<ChatMessage[]> {
   options.signal?.throwIfAborted()
-  return withDatabase<ChatMessage[]>([], (db) => {
+  return withDatabase<ChatMessage[]>(dbPath, [], (db) => {
     const session = sessionRow(db, sessionId)
     if (!session || !sameCwd(session.directory, cwd)) return []
     const messageRows = parseRows(DataRowSchema, db.prepare(MESSAGES_OF).all(sessionId))
@@ -171,10 +171,15 @@ const RowCursorSchema = z
     return {created: Number(cursor.slice(0, separator)), id: cursor.slice(separator + 1)}
   })
 
-async function transcriptTail(cwd: string, sessionId: string, options: TranscriptTailOptions): Promise<TranscriptPage> {
+async function transcriptTail(
+  dbPath: string,
+  cwd: string,
+  sessionId: string,
+  options: TranscriptTailOptions,
+): Promise<TranscriptPage> {
   options.signal?.throwIfAborted()
   const cursor = options.before === null ? null : RowCursorSchema.safeParse(options.before)
-  return withDatabase<TranscriptPage>({messages: [], earlier: null}, (db) => {
+  return withDatabase<TranscriptPage>(dbPath, {messages: [], earlier: null}, (db) => {
     const session = sessionRow(db, sessionId)
     if (!session || !sameCwd(session.directory, cwd) || cursor?.success === false) return {messages: [], earlier: null}
     const created = cursor?.data.created ?? null
@@ -195,10 +200,14 @@ async function transcriptTail(cwd: string, sessionId: string, options: Transcrip
   })
 }
 
-async function listSessions(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage> {
+async function listSessions(
+  dbPath: string,
+  scope: HarnessListScope,
+  page: HarnessListPage,
+): Promise<HarnessSessionPage> {
   const after = page.after
   const projectCwd = 'cwd' in scope ? realpathOrSelf(scope.cwd) : null
-  return withDatabase<HarnessSessionPage>({sessions: [], next: null}, (db) => {
+  return withDatabase<HarnessSessionPage>(dbPath, {sessions: [], next: null}, (db) => {
     const rows = parseRows(
       SessionRowSchema,
       db
@@ -217,8 +226,8 @@ async function listSessions(scope: HarnessListScope, page: HarnessListPage): Pro
   })
 }
 
-async function storedMeta(cwd: string, sessionId: string): Promise<HarnessSessionMeta | null> {
-  return withDatabase<HarnessSessionMeta | null>(null, (db) => {
+async function storedMeta(dbPath: string, cwd: string, sessionId: string): Promise<HarnessSessionMeta | null> {
+  return withDatabase<HarnessSessionMeta | null>(dbPath, null, (db) => {
     const row = sessionRow(db, sessionId)
     if (!row || !sameCwd(row.directory, cwd)) return null
     return sessionMeta(row)
@@ -247,8 +256,7 @@ type OpencodeStatements = {
   parts: StatementSync
 }
 
-function openSession(cwd: string, sessionId: string): OpencodeSession | TranscriptFailure {
-  const path = storagePath()
+function openSession(path: string, cwd: string, sessionId: string): OpencodeSession | TranscriptFailure {
   if (!existsSync(path)) return transcriptFailure('missing', `no opencode database at ${path}`)
   let db: DatabaseSync | null = null
   try {
@@ -281,13 +289,13 @@ function readRevision(statements: OpencodeStatements, sessionId: string): Transc
   }
 }
 
-function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {
+function observeTranscript(dbPath: string, cwd: string, sessionId: string): TranscriptHandle {
   const state: {open: OpencodeSession | null; closed: boolean} = {open: null, closed: false}
 
   const connect = (): OpencodeSession | TranscriptFailure => {
     if (state.closed) return transcriptFailure('unreadable', 'transcript handle closed')
     if (state.open) return state.open
-    const opened = openSession(cwd, sessionId)
+    const opened = openSession(dbPath, cwd, sessionId)
     if ('ok' in opened) return opened
     state.open = opened
     return opened
@@ -320,10 +328,12 @@ function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {
   }
 }
 
-export const opencodeHistory: HarnessHistory = {
-  messages: transcriptMessages,
-  tail: transcriptTail,
-  observe: observeTranscript,
-  list: listSessions,
-  meta: storedMeta,
+export function opencodeHistory(dbPath: string): HarnessHistory {
+  return {
+    messages: (cwd, sessionId, options) => transcriptMessages(dbPath, cwd, sessionId, options),
+    tail: (cwd, sessionId, options) => transcriptTail(dbPath, cwd, sessionId, options),
+    observe: (cwd, sessionId) => observeTranscript(dbPath, cwd, sessionId),
+    list: (scope, page) => listSessions(dbPath, scope, page),
+    meta: (cwd, sessionId) => storedMeta(dbPath, cwd, sessionId),
+  }
 }

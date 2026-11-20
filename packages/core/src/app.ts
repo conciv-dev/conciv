@@ -21,7 +21,7 @@ import type {
 } from '@conciv/protocol/harness-types'
 import {assertToolName, toolError} from '@conciv/protocol/tool-call-types'
 import type {ResolvedConcivConfig} from './config.js'
-import {listHarnesses, transcriptPathWithin} from '@conciv/harness'
+import {harnessRegistry, type HarnessRegistry, transcriptPathWithin} from '@conciv/harness'
 import {requireHarness} from './lib/require-harness.js'
 import {defaultConfigProvider} from './lib/default-config-provider.js'
 import {createSessionSearch} from './sessions/session-search.js'
@@ -212,6 +212,8 @@ export type MakeAppOpts = {
 
   harnesses?: readonly HarnessAdapter[]
 
+  harnessRegistry?: HarnessRegistry
+
   onShutdown?: () => void
 
   firstChunkTimeoutMs?: number
@@ -257,18 +259,19 @@ function onPath(path: string, bin: string): boolean {
   return directories.some((directory) => executable(join(directory, bin)))
 }
 
-function detectedHarnesses(path: string): HarnessAdapter[] {
-  return listHarnesses().filter((adapter) => onPath(path, adapter.binName))
+function detectedHarnesses(registry: HarnessRegistry, path: string): HarnessAdapter[] {
+  return registry.list().filter((adapter) => onPath(path, adapter.binName))
 }
 
 function availableHarnesses(
   boot: SavedModelsHarness,
   opts: MakeAppOpts,
+  registry: HarnessRegistry,
   stateDir: string,
   signal: AbortSignal,
   path: string,
 ): SavedModelsHarness[] {
-  const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses(path))).map((adapter) =>
+  const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses(registry, path))).map((adapter) =>
     withSavedModels(adapter, stateDir, signal),
   )
   return [boot, ...others.filter((other) => other.harness.id !== boot.harness.id)]
@@ -437,13 +440,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const appEnv = await runWithProvider(configProvider, readAppEnv(opts.home))
   const stateDir = concivStateDir(opts.cfg.stateRoot)
   const engineLife = new AbortController()
-  const boot = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir, engineLife.signal)
+  const registry = opts.harnessRegistry ?? harnessRegistry(configProvider)
+  const boot = withSavedModels(opts.harness ?? requireHarness(registry, opts.cfg.harness), stateDir, engineLife.signal)
   const harness = boot.harness
   const agentToken = opts.agentToken ?? randomUUID()
   const basePath = agentPath(agentToken)
   const browsers = watchTrustedBrowsers(stateDir)
   const trust = makeConnectionTrust(agentToken, browsers)
-  const listings = availableHarnesses(boot, opts, stateDir, engineLife.signal, appEnv.path)
+  const listings = availableHarnesses(boot, opts, registry, stateDir, engineLife.signal, appEnv.path)
   const harnesses = listings.map((listing) => listing.harness)
   const print = opts.print ?? ((text: string) => console.log(text))
   const endListing = async (listing: SavedModelsHarness): Promise<void> => {

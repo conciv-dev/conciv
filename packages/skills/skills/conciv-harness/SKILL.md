@@ -48,9 +48,8 @@ export const yourHarness = defineHarness({
 ```
 
 (`packages/harness/src/codex/index.ts:21-52`, the smallest complete adapter in the repo — no
-`attach`, `tty`, or `commands`.) Register it in `packages/harness/src/registry.ts` (`for (const adapter
-of [claude, codex, geminiCli, opencode, pi]) registerHarness(adapter)`,
-`packages/harness/src/registry.ts:31`) and add its docs entry to
+`attach`, `tty`, or `commands`.) Register it in `packages/harness/src/registry.ts` (the adapter list
+`harnessRegistry(provider)` builds, `packages/harness/src/registry.ts:20-26`) and add its docs entry to
 `apps/site/content/docs/harnesses.mdx`.
 
 ## HarnessCapabilities: flags that gate the type, not just behavior

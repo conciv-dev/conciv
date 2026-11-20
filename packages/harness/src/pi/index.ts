@@ -1,5 +1,7 @@
+import type {ConfigProvider} from 'effect'
+import {readOptionalConfig} from '../_shared/optional-config.js'
 import {defineHarness, type HarnessChatConfig} from '../_shared/contract.js'
-import {piHistory} from './history.js'
+import {piHistory, piSessionsRoot} from './history.js'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
@@ -13,22 +15,25 @@ function unsupportedChatConfig(id: string, binName: string): (deps: HarnessChatD
   })
 }
 
-export const pi = defineHarness({
-  id: 'pi',
-  binName: 'pi',
-  displayName: 'Pi',
-  capabilities: {
-    resume: false,
-    permissionGate: 'none',
-    transcriptHistory: true,
-    compaction: false,
-    systemPrompt: 'flag',
-    mcp: 'none',
-    slashCommands: 'none',
-    imageInput: false,
-    init: 'none',
-  },
-  chatConfig: unsupportedChatConfig('pi', 'pi'),
-  history: piHistory,
-  resume: {command: ({nativeId}) => ({bin: 'pi', args: ['--session', nativeId]})},
-})
+export function pi(provider: ConfigProvider.ConfigProvider) {
+  const root = piSessionsRoot(readOptionalConfig(provider, 'PI_CODING_AGENT_DIR'))
+  return defineHarness({
+    id: 'pi',
+    binName: 'pi',
+    displayName: 'Pi',
+    capabilities: {
+      resume: false,
+      permissionGate: 'none',
+      transcriptHistory: true,
+      compaction: false,
+      systemPrompt: 'flag',
+      mcp: 'none',
+      slashCommands: 'none',
+      imageInput: false,
+      init: 'none',
+    },
+    chatConfig: unsupportedChatConfig('pi', 'pi'),
+    history: piHistory(root),
+    resume: {command: ({nativeId}) => ({bin: 'pi', args: ['--session', nativeId]})},
+  })
+}

@@ -3010,6 +3010,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4836,6 +4839,9 @@ importers:
       citty:
         specifier: 'catalog:'
         version: 0.2.2
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
     devDependencies:
       '@conciv/harness-testkit':
         specifier: workspace:^

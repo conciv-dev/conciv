@@ -1,4 +1,8 @@
+import {homedir} from 'node:os'
+import type {ConfigProvider} from 'effect'
+import {readOptionalConfig} from '../_shared/optional-config.js'
 import {claudeInit} from '@conciv/harness-init/claude'
+import {claudeConfigDir} from '@conciv/harness-init/claude/state'
 import {defineHarness} from '../_shared/contract.js'
 import {claudeSessionArgs, claudeConnectArgs} from './args.js'
 import {claudeChatConfig} from './chat.js'
@@ -28,27 +32,30 @@ export function claudeTtyCommand(ctx: HarnessConnectContext): TtyCommand {
   }
 }
 
-export const claude = defineHarness({
-  id: 'claude',
-  binName: 'claude',
-  displayName: 'Claude',
-  models: claudeSdkModels,
-  defaultModel: 'opus',
-  capabilities: {
-    resume: true,
-    permissionGate: 'callback',
-    transcriptHistory: true,
-    compaction: true,
-    systemPrompt: 'file',
-    mcp: 'http',
-    slashCommands: 'live',
-    imageInput: 'fileRef',
-    init: 'files',
-  },
-  init: claudeInit,
-  chatConfig: claudeChatConfig,
-  commands: claudeSdkCommands,
-  history: claudeHistory,
-  tty: {command: claudeTtyCommand},
-  resume: {command: ({nativeId}) => ({bin: 'claude', args: claudeSessionArgs(nativeId, true)})},
-})
+export function claude(provider: ConfigProvider.ConfigProvider) {
+  const configDir = claudeConfigDir({home: homedir(), override: readOptionalConfig(provider, 'CLAUDE_CONFIG_DIR')})
+  return defineHarness({
+    id: 'claude',
+    binName: 'claude',
+    displayName: 'Claude',
+    models: claudeSdkModels,
+    defaultModel: 'opus',
+    capabilities: {
+      resume: true,
+      permissionGate: 'callback',
+      transcriptHistory: true,
+      compaction: true,
+      systemPrompt: 'file',
+      mcp: 'http',
+      slashCommands: 'live',
+      imageInput: 'fileRef',
+      init: 'files',
+    },
+    init: claudeInit,
+    chatConfig: claudeChatConfig,
+    commands: claudeSdkCommands,
+    history: claudeHistory(configDir),
+    tty: {command: claudeTtyCommand},
+    resume: {command: ({nativeId}) => ({bin: 'claude', args: claudeSessionArgs(nativeId, true)})},
+  })
+}

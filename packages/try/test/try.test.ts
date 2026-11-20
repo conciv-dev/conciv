@@ -5,12 +5,15 @@ import {realpathSync, existsSync, readFileSync} from 'node:fs'
 import {createFakeHarness, harnessAvailable, makeRpcClient} from '@conciv/harness-testkit'
 import {type HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-ports'
-import {claude} from '@conciv/harness/claude'
+import {ConfigProvider} from 'effect'
+import {claude as claudeFactory} from '@conciv/harness/claude'
 import {runConnect, type ConnectEvent} from '../src/connect.js'
 import {type Engine} from '@conciv/core/start'
 import {join} from 'node:path'
 import {seedWorkspace} from '../src/seed-workspace.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+
+const claude = claudeFactory(ConfigProvider.fromEnv({preserveEmptyStrings: true}))
 
 describe('cli', () => {
   describe('plainLines', () => {

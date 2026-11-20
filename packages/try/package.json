@@ -44,7 +44,8 @@
     "@conciv/core": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "citty": "catalog:"
+    "citty": "catalog:",
+    "effect": "catalog:"
   },
   "devDependencies": {
     "@conciv/harness-testkit": "workspace:^",

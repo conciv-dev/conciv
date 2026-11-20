@@ -5,7 +5,7 @@ import {checkEngines, registerEngine, retireEngine, withHomeDb, type EngineRow} 
 import {type ConfigProvider, Effect} from 'effect'
 import {z} from 'zod'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
-import type {HarnessAdapter} from '@conciv/harness'
+import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {agentPath} from './engine-login.js'
@@ -222,7 +222,8 @@ export async function start(opts: StartOpts): Promise<Engine> {
   assertAccessToken(opts.accessToken)
   const configProvider = opts.configProvider ?? defaultConfigProvider()
   const cfg = resolveConfig(opts.options, opts.root, configProvider)
-  if (!opts.harness) requireHarness(cfg.harness)
+  const registry = harnessRegistry(configProvider)
+  if (!opts.harness) requireHarness(registry, cfg.harness)
   const paths = statePaths(cfg.stateRoot)
   createConcivStateDir(paths.dir)
 
@@ -254,6 +255,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const appOpts: MakeAppOpts = {
     home,
     configProvider,
+    harnessRegistry: registry,
     cfg,
     cwd: opts.root,
     agentToken,

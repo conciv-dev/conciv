@@ -72,7 +72,7 @@ import {
   type ConcivDb,
 } from '@conciv/db'
 import * as Bundler from '@conciv/plugin/schema/bundler'
-import {type HarnessAdapter, defineHarness, listHarnesses, resolveHarnessModels} from '@conciv/harness'
+import {type HarnessAdapter, defineHarness, harnessRegistry, resolveHarnessModels} from '@conciv/harness'
 import {
   ChatEventType,
   idleFailedEvent,
@@ -228,6 +228,8 @@ import {
   runTurn,
   type ClientKit,
 } from './helpers.js'
+
+const listHarnesses = harnessRegistry(ConfigProvider.fromEnv({preserveEmptyStrings: true})).list
 
 const NO_CAPABILITIES = {
   resume: false,

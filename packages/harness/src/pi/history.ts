@@ -70,12 +70,12 @@ export function encodeSessionDir(cwd: string): string {
     .replace(/[/\\:]/g, '-')}--`
 }
 
-function sessionsRoot(): string {
-  return join(process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent'), 'sessions')
+export function piSessionsRoot(agentDir: string | undefined): string {
+  return join(agentDir || join(homedir(), '.pi', 'agent'), 'sessions')
 }
 
-export function sessionsDir(cwd: string): string {
-  return join(sessionsRoot(), encodeSessionDir(cwd))
+export function sessionsDir(root: string, cwd: string): string {
+  return join(root, encodeSessionDir(cwd))
 }
 
 const EntrySchema = z
@@ -238,36 +238,33 @@ function namesIn(dir: string): string[] {
   }
 }
 
-function transcriptRoot(cwd: string): string {
-  return sessionsDir(cwd)
-}
-
-function transcriptPath(cwd: string, sessionId: string): string {
-  const dir = sessionsDir(cwd)
+function transcriptPath(root: string, cwd: string, sessionId: string): string {
+  const dir = sessionsDir(root, cwd)
   const suffix = `_${sessionId}.jsonl`
   return join(dir, namesIn(dir).find((name) => name.endsWith(suffix)) ?? `${sessionId}.jsonl`)
 }
 
-function containedTranscript(cwd: string, sessionId: string): string | null {
-  return containedPath(transcriptRoot(cwd), transcriptPath(cwd, sessionId))
+function containedTranscript(root: string, cwd: string, sessionId: string): string | null {
+  return containedPath(sessionsDir(root, cwd), transcriptPath(root, cwd, sessionId))
 }
 
 async function transcriptMessages(
+  root: string,
   cwd: string,
   sessionId: string,
   options: {signal?: AbortSignal} = {},
 ): Promise<ChatMessage[]> {
-  const path = containedTranscript(cwd, sessionId)
+  const path = containedTranscript(root, cwd, sessionId)
   if (path === null) return []
   const folded = await foldJsonlFile(path, emptyFold(), foldLine, options).catch(whenMissing(null))
   return folded === null ? [] : collectMessages(folded.entries)
 }
 
-function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {
+function observeTranscript(root: string, cwd: string, sessionId: string): TranscriptHandle {
   return makeJsonlHandle<PiFold>({
     parser: {empty: emptyFold, foldLine, messages: (state) => collectMessages(state.entries)},
     resolvePath: async () => {
-      const dir = sessionsDir(cwd)
+      const dir = sessionsDir(root, cwd)
       const names = await readdir(dir).catch(whenMissing([]))
       const found = names.find((name) => name.endsWith(`_${sessionId}.jsonl`))
       const contained = found ? containedPath(dir, join(dir, found)) : null
@@ -355,14 +352,13 @@ async function tailName(path: string, sizeBytes: number): Promise<string | null>
   }
 }
 
-async function listSessions(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage> {
+async function listSessions(root: string, scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage> {
   const projectCwd = 'cwd' in scope ? scope.cwd : null
-  const dirs = projectCwd === null ? await projectDirs() : [sessionsDir(projectCwd)]
+  const dirs = projectCwd === null ? await projectDirs(root) : [sessionsDir(root, projectCwd)]
   return transcriptPage(dirs, page, transcriptId, (id, path, stamp) => sessionMeta(id, path, stamp, projectCwd))
 }
 
-async function projectDirs(): Promise<string[]> {
-  const root = sessionsRoot()
+async function projectDirs(root: string): Promise<string[]> {
   const entries = await readdir(root, {withFileTypes: true}).catch(whenMissing<Dirent[]>([]))
   return entries
     .filter((entry) => entry.isDirectory())
@@ -375,8 +371,8 @@ function transcriptId(name: string): HarnessSessionId | null {
   return parsed.success ? parsed.data : null
 }
 
-async function storedMeta(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null> {
-  const path = containedTranscript(cwd, sessionId)
+async function storedMeta(root: string, cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null> {
+  const path = containedTranscript(root, cwd, sessionId)
   if (path === null) return null
   const info = await stat(path).catch(whenMissing(null))
   if (!info) return null
@@ -422,9 +418,14 @@ const ChainCursorSchema = z
     return {end: Number(cursor.slice(0, separator)), wanted: cursor.slice(separator + 1)}
   })
 
-async function transcriptTail(cwd: string, sessionId: string, options: TranscriptTailOptions): Promise<TranscriptPage> {
+async function transcriptTail(
+  root: string,
+  cwd: string,
+  sessionId: string,
+  options: TranscriptTailOptions,
+): Promise<TranscriptPage> {
   const empty: TranscriptPage = {messages: [], earlier: null}
-  const path = containedTranscript(cwd, sessionId)
+  const path = containedTranscript(root, cwd, sessionId)
   const cursor = options.before === null ? null : ChainCursorSchema.safeParse(options.before)
   if (path === null || cursor?.success === false) return empty
   const page = tailLines({
@@ -439,12 +440,14 @@ async function transcriptTail(cwd: string, sessionId: string, options: Transcrip
   return page.catch(whenMissing(empty))
 }
 
-export const piHistory: HarnessHistory = {
-  messages: transcriptMessages,
-  tail: transcriptTail,
-  observe: observeTranscript,
-  transcriptPath,
-  transcriptRoot,
-  list: listSessions,
-  meta: storedMeta,
+export function piHistory(root: string): HarnessHistory {
+  return {
+    messages: (cwd, sessionId, options) => transcriptMessages(root, cwd, sessionId, options),
+    tail: (cwd, sessionId, options) => transcriptTail(root, cwd, sessionId, options),
+    observe: (cwd, sessionId) => observeTranscript(root, cwd, sessionId),
+    transcriptPath: (cwd, sessionId) => transcriptPath(root, cwd, sessionId),
+    transcriptRoot: (cwd) => sessionsDir(root, cwd),
+    list: (scope, page) => listSessions(root, scope, page),
+    meta: (cwd, sessionId) => storedMeta(root, cwd, sessionId),
+  }
 }

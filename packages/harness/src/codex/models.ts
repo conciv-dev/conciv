@@ -54,11 +54,11 @@ const parseJson = (text: string): unknown => {
   }
 }
 
-export function codexHome(env: Record<string, string | undefined> = process.env): string {
+export function codexHome(env: Record<string, string | undefined>): string {
   return env.CODEX_HOME ?? join(homedir(), '.codex')
 }
 
-export function codexModels(codexDir: string = codexHome()): HarnessModel[] {
+export function codexModels(codexDir: string): HarnessModel[] {
   const text = readText(join(codexDir, 'models_cache.json'))
   const parsed = ModelsCacheSchema.safeParse(text === null ? null : parseJson(text))
   if (!parsed.success) return fallbackModels()
@@ -71,7 +71,7 @@ export function codexModels(codexDir: string = codexHome()): HarnessModel[] {
     })
 }
 
-export function codexDefaultModel(codexDir: string = codexHome()): string {
+export function codexDefaultModel(codexDir: string): string {
   const config = readText(join(codexDir, 'config.toml')) ?? ''
   const headerIndex = config.search(TABLE_HEADER)
   const topLevel = headerIndex === -1 ? config : config.slice(0, headerIndex)

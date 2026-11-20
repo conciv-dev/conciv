@@ -6,10 +6,10 @@ Codex CLI harness, published as `./codex`. It chats through `codex` from `@conci
 
 ## Interface
 
-- `codex` (`index.ts`): id/binName `'codex'`, displayName `'Codex'`; capabilities resume true, `permissionGate: 'none'`, transcriptHistory true, compaction false, `systemPrompt: 'flag'`, `mcp: 'http'`, `slashCommands: 'none'`, imageInput false, `init: 'none'`; `resume.command({nativeId})` is `codex resume <nativeId>`.
+- `codex(provider)` (`index.ts`): reads `CODEX_HOME` as Effect Config under the provider (`codexHome`: an unset value falls back to `~/.codex`, an empty one is kept); id/binName `'codex'`, displayName `'Codex'`; capabilities resume true, `permissionGate: 'none'`, transcriptHistory true, compaction false, `systemPrompt: 'flag'`, `mcp: 'http'`, `slashCommands: 'none'`, imageInput false, `init: 'none'`; `resume.command({nativeId})` is `codex resume <nativeId>`.
 - `codex.chatConfig` (`index.ts`): its adapter builds a fresh `codexRunAdapter(deps, toolCount)` (`index.ts`) for every model step, from that step's `options.tools`: codexAdapter with `sandboxMode: 'workspace-write'`, `approvalPolicy: 'never'`; a step that offers tools adds `mcp_servers.tanstack.default_tools_approval_mode = "approve"`; env through `definedEntries`; `sessionId` when resuming.
 - `codexHome(env)`, `codexModels(dir)`, `codexDefaultModel(dir)` (`models.ts`).
-- `stateDbPath()` (`$CODEX_HOME/state_5.sqlite`), `sessionsRoot()` (`$CODEX_HOME/sessions`), `rolloutCwd(raw)`, `rolloutPath(sessionId)`, `codexHistory` `{messages, tail, observe, withinProject, contextTokens, list, meta}` (`history.ts`); `messages` streams the rollout through `foldJsonlFile`, taking the cwd from its first `session_meta` line, and answers `[]` when that cwd is not the project. Message ids are `${sessionId}:o<byte offset of the line that opened the message>`. `tail` checks the first `session_meta` cwd, then reads backwards through `tailLines`: a safe boundary is a non-blank user message with no later tool output whose call sits above it; the cursor is the boundary's byte offset as a decimal string. `list({cwd}, page)` reads the `threads` rows of that cwd, `list({everywhere: true}, page)` every unarchived row; each meta carries the row's `cwd`.
+- `stateDbPath(home)` (`$CODEX_HOME/state_5.sqlite`), `sessionsRoot(home)` (`$CODEX_HOME/sessions`), `rolloutCwd(raw)`, `rolloutPath(home, sessionId)`, `codexHistory(home)` `{messages, tail, observe, withinProject, contextTokens, list, meta}` (`history.ts`); `messages` streams the rollout through `foldJsonlFile`, taking the cwd from its first `session_meta` line, and answers `[]` when that cwd is not the project. Message ids are `${sessionId}:o<byte offset of the line that opened the message>`. `tail` checks the first `session_meta` cwd, then reads backwards through `tailLines`: a safe boundary is a non-blank user message with no later tool output whose call sits above it; the cursor is the boundary's byte offset as a decimal string. `list({cwd}, page)` reads the `threads` rows of that cwd, `list({everywhere: true}, page)` every unarchived row; each meta carries the row's `cwd`.
 
 ## Invariants
 
@@ -22,7 +22,7 @@ Codex CLI harness, published as `./codex`. It chats through `codex` from `@conci
 
 ## Side Effects
 
-- Reads `$CODEX_HOME` (default `~/.codex`) `models_cache.json` and `config.toml` synchronously, including at module load through `defaultModel: codexDefaultModel()` (`models.ts`, `index.ts`).
+- Reads `$CODEX_HOME` (default `~/.codex`) `models_cache.json` and `config.toml` synchronously, including when `codex(provider)` runs, through `defaultModel: codexDefaultModel(home)` (`models.ts`, `index.ts`); a turn's default model reads the home from the turn's harness env (`codexRunAdapter`).
 - Opens `$CODEX_HOME/state_5.sqlite` read-only with `node:sqlite` `DatabaseSync` (`queryRows`).
 - Reads rollout JSONL files and recursively scans `$CODEX_HOME/sessions` (`rolloutEntries`, `listSessions`); `withinProject` and `tail` read only the head (`readHead`, 64 KiB).
 - The chat adapter runs the codex CLI with the caller's env.

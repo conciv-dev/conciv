@@ -2,11 +2,11 @@
 
 ## Overview
 
-`registry.ts` is the package entry (`exports["."]`). On import it registers the five built-in adapters into a module-level Map keyed by adapter id, and exposes lookup, listing, a model resolver and re-exports of shared helpers. Each adapter lives in its own subdirectory and has its own export subpath.
+`registry.ts` is the package entry (`exports["."]`). `harnessRegistry(provider)` builds the five built-in adapters from one Effect `ConfigProvider` and exposes lookup and listing over them; the entry also has a model resolver and re-exports of shared helpers. Each adapter except `geminiCli` is a factory of the provider (`claude(provider)`, `codex(provider)`, `opencode(provider)`, `pi(provider)`) that reads its home dir as Effect Config once, when it runs. Each adapter lives in its own subdirectory and has its own export subpath.
 
 ## Interface
 
-- `registerHarness(adapter)`, `getHarness(id)`, `listHarnesses()` (insertion order), `resolveHarnessModels(adapter, {signal})` (`[]` when `models` is unset, calls it with `{signal}` when it is a function, so the caller's signal reaches the listing) (`registry.ts`).
+- `harnessRegistry(provider)` returns a `HarnessRegistry` `{get(id), list()}` (`list` in the order claude, codex, gemini-cli, opencode, pi), `resolveHarnessModels(adapter, {signal})` (`[]` when `models` is unset, calls it with `{signal}` when it is a function, so the caller's signal reaches the listing) (`registry.ts`).
 - Re-exports `defineHarness`, types `HarnessAdapter`, `HarnessChatConfig`, `lastUserModelText`, `lastUserImages`, `containedPath`, `transcriptPathWithin` (`registry.ts`).
 - [_shared/README.md](./_shared/README.md): adapter contract and shared helpers.
 - [claude/README.md](./claude/README.md): Claude Code adapter.
@@ -17,12 +17,12 @@
 
 ## Invariants
 
-- `registerHarness` calls `registry.set(adapter.id, ...)`, so a second adapter with the same id replaces the first without error (`registry.ts`).
+- The registry holds no module state: each `harnessRegistry(provider)` call builds its own adapters, and nothing in `src` reads the process environment (`registry.ts`). Core builds one per engine from its `configProvider`; callers with no engine pass `ConfigProvider.fromEnv({preserveEmptyStrings: true})`.
 
 ## Side Effects
 
-- At module load a loop registers `claude`, `codex`, `geminiCli`, `opencode`, `pi` into the module-level `registry` Map (`registry.ts`).
-- Importing `registry.ts` imports every adapter; this evaluates `codexDefaultModel()`, which reads `$CODEX_HOME` (default `~/.codex`) `config.toml` and `models_cache.json` synchronously, and probes the filesystem for `CONCIV_PLUGIN_DIR`.
+- `harnessRegistry(provider)` runs `codex(provider)`, which evaluates `codexDefaultModel(home)` and so reads `$CODEX_HOME` (default `~/.codex`) `config.toml` and `models_cache.json` synchronously.
+- Importing `registry.ts` imports every adapter, which probes the filesystem for `CONCIV_PLUGIN_DIR`.
 
 ## Verification
 

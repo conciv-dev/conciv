@@ -47,7 +47,7 @@ import {
   SOCKET_TRUST_FRAME,
   type EngineStaleness,
 } from '@conciv/contract'
-import {getHarness, type HarnessAdapter} from '@conciv/harness'
+import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
 import {
   anchorKey,
   chatMetadata,
@@ -90,9 +90,9 @@ import {
 import {Plugin, Rpc as PluginRpc, type RpcRegistration} from '@conciv/plugin'
 import {evaluatePluginBundle} from '@conciv/plugin/experimental/host'
 import {Bus, InstructionEntry, Location, PluginHost, Session, SessionEvent} from '@conciv/plugin-host'
-import {claude} from '@conciv/harness/claude'
-import {codex as codexHarness} from '@conciv/harness/codex'
-import {pi as piHarness} from '@conciv/harness/pi'
+import {claude as claudeFactory} from '@conciv/harness/claude'
+import {codex as codexFactory} from '@conciv/harness/codex'
+import {pi as piFactory} from '@conciv/harness/pi'
 import * as Bundler from '@conciv/plugin/schema/bundler'
 import {
   readApprovalAsk,
@@ -143,7 +143,7 @@ import {createORPCClient} from '@orpc/client'
 import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {ORPCError} from '@orpc/server'
 import WebSocket from 'ws'
-import {Effect, ManagedRuntime, Schema} from 'effect'
+import {ConfigProvider, Effect, ManagedRuntime, Schema} from 'effect'
 import * as Page from '@conciv/plugin-page/rpc'
 import {pageTabs, type PageReply, type PageTab} from '@conciv/plugin-page/testing'
 import {z} from 'zod'
@@ -169,6 +169,12 @@ import {
   userTexts,
 } from './helpers.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+
+const harnessEnv = ConfigProvider.fromEnv({preserveEmptyStrings: true})
+const getHarness = harnessRegistry(harnessEnv).get
+const claude = claudeFactory(harnessEnv)
+const codexHarness = codexFactory(harnessEnv)
+const piHarness = piFactory(harnessEnv)
 
 function groupAlive(group: number): boolean {
   try {

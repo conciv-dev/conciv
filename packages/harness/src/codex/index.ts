@@ -1,4 +1,6 @@
 import {randomUUID} from 'node:crypto'
+import type {ConfigProvider} from 'effect'
+import {readOptionalConfig} from '../_shared/optional-config.js'
 import {type TextAdapter, codex as codexAdapter} from '@conciv/ai/server'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
@@ -56,24 +58,27 @@ const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
 })
 
-export const codex = defineHarness({
-  id: 'codex',
-  binName: 'codex',
-  displayName: 'Codex',
-  capabilities: {
-    resume: true,
-    permissionGate: 'none',
-    transcriptHistory: true,
-    compaction: false,
-    systemPrompt: 'flag',
-    mcp: 'http',
-    slashCommands: 'none',
-    imageInput: false,
-    init: 'none',
-  },
-  chatConfig: codexChatConfig,
-  models: () => codexModels(),
-  defaultModel: codexDefaultModel(),
-  history: codexHistory,
-  resume: {command: ({nativeId}) => ({bin: 'codex', args: ['resume', nativeId]})},
-})
+export function codex(provider: ConfigProvider.ConfigProvider) {
+  const home = codexHome({CODEX_HOME: readOptionalConfig(provider, 'CODEX_HOME')})
+  return defineHarness({
+    id: 'codex',
+    binName: 'codex',
+    displayName: 'Codex',
+    capabilities: {
+      resume: true,
+      permissionGate: 'none',
+      transcriptHistory: true,
+      compaction: false,
+      systemPrompt: 'flag',
+      mcp: 'http',
+      slashCommands: 'none',
+      imageInput: false,
+      init: 'none',
+    },
+    chatConfig: codexChatConfig,
+    models: () => codexModels(home),
+    defaultModel: codexDefaultModel(home),
+    history: codexHistory(home),
+    resume: {command: ({nativeId}) => ({bin: 'codex', args: ['resume', nativeId]})},
+  })
+}

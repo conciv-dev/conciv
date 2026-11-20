@@ -8,7 +8,8 @@ import {inside} from '@conciv/harness/cwd'
 import {type ChatPlane} from '@conciv/chat'
 import {type ConcivDb} from '@conciv/db'
 import type {Plugin} from '@conciv/plugin'
-import {getHarness, type HarnessAdapter} from '@conciv/harness'
+import {ConfigProvider} from 'effect'
+import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
 import {
   createFakeHarness,
   type ChatMessage,
@@ -30,6 +31,8 @@ import {makeApp, type MadeApp} from '../src/app.js'
 import {type ResolvedConcivConfig} from '../src/config.js'
 import {ensureRow} from '../src/sessions/session-rows.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+
+const getHarness = harnessRegistry(ConfigProvider.fromEnv({preserveEmptyStrings: true})).get
 
 export function requireClaude(): HarnessAdapter {
   const adapter = getHarness('claude')

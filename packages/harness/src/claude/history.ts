@@ -1,4 +1,3 @@
-import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
 import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -15,7 +14,6 @@ import type {
 } from '@conciv/protocol/harness-types'
 import {getSessionInfo, listSessions as listSdkSessions, type SDKSessionInfo} from '@anthropic-ai/claude-agent-sdk'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
-import {claudeConfigDir} from '@conciv/harness-init/claude/state'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {containedPath} from '../_shared/contained-path.js'
 import {realpathOrSelf} from '../_shared/cwd.js'
@@ -67,16 +65,12 @@ function encodeProjectDir(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-')
 }
 
-export function transcriptRoot(cwd: string): string {
-  return join(
-    claudeConfigDir({home: homedir(), override: process.env.CLAUDE_CONFIG_DIR}),
-    'projects',
-    encodeProjectDir(realpathOrSelf(cwd)),
-  )
+export function transcriptRoot(configDir: string, cwd: string): string {
+  return join(configDir, 'projects', encodeProjectDir(realpathOrSelf(cwd)))
 }
 
-export function transcriptPath(cwd: string, sessionId: string): string {
-  return join(transcriptRoot(cwd), `${sessionId}.jsonl`)
+export function transcriptPath(configDir: string, cwd: string, sessionId: string): string {
+  return join(transcriptRoot(configDir, cwd), `${sessionId}.jsonl`)
 }
 
 const INTERNAL_MARKERS = ['VIBE_PROGRESS_TICK', 'NEEDS_INFO:', '<system-reminder>']
@@ -428,35 +422,40 @@ function metaOfInfo(info: SDKSessionInfo, projectCwd: string | null): HarnessSes
   ]
 }
 
-export async function sessionMeta(cwd: string, sessionId: string): Promise<HarnessSessionMeta | null> {
-  if (!withinProject(cwd, sessionId)) return null
+export async function sessionMeta(
+  configDir: string,
+  cwd: string,
+  sessionId: string,
+): Promise<HarnessSessionMeta | null> {
+  if (!withinProject(configDir, cwd, sessionId)) return null
   const info = await getSessionInfo(sessionId, {dir: cwd})
   return info === undefined ? null : (metaOfInfo(info, cwd).at(0) ?? null)
 }
 
-function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {
+function observeTranscript(configDir: string, cwd: string, sessionId: string): TranscriptHandle {
   return makeJsonlHandle<ClaudeFold>({
     parser: {empty: emptyFold, foldLine, messages: foldMessages},
     resolvePath: async () => {
-      if (!withinProject(cwd, sessionId)) {
+      if (!withinProject(configDir, cwd, sessionId)) {
         return transcriptFailure('missing', `${sessionId} is not a transcript of ${cwd}`)
       }
-      return transcriptPath(cwd, sessionId)
+      return transcriptPath(configDir, cwd, sessionId)
     },
   })
 }
 
-export function withinProject(cwd: string, sessionId: string): boolean {
-  return containedPath(transcriptRoot(cwd), transcriptPath(cwd, sessionId)) !== null
+export function withinProject(configDir: string, cwd: string, sessionId: string): boolean {
+  return containedPath(transcriptRoot(configDir, cwd), transcriptPath(configDir, cwd, sessionId)) !== null
 }
 
 async function transcriptMessages(
+  configDir: string,
   cwd: string,
   sessionId: string,
   options: {signal?: AbortSignal} = {},
 ): Promise<ChatMessage[]> {
-  if (!withinProject(cwd, sessionId)) return []
-  const folded = await foldJsonlFile(transcriptPath(cwd, sessionId), emptyFold(), foldLine, options).catch(
+  if (!withinProject(configDir, cwd, sessionId)) return []
+  const folded = await foldJsonlFile(transcriptPath(configDir, cwd, sessionId), emptyFold(), foldLine, options).catch(
     whenMissing(null),
   )
   return folded === null ? [] : folded.messages
@@ -488,11 +487,16 @@ function turnScanner(): (line: string, offset: number) => {line: TurnLine; bound
 
 const ByteCursorSchema = z.string().regex(/^\d+$/).transform(Number)
 
-async function transcriptTail(cwd: string, sessionId: string, options: TranscriptTailOptions): Promise<TranscriptPage> {
+async function transcriptTail(
+  configDir: string,
+  cwd: string,
+  sessionId: string,
+  options: TranscriptTailOptions,
+): Promise<TranscriptPage> {
   const end = options.before === null ? null : ByteCursorSchema.safeParse(options.before)
-  if (!withinProject(cwd, sessionId) || end?.success === false) return {messages: [], earlier: null}
+  if (!withinProject(configDir, cwd, sessionId) || end?.success === false) return {messages: [], earlier: null}
   const page = tailLines({
-    path: transcriptPath(cwd, sessionId),
+    path: transcriptPath(configDir, cwd, sessionId),
     end: end?.data ?? null,
     limit: options.limit,
     signal: options.signal,
@@ -503,14 +507,16 @@ async function transcriptTail(cwd: string, sessionId: string, options: Transcrip
   return page.catch(whenMissing({messages: [], earlier: null}))
 }
 
-export const claudeHistory: HarnessHistory = {
-  messages: transcriptMessages,
-  tail: transcriptTail,
-  observe: observeTranscript,
-  transcriptPath,
-  transcriptRoot,
-  withinProject,
-  contextTokens: contextTokensFromTranscript,
-  list: listSessions,
-  meta: sessionMeta,
+export function claudeHistory(configDir: string): HarnessHistory {
+  return {
+    messages: (cwd, sessionId, options) => transcriptMessages(configDir, cwd, sessionId, options),
+    tail: (cwd, sessionId, options) => transcriptTail(configDir, cwd, sessionId, options),
+    observe: (cwd, sessionId) => observeTranscript(configDir, cwd, sessionId),
+    transcriptPath: (cwd, sessionId) => transcriptPath(configDir, cwd, sessionId),
+    transcriptRoot: (cwd) => transcriptRoot(configDir, cwd),
+    withinProject: (cwd, sessionId) => withinProject(configDir, cwd, sessionId),
+    contextTokens: contextTokensFromTranscript,
+    list: listSessions,
+    meta: (cwd, sessionId) => sessionMeta(configDir, cwd, sessionId),
+  }
 }

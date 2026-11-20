@@ -9,9 +9,10 @@ import {
   type Kit,
   connectMcpClient,
 } from '@conciv/harness-testkit'
-import {claude} from '@conciv/harness/claude'
-import {codex} from '@conciv/harness/codex'
-import {opencode} from '@conciv/harness/opencode'
+import {ConfigProvider} from 'effect'
+import {claude as claudeFactory} from '@conciv/harness/claude'
+import {codex as codexFactory} from '@conciv/harness/codex'
+import {opencode as opencodeFactory} from '@conciv/harness/opencode'
 import {ChatEventType} from '@conciv/protocol/chat-event-types'
 import {SessionId, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {z} from 'zod'
@@ -19,6 +20,11 @@ import {readDevEndpoint} from '../src/lib/dev-endpoint.js'
 import {start, type Engine} from '../src/start.js'
 import {assertTurnAndResume, requireClaude, bootKit, runTurn, runReal, removeTurnTranscripts} from './helpers.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+
+const harnessEnv = ConfigProvider.fromEnv({preserveEmptyStrings: true})
+const claude = claudeFactory(harnessEnv)
+const codex = codexFactory(harnessEnv)
+const opencode = opencodeFactory(harnessEnv)
 
 describe('claude tanstack', () => {
   const runReal = !process.env.CI

@@ -2,7 +2,8 @@ import {createServer, type IncomingMessage, type ServerResponse} from 'node:http
 import {expect, it, afterEach, afterAll, beforeAll, describe, onTestFinished, vi} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {z} from 'zod'
-import {getHarness} from '@conciv/harness'
+import {ConfigProvider} from 'effect'
+import {harnessRegistry} from '@conciv/harness'
 import {harnessAvailable} from '../src/harness-available.js'
 import {makeCallTool, makeRunTypescript} from '../src/call-tool.js'
 import {chmodSync, existsSync, mkdirSync, rmSync, writeFileSync} from 'node:fs'
@@ -33,6 +34,8 @@ import {once} from 'node:events'
 import {setImmediate} from 'node:timers/promises'
 import {setFlagsFromString} from 'node:v8'
 import {runInNewContext} from 'node:vm'
+
+const getHarness = harnessRegistry(ConfigProvider.fromEnv({preserveEmptyStrings: true})).get
 
 describe('call tool', () => {
   it('harnessAvailable returns a boolean for any adapter and never hands the bin name to a shell', () => {

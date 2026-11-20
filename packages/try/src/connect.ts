@@ -2,7 +2,8 @@ import {mkdtempSync, realpathSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {start, type Engine} from '@conciv/core/start'
-import {getHarness, listHarnesses} from '@conciv/harness'
+import {ConfigProvider} from 'effect'
+import {harnessRegistry} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/harness'
 import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-ports'
 import {seedWorkspace} from './seed-workspace.js'
@@ -40,9 +41,11 @@ function isAddressInUse(error: unknown): boolean {
 function resolveAdapter(opts: ConnectOpts): HarnessAdapter {
   if (opts.harnessAdapter) return opts.harnessAdapter
   const id = opts.harness ?? 'claude'
-  const adapter = getHarness(id)
+  const registry = harnessRegistry(ConfigProvider.fromEnv({preserveEmptyStrings: true}))
+  const adapter = registry.get(id)
   if (adapter) return adapter
-  const known = listHarnesses()
+  const known = registry
+    .list()
     .map((registered) => registered.id)
     .join(', ')
   throw new Error(`conciv: unknown harness "${id}". Known harnesses: ${known}.`)
