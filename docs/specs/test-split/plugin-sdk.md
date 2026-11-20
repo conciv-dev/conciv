@@ -10,7 +10,7 @@ Testing): `@conciv/plugin` is a package the app is made of, and `@conciv/plugin-
 so neither mounts the app. Every happy-dom row was read again against it: the 6 happy-dom rows render one SDK helper
 component under a hand-written plugin context, without the app and without the kit, so they stay in `@conciv/plugin`
 as component tests without the kit. No row mounts the app, so no row moves to `apps/conciv`, and none lands in the
-app's browser file `apps/conciv/src/conciv.browser.test.tsx`.
+app's browser-mode files (`apps/conciv/src/<area>.browser.test.tsx`, Decision 15 in app.md).
 
 Counting: a test is one generated case. An `it.each`, `test.each`, `forEach` or `for` loop is one row marked "(each xN)"
 and counts N.

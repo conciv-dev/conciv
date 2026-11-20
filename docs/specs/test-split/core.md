@@ -819,8 +819,8 @@ Rows: 32. Journeys (each becomes one test): M-LOAD (5475, 5501); CL-SEND (5577, 
 | packages/tools                        | `server.test.ts` 1, `ui.test.ts` 2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 The 34 rows under apps/conciv are all happy-dom and join app.md journeys; app.md owns those files and their line
-budgets. apps/conciv's one browser file, `apps/conciv/src/conciv.browser.test.tsx`, gets 0 rows from this area, so this
-area adds nothing toward its 1,000-line cap. Files over 1,000 lines are likely for `runtime/plugin-runtime.test.ts`,
+budgets. apps/conciv's browser-mode files (`apps/conciv/src/<area>.browser.test.tsx`, Decision 15 in app.md) get 0 rows
+from this area, so this area adds nothing toward their 1,000-line cap. Files over 1,000 lines are likely for `runtime/plugin-runtime.test.ts`,
 `api/mcp.test.ts`, `api/rpc/hub.test.ts` and `api/rpc/sessions.test.ts` once their journeys are written (Decision D8).
 
 ## Decisions
