@@ -1,6 +1,9 @@
 import {dirname, join} from 'node:path'
-import {readdirSync, existsSync} from 'node:fs'
-import type {Plugin, ViteDevServer} from 'vite'
+import {readdirSync, existsSync, readFileSync} from 'node:fs'
+import {pathToFileURL} from 'node:url'
+import {z} from 'zod'
+import type {TestProjectInlineConfiguration} from 'vitest/config'
+import type {Plugin, UserConfig, ViteDevServer} from 'vite'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
@@ -51,6 +54,49 @@ export function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly s
     },
     server: {forwardConsole: false, warmup: {clientFiles: [...(opts.warmupFiles ?? [])]}},
   }
+}
+
+const TESTKIT = '@conciv/plugin-testkit'
+
+const ManifestSchema = z.object({
+  name: z.string().optional(),
+  dependencies: z.record(z.string(), z.string()).optional(),
+  devDependencies: z.record(z.string(), z.string()).optional(),
+})
+
+function readManifest(dir: string): z.infer<typeof ManifestSchema> | null {
+  const file = join(dir, 'package.json')
+  if (!existsSync(file)) return null
+  return ManifestSchema.parse(JSON.parse(readFileSync(file, 'utf8')))
+}
+
+function installedTestkit(root: string, dir: string): string {
+  const installed = join(dir, 'node_modules', TESTKIT)
+  if (existsSync(join(installed, 'package.json'))) return installed
+  const parent = dirname(dir)
+  if (parent === dir) throw new Error(`${TESTKIT} is listed in ${root}/package.json but is not installed`)
+  return installedTestkit(root, parent)
+}
+
+function findTestkit(root: string): string | null {
+  const own = readManifest(root)
+  if (own?.name === TESTKIT) return root
+  if (own?.dependencies?.[TESTKIT] === undefined && own?.devDependencies?.[TESTKIT] === undefined) return null
+  return installedTestkit(root, root)
+}
+
+const TestProjectsModuleSchema = z.object({
+  testProjects: z.custom<() => TestProjectInlineConfiguration[]>((value) => typeof value === 'function'),
+})
+
+async function testConfig(userConfig: UserConfig): Promise<UserConfig> {
+  if (userConfig.test?.name !== undefined) return {}
+  const testkit = findTestkit(userConfig.root ?? process.cwd())
+  if (!testkit) return {}
+  const loaded = TestProjectsModuleSchema.parse(
+    await import(pathToFileURL(join(testkit, 'dist/test-projects.js')).href),
+  )
+  return {test: {projects: loaded.testProjects()}}
 }
 
 function dropIncludedFromExcludes(
@@ -219,6 +265,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
   let managedExcludes: string[] = []
   let docked = false
   let devServer: ViteDevServer | undefined
+  let testing = false
   return {
     name: 'conciv',
     apply: 'serve',
@@ -247,7 +294,8 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         })
       },
     },
-    config(userConfig) {
+    config(userConfig, env) {
+      if (env.mode === 'test') return testConfig(userConfig)
       const embedFiles =
         builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...embedChunks(builtins.embedEntry)]
       const base = concivSolidConfig({
@@ -274,6 +322,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       dropIncludedFromExcludes(environmentConfig.optimizeDeps, managedExcludes)
     },
     configResolved(config) {
+      testing = config.mode === 'test'
       docked =
         options.widget !== false &&
         resolveConfig(options, config.root).enabled &&
@@ -286,7 +335,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       return loadWidgetModule(id, apiBase, builtins.embedEntry)
     },
     transform(code, id) {
-      if (options.enabled === false) return null
+      if (options.enabled === false || testing) return null
       return stampJsxSource(code, id)
     },
     transformIndexHtml: {
@@ -302,6 +351,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       },
     },
     async configureServer(server: ViteDevServer) {
+      if (testing) return
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
       const booted = await bootEngine(
