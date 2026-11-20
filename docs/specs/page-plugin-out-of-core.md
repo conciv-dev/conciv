@@ -285,8 +285,12 @@ So `packages/core/src/page/` is DELETED whole, and the contract loses its `page`
    through the same generic path as every other tool (`tabs.list` and `fill_form` are no longer left out). Icon and
    label are the widget's tool render (2.2). Open only as a check: what the `client` binding still does once the page
    branch goes (`registryBackedTool` in `app.ts` exposes `server` tools only), answered in section 7.
-4. OPEN. Page session fold (2.1) and attachment cards (2.3): a plugin registry for each, or drop them. No maintainer
-   ruling exists; an orchestrator plan of 2026-11-18 named a plugin registry for the fold, which is not a ruling.
+4. DECIDED 2026-11-20, maintainer: "we have a way for a plugin to add a tool card". The page plugin draws its tool
+   calls only through the existing `ToolRegistry` (it already registers every page tool, `plugins/page/src/renderer.tsx`).
+   The widget's page session fold (`chat-pane.tsx:249` `PAGE_SESSION`, `ui-kit-chat/src/store/page-session.ts`,
+   `pageSessionEntry`) is deleted; page calls sit in the generic activity group like every plugin's tools, as opencode
+   (`session-ui/src/timeline-next/rules.ts:41`). No new registry. Attachment cards (2.3) use the existing
+   `Composer.attach` and `NoteCard` registry (#989); no new registry.
 5. DECIDED by the orchestrator 2026-11-20, under the maintainer's "rule without me, stay as opencode": the contract's
    `page.*` group is deleted and the per-session tab part of `tabs.*` moves to the page plugin's own rpc, reached
    through `plugin.call` (opencode's core contract has no browser group; the plugin owns its rpc). The project part
