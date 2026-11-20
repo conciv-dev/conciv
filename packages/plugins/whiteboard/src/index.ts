@@ -10,6 +10,7 @@ import {makeAgentCursor} from './agent-cursor.js'
 import {makeRenderer} from './preview.js'
 import {CONFIRMATION_RULES} from './refusal.js'
 import {register} from './tools.js'
+import {COMMIT_DEADLINE_MS, EXPORT_DEADLINE_MS} from './canvas-tools.js'
 import {unreadable} from './anchor-confine.js'
 
 const loadResolver = (root: string) =>
@@ -30,6 +31,8 @@ const DRAW_DEADLINE_MS = 8_000
 const AGENT_CURSOR_MS = 50
 const WhiteboardOptions = z.object({
   drawDeadlineMs: z.number().positive().default(DRAW_DEADLINE_MS).catch(DRAW_DEADLINE_MS),
+  exportDeadlineMs: z.number().positive().default(EXPORT_DEADLINE_MS).catch(EXPORT_DEADLINE_MS),
+  commitDeadlineMs: z.number().positive().default(COMMIT_DEADLINE_MS).catch(COMMIT_DEADLINE_MS),
   agentCursorMs: z.number().positive().default(AGENT_CURSOR_MS).catch(AGENT_CURSOR_MS),
 })
 
@@ -49,7 +52,7 @@ export default Plugin.define({
   id: 'whiteboard',
   effect: (ctx) =>
     Effect.gen(function* () {
-      const {drawDeadlineMs, agentCursorMs} = yield* Effect.sync(() => WhiteboardOptions.parse(ctx.options))
+      const {agentCursorMs, ...deadlines} = yield* Effect.sync(() => WhiteboardOptions.parse(ctx.options))
       const store = yield* WhiteboardStore
       const resolver = yield* Effect.cached(loadResolver(ctx.location.directory))
       const renderer = yield* Effect.cached(makeRenderer)
@@ -69,7 +72,7 @@ export default Plugin.define({
         editor.list().forEach((agent) => agent.permissions.push(...CONFIRMATION_RULES)),
       )
       const moveAgentCursor = yield* makeAgentCursor(ctx.session, store, agentCursorMs)
-      yield* register(ctx, store, resolver, renderer, drawDeadlineMs, moveAgentCursor)
+      yield* register(ctx, store, resolver, renderer, deadlines, moveAgentCursor)
       yield* ctx.skill.transform((editor) => editor.add(info))
       yield* ctx.session.hook('experimental.idle', ({sessionId}) =>
         autoCommitDraft(store, sessionId).pipe(

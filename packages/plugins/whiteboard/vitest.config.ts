@@ -6,7 +6,7 @@ export default defineConfig({
     ...ciTest(),
     name: 'plugin-whiteboard',
     environment: 'node',
-    include: ['test/whiteboard.test.ts', 'test/whiteboard.browser.test.ts'],
+    include: ['test/whiteboard.test.ts', 'test/whiteboard.browser.test.ts', 'src/**/*.test.ts'],
     testTimeout: 120_000,
     fileParallelism: false,
   },
