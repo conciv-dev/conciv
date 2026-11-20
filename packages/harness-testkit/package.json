@@ -24,10 +24,6 @@
     ".": {
       "types": "./dist/harness-engine.d.ts",
       "import": "./dist/harness-engine.js"
-    },
-    "./test-llm": {
-      "types": "./dist/test-llm.d.ts",
-      "import": "./dist/test-llm.js"
     }
   },
   "publishConfig": {

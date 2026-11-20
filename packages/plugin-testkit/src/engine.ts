@@ -4,16 +4,13 @@ import {expect, onTestFinished} from 'vitest'
 import {z} from 'zod'
 import {
   createHarnessEngine,
-  quickHarness,
   type HarnessEngine,
   type HarnessEngineAddress,
   type HarnessEngineOptions,
   type HarnessEngineSession,
   type HarnessEngineSetting,
-  type HarnessEngineTimings,
   type HarnessEngineTool,
   type HarnessEngineToolFailure,
-  type QuickHarnessOptions,
   type TestLLM,
 } from '@conciv/harness-testkit'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
@@ -21,21 +18,10 @@ import {disposeAll} from './dispose.js'
 
 export type EngineSetting = HarnessEngineSetting
 
-export type EngineHarness = QuickHarnessOptions
-
-export type EngineTimings = HarnessEngineTimings
-
 export type CreateEngineOptions = {
   plugins?: ConcivConfig['plugins']
-  policies?: ConcivConfig['policies']
   harness?: HarnessEngineOptions['harness']
-  harnesses?: readonly EngineHarness[]
-  models?: HarnessEngineOptions['models']
-  commands?: HarnessEngineOptions['commands']
-  env?: Record<string, string>
-  timings?: EngineTimings
   replies?: readonly TestLLM.Response[]
-  fallback?: TestLLM.Response
   settings?: EngineSetting[]
   files?: Record<string, string>
   permission?: ConcivConfig['permission']
@@ -47,13 +33,13 @@ export type EngineTool = HarnessEngineTool
 
 export type EngineSession = HarnessEngineSession
 
-export type Engine = Omit<HarnessEngine, 'stop'>
+export type Engine = Pick<HarnessEngine, 'session' | 'newSession' | 'setting' | 'gate' | 'requests'>
 
 export type EngineAddress = HarnessEngineAddress
 
-export type EngineFiles = HarnessEngine['files']
+export type StartedEngine = {engine: Engine; address: EngineAddress; stop: () => Promise<void>}
 
-export type StartedEngine = {engine: Engine; stop: () => Promise<void>}
+const addresses = new WeakMap<Engine, EngineAddress>()
 const fileEngines: Array<() => Promise<void>> = []
 
 type PluginEntry = NonNullable<ConcivConfig['plugins']>[number]
@@ -87,33 +73,30 @@ function locatePlugin(entry: PluginEntry): PluginEntry {
 }
 
 export async function startEngine(options: CreateEngineOptions): Promise<StartedEngine> {
-  const {harness, replies, fallback, files, settings, permission, policies, models, commands, env, timings} = options
+  const {harness, replies, files, settings, permission} = options
   const plugins = options.plugins?.map(locatePlugin)
-  const {stop, ...engine} = await createHarnessEngine({
+  const {session, newSession, setting, gate, requests, address, stop} = await createHarnessEngine({
     harness,
-    harnesses: options.harnesses?.map(quickHarness),
-    models,
-    commands,
-    env,
-    timings,
-    config: {plugins, permission, policies},
+    config: {plugins, permission},
     replies,
-    fallback,
     files,
     settings,
   })
-  return {engine, stop}
+  return {engine: {session, newSession, setting, gate, requests}, address, stop}
 }
 
 export async function createEngine(options: CreateEngineOptions = {}): Promise<Engine> {
   const started = await startEngine(options)
+  addresses.set(started.engine, started.address)
   if (expect.getState().currentTestName !== undefined) onTestFinished(started.stop)
   else fileEngines.push(started.stop)
   return started.engine
 }
 
 export function engineAddress(engine: Engine): EngineAddress {
-  return engine.address
+  const address = addresses.get(engine)
+  if (!address) throw new Error('mount needs an engine made by createEngine from @conciv/plugin-testkit/node')
+  return address
 }
 
 export function stopFileEngines(): Promise<void> {

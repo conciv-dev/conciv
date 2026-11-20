@@ -84,6 +84,7 @@ function engineModulesInNode(): Plugin {
 
 type BrowserEngine = {
   started: StartedEngine
+  sessions: Record<string, EngineSession>
   gates: Record<string, TestLLM.Gate>
   testPath: string | undefined
   scope: 'test' | 'file'
@@ -97,8 +98,11 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
     if (!found) throw new Error(`no engine ${engineId}: it was never made or has stopped`)
     return found
   }
-  const sessionFor = (engineId: string, sessionId: string): EngineSession =>
-    engineFor(engineId).started.engine.sessionById(sessionId)
+  const sessionFor = (engineId: string, sessionId: string): EngineSession => {
+    const found = engineFor(engineId).sessions[sessionId]
+    if (!found) throw new Error(`engine ${engineId} has no session ${sessionId}`)
+    return found
+  }
   const gateFor = (engineId: string, gateId: string): TestLLM.Gate => {
     const found = engineFor(engineId).gates[gateId]
     if (!found) throw new Error(`engine ${engineId} has no gate ${gateId}`)
@@ -121,15 +125,24 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
         const started = await startEngine(options)
         counter.next += 1
         const id = String(counter.next)
-        engines[id] = {started, gates: {}, testPath, scope}
-        return {id, sessionId: started.engine.session.id, address: started.engine.address}
+        engines[id] = {
+          started,
+          sessions: {[started.engine.session.id]: started.engine.session},
+          gates: {},
+          testPath,
+          scope,
+        }
+        return {id, sessionId: started.engine.session.id, address: started.address}
       },
       concivStopEngine: (_context, engineId) => stop(engineId),
       concivStopFileEngines: ({testPath}) =>
         stopWhere((engine) => engine.testPath === testPath && engine.scope === 'file'),
-      concivNewSession: async (_context, engineId, title) =>
-        (await engineFor(engineId).started.engine.newSession(title)).id,
-      concivSessions: (_context, engineId) => engineFor(engineId).started.engine.sessions(),
+      concivNewSession: async (_context, engineId, title) => {
+        const engine = engineFor(engineId)
+        const session = await engine.started.engine.newSession(title)
+        engine.sessions[session.id] = session
+        return session.id
+      },
       concivSetting: (_context, engineId, setting) => engineFor(engineId).started.engine.setting(setting),
       concivGate: async (_context, engineId) => {
         const engine = engineFor(engineId)
@@ -145,23 +158,9 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
         await gate.release()
       },
       concivSend: (_context, engineId, sessionId, text) => sessionFor(engineId, sessionId).send(text),
-      concivApprove: (_context, engineId, sessionId, reply) => sessionFor(engineId, sessionId).approve(reply),
+      concivApprove: (_context, engineId, sessionId) => sessionFor(engineId, sessionId).approve(),
       concivStop: (_context, engineId, sessionId) => sessionFor(engineId, sessionId).stop(),
-      concivMessages: (_context, engineId, sessionId) => sessionFor(engineId, sessionId).messages(),
-      concivRename: (_context, engineId, sessionId, title) => sessionFor(engineId, sessionId).rename(title),
-      concivCompact: (_context, engineId, sessionId) => sessionFor(engineId, sessionId).compact(),
-      concivModel: (_context, engineId, sessionId, model) => sessionFor(engineId, sessionId).model(model),
-      concivEffort: (_context, engineId, sessionId, effort) => sessionFor(engineId, sessionId).effort(effort),
-      concivRemove: (_context, engineId, sessionId) => sessionFor(engineId, sessionId).remove(),
       concivRequests: (_context, engineId) => engineFor(engineId).started.engine.requests(),
-      concivPush: (_context, engineId, replies) => engineFor(engineId).started.engine.push(...replies),
-      concivAlways: (_context, engineId, reply) => engineFor(engineId).started.engine.always(reply),
-      concivWait: (_context, engineId, count) => engineFor(engineId).started.engine.wait(count),
-      concivReadFile: (_context, engineId, path) => engineFor(engineId).started.engine.files.read(path),
-      concivWriteFile: (_context, engineId, path, text) => engineFor(engineId).started.engine.files.write(path, text),
-      concivAnswer: (_context, engineId, sessionId, value) => sessionFor(engineId, sessionId).answer(value),
-      concivSwitchHarness: (_context, engineId, sessionId, harnessId, model) =>
-        sessionFor(engineId, sessionId).switchHarness(harnessId, model),
       concivToolCall: (_context, engineId, sessionId, name, input) =>
         sessionFor(engineId, sessionId).tool(name).call(input),
       concivToolFailure: (_context, engineId, sessionId, name, input) =>

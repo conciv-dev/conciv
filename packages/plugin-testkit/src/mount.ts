@@ -1,6 +1,6 @@
 import {onTestFinished} from 'vitest'
 import {createComponent} from 'solid-js'
-import {cleanup, render, screen, waitFor} from '@solidjs/testing-library'
+import {cleanup, render, screen} from '@solidjs/testing-library'
 import {ConcivApp, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
 import type {Engine, EngineAddress} from './engine.js'
 
@@ -67,16 +67,12 @@ export function makeMount(engineAddress: (engine: Engine) => EngineAddress): Mou
     writeStorage(options.seed?.storage ?? {})
     const platform: Platform = {
       engine: () => ({kind: 'bound', apiBase: address.apiBase, token: () => Promise.resolve(address.token)}),
-      navigation: options.route === undefined ? 'engine' : {memory: options.route},
+      navigation: {memory: options.route ?? '/'},
       root: document,
       timings: {engine: ENGINE_TIMINGS},
       draftStore: memoryDraftStore(),
     }
     render(() => createComponent(ConcivApp, {platform}))
-    await waitFor(() => {
-      if (screen.queryByRole('button', {name: 'Open conciv chat'})) return
-      if (screen.queryByRole('dialog', {name: 'conciv chat agent'})) return
-      throw new Error('the conciv app shows neither its launcher nor its chat')
-    })
+    await screen.findByRole('button', {name: 'Open conciv chat'})
   }
 }
