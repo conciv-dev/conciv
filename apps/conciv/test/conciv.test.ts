@@ -18,6 +18,8 @@ import {resolveGrabSource} from '../src/pane/grab-source-resolve.js'
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../src/lib/quick-search.js'
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
+import {mergeToolMeta} from '../src/pane/tool-catalog-meta.js'
+import {tanstackToolMeta} from '@conciv/plugin-tanstack/client'
 import {rankSessionTitle} from '../src/pane/session-title-rank.js'
 import {parseConcivSettings} from '../src/data/settings.js'
 import {contextItemKey, durableNote} from '../src/composer/note-schema.js'
@@ -833,5 +835,26 @@ describe('internal plugin definitions', () => {
     expect(internal).toMatchObject({$$type: '@conciv/InternalPlugin'})
     expect(isInternalPlugin(internal)).toBe(true)
     expect(isInternalPlugin(plain)).toBe(false)
+  })
+})
+
+describe('tool catalog meta', () => {
+  test('a plugin tool the engine lists without a label still reads its done label and icon from the client view', () => {
+    const engineSignature = {
+      name: 'tanstack_query_cache',
+      path: ['tanstack_query_cache'],
+      binding: 'server' as const,
+      summary: 'Read the query cache.',
+      category: 'tanstack',
+      mutating: false,
+      reachable: true,
+      inputSchema: {type: 'object', properties: {}, required: []},
+      outputSchema: undefined,
+      errors: [],
+    }
+    const meta = mergeToolMeta(engineSignature, tanstackToolMeta('tanstack_query_cache'))
+    expect(meta?.label?.done).toBe('Read the query cache')
+    expect(meta?.icon).toBe('read')
+    expect(meta?.summary).toBe('Read the query cache.')
   })
 })

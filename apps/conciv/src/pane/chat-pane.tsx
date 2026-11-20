@@ -77,6 +77,7 @@ import {
   SessionStatusSlot,
 } from './plugin-session-parts.js'
 import {createToolRender} from './tool-registry-render.js'
+import {mergeToolMeta} from './tool-catalog-meta.js'
 import {Contribution} from '../runtime/plugin/render'
 import {useEngineReachability} from '../app/reachability.js'
 import {StandingNotice} from '../shell/notices.js'
@@ -724,9 +725,10 @@ function useToolCatalog(): ToolCatalogView {
   return {
     loaded: () => registryCatalog.data !== undefined,
     meta: (name) =>
-      registryCatalog.data?.find((signature) => signature.name === name) ??
-      pageToolMeta(name) ??
-      tanstackToolMeta(name),
+      mergeToolMeta(
+        registryCatalog.data?.find((signature) => signature.name === name),
+        pageToolMeta(name) ?? tanstackToolMeta(name),
+      ),
   }
 }
 
