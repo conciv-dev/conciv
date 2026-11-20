@@ -3539,6 +3539,9 @@ importers:
       p-timeout:
         specifier: 'catalog:'
         version: 8.0.0
+      ws:
+        specifier: 'catalog:'
+        version: 8.22.2
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -3567,6 +3570,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@types/ws':
+        specifier: 'catalog:'
+        version: 8.18.2
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)

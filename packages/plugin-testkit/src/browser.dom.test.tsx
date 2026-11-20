@@ -1,5 +1,5 @@
 import {describe, expect} from 'vitest'
-import {screen, waitFor} from '@solidjs/testing-library'
+import {screen, waitFor, waitForElementToBeRemoved} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import type {Platform} from '@conciv/app'
 import {compose} from '@conciv/plugin/experimental/host'
@@ -20,6 +20,8 @@ function notesPanel(confirm: () => void): HTMLElement {
   panel.append(body, end)
   return panel
 }
+
+const FAILED_TURN_MESSAGE = 'Internal Server Error'
 
 const notes: Plugin.Setup = (ctx) => {
   ctx.add(Panel, {
@@ -86,5 +88,41 @@ describe('the happy-dom environment', () => {
 
   test('the next test starts with empty storage', () => {
     expect(localStorage.getItem('conciv-test-left-behind')).toBeNull()
+  })
+})
+
+describe('the app on happy-dom behind the kit engine proxy', () => {
+  test('a send passes the proxy, the socket drops and returns, a paused reply lands on resume and a failed turn shows its error', async ({
+    mount,
+    chat,
+    faults,
+    expectLog,
+  }) => {
+    expectLog(DRAFTS_WITHOUT_INDEXED_DB)
+    const user = userEvent.setup()
+    await mount()
+    await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
+    const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    await chat.reply('the first reply')
+    await user.type(composer, 'through the proxy{Enter}')
+    expect(await screen.findByText('the first reply')).toBeInTheDocument()
+    await faults.offline()
+    expect(await screen.findByText('conciv lost connection to the engine.')).toBeInTheDocument()
+    await faults.online()
+    await waitForElementToBeRemoved(() => screen.queryByText('conciv lost connection to the engine.'))
+    await chat.reply('the reply after the drop')
+    await user.type(composer, 'after the drop{Enter}')
+    expect(await screen.findByText('the reply after the drop')).toBeInTheDocument()
+    await faults.pause()
+    await chat.reply('the paused reply')
+    await user.type(composer, 'while paused{Enter}')
+    expect(await screen.findByText('while paused')).toBeInTheDocument()
+    expect(screen.queryByText('the paused reply')).not.toBeInTheDocument()
+    await faults.resume()
+    expect(await screen.findByText('the paused reply')).toBeInTheDocument()
+    await faults.failChatTurns()
+    await user.type(composer, 'a failed turn{Enter}')
+    expect(await screen.findByText(FAILED_TURN_MESSAGE)).toBeInTheDocument()
+    expect(screen.getByRole('button', {name: 'Retry'})).toBeInTheDocument()
   })
 })

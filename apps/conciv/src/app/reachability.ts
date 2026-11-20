@@ -17,7 +17,7 @@ export function makeEngineReachability(
 ): EngineReachability {
   const login = createEngineLogin({apiBase, timings})
   const locked = createMemo(() => engineLock(login.status()))
-  return {online: engineOnline(), sustainedOffline: sustainedEngineOffline(), locked}
+  return {online: engineOnline(), sustainedOffline: sustainedEngineOffline(timings?.offlineGraceMs), locked}
 }
 
 export function useEngineReachability(): EngineReachability {

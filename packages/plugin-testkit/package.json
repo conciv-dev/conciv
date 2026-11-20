@@ -115,6 +115,7 @@
     "effect": "catalog:",
     "es-toolkit": "catalog:",
     "p-timeout": "catalog:",
+    "ws": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -126,6 +127,7 @@
     "@testing-library/jest-dom": "catalog:",
     "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
+    "@types/ws": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "happy-dom": "catalog:",
     "playwright": "catalog:",

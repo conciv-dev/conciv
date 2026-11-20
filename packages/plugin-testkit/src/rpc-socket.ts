@@ -1,4 +1,3 @@
-import type {Page, WebSocketRoute} from 'playwright'
 import {StandardRPCJsonSerializer, StandardRPCSerializer} from '@orpc/client/standard'
 import {
   decodeRequestMessage,
@@ -6,6 +5,7 @@ import {
   encodeResponseMessage,
   MessageType,
 } from '@orpc/standard-server-peer'
+import {escapeRegExp} from 'es-toolkit'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 
 const CUT_CLOSE_CODE = 1011
@@ -15,9 +15,24 @@ const APPLICATION_CLOSE_MAX = 4999
 const FAILURE_BODY = {json: {}, meta: []}
 const GARBLED_BODY = {json: {}, meta: [[0, 'value']]}
 
+const RPC_SOCKET_URL = new RegExp(`${escapeRegExp(RPC_WS_PATH)}(?:[?#]|$)`)
+
 const serializer = new StandardRPCSerializer(new StandardRPCJsonSerializer())
 
 type Message = string | Buffer
+
+export type RpcSocketEndpoint = {
+  send: (message: Message) => void
+  close: (options?: {code?: number; reason?: string}) => Promise<void>
+  onMessage: (handler: (message: Message) => void) => void
+  onClose: (handler: (code: number | undefined, reason: string | undefined) => void) => void
+}
+
+export type RpcSocketRoute = RpcSocketEndpoint & {connectToServer: () => RpcSocketEndpoint}
+
+export type RpcSocketSource = {
+  routeWebSocket: (url: RegExp, handler: (route: RpcSocketRoute) => Promise<void>) => Promise<void>
+}
 
 export type RpcSocketCall = {
   path: readonly string[]
@@ -65,8 +80,8 @@ type CloseWaiter = {code: number; count: number; deliver: () => void}
 type SocketState = {
   rules: RpcSocketRule[]
   listeners: Set<RpcSocketListener>
-  live: Set<WebSocketRoute>
-  speaking: Set<WebSocketRoute>
+  live: Set<RpcSocketRoute>
+  speaking: Set<RpcSocketRoute>
   speakingWaiters: (() => void)[]
   engineCloseCodes: number[]
   closeWaiters: CloseWaiter[]
@@ -78,10 +93,10 @@ type SocketState = {
   handshakeWaiters: HandshakeWaiter[]
 }
 
-const sockets = new WeakMap<Page, RpcSocket>()
+const sockets = new WeakMap<RpcSocketSource, RpcSocket>()
 
-export function rpcSocketFor(page: Page): RpcSocket {
-  const existing = sockets.get(page)
+export function rpcSocketFor(source: RpcSocketSource): RpcSocket {
+  const existing = sockets.get(source)
   if (existing) return existing
   const state: SocketState = {
     rules: [],
@@ -98,10 +113,7 @@ export function rpcSocketFor(page: Page): RpcSocket {
     handshakesSinceHold: 0,
     handshakeWaiters: [],
   }
-  const installed = page.routeWebSocket(
-    (url) => url.pathname.endsWith(RPC_WS_PATH),
-    (route) => connect(route, state),
-  )
+  const installed = source.routeWebSocket(RPC_SOCKET_URL, (route) => connect(route, state))
   installed.catch(() => undefined)
   const created: RpcSocket = {
     installed,
@@ -159,7 +171,7 @@ export function rpcSocketFor(page: Page): RpcSocket {
         ? Promise.resolve()
         : new Promise((resolve) => state.handshakeWaiters.push({count, deliver: resolve})),
   }
-  sockets.set(page, created)
+  sockets.set(source, created)
   return created
 }
 
@@ -173,7 +185,7 @@ function heldHandshake(state: SocketState): Promise<void> {
   return new Promise((resolve) => held.push(resolve))
 }
 
-async function connect(route: WebSocketRoute, state: SocketState): Promise<void> {
+async function connect(route: RpcSocketRoute, state: SocketState): Promise<void> {
   if (state.held) {
     void route.close({code: CUT_CLOSE_CODE})
     return
@@ -228,7 +240,7 @@ function engineClosed(state: SocketState, code: number | undefined): void {
   for (const waiter of reached) waiter.deliver()
 }
 
-function speaks(route: WebSocketRoute, state: SocketState): void {
+function speaks(route: RpcSocketRoute, state: SocketState): void {
   if (state.speaking.has(route)) return
   state.speaking.add(route)
   for (const deliver of state.speakingWaiters.splice(0)) deliver()
@@ -245,7 +257,7 @@ function forwardableClose(code: number | undefined, reason: string | undefined):
 }
 
 type Outbound = {
-  route: WebSocketRoute
+  route: RpcSocketRoute
   forward: () => void
   state: SocketState
   emit: (event: RpcSocketEvent) => void

@@ -11,7 +11,7 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that car
 - `ChatConnectionOptions` (`chat-connection.ts`)
 - `useChatSession(options)` (`index.ts`): `createChatSession` with chatConnection, `rpc.chat.stop` and `rpc.chat.permissionDecision`
 - `setupEngineReachability` / `engineOnline` / `sustainedEngineOffline` / `isReachabilityError` (`reachability.ts`)
-- `ENGINE_OFFLINE_GRACE_MS` = 1000 (`reachability.ts`)
+- `sustainedEngineOffline(graceMs)` turns true after the engine stays offline for `graceMs`, default `defaultEngineConnectionTimings.offlineGraceMs` = 1000 from `@conciv/contract` (`reachability.ts`)
 - `index.ts`: re-exports the modules above; `chat-connection.ts` helpers are internal
 
 ## Invariants

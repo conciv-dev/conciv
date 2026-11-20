@@ -2,9 +2,7 @@ import {createEffect, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {Debouncer} from '@tanstack/pacer'
 import {onlineManager} from '@tanstack/query-core'
 import {ORPCError} from '@orpc/client'
-import {subscribeRpcReachability, type EngineConnectionTimings} from '@conciv/contract'
-
-export const ENGINE_OFFLINE_GRACE_MS = 1000
+import {defaultEngineConnectionTimings, subscribeRpcReachability, type EngineConnectionTimings} from '@conciv/contract'
 
 export function isReachabilityError(error: unknown): boolean {
   return !(error instanceof ORPCError)
@@ -78,7 +76,7 @@ export function engineOnline(): Accessor<boolean> {
   return online
 }
 
-export function sustainedEngineOffline(graceMs = ENGINE_OFFLINE_GRACE_MS): Accessor<boolean> {
+export function sustainedEngineOffline(graceMs = defaultEngineConnectionTimings.offlineGraceMs): Accessor<boolean> {
   const online = engineOnline()
   const [sustained, setSustained] = createSignal(false)
   const offlineDebouncer = new Debouncer(() => setSustained(true), {wait: graceMs})

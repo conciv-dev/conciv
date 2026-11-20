@@ -1,6 +1,5 @@
-import type {Page} from 'playwright'
 import {matchesPattern, samePath} from './rpc-payload.js'
-import {rpcSocketFor, type RpcSocketEvent} from './rpc-socket.js'
+import {rpcSocketFor, type RpcSocketEvent, type RpcSocketSource} from './rpc-socket.js'
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
@@ -77,12 +76,12 @@ function matches(state: CallState, filter: Omit<RpcCallFilter, 'timeout'>, stamp
   return filter.status === undefined || state.record.status === filter.status
 }
 
-export function observeRpc(page: Page): RpcObserver {
+export function observeRpc(source: RpcSocketSource): RpcObserver {
   const waiters = new Set<Waiter>()
   const calls = new Map<string, CallState>()
   const states = (): CallState[] => [...calls.values()]
   const sequence = {next: 0}
-  const socket = rpcSocketFor(page)
+  const socket = rpcSocketFor(source)
 
   const notify = (state: CallState): void => {
     for (const waiter of waiters) {
@@ -185,12 +184,12 @@ export function observeRpc(page: Page): RpcObserver {
   }
 }
 
-const observers = new WeakMap<Page, RpcObserver>()
+const observers = new WeakMap<RpcSocketSource, RpcObserver>()
 
-export function rpcObserverFor(page: Page): RpcObserver {
-  const existing = observers.get(page)
+export function rpcObserverFor(source: RpcSocketSource): RpcObserver {
+  const existing = observers.get(source)
   if (existing) return existing
-  const created = observeRpc(page)
-  observers.set(page, created)
+  const created = observeRpc(source)
+  observers.set(source, created)
   return created
 }
