@@ -41,11 +41,13 @@ import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {contract, SOCKET_TRUST_FRAME, type ExchangeResult} from './contract.js'
 import {
   createConnectionState,
+  defaultEngineConnectionTimings,
   transitionConnection,
   type ConnectionEffect,
   type ConnectionEvent,
   type ConnectionSignal,
   type ConnectionState,
+  type EngineConnectionTimings,
   type TrustStatus,
 } from './engine-connection-machine.js'
 
@@ -77,10 +79,6 @@ export type EngineConnection = {
   readonly subscribeReachability: (listener: ReachabilityListener) => () => void
 }
 
-const CONNECTION_LOSS_RETRY_DELAY = Duration.millis(250)
-const CALL_DEADLINE_MS = 3000
-const AUTH_TIMEOUT = Duration.seconds(3)
-const OPEN_TIMEOUT = Duration.seconds(30)
 const MIN_UPTIME = Duration.seconds(1)
 const UNAUTHORIZED_STATUS = 401
 const NORMAL_CLOSE_CODE = 1000
@@ -173,7 +171,10 @@ function untilAborted(signal: AbortSignal | undefined): Effect.Effect<void> {
   })
 }
 
-export const makeEngineConnection = Effect.fn('EngineConnection.make')(function* (key: string) {
+export const makeEngineConnection = Effect.fn('EngineConnection.make')(function* (
+  key: string,
+  timings: EngineConnectionTimings = defaultEngineConnectionTimings,
+) {
   const services = yield* Effect.context<never>()
   const run = Effect.runPromiseWith(services)
   const runNow = Effect.runSyncWith(services)
@@ -186,10 +187,10 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
       Effect.sync(() => makeWebSocket(rpcSocketUrl(key))).pipe(Effect.tap((ws) => Ref.set(live, Option.some(ws)))),
       (ws) => Effect.sync(() => ws.close(NORMAL_CLOSE_CODE)),
     ),
-    {openTimeout: OPEN_TIMEOUT},
+    {openTimeout: Duration.millis(timings.openTimeoutMs)},
   )
   const writer = yield* socket.writer
-  const state = yield* SubscriptionRef.make(createConnectionState(yield* readStoredToken(key)))
+  const state = yield* SubscriptionRef.make(createConnectionState(yield* readStoredToken(key), timings))
   const signals = yield* PubSub.unbounded<ConnectionSignal>()
   const attempts = yield* FiberHandle.make<void, never>()
   const retryTimer = yield* FiberHandle.make<void, never>()
@@ -352,7 +353,9 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     !disposed() && options.signal?.aborted !== true && !(options.error instanceof ORPCError)
 
   const retryDelay = (options: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<number> => {
-    const wait = isStreamingCall(options.path) ? reopened(options.signal) : Effect.sleep(CONNECTION_LOSS_RETRY_DELAY)
+    const wait = isStreamingCall(options.path)
+      ? reopened(options.signal)
+      : Effect.sleep(Duration.millis(timings.connectionLossRetryDelayMs))
     return run(wait.pipe(Effect.as(0)))
   }
 
@@ -406,7 +409,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
         reconnectWhenStalled(options.signal)
         return rpc.call(path, input, options)
       }
-      const deadline = now() + CALL_DEADLINE_MS
+      const deadline = now() + timings.callDeadlineMs
       const asked = options.context.shouldRetry
       const callerRetries = async (attempt: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<boolean> => {
         if (asked === undefined) return now() < deadline && retriable(attempt)
@@ -421,7 +424,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
   const auth = createORPCClient<ContractRouterClient<typeof contract, RpcClientContext>>(link).auth
 
   const answered = <A>(call: (signal: AbortSignal) => Promise<A>): Effect.Effect<A, unknown> =>
-    Effect.tryPromise({try: call, catch: (error) => error}).pipe(Effect.timeout(AUTH_TIMEOUT))
+    Effect.tryPromise({try: call, catch: (error) => error}).pipe(Effect.timeout(Duration.millis(timings.authTimeoutMs)))
 
   const trustAnswer = (token: string): Effect.Effect<boolean, unknown> =>
     answered((signal) => auth.trust({token}, {signal, context: {retry: 0}})).pipe(

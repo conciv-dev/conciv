@@ -11,7 +11,14 @@ import {
   type SessionAccessor,
 } from './engine-connection.js'
 
-export {REVOKED_SOCKET_CLOSE_CODE, type TrustStatus} from './engine-connection-machine.js'
+import {defaultEngineConnectionTimings, type EngineConnectionTimings} from './engine-connection-machine.js'
+
+export {
+  defaultEngineConnectionTimings,
+  REVOKED_SOCKET_CLOSE_CODE,
+  type EngineConnectionTimings,
+  type TrustStatus,
+} from './engine-connection-machine.js'
 export type {
   EngineTokenSource,
   EngineTrust,
@@ -31,14 +38,16 @@ export type BrowserRpcConnection = {
 
 type HeldConnection = {readonly connection: EngineConnection; readonly release: () => void}
 
+type ConnectionKey = {readonly apiBase: string; readonly timings: EngineConnectionTimings}
+
 type ConnectionPool = {
-  readonly hold: (key: string) => HeldConnection
-  readonly find: (key: string) => EngineConnection | undefined
+  readonly hold: (key: ConnectionKey) => HeldConnection
+  readonly find: (apiBase: string) => readonly EngineConnection[]
 }
 
 declare global {
   // eslint-disable-next-line no-var
-  var __concivBrowserRpcConnectionsV6: ConnectionPool | undefined
+  var __concivBrowserRpcConnectionsV7: ConnectionPool | undefined
 }
 
 function borrow<A>(lookup: Effect.Effect<A, never, Scope.Scope>): {value: A; release: () => void} {
@@ -53,7 +62,7 @@ function borrow<A>(lookup: Effect.Effect<A, never, Scope.Scope>): {value: A; rel
 
 function makeConnectionPool(): ConnectionPool {
   const connections = Effect.runSync(
-    RcMap.make({lookup: makeEngineConnection}).pipe(
+    RcMap.make({lookup: (key: ConnectionKey) => makeEngineConnection(key.apiBase, key.timings)}).pipe(
       Scope.provide(Scope.makeUnsafe()),
       Effect.provide(Socket.layerWebSocketConstructorGlobal),
     ),
@@ -63,17 +72,26 @@ function makeConnectionPool(): ConnectionPool {
       const held = borrow(RcMap.get(connections, key))
       return {connection: held.value, release: held.release}
     },
-    find: (key) => {
-      const found = borrow(RcMap.getOption(connections, key))
+    find: (apiBase) => {
+      const found = borrow(
+        RcMap.keys(connections).pipe(
+          Effect.flatMap((keys) =>
+            Effect.forEach(
+              [...keys].filter((key) => key.apiBase === apiBase),
+              (key) => RcMap.getOption(connections, key),
+            ),
+          ),
+        ),
+      )
       found.release()
-      return Option.getOrUndefined(found.value)
+      return found.value.flatMap((connection) => Option.toArray(connection))
     },
   }
 }
 
 function connectionPool(): ConnectionPool {
-  globalThis.__concivBrowserRpcConnectionsV6 ??= makeConnectionPool()
-  return globalThis.__concivBrowserRpcConnectionsV6
+  globalThis.__concivBrowserRpcConnectionsV7 ??= makeConnectionPool()
+  return globalThis.__concivBrowserRpcConnectionsV7
 }
 
 function magicLinkFragment(url: URL): URLSearchParams {
@@ -100,8 +118,11 @@ export function normalizeApiBase(apiBase: string): string {
   return `${url.origin}${path}`
 }
 
-function holdConnection(apiBase: string): HeldConnection {
-  return connectionPool().hold(normalizeApiBase(apiBase))
+function holdConnection(apiBase: string, timings: Partial<EngineConnectionTimings> = {}): HeldConnection {
+  return connectionPool().hold({
+    apiBase: normalizeApiBase(apiBase),
+    timings: {...defaultEngineConnectionTimings, ...timings},
+  })
 }
 
 export function subscribeRpcReachability(apiBase: string, listener: ReachabilityListener): () => void {
@@ -113,14 +134,20 @@ export function subscribeRpcReachability(apiBase: string, listener: Reachability
   }
 }
 
-export function browserRpcConnection(apiBase: string, tokenSource?: EngineTokenSource): BrowserRpcConnection {
-  const {connection, release} = holdConnection(apiBase)
+export function browserRpcConnection(
+  apiBase: string,
+  tokenSource?: EngineTokenSource,
+  timings?: Partial<EngineConnectionTimings>,
+): BrowserRpcConnection {
+  const {connection, release} = holdConnection(apiBase, timings)
   if (tokenSource !== undefined) connection.useTokenSource(tokenSource)
   return {link: connection.link, trust: connection.trust, release}
 }
 
 export function resetBrowserRpcConnection(apiBase: string): void {
-  connectionPool().find(normalizeApiBase(apiBase))?.reset()
+  connectionPool()
+    .find(normalizeApiBase(apiBase))
+    .forEach((connection) => connection.reset())
 }
 
 export const RPC_UNBOUND_MESSAGE = 'conciv core not connected yet'
@@ -137,7 +164,7 @@ export function heldBrowserRpcLink(currentApiBase: () => string | null, session?
     const key = normalizeApiBase(apiBase)
     if (held.current.key === key && held.current.held !== undefined) return held.current.held.connection
     held.current.held?.release()
-    const next = connectionPool().hold(key)
+    const next = holdConnection(key)
     held.current = {key, held: next}
     return next.connection
   }

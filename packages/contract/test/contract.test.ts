@@ -24,6 +24,7 @@ import {contract} from '../src/contract.js'
 import {makeEngineConnection, type RpcClientContext} from '../src/engine-connection.js'
 import {
   createConnectionState,
+  defaultEngineConnectionTimings,
   reconnectDelay,
   transitionConnection,
   type ConnectionEffect,
@@ -589,7 +590,9 @@ describe('engine connection machine', () => {
     effect.type === 'publish' ? `publish:${Object.values(effect.signal).join(':')}` : Object.values(effect).join(':')
 
   it('replays the back-off and its cap, the uptime reset, a revocation, the reopen on the next call and disposal', () => {
-    expect([-1, 0, 1, 2, 3, 9, 40].map(reconnectDelay).map(Math.round)).toEqual([0, 0, 250, 325, 423, 2000, 2000])
+    expect(
+      [-1, 0, 1, 2, 3, 9, 40].map((retries) => reconnectDelay(retries, defaultEngineConnectionTimings)).map(Math.round),
+    ).toEqual([0, 0, 250, 325, 423, 2000, 2000])
     const lost = ['publish:reachable:false', 'close-peer']
     const revoked = ['forget-token:held', 'publish:status:revoked:trusted', 'close-peer']
     const up = (attempt: number) => ['send-trust-frame:held', `schedule-uptime:${attempt}`, 'publish:reachable:true']

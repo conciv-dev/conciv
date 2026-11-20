@@ -4,12 +4,33 @@ export type TrustStatus = 'checking' | 'trusted' | 'untrusted' | 'revoked' | 'un
 
 export type SocketPhase = 'closed' | 'waiting' | 'connecting' | 'open' | 'disposed'
 
+export type EngineConnectionTimings = {
+  readonly reconnectMinDelayMs: number
+  readonly reconnectMaxDelayMs: number
+  readonly reconnectDelayGrowth: number
+  readonly openTimeoutMs: number
+  readonly callDeadlineMs: number
+  readonly connectionLossRetryDelayMs: number
+  readonly authTimeoutMs: number
+}
+
+export const defaultEngineConnectionTimings: EngineConnectionTimings = {
+  reconnectMinDelayMs: 250,
+  reconnectMaxDelayMs: 2000,
+  reconnectDelayGrowth: 1.3,
+  openTimeoutMs: 30_000,
+  callDeadlineMs: 3000,
+  connectionLossRetryDelayMs: 250,
+  authTimeoutMs: 3000,
+}
+
 export type ConnectionState = {
   readonly socket: SocketPhase
   readonly attempt: number
   readonly retries: number
   readonly trust: TrustStatus
   readonly token: string | undefined
+  readonly timings: EngineConnectionTimings
 }
 
 export type ConnectionSignal =
@@ -46,17 +67,19 @@ export type ConnectionTransition = {readonly state: ConnectionState; readonly ef
 
 export const REVOKED_SOCKET_CLOSE_CODE = 1008
 
-const MIN_RECONNECT_DELAY_MS = 250
-const MAX_RECONNECT_DELAY_MS = 2000
-const RECONNECT_DELAY_GROWTH = 1.3
-
-export function reconnectDelay(retries: number): number {
+export function reconnectDelay(retries: number, timings: EngineConnectionTimings): number {
   if (retries <= 0) return 0
-  return Math.min(MAX_RECONNECT_DELAY_MS, MIN_RECONNECT_DELAY_MS * RECONNECT_DELAY_GROWTH ** (retries - 1))
+  return Math.min(
+    timings.reconnectMaxDelayMs,
+    timings.reconnectMinDelayMs * timings.reconnectDelayGrowth ** (retries - 1),
+  )
 }
 
-export function createConnectionState(token: string | undefined): ConnectionState {
-  return {socket: 'closed', attempt: 0, retries: -1, trust: 'checking', token}
+export function createConnectionState(
+  token: string | undefined,
+  timings: EngineConnectionTimings = defaultEngineConnectionTimings,
+): ConnectionState {
+  return {socket: 'closed', attempt: 0, retries: -1, trust: 'checking', token, timings}
 }
 
 function unchanged(state: ConnectionState): ConnectionTransition {
@@ -80,7 +103,7 @@ function connect(state: ConnectionState): ConnectionTransition {
   const attempt = state.attempt + 1
   return {
     state: {...state, socket: 'waiting', attempt, retries},
-    effects: [{type: 'schedule-retry', attempt, delayMs: reconnectDelay(retries)}],
+    effects: [{type: 'schedule-retry', attempt, delayMs: reconnectDelay(retries, state.timings)}],
   }
 }
 
