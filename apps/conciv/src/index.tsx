@@ -2,7 +2,7 @@ import {Show, createMemo, createRoot, from, getOwner, on, onCleanup, untrack, ty
 import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {RouterProvider, createBrowserHistory, createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
-import {makeBrowserRpcClient, type BrowserRpcClient, type RpcClient} from '@conciv/contract'
+import {makeBrowserRpcClient, normalizeApiBase, type BrowserRpcClient, type RpcClient} from '@conciv/contract'
 import {createWebStorageHistory, type WebStorage} from '@conciv/storage-history'
 import type {GrabProvider} from '@conciv/grab'
 import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
@@ -162,10 +162,23 @@ function restoreOnBoot(router: ConcivRouter, restore: {apply: (href: string) => 
   })
 }
 
+function enteredApiBase(apiBase: string): string {
+  return apiBase === '' ? '' : normalizeApiBase(apiBase)
+}
+
+function readRebindApiBase(apiBase: string): string | undefined {
+  try {
+    return normalizeApiBase(apiBase)
+  } catch (error) {
+    console.error(`[conciv] the rebind names no engine base: ${apiBase}`, error)
+    return undefined
+  }
+}
+
 function BoundApp(props: AppParts): JSX.Element {
   const platform = untrack(() => props.platform)
   const first = untrack(platform.engine)
-  const [bound, setBound] = createStore({apiBase: first.kind === 'bound' ? first.apiBase : ''})
+  const [bound, setBound] = createStore({apiBase: first.kind === 'bound' ? enteredApiBase(first.apiBase) : ''})
   const apiBase = (): string => bound.apiBase
   const session = {read: (): string | null => null}
   const client = makeBrowserRpcClient(apiBase, {session: () => session.read()})
@@ -202,8 +215,10 @@ function BoundApp(props: AppParts): JSX.Element {
     return true
   })
   makeEventListener(window, 'conciv:rebind', (event) => {
-    const nextApiBase = event.detail?.apiBase
-    if (typeof nextApiBase !== 'string' || nextApiBase === '' || nextApiBase === bound.apiBase) return
+    const asked = event.detail?.apiBase
+    if (typeof asked !== 'string' || asked === '') return
+    const nextApiBase = readRebindApiBase(asked)
+    if (nextApiBase === undefined || nextApiBase === bound.apiBase) return
     setBound('apiBase', nextApiBase)
     router.options.context.queryClient.resetQueries().catch((error: unknown) => {
       console.error('[conciv] the queries did not reset after a rebind', error)

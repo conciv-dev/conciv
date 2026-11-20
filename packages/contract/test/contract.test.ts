@@ -10,7 +10,7 @@ import type {Duplex} from 'node:stream'
 import type {IncomingMessage} from 'node:http'
 import {decodeRequestMessage, encodeResponseMessage, MessageType} from '@orpc/standard-server-peer'
 import {ORPCError} from '@orpc/client'
-import {browserRpcConnection} from '../src/browser-transport.js'
+import {browserRpcConnection, normalizeApiBase} from '../src/browser-transport.js'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import type {HarnessListCursor} from '@conciv/protocol/harness-types'
 import contractManifest from '../package.json' with {type: 'json'}
@@ -690,11 +690,11 @@ function fakeEngine() {
     requestsOn(index, count).pipe(
       Effect.map((requests) => requests.map(([, , payload]) => String(Reflect.get(Object(payload), 'url')))),
     )
-  const reply = (index: number, id: string | undefined, body: unknown) =>
+  const reply = (index: number, id: string | undefined, body: unknown, status = 200) =>
     Effect.flatMap(socketAt(index), (socket) =>
       Effect.promise(async () =>
         socket.receive(
-          String(await encodeResponseMessage(String(id), MessageType.RESPONSE, {status: 200, headers: {}, body})),
+          String(await encodeResponseMessage(String(id), MessageType.RESPONSE, {status, headers: {}, body})),
         ),
       ),
     )
@@ -855,5 +855,24 @@ describe('engine connection driver on the test clock', () => {
     expect(empty.trust).toBe(root.trust)
     empty.release()
     root.release()
+  })
+})
+
+describe('a refused trust check', () => {
+  it('a 401 answer to the trust check locks the connection instead of reading it as unreachable', () =>
+    clocked(function* () {
+      const {engine, connection} = yield* connected
+      const asked = connection.trust.requestTrust()
+      ;(yield* engine.socketAt(0)).open()
+      const [id] = yield* engine.requestOn(0, 1)
+      const unauthorized = {defined: false, code: 'UNAUTHORIZED', status: 401, message: 'unauthorized'}
+      yield* engine.reply(0, id, {json: unauthorized, meta: []}, 401)
+      expect(yield* Effect.promise(() => asked)).toBe(false)
+      expect(connection.trust.status()).toBe('untrusted')
+    }))
+
+  it('an engine base is its origin and path with no trailing slash, so derived urls join onto it once', () => {
+    expect(`${normalizeApiBase('http://engine.test/')}/health`).toBe('http://engine.test/health')
+    expect(normalizeApiBase('http://engine.test/mount/?q=1#h')).toBe('http://engine.test/mount')
   })
 })

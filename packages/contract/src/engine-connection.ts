@@ -155,6 +155,10 @@ function isEventIterator(value: unknown): value is AsyncIteratorObject<unknown, 
   return typeof value === 'object' && value !== null && Symbol.asyncIterator in value
 }
 
+function unauthorized(error: unknown): boolean {
+  return error instanceof ORPCError && error.status === UNAUTHORIZED_STATUS
+}
+
 function stalled(reason: unknown): boolean {
   return reason instanceof DOMException && reason.name === 'TimeoutError'
 }
@@ -338,9 +342,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
   }
 
   const refused = async (error: unknown, credential: string | undefined): Promise<unknown> => {
-    if (error instanceof ORPCError && error.status === UNAUTHORIZED_STATUS) {
-      await run(dispatch({type: 'unauthorized', token: credential}))
-    }
+    if (unauthorized(error)) await run(dispatch({type: 'unauthorized', token: credential}))
     return error
   }
 
@@ -423,7 +425,9 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
 
   const askWithToken = (token: string): Effect.Effect<boolean, unknown> =>
     answered((signal) => auth.trust({token}, {signal, context: {retry: 0}})).pipe(
-      Effect.flatMap(({trusted}) =>
+      Effect.map(({trusted}) => trusted),
+      Effect.catchIf(unauthorized, () => Effect.succeed(false)),
+      Effect.flatMap((trusted) =>
         dispatch(trusted ? {type: 'trusted', token} : {type: 'trust-refused', token}).pipe(Effect.as(trusted)),
       ),
     )

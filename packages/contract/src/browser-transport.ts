@@ -94,7 +94,7 @@ export function forgetMagicLinkCode(): void {
   history.replaceState(history.state, '', url.href)
 }
 
-function normalizeApiBase(apiBase: string): string {
+export function normalizeApiBase(apiBase: string): string {
   const url = new URL(apiBase === '' ? '/' : apiBase, typeof location === 'undefined' ? undefined : location.href)
   const path = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname
   return `${url.origin}${path}`
