@@ -9,8 +9,14 @@ const GROUP_POLL_MS = 100
 
 type Minted = {handle: SandboxHandle; signal: AbortSignal | undefined; spawned: SpawnHandle[]}
 
-export function localSandbox(config: {dir: string}): SandboxProvider {
-  const provider = localProcessSandbox(config)
+export function localSandbox({
+  dir,
+  groupExitTimeoutMs = GROUP_EXIT_TIMEOUT_MS,
+}: {
+  dir: string
+  groupExitTimeoutMs?: number
+}): SandboxProvider {
+  const provider = localProcessSandbox({dir})
   let minted: Minted[] = []
   const track = (handle: SandboxHandle, signal: AbortSignal | undefined): SandboxHandle => {
     const entry: Minted = {handle, signal, spawned: []}
@@ -41,7 +47,7 @@ export function localSandbox(config: {dir: string}): SandboxProvider {
       if (entry === undefined) return provider.destroy(input)
       minted = minted.filter((other) => other !== entry)
       await entry.handle.destroy()
-      await Promise.all(entry.spawned.map(killLeftovers))
+      await Promise.all(entry.spawned.map((spawned) => killLeftovers(spawned, groupExitTimeoutMs)))
     },
   }
 }
@@ -56,14 +62,17 @@ function finished(entry: Minted): boolean {
   return entry.spawned.every((spawned) => !groupAlive(spawned.pid))
 }
 
-export async function killLeftovers(spawned: {pid: number; kill: (signal: NodeJS.Signals) => unknown}): Promise<void> {
-  if (await groupExited(spawned.pid)) return
+export async function killLeftovers(
+  spawned: {pid: number; kill: (signal: NodeJS.Signals) => unknown},
+  groupExitTimeoutMs = GROUP_EXIT_TIMEOUT_MS,
+): Promise<void> {
+  if (await groupExited(spawned.pid, groupExitTimeoutMs)) return
   await spawned.kill('SIGKILL')
-  await groupExited(spawned.pid)
+  await groupExited(spawned.pid, groupExitTimeoutMs)
 }
 
-async function groupExited(group: number): Promise<boolean> {
-  const deadline = Date.now() + GROUP_EXIT_TIMEOUT_MS
+async function groupExited(group: number, groupExitTimeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + groupExitTimeoutMs
   while (groupAlive(group)) {
     if (Date.now() >= deadline) return false
     await delay(GROUP_POLL_MS)

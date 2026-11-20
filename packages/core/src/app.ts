@@ -220,6 +220,8 @@ export type MakeAppOpts = {
 
   eventHeartbeatIntervalMs?: number
 
+  stopGraceMs?: number
+
   pageReplyTimeoutMs?: number
 
   queuedActionTimeoutMs?: number
@@ -452,7 +454,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const print = opts.print ?? ((text: string) => console.log(text))
   const endListing = async (listing: SavedModelsHarness): Promise<void> => {
     const ended = listing.settled().then(() => true)
-    if (await Promise.race([ended, delay(GROUP_EXIT_TIMEOUT_MS, false, {ref: false})])) return
+    if (await Promise.race([ended, delay(opts.stopGraceMs ?? GROUP_EXIT_TIMEOUT_MS, false, {ref: false})])) return
     print(`[core] the ${listing.harness.id} model listing did not end when the engine stopped; closing without it`)
   }
   const endListings = async (): Promise<void> => {
@@ -683,6 +685,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     pluginInstructions: (sessionId, reset, inventory) =>
       pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
+    groupExitTimeoutMs: opts.stopGraceMs,
     log: logError,
     driver,
     askPermission,

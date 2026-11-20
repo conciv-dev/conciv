@@ -203,7 +203,7 @@ export type TurnHooks = {
 
 export type ChatServerConfig = {
   stores: ChatStores
-  sandbox: {dir: string}
+  sandbox: {dir: string; groupExitTimeoutMs?: number}
   hooks: TurnHooks
   codeModeResult: (value: unknown) => unknown
   startTimeoutMs: number
@@ -475,7 +475,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   })
   const sandbox = defineSandbox({
     id: 'conciv',
-    provider: localSandbox({dir: config.sandbox.dir}),
+    provider: localSandbox(config.sandbox),
     policy: defineSandboxPolicy({default: 'ask'}),
     fileEvents: false,
     lifecycle: {reuse: 'thread', destroyOnComplete: false},
