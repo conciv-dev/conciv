@@ -126,6 +126,7 @@ import {Model as ModelSchema} from '@conciv/plugin/schema/model'
 import {SqliteClient} from '@effect/sql-sqlite-node'
 import {NodeFileSystem} from '@effect/platform-node'
 import {
+  ConfigProvider,
   Context,
   Effect,
   Exit,
@@ -1090,6 +1091,25 @@ describe('config', () => {
     stopIfStarted(fromEnv)
     await expect(fromEnv).rejects.toThrow(refusal('no-such-env-harness'))
     expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
+  })
+})
+
+describe('engine config provider', () => {
+  it('takes CONCIV_STATE_ROOT from the given provider and leaves process.env alone', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const stateRoot = tempDir('conciv-core-unit-')
+    const before = {...process.env}
+    const engine = await start({
+      options: {systemPrompt: false},
+      root,
+      launchEditor: () => {},
+      configProvider: ConfigProvider.fromUnknown({CONCIV_STATE_ROOT: stateRoot}),
+    })
+    onTestFinished(() => engine.stop())
+    expect(engine.cfg.stateRoot).toBe(stateRoot)
+    expect(readServerRecord(stateRoot).port).toBe(engine.port)
+    expect(existsSync(statePaths(root).server)).toBe(false)
+    expect(process.env).toEqual(before)
   })
 })
 
@@ -5081,8 +5101,13 @@ describe('pty sessions', () => {
   describe('pty sessions', () => {
     const cleanups: TtySessions[] = []
 
-    const make = (options?: Parameters<typeof createTtySessions>[0]): TtySessions => {
-      const sessions = createTtySessions(options)
+    const make = (options: {idleEvictMs?: number} = {}): TtySessions => {
+      const sessions = createTtySessions({
+        env: Object.fromEntries(
+          Object.entries(process.env).flatMap(([key, value]) => (value === undefined ? [] : [[key, value]])),
+        ),
+        ...options,
+      })
       cleanups.push(sessions)
       return sessions
     }

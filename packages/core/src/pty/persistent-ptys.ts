@@ -18,6 +18,7 @@ type PersistentPtyDeps = {
   cwd: string
   stateDir: string
   mcpUrl: () => string | null
+  env: Readonly<Record<string, string>>
 }
 
 export type PersistentPtys = ReturnType<typeof createPersistentPtys>
@@ -31,7 +32,7 @@ function describePty(session: TtySession, sessionId: SessionId): PersistentPtyIn
 }
 
 export function createPersistentPtys(deps: PersistentPtyDeps) {
-  const ttys = createTtySessions()
+  const ttys = createTtySessions({env: deps.env})
   const live = async (sessionId: SessionId): Promise<TtySession | undefined> => {
     const owner = ownerKey((await deps.harness(sessionId)).id, await deps.sessions.resumeToken(sessionId))
     const alive = ttys.get(sessionId)

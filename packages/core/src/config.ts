@@ -7,6 +7,8 @@ import {
   type HubAccess,
   type SessionId,
 } from '@conciv/protocol/chat-types'
+import {Config, type ConfigProvider, Effect, Option} from 'effect'
+import {defaultConfigProvider} from './lib/default-config-provider.js'
 
 export type {ConcivConfig} from '@conciv/protocol/config-types'
 export {defineConfig} from '@conciv/protocol/config-types'
@@ -64,8 +66,23 @@ function resolveSystemPrompt(value: string | boolean | undefined): string {
   return CHAT_SYSTEM_PROMPT
 }
 
-export function resolveConfig(options: ConcivConfig, root: string): ResolvedConcivConfig {
-  const env = process.env
+function envValue(name: string): Config.Config<string | undefined> {
+  return Config.option(Config.String(name)).pipe(Config.map(Option.getOrUndefined))
+}
+
+const EnvFallbacksConfig = Config.all({
+  CONCIV_STATE_ROOT: envValue('CONCIV_STATE_ROOT'),
+  CONCIV_HARNESS: envValue('CONCIV_HARNESS'),
+  CONCIV_SESSION_ID: envValue('CONCIV_SESSION_ID'),
+  CONCIV_CLAUDE_SESSION_ID: envValue('CONCIV_CLAUDE_SESSION_ID'),
+})
+
+export function resolveConfig(
+  options: ConcivConfig,
+  root: string,
+  configProvider: ConfigProvider.ConfigProvider = defaultConfigProvider(),
+): ResolvedConcivConfig {
+  const env = Effect.runSync(EnvFallbacksConfig.parse(configProvider))
   return {
     enabled: options.enabled ?? true,
     stateRoot: options.stateRoot ?? env.CONCIV_STATE_ROOT ?? root,

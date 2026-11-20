@@ -186,8 +186,8 @@ function replayTo(entry: Entry, sink: TtySink, from: number | undefined): void {
   }
 }
 
-export function createTtySessions(opts?: {idleEvictMs?: number}): TtySessions {
-  const idleEvictMs = opts?.idleEvictMs ?? IDLE_EVICT_MS
+export function createTtySessions(opts: {env: Readonly<Record<string, string>>; idleEvictMs?: number}): TtySessions {
+  const idleEvictMs = opts.idleEvictMs ?? IDLE_EVICT_MS
   const entries = new Map<string, Entry>()
 
   const drop = (sessionId: string): void => {
@@ -224,7 +224,7 @@ export function createTtySessions(opts?: {idleEvictMs?: number}): TtySessions {
 
   const spawnEnv = (command: TtyCommand): Record<string, string | undefined> => {
     const prefixes = command.unsetEnvPrefixes ?? []
-    const kept = Object.entries(process.env).filter(([key]) => !prefixes.some((prefix) => key.startsWith(prefix)))
+    const kept = Object.entries(opts.env).filter(([key]) => !prefixes.some((prefix) => key.startsWith(prefix)))
     return {...Object.fromEntries(kept), ...command.env}
   }
 

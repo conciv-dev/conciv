@@ -51,6 +51,7 @@ import {
 } from '@conciv/plugin-host'
 import {
   Cause,
+  ConfigProvider,
   Effect,
   Exit,
   FileSystem as PlatformFileSystem,
@@ -207,6 +208,7 @@ export type PluginRuntimeInput = {
   bundler: Bundler.BundlerBridge | undefined
   openInEditor: (file: string, line?: number, column?: number) => void
   sessions: Parameters<typeof provideSessions>[0]
+  configProvider: ConfigProvider.ConfigProvider
 }
 
 const VCS_MARKERS = [
@@ -303,6 +305,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         NodeFileSystem.layer,
         NodeChildProcessSpawner.layer.pipe(Layer.provide(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer))),
         FetchHttpClient.layer,
+        ConfigProvider.layer(input.configProvider),
       ),
     ),
   )

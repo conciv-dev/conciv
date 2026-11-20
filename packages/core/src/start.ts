@@ -1,7 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {inspect} from 'node:util'
 import {serveHono, type ServeFetch} from '@conciv/serve'
-import {checkEngines, concivHome, registerEngine, retireEngine, withHomeDb, type EngineRow} from '@conciv/db'
+import {checkEngines, registerEngine, retireEngine, withHomeDb, type EngineRow} from '@conciv/db'
+import {type ConfigProvider, Effect} from 'effect'
 import {z} from 'zod'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -12,6 +13,8 @@ import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {createConcivStateDir, concivStateDir} from '@conciv/protocol/state-types'
 import {requireHarness} from './lib/require-harness.js'
+import {defaultConfigProvider} from './lib/default-config-provider.js'
+import {readConcivHome, readProcessEnv, runWithProvider} from './lib/engine-env.js'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint, writePrivateFile} from './lib/dev-endpoint.js'
 import {claudeConnectEndpointFile} from '@conciv/harness-init/claude/endpoint'
@@ -100,6 +103,7 @@ export type StartOpts = {
   nativePageDir?: string
   devEndpointDir?: string
   homeDir?: string
+  configProvider?: ConfigProvider.ConfigProvider
 }
 
 export type Engine = {
@@ -216,7 +220,8 @@ function registerForOutsideAgents(home: string, row: EngineRow): () => void {
 
 export async function start(opts: StartOpts): Promise<Engine> {
   assertAccessToken(opts.accessToken)
-  const cfg = resolveConfig(opts.options, opts.root)
+  const configProvider = opts.configProvider ?? defaultConfigProvider()
+  const cfg = resolveConfig(opts.options, opts.root, configProvider)
   if (!opts.harness) requireHarness(cfg.harness)
   const paths = statePaths(cfg.stateRoot)
   createConcivStateDir(paths.dir)
@@ -233,8 +238,12 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const agentToken = opts.accessToken ?? randomUUID()
   const engineId = randomUUID()
   const portRef = {port: 0}
+  const {home, env} = await runWithProvider(
+    configProvider,
+    Effect.all({home: readConcivHome(opts.homeDir), env: readProcessEnv}),
+  )
   const harnessEnv = (sessionId?: SessionId): NodeJS.ProcessEnv => {
-    const baseEnv = {...(opts.childEnv ? opts.childEnv(portRef.port) : process.env), CONCIV_TOKEN: agentToken}
+    const baseEnv = {...(opts.childEnv ? opts.childEnv(portRef.port) : env), CONCIV_TOKEN: agentToken}
     return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
   }
   const tokenScopedBase = (): string | undefined => {
@@ -242,9 +251,9 @@ export async function start(opts: StartOpts): Promise<Engine> {
     return `http://127.0.0.1:${portRef.port}${agentPath(agentToken)}`
   }
 
-  const home = concivHome({homeDir: opts.homeDir, env: process.env})
   const appOpts: MakeAppOpts = {
     home,
+    configProvider,
     cfg,
     cwd: opts.root,
     agentToken,

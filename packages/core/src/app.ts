@@ -23,6 +23,7 @@ import {assertToolName, toolError} from '@conciv/protocol/tool-call-types'
 import type {ResolvedConcivConfig} from './config.js'
 import {listHarnesses, transcriptPathWithin} from '@conciv/harness'
 import {requireHarness} from './lib/require-harness.js'
+import {defaultConfigProvider} from './lib/default-config-provider.js'
 import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
@@ -55,15 +56,16 @@ import {
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
 import {differenceBy, isNotNil, memoize, pickBy} from 'es-toolkit'
-import {Cause, Effect, Exit, Fiber, FiberMap, Option, Schema, Scope} from 'effect'
+import {Cause, Config, type ConfigProvider, Effect, Exit, Fiber, FiberMap, Option, Schema, Scope} from 'effect'
 import {Bus, Permission, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
-import {concivHome, readModel, openDb, sessions, type ConcivDb} from '@conciv/db'
+import {readModel, openDb, sessions, type ConcivDb} from '@conciv/db'
 import {createSettingsStorage, settingsOnDisk} from './settings/settings-storage.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
-import {createHubInstaller} from './api/rpc/hub.js'
+import {makeHubInstaller} from './api/rpc/hub.js'
+import {readConcivHome, readProcessEnv, runWithProvider} from './lib/engine-env.js'
 import {createTabs} from './api/tabs.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
@@ -229,6 +231,8 @@ export type MakeAppOpts = {
   staleness?: () => EngineStaleness
 
   home?: string
+
+  configProvider?: ConfigProvider.ConfigProvider
 }
 
 function executable(file: string): boolean {
@@ -240,13 +244,20 @@ function executable(file: string): boolean {
   }
 }
 
-function onPath(bin: string): boolean {
-  const directories = (process.env.PATH ?? '').split(delimiter).filter((entry) => entry.length > 0)
+const PathConfig = Config.String('PATH').pipe(Config.withDefault(''))
+
+const readAppEnv = Effect.fn('core.app.readEnv')(function* (homeDir: string | undefined) {
+  const home = yield* readConcivHome(homeDir)
+  return {home, path: yield* PathConfig, env: yield* readProcessEnv, hub: yield* makeHubInstaller(home)}
+})
+
+function onPath(path: string, bin: string): boolean {
+  const directories = path.split(delimiter).filter((entry) => entry.length > 0)
   return directories.some((directory) => executable(join(directory, bin)))
 }
 
-function detectedHarnesses(): HarnessAdapter[] {
-  return listHarnesses().filter((adapter) => onPath(adapter.binName))
+function detectedHarnesses(path: string): HarnessAdapter[] {
+  return listHarnesses().filter((adapter) => onPath(path, adapter.binName))
 }
 
 function availableHarnesses(
@@ -254,8 +265,9 @@ function availableHarnesses(
   opts: MakeAppOpts,
   stateDir: string,
   signal: AbortSignal,
+  path: string,
 ): SavedModelsHarness[] {
-  const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses())).map((adapter) =>
+  const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses(path))).map((adapter) =>
     withSavedModels(adapter, stateDir, signal),
   )
   return [boot, ...others.filter((other) => other.harness.id !== boot.harness.id)]
@@ -420,6 +432,8 @@ async function mcpSessionId(
 }
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
+  const configProvider = opts.configProvider ?? defaultConfigProvider()
+  const appEnv = await runWithProvider(configProvider, readAppEnv(opts.home))
   const stateDir = concivStateDir(opts.cfg.stateRoot)
   const engineLife = new AbortController()
   const boot = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir, engineLife.signal)
@@ -428,7 +442,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const basePath = agentPath(agentToken)
   const browsers = watchTrustedBrowsers(stateDir)
   const trust = makeConnectionTrust(agentToken, browsers)
-  const listings = availableHarnesses(boot, opts, stateDir, engineLife.signal)
+  const listings = availableHarnesses(boot, opts, stateDir, engineLife.signal, appEnv.path)
   const harnesses = listings.map((listing) => listing.harness)
   const print = opts.print ?? ((text: string) => console.log(text))
   const endListing = async (listing: SavedModelsHarness): Promise<void> => {
@@ -458,9 +472,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
   const pagePlugin = makePagePlugin(() => pluginHost)
-  const settings = createSettingsStorage(
-    settingsOnDisk({global: concivHome({homeDir: opts.home, env: process.env}), project: stateDir}),
-  )
+  const settings = createSettingsStorage(settingsOnDisk({global: appEnv.home, project: stateDir}))
   const primitives = makeSessionPrimitives()
   const {stream} = primitives
   const rows: RowScope = {
@@ -543,7 +555,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     return makePluginRuntime({
       db,
       cwd: opts.cwd,
-      home: concivHome({homeDir: opts.home, env: process.env}),
+      home: appEnv.home,
+      configProvider,
       fallbackRoots: join(stateDir, 'plugin-host'),
       engineId,
       config: opts.cfg,
@@ -630,7 +643,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const sessionToolNames = async (sessionId: SessionId): Promise<ReadonlySet<string>> =>
     new Set([...(await sessionTools(sessionId)).map((tool) => tool.name), ...concivSandboxToolNames()])
 
-  const hub = createHubInstaller(opts.home)
+  const hub = appEnv.hub
   const driver = loadIsolateDriver(logError)
   const askPermission = async (
     sessionId: SessionId,
@@ -646,7 +659,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const plane = await createChatPlane({
     cwd: opts.cwd,
     harnessFor,
-    harnessEnv: opts.harnessEnv,
+    harnessEnv: opts.harnessEnv ?? (() => appEnv.env),
     systemPrompt: {
       systemPromptFile: opts.systemPromptFile,
       systemPromptText,
@@ -757,6 +770,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     sessions: serverSessions,
     cwd: opts.cwd,
     stateDir,
+    env: appEnv.env,
     mcpUrl: () => {
       const base = opts.tokenScopedBase?.()
       return base === undefined ? null : `${base}/api/mcp`
