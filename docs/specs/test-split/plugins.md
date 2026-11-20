@@ -34,10 +34,10 @@ Rules this plan follows (`docs/specs/test-rewrite-after-port.md`):
   - the old `/flow`, `chat`, `pane`, `widget` and `fault` fixtures;
   - `expectLog`;
   - mocks.
-- Who mounts the app (ruled 2026-11-20, as opencode): a package the app is made of (a dependency of `apps/conciv`; here the
-  page and tanstack plugins) never mounts the app. Its on-screen journeys are rows targeted at `apps/conciv/src`; its own
+- Who mounts the app (ruled 2026-11-20, as opencode): a package the app is made of (anything in the dependency closure of
+  `apps/conciv`; here the page, tanstack and ios plugins) never mounts the app. Its on-screen journeys are rows targeted at `apps/conciv/src`; its own
   happy-dom and browser mode rows are tests without the kit that run its page-side code on a fixture the test renders,
-  and each row says "no kit, no app". ios, recorder, test-runner, try-it and whiteboard are not in the app and mount it
+  and each row says "no kit, no app". recorder, test-runner, try-it and whiteboard are not in the app and mount it
   from their own package.
 - A row whose target is `src/index.test.ts` tests through the package entry. When a row's subject is one source file, the
   writer puts it beside that file instead.
@@ -92,9 +92,11 @@ Files each package ends with (no `test/` folders):
   - `src/*.test.ts` beside `rpc.ts`, `tools.ts`, `machine.ts`, `queue.ts`, `files.ts`, `symbolicate.ts`,
     `operations.ts`, `open-source.ts` and `cards.tsx`;
   - its card stories.
-- `@conciv/plugin-ios`, `plugin-recorder`, `plugin-tanstack`, `plugin-test-runner`, `plugin-try-it`,
-  `plugin-whiteboard`: `src/*.test.ts` beside the code each row names. A `src/<package>.dom.test.tsx` only where a row
-  says happy-dom, and a `src/<package>.browser.test.tsx` only where a row says browser mode.
+- `@conciv/plugin-ios` and `plugin-tanstack` (in the app): `src/*.test.ts` beside the code each row names, and no
+  happy-dom or browser file.
+- `plugin-recorder`, `plugin-test-runner`, `plugin-try-it`, `plugin-whiteboard` (not in the app): `src/*.test.ts`
+  beside the code each row names. A `src/<package>.dom.test.tsx` only where a row says happy-dom, and a
+  `src/<package>.browser.test.tsx` only where a row says browser mode.
 - `apps/conciv` (the app) takes the page and tanstack rows that mount it: 7 rows, all browser mode, in
   `apps/conciv/src/conciv.browser.test.tsx` (3338, 3358 into M-PAGECARD; 2849, 2867, 2893 into M-PAGEQUEUE; :1065 into
   M-INSPECT; tanstack.browser 128 as two journeys). With embed-flows.md's 7 rows, 14 rows of this split land in that file;
