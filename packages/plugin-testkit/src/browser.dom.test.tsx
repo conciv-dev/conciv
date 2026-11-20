@@ -93,6 +93,22 @@ describe('the happy-dom environment', () => {
   test('the next test starts with empty storage', () => {
     expect(localStorage.getItem('conciv-test-left-behind')).toBeNull()
   })
+
+  test('a test that ends with the engine paused still tears down, whatever order it lists faults and mount in', async ({
+    faults,
+    chat,
+    mount,
+    expectLog,
+  }) => {
+    expectLog(DRAFTS_WITHOUT_INDEXED_DB)
+    const user = userEvent.setup()
+    await mount()
+    await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
+    await chat.reply('a reply before the pause')
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'hello{Enter}')
+    expect(await screen.findByText('a reply before the pause')).toBeInTheDocument()
+    await faults.pause()
+  })
 })
 
 describe('the app on happy-dom behind the kit engine proxy', () => {

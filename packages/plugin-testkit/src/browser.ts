@@ -70,7 +70,7 @@ export const test = base.extend<BrowserFixtures>({
       await engine.call({kind: 'release'})
     }
   },
-  faults: async ({engine}, use) => {
+  faults: async ({engine, mount: _mount}, use) => {
     const disposers: (() => Promise<void>)[] = []
     const tracked = async <Fault extends {dispose: () => Promise<void>}>(made: Promise<Fault>): Promise<Fault> => {
       const fault = await made
