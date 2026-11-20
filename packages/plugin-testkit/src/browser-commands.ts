@@ -1,3 +1,4 @@
+import type {TestLLM} from '@conciv/harness-testkit'
 import type {CreateEngineOptions, EngineAddress, EngineSetting, ToolFailure} from './engine.js'
 
 export type EngineHandle = {id: string; sessionId: string; address: EngineAddress}
@@ -11,8 +12,10 @@ export type EngineCommands = {
   concivGate: (engineId: string) => Promise<string>
   concivGateStarted: (engineId: string, gateId: string) => Promise<void>
   concivGateRelease: (engineId: string, gateId: string) => Promise<void>
+  concivRequests: (engineId: string) => Promise<TestLLM.ModelRequest[]>
   concivSend: (engineId: string, sessionId: string, text: string) => Promise<void>
   concivApprove: (engineId: string, sessionId: string) => Promise<void>
+  concivStop: (engineId: string, sessionId: string) => Promise<void>
   concivToolCall: (engineId: string, sessionId: string, name: string, input: unknown) => Promise<unknown>
   concivToolFailure: (engineId: string, sessionId: string, name: string, input: unknown) => Promise<ToolFailure>
 }

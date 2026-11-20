@@ -11,6 +11,7 @@ function sessionOn(engineId: string, id: string): EngineSession {
     id,
     send: (text) => commands.concivSend(engineId, id, text),
     approve: () => commands.concivApprove(engineId, id),
+    stop: () => commands.concivStop(engineId, id),
     tool: (name) => ({
       call: (input) => commands.concivToolCall(engineId, id, name, input),
       failure: (input) => commands.concivToolFailure(engineId, id, name, input),
@@ -40,6 +41,7 @@ export async function createEngine(options: CreateEngineOptions = {}): Promise<E
     newSession: async (title) => sessionOn(handle.id, await commands.concivNewSession(handle.id, title)),
     setting: (setting) => commands.concivSetting(handle.id, setting),
     gate: async () => gateOn(handle.id, await commands.concivGate(handle.id)),
+    requests: () => commands.concivRequests(handle.id),
   }
   addresses.set(engine, handle.address)
   return engine

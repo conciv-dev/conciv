@@ -33,7 +33,7 @@ export type EngineTool = HarnessEngineTool
 
 export type EngineSession = HarnessEngineSession
 
-export type Engine = Pick<HarnessEngine, 'session' | 'newSession' | 'setting' | 'gate'>
+export type Engine = Pick<HarnessEngine, 'session' | 'newSession' | 'setting' | 'gate' | 'requests'>
 
 export type EngineAddress = HarnessEngineAddress
 
@@ -75,14 +75,14 @@ function locatePlugin(entry: PluginEntry): PluginEntry {
 export async function startEngine(options: CreateEngineOptions): Promise<StartedEngine> {
   const {harness, replies, files, settings, permission} = options
   const plugins = options.plugins?.map(locatePlugin)
-  const {session, newSession, setting, gate, address, stop} = await createHarnessEngine({
+  const {session, newSession, setting, gate, requests, address, stop} = await createHarnessEngine({
     harness,
     config: {plugins, permission},
     replies,
     files,
     settings,
   })
-  return {engine: {session, newSession, setting, gate}, address, stop}
+  return {engine: {session, newSession, setting, gate, requests}, address, stop}
 }
 
 export async function createEngine(options: CreateEngineOptions = {}): Promise<Engine> {

@@ -16,7 +16,7 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveHono} from '@conciv/serve'
 import {callTool} from './call-tool.js'
 import {replyScript} from './scripted-harness.js'
-import type {Gate, Response} from './test-llm.js'
+import type {Gate, ModelRequest, Response} from './test-llm.js'
 import {until} from './until.js'
 
 export * as TestLLM from './test-llm.js'
@@ -42,6 +42,7 @@ export type HarnessEngineSession = {
   id: string
   send: (text: string) => Promise<void>
   approve: () => Promise<void>
+  stop: () => Promise<void>
   tool: (name: string) => HarnessEngineTool
 }
 
@@ -52,6 +53,7 @@ export type HarnessEngine = {
   newSession: (title?: string) => Promise<HarnessEngineSession>
   setting: (setting: HarnessEngineSetting) => Promise<void>
   gate: () => Promise<Gate>
+  requests: () => Promise<ModelRequest[]>
   address: HarnessEngineAddress
   stop: () => Promise<void>
 }
@@ -60,7 +62,13 @@ type Step = () => unknown
 
 type TurnMessage = {id: string; role: 'user'; parts: ChatMessage['parts']}
 
-type Turns = {send: (sessionId: string, text: string) => Promise<void>; closeAll: () => void}
+type OpenTurn = {sessionId: string; runId: string; abort: AbortController}
+
+type Turns = {
+  send: (sessionId: string, text: string) => Promise<void>
+  runIds: (sessionId: string) => string[]
+  closeAll: () => void
+}
 
 type Engine = {rpc: RpcClient; apiBase: string; turns: Turns}
 
@@ -113,7 +121,7 @@ async function readTurn(
 }
 
 function makeTurns(rpc: RpcClient): Turns {
-  const open: AbortController[] = []
+  const open: OpenTurn[] = []
   const connection = rpcStream((_messages, _data, signal, input) =>
     streamed(rpc.chat.send({sessionId: input.threadId, runId: input.runId, messages: input.messages}, {signal})),
   )
@@ -121,15 +129,16 @@ function makeTurns(rpc: RpcClient): Turns {
     send: (sessionId, text) => {
       const runId = randomUUID()
       const abort = new AbortController()
-      open.push(abort)
+      open.push({sessionId, runId, abort})
       const message: TurnMessage = {id: `${runId}-user`, role: 'user', parts: [{type: 'text', content: text}]}
       const events = connection.connect([message], {}, abort.signal, {threadId: sessionId, runId})
       const {promise, resolve: ended, reject} = Promise.withResolvers<void>()
       readTurn(events, runId, ended, reject).catch(reject)
       return promise
     },
+    runIds: (sessionId) => open.filter((turn) => turn.sessionId === sessionId).map((turn) => turn.runId),
     closeAll: () => {
-      for (const abort of open.splice(0)) abort.abort()
+      for (const turn of open.splice(0)) turn.abort.abort()
     },
   }
 }
@@ -143,16 +152,30 @@ function failedTool(name: string, call: Promise<unknown>): Promise<HarnessEngine
   )
 }
 
-async function approvePending(engine: Engine, sessionId: string): Promise<void> {
+async function asSession(engine: Engine, sessionId: string, use: (rpc: RpcClient) => Promise<void>): Promise<void> {
   const browser = makeBrowserRpcClient(engine.apiBase, {session: () => sessionId})
   try {
-    const pending = (): Promise<string[]> =>
-      browser.rpc.chat.hydrate({sessionId}).then(({pendingApprovals}) => pendingApprovals.map((ask) => ask.approvalId))
-    await until(async () => (await pending()).length > 0)
-    for (const approvalId of await pending()) await browser.rpc.chat.permissionDecision({approvalId, reply: 'once'})
+    await use(browser.rpc)
   } finally {
     browser.close()
   }
+}
+
+function approvePending(engine: Engine, sessionId: string): Promise<void> {
+  return asSession(engine, sessionId, async (rpc) => {
+    const pending = (): Promise<string[]> =>
+      rpc.chat.hydrate({sessionId}).then(({pendingApprovals}) => pendingApprovals.map((ask) => ask.approvalId))
+    await until(async () => (await pending()).length > 0)
+    for (const approvalId of await pending()) await rpc.chat.permissionDecision({approvalId, reply: 'once'})
+  })
+}
+
+function stopRun(engine: Engine, sessionId: string): Promise<void> {
+  return asSession(engine, sessionId, async (rpc) => {
+    const {activeRun} = await rpc.chat.hydrate({sessionId})
+    const runIds = engine.turns.runIds(sessionId)
+    await rpc.chat.stop({sessionId, runIds: activeRun === null ? runIds : [activeRun.runId, ...runIds]})
+  })
 }
 
 function sessionOn(engine: Engine, id: string): HarnessEngineSession {
@@ -160,6 +183,7 @@ function sessionOn(engine: Engine, id: string): HarnessEngineSession {
     id,
     send: (text) => engine.turns.send(id, text),
     approve: () => approvePending(engine, id),
+    stop: () => stopRun(engine, id),
     tool: (name) => ({
       call: (input) => callTool(engine.apiBase, id, name, input),
       failure: (input) => failedTool(name, callTool(engine.apiBase, id, name, input)),
@@ -247,6 +271,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
       await engine.rpc.settings.set(setting)
     },
     gate: async () => script.gate(),
+    requests: async () => script.requests(),
     address: {apiBase, token: app.agentToken},
     stop,
   }

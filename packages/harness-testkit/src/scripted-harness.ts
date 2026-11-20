@@ -5,7 +5,7 @@ import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps, HarnessCommand, HarnessConnectContext, HarnessModel} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
-import type {Gate, Response} from './test-llm.js'
+import type {Gate, ModelRequest, Response} from './test-llm.js'
 
 const FAKE_HARNESS_ID = 'engine'
 
@@ -41,16 +41,23 @@ function shellCommand(context: HarnessConnectContext): TtyCommand {
 
 type Run = {threadId: string; runId: string}
 
-type RunRequest = {threadId?: string; runId?: string; request?: {signal?: AbortSignal | null}}
+type StreamOptions = Parameters<Parameters<typeof makeTextAdapter>[1]>[0]
+
+type RunRequest = Pick<StreamOptions, 'messages' | 'tools'> & {
+  threadId?: string
+  runId?: string
+  request?: {signal?: AbortSignal | null}
+}
 
 type HeldGate = {started: PromiseWithResolvers<void>; released: PromiseWithResolvers<void>}
 
-type ScriptState = {requests: number; held: HeldGate | undefined}
+type ScriptState = {requests: ModelRequest[]; held: HeldGate | undefined}
 
 export type ReplyScript = {
   harness: (harness: HarnessAdapter | undefined) => HarnessAdapter
   gate: () => Gate
   releaseGate: () => void
+  requests: () => ModelRequest[]
 }
 
 function stamped(event: ChatEvent, run: Run): ChatEvent {
@@ -58,6 +65,13 @@ function stamped(event: ChatEvent, run: Run): ChatEvent {
   if (event.type === ChatEventType.RUN_FINISHED) return {...event, ...run}
   if (event.type === ChatEventType.RUN_ERROR) return {...event, ...run}
   return event
+}
+
+function recorded(request: RunRequest): ModelRequest {
+  return {
+    messages: [...request.messages],
+    tools: (request.tools ?? []).map((tool) => ({name: tool.name, description: tool.description})),
+  }
 }
 
 function abortedBy(signal: AbortSignal): Effect.Effect<void> {
@@ -76,10 +90,10 @@ function replyChunks(reply: Response, signal: AbortSignal | undefined): Iterable
 async function* replyEvents(
   deps: HarnessChatDeps,
   request: RunRequest,
-  take: () => Promise<Response>,
+  take: (request: ModelRequest) => Promise<Response>,
 ): AsyncGenerator<ChatEvent> {
   const run = {threadId: request.threadId ?? deps.sessionId, runId: request.runId ?? crypto.randomUUID()}
-  const reply = await take()
+  const reply = await take(recorded(request))
   yield {type: ChatEventType.RUN_STARTED, ...run}
   yield {
     type: ChatEventType.CUSTOM,
@@ -92,11 +106,11 @@ async function* replyEvents(
 
 export function replyScript(replies: readonly Response[]): ReplyScript {
   const queued = [...replies]
-  const state: ScriptState = {requests: 0, held: undefined}
-  const take = async (): Promise<Response> => {
-    state.requests += 1
+  const state: ScriptState = {requests: [], held: undefined}
+  const take = async (request: ModelRequest): Promise<Response> => {
+    const count = state.requests.push(request)
     const reply = queued.shift()
-    if (reply === undefined) throw new Error(`the scripted harness has no reply for request ${state.requests}`)
+    if (reply === undefined) throw new Error(`the scripted harness has no reply for request ${count}`)
     const held = state.held
     if (held !== undefined) {
       held.started.resolve()
@@ -147,5 +161,6 @@ export function replyScript(replies: readonly Response[]): ReplyScript {
       }
     },
     releaseGate,
+    requests: () => [...state.requests],
   }
 }
