@@ -1,4 +1,5 @@
 import {presetConciv} from '@conciv/uno-preset'
+import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'unocss'
 
 export default defineConfig({
@@ -19,7 +20,7 @@ export default defineConfig({
       '../../packages/plugins/tanstack/src/**/*.{ts,tsx}',
       '../../packages/plugins/terminal/src/**/*.{ts,tsx}',
       '../../packages/plugins/whiteboard/src/**/*.{ts,tsx}',
-    ],
+    ].map((glob) => fileURLToPath(new URL(glob, import.meta.url))),
   },
 
   presets: [presetConciv()],

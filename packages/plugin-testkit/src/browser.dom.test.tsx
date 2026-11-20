@@ -41,7 +41,7 @@ const plugins = compose({notes: {windowEntry: async () => ({default: notes})}}).
 ])
 
 describe('the app on happy-dom', () => {
-  test('a user sends a message, sees the reply, waits out a held run, pastes a file and opens a plugin tab and its dialog', async ({
+  test('a user sends a message, sees the reply, waits out a held run, pastes a file, opens a plugin tab and its dialog and minimizes the chat', async ({
     mount,
     chat,
     expectLog,
@@ -50,6 +50,7 @@ describe('the app on happy-dom', () => {
     const user = userEvent.setup()
     await mount({plugins})
     await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
+    const panel = await screen.findByRole('dialog', {name: 'conciv chat agent'})
     const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await chat.reply('the scripted reply')
     await user.type(composer, 'hello{Enter}')
@@ -73,6 +74,9 @@ describe('the app on happy-dom', () => {
     await waitFor(() => expect(screen.getByRole('button', {name: 'End'})).toHaveFocus())
     await user.keyboard('{Escape}')
     await waitFor(() => expect(dialog).not.toBeInTheDocument())
+    await user.click(screen.getByRole('button', {name: 'Minimize conciv chat'}))
+    await waitFor(() => expect(panel).not.toBeVisible())
+    expect(panel).toBeInTheDocument()
   })
 })
 
