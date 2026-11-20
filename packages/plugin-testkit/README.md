@@ -15,7 +15,7 @@ Source details: [src/README.md](./src/README.md).
 
 - No helper exports. Everything else in `dist` is loaded by path from the test projects, never imported by a test.
 - The engine always runs in Node: in the test process for node and happy-dom, and behind browser commands for browser mode.
-- In browser mode the Playwright page's console errors and uncaught errors are collected per test. `pageErrors()` on the test context reads them, and an error left unread fails the test at its end (`page-errors.ts`).
+- In browser mode the Playwright page's console errors, uncaught errors and responses with status 400 or more are collected per test, as opencode's `trackPageErrors`. `pageErrors()` on the test context reads them when the test asks; nothing fails on its own (`page-errors.ts`).
 - `package.json`: exports point at the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`.
 
 ## Verification

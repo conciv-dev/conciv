@@ -167,7 +167,10 @@ function pageErrorCommands(): PageCommandHandlers {
       page.on('console', (message) => {
         if (message.type() === 'error') watch.errors.push(message.text())
       })
-      page.on('pageerror', (error) => watch.errors.push(error.message))
+      page.on('pageerror', (error) => watch.errors.push(error.stack ?? error.message))
+      page.on('response', (response) => {
+        if (response.status() >= 400) watch.errors.push(`${response.status()} ${response.url()}`)
+      })
     },
     concivPageErrors: async ({sessionId, page}) => {
       await page.evaluate(() => undefined)
