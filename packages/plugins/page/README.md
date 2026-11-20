@@ -5,7 +5,7 @@
 conciv's built-in page plugin, both halves in one package (as opencode's `plugin-browser` and `gui-plugins/browser`):
 the engine part (`.`: the plugin `conciv.page`, its connection, tools, skill and queue), the RPC contract (`./rpc`),
 the browser part the widget runs eagerly (`./client`: the DOM helpers, the cards and the page tool names), the window
-setup loaded lazily by the built-ins (`./renderer`) and the fake tabs for tests (`./testing`).
+setup loaded lazily by the built-ins (`./renderer`).
 
 The engine part, the plugin `conciv.page` (`.`), registers the RPC `experimental.page` (`./rpc`) and answers it: each
 tab's attachment and the commands it runs, page operations, live changes, captures, action queues and `symbolicate`.
@@ -33,9 +33,6 @@ A built-in: it draws with the UI kits directly, like opencode's gui plugins, and
 - option `permissionSyncTimeoutMs` (`connection.ts`, milliseconds, default 10 000): how long granting or revoking a tab's page permissions on its session may take before the attach is refused (the tab retries on its back-off)
 - `client.ts` (`./client`): the DOM helpers, `reactBridge` as a namespace, `pageAttachmentCards`, `pageSessionEntry`, `PAGE_ACT_TOOL_NAMES`, `PAGE_TOOL_PREFIX`, `pageToolMeta`
 - `renderer.tsx` (`./renderer`): the window setup (default export) the built-ins load lazily
-- `testing.ts` (`./testing`, node-safe): `pageTabs()`, a plugin that opens fake browser tabs on the page plugin's
-  connection (`experimental.page` attach, state, command, result), so engine and terminal tests drive page tools the way
-  the widget does, without a browser. Its `PageReply`/`PageAnswer` types and the RPC as `Page`.
 - `grab.ts:getReactGrabAdapter` - creates the adapter once and returns `{activate(onGrab), comment(onGrab), deactivate(), isActive()}` (`ReactGrabAdapter`).
 - `grab.ts:GrabSink` - `(grab: Grab) => void`.
 - `grab.ts:picking` / `setPicking` - Solid signal for pick mode; `setCancelPick` / `cancelPick`.

@@ -19,7 +19,6 @@ const HOOK_TIMEOUT_MS = 30_000
 export const POLL_TIMEOUT_MS = 5_000
 const POLL_INTERVAL_MS = 50
 const CONCIV_HOME_SETUP = join(import.meta.dirname, 'setup/conciv-home-setup.ts')
-const NOTHING_LOGGED_SETUP = join(import.meta.dirname, 'setup/nothing-logged-setup.ts')
 
 function forkCap(): number | undefined {
   const cap = Number(process.env.VITEST_MAX_FORKS)
@@ -52,7 +51,7 @@ export function ciTest(): {
       reportsDirectory: 'coverage',
     },
     globalSetup: [CONCIV_HOME_SETUP],
-    setupFiles: [NOTHING_LOGGED_SETUP],
+    setupFiles: [],
     ...(maxWorkers === undefined ? {} : {maxWorkers}),
   }
 }

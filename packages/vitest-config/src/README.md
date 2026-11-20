@@ -2,11 +2,11 @@
 
 ## Overview
 
-Shared CI tooling for the monorepo: vitest config factories (reporters, coverage, timeouts, worker cap), a Solid cleanup setup file, a Solid library vite config, and the CLI logic that plans GitHub Actions shard matrices from package timings, runs turbo for a shard, and turns vitest / Playwright JSON reports and coverage into a Markdown job summary.
+Shared CI tooling for the monorepo: vitest config factories (reporters, coverage, timeouts, worker cap), a Solid cleanup setup file, a Solid library vite config, and the CLI logic that plans GitHub Actions shard matrices from package timings, runs turbo for a shard, and turns vitest / Playwright JSON reports and coverage into a Markdown job summary for the shards.
 
 ## Interface
 
-- `ciTest()` (`reporters.ts`): `{reporters, coverage (v8, json-summary, reportsDirectory 'coverage', enabled on CI only), testTimeout/hookTimeout/teardownTimeout 30_000, maxWorkers?, globalSetup: [setup/conciv-home-setup.ts]}`; calling it makes nothing. `TEST_TIMEOUT_MS` and `HOOK_TIMEOUT_MS` are its timeouts as constants.
+- `ciTest()` (`reporters.ts`): `{reporters, coverage (v8, json-summary, reportsDirectory 'coverage', enabled on CI only), testTimeout/hookTimeout/teardownTimeout 30_000, maxWorkers?, globalSetup: [setup/conciv-home-setup.ts]}`; calling it makes nothing.
 - `tempDir(prefix)` (`temp-dir.ts`, export `./temp-dir`): makes a folder inside one `conciv-test-*` folder per test file, which an `afterAll` registered when the module loads removes once that file is done, passed or failed. Every test that needs a temp folder takes it from here.
 - `ciReporters()` (`reporters.ts`): `['default']` locally; on CI adds `github-actions` (jobSummary off) and `json` -> `test-results.json`.
 - `ciTestSolidBrowser()` (`reporters.ts`): `ciTest()` plus `setupFiles: ['@conciv/vitest-config/solid-cleanup']`.
@@ -14,7 +14,6 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 - `solid-cleanup-setup.ts` (export `./solid-cleanup`): registers `afterEach(cleanup)` from `@solidjs/testing-library`.
 - `solidLibConfig({entry, external})`, `SolidLibBuild` (`vite-lib.ts`, export `./vite-lib`): solid plugin, ES lib output `index.js`, sourcemaps, `emptyOutDir`.
 - CLI `conciv-ci-shards <plan|run|report|summarize> [--task test|e2e] [--timings F] [--output F]` (`ci-shards.ts`). `TASKS.test` runs turbo `typecheck lint test --continue=dependencies-successful` over `packages/` and `apps/`; `TASKS.e2e` runs `test:e2e --continue --concurrency=1` over `e2e/` and `apps/site`.
-- CLI `conciv-ci-summary [--details] [--title T] [roots...]` (`ci-summary.ts`): summary from `test-results.json` files; roots default to `packages`.
 - `planShards(packages, timings, sizing?)`, `planE2eShards`, `discoverPackages(rootDir, groupDirs)`, `plannedPackages`, `e2ePackages`, `parseTimings`; constants `PACKAGE_GROUPS`, `PACKAGES_WITH_DEDICATED_JOBS` (`['conciv-storybook']`), `E2E_HARNESS_PACKAGE`, `TARGET_SHARD_MS` (150_000), `DEFAULT_PACKAGE_MS` (5_000), `E2E_SHARD_SIZING`; types `WorkspacePackage`, `ShardPlan`, `E2eShardPlan`, `ShardSizing` (`shards.ts`).
 - `parseReport`, `parseSummaries`, `mergeSummaries`, `loadSummaries(roots)`, `renderSummary(packages, options?)`; types `PackageSummary`, `CaseResult`, `CaseStatus`, `CaseAnnotation`, `Coverage`, `RenderOptions` (`summary.ts`).
 - Subdirectories:
@@ -36,7 +35,6 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 - Registers a global `afterEach(cleanup)` (`solid-cleanup-setup.ts`).
 - `temp-dir.ts` creates its `conciv-test-*` folder and registers its `afterAll` on import.
 - `plan` appends `matrix=<json>` to `$GITHUB_OUTPUT` and prints it; `run` spawns `pnpm exec turbo run <tasks> --filter=<pkg>...` with `execFileSync` and inherited stdio; `report` writes `--output` (default `shard-report.json`); `summarize` appends to `$GITHUB_STEP_SUMMARY` (or stdout) and writes measured timings to `--timings` (`ci-shards.ts`).
-- `ci-summary.ts` appends to `$GITHUB_STEP_SUMMARY` or writes to stdout.
 - `summary.ts` walks directories, reads `test-results.json`, `coverage/coverage-summary.json` and package.json files, and caches owner lookups in the module-level `packageByDir` map; `discoverPackages` reads workspace package.json files (`shards.ts`).
 
 ## Verification
