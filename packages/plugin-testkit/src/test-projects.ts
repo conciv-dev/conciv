@@ -44,6 +44,20 @@ const BROWSER_PREBUNDLED = [
   'semver/functions/valid',
 ].map((dependency) => `${APP_FROM_KIT} > ${dependency}`)
 
+const TESTING_LIBRARIES = ['@testing-library/user-event']
+
+function installedTestingLibraries(): string[] {
+  const packageRequire = createRequire(join(process.cwd(), 'package.json'))
+  return TESTING_LIBRARIES.filter((library) => {
+    try {
+      packageRequire.resolve(library)
+      return true
+    } catch {
+      return false
+    }
+  })
+}
+
 function appUnoConfig(): string {
   return join(dirname(createRequire(import.meta.url).resolve('@conciv/app/package.json')), 'uno.config.ts')
 }
@@ -200,12 +214,12 @@ export function testProjects(): TestProjectInlineConfiguration[] {
       plugins: [UnoCSS({configFile: uno}), solidPlugin(), engines.plugin],
       server: {fs: {strict: false}},
       resolve: {alias: [{find: NODE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
-      optimizeDeps: browserOptimizeDeps(BROWSER_PREBUNDLED),
+      optimizeDeps: browserOptimizeDeps([...BROWSER_PREBUNDLED, ...installedTestingLibraries()]),
       test: {
         ...page,
         name: 'browser',
         include: ['src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx'],
-        setupFiles: [...page.setupFiles, join(KIT_DIST, 'browser-setup.js')],
+        setupFiles: [...page.setupFiles, join(KIT_DIST, 'browser-setup.js'), join(KIT_DIST, 'browser.js')],
         provide,
         browser: {
           enabled: true,
