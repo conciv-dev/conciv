@@ -86,6 +86,7 @@ import {FOCUS} from './classes.js'
 
 export type ThreadComponents = {
   AssistantMessage?: Component
+  SystemMessage?: Component
 }
 
 export type TurnPrefixSource = {key: string; role: Turn['role']; turn: Accessor<Turn>}
@@ -506,6 +507,7 @@ type ThreadConfig = {
   render: () => ToolRender | undefined
   renderPending: () => boolean
   assistant: () => Component | undefined
+  system: () => Component | undefined
   turnPrefix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
   promptSuffix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
   attachmentCards: () => readonly AttachmentCardSlot[]
@@ -522,6 +524,7 @@ const ThreadConfigContext = createContext<ThreadConfig>({
   render: () => undefined,
   renderPending: () => false,
   assistant: () => undefined,
+  system: () => undefined,
   turnPrefix: () => undefined,
   promptSuffix: () => undefined,
   attachmentCards: () => [],
@@ -575,7 +578,16 @@ function AssistantMessageView(): JSX.Element {
   )
 }
 
-const MESSAGES_COMPONENTS = {UserMessage: UserTurn, AssistantMessage: AssistantMessageView}
+function SystemMessageView(): JSX.Element {
+  const config = useContext(ThreadConfigContext)
+  return <Show when={config.system()}>{(component) => <Dynamic component={component()} />}</Show>
+}
+
+const MESSAGES_COMPONENTS = {
+  UserMessage: UserTurn,
+  AssistantMessage: AssistantMessageView,
+  SystemMessage: SystemMessageView,
+}
 
 function warmHighlightBackends(): void {
   warmHighlighter()
@@ -652,6 +664,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
         render: () => props.render,
         renderPending: () => props.renderPending ?? false,
         assistant: () => props.components?.AssistantMessage,
+        system: () => props.components?.SystemMessage,
         turnPrefix: () => props.turnPrefix,
         promptSuffix: () => props.promptSuffix,
         attachmentCards: () => props.attachmentCards ?? [],

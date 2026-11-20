@@ -25,6 +25,7 @@ import {
   ToolProvider,
   useComposerContext,
   useModelMenu,
+  useMessage,
   useThread,
   type ComposerDraft,
   type PageSessionConfig,
@@ -42,7 +43,12 @@ import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
 import type {ToolCardEntry, ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {type MarkerRow, DraftRowSchema} from '@conciv/contract'
-import {type ChatMessage, type SendContent, type ToolCallPart} from '@conciv/protocol/chat-message-types'
+import {
+  SyntheticMetadataSchema,
+  type ChatMessage,
+  type SendContent,
+  type ToolCallPart,
+} from '@conciv/protocol/chat-message-types'
 import type {Grab} from '@conciv/grab'
 import {composerDraftSink, paneAttachments, returnQueueToDraft} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useLiveSessions, useRpc, useArrivedFromConnect} from '../app/context.js'
@@ -51,7 +57,7 @@ import {usePanelComposerFocus} from '../app/panel-focus.js'
 import type {PaneDraftSinks} from '../app/live-sessions.js'
 import {usePane} from '../app/pane-context.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
-import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
+import {CompactSpinner, ConversationSkeleton, Divider, Notice} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
 import {ComposerActions} from '../composer/actions.js'
 import {promptWithNotes} from '../composer/comment-note.js'
@@ -258,6 +264,15 @@ const PAGE_SESSION: PageSessionConfig = {
   actNames: PAGE_ACT_TOOL_NAMES,
   toolPrefix: PAGE_TOOL_PREFIX,
 }
+
+function SyntheticNotice(): JSX.Element {
+  const message = useMessage()
+  const description = () =>
+    SyntheticMetadataSchema.safeParse(message.message().messages[0]?.metadata).data?.conciv.synthetic.description
+  return <Show when={description()}>{(label) => <Notice label={label()} />}</Show>
+}
+
+const THREAD_COMPONENTS = {SystemMessage: SyntheticNotice}
 
 const ABOVE_COMPOSER =
   'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto pe-5 ps-5 gap-x-2 [background:var(--chat-queue-bg)] [box-shadow:inset_0_1px_0_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-chat-xs leading-snug'
@@ -573,6 +588,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     </Show>
                     <Thread.Messages
                       sessionID={sessionId}
+                      components={THREAD_COMPONENTS}
                       tools={tools()}
                       attachmentCards={attachments().cards}
                       render={toolRender.render}
