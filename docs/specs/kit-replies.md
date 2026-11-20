@@ -324,12 +324,12 @@ Decided under the maintainer's "rule without me, stay as opencode", unless marke
 - 2: `Error`.
 - 3: left out until a compaction test exists.
 - 4: no strings, as opencode. `['done']` becomes `[TestLLM.text('done', 'text-done')]`.
-- 5: NEEDS THE MAINTAINER'S YES: the `TestLLM` namespace exported from the kits, as opencode exports it from
-  `@opencode/ai/testing`. Ruling A was given on the orchestrator's wrong statement that no export is added.
+- 5: DECIDED 2026-11-20, maintainer: yes. The `TestLLM` namespace is exported from the kits, as opencode exports it
+  from `@opencode/ai/testing`.
 - 6: the pick.
 - 7: the pick. No fallback reply, as opencode; `always`, `serve`, `wait`, `requests` are not ported without a caller.
 - 8: no change. A hanging reply sends output first, as opencode's own tests do.
-- 9: NEEDS THE MAINTAINER'S YES, with 5: `engine.gate()`, opencode's `gate` on the object the test already holds.
+- 9: DECIDED 2026-11-20, maintainer: yes. `engine.gate()`.
 - 10: the pick. Failing and never-ending replies are tested in node and happy-dom.
 - 11: stop is pressed in happy-dom. No `stop` on the session.
 - Section 7, first point: the first writer checks it before writing the samples and reports.
