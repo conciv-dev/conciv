@@ -2,7 +2,12 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "dependsOn": ["@conciv/plugin#build", "@conciv/plugin-internal#build", "@conciv/uno-preset#build"]
+      "dependsOn": [
+        "@conciv/plugin#build",
+        "@conciv/plugin-internal#build",
+        "@conciv/unplugin#build",
+        "@conciv/uno-preset#build"
+      ]
     }
   }
 }
