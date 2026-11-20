@@ -28,8 +28,10 @@ const KIT_DIST = import.meta.dirname
 const BROWSER_ENTRY = /^@conciv\/plugin-testkit\/browser$/
 const NODE_ENTRY = /^@conciv\/plugin-testkit\/node$/
 const NODE_ONLY_CONDITIONS = ['browser', 'solid']
+const SOLID_INJECTED_JEST_DOM = '@testing-library/jest-dom/vitest'
 const PAGE_DEPENDENCIES_TO_INLINE = [/solid/, /@ark-ui/, /@zag-js/, /lucide/, /packages\/(core|tools)\/dist\/cards/]
 const ENGINE_IN_NODE = [/plugin-testkit\/dist\/(node|engine-[\w-]+)\.js$/]
+const APP_FROM_KIT = '@conciv/plugin-testkit > @conciv/app'
 const BROWSER_PREBUNDLED = [
   ...TANSTACK_AI_SOLID_DEPS,
   '@conciv/mascot > gsap',
@@ -39,7 +41,7 @@ const BROWSER_PREBUNDLED = [
   '@solid-primitives/mutation-observer',
   'semver/functions/lt',
   'semver/functions/valid',
-]
+].map((dependency) => `${APP_FROM_KIT} > ${dependency}`)
 
 function appUnoConfig(): string {
   return join(dirname(createRequire(import.meta.url).resolve('@conciv/app/package.json')), 'uno.config.ts')
@@ -49,6 +51,12 @@ function engineModulesInNode(): Plugin {
   return {
     name: 'conciv:test-engine-conditions',
     enforce: 'post',
+    config(config) {
+      const setupFiles = config.test?.setupFiles
+      if (!Array.isArray(setupFiles)) return
+      const kept = setupFiles.filter((file) => file !== SOLID_INJECTED_JEST_DOM)
+      setupFiles.splice(0, setupFiles.length, ...kept)
+    },
     configResolved(config) {
       const conditions = config.ssr.resolve?.conditions
       if (!conditions) return

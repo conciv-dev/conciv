@@ -3464,9 +3464,6 @@ importers:
 
   packages/plugin-testkit:
     dependencies:
-      '@conciv/app':
-        specifier: workspace:*
-        version: link:../../apps/conciv
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
@@ -3498,6 +3495,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/app':
+        specifier: workspace:*
+        version: link:../../apps/conciv
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -4005,15 +4005,27 @@ importers:
       '@conciv/plugin-internal':
         specifier: workspace:*
         version: link:../../plugin-internal
+      '@conciv/plugin-testkit':
+        specifier: workspace:^
+        version: link:../../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
+      '@conciv/unplugin':
+        specifier: workspace:*
+        version: link:../../unplugin
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
+      '@solidjs/testing-library':
+        specifier: 'catalog:'
+        version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
+      '@testing-library/user-event':
+        specifier: 'catalog:'
+        version: 14.6.8(@testing-library/dom@10.4.2)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
