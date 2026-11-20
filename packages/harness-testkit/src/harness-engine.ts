@@ -141,7 +141,7 @@ function writeInside(root: string, path: string, content: string): void {
 
 function projectFiles(root: string): HarnessEngineFiles {
   return {
-    read: (path) => readFile(insideRoot(root, path), 'utf8'),
+    read: async (path) => readFile(insideRoot(root, path), 'utf8'),
     write: async (path, text) => writeInside(root, path, text),
   }
 }
@@ -235,25 +235,31 @@ function notAsked(error: unknown): false {
   throw error
 }
 
-function openUiCalls(messages: ChatMessage[]): string[] {
-  const parts = messages.flatMap((message) => message.parts)
-  const answered = parts.flatMap((part) => (part.type === 'tool-result' ? [part.toolCallId] : []))
-  return parts.flatMap((part) =>
-    part.type === 'tool-call' && part.name.endsWith(UI_TOOL) && part.output === undefined && !answered.includes(part.id)
-      ? [part.id]
-      : [],
-  )
+async function liveRunId(engine: Engine, rpc: RpcClient, sessionId: string): Promise<string> {
+  const read = async (): Promise<string | undefined> =>
+    (await rpc.chat.hydrate({sessionId})).activeRun?.runId ?? engine.turns.runIds(sessionId).at(-1)
+  await until(async () => (await read()) !== undefined)
+  const runId = await read()
+  if (runId === undefined) throw new Error(`the session ${sessionId} has no run to answer`)
+  return runId
 }
 
-function answerUi(engine: Engine, sessionId: string, value: UiAnswerValue): Promise<void> {
-  return asSession(engine, sessionId, (rpc) => {
-    const reply = async (toolCallId: string): Promise<boolean> =>
-      rpc.chat.uiReply({sessionId, toolCallId, value}).then(() => true, notAsked)
-    return until(async () => {
-      const {messages} = await rpc.chat.hydrate({sessionId})
-      const replies = await Promise.all(openUiCalls(messages).map(reply))
-      return replies.includes(true)
-    })
+async function answerUi(engine: Engine, sessionId: string, value: UiAnswerValue): Promise<void> {
+  await asSession(engine, sessionId, async (rpc) => {
+    const runId = await liveRunId(engine, rpc, sessionId)
+    const abort = new AbortController()
+    try {
+      for await (const event of await rpc.chat.join({runId}, {signal: abort.signal})) {
+        if (event.type !== ChatEventType.TOOL_CALL_START || !event.toolCallName.endsWith(UI_TOOL)) continue
+        const answered = await rpc.chat
+          .uiReply({sessionId, toolCallId: event.toolCallId, value})
+          .then(() => true, notAsked)
+        if (answered) return
+      }
+    } finally {
+      abort.abort()
+    }
+    throw new Error(`the run ${runId} of session ${sessionId} ended with no UI question open`)
   })
 }
 
