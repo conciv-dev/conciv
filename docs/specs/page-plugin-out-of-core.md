@@ -263,14 +263,15 @@ So `packages/core/src/page/` is DELETED whole, and the contract loses its `page`
 
 ## 4. Rulings needed
 
-1. Hub delivery of finished queues (1.2 hub rows, 1.7). The hub (outside agents over MCP) gets queue results in its
-   next reply instead of a chat turn, and core tracks which tool calls were the hub's. Opencode has no hub. Options:
-   A. the page plugin appends owed notices to the reply through the existing tool hook `execute.after` (it can
-   mutate `result`); this covers direct calls and calls inside `code.execute`, but not a `discover` reply or a reply
-   with no page tool in it. B. a NEW generic surface: plugins contribute "notices owed to this session" that the
-   code-mode reply composer drains for every plugin. C. the hub gets results only from `synthetic` like a chat
-   session, and the `queued`/`finished` fields of the code results go. I recommend C: it is the as-opencode path
-   and deletes the hub bookkeeping; it changes what outside agents see, so it is the maintainer's call.
+1. DECIDED 2026-11-20: D, as opencode's background shell (`core/src/tool/plugin/shell.ts`, `core/src/job.ts`). C was
+   checked and refused: an outside agent's calls map to a conciv session row (`app.ts:430` `mcpSessionId`,
+   `ensureAgentRow`), so a `synthetic` message there starts a conciv turn and never reaches the outside agent's own
+   process. D: the queueing page tool returns at once with the queue id and one line on how to get the result; the
+   page plugin's own tool returns a queue's result by id and waits while it runs. The queue runs in Effect inside the
+   plugin, in its own `.ts` model (a fiber per queue, the result in a `Deferred`, as opencode's `Job.wait`); on finish
+   the plugin calls `ctx.session.synthetic` so conciv's own chat is woken. opencode's SDK gives plugins no job service,
+   so none is added. Deleted from core: `withFinishedQueues`, `finishedQueues`, `startedQueues`, `hubCall`,
+   `hubReplied`, and the `queued`/`finished` fields of the code results (`contract.ts:220-235`).
 2. DECIDED 2026-11-20: implement `ctx.session.synthetic` in the engine, as opencode, first, with its own tests. It is
    the ONLY way anything outside a turn puts a message into a session or starts a turn: every other way that exists
    today (any plugin, core, the widget, the hub) is mapped in section 7 and moved onto `synthetic` or deleted in the
