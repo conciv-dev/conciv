@@ -113,6 +113,21 @@ async function bootEngine(
   })
 }
 
+function stopWhenHttpServerCloses(server: ViteDevServer, engine: Engine): Engine {
+  const closing = Promise.withResolvers<void>()
+  const stopped = closing.promise
+    .then(() => engine.stop())
+    .catch((error: unknown) => console.error('conciv: stopping the engine failed', error))
+  server.httpServer?.once('close', () => closing.resolve())
+  return {
+    ...engine,
+    stop: () => {
+      closing.resolve()
+      return stopped
+    },
+  }
+}
+
 const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
   '@conciv/ui-kit-chat > @conciv/ai > @tanstack/ai > partial-json',
   '@conciv/solid-diffs > @pierre/diffs > lru_map',
@@ -295,16 +310,13 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         installConcivBinShim(concivStateDir(cfg.stateRoot)),
         builtins.nativePageDir,
       )
-      engines.push(booted)
+      engines.push(stopWhenHttpServerCloses(server, booted))
       apiBase = `http://127.0.0.1:${booted.port}`
       devServer = server
       mountWidget(server, apiBase, options.widget)
     },
     async closeServer() {
-      await engines
-        .shift()
-        ?.stop()
-        .catch((error: unknown) => console.error('conciv: stopping the engine failed', error))
+      await engines.shift()?.stop()
     },
   }
 }

@@ -34,7 +34,7 @@ The plugin internals: booting the engine process, the Vite hook (HTML tags, widg
 - `boot.ts:makeEngineBooter` - starts the engine with a child env of `process.env` plus the shimmed `PATH` and `CONCIV_PORT`.
 - `bin-shim.ts:installConcivBinShim` - creates `<stateDir>/bin` and symlinks `conciv` to the resolved file of `@conciv/cli/bin`, only when that file exists; a link it cannot make is logged once as `conciv: could not link the conciv command into <dir>` and the engine boots without it.
 - `../index.ts:writeWidgetClient` - creates `.conciv/` and writes `widget-client.<port>.gen.js`.
-- `vite.ts` - `configureServer` boots the engine, mounts the widget middleware and passes the engine the `vite-bridge.ts:makeViteBridge` bundler bridge; Vite's `closeServer` hook stops the engine that server booted, so `server.close()` (and a restart) settles only once the engine has stopped. A failed stop is logged, never thrown into Vite.
+- `vite.ts` - `configureServer` boots the engine, mounts the widget middleware and passes the engine the `vite-bridge.ts:makeViteBridge` bundler bridge; the engine that server booted starts stopping when Vite's http server emits `close`, before Vite closes its environments and runs the `closeServer` hooks; the `closeServer` hook awaits that same stop (and starts it when the http server never listened), so `server.close()` (and a restart) settles only once the engine has stopped and the engine's `stop` runs once. A failed stop is logged, never thrown into Vite.
 - `nextjs.ts:withConciv` - writes missing keys into `process.env`.
 - `open-editor.ts` - launches the editor process.
 

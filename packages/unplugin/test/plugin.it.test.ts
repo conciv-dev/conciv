@@ -860,6 +860,42 @@ describe('dev server close', () => {
     expect(existsSync(join(concivStateDir(started.root), 'fixture-disposed'))).toBe(true)
     await expect(fetch(`${apiBase}/health`)).rejects.toThrow()
   }, 30_000)
+
+  it('starts stopping the engine when the http server closes, before vite finishes its own teardown', async () => {
+    const root = servers.tempDir('conciv-vite-root-')
+    const apiBase = Promise.withResolvers<string>()
+    const httpClosed = Promise.withResolvers<void>()
+    const engineAnswered = Promise.withResolvers<boolean>()
+    const probe: Plugin = {
+      name: 'probe-engine-during-vite-teardown',
+      configureServer(server) {
+        server.httpServer?.once('close', () => httpClosed.resolve())
+      },
+      async buildEnd() {
+        await httpClosed.promise
+        const base = await apiBase.promise
+        engineAnswered.resolve(
+          await fetch(`${base}/health`).then(
+            (response) => response.ok,
+            () => false,
+          ),
+        )
+      },
+    }
+    const server = await createServer({
+      root,
+      configFile: false,
+      customLogger: createLogger('silent'),
+      server: {host: '127.0.0.1', port: 0},
+      plugins: [makeViteHook({enabled: true, stateRoot: root, widget: false}), probe],
+    })
+    onTestFinished(() => server.close())
+    await server.listen()
+    apiBase.resolve(await pageApiBase(server))
+
+    await server.close()
+    expect(await engineAnswered.promise).toBe(false)
+  }, 30_000)
 })
 
 describe('source picks on a real host', () => {
