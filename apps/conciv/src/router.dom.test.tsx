@@ -4,7 +4,6 @@ import {render, screen} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {makeRpcClient} from '@conciv/contract'
 import {test as engineTest} from '@conciv/plugin-testkit/browser'
-import {declareExpectedLog} from '@conciv/vitest-config/expected-log'
 import {createConcivRouter, disposeConcivRouter} from './router'
 import {parseConcivSettings} from './data/settings'
 import {ConcivApp, type Platform} from './index'
@@ -60,8 +59,7 @@ const withRouters = test.extend<RouterFixtures>({
 describe('the router query retry delay', () => {
   withRouters(
     'retries a failed query after the short delay it was given, and keeps the library delay when none is given',
-    async ({routerWith, clock, task}) => {
-      declareExpectedLog(task, /drafts stay engine-only/)
+    async ({routerWith, clock}) => {
       expect(routerWith(undefined).options.context.queryClient.getDefaultOptions().queries).not.toHaveProperty(
         'retryDelay',
       )
@@ -88,27 +86,23 @@ describe('the router query retry delay', () => {
 const withEngine = engineTest.extend<{clock: Clock}>({clock: fakeClock})
 
 describe('the app torn down with a draft still to save', () => {
-  withEngine(
-    'a user types a draft and closes the app, and nothing reports a failed save',
-    async ({engine, clock, task}) => {
-      declareExpectedLog(task, /drafts stay engine-only/)
-      await engine.call({kind: 'session'})
-      const platform: Platform = {
-        engine: () => ({kind: 'bound', apiBase: engine.apiBase, token: () => Promise.resolve(engine.token)}),
-        navigation: {memory: '/'},
-        root: document,
-      }
-      const user = userEvent.setup()
-      const app = render(() => <ConcivApp platform={platform} />)
-      await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
-      const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
-      await user.type(composer, 'a draft typed before close')
-      expect(composer).toHaveFocus()
-      expect(composer).toHaveTextContent('a draft typed before close')
-      clock.freeze()
-      app.unmount()
-      expect(screen.queryByRole('textbox', {name: 'Message the conciv agent'})).not.toBeInTheDocument()
-      await clock.runOut()
-    },
-  )
+  withEngine('a user types a draft and closes the app, and nothing reports a failed save', async ({engine, clock}) => {
+    await engine.call({kind: 'session'})
+    const platform: Platform = {
+      engine: () => ({kind: 'bound', apiBase: engine.apiBase, token: () => Promise.resolve(engine.token)}),
+      navigation: {memory: '/'},
+      root: document,
+    }
+    const user = userEvent.setup()
+    const app = render(() => <ConcivApp platform={platform} />)
+    await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
+    const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(composer, 'a draft typed before close')
+    expect(composer).toHaveFocus()
+    expect(composer).toHaveTextContent('a draft typed before close')
+    clock.freeze()
+    app.unmount()
+    expect(screen.queryByRole('textbox', {name: 'Message the conciv agent'})).not.toBeInTheDocument()
+    await clock.runOut()
+  })
 })

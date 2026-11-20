@@ -399,6 +399,9 @@ catalogs:
     eslint-plugin-solid:
       specifier: 0.18.1
       version: 0.18.1
+    fake-indexeddb:
+      specifier: 6.2.8
+      version: 6.2.8
     fast-check:
       specifier: 4.9.0
       version: 4.9.0
@@ -3579,6 +3582,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
+      fake-indexeddb:
+        specifier: 'catalog:'
+        version: 6.2.8
       happy-dom:
         specifier: 'catalog:'
         version: 21.0.4
@@ -14945,6 +14951,10 @@ packages:
 
   extend@3.0.2:
     resolution: {integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==}
+
+  fake-indexeddb@6.2.8:
+    resolution: {integrity: sha512-mpVW/HLUqwKXJ6F/s0hMgdK1eQfM4ncTHDioNGHWL0WKV3VcZCoZq1NKgboBbAge07aRCO7L48yziKssL59XEQ==}
+    engines: {node: '>=18'}
 
   fallow-type-aware@3.36.0:
     resolution: {integrity: sha512-SYLCZM6r6o2EeE3UJ0ShQKs2M+PUemVRIJA6Geq/rchXlHpWaCwymHk9tHEDjRsdaK/EI3FauyhYhmcGUnY7Zg==}
@@ -29279,6 +29289,8 @@ snapshots:
   exsolve@1.1.3: {}
 
   extend@3.0.2: {}
+
+  fake-indexeddb@6.2.8: {}
 
   fallow-type-aware@3.36.0:
     dependencies:

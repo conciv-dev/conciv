@@ -9,7 +9,6 @@ import {test} from './browser.js'
 type ComposedPlugin = NonNullable<Platform['plugins']>[number]
 
 const NOTES_BODY = 'the notes tab body'
-const DRAFTS_WITHOUT_INDEXED_DB = /^console\.error: \[conciv\] drafts stay engine-only indexedDB is not defined$/
 const PAST_THE_QUOTA = 'x'.repeat(11_000_000)
 
 function notesPanel(confirm: () => void): HTMLElement {
@@ -44,9 +43,7 @@ describe('the app on happy-dom', () => {
   test('a user sends a message, sees the reply, waits out a held run, pastes a file, opens a plugin tab and its dialog and minimizes the chat', async ({
     mount,
     chat,
-    expectLog,
   }) => {
-    expectLog(DRAFTS_WITHOUT_INDEXED_DB)
     const user = userEvent.setup()
     await mount({plugins})
     await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
@@ -81,8 +78,7 @@ describe('the app on happy-dom', () => {
 })
 
 describe('the happy-dom environment', () => {
-  test('a write past the storage quota throws the browser quota error', async ({mount, expectLog}) => {
-    expectLog(DRAFTS_WITHOUT_INDEXED_DB)
+  test('a write past the storage quota throws the browser quota error', async ({mount}) => {
     await mount()
     localStorage.setItem('conciv-test-left-behind', 'a value')
     expect(() => localStorage.setItem('conciv-test-fill', PAST_THE_QUOTA)).toThrow(
@@ -109,9 +105,7 @@ describe('the happy-dom environment', () => {
     faults,
     chat,
     mount,
-    expectLog,
   }) => {
-    expectLog(DRAFTS_WITHOUT_INDEXED_DB)
     const user = userEvent.setup()
     await mount()
     await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
@@ -127,9 +121,7 @@ describe('the app on happy-dom behind the kit engine proxy', () => {
     mount,
     chat,
     faults,
-    expectLog,
   }) => {
-    expectLog(DRAFTS_WITHOUT_INDEXED_DB)
     const user = userEvent.setup()
     await mount()
     await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))

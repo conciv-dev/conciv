@@ -4,6 +4,7 @@ import {render, screen} from '@solidjs/testing-library'
 import {ConcivApp, type Platform} from '@conciv/app'
 import {dropChatTurns, failChatTurns} from './chat-fault.js'
 import {disposeAll} from './dispose.js'
+import {installIndexedDB} from './dom-environment.js'
 import {forkEngine, type EngineProcess} from './engine-process.js'
 import {provideExpectLog, type ExpectLog} from './expect-log.js'
 import type {FlowFaults} from './flow.js'
@@ -101,6 +102,7 @@ export const test = base.extend<BrowserFixtures>({
   expectLog: provideExpectLog,
   mount: async ({engine}, use) => {
     const mounted: Array<() => void> = []
+    installIndexedDB(globalThis)
     try {
       await use(async (options = {}) => {
         await engine.call({kind: 'session'})

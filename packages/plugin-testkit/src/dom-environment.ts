@@ -1,4 +1,5 @@
 import {builtinEnvironments} from 'vitest/runtime'
+import {IDBFactory, IDBKeyRange} from 'fake-indexeddb'
 import type {Environment} from 'vitest/runtime'
 
 type DomWindow = Window & typeof globalThis
@@ -150,6 +151,11 @@ function installHandledAnimationFinished(window: DomWindow): void {
   })
 }
 
+export function installIndexedDB(global: typeof globalThis): void {
+  Object.defineProperty(global, 'indexedDB', {configurable: true, enumerable: true, value: new IDBFactory()})
+  Object.defineProperty(global, 'IDBKeyRange', {configurable: true, enumerable: true, value: IDBKeyRange})
+}
+
 function installNodeStorage(global: typeof globalThis, storage: Storage): void {
   Object.defineProperty(global, 'localStorage', {configurable: true, enumerable: true, get: () => storage})
 }
@@ -165,6 +171,7 @@ const environment: Environment = {
     const happy = await happyDom.setup(global, options)
     const window: DomWindow = global.window
     installNodeStorage(global, nodeStorage)
+    installIndexedDB(global)
     installAutofocusReflection(window)
     installStringOnlyGetData(window)
     installHandledAnimationFinished(window)
