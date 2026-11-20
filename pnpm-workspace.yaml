@@ -170,7 +170,6 @@ catalog:
   oxc-parser: '^0.156.0'
   oxfmt: 0.75.0
   oxlint: 1.90.0
-  p-timeout: '^8.0.0'
   picomatch: 4.0.7
   piscina: '^5.3.2'
   pixelmatch: ^8.0.0

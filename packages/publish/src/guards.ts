@@ -77,7 +77,7 @@ export function assertValidTag(tag: string): void {
   }
 }
 
-export function assertValidPackageName(name: string): void {
+function assertValidPackageName(name: string): void {
   if (!/^@conciv\/[a-z][a-z0-9-]*$/.test(name)) {
     throw new Error(`invalid package name ${JSON.stringify(name)}: must match /^@conciv\\/[a-z][a-z0-9-]*$/`)
   }
@@ -111,7 +111,6 @@ export const PUBLIC_PACKAGES = [
   '@conciv/plugin-try-it',
   '@conciv/plugin-testkit',
   '@conciv/harness-testkit',
-  '@conciv/browser-fixture',
   '@conciv/solid-diffs',
   '@conciv/solid-streamdown',
   '@conciv/ui-kit-system',
