@@ -6,7 +6,6 @@ import type {TestProjectInlineConfiguration} from 'vitest/config'
 import type {Plugin, UserConfig, ViteDevServer} from 'vite'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {Engine} from '@conciv/core/start'
-import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {htmlTags, makeWidgetInject} from './widget-middleware.js'
@@ -148,7 +147,7 @@ async function bootEngine(
     options,
     root: server.config.root,
     port: options.port === undefined ? undefined : {preferred: options.port},
-    bridge: makeViteBridge(server),
+    bridge: await makeViteBridge(server),
     launchEditor: makeOpenInEditor(server.config.root),
     allowedOrigins: devOrigins(server),
     nativePageDir,
@@ -321,8 +320,10 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
     configEnvironment(_name, environmentConfig) {
       dropIncludedFromExcludes(environmentConfig.optimizeDeps, managedExcludes)
     },
-    configResolved(config) {
+    async configResolved(config) {
       testing = config.mode === 'test'
+      if (testing) return
+      const {resolveConfig} = await import('@conciv/core/config')
       docked =
         options.widget !== false &&
         resolveConfig(options, config.root).enabled &&
@@ -340,7 +341,8 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
     },
     transformIndexHtml: {
       order: 'pre',
-      handler(_html, ctx) {
+      async handler(_html, ctx) {
+        const {resolveConfig} = await import('@conciv/core/config')
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
         const engine = engines.at(-1)
         if (!cfg.enabled || !engine) return []
@@ -352,6 +354,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
     },
     async configureServer(server: ViteDevServer) {
       if (testing) return
+      const {resolveConfig} = await import('@conciv/core/config')
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
       const booted = await bootEngine(

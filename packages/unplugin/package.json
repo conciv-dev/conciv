@@ -67,11 +67,12 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "build:types": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "@conciv/cli": "workspace:^",

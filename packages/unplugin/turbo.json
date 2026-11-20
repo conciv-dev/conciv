@@ -1,0 +1,20 @@
+{
+  "$schema": "https://v2-10-3.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": [],
+      "outputs": ["dist/**"]
+    },
+    "build:types": {
+      "dependsOn": ["build", "^build"],
+      "outputs": ["dist/**/*.d.ts"]
+    },
+    "publint": {
+      "dependsOn": ["build", "build:types"]
+    },
+    "attw": {
+      "dependsOn": ["build", "build:types"]
+    }
+  }
+}

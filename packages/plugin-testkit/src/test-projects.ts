@@ -213,6 +213,7 @@ export function testProjects(): TestProjectInlineConfiguration[] {
   return [
     {
       extends: true,
+      plugins: [engineModulesInNode()],
       test: {
         ...ciTest(),
         name: 'node',
