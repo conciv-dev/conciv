@@ -152,7 +152,8 @@ function makeTurns(rpc: RpcClient): Turns {
       const {promise, resolve: ended, reject} = Promise.withResolvers<void>()
       readTurn(events, runId, ended, reject).catch(reject)
       return promise.finally(() => {
-        open.splice(open.indexOf(turn), 1)
+        const index = open.indexOf(turn)
+        if (index !== -1) open.splice(index, 1)
       })
     },
     runIds: (sessionId) => open.filter((turn) => turn.sessionId === sessionId).map((turn) => turn.runId),
