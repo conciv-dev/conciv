@@ -252,13 +252,14 @@ function makeLocalDraftWriter(
   })
   const writeDocument = () =>
     storedRead.then(() => {
+      if (appData.lockedOut()) return
       const writtenAt = Date.now()
       return drafts
         .setDocument(sessionId, structuredClone(unwrap(document.draft)))
         .then(() => settleLeavingCopy(sessionId, writtenAt))
     })
   const writeLeaving = () => {
-    if (document.draft) keepLeavingCopy(sessionId, unwrap(document.draft))
+    if (document.draft && !appData.lockedOut()) keepLeavingCopy(sessionId, unwrap(document.draft))
     return writeDocument()
   }
   const send = (recorded: LocalDraft, attachments: DraftRow['attachments'], kind: DraftSendKind) => {

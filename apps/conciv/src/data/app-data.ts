@@ -52,6 +52,10 @@ function retriableDraftSave(failureCount: number, error: unknown): boolean {
   return isReachabilityError(error) || (error instanceof ORPCError && error.code === 'INTERNAL_SERVER_ERROR')
 }
 
+function refusedByEngine(error: unknown): boolean {
+  return error instanceof ORPCError && error.code === 'UNAUTHORIZED'
+}
+
 export function sessionCapturesCall(sessionId: string) {
   return {rpcId: PageDefinition.id, method: 'captures.list', input: {sessionId}}
 }
@@ -124,7 +128,7 @@ export function makeAppData(
       queryClient.setQueryData(queryKey, row)
     },
     onError: (error, input) => {
-      console.error('[conciv] could not save the draft', error)
+      if (!refusedByEngine(error)) console.error('[conciv] could not save the draft', error)
       forgetDraftSaves(input.sessionId, ['error'])
     },
     onSuccess: (answer, input) => {

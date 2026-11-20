@@ -317,6 +317,37 @@ describe('draft storage', () => {
       expect(logged).toEqual([])
     })
   })
+
+  describe('an engine that does not trust this browser', () => {
+    test('a refused draft save stays unsaved and is not logged as a failure', async ({kit, sessionId}) => {
+      const app = makeAppData(
+        makeRpcClient(kit.origin),
+        new QueryClient(),
+        null,
+        () => false,
+        () => kit.origin,
+      )
+      const errors = vi.spyOn(console, 'error')
+
+      const saved = await app.saveDraft({
+        sessionId,
+        text: 'typed while untrusted',
+        selectionStart: 0,
+        selectionEnd: 0,
+        attachments: [],
+        items: [],
+        updatedAt: Date.now(),
+      })
+
+      const logged = [...errors.mock.calls]
+      errors.mockRestore()
+      app.dispose()
+
+      expect(saved).toBe(false)
+      expect(logged).toEqual([])
+      expect(await storedDraft(kit.rpc, sessionId)).toBeNull()
+    })
+  })
 })
 
 describe('composer notes', () => {
