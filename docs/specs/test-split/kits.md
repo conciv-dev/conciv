@@ -70,7 +70,7 @@ Product wiring checked (git grep in the worktree):
 - `replaceAttachment` / `hasAttachment` have one product caller, `apps/conciv/src/pane/grab-staging.ts:131`.
 - `HarnessModelSelector` is used by `apps/conciv/src/composer/session-model-prompt.tsx` and `packages/builtin-plugins/src/terminal/terminal-toolbar.tsx`. The styled and primitive `ModelSelector` have no product consumer (published kit, kept).
 - `Suggestion` / `Thread.Suggestions` / `FollowUpSuggestions` have no product consumer (published kit, kept).
-- `ElementPreview` is used by the page plugin cards (`packages/builtin-plugins/src/page/cards/act-card.tsx`, `edit-live-card.tsx`).
+- `ElementPreview` is used by the page plugin cards (`packages/plugins/page/src/cards.tsx`, `ActCard` and `EditLiveCard`).
 
 ### packages/ui-kit-chat/test/composer.browser.test.tsx (60 tests)
 
@@ -292,7 +292,7 @@ Browser tests a story play already duplicates (decision 5): 13 here (245, 349, 3
 ## Plugin-owned tests (tests that a plugin should own, if any)
 
 - composer.browser:2013 is covered by conciv:9662, a terminal toolbar test: when the terminal moves out, that owner is L2-PLUGIN:@conciv/builtin-plugins (terminal).
-- The element preview tests (CMP-11, CMP-12) guard what the page plugin cards render (act-card.tsx, edit-live-card.tsx), but ElementPreview is a kit component: they stay as ui-kit-chat story plays. The page plugin needs no copy.
+- The element preview tests (CMP-11, CMP-12) guard what the page plugin cards render (cards.tsx `ActCard`, `EditLiveCard`), but ElementPreview is a kit component: they stay as ui-kit-chat story plays. The page plugin needs no copy.
 - No test in this file moves to a plugin directly.
 
 ## Cannot move to happy-dom (looks like it could, but needs X) and suspected happy-dom blockers
@@ -329,7 +329,7 @@ Facts checked in the worktree that drive the rulings:
 - `groupEntries` is passed by no product surface (only src/styled/thread.tsx:584 forwards it): public prop, kept.
 - `TracePermissionBlock` is rendered by apps/conciv/src/pane/pending-approvals.tsx:30.
 - The page session card in the product is `PAGE_SESSION` in apps/conciv/src/pane/chat-pane.tsx:88, rendered by the
-  page plugin (`Contribution plugin="page"`, card in packages/builtin-plugins/src/page/cards/page-tool-cards.ts).
+  page plugin (`Contribution plugin="page"`, card in packages/plugins/page/src/cards.tsx).
 - `createPageSessionGrouper`, `pageSessionCallParts`, `pageSessionThinkingParts` (src/store/page-session.ts:166-195)
   and `defaultGrouper` are pure: the grouping claims of 474/547/569/590 are table rows, not renders.
 - `Suggestion` is on decision 8's delete list (API kept alive only by tests).

@@ -867,7 +867,7 @@ What each file becomes:
   CLI-TASKS, CLI-INIT and the config-rewrite tables). It also breaks the 1,000-line cap many times over, so it splits
   along its own seams into the one node file the budget allows plus a request for an exception, or the init block
   (lines 3365-6225, about 2,900 lines today, about 1,700 after) is the obvious candidate for an approved exception.
-  Today it imports `@conciv/plugin-page-testkit/page-tabs`, which the plan deletes: that helper must land in the page
+  Today it imports `@conciv/plugin-page/testing`, which the plan deletes: that helper must land in the page
   plugin's `./testing` export first.
 - **harness.test.ts** shrinks from 3,266 lines to about 1,500: 28 deletes, then per-harness `it.each` tables for picker,
   open, live handle, tail, turn and models (section 7 of test-audit-harness.md). Fixtures and seeders stay about
@@ -940,7 +940,7 @@ ResizeObserver, IntersectionObserver, canvas or clipboard blocker applies. What 
   fails if reordered after it; harness codex and opencode tests share one threads db and one sqlite file, and 2029, 2848,
   2859 rename the shared db away and back; harness 2873 counts process-wide `/dev/fd`; harness-testkit 1014 sets
   `--expose-gc` process-wide.
-- **Dependencies the rewrite waits on:** cli imports `@conciv/plugin-page-testkit/page-tabs` (deleted by the plan; move to
+- **Dependencies the rewrite waits on:** cli imports `@conciv/plugin-page/testing` (deleted by the plan; move to
   the page plugin's `./testing` export); `vitest-config/src/shards.ts` still lists deleted extension packages (plan,
   "Found on the way"); cli 915 filters for `@conciv/extension`, which goes with the old system.
 - **Product code kept alive by tests:** `__commandsCacheSet` (harness src/claude/sdk.ts:43), `harnessModes` and
