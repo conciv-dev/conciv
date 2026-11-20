@@ -1,3 +1,4 @@
+import {inspect} from 'node:util'
 import {
   existsSync,
   rmSync,
@@ -175,6 +176,7 @@ import {
   rpcSocketGate,
   watchTrustedBrowsers,
 } from '../src/engine-login.js'
+import {logBeforeRuntime, type LogEntry} from '../src/lib/logging.js'
 import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
 import {
@@ -226,6 +228,7 @@ import {
   requireClaude,
   requireTranscriptPath,
   runTurn,
+  silentLog,
   type ClientKit,
 } from './helpers.js'
 
@@ -599,6 +602,7 @@ describe('chat plane', () => {
       staleness: () => unchanged,
       interruptIdle: async () => false,
       symbolicate: async () => null,
+      log: silentLog,
     })
     const mcp = new Hono<{Variables: McpVars}>()
       .use(async (c, next) => {
@@ -614,6 +618,7 @@ describe('chat plane', () => {
           admitOutside: async () => null,
           hubRefusal: () => null,
           staleness: () => unchanged,
+          log: silentLog,
         })
         await next()
       })
@@ -713,8 +718,8 @@ describe('chat plane', () => {
   it('engine stop refuses new requests, ends a run held mid-stream as aborted, and never queries a closed database', async () => {
     const root = tempDir('conciv-core-unit-')
     const cli = fakeCli('streaming')
-    const written = vi.spyOn(process.stderr, 'write')
-    const engine = await bootEngine(root, {harness: cliHarness(cli)})
+    const logged: LogEntry[] = []
+    const engine = await bootEngine(root, {harness: cliHarness(cli), log: {emit: (entry) => logged.push(entry)}})
     const turn = await engineTurn(engine, sessionId('engine-stop'), 'engine-stop-run')
     await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
     const stopping = engine.stop()
@@ -724,12 +729,10 @@ describe('chat plane', () => {
     const runs = await Effect.runPromise(
       db.select({status: chatRuns.status}).from(chatRuns).where(eq(chatRuns.runId, 'engine-stop-run')),
     )
-    const logged = written.mock.calls.map(([chunk]) => String(chunk)).join('')
-    written.mockRestore()
     cli.release()
     expect.soft(late.error).toBe('ECONNREFUSED')
     expect.soft(runs).toEqual([{status: 'aborted'}])
-    expect.soft(logged).not.toMatch(/DrizzleQueryError|database is not open/)
+    expect.soft(inspect(logged, {depth: 8})).not.toMatch(/DrizzleQueryError|database is not open/)
   })
 
   it('an engine that died mid-run starts again on the same state, the cut run ends aborted once, and no turn follows it', async () => {
@@ -812,6 +815,7 @@ describe('chat plane', () => {
       staleness: () => ({stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}),
       interruptIdle: async () => false,
       symbolicate: async () => null,
+      log: silentLog,
     })
     const id = sessionId('registering-as-a-run-starts')
     const finished = readUntil(await startTurn(chat, id, 'racing-run', 'hi'), 'end')
@@ -1192,7 +1196,7 @@ describe('local state files', () => {
         chatConfig: () => ({adapter: fakeText()}),
         capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
       })
-      return withSavedModels(harness, dir, UNSTOPPED).harness
+      return withSavedModels(harness, dir, UNSTOPPED, silentLog).harness
     }
 
     it('waits for the first live list, then answers from the saved one at once while a refresh, a failure or an empty list lands', async () => {
@@ -1282,19 +1286,21 @@ describe('local state files', () => {
         chatConfig: () => ({adapter: fakeText()}),
         capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
       })
-      const printed: string[] = []
+      const logged: LogEntry[] = []
       const boot = (root: string) =>
         makeApp({
           cfg: resolveConfig({}, root),
           cwd: root,
           openInEditor: () => {},
           harness,
-          print: (text) => printed.push(text),
+          log: {emit: (entry) => logged.push(entry)},
         })
       const engines = [await boot(tempDir('conciv-core-unit-')), await boot(tempDir('conciv-core-unit-'))]
       engines.forEach((made) => void resolveHarnessModels(made.chat.defaultHarness, {signal: UNSTOPPED}))
       await Promise.all(engines.map((made) => made.dispose()))
-      expect(printed.filter((text) => text.includes('stuck-listing'))).toHaveLength(2)
+      expect(
+        logged.filter((entry) => entry.level === 'warn' && entry.attributes?.harness === 'stuck-listing'),
+      ).toHaveLength(2)
     })
   })
 })
@@ -1498,7 +1504,7 @@ describe('configured session rows', () => {
   it('a plugin tool named like a built-in capability is left out of the session and logged, and the engine still closes its database', async () => {
     const root = tempDir('conciv-core-unit-')
     const databaseFile = join(concivStateDir(root), 'conciv.db')
-    const written = vi.spyOn(process.stderr, 'write')
+    const logged: LogEntry[] = []
     const shady = Plugin.define({
       id: 'shady',
       async setup(ctx) {
@@ -1513,17 +1519,21 @@ describe('configured session rows', () => {
         })
       },
     })
-    const {made, origin, stop} = await serveCore(root, {plugins: [shady]})
+    const {made, origin, stop} = await serveCore(root, {
+      plugins: [shady],
+      log: {emit: (entry) => logged.push(entry)},
+    })
     try {
       await made.awaitActivation()
       const rpc = makeRpcClient(`${origin}/t/${made.agentToken}`)
       const sessionId = (await rpc.sessions.create(undefined)).sessionId
       expect((await rpc.meta.tools({sessionId})).tools.map((tool) => tool.name)).not.toContain('conciv_ui')
-      expect(written.mock.calls.flat().map(String).join('')).toContain(
-        'the plugin tool "conciv_ui" is left out: a built-in capability already has that name',
-      )
+      expect(logged).toContainEqual({
+        level: 'error',
+        message: '[core] a plugin tool is left out: a built-in capability already has that name',
+        attributes: {name: 'conciv_ui'},
+      })
     } finally {
-      written.mockRestore()
       await stop()
     }
     expect(existsSync(`${databaseFile}-wal`)).toBe(false)
@@ -1600,8 +1610,12 @@ describe('page queue follow-up', () => {
     const {fixture, queues, results, runStatuses} = await followUpFixture()
     results.played()
     fixture.harness.script.scriptError('the harness could not launch')
-    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
-      isDeletedRow(fixture.db, sessionId),
+    await startQueueFollowUp(
+      queues,
+      fixture.plane,
+      fixture.sessionId,
+      (sessionId) => isDeletedRow(fixture.db, sessionId),
+      silentLog,
     )
     expect(await runStatuses()).toEqual(['failed', 'completed'])
     expect(results.owedIds()).toEqual([])
@@ -1612,13 +1626,21 @@ describe('page queue follow-up', () => {
     const {fixture, queues, results, runStatuses} = await followUpFixture()
     const owed = results.played()
     for (const attempt of [1, 2, 3]) fixture.harness.script.scriptError(`launch failure ${attempt}`)
-    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
-      isDeletedRow(fixture.db, sessionId),
+    await startQueueFollowUp(
+      queues,
+      fixture.plane,
+      fixture.sessionId,
+      (sessionId) => isDeletedRow(fixture.db, sessionId),
+      silentLog,
     )
     expect(await runStatuses()).toEqual(['failed', 'failed', 'failed'])
     expect(results.deliveries()).toEqual(['nextReply'])
-    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
-      isDeletedRow(fixture.db, sessionId),
+    await startQueueFollowUp(
+      queues,
+      fixture.plane,
+      fixture.sessionId,
+      (sessionId) => isDeletedRow(fixture.db, sessionId),
+      silentLog,
     )
     expect(await runStatuses()).toEqual(['failed', 'failed', 'failed'])
     expect(results.nextReply()).toEqual([owed])
@@ -1629,12 +1651,20 @@ describe('page queue follow-up', () => {
     const {fixture, queues, results, runStatuses} = await followUpFixture()
     const stranded = results.played()
     for (const attempt of [1, 2, 3]) fixture.harness.script.scriptError(`launch failure ${attempt}`)
-    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
-      isDeletedRow(fixture.db, sessionId),
+    await startQueueFollowUp(
+      queues,
+      fixture.plane,
+      fixture.sessionId,
+      (sessionId) => isDeletedRow(fixture.db, sessionId),
+      silentLog,
     )
     expect(results.deliveries()).toEqual(['nextReply'])
-    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
-      isDeletedRow(fixture.db, sessionId),
+    await startQueueFollowUp(
+      queues,
+      fixture.plane,
+      fixture.sessionId,
+      (sessionId) => isDeletedRow(fixture.db, sessionId),
+      silentLog,
     )
     expect(await runStatuses()).toEqual(['failed', 'failed', 'failed'])
     const later = results.played()
@@ -1646,7 +1676,13 @@ describe('page queue follow-up', () => {
         return fixture.plane.followUp(sessionId, input)
       },
     }
-    await startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) => isDeletedRow(fixture.db, sessionId))
+    await startQueueFollowUp(
+      queues,
+      plane,
+      fixture.sessionId,
+      (sessionId) => isDeletedRow(fixture.db, sessionId),
+      silentLog,
+    )
     expect(await runStatuses()).toEqual(['failed', 'failed', 'failed', 'completed'])
     expect(inputs).toHaveLength(1)
     expect(inputs[0]).toContain(`queue ${stranded} finished`)
@@ -1664,8 +1700,12 @@ describe('page queue follow-up', () => {
       if (sessionRunEvent.parse(chunk) !== null) started.resolve()
     })
     onTestFinished(unlisten)
-    const following = startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
-      isDeletedRow(fixture.db, sessionId),
+    const following = startQueueFollowUp(
+      queues,
+      fixture.plane,
+      fixture.sessionId,
+      (sessionId) => isDeletedRow(fixture.db, sessionId),
+      silentLog,
     )
     await started.promise
     await fixture.plane.stop(fixture.sessionId)
@@ -1689,7 +1729,13 @@ describe('page queue follow-up', () => {
         return declined
       },
     }
-    await startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) => isDeletedRow(fixture.db, sessionId))
+    await startQueueFollowUp(
+      queues,
+      plane,
+      fixture.sessionId,
+      (sessionId) => isDeletedRow(fixture.db, sessionId),
+      silentLog,
+    )
     expect(await runStatuses()).toEqual(['completed'])
     expect(results.owedIds()).toEqual([owed])
   })
@@ -1697,8 +1743,12 @@ describe('page queue follow-up', () => {
   it('a follow-up run that finishes confirms its result delivered', async () => {
     const {fixture, queues, results} = await followUpFixture()
     results.played()
-    await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
-      isDeletedRow(fixture.db, sessionId),
+    await startQueueFollowUp(
+      queues,
+      fixture.plane,
+      fixture.sessionId,
+      (sessionId) => isDeletedRow(fixture.db, sessionId),
+      silentLog,
     )
     expect(results.owedIds()).toEqual([])
     expect(results.nextReply()).toEqual([])
@@ -1729,8 +1779,12 @@ describe('page queue follow-up', () => {
         return turns.length === 1 ? answering.promise : fixture.plane.followUp(sessionId, input)
       },
     }
-    const following = startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) =>
-      isDeletedRow(fixture.db, sessionId),
+    const following = startQueueFollowUp(
+      queues,
+      plane,
+      fixture.sessionId,
+      (sessionId) => isDeletedRow(fixture.db, sessionId),
+      silentLog,
     )
     await entered.promise
     await deleteSession(
@@ -1771,7 +1825,13 @@ describe('page queue follow-up', () => {
       fixture.sessionId,
     )
     expect(await owesFollowUp(queues, fixture.sessionId)).toBe(true)
-    await startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) => isDeletedRow(fixture.db, sessionId))
+    await startQueueFollowUp(
+      queues,
+      plane,
+      fixture.sessionId,
+      (sessionId) => isDeletedRow(fixture.db, sessionId),
+      silentLog,
+    )
     expect(turns).toEqual([])
     expect(await runStatuses()).toEqual([])
   })
@@ -1780,7 +1840,7 @@ describe('page queue follow-up', () => {
     const stateRoot = tempDir('conciv-core-unit-')
     const harness = createTestHarness(requireClaude())
     const tabs = pageTabs()
-    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}}, {plugins: [tabs.plugin]})
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness}, {plugins: [tabs.plugin]})
     onTestFinished(() => made.dispose())
     await made.awaitActivation()
     const id = SessionId.parse('conciv_queue_cancelled_on_delete')
@@ -1845,7 +1905,6 @@ describe('page queue follow-up', () => {
       harness,
       home,
       plugins: [tabs.plugin],
-      print: () => {},
     })
     onTestFinished(stop)
     await made.awaitActivation()
@@ -1921,7 +1980,6 @@ describe('page queue follow-up', () => {
       harness,
       home,
       plugins: [tabs.plugin],
-      print: () => {},
     })
     onTestFinished(stop)
     await made.awaitActivation()
@@ -2013,7 +2071,10 @@ describe('engine login', () => {
   test('one code prints per request; it expires after five minutes and is retired by five misses, a success or a reissue', () => {
     const clock = {now: 1_000}
     const printed: string[] = []
-    const store = makeCodeStore({now: () => clock.now, print: (text) => printed.push(text)})
+    const store = makeCodeStore({
+      now: () => clock.now,
+      log: logBeforeRuntime({emit: (entry) => printed.push(entry.message)}),
+    })
     const lastCode = (): string => /#conciv_otp=(\d{6})/.exec(printed.at(-1) ?? '')?.[1] ?? ''
     store.request(requester, false)
     store.request(requester, false)
@@ -2040,7 +2101,10 @@ describe('engine login', () => {
     const printed: string[] = []
     const clientRequests = {count: 0}
     const boot = () =>
-      bootEngine(root, {print: (text) => printed.push(text), onClientRequest: () => (clientRequests.count += 1)})
+      bootEngine(root, {
+        log: {emit: (entry) => printed.push(entry.message)},
+        onClientRequest: () => (clientRequests.count += 1),
+      })
     const first = await boot()
     const origin = `http://127.0.0.1:${first.port}`
     expect((await fetch(`${origin}/t/not-a-token/rpc/meta/engine`, {method: 'POST'})).status).toBe(401)
@@ -2280,7 +2344,7 @@ describe('browser rpc over one websocket', () => {
 
   test('a socket that closed before its auth call finished is never trusted afterwards', () => {
     const root = tempDir('conciv-core-unit-')
-    const browsers = watchTrustedBrowsers(concivStateDir(root))
+    const browsers = watchTrustedBrowsers(concivStateDir(root), silentLog)
     const agentToken = 'conciv-agent-token'
     try {
       const gate = rpcSocketGate(makeConnectionTrust(agentToken, browsers), undefined)
@@ -2703,7 +2767,7 @@ type MadeApp = Awaited<ReturnType<typeof bootMadeApp>>
 
 async function bornRows(root: string, ids: readonly SessionId[]): Promise<void> {
   const harness = createFakeHarness({id: 'fake-cli'})
-  const made = await bootMadeApp({stateRoot: root, cwd: root, harness, print: () => {}})
+  const made = await bootMadeApp({stateRoot: root, cwd: root, harness})
   try {
     for (const id of ids) await ensureRow(made.chat.rows, id)
   } finally {
@@ -2712,7 +2776,12 @@ async function bornRows(root: string, ids: readonly SessionId[]): Promise<void> 
 }
 
 function sessionKey(made: MadeApp) {
-  const search = createSessionSearch({db: made.chat.db, cwd: made.chat.cwd, harnesses: made.chat.harnesses})
+  const search = createSessionSearch({
+    db: made.chat.db,
+    cwd: made.chat.cwd,
+    harnesses: made.chat.harnesses,
+    log: silentLog,
+  })
   onTestFinished(() => search.dispose())
   const queues = makePagePlugin(() => made.pluginHost)
   const layer = provideSessions(() => ({
@@ -2911,7 +2980,7 @@ describe('plugin host bus', () => {
   test('a delete whose session.deleted publish fails still clears the messages, and rejects with the publish failure', async () => {
     const stateRoot = tempDir('conciv-core-unit-')
     const harness = createTestHarness(requireClaude())
-    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness})
     onTestFinished(() => made.dispose())
     const key = sessionKey(made)
     const id = SessionId.parse('conciv_deleted_while_the_bus_is_broken')
@@ -2930,7 +2999,7 @@ describe('plugin host bus', () => {
   test('a delete whose drafts delete fails still publishes session.deleted and clears the messages, and rejects with the drafts failure', async () => {
     const stateRoot = tempDir('conciv-core-unit-')
     const harness = createTestHarness(requireClaude())
-    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness})
     onTestFinished(() => made.dispose())
     const key = sessionKey(made)
     const id = SessionId.parse('conciv_deleted_while_drafts_are_broken')
@@ -2964,7 +3033,7 @@ describe('plugin host bus', () => {
   test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while the bus tells plugins how each run ended', async () => {
     const stateRoot = tempDir('conciv-core-unit-')
     const harness = createTestHarness(requireClaude())
-    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness})
     const dispose = onceOnly(() => made.dispose())
     onTestFinished(dispose)
     const id = SessionId.parse('conciv_idle')
@@ -3106,7 +3175,7 @@ describe('plugin host bus', () => {
   test('the session key interrupts a live run, waits for it to end, answers false with nothing to stop even when asked to resume, and compacts a session on its harness', async () => {
     const stateRoot = tempDir('conciv-core-unit-')
     const harness = createTestHarness(requireClaude())
-    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness})
     onTestFinished(() => made.dispose())
     const key = sessionKey(made)
     const id = SessionId.parse('conciv_keyed_run')
@@ -4394,7 +4463,7 @@ describe('plugin permission cards', () => {
 
     const leftOpen = call(id, 'src/left.env')
     const left = await readNextEvent(first, readApprovalAsk)
-    const restarted = await bootMadeApp({stateRoot, cwd: stateRoot, harness: fixture.harness, print: () => {}})
+    const restarted = await bootMadeApp({stateRoot, cwd: stateRoot, harness: fixture.harness})
     onTestFinished(() => restarted.dispose())
     expect((await restarted.plane.hydrate(id)).pendingApprovals).toEqual([])
     expect(await decide(id, left.approvalId, 'reject')).toBe(true)
@@ -4855,7 +4924,7 @@ describe('plugin context keys provided by core', () => {
       chatConfig: () => ({adapter: fakeText()}),
       capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
     })
-    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}}, {harnesses: [harness]})
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness}, {harnesses: [harness]})
     onTestFinished(() => made.dispose())
     const key = sessionKey(made)
     const heard: {type: string}[] = []

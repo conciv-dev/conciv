@@ -5,7 +5,7 @@ import {createHubConnections, makeChildRun} from '@conciv/harness-init/hub'
 import {initContributions} from '@conciv/harness-init/registry'
 import type {HubAgents} from '@conciv/protocol/chat-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
-import {logError} from '../../lib/debug.js'
+import type {Log} from '../../lib/logging.js'
 import {homeDbReads} from '../../lib/home-db-watch.js'
 import corePackage from '../../../package.json' with {type: 'json'}
 
@@ -19,22 +19,24 @@ type HubConnections = ReturnType<typeof createHubConnections>
 export const makeHubInstaller = Effect.fn('core.hub.makeInstaller')(function* (
   home: string,
   childEnv: NodeJS.ProcessEnv,
+  log: Log,
 ) {
   const detectionEnv = yield* DetectionEnvConfig
-  return createHubInstaller(home, detectionEnv, childEnv)
+  return createHubInstaller(home, detectionEnv, childEnv, log)
 })
 
 export function createHubInstaller(
   home: string,
   detectionEnv: {PATH: string; HOME: string},
   childEnv: NodeJS.ProcessEnv,
+  log: Log,
 ) {
   const connections = (): HubConnections => createHubConnections(home, makeChildRun(childEnv))
   const connected = (): ReturnType<HubConnections['list']> => {
     try {
       return connections().list()
     } catch (error) {
-      logError(`[core] the conciv home db could not be read: ${String(error)}`)
+      log(Effect.logError('[core] the conciv home db could not be read', {home, error}))
       return []
     }
   }

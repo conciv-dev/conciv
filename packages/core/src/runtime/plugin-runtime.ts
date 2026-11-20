@@ -77,6 +77,7 @@ import {buildHarnessMenuEntry} from '../api/rpc/sessions.js'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import * as Bundler from '@conciv/plugin/schema/bundler'
 import corePackage from '../../package.json' with {type: 'json'}
+import {layer as logLayer, type LogOptions} from '../lib/logging.js'
 
 export function provideBundlerSource(bundler: Bundler.BundlerBridge | undefined) {
   return Layer.succeed(PluginHost.BundlerSource, bundler)
@@ -166,7 +167,12 @@ function harnessModelInfo(harnessId: string, model: HarnessModel): HostModel.Inf
 
 const listedModels = Effect.fn('core.models.list')(function* (harness: HarnessAdapter, signal: AbortSignal) {
   yield* Effect.annotateCurrentSpan({harness: harness.id})
-  const entry = yield* Effect.promise(() => buildHarnessMenuEntry(harness, signal))
+  const context = yield* Effect.context<never>()
+  const entry = yield* Effect.promise(() =>
+    buildHarnessMenuEntry(harness, signal, (logged) => {
+      Effect.runForkWith(context)(logged)
+    }),
+  )
   const all = entry.models.map((model) => harnessModelInfo(harness.id, model))
   return {all, available: all.filter((model) => model.enabled), defaultModel: entry.defaultModel}
 })
@@ -209,6 +215,7 @@ export type PluginRuntimeInput = {
   openInEditor: (file: string, line?: number, column?: number) => void
   sessions: Parameters<typeof provideSessions>[0]
   configProvider: ConfigProvider.ConfigProvider
+  log: LogOptions | undefined
 }
 
 const VCS_MARKERS = [
@@ -336,7 +343,7 @@ export type PluginRuntime = {
 }
 
 export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
-  const runtime = ManagedRuntime.make(pluginHostLayer(input))
+  const runtime = ManagedRuntime.make(pluginHostLayer(input).pipe(Layer.provideMerge(logLayer(input.log))))
   const supervised = Scope.forkUnsafe(runtime.scope, 'sequential')
   return {
     runtime,
@@ -371,7 +378,7 @@ export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
         {signal},
       ),
     closeRpc: () => runtime.runPromise(Rpc.Service.use((rpc) => rpc.close)),
-    closePlugins: () => Effect.runPromise(Scope.close(supervised, Exit.void)),
+    closePlugins: () => runtime.runPromise(Scope.close(supervised, Exit.void)),
     closePermissions: () => runtime.runPromise(Permission.Service.use((permission) => permission.close)),
   }
 }

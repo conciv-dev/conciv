@@ -92,7 +92,7 @@ export async function bootCoreKit(
     async (env) => {
       for (const [path, content] of Object.entries(opts.files ?? {})) writeInside(env.cwd, path, content)
       const {fetch, dispose, runtime, agentToken, awaitActivation} = await makeApp({
-        print: env.print,
+        log: {emit: (entry) => env.print(entry.message)},
         cfg: {
           enabled: true,
           stateRoot: env.stateRoot,

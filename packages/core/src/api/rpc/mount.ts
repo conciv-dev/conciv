@@ -41,6 +41,7 @@ import type {
 import type {PermissionAnswer} from '../../runtime/permission-cards.js'
 import type * as EventFeed from '../../event-feed.js'
 import type {PersistentPtys} from '../../pty/persistent-ptys.js'
+import type {Log} from '../../lib/logging.js'
 
 export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Tool.Interface
@@ -73,6 +74,7 @@ export type ChatContext = {
   rows: RowScope
   plane: ChatPlane
   signal: AbortSignal
+  log: Log
 }
 
 export type RpcDeps = {

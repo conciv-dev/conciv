@@ -7,7 +7,9 @@ import fsDriver from 'unstorage/drivers/fs'
 import {debounce} from 'devframe/utils/debounce'
 import {createSharedState} from 'devframe/utils/shared-state'
 import {z} from 'zod'
+import {Effect} from 'effect'
 import {SettingsNamespaceSchema, type SettingsScope, type SettingsSnapshot, type SettingsState} from '@conciv/contract'
+import type {Log} from '../lib/logging.js'
 
 const WRITE_DEBOUNCE_MS = 100
 
@@ -42,12 +44,12 @@ function atomicFsDriver(base: string): Driver {
   }
 }
 
-export function createSettingsStorage(storages: SettingsStorages) {
+export function createSettingsStorage(storages: SettingsStorages, log: Log) {
   const generation = randomUUID()
   const files = new Map<string, Promise<SettingsFile>>()
   const file = (scope: SettingsScope, namespace: string): Promise<SettingsFile> => {
     const key = settingsKey(namespace)
-    const opened = files.get(`${scope}:${key}`) ?? openSettingsFile(storages[scope], key, generation)
+    const opened = files.get(`${scope}:${key}`) ?? openSettingsFile(storages[scope], key, generation, log)
     files.set(`${scope}:${key}`, opened)
     return opened
   }
@@ -68,13 +70,16 @@ function settingsKey(namespace: string): string {
 
 type SettingsFile = Awaited<ReturnType<typeof openSettingsFile>>
 
-async function openSettingsFile(storage: Storage, key: string, generation: string) {
+async function openSettingsFile(storage: Storage, key: string, generation: string, log: Log) {
   const value = await readSaved(storage, key).catch((error: unknown) => {
-    console.warn(`conciv: the settings file ${key} is unreadable, starting empty until the next change`, error)
+    log(Effect.logWarning('[core] a settings file is unreadable, starting empty until the next change', {key, error}))
     return {}
   })
   const state = createSharedState<SettingsSnapshot>({initialValue: {generation, version: 0, value}})
-  const write = debounce((snapshot: SettingsSnapshot) => writeSaved(storage, key, snapshot.value), WRITE_DEBOUNCE_MS)
+  const write = debounce(
+    (snapshot: SettingsSnapshot) => writeSaved(storage, key, snapshot.value, log),
+    WRITE_DEBOUNCE_MS,
+  )
   state.on('updated', (snapshot) => write(snapshot))
   const settings: SettingsState = {
     read: async () => state.value(),
@@ -119,10 +124,10 @@ async function readSaved(storage: Storage, key: string): Promise<Record<string, 
   return SavedSettingsSchema.parse((await storage.getItem(key)) ?? {})
 }
 
-async function writeSaved(storage: Storage, key: string, value: Record<string, unknown>): Promise<void> {
+async function writeSaved(storage: Storage, key: string, value: Record<string, unknown>, log: Log): Promise<void> {
   try {
     await storage.setItem(key, `${JSON.stringify(value, null, 2)}\n`)
   } catch (error) {
-    console.error(`conciv: writing the settings file ${key} failed`, error)
+    log(Effect.logError('[core] writing a settings file failed', {key, error}))
   }
 }

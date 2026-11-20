@@ -2,10 +2,11 @@ import {dirname, join} from 'node:path'
 import {readdirSync, existsSync} from 'node:fs'
 import type {Plugin, ViteDevServer} from 'vite'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import type {Engine} from '@conciv/core/start'
+import type {Engine, LogEntry} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
+import {readEngineLine} from './engine-log.js'
 import {htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE, loadWidgetModule, resolveWidgetModule} from './widget-module.js'
 import {makeOpenInEditor} from './open-editor.js'
@@ -91,6 +92,20 @@ function safeOrigin(url: string): string | null {
   }
 }
 
+const viteLevels = {
+  trace: 'info',
+  debug: 'info',
+  info: 'info',
+  warn: 'warn',
+  error: 'error',
+  fatal: 'error',
+} satisfies Record<LogEntry['level'], 'info' | 'warn' | 'error'>
+
+function writeEngineLog(server: ViteDevServer, entry: LogEntry): void {
+  const line = readEngineLine(entry)
+  if (line !== undefined) server.config.logger[viteLevels[entry.level]](line)
+}
+
 async function bootEngine(
   server: ViteDevServer,
   options: ConcivConfig,
@@ -108,7 +123,7 @@ async function bootEngine(
     nativePageDir,
     devEndpointDir: options.devEndpointDir,
     homeDir: options.homeDir,
-    print: (text) => server.config.logger.info(text),
+    log: {emit: (entry) => writeEngineLog(server, entry)},
     childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
   })
 }

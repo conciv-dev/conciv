@@ -1,7 +1,8 @@
 import {mkdtempSync, realpathSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {start, type Engine} from '@conciv/core/start'
+import {inspect} from 'node:util'
+import {start, type Engine, type LogEntry} from '@conciv/core/start'
 import {ConfigProvider} from 'effect'
 import {harnessRegistry} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -32,6 +33,27 @@ function resolveWorkspace(workspace: string | undefined): string {
     return realpathSync(process.cwd())
   }
   return realpathSync(mkdtempSync(join(tmpdir(), 'conciv-connect-')))
+}
+
+const shownLevels: readonly LogEntry['level'][] = ['warn', 'error', 'fatal']
+
+function formatDetail(value: unknown): string {
+  return typeof value === 'string' ? value : inspect(value)
+}
+
+function isLoginBanner(entry: LogEntry): boolean {
+  return entry.level === 'info' && entry.attributes?.code !== undefined
+}
+
+function readErrors(entry: LogEntry): readonly unknown[] {
+  const errors = Object.values(entry.attributes ?? {}).filter((value) => value instanceof Error)
+  return entry.cause === undefined ? errors : [...errors, entry.cause]
+}
+
+function writeShownEntry(entry: LogEntry): void {
+  if (isLoginBanner(entry)) return void process.stdout.write(`${entry.message}\n`)
+  if (!shownLevels.includes(entry.level)) return
+  process.stderr.write(`${[entry.message, ...readErrors(entry).map(formatDetail)].join(' ')}\n`)
 }
 
 function isAddressInUse(error: unknown): boolean {
@@ -72,6 +94,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
         allowedOrigins: [opts.origin ?? DEFAULT_ORIGIN],
         onClientRequest: () => onEvent({type: 'client-connected'}),
         onShutdown: opts.onShutdown,
+        log: {level: 'info', emit: writeShownEntry},
       })
       onEvent({type: 'started', port: engine.port, harness: adapter.id})
       return engine

@@ -30,6 +30,7 @@ import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {type ResolvedConcivConfig} from '../src/config.js'
 import {ensureRow} from '../src/sessions/session-rows.js'
+import {logBeforeRuntime, type LogOptions} from '../src/lib/logging.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const getHarness = harnessRegistry(ConfigProvider.fromEnv({preserveEmptyStrings: true})).get
@@ -164,7 +165,13 @@ export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter =
   return createTestkit(harness, bootCoreApp(overrides)).setup()
 }
 
-export type BootEnv = {stateRoot: string; cwd: string; harness: HarnessAdapter; print: (text: string) => void}
+export type BootEnv = {stateRoot: string; cwd: string; harness: HarnessAdapter; print?: (text: string) => void}
+
+export const silentLog = logBeforeRuntime()
+
+function printedLog(print: ((text: string) => void) | undefined): LogOptions | undefined {
+  return print === undefined ? undefined : {emit: (entry) => print(entry.message)}
+}
 
 const running = new Set<MadeApp>()
 
@@ -186,7 +193,7 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     permissions: overrides.permissions ?? [],
   }
   const made = await makeApp({
-    print: env.print,
+    log: printedLog(env.print),
     cfg,
     cwd: overrides.cwd ?? env.cwd,
     openInEditor: overrides.openInEditor ?? (() => {}),
@@ -234,7 +241,7 @@ export type ChatFixture = {
 export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promise<ChatFixture> {
   const harness = createTestHarness(requireClaude())
   const stateRoot = tempDir('conciv-fixture-')
-  const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+  const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness})
   const sessionId = SessionId.parse('conciv_fixture')
   if (opts.seedSession !== false) await ensureRow(made.chat.rows, sessionId)
   return {
@@ -305,7 +312,7 @@ export async function bootClientKit(opts: {plugins?: AppPlugins} = {}): Promise<
   const harness = createFakeHarness({id: 'fake-client', text: 'ok'})
   const kit = await createTestkit(harness, async (env) => {
     const {fetch, dispose, agentToken, awaitActivation} = await makeApp({
-      print: env.print,
+      log: printedLog(env.print),
       cfg: {
         enabled: true,
         stateRoot: env.stateRoot,
