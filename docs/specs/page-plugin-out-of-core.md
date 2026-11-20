@@ -285,9 +285,8 @@ So `packages/core/src/page/` is DELETED whole, and the contract loses its `page`
    through the same generic path as every other tool (`tabs.list` and `fill_form` are no longer left out). Icon and
    label are the widget's tool render (2.2). Open only as a check: what the `client` binding still does once the page
    branch goes (`registryBackedTool` in `app.ts` exposes `server` tools only), answered in section 7.
-4. Page session fold (2.1): ALREADY RULED 2026-11-18: the page session group entry comes from the page plugin through
-   a plugin registry (planned after #1068, never built). Attachment cards (2.3): check first whether the composer note
-   registry from #989 already carries a grab by mime; open only if it cannot.
+4. OPEN. Page session fold (2.1) and attachment cards (2.3): a plugin registry for each, or drop them. No maintainer
+   ruling exists; an orchestrator plan of 2026-11-18 named a plugin registry for the fold, which is not a ruling.
 5. Contract changes: delete `page.*`, split `tabs.*` (project part renamed), `editor.openFromFrames` to
    `editor.open(SourceLoc)` (1.2, 1.6).
 6. Whether `packages/cli` counts as core under the ruling (3.1).
