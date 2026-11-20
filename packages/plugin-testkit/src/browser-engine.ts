@@ -4,6 +4,8 @@ import type {TestLLM} from '@conciv/harness-testkit'
 import type {CreateEngineOptions, Engine, EngineAddress, EngineSession} from './engine.js'
 import type {} from './browser-commands.js'
 
+export * as TestLLM from '@conciv/harness-testkit/test-llm'
+
 const addresses = new WeakMap<Engine, EngineAddress>()
 
 function sessionOn(engineId: string, id: string): EngineSession {
