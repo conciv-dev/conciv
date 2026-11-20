@@ -2490,6 +2490,38 @@ describe('an untrusted page waits for trust before its event stream subscribes a
   }, 15_000)
 })
 
+describe('a page whose host provides the engine token never shows the log-in lock on first load', () => {
+  test('the stored-only ask then the token source ask end trusted with no untrusted status, and with no source the empty ask still ends untrusted', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const made = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})
+    const hostedServer = await serveHono({fetch: made.fetch, port: 0})
+    const unhostedServer = await serveHono({fetch: made.fetch, port: 0})
+    const hostToken = made.trustBrowser({browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'}, Date.now())
+    const hosted = browserRpcConnection(`http://127.0.0.1:${hostedServer.port}`, async () => hostToken)
+    const unhosted = browserRpcConnection(`http://127.0.0.1:${unhostedServer.port}`)
+    const statuses: string[] = []
+    const stopWatching = hosted.trust.subscribe((status) => statuses.push(status))
+    try {
+      expect(await hosted.trust.requestTrust({storedOnly: true})).toBe(false)
+      expect(hosted.trust.status()).toBe('checking')
+      expect(await hosted.trust.requestTrust()).toBe(true)
+      await vi.waitFor(() => expect(statuses).toContain('trusted'), {timeout: 2_000})
+      expect(statuses).toEqual(['trusted'])
+
+      expect(await unhosted.trust.requestTrust()).toBe(false)
+      expect(unhosted.trust.status()).toBe('untrusted')
+    } finally {
+      stopWatching()
+      hosted.release()
+      unhosted.release()
+      await hostedServer.close()
+      await unhostedServer.close()
+      await made.dispose()
+      rmSync(root, {recursive: true, force: true})
+    }
+  }, 15_000)
+})
+
 describe('settings storage', () => {
   const pretty = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`
   const fileText = (path: string) => (existsSync(path) ? readFileSync(path, 'utf8') : null)

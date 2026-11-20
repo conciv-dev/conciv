@@ -423,34 +423,42 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
   const answered = <A>(call: (signal: AbortSignal) => Promise<A>): Effect.Effect<A, unknown> =>
     Effect.tryPromise({try: call, catch: (error) => error}).pipe(Effect.timeout(AUTH_TIMEOUT))
 
-  const askWithToken = (token: string): Effect.Effect<boolean, unknown> =>
+  const trustAnswer = (token: string): Effect.Effect<boolean, unknown> =>
     answered((signal) => auth.trust({token}, {signal, context: {retry: 0}})).pipe(
       Effect.map(({trusted}) => trusted),
       Effect.catchIf(unauthorized, () => Effect.succeed(false)),
-      Effect.flatMap((trusted) =>
-        dispatch(trusted ? {type: 'trusted', token} : {type: 'trust-refused', token}).pipe(Effect.as(trusted)),
+    )
+
+  const settle = (token: string, trusted: boolean): Effect.Effect<boolean> =>
+    dispatch(trusted ? {type: 'trusted', token} : {type: 'trust-refused', token}).pipe(Effect.as(trusted))
+
+  const askWithToken = (token: string): Effect.Effect<boolean, unknown> =>
+    trustAnswer(token).pipe(Effect.flatMap((trusted) => settle(token, trusted)))
+
+  const sourcedToken = (source: EngineTokenSource): Effect.Effect<string | undefined> =>
+    Effect.tryPromise({try: source, catch: (error) => error}).pipe(
+      Effect.catch((error) =>
+        Effect.logError('[conciv] the host could not provide an engine token', error).pipe(Effect.as(undefined)),
       ),
     )
 
-  const sourcedToken: Effect.Effect<string | undefined> = Ref.get(tokenSource).pipe(
-    Effect.flatMap((source) =>
-      source === undefined
-        ? Effect.succeed(undefined)
-        : Effect.tryPromise({try: source, catch: (error) => error}).pipe(
-            Effect.catch((error) =>
-              Effect.logError('[conciv] the host could not provide an engine token', error).pipe(Effect.as(undefined)),
-            ),
-          ),
-    ),
-  )
+  const askHeldThenSource = (held: string, source: EngineTokenSource, storedOnly: boolean) =>
+    Effect.gen(function* () {
+      if (yield* trustAnswer(held)) return yield* settle(held, true)
+      if (storedOnly) return false
+      const sourced = yield* sourcedToken(source)
+      if (sourced === undefined) return yield* settle(held, false)
+      if (yield* trustAnswer(sourced)) return yield* settle(sourced, true)
+      yield* settle(held, false)
+      return yield* settle(sourced, false)
+    })
 
   const ask = (storedOnly: boolean): Effect.Effect<boolean> =>
     Effect.gen(function* () {
       const held = current().token ?? (yield* readStoredToken(key)) ?? ''
-      if (yield* askWithToken(held)) return true
-      if (storedOnly) return false
-      const sourced = yield* sourcedToken
-      return sourced === undefined ? false : yield* askWithToken(sourced)
+      const source = yield* Ref.get(tokenSource)
+      if (source === undefined) return yield* askWithToken(held)
+      return yield* askHeldThenSource(held, source, storedOnly)
     }).pipe(
       Effect.catch((error) =>
         Effect.logError('[conciv] the dev server did not answer the trust check', error).pipe(
