@@ -1,4 +1,0 @@
-{
-  "name": "test-file-budget-within",
-  "private": true
-}

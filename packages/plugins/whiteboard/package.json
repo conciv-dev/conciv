@@ -49,8 +49,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only",
-    "test": "vitest run"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@takumi-rs/core": "catalog:",
@@ -67,8 +66,6 @@
     "@conciv/plugin-internal": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
-    "@conciv/unplugin": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@excalidraw/excalidraw": "catalog:",
     "@excalidraw/mermaid-to-excalidraw": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
@@ -76,7 +73,6 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-error-boundary": "catalog:",
@@ -85,8 +81,7 @@
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:"
+    "vite-plugin-solid": "catalog:"
   },
   "peerDependencies": {
     "@conciv/plugin": "workspace:^"

@@ -312,8 +312,7 @@
         "packages/react/**",
         "packages/preact/**",
         "packages/brand-react/**",
-        "apps/examples/tanstack-start/src/**",
-        "packages/plugins/page/test/fixtures/**"
+        "apps/examples/tanstack-start/src/**"
       ],
       "rules": {
         "solid/jsx-no-duplicate-props": "off",
@@ -372,8 +371,7 @@
         "packages/plugins/page/src/toast.ts",
         "packages/plugins/page/src/grab.ts",
         "packages/plugins/page/src/grab-preview.ts",
-        "packages/plugins/page/src/client.ts",
-        "packages/plugins/page/test/fixtures/**"
+        "packages/plugins/page/src/client.ts"
       ],
       "rules": {
         "unocss/order": "off"
@@ -427,19 +425,6 @@
     },
     {
       "files": [
-        "packages/plugin-host/test/core/config-plugin-source.test.ts",
-        "packages/plugin-host/test/core/database-drizzle.test.ts",
-        "packages/plugin-host/test/core/fixture/tmpdir.ts",
-        "packages/plugin-host/test/core/plugin.test.ts",
-        "packages/plugin-host/test/core/util/effect-flock.test.ts"
-      ],
-      "rules": {
-        "conciv/no-hand-made-temp-dir": "off"
-      }
-    },
-    {
-      "files": [
-        "apps/site/test/helpers.ts",
         "e2e/nextjs/test/packed-closure.spec.ts",
         "e2e/nextjs/packed/harness.ts",
         "e2e/nextjs/test/packed-trust-policy-install.spec.ts"
@@ -464,18 +449,6 @@
       "files": ["packages/plugin-testkit/src/node.ts"],
       "rules": {
         "conciv/no-hand-made-temp-dir": "off"
-      }
-    },
-    {
-      "files": ["packages/ai/test/ai.test.ts"],
-      "rules": {
-        "conciv/no-hand-made-temp-dir": "off"
-      }
-    },
-    {
-      "files": ["packages/cli/test/**"],
-      "rules": {
-        "conciv/no-timers-in-tests": "error"
       }
     },
     {
@@ -509,7 +482,7 @@
       }
     },
     {
-      "files": ["packages/plugin-host/src/**", "packages/plugin-host/test/core/instructions/index.test.ts"],
+      "files": ["packages/plugin-host/src/**"],
       "rules": {
         "require-yield": "off"
       }
@@ -573,12 +546,6 @@
       }
     },
     {
-      "files": ["apps/conciv/src/runtime/plugin/composer-write-machine.test.ts"],
-      "rules": {
-        "unicorn/no-thenable": "off"
-      }
-    },
-    {
       "files": [
         "apps/conciv/src/runtime/plugin/host-apis.tsx",
         "apps/conciv/src/runtime/plugin/host.tsx",
@@ -590,18 +557,9 @@
       }
     },
     {
-      "files": [
-        "apps/conciv/src/runtime/plugin/session-store-machine.ts",
-        "apps/conciv/src/runtime/plugin/session-store-machine.test.ts"
-      ],
+      "files": ["apps/conciv/src/runtime/plugin/session-store-machine.ts"],
       "rules": {
         "unicorn/no-array-sort": "off"
-      }
-    },
-    {
-      "files": ["packages/ui-kit-system/test/dialog-harness.tsx"],
-      "rules": {
-        "conciv/solid-test-render": "off"
       }
     }
   ],
@@ -614,8 +572,6 @@
     "**/*.gen.ts",
     "**/*.gen.tsx",
     "**/test-results",
-    "packages/cli/test/fixtures/**",
-    "packages/oxlint-plugin/test/fixtures/**",
     "e2e/solid-start/src",
     "e2e/svelte/src",
     "e2e/tanstack-start/src",

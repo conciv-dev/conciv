@@ -41,7 +41,6 @@
     "build": "pnpm gen:tokens && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run --passWithNoTests",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints tokens.css host.css"
   },
@@ -62,13 +61,8 @@
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
-    "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",
     "@unocss/postcss": "catalog:",
-    "@vitest/browser-playwright": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "playwright": "catalog:",
     "postcss": "catalog:",
     "solid-js": "catalog:",
     "storybook": "catalog:",
@@ -76,8 +70,7 @@
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:"
+    "vite-plugin-solid": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

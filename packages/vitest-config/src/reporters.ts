@@ -14,8 +14,8 @@ export function ciReporters(): CiReporterEntry[] {
   return ['default', ['github-actions', {jobSummary: {enabled: false}}], ['json', {outputFile: 'test-results.json'}]]
 }
 
-export const TEST_TIMEOUT_MS = 30_000
-export const HOOK_TIMEOUT_MS = 30_000
+const TEST_TIMEOUT_MS = 30_000
+const HOOK_TIMEOUT_MS = 30_000
 export const POLL_TIMEOUT_MS = 5_000
 const POLL_INTERVAL_MS = 50
 const CONCIV_HOME_SETUP = join(import.meta.dirname, 'setup/conciv-home-setup.ts')

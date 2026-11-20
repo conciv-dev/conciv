@@ -1,8 +1,0 @@
-import {mkdirSync, mkdtempSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
-
-export function fixtureRoots(): string[] {
-  mkdirSync(join(tmpdir(), 'e2e-fixed'), {recursive: true})
-  return [mkdtempSync(join(tmpdir(), 'e2e-')), join(tmpdir(), 'e2e-fixed')]
-}

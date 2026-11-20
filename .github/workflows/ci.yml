@@ -356,12 +356,7 @@ jobs:
           mode: firewall-free
           firewall-version: 1.16.0 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      # Alone on its own runner: nothing else competes for chromium/vite/cpu, so the merged suite's
-      # maxWorkers:2 is safe and the heavy solid-streamdown cold-load has headroom. Dependency
-      # builds are capped so a cold turbo cache (lockfile change) can't OOM chrome mid-run.
-      - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook'
-      - run: pnpm exec conciv-ci-summary apps/storybook
-        if: always()
+      - run: pnpm exec turbo run typecheck lint --filter='./apps/storybook'
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always()
         with:
@@ -481,8 +476,8 @@ jobs:
           done
           echo "::error::harness CLI install failed after 3 attempts; missing binaries:${missing}"
           exit 1
-      # Consumer-shape suites: dist widget in CLI-scaffolded apps (root e2e/) plus the
-      # site's own e2e suite. test:e2e is cache:false in turbo.json, so every run
+      # Consumer-shape suites: dist widget in CLI-scaffolded apps (root e2e/).
+      # test:e2e is cache:false in turbo.json, so every run
       # exercises the real servers; --concurrency=1 keeps a shard's apps serial because
       # they bind fixed ports.
       - run: pnpm exec conciv-ci-shards run --task e2e

@@ -1,3 +1,0 @@
-packages:
-  - packages/*
-  - e2e/*

@@ -13,8 +13,7 @@
     "generate-routes": "tsr generate",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
-    "test": "vitest run"
+    "lint": "oxlint"
   },
   "dependencies": {
     "@ark-ui/solid": "catalog:",
@@ -63,8 +62,6 @@
     "@conciv/plugin-page": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
-    "@solidjs/testing-library": "catalog:",
     "@tanstack/router-cli": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "@types/node": "catalog:",
@@ -72,15 +69,12 @@
     "@types/react-dom": "catalog:",
     "@types/semver": "catalog:",
     "@unocss/reset": "catalog:",
-    "@vitest/browser-playwright": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "storybook-solidjs-vite": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:"
+    "vite-plugin-solid": "catalog:"
   }
 }

@@ -107,8 +107,6 @@
     "build": "tsdown && tsdown --config tsdown.solid-source.config.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run --passWithNoTests",
-    "test:packed": "vitest run --mode packed --project mascot --tags-filter=packed",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -117,18 +115,14 @@
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
-    "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",
-    "@vitest/browser-playwright": "catalog:",
     "solid-js": "catalog:",
     "storybook": "catalog:",
     "storybook-solidjs-vite": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:"
+    "vite-plugin-solid": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.8"

@@ -1,6 +1,5 @@
 {
   "extends": ["../../.oxlintrc.json"],
-  "ignorePatterns": ["test/fixtures/**"],
   "rules": {
     "no-restricted-imports": [
       "error",
