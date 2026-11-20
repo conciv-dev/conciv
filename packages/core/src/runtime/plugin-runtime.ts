@@ -293,7 +293,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         Layer.succeed(ConfigPluginSource.ConfiguredPlugins, input.config.plugins),
         provideHarnessModels(input.harness, input.signal),
         provideSessions(input.sessions),
-        Watcher.layer().pipe(Layer.provide(Watcher.nativeLayer)),
+        Watcher.layer().pipe(Layer.orDie, Layer.provide(Watcher.nativeLayer)),
         Npm.layer.pipe(Layer.provide(EffectFlock.layer)),
       ),
     ),

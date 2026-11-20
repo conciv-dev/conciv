@@ -65,9 +65,14 @@ export async function bootCoreKit(
     pageReplyTimeoutMs?: number
     tty?: {command(context: HarnessConnectContext): TtyCommand}
     env?: FixtureEnv
+    fileWatcher?: boolean
   },
 ): Promise<CoreKit> {
-  const configProvider = opts.env === undefined ? undefined : ConfigProvider.fromUnknown(opts.env)
+  const kitEnv = {CONCIV_DISABLE_FILEWATCHER: String(opts.fileWatcher !== true)}
+  const configProvider =
+    opts.env === undefined
+      ? ConfigProvider.fromEnvRecord({...process.env, ...kitEnv}, {preserveEmptyStrings: true})
+      : ConfigProvider.fromUnknown({...kitEnv, ...opts.env})
   const harness = createFakeHarness({
     id: opts.id,
     text: opts.text ?? 'Hello from conciv',

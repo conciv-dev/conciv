@@ -29,6 +29,8 @@ type Binding = {
   readonly unsubscribe: (directory: string, callback: SubscribeCallback, options: BindingOptions) => Promise<void>
 }
 
+const DisableFileWatcherConfig = Config.Boolean('CONCIV_DISABLE_FILEWATCHER').pipe(Config.withDefault(false))
+
 const BindingPathConfig = Config.option(Config.String('CONCIV_PARCEL_WATCHER_PATH')).pipe(
   Config.map(Option.getOrUndefined),
 )
@@ -87,10 +89,6 @@ export interface Interface {
   readonly subscribe: (input: WatchInput, onReady?: Effect.Effect<void>) => Effect.Effect<Stream.Stream<Update>>
 }
 
-export interface Options {
-  readonly enabled?: boolean
-}
-
 export const Service = Context.Service<Interface>('@conciv/Watcher')
 
 interface TestInterface extends Interface {
@@ -100,13 +98,11 @@ interface TestInterface extends Interface {
 
 export const Test = Context.Service<TestInterface>('@conciv/Watcher/Test')
 
-export const layer = (options?: Options) =>
+export const layer = () =>
   Layer.effect(
     Service,
     Effect.gen(function* () {
-      if (options?.enabled === false) {
-        return Service.of({subscribe: () => Effect.succeed(Stream.empty)})
-      }
+      if (yield* DisableFileWatcherConfig) return Service.of({subscribe: () => Effect.succeed(Stream.empty)})
       const native = yield* Native
 
       const watchers = yield* RcMap.make({

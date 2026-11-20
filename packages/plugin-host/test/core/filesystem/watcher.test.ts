@@ -447,3 +447,38 @@ describe('Watcher native file watches in one directory', () => {
     ),
   )
 })
+
+function fileEventHandles() {
+  return process.getActiveResourcesInfo().filter((name) => name === 'FSEventWrap').length
+}
+
+function watchOutcome(directory: string, layer: typeof watcherLayer) {
+  return Effect.gen(function* () {
+    const watcher = yield* Watcher.Service
+    const before = fileEventHandles()
+    const ready = yield* Deferred.make<number>()
+    const updates = yield* watcher.subscribe(
+      {path: path.join(directory, 'conciv.json'), type: 'file'},
+      Effect.suspend(() => Deferred.succeed(ready, fileEventHandles() - before)),
+    )
+    return yield* Effect.race(
+      Deferred.await(ready).pipe(Effect.map((handles) => ({watching: true, handles}))),
+      Stream.runDrain(updates).pipe(Effect.map(() => ({watching: false, handles: fileEventHandles() - before}))),
+    )
+  }).pipe(Effect.provide(layer))
+}
+
+describe('Watcher under CONCIV_DISABLE_FILEWATCHER', () => {
+  it.live('a provider disabling the watcher opens no native watch and ends the stream, the default watches', () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        const disabled = watcherLayer.pipe(
+          Layer.provide(ConfigProvider.layer(ConfigProvider.fromUnknown({CONCIV_DISABLE_FILEWATCHER: 'true'}))),
+        )
+        expect(yield* watchOutcome(directory, disabled)).toEqual({watching: false, handles: 0})
+        expect(process.env.CONCIV_DISABLE_FILEWATCHER).toBeUndefined()
+        expect(yield* watchOutcome(directory, watcherLayer)).toEqual({watching: true, handles: 1})
+      }),
+    ),
+  )
+})

@@ -258,7 +258,7 @@ describe('the recorder plugin in a real engine', () => {
 
 describe('the recorder RPC', () => {
   it('serves config defaults, round trips flush to window to log, pins reads and saves to a client id, keeps recordings in the project .conciv/recorder/recordings within the size cap and the newest 50, reads a corrupt or pruned file as missing, reports an unwritable folder, sweeps stray partial files on start, resets, and serves a saved recording after the engine reopens the same project', async () => {
-    const kit = await bootRecorder()
+    const kit = await bootRecorderKit({...RECORDER_KIT, fileWatcher: true})
 
     expect(await call(kit, 'config')).toEqual({masking: 'none', windowMinutes: 10, console: true})
 
@@ -969,7 +969,7 @@ async function bootLinkedRecorder(): Promise<{kit: CoreKit; link: string}> {
   await writeFile(marker, RELOAD_MARKER, 'utf8')
   const link = join(folder, 'conciv', 'plugins', 'recorder')
   await symlink(PACKAGE_DIR, link)
-  return {kit: await bootRecorderKit({id: 'fake', stateRoot: folder}), link}
+  return {kit: await bootRecorderKit({id: 'fake', stateRoot: folder, fileWatcher: true}), link}
 }
 
 async function renderedBy(kit: CoreKit, nextEvent: () => Promise<unknown>): Promise<number[]> {
