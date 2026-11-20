@@ -941,6 +941,7 @@ describe('chat plane', () => {
       db,
       cwd: root,
       harnessFor: async () => harness,
+      harnessEnv: () => process.env,
       systemPrompt: {},
       sessions: sessionPort(),
       toolNames: async () => new Set(),

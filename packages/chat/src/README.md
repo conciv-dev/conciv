@@ -36,7 +36,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 - `index.ts:ChatPlane.compact` - inserts a row with `kind: 'compact'` into the `@conciv/db` `markers` table. For a deleted session it rejects with `deletedSessionError` (`session "<id>" does not exist`, `code` `SESSION_DELETED_CODE`) before it stops anything or writes the marker.
 - `index.ts:followUp` - a follow-up for a deleted session (`sessionDeleted`: its row has a `deletedAt`) answers `{kind: 'failed', error: 'session "<id>" does not exist'}` before `server.drive`, so no run is started.
 - `approvals.ts:createUiChannel` - sets a `setTimeout` per wait that resolves with a fallback value.
-- `turn.ts:turnHooks` - passes `deps.harnessEnv?.(sessionId) ?? process.env` to the harness process.
+- `turn.ts:turnHooks` - passes `deps.harnessEnv(sessionId)` to the harness process; the caller supplies it (core reads it from its ConfigProvider), chat reads no env itself.
 
 ## Verification
 

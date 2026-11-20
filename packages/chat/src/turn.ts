@@ -74,7 +74,7 @@ export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) 
 export type TurnDeps = {
   cwd: string
   harnessFor: (sessionId: SessionId) => Promise<HarnessAdapter>
-  harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
+  harnessEnv: (sessionId?: SessionId) => NodeJS.ProcessEnv
   systemPrompt: SystemPromptSources
   sessions: SessionPort
   toolNames: (sessionId: SessionId) => Promise<ReadonlySet<string>>
@@ -326,7 +326,7 @@ export function turnHooks(
         resumeSessionId,
         model: model ?? undefined,
         effort: own?.effort ?? undefined,
-        env: deps.harnessEnv?.(sessionId) ?? process.env,
+        env: deps.harnessEnv(sessionId),
         kind: turn.kind,
       })
       return {

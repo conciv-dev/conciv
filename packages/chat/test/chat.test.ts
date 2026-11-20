@@ -90,6 +90,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
     db,
     cwd: root,
     harnessFor: async () => harness,
+    harnessEnv: () => process.env,
     systemPrompt: {},
     sessions: fakeSessions,
     toolNames: async () => new Set(),
