@@ -414,3 +414,36 @@ describe('Watcher native binding path', () => {
     ),
   )
 })
+
+describe('Watcher native file watches in one directory', () => {
+  it.live('share one directory handle until the last of them is released', () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        const native = yield* Watcher.Native
+        const handles = () => process.getActiveResourcesInfo().filter((name) => name === 'FSEventWrap').length
+        const before = handles()
+        const subscriptions = yield* Effect.forEach(['a.js', 'b.js', 'c.js'], (name) =>
+          native.subscribe({type: 'file', target: path.join(directory, name), ignore: [], publish: () => {}}),
+        )
+        const entries = yield* native.subscribe({
+          type: 'entries',
+          target: directory,
+          names: ['conciv.json'],
+          ignore: [],
+          publish: () => {},
+        })
+        expect([...subscriptions, entries].every((subscription) => subscription?.backend === 'node')).toBe(true)
+        expect(handles() - before).toBe(1)
+        yield* Effect.promise(() => Promise.all(subscriptions.map((subscription) => subscription?.unsubscribe())))
+        const later = yield* native.subscribe({
+          type: 'file',
+          target: path.join(directory, 'd.js'),
+          ignore: [],
+          publish: () => {},
+        })
+        expect(handles() - before).toBe(1)
+        yield* Effect.promise(() => Promise.all([entries, later].map((subscription) => subscription?.unsubscribe())))
+      }).pipe(Effect.provide(Watcher.nativeLayer)),
+    ),
+  )
+})

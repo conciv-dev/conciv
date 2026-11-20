@@ -4,7 +4,7 @@ import {hasMagic} from 'glob'
 import picomatch from 'picomatch'
 import {FSUtil} from '../../util/fs-util.js'
 import {isRecord} from '../../util/record.js'
-import {Cause, Config, Context, Effect, Layer, Option, PubSub, RcMap, Stream} from 'effect'
+import {Cause, Config, Context, Effect, Exit, Layer, Option, PubSub, RcMap, Scope, Stream} from 'effect'
 import {lazy} from '../util/lazy.js'
 import {watch} from 'node:fs'
 import path from 'path'
@@ -227,27 +227,48 @@ export const nativeLayer = Layer.effect(
       ),
     )
     const watcher = lazy(() => tryLoadBinding(bindingPath))
+    const directories = yield* RcMap.make({
+      lookup: (directory: string) =>
+        Effect.acquireRelease(
+          Effect.try({try: () => watch(directory, {recursive: false}), catch: (error) => error}),
+          (handle) => Effect.sync(() => handle.close()),
+        ).pipe(
+          Effect.tap((handle) =>
+            Effect.sync(() =>
+              handle.on('error', (error: unknown) =>
+                Effect.runFork(Effect.logError('watcher callback failed', {path: directory, error})),
+              ),
+            ),
+          ),
+        ),
+    })
     return Native.of({
       subscribe: (input) => {
         if (input.type === 'file' || input.type === 'entries') {
           const directory = input.type === 'file' ? path.dirname(input.target) : input.target
           const names = new Set(input.type === 'file' ? [path.basename(input.target)] : input.names)
-          return Effect.try({
-            try: () =>
-              watch(directory, {recursive: false}, (_event, file) => {
-                if (file && !names.has(file)) return
-                for (const name of file ? [file] : names) {
-                  input.publish({path: path.join(directory, name), type: 'update'})
-                }
-              }),
-            catch: (error) => error,
+          const listener = (_event: string, file: string | null) => {
+            if (file && !names.has(file)) return
+            for (const name of file ? [file] : names) {
+              input.publish({path: path.join(directory, name), type: 'update'})
+            }
+          }
+          return Effect.gen(function* () {
+            const scope = yield* Scope.make()
+            const handle = yield* RcMap.get(directories, directory).pipe(
+              Scope.provide(scope),
+              Effect.onError(() => Scope.close(scope, Exit.void)),
+            )
+            handle.on('change', listener)
+            yield* Scope.addFinalizer(
+              scope,
+              Effect.sync(() => handle.off('change', listener)),
+            )
+            return {
+              unsubscribe: () => Effect.runPromise(Scope.close(scope, Exit.void)),
+              backend: 'node',
+            } satisfies Subscription
           }).pipe(
-            Effect.map((subscription): Subscription => {
-              subscription.on('error', (error: unknown) =>
-                Effect.runFork(Effect.logError('watcher callback failed', {path: directory, error})),
-              )
-              return {unsubscribe: () => Promise.resolve(subscription.close()), backend: 'node'}
-            }),
             Effect.catch((error) =>
               isRecord(error) && error.code === 'ENOENT'
                 ? Effect.undefined
