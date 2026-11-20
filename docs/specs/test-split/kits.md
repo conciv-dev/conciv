@@ -36,7 +36,7 @@ Who mounts the app (ruled 2026-11-20, as opencode; `docs/specs/test-rewrite-afte
 | ui-kit-system browser + node (+ 33 story files)                                   | 133  | 76    | 0    | 16           | 11        | 7            | 20  | 0       | 3       | 0           |
 | small kits (tap, terminal, diffs, streamdown, brand, brand-react, mascot gallery) | 116  | 81    | 3    | 1            | 0         | 17           | 4   | 1       | 5       | 4           |
 
-(Counts come from the table rows. Where a hand-written section total differs, the rows are right.) The 13 happy-dom rows: 2 in the app (`apps/conciv/src/pane/pane-composer.dom.test.tsx`, steps of the app area's M-SEND and M-STOP journeys) and 11 component tests without the kit (`packages/ui-kit-system`). The 31 browser-mode rows are all component tests without the kit in their package's browser file; 0 rows land in `apps/conciv/src/conciv.browser.test.tsx`.
+(Counts come from the table rows. Where a hand-written section total differs, the rows are right.) The 13 happy-dom rows: 2 in the app (`apps/conciv/src/pane/pane-composer.dom.test.tsx`, steps of the app area's M-SEND and M-STOP journeys) and 11 component tests without the kit (`packages/ui-kit-system`). The 31 browser-mode rows are all component tests without the kit in their package's browser file; 0 rows land in the app's browser-mode files (`apps/conciv/src/<area>.browser.test.tsx`, Decision 15 in app.md).
 
 What the files become (every old test file in this group is deleted; tests sit next to the code):
 
