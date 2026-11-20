@@ -159,6 +159,8 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
       },
       concivSend: (_context, engineId, sessionId, text) => sessionFor(engineId, sessionId).send(text),
       concivApprove: (_context, engineId, sessionId) => sessionFor(engineId, sessionId).approve(),
+      concivStop: (_context, engineId, sessionId) => sessionFor(engineId, sessionId).stop(),
+      concivRequests: (_context, engineId) => engineFor(engineId).started.engine.requests(),
       concivToolCall: (_context, engineId, sessionId, name, input) =>
         sessionFor(engineId, sessionId).tool(name).call(input),
       concivToolFailure: (_context, engineId, sessionId, name, input) =>
