@@ -317,10 +317,13 @@ describe('user event only', () => {
   }
 
   test.each([
-    {fixture: 'solid-fire-event.dom.test.tsx', lines: [1]},
-    {fixture: 'dom-fire-event.dom.test.ts', lines: [1]},
+    {fixture: 'solid-fire-event.dom.test.tsx', lines: [6]},
+    {fixture: 'dom-fire-event.dom.test.ts', lines: [5]},
     {fixture: 'aliased-fire-event.dom.test.tsx', lines: [1]},
     {fixture: 'namespace-fire-event.dom.test.ts', lines: [5]},
+    {fixture: 'composing-key-down.dom.test.ts', lines: []},
+    {fixture: 'disallowed-key-down.dom.test.ts', lines: [8, 9, 10, 11, 12, 13, 14, 15]},
+    {fixture: 'import-only.dom.test.ts', lines: [1]},
     {fixture: 'render-only.dom.test.tsx', lines: []},
     {fixture: 'node-fire-event.test.ts', lines: []},
   ])('$fixture reports fireEvent on lines $lines', async ({fixture, lines}) => {

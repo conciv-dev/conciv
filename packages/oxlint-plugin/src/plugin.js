@@ -28,6 +28,8 @@ const SOLID_WEB_RENDER_NAMES = new Set(['render', 'hydrate'])
 
 const TESTING_LIBRARY_SOURCES = new Set(['@solidjs/testing-library', '@testing-library/dom'])
 const FIRE_EVENT_NAME = 'fireEvent'
+const KEY_DOWN_NAME = 'keyDown'
+const COMPOSING_NAME = 'isComposing'
 
 function importedName(specifier) {
   if (specifier.type !== 'ImportSpecifier') return undefined
@@ -68,9 +70,57 @@ function checkSolidWebImport(node, context) {
   for (const specifier of node.specifiers) reportSolidWebSpecifier(specifier, context)
 }
 
+function isNamed(node, name) {
+  return isIdentifier(node) && node.name === name
+}
+
+function isPropertyRead(node, name) {
+  return node.type === 'MemberExpression' && !node.computed && isNamed(node.property, name)
+}
+
+function isLiteralTrue(node) {
+  return node.type === 'Literal' && node.value === true
+}
+
+function isComposingTrue(property) {
+  return (
+    property.type === 'Property' &&
+    !property.computed &&
+    isNamed(property.key, COMPOSING_NAME) &&
+    isLiteralTrue(property.value)
+  )
+}
+
+function hasComposingInit(call) {
+  const init = call.arguments[1]
+  return init?.type === 'ObjectExpression' && init.properties.some(isComposingTrue)
+}
+
+function isCallOn(node, callee) {
+  return node.type === 'CallExpression' && node.callee === callee
+}
+
+function isComposingKeyDown(fireEventNode) {
+  const member = fireEventNode.parent
+  if (!isPropertyRead(member, KEY_DOWN_NAME) || member.object !== fireEventNode) return false
+  return isCallOn(member.parent, member) && hasComposingInit(member.parent)
+}
+
+function readFireEventReferences(specifier, context) {
+  if (specifier.local.name !== FIRE_EVENT_NAME) return []
+  return context.sourceCode.getDeclaredVariables(specifier).flatMap((variable) => variable.references)
+}
+
+function reportFireEventReference(reference, context) {
+  if (isComposingKeyDown(reference.identifier)) return
+  context.report({node: reference.identifier, messageId: 'fireEvent'})
+}
+
 function reportFireEventSpecifier(specifier, context) {
   if (importedName(specifier) !== FIRE_EVENT_NAME) return
-  context.report({node: specifier, messageId: 'fireEvent'})
+  const references = readFireEventReferences(specifier, context)
+  if (references.length === 0) context.report({node: specifier, messageId: 'fireEvent'})
+  for (const reference of references) reportFireEventReference(reference, context)
 }
 
 function checkTestingLibraryImport(node, context) {
@@ -87,18 +137,18 @@ function isTestingLibraryModuleObject(identifier, sourceCode) {
   return TESTING_LIBRARY_SOURCES.has(definition.parent.source.value)
 }
 
-function isFireEventProperty(property) {
-  return isIdentifier(property) && property.name === FIRE_EVENT_NAME
-}
-
-function isFireEventRead(node) {
-  return !node.computed && isIdentifier(node.object) && isFireEventProperty(node.property)
+function isTestingLibraryFireEvent(node, sourceCode) {
+  return (
+    isPropertyRead(node, FIRE_EVENT_NAME) &&
+    isIdentifier(node.object) &&
+    isTestingLibraryModuleObject(node.object, sourceCode)
+  )
 }
 
 function checkFireEventMember(node, context) {
   if (!isDomTestFile(context.filename)) return
-  if (!isFireEventRead(node)) return
-  if (!isTestingLibraryModuleObject(node.object, context.sourceCode)) return
+  if (!isTestingLibraryFireEvent(node, context.sourceCode)) return
+  if (isComposingKeyDown(node)) return
   context.report({node, messageId: 'fireEvent'})
 }
 
@@ -161,7 +211,7 @@ const userEventOnly = {
     type: 'problem',
     messages: {
       fireEvent:
-        'Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces.',
+        'Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces. The one exception is fireEvent.keyDown(target, {isComposing: true}) for an IME guard, which user-event cannot produce.',
     },
     schema: [],
   },

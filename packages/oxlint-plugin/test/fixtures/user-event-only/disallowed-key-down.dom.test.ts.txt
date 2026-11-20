@@ -1,0 +1,17 @@
+import {fireEvent, screen} from '@testing-library/dom'
+import {test} from 'vitest'
+
+const composing = true
+const options = {key: 'Enter', isComposing: true}
+
+test('composes', () => {
+  fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'})
+  fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter', isComposing: false})
+  fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter', isComposing: composing})
+  fireEvent.keyDown(screen.getByRole('textbox'), {...options})
+  fireEvent['keyDown'](screen.getByRole('textbox'), {key: 'Enter', isComposing: true})
+  fireEvent.keyUp(screen.getByRole('textbox'), {key: 'Enter', isComposing: true})
+  fireEvent.click(screen.getByRole('textbox'))
+  const fire = fireEvent
+  fire.keyDown(screen.getByRole('textbox'), {key: 'Enter', isComposing: true})
+})
