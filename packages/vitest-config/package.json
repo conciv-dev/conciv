@@ -17,7 +17,6 @@
   "type": "module",
   "exports": {
     ".": "./src/reporters.ts",
-    "./dom": "./src/dom.ts",
     "./expected-log": "./src/expected-log.ts",
     "./new-layer": "./src/new-layer.ts",
     "./pack": "./src/pack.ts",
