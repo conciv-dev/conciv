@@ -1,0 +1,1192 @@
+{
+  "commit": "58b649460",
+  "worktree": "/Users/omrikatz/Public/web/aidx-wt-integration",
+  "env": "GITHUB_ACTIONS=1 TURBO_CONCURRENCY=1 VITEST_MAX_FORKS=1 (coverage on via ciTest; v8, json-summary)",
+  "skipped": {
+    "conciv-storybook": "vitest.config sets coverage.enabled=false (CI never measures it)",
+    "tanstack-start-example": "no test script",
+    "site + e2e/*": "excluded by brief",
+    "other lane": "@conciv/app, cli, core, db, embed, preact, react, solid, ui-kit-chat, ui-kit-chat-tools: measured by another lane (coordinator split)"
+  },
+  "packages": [
+    {
+      "package": "@conciv/ai",
+      "dir": "packages/ai",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 51,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 708,
+        "total": 1016,
+        "pct": 69.68
+      },
+      "statements": {
+        "covered": 809,
+        "total": 1240,
+        "pct": 65.24
+      },
+      "branches": {
+        "covered": 355,
+        "total": 723,
+        "pct": 49.1
+      },
+      "functions": {
+        "covered": 260,
+        "total": 416,
+        "pct": 62.5
+      }
+    },
+    {
+      "package": "@conciv/brand",
+      "dir": "packages/brand",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 21,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 71,
+        "total": 75,
+        "pct": 94.66
+      },
+      "statements": {
+        "covered": 80,
+        "total": 93,
+        "pct": 86.02
+      },
+      "branches": {
+        "covered": 24,
+        "total": 36,
+        "pct": 66.66
+      },
+      "functions": {
+        "covered": 24,
+        "total": 27,
+        "pct": 88.88
+      }
+    },
+    {
+      "package": "@conciv/brand-react",
+      "dir": "packages/brand-react",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 21,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 59,
+        "total": 62,
+        "pct": 95.16
+      },
+      "statements": {
+        "covered": 66,
+        "total": 74,
+        "pct": 89.18
+      },
+      "branches": {
+        "covered": 17,
+        "total": 27,
+        "pct": 62.96
+      },
+      "functions": {
+        "covered": 18,
+        "total": 20,
+        "pct": 90
+      }
+    },
+    {
+      "package": "@conciv/builtin-plugins",
+      "dir": "packages/builtin-plugins",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 65,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 1985,
+        "total": 2276,
+        "pct": 87.21
+      },
+      "statements": {
+        "covered": 2482,
+        "total": 3038,
+        "pct": 81.69
+      },
+      "branches": {
+        "covered": 946,
+        "total": 1330,
+        "pct": 71.12
+      },
+      "functions": {
+        "covered": 904,
+        "total": 1181,
+        "pct": 76.54
+      }
+    },
+    {
+      "package": "@conciv/bundle-size",
+      "dir": "packages/bundle-size",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 18,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 92,
+        "total": 103,
+        "pct": 89.32
+      },
+      "statements": {
+        "covered": 110,
+        "total": 125,
+        "pct": 88
+      },
+      "branches": {
+        "covered": 52,
+        "total": 65,
+        "pct": 80
+      },
+      "functions": {
+        "covered": 43,
+        "total": 46,
+        "pct": 93.47
+      }
+    },
+    {
+      "package": "@conciv/chat",
+      "dir": "packages/chat",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 14,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 486,
+        "total": 667,
+        "pct": 72.86
+      },
+      "statements": {
+        "covered": 564,
+        "total": 827,
+        "pct": 68.19
+      },
+      "branches": {
+        "covered": 323,
+        "total": 539,
+        "pct": 59.92
+      },
+      "functions": {
+        "covered": 193,
+        "total": 270,
+        "pct": 71.48
+      }
+    },
+    {
+      "package": "@conciv/client",
+      "dir": "packages/client",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 35,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 175,
+        "total": 220,
+        "pct": 79.54
+      },
+      "statements": {
+        "covered": 196,
+        "total": 256,
+        "pct": 76.56
+      },
+      "branches": {
+        "covered": 61,
+        "total": 95,
+        "pct": 64.21
+      },
+      "functions": {
+        "covered": 69,
+        "total": 86,
+        "pct": 80.23
+      }
+    },
+    {
+      "package": "@conciv/contract",
+      "dir": "packages/contract",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 20,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 319,
+        "total": 453,
+        "pct": 70.41
+      },
+      "statements": {
+        "covered": 348,
+        "total": 522,
+        "pct": 66.66
+      },
+      "branches": {
+        "covered": 107,
+        "total": 245,
+        "pct": 43.67
+      },
+      "functions": {
+        "covered": 88,
+        "total": 157,
+        "pct": 56.05
+      }
+    },
+    {
+      "package": "@conciv/grab",
+      "dir": "packages/grab",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 17,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 44,
+        "total": 47,
+        "pct": 93.61
+      },
+      "statements": {
+        "covered": 54,
+        "total": 58,
+        "pct": 93.1
+      },
+      "branches": {
+        "covered": 23,
+        "total": 28,
+        "pct": 82.14
+      },
+      "functions": {
+        "covered": 11,
+        "total": 12,
+        "pct": 91.66
+      }
+    },
+    {
+      "package": "@conciv/harness",
+      "dir": "packages/harness",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 29,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 1090,
+        "total": 1145,
+        "pct": 95.19
+      },
+      "statements": {
+        "covered": 1295,
+        "total": 1402,
+        "pct": 92.36
+      },
+      "branches": {
+        "covered": 753,
+        "total": 929,
+        "pct": 81.05
+      },
+      "functions": {
+        "covered": 363,
+        "total": 384,
+        "pct": 94.53
+      }
+    },
+    {
+      "package": "@conciv/harness-init",
+      "dir": "packages/harness-init",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 16,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 75,
+        "total": 80,
+        "pct": 93.75
+      },
+      "statements": {
+        "covered": 78,
+        "total": 90,
+        "pct": 86.66
+      },
+      "branches": {
+        "covered": 16,
+        "total": 28,
+        "pct": 57.14
+      },
+      "functions": {
+        "covered": 26,
+        "total": 27,
+        "pct": 96.29
+      }
+    },
+    {
+      "package": "@conciv/harness-testkit",
+      "dir": "packages/harness-testkit",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 19,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 339,
+        "total": 552,
+        "pct": 61.41
+      },
+      "statements": {
+        "covered": 393,
+        "total": 681,
+        "pct": 57.7
+      },
+      "branches": {
+        "covered": 175,
+        "total": 331,
+        "pct": 52.87
+      },
+      "functions": {
+        "covered": 122,
+        "total": 238,
+        "pct": 51.26
+      }
+    },
+    {
+      "package": "@conciv/it",
+      "dir": "packages/it",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 22,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 2,
+        "total": 4,
+        "pct": 50
+      },
+      "statements": {
+        "covered": 2,
+        "total": 4,
+        "pct": 50
+      },
+      "branches": {
+        "covered": 0,
+        "total": 0,
+        "pct": 100
+      },
+      "functions": {
+        "covered": 0,
+        "total": 0,
+        "pct": 100
+      }
+    },
+    {
+      "package": "@conciv/mascot",
+      "dir": "packages/mascot",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 17,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 1827,
+        "total": 2865,
+        "pct": 63.76
+      },
+      "statements": {
+        "covered": 2008,
+        "total": 3392,
+        "pct": 59.19
+      },
+      "branches": {
+        "covered": 383,
+        "total": 986,
+        "pct": 38.84
+      },
+      "functions": {
+        "covered": 447,
+        "total": 912,
+        "pct": 49.01
+      }
+    },
+    {
+      "package": "@conciv/mascot-react",
+      "dir": "packages/mascot-react",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 15,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 176,
+        "total": 176,
+        "pct": 100
+      },
+      "statements": {
+        "covered": 216,
+        "total": 227,
+        "pct": 95.15
+      },
+      "branches": {
+        "covered": 63,
+        "total": 79,
+        "pct": 79.74
+      },
+      "functions": {
+        "covered": 75,
+        "total": 76,
+        "pct": 98.68
+      }
+    },
+    {
+      "package": "@conciv/oxlint-plugin",
+      "dir": "packages/oxlint-plugin",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 35,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 32,
+        "total": 34,
+        "pct": 94.11
+      },
+      "statements": {
+        "covered": 35,
+        "total": 37,
+        "pct": 94.59
+      },
+      "branches": {
+        "covered": 8,
+        "total": 10,
+        "pct": 80
+      },
+      "functions": {
+        "covered": 11,
+        "total": 11,
+        "pct": 100
+      }
+    },
+    {
+      "package": "@conciv/page",
+      "dir": "packages/page",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 22,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 625,
+        "total": 735,
+        "pct": 85.03
+      },
+      "statements": {
+        "covered": 725,
+        "total": 896,
+        "pct": 80.91
+      },
+      "branches": {
+        "covered": 368,
+        "total": 538,
+        "pct": 68.4
+      },
+      "functions": {
+        "covered": 169,
+        "total": 217,
+        "pct": 77.88
+      }
+    },
+    {
+      "package": "@conciv/plugin",
+      "dir": "packages/plugin",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 24,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 492,
+        "total": 608,
+        "pct": 80.92
+      },
+      "statements": {
+        "covered": 557,
+        "total": 710,
+        "pct": 78.45
+      },
+      "branches": {
+        "covered": 193,
+        "total": 297,
+        "pct": 64.98
+      },
+      "functions": {
+        "covered": 157,
+        "total": 226,
+        "pct": 69.46
+      }
+    },
+    {
+      "package": "@conciv/plugin-host",
+      "dir": "packages/plugin-host",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 64,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 3576,
+        "total": 4151,
+        "pct": 86.14
+      },
+      "statements": {
+        "covered": 4013,
+        "total": 4828,
+        "pct": 83.11
+      },
+      "branches": {
+        "covered": 1866,
+        "total": 2617,
+        "pct": 71.3
+      },
+      "functions": {
+        "covered": 1296,
+        "total": 1638,
+        "pct": 79.12
+      }
+    },
+    {
+      "package": "@conciv/plugin-ios",
+      "dir": "packages/plugins/ios",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 25,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 427,
+        "total": 664,
+        "pct": 64.3
+      },
+      "statements": {
+        "covered": 484,
+        "total": 798,
+        "pct": 60.65
+      },
+      "branches": {
+        "covered": 175,
+        "total": 312,
+        "pct": 56.08
+      },
+      "functions": {
+        "covered": 122,
+        "total": 252,
+        "pct": 48.41
+      }
+    },
+    {
+      "package": "@conciv/plugin-page",
+      "dir": "packages/plugin-page",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 11,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 443,
+        "total": 475,
+        "pct": 93.26
+      },
+      "statements": {
+        "covered": 505,
+        "total": 557,
+        "pct": 90.66
+      },
+      "branches": {
+        "covered": 278,
+        "total": 349,
+        "pct": 79.65
+      },
+      "functions": {
+        "covered": 121,
+        "total": 135,
+        "pct": 89.62
+      }
+    },
+    {
+      "package": "@conciv/plugin-recorder",
+      "dir": "packages/plugins/recorder",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 90,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 952,
+        "total": 1236,
+        "pct": 77.02
+      },
+      "statements": {
+        "covered": 1202,
+        "total": 1577,
+        "pct": 76.22
+      },
+      "branches": {
+        "covered": 532,
+        "total": 795,
+        "pct": 66.91
+      },
+      "functions": {
+        "covered": 404,
+        "total": 572,
+        "pct": 70.62
+      }
+    },
+    {
+      "package": "@conciv/plugin-tanstack",
+      "dir": "packages/plugins/tanstack",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 41,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 222,
+        "total": 387,
+        "pct": 57.36
+      },
+      "statements": {
+        "covered": 252,
+        "total": 454,
+        "pct": 55.5
+      },
+      "branches": {
+        "covered": 58,
+        "total": 150,
+        "pct": 38.66
+      },
+      "functions": {
+        "covered": 60,
+        "total": 145,
+        "pct": 41.37
+      }
+    },
+    {
+      "package": "@conciv/plugin-test-runner",
+      "dir": "packages/plugins/test-runner",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 53,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 295,
+        "total": 382,
+        "pct": 77.22
+      },
+      "statements": {
+        "covered": 354,
+        "total": 473,
+        "pct": 74.84
+      },
+      "branches": {
+        "covered": 195,
+        "total": 274,
+        "pct": 71.16
+      },
+      "functions": {
+        "covered": 91,
+        "total": 142,
+        "pct": 64.08
+      }
+    },
+    {
+      "package": "@conciv/plugin-testkit",
+      "dir": "packages/plugin-testkit",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 16,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 260,
+        "total": 325,
+        "pct": 80
+      },
+      "statements": {
+        "covered": 296,
+        "total": 395,
+        "pct": 74.93
+      },
+      "branches": {
+        "covered": 121,
+        "total": 174,
+        "pct": 69.54
+      },
+      "functions": {
+        "covered": 94,
+        "total": 145,
+        "pct": 64.82
+      }
+    },
+    {
+      "package": "@conciv/plugin-try-it",
+      "dir": "packages/plugins/try-it",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 25,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 67,
+        "total": 69,
+        "pct": 97.1
+      },
+      "statements": {
+        "covered": 84,
+        "total": 86,
+        "pct": 97.67
+      },
+      "branches": {
+        "covered": 46,
+        "total": 48,
+        "pct": 95.83
+      },
+      "functions": {
+        "covered": 24,
+        "total": 26,
+        "pct": 92.3
+      }
+    },
+    {
+      "package": "@conciv/plugin-whiteboard",
+      "dir": "packages/plugins/whiteboard",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 113,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 960,
+        "total": 1347,
+        "pct": 71.26
+      },
+      "statements": {
+        "covered": 1212,
+        "total": 1711,
+        "pct": 70.83
+      },
+      "branches": {
+        "covered": 413,
+        "total": 704,
+        "pct": 58.66
+      },
+      "functions": {
+        "covered": 427,
+        "total": 658,
+        "pct": 64.89
+      }
+    },
+    {
+      "package": "@conciv/protocol",
+      "dir": "packages/protocol",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 11,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 294,
+        "total": 344,
+        "pct": 85.46
+      },
+      "statements": {
+        "covered": 318,
+        "total": 399,
+        "pct": 79.69
+      },
+      "branches": {
+        "covered": 118,
+        "total": 193,
+        "pct": 61.13
+      },
+      "functions": {
+        "covered": 55,
+        "total": 89,
+        "pct": 61.79
+      }
+    },
+    {
+      "package": "@conciv/publish",
+      "dir": "packages/publish",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 24,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 347,
+        "total": 364,
+        "pct": 95.32
+      },
+      "statements": {
+        "covered": 398,
+        "total": 430,
+        "pct": 92.55
+      },
+      "branches": {
+        "covered": 176,
+        "total": 216,
+        "pct": 81.48
+      },
+      "functions": {
+        "covered": 146,
+        "total": 153,
+        "pct": 95.42
+      }
+    },
+    {
+      "package": "@conciv/serve",
+      "dir": "packages/serve",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 19,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 47,
+        "total": 131,
+        "pct": 35.87
+      },
+      "statements": {
+        "covered": 57,
+        "total": 158,
+        "pct": 36.07
+      },
+      "branches": {
+        "covered": 23,
+        "total": 75,
+        "pct": 30.66
+      },
+      "functions": {
+        "covered": 17,
+        "total": 58,
+        "pct": 29.31
+      }
+    },
+    {
+      "package": "@conciv/skills",
+      "dir": "packages/skills",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 26,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 139,
+        "total": 147,
+        "pct": 94.55
+      },
+      "statements": {
+        "covered": 168,
+        "total": 184,
+        "pct": 91.3
+      },
+      "branches": {
+        "covered": 63,
+        "total": 84,
+        "pct": 75
+      },
+      "functions": {
+        "covered": 62,
+        "total": 66,
+        "pct": 93.93
+      }
+    },
+    {
+      "package": "@conciv/solid-diffs",
+      "dir": "packages/solid-diffs",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 15,
+      "dirtyAfter": "",
+      "noCoverage": true
+    },
+    {
+      "package": "@conciv/solid-streamdown",
+      "dir": "packages/solid-streamdown",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 17,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 273,
+        "total": 352,
+        "pct": 77.55
+      },
+      "statements": {
+        "covered": 344,
+        "total": 465,
+        "pct": 73.97
+      },
+      "branches": {
+        "covered": 237,
+        "total": 348,
+        "pct": 68.1
+      },
+      "functions": {
+        "covered": 129,
+        "total": 145,
+        "pct": 88.96
+      }
+    },
+    {
+      "package": "@conciv/storage-history",
+      "dir": "packages/storage-history",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 9,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 50,
+        "total": 56,
+        "pct": 89.28
+      },
+      "statements": {
+        "covered": 56,
+        "total": 63,
+        "pct": 88.88
+      },
+      "branches": {
+        "covered": 36,
+        "total": 38,
+        "pct": 94.73
+      },
+      "functions": {
+        "covered": 17,
+        "total": 21,
+        "pct": 80.95
+      }
+    },
+    {
+      "package": "@conciv/tools",
+      "dir": "packages/tools",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 9,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 8,
+        "total": 8,
+        "pct": 100
+      },
+      "statements": {
+        "covered": 9,
+        "total": 10,
+        "pct": 90
+      },
+      "branches": {
+        "covered": 1,
+        "total": 2,
+        "pct": 50
+      },
+      "functions": {
+        "covered": 5,
+        "total": 5,
+        "pct": 100
+      }
+    },
+    {
+      "package": "@conciv/try",
+      "dir": "packages/try",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 19,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 59,
+        "total": 91,
+        "pct": 64.83
+      },
+      "statements": {
+        "covered": 69,
+        "total": 107,
+        "pct": 64.48
+      },
+      "branches": {
+        "covered": 48,
+        "total": 64,
+        "pct": 75
+      },
+      "functions": {
+        "covered": 14,
+        "total": 27,
+        "pct": 51.85
+      }
+    },
+    {
+      "package": "@conciv/ui-kit-system",
+      "dir": "packages/ui-kit-system",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 36,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 966,
+        "total": 1548,
+        "pct": 62.4
+      },
+      "statements": {
+        "covered": 1161,
+        "total": 1942,
+        "pct": 59.78
+      },
+      "branches": {
+        "covered": 314,
+        "total": 788,
+        "pct": 39.84
+      },
+      "functions": {
+        "covered": 501,
+        "total": 762,
+        "pct": 65.74
+      }
+    },
+    {
+      "package": "@conciv/ui-kit-tap",
+      "dir": "packages/ui-kit-tap",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 20,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 306,
+        "total": 394,
+        "pct": 77.66
+      },
+      "statements": {
+        "covered": 372,
+        "total": 515,
+        "pct": 72.23
+      },
+      "branches": {
+        "covered": 143,
+        "total": 245,
+        "pct": 58.36
+      },
+      "functions": {
+        "covered": 146,
+        "total": 195,
+        "pct": 74.87
+      }
+    },
+    {
+      "package": "@conciv/ui-kit-terminal",
+      "dir": "packages/ui-kit-terminal",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 16,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 181,
+        "total": 190,
+        "pct": 95.26
+      },
+      "statements": {
+        "covered": 221,
+        "total": 243,
+        "pct": 90.94
+      },
+      "branches": {
+        "covered": 75,
+        "total": 93,
+        "pct": 80.64
+      },
+      "functions": {
+        "covered": 67,
+        "total": 74,
+        "pct": 90.54
+      }
+    },
+    {
+      "package": "@conciv/uno-preset",
+      "dir": "packages/uno-preset",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 18,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 23,
+        "total": 35,
+        "pct": 65.71
+      },
+      "statements": {
+        "covered": 23,
+        "total": 36,
+        "pct": 63.88
+      },
+      "branches": {
+        "covered": 0,
+        "total": 0,
+        "pct": 100
+      },
+      "functions": {
+        "covered": 3,
+        "total": 15,
+        "pct": 20
+      }
+    },
+    {
+      "package": "@conciv/unplugin",
+      "dir": "packages/unplugin",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 330,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 399,
+        "total": 458,
+        "pct": 87.11
+      },
+      "statements": {
+        "covered": 457,
+        "total": 554,
+        "pct": 82.49
+      },
+      "branches": {
+        "covered": 243,
+        "total": 341,
+        "pct": 71.26
+      },
+      "functions": {
+        "covered": 132,
+        "total": 165,
+        "pct": 80
+      }
+    },
+    {
+      "package": "@conciv/vitest-config",
+      "dir": "packages/vitest-config",
+      "buildExit": 0,
+      "testExit": 0,
+      "seconds": 20,
+      "dirtyAfter": "",
+      "lines": {
+        "covered": 295,
+        "total": 401,
+        "pct": 73.56
+      },
+      "statements": {
+        "covered": 364,
+        "total": 500,
+        "pct": 72.8
+      },
+      "branches": {
+        "covered": 179,
+        "total": 309,
+        "pct": 57.92
+      },
+      "functions": {
+        "covered": 159,
+        "total": 187,
+        "pct": 85.02
+      }
+    }
+  ],
+  "total": {
+    "lines": {
+      "covered": 19186,
+      "total": 24673,
+      "pct": 77.76
+    },
+    "statements": {
+      "covered": 22437,
+      "total": 30157,
+      "pct": 74.4
+    },
+    "branches": {
+      "covered": 9207,
+      "total": 14505,
+      "pct": 63.47
+    },
+    "functions": {
+      "covered": 7072,
+      "total": 9981,
+      "pct": 70.85
+    }
+  }
+}

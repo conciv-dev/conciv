@@ -1,0 +1,2851 @@
+{
+  "run": 44537686715,
+  "commit": "58b649460",
+  "notes": [
+    "tests/pass/fail/skip from CI shard reports (vitest JSON reporter via conciv-ci-shards). Vitest skip and todo are merged into one \"skipped\" status by summary.ts, so skippedOrTodo is one number.",
+    "flaky is 0 everywhere: vitest reports have no retry info; Playwright reported no flaky cases.",
+    "durationMs per package = wall time from first file start to last file end (summary.ts wallTime), summed across vitest projects of the package.",
+    "testFilesRun = files seen in the vitest per-file lines of the 8 shard logs (a file run in two browser projects counts once).",
+    "lineCoverage is null for packages whose run failed (coverage not written) or that disable coverage (browser-only projects)."
+  ],
+  "vitest": {
+    "packages": [
+      {
+        "package": "@conciv/ai",
+        "shards": ["shard-7"],
+        "testFilesRun": 1,
+        "tests": 142,
+        "passed": 47,
+        "failed": 0,
+        "skippedOrTodo": 95,
+        "flaky": 0,
+        "durationMs": 32599,
+        "lineCoverage": {
+          "covered": 708,
+          "total": 1016,
+          "pct": 69.7
+        }
+      },
+      {
+        "package": "@conciv/app",
+        "shards": ["shard-1"],
+        "testFilesRun": 18,
+        "tests": 572,
+        "passed": 546,
+        "failed": 26,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 1106654,
+        "lineCoverage": null
+      },
+      {
+        "package": "@conciv/brand",
+        "shards": ["shard-3"],
+        "testFilesRun": 1,
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 4453,
+        "lineCoverage": {
+          "covered": 71,
+          "total": 75,
+          "pct": 94.7
+        }
+      },
+      {
+        "package": "@conciv/brand-react",
+        "shards": ["shard-7"],
+        "testFilesRun": 1,
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 4601,
+        "lineCoverage": {
+          "covered": 59,
+          "total": 62,
+          "pct": 95.2
+        }
+      },
+      {
+        "package": "@conciv/builtin-plugins",
+        "shards": ["shard-6"],
+        "testFilesRun": 1,
+        "tests": 114,
+        "passed": 114,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 32232,
+        "lineCoverage": {
+          "covered": 1985,
+          "total": 2276,
+          "pct": 87.2
+        }
+      },
+      {
+        "package": "@conciv/bundle-size",
+        "shards": ["shard-3"],
+        "testFilesRun": 1,
+        "tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 26,
+        "lineCoverage": {
+          "covered": 92,
+          "total": 103,
+          "pct": 89.3
+        }
+      },
+      {
+        "package": "@conciv/chat",
+        "shards": ["shard-6"],
+        "testFilesRun": 1,
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 3245,
+        "lineCoverage": {
+          "covered": 486,
+          "total": 667,
+          "pct": 72.9
+        }
+      },
+      {
+        "package": "@conciv/cli",
+        "shards": ["shard-3"],
+        "testFilesRun": 1,
+        "tests": 362,
+        "passed": 353,
+        "failed": 9,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 76771,
+        "lineCoverage": null
+      },
+      {
+        "package": "@conciv/client",
+        "shards": ["shard-5"],
+        "testFilesRun": 1,
+        "tests": 31,
+        "passed": 31,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 19723,
+        "lineCoverage": {
+          "covered": 175,
+          "total": 220,
+          "pct": 79.5
+        }
+      },
+      {
+        "package": "@conciv/contract",
+        "shards": ["shard-3"],
+        "testFilesRun": 1,
+        "tests": 28,
+        "passed": 28,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 6803,
+        "lineCoverage": {
+          "covered": 319,
+          "total": 453,
+          "pct": 70.4
+        }
+      },
+      {
+        "package": "@conciv/core",
+        "shards": ["shard-4"],
+        "testFilesRun": 4,
+        "tests": 364,
+        "passed": 346,
+        "failed": 14,
+        "skippedOrTodo": 4,
+        "flaky": 0,
+        "durationMs": 80500,
+        "lineCoverage": null
+      },
+      {
+        "package": "@conciv/db",
+        "shards": ["shard-3"],
+        "testFilesRun": 1,
+        "tests": 30,
+        "passed": 29,
+        "failed": 1,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 7239,
+        "lineCoverage": null
+      },
+      {
+        "package": "@conciv/embed",
+        "shards": ["shard-6"],
+        "testFilesRun": 1,
+        "tests": 87,
+        "passed": 87,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 342254,
+        "lineCoverage": null
+      },
+      {
+        "package": "@conciv/grab",
+        "shards": ["shard-5"],
+        "testFilesRun": 1,
+        "tests": 15,
+        "passed": 15,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 220,
+        "lineCoverage": {
+          "covered": 44,
+          "total": 47,
+          "pct": 93.6
+        }
+      },
+      {
+        "package": "@conciv/harness",
+        "shards": ["shard-7"],
+        "testFilesRun": 1,
+        "tests": 192,
+        "passed": 192,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 8430,
+        "lineCoverage": {
+          "covered": 1090,
+          "total": 1145,
+          "pct": 95.2
+        }
+      },
+      {
+        "package": "@conciv/harness-init",
+        "shards": ["shard-5"],
+        "testFilesRun": 1,
+        "tests": 29,
+        "passed": 29,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 3395,
+        "lineCoverage": {
+          "covered": 75,
+          "total": 80,
+          "pct": 93.8
+        }
+      },
+      {
+        "package": "@conciv/harness-testkit",
+        "shards": ["shard-8"],
+        "testFilesRun": 1,
+        "tests": 54,
+        "passed": 54,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 3410,
+        "lineCoverage": {
+          "covered": 339,
+          "total": 552,
+          "pct": 61.4
+        }
+      },
+      {
+        "package": "@conciv/it",
+        "shards": ["shard-5"],
+        "testFilesRun": 1,
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 2026,
+        "lineCoverage": {
+          "covered": 2,
+          "total": 4,
+          "pct": 50.0
+        }
+      },
+      {
+        "package": "@conciv/mascot",
+        "shards": ["shard-6"],
+        "testFilesRun": 2,
+        "tests": 102,
+        "passed": 102,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 78461,
+        "lineCoverage": {
+          "covered": 1827,
+          "total": 2865,
+          "pct": 63.8
+        }
+      },
+      {
+        "package": "@conciv/mascot-react",
+        "shards": ["shard-5"],
+        "testFilesRun": 2,
+        "tests": 26,
+        "passed": 25,
+        "failed": 0,
+        "skippedOrTodo": 1,
+        "flaky": 0,
+        "durationMs": 3671,
+        "lineCoverage": {
+          "covered": 176,
+          "total": 176,
+          "pct": 100.0
+        }
+      },
+      {
+        "package": "@conciv/oxlint-plugin",
+        "shards": ["shard-8"],
+        "testFilesRun": 1,
+        "tests": 81,
+        "passed": 81,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 39297,
+        "lineCoverage": {
+          "covered": 32,
+          "total": 34,
+          "pct": 94.1
+        }
+      },
+      {
+        "package": "@conciv/page",
+        "shards": ["shard-3"],
+        "testFilesRun": 1,
+        "tests": 58,
+        "passed": 58,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 2466,
+        "lineCoverage": {
+          "covered": 625,
+          "total": 735,
+          "pct": 85.0
+        }
+      },
+      {
+        "package": "@conciv/plugin",
+        "shards": ["shard-7"],
+        "testFilesRun": 3,
+        "tests": 88,
+        "passed": 88,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 13116,
+        "lineCoverage": {
+          "covered": 492,
+          "total": 608,
+          "pct": 80.9
+        }
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "shards": ["shard-8"],
+        "testFilesRun": 39,
+        "tests": 427,
+        "passed": 424,
+        "failed": 0,
+        "skippedOrTodo": 3,
+        "flaky": 0,
+        "durationMs": 54746,
+        "lineCoverage": {
+          "covered": 3612,
+          "total": 4152,
+          "pct": 87.0
+        }
+      },
+      {
+        "package": "@conciv/plugin-ios",
+        "shards": ["shard-4"],
+        "testFilesRun": 1,
+        "tests": 160,
+        "passed": 160,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 2161,
+        "lineCoverage": {
+          "covered": 429,
+          "total": 664,
+          "pct": 64.6
+        }
+      },
+      {
+        "package": "@conciv/plugin-page",
+        "shards": ["shard-7"],
+        "testFilesRun": 1,
+        "tests": 82,
+        "passed": 82,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 2171,
+        "lineCoverage": {
+          "covered": 443,
+          "total": 475,
+          "pct": 93.3
+        }
+      },
+      {
+        "package": "@conciv/plugin-recorder",
+        "shards": ["shard-7"],
+        "testFilesRun": 2,
+        "tests": 46,
+        "passed": 46,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 64200,
+        "lineCoverage": {
+          "covered": 950,
+          "total": 1236,
+          "pct": 76.9
+        }
+      },
+      {
+        "package": "@conciv/plugin-tanstack",
+        "shards": ["shard-6"],
+        "testFilesRun": 2,
+        "tests": 10,
+        "passed": 9,
+        "failed": 0,
+        "skippedOrTodo": 1,
+        "flaky": 0,
+        "durationMs": 42916,
+        "lineCoverage": {
+          "covered": 231,
+          "total": 387,
+          "pct": 59.7
+        }
+      },
+      {
+        "package": "@conciv/plugin-test-runner",
+        "shards": ["shard-5"],
+        "testFilesRun": 2,
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 35069,
+        "lineCoverage": {
+          "covered": 297,
+          "total": 382,
+          "pct": 77.7
+        }
+      },
+      {
+        "package": "@conciv/plugin-testkit",
+        "shards": ["shard-6"],
+        "testFilesRun": 1,
+        "tests": 14,
+        "passed": 14,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 4638,
+        "lineCoverage": {
+          "covered": 260,
+          "total": 325,
+          "pct": 80.0
+        }
+      },
+      {
+        "package": "@conciv/plugin-try-it",
+        "shards": ["shard-3"],
+        "testFilesRun": 2,
+        "tests": 20,
+        "passed": 20,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 11846,
+        "lineCoverage": {
+          "covered": 67,
+          "total": 69,
+          "pct": 97.1
+        }
+      },
+      {
+        "package": "@conciv/plugin-whiteboard",
+        "shards": ["shard-5"],
+        "testFilesRun": 2,
+        "tests": 22,
+        "passed": 22,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 108814,
+        "lineCoverage": {
+          "covered": 968,
+          "total": 1347,
+          "pct": 71.9
+        }
+      },
+      {
+        "package": "@conciv/preact",
+        "shards": ["shard-4"],
+        "testFilesRun": 1,
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 4504,
+        "lineCoverage": null
+      },
+      {
+        "package": "@conciv/protocol",
+        "shards": ["shard-8"],
+        "testFilesRun": 1,
+        "tests": 55,
+        "passed": 55,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 234,
+        "lineCoverage": {
+          "covered": 294,
+          "total": 344,
+          "pct": 85.5
+        }
+      },
+      {
+        "package": "@conciv/publish",
+        "shards": ["shard-4"],
+        "testFilesRun": 1,
+        "tests": 64,
+        "passed": 64,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 6059,
+        "lineCoverage": {
+          "covered": 347,
+          "total": 364,
+          "pct": 95.3
+        }
+      },
+      {
+        "package": "@conciv/react",
+        "shards": ["shard-4"],
+        "testFilesRun": 1,
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 4489,
+        "lineCoverage": null
+      },
+      {
+        "package": "@conciv/serve",
+        "shards": ["shard-4"],
+        "testFilesRun": 1,
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 775,
+        "lineCoverage": {
+          "covered": 47,
+          "total": 131,
+          "pct": 35.9
+        }
+      },
+      {
+        "package": "@conciv/skills",
+        "shards": ["shard-7"],
+        "testFilesRun": 1,
+        "tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 154,
+        "lineCoverage": {
+          "covered": 139,
+          "total": 147,
+          "pct": 94.6
+        }
+      },
+      {
+        "package": "@conciv/solid",
+        "shards": ["shard-6"],
+        "testFilesRun": 1,
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 7315,
+        "lineCoverage": null
+      },
+      {
+        "package": "@conciv/solid-streamdown",
+        "shards": ["shard-5"],
+        "testFilesRun": 1,
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 4325,
+        "lineCoverage": {
+          "covered": 273,
+          "total": 352,
+          "pct": 77.6
+        }
+      },
+      {
+        "package": "@conciv/storage-history",
+        "shards": ["shard-3"],
+        "testFilesRun": 1,
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 34,
+        "lineCoverage": {
+          "covered": 50,
+          "total": 56,
+          "pct": 89.3
+        }
+      },
+      {
+        "package": "@conciv/tools",
+        "shards": ["shard-6"],
+        "testFilesRun": 1,
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 12,
+        "lineCoverage": {
+          "covered": 8,
+          "total": 8,
+          "pct": 100.0
+        }
+      },
+      {
+        "package": "@conciv/try",
+        "shards": ["shard-6"],
+        "testFilesRun": 1,
+        "tests": 19,
+        "passed": 18,
+        "failed": 0,
+        "skippedOrTodo": 1,
+        "flaky": 0,
+        "durationMs": 1896,
+        "lineCoverage": {
+          "covered": 58,
+          "total": 91,
+          "pct": 63.7
+        }
+      },
+      {
+        "package": "@conciv/ui-kit-chat",
+        "shards": ["shard-8"],
+        "testFilesRun": 5,
+        "tests": 222,
+        "passed": 220,
+        "failed": 2,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 113830,
+        "lineCoverage": null
+      },
+      {
+        "package": "@conciv/ui-kit-chat-tools",
+        "shards": ["shard-8"],
+        "testFilesRun": 1,
+        "tests": 42,
+        "passed": 41,
+        "failed": 1,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 33022,
+        "lineCoverage": null
+      },
+      {
+        "package": "@conciv/ui-kit-system",
+        "shards": ["shard-4"],
+        "testFilesRun": 2,
+        "tests": 272,
+        "passed": 272,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 30083,
+        "lineCoverage": {
+          "covered": 966,
+          "total": 1548,
+          "pct": 62.4
+        }
+      },
+      {
+        "package": "@conciv/ui-kit-tap",
+        "shards": ["shard-8"],
+        "testFilesRun": 2,
+        "tests": 16,
+        "passed": 16,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 12669,
+        "lineCoverage": {
+          "covered": 306,
+          "total": 394,
+          "pct": 77.7
+        }
+      },
+      {
+        "package": "@conciv/ui-kit-terminal",
+        "shards": ["shard-4"],
+        "testFilesRun": 1,
+        "tests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 2064,
+        "lineCoverage": {
+          "covered": 181,
+          "total": 190,
+          "pct": 95.3
+        }
+      },
+      {
+        "package": "@conciv/uno-preset",
+        "shards": ["shard-3"],
+        "testFilesRun": 1,
+        "tests": 238,
+        "passed": 238,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 376,
+        "lineCoverage": {
+          "covered": 23,
+          "total": 35,
+          "pct": 65.7
+        }
+      },
+      {
+        "package": "@conciv/unplugin",
+        "shards": ["shard-2"],
+        "testFilesRun": 1,
+        "tests": 103,
+        "passed": 103,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 352157,
+        "lineCoverage": {
+          "covered": 399,
+          "total": 458,
+          "pct": 87.1
+        }
+      },
+      {
+        "package": "@conciv/vitest-config",
+        "shards": ["shard-7"],
+        "testFilesRun": 1,
+        "tests": 49,
+        "passed": 49,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 885,
+        "lineCoverage": {
+          "covered": 295,
+          "total": 401,
+          "pct": 73.6
+        }
+      },
+      {
+        "package": "site",
+        "shards": ["shard-7"],
+        "testFilesRun": 1,
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skippedOrTodo": 0,
+        "flaky": 0,
+        "durationMs": 11,
+        "lineCoverage": {
+          "covered": 17,
+          "total": 22,
+          "pct": 77.3
+        }
+      }
+    ],
+    "total": {
+      "testFilesRun": 125,
+      "tests": 4372,
+      "passed": 4214,
+      "failed": 53,
+      "skippedOrTodo": 105,
+      "flaky": 0,
+      "durationMs": 2773047,
+      "lineCoverage": {
+        "covered": 19257,
+        "total": 24696,
+        "pct": 78.0
+      },
+      "packagesWithoutCoverage": [
+        "@conciv/app",
+        "@conciv/cli",
+        "@conciv/core",
+        "@conciv/db",
+        "@conciv/embed",
+        "@conciv/preact",
+        "@conciv/react",
+        "@conciv/solid",
+        "@conciv/ui-kit-chat",
+        "@conciv/ui-kit-chat-tools"
+      ]
+    },
+    "slowestTests": [
+      {
+        "package": "@conciv/app",
+        "test": "a fixture plugin driven like a user a plugin that throws from its panel focus, its panel list or its reactive slot loses only that contribution, shows the failure in Settings, and the chat and the other plugin keep working",
+        "status": "failed",
+        "durationMs": 90269
+      },
+      {
+        "package": "@conciv/app",
+        "test": "settings page a journey through every settings tab that saves, applies, survives a reload and resets",
+        "status": "failed",
+        "durationMs": 60077
+      },
+      {
+        "package": "@conciv/app",
+        "test": "a fixture plugin driven like a user a page overlay that hides the chat takes the chat out of reach by role and by Tab, and closing it brings the composer back",
+        "status": "failed",
+        "durationMs": 45220
+      },
+      {
+        "package": "@conciv/plugin-whiteboard",
+        "test": "the whiteboard canvas of the whiteboard plugin opens from its composer pill, draws with the keyboard and the pointer at its real size, drags one shape the full distance in few writes and a selected group in bulk writes, closes on Escape and still takes what the agent draws, reopens with the drawing kept, keeps its main menu open while the canvas background is picked and closes it on a canvas click, converts what the agent draws, commits it, exports a PNG, caps a dense svg and skips a broken node, a second tab catches up after a reconnect, the canvas outlives a minimized chat and a failed load tells the user",
+        "status": "passed",
+        "durationMs": 37693
+      },
+      {
+        "package": "@conciv/plugin-whiteboard",
+        "test": "the whiteboard comment tools raises each failure to the caller with its message",
+        "status": "passed",
+        "durationMs": 33525
+      },
+      {
+        "package": "@conciv/ui-kit-chat-tools",
+        "test": "tool row projections projects a Write call as a write row and an Edit call as an edit row",
+        "status": "failed",
+        "durationMs": 30517
+      },
+      {
+        "package": "@conciv/ui-kit-chat",
+        "test": "assistant action bar reveal says the copy did not land when the clipboard refuses a keyboard-activated copy",
+        "status": "failed",
+        "durationMs": 30474
+      },
+      {
+        "package": "@conciv/app",
+        "test": "chat history paging scrolling up loads the older page well before the top, and the messages in view stay where they were",
+        "status": "failed",
+        "durationMs": 30228
+      },
+      {
+        "package": "@conciv/app",
+        "test": "chat history paging the replies on screen are kept, not rebuilt, when the page before them lands",
+        "status": "failed",
+        "durationMs": 30027
+      },
+      {
+        "package": "@conciv/core",
+        "test": "engine boot writes .conciv/mcp-endpoint.json releases the port when the endpoint file cannot be written",
+        "status": "failed",
+        "durationMs": 30015
+      },
+      {
+        "package": "@conciv/embed (chromium)",
+        "test": "embed.it.test.ts › forced drop › a queued message survives the chat stream giving up › the queued text is back in the composer, the answered message is not, and Enter sends the queued text once",
+        "status": "passed",
+        "durationMs": 27947
+      },
+      {
+        "package": "@conciv/unplugin",
+        "test": "webpack and rspack a second dev run on another port, on the same persistent cache webpack builds the new port into the page and rebuilds after a save",
+        "status": "passed",
+        "durationMs": 23536
+      },
+      {
+        "package": "@conciv/app",
+        "test": "session selector a user opens, searches, pages, picks by keyboard and by pointer, and the search follows the index",
+        "status": "passed",
+        "durationMs": 20839
+      },
+      {
+        "package": "@conciv/plugin-tanstack",
+        "test": "the tanstack plugin in the page shows its chip as a passive status with a tooltip, attaches to a draft chat once its first send makes it, reads the real location, detects the app and its route tree, reads the loader entry and truncated loader data and re-runs a loader, leaves the query cache alone for an unknown key, navigates and lists the new tab url, refetches and invalidates one exact query, refetches every query a redacted key names or the one its raw key names, redacts secret params, search, hash, query keys and the tab url, reports a reloading loader as fetching, answers a long handler error with its code, reports a thrown page error, still reads the newest of fifty long errors in order and answers a router-less page with a title past the cap and lists the new path of a tab whose router mounted after it attached",
+        "status": "passed",
+        "durationMs": 20768
+      },
+      {
+        "package": "@conciv/unplugin",
+        "test": "webpack and rspack the widget on the page of a development build webpack watching puts the launcher on the page, and the widget unlocks against the engine",
+        "status": "passed",
+        "durationMs": 20657
+      },
+      {
+        "package": "@conciv/app",
+        "test": "terminal panel the toolbar picks the CLI model and keeps it across a reload, starts a new terminal, locks while the CLI is busy, and shows only on the Terminal tab",
+        "status": "passed",
+        "durationMs": 17825
+      },
+      {
+        "package": "@conciv/app",
+        "test": "a fixture plugin driven like a user its tool card body comes back after the thread evicts it, and its store survives a reload and refuses a bad write",
+        "status": "failed",
+        "durationMs": 17234
+      },
+      {
+        "package": "@conciv/app",
+        "test": "a fixture plugin driven like a user its tab shows once trusted, through a revoke, a lost connection and trust dropped before its enable state, and its tab and settings page keep their place through a revoke and a reopen",
+        "status": "failed",
+        "durationMs": 16534
+      },
+      {
+        "package": "@conciv/app",
+        "test": "a fixture plugin driven like a user its engine ref reads the event connection: down while the engine is offline, up again when it returns, and a keyed run attaches again",
+        "status": "failed",
+        "durationMs": 16107
+      },
+      {
+        "package": "@conciv/app",
+        "test": "a fixture plugin driven like a user its panel reads the routed session idle, then running once a turn starts, and its interrupt stops the run and answers whether one was going",
+        "status": "failed",
+        "durationMs": 16022
+      }
+    ],
+    "slowestFiles": [
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "browser (chromium)",
+        "file": "apps/conciv/test/conciv.browser.test.tsx",
+        "tests": 335,
+        "detail": "26 failed",
+        "durationMs": 1084141,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/unplugin",
+        "dir": "packages/unplugin",
+        "project": null,
+        "file": "packages/unplugin/test/plugin.it.test.ts",
+        "tests": 103,
+        "detail": "",
+        "durationMs": 352217,
+        "job": "build + test (shard-2)"
+      },
+      {
+        "package": "@conciv/core",
+        "dir": "packages/core",
+        "project": "node",
+        "file": "packages/core/test/core-api.it.test.ts",
+        "tests": 238,
+        "detail": "11 failed",
+        "durationMs": 78034,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/cli",
+        "dir": "packages/cli",
+        "project": null,
+        "file": "packages/cli/test/cli.test.ts",
+        "tests": 362,
+        "detail": "9 failed",
+        "durationMs": 76869,
+        "job": "build + test (shard-3)"
+      },
+      {
+        "package": "@conciv/core",
+        "dir": "packages/core",
+        "project": "node",
+        "file": "packages/core/test/core.test.ts",
+        "tests": 108,
+        "detail": "3 failed",
+        "durationMs": 71272,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/plugin-whiteboard",
+        "dir": "packages/plugins/whiteboard",
+        "project": "plugin-whiteboard",
+        "file": "packages/plugins/whiteboard/test/whiteboard.browser.test.ts",
+        "tests": 4,
+        "detail": "",
+        "durationMs": 61646,
+        "job": "build + test (shard-5)"
+      },
+      {
+        "package": "@conciv/ui-kit-chat",
+        "dir": "packages/ui-kit-chat",
+        "project": "ui-kit-chat-browser (chromium)",
+        "file": "packages/ui-kit-chat/test/composer.browser.test.tsx",
+        "tests": 60,
+        "detail": "1 failed",
+        "durationMs": 48019,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-whiteboard",
+        "dir": "packages/plugins/whiteboard",
+        "project": "plugin-whiteboard",
+        "file": "packages/plugins/whiteboard/test/whiteboard.test.ts",
+        "tests": 18,
+        "detail": "",
+        "durationMs": 45733,
+        "job": "build + test (shard-5)"
+      },
+      {
+        "package": "@conciv/plugin-recorder",
+        "dir": "packages/plugins/recorder",
+        "project": "plugin-recorder",
+        "file": "packages/plugins/recorder/test/recorder.it.test.ts",
+        "tests": 11,
+        "detail": "",
+        "durationMs": 41979,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "@conciv/oxlint-plugin",
+        "dir": "packages/oxlint-plugin",
+        "project": null,
+        "file": "packages/oxlint-plugin/test/oxlint-plugin.test.ts",
+        "tests": 81,
+        "detail": "",
+        "durationMs": 39362,
+        "job": "build + test (shard-8)"
+      }
+    ],
+    "files": [
+      {
+        "package": "@conciv/protocol",
+        "dir": "packages/protocol",
+        "project": null,
+        "file": "packages/protocol/test/protocol.test.ts",
+        "tests": 55,
+        "detail": "",
+        "durationMs": 247,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/oxlint-plugin",
+        "dir": "packages/oxlint-plugin",
+        "project": null,
+        "file": "packages/oxlint-plugin/test/oxlint-plugin.test.ts",
+        "tests": 81,
+        "detail": "",
+        "durationMs": 39362,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/ui-kit-tap",
+        "dir": "packages/ui-kit-tap",
+        "project": "node",
+        "file": "packages/ui-kit-tap/test/ui-kit-tap.test.ts",
+        "tests": 10,
+        "detail": "",
+        "durationMs": 20,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/ui-kit-tap",
+        "dir": "packages/ui-kit-tap",
+        "project": "browser (chromium)",
+        "file": "packages/ui-kit-tap/test/ui-kit-tap.browser.test.tsx",
+        "tests": 6,
+        "detail": "",
+        "durationMs": 1813,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/harness-testkit",
+        "dir": "packages/harness-testkit",
+        "project": null,
+        "file": "packages/harness-testkit/test/harness-testkit.test.ts",
+        "tests": 54,
+        "detail": "",
+        "durationMs": 3420,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/plugin.test.ts",
+        "tests": 23,
+        "detail": "",
+        "durationMs": 3277,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/bus.test.ts",
+        "tests": 53,
+        "detail": "",
+        "durationMs": 6057,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/tool-registry.test.ts",
+        "tests": 36,
+        "detail": "",
+        "durationMs": 5875,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/state.test.ts",
+        "tests": 29,
+        "detail": "",
+        "durationMs": 244,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/permission.test.ts",
+        "tests": 24,
+        "detail": "",
+        "durationMs": 2330,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/tool-schema.test.ts",
+        "tests": 24,
+        "detail": "",
+        "durationMs": 124,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/plugin/supervisor-reload.test.ts",
+        "tests": 14,
+        "detail": "",
+        "durationMs": 6952,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/instruction-state.test.ts",
+        "tests": 10,
+        "detail": "",
+        "durationMs": 1531,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/npm.test.ts",
+        "tests": 17,
+        "detail": "",
+        "durationMs": 8586,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/codemode/catalog.test.ts",
+        "tests": 24,
+        "detail": "",
+        "durationMs": 122,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/filesystem/watcher.test.ts",
+        "tests": 12,
+        "detail": "3 skipped",
+        "durationMs": 1221,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/plugin-failure.test.ts",
+        "tests": 11,
+        "detail": "",
+        "durationMs": 1752,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/config/skill.test.ts",
+        "tests": 8,
+        "detail": "",
+        "durationMs": 2205,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/plugin/module.test.ts",
+        "tests": 8,
+        "detail": "",
+        "durationMs": 1854,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/codemode/codemode.test.ts",
+        "tests": 15,
+        "detail": "",
+        "durationMs": 293,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/tool-server.test.ts",
+        "tests": 3,
+        "detail": "",
+        "durationMs": 1210,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/util/effect-flock.test.ts",
+        "tests": 13,
+        "detail": "",
+        "durationMs": 9204,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/plugin/supervisor.test.ts",
+        "tests": 11,
+        "detail": "",
+        "durationMs": 3248,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/instructions/index.test.ts",
+        "tests": 14,
+        "detail": "",
+        "durationMs": 80,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/config-plugin-source.test.ts",
+        "tests": 3,
+        "detail": "",
+        "durationMs": 1734,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/database-drizzle.test.ts",
+        "tests": 10,
+        "detail": "",
+        "durationMs": 123,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/state-replay.test.ts",
+        "tests": 2,
+        "detail": "",
+        "durationMs": 2932,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/util/flock.test.ts",
+        "tests": 10,
+        "detail": "",
+        "durationMs": 5203,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/bus-session-routing.test.ts",
+        "tests": 2,
+        "detail": "",
+        "durationMs": 398,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/tool-skill.test.ts",
+        "tests": 1,
+        "detail": "",
+        "durationMs": 265,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/skill.test.ts",
+        "tests": 7,
+        "detail": "",
+        "durationMs": 1049,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/state-group.test.ts",
+        "tests": 4,
+        "detail": "",
+        "durationMs": 57,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/tool-execute.test.ts",
+        "tests": 3,
+        "detail": "",
+        "durationMs": 35,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/kv.test.ts",
+        "tests": 4,
+        "detail": "",
+        "durationMs": 1114,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/rpc-handler-errors.test.ts",
+        "tests": 6,
+        "detail": "",
+        "durationMs": 661,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/codemode/instructions.test.ts",
+        "tests": 2,
+        "detail": "",
+        "durationMs": 89,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/effect/keyed-mutex.test.ts",
+        "tests": 3,
+        "detail": "",
+        "durationMs": 27,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/npm-config.test.ts",
+        "tests": 5,
+        "detail": "",
+        "durationMs": 88,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/database.test.ts",
+        "tests": 3,
+        "detail": "",
+        "durationMs": 277,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/plugin/skill.test.ts",
+        "tests": 2,
+        "detail": "",
+        "durationMs": 302,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/util/fs-util.test.ts",
+        "tests": 3,
+        "detail": "",
+        "durationMs": 37,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/bus-unpersisted.test.ts",
+        "tests": 1,
+        "detail": "",
+        "durationMs": 273,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/core/config/markdown.test.ts",
+        "tests": 5,
+        "detail": "",
+        "durationMs": 31,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/plugin-host",
+        "dir": "packages/plugin-host",
+        "project": null,
+        "file": "packages/plugin-host/test/util/global.test.ts",
+        "tests": 2,
+        "detail": "",
+        "durationMs": 68,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/ui-kit-chat-tools",
+        "dir": "packages/ui-kit-chat-tools",
+        "project": "ui-kit-chat-tools-browser (chromium)",
+        "file": "packages/ui-kit-chat-tools/test/ui-kit-chat-tools.browser.test.tsx",
+        "tests": 42,
+        "detail": "1 failed",
+        "durationMs": 33025,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/ui-kit-chat",
+        "dir": "packages/ui-kit-chat",
+        "project": "ui-kit-chat",
+        "file": "packages/ui-kit-chat/test/ui-kit-chat.test.ts",
+        "tests": 44,
+        "detail": "",
+        "durationMs": 178,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/ui-kit-chat",
+        "dir": "packages/ui-kit-chat",
+        "project": "ui-kit-chat-browser (chromium)",
+        "file": "packages/ui-kit-chat/test/composer.browser.test.tsx",
+        "tests": 60,
+        "detail": "1 failed",
+        "durationMs": 48019,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/ui-kit-chat",
+        "dir": "packages/ui-kit-chat",
+        "project": "ui-kit-chat-browser (chromium)",
+        "file": "packages/ui-kit-chat/test/thread.browser.test.tsx",
+        "tests": 56,
+        "detail": "",
+        "durationMs": 7756,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/ui-kit-chat",
+        "dir": "packages/ui-kit-chat",
+        "project": "ui-kit-chat-browser (chromium)",
+        "file": "packages/ui-kit-chat/test/cards.browser.test.tsx",
+        "tests": 51,
+        "detail": "1 failed",
+        "durationMs": 5080,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/ui-kit-chat",
+        "dir": "packages/ui-kit-chat",
+        "project": "ui-kit-chat-browser (chromium)",
+        "file": "packages/ui-kit-chat/test/markdown.browser.test.tsx",
+        "tests": 11,
+        "detail": "",
+        "durationMs": 5078,
+        "job": "build + test (shard-8)"
+      },
+      {
+        "package": "@conciv/vitest-config",
+        "dir": "packages/vitest-config",
+        "project": null,
+        "file": "packages/vitest-config/test/vitest-config.test.ts",
+        "tests": 49,
+        "detail": "",
+        "durationMs": 892,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "@conciv/skills",
+        "dir": "packages/skills",
+        "project": null,
+        "file": "packages/skills/test/check-references.test.ts",
+        "tests": 12,
+        "detail": "",
+        "durationMs": 156,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "@conciv/solid-diffs",
+        "dir": "packages/solid-diffs",
+        "project": "solid-diffs",
+        "file": "packages/solid-diffs/test/solid-diffs.test.ts",
+        "tests": 4,
+        "detail": "",
+        "durationMs": 756,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "@conciv/brand-react",
+        "dir": "packages/brand-react",
+        "project": "brand-react-browser (chromium)",
+        "file": "packages/brand-react/test/browser/react-lockup.browser.test.tsx",
+        "tests": 4,
+        "detail": "",
+        "durationMs": 4605,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "@conciv/plugin-page",
+        "dir": "packages/plugin-page",
+        "project": null,
+        "file": "packages/plugin-page/test/plugin-page.test.ts",
+        "tests": 82,
+        "detail": "",
+        "durationMs": 2182,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "@conciv/plugin",
+        "dir": "packages/plugin",
+        "project": "node",
+        "file": "packages/plugin/test/plugin.test.ts",
+        "tests": 63,
+        "detail": "",
+        "durationMs": 400,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "@conciv/plugin",
+        "dir": "packages/plugin",
+        "project": "node",
+        "file": "packages/plugin/test/client/shared-events.test.ts",
+        "tests": 19,
+        "detail": "",
+        "durationMs": 7113,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "@conciv/plugin",
+        "dir": "packages/plugin",
+        "project": "browser (chromium)",
+        "file": "packages/plugin/test/plugin.browser.test.tsx",
+        "tests": 6,
+        "detail": "",
+        "durationMs": 675,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "@conciv/harness",
+        "dir": "packages/harness",
+        "project": null,
+        "file": "packages/harness/test/harness.test.ts",
+        "tests": 192,
+        "detail": "",
+        "durationMs": 8437,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "@conciv/ai",
+        "dir": "packages/ai",
+        "project": null,
+        "file": "packages/ai/test/ai.test.ts",
+        "tests": 142,
+        "detail": "95 skipped",
+        "durationMs": 32606,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "site",
+        "dir": "apps/site",
+        "project": null,
+        "file": "apps/site/test/site.test.ts",
+        "tests": 7,
+        "detail": "",
+        "durationMs": 15,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "@conciv/plugin-recorder",
+        "dir": "packages/plugins/recorder",
+        "project": "plugin-recorder",
+        "file": "packages/plugins/recorder/test/recorder.test.ts",
+        "tests": 35,
+        "detail": "",
+        "durationMs": 20864,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "@conciv/plugin-recorder",
+        "dir": "packages/plugins/recorder",
+        "project": "plugin-recorder",
+        "file": "packages/plugins/recorder/test/recorder.it.test.ts",
+        "tests": 11,
+        "detail": "",
+        "durationMs": 41979,
+        "job": "build + test (shard-7)"
+      },
+      {
+        "package": "@conciv/unplugin",
+        "dir": "packages/unplugin",
+        "project": null,
+        "file": "packages/unplugin/test/plugin.it.test.ts",
+        "tests": 103,
+        "detail": "",
+        "durationMs": 352217,
+        "job": "build + test (shard-2)"
+      },
+      {
+        "package": "@conciv/publish",
+        "dir": "packages/publish",
+        "project": null,
+        "file": "packages/publish/test/publish.test.ts",
+        "tests": 64,
+        "detail": "",
+        "durationMs": 6072,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/ui-kit-terminal",
+        "dir": "packages/ui-kit-terminal",
+        "project": "ui-kit-terminal (chromium)",
+        "file": "packages/ui-kit-terminal/test/terminal.test.tsx",
+        "tests": 19,
+        "detail": "",
+        "durationMs": 2070,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/serve",
+        "dir": "packages/serve",
+        "project": null,
+        "file": "packages/serve/test/teardown.it.test.ts",
+        "tests": 9,
+        "detail": "",
+        "durationMs": 776,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/ui-kit-system",
+        "dir": "packages/ui-kit-system",
+        "project": "node",
+        "file": "packages/ui-kit-system/test/ui-kit-system.node.test.ts",
+        "tests": 105,
+        "detail": "",
+        "durationMs": 19,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/ui-kit-system",
+        "dir": "packages/ui-kit-system",
+        "project": "browser (chromium)",
+        "file": "packages/ui-kit-system/test/ui-kit-system.browser.test.tsx",
+        "tests": 167,
+        "detail": "",
+        "durationMs": 22850,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/plugin-ios",
+        "dir": "packages/plugins/ios",
+        "project": "plugin-ios",
+        "file": "packages/plugins/ios/test/ios.test.ts",
+        "tests": 160,
+        "detail": "",
+        "durationMs": 2174,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/react",
+        "dir": "packages/react",
+        "project": null,
+        "file": "packages/react/test/widget.it.test.ts",
+        "tests": 3,
+        "detail": "",
+        "durationMs": 4567,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/preact",
+        "dir": "packages/preact",
+        "project": null,
+        "file": "packages/preact/test/widget.it.test.ts",
+        "tests": 3,
+        "detail": "",
+        "durationMs": 4591,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/core",
+        "dir": "packages/core",
+        "project": "node",
+        "file": "packages/core/test/event-feed.test.ts",
+        "tests": 7,
+        "detail": "",
+        "durationMs": 32,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/core",
+        "dir": "packages/core",
+        "project": "node-real-harness",
+        "file": "packages/core/test/core-chat.it.test.ts",
+        "tests": 11,
+        "detail": "4 skipped",
+        "durationMs": 3074,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/core",
+        "dir": "packages/core",
+        "project": "node",
+        "file": "packages/core/test/core.test.ts",
+        "tests": 108,
+        "detail": "3 failed",
+        "durationMs": 71272,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/core",
+        "dir": "packages/core",
+        "project": "node",
+        "file": "packages/core/test/core-api.it.test.ts",
+        "tests": 238,
+        "detail": "11 failed",
+        "durationMs": 78034,
+        "job": "build + test (shard-4)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/plugin/dialog-stack-machine.test.ts",
+        "tests": 38,
+        "detail": "",
+        "durationMs": 23,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/plugin/instance-machine.test.ts",
+        "tests": 19,
+        "detail": "",
+        "durationMs": 40,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/persistence/persist-machine.test.ts",
+        "tests": 16,
+        "detail": "",
+        "durationMs": 22,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/plugin/machine.test.ts",
+        "tests": 13,
+        "detail": "",
+        "durationMs": 18,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/persistence/schema.test.ts",
+        "tests": 14,
+        "detail": "",
+        "durationMs": 47,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/plugin/plugin-experimental-machine.test.ts",
+        "tests": 10,
+        "detail": "",
+        "durationMs": 15,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/plugin/host-machine.test.ts",
+        "tests": 6,
+        "detail": "",
+        "durationMs": 10,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/plugin/attach-machine.test.ts",
+        "tests": 8,
+        "detail": "",
+        "durationMs": 20,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/plugin/composer-write-machine.test.ts",
+        "tests": 7,
+        "detail": "",
+        "durationMs": 12,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/plugin/link-check-machine.test.ts",
+        "tests": 5,
+        "detail": "",
+        "durationMs": 11,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/plugin/located-machine.test.ts",
+        "tests": 6,
+        "detail": "",
+        "durationMs": 25,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/plugin/session-store-machine.test.ts",
+        "tests": 5,
+        "detail": "",
+        "durationMs": 8,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/plugin/store-machine.test.ts",
+        "tests": 3,
+        "detail": "",
+        "durationMs": 9,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/plugin/dialog-machine.test.ts",
+        "tests": 5,
+        "detail": "",
+        "durationMs": 9,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/src/runtime/plugin/abort.test.ts",
+        "tests": 1,
+        "detail": "",
+        "durationMs": 9,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "unit",
+        "file": "apps/conciv/test/conciv.test.ts",
+        "tests": 70,
+        "detail": "",
+        "durationMs": 1364,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "browser (chromium)",
+        "file": "apps/conciv/test/conciv.browser.test.tsx",
+        "tests": 335,
+        "detail": "26 failed",
+        "durationMs": 1084141,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/app",
+        "dir": "apps/conciv",
+        "project": "browser (chromium)",
+        "file": "apps/conciv/src/runtime/persistence/persist.browser.test.ts",
+        "tests": 11,
+        "detail": "",
+        "durationMs": 24,
+        "job": "build + test (shard-1)"
+      },
+      {
+        "package": "@conciv/mascot-react",
+        "dir": "packages/mascot-react",
+        "project": "mascot-react",
+        "file": "packages/mascot-react/test/unit/mascot-react.test.ts",
+        "tests": 3,
+        "detail": "1 skipped",
+        "durationMs": 33,
+        "job": "build + test (shard-5)"
+      },
+      {
+        "package": "@conciv/mascot-react",
+        "dir": "packages/mascot-react",
+        "project": "mascot-react-browser (chromium)",
+        "file": "packages/mascot-react/test/browser/react-wrapper.browser.test.tsx",
+        "tests": 23,
+        "detail": "",
+        "durationMs": 1317,
+        "job": "build + test (shard-5)"
+      },
+      {
+        "package": "@conciv/solid-streamdown",
+        "dir": "packages/solid-streamdown",
+        "project": "solid-streamdown-browser (chromium)",
+        "file": "packages/solid-streamdown/test/solid-streamdown.browser.test.tsx",
+        "tests": 10,
+        "detail": "",
+        "durationMs": 4327,
+        "job": "build + test (shard-5)"
+      },
+      {
+        "package": "@conciv/grab",
+        "dir": "packages/grab",
+        "project": null,
+        "file": "packages/grab/test/grab.test.ts",
+        "tests": 15,
+        "detail": "",
+        "durationMs": 223,
+        "job": "build + test (shard-5)"
+      },
+      {
+        "package": "@conciv/harness-init",
+        "dir": "packages/harness-init",
+        "project": null,
+        "file": "packages/harness-init/test/harness-init.test.ts",
+        "tests": 29,
+        "detail": "",
+        "durationMs": 3408,
+        "job": "build + test (shard-5)"
+      },
+      {
+        "package": "@conciv/client",
+        "dir": "packages/client",
+        "project": "client",
+        "file": "packages/client/test/client.test.ts",
+        "tests": 31,
+        "detail": "",
+        "durationMs": 19725,
+        "job": "build + test (shard-5)"
+      },
+      {
+        "package": "@conciv/it",
+        "dir": "packages/it",
+        "project": "it",
+        "file": "packages/it/test/dev-endpoint-option.it.test.ts",
+        "tests": 4,
+        "detail": "",
+        "durationMs": 2034,
+        "job": "build + test (shard-5)"
+      },
+      {
+        "package": "@conciv/plugin-test-runner",
+        "dir": "packages/plugins/test-runner",
+        "project": "plugin-test-runner",
+        "file": "packages/plugins/test-runner/test/test-runner.test.ts",
+        "tests": 10,
+        "detail": "",
+        "durationMs": 15148,
+        "job": "build + test (shard-5)"
+      },
+      {
+        "package": "@conciv/plugin-test-runner",
+        "dir": "packages/plugins/test-runner",
+        "project": "plugin-test-runner",
+        "file": "packages/plugins/test-runner/test/test-runner.browser.test.ts",
+        "tests": 4,
+        "detail": "",
+        "durationMs": 17985,
+        "job": "build + test (shard-5)"
+      },
+      {
+        "package": "@conciv/plugin-whiteboard",
+        "dir": "packages/plugins/whiteboard",
+        "project": "plugin-whiteboard",
+        "file": "packages/plugins/whiteboard/test/whiteboard.browser.test.ts",
+        "tests": 4,
+        "detail": "",
+        "durationMs": 61646,
+        "job": "build + test (shard-5)"
+      },
+      {
+        "package": "@conciv/plugin-whiteboard",
+        "dir": "packages/plugins/whiteboard",
+        "project": "plugin-whiteboard",
+        "file": "packages/plugins/whiteboard/test/whiteboard.test.ts",
+        "tests": 18,
+        "detail": "",
+        "durationMs": 45733,
+        "job": "build + test (shard-5)"
+      },
+      {
+        "package": "@conciv/uno-preset",
+        "dir": "packages/uno-preset",
+        "project": null,
+        "file": "packages/uno-preset/test/preset.test.ts",
+        "tests": 238,
+        "detail": "",
+        "durationMs": 379,
+        "job": "build + test (shard-3)"
+      },
+      {
+        "package": "@conciv/bundle-size",
+        "dir": "packages/bundle-size",
+        "project": null,
+        "file": "packages/bundle-size/test/measure.test.ts",
+        "tests": 13,
+        "detail": "",
+        "durationMs": 30,
+        "job": "build + test (shard-3)"
+      },
+      {
+        "package": "@conciv/storage-history",
+        "dir": "packages/storage-history",
+        "project": null,
+        "file": "packages/storage-history/test/web-storage-history.test.ts",
+        "tests": 16,
+        "detail": "",
+        "durationMs": 40,
+        "job": "build + test (shard-3)"
+      },
+      {
+        "package": "@conciv/brand",
+        "dir": "packages/brand",
+        "project": "brand-solid-browser (chromium)",
+        "file": "packages/brand/test/browser/solid-lockup.browser.test.tsx",
+        "tests": 4,
+        "detail": "",
+        "durationMs": 4455,
+        "job": "build + test (shard-3)"
+      },
+      {
+        "package": "@conciv/contract",
+        "dir": "packages/contract",
+        "project": null,
+        "file": "packages/contract/test/contract.test.ts",
+        "tests": 28,
+        "detail": "",
+        "durationMs": 6805,
+        "job": "build + test (shard-3)"
+      },
+      {
+        "package": "@conciv/db",
+        "dir": "packages/db",
+        "project": null,
+        "file": "packages/db/test/db.test.ts",
+        "tests": 30,
+        "detail": "1 failed",
+        "durationMs": 7269,
+        "job": "build + test (shard-3)"
+      },
+      {
+        "package": "@conciv/page",
+        "dir": "packages/page",
+        "project": "browser (chromium)",
+        "file": "packages/page/test/page.browser.test.tsx",
+        "tests": 58,
+        "detail": "",
+        "durationMs": 2468,
+        "job": "build + test (shard-3)"
+      },
+      {
+        "package": "@conciv/plugin-try-it",
+        "dir": "packages/plugins/try-it",
+        "project": "plugin-try-it",
+        "file": "packages/plugins/try-it/test/try-it.test.ts",
+        "tests": 17,
+        "detail": "",
+        "durationMs": 132,
+        "job": "build + test (shard-3)"
+      },
+      {
+        "package": "@conciv/plugin-try-it",
+        "dir": "packages/plugins/try-it",
+        "project": "plugin-try-it",
+        "file": "packages/plugins/try-it/test/try-it.browser.test.ts",
+        "tests": 3,
+        "detail": "",
+        "durationMs": 9266,
+        "job": "build + test (shard-3)"
+      },
+      {
+        "package": "@conciv/cli",
+        "dir": "packages/cli",
+        "project": null,
+        "file": "packages/cli/test/cli.test.ts",
+        "tests": 362,
+        "detail": "9 failed",
+        "durationMs": 76869,
+        "job": "build + test (shard-3)"
+      },
+      {
+        "package": "@conciv/tools",
+        "dir": "packages/tools",
+        "project": null,
+        "file": "packages/tools/test/tools.test.ts",
+        "tests": 3,
+        "detail": "",
+        "durationMs": 15,
+        "job": "build + test (shard-6)"
+      },
+      {
+        "package": "@conciv/chat",
+        "dir": "packages/chat",
+        "project": null,
+        "file": "packages/chat/test/chat.test.ts",
+        "tests": 12,
+        "detail": "",
+        "durationMs": 3252,
+        "job": "build + test (shard-6)"
+      },
+      {
+        "package": "@conciv/plugin-testkit",
+        "dir": "packages/plugin-testkit",
+        "project": "plugin-testkit",
+        "file": "packages/plugin-testkit/test/plugin-testkit.test.ts",
+        "tests": 14,
+        "detail": "",
+        "durationMs": 4749,
+        "job": "build + test (shard-6)"
+      },
+      {
+        "package": "@conciv/try",
+        "dir": "packages/try",
+        "project": null,
+        "file": "packages/try/test/try.test.ts",
+        "tests": 19,
+        "detail": "1 skipped",
+        "durationMs": 1913,
+        "job": "build + test (shard-6)"
+      },
+      {
+        "package": "@conciv/mascot",
+        "dir": "packages/mascot",
+        "project": "mascot",
+        "file": "packages/mascot/test/unit/mascot.test.ts",
+        "tests": 44,
+        "detail": "2 skipped",
+        "durationMs": 860,
+        "job": "build + test (shard-6)"
+      },
+      {
+        "package": "@conciv/mascot",
+        "dir": "packages/mascot",
+        "project": "mascot-browser (chromium)",
+        "file": "packages/mascot/test/browser/solid-mascot.browser.test.tsx",
+        "tests": 21,
+        "detail": "",
+        "durationMs": 1373,
+        "job": "build + test (shard-6)"
+      },
+      {
+        "package": "@conciv/solid",
+        "dir": "packages/solid",
+        "project": null,
+        "file": "packages/solid/test/widget.it.test.ts",
+        "tests": 3,
+        "detail": "",
+        "durationMs": 7423,
+        "job": "build + test (shard-6)"
+      },
+      {
+        "package": "@conciv/builtin-plugins",
+        "dir": "packages/builtin-plugins",
+        "project": "browser-firefox (firefox)",
+        "file": "packages/builtin-plugins/test/builtin-plugins.browser.test.tsx",
+        "tests": 114,
+        "detail": "67 skipped",
+        "durationMs": 9511,
+        "job": "build + test (shard-6)"
+      },
+      {
+        "package": "@conciv/builtin-plugins",
+        "dir": "packages/builtin-plugins",
+        "project": "browser (chromium)",
+        "file": "packages/builtin-plugins/test/builtin-plugins.browser.test.tsx",
+        "tests": 114,
+        "detail": "",
+        "durationMs": 32248,
+        "job": "build + test (shard-6)"
+      },
+      {
+        "package": "@conciv/plugin-tanstack",
+        "dir": "packages/plugins/tanstack",
+        "project": "plugin-tanstack",
+        "file": "packages/plugins/tanstack/test/tanstack.test.ts",
+        "tests": 9,
+        "detail": "1 skipped",
+        "durationMs": 17716,
+        "job": "build + test (shard-6)"
+      },
+      {
+        "package": "@conciv/plugin-tanstack",
+        "dir": "packages/plugins/tanstack",
+        "project": "plugin-tanstack",
+        "file": "packages/plugins/tanstack/test/tanstack.browser.test.ts",
+        "tests": 1,
+        "detail": "",
+        "durationMs": 20857,
+        "job": "build + test (shard-6)"
+      },
+      {
+        "package": "@conciv/embed",
+        "dir": "packages/embed",
+        "project": null,
+        "file": "packages/embed/test/unit/embed.test.ts",
+        "tests": 29,
+        "detail": "",
+        "durationMs": 3197,
+        "job": "build + test (shard-6)"
+      }
+    ]
+  },
+  "storybook": {
+    "testFiles": "3 failed | 133 passed | 1 skipped (137)",
+    "tests": "3 failed | 442 passed (445)",
+    "duration": "39.69s"
+  },
+  "e2e": {
+    "apps": [
+      {
+        "app": "site",
+        "shard": "shard-1",
+        "tests": 51,
+        "passed": 46,
+        "failed": 5,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 106606,
+        "runner": "vitest"
+      },
+      {
+        "app": "conciv-e2e-init",
+        "shard": "shard-1",
+        "tests": 10,
+        "passed": 10,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 2086,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-nextjs-component",
+        "shard": "shard-1",
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 2609,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-solid-start",
+        "shard": "shard-1",
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 4371,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-tanstack-start-redact",
+        "shard": "shard-1",
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 5084,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-nextjs",
+        "shard": "shard-2",
+        "tests": 4,
+        "passed": 3,
+        "failed": 1,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 14156,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-svelte",
+        "shard": "shard-2",
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 2698,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-vite-react-component",
+        "shard": "shard-2",
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 4333,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-vite-react",
+        "shard": "shard-2",
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 5779,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-vite-vanilla",
+        "shard": "shard-2",
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 6543,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-astro",
+        "shard": "shard-3",
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 2228,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-harnesses (claude)",
+        "shard": "shard-3",
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 10872,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-harnesses (codex)",
+        "shard": "shard-3",
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 5851,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-harnesses (gemini-cli)",
+        "shard": "shard-3",
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 8295,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-harnesses (opencode)",
+        "shard": "shard-3",
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 12667,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-harnesses (pi)",
+        "shard": "shard-3",
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 4907,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-tanstack-start",
+        "shard": "shard-3",
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 8102,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-vite-preact-component",
+        "shard": "shard-3",
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 3364,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-vite-solid-component",
+        "shard": "shard-3",
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 4414,
+        "runner": "playwright"
+      },
+      {
+        "app": "conciv-e2e-vite-solid",
+        "shard": "shard-3",
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "durationMs": 7861,
+        "runner": "playwright"
+      }
+    ],
+    "total": {
+      "tests": 91,
+      "passed": 85,
+      "failed": 6,
+      "flaky": 0,
+      "skipped": 0,
+      "durationMs": 222826
+    }
+  },
+  "jobs": [
+    {
+      "id": "135607714561",
+      "name": "plan",
+      "conclusion": "success",
+      "started_at": "2026-11-19T13:52:26Z",
+      "completed_at": "2026-11-19T13:52:40Z",
+      "wallSeconds": 14
+    },
+    {
+      "id": "135607714946",
+      "name": "zizmor",
+      "conclusion": "success",
+      "started_at": "2026-11-19T13:52:26Z",
+      "completed_at": "2026-11-19T13:52:37Z",
+      "wallSeconds": 11
+    },
+    {
+      "id": "135607714969",
+      "name": "Storybook browser tests",
+      "conclusion": "failure",
+      "started_at": "2026-11-19T13:52:26Z",
+      "completed_at": "2026-11-19T13:55:09Z",
+      "wallSeconds": 163
+    },
+    {
+      "id": "135607715369",
+      "name": "repo checks",
+      "conclusion": "failure",
+      "started_at": "2026-11-19T13:52:26Z",
+      "completed_at": "2026-11-19T13:54:33Z",
+      "wallSeconds": 127
+    },
+    {
+      "id": "135607715416",
+      "name": "plan-e2e",
+      "conclusion": "success",
+      "started_at": "2026-11-19T13:52:26Z",
+      "completed_at": "2026-11-19T13:52:38Z",
+      "wallSeconds": 12
+    },
+    {
+      "id": "135607856735",
+      "name": "e2e consumer apps (shard-3)",
+      "conclusion": "success",
+      "started_at": "2026-11-19T13:52:40Z",
+      "completed_at": "2026-11-19T13:57:25Z",
+      "wallSeconds": 285
+    },
+    {
+      "id": "135607856785",
+      "name": "e2e consumer apps (shard-2)",
+      "conclusion": "failure",
+      "started_at": "2026-11-19T13:52:40Z",
+      "completed_at": "2026-11-19T13:56:42Z",
+      "wallSeconds": 242
+    },
+    {
+      "id": "135607857030",
+      "name": "e2e consumer apps (shard-1)",
+      "conclusion": "failure",
+      "started_at": "2026-11-19T13:52:41Z",
+      "completed_at": "2026-11-19T13:59:11Z",
+      "wallSeconds": 390
+    },
+    {
+      "id": "135607879207",
+      "name": "build + test (shard-3)",
+      "conclusion": "failure",
+      "started_at": "2026-11-19T13:52:43Z",
+      "completed_at": "2026-11-19T13:56:33Z",
+      "wallSeconds": 230
+    },
+    {
+      "id": "135607879262",
+      "name": "build + test (shard-4)",
+      "conclusion": "failure",
+      "started_at": "2026-11-19T13:52:43Z",
+      "completed_at": "2026-11-19T13:56:08Z",
+      "wallSeconds": 205
+    },
+    {
+      "id": "135607879288",
+      "name": "build + test (shard-1)",
+      "conclusion": "failure",
+      "started_at": "2026-11-19T13:52:43Z",
+      "completed_at": "2026-11-19T14:14:08Z",
+      "wallSeconds": 1285
+    },
+    {
+      "id": "135607879291",
+      "name": "build + test (shard-2)",
+      "conclusion": "success",
+      "started_at": "2026-11-19T13:52:43Z",
+      "completed_at": "2026-11-19T14:01:19Z",
+      "wallSeconds": 516
+    },
+    {
+      "id": "135607879366",
+      "name": "build + test (shard-6)",
+      "conclusion": "success",
+      "started_at": "2026-11-19T13:52:43Z",
+      "completed_at": "2026-11-19T14:03:28Z",
+      "wallSeconds": 645
+    },
+    {
+      "id": "135607879389",
+      "name": "build + test (shard-5)",
+      "conclusion": "success",
+      "started_at": "2026-11-19T13:52:44Z",
+      "completed_at": "2026-11-19T13:57:27Z",
+      "wallSeconds": 283
+    },
+    {
+      "id": "135607879396",
+      "name": "build + test (shard-8)",
+      "conclusion": "failure",
+      "started_at": "2026-11-19T13:52:43Z",
+      "completed_at": "2026-11-19T13:57:21Z",
+      "wallSeconds": 278
+    },
+    {
+      "id": "135607879646",
+      "name": "build + test (shard-7)",
+      "conclusion": "failure",
+      "started_at": "2026-11-19T13:52:52Z",
+      "completed_at": "2026-11-19T13:56:47Z",
+      "wallSeconds": 235
+    },
+    {
+      "id": "135611688557",
+      "name": "e2e consumer apps",
+      "conclusion": "failure",
+      "started_at": "2026-11-19T13:59:14Z",
+      "completed_at": "2026-11-19T13:59:19Z",
+      "wallSeconds": 5
+    },
+    {
+      "id": "135611688576",
+      "name": "e2e summary",
+      "conclusion": "success",
+      "started_at": "2026-11-19T13:59:14Z",
+      "completed_at": "2026-11-19T13:59:29Z",
+      "wallSeconds": 15
+    },
+    {
+      "id": "135620862279",
+      "name": "build + test",
+      "conclusion": "failure",
+      "started_at": "2026-11-19T14:14:11Z",
+      "completed_at": "2026-11-19T14:14:15Z",
+      "wallSeconds": 4
+    },
+    {
+      "id": "135620862283",
+      "name": "test summary",
+      "conclusion": "success",
+      "started_at": "2026-11-19T14:14:11Z",
+      "completed_at": "2026-11-19T14:14:25Z",
+      "wallSeconds": 14
+    }
+  ],
+  "runWallSeconds": 1319,
+  "topStaticFilesByLines": [
+    {
+      "file": "apps/conciv/test/conciv.browser.test.tsx",
+      "lines": 13300,
+      "describes": 90,
+      "tests": 334
+    },
+    {
+      "file": "packages/core/test/core-api.it.test.ts",
+      "lines": 9109,
+      "describes": 76,
+      "tests": 237
+    },
+    {
+      "file": "packages/cli/test/cli.test.ts",
+      "lines": 6220,
+      "describes": 83,
+      "tests": 284
+    },
+    {
+      "file": "packages/core/test/core.test.ts",
+      "lines": 5387,
+      "describes": 27,
+      "tests": 112
+    },
+    {
+      "file": "packages/harness/test/harness.test.ts",
+      "lines": 3259,
+      "describes": 72,
+      "tests": 173
+    },
+    {
+      "file": "packages/embed/test/e2e/embed.it.test.ts",
+      "lines": 3001,
+      "describes": 57,
+      "tests": 226
+    },
+    {
+      "file": "packages/mascot/test/e2e/mascot.it.test.ts",
+      "lines": 2866,
+      "describes": 15,
+      "tests": 109
+    },
+    {
+      "file": "packages/builtin-plugins/test/builtin-plugins.browser.test.tsx",
+      "lines": 2837,
+      "describes": 38,
+      "tests": 114
+    },
+    {
+      "file": "packages/unplugin/test/plugin.it.test.ts",
+      "lines": 2220,
+      "describes": 35,
+      "tests": 84
+    },
+    {
+      "file": "packages/ui-kit-chat/test/composer.browser.test.tsx",
+      "lines": 2138,
+      "describes": 14,
+      "tests": 60
+    },
+    {
+      "file": "packages/ui-kit-chat/test/thread.browser.test.tsx",
+      "lines": 1969,
+      "describes": 21,
+      "tests": 56
+    },
+    {
+      "file": "packages/plugins/recorder/test/recorder.test.ts",
+      "lines": 1612,
+      "describes": 30,
+      "tests": 36
+    },
+    {
+      "file": "packages/ui-kit-system/test/ui-kit-system.browser.test.tsx",
+      "lines": 1587,
+      "describes": 24,
+      "tests": 75
+    },
+    {
+      "file": "packages/plugin-host/test/core/bus.test.ts",
+      "lines": 1400,
+      "describes": 1,
+      "tests": 51
+    },
+    {
+      "file": "packages/plugins/whiteboard/test/whiteboard.test.ts",
+      "lines": 1284,
+      "describes": 13,
+      "tests": 18
+    },
+    {
+      "file": "packages/ui-kit-chat/test/cards.browser.test.tsx",
+      "lines": 1277,
+      "describes": 17,
+      "tests": 50
+    },
+    {
+      "file": "packages/plugins/whiteboard/test/whiteboard.browser.test.ts",
+      "lines": 1246,
+      "describes": 3,
+      "tests": 5
+    },
+    {
+      "file": "packages/page/test/page.browser.test.tsx",
+      "lines": 1199,
+      "describes": 22,
+      "tests": 58
+    },
+    {
+      "file": "packages/ai/test/ai.test.ts",
+      "lines": 1169,
+      "describes": 11,
+      "tests": 37
+    },
+    {
+      "file": "packages/plugin/test/plugin.test.ts",
+      "lines": 1085,
+      "describes": 12,
+      "tests": 52
+    }
+  ]
+}

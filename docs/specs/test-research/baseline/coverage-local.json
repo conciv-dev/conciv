@@ -1,0 +1,259 @@
+{
+  "commit": "58b649460",
+  "provider": "v8",
+  "note": "local, serial, VITEST_MAX_FORKS=1, reportOnFailure=true; embed = vitest only (its playwright suite not instrumented); app = unit+browser projects",
+  "packages": {
+    "@conciv/app": {
+      "lines": {
+        "covered": 1090,
+        "total": 1920,
+        "pct": 56.77
+      },
+      "statements": {
+        "covered": 1335,
+        "total": 2440,
+        "pct": 54.71
+      },
+      "branches": {
+        "covered": 1097,
+        "total": 1832,
+        "pct": 59.87
+      },
+      "functions": {
+        "covered": 330,
+        "total": 670,
+        "pct": 49.25
+      },
+      "tests": "Tests  14 failed | 516 passed (561)"
+    },
+    "@conciv/cli": {
+      "lines": {
+        "covered": 1204,
+        "total": 1349,
+        "pct": 89.25
+      },
+      "statements": {
+        "covered": 1412,
+        "total": 1635,
+        "pct": 86.36
+      },
+      "branches": {
+        "covered": 724,
+        "total": 912,
+        "pct": 79.38
+      },
+      "functions": {
+        "covered": 447,
+        "total": 541,
+        "pct": 82.62
+      },
+      "tests": "Tests  9 failed | 353 passed (362)"
+    },
+    "@conciv/core": {
+      "lines": {
+        "covered": 2620,
+        "total": 2821,
+        "pct": 92.87
+      },
+      "statements": {
+        "covered": 3079,
+        "total": 3382,
+        "pct": 91.04
+      },
+      "branches": {
+        "covered": 1368,
+        "total": 1630,
+        "pct": 83.92
+      },
+      "functions": {
+        "covered": 1160,
+        "total": 1254,
+        "pct": 92.5
+      },
+      "tests": "Tests  14 failed | 349 passed | 1 skipped (364)"
+    },
+    "@conciv/db": {
+      "lines": {
+        "covered": 182,
+        "total": 199,
+        "pct": 91.45
+      },
+      "statements": {
+        "covered": 203,
+        "total": 228,
+        "pct": 89.03
+      },
+      "branches": {
+        "covered": 58,
+        "total": 75,
+        "pct": 77.33
+      },
+      "functions": {
+        "covered": 74,
+        "total": 82,
+        "pct": 90.24
+      },
+      "tests": "Tests  1 failed | 29 passed (30)"
+    },
+    "@conciv/embed": {
+      "lines": {
+        "covered": 10,
+        "total": 58,
+        "pct": 17.24
+      },
+      "statements": {
+        "covered": 12,
+        "total": 70,
+        "pct": 17.14
+      },
+      "branches": {
+        "covered": 5,
+        "total": 26,
+        "pct": 19.23
+      },
+      "functions": {
+        "covered": 3,
+        "total": 17,
+        "pct": 17.64
+      },
+      "tests": "Tests  29 passed (29)"
+    },
+    "@conciv/preact": {
+      "lines": {
+        "covered": 0,
+        "total": 0,
+        "pct": "Unknown"
+      },
+      "statements": {
+        "covered": 0,
+        "total": 0,
+        "pct": "Unknown"
+      },
+      "branches": {
+        "covered": 0,
+        "total": 0,
+        "pct": "Unknown"
+      },
+      "functions": {
+        "covered": 0,
+        "total": 0,
+        "pct": "Unknown"
+      },
+      "tests": "Tests  3 passed (3)"
+    },
+    "@conciv/react": {
+      "lines": {
+        "covered": 0,
+        "total": 0,
+        "pct": "Unknown"
+      },
+      "statements": {
+        "covered": 0,
+        "total": 0,
+        "pct": "Unknown"
+      },
+      "branches": {
+        "covered": 0,
+        "total": 0,
+        "pct": "Unknown"
+      },
+      "functions": {
+        "covered": 0,
+        "total": 0,
+        "pct": "Unknown"
+      },
+      "tests": "Tests  3 passed (3)"
+    },
+    "@conciv/solid": {
+      "lines": {
+        "covered": 0,
+        "total": 0,
+        "pct": "Unknown"
+      },
+      "statements": {
+        "covered": 0,
+        "total": 0,
+        "pct": "Unknown"
+      },
+      "branches": {
+        "covered": 0,
+        "total": 0,
+        "pct": "Unknown"
+      },
+      "functions": {
+        "covered": 0,
+        "total": 0,
+        "pct": "Unknown"
+      },
+      "tests": "Tests  3 passed (3)"
+    },
+    "@conciv/ui-kit-chat": {
+      "lines": {
+        "covered": 4650,
+        "total": 5639,
+        "pct": 82.46
+      },
+      "statements": {
+        "covered": 6002,
+        "total": 7617,
+        "pct": 78.79
+      },
+      "branches": {
+        "covered": 2047,
+        "total": 3086,
+        "pct": 66.33
+      },
+      "functions": {
+        "covered": 2597,
+        "total": 3464,
+        "pct": 74.97
+      },
+      "tests": "Tests  2 failed | 220 passed (222)"
+    },
+    "@conciv/ui-kit-chat-tools": {
+      "lines": {
+        "covered": 438,
+        "total": 519,
+        "pct": 84.39
+      },
+      "statements": {
+        "covered": 575,
+        "total": 753,
+        "pct": 76.36
+      },
+      "branches": {
+        "covered": 163,
+        "total": 282,
+        "pct": 57.8
+      },
+      "functions": {
+        "covered": 287,
+        "total": 397,
+        "pct": 72.29
+      },
+      "tests": "Tests  1 failed | 41 passed (42)"
+    }
+  },
+  "total": {
+    "lines": {
+      "covered": 10194,
+      "total": 12505,
+      "pct": 81.52
+    },
+    "statements": {
+      "covered": 12618,
+      "total": 16125,
+      "pct": 78.25
+    },
+    "branches": {
+      "covered": 5462,
+      "total": 7843,
+      "pct": 69.64
+    },
+    "functions": {
+      "covered": 4898,
+      "total": 6425,
+      "pct": 76.23
+    }
+  }
+}

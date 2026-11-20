@@ -1,0 +1,1111 @@
+# Test split: plugins group
+
+Worktree `aidx-wt-test-split` at 86d94e743. Every test file in packages/builtin-plugins, packages/page,
+packages/plugin-page, packages/plugin-page-testkit (has no tests), packages/plugin-testkit and packages/plugins/*
+(ios, recorder, tanstack, test-runner, try-it, whiteboard; no terminal package exists yet). Page targets are named
+`packages/plugins/page`, the one package that packages/page, plugin-page, builtin-plugins/src/page and
+plugin-page-testkit merge into. Sections A to E below hold the per-file tables (section 1), per-file totals (section 2),
+cross-file duplicates (section 3) and happy-dom notes (section 4) for each slice; this top part sums them up.
+
+## Group totals
+
+450 suite tests and stories, plus 9 fixture specs the test-runner runs (they stay as fixtures).
+
+| destination         | count                                                        |
+| ------------------- | ------------------------------------------------------------ |
+| L2-APP              | 1                                                            |
+| L2-PLUGIN           | 31 (page 25, terminal 1, test-runner 3, try-it 2)            |
+| L3-BROWSER          | 96                                                           |
+| STORYBOOK           | 89 (62 existing stories stay, 27 browser tests become plays) |
+| NODE                | 98                                                           |
+| UNIT                | 113                                                          |
+| DELETE-DUP          | 16                                                           |
+| DELETE-COVERED      | 2                                                            |
+| DELETE-NOTHING      | 2                                                            |
+| DELETE-TESTONLY-API | 2 (`observeRpc` in plugin-testkit)                           |
+
+Per file:
+
+| file                                                  | tests                | becomes                                                                                                                                |
+| ----------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| builtin-plugins/test/builtin-plugins.browser.test.tsx | 114                  | deleted; 100 rows go to packages/plugins/page, the rest to tanstack, recorder, terminal stories/tests and a ui-kit-system story        |
+| builtin-plugins/src/**/*.stories.tsx (14 files)       | 62 stories, 41 plays | stay STORYBOOK; whiteboard stories (21, no plays) move to packages/plugins/whiteboard, page card stories (41) to packages/plugins/page |
+| page/test/page.browser.test.tsx                       | 58                   | deleted; moves to packages/plugins/page (L3 29, UNIT 21)                                                                               |
+| plugin-page/test/plugin-page.test.ts                  | 40                   | moves whole to packages/plugins/page node file (UNIT 30, NODE 10)                                                                      |
+| plugin-testkit/test/plugin-testkit.test.ts            | 14                   | shrinks to NODE 5 + L3 7; 2 deleted with `observeRpc`                                                                                  |
+| plugins/ios/test/ios.test.ts                          | 50                   | stays the node file, about 850 lines after tables                                                                                      |
+| plugins/recorder/test/recorder.test.ts                | 35                   | stays, about 900 lines after six merges                                                                                                |
+| plugins/recorder/test/recorder.it.test.ts             | 11                   | becomes the recorder browser file (4 journeys); 1 row to apps/conciv                                                                   |
+| plugins/tanstack/test/tanstack.test.ts                | 9                    | stays NODE; 2 rows move to packages/plugins/page                                                                                       |
+| plugins/tanstack/test/tanstack.browser.test.ts        | 1                    | stays L3, split into two journeys                                                                                                      |
+| plugins/test-runner/test/test-runner.test.ts          | 10                   | stays (NODE 5, UNIT 5)                                                                                                                 |
+| plugins/test-runner/test/test-runner.browser.test.ts  | 4                    | leaves the browser: L2-PLUGIN 3, UNIT 1                                                                                                |
+| plugins/try-it/test/try-it.test.ts                    | 17                   | stays (NODE 8, UNIT 8), 1 dup deleted                                                                                                  |
+| plugins/try-it/test/try-it.browser.test.ts            | 3                    | L2-PLUGIN 2, L3 1                                                                                                                      |
+| plugins/whiteboard/test/whiteboard.test.ts            | 18                   | stays (NODE 14, UNIT 4)                                                                                                                |
+| plugins/whiteboard/test/whiteboard.browser.test.ts    | 4 (25 segments)      | stays L3; 2 segments to L2-PLUGIN, 2 deleted as dups                                                                                   |
+
+## Group-wide duplicates (pairs; details in each slice)
+
+- page.browser:1013 and :1032 = builtin-plugins.browser:1819; page.browser:1057 = builtin:420; page.browser:1099 and :1120 = builtin:400; page.browser:375 = builtin:1034.
+- builtin-plugins.browser:1941, :2299, :2325 repeat the read-value RootArray and grab-card story plays.
+- builtin-plugins.browser queue tests 1660, 1678, 1693, 1704 = apps/conciv/test/conciv.browser.test.tsx:12697, 12713, 12731, 12749 (outside the group).
+- builtin-plugins.browser image viewer 2006, 2016 = ui-kit-chat composer.browser.test.tsx:323, :334 (outside the group).
+- try-it.browser:118 = the try-it part of conciv.browser.test.tsx:4792 (merge TRYIT-HANDOFF in the try-it plugin); try-it.test:285 = :266 + :95.
+- test-runner.test:269 exit-code/signal checks repeat :394 and :580.
+- whiteboard.browser:413-419 = whiteboard.test:806 and :664; whiteboard.browser:861-869 = :1188-1191; whiteboard.test 807/809 inside 794 = :953.
+- whiteboard.browser:1010-1031 repeats canvas-card and comment-card story states (the stories have no play yet).
+
+## Tests a plugin should own (moves out of where they sit)
+
+- builtin-plugins.browser: page, grab and page cards to packages/plugins/page; tanstack cards (2376) to packages/plugins/tanstack; recorder cards (about 2674) to packages/plugins/recorder; the terminal row to packages/plugins/terminal (does not exist yet); the image viewer to a ui-kit-system story.
+- tanstack.test:236 and :393 (attach refused, call timeout cancelled on the page) belong to packages/plugins/page.
+- recorder.it:793 (tab restore) belongs to apps/conciv (L2-APP).
+
+## Main happy-dom blockers (group-wide)
+
+- Every page act verb refuses a zero-size box (`actionable()` in builtin-plugins/src/page/page-act.ts:30-44); happy-dom gives every box zero size, so act verbs, rich-text editors, the simulator and capture-after-fill stay L3. `snapshot`'s hidden flag reads `offsetParent` (layout).
+- Capture tests need the real CSSOM and canvas.
+- The whiteboard comment layer (pins, thread, inbox, drift prompt) renders inside the Excalidraw canvas (src/pins.tsx:55 waits for the canvas viewport), so the inbox sort/filter/search cannot move though it looks like it could.
+- Suspected: tiptap mention field, Ark/zag focus gating, Ark collapsible tab order in the test-runner card, clipboard in the try-it connect pane, try-it binding real ports in parallel files.
+
+## Open points
+
+- The 29 page L3 rows import TS modules straight into the page; Playwright Test needs a bundle for that, so their runner needs a decision before wave 5.
+- Whiteboard (and page) need node, L2 and L3 tests, but the budget is one node file plus one browser file: do the L2 journeys sit in the node file under happy-dom?
+- The page plugin's node file will likely pass the 1,000-line cap.
+- The whiteboard stories import the page card story fixtures; those need a shared home. Storybook's glob must change from packages/builtin-plugins/src to packages/plugins/*/src.
+- Rule breaks found: recorder.test:531 waits out the real 5 s start timeout; recorder.test:960 reads the process table with `ps`.
+
+---
+
+## builtin-plugins.browser.test.tsx (packages/builtin-plugins/test, 2836 lines, worktree 86d94e743)
+
+114 tests (it/test; no it.each, no story plays in this file). Read in full on the worktree; the audit lines are about 6 lower than the worktree from line 131 on.
+
+Short names used below:
+
+- `page` = packages/plugins/page (the merged page plugin: today packages/page + packages/plugin-page + builtin-plugins/src/page + plugin-page-testkit).
+- `page L2 file` = packages/plugins/page/test/page.test.ts (vitest node + happy-dom, plugin-testkit `mount({plugins: [page]})`).
+- `page L3 file` = packages/plugins/page/test/page.browser.test.ts (Playwright Test, plugin-testkit `/flow`, a host page with a fixture form).
+- `page unit` = it.each tables in the page L2 file (pure functions).
+- `page stories` = packages/plugins/page/src/cards/<card>.stories.tsx (today builtin-plugins/src/page/cards/*.stories.tsx).
+- terminal = packages/plugins/terminal: does NOT exist yet (today builtin-plugins/src/terminal); the row waits for it.
+
+Key fact for the split: every act verb (click, hover, fill, fill_form, select, check, uncheck, press with a target) goes through `actionable()` in builtin-plugins/src/page/page-act.ts:30-44, which refuses an element whose `getBoundingClientRect()` is 0 by 0 and calls `checkVisibility`. happy-dom has no layout and returns 0 by 0 for everything, so every act verb answers "That element is not visible." there. Act verbs and everything built on them (simulator, queue, captures after a fill) are L3. Read verbs (route, exists, query, dom, attr, value), edit-live verbs (setattr, removeattr, addclass, removeclass, setstyle, settext, insert, remove, sethtml, css), eval, react verbs and effects do not touch layout and go to L2. `snapshot` reads rects, offsetParent and computed style (packages/page/src/page-snapshot.ts:18-19, 79), so snapshot-based rows are L3.
+
+### 1. Every test
+
+| test (file:line, short title)                                                          | destination        | target                                                                                                       | merge-id           | why                                                                                                                     |
+| -------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| 137 effects: lists what exists once per name                                           | L2-PLUGIN:page     | page L2 file                                                                                                 | M-EFFECT           | effect list needs no layout; one call at the top of the effect journey                                                  |
+| 143 effects: enable, toggle, start, stop change the page, report tells the truth       | L2-PLUGIN:page     | page L2 file                                                                                                 | M-EFFECT           | banner appears and goes, read by role; no layout                                                                        |
+| 156 effects: unknown effect fails naming what exists                                   | L2-PLUGIN:page     | page L2 file                                                                                                 | M-EFFECT-ERR       | error text through the tool call                                                                                        |
+| 163 effects: driving action without a name, or list with one, is invalid args          | L2-PLUGIN:page     | page L2 file                                                                                                 | M-EFFECT-ERR       | two more failing calls in the same error step                                                                           |
+| 231 target resolution: each way a target can be missing                                | L2-PLUGIN:page     | page L2 file                                                                                                 | M-READ             | fails before the visibility gate; pure lookup messages                                                                  |
+| 245 dom verbs: clicks through React handlers                                           | L3-BROWSER         | page L3 file                                                                                                 | M-ACT              | layout: click goes through the visibility gate                                                                          |
+| 250 dom verbs: fills fields, masks a password value                                    | L3-BROWSER         | page L3 file                                                                                                 | M-ACT              | layout: fill goes through the visibility gate                                                                           |
+| 261 dom verbs: masks a password value attribute in dom and attr reads                  | L2-PLUGIN:page     | page L2 file                                                                                                 | M-READ             | setattr/attr/dom only; drop the `document.querySelector` read at 268                                                    |
+| 272 dom verbs: React-controlled checkboxes and radios follow                           | L3-BROWSER         | page L3 file                                                                                                 | M-ACT              | layout: check/uncheck go through the visibility gate                                                                    |
+| 295 dom verbs: mutates attributes, classes, styles, text, structure                    | L2-PLUGIN:page     | page L2 file                                                                                                 | M-EDIT             | edit-live verbs need no layout; read back through attr/dom/exists instead of querySelector                              |
+| 315 dom verbs: route, exists, query, markup, attributes                                | L2-PLUGIN:page     | page L2 file                                                                                                 | M-READ             | read verbs; replace the shared-fixture `count 8` with a count of its own fixture                                        |
+| 332 dom verbs: waits for visibility, times out, abort ends the wait                    | L3-BROWSER         | page L3 file                                                                                                 | M-ACT              | layout: `state: 'visible'` is a geometry check                                                                          |
+| 355 dom verbs: eval of a bare expression and a statement body                          | L2-PLUGIN:page     | page L2 file                                                                                                 | M-READ             | eval needs no layout                                                                                                    |
+| 363 dom verbs: refuses a result over 512000 JSON characters                            | L2-PLUGIN:page     | page L2 file                                                                                                 | M-READ             | the cap is on the reply; drive it with an eval that returns a large value, since snapshot reads layout                  |
+| 383 dom verbs: clamps a long handler error to the reply bound                          | L2-PLUGIN:page     | page L2 file                                                                                                 | M-READ             | eval throw; no layout                                                                                                   |
+| 393 dom verbs: injects css stylesheets                                                 | L2-PLUGIN:page     | page L2 file                                                                                                 | M-EDIT             | one more edit-live verb                                                                                                 |
+| 400 react verbs: find, locate, tree, inspect, path                                     | L2-PLUGIN:page     | page L2 file                                                                                                 | M-REACT            | React fibers render in happy-dom; no layout                                                                             |
+| 420 react verbs: override validates input and sets state                               | L2-PLUGIN:page     | page L2 file                                                                                                 | M-REACT            | no layout                                                                                                               |
+| 431 react verbs: tracks renders between start and stop                                 | L2-PLUGIN:page     | page L2 file                                                                                                 | M-REACT            | trigger the re-render with `override`, not `click` (click needs layout); also removes the order dependence on 245       |
+| 448 act: select by value or label, missing option changes nothing                      | L3-BROWSER         | page L3 file                                                                                                 | M-ACT              | layout: select goes through the visibility gate                                                                         |
+| 465 act: fill_form field by field, stops at first refusal, abort mid-form              | L3-BROWSER         | page L3 file                                                                                                 | M-ACT              | layout: fill_form uses act verbs                                                                                        |
+| 508 act: fails instead of ok when a field or box refuses                               | L3-BROWSER         | page L3 file                                                                                                 | M-ACT              | layout: fill/check through the visibility gate                                                                          |
+| 531 act: submits the owning form without navigating                                    | L3-BROWSER         | page L3 file                                                                                                 | M-ACT              | submit itself needs no layout but sits on the same form journey; one call after fill_form                               |
+| 541 act: presses keys so page shortcuts fire                                           | L3-BROWSER         | page L3 file                                                                                                 | M-ACT              | layout: press with a target uses the visibility gate; real key events                                                   |
+| 568 act: reaches into open shadow roots, never the widget's                            | L3-BROWSER         | page L3 file                                                                                                 | M-ACT              | layout: click and snapshot read geometry                                                                                |
+| 600 act: hovers with bubbling mouseover and mouseenter                                 | L3-BROWSER         | page L3 file                                                                                                 | M-ACT              | layout: hover goes through the visibility gate                                                                          |
+| 608 act: scrolls a far-away element into view                                          | L3-BROWSER         | page L3 file                                                                                                 | M-FAR              | real scrolling; folds into 809                                                                                          |
+| 623 act: replaces inner HTML with sethtml                                              | L2-PLUGIN:page     | page L2 file                                                                                                 | M-EDIT             | edit-live verb                                                                                                          |
+| 632 a change the app undoes in a microtask or task is refused, a kept one made         | L3-BROWSER         | page L3 file                                                                                                 | M-ACT              | layout: fill/check/select through the visibility gate                                                                   |
+| 711 rich text: plain contenteditable via nested target, plaintext-only                 | L3-BROWSER         | page L3 file                                                                                                 | M-RICHTEXT         | layout gate, plus contenteditable selection and editing                                                                 |
+| 728 rich text: falls back to editing commands when beforeinput is cancelled            | L3-BROWSER         | page L3 file                                                                                                 | M-RICHTEXT         | execCommand does not exist in happy-dom                                                                                 |
+| 742 rich text: refuses read-only editors                                               | L3-BROWSER         | page L3 file                                                                                                 | M-RICHTEXT         | layout gate on fill                                                                                                     |
+| 754 rich text: editor that ignores every way of typing, masked                         | L3-BROWSER         | page L3 file                                                                                                 | M-RICHTEXT         | beforeinput plus execCommand fallback, real editing                                                                     |
+| 776 rich text: refuses CodeMirror and Monaco                                           | L3-BROWSER         | page L3 file                                                                                                 | M-RICHTEXT         | layout gate on fill                                                                                                     |
+| 790 rich text: types into a real Tiptap editor                                         | L3-BROWSER         | page L3 file                                                                                                 | M-RICHTEXT         | ProseMirror needs real selection and contenteditable                                                                    |
+| 809 far-away targets: fill, check, click scroll each into view                         | L3-BROWSER         | page L3 file                                                                                                 | M-FAR              | real scrolling, `toBeInViewport`                                                                                        |
+| 853 refs: a ref from an earlier snapshot fails as stale                                | L3-BROWSER         | page L3 file                                                                                                 | M-ACT              | layout: snapshot and fill read geometry                                                                                 |
+| 905 screenshot: viewport webp the size of the window                                   | L3-BROWSER         | page L3 file                                                                                                 | M-SHOT             | canvas and real rendering                                                                                               |
+| 913 screenshot: widget host, overlay and toast left out                                | L3-BROWSER         | page L3 file                                                                                                 | M-SHOT             | canvas pixel sample                                                                                                     |
+| 933 screenshot: caller-named elements left out, bad selector warned                    | L3-BROWSER         | page L3 file                                                                                                 | M-SHOT             | canvas pixel sample; one more shot in 913                                                                               |
+| 959 page_hmr: not applied when no update lands in time                                 | UNIT               | page unit                                                                                                    | M-HMR              | in tests there is no hot surface, so this is the same outcome as 963; one table row                                     |
+| 963 page_hmr: no hot surface is unsupported                                            | UNIT               | page unit                                                                                                    | M-HMR              | pure `watchHotUpdates(undefined)`                                                                                       |
+| 972 page_hmr: waits for an update already in flight                                    | UNIT               | page unit                                                                                                    | M-HMR              | pure, fake hot surface; use fake timers, drop the `waitedMs >= 30` guess                                                |
+| 985 page_hmr: resolves once a pending update is applied                                | UNIT               | page unit                                                                                                    | M-HMR              | same sequence as 972 without the stale update; one row                                                                  |
+| 997 page_hmr: reports the error when the update fails to build                         | UNIT               | page unit                                                                                                    | M-HMR              | pure                                                                                                                    |
+| 1006 page_hmr: gives up when the pending update never lands                            | UNIT               | page unit                                                                                                    | M-HMR              | pure; fake timers                                                                                                       |
+| 1034 a page call carries its capture: css once, shared before/after, payment field out | L3-BROWSER         | page L3 file                                                                                                 | M-CAPTURE          | layout: fill gate, and snapdom needs real computed style                                                                |
+| 1085 page console: since is inclusive                                                  | L2-PLUGIN:page     | page L2 file                                                                                                 | M-CONSOLE          | console buffer needs no layout                                                                                          |
+| 1096 page console: records uncaught and unhandled with location                        | L3-BROWSER         | page L3 file                                                                                                 | M-CONSOLE          | built bundle in a host page: window `unhandledrejection` and uncaught timer errors only fire as a real page throws them |
+| 1118 Alt inspects until released or Esc, not while typing                              | L2-PLUGIN:page     | page L2 file                                                                                                 | M-INSPECT          | keyboard plus a status hint; drop the `document.activeElement` precondition read                                        |
+| 1150 Alt over a plugin overlay picks the page element under it                         | L3-BROWSER         | page L3 file                                                                                                 | M-INSPECT          | layout: hit testing under fixed-position elements                                                                       |
+| 1184 opening an element's source: opened, symbolicated, no-source, failed              | UNIT               | page unit                                                                                                    | -                  | pure Effect logic over a fake opener; one it.each row per outcome                                                       |
+| 1254 capture keeps one-line link text on one line                                      | L3-BROWSER         | page L3 file                                                                                                 | M-SHOT             | real layout and canvas, Firefox regression                                                                              |
+| 1270 capture keeps a wrapping paragraph wrapped                                        | L3-BROWSER         | page L3 file                                                                                                 | M-SHOT             | real layout and canvas, Firefox regression                                                                              |
+| 1329 agent acts like a person: menu, focus, mask, two-click stop, refusals, remount    | L3-BROWSER         | page L3 file                                                                                                 | M-SIM              | real focus and layout (mask hit, visibility gate)                                                                       |
+| 1425 cursor: an aim replaced by a newer one settles                                    | L3-BROWSER         | page L3 file                                                                                                 | M-CURSOR           | layout: cursor geometry and Web Animations                                                                              |
+| 1432 cursor: an aim whose cursor is dropped settles                                    | L3-BROWSER         | page L3 file                                                                                                 | M-CURSOR           | same fixture, two lines                                                                                                 |
+| 1439 cursor: an aim off screen settles at once                                         | L3-BROWSER         | page L3 file                                                                                                 | M-CURSOR           | same fixture, one line                                                                                                  |
+| 1460 after dispose a page scroll no longer re-lays-out the cursor                      | L3-BROWSER         | page L3 file                                                                                                 | -                  | real scrolling                                                                                                          |
+| 1501 dispose leaves a later console wrapper in place                                   | L2-PLUGIN:page     | page L2 file                                                                                                 | M-CONSOLE          | no DOM; unmount the plugin and check console.info                                                                       |
+| 1604 queue: answers at once, plays fill, check, press in order                         | L3-BROWSER         | page L3 file                                                                                                 | M-QUEUE            | layout: queued actions are act verbs                                                                                    |
+| 1625 queue: a missing target and a read-only field fail alone, rest play               | L3-BROWSER         | page L3 file                                                                                                 | M-QUEUE            | act verbs                                                                                                               |
+| 1638 queue: queue_async answers at once, mask down when done                           | L3-BROWSER         | page L3 file                                                                                                 | M-QUEUE            | act verbs plus mask                                                                                                     |
+| 1649 queue: a queued fill types into a contenteditable                                 | L3-BROWSER         | page L3 file                                                                                                 | M-QUEUE            | one more action in 1604's list                                                                                          |
+| 1660 queue: cut off by an unmount does not keep a later mount's mask                   | DELETE-DUP         | apps/conciv/test/conciv.browser.test.tsx:12697 (same title, real unmount)                                    | -                  | conciv.browser owns it with the real widget                                                                             |
+| 1678 queue: a session switch mid-queue lands nothing more                              | DELETE-DUP         | apps/conciv/test/conciv.browser.test.tsx:12713 (same title, real switch)                                     | -                  | conciv.browser owns it                                                                                                  |
+| 1693 queue: acceptance never reached the engine plays nothing                          | DELETE-DUP         | apps/conciv/test/conciv.browser.test.tsx:12731 (same title, garbled real reply)                              | -                  | conciv.browser owns it                                                                                                  |
+| 1704 queue: a session switch while a fill waits on the editor does not type            | DELETE-DUP         | apps/conciv/test/conciv.browser.test.tsx:12749 "a queued fill released after a session switch does not type" | -                  | conciv.browser owns it                                                                                                  |
+| 1716 queue: a fill the engine cancels while waiting stops, next queue plays alone      | L3-BROWSER         | page L3 file                                                                                                 | M-QUEUE            | act verbs; engine cancel only here                                                                                      |
+| 1730 queue: masks a card number in the result                                          | L3-BROWSER         | page L3 file                                                                                                 | M-QUEUE            | add the card field to 1604's list                                                                                       |
+| 1738 queue: two clicks on the mask stop the queue                                      | L3-BROWSER         | page L3 file                                                                                                 | M-QUEUE            | real pointer clicks on the mask                                                                                         |
+| 1758 queue: still finishes under reduced motion                                        | L3-BROWSER         | page L3 file                                                                                                 | M-QUEUE            | real media emulation (Playwright `emulateMedia`)                                                                        |
+| 1771 contract: Page.toast shows, capture excludes conciv                               | L3-BROWSER         | page L3 file                                                                                                 | M-SHOT             | canvas pixel sample of a snapdom capture                                                                                |
+| 1819 contract: ReactTree reads, names, locates, dehydrates                             | L2-PLUGIN:page     | page L2 file                                                                                                 | M-REACT            | fibers only; no layout                                                                                                  |
+| 1842 contract: Page.pick returns source and box, null on Escape                        | L3-BROWSER         | page L3 file                                                                                                 | M-INSPECT          | layout: the box is a real rect and picking hit-tests; drop the `picking()` poll                                         |
+| 1865 every page tool has a card, route card renders                                    | UNIT               | page unit                                                                                                    | -                  | registry completeness is a list compare; the route card render is already read-value-card.stories.tsx:42 RouteObject    |
+| 1880 act card: zero-input call shows title, nothing to open                            | STORYBOOK          | page stories: act-card.stories.tsx                                                                           | M-ACTCARD          | one card state                                                                                                          |
+| 1886 act card: shows input while running with no result                                | STORYBOOK          | page stories: act-card.stories.tsx                                                                           | M-ACTCARD          | one card state (running)                                                                                                |
+| 1898 act card: error-only result opens on the error                                    | STORYBOOK          | page stories: act-card.stories.tsx                                                                           | M-ACTCARD          | one card state plus a click                                                                                             |
+| 1911 console card: error mark when the page threw                                      | STORYBOOK          | page stories: console-card.stories.tsx                                                                       | -                  | one card state                                                                                                          |
+| 1931 read-value card: element as subtitle, raw selector key dropped                    | STORYBOOK          | page stories: read-value-card.stories.tsx                                                                    | M-CHIPS            | one card state                                                                                                          |
+| 1941 read-value card: root array as a JSON tree                                        | DELETE-DUP         | builtin-plugins/src/page/cards/read-value-card.stories.tsx:25 RootArray                                      | -                  | the story opens the card and sees the tree and both items                                                               |
+| 1951 read-bulk card: element as subtitle, other input kept                             | STORYBOOK          | page stories: read-bulk-card.stories.tsx                                                                     | M-CHIPS            | one card state                                                                                                          |
+| 1961 react card: element as subtitle, other input kept                                 | STORYBOOK          | page stories: react-card.stories.tsx                                                                         | M-CHIPS            | one card state                                                                                                          |
+| 1986 screenshot result shows the picture, not a base64 tree                            | STORYBOOK          | page stories: a screenshot story in read-value-card.stories.tsx                                              | -                  | one card state                                                                                                          |
+| 2006 viewer: clicking the thumbnail opens the full image                               | DELETE-DUP         | packages/ui-kit-chat/test/composer.browser.test.tsx:323                                                      | -                  | same ZoomableImage, opened by click                                                                                     |
+| 2016 viewer: Escape closes, visible focus back on thumbnail                            | DELETE-DUP         | packages/ui-kit-chat/test/composer.browser.test.tsx:334                                                      | -                  | same component; that row should add the `:focus-visible` side when it moves to a ui-kit-system play                     |
+| 2030 viewer: Enter on the focused thumbnail opens it                                   | STORYBOOK          | packages/ui-kit-system ZoomableImage story                                                                   | M-VIEWER           | one kit component's keyboard interaction; real focus is fine in the Storybook Chromium run                              |
+| 2041 viewer: close button closes it                                                    | STORYBOOK          | packages/ui-kit-system ZoomableImage story                                                                   | M-VIEWER           | one more step of 2030                                                                                                   |
+| 2050 viewer: click toggles actual size, reopening starts fitted                        | STORYBOOK          | packages/ui-kit-system ZoomableImage story                                                                   | M-VIEWER           | toggle is composer.browser:323; "reopen starts fitted" is new and joins the play                                        |
+| 2065 viewer: an image that cannot load says so                                         | STORYBOOK          | packages/ui-kit-system ZoomableImage story                                                                   | M-VIEWER-BROKEN    | one component state                                                                                                     |
+| 2072 viewer: a failed image recovers when its source changes                           | STORYBOOK          | packages/ui-kit-system ZoomableImage story                                                                   | M-VIEWER-BROKEN    | same story, source arg changes                                                                                          |
+| 2149 session card: streamed appends keep existing rows mounted                         | L2-PLUGIN:page     | page L2 file                                                                                                 | M-SESSION-STREAM   | needs streaming parts over time: scripted chat streams page_fill calls into the thread                                  |
+| 2169 session card: form fill step label while running and done                         | L2-PLUGIN:page     | page L2 file                                                                                                 | M-SESSION-STREAM   | running then settled is the same streamed turn                                                                          |
+| 2192 session card: streaming act outside shorthand verbs reads as running              | STORYBOOK          | page stories: session-card.stories.tsx Streaming                                                             | -                  | one static streaming state                                                                                              |
+| 2207 session card: settled shows folded reasoning and script, collapsed                | STORYBOOK          | page stories: session-card.stories.tsx                                                                       | M-SESSION-SETTLED  | one state plus a click                                                                                                  |
+| 2224 session card: expanded shows step rail without its own input row                  | STORYBOOK          | page stories: session-card.stories.tsx                                                                       | M-SESSION-SETTLED  | same mount                                                                                                              |
+| 2234 session card: only error is the folded script run reports error                   | STORYBOOK          | page stories: session-card.stories.tsx                                                                       | -                  | WithError (215) covers a step error, not a folded-script-only error; new story                                          |
+| 2249 session card: settled without route result shows no location pill                 | STORYBOOK          | page stories: session-card.stories.tsx                                                                       | M-SESSION-LOCATION | one state; assert by text, not body.textContent                                                                         |
+| 2262 session card: script step reads its first code line, no duplicate pill            | DELETE-DUP         | builtin-plugins/src/page/cards/session-card.stories.tsx:255 Scripted                                         | -                  | the story checks the code line and no stray "script" text                                                               |
+| 2275 session card: streaming without route shows current location                      | STORYBOOK          | page stories: session-card.stories.tsx                                                                       | M-SESSION-LOCATION | the other side of 2249                                                                                                  |
+| 2299 grab card: shows snapshot and source label                                        | STORYBOOK          | page stories: grab-card.stories.tsx GrabbedElement (46)                                                      | M-GRAB             | extend that play with the snapshot title and source label                                                               |
+| 2306 grab card: click opens a dialog that reveals the agent text                       | STORYBOOK          | page stories: grab-card.stories.tsx                                                                          | M-GRAB             | one component interaction                                                                                               |
+| 2319 grab card: no preview falls back to the agent text                                | STORYBOOK          | page stories: grab-card.stories.tsx                                                                          | M-GRAB-PREVIEW     | one state                                                                                                               |
+| 2325 grab card: unreadable payload says so                                             | DELETE-DUP         | builtin-plugins/src/page/cards/grab-card.stories.tsx:71 UnreadablePayload                                    | -                  | same text, same state                                                                                                   |
+| 2331 grab card: image preview renders as the snapshot image                            | STORYBOOK          | page stories: grab-card.stories.tsx                                                                          | M-GRAB-PREVIEW     | the other preview kind                                                                                                  |
+| 2355 grab snapshot frame: renders in its own document                                  | STORYBOOK          | page stories: grab-snapshot-frame story                                                                      | M-GRAB-FRAME       | 2363 already renders the frame                                                                                          |
+| 2363 grab snapshot frame: inline handlers never run in the widget                      | STORYBOOK          | page stories: grab-snapshot-frame story                                                                      | M-GRAB-FRAME       | security; iframe sandbox needs the real Chromium the Storybook run uses, not happy-dom                                  |
+| 2582 tanstack cards: every card on success, error, running, pending                    | STORYBOOK          | packages/plugins/tanstack/src/cards.stories.tsx (new; cards move from builtin-plugins/src/tanstack)          | -                  | card states; one story per case instead of one for loop that stops at the first broken card                             |
+| 2674 recorder cards: pull window, start, failed stop, embedded summary                 | STORYBOOK          | packages/plugins/recorder/src/cards.stories.tsx (new; cards move from builtin-plugins/src/recorder)          | -                  | card states                                                                                                             |
+| 2726 page tab: hides secret search, hash and router path values                        | L2-PLUGIN:page     | page L2 file                                                                                                 | M-TAB              | history API and a React router render in happy-dom; security                                                            |
+| 2766 page tab: long url and title fit the rpc caps                                     | L2-PLUGIN:page     | page L2 file                                                                                                 | M-TAB              | same readTab call                                                                                                       |
+| 2775 page tab: reports again after pushState and a title change                        | L2-PLUGIN:page     | page L2 file                                                                                                 | M-TAB              | pushState and title observer work in happy-dom                                                                          |
+| 2809 terminal over the rpc socket: resumes after the last output shown                 | L2-PLUGIN:terminal | packages/plugins/terminal test file (package does not exist yet)                                             | -                  | transport resume over a fake rpc link; xterm buffer only, no canvas rendering                                           |
+
+Count: 114 rows, 114 tests.
+
+### 2. Totals and what the file becomes
+
+| destination               | count |
+| ------------------------- | ----- |
+| L2-PLUGIN:page            | 25    |
+| L2-PLUGIN:terminal        | 1     |
+| L3-BROWSER (page)         | 44    |
+| UNIT (page)               | 8     |
+| STORYBOOK (page stories)  | 20    |
+| STORYBOOK (ui-kit-system) | 5     |
+| STORYBOOK (tanstack)      | 1     |
+| STORYBOOK (recorder)      | 1     |
+| DELETE-DUP                | 9     |
+| total                     | 114   |
+
+L3 reasons: layout through the act-verb visibility gate or snapshot (most rows), real scrolling (608, 809, 1460), canvas or pixel capture (905, 913, 933, 1034, 1254, 1270, 1771), real focus and hit testing (1329, 1150, 1842), real page errors in a host page (1096), media emulation (1758). Merge-ids collapse the 44 L3 tests into about 10 journeys (M-ACT, M-RICHTEXT, M-FAR, M-SHOT, M-CAPTURE, M-SIM, M-CURSOR, M-QUEUE, M-INSPECT, plus 1460 and 1096).
+
+Merge journeys:
+
+- M-EFFECT / M-EFFECT-ERR: effect list, every action, report; then the two error paths.
+- M-READ: target resolution, read verbs, password masking in attr/dom, eval, result cap, error clamp.
+- M-EDIT: every edit-live verb, css and sethtml, read back through attr/dom/exists.
+- M-REACT: find, locate, tree, inspect, override, track, and the ReactTree contract (1819).
+- M-ACT: the agent drives a React form like a person: click, fill with password mask, check/radio, select, fill_form with stop, submit, press, hover, shadow roots, microtask undo honesty, wait, stale refs.
+- M-RICHTEXT: every editor kind in one host (contenteditable, beforeinput fallback, read-only, stubborn, code editors, Tiptap).
+- M-FAR: scroll and the act verbs on far-away controls.
+- M-SHOT: screenshot size, exclusions, caller exclude, capture fidelity in Firefox, toast contract capture.
+- M-CAPTURE: capture css bundle shared and payment field masked.
+- M-SIM / M-CURSOR / M-QUEUE: simulator journey; cursor aims settle; queue order, failures, async, editor fill, engine cancel, card mask, user stop, reduced motion.
+- M-INSPECT: Alt hint lifecycle at L2; Alt over overlay and pick at L3.
+- M-CONSOLE: since boundary and dispose leaving console wrappers (L2); uncaught/unhandled stays L3.
+- M-HMR: one it.each table: unsupported, in flight, pending applied, build error, timeout.
+- M-TAB: redaction, caps, change reports.
+- M-SESSION-STREAM: one scripted streamed page session in the thread.
+- card merges: act card states, chip subtitles, session card states, grab card states, viewer states.
+
+What the file becomes: deleted. Its page-tool, simulator, queue, capture and screenshot rows move to packages/plugins/page (L2 file 25, L3 file 44, unit 8); page card rows become page stories plays; tanstack and recorder card rows become stories in packages/plugins/tanstack and packages/plugins/recorder; the image viewer rows go to a ui-kit-system story; the terminal row waits for packages/plugins/terminal; 9 rows are deleted as duplicates.
+
+Plugin ownership of every row: packages/plugins/page owns 100 of 114 (including the 3 page DUPs against its own stories: 1941, 2262, 2325). The rest: 2582 packages/plugins/tanstack, 2674 packages/plugins/recorder, 2809 packages/plugins/terminal (not created yet), the 5 viewer rows 2030-2072 ui-kit-system, the 2 viewer DUPs 2006/2016 ui-kit-chat composer.browser, and the 4 queue DUPs 1660/1678/1693/1704 the apps/conciv shell (conciv.browser). No row belongs to whiteboard or test-runner.
+
+### 3. Suspected cross-file duplicates
+
+- 1660, 1678, 1693, 1704 = apps/conciv/test/conciv.browser.test.tsx:12697, 12713, 12731, 12749 (same titles; conciv.browser runs the real engine and widget). Deleted here.
+- 2006, 2016 = packages/ui-kit-chat/test/composer.browser.test.tsx:323 "opens the full image outside the transformed panel, and toggles actual size" and :334 "Escape closes the viewer and returns focus to the tile". Both should end as one ZoomableImage play in ui-kit-system.
+- 1941 = read-value-card.stories.tsx:25 RootArray; 2325 = grab-card.stories.tsx:71 UnreadablePayload; 2262 = session-card.stories.tsx:255 Scripted; 2299 overlaps grab-card.stories.tsx:46 GrabbedElement; 1865 route-card part = read-value-card.stories.tsx:42 RouteObject.
+- 1819 (ReactTree contract) overlaps packages/page/test/page.browser.test.tsx:1013 "names the component and walks the composite owner chain"; 420 overlaps page.browser:1057 "sets class state in place and re-renders"; 400 overlaps page.browser:1120 "finds rendered components by display name" and :1099 "builds the composite tree from a root element". The tool-level rows here should own them; the page.browser rows are the lower-level copies.
+- 1842 (Page.pick) overlaps page.browser:1171 "returns a grab for a click on a heading beside its text, plain or react-rendered, in comment and pick mode".
+- 1034 (capture css bundle, payment field) overlaps page.browser:343 "hashes the same page css to the same bundle on every capture" and :375 "keeps a payment field out of the capture payload". Keep one capture journey in the page L3 file.
+- 143 overlaps packages/embed/test/e2e/embed.it.test.ts:1609 "page_effect enable shows the highlight inspector ... disable reverts, toggle flips"; 1329 and 1738 overlap embed.it:1539/1601 "two clicks on the page stop the agent" (single action only).
+- 2726 (tab redaction) is different code from packages/plugins/tanstack/test/tanstack.browser.test.ts:128 (tanstack's own location reading); not a duplicate.
+- 2582 and 2674 are the only proof of the tanstack and recorder card renderers; check the plugins/tanstack and plugins/recorder test files do not also render these cards.
+- plugin-page.test.ts:590 "a queued action whose command never reached the page counts as lost, not played" is the engine side of 1693; not a duplicate, different layer.
+
+### 4. Cannot move to happy-dom (though it looks like it could), and blockers
+
+- Every act verb: `actionable()` (builtin-plugins/src/page/page-act.ts:30-44) needs a non-zero `getBoundingClientRect` and `checkVisibility`. happy-dom returns 0 by 0 and may lack `checkVisibility`, so click/fill/check/select/press/hover all refuse. That drags 245, 250, 272, 448, 465, 508, 531, 541, 600, 632, the rich-text rows, the queue, the simulator and 1034 to L3. Faking a rect would be a stub and is banned.
+- `snapshot` reads rects, offsetParent and computed style (packages/page/src/page-snapshot.ts:18-19, 79), so 568 and 853 are L3; 363 moves to L2 only if the cap is driven by eval instead of snapshot.
+- `wait` with `state: 'visible'` (332) is a geometry check.
+- Rich text: happy-dom has no `document.execCommand` (simulator.ts:500-501 relies on it) and no real selection inside contenteditable; Tiptap/ProseMirror needs both (711-790, 1649).
+- Simulator and cursor: `elementFromPoint`, `scrollIntoView`, cursor rects and animations (simulator.ts:149, 364, 372, 387) need layout; 1425-1439 would hang or resolve for the wrong reason without real animation timing.
+- Screenshot and captures: canvas, `createImageBitmap`, `OffscreenCanvas`, snapdom with real computed style and fonts (905-933, 1254, 1270, 1771, 1034).
+- Page errors: window `unhandledrejection` is not raised by happy-dom for a rejected promise in Node (the rejection goes to the Node process); 1096 stays L3.
+- Alt over an overlay (1150) and Page.pick (1842) hit-test under fixed-position elements.
+- Grab snapshot frame (2363): iframe sandbox and `onerror` on a broken image in srcdoc only behave like a browser in a browser; kept as a Storybook play (real Chromium).
+- 1118 (Alt hint) is L2 only if the focus check "not while typing in a textbox" works on happy-dom's `activeElement`; if Ark/zag focus gating or the keyboard listener needs real focus, it moves to L3.
+- 2149 asserts element identity of rows across streaming updates; in L2 it should read as "the first row's text is still shown and was not re-entered", since identity is a DOM implementation read.
+- 2809 depends on xterm's buffer working without `open()`; if `createTerminalModel` touches canvas or measures characters it becomes L3 (canvas). Owner packages/plugins/terminal does not exist yet.
+- Order dependence to drop in the rewrite: 431 needed 245's click (`:2:`), 315 counted 8 inputs of the shared fixture, 608 assumed `scrollY === 0`; listeners at 448, 508, 531, 600 were never removed.
+
+---
+
+## Partial B: builtin-plugins stories, page.browser, plugin-page, plugin-testkit
+
+Worktree /Users/omrikatz/Public/web/aidx-wt-test-split at 86d94e743. Every file read in full. Line numbers are the
+`it`/`test`/story export line on the worktree. "page" below means the merged package packages/plugins/page (packages/page +
+packages/plugin-page + packages/builtin-plugins/src/page + packages/plugin-page-testkit).
+
+### 1. Per test file
+
+#### 1.1 Stories in packages/builtin-plugins/src (14 files, 62 stories, 41 with a play)
+
+Every story stays a story (STORYBOOK). Storybook already runs every story as a test (render without throwing); a play
+adds asserts. Owner after the move: whiteboard stories go to packages/plugins/whiteboard/src, page card stories go to
+packages/plugins/page/src. The storybook glob in apps/storybook/src/storybook/main.ts:13 names
+packages/builtin-plugins/src and must be changed to packages/plugins/*/src at the move.
+
+##### whiteboard/element-card.stories.tsx (2 stories, 0 plays)
+
+| test                   | destination | target                      | merge-id | why                                        |
+| ---------------------- | ----------- | --------------------------- | -------- | ------------------------------------------ |
+| :10 Found (no play)    | STORYBOOK   | packages/plugins/whiteboard | -        | visual state of the element reference card |
+| :23 NotFound (no play) | STORYBOOK   | packages/plugins/whiteboard | -        | failed state                               |
+
+##### whiteboard/anchor-card.stories.tsx (3 stories, 0 plays)
+
+| test                   | destination | target                      | merge-id | why                          |
+| ---------------------- | ----------- | --------------------------- | -------- | ---------------------------- |
+| :10 Fresh (no play)    | STORYBOOK   | packages/plugins/whiteboard | -        | anchor resolve fresh         |
+| :15 Drifted (no play)  | STORYBOOK   | packages/plugins/whiteboard | -        | drift with before/after diff |
+| :31 NotFound (no play) | STORYBOOK   | packages/plugins/whiteboard | -        | failed call                  |
+
+##### whiteboard/canvas-card.stories.tsx (9 stories, 0 plays)
+
+| test                          | destination | target                      | merge-id | why                  |
+| ----------------------------- | ----------- | --------------------------- | -------- | -------------------- |
+| :13 Read (no play)            | STORYBOOK   | packages/plugins/whiteboard | -        | canvas read result   |
+| :34 Svg (no play)             | STORYBOOK   | packages/plugins/whiteboard | -        | svg op               |
+| :52 Diagram (no play)         | STORYBOOK   | packages/plugins/whiteboard | -        | diagram op           |
+| :65 PreviewImage (no play)    | STORYBOOK   | packages/plugins/whiteboard | -        | png preview          |
+| :77 PreviewEmpty (no play)    | STORYBOOK   | packages/plugins/whiteboard | -        | empty preview        |
+| :84 DeleteConfirmed (no play) | STORYBOOK   | packages/plugins/whiteboard | -        | delete confirmed     |
+| :91 CommitFailed (no play)    | STORYBOOK   | packages/plugins/whiteboard | -        | commit failure state |
+| :98 ExportFailed (no play)    | STORYBOOK   | packages/plugins/whiteboard | -        | export failure state |
+| :111 RunningOp (no play)      | STORYBOOK   | packages/plugins/whiteboard | -        | running row          |
+
+##### whiteboard/comment-card.stories.tsx (7 stories, 0 plays)
+
+| test                           | destination | target                      | merge-id | why                    |
+| ------------------------------ | ----------- | --------------------------- | -------- | ---------------------- |
+| :12 CreatePreview (no play)    | STORYBOOK   | packages/plugins/whiteboard | -        | comment create preview |
+| :34 ListResults (no play)      | STORYBOOK   | packages/plugins/whiteboard | -        | list results           |
+| :67 ReadThread (no play)       | STORYBOOK   | packages/plugins/whiteboard | -        | thread read            |
+| :99 ResolveConfirmed (no play) | STORYBOOK   | packages/plugins/whiteboard | -        | resolve confirmed      |
+| :106 DeleteConfirmed (no play) | STORYBOOK   | packages/plugins/whiteboard | -        | delete confirmed       |
+| :113 PinLocked (no play)       | STORYBOOK   | packages/plugins/whiteboard | -        | locked pin             |
+| :122 NotFound (no play)        | STORYBOOK   | packages/plugins/whiteboard | -        | failed call            |
+
+##### page/cards/effect-card.stories.tsx (4 stories, 4 plays)
+
+| test                         | destination | target                | merge-id | why                                  |
+| ---------------------------- | ----------- | --------------------- | -------- | ------------------------------------ |
+| :10 EffectTurnedOn (play)    | STORYBOOK   | packages/plugins/page | -        | effect name once, action, on state   |
+| :33 RegisteredEffects (play) | STORYBOOK   | packages/plugins/page | -        | effect list with description and off |
+| :58 NoEffects (play)         | STORYBOOK   | packages/plugins/page | -        | empty state text                     |
+| :71 Trace (play)             | STORYBOOK   | packages/plugins/page | -        | card inside a trace gallery          |
+
+##### page/cards/console-card.stories.tsx (3 stories, 3 plays)
+
+| test                | destination | target                | merge-id | why                     |
+| ------------------- | ----------- | --------------------- | -------- | ----------------------- |
+| :12 LogLines (play) | STORYBOOK   | packages/plugins/page | -        | line count and log text |
+| :40 NoOutput (play) | STORYBOOK   | packages/plugins/page | -        | empty state             |
+| :53 Trace (play)    | STORYBOOK   | packages/plugins/page | -        | in a trace              |
+
+##### page/cards/edit-live-card.stories.tsx (3 stories, 3 plays)
+
+| test                          | destination | target                | merge-id | why                                        |
+| ----------------------------- | ----------- | --------------------- | -------- | ------------------------------------------ |
+| :15 TextChangeWithDiff (play) | STORYBOOK   | packages/plugins/page | -        | Before/After tabs switch the capture image |
+| :52 EvalCodeBlock (play)      | STORYBOOK   | packages/plugins/page | -        | script shown as code, not raw              |
+| :73 Trace (play)              | STORYBOOK   | packages/plugins/page | -        | in a trace                                 |
+
+##### page/cards/page-result-views.stories.tsx (3 stories, 3 plays)
+
+| test                 | destination | target                | merge-id | why                        |
+| -------------------- | ----------- | --------------------- | -------- | -------------------------- |
+| :14 NodeList (play)  | STORYBOOK   | packages/plugins/page | -        | snapshot nodes with refs   |
+| :31 HtmlBlock (play) | STORYBOOK   | packages/plugins/page | -        | html shown in a code block |
+| :44 ValueChip (play) | STORYBOOK   | packages/plugins/page | -        | scalar value chip          |
+
+##### page/cards/act-card.stories.tsx (2 stories, 2 plays)
+
+| test                   | destination | target                | merge-id | why                           |
+| ---------------------- | ----------- | --------------------- | -------- | ----------------------------- |
+| :11 FilledField (play) | STORYBOOK   | packages/plugins/page | -        | typed value and capture image |
+| :33 Trace (play)       | STORYBOOK   | packages/plugins/page | -        | in a trace, timeout error row |
+
+##### page/cards/grab-card.stories.tsx (2 stories, 2 plays)
+
+| test                         | destination | target                | merge-id | why                                                                                                  |
+| ---------------------------- | ----------- | --------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| :46 GrabbedElement (play)    | STORYBOOK   | packages/plugins/page | -        | snapshot button and source label; the play owns what builtin-plugins.browser.test.tsx:2299 re-proves |
+| :71 UnreadablePayload (play) | STORYBOOK   | packages/plugins/page | -        | could-not-be-read state; owns what builtin:2325 re-proves                                            |
+
+##### page/cards/react-card.stories.tsx (5 stories, 5 plays)
+
+| test                      | destination | target                | merge-id | why                               |
+| ------------------------- | ----------- | --------------------- | -------- | --------------------------------- |
+| :10 LocatedSource (play)  | STORYBOOK   | packages/plugins/page | -        | component and file:line           |
+| :36 InspectedProps (play) | STORYBOOK   | packages/plugins/page | -        | props tree                        |
+| :61 RenderCounts (play)   | STORYBOOK   | packages/plugins/page | -        | plural and singular render counts |
+| :90 NoRenders (play)      | STORYBOOK   | packages/plugins/page | -        | empty state                       |
+| :109 Trace (play)         | STORYBOOK   | packages/plugins/page | -        | in a trace                        |
+
+##### page/cards/read-value-card.stories.tsx (4 stories, 4 plays)
+
+| test                       | destination | target                | merge-id | why                                                    |
+| -------------------------- | ----------- | --------------------- | -------- | ------------------------------------------------------ |
+| :10 ElementAndValue (play) | STORYBOOK   | packages/plugins/page | -        | value as JSON tree                                     |
+| :25 RootArray (play)       | STORYBOOK   | packages/plugins/page | -        | root array as a tree; owns what builtin:1941 re-proves |
+| :42 RouteObject (play)     | STORYBOOK   | packages/plugins/page | -        | route object                                           |
+| :68 Trace (play)           | STORYBOOK   | packages/plugins/page | -        | in a trace                                             |
+
+##### page/cards/read-bulk-card.stories.tsx (5 stories, 5 plays)
+
+| test                     | destination | target                | merge-id | why                                                                                               |
+| ------------------------ | ----------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| :16 DomMarkup (play)     | STORYBOOK   | packages/plugins/page | -        | markup in the diff viewer (reads shadowRoot textContent, a DOM read to replace with a role query) |
+| :37 SnapshotNodes (play) | STORYBOOK   | packages/plugins/page | -        | snapshot nodes with refs                                                                          |
+| :62 QueryMatches (play)  | STORYBOOK   | packages/plugins/page | -        | match count                                                                                       |
+| :84 EmptySnapshot (play) | STORYBOOK   | packages/plugins/page | -        | empty state                                                                                       |
+| :97 Trace (play)         | STORYBOOK   | packages/plugins/page | -        | in a trace                                                                                        |
+
+##### page/cards/session-card.stories.tsx (10 stories, 10 plays)
+
+| test                       | destination | target                | merge-id | why                                                                |
+| -------------------------- | ----------- | --------------------- | -------- | ------------------------------------------------------------------ |
+| :122 Streaming (play)      | STORYBOOK   | packages/plugins/page | -        | running session, current step, 4 rows                              |
+| :146 Settled (play)        | STORYBOOK   | packages/plugins/page | -        | settled header, collapse on click                                  |
+| :170 BornOpen (play)       | STORYBOOK   | packages/plugins/page | -        | opened session lists every step and value                          |
+| :192 Aborted (play)        | STORYBOOK   | packages/plugins/page | -        | no running marker after abort                                      |
+| :215 WithError (play)      | STORYBOOK   | packages/plugins/page | -        | step error shown                                                   |
+| :255 Scripted (play)       | STORYBOOK   | packages/plugins/page | -        | script steps read their first code line                            |
+| :266 ScriptedNarrow (play) | STORYBOOK   | packages/plugins/page | -        | same at a narrow split (needs layout)                              |
+| :277 Narrow (play)         | STORYBOOK   | packages/plugins/page | -        | narrow card hides url and counts (container query, needs layout)   |
+| :301 HeaderSummary (play)  | STORYBOOK   | packages/plugins/page | -        | Tab focus and tooltip (real focus; inline 2000 ms timeout to drop) |
+| :326 LongUrl (play)        | STORYBOOK   | packages/plugins/page | -        | long url present (weak: toBeInTheDocument)                         |
+
+#### 1.2 packages/page/test/page.browser.test.tsx (58 tests)
+
+| test                                                                            | destination    | target                                                                                                                                      | merge-id      | why                                                                                                        |
+| ------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------- |
+| :65 captureElement captures the clone as markup carrying the inlined styles     | L3-BROWSER     | packages/plugins/page browser file                                                                                                          | GRAB-CLONE    | needs real computed styles (no CSS engine in happy-dom); drop the style.color asserts for a rendered check |
+| :79 captures pseudo-element rules into a scoped stylesheet                      | L3-BROWSER     | packages/plugins/page                                                                                                                       | GRAB-CLONE    | ::before rules come from the real CSSOM                                                                    |
+| :90 strips ids and neutralizes the root layout                                  | L3-BROWSER     | packages/plugins/page                                                                                                                       | GRAB-CLONE    | same clone, one more step                                                                                  |
+| :102 keeps the markup of a grabbed svg element                                  | L3-BROWSER     | packages/plugins/page                                                                                                                       | GRAB-CLONE    | width needs layout                                                                                         |
+| :319 survives a later class flip and deletion of the captured node              | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-FROZEN    | capture runs rrweb over the real CSSOM                                                                     |
+| :334 carries the ancestor skeleton down to a marked target                      | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-FROZEN    | css bundle from document.styleSheets                                                                       |
+| :343 hashes the same page css to the same bundle on every capture               | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-FROZEN    | second capture in the same fixture                                                                         |
+| :350 keeps a css bundle for each side when the page injects a rule mid-tool     | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-FROZEN    | before/after css differ                                                                                    |
+| :369 keeps a password out of the capture payload                                | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-FROZEN    | secret masked in capture (password case not in builtin:1034)                                               |
+| :375 keeps a payment field out of the capture payload                           | DELETE-DUP     | builtin-plugins.browser.test.tsx:1034                                                                                                       | -             | builtin:1034 keeps a payment field out of the result and the capture                                       |
+| :381 records a before side and no after side when the verb detaches the element | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-FROZEN    | detach path                                                                                                |
+| :387 degrades to a descriptor when the subtree holds the conciv widget          | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-FROZEN    | widget never serialized                                                                                    |
+| :396 strips handlers, javascript: urls, iframe/object/embed                     | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-SANITIZE  | one proof the serializer applies the protocol rules                                                        |
+| :425 keeps script and stylesheet-link nodes out                                 | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-SANITIZE  | same hostile fixture                                                                                       |
+| :439 still produces a capture with an out-of-range numeric character reference  | DELETE-COVERED | packages/protocol/test/protocol.test.ts:238 "rejects a value carrying an undecodable entity"                                                | CAP-SANITIZE  | the decode rule is a protocol unit; the :396 fixture already carries the link                              |
+| :449 inlines a same-origin image as webp at rendered size, src stripped         | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-IMAGES    | canvas encode + image decode                                                                               |
+| :466 admits images in document order within budget                              | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-IMAGES    | canvas                                                                                                     |
+| :493 measures the payload budget in utf-8 bytes                                 | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-IMAGES    | over budget gives descriptor only, same outcome as :562                                                    |
+| :506 rejects an encoder failure, sibling still inlines                          | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-IMAGES    | canvas size limit                                                                                          |
+| :521 leaves the live element untouched and silent when the canvas taints        | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-IMAGES    | cross-origin taint; replace the three vi.spyOn with an observable assert                                   |
+| :543 never inlines a conciv-block image                                         | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-IMAGES    | opt-out class                                                                                              |
+| :562 omits the node and keeps the descriptor past the payload budget            | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-IMAGES    | budget fallback                                                                                            |
+| :657 a captured run keeps its line count under a fallback font                  | L3-BROWSER     | packages/plugins/page                                                                                                                       | FONT-FALLBACK | real fonts and line boxes (geometry assert to reword per Decision 6)                                       |
+| :670 a run the frame can render itself is left untouched                        | L3-BROWSER     | packages/plugins/page                                                                                                                       | FONT-FALLBACK | font check needs document.fonts                                                                            |
+| :683 a captured run keeps its advance width                                     | L3-BROWSER     | packages/plugins/page                                                                                                                       | FONT-FALLBACK | real text widths                                                                                           |
+| :737 fitImagePreview returns a preview that already fits untouched              | L3-BROWSER     | packages/plugins/page                                                                                                                       | GRAB-FIT      | canvas encode                                                                                              |
+| :746 refits an oversized preview so it survives a payload round trip            | L3-BROWSER     | packages/plugins/page                                                                                                                       | GRAB-FIT      | canvas                                                                                                     |
+| :762 keeps an image when nothing can reach the budget                           | L3-BROWSER     | packages/plugins/page                                                                                                                       | GRAB-FIT      | canvas                                                                                                     |
+| :772 returns the original when the data url cannot be decoded                   | L3-BROWSER     | packages/plugins/page                                                                                                                       | GRAB-FIT      | image decode                                                                                               |
+| :800 elementSnippet opening tag, salient attributes, trimmed text               | UNIT           | packages/plugins/page node file (happy-dom env)                                                                                             | SNIPPET       | DOM-only string building, it.each row                                                                      |
+| :807 keeps role and aria-label, drops others                                    | UNIT           | packages/plugins/page                                                                                                                       | SNIPPET       | row                                                                                                        |
+| :812 omits the closing tag for void and empty                                   | UNIT           | packages/plugins/page                                                                                                                       | SNIPPET       | row                                                                                                        |
+| :817 truncates long text to eighty characters                                   | UNIT           | packages/plugins/page                                                                                                                       | SNIPPET       | row                                                                                                        |
+| :825 groundGrabText snippet plus full data-tsd-source path                      | UNIT           | packages/plugins/page                                                                                                                       | GROUND        | row                                                                                                        |
+| :836 reads the attribute off the nearest annotated ancestor                     | UNIT           | packages/plugins/page                                                                                                                       | GROUND        | row                                                                                                        |
+| :843 passes react-grab text through when no attribute resolves                  | UNIT           | packages/plugins/page                                                                                                                       | GROUND        | row                                                                                                        |
+| :872 buildSnapshot derives roles from tags, input types, roles                  | UNIT           | packages/plugins/page (happy-dom env)                                                                                                       | SNAPSHOT      | role table; see 4 on the hidden check                                                                      |
+| :904 prefers aria-label, then label, then trimmed text                          | UNIT           | packages/plugins/page                                                                                                                       | SNAPSHOT      | name table                                                                                                 |
+| :917 truncates long names at 80 characters                                      | UNIT           | packages/plugins/page                                                                                                                       | SNAPSHOT      | row                                                                                                        |
+| :923 reports checked, disabled and hidden state                                 | L3-BROWSER     | packages/plugins/page                                                                                                                       | CAP-FROZEN    | hidden reads offsetParent, which needs layout                                                              |
+| :937 carries form values and skips uninteresting elements                       | UNIT           | packages/plugins/page                                                                                                                       | SNAPSHOT      | row                                                                                                        |
+| :948 mints sequential live refs that dereference to the elements                | UNIT           | packages/plugins/page                                                                                                                       | SNAPSHOT      | ref numbering                                                                                              |
+| :959 describeElement tag, id, class, rect, computed style                       | UNIT           | packages/plugins/page                                                                                                                       | SNAPSHOT      | only expect.any on rect/style, so happy-dom zeros pass                                                     |
+| :1013 locate names the component and walks the owner chain                      | DELETE-DUP     | builtin-plugins.browser.test.tsx:1819                                                                                                       | -             | same Leaf/Branch stack and owner refs starting with v                                                      |
+| :1023 locate reads data-tsd-source into a source location                       | DELETE-COVERED | apps/conciv/test/conciv.browser.test.tsx:12778 "holding Alt and clicking a React element opens its source in the editor through the engine" | -             | end to end owner                                                                                           |
+| :1032 describe + componentHostAt resolve the owning component                   | DELETE-DUP     | builtin-plugins.browser.test.tsx:1819                                                                                                       | -             | tree.describe(element) gives Leaf there; add the one componentHostAt assert to that test                   |
+| :1039 inspect reads function-component props and hooks                          | UNIT           | packages/plugins/page (happy-dom env, react-dom)                                                                                            | REACT-BRIDGE  | hooks only proven here                                                                                     |
+| :1048 inspect reads class-component state, no hooks                             | UNIT           | packages/plugins/page                                                                                                                       | REACT-BRIDGE  | class state only here                                                                                      |
+| :1057 override sets class state in place and re-renders                         | DELETE-DUP     | builtin-plugins.browser.test.tsx:420                                                                                                        | -             | same Counter state override                                                                                |
+| :1063 override function-component props                                         | UNIT           | packages/plugins/page                                                                                                                       | REACT-BRIDGE  | only test                                                                                                  |
+| :1069 override hook state by hook id                                            | UNIT           | packages/plugins/page                                                                                                                       | REACT-BRIDGE  | only test                                                                                                  |
+| :1078 override nearest context provider value                                   | UNIT           | packages/plugins/page                                                                                                                       | REACT-BRIDGE  | only test                                                                                                  |
+| :1084 override reports actionable errors                                        | UNIT           | packages/plugins/page                                                                                                                       | REACT-BRIDGE  | three error texts, it.each                                                                                 |
+| :1099 tree builds the composite tree                                            | DELETE-DUP     | builtin-plugins.browser.test.tsx:400                                                                                                        | -             | same Branch > Leaf, Counter                                                                                |
+| :1115 tree truncates beyond maxNodes                                            | UNIT           | packages/plugins/page                                                                                                                       | REACT-BRIDGE  | only test                                                                                                  |
+| :1120 find by display name                                                      | DELETE-DUP     | builtin-plugins.browser.test.tsx:400                                                                                                        | -             | find Leaf then locate by its ref                                                                           |
+| :1158 root discovery with no recorded fiber roots                               | UNIT           | packages/plugins/page                                                                                                                       | REACT-BRIDGE  | real bug class; clears bippy global, own describe                                                          |
+| :1171 a real pointer pick, plain or React, comment and pick mode                | L3-BROWSER     | packages/plugins/page                                                                                                                       | PICK          | real pointer hit test beside the text (layout); joins builtin:1842 Page.pick                               |
+
+#### 1.3 packages/plugin-page/test/plugin-page.test.ts (40 tests)
+
+All move to the page plugin's node file. Machine and schema rows are pure, so UNIT tables; queue, files and symbolicate
+use real async play, real files and an injected fetch, so NODE.
+
+| test                                                                                      | destination | target                          | merge-id       | why                                                                                      |
+| ----------------------------------------------------------------------------------------- | ----------- | ------------------------------- | -------------- | ---------------------------------------------------------------------------------------- |
+| :42 every page operation takes an optional tab ID                                         | UNIT        | packages/plugins/page node file | RPC-SCHEMA     | schema guard                                                                             |
+| :54 page input bounds and optional fields survive the wire                                | UNIT        | packages/plugins/page           | RPC-SCHEMA     | bounds table                                                                             |
+| :71 page files are bounded bytes, not remote paths                                        | UNIT        | packages/plugins/page           | RPC-SCHEMA     | security bound                                                                           |
+| :87 the RPC version is explicit                                                           | UNIT        | packages/plugins/page           | RPC-SCHEMA     | now refuses an old or wrong version (no longer the self-equal literal the audit flagged) |
+| :96 symbolicate takes bounded frames                                                      | UNIT        | packages/plugins/page           | RPC-SCHEMA     | schema bounds                                                                            |
+| :109 page ID patterns survive JSON Schema export                                          | UNIT        | packages/plugins/page           | RPC-SCHEMA     | model tool defs                                                                          |
+| :114 it.each tool def keeps its schema, mutating and capture as an operation              | UNIT        | packages/plugins/page           | RPC-SCHEMA     | table over all tools                                                                     |
+| :123 the operations are the page tools plus tabs.list and fill_form                       | UNIT        | packages/plugins/page           | RPC-SCHEMA     | one set assert beside :114                                                               |
+| :131 the built-in page skill uses a virtual skill:// URI                                  | UNIT        | packages/plugins/page           | RPC-SCHEMA     | one assert                                                                               |
+| :189 a closing tab never revokes another tab's grant                                      | UNIT        | packages/plugins/page           | MACH-ATTACH    | reducer                                                                                  |
+| :207 a tab that attaches again replaces its own attachment                                | UNIT        | packages/plugins/page           | MACH-ATTACH    | reducer                                                                                  |
+| :219 a re-attach waits for the revoke in flight                                           | UNIT        | packages/plugins/page           | MACH-ATTACH    | race                                                                                     |
+| :237 a call during re-attach answers still connecting                                     | UNIT        | packages/plugins/page           | MACH-ATTACH    | race                                                                                     |
+| :250 two tabs attaching at once share the grant                                           | UNIT        | packages/plugins/page           | MACH-ATTACH    | race                                                                                     |
+| :266 no tool reaches an attachment before its grant                                       | UNIT        | packages/plugins/page           | MACH-HANDSHAKE | security order                                                                           |
+| :287 attach.closed while attaching never sends attached                                   | UNIT        | packages/plugins/page           | MACH-HANDSHAKE | race                                                                                     |
+| :304 a request for a closed tab is never sent                                             | UNIT        | packages/plugins/page           | MACH-HANDSHAKE | race                                                                                     |
+| :316 it.each grant ends failed or timed out                                               | UNIT        | packages/plugins/page           | MACH-SYNC      | table                                                                                    |
+| :335 a failed revoke before a re-attach still grants                                      | UNIT        | packages/plugins/page           | MACH-SYNC      | failure path                                                                             |
+| :347 stale sync results and attach events change nothing                                  | UNIT        | packages/plugins/page           | MACH-SYNC      | staleness table                                                                          |
+| :370 granting what is already granted writes nothing                                      | UNIT        | packages/plugins/page           | RECONCILE      | pure                                                                                     |
+| :376 revoking keeps the user's rules in order                                             | UNIT        | packages/plugins/page           | RECONCILE      | pure                                                                                     |
+| :382 page denies are not page allows                                                      | UNIT        | packages/plugins/page           | RECONCILE      | pure                                                                                     |
+| :389 a tab ID resolves to its tab, else the last focused                                  | UNIT        | packages/plugins/page           | MACH-TABS      | routing                                                                                  |
+| :427 attached with no tab state yet is in neither list                                    | UNIT        | packages/plugins/page           | MACH-TABS      | empty state                                                                              |
+| :439 deleting an attached session closes every tab without a revoke                       | UNIT        | packages/plugins/page           | MACH-LIFE      | reducer                                                                                  |
+| :449 deleting an attaching session ends after its grant settles                           | UNIT        | packages/plugins/page           | MACH-LIFE      | reducer                                                                                  |
+| :462 an idle plugin drains at once                                                        | UNIT        | packages/plugins/page           | MACH-LIFE      | base case of :468                                                                        |
+| :468 disposal drains only when the last revoke settles                                    | UNIT        | packages/plugins/page           | MACH-LIFE      | reducer                                                                                  |
+| :493 a disposed plugin rejects requests and ignores attachments                           | UNIT        | packages/plugins/page           | MACH-LIFE      | reducer                                                                                  |
+| :506 a finished chat queue is owed until claimed                                          | NODE        | packages/plugins/page           | QUEUE          | async queue contract                                                                     |
+| :537 queue.claim and settle back                                                          | NODE        | packages/plugins/page           | QUEUE          | claim contract                                                                           |
+| :564 a deleted session drops its queues                                                   | NODE        | packages/plugins/page           | QUEUE          | owner level (core.test copies trim)                                                      |
+| :590 an undispatched queued action counts as lost                                         | NODE        | packages/plugins/page           | QUEUE          | distinct path                                                                            |
+| :642 keeps each reply for its own action, lost when unconfirmed, owes what no caller took | NODE        | packages/plugins/page           | QUEUE          | ordering and ownership                                                                   |
+| :710 a claimed result outlives 200 delivered queues                                       | NODE        | packages/plugins/page           | QUEUE          | retention cap                                                                            |
+| :732 at 1000 owed results a new queue is refused                                          | NODE        | packages/plugins/page           | QUEUE          | backpressure                                                                             |
+| :755 saved capture names never escape their directory                                     | NODE        | packages/plugins/page           | -              | path traversal, real files                                                               |
+| :785 symbolicate reads a server frame, loopback only                                      | NODE        | packages/plugins/page           | SYMBOLICATE    | SSRF guard, injected fetch                                                               |
+| :799 null for a frame with no fileName                                                    | NODE        | packages/plugins/page           | SYMBOLICATE    | one more frame in :785                                                                   |
+
+#### 1.4 packages/plugin-testkit/test/plugin-testkit.test.ts (14 tests)
+
+These test the kit itself. Rule from the plan: a helper used by several packages stays in the kit. gateRpcCalls,
+failRpcCalls and rpcSocketFor are used by apps/conciv, embed and whiteboard, so they stay as /flow fixtures and keep
+their own test there. observeRpc is used by nothing but this file.
+
+| test                                                                | destination         | target                            | merge-id  | why                                                                |
+| ------------------------------------------------------------------- | ------------------- | --------------------------------- | --------- | ------------------------------------------------------------------ |
+| :40 bootCoreKit adopts harness transcript rows as external sessions | NODE                | packages/plugin-testkit node file | TK-ENGINE | becomes the engine({harness}) fixture option check                 |
+| :63 serves the injected staleness probe                             | NODE                | packages/plugin-testkit           | TK-ENGINE | engine fixture option                                              |
+| :70 lets a non-loopback origin through only when allowed            | NODE                | packages/plugin-testkit           | TK-ENGINE | engine fixture option                                              |
+| :91 keeps a passed state root across two kits                       | NODE                | packages/plugin-testkit           | TK-ENGINE | the per-test restart engine stands on it                           |
+| :113 listenLocal rejects instead of hanging on a bound port         | NODE                | packages/plugin-testkit           | -         | used by conciv, embed, try-it                                      |
+| :126 a socket the page closes is closed on the engine too           | L3-BROWSER          | packages/plugin-testkit flow file | -         | real page WebSocket through Playwright routing                     |
+| :193 a gate with an input pattern holds only the matching call      | L3-BROWSER          | packages/plugin-testkit           | TK-GATE   | gate fixture; swap observeRpc asserts for answers read in the page |
+| :236 observer dispose fails the pending waiter at once              | DELETE-TESTONLY-API | observeRpc                        | -         | only this file calls observeRpc; fixture teardown replaces dispose |
+| :253 observer dispose leaks no unhandled rejection                  | DELETE-TESTONLY-API | observeRpc                        | -         | same                                                               |
+| :283 a call the page aborts after its answer is reported given up   | L3-BROWSER          | packages/plugin-testkit           | TK-GATE   | gate fixture                                                       |
+| :338 a gate given an exact input holds only matching calls          | L3-BROWSER          | packages/plugin-testkit           | TK-GATE   | same gate, exact input beside :193 pattern                         |
+| :382 a failure given an input fails only matching calls             | L3-BROWSER          | packages/plugin-testkit           | TK-FAULT  | fault fixture; swap observeRpc asserts                             |
+| :429 a gate that releases as a failure is answered with it          | L3-BROWSER          | packages/plugin-testkit           | TK-FAULT  | fault on release                                                   |
+| :479 an rpc socket counts as live once the page speaks on it        | L3-BROWSER          | packages/plugin-testkit           | -         | rpcSocketFor liveness, raw upgrade server                          |
+
+Merge journeys:
+
+- GRAB-CLONE: one grab of a styled card and an svg: inlined styles, pseudo rules, no ids, static root.
+- CAP-FROZEN: one capture journey: frozen copy, skeleton, css bundle stable and per side, password masked, detach, widget subtree, snapshot hidden state.
+- CAP-SANITIZE: one hostile fixture capture, every dangerous thing gone.
+- CAP-IMAGES: image inlining, order under budget, encoder failure, taint, opt-out, utf-8 budget, over-budget fallback.
+- FONT-FALLBACK: one replica, line count, width, untouched system font (joins builtin:1254 and :1270 "a capture in every engine").
+- GRAB-FIT: fitImagePreview no-op, refit, never-drop, undecodable.
+- SNIPPET, GROUND, SNAPSHOT, RECONCILE: it.each tables.
+- REACT-BRIDGE: inspect then override journey in one fresh React root per test (fixes today's order dependence).
+- PICK: page:1171 plus builtin:1842 as one pick journey (comment mode, plain heading, React heading, Escape).
+- RPC-SCHEMA, MACH-*: transition tables. QUEUE: queue contract journey. SYMBOLICATE: one call table.
+- TK-ENGINE: one engine fixture journey over its options. TK-GATE, TK-FAULT: one journey each.
+
+### 2. Totals per file
+
+| file                   | tests | STORYBOOK | L3-BROWSER | UNIT | NODE | DELETE                  | becomes                                                                                 |
+| ---------------------- | ----- | --------- | ---------- | ---- | ---- | ----------------------- | --------------------------------------------------------------------------------------- |
+| 4 whiteboard stories   | 21    | 21        | -          | -    | -    | -                       | move to packages/plugins/whiteboard/src unchanged (no plays: smoke renders only)        |
+| 10 page card stories   | 41    | 41        | -          | -    | -    | -                       | move to packages/plugins/page/src unchanged                                             |
+| page.browser.test.tsx  | 58    | -         | 29         | 21   | -    | 8 (6 DUP, 2 COVERED)    | file deleted: 29 go to the page plugin's browser file, 21 to its node file in happy-dom |
+| plugin-page.test.ts    | 40    | -         | -          | 30   | 10   | 0                       | moves whole into the page plugin's node file, about 30 tests after merges               |
+| plugin-testkit.test.ts | 14    | -         | 7          | -    | 5    | 2 (TESTONLY observeRpc) | shrinks: node file of 2 tests (engine journey, listenLocal), flow file of about 5       |
+| total                  | 174   | 62        | 36         | 51   | 15   | 10                      |                                                                                         |
+
+Budget note: the page plugin's node file receives plugin-page (808 lines today), 21 DOM units, and whatever node rows the
+builtin-plugins page tests yield. That will pass 1,000 lines unless the machine tests become real tables.
+
+### 3. Cross-file duplicates (suspected or verified)
+
+Verified by reading both:
+
+- page.browser:1013 and :1032 = builtin-plugins.browser:1819 "reads the component tree, names and locates an element, and dehydrates what it finds".
+- page.browser:1057 = builtin-plugins.browser:420 "overrides props and validates its inputs" (Counter state override).
+- page.browser:1099 and :1120 = builtin-plugins.browser:400 "finds, locates, walks and inspects a component...".
+- page.browser:375 = builtin-plugins.browser:1034 "carries the page css once per capture call... keeps a payment field out".
+- page.browser:1023 is covered by apps/conciv conciv.browser:12778.
+- page.browser:439 is covered by protocol.test.ts:238.
+- grab-card story GrabbedElement (:46) = builtin-plugins.browser:2299 "the card shows the snapshot and its source label"; UnreadablePayload (:71) = builtin:2325 "an unreadable payload reports that the grab could not be read". The plays own them; the builtin tests go (wave 4 rule).
+- read-value-card story RootArray (:25) = builtin-plugins.browser:1941 "read-value card renders a root array result as a structured JSON tree". The play owns it.
+
+Suspected (same subject, not proven identical):
+
+- page.browser:1171 and builtin:1842 "Page.pick returns the clicked element's source and box": merge as PICK.
+- page.browser FONT-FALLBACK and builtin:1254 / :1270 (capture keeps one-line links and wrapped paragraphs): one font/line journey.
+- session-card stories Scripted / ScriptedNarrow and builtin:2262 "a script step reads its own first code line"; Settled and builtin:2207 "a settled session shows its folded reasoning and script in a collapsed flat section". If the builtin tests only render a card from story data, a play owns them.
+- console-card stories and builtin:1911 "marks the card as an error when the page threw" (error mark not in any story: add a story, delete the test).
+- react-card story LocatedSource and builtin:1961 "react card shows the element as its subtitle" (subtitle not in the story play).
+- plugin-page QUEUE :564 is duplicated end to end in core.test (audit names core.test 2039 and 1635 at an older commit; not rechecked here).
+
+Tests a plugin should own: every page card story and every page.browser / plugin-page test belongs to packages/plugins/page;
+the whiteboard stories to packages/plugins/whiteboard. Nothing in this slice belongs to the shell (L2-APP).
+
+### 4. Cannot move to happy-dom, and suspected blockers
+
+- The whole capture library (page.browser :65-:562) looks like it only checks serialized JSON, but rrweb snapshot and the
+  css bundle read the real CSSOM and computed styles, and images need canvas encode, image decode and cross-origin taint.
+  happy-dom has none of these. Kept in a real browser.
+- buildSnapshot's hidden flag (page.browser:923) reads `offsetParent === null` (packages/page/src/page-snapshot.ts:79).
+  happy-dom has no layout, so offsetParent is never right: every element would read hidden or none would. The role,
+  name and value rows (:872, :904, :917, :937, :948) only pass in happy-dom if the hidden check does not pollute their
+  state; :923 stays in the browser.
+- Fallback-font tests need real fonts and line boxes. grab fit needs canvas. The real pointer pick needs hit testing.
+- React bridge rows (:1039-:1158) should run in happy-dom with react-dom, but bippy must install its devtools hook before
+  React loads; check the happy-dom setup file order. inspect's rect assert is expect.any(Number), fine with zeros.
+- Runner question: the 29 L3 rows are library tests that import TS modules into the page (vitest browser mode today).
+  Playwright Test (the plan's layer 3 runner) cannot import these modules into the page without a bundle. Either the
+  page plugin keeps a vitest browser file for these, or they need a test page bundle. Decide before wave 5.
+- Stories: session-card Narrow and ScriptedNarrow depend on a real width split (Ark Splitter plus container queries);
+  HeaderSummary needs real focus and a tooltip. Storybook runs in Chromium, so they are fine where they are, but they
+  could not move to happy-dom.
+- Whiteboard stories import page card fixtures (`../page/cards/story.fixtures.js`, `trace.fixtures.js`). After the
+  split, whiteboard would import from the page plugin's source; those fixtures need a shared home (the page plugin's
+  `./testing` export, or plugin-testkit) or a copy.
+- plugin-testkit tests import `@conciv/browser-fixture`, which the plan deletes; the 7 L3 rows move onto the kit's own
+  /flow fixtures.
+- Rule breaks to fix on the way: page.browser:521 uses three vi.spyOn; :65/:90/:670 assert CSS strings; :657/:683 assert
+  geometry; :1171 polls grabApi.isActive(); session-card HeaderSummary has an inline 2000 ms timeout; read-bulk DomMarkup
+  reads shadowRoot textContent.
+
+---
+
+## Test split, plugins group, slice C: ios and recorder
+
+Worktree /Users/omrikatz/Public/web/aidx-wt-test-split (86d94e743). Every file read in full. Line numbers are the worktree's.
+Audit hints (test-audit-plugins-ios.md, test-audit-plugins-recorder.md) are stale: ios.test.ts grew from 576 to 1,315 lines
+(bridge conformance, page base, bridge machine and driver were added), recorder.test.ts from 976 to 1,611 (machines and
+models added), recorder.it.test.ts from 660 to 834 (send-to-agent and restore journeys added).
+
+### packages/plugins/ios/test/ios.test.ts (1,315 lines, 50 tests)
+
+| test                                                                                             | destination     | target                | merge-id   | why                                                                                    |
+| ------------------------------------------------------------------------------------------------ | --------------- | --------------------- | ---------- | -------------------------------------------------------------------------------------- |
+| 155 offers screenshot and logs in code mode, build/run direct, not configured from every tool    | NODE:plugin-ios | plugins/ios node file | I-ENGINE   | tool surface over a real engine                                                        |
+| 180 fails to load with a tagged InvalidOptions naming the bad option                             | NODE:plugin-ios | plugins/ios node file | I-ENGINE   | plugin load state over a real engine                                                   |
+| 190 asks before building or running, a denial runs nothing                                       | NODE:plugin-ios | plugins/ios node file | I-ENGINE   | approval ask gate over the engine                                                      |
+| 202 adds the ios rules to every model request, nothing when unconfigured                         | NODE:plugin-ios | plugins/ios node file |            | system prompt reaches the model request                                                |
+| 233 reads no options as unconfigured, normalizes concivUrl, keeps extra source dirs              | UNIT            | plugins/ios node file |            | pure zod parse; concivUrl rows become it.each                                          |
+| 262 describes the native overlay, names the served app, rules out crawls                         | UNIT            | plugins/ios node file |            | pure prompt text; overrides become rows                                                |
+| 300 stops the child process when the run is interrupted                                          | NODE:plugin-ios | plugins/ios node file | I-RUNNER   | real child process                                                                     |
+| 325 collects stdout up to 128 MiB and fails with OutputTooLarge past it                          | NODE:plugin-ios | plugins/ios node file | I-RUNNER   | real child process output cap                                                          |
+| 441 reports swiftc diagnostics, or raw stderr when none                                          | NODE:plugin-ios | plugins/ios node file | I-BUILD    | build over a fake simctl service                                                       |
+| 467 builds in swiftc mode with extra source roots, honoring developerDir                         | NODE:plugin-ios | plugins/ios node file | I-BUILD    | same swiftc build path                                                                 |
+| 493 builds in xcodebuild mode: failure diagnostics, success app path                             | NODE:plugin-ios | plugins/ios node file | I-BUILD    | xcodebuild branch of the same build                                                    |
+| 531 reads the app path from xcodebuild settings by bundle id and wrapper                         | UNIT            | plugins/ios node file |            | pure parser; seven inputs become it.each rows                                          |
+| 555 runs the app: boot, install, terminate, launch, url and autoshow env                         | NODE:plugin-ios | plugins/ios node file | I-RUN      | run sequence over the fake simctl                                                      |
+| 588 checks every packaging step of a swiftc build                                                | NODE:plugin-ios | plugins/ios node file | I-BUILD    | plutil/codesign/Info.plist failures                                                    |
+| 616 picks the available simulator among duplicate names                                          | NODE:plugin-ios | plugins/ios node file | I-RUN      | device pick on the run path                                                            |
+| 637 names the stage a run stopped at                                                             | NODE:plugin-ios | plugins/ios node file | I-RUN      | one injected failure per stage, a table                                                |
+| 683 captures the screen as a png data uri with its size                                          | NODE:plugin-ios | plugins/ios node file | I-READS    | screenshot tool shape                                                                  |
+| 694 runs one build at a time                                                                     | NODE:plugin-ios | plugins/ios node file |            | build serialisation with a Deferred gate                                               |
+| 728 reads recent log lines with window and limit, missing simulator, bad predicate               | NODE:plugin-ios | plugins/ios node file | I-READS    | logs tool shapes                                                                       |
+| 811 covers every catalog message (13)                                                            | UNIT            | plugins/ios node file | I-FIXTURES | count guard; fold into 815                                                             |
+| 815 it.each: each type has valid, invalid and unknown-key fixtures                               | UNIT            | plugins/ios node file | I-FIXTURES | fixture coverage table                                                                 |
+| 821 every fixture type is a known union member                                                   | UNIT            | plugins/ios node file | I-FIXTURES | reverse of 815                                                                         |
+| 829 it.each: valid fixture parses                                                                | UNIT            | plugins/ios node file | I-PARSE    | schema table                                                                           |
+| 833 it.each: unknown-key fixture parses and drops the key                                        | UNIT            | plugins/ios node file | I-PARSE    | schema table                                                                           |
+| 842 it.each: invalid fixture fails runtime and strict parse                                      | UNIT            | plugins/ios node file | I-PARSE    | schema table                                                                           |
+| 852 it.each: unknown-key fixture fails strict parse                                              | UNIT            | plugins/ios node file | I-PARSE    | schema table                                                                           |
+| 861 it.each: valid fixture survives decode, encode, decode                                       | UNIT            | plugins/ios node file | I-PARSE    | schema table                                                                           |
+| 869 it.each: committed JSON equals the authored table entry                                      | UNIT            | plugins/ios node file |            | drift guard for the Swift-side fixtures                                                |
+| 880 it.each: native encode JSON equals the authored payload                                      | UNIT            | plugins/ios node file | I-ENCODE   | drift guard                                                                            |
+| 885 it.each: native encode payload validates against NativeToPageSchema                          | UNIT            | plugins/ios node file | I-ENCODE   | schema table                                                                           |
+| 889 a handshake with no token key parses with token null                                         | UNIT            | plugins/ios node file | I-ENCODE   | one more row of 885                                                                    |
+| 904 normalizes absent grab keys to null on a successful pick                                     | UNIT            | plugins/ios node file | I-NILKEYS  | schema default rows                                                                    |
+| 931 accepts a grabResult with no grab key and yields null                                        | UNIT            | plugins/ios node file | I-NILKEYS  | same table as 904                                                                      |
+| 963 accepts a subtree at the depth limit                                                         | UNIT            | plugins/ios node file | I-SUBTREE  | one it.each over depth and width                                                       |
+| 967 rejects a subtree deeper than the depth limit                                                | UNIT            | plugins/ios node file | I-SUBTREE  | same table                                                                             |
+| 971 rejects a subtree whose node count exceeds the budget                                        | UNIT            | plugins/ios node file | I-SUBTREE  | same table                                                                             |
+| 978 NeutralGrab is assignable to Grab                                                            | DELETE-NOTHING  |                       |            | runtime assert is always true; tsc already proves it, keep the type line without an it |
+| 987 nativePageBase: bare origin without token                                                    | UNIT            | plugins/ios node file | I-PAGEBASE | four rows of one it.each                                                               |
+| 991 nativePageBase: keeps /t/<token>                                                             | UNIT            | plugins/ios node file | I-PAGEBASE | same table                                                                             |
+| 997 nativePageBase: trailing slash                                                               | UNIT            | plugins/ios node file | I-PAGEBASE | same table                                                                             |
+| 1001 nativePageBase: falls back to the origin                                                    | UNIT            | plugins/ios node file | I-PAGEBASE | same table                                                                             |
+| 1044 bridge machine: announces, acks, handshakes, stops once ready                               | UNIT            | plugins/ios node file |            | pure transition replay                                                                 |
+| 1070 bridge machine: rebinds on another api base                                                 | UNIT            | plugins/ios node file |            | pure transition replay                                                                 |
+| 1089 bridge machine: incompatible on version mismatch                                            | UNIT            | plugins/ios node file |            | pure transition replay                                                                 |
+| 1114 bridge machine: pick attempt id, stale grabResult, subtree fold                             | UNIT            | plugins/ios node file |            | pure transition replay                                                                 |
+| 1156 bridge machine: ends a pick by timeout, cancel, native cancel/failure, unparseable, dispose | UNIT            | plugins/ios node file |            | pure; already a table in disguise                                                      |
+| 1200 bridge machine: grab capability and panel toggles                                           | UNIT            | plugins/ios node file |            | pure transition replay                                                                 |
+| 1238 bridge driver: posts ready and hello every 300 ms until acked                               | NODE:plugin-ios | plugins/ios node file | I-DRIVER   | Effect runtime with TestClock and a fake transport                                     |
+| 1266 bridge driver: pick times out after 10 s, live pick settles                                 | NODE:plugin-ios | plugins/ios node file | I-DRIVER   | same driver, clocked                                                                   |
+| 1302 bridge driver: open pick resolves null when its scope closes                                | NODE:plugin-ios | plugins/ios node file | I-DRIVER   | same driver, scope close                                                               |
+
+Totals (50): NODE:plugin-ios 19, UNIT 30, DELETE-NOTHING 1. The file stays the package's one node file; no browser file.
+It shrinks by merges (I-ENGINE 3 to 1, I-BUILD 4 to 1, I-RUN 3 to 1, I-READS 2 to 1, I-FIXTURES 3 to 1, I-PARSE 5 tables to
+1 table keyed by kind, I-SUBTREE and I-PAGEBASE to one it.each each, I-DRIVER 3 to 1) and must drop under 1,000 lines
+(estimate about 850).
+
+### packages/plugins/recorder/test/recorder.test.ts (1,611 lines, 35 tests)
+
+| test                                                                                                                     | destination          | target                     | merge-id | why                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------ | -------------------- | -------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| 255 is active                                                                                                            | DELETE-NOTHING       |                            |          | every other test fails if the plugin is not active                                                    |
+| 263 config defaults, flush/window/log, client pins, save in project, caps, corrupt, io-error, stray sweep, reset, reopen | NODE:plugin-recorder | plugins/recorder node file | R-STORE  | store journey over a real engine; the click label cases (304-366) are pure and could become UNIT rows |
+| 469 live state, appended event with client id and cursor, since deltas, snapshot on reset                                | NODE:plugin-recorder | plugins/recorder node file |          | event wire contract the page player relies on                                                         |
+| 499 viewer presence: live, renew without snapshot, off on leave                                                          | NODE:plugin-recorder | plugins/recorder node file | R-LEASE  | lease grant and renew                                                                                 |
+| 516 four tools offered, start fails without a page, start/stop/pull, clip, get, gone                                     | NODE:plugin-recorder | plugins/recorder node file | R-TOOLS  | tool journey; 531 waits out the real 5 s START_WAIT_MS (rule 2 break, needs an option)                |
+| 586 reads a saved recording until the seven day retention, then expired                                                  | NODE:plugin-recorder | plugins/recorder node file | R-TOOLS  | retention over the tools and rpc (fake Date)                                                          |
+| 605 log as output, keyframes as image parts after the untrusted-data note                                                | NODE:plugin-recorder | plugins/recorder node file | R-PULL   | pull output shape with real Chromium render                                                           |
+| 657 renders no keyframes from a stream with no full snapshot                                                             | NODE:plugin-recorder | plugins/recorder node file | R-PULL   | real renderer edge                                                                                    |
+| 671 holds the text log and no image when the renderer fails                                                              | NODE:plugin-recorder | plugins/recorder node file | R-PULL   | degrade path through pullWindow                                                                       |
+| 695 kept whole, also with a fresh full snapshot at its tail                                                              | NODE:plugin-recorder | plugins/recorder node file | R-STORE  | fits-under-cap row beside 263's trim                                                                  |
+| 726 renders a short recording once into <id>.webm, one piece                                                             | NODE:plugin-recorder | plugins/recorder node file | R-VIDEO  | video export                                                                                          |
+| 736 several concurrent exports each answer a complete video                                                              | NODE:plugin-recorder | plugins/recorder node file | R-VIDEO  | same export, raced                                                                                    |
+| 757 reads a stored video larger than the cap in pieces, past end, unknown                                                | NODE:plugin-recorder | plugins/recorder node file |          | chunked read                                                                                          |
+| 785 keeps the newest 50 when saves race the count cap                                                                    | NODE:plugin-recorder | plugins/recorder node file | R-RACE   | concurrent saves                                                                                      |
+| 810 a save stays saved when pruning an old recording fails                                                               | NODE:plugin-recorder | plugins/recorder node file | R-RACE   | same store and cap, one injected failure                                                              |
+| 835 page flusher splits a burst into accepted flushes, client cap                                                        | NODE:plugin-recorder | plugins/recorder node file |          | client cap agrees with the engine cap                                                                 |
+| 883 recorder skill loads and names the four tools                                                                        | NODE:plugin-recorder | plugins/recorder node file | R-TOOLS  | one assert in the tools journey                                                                       |
+| 960 closes its Chromium renderer and stops its sweep across reload and unload                                            | NODE:plugin-recorder | plugins/recorder node file |          | leak guard over plugin hot reload; reads ps for chromium pids (918)                                   |
+| 997 refused stop as tool error, render failure and unreadable video as rpc errors                                        | NODE:plugin-recorder | plugins/recorder node file |          | error mapping                                                                                         |
+| 1035 capture sweep: lease runs out, start after it, expired capture off, stop refused                                    | NODE:plugin-recorder | plugins/recorder node file | R-LEASE  | lease and capture TTL expiry (fake timers)                                                            |
+| 1066 capture control machine                                                                                             | UNIT                 | plugins/recorder node file |          | pure transitions; becomes an event to effects table                                                   |
+| 1128 visibility pause machine                                                                                            | UNIT                 | plugins/recorder node file |          | pure transitions                                                                                      |
+| 1150 capture session machine                                                                                             | UNIT                 | plugins/recorder node file |          | pure transitions                                                                                      |
+| 1180 boot machine                                                                                                        | UNIT                 | plugins/recorder node file |          | pure transitions                                                                                      |
+| 1210 flusher machine                                                                                                     | UNIT                 | plugins/recorder node file |          | pure transitions                                                                                      |
+| 1261 panel machine                                                                                                       | UNIT                 | plugins/recorder node file |          | pure transitions                                                                                      |
+| 1290 client rings keep eight clients, drop one idle thirty minutes                                                       | NODE:plugin-recorder | plugins/recorder node file |          | Effect service with TestClock                                                                         |
+| 1312 capture control model: lapsed lease from its own tick, append wait                                                  | NODE:plugin-recorder | plugins/recorder node file |          | Effect service with TestClock; lease half overlaps 1035                                               |
+| 1340 renderer cache shares, disposes after five idle minutes, relaunches                                                 | NODE:plugin-recorder | plugins/recorder node file |          | Effect service with TestClock                                                                         |
+| 1381 flusher model backoff 1, 2, 4 s up to 30 s, last chunk on dispose                                                   | NODE:plugin-recorder | plugins/recorder node file |          | Effect runtime with TestClock                                                                         |
+| 1434 visibility pause model 30 s, not 29                                                                                 | NODE:plugin-recorder | plugins/recorder node file |          | timing wiring around the 1128 machine                                                                 |
+| 1473 capture session model ignores a config read after a second pause                                                    | NODE:plugin-recorder | plugins/recorder node file |          | wiring around 1150; same behaviour as 1150:1157 and recorder.it 540                                   |
+| 1516 boot model ignores a prepare that lands after the selector moved                                                    | NODE:plugin-recorder | plugins/recorder node file |          | wiring around 1180; same behaviour as 1180:1188                                                       |
+| 1546 player follow resubscribes one second after a drop from its cursor                                                  | NODE:plugin-recorder | plugins/recorder node file |          | Effect stream with TestClock                                                                          |
+| 1578 panel model renews lease every 7 s, drops on close, one job at a time                                               | NODE:plugin-recorder | plugins/recorder node file |          | Effect runtime with TestClock                                                                         |
+
+Totals (35): NODE:plugin-recorder 28, UNIT 6, DELETE-NOTHING 1. Stays the package's node file but must drop under 1,000
+lines: merges R-STORE (2 to 1), R-TOOLS (3 to 1), R-PULL (3 to 1), R-VIDEO (2 to 1), R-RACE (2 to 1), R-LEASE (2 to 1);
+the six machine tests become event-to-effect tables; consider folding 1473 and 1516 into their machine rows (see
+duplicates). Estimate about 900 lines.
+
+### packages/plugins/recorder/test/recorder.it.test.ts (834 lines, 11 tests; a real-browser suite despite the .it. name)
+
+| test                                                                                                                 | destination | target                        | merge-id  | why                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------- | ----------- | ----------------------------- | --------- | -------------------------------------------------------------------------------------------- |
+| 109 active plugin with a browser part; tab loading, empty, replays the page; agent start while offline               | L3-BROWSER  | plugins/recorder browser file | R-TAB     | page reload and the rrweb replay iframe that rebuilds the host page                          |
+| 171 follows live: append race, appends while the socket was down, failed since resumes                               | L3-BROWSER  | plugins/recorder browser file | R-TAB     | real socket drop and replay iframe                                                           |
+| 238 send to agent: note chip, hidden reference, plays after reload, last click saved                                 | L3-BROWSER  | plugins/recorder browser file | R-SEND    | page reload, toBeInViewport of the replay controls, replay iframe                            |
+| 491 captures nothing idle, real click and typing, strips scripts and conciv styles, samples typing, quiet after stop | L3-BROWSER  | plugins/recorder browser file | R-CAPTURE | rrweb captures the real host page next to the built bundle                                   |
+| 540 pauses while hidden, resumes; a stale resume never attaches a second recorder                                    | L3-BROWSER  | plugins/recorder browser file | R-CAPTURE | same capture of the host page; page clock                                                    |
+| 586 stop overtaken by a newer start; failed flush events kept in order                                               | L3-BROWSER  | plugins/recorder browser file | R-CAPTURE | real page flushes over the socket                                                            |
+| 653 replay LIVE badge, scrub, GO LIVE, pause and play, no Solid store write                                          | L3-BROWSER  | plugins/recorder browser file | R-TAB     | rrweb player timeline and replay iframe                                                      |
+| 716 start outlasting the attach deadline answers unattached; later start records                                     | L3-BROWSER  | plugins/recorder browser file | R-LIBRARY | lazy rrweb chunk loading exists only in the built bundle                                     |
+| 754 recording unavailable when the capture library fails to load                                                     | L3-BROWSER  | plugins/recorder browser file | R-LIBRARY | same chunk loader fault                                                                      |
+| 767 player could not load with Retry; Retry replays after the page reloads                                           | L3-BROWSER  | plugins/recorder browser file | R-LIBRARY | Retry reloads the page; chunk loader                                                         |
+| 793 restoring the Recorder tab once the plugin is gone lands on chat                                                 | L2-APP      | apps/conciv                   |           | shell route restore for a missing plugin pane; a remount over the same state root, no layout |
+
+Totals (11): L3-BROWSER 10, L2-APP 1. Rename to recorder.browser.test.ts (Playwright Test on plugin-testkit /flow); four
+journeys: R-TAB (3 to 1), R-SEND, R-CAPTURE (3 to 1), R-LIBRARY (3 to 1). 793 moves to apps/conciv layer 2.
+
+### Duplicates suspected (within the slice and against builtin-plugins.browser)
+
+- recorder.test 531 (5 s "no page client attached within 5s") and recorder.it 716:741 assert the same message; keep the node
+  one with the wait made an option, and let 716 keep only the late-library recovery.
+- Stale config read after a second pause, three layers: recorder.test 1150:1157-1161 (machine), 1473 (model), recorder.it
+  540:560-581 (browser). Proposal: 1473 folds into a wiring row; the browser one stays as the only end-to-end proof.
+- Stale prepare after the selector moved: recorder.test 1180:1187-1190 (machine) and 1516 (model); recorder.it 586 is the
+  page-level relative.
+- Lease lapse: recorder.test 1066:1089-1093 (machine), 1312:1323-1326 (model), 1035:1040-1045 (engine). Keep machine and
+  engine; drop the lease half of 1312, keep its append-wait half.
+- Flusher: 1210:1232-1236 (oversized drop) and 835:867-875 (client cap drop through the engine). Keep both rows; 835 proves
+  the client and engine caps agree.
+- Panel one-job-at-a-time: 1261 (machine) and 1578:1598-1603 (model).
+- Visibility pause: 1128 (machine) and 1434 (30 s timing); complementary, not duplicate.
+- Player follow resume: recorder.test 1546 (model) and recorder.it 171:219-230 (failed since resumes from cursor).
+- recorder.it 491:499-514 pull text overlaps recorder.test 516:542-552 (engine pull of the same click log). Not a delete:
+  491's own proof is the real capture.
+- ios: bridge machine 1044 vs driver 1238 (announce until handshake) and machine 1156 vs driver 1266 (timeout settle) are
+  layer pairs (pure transitions vs clocked wiring); keep both.
+- builtin-plugins.browser.test.tsx 2639 "the recorder cards" (it at 2674: pull window, started capture, failed stop, summary
+  in a trace) renders tool output as cards; no overlap with the engine tests here. It belongs to the recorder plugin:
+  L2-PLUGIN:plugin-recorder (cards render, no layout), the card source is packages/builtin-plugins/src/recorder.
+
+### What cannot move to happy-dom though it looks like it could
+
+- recorder.it 754 (capture library failed message) looks like plain UI text, but the failure comes from the lazy rrweb
+  chunk loaded through plugin.experimentalChunk, which only exists in the built bundle; in layer 2 the plugin imports
+  rrweb directly, so the path under test is not there.
+- recorder.it 238 send-to-agent: the save error message, the composer note chip and the hidden transcript reference could
+  run in layer 2, but the same journey needs the replay dialog (rrweb player in an iframe), toBeInViewport and a page
+  reload. If the journey is split, the first half (to line 318) becomes L2-PLUGIN:plugin-recorder.
+- recorder.it 491/540/586: rrweb record over happy-dom is the blocker: it reads stylesheets (CSSOM), computed styles,
+  iframes and input values; happy-dom's CSSOM and serialisation are partial, and the test proves the stripping of real
+  script and conciv style nodes from the host page.
+- recorder.it 540 also fakes document.visibilityState through page.evaluate (471-476): a DOM write, allowed only as
+  simulation; layer 2 could set it directly but capture is the blocker above.
+- recorder.it 653 reads aria-valuemax with getAttribute (696, 699): a borderline DOM read; rewrite to the slider's
+  accessible value.
+- Suspected happy-dom blockers for the recorder plugin UI in general: rrweb-player builds an iframe document and scales it
+  with real layout (ResizeObserver, getBoundingClientRect); its timeline is a slider fed by requestAnimationFrame timing.
+- ios has no UI tests at all: the native page (bridge-client, page-base) is proven only in node; nothing here needs a
+  browser.
+
+Rule breaks to fix on the way: recorder.test 531 waits the real 5 s START_WAIT_MS; recorder.test 960 reads the process
+table with ps (918-925); recorder.it carries 60+ inline 30 s timeouts and per-test 120 s timeouts; recorder.test 263 is a
+200-line test proving about 14 behaviours.
+
+---
+
+## Split partial D: tanstack, test-runner, try-it
+
+Worktree /Users/omrikatz/Public/web/aidx-wt-test-split (86d94e743). Line numbers are the `it(`/`test(` call line there.
+The test-runner audit is stale: the node file now also holds a run machine, a follow machine and a fake-spawner driver
+suite (lines 341-635) that the audit never saw. try-it has no audit.
+
+Page targets are named `packages/plugins/page` (the merged page plugin).
+
+### 1. packages/plugins/tanstack/test/tanstack.test.ts (9 tests)
+
+| test                                                                                                                  | destination                  | target                    | merge-id    | why                                                                                                                                                                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 122 is active, lists for code mode, loads its skill, reads the route manifest and tells the model why a tool failed   | NODE:@conciv/plugin-tanstack | plugin-tanstack node file | TS-SURFACE  | engine surface, skill, manifest (quoted and $param), ENOENT and bundler-unavailable wording; keep ONE `conciv plugin call` round trip, drop the other four (CLI owned by cli tests)                                                                                                        |
+| 227 offers its 3 engine tools while the browser tools are denied and no tab is listed                                 | NODE:@conciv/plugin-tanstack | plugin-tanstack node file | TS-ATTACH   | first step of the attach journey at 288                                                                                                                                                                                                                                                    |
+| 236 refuses an attach to a session that was never created or was deleted                                              | NODE:packages/plugins/page   | page plugin node file     | PAGE-ATTACH | the refusal is the page plugin's `attach` (plugin-page/src/connection.ts:448), not tanstack code; no page test proves it today                                                                                                                                                             |
+| 288 grants the browser tools to that session only, carries each call to the focused tab, answers with the page result | NODE:@conciv/plugin-tanstack | plugin-tanstack node file | TS-ATTACH   | session-scoped grant, relay, `[tanstack.x] ... untrusted` wording, spoofed codes; the generic relay steps (abort sends cancel, unfocused tab routing, disconnected_after_dispatch, replaced attach) belong to the page plugin, prove them once in packages/plugins/page and trim them here |
+| 393 times out a page that never answers and cancels the call on the page                                              | NODE:packages/plugins/page   | page plugin node file     | PAGE-ATTACH | reply timeout and cancel are page plugin behaviour (option `pageReplyTimeoutMs`); plugin-page.test.ts:669 proves only the message at machine level, this is the wire proof                                                                                                                 |
+| 410 reads a real transform error and decodes server-function requests, also under a basepath                          | NODE:@conciv/plugin-tanstack | plugin-tanstack node file |             | only real-Vite proof of build_errors and server_fn_trace                                                                                                                                                                                                                                   |
+| 469 packs without the workspace protocol, installs from tarballs and loads as a plugin (tag packed)                   | NODE:@conciv/plugin-tanstack | plugin-tanstack node file |             | packed-install proof, stays tagged `packed`                                                                                                                                                                                                                                                |
+| 530 fails its activation with Tanstack.InvalidOptions                                                                 | NODE:@conciv/plugin-tanstack | plugin-tanstack node file |             | options validation surfaces as a failed plugin and rpc.unavailable                                                                                                                                                                                                                         |
+| 546 waits the set time on the test clock for a dev server, then fails BUNDLER_UNAVAILABLE                             | NODE:@conciv/plugin-tanstack | plugin-tanstack node file |             | Effect layer under TestClock, not a pure function, so node rather than unit                                                                                                                                                                                                                |
+
+Totals: NODE 9 (7 to plugin-tanstack, 2 to packages/plugins/page). The file shrinks to about 6 tests: surface (122),
+attach journey (227+288, trimmed), real Vite (410), packed (469), bad option (530), bundler wait (546).
+
+### 1. packages/plugins/tanstack/test/tanstack.browser.test.ts (1 test)
+
+| test                                                                                                                               | destination | target                              | merge-id | why                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 128 shows its chip ... lists the new path of a tab whose router mounted after it attached (one 190-line test, about 15 behaviours) | L3-BROWSER  | plugin-tanstack browser (flow) file |          | needs the built bundle in a host page running a real React TanStack app, three tabs at once (cross-tab listing), real `pageerror` events and in-page navigation; split into two journeys: (a) router reads, navigation, loader and query cache, redaction; (b) handler error, thrown error, fifty-error ordering, router-less tab, late-mounted router |
+
+Totals: L3-BROWSER 1. The file stays, split into two tests. The chip-as-status-with-tooltip opening slice (lines
+145-148) could move to L2-PLUGIN:@conciv/plugin-tanstack if the rewrite wants it out of the browser.
+
+### 1. packages/plugins/test-runner/test/test-runner.test.ts (10 tests)
+
+| test                                                                                                                                                    | destination                     | target                        | merge-id      | why                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ----------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 197 is active, lists for code mode, offers run and status as direct tools, lists, runs, streams live, reports status, stops on rpc stop and engine stop | NODE:@conciv/plugin-test-runner | test-runner node file         | TR-VITEST     | engine contract over a real vitest child                                                                                                                                                                     |
+| 269 answers UNAVAILABLE when vitest is missing, names the exit code or the signal when the child dies silently                                          | NODE:@conciv/plugin-test-runner | test-runner node file         | TR-VITEST     | "vitest missing" becomes the opening step of 197 (before node_modules is linked); exit-code and signal naming is already proven by 394 (unit) and 580 (driver), so the two `vitest.config.ts` crash steps go |
+| 287 answers UNAVAILABLE without playwright, lists, runs, runs a pattern, removes its report when stopped mid-test                                       | NODE:@conciv/plugin-test-runner | test-runner node file         |               | only playwright adapter proof; pass env to the spawn instead of mutating process.env (withChildEnvironment)                                                                                                  |
+| 330 fails only this plugin and leaves the engine up (jest)                                                                                              | NODE:@conciv/plugin-test-runner | test-runner node file         |               | runner-registry failure isolation, cheap                                                                                                                                                                     |
+| 365 runs a child to its run-end, publishing each event and settling with the finished run                                                               | UNIT                            | test-runner run-machine.ts    | TR-RUNMACHINE | pure transitionRun; one it.each table of event sequences to state and effects                                                                                                                                |
+| 394 names the reason a run could not start, until the next run-start                                                                                    | UNIT                            | test-runner run-machine.ts    | TR-RUNMACHINE | pure; table rows                                                                                                                                                                                             |
+| 422 lists files, ignores stale attempts, refuses a second request while busy and stops the running child                                                | UNIT                            | test-runner run-machine.ts    | TR-RUNMACHINE | pure; table rows                                                                                                                                                                                             |
+| 462 on dispose kills the running child, settles its caller and refuses every later request                                                              | UNIT                            | test-runner run-machine.ts    | TR-RUNMACHINE | pure; table rows                                                                                                                                                                                             |
+| 484 reads the run on each connect, applies only the newest read, forwards live events and stops when disposed                                           | UNIT                            | test-runner follow-machine.ts |               | pure transitionFollow; table rows                                                                                                                                                                            |
+| 580 runs, streams, warns on a non-message line, reports a failed start and a signal, lists, stops a hanging run and settles callers on dispose          | NODE:@conciv/plugin-test-runner | test-runner node file         |               | driver over a fake ChildProcessSpawner (a real fake, not a mock); only proof of the warn-on-bad-line log                                                                                                     |
+
+Totals: NODE 5, UNIT 5 (one merge-id TR-RUNMACHINE of 4, plus one follow-machine table). The file shrinks to about 4 node
+journeys plus two tables.
+
+### 1. packages/plugins/test-runner/test/test-runner.browser.test.ts (4 tests)
+
+| test                                                                                                                                                           | destination                          | target                                                   | merge-id | why                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 50 lists the Tests tab, shows a failed start, a run the agent starts live, the run so far after a reload, its summary, opens a failing test and prefills a fix | L2-PLUGIN:@conciv/plugin-test-runner | test-runner node file on plugin-testkit mount({plugins}) |          | panel needs no layout; the reload becomes a remount over the same engine (the read-on-connect logic is unit 484); the 360 px viewport step only checks the tab is visible, drop it; the open-file check reads the engine call instead of the rpc observer                       |
+| 133 draws a finished run in the thread: summary, files as keyboard disclosures, failure that opens its file and prefills a fix                                 | L2-PLUGIN:@conciv/plugin-test-runner | test-runner node file                                    | TR-CARD  | card UI lives in the plugin; keyboard toggling of disclosures is user-event Tab/Enter/Space (see section 4 risk)                                                                                                                                                                |
+| 225 streams the run the agent starts into its card: in progress, then finished                                                                                 | L2-PLUGIN:@conciv/plugin-test-runner | test-runner node file                                    | TR-CARD  | live then finished card is one journey with 133 using the scripted chat hold/release; the reload-while-chat.join-is-held step becomes a remount with chat held; the "no /chat-ws or /chat-sse request" assert is DELETE-COVERED by the shell transport test (owner apps/conciv) |
+| 338 prefills a fix that names the project-relative file when two failing files share their last two segments                                                   | UNIT                                 | test-runner src/view.ts relativePath + fixPrompt         |          | the path rule is pure; the click wiring is already in 133                                                                                                                                                                                                                       |
+
+Totals: L2-PLUGIN 3 (two merged as TR-CARD), UNIT 1. The browser file is deleted; its journeys move to the test-runner
+node file on plugin-testkit `mount`.
+
+### 1. packages/plugins/test-runner/test/fixtures/** (9 fixture tests, not suite tests)
+
+These are inputs the runner executes in a temp project. They are not collected by the package suite and get no
+destination from the list; they stay as fixtures unchanged.
+
+| test                                                               | destination     | target                       | merge-id | why                                |
+| ------------------------------------------------------------------ | --------------- | ---------------------------- | -------- | ---------------------------------- |
+| playwright-app/blocked.spec.ts:6 blocks until the run is stopped   | FIXTURE (stays) | test/fixtures/playwright-app |          | stop-mid-test input for 287        |
+| playwright-app/browser.spec.ts:3 renders content in a real browser | FIXTURE (stays) | test/fixtures/playwright-app |          | real-browser run input for 287     |
+| playwright-app/fail.spec.ts:3 this fails on purpose                | FIXTURE (stays) | test/fixtures/playwright-app |          | failure input                      |
+| playwright-app/pass.spec.ts:3 one plus one                         | FIXTURE (stays) | test/fixtures/playwright-app |          | pass input                         |
+| playwright-app/pass.spec.ts:8 two plus two                         | FIXTURE (stays) | test/fixtures/playwright-app |          | nested describe input              |
+| vitest-app/fail.test.ts:3 this fails on purpose                    | FIXTURE (stays) | test/fixtures/vitest-app     |          | failure input                      |
+| vitest-app/pass.test.ts:3 one plus one                             | FIXTURE (stays) | test/fixtures/vitest-app     |          | pass input                         |
+| vitest-app/pass.test.ts:8 shares a title                           | FIXTURE (stays) | test/fixtures/vitest-app     |          | distinct-id-for-shared-title input |
+| vitest-app/pass.test.ts:14 shares a title                          | FIXTURE (stays) | test/fixtures/vitest-app     |          | same                               |
+
+Also inline fixture sources (template strings, no rows): test-runner.test.ts:59 BLOCKED_VITEST_TEST and
+test-runner.browser.test.ts:21 GATED_VITEST_TEST. If the panel moves to L2 the gated test still works (it watches the
+temp project dir, not a browser).
+
+### 1. packages/plugins/try-it/test/try-it.test.ts (17 tests)
+
+| test                                                                                                    | destination                | target                                                                                             | merge-id      | why                                                                                    |
+| ------------------------------------------------------------------------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------- |
+| 31 finds a token-gated core on any candidate port                                                       | NODE:@conciv/plugin-try-it | try-it node file                                                                                   | TRYIT-PROBE   | real http servers on loopback; one it.each with 37                                     |
+| 37 resolves null when nothing answers                                                                   | NODE:@conciv/plugin-try-it | try-it node file                                                                                   | TRYIT-PROBE   | row of the same table                                                                  |
+| 56 starts probing with one unspaced first sweep                                                         | UNIT                       | try-it connect-machine.ts                                                                          | TRYIT-MACHINE | pure transitionConnect; table row                                                      |
+| 63 a first sweep that answers connects at once, with no hold                                            | UNIT                       | try-it connect-machine.ts                                                                          | TRYIT-MACHINE | table row                                                                              |
+| 70 a silent first sweep starts the slow hint and a spaced sweep, a later answer holds before connecting | UNIT                       | try-it connect-machine.ts                                                                          | TRYIT-MACHINE | table row                                                                              |
+| 89 the slow hint marks probing slow once                                                                | UNIT                       | try-it connect-machine.ts                                                                          | TRYIT-MACHINE | table row                                                                              |
+| 95 copying marks probing and holding copied, once                                                       | UNIT                       | try-it connect-machine.ts                                                                          | TRYIT-MACHINE | table row                                                                              |
+| 103 stale attempts return the same state object                                                         | UNIT                       | try-it connect-machine.ts                                                                          | TRYIT-MACHINE | table row                                                                              |
+| 111 events that do not apply return the same state object                                               | UNIT                       | try-it connect-machine.ts                                                                          | TRYIT-MACHINE | table row                                                                              |
+| 131 disposal ends every state, and nothing applies after it                                             | UNIT                       | try-it connect-machine.ts                                                                          | TRYIT-MACHINE | table row                                                                              |
+| 193 a core that answers the first sweep is connected at once, with no hold                              | NODE:@conciv/plugin-try-it | try-it node file                                                                                   | TRYIT-DRIVER  | Effect driver under TestClock with a scripted probe layer; journey: first-sweep answer |
+| 207 a core that answers a later sweep is held for holdMs before the hand-off                            | NODE:@conciv/plugin-try-it | try-it node file                                                                                   | TRYIT-DRIVER  | journey: silent, retry, hold, connect                                                  |
+| 227 retries a silent sweep every probeMs until a core answers                                           | NODE:@conciv/plugin-try-it | try-it node file                                                                                   | TRYIT-DRIVER  | same journey as 207 (retry spacing step)                                               |
+| 242 hints that setup is slow once no core has answered for slowMs                                       | NODE:@conciv/plugin-try-it | try-it node file                                                                                   | TRYIT-DRIVER  | journey: slow hint                                                                     |
+| 266 an answer ends the slow hint, nothing dispatched at slowMs once probing is over                     | NODE:@conciv/plugin-try-it | try-it node file                                                                                   | TRYIT-DRIVER  | journey: slow hint then answer, copied while holding                                   |
+| 285 dispatches copied into the state                                                                    | DELETE-DUP                 | try-it.test.ts:266 (dispatch of copied through the driver) and :95 (copied while probing, machine) |               | the driver wiring of dispatch is already proven by 266                                 |
+| 300 closing its scope disposes the state and interrupts every sweep and timer                           | NODE:@conciv/plugin-try-it | try-it node file                                                                                   | TRYIT-DRIVER  | dispose step                                                                           |
+
+Totals: NODE 8 (2 probe table, 6 driver), UNIT 8 (one table), DELETE-DUP 1. The file shrinks
+to one probe table, one machine table and about 3 driver journeys (first answer; silent, retry, hold, slow hint, copied;
+dispose).
+
+### 1. packages/plugins/try-it/test/try-it.browser.test.ts (3 tests)
+
+| test                                                                                               | destination                     | target                                   | merge-id      | why                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------------------------------------------------------------- | ------------------------------- | ---------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 118 covers the panel with the connect steps, then hands off in place to the core that answers      | L2-PLUGIN:@conciv/plugin-try-it | try-it node file on plugin-testkit mount | TRYIT-HANDOFF | steps, npx command, "Agent connected" while holding, hand-off to the composer need no layout; merge with the try-it slice of apps/conciv/test/conciv.browser.test.tsx:4792 (same steps, same hand-off); the reload step becomes a remount (first-sweep answer is unit 63 + driver 193) |
+| 158 a denied local-network permission replaces the waiting line, and granting it restores the wait | L3-BROWSER                      | try-it browser (flow) file               |               | needs Chromium's real local-network-access permission set over CDP (`Browser.setPermission`) and the permission change event; happy-dom has no such permission                                                                                                                         |
+| 185 stops probing once the widget is unmounted                                                     | L2-PLUGIN:@conciv/plugin-try-it | try-it node file                         | TRYIT-HANDOFF | unmount closes the driver scope; count probes on the loopback ledger; the scope-close logic itself is try-it.test.ts:300                                                                                                                                                               |
+
+Totals: L2-PLUGIN 2, L3-BROWSER 1. The file shrinks to the one permission test (fix its missing `finally`, plan line
+159), the rest moves to the node file.
+
+### Per-slice totals
+
+| file                        | tests                            | NODE          | UNIT | L2-PLUGIN | L3-BROWSER | DELETE | fixture |
+| --------------------------- | -------------------------------- | ------------- | ---- | --------- | ---------- | ------ | ------- |
+| tanstack.test.ts            | 9                                | 9 (2 to page) |      |           |            |        |         |
+| tanstack.browser.test.ts    | 1                                |               |      |           | 1          |        |         |
+| test-runner.test.ts         | 10                               | 5             | 5    |           |            |        |         |
+| test-runner.browser.test.ts | 4                                |               | 1    | 3         |            |        |         |
+| test-runner fixtures        | 9                                |               |      |           |            |        | 9       |
+| try-it.test.ts              | 17                               | 8             | 8    |           |            | 1 DUP  |         |
+| try-it.browser.test.ts      | 3                                |               |      | 2         | 1          |        |         |
+| total                       | 53 (44 suite tests + 9 fixtures) | 22            | 14   | 5         | 2          | 1      | 9       |
+
+### 3. Duplicates across files (this slice and neighbours)
+
+- try-it.browser.test.ts:118 and apps/conciv/test/conciv.browser.test.tsx:4792: both drive the try-it connect steps
+  (npx command, "Agent connected" while held, hand-off to the composer). Keep the try-it journey in the try-it plugin;
+  conciv.browser 4792 keeps only the shell parts (duplicate plugin id refusal, layout switch, two-server cover).
+- try-it.browser.test.ts:185 and try-it.test.ts:300: the scope-close logic is 300; 185 keeps only the unmount wiring.
+- try-it.test.ts:285 duplicates :266 (driver dispatch) plus :95 (machine).
+- test-runner.test.ts:269 exit-code/signal naming duplicates :394 (machine) and :580 (driver, SIGKILL).
+- test-runner.browser.test.ts:225 and :133: same card, merged (TR-CARD).
+- tanstack.test.ts:227 is the opening of :288 (TS-ATTACH).
+- tanstack.test.ts:236 and :393 prove page plugin behaviour (attach refusal, reply timeout and cancel): they go to
+  packages/plugins/page. Same for the generic relay steps inside :288.
+- builtin-plugins.browser.test.tsx:2376 "the tanstack cards" renders tool results as cards; it shares tool names with
+  tanstack.browser 128 but proves card rendering, not the page operations: not a duplicate. Those card tests belong to
+  @conciv/plugin-tanstack (the card source is builtin-plugins/src/tanstack/*-card.tsx), at L2-PLUGIN or STORYBOOK.
+- builtin-plugins has no test-runner or try-it tests (its src/test-runner/plugin-experimental.tsx is the panel and card
+  client proven only by test-runner.browser).
+
+### 4. What cannot move to happy-dom, and suspected blockers
+
+- tanstack.browser 128 stays in a real browser: a real React app with TanStack Router and Query in a host page, three
+  tabs attached at once, `pageerror` from thrown handlers and unhandled rejections. happy-dom could host the React app
+  in theory, but the page plugin's tab identity, focus/visibility state and error capture are window-level and would be
+  re-implemented, not proven.
+- try-it.browser 158 needs Chromium's local-network-access permission (CDP); no happy-dom equivalent.
+- try-it 118 and 185 in happy-dom: the probe uses `fetch` to 127.0.0.1 ports in the connect range
+  (CONNECT_FIRST_PORT..CONNECT_LAST_PORT). In node that is a real loopback fetch (fine), but the tests bind real connect
+  ports, so parallel test files can collide; the kit needs a port-range option or the probe layer injected. The "Copy"
+  step in the connect pane would hit the clipboard (happy-dom clipboard is partial).
+- test-runner card 133 keyboard steps (Shift+Tab twice, Enter, Space, Tab, Enter) rely on real tab order and Ark
+  Collapsible keyboard handling: user-event's tab order in happy-dom ignores layout and zag focus gating may differ; if
+  the steps flake, drop to clicking the disclosure triggers and leave keyboard toggling to a Storybook play on the kit
+  disclosure.
+- test-runner panel 50 and card 225: the reload becomes a remount over the same in-process engine; that proves the
+  plugin state survives, but not a real page reload. A real reload of the bundle is owned once by the shell flow tests,
+  not per plugin.
+- test-runner.test.ts withChildEnvironment mutates process.env for the child spawn: unsafe once tests share a worker;
+  pass env through the fixture.
+
+---
+
+## Whiteboard slice (packages/plugins/whiteboard)
+
+Worktree /Users/omrikatz/Public/web/aidx-wt-test-split at 86d94e743. Both files read in full. The audit (51708bc06) is stale: it lists 9 node tests and 1 browser test; the worktree has 18 node tests and 4 browser tests. The audit's 703 rule break (real 10 s export and 15 s commit deadlines) still stands, at line 794 now, and line 953 already proves both timeouts on the test clock.
+
+Target package for everything below: `@conciv/plugin-whiteboard` (packages/plugins/whiteboard).
+
+### 1. packages/plugins/whiteboard/test/whiteboard.test.ts (1,283 lines, 18 tests)
+
+| test                                                                                                                                                 | destination                    | target                                | merge-id      | why                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 340 the whiteboard plugin > is active, serves its browser bundle, offers its twenty-two tools                                                        | NODE:@conciv/plugin-whiteboard | whiteboard node file                  | M-WB-TOOLS    | a surface check that becomes the first step of the canvas tools journey                                                                                          |
+| 358 store and rpc > keeps rows per room, reads one by id, refuses foreign or empty updates, gates element versions                                   | NODE:@conciv/plugin-whiteboard | whiteboard node file                  | M-WB-STORE    | only proof that room and id smuggling is refused, plus version conflicts and canvas_read order by index                                                          |
+| 472 store and rpc > one tab at a time claims a pending row, an outlived lease can be taken again                                                     | NODE:@conciv/plugin-whiteboard | whiteboard node file                  | M-WB-STORE    | the claim lease over the real rpc; fake Date is allowed                                                                                                          |
+| 491 store and rpc > keeps its board in the plugin storage of the state root, a second engine reads it back                                           | NODE:@conciv/plugin-whiteboard | whiteboard node file, per-test engine | -             | persistence across an engine restart; also proves a held anchor file does not block shutdown                                                                     |
+| 536 store and rpc > announces changes with a per-room cursor, answers since, broadcasts a live cursor without storing it, throttles the agent cursor | NODE:@conciv/plugin-whiteboard | whiteboard node file                  | M-WB-FEED     | the wire contract the second tab's catch-up reads                                                                                                                |
+| 603 canvas tools > draws into the draft through an open canvas, previews, exports, commits and discards                                              | NODE:@conciv/plugin-whiteboard | whiteboard node file                  | M-WB-TOOLS    | engine side of every draw tool, and the svg colour injection guard in preview                                                                                    |
+| 668 canvas tools > leaves an abandoned draft when a turn is stopped, commits it when a turn finishes                                                 | NODE:@conciv/plugin-whiteboard | whiteboard node file                  | -             | only proof that the turn end decides the draft fate                                                                                                              |
+| 698 comment tools > creates, replies, reads, lists, moves comments with the agent cursor, sets pin state, asks before delete/clear/resolve/remove    | NODE:@conciv/plugin-whiteboard | whiteboard node file                  | M-WB-COMMENTS | only plugin side proof of comment tools and their approval asks (reject, always, once)                                                                           |
+| 794 comment tools > raises each failure to the caller with its message                                                                               | NODE:@conciv/plugin-whiteboard | whiteboard node file                  | M-WB-TOOLS    | the message table stays (it.each of tool, input, message); drop lines 807 and 809, which wait out the real 10 s and 15 s deadlines and are already proven by 953 |
+| 814 anchors > locates a component, anchors a comment, follows a move, loses a change, enriches an inserted comment                                   | NODE:@conciv/plugin-whiteboard | whiteboard node file                  | -             | only proof of source anchors over real project files                                                                                                             |
+| 880 pending request machine > waits for the deadline, follows a claim lease, ignores stale attempts, ends once                                       | UNIT                           | whiteboard node file                  | -             | pure transition function; becomes an it.each of (state, event, expected)                                                                                         |
+| 953 pending request driver on the test clock > unclaimed at the deadline, waits out a lease, times out commit and export                             | NODE:@conciv/plugin-whiteboard | whiteboard node file                  | -             | Effect driver over in-memory storage on TestClock; owns the commit and export timeouts                                                                           |
+| 1005 change feed machine > reads the position, catches up, routes newer changes, reloads, disposed once                                              | UNIT                           | whiteboard node file                  | -             | pure transition function; it.each rows                                                                                                                           |
+| 1044 change feed driver on the test clock > retries with backoff, catches up, routes per table, reloads, disposes                                    | NODE:@conciv/plugin-whiteboard | whiteboard node file                  | -             | Effect driver on TestClock, no DOM                                                                                                                               |
+| 1123 canvas drain machine > claims each row once, runs then removes, forgets a refused claim, ignores stale, stops on dispose                        | UNIT                           | whiteboard node file                  | -             | pure transition function; it.each rows                                                                                                                           |
+| 1150 canvas scene versions > applies a remote change once, never echoes it, writes only real local edits                                             | UNIT                           | whiteboard node file                  | -             | pure version bookkeeping; it.each rows (seed, remote newer, echo, local edit, own write back, lost tie, removed)                                                 |
+| 1187 canvas drain driver on the test clock > removes after every exit, retries a failed removal, re-claims a refused row, disposes                   | NODE:@conciv/plugin-whiteboard | whiteboard node file                  | -             | Effect driver on TestClock                                                                                                                                       |
+| 1259 commit replay on the test clock > first element at once, next after a step, rest at once when skipped                                           | NODE:@conciv/plugin-whiteboard | whiteboard node file                  | -             | Effect driver on TestClock                                                                                                                                       |
+
+Count: 18 tests, 18 rows.
+
+#### 2. Totals
+
+NODE 14 (in 5 journeys: M-WB-STORE 2, M-WB-FEED 1, M-WB-TOOLS 3, M-WB-COMMENTS 1, plus 7 single tests), UNIT 4. Nothing deleted as a whole test; two lines inside 794 (807, 809) go as DELETE-DUP of 953.
+
+What the file becomes: stays as the package's one node file, moved onto `@conciv/plugin-testkit/node` (`plugin` fixture with `tool(name)` and the typed failure reader replace the local `boot`, `call`, `failureType`, `rejection`, `useTool`). 340 folds into 603. The four machine tests become it.each tables. About 1,000 lines, and about 25 s faster once 807 and 809 go.
+
+### 1. packages/plugins/whiteboard/test/whiteboard.browser.test.ts (1,245 lines, 4 tests)
+
+Each test is a long chain, so the rows below give the test row first and then its segments with their own destination. The test row's destination is where the bulk goes.
+
+| test                                                                                                                                                                                                                                                        | destination                                           | target                                         | merge-id         | why                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 182 canvas > opens from the pill, draws with keyboard and pointer, drags in few writes, closes on Escape, reopens, converts agent drawings, commits, exports, caps svg, second tab catches up, outlives a minimized chat, failed load toasts                | L3-BROWSER (canvas)                                   | whiteboard browser file, split into 3 journeys | M-WB-CANVAS      | the only proof of the real Excalidraw canvas                                                                                                                                                                           |
+| . 199-245 pill opens canvas, 'r' + drag draws 160x120, single drag in few upserts, group drag in bulk writes                                                                                                                                                | L3-BROWSER (canvas, pointer geometry)                 | M-WB-CANVAS journey 1                          | M-WB-CANVAS      | pointer drags on the canvas                                                                                                                                                                                            |
+| . 247-279 Escape closes while a turn runs, composer keeps focus, agent draw lands in draft while closed, reopen keeps drawing                                                                                                                               | L3-BROWSER (real focus, canvas)                       | M-WB-CANVAS journey 1                          | M-WB-CANVAS      | toBeFocused on the composer after close                                                                                                                                                                                |
+| . 281-320 Escape on chat layers keeps the canvas; main menu stays open while picking background, closes on a canvas click                                                                                                                                   | L3-BROWSER (canvas click at coordinates)              | M-WB-CANVAS journey 1                          | M-WB-CANVAS      | Excalidraw's own menu over the canvas                                                                                                                                                                                  |
+| . 322-400 agent draw/svg/mermaid convert; hostile svg never runs script; canvasPending.remove failure; malformed and undrawable svg refused                                                                                                                 | L3-BROWSER (canvas)                                   | M-WB-CANVAS journey 2                          | M-WB-CANVAS      | conversion runs in the page island against Excalidraw; script safety needs a real document                                                                                                                             |
+| . 402-426 a slow draft write; a session with no canvas is refused                                                                                                                                                                                           | DELETE-DUP for the refusal only                       | whiteboard.test.ts:806 and :664                | M-WB-CANVAS      | "no canvas is open to draw into" is proven in node; the slow write gate stays in journey 2                                                                                                                             |
+| . 428-476 garbled live writes keep the draft, commit, PNG export, dense svg capped at 500, degenerate path skipped                                                                                                                                          | L3-BROWSER (canvas)                                   | M-WB-CANVAS journey 2                          | M-WB-CANVAS      | export renders the real canvas to PNG                                                                                                                                                                                  |
+| . 478-662 second tab: position read, reconnect catch-up after a failed since, concurrent move tie-break, erase, draw-once export                                                                                                                            | L3-BROWSER (cross-tab, canvas)                        | M-WB-CANVAS journey 3                          | M-WB-CANVAS      | two real pages over one engine                                                                                                                                                                                         |
+| . 664-675 text tool writes, canvas outlives a minimized chat                                                                                                                                                                                                | L3-BROWSER (canvas)                                   | M-WB-CANVAS journey 1                          | M-WB-CANVAS      |                                                                                                                                                                                                                        |
+| . 677-711 failed chunk load toasts once per open, logs once, retry shows loading toast then canvas                                                                                                                                                          | L2-PLUGIN:@conciv/plugin-whiteboard                   | whiteboard L2 file                             | -                | the toast and retry are `WhiteboardNotices` (src/overlay.tsx:43); a failing surface query needs no layout. Blocker: the fault is injected on the rpc socket today; L2 needs the kit to fail `plugin.experimentalChunk` |
+| 719 comments > agent comment becomes an unread pin, click marks read, pointer moves write nothing, dragged pin lands, only others make unread, Escape closes thread, comment pill waits for the picker, page comment hides canvas, inbox sort/filter/search | L3-BROWSER (canvas)                                   | whiteboard browser file                        | M-WB-COMMENTS-UI | pins sit over the Excalidraw viewport (src/pins.tsx:55 reads `model.viewport()`), so the whole comment layer needs the canvas mounted                                                                                  |
+| . 738-744 empty inbox, close inbox                                                                                                                                                                                                                          | L3-BROWSER (canvas)                                   | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI | inbox is mounted inside the canvas surface                                                                                                                                                                             |
+| . 753-793 unread pin, read on click, quiet pointer moves, zoom 120%, pin drag lands at scene coords                                                                                                                                                         | L3-BROWSER (geometry, canvas)                         | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI | toBeCloseTo on scene coordinates after zoom; real pointer                                                                                                                                                              |
+| . 794-801 reload keeps the read state                                                                                                                                                                                                                       | L3-BROWSER (real reload)                              | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI |                                                                                                                                                                                                                        |
+| . 803-846 reply makes unread, own reply does not, Previous thread steps and keeps focus                                                                                                                                                                     | L3-BROWSER (real focus)                               | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI | merges with 994 1093-1099 (Next thread); one stepping step is enough                                                                                                                                                   |
+| . 848-859 Shift+Tab focuses a pin, tooltip, Escape twice                                                                                                                                                                                                    | L3-BROWSER (real focus)                               | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI |                                                                                                                                                                                                                        |
+| . 861-869 open thread closes when the agent deletes its comments, chat comes back                                                                                                                                                                           | DELETE-DUP                                            | whiteboard.browser.test.ts:1188-1191           | M-WB-COMMENTS-UI | same behaviour, keep one                                                                                                                                                                                               |
+| . 871-882 pin dragged onto the composer, composer still takes focus                                                                                                                                                                                         | L3-BROWSER (real focus, drag)                         | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI |                                                                                                                                                                                                                        |
+| . 884-922 comment pill waits for the picker chunk, page element pick hides canvas, Escape/Enter bring it back, toast only when canvas closed                                                                                                                | L3-BROWSER (built bundle in a host page, layout pick) | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI | picks a real host page element through the page plugin picker; crosses the page plugin                                                                                                                                 |
+| . 924-988 inbox: count badge, newest first, reply count, sort by unread, resolve hides, show resolved, search, mark all read, open scrolls far pin into view                                                                                                | L3-BROWSER (canvas; toBeInViewport)                   | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI | sort/filter/search alone would be L2 if the inbox mounted without Excalidraw; today it cannot                                                                                                                          |
+| 994 cards and thread > agent tool calls show as chat cards, thread hides chat, @mention reply, Escape keeps canvas, next/previous, resolve, delete confirm, source-linked pin drift prompt, agent delete closes open thread                                 | L3-BROWSER (canvas)                                   | whiteboard browser file                        | M-WB-COMMENTS-UI | thread and pins over the canvas                                                                                                                                                                                        |
+| . 1010-1031 scripted turn: canvas_read, preview image, delete, export failure, comment create/list/delete, pin state show as cards                                                                                                                          | L2-PLUGIN:@conciv/plugin-whiteboard                   | whiteboard L2 file                             | -                | chat cards need no canvas; keep one step per tool name proving the card is wired, the card states belong to the stories (see section 3)                                                                                |
+| . 1035-1074 unread pin, thread hides chat, reply with @AI mention stored as a mention part                                                                                                                                                                  | L3-BROWSER (canvas)                                   | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI | the MentionField is tiptap contenteditable; see section 4                                                                                                                                                              |
+| . 1076-1099 Escape keeps canvas, Next thread steps and keeps focus                                                                                                                                                                                          | L3-BROWSER (real focus)                               | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI | merge with 719 837-842                                                                                                                                                                                                 |
+| . 1101-1122 resolve, delete through its confirm (Cancel focused)                                                                                                                                                                                            | L3-BROWSER (real focus, canvas)                       | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI |                                                                                                                                                                                                                        |
+| . 1124-1175 source-linked pin drag opens the drift prompt, Cancel, keep link accepts drift and writes offset                                                                                                                                                | L3-BROWSER (pointer drag, canvas)                     | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI |                                                                                                                                                                                                                        |
+| . 1177-1186 a refused comments.update shows the save error toast                                                                                                                                                                                            | L3-BROWSER (canvas)                                   | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI | fault on the rpc socket                                                                                                                                                                                                |
+| . 1188-1191 agent delete closes the open thread                                                                                                                                                                                                             | L3-BROWSER (canvas)                                   | M-WB-COMMENTS-UI                               | M-WB-COMMENTS-UI | owner of the 861-869 duplicate                                                                                                                                                                                         |
+| 1237 canvas background > host page shows through by default, covered once the settings row turns it solid                                                                                                                                                   | L3-BROWSER (real layout, pixel compare)               | whiteboard browser file                        | -                | only a screenshot of the host page under the canvas proves see-through                                                                                                                                                 |
+
+Count: 4 tests, 4 test rows (plus 25 segment rows).
+
+#### 2. Totals
+
+By test: L3-BROWSER 4. By segment: L3-BROWSER 21, L2-PLUGIN 2 (chunk failure toast 677-711, chat cards 1010-1031), DELETE-DUP 2 (402-426 refusal part, 861-869).
+
+What the file becomes: one browser file on `@conciv/plugin-testkit/flow` (Playwright Test) with journeys M-WB-CANVAS 1 (draw and close), 2 (agent drawing and svg safety, commit, export), 3 (second tab), M-WB-COMMENTS-UI as one or two journeys (719 and 994 merged), and the background pixel test. Two segments move to a whiteboard L2 journey (where that journey lives needs a ruling on the file budget, see section 4). All inline `timeout:` values, the two 120 s test timeouts and the `AbortSignal.timeout` calls go to config. About 800 lines.
+
+### 3. Cross-file duplicates and owners
+
+- whiteboard.browser.test.ts:413-419 duplicates whiteboard.test.ts:806 and :664 (no canvas is open to draw into). Node owns it.
+- whiteboard.browser.test.ts:861-869 duplicates whiteboard.browser.test.ts:1188-1191 (an open thread closes when the agent deletes its root).
+- whiteboard.browser.test.ts:837-842 (Previous thread) and 1093-1099 (Next thread) prove the same stepping and focus; keep one.
+- whiteboard.browser.test.ts:864 and 1052 both prove the open thread hides the chat; keep one.
+- whiteboard.test.ts:757-758 (comment_read and pin_set_state on a missing cid reject) overlaps 794:796; 794 checks the message, so 757-758 go.
+- whiteboard.test.ts:610-611 (script svg and 501-edge mermaid rejected) overlap 794:800-805; same split, 794 keeps the messages.
+- whiteboard.test.ts:794 lines 807 and 809 duplicate 953 (commit and export timeouts), and cost about 25 s of real waiting.
+- whiteboard.browser.test.ts:1010-1031 (card text: "3 elements", preview image, "delete el_9", "export render failed · no renderer", "Looks off-center", "2 comments", "deleted", "locked") repeats the states in packages/builtin-plugins/src/whiteboard/canvas-card.stories.tsx (Read, PreviewImage, DeleteConfirmed, ExportFailed) and comment-card.stories.tsx (CreatePreview, ListResults, DeleteConfirmed, PinLocked). None of those stories has a `play`, so today the browser test is the only assert; the states become story plays and the L2 step keeps only "a whiteboard tool call renders its card".
+- Owner: the whiteboard cards and their stories (canvas, comment, anchor, element cards in packages/builtin-plugins/src/whiteboard) belong to `@conciv/plugin-whiteboard`; they should move with their stories.
+- packages/builtin-plugins/test/builtin-plugins.browser.test.tsx has no whiteboard test. apps/conciv/test/conciv.browser.test.tsx:10686-10867 only names the `whiteboard-card` entry in the installed list; no overlap.
+
+### 4. Cannot move to happy-dom, and suspected blockers
+
+- The whole comment layer (pins, thread, inbox, drift prompt) renders inside the Excalidraw surface (src/canvas-surface.tsx, src/pins.tsx:55 waits for the Excalidraw viewport). happy-dom has no canvas 2D context and no real ResizeObserver, so Excalidraw will not mount; every comment UI step stays L3 unless the inbox and thread are mounted apart from the canvas. Inbox sort, filter, search and mark-all-read look L2-able but are not, for that reason.
+- Pin placement after zoom (753-793) and the far pin scrolled into view (983-986) are geometry.
+- The thread reply field is `MentionField` from @conciv/ui-kit-tap (tiptap contenteditable); the @mention option list is Ark/zag listbox under virtual focus. Both are suspected happy-dom blockers (contenteditable selection, zag focus gating).
+- Focus asserts (composer focused after close at 262, Previous/Next thread focused, Cancel focused in the delete confirm, Shift+Tab to a pin) need real focus.
+- SVG conversion (src/svg-convert.ts) runs in the page against Excalidraw's skeleton transform; the hostile svg check (no script ran) needs a real document.
+- The background test compares screenshots; only a real browser has pixels.
+- The chunk failure toast (677-711) and the chat cards (1010-1031) are the only parts that look fine for happy-dom; the toast needs the kit to fail the plugin chunk load without the rpc socket fault helper.
+- Open question for the parent: the plan allows one node plus one browser file per package; whiteboard then needs node (layer 4 and units), L2 (happy-dom, 2 small journeys) and L3 flow. Either the L2 journeys live in the node file under happy-dom per describe, or the budget counts L2 and L3 as the one browser slot.

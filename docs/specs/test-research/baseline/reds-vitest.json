@@ -1,0 +1,1244 @@
+[
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "chat history paging \u203a scrolling up loads the older page well before the top, and the messages in view stay where they were",
+    "errors": [
+      {
+        "lines": [
+          "Error: expect(element).toBeInViewport()",
+          "Received element is not in viewport (actual ratio: 0.000):"
+        ],
+        "at": ["test/conciv.browser.test.tsx:2953:68", "test/conciv.browser.test.tsx:2922:9"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "chat history paging \u203a the replies on screen are kept, not rebuilt, when the page before them lands",
+    "errors": [
+      {
+        "lines": [
+          "Error: expect(element).toBeInViewport()",
+          "Received element is not in viewport (actual ratio: 0.000):"
+        ],
+        "at": ["test/conciv.browser.test.tsx:2953:68", "test/conciv.browser.test.tsx:2936:9"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "settings page \u203a a journey through every settings tab that saves, applies, survives a reload and resets",
+    "errors": [
+      {
+        "lines": ["Error: expect(element).toBeChecked()", "Received element is not checked:"],
+        "at": ["test/conciv.browser.test.tsx:8643:74"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "installed plugins \u203a a plugin that never loaded is listed with its error, and disable, enable and reload act through the store",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected [ { id: 'page', \u2026(2) }, \u2026(8) ] to deeply equal [ { id: 'page', \u2026(2) }, \u2026(7) ]",
+          "@@ -15,10 +15,15 @@",
+          "      \"id\": \"tanstack-card\",",
+          "    },",
+          "    {",
+          "      \"builtin\": true,"
+        ],
+        "at": ["test/conciv.browser.test.tsx:10982:49", "test/conciv.browser.test.tsx:11075:3"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its engine ref reads the event connection: down while the engine is offline, up again when it returns, and a keyed run attaches again",
+    "errors": [
+      {
+        "lines": ["VitestBrowserElementError: Cannot find element with locator: getByText('Engine attached: 1')"],
+        "at": ["test/conciv.browser.test.tsx:11657:77"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its dialogs stack and return focus, its composer writes wait for the chat, its opened and renamed tabs show, an unlisted tab goes back to the chat, and its draft opens a new session with its prompt in the composer",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('tab', { name: 'Fixture tools' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:11671:65"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its notes go from the composer cards to the sent message and stay after a reload",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('button', { name: 'Attach two notes' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:11789:72"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its notes written while the draft still loads stay with that session when the user switches to another",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('tab', { name: 'Fixture tools' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:11983:65"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its notes written while the draft still loads never replace a saved draft that could not be read",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('tab', { name: 'Fixture tools' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12036:65"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its notes come back to the composer as notes, with the typed text, whenever a draft is put back",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('button', { name: 'Attach two notes' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12055:72"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its ctx.ui.Popover \u203a opens beside its anchor and leaves the page usable, closes on Escape with focus back on the anchor and on a click outside, and focuses the field it names",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('tab', { name: 'Fixture popovers' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12253:69"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its ctx.ui.RelativeTime, ctx.ui.Avatar and ctx.ui.Chip \u203a show how long ago a time was, a person by name with their initials when there is no image, a chip whose tooltip opens on hover, and a clipped chip whose tooltip shows its full value with the tooltip text",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('tab', { name: 'Fixture people' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12296:67"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its ctx.ui.Menu radio and checkbox entries \u203a a radio entry and a checkbox entry stay checked, and the app's MentionField from @conciv/ui-kit-tap sends a mention",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('tab', { name: 'Fixture people' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12335:67"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      },
+      {
+        "lines": ["Error: expect.poll() function didn't resolve in time."],
+        "at": ["test/conciv.browser.test.tsx:12387:67"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its overlay draws a widget-styled label above the page, takes a click on a control that opts back into pointer events, follows the color mode chosen in Settings, applies its own styles, and goes away on dispose and when the plugin is turned off",
+    "errors": [
+      {
+        "lines": ["Error: expect.poll() function didn't resolve in time."],
+        "at": ["test/conciv.browser.test.tsx:12431:65"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a a plugin that throws from its panel focus, its panel list or its reactive slot loses only that contribution, shows the failure in Settings, and the chat and the other plugin keep working",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('button', { name: 'Write a held note' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12491:55", "test/conciv.browser.test.tsx:12516:3"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its panel reads the routed session idle, then running once a turn starts, and its interrupt stops the run and answers whether one was going",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('tab', { name: 'Fixture tools' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12537:65"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a a cold link to its tab shows the tab, and a cold link to its old tab key ends on the renamed tab",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('button', { name: 'Write a plain note' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12558:74"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a a cold link to its tab while its bundle is still being read waits, then shows the tab",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('button', { name: 'Write a plain note' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12579:74"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its session store read cut off by a lost engine shows loading until the engine is back and the read is retried, and an engine error on that read leaves it loading",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('tab', { name: 'Fixture tools' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12605:65"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a a cold link to a tab no panel lists ends on the chat, and a cold link to its tab with the engine unreachable keeps its address under the lost connection notice and opens the tab once the engine is back",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('tab', { name: 'Fixture tools' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12640:65"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its tool card body comes back after the thread evicts it, and its store survives a reload and refuses a bad write",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('tab', { name: 'Fixture tools' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12687:65"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a its tab shows once trusted, through a revoke, a lost connection and trust dropped before its enable state, and its tab and settings page keep their place through a revoke and a reopen",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('tab', { name: 'Fixture tools' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12749:65"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a turning it off in Settings removes its tab and slot, turning it on brings them back, and turning it off elsewhere closes its open tab",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('tab', { name: 'Fixture tools' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12828:65"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a a page overlay that hides the chat takes the chat out of reach by role and by Tab, and closing it brings the composer back",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('button', { name: 'Open the hiding overlay' })"
+        ],
+        "at": ["test/conciv.browser.test.tsx:12855:60"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-1",
+    "jobId": "135607879288",
+    "package": "@conciv/app",
+    "project": "browser (chromium)",
+    "file": "test/conciv.browser.test.tsx",
+    "test": "a fixture plugin driven like a user \u203a on a phone its mobile views are status bar entries drawn in place of the chat, a cached one keeps its state, and the address survives a reload and a desktop width",
+    "errors": [
+      {
+        "lines": ["VitestBrowserElementError: Cannot find element with locator: getByRole('tab', { name: 'Count' })"],
+        "at": ["test/conciv.browser.test.tsx:12875:57"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-3",
+    "jobId": "135607879207",
+    "package": "@conciv/plugin-try-it",
+    "project": null,
+    "file": "test/db.test.ts",
+    "test": "db \u203a migrations folder \u203a is one chain whose latest snapshot holds every column the schema declares",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected [ { \u2026(3) } ] to deeply equal []",
+          "- []",
+          "+ [",
+          "+   {",
+          "+     \"name\": \"20261118184653_drop_old_page_tables\",",
+          "+     \"parent\": ["
+        ],
+        "at": ["test/db.test.ts:410:32"],
+        "causedBy": null
+      },
+      {
+        "lines": [
+          "AssertionError: expected [ 'drafts.items' ] to deeply equal []",
+          "- []",
+          "+ [",
+          "+   \"drafts.items\",",
+          "+ ]"
+        ],
+        "at": ["test/db.test.ts:422:30"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-3",
+    "jobId": "135607879207",
+    "package": "@conciv/plugin-try-it",
+    "project": null,
+    "file": "test/cli.test.ts",
+    "test": "cli \u203a cli arguments \u203a conciv CLI argument rejection \u203a rejects a mistyped kebab spelling of a real flag and keeps accepting the real one",
+    "errors": [
+      {
+        "lines": ["AssertionError: expected 1 to be +0 // Object.is equality", "- 0", "+ 1"],
+        "at": ["test/cli.test.ts:226:11"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-3",
+    "jobId": "135607879207",
+    "package": "@conciv/plugin-try-it",
+    "project": null,
+    "file": "test/cli.test.ts",
+    "test": "cli \u203a cli arguments \u203a conciv CLI argument rejection \u203a still accepts an envelope flag placed before a nested subcommand",
+    "errors": [
+      {
+        "lines": ["AssertionError: expected 1 to be +0 // Object.is equality", "- 0", "+ 1"],
+        "at": ["test/cli.test.ts:247:83"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-3",
+    "jobId": "135607879207",
+    "package": "@conciv/plugin-try-it",
+    "project": null,
+    "file": "test/cli.test.ts",
+    "test": "cli \u203a cli arguments \u203a conciv CLI argument rejection \u203a rejects a positional passed as a flag and says how to pass it",
+    "errors": [
+      {
+        "lines": ["AssertionError: expected +0 to be 1 // Object.is equality", "- 1", "+ 0"],
+        "at": ["test/cli.test.ts:268:87"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-3",
+    "jobId": "135607879207",
+    "package": "@conciv/plugin-try-it",
+    "project": null,
+    "file": "test/cli.test.ts",
+    "test": "cli \u203a cli arguments \u203a conciv CLI argument rejection \u203a rejects an extra positional instead of dropping it",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected '{\"ok\":false,\"error\":{\"kind\":\"user\",\"m\u2026' to contain '#b'",
+          "Expected: \"#b\"",
+          "Received: \"{\"ok\":false,\"error\":{\"kind\":\"user\",\"message\":\"Unexpected argument '#a' for conciv tools acme click.\",\"hint\":\"run conciv tools acme click --help to see the arguments it accepts\"}}\""
+        ],
+        "at": ["test/cli.test.ts:278:31"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-3",
+    "jobId": "135607879207",
+    "package": "@conciv/plugin-try-it",
+    "project": null,
+    "file": "test/cli.test.ts",
+    "test": "cli \u203a cli derived commands \u203a the dev-server reload command is gone \u203a tools offers no server group and tools server reload is an unknown command",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected 'tools\\ninspect & drive the live dev s\u2026' not to match /^\\s+server\\s/m",
+          "/^\\s+server\\s/m",
+          "\"tools",
+          "inspect & drive the live dev server: every tool group it serves (page, react,",
+          "...)",
+          "Usage:"
+        ],
+        "at": ["test/cli.test.ts:424:57"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-3",
+    "jobId": "135607879207",
+    "package": "@conciv/plugin-try-it",
+    "project": null,
+    "file": "test/cli.test.ts",
+    "test": "cli \u203a cli derived commands \u203a the CLI reads its commands from the tool declarations \u203a serves a group from an extension the CLI has never heard of",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected 'tools acme\\nthe acme tools the runnin\u2026' to contain 'raise the acme beacon over the page'",
+          "- raise the acme beacon over the page",
+          "+ tools acme",
+          "+ the acme tools the running dev server serves; run --help for every capability",
+          "+",
+          "+ Usage:"
+        ],
+        "at": ["test/cli.test.ts:484:61"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-3",
+    "jobId": "135607879207",
+    "package": "@conciv/plugin-try-it",
+    "project": null,
+    "file": "test/cli.test.ts",
+    "test": "cli \u203a cli derived commands \u203a the CLI reads its commands from the tool declarations \u203a clears a field when the value is explicitly empty",
+    "errors": [
+      {
+        "lines": ["AssertionError: expected 1 to be +0 // Object.is equality", "- 0", "+ 1"],
+        "at": ["test/cli.test.ts:558:91"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-3",
+    "jobId": "135607879207",
+    "package": "@conciv/plugin-try-it",
+    "project": null,
+    "file": "test/cli.test.ts",
+    "test": "cli \u203a cli derived commands \u203a the CLI reads its commands from the tool declarations \u203a still refuses a required flag that was never passed at all",
+    "errors": [
+      {
+        "lines": ["AssertionError: expected +0 to be 1 // Object.is equality", "- 1", "+ 0"],
+        "at": ["test/cli.test.ts:565:76"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-3",
+    "jobId": "135607879207",
+    "package": "@conciv/plugin-try-it",
+    "project": null,
+    "file": "test/cli.test.ts",
+    "test": "cli \u203a cli derived commands \u203a the CLI reads its commands from the tool declarations \u203a describes a verb by what it does, never by the verb's own command path",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected 'tools acme\\nthe acme tools the runnin\u2026' to contain 'type a value into a form field'",
+          "- type a value into a form field",
+          "+ tools acme",
+          "+ the acme tools the running dev server serves; run --help for every capability",
+          "+",
+          "+ Usage:"
+        ],
+        "at": ["test/cli.test.ts:573:22"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core-api.it.test.ts",
+    "test": "rpc wire \u203a chat \u203a approvals \u203a only tools declared to ask ever ask: mutating and read tools run straight through the sandbox",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected '{\"success\":true,\"result\":[{\"echoed\":\"\u2026' to contain '[{\"echoed\":\"hi\"},{\"value\":7},\"undefin\u2026'",
+          "- [{\"echoed\":\"hi\"},{\"value\":7},\"undefined\"]",
+          "+ {\"success\":true,\"result\":[{\"echoed\":\"hi\"},{\"value\":7},\"function\"],\"logs\":[]}",
+          "+ {\"echoed\":\"hi\"}",
+          "+ {\"value\":7}"
+        ],
+        "at": ["test/core-api.it.test.ts:2693:57"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core-api.it.test.ts",
+    "test": "rpc wire \u203a chat \u203a approvals \u203a a risky tool is refused until approved, a denial re-runs the turn refused once, and a one-time approval runs once",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected '[{\"type\":\"CUSTOM\",\"name\":\"run.accepte\u2026' to contain 'needs the user'",
+          "Expected: \"needs the user\"",
+          "Received: \"[{\"type\":\"CUSTOM\",\"name\":\"run.accepted\",\"value\":{},\"timestamp\":1795096507259},{\"type\":\"RUN_STARTED\",\"runId\":\"ask-run\",\"threadId\":\"conciv_c1569211-c63c-4363-b985-bfa521d2edd0\",\"timestamp\":1795096507262},{\"type\":\"CUSTOM\",\"name\":\"conciv.run-lifecycle\",\"value\":{\"runId\":\"ask-run\",\"phase\":\"runn"
+        ],
+        "at": ["test/core-api.it.test.ts:2701:43"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core-api.it.test.ts",
+    "test": "rpc wire \u203a chat \u203a approvals \u203a an unanswered ask never times out and a stop leaves it waiting",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected [] to deeply equal [ 'conciv:tool:fixture_ask' ]",
+          "- [",
+          "-   \"conciv:tool:fixture_ask\",",
+          "- ]",
+          "+ []"
+        ],
+        "at": ["test/core-api.it.test.ts:2727:100"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core-api.it.test.ts",
+    "test": "rpc wire \u203a chat \u203a approvals \u203a approving for the session lets repeats through, except a command that could hide another",
+    "errors": [
+      {
+        "lines": ["Error: no pending approval"],
+        "at": ["test/core-api.it.test.ts:2734:9"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core-api.it.test.ts",
+    "test": "rpc wire \u203a chat \u203a approvals \u203a the widget calling a tool is the approval, while agents and malformed callers are refused",
+    "errors": [
+      {
+        "lines": ["Error: fixture_ask is not on /api/mcp"],
+        "at": ["test/core-api.it.test.ts:4609:35", "test/core-api.it.test.ts:2758:23"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core-api.it.test.ts",
+    "test": "rpc wire \u203a chat \u203a approvals \u203a a call refused for a disconnected client, at the outside admission or at the ask reaches the extension middleware",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: promise resolved \"{ done: 'asked' }\" instead of rejecting",
+          "- Error {",
+          "-   \"message\": \"rejected promise\",",
+          "+ {",
+          "+   \"done\": \"asked\",",
+          "  }"
+        ],
+        "at": ["test/core-api.it.test.ts:2809:28"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core-api.it.test.ts",
+    "test": "rpc wire \u203a chat \u203a approvals \u203a a caller outside the widget is refused, shows the ask, and one approval runs one retry",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: promise resolved \"{ done: 'x' }\" instead of rejecting",
+          "- Error {",
+          "-   \"message\": \"rejected promise\",",
+          "+ {",
+          "+   \"done\": \"x\",",
+          "  }"
+        ],
+        "at": ["test/core-api.it.test.ts:2846:29"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core-api.it.test.ts",
+    "test": "rpc wire \u203a chat \u203a attachments and images \u203a an attachment is stored as sent, expanded once for the model only, and the CLI gets the expansion",
+    "errors": [
+      {
+        "lines": ["AssertionError: expected -1 to be greater than 115"],
+        "at": ["test/core-api.it.test.ts:2897:50"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core-api.it.test.ts",
+    "test": "rpc wire \u203a chat \u203a code mode \u203a a turn and agents over MCP get the same tools: run code, discover tools, and the asking tools",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected [ 'execute_typescript', \u2026(2) ] to deeply equal ArrayContaining{\u2026}",
+          "- ArrayContaining [",
+          "+ [",
+          "    \"execute_typescript\",",
+          "    \"discover_tools\",",
+          "-   \"fixture_ask\","
+        ],
+        "at": ["test/core-api.it.test.ts:3730:25"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core-api.it.test.ts",
+    "test": "rpc wire \u203a chat \u203a code mode \u203a discover_tools shows a tool output shape and declared error codes; the catalog lives on execute_typescript",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected '\"{\\\"tools\\\":[{\\\"name\\\":\\\"external_fix\u2026' to contain 'Returns JSON matching'",
+          "Expected: \"Returns JSON matching\"",
+          "Received: \"\"{\\\"tools\\\":[{\\\"name\\\":\\\"external_fixture_fail\\\",\\\"description\\\":\\\"Fail with a declared error.\\\",\\\"typeStub\\\":\\\"interface External_fixture_failInput {\\\\n  spaced: boolean;\\\\n}\\\\n\\\\n/** Fail with a declared error. */\\\\ndeclare function external_fixture_fail(input: External_fixture_failInpu"
+        ],
+        "at": ["test/core-api.it.test.ts:3858:23"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core-api.it.test.ts",
+    "test": "rpc wire \u203a chat \u203a code mode \u203a errors keep their declared code, other failures stay plain errors, and huge results are capped",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected [Function] to throw error matching /\"code\":\"PROBE_BROKE\"/ but got '{\"error\":{\"message\":\"PROBE_BROKE: the\u2026'",
+          "/\"code\":\"PROBE_BROKE\"/",
+          "\"{\\\"error\\\":{\\\"message\\\":\\\"PROBE_BROKE: the probe broke\\\",\\\"name\\\":\\\"Error\\\"}}\""
+        ],
+        "at": ["test/core-api.it.test.ts:3871:83"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core.test.ts",
+    "test": "engine boot writes .conciv/mcp-endpoint.json \u203a releases the port when the endpoint file cannot be written",
+    "errors": [
+      {
+        "lines": [
+          "Error: Test timed out in 30000ms.",
+          "If this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+        ],
+        "at": ["test/core.test.ts:1353:3"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core.test.ts",
+    "test": "engine boot writes .conciv/mcp-endpoint.json \u203a a failed endpoint write fails start with its own error even when a plugin cleanup also fails",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected '' to contain 'conciv: cleanup after a failed start \u2026'",
+          "- conciv: cleanup after a failed start also failed"
+        ],
+        "at": ["test/core.test.ts:1400:27"],
+        "causedBy": null
+      },
+      {
+        "lines": ["AssertionError: expected '' to contain 'plugin cleanup failed'", "- plugin cleanup failed"],
+        "at": ["test/core.test.ts:1401:27"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-4",
+    "jobId": "135607879262",
+    "package": "@conciv/preact",
+    "project": "node",
+    "file": "test/core.test.ts",
+    "test": "engine boot writes .conciv/mcp-endpoint.json \u203a a request that reaches the engine while its app is failing to build fails instead of hanging, and the port is released",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected [] to deeply equal [ toBeOneOf{\u2026} ]",
+          "- [",
+          "-   toBeOneOf<Array [",
+          "-   500,",
+          "-   \"dropped\",",
+          "- ]>,"
+        ],
+        "at": ["test/core.test.ts:1436:41"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-8",
+    "jobId": "135607879396",
+    "package": "site-snippets",
+    "project": "ui-kit-chat-tools-browser (chromium)",
+    "file": "test/ui-kit-chat-tools.browser.test.tsx",
+    "test": "tool row projections \u203a projects a Write call as a write row and an Edit call as an edit row",
+    "errors": [
+      {
+        "lines": [
+          "Error: strict mode violation: getByText('new-file.ts', { exact: false }) resolved to 2 elements: 1) <span dir=\"ltr\" data-part=\"trigger\" data-state=\"closed\" data-scope=\"tooltip\" data-ownedby=\"tooltip-cl-192\" id=\"tooltip:tooltip-cl-192:trigger\" class=\"truncate flex-1 min-w-0 truncate text-chat-sm lead",
+          "    2) <bdi>/repo/src/new-file.ts</bdi> aka getByText('/repo/src/new-file.ts', { exact: false })"
+        ],
+        "at": ["test/ui-kit-chat-tools.browser.test.tsx:804:73"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-8",
+    "jobId": "135607879396",
+    "package": "site-snippets",
+    "project": "ui-kit-chat-browser (chromium)",
+    "file": "test/cards.browser.test.tsx",
+    "test": "tool trace row \u203a clamps a long body and reveals the rest from the frame footer",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected 'Show less' to be 'show less' // Object.is equality",
+          "Expected: \"show less\"",
+          "Received: \"Show less\""
+        ],
+        "at": ["test/cards.browser.test.tsx:923:33"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Test shard-8",
+    "jobId": "135607879396",
+    "package": "site-snippets",
+    "project": "ui-kit-chat-browser (chromium)",
+    "file": "test/composer.browser.test.tsx",
+    "test": "assistant action bar reveal \u203a says the copy did not land when the clipboard refuses a keyboard-activated copy",
+    "errors": [
+      {
+        "lines": [
+          "VitestBrowserElementError: Cannot find element with locator: getByRole('button', { name: 'Copy failed' })"
+        ],
+        "at": ["test/composer.browser.test.tsx:238:75"],
+        "causedBy": "Caused by: Error: Matcher did not succeed in time."
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "E2E shard-1",
+    "jobId": "135607857030",
+    "package": "site",
+    "project": null,
+    "file": "test/site.it.test.ts",
+    "test": "live connect \u203a widget-native live connect on the built site \u203a opens the panel for a click that lands before the widget bundle has mounted",
+    "errors": [
+      {
+        "lines": [
+          "Error: expect(page).toHaveURL(expected) failed",
+          "Expected pattern: /[?&]try=1/",
+          "Received string:  \"http://127.0.0.1:46295/\"",
+          "Timeout: 5000ms",
+          "Call log:",
+          "  - Expect \"toHaveURL\" with timeout 5000ms"
+        ],
+        "at": ["test/site.it.test.ts:212:33"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "E2E shard-1",
+    "jobId": "135607857030",
+    "package": "site",
+    "project": null,
+    "file": "test/site.it.test.ts",
+    "test": "live connect \u203a widget-native live connect on the built site \u203a boots the widget into connect steps and hands off in place to live chat",
+    "errors": [
+      {
+        "lines": [
+          "Error: expect(locator).toBeVisible() failed",
+          "Locator: getByRole('dialog', { name: 'conciv chat agent' }).getByText('Drive this page with your agent.')",
+          "Expected: visible",
+          "Timeout: 20000ms",
+          "Error: element(s) not found",
+          "Call log:"
+        ],
+        "at": ["test/site.it.test.ts:177:78", "test/site.it.test.ts:238:21"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "E2E shard-1",
+    "jobId": "135607857030",
+    "package": "site",
+    "project": null,
+    "file": "test/site.it.test.ts",
+    "test": "live connect \u203a widget-native live connect on the built site \u203a remembers a pre-connect dismissal, and ?try=1 forces the panel open again",
+    "errors": [
+      {
+        "lines": [
+          "Error: expect(locator).toBeVisible() failed",
+          "Locator: getByRole('dialog', { name: 'conciv chat agent' }).getByText('Drive this page with your agent.')",
+          "Expected: visible",
+          "Timeout: 20000ms",
+          "Error: element(s) not found",
+          "Call log:"
+        ],
+        "at": ["test/site.it.test.ts:177:78", "test/site.it.test.ts:289:21"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "E2E shard-1",
+    "jobId": "135607857030",
+    "package": "site",
+    "project": null,
+    "file": "test/site.it.test.ts",
+    "test": "live connect \u203a widget-native live connect on the built site \u203a the button reopens the panel after a dismiss-then-reload re-entry",
+    "errors": [
+      {
+        "lines": [
+          "Error: expect(locator).toBeVisible() failed",
+          "Locator: getByRole('dialog', { name: 'conciv chat agent' }).getByText('Drive this page with your agent.')",
+          "Expected: visible",
+          "Timeout: 20000ms",
+          "Error: element(s) not found",
+          "Call log:"
+        ],
+        "at": ["test/site.it.test.ts:177:78", "test/site.it.test.ts:299:21"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "E2E shard-1",
+    "jobId": "135607857030",
+    "package": "site",
+    "project": null,
+    "file": "test/site.it.test.ts",
+    "test": "mobile gating \u203a landing gates the dev-only demo behind a non-mobile pointer \u203a mounts the live widget and shows the install + try-it CTAs on desktop",
+    "errors": [
+      {
+        "lines": [
+          "Error: expect(locator).toBeVisible() failed",
+          "Locator: getByRole('link', { name: /Try it live/i })",
+          "Expected: visible",
+          "Timeout: 5000ms",
+          "Error: element(s) not found",
+          "Call log:"
+        ],
+        "at": ["test/site.it.test.ts:320:75"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Storybook browser tests",
+    "jobId": "135607714969",
+    "package": "conciv-storybook",
+    "project": "storybook (chromium)",
+    "file": "../../../packages/ui-kit-chat/src/styled/markdown.stories.tsx",
+    "test": "With Provider",
+    "errors": [
+      {
+        "lines": [
+          "TestingLibraryElementError: Unable to find an element with the text: a chart the provider declines. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.",
+          ">",
+          "  >",
+          "      The chart reads",
+          "      >"
+        ],
+        "at": ["../../../packages/ui-kit-chat/src/styled/markdown.stories.tsx:97:64"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Storybook browser tests",
+    "jobId": "135607714969",
+    "package": "conciv-storybook",
+    "project": "storybook (chromium)",
+    "file": "../../../packages/ui-kit-chat-tools/src/styled/tools/bash-card.stories.tsx",
+    "test": "Complete",
+    "errors": [
+      {
+        "lines": [
+          "AssertionError: expected '\\n  \\n    \\n  \\n  \\n    \\n  \\n  \\n   \u2026' to contain 'pnpm test'",
+          ">",
+          "      Vitest Browser Tester",
+          "  >",
+          "    >"
+        ],
+        "at": ["../../../packages/ui-kit-chat-tools/src/styled/tools/bash-card.stories.tsx:33:20"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  },
+  {
+    "job": "Storybook browser tests",
+    "jobId": "135607714969",
+    "package": "conciv-storybook",
+    "project": "storybook (chromium)",
+    "file": "../../../packages/ui-kit-chat-tools/src/styled/tools/discovered-apis-card.stories.tsx",
+    "test": "Detail",
+    "errors": [
+      {
+        "lines": [
+          "TestingLibraryElementError: Unable to find an element with the text: /Promise/. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.",
+          "  >",
+          "    >",
+          "      >",
+          "        >"
+        ],
+        "at": ["../../../packages/ui-kit-chat-tools/src/styled/tools/discovered-apis-card.stories.tsx:69:36"],
+        "causedBy": null
+      }
+    ],
+    "status": "failed",
+    "kind": "test"
+  }
+]

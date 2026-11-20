@@ -1,0 +1,938 @@
+[
+  {
+    "file": "apps/conciv/test/conciv.browser.test.tsx",
+    "lines": 13300,
+    "describes": 90,
+    "tests": 334
+  },
+  {
+    "file": "packages/core/test/core-api.it.test.ts",
+    "lines": 9109,
+    "describes": 76,
+    "tests": 237
+  },
+  {
+    "file": "packages/cli/test/cli.test.ts",
+    "lines": 6220,
+    "describes": 83,
+    "tests": 284
+  },
+  {
+    "file": "packages/core/test/core.test.ts",
+    "lines": 5387,
+    "describes": 27,
+    "tests": 112
+  },
+  {
+    "file": "packages/harness/test/harness.test.ts",
+    "lines": 3259,
+    "describes": 72,
+    "tests": 173
+  },
+  {
+    "file": "packages/embed/test/e2e/embed.it.test.ts",
+    "lines": 3001,
+    "describes": 57,
+    "tests": 226
+  },
+  {
+    "file": "packages/mascot/test/e2e/mascot.it.test.ts",
+    "lines": 2866,
+    "describes": 15,
+    "tests": 109
+  },
+  {
+    "file": "packages/builtin-plugins/test/builtin-plugins.browser.test.tsx",
+    "lines": 2837,
+    "describes": 38,
+    "tests": 114
+  },
+  {
+    "file": "packages/unplugin/test/plugin.it.test.ts",
+    "lines": 2220,
+    "describes": 35,
+    "tests": 84
+  },
+  {
+    "file": "packages/ui-kit-chat/test/composer.browser.test.tsx",
+    "lines": 2138,
+    "describes": 14,
+    "tests": 60
+  },
+  {
+    "file": "packages/ui-kit-chat/test/thread.browser.test.tsx",
+    "lines": 1969,
+    "describes": 21,
+    "tests": 56
+  },
+  {
+    "file": "packages/plugins/recorder/test/recorder.test.ts",
+    "lines": 1612,
+    "describes": 30,
+    "tests": 36
+  },
+  {
+    "file": "packages/ui-kit-system/test/ui-kit-system.browser.test.tsx",
+    "lines": 1587,
+    "describes": 24,
+    "tests": 75
+  },
+  {
+    "file": "packages/plugin-host/test/core/bus.test.ts",
+    "lines": 1400,
+    "describes": 1,
+    "tests": 51
+  },
+  {
+    "file": "packages/plugins/whiteboard/test/whiteboard.test.ts",
+    "lines": 1284,
+    "describes": 13,
+    "tests": 18
+  },
+  {
+    "file": "packages/ui-kit-chat/test/cards.browser.test.tsx",
+    "lines": 1277,
+    "describes": 17,
+    "tests": 50
+  },
+  {
+    "file": "packages/plugins/whiteboard/test/whiteboard.browser.test.ts",
+    "lines": 1246,
+    "describes": 3,
+    "tests": 5
+  },
+  {
+    "file": "packages/page/test/page.browser.test.tsx",
+    "lines": 1199,
+    "describes": 22,
+    "tests": 58
+  },
+  {
+    "file": "packages/ai/test/ai.test.ts",
+    "lines": 1169,
+    "describes": 11,
+    "tests": 37
+  },
+  {
+    "file": "packages/plugin/test/plugin.test.ts",
+    "lines": 1085,
+    "describes": 12,
+    "tests": 52
+  },
+  {
+    "file": "packages/chat/test/chat.test.ts",
+    "lines": 1071,
+    "describes": 10,
+    "tests": 12
+  },
+  {
+    "file": "packages/harness-testkit/test/harness-testkit.test.ts",
+    "lines": 1017,
+    "describes": 19,
+    "tests": 52
+  },
+  {
+    "file": "packages/client/test/client.test.ts",
+    "lines": 1016,
+    "describes": 18,
+    "tests": 31
+  },
+  {
+    "file": "packages/plugin-host/test/core/plugin.test.ts",
+    "lines": 1000,
+    "describes": 0,
+    "tests": 20
+  },
+  {
+    "file": "packages/plugin-host/test/core/tool-registry.test.ts",
+    "lines": 980,
+    "describes": 2,
+    "tests": 33
+  },
+  {
+    "file": "packages/publish/test/publish.test.ts",
+    "lines": 977,
+    "describes": 10,
+    "tests": 60
+  },
+  {
+    "file": "packages/plugins/ios/test/ios.test.ts",
+    "lines": 964,
+    "describes": 18,
+    "tests": 40
+  },
+  {
+    "file": "packages/vitest-config/test/vitest-config.test.ts",
+    "lines": 914,
+    "describes": 4,
+    "tests": 49
+  },
+  {
+    "file": "packages/plugin-host/test/core/plugin/supervisor-reload.test.ts",
+    "lines": 873,
+    "describes": 3,
+    "tests": 11
+  },
+  {
+    "file": "packages/plugins/recorder/test/recorder.it.test.ts",
+    "lines": 835,
+    "describes": 9,
+    "tests": 11
+  },
+  {
+    "file": "packages/db/test/db.test.ts",
+    "lines": 827,
+    "describes": 13,
+    "tests": 30
+  },
+  {
+    "file": "packages/plugin-page/test/plugin-page.test.ts",
+    "lines": 809,
+    "describes": 13,
+    "tests": 40
+  },
+  {
+    "file": "apps/conciv/test/conciv.test.ts",
+    "lines": 782,
+    "describes": 18,
+    "tests": 50
+  },
+  {
+    "file": "packages/ui-kit-chat-tools/test/ui-kit-chat-tools.browser.test.tsx",
+    "lines": 765,
+    "describes": 10,
+    "tests": 37
+  },
+  {
+    "file": "packages/protocol/test/protocol.test.ts",
+    "lines": 750,
+    "describes": 28,
+    "tests": 55
+  },
+  {
+    "file": "packages/plugin-host/test/core/state.test.ts",
+    "lines": 714,
+    "describes": 3,
+    "tests": 26
+  },
+  {
+    "file": "packages/contract/test/contract.test.ts",
+    "lines": 712,
+    "describes": 15,
+    "tests": 28
+  },
+  {
+    "file": "packages/oxlint-plugin/test/oxlint-plugin.test.ts",
+    "lines": 689,
+    "describes": 26,
+    "tests": 64
+  },
+  {
+    "file": "packages/harness-init/test/harness-init.test.ts",
+    "lines": 666,
+    "describes": 8,
+    "tests": 29
+  },
+  {
+    "file": "apps/site/test/site.it.test.ts",
+    "lines": 654,
+    "describes": 17,
+    "tests": 39
+  },
+  {
+    "file": "packages/plugins/test-runner/test/test-runner.test.ts",
+    "lines": 636,
+    "describes": 7,
+    "tests": 11
+  },
+  {
+    "file": "packages/plugin-host/test/core/tool-schema.test.ts",
+    "lines": 575,
+    "describes": 0,
+    "tests": 21
+  },
+  {
+    "file": "packages/plugins/tanstack/test/tanstack.test.ts",
+    "lines": 564,
+    "describes": 7,
+    "tests": 10
+  },
+  {
+    "file": "packages/plugin/test/client/shared-events.test.ts",
+    "lines": 561,
+    "describes": 1,
+    "tests": 19
+  },
+  {
+    "file": "packages/plugin-testkit/test/plugin-testkit.test.ts",
+    "lines": 524,
+    "describes": 10,
+    "tests": 5
+  },
+  {
+    "file": "packages/plugin-host/test/core/npm.test.ts",
+    "lines": 516,
+    "describes": 7,
+    "tests": 16
+  },
+  {
+    "file": "packages/ui-kit-terminal/test/terminal.test.tsx",
+    "lines": 515,
+    "describes": 5,
+    "tests": 19
+  },
+  {
+    "file": "packages/plugin-host/test/core/permission.test.ts",
+    "lines": 501,
+    "describes": 2,
+    "tests": 23
+  },
+  {
+    "file": "packages/ui-kit-chat/test/ui-kit-chat.test.ts",
+    "lines": 490,
+    "describes": 14,
+    "tests": 39
+  },
+  {
+    "file": "packages/plugin-host/test/core/instruction-state.test.ts",
+    "lines": 461,
+    "describes": 1,
+    "tests": 10
+  },
+  {
+    "file": "packages/solid-streamdown/test/solid-streamdown.browser.test.tsx",
+    "lines": 441,
+    "describes": 12,
+    "tests": 10
+  },
+  {
+    "file": "packages/plugin-host/test/core/plugin-failure.test.ts",
+    "lines": 439,
+    "describes": 0,
+    "tests": 9
+  },
+  {
+    "file": "packages/plugins/test-runner/test/test-runner.browser.test.ts",
+    "lines": 401,
+    "describes": 2,
+    "tests": 5
+  },
+  {
+    "file": "packages/plugin-host/test/core/filesystem/watcher.test.ts",
+    "lines": 386,
+    "describes": 2,
+    "tests": 12
+  },
+  {
+    "file": "apps/conciv/src/runtime/plugin/instance-machine.test.ts",
+    "lines": 372,
+    "describes": 0,
+    "tests": 15
+  },
+  {
+    "file": "packages/plugin-host/test/core/util/effect-flock.test.ts",
+    "lines": 371,
+    "describes": 1,
+    "tests": 13
+  },
+  {
+    "file": "packages/plugin-host/test/core/util/flock.test.ts",
+    "lines": 359,
+    "describes": 1,
+    "tests": 10
+  },
+  {
+    "file": "packages/mascot-react/test/browser/react-wrapper.browser.test.tsx",
+    "lines": 356,
+    "describes": 0,
+    "tests": 23
+  },
+  {
+    "file": "packages/core/test/core-chat.it.test.ts",
+    "lines": 354,
+    "describes": 16,
+    "tests": 11
+  },
+  {
+    "file": "packages/plugin-host/test/core/config/skill.test.ts",
+    "lines": 341,
+    "describes": 2,
+    "tests": 8
+  },
+  {
+    "file": "packages/ui-kit-chat/test/markdown.browser.test.tsx",
+    "lines": 325,
+    "describes": 9,
+    "tests": 11
+  },
+  {
+    "file": "packages/plugins/tanstack/test/tanstack.browser.test.ts",
+    "lines": 323,
+    "describes": 1,
+    "tests": 1
+  },
+  {
+    "file": "packages/mascot/test/unit/mascot.test.ts",
+    "lines": 320,
+    "describes": 2,
+    "tests": 17
+  },
+  {
+    "file": "packages/plugins/try-it/test/try-it.test.ts",
+    "lines": 317,
+    "describes": 3,
+    "tests": 17
+  },
+  {
+    "file": "packages/plugin-host/test/core/plugin/module.test.ts",
+    "lines": 314,
+    "describes": 0,
+    "tests": 7
+  },
+  {
+    "file": "packages/plugin-host/test/core/codemode/catalog.test.ts",
+    "lines": 312,
+    "describes": 3,
+    "tests": 24
+  },
+  {
+    "file": "packages/try/test/try.test.ts",
+    "lines": 312,
+    "describes": 7,
+    "tests": 19
+  },
+  {
+    "file": "e2e/init/test/init.e2e.test.ts",
+    "lines": 306,
+    "describes": 1,
+    "tests": 7
+  },
+  {
+    "file": "packages/plugin-host/test/core/plugin/supervisor.test.ts",
+    "lines": 306,
+    "describes": 2,
+    "tests": 10
+  },
+  {
+    "file": "packages/plugin/test/plugin.browser.test.tsx",
+    "lines": 305,
+    "describes": 5,
+    "tests": 6
+  },
+  {
+    "file": "apps/conciv/src/runtime/plugin/dialog-stack-machine.test.ts",
+    "lines": 292,
+    "describes": 5,
+    "tests": 14
+  },
+  {
+    "file": "packages/embed/test/unit/embed.test.ts",
+    "lines": 289,
+    "describes": 13,
+    "tests": 30
+  },
+  {
+    "file": "packages/mascot/test/browser/solid-mascot.browser.test.tsx",
+    "lines": 286,
+    "describes": 2,
+    "tests": 21
+  },
+  {
+    "file": "packages/plugin-host/test/codemode/codemode.test.ts",
+    "lines": 278,
+    "describes": 3,
+    "tests": 15
+  },
+  {
+    "file": "apps/conciv/src/runtime/persistence/persist-machine.test.ts",
+    "lines": 265,
+    "describes": 2,
+    "tests": 16
+  },
+  {
+    "file": "apps/conciv/src/runtime/persistence/schema.test.ts",
+    "lines": 248,
+    "describes": 2,
+    "tests": 14
+  },
+  {
+    "file": "packages/plugin-host/test/core/instructions/index.test.ts",
+    "lines": 243,
+    "describes": 1,
+    "tests": 14
+  },
+  {
+    "file": "apps/conciv/src/runtime/persistence/persist.browser.test.ts",
+    "lines": 242,
+    "describes": 1,
+    "tests": 11
+  },
+  {
+    "file": "packages/plugin-host/test/core/tool-server.test.ts",
+    "lines": 240,
+    "describes": 1,
+    "tests": 3
+  },
+  {
+    "file": "packages/plugin-host/test/core/config-plugin-source.test.ts",
+    "lines": 236,
+    "describes": 1,
+    "tests": 3
+  },
+  {
+    "file": "packages/plugin-host/test/core/database-drizzle.test.ts",
+    "lines": 225,
+    "describes": 0,
+    "tests": 10
+  },
+  {
+    "file": "apps/conciv/src/runtime/plugin/machine.test.ts",
+    "lines": 221,
+    "describes": 0,
+    "tests": 11
+  },
+  {
+    "file": "packages/core/test/event-feed.test.ts",
+    "lines": 218,
+    "describes": 1,
+    "tests": 8
+  },
+  {
+    "file": "packages/plugin-host/test/core/state-replay.test.ts",
+    "lines": 211,
+    "describes": 1,
+    "tests": 2
+  },
+  {
+    "file": "apps/conciv/src/runtime/plugin/plugin-experimental-machine.test.ts",
+    "lines": 206,
+    "describes": 1,
+    "tests": 10
+  },
+  {
+    "file": "packages/plugins/try-it/test/try-it.browser.test.ts",
+    "lines": 204,
+    "describes": 1,
+    "tests": 3
+  },
+  {
+    "file": "packages/bundle-size/test/measure.test.ts",
+    "lines": 189,
+    "describes": 0,
+    "tests": 13
+  },
+  {
+    "file": "packages/serve/test/teardown.it.test.ts",
+    "lines": 188,
+    "describes": 2,
+    "tests": 9
+  },
+  {
+    "file": "packages/plugin-host/test/core/skill.test.ts",
+    "lines": 180,
+    "describes": 1,
+    "tests": 7
+  },
+  {
+    "file": "packages/skills/test/check-references.test.ts",
+    "lines": 178,
+    "describes": 0,
+    "tests": 12
+  },
+  {
+    "file": "packages/ui-kit-tap/test/ui-kit-tap.browser.test.tsx",
+    "lines": 176,
+    "describes": 2,
+    "tests": 6
+  },
+  {
+    "file": "e2e/nextjs/test/packed-install.spec.ts",
+    "lines": 175,
+    "describes": 0,
+    "tests": 15
+  },
+  {
+    "file": "apps/conciv/src/runtime/plugin/attach-machine.test.ts",
+    "lines": 167,
+    "describes": 0,
+    "tests": 8
+  },
+  {
+    "file": "packages/plugin-host/test/core/tool-skill.test.ts",
+    "lines": 162,
+    "describes": 1,
+    "tests": 1
+  },
+  {
+    "file": "packages/grab/test/grab.test.ts",
+    "lines": 156,
+    "describes": 4,
+    "tests": 15
+  },
+  {
+    "file": "apps/conciv/src/runtime/plugin/composer-write-machine.test.ts",
+    "lines": 147,
+    "describes": 1,
+    "tests": 7
+  },
+  {
+    "file": "packages/storage-history/test/web-storage-history.test.ts",
+    "lines": 147,
+    "describes": 1,
+    "tests": 13
+  },
+  {
+    "file": "packages/plugin-host/test/core/state-group.test.ts",
+    "lines": 138,
+    "describes": 0,
+    "tests": 4
+  },
+  {
+    "file": "apps/conciv/src/runtime/plugin/host-machine.test.ts",
+    "lines": 137,
+    "describes": 1,
+    "tests": 6
+  },
+  {
+    "file": "e2e/nextjs/test/widget.spec.ts",
+    "lines": 137,
+    "describes": 1,
+    "tests": 6
+  },
+  {
+    "file": "packages/uno-preset/test/preset.test.ts",
+    "lines": 137,
+    "describes": 7,
+    "tests": 11
+  },
+  {
+    "file": "packages/plugin-host/test/core/bus-session-routing.test.ts",
+    "lines": 136,
+    "describes": 1,
+    "tests": 1
+  },
+  {
+    "file": "e2e/vite-vanilla/test/widget.spec.ts",
+    "lines": 127,
+    "describes": 0,
+    "tests": 6
+  },
+  {
+    "file": "e2e/harnesses/test/harnesses.spec.ts",
+    "lines": 126,
+    "describes": 0,
+    "tests": 2
+  },
+  {
+    "file": "packages/plugin-host/test/core/kv.test.ts",
+    "lines": 120,
+    "describes": 2,
+    "tests": 4
+  },
+  {
+    "file": "apps/conciv/src/runtime/plugin/located-machine.test.ts",
+    "lines": 117,
+    "describes": 0,
+    "tests": 6
+  },
+  {
+    "file": "apps/conciv/src/runtime/plugin/link-check-machine.test.ts",
+    "lines": 113,
+    "describes": 0,
+    "tests": 5
+  },
+  {
+    "file": "packages/solid-diffs/test/solid-diffs.test.ts",
+    "lines": 107,
+    "describes": 4,
+    "tests": 5
+  },
+  {
+    "file": "e2e/nextjs/test/packed-closure.spec.ts",
+    "lines": 105,
+    "describes": 0,
+    "tests": 7
+  },
+  {
+    "file": "packages/mascot-react/test/unit/mascot-react.test.ts",
+    "lines": 102,
+    "describes": 2,
+    "tests": 4
+  },
+  {
+    "file": "packages/plugin-host/test/core/rpc-handler-errors.test.ts",
+    "lines": 101,
+    "describes": 1,
+    "tests": 3
+  },
+  {
+    "file": "packages/plugin-host/test/core/tool-execute.test.ts",
+    "lines": 97,
+    "describes": 0,
+    "tests": 3
+  },
+  {
+    "file": "packages/brand-react/test/browser/react-lockup.browser.test.tsx",
+    "lines": 94,
+    "describes": 0,
+    "tests": 4
+  },
+  {
+    "file": "apps/site/test/site.test.ts",
+    "lines": 85,
+    "describes": 4,
+    "tests": 7
+  },
+  {
+    "file": "apps/conciv/src/runtime/plugin/session-store-machine.test.ts",
+    "lines": 80,
+    "describes": 0,
+    "tests": 5
+  },
+  {
+    "file": "packages/brand/test/browser/solid-lockup.browser.test.tsx",
+    "lines": 76,
+    "describes": 0,
+    "tests": 4
+  },
+  {
+    "file": "packages/plugin-host/test/core/plugin/skill.test.ts",
+    "lines": 76,
+    "describes": 1,
+    "tests": 2
+  },
+  {
+    "file": "packages/plugin-host/test/core/effect/keyed-mutex.test.ts",
+    "lines": 74,
+    "describes": 1,
+    "tests": 3
+  },
+  {
+    "file": "packages/plugin-host/test/core/codemode/instructions.test.ts",
+    "lines": 69,
+    "describes": 1,
+    "tests": 2
+  },
+  {
+    "file": "apps/conciv/src/runtime/plugin/store-machine.test.ts",
+    "lines": 66,
+    "describes": 0,
+    "tests": 3
+  },
+  {
+    "file": "packages/it/test/dev-endpoint-option.it.test.ts",
+    "lines": 65,
+    "describes": 2,
+    "tests": 3
+  },
+  {
+    "file": "packages/plugin-host/test/core/database.test.ts",
+    "lines": 61,
+    "describes": 2,
+    "tests": 3
+  },
+  {
+    "file": "packages/plugin-host/test/core/bus-unpersisted.test.ts",
+    "lines": 59,
+    "describes": 1,
+    "tests": 1
+  },
+  {
+    "file": "apps/conciv/src/runtime/plugin/dialog-machine.test.ts",
+    "lines": 58,
+    "describes": 0,
+    "tests": 3
+  },
+  {
+    "file": "packages/ui-kit-system/test/ui-kit-system.node.test.ts",
+    "lines": 56,
+    "describes": 3,
+    "tests": 7
+  },
+  {
+    "file": "packages/plugin-host/test/core/npm-config.test.ts",
+    "lines": 53,
+    "describes": 2,
+    "tests": 5
+  },
+  {
+    "file": "packages/plugin-host/test/core/util/fs-util.test.ts",
+    "lines": 50,
+    "describes": 1,
+    "tests": 2
+  },
+  {
+    "file": "apps/conciv/test/calm-perf.browser.test.tsx",
+    "lines": 43,
+    "describes": 0,
+    "tests": 4
+  },
+  {
+    "file": "packages/plugin-host/test/util/global.test.ts",
+    "lines": 40,
+    "describes": 1,
+    "tests": 2
+  },
+  {
+    "file": "packages/plugin-host/test/core/config/markdown.test.ts",
+    "lines": 39,
+    "describes": 1,
+    "tests": 5
+  },
+  {
+    "file": "packages/tools/test/tools.test.ts",
+    "lines": 38,
+    "describes": 3,
+    "tests": 3
+  },
+  {
+    "file": "e2e/tanstack-start/test/widget.spec.ts",
+    "lines": 31,
+    "describes": 0,
+    "tests": 2
+  },
+  {
+    "file": "packages/ui-kit-tap/test/ui-kit-tap.test.ts",
+    "lines": 30,
+    "describes": 2,
+    "tests": 1
+  },
+  {
+    "file": "e2e/vite-solid/test/widget.spec.ts",
+    "lines": 25,
+    "describes": 0,
+    "tests": 2
+  },
+  {
+    "file": "e2e/vite-react/test/widget.spec.ts",
+    "lines": 19,
+    "describes": 0,
+    "tests": 1
+  },
+  {
+    "file": "packages/plugins/test-runner/test/fixtures/vitest-app/pass.test.ts",
+    "lines": 18,
+    "describes": 2,
+    "tests": 3
+  },
+  {
+    "file": "apps/conciv/src/runtime/plugin/abort.test.ts",
+    "lines": 17,
+    "describes": 0,
+    "tests": 1
+  },
+  {
+    "file": "apps/examples/tanstack-start/src/lib/cn.test.ts",
+    "lines": 13,
+    "describes": 1,
+    "tests": 2
+  },
+  {
+    "file": "apps/examples/tanstack-start/src/lib/nav.test.ts",
+    "lines": 13,
+    "describes": 1,
+    "tests": 2
+  },
+  {
+    "file": "packages/plugins/test-runner/test/fixtures/playwright-app/blocked.spec.ts",
+    "lines": 13,
+    "describes": 0,
+    "tests": 2
+  },
+  {
+    "file": "packages/plugins/test-runner/test/fixtures/playwright-app/pass.spec.ts",
+    "lines": 12,
+    "describes": 1,
+    "tests": 3
+  },
+  {
+    "file": "e2e/astro/test/widget.spec.ts",
+    "lines": 9,
+    "describes": 0,
+    "tests": 1
+  },
+  {
+    "file": "e2e/nextjs-component/test/widget.spec.ts",
+    "lines": 9,
+    "describes": 0,
+    "tests": 1
+  },
+  {
+    "file": "e2e/solid-start/test/widget.spec.ts",
+    "lines": 9,
+    "describes": 0,
+    "tests": 1
+  },
+  {
+    "file": "e2e/svelte/test/widget.spec.ts",
+    "lines": 9,
+    "describes": 0,
+    "tests": 1
+  },
+  {
+    "file": "e2e/tanstack-start-redact/test/widget.spec.ts",
+    "lines": 9,
+    "describes": 0,
+    "tests": 1
+  },
+  {
+    "file": "e2e/vite-preact-component/test/widget.spec.ts",
+    "lines": 9,
+    "describes": 0,
+    "tests": 1
+  },
+  {
+    "file": "e2e/vite-react-component/test/widget.spec.ts",
+    "lines": 9,
+    "describes": 0,
+    "tests": 1
+  },
+  {
+    "file": "e2e/vite-solid-component/test/widget.spec.ts",
+    "lines": 9,
+    "describes": 0,
+    "tests": 1
+  },
+  {
+    "file": "e2e/nextjs/test/packed-trust-policy-install.spec.ts",
+    "lines": 8,
+    "describes": 0,
+    "tests": 2
+  },
+  {
+    "file": "packages/plugins/test-runner/test/fixtures/playwright-app/browser.spec.ts",
+    "lines": 7,
+    "describes": 0,
+    "tests": 1
+  },
+  {
+    "file": "packages/plugins/test-runner/test/fixtures/playwright-app/fail.spec.ts",
+    "lines": 6,
+    "describes": 0,
+    "tests": 1
+  },
+  {
+    "file": "packages/plugins/test-runner/test/fixtures/vitest-app/fail.test.ts",
+    "lines": 6,
+    "describes": 0,
+    "tests": 1
+  },
+  {
+    "file": "packages/preact/test/widget.it.test.ts",
+    "lines": 5,
+    "describes": 0,
+    "tests": 0
+  },
+  {
+    "file": "packages/react/test/widget.it.test.ts",
+    "lines": 5,
+    "describes": 0,
+    "tests": 0
+  },
+  {
+    "file": "packages/solid/test/widget.it.test.ts",
+    "lines": 5,
+    "describes": 0,
+    "tests": 0
+  }
+]
