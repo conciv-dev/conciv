@@ -7,7 +7,6 @@ export default defineConfig({
     filesystem: [
       'src/**/*.{ts,tsx}',
       '../../apps/conciv/src/**/*.{ts,tsx}',
-      '../builtin-plugins/src/**/*.{ts,tsx}',
       '../ui-kit-chat/src/**/*.{ts,tsx}',
       '../ui-kit-chat-tools/src/**/*.{ts,tsx}',
       '../ui-kit-system/src/**/*.{ts,tsx}',

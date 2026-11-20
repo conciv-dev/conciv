@@ -1,5 +1,5 @@
 ---
-'@conciv/builtin-plugins': patch
+'@conciv/embed': patch
 ---
 
 The terminal's background matches the pane around it in light mode.

@@ -1,5 +1,5 @@
 ---
-'@conciv/builtin-plugins': patch
+'@conciv/embed': patch
 '@conciv/ui-kit-chat': patch
 ---
 

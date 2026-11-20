@@ -19,7 +19,6 @@
   "dependencies": {
     "@ark-ui/solid": "catalog:",
     "@conciv/ai": "workspace:^",
-    "@conciv/builtin-plugins": "workspace:*",
     "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/core": "workspace:^",

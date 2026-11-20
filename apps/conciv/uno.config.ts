@@ -6,7 +6,6 @@ export default defineConfig({
     pipeline: {include: [/\.tsx?($|\?)/]},
     filesystem: [
       'src/**/*.{ts,tsx}',
-      '../../packages/builtin-plugins/src/**/*.{ts,tsx}',
       '../../packages/ui-kit-chat/src/**/*.{ts,tsx}',
       '../../packages/ui-kit-chat-tools/src/**/*.{ts,tsx}',
       '../../packages/ui-kit-system/src/**/*.{ts,tsx}',

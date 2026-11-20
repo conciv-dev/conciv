@@ -291,7 +291,7 @@
       }
     },
     {
-      "files": ["packages/plugins/*/src/**/*.tsx", "packages/builtin-plugins/src/**/*.tsx"],
+      "files": ["packages/plugins/*/src/**/*.tsx"],
       "rules": {
         "conciv/plugin-view-reads-through-query": "error"
       }
@@ -309,8 +309,7 @@
         "packages/preact/**",
         "packages/brand-react/**",
         "apps/examples/tanstack-start/src/**",
-        "packages/plugins/page/test/fixtures/**",
-        "packages/builtin-plugins/test/fixtures/**"
+        "packages/plugins/page/test/fixtures/**"
       ],
       "rules": {
         "solid/jsx-no-duplicate-props": "off",

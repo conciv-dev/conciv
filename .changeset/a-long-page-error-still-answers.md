@@ -1,5 +1,5 @@
 ---
-'@conciv/builtin-plugins': patch
+'@conciv/embed': patch
 '@conciv/plugin-page': patch
 ---
 
