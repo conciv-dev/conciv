@@ -299,7 +299,10 @@ So `packages/core/src/page/` is DELETED whole, and the contract loses its `page`
 6. DECIDED the same way: `packages/cli` counts. opencode's CLI has no dependency on its browser plugin (only `core`,
    `gui-plugins` and the plugin itself name it), so `cli/src/hub.ts:30` (`PAGE_NAMESPACE`) and the
    `@conciv/plugin-page` dependency of `packages/cli` go (3.1).
-7. OPEN, opencode has no hub so it gives no answer: what the chat shows for an outside agent's tool calls (7.2).
+7. DECIDED 2026-11-20, maintainer: A. When an outside agent's tool call ends, core calls `synthetic` once for it
+   with `resume: false` (it never starts a turn): one notice line naming the client, the tool and its outcome. The
+   live mirrored cards and fake runs (`call-trace.ts` `mirror`, `mirrorRun`, `runStarted`, `runFinished`) are deleted
+   (7.2, 7.4).
 
 ## 5. Order
 
