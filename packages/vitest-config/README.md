@@ -10,7 +10,7 @@ Private workspace package (`private: true`) holding shared vitest CI settings, a
 - `bin["conciv-ci-shards"]` -> `./src/ci-shards.ts`; `bin["conciv-ci-summary"]` -> `./src/ci-summary.ts` (`package.json`).
 - Exports: `.` -> `./src/reporters.ts`, `./solid-cleanup` -> `./src/solid-cleanup-setup.ts`, `./vite-lib` -> `./src/vite-lib.ts`. `summary.ts` and `shards.ts` are not exported.
 - Optional peers: `@solidjs/testing-library` ^0.8.10, `vite` ^8.0.16, `vite-plugin-solid` ^2.11.12.
-- Scripts: `typecheck`, `lint` (`oxlint`), `test` (`vitest run`); the package's own tests use `ciTest()`.
+- Scripts: `typecheck`, `lint` (`oxlint`).
 
 ## Invariants
 
@@ -22,5 +22,3 @@ Private workspace package (`private: true`) holding shared vitest CI settings, a
 - None at import of the package root; `ciTest()` reads env, creates a temp `CONCIV_HOME` folder and sets `process.env.CONCIV_HOME`; CLI effects (GitHub output files, turbo runs) are in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
-
-- Run: `pnpm exec turbo run test --filter=@conciv/vitest-config` from the repo root (turbo builds the package and its dependencies first)

@@ -9,7 +9,7 @@ The oRPC contract (procedures plus zod schemas) shared by conciv core and its cl
 - [src/README.md](./src/README.md): the `contract` router, row schemas, `makeRpcClient`, `makeBrowserRpcClient` and the shared browser transport.
 - `exports["."]` (`package.json`): `./dist/index.js` + `./dist/index.d.ts`, built by tsdown from `src/index.ts` (`tsdown.config.ts`).
 - Dependencies (`package.json`): `@conciv/protocol` (workspace), `@orpc/client`, `@orpc/contract`, `zod`.
-- Scripts: `build` (`tsdown`), `typecheck`, `lint` (`oxlint`), `test` (`vitest run`), `publint`, `attw` (`attw --pack . --profile esm-only`). `vitest.config.ts` spreads `ciTest()` from `@conciv/vitest-config`.
+- Scripts: `build` (`tsdown`), `typecheck`, `lint` (`oxlint`), `publint`, `attw` (`attw --pack . --profile esm-only`).
 
 ## Invariants
 
@@ -22,5 +22,4 @@ The oRPC contract (procedures plus zod schemas) shared by conciv core and its cl
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/contract` from the repo root (turbo builds the package and its dependencies first)
 - Also: `pnpm typecheck`, `pnpm lint`

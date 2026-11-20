@@ -120,10 +120,9 @@ Package root of @conciv/cli, the `conciv` binary, built by tsdown from src/bin.t
 
 - `bin.conciv` (`package.json`): ./dist/bin.js
 - `exports['./bin']` (`package.json`): ./dist/bin.js is the only export
-- `scripts` (`package.json`): build (`tsdown && chmod +x dist/bin.js`), typecheck, lint, test, publint, attw
+- `scripts` (`package.json`): build (`tsdown && chmod +x dist/bin.js`), typecheck, lint, publint, attw
 - `tsdown.config.ts`: entry src/bin.ts, esm, dts false; every pure-JS dependency is bundled (they are devDependencies), only the native `@ast-grep/napi` stays a runtime dependency (`deps.onlyImport`), and the harness, extensions and agent SDKs are never bundled (`deps.neverBundle`, so reaching one fails the build)
 - `tsconfig.json`: declaration off, matching `dts: false` (the router's inferred route types are not nameable in a .d.ts)
-- `vitest.config.ts`: `ciTest()` from @conciv/vitest-config
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - commands, argument validation, JSON envelopes and engine RPC
 
@@ -139,5 +138,4 @@ Package root of @conciv/cli, the `conciv` binary, built by tsdown from src/bin.t
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/cli` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/cli && pnpm typecheck && pnpm lint`

@@ -14,18 +14,15 @@ Package root for @conciv/core, the engine that @conciv/it installs. Node entries
 - Exports `./app`, `./config`, `./runtime` (`package.json`)
 - Export `./cards` (`package.json`): dist/cards.js with `browser` and `import` conditions
 - `peerDependencies` (`package.json`): solid-js
-- `scripts` (`package.json`): build (`tsdown && vite build && tsc -p tsconfig.build.json`), typecheck (`tsconfig.json`, which covers the Solid card `.tsx` too), lint, test, publint, attw
+- `scripts` (`package.json`): build (`tsdown && vite build && tsc -p tsconfig.build.json`), typecheck (`tsconfig.json`, which covers the Solid card `.tsx` too), lint, publint, attw
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - engine entry and app composition
-  - `test/rpc/`: type test for the page error map (`page-error-map.test-d.ts`)
-  - `test/core-api.it.test.ts`: `ONE_PIXEL_WEBP` is a real 1x1 WebP (base64), encoded once by headless Chromium's `canvas.toDataURL('image/webp')`, the page screenshots' fixture
 
 ## Invariants
 
 - `entry` (`tsdown.config.ts`): only src/start.ts, config.ts, app.ts and runtime.ts are Node entries, plus src/sessions/search-index-worker.ts built as dist/search-index-worker.js, the session search index's `node:worker_threads` entry
 - `build.lib` (`vite.config.ts`): src/cards.tsx builds to cards.js with `emptyOutDir: false` so it does not wipe tsdown output
 - `rollupOptions.external` (`vite.config.ts`): solid-js, zod, @conciv/_, @tanstack/* and @orpc/* stay external
-- `test.include` (`vitest.config.ts`): only `test/**/*.test.ts`, run with `--expose-gc`
 
 ## Side Effects
 
@@ -34,5 +31,4 @@ Package root for @conciv/core, the engine that @conciv/it installs. Node entries
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/core` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/core && pnpm typecheck && pnpm lint`
