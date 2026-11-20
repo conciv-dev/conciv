@@ -3,17 +3,19 @@ import lucidePerIcon from './lucide-per-icon.js'
 import noAwaitEffectQuery from './no-await-effect-query.js'
 import noComments from './no-comments.js'
 import noHandMadeTempDir from './no-hand-made-temp-dir.js'
+import {isDomTestFile} from '@conciv/vitest-config/new-layer'
 import noLocatorPoll from './no-locator-poll.js'
+import noMocks from './no-mocks.js'
 import noPredicateWaits from './no-predicate-waits.js'
 import noSignalRef from './no-signal-ref.js'
+import noTeardownHooks from './no-teardown-hooks.js'
 import pluginViewReadsThroughQuery from './plugin-view-reads-through-query.js'
 import routerIdioms from './router-idioms.js'
 import testFileBudget from './test-file-budget.js'
+import {noInlineTimeouts, noTimersInTests} from './test-time.js'
 import {bannedVocabulary, corePurity, noOfSuffix} from './vocabulary.js'
 
 const DELEGATED_FOCUS = new Set(['onfocusin', 'onfocusout'])
-
-const TIMER_NAMES = new Set(['setTimeout', 'setInterval', 'setImmediate'])
 
 const KIT_FILE = /(^|[\\/])packages[\\/]ui-kit-chat[\\/]/
 const KIT_INTERNAL_NAME = 'CollapsibleCard'
@@ -24,7 +26,6 @@ const RENDER_EXEMPT_FILE = /[\\/]test[\\/]fixtures[\\/]host[\\/]main\.tsx$/
 const SOLID_WEB_SOURCE = 'solid-js/web'
 const SOLID_WEB_RENDER_NAMES = new Set(['render', 'hydrate'])
 
-const DOM_TEST_FILE = /\.dom\.test\.tsx?$/
 const TESTING_LIBRARY_SOURCES = new Set(['@solidjs/testing-library', '@testing-library/dom'])
 const FIRE_EVENT_NAME = 'fireEvent'
 
@@ -38,16 +39,6 @@ function checkDelegatedFocus(node, context) {
   if (node.name.type !== 'JSXIdentifier') return
   if (!DELEGATED_FOCUS.has(node.name.name.toLowerCase())) return
   context.report({node, messageId: 'delegatedFocus', data: {name: node.name.name}})
-}
-
-function isReadOfHostObject(node, parent) {
-  if (parent?.type !== 'MemberExpression') return false
-  return parent.object === node
-}
-
-function isPropertyKey(node, parent) {
-  if (parent?.type !== 'Property') return false
-  return parent.key === node && parent.computed !== true
 }
 
 function reportKitSpecifier(specifier, context) {
@@ -83,7 +74,7 @@ function reportFireEventSpecifier(specifier, context) {
 }
 
 function checkTestingLibraryImport(node, context) {
-  if (!DOM_TEST_FILE.test(context.filename)) return
+  if (!isDomTestFile(context.filename)) return
   if (!TESTING_LIBRARY_SOURCES.has(node.source.value)) return
   for (const specifier of node.specifiers) reportFireEventSpecifier(specifier, context)
 }
@@ -105,7 +96,7 @@ function isFireEventRead(node) {
 }
 
 function checkFireEventMember(node, context) {
-  if (!DOM_TEST_FILE.test(context.filename)) return
+  if (!isDomTestFile(context.filename)) return
   if (!isFireEventRead(node)) return
   if (!isTestingLibraryModuleObject(node.object, context.sourceCode)) return
   context.report({node, messageId: 'fireEvent'})
@@ -124,28 +115,6 @@ const noDelegatedFocus = {
     return {
       JSXAttribute(node) {
         checkDelegatedFocus(node, context)
-      },
-    }
-  },
-}
-
-const noTimersInTests = {
-  meta: {
-    type: 'problem',
-    messages: {
-      noTimer:
-        '{{name}} schedules test-side time. Await the async surface the product already exposes (a callback, a stream chunk, a websocket message, a web-first assertion) instead of a timer.',
-    },
-    schema: [],
-  },
-  createOnce(context) {
-    return {
-      Identifier(node) {
-        if (!TIMER_NAMES.has(node.name)) return
-        const parent = node.parent
-        if (isReadOfHostObject(node, parent)) return
-        if (isPropertyKey(node, parent)) return
-        context.report({node, messageId: 'noTimer', data: {name: node.name}})
       },
     }
   },
@@ -218,10 +187,13 @@ export default {
     'no-comments': noComments,
     'no-delegated-focus': noDelegatedFocus,
     'no-hand-made-temp-dir': noHandMadeTempDir,
+    'no-inline-timeouts': noInlineTimeouts,
     'no-locator-poll': noLocatorPoll,
+    'no-mocks': noMocks,
     'no-of-suffix': noOfSuffix,
     'no-predicate-waits': noPredicateWaits,
     'no-signal-ref': noSignalRef,
+    'no-teardown-hooks': noTeardownHooks,
     'no-timers-in-tests': noTimersInTests,
     'plugin-view-reads-through-query': pluginViewReadsThroughQuery,
     'router-idioms': routerIdioms,

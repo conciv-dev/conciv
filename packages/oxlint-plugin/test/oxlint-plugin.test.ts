@@ -725,3 +725,45 @@ function readLine(diagnostic: Record<string, unknown>): number | undefined {
   if (!isRecord(label) || !isRecord(label.span)) return undefined
   return typeof label.span.line === 'number' ? label.span.line : undefined
 }
+
+async function lintNewLayerFixture(fixture: string, code: string): Promise<{line: number; message: string}[]> {
+  const diagnostics = await lintDiagnostics('test/oxlintrc-new-layer.json', `test/fixtures/new-layer/${fixture}`)
+  return diagnostics
+    .filter((diagnostic) => diagnostic.code === code)
+    .map((diagnostic) => ({line: firstLine(diagnostic), message: String(diagnostic.message)}))
+}
+
+describe('no inline timeouts', () => {
+  test.each([
+    {fixture: 'src/inline-timeouts.test.ts', lines: [5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 18]},
+    {fixture: 'old/inline-timeouts.test.ts', lines: []},
+  ])('$fixture reports inline waits on lines $lines', async ({fixture, lines}) => {
+    const findings = await lintNewLayerFixture(fixture, 'conciv(no-inline-timeouts)')
+    expect(findings.map((finding) => finding.line)).toEqual(lines)
+    expect(findings.map((finding) => finding.message)).toEqual(lines.map(() => expect.stringContaining('config')))
+  })
+})
+
+describe('no mocks', () => {
+  test.each([
+    {fixture: 'mocks.dom.test.tsx', lines: [3, 6, 7, 8, 9, 10]},
+    {fixture: 'src/mocks.browser.test.ts', lines: []},
+  ])('$fixture reports stubs on lines $lines', async ({fixture, lines}) => {
+    const findings = await lintNewLayerFixture(fixture, 'conciv(no-mocks)')
+    expect(findings.map((finding) => finding.line)).toEqual(lines)
+    expect(findings.map((finding) => finding.message)).toEqual(
+      lines.map(() => expect.stringContaining('real implementation')),
+    )
+  })
+})
+
+describe('no teardown hooks', () => {
+  test.each([
+    {fixture: 'teardown.flow.test.ts', lines: [4, 6, 8, 9]},
+    {fixture: 'teardown.it.test.ts', lines: []},
+  ])('$fixture reports hand-written teardown on lines $lines', async ({fixture, lines}) => {
+    const findings = await lintNewLayerFixture(fixture, 'conciv(no-teardown-hooks)')
+    expect(findings.map((finding) => finding.line)).toEqual(lines)
+    expect(findings.map((finding) => finding.message)).toEqual(lines.map(() => expect.stringContaining('test.extend')))
+  })
+})

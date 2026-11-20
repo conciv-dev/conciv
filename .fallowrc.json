@@ -821,6 +821,7 @@
     "packages/brand/src/brand-guidelines.mdx",
     "packages/embed/src/native-entry.ts",
     "packages/plugin-testkit/src/dom-environment.ts",
+    "packages/vitest-config/src/setup/nothing-logged-setup.ts",
     "e2e/harnesses/vite.*.config.ts",
     "e2e/e2e-utils/src/packed-global-setup.ts",
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",

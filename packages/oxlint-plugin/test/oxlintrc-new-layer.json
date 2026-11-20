@@ -1,0 +1,6 @@
+{
+  "plugins": [],
+  "jsPlugins": [{"name": "conciv", "specifier": "../src/plugin.js"}],
+  "categories": {},
+  "rules": {"conciv/no-inline-timeouts": "error", "conciv/no-mocks": "error", "conciv/no-teardown-hooks": "error"}
+}
