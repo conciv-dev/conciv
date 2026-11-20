@@ -16,6 +16,8 @@ export function ciReporters(): CiReporterEntry[] {
 
 export const TEST_TIMEOUT_MS = 30_000
 export const HOOK_TIMEOUT_MS = 30_000
+const POLL_TIMEOUT_MS = 5_000
+const POLL_INTERVAL_MS = 50
 const CONCIV_HOME_SETUP = fileURLToPath(new URL('setup/conciv-home-setup.ts', import.meta.url))
 
 function forkCap(): number | undefined {
@@ -30,6 +32,7 @@ export function ciTest(): {
   testTimeout: number
   hookTimeout: number
   teardownTimeout: number
+  expect: {poll: {timeout: number; interval: number}}
   maxWorkers?: number
   globalSetup: string[]
 } {
@@ -39,6 +42,7 @@ export function ciTest(): {
     testTimeout: TEST_TIMEOUT_MS,
     hookTimeout: HOOK_TIMEOUT_MS,
     teardownTimeout: 30_000,
+    expect: {poll: {timeout: POLL_TIMEOUT_MS, interval: POLL_INTERVAL_MS}},
     coverage: {
       enabled: Boolean(process.env.GITHUB_ACTIONS),
       provider: 'v8',
@@ -52,16 +56,7 @@ export function ciTest(): {
 
 const SOLID_CLEANUP_SETUP_ENTRY = '@conciv/vitest-config/solid-cleanup'
 
-export function ciTestSolidBrowser(): {
-  reporters: CiReporterEntry[]
-  coverage: CiCoverage
-  testTimeout: number
-  hookTimeout: number
-  teardownTimeout: number
-  maxWorkers?: number
-  globalSetup: string[]
-  setupFiles: string[]
-} {
+export function ciTestSolidBrowser(): ReturnType<typeof ciTest> & {setupFiles: string[]} {
   return {
     ...ciTest(),
     setupFiles: [SOLID_CLEANUP_SETUP_ENTRY],

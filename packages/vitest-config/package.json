@@ -19,6 +19,7 @@
     ".": "./src/reporters.ts",
     "./dom": "./src/dom.ts",
     "./pack": "./src/pack.ts",
+    "./playwright": "./src/playwright.ts",
     "./solid-cleanup": "./src/solid-cleanup-setup.ts",
     "./temp-dir": "./src/temp-dir.ts",
     "./vite-lib": "./src/vite-lib.ts"
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
+    "@playwright/test": "catalog:",
     "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
@@ -40,11 +42,15 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
+    "@playwright/test": "^1.64.1",
     "@solidjs/testing-library": "^0.8.10",
     "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12"
   },
   "peerDependenciesMeta": {
+    "@playwright/test": {
+      "optional": true
+    },
     "@solidjs/testing-library": {
       "optional": true
     },

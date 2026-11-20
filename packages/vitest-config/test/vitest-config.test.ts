@@ -65,6 +65,7 @@ describe('reporters', () => {
       testTimeout: 30_000,
       hookTimeout: 30_000,
       teardownTimeout: 30_000,
+      expect: {poll: {timeout: 5_000, interval: 50}},
       coverage: {enabled: true, provider: 'v8', reporter: ['json-summary'], reportsDirectory: 'coverage'},
       globalSetup: [join(import.meta.dirname, '..', 'src', 'setup', 'conciv-home-setup.ts')],
     })
