@@ -1,7 +1,8 @@
 import {describe, expect, test, vi} from 'vitest'
 import {createMemoryHistory} from '@tanstack/solid-router'
-import {render, screen} from '@solidjs/testing-library'
+import {render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
+import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
 import {test as engineTest} from '@conciv/plugin-testkit/browser'
 import {createConcivRouter, disposeConcivRouter} from './router'
@@ -10,7 +11,12 @@ import {ConcivApp, type Platform} from './index'
 
 type Timings = Parameters<typeof createConcivRouter>[0]['timings']
 
-type Clock = {freeze: () => void; advance: (milliseconds: number) => Promise<void>; runOut: () => Promise<void>}
+type Clock = {
+  freeze: () => void
+  thaw: () => void
+  advance: (milliseconds: number) => Promise<void>
+  runOut: () => Promise<void>
+}
 
 // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
 const fakeClock = async ({}, use: (clock: Clock) => Promise<void>) => {
@@ -18,6 +24,9 @@ const fakeClock = async ({}, use: (clock: Clock) => Promise<void>) => {
     await use({
       freeze: () => {
         vi.useFakeTimers()
+      },
+      thaw: () => {
+        vi.useRealTimers()
       },
       advance: async (milliseconds) => {
         await vi.advanceTimersByTimeAsync(milliseconds)
@@ -86,23 +95,33 @@ describe('the router query retry delay', () => {
 const withEngine = engineTest.extend<{clock: Clock}>({clock: fakeClock})
 
 describe('the app torn down with a draft still to save', () => {
-  withEngine('a user types a draft and closes the app, and nothing reports a failed save', async ({engine, clock}) => {
-    await engine.call({kind: 'session'})
-    const platform: Platform = {
-      engine: () => ({kind: 'bound', apiBase: engine.apiBase, token: () => Promise.resolve(engine.token)}),
-      navigation: {memory: '/'},
-      root: document,
-    }
-    const user = userEvent.setup()
-    const app = render(() => <ConcivApp platform={platform} />)
-    await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
-    const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
-    await user.type(composer, 'a draft typed before close')
-    expect(composer).toHaveFocus()
-    expect(composer).toHaveTextContent('a draft typed before close')
-    clock.freeze()
-    app.unmount()
-    expect(screen.queryByRole('textbox', {name: 'Message the conciv agent'})).not.toBeInTheDocument()
-    await clock.runOut()
-  })
+  withEngine(
+    'a user types a draft and closes the app, nothing reports a failed save, and the next open shows the draft from the device copy',
+    async ({engine, clock}) => {
+      const sessionId = z.string().parse(await engine.call({kind: 'session'}))
+      const platform: Platform = {
+        engine: () => ({kind: 'bound', apiBase: engine.apiBase, token: () => Promise.resolve(engine.token)}),
+        navigation: {memory: '/'},
+        root: document,
+      }
+      const user = userEvent.setup({delay: null})
+      const app = render(() => <ConcivApp platform={platform} />)
+      await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
+      const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+      clock.freeze()
+      await user.type(composer, 'a draft typed before close')
+      expect(composer).toHaveFocus()
+      expect(composer).toHaveTextContent('a draft typed before close')
+      app.unmount()
+      expect(screen.queryByRole('textbox', {name: 'Message the conciv agent'})).not.toBeInTheDocument()
+      await clock.runOut()
+      clock.thaw()
+      const engineRpc = makeRpcClient(engine.apiBase, {headers: {authorization: `Bearer ${engine.token}`}})
+      expect(await engineRpc.drafts.get({sessionId})).toBeNull()
+      render(() => <ConcivApp platform={platform} />)
+      await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
+      const reopened = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+      expect(await within(reopened).findByText('a draft typed before close')).toBeVisible()
+    },
+  )
 })
