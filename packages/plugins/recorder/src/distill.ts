@@ -6,7 +6,12 @@ const meta = z.object({href: z.string()})
 const fullSnapshot = z.object({node: z.unknown()})
 const mutation = z.looseObject({source: z.literal(0)})
 const click = z.looseObject({source: z.literal(2), type: z.literal(2), id: z.number()})
-const input = z.looseObject({source: z.literal(5), id: z.number(), text: z.string()})
+const input = z.looseObject({
+  source: z.literal(5),
+  id: z.number(),
+  text: z.string(),
+  userTriggered: z.boolean().optional(),
+})
 const scroll = z.looseObject({source: z.literal(3), id: z.number()})
 const consoleError = z.object({
   plugin: z.literal('rrweb/console@1'),
@@ -38,6 +43,11 @@ function snapshotEntry(state: DistillState, event: RrwebEvent): ActionLogEntry |
   return {ts: event.timestamp, kind: 'reload', detail: 'page reloaded (new snapshot)'}
 }
 
+function typingEntry(state: DistillState, ts: number, typed: z.infer<typeof input>): ActionLogEntry | undefined {
+  if (typed.id === -1 || typed.text === '' || typed.userTriggered !== true) return undefined
+  return {ts, kind: 'input', detail: `typed "${typed.text}" into ${describeNode(state.index, typed.id)}`}
+}
+
 function incrementalEntry(state: DistillState, event: RrwebEvent): ActionLogEntry | undefined {
   if (mutation.safeParse(event.data).success) state.index = applyMutation(state.index, event.data)
   const ts = event.timestamp
@@ -47,10 +57,7 @@ function incrementalEntry(state: DistillState, event: RrwebEvent): ActionLogEntr
     return {ts, kind: 'click', detail: `clicked ${describeNode(state.index, clicked.data.id)}`}
   }
   const typed = input.safeParse(event.data)
-  if (typed.success) {
-    if (typed.data.id === -1 || typed.data.text === '') return undefined
-    return {ts, kind: 'input', detail: `typed "${typed.data.text}" into ${describeNode(state.index, typed.data.id)}`}
-  }
+  if (typed.success) return typingEntry(state, ts, typed.data)
   const scrolled = scroll.safeParse(event.data)
   if (scrolled.success) {
     if (scrolled.data.id === -1) return undefined

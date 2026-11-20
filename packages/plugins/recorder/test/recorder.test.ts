@@ -26,6 +26,7 @@ import {RecorderFlusherMachine} from '../src/flusher-machine.js'
 import {RecorderPanelMachine} from '../src/panel-machine.js'
 import {RecorderVisibilityPauseMachine} from '../src/visibility-pause-machine.js'
 import {runBoot} from '../src/boot.js'
+import {distill} from '../src/distill.js'
 import {openCaptureSession} from '../src/capture-session.js'
 import {openPanel} from '../src/panel.js'
 import {FollowFailed, followRecording} from '../src/player-follow.js'
@@ -644,6 +645,43 @@ describe('the recording tools', () => {
           : [],
       ),
     )
+  })
+})
+
+describe('the action log typing rows', () => {
+  it('logs only user-made input as typing: a script setting a value or a radio sibling unchecking is not typing', () => {
+    const field = (id: number, domId: string) => ({
+      id,
+      type: 2,
+      tagName: 'input',
+      attributes: {id: domId},
+      childNodes: [],
+    })
+    const typed = (id: number, text: string, timestamp: number, trust: {userTriggered?: boolean}) => ({
+      type: 3,
+      data: {source: 5, id, text, isChecked: false, ...trust},
+      timestamp,
+    })
+    const page = [
+      {type: 4, data: {href: 'http://localhost/form', width: 800, height: 600}, timestamp: 1},
+      {type: 2, data: {node: pageFixture([field(4, 'name'), field(5, 'senior'), field(6, 'junior')])}, timestamp: 2},
+    ]
+    const table = [
+      {events: [typed(4, 'Ada', 10, {userTriggered: false})], rows: []},
+      {events: [typed(4, 'Ada', 10, {})], rows: []},
+      {events: [typed(4, 'Ada', 10, {userTriggered: true})], rows: ['typed "Ada" into input#name']},
+      {
+        events: [typed(6, 'junior', 10, {userTriggered: true}), typed(5, 'senior', 10, {userTriggered: false})],
+        rows: ['typed "junior" into input#junior'],
+      },
+    ]
+    for (const row of table) {
+      expect(
+        distill([...page, ...row.events])
+          .filter((entry) => entry.kind === 'input')
+          .map((entry) => entry.detail),
+      ).toEqual(row.rows)
+    }
   })
 })
 

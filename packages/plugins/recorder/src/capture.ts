@@ -42,6 +42,7 @@ function startCapture(
     emit: (event: eventWithTime) => emit(event),
     checkoutEveryNms: CHECKOUT_MS,
     blockSelector: exclude,
+    userTriggeredOnInput: true,
     sampling: {mousemove: 50, scroll: 150, media: 800, input: 'last'},
     ...maskingOptions(config.masking),
     plugins: config.console
