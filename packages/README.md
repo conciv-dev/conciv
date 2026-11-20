@@ -9,7 +9,7 @@ The npm packages that make up conciv. `@conciv/it` is the one users install; it 
 Engine and plugin:
 
 - core: [core/README.md](./core/README.md) - `@conciv/core`, the Hono engine: sessions, chat plane, oRPC router, MCP endpoint, push WebSocket and the plugin host.
-- it: [it/README.md](./it/README.md) - `@conciv/it`, the installable umbrella. Builds the per-bundler plugin entries and bundles the built-in plugins.
+- it: [it/README.md](./it/README.md) - `@conciv/it`, the installable umbrella. Builds the per-bundler plugin entries; the built-in plugins reach it inlined in `embed`.
 - unplugin: [unplugin/README.md](./unplugin/README.md) - `@conciv/unplugin`, the unplugin that boots the engine and injects the widget (Vite full hook, webpack/rspack boot and widget entry, Next.js wrapper).
 - cli: [cli/README.md](./cli/README.md) - The `conciv` binary: `init` and `tools`, each leaf command writing one JSON envelope.
 - try: [try/README.md](./try/README.md) - `npx @conciv/try --token`: a token-gated loopback core paired with conciv.dev.
@@ -22,19 +22,34 @@ Engine and plugin:
 - harness-testkit: [harness-testkit/README.md](./harness-testkit/README.md) - Test helpers that boot an app against a scripted or real harness.
 - tools: [tools/README.md](./tools/README.md) - Agent tools `conciv_ui`, `server_*` and `open`, with their Solid cards.
 - skills: [skills/README.md](./skills/README.md) - Agent skill markdown discovered through `@tanstack/intent`, plus a citation checker.
+- plugin-host: [plugin-host](./plugin-host) - `@conciv/plugin-host`, the engine-side plugin host core runs: plugin state, the hook registry and the tool domain, in Effect.
+
+Plugins (`plugins/*`, one plugin per package, each with its engine part and its browser part):
+
+- plugins/page: [plugins/page/README.md](./plugins/page/README.md) - `@conciv/plugin-page`, the built-in page plugin: the connection to the page, its tools, cards and DOM helpers.
+- plugins/terminal: [plugins/terminal/README.md](./plugins/terminal/README.md) - `@conciv/plugin-terminal`, the built-in terminal tab over core's persistent pty.
+- plugins/ios: [plugins/ios/README.md](./plugins/ios/README.md) - `@conciv/plugin-ios`, builds, runs and reads a native iOS app on the simulator.
+- plugins/recorder: [plugins/recorder/README.md](./plugins/recorder/README.md) - `@conciv/plugin-recorder`, the page's rrweb recording and a distilled action log for the agent.
+- plugins/tanstack: [plugins/tanstack/README.md](./plugins/tanstack/README.md) - `@conciv/plugin-tanstack`, build errors, route manifest and server-function calls of a TanStack app.
+- plugins/test-runner: [plugins/test-runner/README.md](./plugins/test-runner/README.md) - `@conciv/plugin-test-runner`, runs the project's tests and shows them live.
+- plugins/try-it: [plugins/try-it/README.md](./plugins/try-it/README.md) - `@conciv/plugin-try-it`, the plugin conciv.dev composes into its widget.
+- plugins/whiteboard: [plugins/whiteboard/README.md](./plugins/whiteboard/README.md) - `@conciv/plugin-whiteboard`, a canvas the user and the agent share.
+
+The built-ins page and terminal draw with the UI kits directly; the app composes them (`apps/conciv/src/runtime/plugin/builtins.ts`) and `embed` inlines them. Every other plugin draws through `ctx.ui` and imports no `@conciv/ui-kit*` package (`conciv-publish check-plugin-ui-kit`).
 
 Contracts:
 
 - protocol: [protocol/README.md](./protocol/README.md) - Zod schemas and types for the wire protocol; zero-runtime apart from small helpers.
 - contract: [contract/README.md](./contract/README.md) - The oRPC contract between core and its clients, with fetch and browser RPC clients.
 - grab: [grab/README.md](./grab/README.md) - Element-grab types, `GrabApi` and the size-bounded attachment serializer.
+- plugin: [plugin/README.md](./plugin/README.md) - `@conciv/plugin`, the plugin SDK: `Plugin.define` for a plugin's engine and browser parts, RPC contracts, registries and stores.
+- plugin-internal: [plugin-internal/README.md](./plugin-internal/README.md) - Private stamp (`defineInternalPlugin`) that marks a first-party plugin, so the app hands its setup more of its own components on `ctx.ui`.
 - extensions: [extensions/README.md](./extensions/README.md) - `@conciv/extension-design`, the one package left from the old extension system, out of the release.
 - plugin-testkit: [plugin-testkit/README.md](./plugin-testkit/README.md) - Boots the real engine and widget with the fake model chat for widget and plugin tests: core kit, wire observers and fault injectors.
 
 Browser widget:
 
 - embed: [embed/README.md](./embed/README.md) - Mounts the widget into a shadow root; ESM and IIFE entries.
-- page: [page/README.md](./page/README.md) - The DOM side of the page plane: page driver, element refs, console buffer, React bridge, `react-grab` picking.
 - client: [client/README.md](./client/README.md) - oRPC query utilities, chat connection, push and reachability helpers.
 - storage-history: [storage-history/README.md](./storage-history/README.md) - A TanStack `RouterHistory` persisted in Web Storage.
 - ui-kit-system: [ui-kit-system/README.md](./ui-kit-system/README.md) - The Solid design system: Ark UI wrappers, custom primitives, skins and generated tokens.

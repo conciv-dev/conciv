@@ -111,7 +111,7 @@ added or removed while the app runs. Plugins ship
 with a real test harness: [`@conciv/plugin-testkit`](./packages/plugin-testkit) boots the real
 engine with your plugin loaded and a fake model.
 
-Two built-ins show what the contracts can do, the whiteboard and test-runner plugins:
+Two first-party plugins show what the contracts can do, the whiteboard and test-runner plugins (the built-ins are the page and terminal plugins):
 
 - 🎨 &nbsp;[**Whiteboard**](./packages/plugins/whiteboard): a plugin with a shared Excalidraw canvas over your dev app. You sketch, the AI draws back (real editable elements, mermaid included), with source-anchored comments and pins kept in the plugin's own storage.
 - 🧪 &nbsp;[**Test runner**](./packages/plugins/test-runner): a plugin that runs your tests (Vitest and Playwright). The Tests tab streams live rows, and a card shows the finished run in the thread.
