@@ -40,6 +40,17 @@ The file name picks the runner. `conciv()` (`@conciv/unplugin`) sets the three v
 A behaviour lives in the cheapest place that can prove it, and only there: node before happy-dom, happy-dom before
 browser mode, browser mode before e2e. A more expensive place never proves it again; it proves the wiring.
 
+Who may mount the app, ruled 2026-11-20, as opencode (`_ref/opencode/packages/gui-plugins/AGENTS.md`, Tests: "UI
+behavior is proven by the app e2e keeper suites"; its plugin packages hold only machine, tool and rpc tests):
+
+- A package the app is made of (it is a dependency of `apps/conciv`: the page plugin, the terminal and tanstack
+  plugins, the plugin SDK, the ui kits, the mascot) never mounts the app. It keeps node tests of its machines, models,
+  tools and rpc, and stories of its components. Its on-screen journeys live in the app's tests, `apps/conciv/src`.
+- The app, and a plugin the app does not contain (test-runner, whiteboard, recorder, try-it), mount the app from their
+  own package with the kit.
+- A package that runs kit tests lists the kit in its own `devDependencies`. The kits are leaves: they depend on no
+  workspace package and name what they need as `peerDependencies` (`docs/specs/kit-build-cycle.md`).
+
 Budgets: test files next to code, never more test files than source files in a package; one browser-mode file per
 package; every file at most 1,000 lines (exceptions only with the maintainer's yes).
 
