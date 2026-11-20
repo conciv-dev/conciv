@@ -3,7 +3,7 @@ import {once, uniq} from 'es-toolkit'
 import {z} from 'zod'
 import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient, setupEngineReachability} from '@conciv/client'
-import {createEffect, createRoot, onCleanup, type JSX, createMemo, onMount} from 'solid-js'
+import {createRoot, getOwner, onCleanup, runWithOwner, untrack, type JSX, createMemo, onMount} from 'solid-js'
 import {browserRpcConnection, type RpcClient, resetBrowserRpcConnection, type TrustListener} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import {routeTree} from './routeTree.gen'
@@ -13,7 +13,7 @@ import type {ConcivSettings} from './data/settings.js'
 import {PendingPane} from './shell/pending.js'
 import {becameTrusted, engineLock, engineLocked, type EngineLogin} from './app/engine-login.js'
 import {createBrowserDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
-import {reserveComposedPlugins, type ComposedPlugin} from './runtime/plugin/root.js'
+import type {ComposedPlugin} from './runtime/plugin/root.js'
 import {ErrorScreen} from './shell/error-screen.js'
 import {classifyRpcError, rpcErrorCode, type RpcErrorClassification} from './shell/rpc-error-message.js'
 
@@ -103,27 +103,33 @@ function openDraftStore(writable: () => boolean): DraftStore | null {
 
 type TrustHandlers = {rerunRefused: () => void; trusted: () => void; revoked: () => void}
 
-type EngineWatch = {stop: () => void; locked: () => boolean}
+type HeldEngine = ReturnType<typeof browserRpcConnection>
 
-function watchEngine(apiBase: string, handlers: TrustHandlers): EngineWatch {
+type EngineWiring = {dispose: () => void; locked: () => boolean; watch: (handlers: TrustHandlers) => void}
+
+function holdEngine(apiBase: string): HeldEngine {
   const stopReachability = setupEngineReachability(apiBase)
   const connection = browserRpcConnection(apiBase)
-  if (connection.trust.isTrusted()) handlers.trusted()
-  if (engineLock(connection.trust.status()) === 'revoked') handlers.revoked()
-  const stopTrust = connection.trust.subscribe((status, previous) => {
-    if (engineLock(status) === 'revoked') handlers.revoked()
-    if (!becameTrusted(status, previous)) return
-    handlers.rerunRefused()
-    handlers.trusted()
+  onCleanup(() => {
+    stopReachability()
+    connection.release()
   })
-  return {
-    stop: () => {
-      stopReachability()
-      stopTrust()
-      connection.release()
-    },
-    locked: () => engineLocked(connection.trust.status()),
-  }
+  return connection
+}
+
+function watchTrust(connection: HeldEngine, handlers: TrustHandlers): void {
+  untrack(() => {
+    if (connection.trust.isTrusted()) handlers.trusted()
+    if (engineLock(connection.trust.status()) === 'revoked') handlers.revoked()
+  })
+  onCleanup(
+    connection.trust.subscribe((status, previous) => {
+      if (engineLock(status) === 'revoked') handlers.revoked()
+      if (!becameTrusted(status, previous)) return
+      handlers.rerunRefused()
+      handlers.trusted()
+    }),
+  )
 }
 
 function createPluginPanels(): ConcivRouterContext['pluginPanels'] {
@@ -141,19 +147,15 @@ function createPluginPanels(): ConcivRouterContext['pluginPanels'] {
   }
 }
 
-function wireEngine(apiBase: () => string, handlers: TrustHandlers): {dispose: () => void; locked: () => boolean} {
+function wireEngine(apiBase: () => string): EngineWiring {
   return createRoot((dispose) => {
-    let wiredApiBase = apiBase()
-    let watching = watchEngine(wiredApiBase, handlers)
-    createEffect(() => {
-      const nextApiBase = apiBase()
-      if (nextApiBase === wiredApiBase) return
-      watching.stop()
-      wiredApiBase = nextApiBase
-      watching = watchEngine(nextApiBase, handlers)
-    })
-    onCleanup(() => watching.stop())
-    return {dispose, locked: () => watching.locked()}
+    const owner = getOwner()
+    const connection = createMemo(() => holdEngine(apiBase()))
+    return {
+      dispose,
+      locked: () => engineLocked(untrack(connection).trust.status()),
+      watch: (handlers) => runWithOwner(owner, () => createMemo(() => watchTrust(connection(), handlers))),
+    }
   })
 }
 
@@ -161,8 +163,9 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const queryClient = new QueryClient({
     defaultOptions: {queries: {staleTime: Infinity, refetchOnWindowFocus: 'always'}},
   })
-  const lockedOut = (): boolean => engine.locked()
   const apiBase = config.apiBase ?? (() => '')
+  const engine = wireEngine(apiBase)
+  const lockedOut = (): boolean => engine.locked()
   const data = makeAppData(
     config.rpc,
     queryClient,
@@ -195,7 +198,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       queryClient,
       data,
       connected,
-      plugins: reserveComposedPlugins(config.plugins ?? []),
+      plugins: config.plugins ?? [],
       servers: config.servers ?? false,
       bindApiBase: config.bindApiBase,
       grabProvider: config.grabProvider,
@@ -216,7 +219,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
         return opened === undefined ? shown : [opened, ...shown]
       }),
     )
-  const engine = wireEngine(apiBase, {
+  engine.watch({
     rerunRefused: () => {
       void queryClient.invalidateQueries({predicate: (query) => query.state.status === 'error'})
     },
