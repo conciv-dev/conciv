@@ -16,6 +16,7 @@ import {
 } from '../pane/draft-storage.js'
 import {becameTrusted} from './engine-login.js'
 import type {Notify} from '../shell/notices.js'
+import type {ConcivTimings} from '../router.js'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
@@ -42,6 +43,7 @@ export type LiveSessionsDeps = {
   queryClient: QueryClient
   announce: (message: string) => void
   notify: Notify
+  timings?: ConcivTimings
 }
 
 const DRAFT_RETURN_FAILED = 'The queued message could not be put back in its draft.'
@@ -136,6 +138,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
         returnLostQueue(sessionId, session)
       },
       connection: {
+        runReconnect: deps.timings?.chatRunReconnect,
         onHydrated: (hydration) => hydrated(sessionId, hydration.lastRun),
         onLifecycle: (lifecycle) =>
           isRunPhaseTerminal(lifecycle.phase)
@@ -147,7 +150,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
             : start(sessionId, lifecycle),
       },
     })
-    const connection = browserRpcConnection(apiBase)
+    const connection = browserRpcConnection(apiBase, undefined, deps.timings?.engine)
     const stopTrust = connection.trust.subscribe((status, previous) => {
       if (!becameTrusted(status, previous)) return
       if (session.loadFailed()) return retire(sessionId, session)

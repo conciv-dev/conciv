@@ -8,9 +8,9 @@ The one entry of `@conciv/app` (`ConcivApp` over a `Platform` a host builds), th
 
 - `createConcivRouter(config)` (`router.tsx`): builds the Solid router with a QueryClient whose queries never go stale on their own (`staleTime: Infinity`; data changes through a server push, an invalidation after our own action, or a window refocus, `refetchOnWindowFocus: 'always'`), AppData, engine reachability and router context
 - `disposeConcivRouter(router)` (`router.tsx`): calls `router.options.context.dispose()`, which stops the engine watch and disposes the AppData once
-- `ConcivRouterContext`, `ConcivRouterConfig`, `ConcivEnvironment` types (`router.tsx`)
+- `ConcivRouterContext`, `ConcivRouterConfig`, `ConcivEnvironment`, `ConcivTimings` types (`router.tsx`)
 - `routeTree` (`routeTree.gen.ts`): generated; full paths `/`, `/panel`, `/quick`, `/panel/$sessionId`, `/panel/connect`, `/panel/latest`, `/pip/$sessionId`, `/panel/$sessionId/`, `/panel/$sessionId/$view`, `/panel/$sessionId/settings` and its tab routes
-- `index.tsx`: `ConcivApp` renders the whole app from a `Platform` (the engine to talk to, how navigation is stored, the root to render into, settings, plugins); it owns the rpc client, login and trust, the active-session stamp and teardown, so a host only builds the platform and renders
+- `index.tsx`: `ConcivApp` renders the whole app from a `Platform` (the engine to talk to, how navigation is stored, the root to render into, settings, plugins, and optional `timings`: engine connection timings for every connection the app holds, the chat run reconnect, and the query retry delay); it owns the rpc client, login and trust, the active-session stamp and teardown, so a host only builds the platform and renders
 - `entry-standalone.tsx`: the dev-server host; renders `ConcivApp` into `#app` with browser history and the engine named by `?core`
 - `css.d.ts`: `*.css?inline` and `*.woff2?inline` string module declarations
 - Subdirectories: [app](./app/README.md), [composer](./composer/README.md), [data](./data/README.md), [lib](./lib/README.md), [pane](./pane/README.md), [routes](./routes/README.md), [settings](./settings/README.md), [shell](./shell/README.md)

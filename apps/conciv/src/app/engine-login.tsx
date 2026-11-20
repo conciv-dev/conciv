@@ -4,6 +4,7 @@ import {
   browserRpcConnection,
   forgetMagicLinkCode,
   readMagicLinkCode,
+  type EngineConnectionTimings,
   type EngineTokenSource,
   type EngineTrust,
   type TrustStatus,
@@ -33,9 +34,13 @@ function trustStatus(trust: EngineTrust): Accessor<TrustStatus> {
   return from<TrustStatus>((set) => trust.subscribe((status) => set(status)), trust.status())
 }
 
-export function createEngineLogin(options: {apiBase: Accessor<string>; tokenSource?: EngineTokenSource}): EngineLogin {
+export function createEngineLogin(options: {
+  apiBase: Accessor<string>
+  tokenSource?: EngineTokenSource
+  timings?: Partial<EngineConnectionTimings>
+}): EngineLogin {
   const trust = createMemo(() => {
-    const connection = browserRpcConnection(options.apiBase(), options.tokenSource)
+    const connection = browserRpcConnection(options.apiBase(), options.tokenSource, options.timings)
     onCleanup(connection.release)
     return connection.trust
   })

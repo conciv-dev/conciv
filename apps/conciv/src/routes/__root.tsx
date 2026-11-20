@@ -149,6 +149,7 @@ function AppRoot() {
     queryClient: app.queryClient,
     announce,
     notify: notices.notify,
+    timings: app.timings,
   })
   const rootNode = app.environment.rootNode
   const followingSettings = new AbortController()
@@ -198,7 +199,7 @@ function AppRoot() {
     window.dispatchEvent(new CustomEvent(CONNECTION_CHANGED_EVENT, {detail: {connected: isConnected}}))
   })
 
-  const reachability = makeEngineReachability(app.apiBase)
+  const reachability = makeEngineReachability(app.apiBase, app.timings.engine)
 
   return (
     <EnvironmentProvider value={() => app.environment.rootNode}>

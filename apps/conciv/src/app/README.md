@@ -14,7 +14,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `useStartSession` (`start-session.ts`): the one new-session action every caller uses (the deleted panel, the panel and view routes, `PaneProvider`, the quick terminal split); it creates a session and, when that fails, logs it, shows the danger notice `Could not start a new session. Check that the engine is running, then try again.` and rejects, so each caller only handles success
 - `PanelChromeContext`, `usePanelChrome` (`panel-chrome.ts`): panel close handle and the `frame` ref the panel hands to the root, which measures it for the launcher robot
 - `makePanelComposerFocus`, `usePanelComposerFocus` (`panel-focus.ts`): tracks the active composer input
-- `EngineReachabilityContext`, `makeEngineReachability(apiBase)`, `useEngineReachability` (`reachability.ts`): `online`, `sustainedOffline` and `locked` accessors; `locked` is `engineLock(status)` over its own `createEngineLogin({apiBase})` on the same connection, released with the owner
+- `EngineReachabilityContext`, `makeEngineReachability(apiBase, timings?)`, `useEngineReachability` (`reachability.ts`): `online`, `sustainedOffline` and `locked` accessors; `locked` is `engineLock(status)` over its own `createEngineLogin({apiBase, timings})` on the same connection, released with the owner
 - `createWarmSession`, `WarmSession` (`warm-session.ts`): resolves the most recently updated session
 
 ## Invariants

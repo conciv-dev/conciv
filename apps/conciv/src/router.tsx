@@ -2,9 +2,15 @@ import {createRouter, useRouteContext, useRouter, type ErrorComponentProps} from
 import {once, uniq} from 'es-toolkit'
 import {z} from 'zod'
 import type {RouterHistory} from '@tanstack/solid-router'
-import {QueryClient, setupEngineReachability} from '@conciv/client'
+import {QueryClient, setupEngineReachability, type ChatConnectionOptions} from '@conciv/client'
 import {createRoot, getOwner, onCleanup, runWithOwner, untrack, type JSX, createMemo, onMount} from 'solid-js'
-import {browserRpcConnection, type RpcClient, resetBrowserRpcConnection, type TrustListener} from '@conciv/contract'
+import {
+  browserRpcConnection,
+  type EngineConnectionTimings,
+  type RpcClient,
+  resetBrowserRpcConnection,
+  type TrustListener,
+} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import {routeTree} from './routeTree.gen'
 import {QuickSearchSchema, quickPaneIds} from './lib/quick-search.js'
@@ -46,6 +52,12 @@ function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
 
 const PaneParamsSchema = z.object({sessionId: z.string()})
 
+export type ConcivTimings = {
+  engine?: Partial<EngineConnectionTimings>
+  chatRunReconnect?: ChatConnectionOptions['runReconnect']
+  queryRetryDelayMs?: number
+}
+
 export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}
 
 export type PanelKeyStatus = 'listed' | 'unlisted' | 'pending'
@@ -66,6 +78,7 @@ export type ConcivRouterContext = {
   apiBase: () => string
   connectionGeneration: () => number
   bindActiveSession?: (read: () => string | null) => void
+  timings: ConcivTimings
   dispose: () => void
   notifyInteractive: () => void
   login?: EngineLogin
@@ -90,6 +103,7 @@ export type ConcivRouterConfig = {
   bindActiveSession?: (read: () => string | null) => void
   notifyInteractive?: () => void
   login?: EngineLogin
+  timings?: ConcivTimings
 }
 
 function openDraftStore(writable: () => boolean): DraftStore | null {
@@ -107,9 +121,9 @@ type HeldEngine = ReturnType<typeof browserRpcConnection>
 
 type EngineWiring = {dispose: () => void; locked: () => boolean; watch: (handlers: TrustHandlers) => void}
 
-function holdEngine(apiBase: string): HeldEngine {
+function holdEngine(apiBase: string, timings: Partial<EngineConnectionTimings> | undefined): HeldEngine {
   const stopReachability = setupEngineReachability(apiBase)
-  const connection = browserRpcConnection(apiBase)
+  const connection = browserRpcConnection(apiBase, undefined, timings)
   onCleanup(() => {
     stopReachability()
     connection.release()
@@ -147,10 +161,10 @@ function createPluginPanels(): ConcivRouterContext['pluginPanels'] {
   }
 }
 
-function wireEngine(apiBase: () => string): EngineWiring {
+function wireEngine(apiBase: () => string, timings: Partial<EngineConnectionTimings> | undefined): EngineWiring {
   return createRoot((dispose) => {
     const owner = getOwner()
-    const connection = createMemo(() => holdEngine(apiBase()))
+    const connection = createMemo(() => holdEngine(apiBase(), timings))
     return {
       dispose,
       locked: () => engineLocked(untrack(connection).trust.status()),
@@ -160,11 +174,15 @@ function wireEngine(apiBase: () => string): EngineWiring {
 }
 
 export function createConcivRouter(config: ConcivRouterConfig) {
+  const timings = config.timings ?? {}
+  const retryDelay = timings.queryRetryDelayMs
   const queryClient = new QueryClient({
-    defaultOptions: {queries: {staleTime: Infinity, refetchOnWindowFocus: 'always'}},
+    defaultOptions: {
+      queries: {staleTime: Infinity, refetchOnWindowFocus: 'always', ...(retryDelay === undefined ? {} : {retryDelay})},
+    },
   })
   const apiBase = config.apiBase ?? (() => '')
-  const engine = wireEngine(apiBase)
+  const engine = wireEngine(apiBase, timings.engine)
   const lockedOut = (): boolean => engine.locked()
   const data = makeAppData(
     config.rpc,
@@ -205,6 +223,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       apiBase,
       connectionGeneration: config.connectionGeneration ?? (() => 0),
       bindActiveSession: config.bindActiveSession,
+      timings,
       dispose,
       notifyInteractive: config.notifyInteractive ?? (() => {}),
       login: config.login,

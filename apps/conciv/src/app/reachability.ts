@@ -1,5 +1,6 @@
 import {createContext, createMemo, useContext, type Accessor} from 'solid-js'
 import {engineOnline, sustainedEngineOffline} from '@conciv/client'
+import type {EngineConnectionTimings} from '@conciv/contract'
 import {createEngineLogin, engineLock, type EngineLock} from './engine-login.js'
 
 export type EngineReachability = {
@@ -10,8 +11,11 @@ export type EngineReachability = {
 
 export const EngineReachabilityContext = createContext<EngineReachability>()
 
-export function makeEngineReachability(apiBase: Accessor<string>): EngineReachability {
-  const login = createEngineLogin({apiBase})
+export function makeEngineReachability(
+  apiBase: Accessor<string>,
+  timings?: Partial<EngineConnectionTimings>,
+): EngineReachability {
+  const login = createEngineLogin({apiBase, timings})
   const locked = createMemo(() => engineLock(login.status()))
   return {online: engineOnline(), sustainedOffline: sustainedEngineOffline(), locked}
 }

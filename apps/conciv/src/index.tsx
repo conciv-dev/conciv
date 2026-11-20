@@ -7,7 +7,7 @@ import {createWebStorageHistory, type WebStorage} from '@conciv/storage-history'
 import type {GrabProvider} from '@conciv/grab'
 import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {NavigationStateSchema, type NavigationState} from '@conciv/protocol/chat-types'
-import {createConcivRouter, disposeConcivRouter, type ConcivRouterConfig} from './router.js'
+import {createConcivRouter, disposeConcivRouter, type ConcivRouterConfig, type ConcivTimings} from './router.js'
 import {parseConcivSettings, type ConcivSettings} from './data/settings.js'
 import {styleRoot} from './lib/shadow.js'
 import {createEngineLogin, engineConnected, startEngineLogin} from './app/engine-login.js'
@@ -21,6 +21,7 @@ export type Platform = {
   plugins?: readonly ComposedPlugin[]
   grabProvider?: GrabProvider
   onInteractive?: () => void
+  timings?: ConcivTimings
 }
 
 declare global {
@@ -118,6 +119,7 @@ function routerConfig(
     plugins: parts.plugins,
     grabProvider: parts.platform.grabProvider,
     notifyInteractive: parts.platform.onInteractive,
+    timings: parts.platform.timings,
     bindActiveSession: (read: () => string | null) => {
       session.read = read
     },
@@ -185,7 +187,11 @@ function BoundApp(props: AppParts): JSX.Element {
   const apiBase = (): string => bound.apiBase
   const session = {read: (): string | null => null}
   const client = makeBrowserRpcClient(apiBase, {session: () => session.read()})
-  const login = createEngineLogin({apiBase, tokenSource: first.kind === 'bound' ? first.token : undefined})
+  const login = createEngineLogin({
+    apiBase,
+    tokenSource: first.kind === 'bound' ? first.token : undefined,
+    timings: platform.timings?.engine,
+  })
   const trusted = startEngineLogin(login)
   const connectionGeneration = createMemo(
     on(apiBase, (_apiBase, _previous, generation: number | undefined) =>
