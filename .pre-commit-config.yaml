@@ -20,5 +20,5 @@ repos:
         language: system
         pass_filenames: true
         files: '\.(m?[jt]sx?|c[jt]s|jsonc?|md)$'
-        exclude: '^(.*/)?(dist|build|\.turbo)/|^packages/unplugin/test/fixtures/'
+        exclude: '^(.*/)?(dist|build|\.turbo)/'
         require_serial: true

@@ -1,0 +1,25 @@
+import type {CreateEngineOptions, EngineAddress, EngineSetting, ToolFailure} from './engine.js'
+
+export type EngineHandle = {id: string; sessionId: string; address: EngineAddress}
+
+export type EngineCommands = {
+  concivCreateEngine: (options: CreateEngineOptions, scope: 'test' | 'file') => Promise<EngineHandle>
+  concivStopEngine: (engineId: string) => Promise<void>
+  concivStopFileEngines: () => Promise<void>
+  concivNewSession: (engineId: string, title?: string) => Promise<string>
+  concivSetting: (engineId: string, setting: EngineSetting) => Promise<void>
+  concivSend: (engineId: string, sessionId: string, text: string) => Promise<void>
+  concivApprove: (engineId: string, sessionId: string) => Promise<void>
+  concivToolCall: (engineId: string, sessionId: string, name: string, input: unknown) => Promise<unknown>
+  concivToolFailure: (engineId: string, sessionId: string, name: string, input: unknown) => Promise<ToolFailure>
+}
+
+declare module 'vitest/browser' {
+  interface BrowserCommands extends EngineCommands {}
+}
+
+declare module 'vitest' {
+  export interface ProvidedContext {
+    concivPollTimeoutMs: number
+  }
+}

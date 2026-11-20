@@ -23,65 +23,13 @@
   ],
   "type": "module",
   "exports": {
-    "./connect-handshake": {
-      "types": "./dist/connect-handshake.d.ts",
-      "import": "./dist/connect-handshake.js"
-    },
-    "./core-kit": {
-      "types": "./dist/core-kit.d.ts",
-      "import": "./dist/core-kit.js"
-    },
-    "./host/grab": {
-      "types": "./dist/host/grab.d.ts",
-      "import": "./dist/host/grab.js"
-    },
-    "./widget-suite": {
-      "types": "./dist/widget-suite.d.ts",
-      "import": "./dist/widget-suite.js"
-    },
-    "./listen-local": {
-      "types": "./dist/listen-local.d.ts",
-      "import": "./dist/listen-local.js"
-    },
     "./node": {
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"
     },
-    "./flow": {
-      "types": "./dist/flow.d.ts",
-      "import": "./dist/flow.js"
-    },
-    "./navigation-state": {
-      "types": "./dist/navigation-state.d.ts",
-      "import": "./dist/navigation-state.js"
-    },
-    "./rpc-counts": {
-      "types": "./dist/rpc-counts.d.ts",
-      "import": "./dist/rpc-counts.js"
-    },
-    "./rpc-wire": {
-      "types": "./dist/rpc-wire.d.ts",
-      "import": "./dist/rpc-wire.js"
-    },
-    "./chat-wire": {
-      "types": "./dist/chat-wire.d.ts",
-      "import": "./dist/chat-wire.js"
-    },
-    "./rpc-fault": {
-      "types": "./dist/rpc-fault.d.ts",
-      "import": "./dist/rpc-fault.js"
-    },
-    "./rpc-socket": {
-      "types": "./dist/rpc-socket.d.ts",
-      "import": "./dist/rpc-socket.js"
-    },
-    "./rpc-observer": {
-      "types": "./dist/rpc-observer.d.ts",
-      "import": "./dist/rpc-observer.js"
-    },
-    "./chat-fault": {
-      "types": "./dist/chat-fault.d.ts",
-      "import": "./dist/chat-fault.js"
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
     }
   },
   "publishConfig": {
@@ -91,7 +39,6 @@
     "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -103,26 +50,31 @@
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "catalog:",
-    "@orpc/standard-server-peer": "catalog:",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
-    "p-timeout": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@orpc/server": "catalog:",
-    "@playwright/test": "catalog:",
+    "@solidjs/testing-library": "catalog:",
+    "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "happy-dom": "catalog:",
     "playwright": "catalog:",
+    "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
+    "unocss": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@playwright/test": "^1.64.1",
+    "@conciv/app": "workspace:*",
     "playwright": "^1.64.1",
     "vitest": "^5.1.0"
   }
