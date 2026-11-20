@@ -271,7 +271,10 @@ So `packages/core/src/page/` is DELETED whole, and the contract loses its `page`
    code-mode reply composer drains for every plugin. C. the hub gets results only from `synthetic` like a chat
    session, and the `queued`/`finished` fields of the code results go. I recommend C: it is the as-opencode path
    and deletes the hub bookkeeping; it changes what outside agents see, so it is the maintainer's call.
-2. Implement `ctx.session.synthetic` in the engine (exists in the SDK shape, not implemented). Required for 1.2.
+2. DECIDED 2026-11-20: implement `ctx.session.synthetic` in the engine, as opencode, first, with its own tests. It is
+   the ONLY way anything outside a turn puts a message into a session or starts a turn: every other way that exists
+   today (any plugin, core, the widget, the hub) is mapped in section 7 and moved onto `synthetic` or deleted in the
+   same work. No second way survives.
 3. Tool terminal options on the tool definition (1.3): NEW API.
 4. A registry for the page session fold (2.1) and for attachment cards (2.3), or drop them: NEW API.
 5. Contract changes: delete `page.*`, split `tabs.*` (project part renamed), `editor.openFromFrames` to
