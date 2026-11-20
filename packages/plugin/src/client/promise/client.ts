@@ -13,6 +13,7 @@ export type ClientConnectionStatus = 'connected' | 'connecting' | 'reconnecting'
 export type ClientConnectionOptions = {
   readonly server: () => string
   readonly idleTimeout?: number
+  readonly reconnectDelay?: number
 }
 
 type ClientConnection = {
@@ -30,8 +31,9 @@ export function make(
 } {
   const connection = makeConnection()
   const idleTimeout = options.idleTimeout ?? defaultIdleTimeout
+  const reconnectDelay = options.reconnectDelay ?? defaultReconnectDelay
   const events = SharedEvents.make((signal, onActivity) =>
-    received(raw, signal, onActivity, connection.set, idleTimeout, options.server),
+    received(raw, signal, onActivity, connection.set, {idleTimeout, reconnectDelay}, options.server),
   )
   const groups = {
     auth: raw.auth,
@@ -80,7 +82,7 @@ function makeConnection() {
   }
 }
 
-const reconnectDelay = 1_000
+const defaultReconnectDelay = 1_000
 export const defaultIdleTimeout = 45_000
 
 const UntrustedSchema = z.object({code: z.literal('UNAUTHORIZED')})
@@ -90,7 +92,7 @@ async function* received(
   signal: AbortSignal,
   onActivity: () => void,
   setStatus: (status: ClientConnectionStatus) => void,
-  idleTimeout: number,
+  {idleTimeout, reconnectDelay}: {idleTimeout: number; reconnectDelay: number},
   server: () => string,
 ) {
   signal.addEventListener('abort', () => setStatus('connecting'), {once: true})
