@@ -2,7 +2,7 @@
 
 ## Overview
 
-Starts the real conciv engine (`@conciv/core`) on a local port with a scripted AI chat, for tests. The one export is `createHarnessEngine(options)`: a harness author passes the real adapter, and its chat runs through the scripted replies while its models, commands and history stay its own. Without a harness the engine uses a fake one. `@conciv/plugin-testkit` builds its `createEngine` on it.
+Starts the real conciv engine (`@conciv/core`) on a local port with a scripted AI chat, for tests. The entry exports `createHarnessEngine(options)` and the `TestLLM` reply helpers. A harness author passes the real adapter, and its chat runs through the scripted replies while its models, commands and history stay its own. Without a harness the engine uses a fake one. `@conciv/plugin-testkit` builds its `createEngine` on it.
 
 `package.json` exports the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`. Source: [src](./src/README.md).
 
@@ -10,9 +10,15 @@ Starts the real conciv engine (`@conciv/core`) on a local port with a scripted A
 
 The engine is the product's own `makeApp`, and the kit talks to it the way the product callers do: turns, settings, sessions and permission answers over the browser socket from `@conciv/contract`, tool calls over `/api/mcp` as an agent does. Only the AI chat is scripted.
 
+## Replies
+
+`replies` take the reply shapes of opencode's test model (`packages/ai/src/testing.ts` in opencode), on our `ChatEvent` chunks: an array of chunks, or an Effect `Stream` of them. Each model request takes the next reply. A tool turn takes two: the call, then the answer after the tool ran. A request with no reply left fails the run; there is no fallback reply. `TestLLM.text`, `TestLLM.toolCall` and `TestLLM.hangAfter` build them. `engine.gate()` holds the next model request until the test calls `release`, as opencode's `gate`; `stop` releases a held gate.
+
 ## Invariants
 
 - The kit does not depend on a test runner.
+- The harness writes the request's own thread and run ids into every run start, finish and error chunk of a reply.
+- A streamed reply ends when the run is stopped.
 
 ## Side Effects
 

@@ -4,7 +4,8 @@
 
 `harness-engine.ts` is the package entry, with `createHarnessEngine`. It writes `files` into a fresh project root, starts core with `makeApp` (only `plugins`, `permission` and `permissions` are read from `config`), serves it, writes `settings` through the settings rpc and opens the first session.
 
-- `scripted-harness.ts`: the harness the engine runs. A given adapter keeps everything but its chat, which answers each turn with the next of `replies`; without one, a fake adapter with id `engine` does the same.
+- `scripted-harness.ts`: the harness the engine runs. A given adapter keeps everything but its chat, which answers each model request with the next of `replies` and holds it while a gate is set; without one, a fake adapter with id `engine` does the same.
+- `test-llm.ts`: the reply shapes and helpers of opencode's test model, on `ChatEvent` chunks.
 - `call-tool.ts`: a session's tool call, run through `execute_typescript` on `/api/mcp`.
 - `until.ts`: the private wait `approve` uses until the session has a pending ask.
 

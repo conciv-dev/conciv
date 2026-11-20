@@ -1,11 +1,14 @@
 import {test, expect} from 'vitest'
 import {screen} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import {createEngine} from '@conciv/plugin-testkit/node'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit/node'
 import {mount} from '@conciv/plugin-testkit/browser'
 
 test('a user asks the agent, then opens the tests panel', async () => {
-  const engine = await createEngine({plugins: ['@conciv/plugin-test-runner'], replies: ['done']})
+  const engine = await createEngine({
+    plugins: ['@conciv/plugin-test-runner'],
+    replies: [TestLLM.text('done', 'text-done')],
+  })
   await mount({engine})
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))

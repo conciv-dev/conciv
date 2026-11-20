@@ -40,7 +40,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test": "vitest run"
   },
   "dependencies": {
     "@conciv/harness-testkit": "workspace:^",

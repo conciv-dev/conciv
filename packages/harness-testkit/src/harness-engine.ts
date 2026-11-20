@@ -15,15 +15,18 @@ import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveHono} from '@conciv/serve'
 import {callTool} from './call-tool.js'
-import {scriptedHarness} from './scripted-harness.js'
+import {replyScript} from './scripted-harness.js'
+import type {Gate, Response} from './test-llm.js'
 import {until} from './until.js'
+
+export * as TestLLM from './test-llm.js'
 
 export type HarnessEngineSetting = {scope: 'project' | 'global'; namespace: string; key: string; value: unknown}
 
 export type HarnessEngineOptions = {
   harness?: HarnessAdapter
   config?: ConcivConfig
-  replies?: string[]
+  replies?: readonly Response[]
   files?: Record<string, string>
   settings?: HarnessEngineSetting[]
 }
@@ -48,6 +51,7 @@ export type HarnessEngine = {
   session: HarnessEngineSession
   newSession: (title?: string) => Promise<HarnessEngineSession>
   setting: (setting: HarnessEngineSetting) => Promise<void>
+  gate: () => Promise<Gate>
   address: HarnessEngineAddress
   stop: () => Promise<void>
 }
@@ -202,7 +206,8 @@ async function bootApp(
 }
 
 export async function createHarnessEngine(options: HarnessEngineOptions = {}): Promise<HarnessEngine> {
-  const harness = scriptedHarness(options.harness, options.replies ?? [])
+  const script = replyScript(options.replies ?? [])
+  const harness = script.harness(options.harness)
   const configProvider = ConfigProvider.fromEnvRecord(
     {...process.env, CONCIV_DISABLE_FILEWATCHER: 'true'},
     {preserveEmptyStrings: true},
@@ -219,6 +224,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
   const browser = makeBrowserRpcClient(apiBase)
   const engine: Engine = {rpc: browser.rpc, apiBase, turns: makeTurns(browser.rpc)}
   const stop = async (): Promise<void> => {
+    script.releaseGate()
     engine.turns.closeAll()
     browser.close()
     const failures = await settleInOrder([() => served.close(), () => app.dispose(), removeRoot])
@@ -233,6 +239,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     setting: async (setting) => {
       await engine.rpc.settings.set(setting)
     },
+    gate: async () => script.gate(),
     address: {apiBase, token: app.agentToken},
     stop,
   }

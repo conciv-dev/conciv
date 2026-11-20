@@ -6,10 +6,12 @@ import {
   createHarnessEngine,
   type HarnessEngine,
   type HarnessEngineAddress,
+  type HarnessEngineOptions,
   type HarnessEngineSession,
   type HarnessEngineSetting,
   type HarnessEngineTool,
   type HarnessEngineToolFailure,
+  type TestLLM,
 } from '@conciv/harness-testkit'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {disposeAll} from './dispose.js'
@@ -18,7 +20,8 @@ export type EngineSetting = HarnessEngineSetting
 
 export type CreateEngineOptions = {
   plugins?: ConcivConfig['plugins']
-  replies?: string[]
+  harness?: HarnessEngineOptions['harness']
+  replies?: readonly TestLLM.Response[]
   settings?: EngineSetting[]
   files?: Record<string, string>
   permission?: ConcivConfig['permission']
@@ -30,7 +33,7 @@ export type EngineTool = HarnessEngineTool
 
 export type EngineSession = HarnessEngineSession
 
-export type Engine = Pick<HarnessEngine, 'session' | 'newSession' | 'setting'>
+export type Engine = Pick<HarnessEngine, 'session' | 'newSession' | 'setting' | 'gate'>
 
 export type EngineAddress = HarnessEngineAddress
 
@@ -70,15 +73,16 @@ function locatePlugin(entry: PluginEntry): PluginEntry {
 }
 
 export async function startEngine(options: CreateEngineOptions): Promise<StartedEngine> {
-  const {replies, files, settings, permission} = options
+  const {harness, replies, files, settings, permission} = options
   const plugins = options.plugins?.map(locatePlugin)
-  const {session, newSession, setting, address, stop} = await createHarnessEngine({
+  const {session, newSession, setting, gate, address, stop} = await createHarnessEngine({
+    harness,
     config: {plugins, permission},
     replies,
     files,
     settings,
   })
-  return {engine: {session, newSession, setting}, address, stop}
+  return {engine: {session, newSession, setting, gate}, address, stop}
 }
 
 export async function createEngine(options: CreateEngineOptions = {}): Promise<Engine> {

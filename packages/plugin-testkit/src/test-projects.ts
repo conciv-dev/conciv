@@ -14,6 +14,7 @@ import {
   ciTest,
   ciTestSolidBrowser,
 } from '@conciv/vitest-config'
+import type {TestLLM} from '@conciv/harness-testkit'
 import {startEngine, type EngineSession, type StartedEngine} from './engine.js'
 import {disposeAll} from './dispose.js'
 import type {EngineCommands, PageCommands} from './browser-commands.js'
@@ -84,6 +85,7 @@ function engineModulesInNode(): Plugin {
 type BrowserEngine = {
   started: StartedEngine
   sessions: Record<string, EngineSession>
+  gates: Record<string, TestLLM.Gate>
   testPath: string | undefined
   scope: 'test' | 'file'
 }
@@ -99,6 +101,11 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
   const sessionFor = (engineId: string, sessionId: string): EngineSession => {
     const found = engineFor(engineId).sessions[sessionId]
     if (!found) throw new Error(`engine ${engineId} has no session ${sessionId}`)
+    return found
+  }
+  const gateFor = (engineId: string, gateId: string): TestLLM.Gate => {
+    const found = engineFor(engineId).gates[gateId]
+    if (!found) throw new Error(`engine ${engineId} has no gate ${gateId}`)
     return found
   }
   const stop = async (engineId: string): Promise<void> => {
@@ -118,7 +125,13 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
         const started = await startEngine(options)
         counter.next += 1
         const id = String(counter.next)
-        engines[id] = {started, sessions: {[started.engine.session.id]: started.engine.session}, testPath, scope}
+        engines[id] = {
+          started,
+          sessions: {[started.engine.session.id]: started.engine.session},
+          gates: {},
+          testPath,
+          scope,
+        }
         return {id, sessionId: started.engine.session.id, address: started.address}
       },
       concivStopEngine: (_context, engineId) => stop(engineId),
@@ -131,6 +144,19 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
         return session.id
       },
       concivSetting: (_context, engineId, setting) => engineFor(engineId).started.engine.setting(setting),
+      concivGate: async (_context, engineId) => {
+        const engine = engineFor(engineId)
+        counter.next += 1
+        const gateId = String(counter.next)
+        engine.gates[gateId] = await engine.started.engine.gate()
+        return gateId
+      },
+      concivGateStarted: (_context, engineId, gateId) => gateFor(engineId, gateId).started,
+      concivGateRelease: async (_context, engineId, gateId) => {
+        const gate = gateFor(engineId, gateId)
+        delete engineFor(engineId).gates[gateId]
+        await gate.release()
+      },
       concivSend: (_context, engineId, sessionId, text) => sessionFor(engineId, sessionId).send(text),
       concivApprove: (_context, engineId, sessionId) => sessionFor(engineId, sessionId).approve(),
       concivToolCall: (_context, engineId, sessionId, name, input) =>
