@@ -9,6 +9,7 @@ export default defineConfig({
     'src/listen-local.ts',
     'src/navigation-state.ts',
     'src/node.ts',
+    'src/flow.ts',
     'src/rpc-counts.ts',
     'src/rpc-wire.ts',
     'src/chat-wire.ts',

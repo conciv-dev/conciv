@@ -9,6 +9,7 @@ import {magicLink} from '@conciv/harness-testkit/login'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {bootCoreKit, type CoreKit} from './core-kit.js'
 import {listenLocal} from './listen-local.js'
+import {disposeAll} from './dispose.js'
 
 export type ServedDir = {base: string; close: () => Promise<void>}
 
@@ -77,16 +78,7 @@ function hostPage(apiBase: string, bundle: string, body: string): string {
 }
 
 function closeInOrder(...closers: (() => Promise<void>)[]): () => Promise<void> {
-  return async () => {
-    const failures = await closers.reduce<Promise<unknown[]>>(async (pending, closer) => {
-      const failed = await pending
-      return closer().then(
-        () => failed,
-        (error: unknown) => [...failed, error],
-      )
-    }, Promise.resolve([]))
-    if (failures.length > 0) throw new AggregateError(failures, 'the plugin widget did not close cleanly')
-  }
+  return () => disposeAll(closers, 'sequential', 'the plugin widget did not close cleanly')
 }
 
 async function startedOrClosed<Value>(start: () => Promise<Value>, close: () => Promise<void>): Promise<Value> {

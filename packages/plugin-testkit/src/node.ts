@@ -1,14 +1,46 @@
 import {mkdtemp, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {test as base} from 'vitest'
+import {once} from 'es-toolkit'
+import {expect, test as base} from 'vitest'
+import {approvePending, type RunStream} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from './core-kit.js'
+import {disposeAll} from './dispose.js'
 
-type EngineOptions = Parameters<typeof bootCoreKit>[0]
+export type EngineOptions = Parameters<typeof bootCoreKit>[0]
+
+export type NodeSession = {
+  id: string
+  send: (input: string) => Promise<RunStream>
+  approve: () => Promise<string[]>
+  callTool: (name: string, input: unknown) => Promise<unknown>
+  events: () => Promise<RunStream>
+  hydrate: () => ReturnType<CoreKit['hydrate']>
+}
+
+export type ToolFailure = {tool: string; message: string}
+
+export type PluginTool = {
+  call: (input: unknown) => Promise<unknown>
+  failure: (input: unknown) => Promise<ToolFailure>
+}
+
+export type NodePlugin = {engine: CoreKit; tool: (name: string) => PluginTool}
+
+export type StartEngine = (overrides?: Partial<EngineOptions>) => Promise<CoreKit>
 
 type NodeFixtures = {
-  $test: {tmp: string}
+  $test: {tmp: string; freshEngine: StartEngine; session: NodeSession; plugin: NodePlugin}
   $file: {engine: CoreKit}
+}
+
+function failedTool(name: string, call: Promise<unknown>): Promise<ToolFailure> {
+  return call.then(
+    (output) => {
+      throw new Error(`the tool ${name} answered instead of failing: ${JSON.stringify(output)}`)
+    },
+    (error: unknown) => ({tool: name, message: error instanceof Error ? error.message : String(error)}),
+  )
 }
 
 export const test = base
@@ -22,10 +54,49 @@ export const test = base
     },
     engine: [
       async ({engineOptions}, use) => {
-        const kit = await bootCoreKit(engineOptions)
-        await use(kit)
-        await kit.cleanup()
+        const engine = await bootCoreKit(engineOptions)
+        await use(engine)
+        await engine.cleanup()
       },
       {scope: 'file'},
     ],
+    freshEngine: async ({engineOptions}, use) => {
+      const started: CoreKit[] = []
+      await use(async (overrides = {}) => {
+        const booted = await bootCoreKit({...engineOptions, ...overrides})
+        const engine = {...booted, cleanup: once(booted.cleanup)}
+        started.push(engine)
+        return engine
+      })
+      await disposeAll(
+        started.toReversed().map((engine) => engine.cleanup),
+        'sequential',
+        'a per-test engine did not stop cleanly',
+      )
+    },
+    session: async ({engine}, use) => {
+      const {sessionId} = await engine.rpc.sessions.create()
+      const listening = new AbortController()
+      await use({
+        id: sessionId,
+        send: (input) => engine.turn(input, {session: sessionId}),
+        approve: async () => {
+          await expect.poll(async () => (await engine.hydrate(sessionId)).pendingApprovals).not.toEqual([])
+          return approvePending(engine.base, sessionId)
+        },
+        callTool: (name, input) => engine.callTool(name, input, sessionId),
+        events: () => engine.events(sessionId, {signal: listening.signal}),
+        hydrate: () => engine.hydrate(sessionId),
+      })
+      listening.abort()
+    },
+    plugin: async ({engine, session}, use) => {
+      await use({
+        engine,
+        tool: (name) => ({
+          call: (input) => session.callTool(name, input),
+          failure: (input) => failedTool(name, session.callTool(name, input)),
+        }),
+      })
+    },
   })

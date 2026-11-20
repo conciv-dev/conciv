@@ -3,6 +3,7 @@ import {existsSync, rmSync} from 'node:fs'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {type EngineStaleness} from '@conciv/contract'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
+import {readApprovalAsk} from '@conciv/protocol/chat-event-types'
 import {bootCoreKit, type CoreKit} from '../src/core-kit.js'
 import {test as nodeTest} from '../src/node.js'
 import {createServer} from 'node:http'
@@ -524,8 +525,27 @@ describe('rpc socket liveness', () => {
 })
 
 const NODE_FIXTURE_REPLY = 'Scripted reply from the in-process engine'
+const ECHO_PLUGIN = `export default {
+  id: 'echo',
+  async setup(ctx) {
+    await ctx.tool.transform((editor) => {
+      editor.add({
+        name: 'echo',
+        description: 'Answers with the text it is given',
+        input: {type: 'object', properties: {text: {type: 'string'}}, required: ['text']},
+        execute: async ({text}) => {
+          if (text === '') throw new Error('there is no text to echo')
+          return {content: text}
+        },
+      })
+    })
+  },
+}
+`
 
-nodeTest.override({engineOptions: {id: 'node-fixture', text: NODE_FIXTURE_REPLY}})
+nodeTest.override({
+  engineOptions: {id: 'node-fixture', text: NODE_FIXTURE_REPLY, files: {'conciv/plugins/echo.js': ECHO_PLUGIN}},
+})
 
 describe('node fixtures', () => {
   const first = {tmp: '', stateRoot: ''}
@@ -544,4 +564,35 @@ describe('node fixtures', () => {
     expect(tmp).not.toBe(first.tmp)
     expect(existsSync(first.tmp)).toBe(false)
   })
+
+  nodeTest(
+    'a fresh session sends and is approved, the plugin tool answers and fails typed, and a per-test engine keeps its history across a restart',
+    async ({engine, session, plugin, freshEngine, tmp}) => {
+      expect(session.id).not.toBe(await engine.session())
+      expect((await (await session.send('hello')).done()).text()).toContain(NODE_FIXTURE_REPLY)
+
+      const listening = await session.events()
+      const asked = listening.waitFor((event) => readApprovalAsk(event) !== null)
+      engine.harness.script.scriptPermissionAsk({toolName: 'Bash', input: {command: 'ls'}})
+      const asking = await session.send('may I run ls')
+      expect(readApprovalAsk(await asked)).toMatchObject({toolName: 'bash ls'})
+      expect(await session.approve()).toHaveLength(1)
+      expect((await asking.done()).errors()).toEqual([])
+
+      expect(await plugin.tool('echo').call({text: 'echoed by the plugin'})).toBe('echoed by the plugin')
+      await expect(plugin.tool('echo').failure({text: ''})).resolves.toEqual({
+        tool: 'echo',
+        message: expect.stringContaining('there is no text to echo'),
+      })
+
+      const before = await freshEngine({stateRoot: tmp})
+      const kept = await before.session()
+      await (await before.turn('kept across the restart', {session: kept})).done()
+      await before.cleanup()
+      const after = await freshEngine({stateRoot: tmp})
+      expect((await after.hydrate(kept)).messages.flatMap((message) => message.parts)).toContainEqual(
+        expect.objectContaining({type: 'text', content: 'kept across the restart'}),
+      )
+    },
+  )
 })

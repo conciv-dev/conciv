@@ -47,6 +47,10 @@
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"
     },
+    "./flow": {
+      "types": "./dist/flow.d.ts",
+      "import": "./dist/flow.js"
+    },
     "./navigation-state": {
       "types": "./dist/navigation-state.d.ts",
       "import": "./dist/navigation-state.js"
@@ -101,12 +105,14 @@
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/standard-server-peer": "catalog:",
+    "es-toolkit": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@orpc/server": "catalog:",
+    "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "playwright": "catalog:",
@@ -115,6 +121,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
+    "@playwright/test": "^1.64.1",
     "playwright": "^1.64.1",
     "vitest": "^5.1.0"
   }
