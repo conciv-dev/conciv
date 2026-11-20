@@ -2,7 +2,7 @@ import {describe, expect, test} from 'vitest'
 import fs from 'fs/promises'
 import path from 'path'
 import {NodeFileSystem, NodeServices} from '@effect/platform-node'
-import {Deferred, Effect, Fiber, Layer, Logger, Option, Schedule, Schema, Stream} from 'effect'
+import {ConfigProvider, Deferred, Effect, Fiber, Layer, Logger, Option, Schedule, Schema, Stream} from 'effect'
 import {FetchHttpClient} from 'effect/http'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {FSUtil} from '../../../src/util/fs-util.js'
@@ -382,4 +382,35 @@ describe('FileSystem.find', () => {
       type: 'file',
     })
   })
+})
+
+describe('Watcher native binding path', () => {
+  it.live('loads the binding from CONCIV_PARCEL_WATCHER_PATH under the provided ConfigProvider', () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        const native = yield* Watcher.Native
+        const subscription = yield* native.subscribe({
+          target: directory,
+          type: 'directory',
+          ignore: [],
+          publish: () => {},
+        })
+        yield* Effect.promise(() => subscription?.unsubscribe() ?? Promise.resolve())
+        expect(subscription).toBeUndefined()
+        expect(process.env.CONCIV_PARCEL_WATCHER_PATH).toBeUndefined()
+      }).pipe(
+        Effect.provide(
+          Watcher.nativeLayer.pipe(
+            Layer.provide(
+              ConfigProvider.layer(
+                ConfigProvider.fromUnknown({
+                  CONCIV_PARCEL_WATCHER_PATH: path.join(directory, 'missing-binding.node'),
+                }),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  )
 })

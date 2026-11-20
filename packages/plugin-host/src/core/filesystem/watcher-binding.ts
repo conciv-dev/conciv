@@ -8,11 +8,11 @@ function detectedLibc(require: NodeJS.Require) {
   return family === MUSL ? 'musl' : 'glibc'
 }
 
-export default function load() {
+export default function load(bindingPath: string | undefined) {
   const require = createRequire(import.meta.url)
   const libc = typeof CONCIV_LIBC === 'undefined' ? detectedLibc(require) : CONCIV_LIBC
   return require(
-    process.env.CONCIV_PARCEL_WATCHER_PATH ??
+    bindingPath ??
       `@parcel/watcher-${process.platform}-${process.arch}${process.platform === 'linux' ? `-${libc || 'glibc'}` : ''}`,
   )
 }

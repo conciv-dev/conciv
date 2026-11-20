@@ -4,7 +4,7 @@ import {hasMagic} from 'glob'
 import picomatch from 'picomatch'
 import {FSUtil} from '../../util/fs-util.js'
 import {isRecord} from '../../util/record.js'
-import {Cause, Context, Effect, Layer, PubSub, RcMap, Stream} from 'effect'
+import {Cause, Config, Context, Effect, Layer, Option, PubSub, RcMap, Stream} from 'effect'
 import {lazy} from '../util/lazy.js'
 import {watch} from 'node:fs'
 import path from 'path'
@@ -29,13 +29,17 @@ type Binding = {
   readonly unsubscribe: (directory: string, callback: SubscribeCallback, options: BindingOptions) => Promise<void>
 }
 
-const watcher = lazy((): Binding | undefined => {
+const BindingPathConfig = Config.option(Config.String('CONCIV_PARCEL_WATCHER_PATH')).pipe(
+  Config.map(Option.getOrUndefined),
+)
+
+function tryLoadBinding(bindingPath: string | undefined): Binding | undefined {
   try {
-    return loadBinding()
+    return loadBinding(bindingPath)
   } catch {
     return
   }
-})
+}
 
 function bindingOptions(directory: string, ignore: readonly string[], backend: Backend): BindingOptions {
   return {
@@ -52,8 +56,6 @@ function getBackend(): Backend | undefined {
   if (process.platform === 'darwin') return 'fs-events'
   if (process.platform === 'linux') return 'inotify'
 }
-
-export const hasNativeBinding = () => !!watcher()
 
 export type WatchInput =
   | {readonly path: string; readonly type: 'file'}
@@ -216,38 +218,46 @@ export const testLayer = Layer.effectContext(
   }),
 )
 
-export const nativeLayer = Layer.succeed(
+export const nativeLayer = Layer.effect(
   Native,
-  Native.of({
-    subscribe: (input) => {
-      if (input.type === 'file' || input.type === 'entries') {
-        const directory = input.type === 'file' ? path.dirname(input.target) : input.target
-        const names = new Set(input.type === 'file' ? [path.basename(input.target)] : input.names)
-        return Effect.try({
-          try: () =>
-            watch(directory, {recursive: false}, (_event, file) => {
-              if (file && !names.has(file)) return
-              for (const name of file ? [file] : names) {
-                input.publish({path: path.join(directory, name), type: 'update'})
-              }
+  Effect.gen(function* () {
+    const bindingPath = yield* BindingPathConfig.pipe(
+      Effect.catch((error) =>
+        Effect.logError('the watcher binding path could not be read', {error}).pipe(Effect.as(undefined)),
+      ),
+    )
+    const watcher = lazy(() => tryLoadBinding(bindingPath))
+    return Native.of({
+      subscribe: (input) => {
+        if (input.type === 'file' || input.type === 'entries') {
+          const directory = input.type === 'file' ? path.dirname(input.target) : input.target
+          const names = new Set(input.type === 'file' ? [path.basename(input.target)] : input.names)
+          return Effect.try({
+            try: () =>
+              watch(directory, {recursive: false}, (_event, file) => {
+                if (file && !names.has(file)) return
+                for (const name of file ? [file] : names) {
+                  input.publish({path: path.join(directory, name), type: 'update'})
+                }
+              }),
+            catch: (error) => error,
+          }).pipe(
+            Effect.map((subscription): Subscription => {
+              subscription.on('error', (error: unknown) =>
+                Effect.runFork(Effect.logError('watcher callback failed', {path: directory, error})),
+              )
+              return {unsubscribe: () => Promise.resolve(subscription.close()), backend: 'node'}
             }),
-          catch: (error) => error,
-        }).pipe(
-          Effect.map((subscription): Subscription => {
-            subscription.on('error', (error: unknown) =>
-              Effect.runFork(Effect.logError('watcher callback failed', {path: directory, error})),
-            )
-            return {unsubscribe: () => Promise.resolve(subscription.close()), backend: 'node'}
-          }),
-          Effect.catch((error) =>
-            isRecord(error) && error.code === 'ENOENT'
-              ? Effect.undefined
-              : Effect.logError('failed to watch directory', {path: directory, error}).pipe(Effect.as(undefined)),
-          ),
-        )
-      }
-      return subscribeDirectory(watcher(), getBackend(), input.target, input.ignore, input.publish)
-    },
+            Effect.catch((error) =>
+              isRecord(error) && error.code === 'ENOENT'
+                ? Effect.undefined
+                : Effect.logError('failed to watch directory', {path: directory, error}).pipe(Effect.as(undefined)),
+            ),
+          )
+        }
+        return subscribeDirectory(watcher(), getBackend(), input.target, input.ignore, input.publish)
+      },
+    })
   }),
 )
 
