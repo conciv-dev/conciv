@@ -69,7 +69,7 @@ Rules: drive the widget by role and visible text; no `page.evaluate`, test-ids o
 - `packages/plugin/src/effect/rpc.ts`
 - `packages/plugins/test-runner/src/rpc.ts`
 - `packages/plugins/test-runner/src/index.ts`
-- `packages/plugins/test-runner/src/panel/follow-run.ts`
+- `packages/plugins/test-runner/src/follow.ts`
 - `packages/plugins/test-runner/test/test-runner.browser.test.ts`
 - `packages/plugin-testkit/src/core-kit.ts`
 - `packages/plugin-testkit/src/widget-suite.ts`
