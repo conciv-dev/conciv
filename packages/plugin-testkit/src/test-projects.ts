@@ -201,6 +201,7 @@ export function testProjects(): TestProjectInlineConfiguration[] {
       test: {
         ...page,
         name: 'happy-dom',
+        isolate: false,
         include: ['src/**/*.dom.test.ts', 'src/**/*.dom.test.tsx'],
         environment: join(KIT_DIST, 'dom-environment.js'),
         environmentOptions: {happyDOM: {width: 1280, height: 800}},
