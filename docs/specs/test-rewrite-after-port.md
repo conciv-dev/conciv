@@ -75,8 +75,9 @@ export the `TestLLM` reply helpers, and the engine has `gate()` for a held reply
 `harness`, ruled 2026-11-20: `createEngine` passes it to `createHarnessEngine`, which already takes it and scripts only
 its chat. It is how a test says which models, slash commands and terminal the engine offers, as an opencode test's
 setup does (`_ref/opencode/packages/app/e2e/utils/mock-server.ts:154`, `:173`, `core/test/session-runner.test.ts:138`).
-The test passes a real harness adapter from `@conciv/harness`, never a hand-written one. The engine still runs one
-harness.
+The quick harness is the kit's own (ruled 2026-11-20): the scripted harness of `@conciv/harness-testkit` offers a
+model list, slash commands and a terminal that is a plain shell, so no test needs a CLI or writes a harness by hand.
+The real adapters (claude, codex, gemini, opencode) are proven in `e2e/`. The engine still runs one harness.
 
 A past chat is made with real turns (`engine.session.send`), never by writing rows. Drafts come from
 `Platform.draftStore`; `mount` passes an in-memory store. No connection faults in the kit. Page errors as opencode:
@@ -109,9 +110,11 @@ A past chat is made with real turns (`engine.session.send`), never by writing ro
    since ruled out (connection faults, held socket calls, fake-indexeddb, the `/flow` and `chat`/`component` fixtures)
    given a new place or a reason it is not carried, and line numbers moved to `9d4f4834f`.
 4. **Write.** The package `test` scripts are removed and the hook refuses vitest and playwright for writers, so writers
-   cannot run tests. At most 5 writers, one area each, writing exactly what the area's plan says.
-5. **Verify.** Per area: the orchestrator runs every file, reads every test against its plan entry, and checks the
-   area's coverage list against the old tests at `9d4f4834f`. A failing or missing journey goes back to its writer.
+   cannot run tests. At most 5 writers, one area each, writing exactly what the area's plan says. A writer that cannot
+   write a row as planned stops at that row and reports it; the maintainer rules on every deviation.
+5. **Make green.** New agents, not the writers, run each area's files and make them pass by fixing the test or the
+   product bug it found, never by weakening what the plan row proves. The orchestrator reads every test against its
+   plan row and checks the area's coverage list against the old tests at `9d4f4834f`.
 6. **One PR** with the kit and all the new tests, from `test/plugin-testkit-mounts`.
 7. **Runners back.** The `test` scripts return per package and CI runs them.
 
