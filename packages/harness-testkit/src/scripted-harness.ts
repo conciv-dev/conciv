@@ -5,7 +5,7 @@ import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps, HarnessCommand, HarnessConnectContext, HarnessModel} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
-import type {Gate, ModelRequest, Response} from './test-llm.js'
+import type {Gate, RecordedRequest, Responder, Response} from './test-llm.js'
 
 const FAKE_HARNESS_ID = 'engine'
 
@@ -51,13 +51,22 @@ type RunRequest = Pick<StreamOptions, 'messages' | 'tools'> & {
 
 type HeldGate = {started: PromiseWithResolvers<void>; released: PromiseWithResolvers<void>}
 
-type ScriptState = {requests: ModelRequest[]; held: HeldGate | undefined}
+type ScriptState = {
+  requests: RecordedRequest[]
+  held: HeldGate | undefined
+  fallback: Responder | undefined
+  arrived: PromiseWithResolvers<void>
+}
 
 export type ReplyScript = {
   harness: (harness: HarnessAdapter | undefined) => HarnessAdapter
   gate: () => Gate
   releaseGate: () => void
-  requests: () => ModelRequest[]
+  requests: () => RecordedRequest[]
+  push: (...replies: readonly Response[]) => void
+  always: (reply: Response) => void
+  serve: (responder: Responder) => void
+  wait: (count: number) => Promise<void>
 }
 
 function stamped(event: ChatEvent, run: Run): ChatEvent {
@@ -67,7 +76,7 @@ function stamped(event: ChatEvent, run: Run): ChatEvent {
   return event
 }
 
-function recorded(request: RunRequest): ModelRequest {
+function recorded(request: RunRequest): RecordedRequest {
   return {
     messages: [...request.messages],
     tools: (request.tools ?? []).map((tool) => ({name: tool.name, description: tool.description})),
@@ -90,7 +99,7 @@ function replyChunks(reply: Response, signal: AbortSignal | undefined): Iterable
 async function* replyEvents(
   deps: HarnessChatDeps,
   request: RunRequest,
-  take: (request: ModelRequest) => Promise<Response>,
+  take: (request: RecordedRequest) => Promise<Response>,
 ): AsyncGenerator<ChatEvent> {
   const run = {threadId: request.threadId ?? deps.sessionId, runId: request.runId ?? crypto.randomUUID()}
   const reply = await take(recorded(request))
@@ -104,12 +113,26 @@ async function* replyEvents(
   for await (const event of replyChunks(reply, request.request?.signal ?? undefined)) yield stamped(event, run)
 }
 
-export function replyScript(replies: readonly Response[]): ReplyScript {
+function answerWith(reply: Response | undefined): Responder | undefined {
+  if (reply === undefined) return undefined
+  return () => reply
+}
+
+export function replyScript(replies: readonly Response[], fallback: Response | undefined): ReplyScript {
   const queued = [...replies]
-  const state: ScriptState = {requests: [], held: undefined}
-  const take = async (request: ModelRequest): Promise<Response> => {
+  const state: ScriptState = {
+    requests: [],
+    held: undefined,
+    fallback: answerWith(fallback),
+    arrived: Promise.withResolvers<void>(),
+  }
+  const pick = (request: RecordedRequest): Response | undefined => queued.shift() ?? state.fallback?.(request)
+  const take = async (request: RecordedRequest): Promise<Response> => {
     const count = state.requests.push(request)
-    const reply = queued.shift()
+    const arrived = state.arrived
+    state.arrived = Promise.withResolvers<void>()
+    arrived.resolve()
+    const reply = pick(request)
     if (reply === undefined) throw new Error(`the scripted harness has no reply for request ${count}`)
     const held = state.held
     if (held !== undefined) {
@@ -121,6 +144,9 @@ export function replyScript(replies: readonly Response[]): ReplyScript {
   const chatConfig =
     (name: string): HarnessAdapter['chatConfig'] =>
     (deps) => ({adapter: makeTextAdapter(name, (request) => replyEvents(deps, request, take))})
+  const wait = async (count: number): Promise<void> => {
+    while (state.requests.length < count) await state.arrived.promise
+  }
   const releaseGate = (): void => {
     const held = state.held
     state.held = undefined
@@ -162,5 +188,15 @@ export function replyScript(replies: readonly Response[]): ReplyScript {
     },
     releaseGate,
     requests: () => [...state.requests],
+    push: (...more) => {
+      queued.push(...more)
+    },
+    always: (reply) => {
+      state.fallback = () => reply
+    },
+    serve: (responder) => {
+      state.fallback = responder
+    },
+    wait,
   }
 }

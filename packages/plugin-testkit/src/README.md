@@ -16,5 +16,6 @@ The engine a test makes, the mount that shows the app on it, and the vitest proj
 ## Invariants
 
 - The engine graph loads as plain Node modules (`server.deps.external` on the engine chunk), so `ws` and the server entries never get browser conditions.
-- In browser mode every engine and session call, the recorded model requests and a session's stop included, crosses as a browser command and returns plain JSON.
+- In browser mode every engine and session call crosses as a browser command and carries plain JSON. What cannot cross fails at once with a plain message: a harness adapter, a streamed reply (in `replies`, `fallback`, `push` or `always`), and `serve`, whose reply is a function.
+- A session handle is only an id over its engine, so a session reached by id works the same as one the test made.
 - State is put in place only through the engine's own rpc (settings, real turns) and browser storage; no test-only endpoint.

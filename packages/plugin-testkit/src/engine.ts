@@ -22,6 +22,7 @@ export type CreateEngineOptions = {
   plugins?: ConcivConfig['plugins']
   harness?: HarnessEngineOptions['harness']
   replies?: readonly TestLLM.Response[]
+  fallback?: TestLLM.Response
   settings?: EngineSetting[]
   files?: Record<string, string>
   permission?: ConcivConfig['permission']
@@ -33,7 +34,7 @@ export type EngineTool = HarnessEngineTool
 
 export type EngineSession = HarnessEngineSession
 
-export type Engine = Pick<HarnessEngine, 'session' | 'newSession' | 'setting' | 'gate' | 'requests'>
+export type Engine = Omit<HarnessEngine, 'address' | 'stop'>
 
 export type EngineAddress = HarnessEngineAddress
 
@@ -73,16 +74,17 @@ function locatePlugin(entry: PluginEntry): PluginEntry {
 }
 
 export async function startEngine(options: CreateEngineOptions): Promise<StartedEngine> {
-  const {harness, replies, files, settings, permission} = options
+  const {harness, replies, fallback, files, settings, permission} = options
   const plugins = options.plugins?.map(locatePlugin)
-  const {session, newSession, setting, gate, requests, address, stop} = await createHarnessEngine({
+  const {address, stop, ...engine} = await createHarnessEngine({
     harness,
     config: {plugins, permission},
     replies,
+    fallback,
     files,
     settings,
   })
-  return {engine: {session, newSession, setting, gate, requests}, address, stop}
+  return {engine, address, stop}
 }
 
 export async function createEngine(options: CreateEngineOptions = {}): Promise<Engine> {
