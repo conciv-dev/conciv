@@ -10,8 +10,7 @@ The testkit runs the real product path and fakes only the expensive externals, t
 
 ## Interface
 
-- `package.json:exports` - `.` (`src/testkit.ts`), `./until`, `./login`, `./rpc-mounts`.
-- `./login` reads the local engine's port and token from the project's `.conciv/server.json` to build the authenticated engine URL and mint a login code or trusted browser token.
+- `package.json:exports` - `.` (`src/testkit.ts`), `./until`, `./rpc-mounts`, `./node`.
 - `vitest.config.ts` - `ciTest()` with the `node` environment.
 - Source: [src](./src/README.md).
 

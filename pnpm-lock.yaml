@@ -1396,12 +1396,18 @@ importers:
 
   e2e/e2e-utils:
     dependencies:
-      '@conciv/harness-testkit':
+      '@conciv/contract':
         specifier: workspace:*
-        version: link:../../packages/harness-testkit
+        version: link:../../packages/contract
+      '@conciv/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@conciv/tsconfig':
         specifier: workspace:*

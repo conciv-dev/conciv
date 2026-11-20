@@ -29,10 +29,6 @@
       "types": "./dist/until.d.ts",
       "import": "./dist/until.js"
     },
-    "./login": {
-      "types": "./dist/login.d.ts",
-      "import": "./dist/login.js"
-    },
     "./rpc-mounts": {
       "types": "./dist/rpc-mounts.d.ts",
       "import": "./dist/rpc-mounts.js"

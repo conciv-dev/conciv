@@ -1,6 +1,6 @@
 import {readFileSync, writeFileSync} from 'node:fs'
 import {expect, test, type ConsoleMessage, type Page} from '@playwright/test'
-import {magicLink, recordedEngineBase, trustedBrowserToken} from '@conciv/harness-testkit/login'
+import {magicLink, recordedEngineBase, trustedBrowserToken} from './login.js'
 import {e2eConfigDir, e2eServerLog} from './config.js'
 
 export type PageFailures = {

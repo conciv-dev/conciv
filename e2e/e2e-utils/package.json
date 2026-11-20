@@ -13,8 +13,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@conciv/harness-testkit": "workspace:*",
-    "@playwright/test": "catalog:"
+    "@conciv/contract": "workspace:*",
+    "@conciv/protocol": "workspace:*",
+    "@playwright/test": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
