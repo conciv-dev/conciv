@@ -70,6 +70,15 @@ export type ReplyScript = {
 }
 
 function stamped(event: ChatEvent, run: Run): ChatEvent {
+  switch (event.type) {
+    case ChatEventType.TEXT_MESSAGE_START:
+    case ChatEventType.TEXT_MESSAGE_CONTENT:
+    case ChatEventType.TEXT_MESSAGE_END:
+    case ChatEventType.REASONING_MESSAGE_START:
+    case ChatEventType.REASONING_MESSAGE_CONTENT:
+    case ChatEventType.REASONING_MESSAGE_END:
+      return {...event, messageId: `${run.runId}-${event.messageId}`}
+  }
   if (event.type === ChatEventType.RUN_STARTED) return {...event, ...run}
   if (event.type === ChatEventType.RUN_FINISHED) return {...event, ...run}
   if (event.type === ChatEventType.RUN_ERROR) return {...event, ...run}

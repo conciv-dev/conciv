@@ -19,6 +19,7 @@ The engine is the product's own `makeApp`, and the kit talks to it the way the p
 - The kit does not depend on a test runner at run time; its own node tests use vitest.
 - The quick harness's terminal needs `bash` on the PATH.
 - The harness writes the request's own thread and run ids into every run start, finish and error chunk of a reply.
+- The harness prefixes every text and reasoning message id of a reply with the run id, so a reply given on several turns (`always`, `serve`, the `fallback`) shows on each of them.
 - A streamed reply ends when the run is stopped.
 
 ## Side Effects
