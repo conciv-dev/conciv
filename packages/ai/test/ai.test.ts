@@ -795,6 +795,18 @@ const watched = require('node:net').connect(data.socket, () => {
       expect(second).toMatchObject({success: true, value: ['undefined', 'undefined', 'undefined']})
     })
 
+    it('a tool called with no argument receives an empty object', async () => {
+      const received: unknown[] = []
+      const {run} = sandbox(LIMITS, {
+        echo: binding('echo', async (args) => {
+          received.push(args)
+          return args
+        }),
+      })
+      expect(await run('return await echo()')).toMatchObject({success: true, value: {}})
+      expect(received).toEqual([{}])
+    })
+
     it('a timed out run and a run over its memory limit retire their worker and the next run works', async () => {
       const ours = workersFromHere()
       const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 16})

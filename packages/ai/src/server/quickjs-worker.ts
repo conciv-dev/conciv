@@ -50,9 +50,13 @@ async function execution(task: QuickJSTask, host: Host): Promise<ExecutionResult
     timeout: task.timeout,
     memoryLimit: task.memoryLimit,
   })
-  const result = await context.execute(task.code).catch(failedRun)
+  const result = await context.execute(`${emptyArgumentDefaults(task.names)}\n${task.code}`).catch(failedRun)
   await context.dispose()
   return result
+}
+
+function emptyArgumentDefaults(names: string[]): string {
+  return `for (const name of ${JSON.stringify(names)}) { const call = globalThis[name]; globalThis[name] = (input = {}) => call(input) }`
 }
 
 function failedRun(error: unknown): ExecutionResult {
