@@ -67,16 +67,13 @@
     "@conciv/app": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@unocss/reset": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
     "publint": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:",
     "zod": "catalog:"
   },
   "engines": {
