@@ -238,3 +238,27 @@ The price is 12 turbo build lists that an existing repo check already guards. Be
 settles the only unverified step: `pnpm install` on a branch with the O1+O2 manifests, then check that `@conciv/app`
 and the five engine peers link into the kits' node_modules. O3 is opencode's own shape, but it gives up the
 kit-everywhere ruling.
+
+## Outcome, 2026-11-20
+
+Maintainer: the kit is a devDependency of every package that runs tests, and a leaf is a package that depends on no
+workspace package. The root-only idea and the 12 build lists are both dropped. Proven for real by plugins-6b in a
+throwaway worktree (report: orchestrator inbox `210407-plugins-6b.md`; diff kept at
+`/private/tmp/claude-501/-Users-omrikatz-Public-web-aidx/1929ba4e-d617-49a8-944f-3909dabd397d/scratchpad/kit-cycle/leaf.diff`):
+
+- Both kits name every `@conciv/*` package they need as `peerDependencies` only. pnpm 11.7.0 links each peer into the
+  kit's `node_modules`.
+- A kit's `build` is tsdown only and waits for nothing; a new `build:types` (tsc) waits for the dists it reads. Those
+  are the only two hand-kept lists (one per kit, in its `turbo.json`).
+- Root `turbo.json`: the test task waits for both kits' `build` and `build:types`; the typecheck task waits for both
+  `build:types`.
+- No turbo cycle is left: the whole-repo dry run plans, and real test and typecheck runs passed in test-runner, the
+  app, the page plugin and core with a probe test each. pnpm prints a cyclic-workspace warning that counts peers; it
+  is a warning only.
+- `check-turbo-depends-on` (`packages/publish/src/workspace-imports.ts`) changes: skip a transpile-only kit build, check
+  the dist reads of `build:types`.
+
+Open: a package inside `@conciv/unplugin`'s own closure cannot take the test projects from `conciv()` (17 kit users,
+"Cyclic dependency detected: @conciv/embed#build, @conciv/unplugin#build, @conciv/app#build"). Where their
+`vite.config.ts` gets the test projects is the maintainer's decision. Also open: `@conciv/app` is private while the
+published kit peers on it.
