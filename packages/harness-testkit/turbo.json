@@ -28,6 +28,9 @@
         "@conciv/protocol#build"
       ]
     },
+    "test": {
+      "dependsOn": ["build", "build:types"]
+    },
     "publint": {
       "dependsOn": ["build", "build:types"]
     },
