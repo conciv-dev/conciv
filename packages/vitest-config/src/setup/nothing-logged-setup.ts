@@ -1,4 +1,4 @@
-import {afterEach, beforeEach} from 'vitest'
+import {aroundAll, beforeEach, expect} from 'vitest'
 import {readExpectedLog} from '../expected-log.ts'
 import {isNewLayerTestFile} from '../new-layer.ts'
 
@@ -23,20 +23,32 @@ function recordLevel(level: LogLevel): void {
 recordLevel('error')
 recordLevel('warn')
 
-beforeEach(() => {
-  loggedLines.length = 0
-})
-
-afterEach(({task}) => {
-  if (!isNewLayerTestFile(task.file.filepath)) return
-  const expected = readExpectedLog(task)
-  const unexpected = loggedLines.filter((line) => !expected.some((pattern) => pattern.test(line)))
+function failOnUnexpected(lines: string[], expected: RegExp[], heading: string): void {
+  const unexpected = lines.filter((line) => !expected.some((pattern) => pattern.test(line)))
   if (unexpected.length === 0) return
   throw new Error(
     [
-      'This test printed console lines it did not declare:',
+      heading,
       ...unexpected.map((line) => `  ${line}`),
       'Declare each expected line with the expectLog(pattern) fixture from @conciv/plugin-testkit.',
     ].join('\n'),
   )
+}
+
+beforeEach(({task, onTestFinished}) => {
+  loggedLines.length = 0
+  onTestFinished(() => {
+    const lines = loggedLines.splice(0)
+    if (!isNewLayerTestFile(task.file.filepath)) return
+    failOnUnexpected(lines, readExpectedLog(task), 'This test printed console lines it did not declare:')
+  })
+})
+
+aroundAll(async (runSuite) => {
+  await runSuite()
+  const lines = loggedLines.splice(0)
+  const {testPath} = expect.getState()
+  if (testPath === undefined) throw new Error('the nothing-logged guard ran after a file without knowing its path')
+  if (!isNewLayerTestFile(testPath)) return
+  failOnUnexpected(lines, [], 'This file printed console lines outside its tests, after its last test checked:')
 })
