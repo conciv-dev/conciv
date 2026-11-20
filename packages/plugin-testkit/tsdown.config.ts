@@ -17,8 +17,12 @@ export default defineConfig({
     'src/rpc-socket.ts',
     'src/rpc-observer.ts',
     'src/chat-fault.ts',
+    'src/engine-child.ts',
+    'src/browser.ts',
+    'src/dom-environment.ts',
   ],
   format: 'esm',
   fixedExtension: false,
   dts: false,
+  deps: {neverBundle: true},
 })
