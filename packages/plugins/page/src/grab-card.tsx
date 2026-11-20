@@ -22,6 +22,8 @@ const AGENT_TEXT =
   'text-chat-text-2 [font-family:var(--chat-mono)] text-xs whitespace-pre-wrap [word-break:break-all] m-0'
 const CARD_SNAPSHOT = 'block w-auto h-auto max-w-full max-h-[40cqh]'
 
+const STAGED_SNAPSHOT = 'block h-14 w-40 object-contain'
+
 const LOADING_ROW = 'flex items-center gap-2'
 
 const DIALOG_SNAPSHOT = 'block w-auto h-auto max-w-full max-h-[70vh]'
@@ -93,7 +95,7 @@ function GrabBody(props: {payload: GrabPayload; onRemove?: (id: string) => void}
       <Show when={props.payload.preview} fallback={<pre class={AGENT_TEXT}>{props.payload.text}</pre>}>
         {(preview) => (
           <div class={PREVIEW_SLOT}>
-            <Preview preview={preview()} class={CARD_SNAPSHOT} />
+            <Preview preview={preview()} class={props.onRemove ? STAGED_SNAPSHOT : CARD_SNAPSHOT} />
             <Button
               variant="plain"
               size="none"
