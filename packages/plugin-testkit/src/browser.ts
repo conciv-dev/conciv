@@ -1,4 +1,4 @@
 import {engineAddress} from './browser-engine.js'
-import {makeMount} from './mount.js'
+import {makeMount, type Mount} from './mount.js'
 
-export const mount = makeMount(engineAddress)
+export const mount: Mount = makeMount(engineAddress)

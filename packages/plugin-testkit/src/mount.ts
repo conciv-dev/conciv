@@ -54,7 +54,9 @@ function writeStorage(storage: Record<string, unknown>): void {
     localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value))
 }
 
-export function makeMount(engineAddress: (engine: Engine) => EngineAddress): (options: MountOptions) => Promise<void> {
+export type Mount = (options: MountOptions) => Promise<void>
+
+export function makeMount(engineAddress: (engine: Engine) => EngineAddress): Mount {
   return async (options) => {
     const address = engineAddress(options.engine)
     onTestFinished(() => {

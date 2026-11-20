@@ -41,7 +41,7 @@ function resolvableFrom(id: string, root: string): boolean {
   }
 }
 
-export function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly string[]} = {}) {
+function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly string[]} = {}) {
   const root = opts.root
   const singletons =
     root === undefined ? [...SOLID_SINGLETONS] : SOLID_SINGLETONS.filter((id) => resolvableFrom(id, root))

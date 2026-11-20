@@ -7,29 +7,8 @@
       "outputs": ["dist/**"]
     },
     "build:types": {
-      "dependsOn": [
-        "build",
-        "@conciv/harness-testkit#build:types",
-        "@conciv/ai#build",
-        "@conciv/client#build",
-        "@conciv/contract#build",
-        "@conciv/core#build",
-        "@conciv/grab#build",
-        "@conciv/mascot#build",
-        "@conciv/plugin#build",
-        "@conciv/plugin-internal#build",
-        "@conciv/plugin-tanstack#build",
-        "@conciv/plugin-terminal#build",
-        "@conciv/protocol#build",
-        "@conciv/solid-streamdown#build",
-        "@conciv/storage-history#build",
-        "@conciv/tools#build",
-        "@conciv/ui-kit-chat#build",
-        "@conciv/ui-kit-chat-tools#build",
-        "@conciv/ui-kit-system#build",
-        "@conciv/ui-kit-tap#build"
-      ],
-      "outputs": ["dist/**/*.d.ts"]
+      "dependsOn": ["build"],
+      "outputs": ["dist/**/*.d.ts", "dist/**/*.d.ts.map"]
     },
     "typecheck": {
       "dependsOn": [

@@ -72,7 +72,7 @@
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "build:types": "tsc -p tsconfig.build.json"
+    "build:types": "tsdown -c tsdown.types.config.ts"
   },
   "dependencies": {
     "@conciv/cli": "workspace:^",

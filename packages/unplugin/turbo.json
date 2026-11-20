@@ -7,14 +7,8 @@
       "outputs": ["dist/**"]
     },
     "build:types": {
-      "dependsOn": [
-        "build",
-        "@conciv/core#build",
-        "@conciv/embed#build",
-        "@conciv/plugin#build",
-        "@conciv/protocol#build"
-      ],
-      "outputs": ["dist/**/*.d.ts"]
+      "dependsOn": ["build"],
+      "outputs": ["dist/**/*.d.ts", "dist/**/*.d.ts.map"]
     },
     "publint": {
       "dependsOn": ["build", "build:types"]

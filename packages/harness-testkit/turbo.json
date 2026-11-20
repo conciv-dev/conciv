@@ -7,16 +7,8 @@
       "outputs": ["dist/**"]
     },
     "build:types": {
-      "dependsOn": [
-        "build",
-        "@conciv/core#build",
-        "@conciv/ai#build",
-        "@conciv/contract#build",
-        "@conciv/harness#build",
-        "@conciv/serve#build",
-        "@conciv/protocol#build"
-      ],
-      "outputs": ["dist/**/*.d.ts"]
+      "dependsOn": ["build"],
+      "outputs": ["dist/**/*.d.ts", "dist/**/*.d.ts.map"]
     },
     "typecheck": {
       "dependsOn": [
