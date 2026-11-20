@@ -1,3 +1,4 @@
+import type {ConfigProvider} from 'effect'
 import type {z} from 'zod'
 import type {ChatMessage} from './chat-message-types.js'
 import type {HarnessListCursorSchema, HarnessSessionId, ReasoningEffort, SessionId} from './chat-types.js'
@@ -88,7 +89,7 @@ export type HarnessInit<Id extends string = string> = HarnessInitBase<Id> & {
   completed: string
   planSummary: string
   plan(project: HarnessInitProject): HarnessInitPlan
-  installed(project: HarnessInitProject & {home: string}): boolean
+  installed(project: HarnessInitProject & {home: string; configProvider?: ConfigProvider.ConfigProvider}): boolean
   manualCard(root: string): HarnessInitCard
 }
 

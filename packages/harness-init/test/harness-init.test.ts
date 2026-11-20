@@ -4,6 +4,7 @@ import {createServer, type IncomingMessage, type Server, type ServerResponse} fr
 import {dirname, join, relative} from 'node:path'
 import {createInterface} from 'node:readline'
 import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
+import {ConfigProvider} from 'effect'
 import {z} from 'zod'
 import {CONCIV_CLAUDE_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -17,6 +18,7 @@ import {type HarnessConnectFile} from '@conciv/protocol/harness-types'
 import {claudeConnectServesProject, claudePluginCacheDir} from '../src/claude/install-state.js'
 import {CLAUDE_CONNECT_INSTALL_TARGET, claudeConnectDir, claudeConnectPluginFiles} from '../src/claude/plugin-files.js'
 import {inside} from '../src/paths.js'
+import {claudeInit} from '../src/claude/init.js'
 import harnessInitManifest from '../package.json' with {type: 'json'}
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
@@ -561,6 +563,21 @@ describe('install state', () => {
       rmSync(claudeConnectDir(second.stateDir), {recursive: true, force: true})
 
       expect(serves(configDir, first)).toBe(false)
+    })
+  })
+
+  describe('claude init reads CLAUDE_CONFIG_DIR from the caller config provider', () => {
+    it('finds the install under the provider config dir, not the home default', () => {
+      const configDir = makeDir('claude-config')
+      const home = makeDir('claude-home')
+      const project = makeProject('provided')
+      claudeInstalls(configDir, project, [])
+      const installed = (configProvider: ConfigProvider.ConfigProvider) =>
+        claudeInit.installed({cwd: project.root, stateDir: project.stateDir, home, configProvider})
+
+      expect(installed(ConfigProvider.fromUnknown({CLAUDE_CONFIG_DIR: configDir}))).toBe(true)
+      expect(installed(ConfigProvider.fromUnknown({}))).toBe(false)
+      expect(process.env.CLAUDE_CONFIG_DIR).not.toBe(configDir)
     })
   })
 })

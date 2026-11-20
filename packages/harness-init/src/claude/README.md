@@ -25,7 +25,7 @@ Claude-specific init. It generates a local Claude plugin marketplace under `<sta
 
 ## Side Effects
 
-- Reads env `CLAUDE_CONFIG_DIR` (`claudeInit.installed`).
+- Reads `CLAUDE_CONFIG_DIR` as Effect Config under the project's `configProvider` (default `ConfigProvider.fromEnv({preserveEmptyStrings: true})`); an empty value falls back to `<home>/.claude` (`claudeInit.installed`).
 - Reads `<configDir>/plugins/installed_plugins.json`, `known_marketplaces.json` and cached plugin files (`readTextOrNull`, `install-state.ts`).
 - This package returns the plugin files and install commands; the caller writes the files and spawns `claude plugin ...` (`installPlan`, `init.ts`).
 - The generated bridge script, at runtime, reads env `CLAUDE_CODE_SESSION_ID` and `CONCIV_MCP_TIMEOUT_MS`, reads `<CONCIV_STATE_DIR>/mcp-endpoint.json`, POSTs each stdin line to `mcpUrl` with header `CONCIV_CLAUDE_SESSION_HEADER`, and writes JSON-RPC replies to stdout (`bridge.ts`).

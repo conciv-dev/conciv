@@ -1,6 +1,13 @@
+import {Config, ConfigProvider, Effect, Option} from 'effect'
 import type {HarnessInit, HarnessInitCard, HarnessInitCommand, HarnessInitPlan} from '@conciv/protocol/harness-types'
 import {claudeConfigDir, claudeConnectServesProject} from './install-state.js'
 import {claudeConnectDir, claudeConnectPluginFiles, CLAUDE_CONNECT_INSTALL_TARGET} from './plugin-files.js'
+
+const ClaudeConfigDirConfig = Config.option(Config.String('CLAUDE_CONFIG_DIR')).pipe(Config.map(Option.getOrUndefined))
+
+function readClaudeConfigDir(provider: ConfigProvider.ConfigProvider | undefined): string | undefined {
+  return Effect.runSync(ClaudeConfigDirConfig.parse(provider ?? ConfigProvider.fromEnv({preserveEmptyStrings: true})))
+}
 
 const INSTALL_ARGS = ['plugin', 'install', CLAUDE_CONNECT_INSTALL_TARGET, '--scope', 'local']
 const UPDATE_ARGS = ['plugin', 'update', CLAUDE_CONNECT_INSTALL_TARGET, '--scope', 'local']
@@ -61,7 +68,7 @@ export const claudeInit: HarnessInit<'claude'> = {
   plan: (project) => installPlan(project.stateDir),
   installed: (project) =>
     claudeConnectServesProject({
-      configDir: claudeConfigDir({home: project.home, override: process.env.CLAUDE_CONFIG_DIR}),
+      configDir: claudeConfigDir({home: project.home, override: readClaudeConfigDir(project.configProvider)}),
       stateDir: project.stateDir,
       root: project.cwd,
       files: claudeConnectPluginFiles({stateDir: project.stateDir}),

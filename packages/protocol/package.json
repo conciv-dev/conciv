@@ -127,6 +127,7 @@
   },
   "dependencies": {
     "@tanstack/ai": "catalog:",
+    "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

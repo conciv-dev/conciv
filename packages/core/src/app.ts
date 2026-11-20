@@ -248,7 +248,8 @@ const PathConfig = Config.String('PATH').pipe(Config.withDefault(''))
 
 const readAppEnv = Effect.fn('core.app.readEnv')(function* (homeDir: string | undefined) {
   const home = yield* readConcivHome(homeDir)
-  return {home, path: yield* PathConfig, env: yield* readProcessEnv, hub: yield* makeHubInstaller(home)}
+  const env = yield* readProcessEnv
+  return {home, path: yield* PathConfig, env, hub: yield* makeHubInstaller(home, env)}
 })
 
 function onPath(path: string, bin: string): boolean {

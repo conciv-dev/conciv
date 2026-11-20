@@ -1,7 +1,7 @@
 import {homedir} from 'node:os'
 import {Config, Effect} from 'effect'
 import {detectHarnesses} from '@conciv/harness-init/detect'
-import {createHubConnections} from '@conciv/harness-init/hub'
+import {createHubConnections, makeChildRun} from '@conciv/harness-init/hub'
 import {initContributions} from '@conciv/harness-init/registry'
 import type {HubAgents} from '@conciv/protocol/chat-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
@@ -16,13 +16,20 @@ const DetectionEnvConfig = Config.all({
 
 type HubConnections = ReturnType<typeof createHubConnections>
 
-export const makeHubInstaller = Effect.fn('core.hub.makeInstaller')(function* (home: string) {
+export const makeHubInstaller = Effect.fn('core.hub.makeInstaller')(function* (
+  home: string,
+  childEnv: NodeJS.ProcessEnv,
+) {
   const detectionEnv = yield* DetectionEnvConfig
-  return createHubInstaller(home, detectionEnv)
+  return createHubInstaller(home, detectionEnv, childEnv)
 })
 
-export function createHubInstaller(home: string, detectionEnv: {PATH: string; HOME: string}) {
-  const connections = (): HubConnections => createHubConnections(home)
+export function createHubInstaller(
+  home: string,
+  detectionEnv: {PATH: string; HOME: string},
+  childEnv: NodeJS.ProcessEnv,
+) {
+  const connections = (): HubConnections => createHubConnections(home, makeChildRun(childEnv))
   const connected = (): ReturnType<HubConnections['list']> => {
     try {
       return connections().list()

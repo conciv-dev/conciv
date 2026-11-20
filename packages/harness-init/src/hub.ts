@@ -36,7 +36,7 @@ type LeasedRun = (argv: string[]) => Promise<RunOutcome>
 
 type Hub = {remove?: string[]}
 
-export function createHubConnections(home: string, run: Run = runFile) {
+export function createHubConnections(home: string, run: Run = makeChildRun()) {
   const list = (): HubConnection[] =>
     (readHomeDb(home, hubConnections) ?? []).flatMap((row) => {
       const parsed = HarnessIdSchema.safeParse(row.harness)
@@ -183,14 +183,18 @@ function readable(
   }
 }
 
-function runFile(argv: string[], options: RunOptions): Promise<RunOutcome> {
+export function makeChildRun(env?: NodeJS.ProcessEnv): Run {
+  return (argv, options) => runFile(argv, options, env)
+}
+
+function runFile(argv: string[], options: RunOptions, env: NodeJS.ProcessEnv | undefined): Promise<RunOutcome> {
   const [bin, ...args] = argv
   if (bin === undefined) return Promise.resolve({ok: false, output: '', message: 'the harness gave no command to run'})
   return new Promise((resolve) => {
     const child = execFile(
       bin,
       args,
-      {timeout: options.timeout, killSignal: 'SIGKILL', env: process.env},
+      {timeout: options.timeout, killSignal: 'SIGKILL', env},
       (error, stdout, stderr) => {
         const message = stderr.trim() || stdout.trim() || (error?.message ?? '')
         resolve({ok: error === null, output: `${stdout}\n${stderr}`, message})

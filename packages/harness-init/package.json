@@ -79,6 +79,7 @@
   "dependencies": {
     "@conciv/db": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
