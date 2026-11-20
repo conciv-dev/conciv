@@ -6,7 +6,7 @@ import {z} from 'zod'
 import type {WhiteboardDb} from './whiteboard-db.js'
 import {json, type ElementRow, type JsonValue, type PendingRow} from './rows.js'
 import {validateSvg} from './svg-caps.js'
-import * as WhiteboardDrain from './drain.js'
+import {WhiteboardDrain} from './drain.js'
 
 type ReplayStep<Result> = {elementId: string; write: () => Result}
 

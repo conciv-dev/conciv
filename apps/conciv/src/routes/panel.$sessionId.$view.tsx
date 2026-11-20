@@ -7,7 +7,7 @@ import {usePane} from '../app/pane-context.js'
 import {guardPluginAttachmentCard} from '../runtime/plugin/plugin-boundary.js'
 import {isPluginView} from '../runtime/plugin/panel-keys.js'
 import {PluginTabContent} from '../shell/plugin-surfaces.js'
-import {pageAttachmentCards} from '@conciv/builtin-plugins/renderer'
+import {pageAttachmentCards} from '@conciv/plugin-page/client'
 
 export const Route = createFileRoute('/panel/$sessionId/$view')({
   beforeLoad: ({context, params}) => {

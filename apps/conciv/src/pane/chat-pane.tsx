@@ -35,7 +35,7 @@ import {
 } from '@conciv/ui-kit-chat'
 import type {DraftItem, PermissionReply} from '@conciv/protocol/chat-types'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
-import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageSessionEntry, pageToolMeta} from '@conciv/builtin-plugins/renderer'
+import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageSessionEntry, pageToolMeta} from '@conciv/plugin-page/client'
 import {tanstackToolMeta} from '@conciv/plugin-tanstack/client'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'

@@ -1,3 +1,4 @@
+export * as RendererCacheModel from './renderer-cache.js'
 import {Context, Effect, Layer, Option, RcMap, type Scope} from 'effect'
 import type {KeyframeRenderer, RendererUnavailable} from './render.js'
 

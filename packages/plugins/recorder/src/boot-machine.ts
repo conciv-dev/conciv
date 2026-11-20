@@ -1,3 +1,4 @@
+export * as RecorderBootMachine from './boot-machine.js'
 export type BootState =
   | {readonly status: 'off'; readonly attempt: number; readonly live: boolean}
   | {readonly status: 'starting'; readonly attempt: number; readonly live: boolean}

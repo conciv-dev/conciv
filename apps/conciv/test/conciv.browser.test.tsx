@@ -5,7 +5,7 @@ import {cdp, page, userEvent, page as browserPage, type Locator} from 'vitest/br
 import {range, uniq} from 'es-toolkit'
 import {createElement} from 'react'
 import {createRoot as createReactRoot} from 'react-dom/client'
-import {installReactBridge} from '@conciv/page'
+import {installReactBridge, PAGE_TOOL_PREFIX, pageToolMeta} from '@conciv/plugin-page/client'
 import {HarnessSessionId, MAX_ATTACHMENT_RAW_BYTES, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {CONNECTION_CHANGED_EVENT} from '@conciv/protocol/event-bus'
 import {
@@ -76,7 +76,6 @@ import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conc
 import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolDisplay, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
-import {PAGE_TOOL_PREFIX, pageToolMeta} from '@conciv/builtin-plugins/renderer'
 import {tanstackToolMeta} from '@conciv/plugin-tanstack/client'
 import {createToolRender} from '../src/pane/tool-registry-render.jsx'
 import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'

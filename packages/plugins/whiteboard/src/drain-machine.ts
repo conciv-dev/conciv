@@ -1,3 +1,4 @@
+export * as WhiteboardDrainMachine from './drain-machine.js'
 import {keyBy, mapValues, omit} from 'es-toolkit'
 import type {PendingRow} from './rows.js'
 

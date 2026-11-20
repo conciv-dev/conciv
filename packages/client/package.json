@@ -50,9 +50,6 @@
     "solid-js": "catalog:"
   },
   "devDependencies": {
-    "@conciv/core": "workspace:^",
-    "@conciv/harness-testkit": "workspace:^",
-    "@conciv/plugin-page-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@vitest/coverage-v8": "catalog:",

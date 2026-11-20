@@ -1,6 +1,6 @@
 import {Effect, FiberHandle, FiberSet, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
 import type {RecorderControl} from './rpc.js'
-import * as RecorderBootMachine from './boot-machine.js'
+import {RecorderBootMachine} from './boot-machine.js'
 import {makeMachineDriver} from './machine-driver.js'
 
 export const ConfigReadFailed = Schema.TaggedStruct('RecorderConfigReadFailed', {cause: Schema.Defect()})

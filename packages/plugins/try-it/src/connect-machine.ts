@@ -1,3 +1,4 @@
+export * as TryItConnectMachine from './connect-machine.js'
 export type ConnectState =
   | {readonly status: 'probing'; readonly attempt: number; readonly slow: boolean; readonly copied: boolean}
   | {readonly status: 'holding'; readonly base: string; readonly copied: boolean}

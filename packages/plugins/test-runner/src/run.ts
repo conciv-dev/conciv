@@ -4,7 +4,7 @@ import {ChildProcess, ChildProcessSpawner} from 'effect/process'
 import {readChildExit} from './child-exit.js'
 import {ChildMessageSchema, type ChildMessage} from './child-protocol.js'
 import type {TestEvent} from './events.js'
-import * as TestRunnerRunMachine from './run-machine.js'
+import {TestRunnerRunMachine} from './run-machine.js'
 import {makeRunnerUnavailable, type RunArgs, type TestRunnerAdapter, type TestRunnerManager} from './runner.js'
 
 type ChildRunnerSpec = {

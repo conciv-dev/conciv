@@ -11,7 +11,7 @@
 '@conciv/harness-init': patch
 '@conciv/mascot': patch
 '@conciv/mascot-react': patch
-'@conciv/page': patch
+'@conciv/plugin-page': patch
 '@conciv/protocol': patch
 '@conciv/tools': patch
 '@conciv/ui-kit-chat': patch

@@ -1,8 +1,7 @@
 import {Effect, FileSystem, Option, Path, Schema} from 'effect'
 import {resolveXcodebuildAppPath} from './build.js'
 import {developerEnv, moduleName, projectDir, type IosConfig, type IosRuntime} from './config.js'
-import * as Simctl from './simctl.js'
-import {boundedCommandError, commandError, stdoutText} from './simctl.js'
+import {Simctl, boundedCommandError, commandError, stdoutText} from './simctl.js'
 
 export const SimulatorNotFound = Schema.TaggedStruct('SimulatorNotFound', {simulator: Schema.String})
 

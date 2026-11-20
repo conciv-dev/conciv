@@ -10,9 +10,9 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {Effect, Exit, Fiber, Layer, Logger, Ref, Scope, Sink, Stream} from 'effect'
 import * as PlatformError from 'effect/PlatformError'
 import {ChildProcess, ChildProcessSpawner} from 'effect/process'
-import * as TestRunnerFollowMachine from '../src/follow-machine.js'
-import * as TestRunnerRunMachine from '../src/run-machine.js'
-import * as VitestAdapter from '../src/vitest.js'
+import {TestRunnerFollowMachine} from '../src/follow-machine.js'
+import {TestRunnerRunMachine} from '../src/run-machine.js'
+import {VitestAdapter} from '../src/vitest.js'
 import type {TestEvent, TestRow} from '../src/events.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))

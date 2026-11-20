@@ -1,3 +1,4 @@
+export * as WhiteboardPendingMachine from './pending-machine.js'
 export type PendingOutcome = 'drawn' | 'unclaimed' | 'unfinished'
 
 export type PendingClaim =

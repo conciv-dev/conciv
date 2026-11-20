@@ -9,7 +9,7 @@ import {
   type GrabPayload,
 } from '@conciv/grab/grab-attachment'
 import type {Grab} from '@conciv/grab'
-import {fitImagePreview} from '@conciv/page'
+import {fitImagePreview} from '@conciv/plugin-page/client'
 import type {AttachmentState} from '@conciv/ui-kit-chat'
 
 export type ComposerGrabPort = {

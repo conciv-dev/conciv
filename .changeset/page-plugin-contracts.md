@@ -1,7 +1,6 @@
 ---
 '@conciv/plugin': patch
 '@conciv/plugin-page': patch
-'@conciv/page': patch
 '@conciv/core': patch
 '@conciv/app': patch
 '@conciv/plugin-host': patch

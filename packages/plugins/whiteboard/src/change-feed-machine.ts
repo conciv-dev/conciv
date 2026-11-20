@@ -1,3 +1,4 @@
+export * as WhiteboardChangeFeedMachine from './change-feed-machine.js'
 export type FeedChange = {
   readonly table: string
   readonly key: string

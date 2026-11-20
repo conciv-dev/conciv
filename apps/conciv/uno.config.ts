@@ -14,6 +14,7 @@ export default defineConfig({
       '../../packages/ui-kit-tap/src/**/*.{ts,tsx}',
       '../../packages/tools/src/**/*.{ts,tsx}',
       '../../packages/core/src/cards/**/*.{ts,tsx}',
+      '../../packages/plugins/page/src/**/*.{ts,tsx}',
       '../../packages/plugins/recorder/src/**/*.{ts,tsx}',
       '../../packages/plugins/test-runner/src/**/*.{ts,tsx}',
       '../../packages/plugins/tanstack/src/**/*.{ts,tsx}',

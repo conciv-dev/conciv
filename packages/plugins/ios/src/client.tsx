@@ -10,8 +10,8 @@ import {
 } from '@conciv/protocol/event-bus'
 import type {ElementRect, GrabActions, GrabProvider} from '@conciv/grab'
 import type {GrabMode} from './rpc.js'
-import * as IosBridge from './bridge.js'
-import * as IosBridgeMachine from './bridge-machine.js'
+import {IosBridge} from './bridge.js'
+import {IosBridgeMachine} from './bridge-machine.js'
 
 export {nativePageBase} from './bridge.js'
 

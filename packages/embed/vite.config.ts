@@ -6,7 +6,8 @@ import UnoCSS from 'unocss/vite'
 const EXTERNAL_PREFIXES = ['solid-js/', 'effect/', '@ark-ui/', '@conciv/']
 
 const INLINED_PREFIXES = [
-  '@conciv/page',
+  '@conciv/plugin-page/client',
+  '@conciv/plugin-page/renderer',
   '@conciv/app',
   '@conciv/builtin-plugins',
   '@conciv/plugin-internal',

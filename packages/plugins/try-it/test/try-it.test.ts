@@ -4,7 +4,7 @@ import {TestClock} from 'effect/testing'
 import {afterAll, describe, expect, it} from 'vitest'
 import {listenLocal} from '@conciv/plugin-testkit/listen-local'
 import {connect} from '../src/connect.js'
-import * as TryItConnectMachine from '../src/connect-machine.js'
+import {TryItConnectMachine} from '../src/connect-machine.js'
 import {makeProbeSilent, probeCore, TryItProbe} from '../src/probe.js'
 
 const closers: Array<() => Promise<void>> = []

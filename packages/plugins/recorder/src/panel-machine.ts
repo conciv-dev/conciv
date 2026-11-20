@@ -1,3 +1,4 @@
+export * as RecorderPanelMachine from './panel-machine.js'
 export type PanelState =
   | {readonly status: 'idle'; readonly attempt: number}
   | {readonly status: 'exporting'; readonly attempt: number}

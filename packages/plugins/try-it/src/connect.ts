@@ -1,5 +1,5 @@
 import {Effect, FiberHandle, Predicate, Schedule, Semaphore, SubscriptionRef} from 'effect'
-import * as TryItConnectMachine from './connect-machine.js'
+import {TryItConnectMachine} from './connect-machine.js'
 import {TryItProbe} from './probe.js'
 
 type ConnectTimings = {readonly probeMs: number; readonly holdMs: number; readonly slowMs: number}

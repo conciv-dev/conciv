@@ -1,6 +1,6 @@
 import {Duration, Effect, FiberHandle, FiberSet, Schedule, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
 import type {RrwebEvent} from './rpc.js'
-import * as RecorderFlusherMachine from './flusher-machine.js'
+import {RecorderFlusherMachine} from './flusher-machine.js'
 import {makeMachineDriver, type MachineDriver} from './machine-driver.js'
 
 export const FlushFailed = Schema.TaggedStruct('RecorderFlushFailed', {cause: Schema.Defect()})

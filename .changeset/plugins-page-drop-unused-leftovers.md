@@ -1,5 +1,5 @@
 ---
-'@conciv/page': patch
+'@conciv/plugin-page': patch
 '@conciv/plugin-test-runner': patch
 '@conciv/plugin-tanstack': patch
 '@conciv/plugin-recorder': patch

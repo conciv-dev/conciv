@@ -26,16 +26,6 @@ export default defineConfig({
       {
         plugins: [solidPlugin(), UnoCSS(widgetStyles)],
         resolve: {conditions: ['browser', 'development']},
-        optimizeDeps: {
-          include: [
-            '@zumer/snapdom',
-            '@solid-primitives/map',
-            '@tanstack/hotkeys',
-            '@tanstack/solid-pacer',
-            'ai-motion',
-            'effect',
-          ],
-        },
         test: {
           ...browserTest,
           name: 'browser',
@@ -45,16 +35,6 @@ export default defineConfig({
       {
         plugins: [solidPlugin(), UnoCSS(widgetStyles)],
         resolve: {conditions: ['browser', 'development']},
-        optimizeDeps: {
-          include: [
-            '@zumer/snapdom',
-            '@solid-primitives/map',
-            '@tanstack/hotkeys',
-            '@tanstack/solid-pacer',
-            'ai-motion',
-            'effect',
-          ],
-        },
         test: {
           ...browserTest,
           name: 'browser-firefox',

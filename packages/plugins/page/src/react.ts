@@ -1,0 +1,494 @@
+export * as reactBridge from './react.js'
+import {
+  getFiberFromHostInstance,
+  getFiberStack,
+  getDisplayName,
+  isCompositeFiber,
+  getNearestHostFiber,
+  getLatestFiber,
+  getRDTHook,
+  traverseFiber,
+  _fiberRoots,
+  instrument,
+  traverseRenderedFibers,
+  getFiberId,
+  getTimings,
+} from 'bippy'
+import {parseStack, hasDebugStack, getParentStack, formatOwnerStack} from 'bippy/source'
+import type {RefAdder} from './snapshot.js'
+import type {RawFrame, Owner, LocateResult, SourceLoc} from '@conciv/plugin/experimental/page'
+import type {TreeNode, HookNode, InspectResult, TreeResult} from '@conciv/protocol/page-introspect-types'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
+type Fiber = any
+
+type Renderer = {
+  overrideProps?: (fiber: Fiber, path: (string | number)[], value: unknown) => void
+  overrideHookState?: (fiber: Fiber, id: number, path: (string | number)[], value: unknown) => void
+  overrideContext?: (fiber: Fiber, contextType: unknown, path: (string | number)[], value: unknown) => void
+}
+
+export function installReactBridge(): void {
+  try {
+    installTracker()
+  } catch {}
+}
+
+function getRenderer(): Renderer | null {
+  const renderers = (getRDTHook() as {renderers?: Map<number, Renderer>} | undefined)?.renderers
+  if (!renderers || renderers.size === 0) return null
+  return [...renderers.values()][0] ?? null
+}
+
+function readHooks(fiber: Fiber): HookNode[] {
+  const types: string[] = Array.isArray(fiber._debugHookTypes) ? fiber._debugHookTypes : []
+  const out: HookNode[] = []
+  let node = fiber.memoizedState
+  let i = 0
+  while (node && i < 100) {
+    out.push({id: i, name: types[i] ?? 'hook', value: node.memoizedState, editable: !!node.queue})
+    node = node.next
+    i++
+  }
+  return out
+}
+
+const raf = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => r()))
+
+async function fiberForEl(el: Element, tries = 20): Promise<Fiber | null> {
+  for (let i = 0; i < tries; i++) {
+    const f = getFiberFromHostInstance(el)
+    if (f) return f
+    await raf()
+  }
+  return null
+}
+
+function compositeNames(fiber: Fiber): string[] {
+  return getFiberStack(fiber)
+    .filter((f: Fiber) => isCompositeFiber(f))
+    .map((f: Fiber) => getDisplayName(f) || '?')
+}
+
+async function rawFrames(fiber: Fiber): Promise<RawFrame[]> {
+  const stack = hasDebugStack(fiber) ? fiber._debugStack.stack : undefined
+  const frames = stack ? parseStack(formatOwnerStack(stack)) : await getParentStack(fiber)
+  return frames.map((fr) => ({
+    ...(fr.fileName === undefined ? {} : {fileName: fr.fileName}),
+    ...(fr.lineNumber === undefined ? {} : {line: fr.lineNumber}),
+    ...(fr.columnNumber === undefined ? {} : {column: fr.columnNumber}),
+    ...(fr.functionName === undefined ? {} : {fn: fr.functionName}),
+  }))
+}
+
+export async function framesForElement(el: Element): Promise<RawFrame[]> {
+  const fiber = getFiberFromHostInstance(el)
+  if (!fiber) return []
+  return rawFrames(fiber).catch((error: unknown) => {
+    console.warn('[conciv] react source frames unavailable', error)
+    return []
+  })
+}
+
+function findHostElement(composite: Fiber): Element | null {
+  const host = getNearestHostFiber(composite)
+  return host?.stateNode instanceof Element ? host.stateNode : null
+}
+
+function describeOwner(f: Fiber, addRef: RefAdder): Owner {
+  const el = findHostElement(f)
+  return {component: getDisplayName(f) || '?', ref: el ? addRef(el) : ''}
+}
+
+function ownerChain(fiber: Fiber, addRef: RefAdder, limit = 12): Owner[] {
+  return getFiberStack(fiber)
+    .filter((f: Fiber) => isCompositeFiber(f))
+    .slice(0, limit)
+    .map((f: Fiber) => describeOwner(f, addRef))
+}
+
+export async function locate(el: Element, addRef: RefAdder): Promise<LocateResult | null> {
+  const fiber = await fiberForEl(el)
+  if (!fiber) return null
+  const names = compositeNames(fiber)
+  const frames = await rawFrames(fiber)
+  const owners = ownerChain(fiber, addRef)
+  const source = sourceFromAttr(el)
+
+  return {component: frames[0]?.fn ?? names[0] ?? null, stack: names, frames, owners, ...(source ? {source} : {})}
+}
+
+export function componentHostAt(el: Element): Element | null {
+  const fiber = getFiberFromHostInstance(el)
+  const composite = fiber ? composedFiber(fiber) : undefined
+  if (!composite) return null
+  return findHostElement(composite) ?? el
+}
+
+export function describe(host: Element): {component: string; file: string | null} {
+  const fiber = getFiberFromHostInstance(host)
+  const composite = fiber ? composedFiber(fiber) : undefined
+  const source = sourceFromAttr(host)
+  return {component: (composite && getDisplayName(composite)) || '?', file: source ? source.file : null}
+}
+
+function classState(composite: Fiber): unknown {
+  const inst = composite.stateNode
+  return inst && typeof inst.setState === 'function' ? (inst.state ?? null) : null
+}
+
+const isClassComponent = (composite: Fiber): boolean =>
+  Boolean(composite.stateNode) && typeof composite.stateNode.setState === 'function'
+
+function measureRect(el: Element | null): {x: number; y: number; w: number; h: number} | null {
+  const r = el?.getBoundingClientRect()
+  return r ? {x: r.x, y: r.y, w: r.width, h: r.height} : null
+}
+
+export async function inspect(el: Element): Promise<InspectResult | null> {
+  const found = await fiberForEl(el)
+  if (!found) return null
+  const composite = composedFiber(getLatestFiber(found))
+  if (!composite) return null
+  return {
+    component: getDisplayName(composite) || null,
+    props: composite.memoizedProps,
+    state: classState(composite),
+    hooks: isClassComponent(composite) ? [] : readHooks(composite),
+    rect: measureRect(findHostElement(composite)),
+  }
+}
+
+type OverrideTarget = 'props' | 'state' | 'hooks' | 'context'
+type OverrideResult = {ok: true} | {error: string}
+
+function copyWithSet(obj: unknown, path: (string | number)[], value: unknown): unknown {
+  if (path.length === 0) return value
+  const [head, ...rest] = path
+  const base = (Array.isArray(obj) ? [...obj] : {...(obj as object)}) as Record<string | number, unknown>
+  base[head as string] = copyWithSet(base[head as string], rest, value)
+  return base
+}
+
+function setInPlace(obj: Record<string, unknown>, path: (string | number)[], value: unknown): void {
+  let cur: Record<string, unknown> = obj
+  for (let i = 0; i < path.length - 1; i++) cur = cur[path[i] as string] as Record<string, unknown>
+  cur[path[path.length - 1] as string] = value
+}
+
+function composedFiber(fiber: Fiber): Fiber | undefined {
+  return isCompositeFiber(fiber) ? fiber : getFiberStack(fiber).find((f: Fiber) => isCompositeFiber(f))
+}
+
+const REACT_PROVIDER = Symbol.for('react.provider')
+const REACT_CONTEXT = Symbol.for('react.context')
+
+function isProviderFiber(f: Fiber): boolean {
+  const t = f.type
+  if (!t || typeof t !== 'object') return false
+  return t.$$typeof === REACT_PROVIDER || t.$$typeof === REACT_CONTEXT || Boolean(t._context)
+}
+
+function findProvider(fiber: Fiber): Fiber | null {
+  const parent = fiber.return
+  if (!parent) return null
+  return isProviderFiber(parent) ? parent : findProvider(parent)
+}
+
+function overridePropsOn(composite: Fiber, path: (string | number)[], value: unknown): OverrideResult {
+  const inst = composite.stateNode
+  if (isClassComponent(composite)) {
+    composite.pendingProps = copyWithSet(inst.props, path, value)
+    inst.forceUpdate()
+    return {ok: true}
+  }
+  const renderer = getRenderer()
+  if (!renderer?.overrideProps) return {error: 'React build does not support prop overrides (dev build required)'}
+  renderer.overrideProps(composite, path, value)
+  return {ok: true}
+}
+
+function overrideStateOn(composite: Fiber, path: (string | number)[], value: unknown): OverrideResult {
+  if (!isClassComponent(composite))
+    return {error: 'state override targets class components; function-component state is a hook; use target=hooks'}
+  const inst = composite.stateNode
+  if (path.length === 0) inst.state = value
+  else setInPlace(inst.state, path, value)
+  inst.forceUpdate()
+  return {ok: true}
+}
+
+function overrideHooksOn(composite: Fiber, path: (string | number)[], value: unknown, hookId?: number): OverrideResult {
+  if (hookId === undefined) return {error: 'hooks override requires hookId (from inspect → hooks[].id)'}
+  const renderer = getRenderer()
+  if (!renderer?.overrideHookState) return {error: 'React build does not support hook overrides (dev build required)'}
+  renderer.overrideHookState(composite, hookId, path, value)
+  return {ok: true}
+}
+
+function overrideContextOn(composite: Fiber, path: (string | number)[], value: unknown): OverrideResult {
+  const provider = findProvider(composite)
+  if (!provider) return {error: 'no context Provider found above this component'}
+  const renderer = getRenderer()
+  if (!renderer?.overrideProps) return {error: 'React build does not support overrides (dev build required)'}
+  renderer.overrideProps(provider, ['value', ...path], value)
+  return {ok: true}
+}
+
+export async function override(
+  el: Element,
+  target: OverrideTarget,
+  path: (string | number)[],
+  value: unknown,
+  hookId?: number,
+): Promise<OverrideResult> {
+  const found = await fiberForEl(el)
+  if (!found) return {error: 'no React fiber for element'}
+  const composite = composedFiber(getLatestFiber(found))
+  if (!composite) return {error: 'no composite component for element'}
+  if (target === 'props') return overridePropsOn(composite, path, value)
+  if (target === 'state') return overrideStateOn(composite, path, value)
+  if (target === 'hooks') return overrideHooksOn(composite, path, value, hookId)
+  return overrideContextOn(composite, path, value)
+}
+
+export async function tree(
+  root: Element,
+  addRef: RefAdder,
+  opts: {maxDepth?: number; maxNodes?: number} = {},
+): Promise<TreeResult> {
+  const maxDepth = opts.maxDepth ?? 4
+  const maxNodes = opts.maxNodes ?? 120
+  const rootFiber = await fiberForEl(root)
+  if (!rootFiber) return {nodes: [], truncated: 0}
+  const out: TreeNode[] = []
+  const byFiber = new Map<Fiber, TreeNode>()
+  const depthByFiber = new Map<Fiber, number>()
+  const counters = {count: 0, truncated: 0}
+  traverseFiber(rootFiber, (node: Fiber) => {
+    if (!isCompositeFiber(node)) return false
+    const depth = compositeDepth(depthByFiber, node)
+    depthByFiber.set(node, depth)
+    if (depth > maxDepth || counters.count >= maxNodes) {
+      counters.truncated++
+      recordTruncation(byFiber, node)
+      return false
+    }
+    counters.count++
+    const tn = treeNodeFor(node, addRef)
+    byFiber.set(node, tn)
+    attachTreeNode(byFiber, out, node, tn)
+    return false
+  })
+  return {nodes: out, truncated: counters.truncated}
+}
+
+function nearestCompositeAncestor(f: Fiber): Fiber | null {
+  if (!f) return null
+  return isCompositeFiber(f) ? f : nearestCompositeAncestor(f.return)
+}
+
+function compositeDepth(depthByFiber: Map<Fiber, number>, node: Fiber): number {
+  const comp = nearestCompositeAncestor(node.return)
+  return comp ? (depthByFiber.get(comp) ?? 0) + 1 : 0
+}
+
+function nearestRecordedAncestor(byFiber: Map<Fiber, TreeNode>, f: Fiber): TreeNode | undefined {
+  if (!f) return undefined
+  return byFiber.has(f) ? byFiber.get(f) : nearestRecordedAncestor(byFiber, f.return)
+}
+
+function recordTruncation(byFiber: Map<Fiber, TreeNode>, node: Fiber): void {
+  const anc = nearestRecordedAncestor(byFiber, node.return)
+  if (anc) anc.truncated = (anc.truncated ?? 0) + 1
+}
+
+function treeNodeFor(node: Fiber, addRef: RefAdder): TreeNode {
+  const el = findHostElement(node)
+  return {component: getDisplayName(node) || '?', ref: el ? addRef(el) : '', children: []}
+}
+
+function attachTreeNode(byFiber: Map<Fiber, TreeNode>, out: TreeNode[], node: Fiber, tn: TreeNode): void {
+  const parentNode = nearestRecordedAncestor(byFiber, node.return)
+  if (parentNode) parentNode.children.push(tn)
+  else out.push(tn)
+}
+
+function knownRootFibers(): Fiber[] {
+  const roots: Fiber[] = []
+  try {
+    for (const r of _fiberRoots as Iterable<{current?: Fiber}>) if (r?.current) roots.push(r.current)
+  } catch {}
+  return roots
+}
+
+const isReactDomKey = (k: string): boolean => k.startsWith('__reactFiber') || k.startsWith('__reactContainer')
+
+function scannedRootFibers(): Fiber[] {
+  for (const el of Array.from(document.querySelectorAll('*'))) {
+    const key = Object.keys(el).find(isReactDomKey)
+    if (!key) continue
+    const fiber = (el as unknown as Record<string, Fiber>)[key]
+    return [getLatestFiber(getFiberStack(fiber).at(-1)?.return ?? fiber)]
+  }
+  return []
+}
+
+function reactRootFibers(): Fiber[] {
+  const roots = knownRootFibers()
+  return roots.length > 0 ? roots : scannedRootFibers()
+}
+
+export function rootFibers(): Fiber[] {
+  return reactRootFibers()
+}
+
+const isNamedComposite = (node: Fiber, name: string): boolean => isCompositeFiber(node) && getDisplayName(node) === name
+
+export function elementByName(name: string): Element | null {
+  const found = {el: null as Element | null}
+  for (const root of reactRootFibers()) {
+    traverseFiber(root, (node: Fiber) => {
+      if (found.el || !isNamedComposite(node, name)) return false
+      found.el = findHostElement(node)
+      return false
+    })
+    if (found.el) break
+  }
+  return found.el
+}
+
+export function find(
+  name: string,
+  addRef: RefAdder,
+  limit = 20,
+): {matches: {ref: string; component: string}[]; total: number} {
+  const matches: {ref: string; component: string}[] = []
+  const counter = {total: 0}
+  for (const root of reactRootFibers()) {
+    traverseFiber(root, (node: Fiber) => {
+      const el = isNamedComposite(node, name) ? findHostElement(node) : null
+      if (!el) return false
+      counter.total++
+      if (matches.length < limit) matches.push({ref: addRef(el), component: name})
+      return false
+    })
+  }
+  return {matches, total: counter.total}
+}
+
+type Stat = {component: string; renders: number; lastReason: string; changedProps: string[]; selfTimeMaxMs: number}
+
+type TrackReport = {
+  tracking: boolean
+  tracked: number
+
+  timingsAvailable: boolean
+  components: Array<{
+    component: string
+    renders: number
+    lastReason: string
+    changedProps?: string[]
+    selfTimeMaxMs?: number
+  }>
+  note?: string
+}
+
+const state = {tracking: false, installed: false, stats: new Map<number, Stat>()}
+
+const isRecordPair = (prev: unknown, next: unknown): boolean =>
+  Boolean(prev) && Boolean(next) && typeof next === 'object' && typeof prev === 'object'
+
+function changedProps(fiber: Fiber): string[] {
+  const next = fiber.memoizedProps
+  const prev = fiber.alternate?.memoizedProps
+  if (!isRecordPair(prev, next)) return []
+  return [...new Set([...Object.keys(prev), ...Object.keys(next)])].filter((k) => prev[k] !== next[k])
+}
+
+function statFor(fiber: Fiber): Stat {
+  return (
+    state.stats.get(getFiberId(fiber)) ?? {
+      component: getDisplayName(fiber) || '?',
+      renders: 0,
+      lastReason: '',
+      changedProps: [],
+      selfTimeMaxMs: 0,
+    }
+  )
+}
+
+const renderReason = (mount: boolean, cp: string[]): string =>
+  mount ? 'mount' : cp.length > 0 ? 'props' : 'state/hooks/parent'
+
+function bumpSelfTime(cur: Stat, fiber: Fiber): void {
+  const timings = getTimings(fiber)
+  const self = typeof timings?.selfTime === 'number' ? timings.selfTime : 0
+  if (self > cur.selfTimeMaxMs) cur.selfTimeMaxMs = self
+}
+
+function recordRender(fiber: Fiber): void {
+  const cur = statFor(fiber)
+  cur.renders += 1
+  const mount = !fiber.alternate
+  const cp = mount ? [] : changedProps(fiber)
+  cur.changedProps = cp
+  cur.lastReason = renderReason(mount, cp)
+  bumpSelfTime(cur, fiber)
+  state.stats.set(getFiberId(fiber), cur)
+}
+
+function onCommit(_rendererID: number, root: Fiber): void {
+  if (!state.tracking) return
+  traverseRenderedFibers(root, (fiber: Fiber) => {
+    if (isCompositeFiber(fiber)) recordRender(fiber)
+  })
+}
+
+export function installTracker(): void {
+  if (state.installed) return
+  state.installed = true
+  instrument({onCommitFiberRoot: onCommit})
+}
+
+export function startTracking(): void {
+  state.stats.clear()
+  state.tracking = true
+}
+
+export function report(opts: {name?: string; limit?: number} = {}): TrackReport {
+  const all = [...state.stats.values()]
+  const timingsAvailable = all.some((s) => s.selfTimeMaxMs > 0)
+  const filtered = opts.name ? all.filter((s) => s.component.toLowerCase().includes(opts.name!.toLowerCase())) : all
+  const ranked = filtered.toSorted((a, b) => b.renders - a.renders).slice(0, opts.limit ?? 15)
+  const components = ranked.map((s) => ({
+    component: s.component,
+    renders: s.renders,
+    lastReason: s.lastReason,
+    ...(s.changedProps.length > 0 ? {changedProps: s.changedProps} : {}),
+    ...(timingsAvailable ? {selfTimeMaxMs: Number(s.selfTimeMaxMs.toFixed(2))} : {}),
+  }))
+  return {
+    tracking: state.tracking,
+    tracked: all.length,
+    timingsAvailable,
+    components,
+    ...(timingsAvailable ? {} : {note: 'render durations need a profiling build (react-dom/profiling or <Profiler>)'}),
+  }
+}
+
+export function stopTracking(): TrackReport {
+  const r = report()
+  state.tracking = false
+  return {...r, tracking: false}
+}
+
+export function sourceFromAttr(el: Element): SourceLoc | null {
+  const raw = el.closest('[data-tsd-source]')?.getAttribute('data-tsd-source')
+  if (!raw) return null
+  const parts = raw.split(':')
+  const column = Number(parts.pop())
+  const line = Number(parts.pop())
+  const file = parts.join(':')
+  return file && Number.isFinite(line) && Number.isFinite(column) ? {file, line, column} : null
+}

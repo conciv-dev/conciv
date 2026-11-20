@@ -2,7 +2,7 @@ import type {Context} from '@conciv/plugin/experimental'
 import {Deferred, Effect, FiberHandle, PubSub, Queue, Schedule, Schema, Stream, SubscriptionRef} from 'effect'
 import {z} from 'zod'
 import {Whiteboard} from './rpc.js'
-import * as WhiteboardChangeFeedMachine from './change-feed-machine.js'
+import {WhiteboardChangeFeedMachine} from './change-feed-machine.js'
 
 export type ChangeMessage = {type: 'upsert' | 'delete'; key: string} | {type: 'reload'}
 export type FeedEvent =

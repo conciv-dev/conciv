@@ -7,7 +7,7 @@ import {Tool} from '@conciv/plugin/schema/tool'
 import {BuildOutputSchema, makeBuild} from './build.js'
 import {InvalidOptions, IosConfigSchema, NotConfiguredSchema, type IosRuntime, type NotConfigured} from './config.js'
 import {iosSystemPrompt} from './prompt.js'
-import * as Simctl from './simctl.js'
+import {Simctl} from './simctl.js'
 import {capture, launch, readLogs} from './simulator.js'
 
 const RunStageSchema = z.enum(['resolve-simulator', 'boot', 'artifact', 'install', 'launch'])

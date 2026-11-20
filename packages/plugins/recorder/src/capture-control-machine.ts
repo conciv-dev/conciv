@@ -1,3 +1,4 @@
+export * as RecorderCaptureControlMachine from './capture-control-machine.js'
 import type {RecorderControl} from './rpc.js'
 
 const CAPTURE_TTL_MS = 10 * 60 * 1000

@@ -49,13 +49,13 @@ import {
   SUBTREE_MAX_DEPTH,
   SUBTREE_MAX_NODES,
 } from '../src/rpc.js'
-import * as IosBridge from '../src/bridge.js'
-import * as IosBridgeMachine from '../src/bridge-machine.js'
+import {IosBridge} from '../src/bridge.js'
+import {IosBridgeMachine} from '../src/bridge-machine.js'
 import {makeBuild, parseXcodebuildAppPath} from '../src/build.js'
 import {IosConfigSchema, type IosConfig} from '../src/config.js'
 import {iosSystemPrompt} from '../src/prompt.js'
 import type {IosRuntime} from '../src/config.js'
-import * as Simctl from '../src/simctl.js'
+import {Simctl} from '../src/simctl.js'
 import {logs, run, screenshot, type RunFailure} from '../src/tools.js'
 import {bridgeFixtures, nativeEncodeFixtures} from './fixtures/bridge/bridge.fixtures.js'
 

@@ -4,7 +4,7 @@ import {createStore, reconcile} from 'solid-js/store'
 import type {Context} from '@conciv/plugin/experimental'
 import {TestRunner} from './rpc.js'
 import {TestEventSchema} from './events.js'
-import * as TestRunnerFollowMachine from './follow-machine.js'
+import {TestRunnerFollowMachine} from './follow-machine.js'
 import {initialRunView, transitionRunView, type RunView} from './run-state.js'
 
 type Client = Context['client']

@@ -22,7 +22,7 @@ Mounts the conciv widget into a shadow root on the host page. `createConciv` is 
 
 ## Side Effects
 
-- `mount-impl.tsx:mountImpl` - installs the `@conciv/page` React bridge (`installReactBridge`), sets `window.__TSR_ROUTER__` and restores the host's value on teardown.
+- `mount-impl.tsx:mountImpl` - installs the `@conciv/plugin-page/client` React bridge (`installReactBridge`), sets `window.__TSR_ROUTER__` and restores the host's value on teardown.
 - `mount-impl.tsx:mountImpl` - a handle rebind waits until the widget is interactive, then dispatches the `conciv:rebind` window event that the app handles; nothing after teardown or in servers mode.
 - `mount-impl.tsx:createShadowRoot` - attaches the open shadow root; while a selection starts inside the widget it sets a selection attribute on `document.documentElement` (styled by one `style[data-conciv-selection]` in `document.head`), and it stops editable-key events inside the widget from reaching the host page.
 - `mount-impl.tsx:metaContent` - reads the `conciv-widget` meta tag when no `settings` are passed.

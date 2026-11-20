@@ -33,7 +33,7 @@ import {
 } from '@conciv/protocol/chat-types'
 import {readApprovalAsk, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
-import {pageTabs, type PageAnswer, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
+import {pageTabs, type PageAnswer, type PageReply} from '@conciv/plugin-page/testing'
 import {makeRpcClient, SOCKET_TRUST_FRAME, type RpcClient} from '@conciv/contract'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {createORPCClient} from '@orpc/client'

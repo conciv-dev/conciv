@@ -1,6 +1,7 @@
+export * as WhiteboardDrain from './drain.js'
 import {Effect, FiberMap, Queue, Schedule, Schema, SubscriptionRef} from 'effect'
 import type {PendingRow} from './rows.js'
-import * as WhiteboardDrainMachine from './drain-machine.js'
+import {WhiteboardDrainMachine} from './drain-machine.js'
 
 export const RemoveFailed = Schema.TaggedStruct('RemoveFailed', {message: Schema.String})
 type RemoveFailed = typeof RemoveFailed.Type

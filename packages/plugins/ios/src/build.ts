@@ -11,8 +11,7 @@ import {
   type IosConfig,
   type IosRuntime,
 } from './config.js'
-import * as Simctl from './simctl.js'
-import {boundedCommandError, stdoutText} from './simctl.js'
+import {Simctl, boundedCommandError, stdoutText} from './simctl.js'
 
 const DiagnosticSchema = z.object({
   file: z.string(),

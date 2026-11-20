@@ -25,7 +25,6 @@
     "@conciv/core": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
-    "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-internal": "workspace:*",
     "@conciv/plugin-tanstack": "workspace:^",

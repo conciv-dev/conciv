@@ -1,3 +1,4 @@
+export * as RecorderVisibilityPauseMachine from './visibility-pause-machine.js'
 export const HIDDEN_PAUSE_MS = 30_000
 
 export type VisibilityPauseState =

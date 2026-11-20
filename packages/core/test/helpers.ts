@@ -10,7 +10,9 @@ import {type ConcivDb} from '@conciv/db'
 import type {Plugin} from '@conciv/plugin'
 import {getHarness, type HarnessAdapter} from '@conciv/harness'
 import {
+  createFakeHarness,
   type ChatMessage,
+  type FakeHarness,
   type Kit,
   type RunEvents,
   createTestkit,
@@ -290,4 +292,36 @@ export async function chunkWithInlineMap(source: string, line: number, column: n
   const path = join(tempDir('conciv-chunk-'), 'chunk.js')
   await writeFile(path, `"use strict";\nvoid 0;\n//# sourceMappingURL=data:application/json;base64,${b64}`)
   return path
+}
+
+export type ClientKit = Kit & {harness: FakeHarness; gate: {hold: () => void; release: () => void}}
+
+type AppPlugins = Parameters<typeof makeApp>[0]['plugins']
+
+export async function bootClientKit(opts: {plugins?: AppPlugins} = {}): Promise<ClientKit> {
+  const harness = createFakeHarness({id: 'fake-client', text: 'ok'})
+  const kit = await createTestkit(harness, async (env) => {
+    const {fetch, dispose, agentToken, awaitActivation} = await makeApp({
+      print: env.print,
+      cfg: {
+        enabled: true,
+        stateRoot: env.stateRoot,
+        harness: env.harness.id,
+        sessionId: undefined,
+        harnessSessionId: undefined,
+        systemPrompt: '',
+        hubAccess: 'project',
+        plugins: [],
+        policies: [],
+        permissions: [],
+      },
+      cwd: env.cwd,
+      openInEditor: () => {},
+      harness: env.harness,
+      plugins: opts.plugins,
+    })
+    await awaitActivation()
+    return {fetch, dispose, agentToken}
+  }).setup()
+  return {...kit, harness, gate: {hold: harness.script.hold, release: harness.script.release}}
 }

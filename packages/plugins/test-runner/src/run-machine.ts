@@ -1,3 +1,4 @@
+export * as TestRunnerRunMachine from './run-machine.js'
 import type {ChildMessage} from './child-protocol.js'
 import type {Summary, TestEvent, TestRunResult} from './events.js'
 import type {ListFile} from './runner.js'

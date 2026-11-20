@@ -1,6 +1,6 @@
 ---
 '@conciv/protocol': patch
-'@conciv/page': patch
+'@conciv/plugin-page': patch
 '@conciv/serve': patch
 '@conciv/core': patch
 '@conciv/chat': patch

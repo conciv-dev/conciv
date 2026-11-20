@@ -4,7 +4,7 @@ import {Server, type Plugin, type ServerEntry} from '@conciv/plugin/experimental
 import {defineInternalPlugin} from '@conciv/plugin-internal'
 import {connectPorts} from '@conciv/protocol/connect-ports'
 import {connect} from './connect.js'
-import * as TryItConnectMachine from './connect-machine.js'
+import {TryItConnectMachine} from './connect-machine.js'
 import {ConnectPane} from './connect-pane.js'
 import {localNetworkAccess} from './local-network-access.js'
 import {probeCore, TryItProbe} from './probe.js'

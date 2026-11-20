@@ -1,5 +1,6 @@
+export * as CaptureControlModel from './capture-control.js'
 import {Clock, Context, Effect, Layer, Option, PubSub, Schedule, Stream, SubscriptionRef, Schema} from 'effect'
-import * as RecorderCaptureControlMachine from './capture-control-machine.js'
+import {RecorderCaptureControlMachine} from './capture-control-machine.js'
 import {ClientRings} from './rings.js'
 import type {RecorderControl} from './rpc.js'
 

@@ -1,0 +1,116 @@
+{
+  "name": "@conciv/plugin-page",
+  "version": "0.0.22",
+  "description": "conciv's page plugin: the engine part (the connection to the page, its tools, skill and RPC contract) and the browser part the widget runs (DOM helpers, page operations, cards).",
+  "keywords": [
+    "conciv",
+    "page",
+    "plugin"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/plugins/page"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc.d.ts",
+      "import": "./dist/rpc.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./renderer": {
+      "types": "./dist/renderer.d.ts",
+      "import": "./dist/renderer.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run --project browser-firefox --coverage.enabled=false && vitest run --project !browser-firefox",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/client": "workspace:^",
+    "@conciv/contract": "workspace:^",
+    "@conciv/grab": "workspace:^",
+    "@conciv/plugin": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
+    "@jridgewell/trace-mapping": "catalog:",
+    "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/map": "catalog:",
+    "@tanstack/hotkeys": "catalog:",
+    "@tanstack/solid-hotkeys": "catalog:",
+    "@tanstack/solid-pacer": "catalog:",
+    "@zumer/snapdom": "catalog:",
+    "ai-motion": "catalog:",
+    "bippy": "catalog:",
+    "effect": "catalog:",
+    "es-toolkit": "catalog:",
+    "js-beautify": "^2.0.3",
+    "lucide-solid": "catalog:",
+    "react-grab": "catalog:",
+    "rrweb-snapshot": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
+    "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
+    "@fontsource-variable/wix-madefor-text": "^5.3.0",
+    "@jridgewell/gen-mapping": "catalog:",
+    "@solidjs/testing-library": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "@tiptap/core": "catalog:",
+    "@tiptap/extension-document": "catalog:",
+    "@tiptap/extension-paragraph": "catalog:",
+    "@tiptap/extension-text": "catalog:",
+    "@tiptap/pm": "catalog:",
+    "@types/js-beautify": "^1.14.3",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "playwright": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "solid-js": "catalog:",
+    "storybook": "catalog:",
+    "storybook-solidjs-vite": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "unocss": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
+  }
+}

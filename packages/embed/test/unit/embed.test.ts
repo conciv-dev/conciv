@@ -120,9 +120,11 @@ describe('mount externals', () => {
       expect(externalized('solid-js')).toBe(true)
     })
 
-    it('inlines the private conciv app, @conciv/page, and the packages whose cards it renders', () => {
+    it('inlines the private conciv app, the browser part of the page plugin, and the packages whose cards it renders', () => {
       expect(externalized('@conciv/app')).toBe(false)
-      expect(externalized('@conciv/page')).toBe(false)
+      expect(externalized('@conciv/plugin-page/client')).toBe(false)
+      expect(externalized('@conciv/plugin-page/renderer')).toBe(false)
+      expect(externalized('@conciv/plugin-page/rpc')).toBe(true)
       expect(externalized('@conciv/tools')).toBe(false)
       expect(externalized('@conciv/core')).toBe(false)
     })

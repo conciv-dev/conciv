@@ -1,7 +1,7 @@
 {
   "name": "@conciv/embed",
   "version": "0.0.22",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). Also powers the @conciv/react, @conciv/preact and @conciv/solid wrapper components. The conciv embed bundle: mounts the conciv router app into a Shadow DOM on the host page and wires the page plugin's React bridge. Inlines the private conciv app and @conciv/page; externalizes shared Solid/Ark/@conciv packages.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). Also powers the @conciv/react, @conciv/preact and @conciv/solid wrapper components. The conciv embed bundle: mounts the conciv router app into a Shadow DOM on the host page and wires the page plugin's React bridge. Inlines the private conciv app and the page plugin's browser part (@conciv/plugin-page/client and /renderer); externalizes shared Solid/Ark/@conciv packages.",
   "keywords": [
     "ai",
     "chat",
@@ -45,7 +45,6 @@
     "@conciv/contract": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
-    "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-ios": "workspace:^",
     "@conciv/plugin-page": "workspace:^",

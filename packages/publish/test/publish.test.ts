@@ -348,7 +348,7 @@ describe('cli', () => {
         private: true,
       }),
       writeManifest(join(root, 'packages', 'page'), {
-        name: '@conciv/page',
+        name: '@conciv/sample-page',
         version: '0.0.19',
         dependencies: {'@conciv/grab': 'workspace:^'},
         devDependencies: {'@conciv/internal-tool': 'workspace:*'},
@@ -361,15 +361,15 @@ describe('cli', () => {
     for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies']) {
       const root = await scaffoldWorkspaceRoot('deps-private-')
       await Promise.all([
-        writeManifest(join(root, 'packages', 'page'), {name: '@conciv/page', version: '0.0.19', private: true}),
+        writeManifest(join(root, 'packages', 'page'), {name: '@conciv/sample-page', version: '0.0.19', private: true}),
         writeManifest(join(root, 'packages', 'public-consumer'), {
           name: '@conciv/public-consumer',
           version: '0.0.19',
-          [field]: {'@conciv/page': 'workspace:^'},
+          [field]: {'@conciv/sample-page': 'workspace:^'},
         }),
       ])
       await expect(assertPublicDepsPublic(root), field).rejects.toThrow(
-        /@conciv\/public-consumer depends on private workspace package @conciv\/page/,
+        /@conciv\/public-consumer depends on private workspace package @conciv\/sample-page/,
       )
     }
   })
@@ -465,7 +465,7 @@ describe('cli', () => {
     const root = await scaffoldWorkspaceRoot('sync-tags-')
     await Promise.all([
       writeManifest(join(root, 'packages', 'core'), {name: '@conciv/core', version: '0.0.20'}),
-      writeManifest(join(root, 'packages', 'page'), {name: '@conciv/page', version: '0.0.20'}),
+      writeManifest(join(root, 'packages', 'page'), {name: '@conciv/sample-page', version: '0.0.20'}),
       writeManifest(join(root, 'packages', 'grab'), {name: '@conciv/grab', version: '0.0.20'}),
     ])
     const origin = tempDir('sync-tags-origin-')
@@ -490,8 +490,8 @@ describe('cli', () => {
     test('tags only the given packages at their manifest version, keeping a pre-existing tag', async () => {
       const {root, origin} = await repoWithOrigin()
       await git(root, ['tag', '@conciv/core@0.0.20'])
-      await pushMissingTags(root, ['@conciv/core', '@conciv/page'])
-      expect(await originTags(origin)).toEqual(['@conciv/core@0.0.20', '@conciv/page@0.0.20'])
+      await pushMissingTags(root, ['@conciv/core', '@conciv/sample-page'])
+      expect(await originTags(origin)).toEqual(['@conciv/core@0.0.20', '@conciv/sample-page@0.0.20'])
     })
   })
 
@@ -504,19 +504,19 @@ describe('cli', () => {
 
     test('regression: an untrusted package whose manifest version npm never had gets trust only', async () => {
       const {root} = await repoWithOrigin()
-      const plan = await buildSyncPlan(root, [{name: '@conciv/page', state: 'untrusted', versions: ['0.0.19']}])
-      expect(plan).toEqual([{name: '@conciv/page', state: 'untrusted', actions: ['trust']}])
+      const plan = await buildSyncPlan(root, [{name: '@conciv/sample-page', state: 'untrusted', versions: ['0.0.19']}])
+      expect(plan).toEqual([{name: '@conciv/sample-page', state: 'untrusted', actions: ['trust']}])
     })
 
     test('an existing local tag drops the tag action, leaving a healthy package out of the plan', async () => {
       const {root} = await repoWithOrigin()
       await git(root, ['tag', '@conciv/core@0.0.20'])
-      await git(root, ['tag', '@conciv/page@0.0.20'])
+      await git(root, ['tag', '@conciv/sample-page@0.0.20'])
       const plan = await buildSyncPlan(root, [
         {name: '@conciv/core', state: 'trusted', versions: ['0.0.20']},
-        {name: '@conciv/page', state: 'untrusted', versions: ['0.0.20']},
+        {name: '@conciv/sample-page', state: 'untrusted', versions: ['0.0.20']},
       ])
-      expect(plan).toEqual([{name: '@conciv/page', state: 'untrusted', actions: ['trust']}])
+      expect(plan).toEqual([{name: '@conciv/sample-page', state: 'untrusted', actions: ['trust']}])
     })
 
     test('a package missing from npm plans publish, trust and tag', async () => {

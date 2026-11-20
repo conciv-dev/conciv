@@ -1,7 +1,7 @@
 import {Effect, FiberSet, PubSub, Schedule, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
 import type {Context} from '@conciv/plugin/experimental'
 import {makeMachineDriver} from './machine-driver.js'
-import * as RecorderPanelMachine from './panel-machine.js'
+import {RecorderPanelMachine} from './panel-machine.js'
 import {Recorder} from './rpc.js'
 
 const PresenceFailed = Schema.TaggedStruct('RecorderPresenceFailed', {cause: Schema.Defect()})

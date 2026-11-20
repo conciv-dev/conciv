@@ -1,3 +1,4 @@
+export * as RecorderCaptureSessionMachine from './capture-session-machine.js'
 import type {RecorderConfig} from './rpc.js'
 
 export type CaptureSessionState =

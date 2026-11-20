@@ -10,7 +10,7 @@ import {
   type AttachmentAdapter,
   type AttachmentCardSlot,
 } from '@conciv/ui-kit-chat'
-import {pageAttachmentCards} from '@conciv/builtin-plugins/renderer'
+import {pageAttachmentCards} from '@conciv/plugin-page/client'
 import {guardPluginAttachmentCard} from '../runtime/plugin/plugin-boundary.js'
 import {commentContextItem, formatNoteComment, readPromptPresentation} from '../composer/comment-note.js'
 import {noteItem} from '../composer/note-schema.js'

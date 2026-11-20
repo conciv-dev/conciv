@@ -1,3 +1,4 @@
+export * as TestRunnerFollowMachine from './follow-machine.js'
 import type {CurrentRun} from './runner.js'
 import type {TestEvent, TestRunResult} from './events.js'
 import type {RunViewAction} from './run-state.js'

@@ -96,8 +96,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/client": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
-    "@conciv/plugin-page-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

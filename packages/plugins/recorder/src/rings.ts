@@ -1,3 +1,4 @@
+export * as ClientRingsModel from './rings.js'
 import {Clock, Context, Effect, Layer, Ref, SubscriptionRef} from 'effect'
 import {jsonByteLength, type RrwebEvent} from './rpc.js'
 

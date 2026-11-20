@@ -100,7 +100,6 @@ export const PUBLIC_PACKAGES = [
   '@conciv/storage-history',
   '@conciv/client',
   '@conciv/grab',
-  '@conciv/page',
   '@conciv/tools',
   '@conciv/plugin',
   '@conciv/plugin-host',

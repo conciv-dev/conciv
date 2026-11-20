@@ -1,3 +1,4 @@
+export * as RecorderFlusherMachine from './flusher-machine.js'
 import {MAX_FLUSH_BYTES, jsonByteLength, type RrwebEvent} from './rpc.js'
 
 const MAX_QUEUE_BYTES = 8 * 1024 * 1024

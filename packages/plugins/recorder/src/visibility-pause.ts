@@ -1,6 +1,6 @@
 import {Effect, FiberHandle, Stream, type Scope, type SubscriptionRef} from 'effect'
 import {makeMachineDriver} from './machine-driver.js'
-import * as RecorderVisibilityPauseMachine from './visibility-pause-machine.js'
+import {RecorderVisibilityPauseMachine} from './visibility-pause-machine.js'
 
 export const runVisibilityPause = Effect.fn('recorder.visibilityPause')(function* (options: {
   readonly hidden: Stream.Stream<boolean>

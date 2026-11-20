@@ -1,3 +1,4 @@
+export * as Simctl from './simctl.js'
 import {Chunk, Context, Effect, Layer, Schema, Sink, Stream} from 'effect'
 import {ChildProcess, ChildProcessSpawner} from 'effect/process'
 

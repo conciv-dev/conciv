@@ -1,3 +1,4 @@
+export * as VitestAdapter from './vitest.js'
 import type {RunArgs} from './runner.js'
 import {defineChildRunner} from './run.js'
 

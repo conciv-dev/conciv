@@ -1,6 +1,6 @@
 import {render} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
-import {installReactBridge} from '@conciv/page'
+import {installReactBridge} from '@conciv/plugin-page/client'
 import {ConcivApp, type Platform} from '@conciv/app'
 import type {ConcivSettingsInit, ConcivSurface} from '@conciv/protocol/config-types'
 import type {ConcivInit} from './mount.js'

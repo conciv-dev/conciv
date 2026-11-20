@@ -1,6 +1,7 @@
+export * as WhiteboardPending from './pending.js'
 import {Clock, Deferred, Effect, Option, Stream} from 'effect'
 import type {Store, StoreError, WhiteboardEvent} from './store.js'
-import * as WhiteboardPendingMachine from './pending-machine.js'
+import {WhiteboardPendingMachine} from './pending-machine.js'
 
 export const pendingDrained =
   (room: string, id: string) =>

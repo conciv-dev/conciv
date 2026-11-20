@@ -193,7 +193,11 @@ const NATIVE_AND_REACT_BRIDGE_PATHS = [
   'packages/plugins/ios/src/client.tsx',
   'packages/publish/src/cli.ts',
   'packages/publish/src/swift-mirror.ts',
-  'packages/page/src/',
+  'packages/plugins/page/src/react.ts',
+  'packages/plugins/page/src/client.ts',
+  'packages/plugins/page/src/renderer.tsx',
+  'packages/plugins/page/src/operations.ts',
+  'packages/plugins/page/src/grab.ts',
   'packages/embed/src/mount-impl.tsx',
 ]
 
@@ -206,7 +210,7 @@ const COMPOSER_ATTACHMENT_INGRESS_PATHS = ['apps/conciv/src/pane/chat-pane.tsx']
 const PRE_REWRITE_ATTACH_PATHS = [
   'apps/site/src/components/landing/',
   'packages/core/src/pty/pty-sessions.ts',
-  'packages/page/src/react-bridge.ts',
+  'packages/plugins/page/src/react.ts',
   'packages/try/src/cli.ts',
   'packages/vitest-config/src/summary.ts',
 ]

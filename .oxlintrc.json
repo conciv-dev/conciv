@@ -152,9 +152,9 @@
   "overrides": [
     {
       "files": [
-        "packages/plugin-page/src/rpc.ts",
-        "packages/plugin-page/src/machine.ts",
-        "packages/plugin-page/src/connection.ts",
+        "packages/plugins/page/src/rpc.ts",
+        "packages/plugins/page/src/machine.ts",
+        "packages/plugins/page/src/connection.ts",
         "packages/plugins/tanstack/src/rpc.ts"
       ],
       "rules": {
@@ -309,7 +309,7 @@
         "packages/preact/**",
         "packages/brand-react/**",
         "apps/examples/tanstack-start/src/**",
-        "packages/page/test/**",
+        "packages/plugins/page/test/fixtures/**",
         "packages/builtin-plugins/test/fixtures/**"
       ],
       "rules": {
@@ -360,7 +360,18 @@
       }
     },
     {
-      "files": ["packages/solid-streamdown/**", "packages/page/**", "packages/plugin-page/test/fixtures/**"],
+      "files": [
+        "packages/solid-streamdown/**",
+        "packages/plugins/page/src/react.ts",
+        "packages/plugins/page/src/snapshot.ts",
+        "packages/plugins/page/src/capture.ts",
+        "packages/plugins/page/src/dehydrate.ts",
+        "packages/plugins/page/src/toast.ts",
+        "packages/plugins/page/src/grab.ts",
+        "packages/plugins/page/src/grab-preview.ts",
+        "packages/plugins/page/src/client.ts",
+        "packages/plugins/page/test/fixtures/**"
+      ],
       "rules": {
         "unocss/order": "off"
       }

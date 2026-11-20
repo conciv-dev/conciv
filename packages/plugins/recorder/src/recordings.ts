@@ -1,3 +1,4 @@
+export * as RecordingStoreModel from './recordings.js'
 import {Clock, Context, Effect, FileSystem, Layer, Path, Ref, Semaphore, Schema} from 'effect'
 import {z} from 'zod'
 import {RrwebEventSchema, jsonByteLength, type RrwebEvent} from './rpc.js'

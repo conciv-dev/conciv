@@ -1,6 +1,6 @@
 import {Effect, FiberHandle, FiberSet, Stream, type Scope, type SubscriptionRef, Schema} from 'effect'
 import type {RecorderConfig, RecorderControl} from './rpc.js'
-import * as RecorderCaptureSessionMachine from './capture-session-machine.js'
+import {RecorderCaptureSessionMachine} from './capture-session-machine.js'
 import type {Flusher} from './flusher.js'
 import {makeMachineDriver} from './machine-driver.js'
 import {runVisibilityPause} from './visibility-pause.js'
