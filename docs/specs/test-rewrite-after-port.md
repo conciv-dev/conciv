@@ -67,6 +67,11 @@ test('a user asks the agent, then opens the tests panel', async () => {
 })
 ```
 
+`replies` takes the reply shapes of opencode's test model (`_ref/opencode/packages/ai/src/testing.ts`), ruled
+2026-11-20: text, a tool call, a reply that fails part-way, a reply that never ends (the turn stays running), and a
+reply held until the test releases it. The exact shape is copied from that file; it changes the one option and adds
+no export. Connection faults stay out of the kit.
+
 A past chat is made with real turns (`engine.session.send`), never by writing rows. Drafts come from
 `Platform.draftStore`; `mount` passes an in-memory store. No connection faults in the kit. Page errors as opencode:
 `pageErrors()` in browser mode, opt-in, no auto-fail; happy-dom collects nothing. The engine logs through
