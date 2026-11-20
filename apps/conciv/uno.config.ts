@@ -18,6 +18,7 @@ export default defineConfig({
       '../../packages/plugins/recorder/src/**/*.{ts,tsx}',
       '../../packages/plugins/test-runner/src/**/*.{ts,tsx}',
       '../../packages/plugins/tanstack/src/**/*.{ts,tsx}',
+      '../../packages/plugins/terminal/src/**/*.{ts,tsx}',
       '../../packages/plugins/whiteboard/src/**/*.{ts,tsx}',
     ],
   },

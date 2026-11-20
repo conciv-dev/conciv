@@ -20,18 +20,9 @@
     "test": "vitest run --project browser-firefox --coverage.enabled=false && vitest run --project !browser-firefox"
   },
   "dependencies": {
-    "@conciv/client": "workspace:^",
-    "@conciv/contract": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
-    "@conciv/protocol": "workspace:^",
-    "@conciv/ui-kit-chat": "workspace:*",
-    "@conciv/ui-kit-terminal": "workspace:^",
-    "@orpc/client": "catalog:",
-    "@solid-primitives/event-listener": "catalog:",
-    "lucide-solid": "catalog:",
-    "solid-js": "catalog:",
-    "zod": "catalog:"
+    "solid-js": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",

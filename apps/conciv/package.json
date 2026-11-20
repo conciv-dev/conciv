@@ -28,6 +28,7 @@
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-internal": "workspace:*",
     "@conciv/plugin-tanstack": "workspace:^",
+    "@conciv/plugin-terminal": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
     "@conciv/storage-history": "workspace:^",
