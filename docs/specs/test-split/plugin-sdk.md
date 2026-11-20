@@ -5,6 +5,13 @@ lines at `9d4f4834f`. Updated 2026-11-20 to the rulings in `docs/specs/test-rewr
 research of the same morning (read at `9b44d8343`; `git diff 9b44d8343 9d4f4834f` is empty for both packages, so its line
 numbers hold).
 
+Who mounts the app (ruled 2026-11-20, as opencode; `docs/specs/test-rewrite-after-port.md` at 2ff22de0e, AGENTS.md
+Testing): `@conciv/plugin` is a package the app is made of, and `@conciv/plugin-host` is part of what core is made of,
+so neither mounts the app. Every happy-dom row was read again against it: the 6 happy-dom rows render one SDK helper
+component under a hand-written plugin context, without the app and without the kit, so they stay in `@conciv/plugin`
+as component tests without the kit. No row mounts the app, so no row moves to `apps/conciv`, and none lands in the
+app's browser file `apps/conciv/src/conciv.browser.test.tsx`.
+
 Counting: a test is one generated case. An `it.each`, `test.each`, `forEach` or `for` loop is one row marked "(each xN)"
 and counts N.
 
@@ -134,16 +141,16 @@ Totals (each cases counted): node 43, node (table) 17, DELETE-NOTHING 2, DELETE-
 
 ### packages/plugin/test/plugin.browser.test.tsx (6 tests, 304 lines; opencode: packages/app/test-browser/plugin-primitives.test.ts (same primitives, conciv rewrote the cases as rendered components))
 
-| test                                                                | destination | target                                                 | merge-id | why                                                                                                                                     |
-| ------------------------------------------------------------------- | ----------- | ------------------------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| 118 createKeyed reruns per key and disposes the previous run        | happy-dom   | packages/plugin/src/experimental/reactive.dom.test.tsx | PL-SOLID | journey "the SDK's Solid helpers": keyed reruns, latest reply, per-visit state, plugin context binding; only clicks and text, no layout |
-| 155 createKeyed keeps the run when compared fields are unchanged    | happy-dom   | packages/plugin/src/experimental/reactive.dom.test.tsx | PL-SOLID | same journey, the `equals` option                                                                                                       |
-| 191 createLatest drops the reply of a request the source moved past | happy-dom   | packages/plugin/src/experimental/reactive.dom.test.tsx | PL-SOLID | same journey; promise ordering only                                                                                                     |
-| 227 createVisitState returns to its initial value on every visit    | happy-dom   | packages/plugin/src/experimental/solid.dom.test.tsx    | PL-SOLID | same journey                                                                                                                            |
-| 275 usePlugin throws outside a plugin contribution                  | happy-dom   | packages/plugin/src/experimental/solid.dom.test.tsx    | PL-SOLID | one assert, folded into the bindPlugin step (inside vs outside a provider)                                                              |
-| 281 bindPlugin renders the component under the provider's context   | happy-dom   | packages/plugin/src/experimental/solid.dom.test.tsx    | PL-SOLID | same journey                                                                                                                            |
+| test                                                                | destination | target                                                 | merge-id | why                                                                                                                                                                                           |
+| ------------------------------------------------------------------- | ----------- | ------------------------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 118 createKeyed reruns per key and disposes the previous run        | happy-dom   | packages/plugin/src/experimental/reactive.dom.test.tsx | PL-SOLID | component test without the kit, stays in the package; journey "the SDK's Solid helpers": keyed reruns, latest reply, per-visit state, plugin context binding; only clicks and text, no layout |
+| 155 createKeyed keeps the run when compared fields are unchanged    | happy-dom   | packages/plugin/src/experimental/reactive.dom.test.tsx | PL-SOLID | component test without the kit, stays in the package; same journey, the `equals` option                                                                                                       |
+| 191 createLatest drops the reply of a request the source moved past | happy-dom   | packages/plugin/src/experimental/reactive.dom.test.tsx | PL-SOLID | component test without the kit, stays in the package; same journey; promise ordering only                                                                                                     |
+| 227 createVisitState returns to its initial value on every visit    | happy-dom   | packages/plugin/src/experimental/solid.dom.test.tsx    | PL-SOLID | component test without the kit, stays in the package; same journey                                                                                                                            |
+| 275 usePlugin throws outside a plugin contribution                  | happy-dom   | packages/plugin/src/experimental/solid.dom.test.tsx    | PL-SOLID | component test without the kit, stays in the package; one assert, folded into the bindPlugin step (inside vs outside a provider)                                                              |
+| 281 bindPlugin renders the component under the provider's context   | happy-dom   | packages/plugin/src/experimental/solid.dom.test.tsx    | PL-SOLID | component test without the kit, stays in the package; same journey                                                                                                                            |
 
-Totals: happy-dom 6 = 6. File becomes: `packages/plugin/src/experimental/reactive.dom.test.tsx`, `packages/plugin/src/experimental/solid.dom.test.tsx`. Nothing here needs layout, focus or canvas.
+Totals: happy-dom 6 = 6, all component tests without the kit (none mounts the app). File becomes: `packages/plugin/src/experimental/reactive.dom.test.tsx`, `packages/plugin/src/experimental/solid.dom.test.tsx`. Nothing here needs layout, focus or canvas.
 
 ### packages/plugin/test/client/shared-events.test.ts (19 tests, 560 lines; opencode: packages/client/test/shared-events.test.ts, the 16 top-level tests are verbatim copies (same titles, same order); the `Conciv.make event stream` describe (3 tests) is conciv-written)
 
@@ -912,6 +919,8 @@ Totals: node 1, DELETE-TESTONLY-API 1 = 2. File becomes: `packages/plugin-host/s
 - packages/plugin plugin.browser.test.tsx needs no real browser. Its six tests render a component, click buttons and read text (createKeyed, createLatest, createVisitState, usePlugin, bindPlugin). No layout, focus, scroll, canvas or observers. They move to a happy-dom file with `@solidjs/testing-library` and `screen` queries instead of `vitest/browser` `page`. The 75-line `pluginContext` is a hand-written implementation, not a spy; it lives once, in `src/experimental/solid.dom.test.tsx`, and its `unused` throws shrink to what the three tests call. No kit fixture: the component fixture is ruled out.
 - Blockers: none found. Nothing in the 43 files touches Ark/zag focus, tiptap, ResizeObserver, IntersectionObserver, canvas or the clipboard.
 - Nothing here needs browser mode.
+- None of the six mounts the app, so the 2026-11-20 ruling (a package the app is made of never mounts the app) leaves
+  them in `@conciv/plugin` as component tests without the kit.
 
 ### Things the rewrite must fix
 

@@ -249,7 +249,8 @@ So `packages/core/src/page/` is DELETED whole, and the contract loses its `page`
 - Destination: INTO THE PLUGIN: the page renderer calls it at activation (it already provides `ReactTree`). Risk to
   check before the move: `bippy`'s `instrument` must be in place before React commits the roots it needs; today it
   runs inside `mountImpl`, which is already after the host app loaded, and the plugin entry loads a little later
-  (dynamic import). The react tree test (browser mode) must pass with the call moved. If it cannot, the fallback would
+  (dynamic import). The react tree test (browser mode, the M-REACT step in the app's browser file
+  `apps/conciv/src/conciv.browser.test.tsx`) must pass with the call moved. If it cannot, the fallback would
   be new API, taken to the maintainer at that point, not now.
 
 ### 2.10 Listings and bundling that stay
@@ -336,6 +337,23 @@ Six PRs, each merged before the next starts. Tests are written on the kits in
 `docs/specs/orchestrator-handoff-2026-11-20.md`: node is `@conciv/plugin-testkit/node` `createEngine`, happy-dom and
 browser mode are `@conciv/plugin-testkit/browser` `mount`. Every PR deletes the old tests of what it deletes.
 
+Who mounts the app (ruled 2026-11-20, as opencode; `docs/specs/test-rewrite-after-port.md` at 2ff22de0e, AGENTS.md
+Testing): the page plugin, core, the SDK and the ui kits are packages the app is made of, so none of them mounts the
+app. Their node tests stay in their package (the page plugin's tools, rpc and queue model; core's `synthetic`). Every
+happy-dom or browser-mode test below mounts the whole app, so it lives in the app's tests and joins an app journey
+of `docs/specs/test-split/app.md` or `plugins.md` instead of starting a second test of the same thing:
+
+- the notice row (PR 1, 2, 3): one journey in `apps/conciv/src/pane/chat-pane.dom.test.tsx`, a notice that is not
+  the user's turn; PR 1 starts it, PR 2 and PR 3 each add a step. No old test covers it, so it has no `M-*` group yet;
+  the app area names it when the first PR lands.
+- tool cards (PR 5): M-TOOLCARDS, `apps/conciv/src/pane/tool-registry-render.dom.test.tsx`. M-PAGECARD (today
+  `packages/plugins/page/src/session-card.dom.test.tsx` in app.md) becomes steps of it: with the fold gone (2.1), a
+  page card is a plugin card through `ToolRegistry`.
+- grab (PR 5, PR 6): M-GRAB, `apps/conciv/src/composer/actions.dom.test.tsx`.
+- the real pick and the React tree (PR 6, 2.9): the app's one browser file `apps/conciv/src/conciv.browser.test.tsx`,
+  steps of M-INSPECT (pick and the React source) and M-REACT (the `ReactTree` contract) from `plugins.md`, which today
+  name the page plugin's own browser file.
+
 ### PR 1. `session.synthetic` in the engine
 
 - The user can: nothing new on screen. A plugin can now add a notice to a session and wake it
@@ -349,7 +367,9 @@ browser mode are `@conciv/plugin-testkit/browser` `mount`. Every PR deletes the 
 - Deleted: nothing yet.
 - Tests: node: a notice wakes an idle session and a turn runs; with `resume: false` it waits for the next turn; it
   survives a stop; the same `id` twice adds one notice; a deleted session refuses it; `experimental.idle` does not
-  run while a notice waits. happy-dom: the notice shows as its own row in the chat.
+  run while a notice waits (node, `packages/chat/src` and the plugin-host session tests). happy-dom, in the app:
+  `apps/conciv/src/pane/chat-pane.dom.test.tsx`, a fixture plugin passed to `createEngine({plugins})` sends a notice
+  and it shows as its own row in the chat (first step of the notice journey).
 
 ### PR 2. The page queue on `synthetic`, and the waiting tool (rulings 1 and 2)
 
@@ -369,8 +389,9 @@ browser mode are `@conciv/plugin-testkit/browser` `mount`. Every PR deletes the 
   `page.queue.wait` (7.4).
 - Tests: node (page plugin suite): `queue_async` answers the id at once; the waiting tool answers progress within
   its budget and the result after, as often as asked; an aborted wait leaves the queue running; a finished queue
-  sends one notice and the session's agent goes on; a deleted session gets none. happy-dom: the notice row after a
-  queue ends.
+  sends one notice and the session's agent goes on; a deleted session gets none. happy-dom, in the app:
+  `apps/conciv/src/pane/chat-pane.dom.test.tsx`, a step of the notice journey: the notice row after a page queue
+  ends (the page plugin is in the app's built-ins, so the app test runs it as the user has it).
 
 ### PR 3. Outside calls end as one notice (ruling 7)
 
@@ -382,8 +403,9 @@ browser mode are `@conciv/plugin-testkit/browser` `mount`. Every PR deletes the 
 - Deleted: `mirror`, `mirrorRun`, `runStarted`, `runFinished`, `marked`, `mirrorRunId`, `ChatPlane.record`,
   `run.record`, `OutsideCallMetadataSchema` and its three readers.
 - Tests: node: an outside `registry.call`, a direct MCP tool call and an outside `code.execute` each add one notice
-  naming the client, the tool and the outcome, and start no turn. happy-dom: the notice row; no tool card for an
-  outside call.
+  naming the client, the tool and the outcome, and start no turn. happy-dom, in the app:
+  `apps/conciv/src/pane/chat-pane.dom.test.tsx`, a step of the notice journey: the notice row, and no tool card, for
+  an outside call.
 
 ### PR 4. Contract, router, catalog and CLI (rulings 3, 5, 6)
 
@@ -413,8 +435,10 @@ browser mode are `@conciv/plugin-testkit/browser` `mount`. Every PR deletes the 
   (`pageToolMeta`), `client.ts`.
 - Deleted: the page session fold (2.1), `pageToolMeta`, the `tanstackToolMeta` read (same fix for the tanstack
   plugin), `sessionCapturesCall`, the `showToast` import.
-- Tests: happy-dom: a turn with page tool calls draws one page card per call with its label and icon, in the generic
-  group; a run end refreshes the captures the page card shows; a failed grab shows the toast.
+- Tests: happy-dom, in the app. M-TOOLCARDS, `apps/conciv/src/pane/tool-registry-render.dom.test.tsx`: a turn with
+  page tool calls draws one page card per call with its label and icon, in the generic group; a run end refreshes
+  the captures the page card shows (the M-PAGECARD rows join here). M-GRAB, `apps/conciv/src/composer/actions.dom.test.tsx`:
+  a failed grab shows the toast. The page plugin keeps no happy-dom file for these.
 
 ### PR 6. Grab on the note path, React bridge, no page import left (2.3, 2.4, 2.6, 2.9)
 
@@ -430,9 +454,11 @@ browser mode are `@conciv/plugin-testkit/browser` `mount`. Every PR deletes the 
 - Deleted: `pageAttachmentCards`, the grab-by-mime path, `grabToFile`/`parseGrabPayload`/`GRAB_MIME` if unused,
   `fitImagePreview` and `showToast` exports from `@conciv/plugin-page/client` once unused, the embed's
   `installReactBridge` call.
-- Tests: happy-dom: a grab attaches a note drawn as the grab card and the sent message carries its text. Browser mode:
-  a real pick on a React page attaches the grab with its source line; the react tree tool finds the component with
-  the bridge installed by the plugin. Repo check (red first, on a branch that still imports): `packages/core/src`,
+- Tests: happy-dom, in the app, M-GRAB (`apps/conciv/src/composer/actions.dom.test.tsx`): a grab attaches a note
+  drawn as the grab card and the sent message carries its text. Browser mode, in the app's one browser file
+  (`apps/conciv/src/conciv.browser.test.tsx`): a real pick on a React page attaches the grab with its source line
+  (a step of M-INSPECT); the react tree tool finds the component with the bridge installed by the plugin (a step of
+  M-REACT). Node, in the page plugin: the grab-by-id tool returns the picture of a stored grab. Repo check (red first, on a branch that still imports): `packages/core/src`,
   `packages/cli/src` and `apps/conciv/src` import nothing from `@conciv/plugin-page`, except the built-ins listing
   in `apps/conciv/src/runtime/plugin/builtins.ts` and core's listing in `app.ts`; `packages/core` and `packages/cli`
   no longer depend on `@conciv/plugin-page`.
@@ -455,6 +481,11 @@ the widget or the CLI imports `@conciv/plugin-page`; the repo check keeps it so.
   as asked); a caller that aborts its wait leaves the queue running and its result readable; every finished queue
   sends one `synthetic` to its session (a second admit with the same id adds nothing); a deleted session gets none.
 - New: the repo check in step 6.
+- Where they run (ruled 2026-11-20, see section 5): every test above is node, in core or in the page plugin's own
+  suite, so none moves. The happy-dom and browser-mode tests of section 5 are app tests: 7 happy-dom steps (the
+  notice journey 3, M-TOOLCARDS 2, M-GRAB 2) and 2 browser-mode steps in
+  `apps/conciv/src/conciv.browser.test.tsx` (M-INSPECT, M-REACT), both joining rows the plugins area already lists,
+  so the browser file gains no new test.
 
 ## 7. Every other way a message reaches a session today
 

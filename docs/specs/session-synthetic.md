@@ -311,7 +311,14 @@ Node, `packages/plugin-host/src/core/session/synthetic.test.ts`:
 8. Queued items go one per run, oldest first; steers go together. `session-runner.test.ts:4793`, 4879.
 9. The model gets the text only, never description or metadata. `session-instructions.test.ts:364`.
 
-Happy-dom, beside the thread code: 10. A delivered notice shows as its own row with `description ?? text`, not as a user bubble.
+Happy-dom, in the app: 10. A delivered notice shows as its own row with `description ?? text`, not as a user bubble.
+The thread code is ui-kit-chat, a package the app is made of, and the ruling of 2026-11-20 (as opencode;
+`docs/specs/test-rewrite-after-port.md` at 2ff22de0e, AGENTS.md Testing) says such a package never mounts the app.
+The case mounts the whole app on a `createEngine` with the small plugin above, so it lives in
+`apps/conciv/src/pane/chat-pane.dom.test.tsx`, as the first step of the notice journey that
+`docs/specs/page-plugin-out-of-core.md` section 5 shares with the page queue and outside-call notices (one journey,
+not three tests). It has no old test, so no `M-*` group yet; the app area names it. If the notice row is a ui-kit-chat
+component, its states are a story in ui-kit-chat, without the kit. No browser-mode test: the row needs no layout.
 
 **OPEN 8:** whether the kit can show what the model received.
 
