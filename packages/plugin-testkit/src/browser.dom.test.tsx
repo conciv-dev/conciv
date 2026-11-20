@@ -94,6 +94,17 @@ describe('the happy-dom environment', () => {
     expect(localStorage.getItem('conciv-test-left-behind')).toBeNull()
   })
 
+  test('a canceled animation leaves nothing unhandled, and a caller awaiting finished still sees the abort', async () => {
+    document.body.animate([{opacity: 0}, {opacity: 1}], 1000).cancel()
+    const watched = document.body.animate([{opacity: 0}, {opacity: 1}], 1000)
+    const outcome = watched.finished.then(
+      () => 'finished',
+      (error: unknown) => (error instanceof Error ? error.name : 'not an error'),
+    )
+    watched.cancel()
+    expect(await outcome).toBe('AbortError')
+  })
+
   test('a test that ends with the engine paused still tears down, whatever order it lists faults and mount in', async ({
     faults,
     chat,

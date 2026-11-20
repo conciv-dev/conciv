@@ -139,6 +139,17 @@ function installStringOnlyGetData(window: DomWindow): void {
   })
 }
 
+function installHandledAnimationFinished(window: DomWindow): void {
+  const cancel = window.Animation.prototype.cancel
+  Object.defineProperty(window.Animation.prototype, 'cancel', {
+    configurable: true,
+    value(this: Animation): void {
+      this.finished.catch(() => undefined)
+      cancel.call(this)
+    },
+  })
+}
+
 function installNodeStorage(global: typeof globalThis, storage: Storage): void {
   Object.defineProperty(global, 'localStorage', {configurable: true, enumerable: true, get: () => storage})
 }
@@ -156,6 +167,7 @@ const environment: Environment = {
     installNodeStorage(global, nodeStorage)
     installAutofocusReflection(window)
     installStringOnlyGetData(window)
+    installHandledAnimationFinished(window)
     installNodeWebSocket(window, node)
     installFonts(window)
     installResizeObserver(window)
