@@ -5,7 +5,7 @@ import {type EngineStaleness} from '@conciv/contract'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {readApprovalAsk} from '@conciv/protocol/chat-event-types'
 import {bootCoreKit, type CoreKit} from '../src/core-kit.js'
-import {test as nodeTest} from '../src/node.js'
+import {test as nodeTest, test as browserTest} from '../src/node.js'
 import {createServer} from 'node:http'
 import {listenLocal} from '../src/listen-local.js'
 import {observeRpc} from '../src/rpc-observer.js'
@@ -15,7 +15,6 @@ import {os} from '@orpc/server'
 import {StandardRPCJsonSerializer, StandardRPCSerializer} from '@orpc/client/standard'
 import {encodeRequestMessage, MessageType} from '@orpc/standard-server-peer'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
-import {test as browserTest} from '@conciv/browser-fixture'
 import {createHash} from 'node:crypto'
 import type {Duplex} from 'node:stream'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
@@ -583,6 +582,13 @@ describe('node fixtures', () => {
     expect(existsSync(tmp)).toBe(true)
     first.tmp = tmp
     first.stateRoot = engine.stateRoot
+  })
+
+  nodeTest('the file browser opens a page and reads its title', async ({browser}) => {
+    const page = await browser.newPage()
+    await page.setContent('<title>conciv node browser</title>')
+    expect(await page.title()).toBe('conciv node browser')
+    await page.close()
   })
 
   nodeTest('the engine lives for the file and each test gets a fresh temp dir', async ({engine, tmp}) => {

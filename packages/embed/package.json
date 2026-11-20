@@ -66,7 +66,6 @@
   },
   "devDependencies": {
     "@conciv/app": "workspace:*",
-    "@conciv/browser-fixture": "workspace:*",
     "@conciv/cli": "workspace:*",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",

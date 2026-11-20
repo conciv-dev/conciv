@@ -2,6 +2,8 @@ import {mkdtemp, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {once} from 'es-toolkit'
+import pTimeout from 'p-timeout'
+import {chromium, type Browser} from 'playwright'
 import {expect, test as base} from 'vitest'
 import {approvePending, type RunStream} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from './core-kit.js'
@@ -18,6 +20,8 @@ export type NodeSession = {
   hydrate: () => ReturnType<CoreKit['hydrate']>
 }
 
+const BROWSER_CLOSE_TIMEOUT_MS = 30_000
+
 export type ToolFailure = {tool: string; message: string}
 
 export type PluginTool = {
@@ -31,7 +35,7 @@ export type StartEngine = (overrides?: Partial<EngineOptions>) => Promise<CoreKi
 
 type NodeFixtures = {
   $test: {tmp: string; freshEngine: StartEngine; session: NodeSession; plugin: NodePlugin}
-  $file: {engine: CoreKit}
+  $file: {engine: CoreKit; browser: Browser}
 }
 
 function failedTool(name: string, call: Promise<unknown>): Promise<ToolFailure> {
@@ -57,6 +61,18 @@ export const test = base
         const engine = await bootCoreKit(engineOptions)
         await use(engine)
         await engine.cleanup()
+      },
+      {scope: 'file'},
+    ],
+    browser: [
+      // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
+      async ({}, use) => {
+        const browser = await chromium.launch()
+        await use(browser)
+        await pTimeout(browser.close(), {
+          milliseconds: BROWSER_CLOSE_TIMEOUT_MS,
+          message: `browser.close did not settle within ${BROWSER_CLOSE_TIMEOUT_MS}ms; a wedged CDP connection would otherwise hang fixture cleanup forever (vitest test.extend cleanup is unbounded)`,
+        })
       },
       {scope: 'file'},
     ],

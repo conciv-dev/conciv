@@ -59,7 +59,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/browser-fixture": "workspace:*",
     "@conciv/embed": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
