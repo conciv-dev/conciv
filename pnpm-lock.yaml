@@ -808,21 +808,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/db':
-        specifier: workspace:^
-        version: link:../../packages/db
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../../packages/harness-testkit
       '@conciv/plugin-page':
         specifier: workspace:^
         version: link:../../packages/plugins/page
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../../packages/plugin-testkit
-      '@conciv/plugin-try-it':
-        specifier: workspace:*
-        version: link:../../packages/plugins/try-it
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
@@ -2798,15 +2786,6 @@ importers:
       '@conciv/app':
         specifier: workspace:*
         version: link:../../apps/conciv
-      '@conciv/cli':
-        specifier: workspace:*
-        version: link:../cli
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../harness-testkit
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -2816,9 +2795,6 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
-      '@playwright/test':
-        specifier: 'catalog:'
-        version: 1.64.1
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -3168,9 +3144,6 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
-      '@playwright/test':
-        specifier: 'catalog:'
-        version: 1.64.1
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
@@ -3595,15 +3568,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../../harness-testkit
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../../plugin
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
@@ -3613,9 +3580,6 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
-      '@effect/platform-node':
-        specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -3828,18 +3792,12 @@ importers:
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../embed
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../../harness-testkit
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../../plugin
       '@conciv/plugin-internal':
         specifier: workspace:*
         version: link:../../plugin-internal
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
@@ -3904,24 +3862,15 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/cli':
-        specifier: workspace:^
-        version: link:../../cli
       '@conciv/embed':
         specifier: workspace:^
         version: link:../../embed
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../../harness-testkit
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../../plugin
       '@conciv/plugin-internal':
         specifier: workspace:*
         version: link:../../plugin-internal
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
@@ -3934,9 +3883,6 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
-      '@playwright/test':
-        specifier: 'catalog:'
-        version: 1.64.1
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
@@ -3952,9 +3898,6 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.3.0(@types/react@19.3.0)
-      playwright:
-        specifier: 'catalog:'
-        version: 1.64.1
       react:
         specifier: 'catalog:'
         version: 19.3.1
@@ -4056,18 +3999,12 @@ importers:
       '@conciv/embed':
         specifier: workspace:^
         version: link:../../embed
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../../harness-testkit
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../../plugin
       '@conciv/plugin-internal':
         specifier: workspace:*
         version: link:../../plugin-internal
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
@@ -4077,9 +4014,6 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
-      '@playwright/test':
-        specifier: 'catalog:'
-        version: 1.64.1
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -4135,9 +4069,6 @@ importers:
       '@conciv/plugin-internal':
         specifier: workspace:*
         version: link:../../plugin-internal
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
@@ -4147,15 +4078,9 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
-      '@playwright/test':
-        specifier: 'catalog:'
-        version: 1.64.1
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      playwright:
-        specifier: 'catalog:'
-        version: 1.64.1
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -4202,27 +4127,21 @@ importers:
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../embed
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../../harness-testkit
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../../plugin
       '@conciv/plugin-internal':
         specifier: workspace:*
         version: link:../../plugin-internal
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../../plugin-testkit
-      '@conciv/protocol':
-        specifier: workspace:^
-        version: link:../../protocol
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
+      '@conciv/unplugin':
+        specifier: workspace:*
+        version: link:../../unplugin
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -4232,9 +4151,6 @@ importers:
       '@excalidraw/mermaid-to-excalidraw':
         specifier: 'catalog:'
         version: 3.0.0
-      '@playwright/test':
-        specifier: 'catalog:'
-        version: 1.64.1
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
@@ -4253,9 +4169,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
-      playwright:
-        specifier: 'catalog:'
-        version: 1.64.1
       react:
         specifier: 'catalog:'
         version: 19.3.1
@@ -4293,9 +4206,6 @@ importers:
         specifier: workspace:^
         version: link:../embed
     devDependencies:
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -4308,9 +4218,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
-      playwright:
-        specifier: 'catalog:'
-        version: 1.64.1
       preact:
         specifier: 'catalog:'
         version: 11.1.0
@@ -4413,9 +4320,6 @@ importers:
         specifier: workspace:^
         version: link:../embed
     devDependencies:
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -4434,9 +4338,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
-      playwright:
-        specifier: 'catalog:'
-        version: 1.64.1
       publint:
         specifier: 'catalog:'
         version: 0.3.25
@@ -4541,9 +4442,6 @@ importers:
         specifier: workspace:^
         version: link:../embed
     devDependencies:
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -4556,9 +4454,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
-      playwright:
-        specifier: 'catalog:'
-        version: 1.64.1
       publint:
         specifier: 'catalog:'
         version: 0.3.25
@@ -5368,18 +5263,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../harness-testkit
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../vitest-config
       '@rspack/core':
         specifier: 'catalog:'
         version: 2.3.2(@swc/helpers@0.5.23)
@@ -5392,15 +5278,6 @@ importers:
       '@vitejs/devtools':
         specifier: 'catalog:'
         version: 0.8.0(crossws@0.4.17(srvx@1.0.8))(ocache@0.3.1)(srvx@1.0.8)(vite@8.3.5)
-      '@vitest/coverage-v8':
-        specifier: 'catalog:'
-        version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
-      get-port:
-        specifier: 'catalog:'
-        version: 7.2.0
-      playwright:
-        specifier: 'catalog:'
-        version: 1.64.1
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
@@ -5422,9 +5299,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@playwright/test':
-        specifier: 'catalog:'
-        version: 1.64.1
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)

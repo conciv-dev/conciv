@@ -7,8 +7,6 @@
     "**/*.d.ts",
     "**/*.generated.ts",
     "packages/extensions/design/**",
-    "packages/plugins/tanstack/test/fixtures/**",
-    "packages/unplugin/test/fixtures/plugin/**",
     "apps/examples/**",
     "native/swift/**",
     "e2e/astro/**",
@@ -825,9 +823,7 @@
     "e2e/e2e-utils/src/packed-global-setup.ts",
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",
     "packages/db/drizzle-home.config.ts",
-    "apps/conciv/test/commands/core-control.ts",
-    "packages/ui-kit-terminal/test/control-server.global.ts",
-    "apps/conciv/test/commands/core-testkit.ts"
+    "packages/ui-kit-terminal/test/control-server.global.ts"
   ],
   "framework": [
     {

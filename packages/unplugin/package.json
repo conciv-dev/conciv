@@ -70,7 +70,6 @@
     "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -87,17 +86,11 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/harness-testkit": "workspace:^",
-    "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@rspack/core": "catalog:",
     "@tanstack/devtools-vite": "catalog:",
     "@types/node": "catalog:",
     "@vitejs/devtools": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "get-port": "catalog:",
-    "playwright": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

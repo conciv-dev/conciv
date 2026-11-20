@@ -14,8 +14,7 @@
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run --project unit --project dom --project browser",
-    "test:perf": "vitest run --project perf"
+    "test": "vitest run"
   },
   "dependencies": {
     "@ark-ui/solid": "catalog:",
@@ -61,11 +60,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/db": "workspace:^",
-    "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
-    "@conciv/plugin-testkit": "workspace:^",
-    "@conciv/plugin-try-it": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

@@ -48,7 +48,6 @@
     "build": "tsdown && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -60,14 +59,11 @@
   },
   "devDependencies": {
     "@conciv/embed": "workspace:^",
-    "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-internal": "workspace:*",
-    "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "playwright": "catalog:",

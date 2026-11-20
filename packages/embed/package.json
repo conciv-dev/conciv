@@ -35,7 +35,6 @@
     "build": "vite build && vite build --config vite.widget.config.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vite build --config vite.handle.config.ts && vitest run && playwright test",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -66,13 +65,9 @@
   },
   "devDependencies": {
     "@conciv/app": "workspace:*",
-    "@conciv/cli": "workspace:*",
-    "@conciv/harness-testkit": "workspace:^",
-    "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@unocss/reset": "catalog:",
     "@vitest/coverage-v8": "catalog:",
