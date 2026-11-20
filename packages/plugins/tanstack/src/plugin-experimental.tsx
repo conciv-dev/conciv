@@ -2,7 +2,7 @@ import {For, onCleanup, Show, splitProps, type JSX} from 'solid-js'
 import {Effect, Exit, Layer, Scope} from 'effect'
 import {isPlainObject, keyBy, mapKeys, sumBy} from 'es-toolkit'
 import {z} from 'zod'
-import {Slot, ToolRegistry, type ToolComponent, type ToolProps, type Ui} from '@conciv/plugin/experimental'
+import {Slot, ToolRegistry, type Plugin, type ToolComponent, type ToolProps, type Ui} from '@conciv/plugin/experimental'
 import {PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
 import {defineInternalPlugin, type InternalUi} from '@conciv/plugin-internal'
 import {tanstackToolMeta, tanstackToolName, type TanstackToolName} from './client.js'
@@ -513,7 +513,7 @@ const tanstackCards = {
   tanstack_server_fn_trace: serverFnTraceCard,
 } satisfies Record<TanstackToolName, Card>
 
-export default defineInternalPlugin({
+const tanstack: Plugin.Definition = defineInternalPlugin({
   setup(ctx) {
     const tree = ctx.use(ReactTree)
     const scope = Effect.runSync(Scope.make())
@@ -533,3 +533,5 @@ export default defineInternalPlugin({
     Object.entries(tanstackCards).forEach(([name, card]) => ctx.add(ToolRegistry, {name, render: card(ctx.ui)}))
   },
 })
+
+export default tanstack
