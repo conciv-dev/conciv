@@ -79,7 +79,10 @@ export type ChatConnectionOptions = {
   onApprovalSettled?: (approvalId: string) => void
   onRunError?: () => void
   joinsRun?: (runId: string) => Promise<boolean>
+  runReconnect?: {attempts?: number; firstDelayMs?: number; maxDelayMs?: number}
 }
+
+type RunReconnect = {attempts: number; firstDelayMs: number; maxDelayMs: number}
 
 export type ChatConnection = SubscribeConnectionAdapter & {
   joinRun: (runId: string, abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>
@@ -113,7 +116,7 @@ const RUN_RECONNECT_ATTEMPTS = 5
 const RUN_RECONNECT_FIRST_DELAY_MS = 250
 const RUN_RECONNECT_MAX_DELAY_MS = 5000
 
-function runReconnects(apiBase: string): RpcClientContext {
+function runReconnects(apiBase: string, {attempts, firstDelayMs, maxDelayMs}: RunReconnect): RpcClientContext {
   let progressed: {attemptIndex: number; lastEventId: string | undefined} = {attemptIndex: 0, lastEventId: undefined}
   const attemptsSinceProgress = (attemptIndex: number, lastEventId: string | undefined): number => {
     if (lastEventId !== progressed.lastEventId) progressed = {attemptIndex, lastEventId}
@@ -127,33 +130,38 @@ function runReconnects(apiBase: string): RpcClientContext {
         await trustedAgain(apiBase, signal)
         return !signal.aborted
       }
-      return !(error instanceof ORPCError) && attemptsSinceProgress(attemptIndex, lastEventId) < RUN_RECONNECT_ATTEMPTS
+      return !(error instanceof ORPCError) && attemptsSinceProgress(attemptIndex, lastEventId) < attempts
     },
     retryDelay: ({attemptIndex, lastEventId}) =>
-      Math.min(
-        RUN_RECONNECT_MAX_DELAY_MS,
-        RUN_RECONNECT_FIRST_DELAY_MS * 2 ** attemptsSinceProgress(attemptIndex, lastEventId),
-      ),
+      Math.min(maxDelayMs, firstDelayMs * 2 ** attemptsSinceProgress(attemptIndex, lastEventId)),
   }
 }
 
 async function* boundedRun(
   opened: (signal: AbortSignal) => Promise<AsyncIterable<ChatEvent>>,
   signal: AbortSignal,
+  attempts: number,
 ): AsyncGenerator<ChatEvent> {
   try {
     yield* streamed(opened, signal)
   } catch (error) {
     if (error instanceof ORPCError) throw error
-    throw new StreamReconnectLimitError(RUN_RECONNECT_ATTEMPTS)
+    throw new StreamReconnectLimitError(attempts)
   }
 }
 
-function overRpc(rpc: RpcClient, apiBase: string, sessionId: string, lifetime: AbortSignal): Turns {
+function overRpc(
+  rpc: RpcClient,
+  apiBase: string,
+  sessionId: string,
+  lifetime: AbortSignal,
+  reconnect: RunReconnect,
+): Turns {
   const joinRun: JoinRun = (runId, abortSignal) =>
     boundedRun(
-      (signal) => rpc.chat.join({runId}, {signal, context: runReconnects(apiBase)}),
+      (signal) => rpc.chat.join({runId}, {signal, context: runReconnects(apiBase, reconnect)}),
       within(lifetime, abortSignal),
+      reconnect.attempts,
     )
   const turns = rpcStream(
     (_messages, _data, abortSignal, input) =>
@@ -161,9 +169,10 @@ function overRpc(rpc: RpcClient, apiBase: string, sessionId: string, lifetime: A
         (signal) =>
           rpc.chat.send(
             {sessionId, runId: input.runId, messages: input.messages},
-            {signal, context: runReconnects(apiBase)},
+            {signal, context: runReconnects(apiBase, reconnect)},
           ),
         within(lifetime, abortSignal),
+        reconnect.attempts,
       ),
     {joinRun},
   )
@@ -375,7 +384,11 @@ export function chatConnection(
   options: ChatConnectionOptions = {},
 ): ChatConnection {
   const lifetime = new AbortController()
-  const turns = overRpc(rpc, apiBase, sessionId, lifetime.signal)
+  const turns = overRpc(rpc, apiBase, sessionId, lifetime.signal, {
+    attempts: options.runReconnect?.attempts ?? RUN_RECONNECT_ATTEMPTS,
+    firstDelayMs: options.runReconnect?.firstDelayMs ?? RUN_RECONNECT_FIRST_DELAY_MS,
+    maxDelayMs: options.runReconnect?.maxDelayMs ?? RUN_RECONNECT_MAX_DELAY_MS,
+  })
   const events: SessionEvents = (abortSignal) =>
     sessionEvents(rpc, apiBase, sessionId, within(lifetime.signal, abortSignal))
   const hydrate = async (threadId: string, window: ChatHistoryWindow = {}): Promise<ChatHydration> => {

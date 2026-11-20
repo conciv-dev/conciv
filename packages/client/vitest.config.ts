@@ -10,7 +10,7 @@ export default defineConfig({
           ...ciTest(),
           name: 'client',
           environment: 'node',
-          include: ['test/**/*.test.ts'],
+          include: ['test/**/*.test.ts', 'src/**/*.test.ts'],
         },
       },
     ],
