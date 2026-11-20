@@ -11,8 +11,22 @@ export {
   type Testkit,
 } from './create-testkit.js'
 export {createTestHarness, type TestHarness} from './create-test-harness.js'
-export {createFakeHarness, type FakeHarness, type FixtureSession} from './create-fake-harness.js'
-export type {PacedRelease, PacedText, ScriptedRun, ScriptedTurn, ScriptedTurnToolCall} from './scripted-run.js'
+export {
+  createFakeHarness,
+  type FakeHarness,
+  type FakeHarnessOptions,
+  type FixtureSession,
+} from './create-fake-harness.js'
+export {
+  createScriptedChat,
+  type PacedRelease,
+  type PacedText,
+  type ScriptedChat,
+  type ScriptedRun,
+  type ScriptedTurn,
+  type ScriptedTurnToolCall,
+} from './scripted-run.js'
+export type {FakeCli, FakeCliCommand, FakeCliScript} from './fake-cli.js'
 export {harnessAvailable} from './harness-available.js'
 export {
   approvePending,

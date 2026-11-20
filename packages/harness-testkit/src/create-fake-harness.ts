@@ -124,20 +124,20 @@ function buildAdapter(
   })
 }
 
-export function createFakeHarness(
-  opts: {
-    id?: string
-    text?: string
-    resume?: boolean
-    displayName?: string
-    models?: HarnessModel[]
-    commands?: HarnessCommand[]
-    history?: FixtureSession[]
-    tty?: {command(ctx: HarnessConnectContext): TtyCommand}
-    resumeBin?: string
-    imageInput?: HarnessCapabilities['imageInput']
-  } = {},
-): FakeHarness {
+export type FakeHarnessOptions = {
+  id?: string
+  text?: string
+  resume?: boolean
+  displayName?: string
+  models?: HarnessModel[]
+  commands?: HarnessCommand[]
+  history?: FixtureSession[]
+  tty?: {command(ctx: HarnessConnectContext): TtyCommand}
+  resumeBin?: string
+  imageInput?: HarnessCapabilities['imageInput']
+}
+
+export function createFakeHarness(opts: FakeHarnessOptions = {}): FakeHarness {
   const id = opts.id ?? 'fake-harness'
   const scripted = makeScriptedRun({text: opts.text})
   const shared: SharedFields = {

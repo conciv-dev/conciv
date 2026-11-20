@@ -3,6 +3,7 @@ import {mkdtempSync} from 'node:fs'
 import {rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {ConfigProvider} from 'effect'
 import {serveApp} from './serve-app.js'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatContentPartSchema, type ChatContentPart} from '@conciv/protocol/chat-types'
@@ -56,6 +57,7 @@ export type BootEnv = {
   cwd: string
   harness: HarnessAdapter
   print: (text: string) => void
+  configProvider: ConfigProvider.ConfigProvider
 }
 export type BootedApp = {
   fetch: (request: Request) => Response | Promise<Response>
@@ -89,7 +91,7 @@ export type Kit = {
 }
 export type Testkit = {setup: () => Promise<Kit>}
 
-export type TestkitOptions = {stateRoot?: string}
+export type TestkitOptions = {stateRoot?: string; configProvider?: ConfigProvider.ConfigProvider}
 
 function isTextPart(part: unknown): part is {type: 'text'; content: string} {
   return (
@@ -150,9 +152,14 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
         ownsStateRoot ? rm(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50}) : undefined
       const printed: string[] = []
       const terminal = (): string => printed.join('\n')
-      const app = await boot({stateRoot, cwd: stateRoot, harness, print: (text) => printed.push(text)}).catch(
-        (error: unknown) => abandonSetup(error, [removeOwnedRoot]),
-      )
+      const configProvider = options.configProvider ?? ConfigProvider.fromUnknown({})
+      const app = await boot({
+        stateRoot,
+        cwd: stateRoot,
+        harness,
+        print: (text) => printed.push(text),
+        configProvider,
+      }).catch((error: unknown) => abandonSetup(error, [removeOwnedRoot]))
       let served = await serveApp(app.fetch).catch((error: unknown) =>
         abandonSetup(error, [() => app.dispose(), removeOwnedRoot]),
       )

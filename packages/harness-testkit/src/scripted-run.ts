@@ -346,3 +346,24 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     clearScript,
   }
 }
+
+export type ScriptedChat = {
+  reply: (text: string) => void
+  hold: () => void
+  release: () => void
+}
+
+export function createScriptedChat(script: ScriptedRun): ScriptedChat {
+  return {
+    reply: (text) => {
+      script.scriptTurn({toolCalls: [], text})
+    },
+    hold: script.hold,
+    release: () => {
+      script.releaseStart()
+      script.releaseTools()
+      script.releaseResults()
+      script.release()
+    },
+  }
+}

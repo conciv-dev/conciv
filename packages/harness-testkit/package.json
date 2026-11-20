@@ -36,6 +36,10 @@
     "./rpc-mounts": {
       "types": "./dist/rpc-mounts.d.ts",
       "import": "./dist/rpc-mounts.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
     }
   },
   "publishConfig": {
@@ -57,6 +61,7 @@
     "@conciv/serve": "workspace:^",
     "@modelcontextprotocol/sdk": "catalog:",
     "@orpc/server": "catalog:",
+    "effect": "catalog:",
     "es-toolkit": "catalog:",
     "hono": "catalog:",
     "zod": "catalog:"
@@ -69,5 +74,8 @@
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "vitest": "^5.1.0"
   }
 }
