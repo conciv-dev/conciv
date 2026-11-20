@@ -7,11 +7,17 @@ the engine part (`.`: the plugin `conciv.page`, its connection, tools, skill and
 the browser part the widget runs eagerly (`./client`: the DOM helpers, the cards and the page tool names), the window
 setup loaded lazily by the built-ins (`./renderer`) and the fake tabs for tests (`./testing`).
 
-The engine part of conciv's built-in page plugin: the plugin `conciv.page` (`.`), which registers the RPC
-`experimental.page` (`./rpc`) and answers its one method, `symbolicate`, under the plugin's directory. Core passes it
-to the plugin host as a post built-in and asks it over that RPC whenever it needs a frame's source.
+The engine part, the plugin `conciv.page` (`.`), registers the RPC `experimental.page` (`./rpc`) and answers it: each
+tab's attachment and the commands it runs, page operations, live changes, captures, action queues and `symbolicate`.
+Core passes it to the plugin host as a post built-in and asks it over that RPC.
 
-The DOM side: The DOM side of the page tools, inlined into the widget by `@conciv/embed`. Plain functions the page plugin and the widget call: the React bridge, accessibility snapshots and element refs, element captures with their CSS, dehydrate, the element picker and a toast. It holds no connection to the engine and serves no queries itself.
+The DOM helpers (`./client`), inlined into the widget by `@conciv/embed`: plain functions the page plugin and the
+widget call: the React bridge, accessibility snapshots and element refs, element captures with their CSS, dehydrate,
+the element picker and a toast. They hold no connection to the engine themselves.
+
+A built-in: it draws with the UI kits directly, like opencode's gui plugins, and is one of the two plugin packages
+`conciv-publish check-plugin-ui-kit` lets import `@conciv/ui-kit*`. The app composes its `./renderer` in
+`apps/conciv/src/runtime/plugin/builtins.ts`.
 
 ## Interface
 
@@ -19,7 +25,7 @@ The DOM side: The DOM side of the page tools, inlined into the widget by `@conci
 - `symbolicateFrame` / `symbolicateFrames` (`symbolicate.ts`, internal): map frames (`RawFrame`) to original source
   (`SourceLoc`, both from `@conciv/contract`) with @jridgewell/trace-mapping; the `symbolicate`
   method answers with `symbolicateFrames`
-- `Definition` (`rpc.ts`, `./rpc`): the RPC `experimental.page` with `symbolicate` alone
+- `Definition` (`rpc.ts`, `./rpc`): the RPC `experimental.page`
 - `CliTools` (`rpc.ts`, `./rpc`): per operation, the terminal shape and its `view` (icon and running/done label), the one source the engine catalog (`pluginSignatures`) and the pane's `builtinToolMeta` read
 - `attach` refuses a session that does not exist with the error type `missing` (`connection.ts`), every other refusal with `unavailable`
 - option `pageReplyTimeoutMs` (`connection.ts`, milliseconds, default 5 000): how long a tab has to answer an action that declares no timeout of its own, and to accept a queue
