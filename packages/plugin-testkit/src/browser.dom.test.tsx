@@ -145,7 +145,7 @@ describe('the app on happy-dom behind the kit engine proxy', () => {
     expect(await screen.findByText('the paused reply')).toBeInTheDocument()
     await faults.failChatTurns()
     await user.type(composer, 'a failed turn{Enter}')
-    expect(await screen.findByText(FAILED_TURN_MESSAGE)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getAllByText(FAILED_TURN_MESSAGE)).toHaveLength(2))
     expect(screen.getByRole('button', {name: 'Retry'})).toBeInTheDocument()
   })
 })
