@@ -56,27 +56,49 @@ function writeStorage(storage: Record<string, unknown>): void {
 
 export type Mount = (options: MountOptions) => Promise<void>
 
+type Mounted = {unmount: () => void; draftStore: DraftStore}
+
+function boundPlatform(address: EngineAddress, route: string | undefined, draftStore: DraftStore): Platform {
+  return {
+    engine: () => ({kind: 'bound', apiBase: address.apiBase, token: () => Promise.resolve(address.token)}),
+    navigation: route === undefined ? 'engine' : {memory: route},
+    root: document,
+    timings: {engine: ENGINE_TIMINGS},
+    draftStore,
+  }
+}
+
+function assertAppShown(): void {
+  if (screen.queryByRole('button', {name: 'Open conciv chat'})) return
+  if (screen.queryByRole('dialog', {name: 'conciv chat agent'})) return
+  throw new Error('the conciv app shows neither its launcher nor its chat')
+}
+
+type MountState = {mounted: Mounted | undefined}
+
+function reloadOrStart(state: MountState): DraftStore {
+  const earlier = state.mounted
+  if (earlier) {
+    earlier.unmount()
+    return earlier.draftStore
+  }
+  onTestFinished(() => {
+    state.mounted = undefined
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+  return memoryDraftStore()
+}
+
 export function makeMount(engineAddress: (engine: Engine) => EngineAddress): Mount {
+  const state: MountState = {mounted: undefined}
   return async (options) => {
-    const address = engineAddress(options.engine)
-    onTestFinished(() => {
-      cleanup()
-      localStorage.clear()
-      sessionStorage.clear()
-    })
+    const draftStore = reloadOrStart(state)
     writeStorage(options.seed?.storage ?? {})
-    const platform: Platform = {
-      engine: () => ({kind: 'bound', apiBase: address.apiBase, token: () => Promise.resolve(address.token)}),
-      navigation: options.route === undefined ? 'engine' : {memory: options.route},
-      root: document,
-      timings: {engine: ENGINE_TIMINGS},
-      draftStore: memoryDraftStore(),
-    }
-    render(() => createComponent(ConcivApp, {platform}))
-    await waitFor(() => {
-      if (screen.queryByRole('button', {name: 'Open conciv chat'})) return
-      if (screen.queryByRole('dialog', {name: 'conciv chat agent'})) return
-      throw new Error('the conciv app shows neither its launcher nor its chat')
-    })
+    const platform = boundPlatform(engineAddress(options.engine), options.route, draftStore)
+    const {unmount} = render(() => createComponent(ConcivApp, {platform}))
+    state.mounted = {unmount, draftStore}
+    await waitFor(assertAppShown)
   }
 }
