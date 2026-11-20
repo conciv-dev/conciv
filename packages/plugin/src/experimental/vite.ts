@@ -30,9 +30,10 @@ export function experimental(options: ExperimentalOptions = {}): Plugin[] {
   const outFile = options.outFile ?? 'dist/plugin-experimental.cjs'
 
   return [
-    solid(),
+    {...solid(), apply: 'build'},
     {
       name: 'conciv-experimental',
+      apply: 'build',
       enforce: 'pre',
       config: () => ({
         build: {
