@@ -47,7 +47,7 @@ package; every file at most 1,000 lines (exceptions only with the maintainer's y
 
 Two kits, one export per entry:
 
-- `@conciv/plugin-testkit/node`: `createEngine({plugins, replies, settings, files, permission, log})`.
+- `@conciv/plugin-testkit/node`: `createEngine({plugins, harness, replies, settings, files, permission, log})`.
   Starts the real engine with the scripted chat; stops it when the test ends.
 - `@conciv/plugin-testkit/browser`: `mount({engine, seed: {storage}, route})`. Opens the app on that engine (happy-dom
   and browser mode). Returns nothing; the test drives only the UI with Testing Library and user-event.
@@ -71,6 +71,12 @@ test('a user asks the agent, then opens the tests panel', async () => {
 2026-11-20: text, a tool call, a reply that fails part-way, a reply that never ends (the turn stays running), and a
 reply held until the test releases it. The exact shape is in `docs/specs/kit-replies.md`. Two additions, ruled 2026-11-20: the kits
 export the `TestLLM` reply helpers, and the engine has `gate()` for a held reply. Connection faults stay out of the kit.
+
+`harness`, ruled 2026-11-20: `createEngine` passes it to `createHarnessEngine`, which already takes it and scripts only
+its chat. It is how a test says which models, slash commands and terminal the engine offers, as an opencode test's
+setup does (`_ref/opencode/packages/app/e2e/utils/mock-server.ts:154`, `:173`, `core/test/session-runner.test.ts:138`).
+The test passes a real harness adapter from `@conciv/harness`, never a hand-written one. The engine still runs one
+harness.
 
 A past chat is made with real turns (`engine.session.send`), never by writing rows. Drafts come from
 `Platform.draftStore`; `mount` passes an in-memory store. No connection faults in the kit. Page errors as opencode:
