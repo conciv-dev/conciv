@@ -27,8 +27,7 @@
         "@conciv/ui-kit-chat#build",
         "@conciv/ui-kit-chat-tools#build",
         "@conciv/ui-kit-system#build",
-        "@conciv/ui-kit-tap#build",
-        "@conciv/protocol#build"
+        "@conciv/ui-kit-tap#build"
       ],
       "outputs": ["dist/**/*.d.ts"]
     },
@@ -52,8 +51,7 @@
         "@conciv/ui-kit-chat#build",
         "@conciv/ui-kit-chat-tools#build",
         "@conciv/ui-kit-system#build",
-        "@conciv/ui-kit-tap#build",
-        "@conciv/protocol#build"
+        "@conciv/ui-kit-tap#build"
       ]
     },
     "publint": {
