@@ -22,20 +22,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/testkit.d.ts",
-      "import": "./dist/testkit.js"
-    },
-    "./until": {
-      "types": "./dist/until.d.ts",
-      "import": "./dist/until.js"
-    },
-    "./rpc-mounts": {
-      "types": "./dist/rpc-mounts.d.ts",
-      "import": "./dist/rpc-mounts.js"
-    },
-    "./node": {
-      "types": "./dist/node.d.ts",
-      "import": "./dist/node.js"
+      "types": "./dist/harness-engine.d.ts",
+      "import": "./dist/harness-engine.js"
     }
   },
   "publishConfig": {
@@ -51,24 +39,18 @@
   "dependencies": {
     "@conciv/ai": "workspace:^",
     "@conciv/contract": "workspace:^",
+    "@conciv/core": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@modelcontextprotocol/sdk": "catalog:",
-    "@orpc/server": "catalog:",
     "effect": "catalog:",
-    "es-toolkit": "catalog:",
-    "hono": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
-    "typescript": "catalog:",
-    "vitest": "catalog:"
-  },
-  "peerDependencies": {
-    "vitest": "^5.1.0"
+    "typescript": "catalog:"
   }
 }

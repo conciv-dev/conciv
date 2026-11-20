@@ -430,13 +430,7 @@
       }
     },
     {
-      "files": ["packages/harness-testkit/src/create-testkit.ts"],
-      "rules": {
-        "conciv/no-hand-made-temp-dir": "off"
-      }
-    },
-    {
-      "files": ["packages/harness-testkit/src/node.ts"],
+      "files": ["packages/harness-testkit/src/harness-engine.ts"],
       "rules": {
         "conciv/no-hand-made-temp-dir": "off"
       }

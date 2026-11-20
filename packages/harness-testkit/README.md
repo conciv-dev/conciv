@@ -2,26 +2,22 @@
 
 ## Overview
 
-Package root for `@conciv/harness-testkit`. `package.json` exports the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`.
+Starts the real conciv engine (`@conciv/core`) on a local port with a scripted AI chat, for tests. The one export is `createHarnessEngine(options)`: a harness author passes the real adapter, and its chat runs through the scripted replies while its models, commands and history stay its own. Without a harness the engine uses a fake one. `@conciv/plugin-testkit` builds its `createEngine` on it.
+
+`package.json` exports the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`. Source: [src](./src/README.md).
 
 ## Product path
 
-The testkit runs the real product path and fakes only the expensive externals, the LLM harness and the agent CLIs. A helper talks to the engine the way the product caller it stands in for does: a browser caller goes through the product's browser transport, the partysocket `/rpc-ws` socket from `@conciv/contract`, and a node caller (the CLI, an MCP agent) uses HTTP `/rpc` or `/api/mcp`. Interception observes or faults calls but never swaps the transport.
-
-## Interface
-
-- `package.json:exports` - `.` (`src/testkit.ts`), `./until`, `./rpc-mounts`, `./node`.
-- `vitest.config.ts` - `ciTest()` with the `node` environment.
-- Source: [src](./src/README.md).
+The engine is the product's own `makeApp`, and the kit talks to it the way the product callers do: turns, settings, sessions and permission answers over the browser socket from `@conciv/contract`, tool calls over `/api/mcp` as an agent does. Only the AI chat is scripted.
 
 ## Invariants
 
-- None
+- The kit does not depend on a test runner.
 
 ## Side Effects
 
-- The package root (configs and manifest) has none. At runtime `setup` creates a `conciv-kit-*` temp state root and boots an engine; `cleanup` removes it. Full list in [src/README.md](./src/README.md#side-effects).
+- Each engine makes a `conciv-kit-*` temp folder as its project root and binds a port on `127.0.0.1`; `stop` closes both.
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/harness-testkit` from the repo root (turbo builds the package and its dependencies first)
+- `pnpm exec turbo run typecheck build --filter=@conciv/harness-testkit`; behaviour is proven by the plugin tests that use `@conciv/plugin-testkit`.

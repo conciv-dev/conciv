@@ -43,15 +43,8 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/contract": "workspace:^",
-    "@conciv/core": "workspace:^",
-    "@conciv/grab": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
-    "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@orpc/client": "catalog:",
-    "effect": "catalog:",
-    "es-toolkit": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
