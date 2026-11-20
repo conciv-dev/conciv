@@ -287,9 +287,15 @@ So `packages/core/src/page/` is DELETED whole, and the contract loses its `page`
    branch goes (`registryBackedTool` in `app.ts` exposes `server` tools only), answered in section 7.
 4. OPEN. Page session fold (2.1) and attachment cards (2.3): a plugin registry for each, or drop them. No maintainer
    ruling exists; an orchestrator plan of 2026-11-18 named a plugin registry for the fold, which is not a ruling.
-5. Contract changes: delete `page.*`, split `tabs.*` (project part renamed), `editor.openFromFrames` to
-   `editor.open(SourceLoc)` (1.2, 1.6).
-6. Whether `packages/cli` counts as core under the ruling (3.1).
+5. DECIDED by the orchestrator 2026-11-20, under the maintainer's "rule without me, stay as opencode": the contract's
+   `page.*` group is deleted and the per-session tab part of `tabs.*` moves to the page plugin's own rpc, reached
+   through `plugin.call` (opencode's core contract has no browser group; the plugin owns its rpc). The project part
+   of `tabs.*` (name, root, branch) and `editor.openFromFrames` stay in core; any new name for them is taken from
+   opencode's contract, never invented, and is shown to the maintainer in the detailed plan.
+6. DECIDED the same way: `packages/cli` counts. opencode's CLI has no dependency on its browser plugin (only `core`,
+   `gui-plugins` and the plugin itself name it), so `cli/src/hub.ts:30` (`PAGE_NAMESPACE`) and the
+   `@conciv/plugin-page` dependency of `packages/cli` go (3.1).
+7. OPEN, opencode has no hub so it gives no answer: what the chat shows for an outside agent's tool calls (7.2).
 
 ## 5. Order
 
