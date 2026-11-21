@@ -58,3 +58,21 @@ describe('stopping with Escape', () => {
     expect(screen.queryByText('Too late')).not.toBeInTheDocument()
   })
 })
+
+describe('a revoked browser', () => {
+  test('the composer locks once the engine revokes this browser, and what the user types never reaches the agent', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
+
+    await engine.revokeBrowsers()
+
+    expect(await screen.findByText('Log in to continue')).toBeVisible()
+    expect(screen.getByRole('button', {name: 'This browser is no longer authorized to use conciv.'})).toBeDisabled()
+    await user.type(input, 'Ship it')
+    expect(screen.queryByText('Ship it')).not.toBeInTheDocument()
+    expect(await engine.requests()).toHaveLength(0)
+  })
+})
