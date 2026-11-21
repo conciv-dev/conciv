@@ -165,8 +165,11 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   `toBeDefined()` or `toBeTruthy()` on a Testing Library query: a `find`/`get` query already throws when nothing
   matches, so those asserts prove nothing. One visible match is `getByRole(...)` (it throws on two) then
   `toBeVisible()`. The kit loads the matchers in happy-dom and their types come with `@conciv/plugin-testkit/node`;
-  browser mode uses vitest's own. In happy-dom the app's UnoCSS is not loaded, so `toBeVisible` cannot see an
-  element hidden by a utility class there (it does see `hidden`, inline styles and a closed `<dialog>`).
+  browser mode uses vitest's own. The happy-dom project processes CSS (`css: true`), so the mounted app carries the
+  same UnoCSS utilities and reset as in browser mode and `toBeVisible` sees a class that hides. happy-dom still
+  cannot prove two things, which stay in browser mode: a native `popover` element that was never opened (happy-dom
+  has no popover support, so it reads as visible), and anything that needs layout (size, position, scroll,
+  overflow), because happy-dom lays nothing out.
 - No mocks or stubs (`vi.fn`, `vi.mock`, `vi.spyOn`, `vi.stubGlobal`, `vi.stubEnv`, fake modules). A fake is a real
   implementation the product accepts (the scripted harness, an in-memory draft store). Config goes through Effect
   `ConfigProvider`, never env writes.
