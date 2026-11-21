@@ -67,6 +67,32 @@ test.describe('the widget on a vite react page when its engine socket cannot con
     await page.getByRole('button', {name: 'Retry'}).click()
     await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
   })
+
+  test("the user sees that conciv couldn't reach the engine, and once the engine trusts the browser again the chat comes back without a click", async ({
+    page,
+  }) => {
+    await loginWidget(page)
+    const engineSocket = await holdEngineSocket(page)
+    await page.clock.install()
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await engineSocket.arrived
+
+    await page.clock.runFor(defaultEngineConnectionTimings.authTimeoutMs)
+    await page.getByRole('button', {name: /conciv chat$/}).click()
+    await page.clock.runFor(
+      defaultEngineConnectionTimings.callDeadlineMs + defaultEngineConnectionTimings.connectionLossRetryDelayMs,
+    )
+    await expect(
+      page.getByText("conciv couldn't reach the engine. Check that the dev server is still running."),
+    ).toBeVisible()
+
+    engineSocket.release()
+    await page.clock.runFor(defaultEngineConnectionTimings.reconnectMaxDelayMs)
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    await expect(
+      page.getByText("conciv couldn't reach the engine. Check that the dev server is still running."),
+    ).not.toBeVisible()
+  })
 })
 
 test.describe('the widget on a vite react page when the engine is slow or fails to say which session to open', () => {
