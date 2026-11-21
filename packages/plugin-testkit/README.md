@@ -23,6 +23,7 @@ Source details: [src/README.md](./src/README.md).
 - In browser mode the Playwright page's console errors, uncaught errors and responses with status 400 or more are collected per test, as opencode's `trackPageErrors`. `pageErrors()` on the test context reads them when the test asks; nothing fails on its own (`page-errors.ts`).
 - The setup files load none of the engine: `node-setup.ts` imports only the file-level engine list (`file-engines.ts`), so a test that never calls `createEngine` never imports `@conciv/harness-testkit` or core.
 - The vitest config loads none of the engine either: `test-projects.ts` imports the engine only inside the browser command that starts one, so the config costs the same whether or not a run makes an engine.
+- The happy-dom and browser projects add `vite-plugin-solid` only when the author's `vite.config.ts` has none: the projects extend that config, so a second copy compiled every file twice.
 - `package.json`: exports point at the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`.
 
 ## Verification

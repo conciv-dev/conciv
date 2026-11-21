@@ -333,8 +333,19 @@ function pageErrorCommands(): PageCommandHandlers {
   }
 }
 
-function testProjects(): TestProjectInlineConfiguration[] {
+const PluginListSchema = z.array(z.unknown())
+
+const NamedPluginSchema = z.object({name: z.string()})
+
+function hasPlugin(option: unknown, name: string): boolean {
+  const list = PluginListSchema.safeParse(option)
+  if (list.success) return list.data.some((item) => hasPlugin(item, name))
+  return NamedPluginSchema.safeParse(option).data?.name === name
+}
+
+function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineConfiguration[] {
   const uno = appUnoConfig()
+  const solid = hasPlugin(authorPlugins, 'solid') ? [] : [solidPlugin()]
   const byName = pluginsByName(testablePlugins())
   const engines = browserEngines()
   const provide = {concivPollTimeoutMs: POLL_TIMEOUT_MS}
@@ -352,7 +363,7 @@ function testProjects(): TestProjectInlineConfiguration[] {
     },
     {
       extends: true,
-      plugins: [UnoCSS({configFile: uno}), solidPlugin(), engineModulesInNode(), byName],
+      plugins: [UnoCSS({configFile: uno}), ...solid, engineModulesInNode(), byName],
       server: {fs: {strict: false}},
       resolve: {alias: [{find: BROWSER_ENTRY, replacement: join(KIT_DIST, 'happy-dom.js')}]},
       test: {
@@ -369,7 +380,7 @@ function testProjects(): TestProjectInlineConfiguration[] {
     },
     {
       extends: true,
-      plugins: [UnoCSS({configFile: uno}), solidPlugin(), engines.plugin, byName],
+      plugins: [UnoCSS({configFile: uno}), ...solid, engines.plugin, byName],
       server: {fs: {strict: false}},
       resolve: {alias: [{find: ENGINE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
       optimizeDeps: {
@@ -396,5 +407,5 @@ function testProjects(): TestProjectInlineConfiguration[] {
 export function kitTestConfig(config: UserConfig): UserConfig {
   const defaults = kitDefaults(config.test)
   if (config.test?.name !== undefined) return {test: defaults}
-  return {test: {...defaults, projects: testProjects()}}
+  return {test: {...defaults, projects: testProjects(config.plugins)}}
 }
