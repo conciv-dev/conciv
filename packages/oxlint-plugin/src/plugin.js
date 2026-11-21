@@ -7,6 +7,7 @@ import {isDomTestFile} from '@conciv/vitest-config/new-layer'
 import noLocatorPoll from './no-locator-poll.js'
 import noMocks from './no-mocks.js'
 import noPredicateWaits from './no-predicate-waits.js'
+import noQueryExistenceAssert from './no-query-existence-assert.js'
 import noSignalRef from './no-signal-ref.js'
 import noTeardownHooks from './no-teardown-hooks.js'
 import playwrightTestInE2e from './playwright-test-in-e2e.js'
@@ -244,6 +245,7 @@ export default {
     'no-mocks': noMocks,
     'no-of-suffix': noOfSuffix,
     'no-predicate-waits': noPredicateWaits,
+    'no-query-existence-assert': noQueryExistenceAssert,
     'no-signal-ref': noSignalRef,
     'no-teardown-hooks': noTeardownHooks,
     'no-timers-in-tests': noTimersInTests,

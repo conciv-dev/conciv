@@ -408,7 +408,8 @@
     {
       "files": ["**/test/**", "**/*.test.ts", "**/*.test.tsx"],
       "rules": {
-        "conciv/banned-vocabulary": "off"
+        "conciv/banned-vocabulary": "off",
+        "conciv/no-query-existence-assert": "error"
       }
     },
     {
