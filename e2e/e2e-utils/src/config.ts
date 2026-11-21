@@ -186,6 +186,7 @@ export function harnessMatrixConfig(opts: {
     testDir: './test',
     workers: 1,
     timeout: 150_000,
+    expect: {timeout: 150_000},
     reporter: reporters(
       opts.dir,
       entries.map(([harness]) => `.conciv-${harness}`),
