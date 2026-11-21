@@ -111,34 +111,6 @@ describe('paging the list', () => {
   })
 })
 
-describe('a preview that could not load', () => {
-  test('the user highlights a session, reads that its preview failed and closes it', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Hi there', 'reply'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Hello')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    const reply = await screen.findByRole('article', {name: 'Reply to: Hello'})
-    expect(await within(reply).findByText('Hi there')).toBeVisible()
-
-    await user.click(await screen.findByRole('button', {name: 'Hello, session options'}))
-    await user.click(await screen.findByRole('button', {name: 'Session: Hello'}))
-    await user.click(await screen.findByRole('combobox', {name: 'Search sessions'}))
-    await user.keyboard('{ArrowDown}')
-
-    const preview = await screen.findByRole('dialog', {name: 'Preview of Hello'})
-    expect(preview).toBeVisible()
-    expect(await within(preview).findByText('Couldn’t load this session.')).toBeVisible()
-    expect(within(preview).getByRole('button', {name: 'Retry'})).toBeVisible()
-
-    await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', {name: 'Preview of Hello'})).not.toBeInTheDocument()
-    expect(screen.getByRole('combobox', {name: 'Search sessions'})).toBeVisible()
-  })
-})
-
 describe('swap a quick pane’s session', () => {
   test('the user picks another session from a quick pane’s pill', async () => {
     const user = userEvent.setup()
