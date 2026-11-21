@@ -15,6 +15,13 @@ export type EngineCommands = {
   concivRequests: (engineId: string) => Promise<TestLLM.ModelRequest[]>
   concivEvent: (engineId: string, type: string) => Promise<string>
   concivEventArrived: (engineId: string, waitId: string) => Awaited<ReturnType<Engine['event']>>['arrived']
+  concivRpcCall: (engineId: string, rpcId: string, method: string, input: unknown) => Promise<unknown>
+  concivRpcFailure: (
+    engineId: string,
+    rpcId: string,
+    method: string,
+    input: unknown,
+  ) => ReturnType<Engine['rpc']['failure']>
   concivOpened: (engineId: string) => ReturnType<Engine['opened']>
   concivSend: (engineId: string, sessionId: string, text: string) => Promise<void>
   concivApprove: (engineId: string, sessionId: string) => Promise<void>

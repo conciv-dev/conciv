@@ -167,6 +167,10 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
         delete engine.waits[waitId]
         return wait.arrived
       },
+      concivRpcCall: (_context, engineId, rpcId, method, input) =>
+        engineFor(engineId).started.engine.rpc.call(rpcId, method, input),
+      concivRpcFailure: (_context, engineId, rpcId, method, input) =>
+        engineFor(engineId).started.engine.rpc.failure(rpcId, method, input),
       concivGateStarted: (_context, engineId, gateId) => gateFor(engineId, gateId).started,
       concivGateRelease: async (_context, engineId, gateId) => {
         const gate = gateFor(engineId, gateId)

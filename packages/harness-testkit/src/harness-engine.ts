@@ -15,6 +15,7 @@ import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveHono} from '@conciv/serve'
+import {z} from 'zod'
 import {callTool} from './call-tool.js'
 import {replyScript, type ReplyScript, type ScriptedHarness} from './scripted-harness.js'
 import type {Gate, ModelRequest, Response} from './test-llm.js'
@@ -70,6 +71,19 @@ type HarnessEngineEvent = {type: string; data: unknown}
 
 type HarnessEngineEventWait = {arrived: Promise<HarnessEngineEvent>}
 
+type HarnessEngineRpcFailure = {type: string; message: string; data?: unknown}
+
+type HarnessEngineRpc = {
+  call: (rpcId: string, method: string, input?: unknown) => Promise<unknown>
+  failure: (rpcId: string, method: string, input?: unknown) => Promise<HarnessEngineRpcFailure>
+}
+
+const PluginRpcErrorSchema = z.object({
+  defined: z.literal(true),
+  code: z.enum(['PLUGIN_RPC', 'PLUGIN_RPC_INTERNAL']),
+  data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
+})
+
 export type HarnessEngine = {
   session: HarnessEngineSession
   newSession: (title?: string) => Promise<HarnessEngineSession>
@@ -80,6 +94,7 @@ export type HarnessEngine = {
   root: string
   opened: () => Promise<HarnessEngineOpened[]>
   event: (type: string) => Promise<HarnessEngineEventWait>
+  rpc: HarnessEngineRpc
   stop: () => Promise<void>
 }
 
@@ -258,6 +273,25 @@ async function eventWait(engine: Engine, type: string, waits: Set<AbortControlle
   return {arrived}
 }
 
+function rpcFailure(error: unknown): HarnessEngineRpcFailure {
+  const failure = PluginRpcErrorSchema.safeParse(error)
+  if (!failure.success) throw error
+  const {type, message, data} = failure.data.data
+  return data === undefined ? {type, message} : {type, message, data}
+}
+
+function pluginRpc(engine: Engine): HarnessEngineRpc {
+  const call = (rpcId: string, method: string, input?: unknown): Promise<unknown> =>
+    engine.rpc.plugin.call({rpcId, method, input})
+  return {
+    call,
+    failure: (rpcId, method, input) =>
+      call(rpcId, method, input).then((output) => {
+        throw new Error(`the rpc ${rpcId}.${method} answered instead of failing: ${JSON.stringify(output)}`)
+      }, rpcFailure),
+  }
+}
+
 function engineHome(root: string): string {
   return join(concivStateDir(root), 'home')
 }
@@ -415,6 +449,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     root: realpathSync(project),
     opened: async () => [...opened],
     event: (type) => eventWait(engine, type, waits),
+    rpc: pluginRpc(engine),
     stop,
   }
 }
