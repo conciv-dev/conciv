@@ -234,6 +234,8 @@ export type MakeAppOpts = {
 
   staleness?: () => EngineStaleness
 
+  app?: {version?: string}
+
   home?: string
 
   configProvider?: ConfigProvider.ConfigProvider
@@ -341,6 +343,7 @@ function composeRoutes(
   deps: {
     engineId: string
     staleness: () => EngineStaleness
+    version: string | undefined
     onShutdown?: () => void
     trust: ConnectionTrust
   },
@@ -356,7 +359,7 @@ function composeRoutes(
       c.set('mcp', vars.mcp)
       await next()
     })
-    .use(corsMiddleware())
+    .use(corsMiddleware(deps.version))
     .get('/health', (c) =>
       c.json(HealthSchema.parse({ok: true, harness: vars.harnessId, engine: deps.staleness(), id: deps.engineId})),
     )
@@ -829,6 +832,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       engineId,
       staleness,
+      version: opts.app?.version,
       onShutdown: opts.onShutdown,
       trust,
     },
@@ -859,6 +863,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     fetch: (request, env) => app.fetch(request, env),
     trusts: trust.trusts,
     allowedOrigins: opts.allowedOrigins ?? [],
+    version: opts.app?.version,
     onTrusted: opts.onTrusted,
   })
 

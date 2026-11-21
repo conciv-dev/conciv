@@ -31,6 +31,7 @@ export type CreateEngineOptions = {
   sessionId?: HarnessEngineOptions['sessionId']
   timeouts?: HarnessEngineOptions['timeouts']
   staleness?: HarnessEngineOptions['staleness']
+  app?: HarnessEngineOptions['app']
   directory?: HarnessEngineOptions['directory']
   models?: HarnessEngineOptions['models']
   commands?: HarnessEngineOptions['commands']

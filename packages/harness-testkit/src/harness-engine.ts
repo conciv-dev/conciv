@@ -43,6 +43,7 @@ export type HarnessEngineOptions = {
     'firstChunkTimeoutMs' | 'eventHeartbeatIntervalMs' | 'stopGraceMs' | 'pageReplyTimeoutMs' | 'queuedActionTimeoutMs'
   >
   staleness?: EngineStaleness
+  app?: MakeAppOpts['app']
   directory?: string
   models?: HarnessModel[]
   commands?: HarnessCommand[]
@@ -416,6 +417,7 @@ async function bootApp(
     configProvider,
     ...options.timeouts,
     ...(staleness === undefined ? {} : {staleness: () => staleness}),
+    app: options.app,
   })
   await app.awaitActivation().catch((error: unknown) => abandonStart(error, [() => app.dispose()]))
   return {app, sessionId: resolved.sessionId}
