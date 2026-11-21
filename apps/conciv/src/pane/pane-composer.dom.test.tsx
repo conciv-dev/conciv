@@ -1,14 +1,15 @@
 import {describe, expect, test} from 'vitest'
-import {screen, within} from '@solidjs/testing-library'
+import {fireEvent, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('sending with the keyboard', () => {
-  test('Enter sends the typed message, the composer empties and asks for the next instruction', async () => {
+  test('Enter sends the typed message, the composer empties and asks for the next instruction, and Enter while an IME composes does not send', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Hello from the agent'))
+    await engine.reply(TestLLM.text('Composed'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
@@ -24,6 +25,14 @@ describe('sending with the keyboard', () => {
     const requests = await engine.requests()
     expect(requests).toHaveLength(1)
     expect(requests[0]?.messages.at(-1)).toMatchObject({role: 'user', content: 'Hello agent'})
+
+    await user.type(input, 'Kana')
+    fireEvent.keyDown(input, {key: 'Enter', isComposing: true})
+    await user.type(input, 'done')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(await screen.findByText('Composed')).toBeVisible()
+    expect((await engine.requests())[1]?.messages.at(-1)).toMatchObject({role: 'user', content: 'Kana\ndone'})
   })
 })
 
