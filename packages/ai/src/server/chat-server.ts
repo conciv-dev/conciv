@@ -348,6 +348,7 @@ type LiveRun = {
   ending: AbortController
   settled: PromiseWithResolvers<void>
   stopping: boolean
+  interrupted: ModelMessage[]
 }
 
 type RunMessages = {full: ModelMessage[]}
@@ -393,11 +394,52 @@ function unsavedParts(message: ChatMessage, saved: ReadonlySet<string>): ChatMes
   }
 }
 
-async function saveStoppedTurn(messages: MessageStore, threadId: string, processor: StreamProcessor): Promise<void> {
+const INTERRUPTED = 'Tool execution interrupted'
+
+async function saveStoppedTurn(
+  messages: MessageStore,
+  threadId: string,
+  processor: StreamProcessor,
+): Promise<ModelMessage[]> {
   const stopped = (message: ModelMessage) => withTanstackMetadata(message, {stopReason: 'aborted'})
-  await saveShown(messages, threadId, processor, stopped, [
-    stopped({role: 'assistant', content: null, id: generateMessageId()}),
-  ])
+  const written: {results: ModelMessage[]} = {results: []}
+  await saveShown(
+    messages,
+    threadId,
+    processor,
+    stopped,
+    [stopped({role: 'assistant', content: null, id: generateMessageId()})],
+    (thread) => {
+      written.results = interruptedResults(thread)
+      return [...thread, ...written.results]
+    },
+  )
+  return written.results
+}
+
+function interruptedChunks(results: readonly ModelMessage[]): ChatEvent[] {
+  return results.flatMap((result) =>
+    result.toolCallId === undefined
+      ? []
+      : [
+          {
+            type: ChatEventType.TOOL_CALL_RESULT,
+            messageId: generateMessageId(),
+            toolCallId: result.toolCallId,
+            content: JSON.stringify({error: INTERRUPTED}),
+            metadata: {tanstack: {state: 'output-error'}},
+          },
+        ],
+  )
+}
+
+function interruptedResults(thread: readonly ModelMessage[]): ModelMessage[] {
+  const answered = new Set(thread.flatMap((message) => (message.role === 'tool' ? [message.toolCallId] : [])))
+  return thread.flatMap((message) =>
+    (message.toolCalls ?? [])
+      .filter((call) => !answered.has(call.id))
+      .map((call) => ({role: 'tool', toolCallId: call.id, content: INTERRUPTED, error: INTERRUPTED})),
+  )
 }
 
 async function saveShown(
@@ -406,6 +448,7 @@ async function saveShown(
   processor: StreamProcessor,
   finish: (message: ModelMessage) => ModelMessage,
   unshown: readonly ModelMessage[],
+  seal: (thread: ModelMessage[]) => ModelMessage[],
 ): Promise<void> {
   const stored = await messages.loadThread(threadId)
   const saved = storedToolCallIds(stored)
@@ -420,7 +463,7 @@ async function saveShown(
   if (saving.length === 0) return
   const replaced = new Set(saving.flatMap((message) => (message.id === undefined ? [] : [message.id])))
   const kept = stored.filter((message) => message.id === undefined || !replaced.has(message.id))
-  await messages.saveThread(threadId, [...kept, ...saving])
+  await messages.saveThread(threadId, seal([...kept, ...saving]))
 }
 
 function untilAborted<Value>(work: Promise<Value>, signal: AbortSignal): Promise<Value> {
@@ -449,6 +492,7 @@ function silentCategories(logger: DebugConfig['logger']): DebugConfig {
 async function* endedWithItsRecord(
   stream: AsyncIterable<ChatEvent>,
   recorded: () => Promise<RunLifecycle | null>,
+  interrupted: () => readonly ModelMessage[],
 ): AsyncGenerator<ChatEvent> {
   const seen = {ended: false}
   for await (const chunk of stream) {
@@ -456,6 +500,7 @@ async function* endedWithItsRecord(
     yield chunk
   }
   if (seen.ended) return
+  yield* interruptedChunks(interrupted())
   const lifecycle = await recorded()
   if (lifecycle === null || !isRunPhaseTerminal(lifecycle.phase)) return
   yield runLifecycleEvent.create(lifecycle)
@@ -471,7 +516,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   const persistence = defineAIPersistence({stores})
   const processLocks = new InMemoryLockStore()
   const locks = defineLock({withLock: (key, work) => processLocks.withLock(key, work)})
-  const savingShown = (threadId: string, work: () => Promise<void>): Promise<void> =>
+  const savingShown = <Value>(threadId: string, work: () => Promise<Value>): Promise<Value> =>
     processLocks.withLock(`conciv-shown:${threadId}`, work)
   const live = new Map<string, LiveRun>()
   const debug = silentCategories({
@@ -651,9 +696,12 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       onFinish: () => settle(),
       onError: () => settle(),
       onAbort: async () => {
-        await savingShown(turn.threadId, () => saveStoppedTurn(stores.messages, turn.threadId, shown)).catch(
-          (error: unknown) => config.log(`[ai] saving the stopped turn of run ${turn.runId} failed: ${String(error)}`),
-        )
+        entry.interrupted = await savingShown(turn.threadId, () =>
+          saveStoppedTurn(stores.messages, turn.threadId, shown),
+        ).catch((error: unknown) => {
+          config.log(`[ai] saving the stopped turn of run ${turn.runId} failed: ${String(error)}`)
+          return []
+        })
         if (failure.message !== null) {
           await stores.runs.update(turn.runId, {
             status: 'failed',
@@ -692,6 +740,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       ending: new AbortController(),
       settled: Promise.withResolvers(),
       stopping: false,
+      interrupted: [],
     }
     live.set(turn.runId, entry)
     return admitted(turn, messages, controller, entry)
@@ -788,7 +837,11 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         concivTurn(turn, plan, view, entry, offered),
       ],
     })
-    return endedWithItsRecord(stream, () => recordLifecycle(turn.runId))
+    return endedWithItsRecord(
+      stream,
+      () => recordLifecycle(turn.runId),
+      () => entry.interrupted,
+    )
   }
 
   return {
@@ -837,7 +890,16 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       const processor = timedProcessor()
       for (const chunk of chunks) followRun(processor, chunk)
       await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
-      await savingShown(threadId, () => saveShown(stores.messages, threadId, processor, (message) => message, []))
+      await savingShown(threadId, () =>
+        saveShown(
+          stores.messages,
+          threadId,
+          processor,
+          (message) => message,
+          [],
+          (thread) => thread,
+        ),
+      )
     },
     codeRunner: (codeMode, search) => {
       if (driver === null) return null

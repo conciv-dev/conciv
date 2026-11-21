@@ -32,3 +32,36 @@ describe('the agent asks a choice', () => {
     expect(answer?.content).toContain('"value":"Blue"')
   })
 })
+
+describe('the user stops while the agent asks', () => {
+  test('the open question ends as interrupted at once and stays so after the next reply', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode:
+          "return await external_conciv_ui({kind: 'choices', question: 'Which color?', options: ['Red', 'Blue']})",
+      }),
+      TestLLM.text('Here it is'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Pick a color with me')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByRole('button', {name: 'Red'})).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Stop generating'}))
+
+    expect(await screen.findByRole('separator', {name: 'Stopped'})).toBeVisible()
+    expect(await screen.findByText('Tool execution interrupted')).toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Red'})).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', {name: 'running'})).not.toBeInTheDocument()
+
+    await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Never mind')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('Here it is')).toBeVisible()
+    await user.click(screen.getByRole('button', {name: /Show trace/}))
+    expect(await screen.findByText('Tool execution interrupted')).toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Red'})).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', {name: 'running'})).not.toBeInTheDocument()
+  })
+})
