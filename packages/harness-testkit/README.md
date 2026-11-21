@@ -20,6 +20,7 @@ The engine is the product's own `makeApp`, and the kit talks to it the way the p
 - The quick harness's terminal needs `bash` on the PATH.
 - The harness writes the request's own thread and run ids into every run start, finish and error chunk of a reply.
 - A streamed reply ends when the run is stopped.
+- An engine made with `clock: 'test'` runs its Effect clock reads and sleeps on a test clock that moves only through `engine.clock`; on the real clock every `engine.clock` call rejects with a plain message.
 
 ## Side Effects
 

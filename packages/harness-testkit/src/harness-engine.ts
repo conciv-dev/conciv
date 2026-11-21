@@ -18,6 +18,7 @@ import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {z} from 'zod'
 import {callTool} from './call-tool.js'
+import {holdTestClock, realClock, type HarnessEngineClock, type HeldClock} from './clock.js'
 import {outsideAgent, type Outside, type OutsideAgent} from './outside.js'
 import {replyScript, type ReplyScript, type ScriptedHarness} from './scripted-harness.js'
 import type {Gate, ModelRequest, Response} from './test-llm.js'
@@ -26,6 +27,7 @@ import {until} from './until.js'
 
 export * as TestLLM from './test-llm.js'
 export {cli, type CliOptions, type CliRun} from './cli.js'
+export type {HarnessEngineClock} from './clock.js'
 export type {Outside, OutsideAgent, OutsideReply} from './outside.js'
 
 export type HarnessEngineSetting = {scope: 'project' | 'global'; namespace: string; key: string; value: unknown}
@@ -56,6 +58,7 @@ export type HarnessEngineOptions = {
   commands?: HarnessCommand[]
   harnesses?: ScriptedHarness[]
   fs?: {filewatcher?: boolean}
+  clock?: 'test'
   hubAccess?: HubAccess
 }
 
@@ -109,6 +112,7 @@ export type HarnessEngine = {
   loginCode: () => Promise<string>
   revokeBrowsers: () => Promise<void>
   restart: () => Promise<void>
+  clock: HarnessEngineClock
   outside: (agent?: OutsideAgent) => Outside
   stop: () => Promise<void>
 }
@@ -138,6 +142,7 @@ type Boot = {
   options: HarnessEngineOptions
   configProvider: ConfigProvider.ConfigProvider
   opened: HarnessEngineOpened[]
+  heldClock: HeldClock | undefined
 }
 
 async function settleInOrder(steps: Step[]): Promise<unknown[]> {
@@ -399,7 +404,7 @@ function openedFile(file: string, line: number | undefined, column: number | und
 }
 
 function bootApp(
-  {root, project, harnesses: [harness, ...others], options, configProvider, opened}: Boot,
+  {root, project, harnesses: [harness, ...others], options, configProvider, opened, heldClock}: Boot,
   sessionId: string | undefined,
   previous: Started | undefined,
 ): Promise<Started> {
@@ -427,6 +432,7 @@ function bootApp(
     homeDir: home,
     devEndpointDir: join(home, 'dev-endpoint'),
     configProvider,
+    clock: heldClock?.layer,
     launchEditor: (file, line, column) => {
       opened.push(openedFile(file, line, column))
     },
@@ -463,13 +469,23 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
   const project = fixture ?? root
   const opened: HarnessEngineOpened[] = []
   const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
-  const boot: Boot = {root, project, harnesses, options, configProvider: isolatedProvider(root, options), opened}
+  const heldClock = options.clock === 'test' ? await holdTestClock() : undefined
+  const closeClock = async (): Promise<void> => heldClock?.close()
+  const boot: Boot = {
+    root,
+    project,
+    harnesses,
+    options,
+    configProvider: isolatedProvider(root, options),
+    opened,
+    heldClock,
+  }
   const first = await Promise.resolve()
     .then(() => {
       for (const [path, content] of Object.entries(options.files ?? {})) writeInside(project, path, content)
       return bootApp(boot, options.sessionId, undefined)
     })
-    .catch((error: unknown) => abandonStart(error, [removeRoot]))
+    .catch((error: unknown) => abandonStart(error, [removeRoot, closeClock]))
   const apiBase = `http://127.0.0.1:${first.port}/t/${first.agentToken}`
   const browser = makeBrowserRpcClient(apiBase)
   const engine: Engine = {apiBase, rpc: browser.rpc, turns: makeTurns(browser.rpc)}
@@ -484,7 +500,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     return closeRunning(running)
   }
   const stop = async (): Promise<void> => {
-    const failures = [...(await halt()), ...(await settleInOrder([removeRoot]))]
+    const failures = [...(await halt()), ...(await settleInOrder([removeRoot, closeClock]))]
     if (failures.length > 0) throw new AggregateError(failures, 'the harness engine did not stop cleanly')
   }
   const started = await openFirstSession(engine, options.settings ?? [], first.cfg.sessionId).catch((error: unknown) =>
@@ -515,6 +531,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
       revokeBrowsers(concivStateDir(root), 'all')
     },
     restart,
+    clock: heldClock?.clock ?? realClock,
     outside: (agent) => outsideAgent(apiBase, agent),
     stop,
   }

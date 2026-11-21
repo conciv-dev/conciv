@@ -1,7 +1,7 @@
 import {expect, onTestFinished} from 'vitest'
 import {commands} from 'vitest/browser'
 import type {TestLLM} from '@conciv/harness-testkit'
-import type {CreateEngineOptions, Engine, EngineSession} from './engine.js'
+import type {CreateEngineOptions, Engine, EngineClock, EngineSession} from './engine.js'
 import type {} from './browser-commands.js'
 
 export * as TestLLM from '@conciv/harness-testkit/test-llm'
@@ -17,6 +17,39 @@ function sessionOn(engineId: string, id: string): EngineSession {
       failure: (input) => commands.concivToolFailure(engineId, id, name, input),
     }),
   }
+}
+
+const ADVANCE_LIMIT_MS = 15_000
+
+const NEVER_SETTLED = 'the engine clock was advanced for 15s and the awaited call never settled'
+
+const REAL_CLOCK = "this engine runs on the real clock: make it with clock: 'test'"
+
+async function advanceOn<T>(engineId: string, until: Promise<T>): Promise<T> {
+  const watch = {settled: false}
+  until
+    .finally(() => {
+      watch.settled = true
+    })
+    .catch(() => {})
+  const deadline = performance.now() + ADVANCE_LIMIT_MS
+  while (!watch.settled && performance.now() < deadline) await commands.concivClockTick(engineId)
+  if (!watch.settled) throw new Error(NEVER_SETTLED)
+  return until
+}
+
+function clockOn(engineId: string, clock: CreateEngineOptions['clock']): EngineClock {
+  if (clock !== 'test') {
+    return {
+      advance: async () => {
+        throw new Error(REAL_CLOCK)
+      },
+      drain: async () => {
+        throw new Error(REAL_CLOCK)
+      },
+    }
+  }
+  return {advance: (until) => advanceOn(engineId, until), drain: () => commands.concivClockDrain(engineId)}
 }
 
 function gateOn(engineId: string, gateId: string): TestLLM.Gate {
@@ -46,6 +79,7 @@ export async function createEngine(options: CreateEngineOptions = {}): Promise<E
     loginCode: () => commands.concivLoginCode(handle.id),
     revokeBrowsers: () => commands.concivRevokeBrowsers(handle.id),
     restart: () => commands.concivRestart(handle.id),
+    clock: clockOn(handle.id, options.clock),
     rpc: {
       call: (rpcId, method, input) => commands.concivRpcCall(handle.id, rpcId, method, input),
       failure: (rpcId, method, input) => commands.concivRpcFailure(handle.id, rpcId, method, input),

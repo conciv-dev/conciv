@@ -4,7 +4,7 @@
 
 Published test package for plugin authors. It has three entries with one export each:
 
-- `@conciv/plugin-testkit/node`: `createEngine(options)` starts conciv's real engine with the plugins and a scripted AI that answers with `replies` in order, built with the `TestLLM` helpers it also exports. A `harness` option passes a real adapter from `@conciv/harness` straight to the engine, whose chat stays scripted. `engine.gate()` holds the next model request until the test releases it.
+- `@conciv/plugin-testkit/node`: `createEngine(options)` starts conciv's real engine with the plugins and a scripted AI that answers with `replies` in order, built with the `TestLLM` helpers it also exports. A `harness` option passes a real adapter from `@conciv/harness` straight to the engine, whose chat stays scripted. `engine.gate()` holds the next model request until the test releases it. `clock: 'test'` puts the engine's Effect clock on a test clock, and `engine.clock.advance(call)` moves it until that call settles.
 - `@conciv/plugin-testkit/browser`: `mount({engine, seed, route})` shows the whole app on that engine and cleans up after the test. It returns nothing; the test drives the app through the UI.
 - `@conciv/plugin-testkit/vitest`: `concivTest()`, the vite plugin that adds the three vitest projects below, with the kit's own settings and nothing from a private package.
 

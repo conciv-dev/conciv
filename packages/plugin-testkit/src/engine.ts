@@ -6,6 +6,7 @@ import {
   createHarnessEngine,
   type HarnessEngine,
   type HarnessEngineAddress,
+  type HarnessEngineClock,
   type HarnessEngineOptions,
   type HarnessEngineSession,
   type HarnessEngineSetting,
@@ -38,6 +39,7 @@ export type CreateEngineOptions = {
   harnesses?: HarnessEngineOptions['harnesses']
   fs?: HarnessEngineOptions['fs']
   hubAccess?: HarnessEngineOptions['hubAccess']
+  clock?: HarnessEngineOptions['clock']
 }
 
 export type ToolFailure = HarnessEngineToolFailure
@@ -46,11 +48,13 @@ export type EngineTool = HarnessEngineTool
 
 export type EngineSession = HarnessEngineSession
 
-export type Engine = Omit<HarnessEngine, 'stop'>
+export type EngineClock = Omit<HarnessEngineClock, 'tick'>
+
+export type Engine = Omit<HarnessEngine, 'stop' | 'clock'> & {clock: EngineClock}
 
 export type EngineAddress = HarnessEngineAddress
 
-export type StartedEngine = {engine: Engine; stop: () => Promise<void>}
+export type StartedEngine = {engine: Engine; stop: () => Promise<void>; tick: () => Promise<void>}
 
 const fileEngines: Array<() => Promise<void>> = []
 
@@ -87,11 +91,11 @@ function locatePlugin(entry: PluginEntry): PluginEntry {
 export async function startEngine(options: CreateEngineOptions): Promise<StartedEngine> {
   const {plugins: names, permission, ...engineOptions} = options
   const plugins = names?.map(locatePlugin)
-  const {stop, ...engine} = await createHarnessEngine({
+  const {stop, clock, ...engine} = await createHarnessEngine({
     ...engineOptions,
     config: {plugins, permission},
   })
-  return {engine, stop}
+  return {engine: {...engine, clock: {advance: clock.advance, drain: clock.drain}}, stop, tick: clock.tick}
 }
 
 export async function createEngine(options: CreateEngineOptions = {}): Promise<Engine> {
