@@ -77,8 +77,22 @@ function pollDefaults(expect: AuthorTest['expect'] = {}): {timeout: number; inte
   return {timeout: expect.poll?.timeout ?? POLL_TIMEOUT_MS, interval: expect.poll?.interval ?? POLL_INTERVAL_MS}
 }
 
+function ciReporters(): NonNullable<AuthorTest['reporters']> {
+  if (!process.env.GITHUB_ACTIONS) return ['default']
+  return ['default', ['github-actions', {jobSummary: {enabled: false}}], ['json', {outputFile: 'test-results.json'}]]
+}
+
 function kitDefaults(test: AuthorTest = {}): AuthorTest {
   return {
+    reporters: test.reporters ?? ciReporters(),
+    coverage: {
+      enabled: test.coverage?.enabled ?? Boolean(process.env.GITHUB_ACTIONS),
+      provider: 'v8',
+      reporter: ['json-summary', 'lcovonly'],
+      reportsDirectory: 'coverage',
+      include: ['src/**'],
+      exclude: ['src/**/*.test.*', 'src/**/*.stories.*'],
+    },
     testTimeout: test.testTimeout ?? TEST_TIMEOUT_MS,
     hookTimeout: test.hookTimeout ?? HOOK_TIMEOUT_MS,
     expect: {poll: pollDefaults(test.expect)},
@@ -420,6 +434,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
           headless: true,
           provider: playwright(),
           instances: [{browser: 'chromium'}],
+          viewport: {width: 1280, height: 800},
           commands: {...engines.commands, ...pageErrorCommands()},
         },
       },

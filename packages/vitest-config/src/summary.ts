@@ -54,7 +54,7 @@ function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, 'utf8'))
 }
 
-function manifestName(dir: string): string {
+export function manifestName(dir: string): string {
   const manifest = readJson(join(dir, 'package.json'))
   const name = isRecord(manifest) ? asString(manifest.name) : ''
   return name === '' ? dir : name
@@ -75,7 +75,7 @@ function owningPackage(dir: string): string | null {
   return resolved
 }
 
-function findFiles(roots: string[], fileName: string): string[] {
+export function findFiles(roots: string[], fileName: string): string[] {
   const found: string[] = []
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, {withFileTypes: true})) {

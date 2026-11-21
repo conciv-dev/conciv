@@ -5,7 +5,7 @@ type CiReporterEntry = 'default' | ['github-actions', {jobSummary: {enabled: boo
 type CiCoverage = {
   enabled: boolean
   provider: 'v8'
-  reporter: ['json-summary']
+  reporter: ['json-summary', 'lcovonly']
   reportsDirectory: string
 }
 
@@ -20,7 +20,7 @@ export function ciReporting(): {reporters: CiReporterEntry[]; coverage: CiCovera
     coverage: {
       enabled: Boolean(process.env.GITHUB_ACTIONS),
       provider: 'v8',
-      reporter: ['json-summary'],
+      reporter: ['json-summary', 'lcovonly'],
       reportsDirectory: 'coverage',
     },
   }

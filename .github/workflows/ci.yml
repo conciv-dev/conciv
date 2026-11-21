@@ -163,6 +163,19 @@ jobs:
         with:
           name: test-results-${{ matrix.shard }}
           path: shard-report-${{ matrix.shard }}.json
+      # Each package's V8 coverage (json-summary + lcov, written by vitest in CI and
+      # cached by turbo as test outputs), copied by our own walker into one folder
+      # per shard, then uploaded by literal path: same no-glob rule as above.
+      - run: pnpm exec conciv-ci-shards coverage --output "coverage-${SHARD_NAME}"
+        if: always()
+        env:
+          SHARD_NAME: ${{ matrix.shard }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: coverage-${{ matrix.shard }}
+          path: coverage-${{ matrix.shard }}/
+          if-no-files-found: ignore
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always()
         with:

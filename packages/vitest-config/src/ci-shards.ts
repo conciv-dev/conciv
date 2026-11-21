@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 import {execFileSync} from 'node:child_process'
-import {appendFileSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
-import {join} from 'node:path'
+import {
+  appendFileSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
+import {basename, dirname, join} from 'node:path'
 import {
   e2ePackages,
   type E2eShardPlan,
@@ -12,7 +21,9 @@ import {
   type ShardPlan,
 } from './shards.ts'
 import {
+  findFiles,
   loadSummaries,
+  manifestName,
   mergeSummaries,
   type PackageSummary,
   parseSummaries,
@@ -92,6 +103,20 @@ function report(args: string[]): void {
   writeFileSync(outputPath, `${JSON.stringify(loadSummaries(taskConfig(args).reportRoots))}\n`)
 }
 
+const COVERAGE_FILES = ['coverage-summary.json', 'lcov.info']
+
+function coverage(args: string[]): void {
+  const outputDir = argValue(args, '--output') ?? 'coverage-report'
+  for (const lcov of findFiles(taskConfig(args).reportRoots, 'lcov.info')) {
+    const reportDir = dirname(lcov)
+    if (basename(reportDir) !== 'coverage') continue
+    const target = join(outputDir, manifestName(dirname(reportDir)).replaceAll('/', '__'))
+    mkdirSync(target, {recursive: true})
+    for (const file of COVERAGE_FILES)
+      if (existsSync(join(reportDir, file))) copyFileSync(join(reportDir, file), join(target, file))
+  }
+}
+
 const MAX_REPORT_BYTES = 20_000_000
 
 function readReports(dir: string): PackageSummary[] {
@@ -128,6 +153,7 @@ const [command, ...rest] = process.argv.slice(2)
 if (command === 'plan') plan(rest)
 if (command === 'run') run(rest)
 if (command === 'report') report(rest)
+if (command === 'coverage') coverage(rest)
 if (command === 'summarize') summarize(rest)
 if (command !== 'plan' && command !== 'run' && command !== 'report' && command !== 'summarize') {
   process.stderr.write('usage: conciv-ci-shards <plan|run|report|summarize> [--task test|e2e]\n')

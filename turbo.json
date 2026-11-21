@@ -55,7 +55,7 @@
       "dependsOn": ["^build", "build", "^build:types", "^kit-runtime"],
       "env": ["CI", "GITHUB_ACTIONS"],
       "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"],
-      "outputs": ["test-results.json", "coverage/coverage-summary.json"]
+      "outputs": ["test-results.json", "coverage/coverage-summary.json", "coverage/lcov.info"]
     },
     "lint": {
       "dependsOn": ["^build"],
