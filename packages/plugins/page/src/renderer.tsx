@@ -51,6 +51,7 @@ export default Plugin.define({
             changed: reportChanges,
             operations,
             registered: () => ctx.list(PageOperation),
+            notify: (title) => void ctx.toast.show({title, variant: 'error'}),
           }),
         )
 
