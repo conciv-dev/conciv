@@ -30,8 +30,9 @@ and exits 0. Whatever the config would have generated (SvelteKit's `.svelte-kit`
 gets generated anyway by `build` and `dev`, which run after `turbo build`. A `prepare` script that
 touches none of this is fine.
 
-`nextjs` and its packed fixture set Next's `experimental.agentUpgrade: false`: Next 16 `next dev` exits 1 on its
-first start in an app folder when it detects a coding agent, to show an upgrade reminder. CI is not affected.
+`nextjs`, `nextjs-component` and the `nextjs` packed fixture set Next's `experimental.agentUpgrade: false`:
+Next 16 `next dev` exits 1 on its first start in an app folder when it detects a coding agent, to show an
+upgrade reminder. CI is not affected.
 
 ## Apps
 
