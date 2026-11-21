@@ -22,7 +22,7 @@ A built-in: it draws with the UI kits directly, like opencode's gui plugins, and
 ## Interface
 
 - default export (`index.ts`): the engine plugin `conciv.page`
-- `symbolicateFrame` / `symbolicateFrames` (`symbolicate.ts`, internal): map frames (`RawFrame`) to original source
+- `symbolicateFrames` (`symbolicate.ts`, internal): an Effect that maps frames (`RawFrame`) to original source
   (`SourceLoc`, both from `@conciv/contract`) with @jridgewell/trace-mapping; the `symbolicate`
   method answers with `symbolicateFrames`
 - `Definition` (`rpc.ts`, `./rpc`): the RPC `experimental.page`
@@ -143,7 +143,8 @@ Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTo
 
 - `readFileInRoot` (`symbolicate.ts`): throws on a realpath outside the project root
 - `fetchLoopback` (`symbolicate.ts`): refuses hosts other than localhost, 127.0.0.1, ::1 or [::1]
-- `symbolicateFrames` (`symbolicate.ts`): skips node_modules results; `symbolicateFrame` returns null on any error
+- `symbolicateFrames` (`symbolicate.ts`): skips node_modules results; a frame that fails to map counts as null; it runs in the calling host fiber, so its source fetch timeout is on the engine's clock
+- queued page plays (`connection.ts`) fork on the context the connection was built in, so their reply timeouts are on the engine's clock
 - `capture.ts:isSensitiveField` - `type=password` or an `autocomplete` containing `cc-`, `one-time-code`, `current-password` or `new-password` is sensitive; its value reads as `MASKED_VALUE`.
 - `snapshot.ts:selectDeep` - matches in the document first, then in the page's open shadow roots, never in the widget's own.
 - `react.ts:installTracker` - installs the commit hook only once.

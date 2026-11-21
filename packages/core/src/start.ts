@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {inspect} from 'node:util'
 import {serveHono, type ServeFetch} from '@conciv/serve'
 import {checkEngines, registerEngine, retireEngine, withHomeDb, type EngineRow} from '@conciv/db'
-import {type ConfigProvider, Effect} from 'effect'
+import {type ConfigProvider, Effect, type Layer} from 'effect'
 import {z} from 'zod'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
@@ -105,6 +105,7 @@ export type StartOpts = {
   devEndpointDir?: string
   homeDir?: string
   configProvider?: ConfigProvider.ConfigProvider
+  clock?: Layer.Layer<never>
 
   harnesses?: readonly HarnessAdapter[]
   firstChunkTimeoutMs?: number
@@ -266,6 +267,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const appOpts: MakeAppOpts = {
     home,
     configProvider,
+    clock: opts.clock,
     harnessRegistry: registry,
     cfg,
     cwd: opts.root,

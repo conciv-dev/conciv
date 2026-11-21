@@ -56,7 +56,19 @@ import {
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
 import {differenceBy, isNotNil, memoize, pickBy} from 'es-toolkit'
-import {Cause, Config, type ConfigProvider, Effect, Exit, Fiber, FiberMap, Option, Schema, Scope} from 'effect'
+import {
+  Cause,
+  Config,
+  type ConfigProvider,
+  Effect,
+  Exit,
+  Fiber,
+  FiberMap,
+  type Layer,
+  Option,
+  Schema,
+  Scope,
+} from 'effect'
 import {Bus, Permission, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
@@ -241,6 +253,8 @@ export type MakeAppOpts = {
   home?: string
 
   configProvider?: ConfigProvider.ConfigProvider
+
+  clock?: Layer.Layer<never>
 }
 
 function executable(file: string): boolean {
@@ -569,6 +583,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       cwd: opts.cwd,
       home: appEnv.home,
       configProvider,
+      clock: opts.clock,
       fallbackRoots: join(stateDir, 'plugin-host'),
       engineId,
       config: opts.cfg,

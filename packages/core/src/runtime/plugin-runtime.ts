@@ -209,6 +209,7 @@ export type PluginRuntimeInput = {
   openInEditor: (file: string, line?: number, column?: number) => void
   sessions: Parameters<typeof provideSessions>[0]
   configProvider: ConfigProvider.ConfigProvider
+  clock: Layer.Layer<never> | undefined
 }
 
 const VCS_MARKERS = [
@@ -336,7 +337,7 @@ export type PluginRuntime = {
 }
 
 export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
-  const runtime = ManagedRuntime.make(pluginHostLayer(input))
+  const runtime = ManagedRuntime.make(pluginHostLayer(input).pipe(Layer.provideMerge(input.clock ?? Layer.empty)))
   const supervised = Scope.forkUnsafe(runtime.scope, 'sequential')
   return {
     runtime,

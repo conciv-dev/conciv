@@ -314,7 +314,7 @@ async function eventStream(
     Stream.map(() => ({id: Event.Id.create(), type: 'server.heartbeat', data: {}})),
   )
   const stream = output.pipe(Stream.merge(heartbeat, {haltStrategy: 'left'}))
-  return relayEvents(Stream.toAsyncIterable(stream)[Symbol.asyncIterator](), signal)
+  return relayEvents(Stream.toAsyncIterableWith(stream, await host.context())[Symbol.asyncIterator](), signal)
 }
 
 const PtyResumeCursor = z.coerce.number().int().nonnegative()
