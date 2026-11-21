@@ -98,3 +98,29 @@ describe('the launcher while a run waits', () => {
     expect(screen.queryByRole('button', {name: /^Waiting for approval/})).not.toBeInTheDocument()
   })
 })
+
+describe('a run fails with a message queued', () => {
+  test('the queued message goes back to the composer when the reply fails', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(TestLLM.failAfter(new Error('The model is unavailable')))
+    const gate = await engine.gate()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(input, 'First task')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await gate.started
+    await user.type(input, 'Second task')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(await screen.findByText('1 waiting · runs in order')).toBeVisible()
+
+    await gate.release()
+    expect(await screen.findByRole('alert', {name: 'The model is unavailable'})).toBeVisible()
+    expect(await within(input).findByText('Second task')).toBeVisible()
+    expect(input).toHaveTextContent(/^Second task$/)
+    expect(screen.queryByText('1 waiting · runs in order')).not.toBeInTheDocument()
+  })
+})
