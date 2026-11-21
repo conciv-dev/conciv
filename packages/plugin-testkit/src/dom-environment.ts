@@ -159,6 +159,31 @@ function installNodeStorage(global: typeof globalThis, storage: Storage): void {
   Object.defineProperty(global, 'localStorage', {configurable: true, enumerable: true, get: () => storage})
 }
 
+function installNavigation(global: typeof globalThis, window: DomWindow): void {
+  const navigation = new window.EventTarget()
+  const changed = () => navigation.dispatchEvent(new window.Event('currententrychange'))
+  const {pushState, replaceState} = window.History.prototype
+  Object.defineProperties(window.History.prototype, {
+    pushState: {
+      configurable: true,
+      value(this: History, ...entry: Parameters<History['pushState']>): void {
+        pushState.apply(this, entry)
+        changed()
+      },
+    },
+    replaceState: {
+      configurable: true,
+      value(this: History, ...entry: Parameters<History['replaceState']>): void {
+        replaceState.apply(this, entry)
+        changed()
+      },
+    },
+  })
+  window.addEventListener('popstate', changed)
+  Object.defineProperty(window, 'navigation', {configurable: true, value: navigation})
+  Object.defineProperty(global, 'navigation', {configurable: true, value: navigation})
+}
+
 const happyDom = builtinEnvironments['happy-dom']
 
 const environment: Environment = {
@@ -187,6 +212,7 @@ const environment: Environment = {
     installFonts(window)
     installResizeObserver(window)
     installElementSizes(window)
+    installNavigation(global, window)
     return happy
   },
 }
