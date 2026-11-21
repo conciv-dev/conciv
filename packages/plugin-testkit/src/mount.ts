@@ -16,7 +16,7 @@ export type MountOptions = {
   seed?: {storage?: Record<string, unknown>}
   route?: string
   host?: ConcivSettingsInit
-  login?: 'none' | 'stale'
+  login?: 'none'
 }
 
 const ENGINE_TIMINGS: NonNullable<Platform['timings']>['engine'] = {
@@ -57,13 +57,9 @@ function writeStorage(storage: Record<string, unknown>): void {
     localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value))
 }
 
-const REFUSED_TOKEN = 'conciv-kit-refused-token'
-
 function boundEngine(address: Engine['address'], login: MountOptions['login']): ReturnType<Platform['engine']> {
   if (login === undefined) return {kind: 'bound', apiBase: address.apiBase, token: () => Promise.resolve(address.token)}
-  const origin = new URL(address.apiBase).origin
-  if (login === 'none') return {kind: 'bound', apiBase: origin}
-  return {kind: 'bound', apiBase: origin, token: () => Promise.resolve(REFUSED_TOKEN)}
+  return {kind: 'bound', apiBase: new URL(address.apiBase).origin}
 }
 
 export type Mount = (options: MountOptions) => Promise<void>
