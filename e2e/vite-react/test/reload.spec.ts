@@ -1,4 +1,4 @@
-import {expect, test} from '@playwright/test'
+import {expect, test} from '@conciv/e2e-utils/fixtures'
 import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
 
 test('after a reload the panel reopens on the settings section the user left, and the typed draft is still in the composer', async ({
@@ -24,28 +24,23 @@ test('after a reload the panel reopens on the settings section the user left, an
 test.describe('a draft typed in another browser', () => {
   test('the draft the engine saved from another browser replaces the copy this browser kept, after a reload', async ({
     page,
-    browser,
+    secondPage,
   }) => {
-    const other = await browser.newPage()
-    try {
-      const failures = collectFailures(page)
-      await loginWidget(page)
-      await expectWidgetBoots(page, failures)
-      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
-      await composer.fill('the copy this browser kept')
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await composer.fill('the copy this browser kept')
 
-      const otherFailures = collectFailures(other)
-      await loginWidget(other)
-      await expectWidgetBoots(other, otherFailures)
-      const otherComposer = other.getByRole('textbox', {name: 'Message the conciv agent'})
-      await expect(otherComposer).toHaveText('the copy this browser kept')
-      await otherComposer.fill('the draft typed in the other browser')
+    const otherFailures = collectFailures(secondPage)
+    await loginWidget(secondPage)
+    await expectWidgetBoots(secondPage, otherFailures)
+    const otherComposer = secondPage.getByRole('textbox', {name: 'Message the conciv agent'})
+    await expect(otherComposer).toHaveText('the copy this browser kept')
+    await otherComposer.fill('the draft typed in the other browser')
 
-      await page.reload()
+    await page.reload()
 
-      await expect(composer).toHaveText('the draft typed in the other browser')
-    } finally {
-      await other.close()
-    }
+    await expect(composer).toHaveText('the draft typed in the other browser')
   })
 })
