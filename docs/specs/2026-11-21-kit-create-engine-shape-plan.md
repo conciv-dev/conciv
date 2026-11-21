@@ -72,7 +72,7 @@ Unchanged on the engine: `session`, `newSession`, `gate`, `requests`, `address`,
 ## Review Focus
 
 1. A test that gives `stateRoot`, `homeDir` or `devEndpointDir`: refused with a message naming the field, and nothing was started.
-2. `engine.reply` called while a turn is waiting for its reply (a gated or empty queue): the waiting turn takes it.
+2. The scripted agent takes its reply as opencode's `TestLLM` does (`_ref/opencode/packages/ai/src/testing.ts:168-180`): the reply is taken when the request arrives, an empty queue fails at once with a plain message, and only then is a gate waited on. A reply given during a gate goes to the next request.
 3. `engine.write` with a path that leaves the project folder: refused, as `files` refuses today.
 4. `engine.version` and `engine.stale` called after a `mount`: the app sees the new value on its next check, and before `mount` on its first.
 5. Browser mode: each new call is one command; `createEngine(config, start)` crosses as two plain JSON values.
