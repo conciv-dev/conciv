@@ -193,7 +193,7 @@ One file per rule source, beside it, through oxlint's own `RuleTester` (`oxlint/
 | no-of-suffix                              | tested: `packages/oxlint-plugin/src/vocabulary.test.js` › no-of-suffix                                                                                                                              |
 | lucide-per-icon                           | tested: `packages/oxlint-plugin/src/lucide-per-icon.test.js` › lucide-per-icon                                                                                                                      |
 | playwright-test-in-e2e                    | tested: `packages/oxlint-plugin/src/playwright-test-in-e2e.test.js` › playwright-test-in-e2e                                                                                                        |
-| no-await-effect-query                     | planned: `packages/oxlint-plugin/src/no-await-effect-query.test.js`                                                                                                                                 |
+| no-await-effect-query                     | tested: `packages/oxlint-plugin/src/no-await-effect-query.test.js` › no-await-effect-query                                                                                                          |
 | no-comments                               | planned: `packages/oxlint-plugin/src/no-comments.test.js`                                                                                                                                           |
 | no-delegated-focus                        | planned: `packages/oxlint-plugin/src/plugin.test.js`                                                                                                                                                |
 | tool-card-shell                           | planned: `packages/oxlint-plugin/src/plugin.test.js`                                                                                                                                                |
@@ -223,7 +223,7 @@ Every row's status starts with one word: tested (names the landed file and test)
 | cli           | 0      | 8       | 0      | 2       | 0       | 3   | 0         | 0    | 13   |
 | harness       | 0      | 9       | 0      | 2       | 0       | 1   | 0         | 0    | 12   |
 | app lanes     | 0      | 0       | 0      | 0       | 0       | 0   | 42        | 0    | 42   |
-| oxlint-plugin | 8      | 15      | 0      | 1       | 0       | 0   | 0         | 0    | 24   |
-| **all**       | 20     | 60      | 3      | 14      | 0       | 5   | 42        | 0    | 144  |
+| oxlint-plugin | 9      | 14      | 0      | 1       | 0       | 0   | 0         | 0    | 24   |
+| **all**       | 21     | 59      | 3      | 14      | 0       | 5   | 42        | 0    | 144  |
 
-Test files against source files (budget: tests never outnumber source): chat 2 of 6, core 1 of 49, ai 2 of 17, db 2 of 9, cli 0 of 38, harness 0 of 28, oxlint-plugin 6 of 15.
+Test files against source files (budget: tests never outnumber source): chat 2 of 6, core 1 of 49, ai 2 of 17, db 2 of 9, cli 0 of 38, harness 0 of 28, oxlint-plugin 7 of 15.
