@@ -184,3 +184,42 @@ test.describe('the chat on a vite react page when the engine is slow or fails to
     await expect(page.getByText('Compaction failed. The session may be busy. Try again in a moment.')).toBeVisible()
   })
 })
+
+test.describe('the composer on a vite react page when one engine answer fails', () => {
+  test('the user types @ while the engine fails to list the agents, and the list still offers the tools', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const agents = await holdEngineCall(page, ['agent', 'list'])
+    await page.reload({waitUntil: 'domcontentloaded'})
+
+    await page.getByRole('textbox', {name: 'Message the conciv agent'}).pressSequentially('@')
+    await agents.arrived
+    agents.release('INTERNAL_SERVER_ERROR')
+
+    await expect(page.getByRole('listbox', {name: 'Context'}).getByRole('group', {name: 'Tools'})).toBeVisible()
+  })
+
+  test('the user types while the engine refuses to save the draft, sees it is kept only in this browser, and Retry saves it', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const save = await holdEngineCall(page, ['drafts', 'set'])
+    await page.reload({waitUntil: 'domcontentloaded'})
+
+    await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill('Ship the header fix')
+    await save.arrived
+    save.release('APPROVAL_DENIED')
+    const unsaved = page.getByText(
+      'conciv could not save your draft. It is kept in this browser, but the engine copy failed, so it is not on your other devices or in other browsers.',
+    )
+    await expect(unsaved).toBeVisible()
+
+    await page.getByRole('button', {name: 'Retry'}).click()
+    await expect(unsaved).not.toBeVisible()
+  })
+})
