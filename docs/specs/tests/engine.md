@@ -160,3 +160,6 @@ One file per rule source, beside it, through oxlint's own `RuleTester` (`oxlint/
 | solid-test-render (test-path pattern)     | solid-test-render › packages/oxlint-plugin/src/plugin.test.js › solid-test-render                                    |
 | no-teardown-hooks (new-layer src pattern) | no-teardown-hooks › packages/oxlint-plugin/src/no-teardown-hooks.test.js › no-teardown-hooks (path rows)             |
 | no-query-existence-assert                 | no-query-existence-assert › packages/oxlint-plugin/src/no-query-existence-assert.test.js › no-query-existence-assert |
+| banned-vocabulary                         | banned-vocabulary › packages/oxlint-plugin/src/vocabulary.test.js › banned-vocabulary                                |
+| core-purity                               | core-purity › packages/oxlint-plugin/src/vocabulary.test.js › core-purity                                            |
+| no-of-suffix                              | no-of-suffix › packages/oxlint-plugin/src/vocabulary.test.js › no-of-suffix                                          |
