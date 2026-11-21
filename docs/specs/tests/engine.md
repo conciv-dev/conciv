@@ -154,7 +154,8 @@ All within budget. Cites marked inferred were not opened at the line (`init/pipe
 
 One file per rule source, beside it, through oxlint's own `RuleTester` (`oxlint/plugins-dev`) with inline `valid` / `invalid` cases. A rule that lives in `plugin.js` is a `tester.run` in `plugin.test.js`, so test files never outnumber source files.
 
-| rule                                      | test                                                                                                     |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| solid-test-render (test-path pattern)     | solid-test-render › packages/oxlint-plugin/src/plugin.test.js › solid-test-render                        |
-| no-teardown-hooks (new-layer src pattern) | no-teardown-hooks › packages/oxlint-plugin/src/no-teardown-hooks.test.js › no-teardown-hooks (path rows) |
+| rule                                      | test                                                                                                                 |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| solid-test-render (test-path pattern)     | solid-test-render › packages/oxlint-plugin/src/plugin.test.js › solid-test-render                                    |
+| no-teardown-hooks (new-layer src pattern) | no-teardown-hooks › packages/oxlint-plugin/src/no-teardown-hooks.test.js › no-teardown-hooks (path rows)             |
+| no-query-existence-assert                 | no-query-existence-assert › packages/oxlint-plugin/src/no-query-existence-assert.test.js › no-query-existence-assert |
