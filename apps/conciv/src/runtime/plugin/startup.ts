@@ -54,7 +54,6 @@ export function createStartupGate(input: {
     if (lifetime.disposed) return
 
     queue.push(event)
-
     if (queue.length === 1) drain()
   }
 
@@ -69,6 +68,7 @@ export function createStartupGate(input: {
       return void Promise.try(() => installed?.list() ?? []).then(
         (list) => dispatch({type: 'list.resolved', list}),
         (cause: unknown) => {
+          if (lifetime.disposed) return
           console.error('[plugin] failed to load installed plugin list', cause)
           dispatch({type: 'list.failed', error: cause instanceof Error ? cause.message : String(cause)})
         },
