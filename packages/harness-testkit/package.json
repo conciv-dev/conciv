@@ -28,6 +28,10 @@
     "./run-tests": {
       "types": "./dist/run-tests.d.ts",
       "import": "./dist/run-tests.js"
+    },
+    "./test-llm": {
+      "types": "./dist/test-llm.d.ts",
+      "import": "./dist/test-llm.js"
     }
   },
   "publishConfig": {

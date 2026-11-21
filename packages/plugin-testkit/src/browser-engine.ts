@@ -4,6 +4,8 @@ import type {TestLLM} from '@conciv/harness-testkit'
 import type {CreateEngineOptions, Engine, EngineSession} from './engine.js'
 import type {} from './browser-commands.js'
 
+export * as TestLLM from '@conciv/harness-testkit/test-llm'
+
 function sessionOn(engineId: string, id: string): EngineSession {
   return {
     id,
