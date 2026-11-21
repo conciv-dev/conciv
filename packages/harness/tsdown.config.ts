@@ -6,7 +6,6 @@ export default defineConfig({
     'src/_shared/cwd.ts',
     'src/_shared/page.ts',
     'src/claude/index.ts',
-    'src/claude/system-prompt.ts',
     'src/codex/index.ts',
     'src/opencode/index.ts',
     'src/pi/index.ts',

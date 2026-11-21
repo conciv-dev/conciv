@@ -40,10 +40,6 @@
       "types": "./dist/claude/index.d.ts",
       "import": "./dist/claude/index.js"
     },
-    "./claude/system-prompt": {
-      "types": "./dist/claude/system-prompt.d.ts",
-      "import": "./dist/claude/system-prompt.js"
-    },
     "./codex": {
       "types": "./dist/codex/index.d.ts",
       "import": "./dist/codex/index.js"
