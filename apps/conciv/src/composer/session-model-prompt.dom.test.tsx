@@ -50,7 +50,7 @@ describe('picking a model and an effort', () => {
 })
 
 describe('switching the harness', () => {
-  test('a model of another harness asks first when the chat has history, and the next reply runs on it', async () => {
+  test('a model of another harness asks first when the chat has history, the next reply runs on it, and each reply then names its harness', async () => {
     const user = userEvent.setup({delay: null})
     const engine = await createEngine(
       {},
@@ -65,6 +65,7 @@ describe('switching the harness', () => {
     await user.keyboard('{Enter}')
     const first = await screen.findByRole('article', {name: 'Reply to: First task'})
     expect(await within(first).findByText('First answer')).toBeVisible()
+    expect(screen.queryByText('engine')).not.toBeInTheDocument()
 
     await user.click(await screen.findByRole('button', {name: 'Model: Opus 5.5 (engine)'}))
     await user.click(await screen.findByRole('option', {name: 'Fast 1 (second)'}))
@@ -79,6 +80,8 @@ describe('switching the harness', () => {
     await user.keyboard('{Enter}')
     const second = await screen.findByRole('article', {name: 'Reply to: Second task'})
     expect(await within(second).findByText('Second answer')).toBeVisible()
+    expect(screen.getByText('engine')).toBeVisible()
+    expect(screen.getByText('second')).toBeVisible()
     expect((await engine.requests()).map((request) => request.model)).toEqual([null, 'second-fast'])
   })
 })
