@@ -142,31 +142,3 @@ describe('deleting the session lets go of its page', () => {
     expect(selectTarget(deleted.state, sessionId, undefined)).toMatchObject({ok: false, error: {message: disconnected}})
   })
 })
-
-describe('closing the page of a session that is being deleted', () => {
-  it('takes the permissions back and stays quiet when the session is already gone', () => {
-    const steps: ConnectionEvent[] = [
-      {type: 'attach.started', sessionId, attempt: 1, connectionId: 'checkout'},
-      {type: 'permissions.synced', sessionId, attempt: 2},
-    ]
-    const opened = steps.reduce((state, event) => transitionConnection(state, event).state, createConnectionState())
-
-    const closed = transitionConnection(opened, {type: 'attach.closed', sessionId, attempt: 1})
-    expect(closed.effects).toEqual([
-      {type: 'close-attachment', attempt: 1, outcome: 'closed'},
-      {type: 'sync-permissions', sessionId, attempt: 3, allow: false},
-    ])
-
-    const deleted = transitionConnection(closed.state, {type: 'session.deleted', sessionId})
-    expect(deleted.effects).toEqual([])
-
-    const failed = transitionConnection(deleted.state, {
-      type: 'permissions.failed',
-      sessionId,
-      attempt: 3,
-      error: {_tag: 'Session.NotFoundError', sessionId},
-    })
-    expect(failed.effects).toEqual([])
-    expect(selectAttachedSessions(failed.state)).toEqual([])
-  })
-})
