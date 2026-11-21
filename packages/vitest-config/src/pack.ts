@@ -141,7 +141,11 @@ export async function buildAndPack(
   assertPackAllowed()
   const byName = workspacePackages()
   const closure = collectClosure(byName, roots)
-  await run('pnpm', ['turbo', 'run', 'build', ...closure.flatMap((name) => ['--filter', name])], WORKSPACE_ROOT)
+  await run(
+    'pnpm',
+    ['turbo', 'run', 'build', 'build:types', ...closure.flatMap((name) => ['--filter', name])],
+    WORKSPACE_ROOT,
+  )
   await Promise.all(
     closure.map((name) => {
       const info = byName.get(name)
