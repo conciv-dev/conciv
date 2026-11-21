@@ -44,6 +44,7 @@ export type HarnessEngineOptions = {
   models?: HarnessModel[]
   commands?: HarnessCommand[]
   harnesses?: ScriptedHarness[]
+  fs?: {filewatcher?: boolean}
 }
 
 export type HarnessEngineToolFailure = {tool: string; message: string}
@@ -261,11 +262,15 @@ function engineHome(root: string): string {
   return join(concivStateDir(root), 'home')
 }
 
-function isolatedProvider(root: string, env: Record<string, string>): ConfigProvider.ConfigProvider {
+function isolatedProvider(root: string, options: HarnessEngineOptions): ConfigProvider.ConfigProvider {
   const temporary = join(concivStateDir(root), 'tmp')
   mkdirSync(temporary, {recursive: true})
   return ConfigProvider.fromEnvRecord(
-    {...isolatedEnv(process.env, engineHome(root), temporary), ...env, CONCIV_DISABLE_FILEWATCHER: 'true'},
+    {
+      ...isolatedEnv(process.env, engineHome(root), temporary),
+      ...options.env,
+      ...(options.fs?.filewatcher === true ? {} : {CONCIV_DISABLE_FILEWATCHER: 'true'}),
+    },
     {preserveEmptyStrings: true},
   )
 }
@@ -378,7 +383,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
   const opened: HarnessEngineOpened[] = []
   const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
   const {app, sessionId} = await Promise.resolve()
-    .then(() => bootApp(root, project, harnesses, options, isolatedProvider(root, options.env ?? {}), opened))
+    .then(() => bootApp(root, project, harnesses, options, isolatedProvider(root, options), opened))
     .catch((error: unknown) => abandonStart(error, [removeRoot]))
   const served = await serveHono({fetch: app.fetch}).catch((error: unknown) =>
     abandonStart(error, [() => app.dispose(), removeRoot]),

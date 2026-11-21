@@ -35,6 +35,7 @@ export type CreateEngineOptions = {
   models?: HarnessEngineOptions['models']
   commands?: HarnessEngineOptions['commands']
   harnesses?: HarnessEngineOptions['harnesses']
+  fs?: HarnessEngineOptions['fs']
 }
 
 export type ToolFailure = HarnessEngineToolFailure
