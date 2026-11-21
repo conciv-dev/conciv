@@ -36,33 +36,37 @@ user; an operation that must ask is a tool.
 
 ## Testing with `@conciv/plugin-testkit`
 
-The testkit boots the real engine with a fake model; only the model and the agent CLIs are faked.
+The testkit runs the real engine with a scripted model; only the model and the agent CLIs are faked.
 
-- `bootCoreKit({id, plugins, files, stateRoot})` from `@conciv/plugin-testkit/core-kit`. `stateRoot`
-  is the project folder (its `conciv/plugins` load as in an app); `files` writes more files there.
-  The kit has `rpc.plugin.list()` (each plugin's `state` is `{status: 'active'}` or
-  `{status: 'failed', error}`), `callTool(name, input)` (code mode, name without `external_`),
-  `writeProjectFile`, `base`, `origin`, `token`, `home`, `stateRoot` and `cleanup()`.
-- `openPluginWidget(browser, {id, plugins, widgetBundle, files, stateRoot, body})` from
-  `@conciv/plugin-testkit/widget-suite` serves a page with `@conciv/embed`'s
-  `conciv-widget.global.js` and returns `{page, kit, close}`.
-- `rpcObserverFor(page)`, `rpcSocketFor(page)` and the `rpc-fault` helpers (`failRpcCalls`,
-  `abortRpcCalls`, `garbleRpcReplies`, `holdRpcCalls`, `gateRpcCalls`) observe or break the widget's
-  RPC socket without swapping the transport.
+- Set up: `@conciv/plugin-testkit` in devDependencies, `conciv()` from `@conciv/unplugin/vite` in
+  the package's one `vite.config.ts`, and `"test": "conciv-test"`. That gives three projects:
+  node (`*.test.ts`), happy-dom (`*.dom.test.ts(x)`) and browser (`*.browser.test.ts(x)`).
+- `createEngine({plugins, replies, files, settings})` from `@conciv/plugin-testkit/node` starts the
+  engine with your plugins in a fresh project folder. `replies` answer the model's requests in order
+  (`TestLLM.text(...)`, `TestLLM.toolCall(...)`). The engine has `session.send(text)`,
+  `session.tool(name).call(input)` and `.failure(input)`, `rpc.call(id, method, input)` and
+  `rpc.failure(...)`, `event(type)`, `gate()`, `requests()` and `address`. It stops when the test
+  ends.
+- `mount({engine, route})` from `@conciv/plugin-testkit/browser` shows the whole widget on that
+  engine, in happy-dom or a real browser, and resolves when it is ready. It returns nothing: find
+  things with Testing Library and act with `user-event`.
 
 ```ts
-const widget = await openPluginWidget(browser, {
-  id: 'fake',
-  plugins: [PACKAGE_DIR],
-  widgetBundle: WIDGET_BUNDLE,
-  files: {...fixtureFiles(), 'gate.test.ts': GATED_VITEST_TEST},
-  stateRoot: realpathSync(tempDir('conciv-test-runner-panel-')),
+import {expect, test} from 'vitest'
+import {screen} from '@solidjs/testing-library'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit/node'
+import {mount} from '@conciv/plugin-testkit/browser'
+
+test('the deploy tab shows the last deploy', async () => {
+  const engine = await createEngine({plugins: ['.'], replies: [TestLLM.text('done', 'a')]})
+  await mount({engine, route: '/panel/latest?open=true'})
+
+  expect(await screen.findByRole('tab', {name: 'Deploy'})).toBeDefined()
 })
 ```
 
-Rules: drive the widget by role and visible text; no `page.evaluate`, test-ids or class selectors;
-`browser.newPage()`, not `newContext()`; wait for `domcontentloaded` or a visible signal, never
-`networkidle`; rebuild the plugin's `dist` before a run.
+Rules: drive the widget by role and visible text; no test-ids or class selectors; no polling waits;
+rebuild the plugin's `dist` before a run (tests load the built plugin).
 
 ## Sources
 
@@ -70,7 +74,7 @@ Rules: drive the widget by role and visible text; no `page.evaluate`, test-ids o
 - `packages/plugins/test-runner/src/rpc.ts`
 - `packages/plugins/test-runner/src/index.ts`
 - `packages/plugins/test-runner/src/follow.ts`
-- `packages/plugins/test-runner/test/test-runner.browser.test.ts`
-- `packages/plugin-testkit/src/core-kit.ts`
-- `packages/plugin-testkit/src/widget-suite.ts`
-- `packages/plugin-testkit/src/rpc-fault.ts`
+- `packages/plugin-testkit/README.md`
+- `packages/plugin-testkit/src/engine.ts`
+- `packages/plugin-testkit/src/mount.ts`
+- `packages/plugin-testkit/src/test-projects.ts`
