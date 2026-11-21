@@ -1,4 +1,5 @@
 import {describe, expect, test} from 'vitest'
+import {userEvent as browserInput} from 'vitest/browser'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
@@ -196,5 +197,164 @@ describe('preview a session that is still running', () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', {name: 'Preview of Keep going'})).not.toBeInTheDocument()
     await gate.release()
+  })
+})
+
+describe('past sessions the CLI started', () => {
+  test('the picker files them under Yesterday and Earlier beside conciv’s own, finds one by a word of its transcript, and shows another project’s session only with All projects on, whose resume command the user copies from its preview and its row', async () => {
+    const user = userEvent.setup()
+    const startOfToday = new Date().setHours(0, 0, 0, 0)
+    const engine = await createEngine(
+      {},
+      {
+        harnesses: [
+          {
+            id: 'engine',
+            sessions: [
+              {
+                id: 'past-login',
+                derivedTitle: 'Fix the login form',
+                updatedAt: startOfToday - 12 * 60 * 60 * 1000,
+                messages: [
+                  {id: 'login-1', role: 'user', parts: [{type: 'text', content: 'why does login fail'}]},
+                  {
+                    id: 'login-2',
+                    role: 'assistant',
+                    parts: [{type: 'text', content: 'The session cookie expires too early'}],
+                  },
+                ],
+              },
+              {
+                id: 'past-footer',
+                derivedTitle: 'Tidy the footer',
+                updatedAt: startOfToday - 30 * 24 * 60 * 60 * 1000,
+                messages: [
+                  {id: 'footer-1', role: 'user', parts: [{type: 'text', content: 'make the footer smaller'}]},
+                  {id: 'footer-2', role: 'assistant', parts: [{type: 'text', content: 'Moved the links into one row'}]},
+                ],
+              },
+              {
+                id: 'past-checkout',
+                cwd: '/elsewhere/storefront',
+                derivedTitle: 'Ship the checkout page',
+                updatedAt: startOfToday - 20 * 24 * 60 * 60 * 1000,
+                messages: [
+                  {id: 'checkout-1', role: 'user', parts: [{type: 'text', content: 'where does the order start'}]},
+                  {id: 'checkout-2', role: 'assistant', parts: [{type: 'text', content: 'In the cart page'}]},
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    )
+    await engine.newSession('Alpha')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.click(await screen.findByRole('button', {name: 'Alpha, session options'}))
+    await user.click(await screen.findByRole('button', {name: 'Session: Alpha'}))
+    expect(await screen.findByRole('option', {name: /^Alpha, Edited .* · started in conciv$/})).toBeVisible()
+    expect(
+      await screen.findByRole('option', {name: /^Fix the login form, Edited .* · started externally$/}),
+    ).toBeVisible()
+    expect(await screen.findByRole('option', {name: /^Tidy the footer, Edited .* · started externally$/})).toBeVisible()
+    expect(screen.getByText('Today')).toBeVisible()
+    expect(screen.getByText('Yesterday')).toBeVisible()
+    expect(screen.getByText('Earlier')).toBeVisible()
+    expect(screen.queryByRole('option', {name: /^Ship the checkout page/})).not.toBeInTheDocument()
+
+    const search = screen.getByRole('combobox', {name: 'Search sessions'})
+    await user.type(search, 'cookie')
+    const login = await screen.findByRole('option', {
+      name: /^Fix the login form, Edited/,
+      description: /The session cookie expires too early/,
+    })
+    expect(within(login).getByRole('mark')).toHaveTextContent('cookie')
+    expect(screen.getByText('Yesterday')).toBeVisible()
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
+    expect(screen.queryByText('Earlier')).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', {name: /^Tidy the footer/})).not.toBeInTheDocument()
+
+    await user.tripleClick(search)
+    await user.keyboard('links')
+    expect(await screen.findByRole('option', {name: /^Tidy the footer, Edited/})).toBeVisible()
+    expect(screen.getByText('Earlier')).toBeVisible()
+    expect(screen.queryByText('Yesterday')).not.toBeInTheDocument()
+
+    await user.tripleClick(search)
+    await user.keyboard('checkout')
+    expect(await screen.findByText('No sessions match')).toBeVisible()
+    expect(screen.queryByRole('option', {name: /^Ship the checkout page/})).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('switch', {name: 'All projects', checked: false}))
+    expect(
+      await screen.findByRole('option', {
+        name: /^Ship the checkout page, Edited .* · started externally, in storefront, select to copy the command that opens it there$/,
+      }),
+    ).toBeVisible()
+
+    await user.click(search)
+    expect(search).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    const preview = await screen.findByRole('dialog', {name: 'Preview of Ship the checkout page'})
+    expect(await within(preview).findByText('In the cart page')).toBeVisible()
+    expect(within(preview).getByText('storefront')).toBeVisible()
+
+    const copy = within(preview).getByRole('button', {name: 'Copy resume command'})
+    await user.click(copy)
+    expect(await within(preview).findByRole('button', {name: 'Copied'})).toBeVisible()
+    expect(await screen.findByText('Copied', {ignore: '[role="tooltip"], [role="tooltip"] *'})).toBeVisible()
+    expect(copy).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', {name: 'Preview of Ship the checkout page'})).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('option', {name: /^Ship the checkout page, Edited/}))
+    expect(await screen.findByRole('tooltip', {name: 'Copied'})).toBeVisible()
+    expect(screen.getByRole('option', {name: /^Ship the checkout page, Edited/})).toBeVisible()
+  })
+})
+
+describe('a long past session in the preview', () => {
+  test('the user previews the newest page, moves into the thread with Alt+ArrowRight, goes to its start and the earlier messages load', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine(
+      {},
+      {
+        harnesses: [
+          {
+            id: 'engine',
+            sessions: [
+              {
+                id: 'past-migration',
+                derivedTitle: 'Plan the migration',
+                updatedAt: Date.now() - 60 * 60 * 1000,
+                messages: Array.from({length: 25}, (_, index) => index + 1).flatMap((number) => [
+                  {id: `question-${number}`, role: 'user', parts: [{type: 'text', content: `Question ${number}`}]},
+                  {id: `answer-${number}`, role: 'assistant', parts: [{type: 'text', content: `Answer ${number}`}]},
+                ]),
+              },
+            ],
+          },
+        ],
+      },
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.click(await screen.findByRole('button', {name: 'New session, session options'}))
+    await user.click(await screen.findByRole('button', {name: 'Session: New session'}))
+    expect(await screen.findByRole('option', {name: /^Plan the migration, Edited/})).toBeVisible()
+    const search = screen.getByRole('combobox', {name: 'Search sessions'})
+    await user.click(search)
+    expect(search).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    const preview = await screen.findByRole('dialog', {name: 'Preview of Plan the migration'})
+    expect(await within(preview).findByRole('article', {name: 'Reply to: Question 25'})).toBeVisible()
+    expect(within(preview).queryByRole('article', {name: 'You: Question 1'})).not.toBeInTheDocument()
+
+    await user.keyboard('{Alt>}{ArrowRight}{/Alt}')
+    expect(within(preview).getByRole('log')).toHaveFocus()
+    await browserInput.keyboard('{Home}')
+    expect(await within(preview).findByRole('article', {name: 'You: Question 1'})).toBeVisible()
+    expect(within(preview).getByRole('article', {name: 'Reply to: Question 1'})).toBeVisible()
   })
 })
