@@ -1351,6 +1351,12 @@ importers:
       '@conciv/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@orpc/client':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server-peer':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1

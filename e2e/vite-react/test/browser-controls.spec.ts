@@ -1,6 +1,12 @@
 import {expect, test} from '@playwright/test'
 import {defaultEngineConnectionTimings} from '@conciv/contract'
-import {collectFailures, expectWidgetBoots, holdEngineSocket, loginWidget} from '@conciv/e2e-utils/widget'
+import {
+  collectFailures,
+  expectWidgetBoots,
+  holdEngineCall,
+  holdEngineSocket,
+  loginWidget,
+} from '@conciv/e2e-utils/widget'
 
 test.describe('the browser around the widget on a vite react page', () => {
   test('when the browser goes offline the send button says the engine connection is lost, and back online it is the send button again', async ({
@@ -58,6 +64,41 @@ test.describe('the widget on a vite react page when its engine socket cannot con
     ).toBeVisible()
 
     engineSocket.release()
+    await page.getByRole('button', {name: 'Retry'}).click()
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+  })
+})
+
+test.describe('the widget on a vite react page when the engine is slow or fails to say which session to open', () => {
+  test('the user reloads with the chat open, sees conciv loading while the engine has not answered, and the chat once it does', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const resolve = await holdEngineCall(page, ['sessions', 'resolve'])
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await resolve.arrived
+
+    await expect(page.getByText('Reconnecting to your workspace.')).toBeVisible()
+
+    resolve.release()
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+  })
+
+  test("the user reloads with the chat open, sees the engine's error when it fails to answer, and Retry brings the chat back", async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const resolve = await holdEngineCall(page, ['sessions', 'resolve'])
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await resolve.arrived
+
+    resolve.release('INTERNAL_SERVER_ERROR')
+    await expect(page.getByRole('alert').filter({hasText: 'Internal server error'})).toBeVisible()
+
     await page.getByRole('button', {name: 'Retry'}).click()
     await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
   })

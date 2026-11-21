@@ -1,5 +1,9 @@
 import {readFileSync, watch, writeFileSync} from 'node:fs'
-import {expect, test, type ConsoleMessage, type Page} from '@playwright/test'
+import {expect, test, type ConsoleMessage, type Page, type WebSocketRoute} from '@playwright/test'
+import {ORPCError, toORPCError} from '@orpc/client'
+import {StandardRPCJsonSerializer, StandardRPCSerializer, toHttpPath} from '@orpc/client/standard'
+import {decodeRequestMessage, encodeResponseMessage, MessageType} from '@orpc/standard-server-peer'
+import {contract} from '@conciv/contract'
 import {magicLink, recordedEngineBase, trustedBrowserToken} from './login.js'
 import {e2eConfigDir, e2eServerLog} from './config.js'
 
@@ -111,6 +115,78 @@ export async function holdEngineSocket(page: Page): Promise<{arrived: Promise<vo
       released = true
     },
   }
+}
+
+type EnginePath<Router = typeof contract> = {
+  [Key in keyof Router & string]: Router[Key] extends {'~orpc': unknown} ? [Key] : [Key, ...EnginePath<Router[Key]>]
+}[keyof Router & string]
+
+type EngineProcedure<Path, Router = typeof contract> = Path extends [infer Head extends keyof Router, ...infer Rest]
+  ? Rest extends []
+    ? Router[Head]
+    : EngineProcedure<Rest, Router[Head]>
+  : never
+
+type EngineErrorCode<Path> =
+  | (EngineProcedure<Path> extends {'~orpc': {errorMap: infer Errors}} ? keyof Errors & string : never)
+  | 'INTERNAL_SERVER_ERROR'
+
+function readField(node: unknown, key: string): unknown {
+  return typeof node === 'object' && node !== null ? Reflect.get(node, key) : undefined
+}
+
+async function engineErrorFrame(path: readonly string[], id: string, code: string): Promise<string | Buffer> {
+  const procedure = path.reduce<unknown>(readField, contract)
+  const entry = readField(readField(readField(procedure, '~orpc'), 'errorMap'), code)
+  const message = readField(entry, 'message')
+  const status = readField(entry, 'status')
+  const error =
+    entry === undefined
+      ? toORPCError(new Error(code))
+      : new ORPCError(code, {
+          defined: true,
+          message: typeof message === 'string' ? message : undefined,
+          status: typeof status === 'number' ? status : undefined,
+        })
+  const body = new StandardRPCSerializer(new StandardRPCJsonSerializer()).serialize(error.toJSON())
+  const encoded = await encodeResponseMessage(id, MessageType.RESPONSE, {status: error.status, headers: {}, body})
+  if (typeof encoded === 'string') return encoded
+  return Buffer.from(encoded instanceof Uint8Array ? encoded : new Uint8Array(encoded))
+}
+
+export async function holdEngineCall<Path extends EnginePath>(
+  page: Page,
+  path: Path,
+): Promise<{arrived: Promise<void>; release: (failWith?: EngineErrorCode<Path>) => void}> {
+  const arrived = Promise.withResolvers<void>()
+  const released = Promise.withResolvers<string | undefined>()
+  const pathname = toHttpPath(path)
+  let held: {socket: WebSocketRoute; id: string} | undefined
+  await page.routeWebSocket(
+    (url) => url.pathname === RPC_SOCKET_PATH,
+    (socket) => {
+      const server = socket.connectToServer()
+      let decoding = Promise.resolve()
+      const route = async (frame: string | Buffer): Promise<void> => {
+        const decoded = await decodeRequestMessage(frame).catch(() => undefined)
+        if (decoded === undefined) return server.send(frame)
+        const [id, type, payload] = decoded
+        if (held === undefined && type === MessageType.REQUEST && payload.url.pathname === pathname) {
+          held = {socket, id}
+          arrived.resolve()
+        }
+        if (held?.socket !== socket || held.id !== id) return server.send(frame)
+        void released.promise.then(async (code) => {
+          if (code === undefined) return server.send(frame)
+          if (type === MessageType.REQUEST) socket.send(await engineErrorFrame(path, id, code))
+        })
+      }
+      socket.onMessage((frame) => {
+        decoding = decoding.then(() => route(frame))
+      })
+    },
+  )
+  return {arrived: arrived.promise, release: (failWith) => released.resolve(failWith)}
 }
 
 async function engineOrigin(page: Page, path: string): Promise<string> {
