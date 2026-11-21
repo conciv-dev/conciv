@@ -62,3 +62,73 @@ describe('the agent picks an element on a page with the widget open on it', () =
     expect(await engine.session.tool('page_text').call({selector: 'button'})).toEqual({text: 'Buy the fern'})
   })
 })
+
+describe('the agent finds the tab and the route its page is on', () => {
+  test('the tab list names the focused tab and the route reads its address', async () => {
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    expect(await engine.session.tool('page_tabs_list').call({})).toMatchObject({
+      tabs: [{url: 'http://localhost:3000/', focused: true, visible: true}],
+    })
+    expect(await engine.session.tool('page_route').call({})).toEqual({
+      pathname: '/',
+      search: '',
+      href: 'http://localhost:3000/',
+      title: '',
+      state: 'visible',
+    })
+  })
+})
+
+describe('the agent reads host content', () => {
+  test('exists, query, text and markup answer for the host section', async () => {
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <section id="plants">
+        <h2>Ferns</h2>
+        <button type="button" id="buy">
+          Buy the fern
+        </button>
+      </section>
+    ))
+
+    expect(screen.getByRole('heading', {name: 'Ferns'})).toBeVisible()
+    expect(await engine.session.tool('page_exists').call({selector: '#plants button'})).toEqual({
+      exists: true,
+      count: 1,
+    })
+    expect(await engine.session.tool('page_query').call({selector: '#plants button'})).toMatchObject({
+      count: 1,
+      elements: [{tagName: 'button', id: 'buy'}],
+    })
+    expect(await engine.session.tool('page_text').call({selector: '#plants'})).toEqual({text: 'FernsBuy the fern'})
+    expect(await engine.session.tool('page_dom').call({selector: '#plants'})).toEqual({
+      html: '<section id="plants"><h2>Ferns</h2><button type="button" id="buy">Buy the fern</button></section>',
+    })
+  })
+})
+
+describe('the agent lists the effects it can run on the page', () => {
+  test('the highlight effect is listed and off', async () => {
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    expect(await engine.session.tool('page_effect').call({action: 'list'})).toEqual({
+      effects: [
+        {
+          name: 'highlight',
+          description: 'outline the element under the pointer and open its source on click',
+          enabled: false,
+        },
+      ],
+    })
+  })
+})
