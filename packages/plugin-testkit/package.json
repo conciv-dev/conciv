@@ -58,6 +58,9 @@
   },
   "devDependencies": {
     "@conciv/app": "workspace:*",
+    "@conciv/harness-testkit": "workspace:*",
+    "@conciv/plugin-ios": "workspace:*",
+    "@conciv/plugin-try-it": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

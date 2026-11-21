@@ -441,6 +441,8 @@
     "@conciv/embed",
     "@conciv/grab",
     "@conciv/mascot",
+    "@conciv/plugin-ios",
+    "@conciv/plugin-try-it",
     "@conciv/skills",
     "@conciv/solid-diffs",
     "@conciv/ui-kit-chat-tools",

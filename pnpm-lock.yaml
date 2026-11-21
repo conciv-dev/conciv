@@ -3211,9 +3211,6 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../harness-testkit
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -3227,6 +3224,15 @@ importers:
       '@conciv/app':
         specifier: workspace:*
         version: link:../../apps/conciv
+      '@conciv/harness-testkit':
+        specifier: workspace:*
+        version: link:../harness-testkit
+      '@conciv/plugin-ios':
+        specifier: workspace:*
+        version: link:../plugins/ios
+      '@conciv/plugin-try-it':
+        specifier: workspace:*
+        version: link:../plugins/try-it
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig

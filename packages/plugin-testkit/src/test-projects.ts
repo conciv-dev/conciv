@@ -143,35 +143,48 @@ const PluginManifestSchema = z
 
 const ENGINE_SUBPATHS = ['./server', './plugin-experimental']
 
-type TestablePlugin = {id: string; directory: string; engine: boolean}
+type TestablePlugin = {name: string; id: string; directory: string; engine: boolean}
 
 function testablePlugin(name: string): TestablePlugin[] {
   const directory = pluginDirectory(name)
   const manifest = PluginManifestSchema.safeParse(readFileSync(join(directory, 'package.json'), 'utf8'))
   if (!manifest.success) return []
   const engine = ENGINE_SUBPATHS.some((subpath) => Object.hasOwn(manifest.data.exports, subpath))
-  return [{id: manifest.data.name, directory, engine}]
+  return [{name, id: manifest.data.name, directory, engine}]
 }
 
-function testablePlugins(): Record<string, TestablePlugin> {
+function testablePlugins(): TestablePlugin[] {
   const own = readManifest(process.cwd())
   const names = [own.name ?? [], Object.keys({...own.dependencies, ...own.devDependencies})].flat()
-  return Object.fromEntries(names.flatMap((name) => testablePlugin(name).map((plugin) => [name, plugin])))
+  return names.flatMap((name) => testablePlugin(name))
 }
 
-function pluginsByName(testable: Record<string, TestablePlugin>): Plugin {
+const PLUGIN_SPECIFIER = /^virtual:conciv-test-plugin\/(\d+)$/
+
+function pluginAt(testable: readonly TestablePlugin[], index: number): TestablePlugin {
+  const plugin = Number.isSafeInteger(index) ? testable[index] : undefined
+  if (plugin === undefined || plugin.engine) throw new Error(`no window plugin at index ${index}`)
+  return plugin
+}
+
+function pluginsByName(testable: readonly TestablePlugin[]): Plugin {
   const resolved = `\0${TEST_PLUGINS}`
   return {
     name: 'conciv:test-plugins',
-    resolveId: (id) => (id === TEST_PLUGINS ? resolved : undefined),
+    resolveId(id) {
+      if (id === TEST_PLUGINS) return resolved
+      const index = PLUGIN_SPECIFIER.exec(id)?.[1]
+      if (index === undefined) return undefined
+      return this.resolve(pluginAt(testable, Number(index)).directory, undefined, {skipSelf: true})
+    },
     load: (id) => {
       if (id !== resolved) return undefined
-      const entries = Object.entries(testable).map(([name, plugin]) =>
-        plugin.engine
-          ? `${JSON.stringify(name)}: {id: ${JSON.stringify(plugin.id)}, kind: 'engine'}`
-          : `${JSON.stringify(name)}: {id: ${JSON.stringify(plugin.id)}, kind: 'host', load: () => import(${JSON.stringify(plugin.directory)})}`,
-      )
-      return `export const plugins = {${entries.join(', ')}}`
+      const loaders = testable.map((plugin, index) => {
+        if (plugin.engine) return 'undefined'
+        if (!Number.isSafeInteger(index)) throw new Error(`the plugin index ${index} is not an integer`)
+        return `() => import('virtual:conciv-test-plugin/${index}')`
+      })
+      return `export const loaders = [${loaders.join(', ')}]`
     },
   }
 }
@@ -352,9 +365,13 @@ function hasServingPlugin(option: unknown, name: string): boolean {
 function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineConfiguration[] {
   const uno = appUnoConfig()
   const solid = hasServingPlugin(authorPlugins, 'solid') ? [] : [solidPlugin()]
-  const byName = pluginsByName(testablePlugins())
+  const testable = testablePlugins()
+  const byName = pluginsByName(testable)
   const engines = browserEngines()
-  const provide = {concivPollTimeoutMs: POLL_TIMEOUT_MS}
+  const provide = {
+    concivPollTimeoutMs: POLL_TIMEOUT_MS,
+    concivTestPlugins: testable.map(({name, id, engine}) => ({name, id, kind: engine ? 'engine' : 'host'}) as const),
+  }
   return [
     {
       extends: true,

@@ -1,11 +1,11 @@
-import {onTestFinished} from 'vitest'
+import {inject, onTestFinished} from 'vitest'
 import {createComponent} from 'solid-js'
 import {cleanup, render} from '@solidjs/testing-library'
 import {createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
 import {ConcivApp, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
 import {makeBrowserRpcClient} from '@conciv/contract'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
-import {plugins as pluginLoaders} from 'virtual:conciv-test-plugins'
+import {loaders} from 'virtual:conciv-test-plugins'
 import type {Engine} from './engine.js'
 
 declare module 'vitest' {
@@ -66,17 +66,20 @@ type PluginEntry = NonNullable<ConcivConfig['plugins']>[number]
 
 async function composePlugin(entry: PluginEntry): Promise<ComposedPlugin> {
   const [name, options] = typeof entry === 'string' ? [entry, {}] : entry
-  const loader = pluginLoaders[name]
-  if (loader === undefined) {
+  const testPlugins = inject('concivTestPlugins')
+  const index = testPlugins.findIndex((plugin) => plugin.name === name)
+  const plugin = testPlugins[index]
+  if (plugin === undefined) {
     throw new Error(`the plugin ${name} is neither the package under test nor one of its conciv-plugin dependencies`)
   }
-  if (loader.kind === 'engine') {
+  const load = loaders[index]
+  if (plugin.kind === 'engine' || load === undefined) {
     throw new Error(
       `the plugin ${name} runs in the engine: give it to createEngine({plugins}), and its page part reaches the page from the engine`,
     )
   }
-  const {setup, ...declarations} = (await loader.load()).default
-  return [{...declarations, id: loader.id, windowEntry: setup && (async () => ({default: setup}))}, options]
+  const {setup, ...declarations} = (await load()).default
+  return [{...declarations, id: plugin.id, windowEntry: setup && (async () => ({default: setup}))}, options]
 }
 
 function mountedEngine(engine: Engine | undefined, login: MountOptions['login']): ReturnType<Platform['engine']> {

@@ -55,5 +55,6 @@ declare module 'vitest/browser' {
 declare module 'vitest' {
   export interface ProvidedContext {
     concivPollTimeoutMs: number
+    concivTestPlugins: {name: string; id: string; kind: 'engine' | 'host'}[]
   }
 }
