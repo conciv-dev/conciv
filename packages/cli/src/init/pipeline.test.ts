@@ -1,11 +1,13 @@
-import {readdirSync} from 'node:fs'
+import {cpSync, readdirSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {cli} from '@conciv/plugin-testkit'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('dry run', () => {
   it('a vite project gets its plan and nothing is written', async () => {
-    const project = join(import.meta.dirname, '../../test/fixtures/vite-shop')
+    const project = tempDir('vite-shop-')
+    cpSync(join(import.meta.dirname, '../../test/fixtures/vite-shop'), project, {recursive: true})
 
     const planned = await cli(['init', '--dry-run', '--json', '--force'], {cwd: project})
 
@@ -20,21 +22,38 @@ describe('dry run', () => {
     expect(readdirSync(project).toSorted()).toEqual(['package.json', 'vite.config.ts'])
   })
 
-  it.each([
-    {
-      args: ['init', '--json', '--force'],
-      folder: 'vite-shop',
-      message: 'Non-interactive terminal \u2014 re-run with --yes or --dry-run',
-    },
-    {
-      args: ['init', '--dry-run', '--json', '--force'],
-      folder: '',
-      message: 'no package.json here \u2014 run init from your app directory',
-    },
-  ])('$message: refused, nothing written', async ({args, folder, message}) => {
-    const run = await cli(args, {cwd: join(import.meta.dirname, '../../test/fixtures', folder)})
+  it('a run without --yes in a non-interactive terminal is refused and nothing is written', async () => {
+    const project = tempDir('vite-shop-')
+    cpSync(join(import.meta.dirname, '../../test/fixtures/vite-shop'), project, {recursive: true})
+
+    const run = await cli(['init', '--json', '--force'], {cwd: project})
 
     expect(run.exitCode).toBe(1)
-    expect(JSON.parse(run.stdout)).toEqual({ok: false, error: {kind: 'user', message, hint: 'nothing was written'}})
+    expect(JSON.parse(run.stdout)).toEqual({
+      ok: false,
+      error: {
+        kind: 'user',
+        message: 'Non-interactive terminal — re-run with --yes or --dry-run',
+        hint: 'nothing was written',
+      },
+    })
+    expect(readdirSync(project).toSorted()).toEqual(['package.json', 'vite.config.ts'])
+  })
+
+  it('a folder with no package.json is refused and nothing is written', async () => {
+    const empty = tempDir('empty-')
+
+    const run = await cli(['init', '--dry-run', '--json', '--force'], {cwd: empty})
+
+    expect(run.exitCode).toBe(1)
+    expect(JSON.parse(run.stdout)).toEqual({
+      ok: false,
+      error: {
+        kind: 'user',
+        message: 'no package.json here — run init from your app directory',
+        hint: 'nothing was written',
+      },
+    })
+    expect(readdirSync(empty)).toEqual([])
   })
 })

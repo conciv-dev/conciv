@@ -51,6 +51,7 @@
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@orpc/client": "catalog:",
     "@tanstack/ai-mcp": "catalog:",
     "@types/node": "catalog:",
