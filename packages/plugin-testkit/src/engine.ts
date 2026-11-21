@@ -31,6 +31,7 @@ export type CreateEngineOptions = {
   sessionId?: HarnessEngineOptions['sessionId']
   timeouts?: HarnessEngineOptions['timeouts']
   staleness?: HarnessEngineOptions['staleness']
+  directory?: HarnessEngineOptions['directory']
 }
 
 export type ToolFailure = HarnessEngineToolFailure
@@ -39,7 +40,7 @@ export type EngineTool = HarnessEngineTool
 
 export type EngineSession = HarnessEngineSession
 
-export type Engine = Pick<HarnessEngine, 'session' | 'newSession' | 'setting' | 'gate' | 'requests' | 'address'>
+export type Engine = Omit<HarnessEngine, 'stop'>
 
 export type EngineAddress = HarnessEngineAddress
 
@@ -80,11 +81,11 @@ function locatePlugin(entry: PluginEntry): PluginEntry {
 export async function startEngine(options: CreateEngineOptions): Promise<StartedEngine> {
   const {plugins: names, permission, ...engineOptions} = options
   const plugins = names?.map(locatePlugin)
-  const {session, newSession, setting, gate, requests, address, stop} = await createHarnessEngine({
+  const {stop, ...engine} = await createHarnessEngine({
     ...engineOptions,
     config: {plugins, permission},
   })
-  return {engine: {session, newSession, setting, gate, requests, address}, stop}
+  return {engine, stop}
 }
 
 export async function createEngine(options: CreateEngineOptions = {}): Promise<Engine> {

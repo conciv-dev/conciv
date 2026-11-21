@@ -43,5 +43,6 @@ export async function createEngine(options: CreateEngineOptions = {}): Promise<E
     gate: async () => gateOn(handle.id, await commands.concivGate(handle.id)),
     requests: () => commands.concivRequests(handle.id),
     address: handle.address,
+    root: handle.root,
   }
 }

@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {mkdirSync, mkdtempSync, writeFileSync} from 'node:fs'
+import {mkdirSync, mkdtempSync, realpathSync, statSync, writeFileSync} from 'node:fs'
 import {rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
@@ -39,6 +39,7 @@ export type HarnessEngineOptions = {
     'firstChunkTimeoutMs' | 'eventHeartbeatIntervalMs' | 'stopGraceMs' | 'pageReplyTimeoutMs' | 'queuedActionTimeoutMs'
   >
   staleness?: EngineStaleness
+  directory?: string
 }
 
 export type HarnessEngineToolFailure = {tool: string; message: string}
@@ -65,6 +66,7 @@ export type HarnessEngine = {
   gate: () => Promise<Gate>
   requests: () => Promise<ModelRequest[]>
   address: HarnessEngineAddress
+  root: string
   stop: () => Promise<void>
 }
 
@@ -230,8 +232,20 @@ function isolatedProvider(root: string, env: Record<string, string>): ConfigProv
   )
 }
 
+function fixtureFolder(options: HarnessEngineOptions): string | undefined {
+  if (options.directory === undefined) return undefined
+  if (options.files !== undefined)
+    throw new Error('directory and files cannot be given together: a fixture project already holds its files')
+  const folder = resolve(options.directory)
+  if (!statSync(folder, {throwIfNoEntry: false})?.isDirectory()) {
+    throw new Error(`the directory ${folder} is not an existing folder`)
+  }
+  return folder
+}
+
 async function bootApp(
   root: string,
+  project: string,
   harness: HarnessAdapter,
   options: HarnessEngineOptions,
   configProvider: ConfigProvider.ConfigProvider,
@@ -243,7 +257,7 @@ async function bootApp(
     root,
     configProvider,
   )
-  for (const [path, content] of Object.entries(options.files ?? {})) writeInside(root, path, content)
+  for (const [path, content] of Object.entries(options.files ?? {})) writeInside(project, path, content)
   const app = await makeApp({
     print: () => {},
     cfg: {
@@ -258,7 +272,7 @@ async function bootApp(
       policies: options.policies ?? [],
       permissions: resolved.permissions,
     },
-    cwd: root,
+    cwd: project,
     openInEditor: () => {},
     harness,
     harnesses: [],
@@ -274,10 +288,12 @@ async function bootApp(
 export async function createHarnessEngine(options: HarnessEngineOptions = {}): Promise<HarnessEngine> {
   const script = replyScript(options.replies ?? [])
   const harness = script.harness(options.harness)
+  const fixture = fixtureFolder(options)
   const root = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
+  const project = fixture ?? root
   const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
   const {app, sessionId} = await Promise.resolve()
-    .then(() => bootApp(root, harness, options, isolatedProvider(root, options.env ?? {})))
+    .then(() => bootApp(root, project, harness, options, isolatedProvider(root, options.env ?? {})))
     .catch((error: unknown) => abandonStart(error, [removeRoot]))
   const served = await serveHono({fetch: app.fetch}).catch((error: unknown) =>
     abandonStart(error, [() => app.dispose(), removeRoot]),
@@ -304,6 +320,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     gate: async () => script.gate(),
     requests: async () => script.requests(),
     address: {apiBase, token: app.agentToken},
+    root: realpathSync(project),
     stop,
   }
 }

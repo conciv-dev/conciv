@@ -1,7 +1,7 @@
 import type {TestLLM} from '@conciv/harness-testkit'
 import type {CreateEngineOptions, EngineAddress, EngineSetting, ToolFailure} from './engine.js'
 
-export type EngineHandle = {id: string; sessionId: string; address: EngineAddress}
+export type EngineHandle = {id: string; sessionId: string; address: EngineAddress; root: string}
 
 export type EngineCommands = {
   concivCreateEngine: (options: CreateEngineOptions, scope: 'test' | 'file') => Promise<EngineHandle>
