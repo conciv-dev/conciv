@@ -78,12 +78,15 @@ describe('steering the agent', () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await engine.reply(TestLLM.hangAfter(), TestLLM.text('Changed course', 'second'))
+    const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'First task')
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
+    await gate.started
+    await gate.release()
     expect(await screen.findByRole('button', {name: 'Stop generating'})).toBeVisible()
     await user.type(input, 'Do this instead')
     expect(input).toHaveFocus()
