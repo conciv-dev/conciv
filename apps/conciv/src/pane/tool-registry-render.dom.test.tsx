@@ -286,3 +286,41 @@ describe('the agent asks other kinds of question', () => {
     expect(within(reply).getByText('/pricing')).toBeVisible()
   })
 })
+
+describe('an outside agent calls a tool', () => {
+  test('the call shows in the open thread tagged with the agent that made it, and the agent gets the result', async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+
+    const reply = await engine.outside({client: 'conciv-test'}).call('release_window', {branch: 'main'})
+
+    expect(reply).toMatchObject({content: [{type: 'text', text: expect.stringContaining('noon to two')}]})
+    expect(await screen.findByText('from conciv-test')).toBeVisible()
+    expect(screen.queryByRole('article', {name: /^You:/})).not.toBeInTheDocument()
+  })
+})
+
+describe('the agent opens a file in the editor', () => {
+  test('the open card names the file and line and says it opened, and the editor gets the file at that line', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_server_open({file: 'src/app.ts', line: 12})",
+      }),
+      TestLLM.text('It is open'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Show me the app file')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+
+    expect(await screen.findByText('It is open')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: Show me the app file'})
+    expect(within(reply).getByText('Open in editor')).toBeVisible()
+    expect(within(reply).getByText('src/app.ts:12')).toBeVisible()
+    expect(within(reply).getByText('Opened in your editor.')).toBeVisible()
+    expect(await engine.opened()).toEqual([{file: 'src/app.ts', line: 12}])
+  })
+})
