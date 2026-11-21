@@ -1,7 +1,7 @@
 import {render} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {installReactBridge} from '@conciv/plugin-page/client'
-import {ConcivApp, openBrowserDraftStore, type Platform} from '@conciv/app'
+import {ConcivApp, concivRoute, openBrowserDraftStore, type ConcivRoute, type Platform} from '@conciv/app'
 import type {ConcivSettingsInit, ConcivSurface} from '@conciv/protocol/config-types'
 import type {ConcivInit} from './mount.js'
 
@@ -52,8 +52,10 @@ function metaSettings(): ConcivSettingsInit {
   }
 }
 
-function connectPath(settings: ConcivSettingsInit): string {
-  return settings.defaultOpen === true ? '/panel/connect?open=true' : '/panel/connect'
+function connectRoute(settings: ConcivSettingsInit): ConcivRoute {
+  return settings.defaultOpen === true
+    ? concivRoute({to: '/panel/connect', search: {open: true}})
+    : concivRoute({to: '/panel/connect'})
 }
 
 function isEditableInsideWidget(root: ShadowRoot, target: EventTarget | undefined): boolean {
@@ -145,7 +147,7 @@ export function mountImpl(
   const interactive = Promise.withResolvers<void>()
   const platform: Platform = {
     engine: () => first,
-    navigation: servers ? {memory: connectPath(settings)} : 'engine',
+    navigation: servers ? {memory: connectRoute(settings)} : 'engine',
     root: shadow.root,
     settings,
     plugins: init.plugins,

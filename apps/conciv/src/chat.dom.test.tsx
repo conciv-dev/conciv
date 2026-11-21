@@ -9,7 +9,7 @@ describe('sending a message', () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Hello from the agent', 'reply'))
-    await mount({engine, route: '/panel/latest?open=true'})
+    await mount({engine, route: {to: '/panel/latest', search: {open: true}}})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Hello agent')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -26,7 +26,7 @@ describe('stopping a reply', () => {
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Too late', 'reply'))
     const gate = await engine.gate()
-    await mount({engine, route: '/panel/latest?open=true'})
+    await mount({engine, route: {to: '/panel/latest', search: {open: true}}})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Take your time')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -43,7 +43,7 @@ describe('a failed reply', () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await engine.reply(TestLLM.failAfter(new Error('The model is unavailable')))
-    await mount({engine, route: '/panel/latest?open=true'})
+    await mount({engine, route: {to: '/panel/latest', search: {open: true}}})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Are you there')
     await user.click(screen.getByRole('button', {name: 'Send message'}))

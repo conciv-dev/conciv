@@ -54,7 +54,8 @@ The testkit runs the real engine with a scripted model; only the model and the a
   `rpc.failure(...)`, `event(type)`, `gate()`, `requests()` and `address`. It stops when the test
   ends.
 - `mount({engine, route})` from `@conciv/plugin-testkit/browser` shows the whole widget on that
-  engine, in happy-dom or a real browser, and resolves when it is ready. It returns nothing: find
+  engine, in happy-dom or a real browser, and resolves when it is ready. `route` is the router's
+  typed navigate options (`{to, params, search}`); a wrong path or search value does not compile. It returns nothing: find
   things with Testing Library and act with `user-event`.
 
 ```ts
@@ -66,7 +67,7 @@ import {mount} from '@conciv/plugin-testkit/browser'
 test('the deploy tab shows the last deploy', async () => {
   const engine = await createEngine({plugins: ['.']})
   await engine.reply(TestLLM.text('done', 'a'))
-  await mount({engine, route: '/panel/latest?open=true'})
+  await mount({engine, route: {to: '/panel/latest', search: {open: true}}})
 
   expect(await screen.findByRole('tab', {name: 'Deploy'})).toBeVisible()
 })

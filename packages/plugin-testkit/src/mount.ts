@@ -1,7 +1,7 @@
 import {onTestFinished} from 'vitest'
 import {createComponent} from 'solid-js'
 import {cleanup, render} from '@solidjs/testing-library'
-import {ConcivApp, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
+import {ConcivApp, concivRoute, createDraftStore, type ConcivRoute, type DraftStore, type Platform} from '@conciv/app'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {plugins as pluginLoaders} from 'virtual:conciv-test-plugins'
 import type {Engine} from './engine.js'
@@ -12,11 +12,11 @@ declare module 'vitest' {
   }
 }
 
-export type MountOptions = {
+export type MountOptions<TOptions = unknown> = {
   engine?: Engine
   plugins?: ConcivConfig['plugins']
   seed?: {storage?: Record<string, unknown>}
-  route?: string
+  route?: ConcivRoute<TOptions>
   host?: ConcivSettingsInit
   login?: 'none'
 }
@@ -80,8 +80,6 @@ function mountedEngine(engine: Engine | undefined, login: MountOptions['login'])
   return {kind: 'bound', apiBase: new URL(address.apiBase).origin}
 }
 
-const CONNECT_ROUTE = '/panel/connect?open=true'
-
 function mountedPlugins(options: MountOptions): Promise<ComposedPlugin[]> {
   const entries = options.plugins ?? []
   if (options.engine === undefined && entries.length === 0) {
@@ -90,34 +88,41 @@ function mountedPlugins(options: MountOptions): Promise<ComposedPlugin[]> {
   return Promise.all(entries.map(composePlugin))
 }
 
-function firstRoute(options: MountOptions): string {
+const CONNECT_ROUTE = concivRoute({to: '/panel/connect', search: {open: true}})
+
+const CLOSED_ROUTE = concivRoute({to: '/'})
+
+function firstRoute(options: MountOptions): ConcivRoute {
   if (options.route !== undefined) return options.route
-  return options.engine === undefined ? CONNECT_ROUTE : '/'
+  return options.engine === undefined ? CONNECT_ROUTE : CLOSED_ROUTE
 }
 
-export type Mount = (options: MountOptions) => Promise<void>
+export type Mount = <TOptions = unknown>(options: MountOptions<TOptions>) => Promise<void>
+
+function mountApp<TOptions = unknown>(options: MountOptions<TOptions>): Promise<void>
+async function mountApp(options: MountOptions): Promise<void> {
+  const plugins = await mountedPlugins(options)
+  onTestFinished(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+  writeStorage(options.seed?.storage ?? {})
+  const interactive = Promise.withResolvers<void>()
+  const platform: Platform = {
+    engine: () => mountedEngine(options.engine, options.login),
+    navigation: {memory: firstRoute(options)},
+    plugins,
+    root: document,
+    settings: options.host,
+    timings: {engine: ENGINE_TIMINGS},
+    draftStore: () => memoryDraftStore(),
+    onInteractive: () => interactive.resolve(),
+  }
+  render(() => createComponent(ConcivApp, {platform}))
+  await interactive.promise
+}
 
 export function makeMount(): Mount {
-  return async (options) => {
-    const plugins = await mountedPlugins(options)
-    onTestFinished(() => {
-      cleanup()
-      localStorage.clear()
-      sessionStorage.clear()
-    })
-    writeStorage(options.seed?.storage ?? {})
-    const interactive = Promise.withResolvers<void>()
-    const platform: Platform = {
-      engine: () => mountedEngine(options.engine, options.login),
-      navigation: {memory: firstRoute(options)},
-      plugins,
-      root: document,
-      settings: options.host,
-      timings: {engine: ENGINE_TIMINGS},
-      draftStore: () => memoryDraftStore(),
-      onInteractive: () => interactive.resolve(),
-    }
-    render(() => createComponent(ConcivApp, {platform}))
-    await interactive.promise
-  }
+  return mountApp
 }
