@@ -1,0 +1,65 @@
+import {existsSync, readFileSync, readdirSync} from 'node:fs'
+import {join} from 'node:path'
+import {describe, expect} from 'vitest'
+import {concivStateDir} from '@conciv/protocol/state-types'
+import conciv from './vite.js'
+import concivWebpack from './webpack.js'
+import {test} from '../test/unplugin-test.js'
+
+describe('a vite server on a fixture project', () => {
+  test.for([
+    {name: 'under vitest (mode test)', mode: 'test', options: {}},
+    {name: 'with enabled false', mode: 'development', options: {enabled: false}},
+  ])(
+    'conciv() $name boots no engine, adds no conciv tags to the page and stamps no source on a module',
+    async ({mode, options}, {project, serve}) => {
+      const root = project('app')
+      const server = await serve({
+        root,
+        mode,
+        oxc: {jsx: {runtime: 'classic'}},
+        plugins: [conciv({...options, homeDir: join(root, 'home')})],
+      })
+      const [local] = server.resolvedUrls?.local ?? []
+
+      const page = await (await fetch(new URL('/', local))).text()
+      expect(page).toContain('<title>Shop</title>')
+      expect(page).not.toContain('conciv-api-base')
+      expect(page).not.toContain('conciv-widget')
+
+      const module = await fetch(new URL('/src/app.jsx', local))
+      expect(module.status).toBe(200)
+      expect(await module.text()).not.toContain('data-tsd-source')
+
+      expect(existsSync(concivStateDir(root))).toBe(false)
+    },
+  )
+})
+
+describe('bundler builds', () => {
+  test('a webpack production build with conciv() gives the same output as one without, and writes no conciv state', async ({
+    project,
+    webpackBuild,
+  }) => {
+    const root = project('app')
+    await webpackBuild({
+      mode: 'production',
+      context: root,
+      entry: './src/greeting.js',
+      output: {path: join(root, 'plain')},
+    })
+    await webpackBuild({
+      mode: 'production',
+      context: root,
+      entry: './src/greeting.js',
+      output: {path: join(root, 'with-conciv')},
+      plugins: [concivWebpack()],
+    })
+
+    expect(readdirSync(join(root, 'with-conciv'))).toEqual(readdirSync(join(root, 'plain')))
+    expect(readFileSync(join(root, 'with-conciv', 'main.js'), 'utf8')).toBe(
+      readFileSync(join(root, 'plain', 'main.js'), 'utf8'),
+    )
+    expect(existsSync(concivStateDir(root))).toBe(false)
+  })
+})

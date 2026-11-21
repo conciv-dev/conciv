@@ -1,10 +1,13 @@
 import {spawn, spawnSync, type ChildProcessByStdio} from 'node:child_process'
-import {chmodSync, readdirSync, writeFileSync} from 'node:fs'
+import {chmodSync, cpSync, readdirSync, writeFileSync} from 'node:fs'
 import {delimiter, join} from 'node:path'
 import {createInterface} from 'node:readline'
 import type {Readable} from 'node:stream'
 import {pathToFileURL} from 'node:url'
 import {test as base} from 'vitest'
+import {createServer, type InlineConfig, type ViteDevServer} from 'vite'
+import webpack, {type Compiler, type Configuration} from 'webpack'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 
 type Engine = ChildProcessByStdio<null, Readable, Readable>
@@ -27,7 +30,62 @@ function startHung(deadline: number): Hung {
   return {engine, lines: createInterface({input: engine.stdout})[Symbol.asyncIterator]()}
 }
 
-export const test = base.extend<{started: number[]; hang: (deadline: number) => Hung}>({
+function runCompiler(compiler: Compiler): Promise<void> {
+  return new Promise((resolve, reject) => {
+    compiler.run((error, stats) => {
+      if (error) return reject(error)
+      if (stats?.hasErrors()) return reject(new Error(stats.toString('errors-only')))
+      resolve()
+    })
+  })
+}
+
+function closeCompiler(compiler: Compiler): Promise<void> {
+  return new Promise((resolve, reject) => {
+    compiler.close((error) => (error ? reject(error) : resolve()))
+  })
+}
+
+type UnpluginFixtures = {
+  started: number[]
+  hang: (deadline: number) => Hung
+  project: (name: string) => string
+  serve: (config: InlineConfig) => Promise<ViteDevServer>
+  webpackBuild: (config: Configuration) => Promise<void>
+}
+
+export const test = base.extend<UnpluginFixtures>({
+  project: async ({task: _task}, use) => {
+    await use((name) => {
+      const root = join(tempDir(`${name}-`), name)
+      cpSync(join(import.meta.dirname, 'fixtures', name), root, {recursive: true})
+      return root
+    })
+  },
+  serve: async ({task: _task}, use) => {
+    const servers: ViteDevServer[] = []
+    await use(async (config) => {
+      const server = await createServer({
+        configFile: false,
+        logLevel: 'silent',
+        ...config,
+        server: {host: '127.0.0.1', port: 0, watch: null, ...config.server},
+      })
+      servers.push(server)
+      await server.listen()
+      return server
+    })
+    await Promise.all(servers.map((server) => server.close()))
+  },
+  webpackBuild: async ({task: _task}, use) => {
+    const compilers: Compiler[] = []
+    await use((config) => {
+      const compiler = webpack(config)
+      compilers.push(compiler)
+      return runCompiler(compiler)
+    })
+    await Promise.all(compilers.map(closeCompiler))
+  },
   started: async ({task: _task}, use) => {
     const started: number[] = []
     await use(started)
