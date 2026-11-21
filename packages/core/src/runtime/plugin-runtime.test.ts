@@ -27,7 +27,6 @@ describe('session events', () => {
     await gate.started
     await engine.session.stop()
     await held
-    await gate.release()
 
     expect(await engine.session.tool('runs_heard').call({})).toEqual({
       heard: [

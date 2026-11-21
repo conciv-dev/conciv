@@ -1,4 +1,5 @@
 import {describe, expect, vi} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {test} from '../../../test/engine-test.js'
 
@@ -51,5 +52,28 @@ describe('sessions', () => {
     expect(afterDelete.sessions.map((session) => session.id)).not.toContain(sessionId)
     expect(events).toContainEqual(expect.objectContaining({type: 'RUN_ERROR', code: 'session_deleted'}))
     expect(afterRestore.sessions.map((session) => session.id)).toContain(sessionId)
+  })
+
+  test('an empty session is swept when the engine starts again, and a session with a typed draft keeps it', async ({
+    launch,
+  }) => {
+    const root = tempDir('sweep-')
+    const first = await launch(root)
+    const empty = await first.sessions.create({})
+    const drafted = await first.sessions.create({})
+    await first.drafts.set({
+      sessionId: drafted.sessionId,
+      text: 'Plan the trip',
+      selectionStart: 13,
+      selectionEnd: 13,
+      updatedAt: 1_000,
+    })
+
+    const second = await launch(root)
+    const listed = (await second.sessions.list({})).sessions.map((session) => session.id)
+
+    expect(listed).not.toContain(empty.sessionId)
+    expect(listed).toContain(drafted.sessionId)
+    await expect(second.drafts.get({sessionId: drafted.sessionId})).resolves.toMatchObject({text: 'Plan the trip'})
   })
 })

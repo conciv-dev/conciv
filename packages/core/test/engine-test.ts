@@ -9,9 +9,29 @@ import {createSettingsStorage, type SettingsStorages} from '../src/settings/sett
 
 type SettingsStorage = ReturnType<typeof createSettingsStorage>
 
+type EngineClient = RouterClient<ReturnType<typeof readEngineRouter>>
+
+function startOn(root: string): Promise<Engine> {
+  return start({
+    options: {stateRoot: root},
+    root,
+    homeDir: join(root, 'home'),
+    devEndpointDir: join(root, 'dev-endpoint'),
+    launchEditor: () => {},
+    print: () => {},
+  })
+}
+
+function clientFor(engine: Engine): EngineClient {
+  return createRouterClient(readEngineRouter(engine), {
+    context: {origin: `http://127.0.0.1:${engine.port}`, callerOrigin: null, headers: {}},
+  })
+}
+
 type EngineFixtures = {
   engine: Engine
-  client: RouterClient<ReturnType<typeof readEngineRouter>>
+  client: EngineClient
+  launch: (root: string) => Promise<EngineClient>
   fakeTimers: (config: Parameters<typeof vi.useFakeTimers>[0]) => void
   ttySessions: (options: Parameters<typeof createTtySessions>[0]) => TtySessions
   settingsStorage: (storages: SettingsStorages) => SettingsStorage
@@ -19,24 +39,22 @@ type EngineFixtures = {
 
 export const test: TestAPI<EngineFixtures> = base.extend<EngineFixtures>({
   engine: async ({task: _task}, use) => {
-    const root = tempDir('engine-')
-    const engine = await start({
-      options: {stateRoot: root},
-      root,
-      homeDir: join(root, 'home'),
-      devEndpointDir: join(root, 'dev-endpoint'),
-      launchEditor: () => {},
-      print: () => {},
-    })
+    const engine = await startOn(tempDir('engine-'))
     await use(engine)
     await engine.stop()
   },
   client: async ({engine}, use) => {
-    await use(
-      createRouterClient(readEngineRouter(engine), {
-        context: {origin: `http://127.0.0.1:${engine.port}`, callerOrigin: null, headers: {}},
-      }),
-    )
+    await use(clientFor(engine))
+  },
+  launch: async ({task: _task}, use) => {
+    const running: Engine[] = []
+    await use(async (root) => {
+      await Promise.all(running.splice(0).map((engine) => engine.stop()))
+      const engine = await startOn(root)
+      running.push(engine)
+      return clientFor(engine)
+    })
+    await Promise.all(running.map((engine) => engine.stop()))
   },
   fakeTimers: async ({task: _task}, use) => {
     await use((config) => {
