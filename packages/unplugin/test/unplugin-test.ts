@@ -1,17 +1,24 @@
 import {spawn, spawnSync, type ChildProcessByStdio} from 'node:child_process'
-import {chmodSync, cpSync, readdirSync, writeFileSync} from 'node:fs'
-import {delimiter, join} from 'node:path'
+import {once} from 'node:events'
+import {chmodSync, cpSync, mkdirSync, readFileSync, readdirSync, watch, writeFileSync} from 'node:fs'
+import {createRequire} from 'node:module'
+import {delimiter, dirname, join} from 'node:path'
 import {createInterface} from 'node:readline'
 import type {Readable} from 'node:stream'
 import {pathToFileURL} from 'node:url'
 import {test as base} from 'vitest'
 import {createServer, type InlineConfig, type ViteDevServer} from 'vite'
 import webpack, {type Compiler, type Configuration} from 'webpack'
+import {z} from 'zod'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
+import {concivStateDir} from '@conciv/protocol/state-types'
 
 type Engine = ChildProcessByStdio<null, Readable, Readable>
 type Hung = {engine: Engine; lines: AsyncIterator<string>}
+
+type DevServer = ChildProcessByStdio<null, Readable, null>
 
 function startHung(deadline: number): Hung {
   const deadlineModule = pathToFileURL(join(import.meta.dirname, '..', 'src', 'core', 'shutdown-deadline.ts')).href
@@ -46,7 +53,39 @@ function closeCompiler(compiler: Compiler): Promise<void> {
   })
 }
 
+const RecordedEngineSchema = z.object({port: z.number().int(), token: z.string().min(1)})
+
+type RecordedEngine = z.infer<typeof RecordedEngineSchema>
+
+async function stopDevServer(server: DevServer): Promise<void> {
+  if (server.exitCode !== null || server.signalCode !== null) return
+  const exited = once(server, 'exit')
+  server.kill('SIGINT')
+  await exited
+}
+
+function openedFiles(log: string): string[] {
+  return readFileSync(log, 'utf8')
+    .split('\n')
+    .filter((line) => line !== '')
+}
+
+function nextOpened(log: string): Promise<string> {
+  const seen = openedFiles(log).length
+  const {promise, resolve, reject} = Promise.withResolvers<string>()
+  const watcher = watch(log, {persistent: false}, () => {
+    const file = openedFiles(log)[seen]
+    if (file === undefined) return
+    watcher.close()
+    resolve(file)
+  })
+  watcher.on('error', reject)
+  return promise
+}
+
 type UnpluginFixtures = {
+  editor: {next: () => Promise<string>}
+  viteDev: (options: ConcivConfig) => Promise<RecordedEngine>
   started: number[]
   hang: (deadline: number) => Hung
   project: (name: string) => string
@@ -55,6 +94,50 @@ type UnpluginFixtures = {
 }
 
 export const test = base.extend<UnpluginFixtures>({
+  editor: async ({task: _task}, use) => {
+    const folder = tempDir('editor-')
+    const log = join(folder, 'opened.log')
+    const script = join(folder, 'editor')
+    writeFileSync(log, '')
+    writeFileSync(
+      script,
+      [
+        '#!/usr/bin/env node',
+        `require('node:fs').appendFileSync(${JSON.stringify(log)}, process.argv[2] + '\\n')`,
+      ].join('\n'),
+    )
+    chmodSync(script, 0o755)
+    const previous = process.env['LAUNCH_EDITOR']
+    process.env['LAUNCH_EDITOR'] = script
+    await use({next: () => nextOpened(log)})
+    if (previous === undefined) Reflect.deleteProperty(process.env, 'LAUNCH_EDITOR')
+    else process.env['LAUNCH_EDITOR'] = previous
+  },
+  viteDev: async ({task: _task}, use) => {
+    const servers: DevServer[] = []
+    const viteBin = join(dirname(createRequire(import.meta.url).resolve('vite/package.json')), 'bin', 'vite.js')
+    const pluginEntry = pathToFileURL(join(import.meta.dirname, '..', 'dist', 'vite.js')).href
+    await use(async (options) => {
+      const root = tempDir('vite-dev-')
+      const project = join(root, 'project')
+      const home = join(root, 'home')
+      const bin = join(root, 'bin')
+      for (const folder of [project, home, bin]) mkdirSync(folder)
+      writeFileSync(
+        join(project, 'vite.config.mjs'),
+        `import conciv from ${JSON.stringify(pluginEntry)}\nexport default {plugins: [conciv(${JSON.stringify({...options, homeDir: home})})]}\n`,
+      )
+      const server = spawn(process.execPath, [viteBin], {
+        cwd: project,
+        env: childEnv(bin, home),
+        stdio: ['ignore', 'pipe', 'inherit'],
+      })
+      servers.push(server)
+      await readyLine(createInterface({input: server.stdout})[Symbol.asyncIterator]())
+      return RecordedEngineSchema.parse(JSON.parse(readFileSync(join(concivStateDir(project), 'server.json'), 'utf8')))
+    })
+    await Promise.all(servers.map(stopDevServer))
+  },
   project: async ({task: _task}, use) => {
     await use((name) => {
       const root = join(tempDir(`${name}-`), name)

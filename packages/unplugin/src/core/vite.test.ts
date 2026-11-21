@@ -62,4 +62,15 @@ describe.skipIf(process.platform === 'win32')('the vite dev server', () => {
     expect(adapterFiles(project)).toEqual([])
     expect(running(agent)).toBe(false)
   })
+
+  test('a second dev server whose engine port is taken still boots, with its engine on another port', async ({
+    viteDev,
+  }) => {
+    const first = await viteDev({})
+    const second = await viteDev({port: first.port})
+
+    expect(second.port).not.toBe(first.port)
+    expect((await fetch(`http://127.0.0.1:${first.port}/health`)).status).toBe(200)
+    expect((await fetch(`http://127.0.0.1:${second.port}/health`)).status).toBe(200)
+  })
 })

@@ -1,4 +1,4 @@
-import {existsSync, readFileSync, readdirSync} from 'node:fs'
+import {existsSync, readFileSync, readdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect} from 'vitest'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -61,5 +61,49 @@ describe('bundler builds', () => {
       readFileSync(join(root, 'plain', 'main.js'), 'utf8'),
     )
     expect(existsSync(concivStateDir(root))).toBe(false)
+  })
+
+  test('a webpack development build gives the same output as one without conciv() when conciv adds no widget: widget false, a bad port, or a .conciv it cannot write', async ({
+    project,
+    webpackBuild,
+  }) => {
+    const root = project('app')
+    const plain = join(root, 'plain')
+    await webpackBuild({mode: 'development', context: root, entry: './src/greeting.js', output: {path: plain}})
+    const plainOutput = readFileSync(join(plain, 'main.js'), 'utf8')
+
+    const noWidget = join(root, 'no-widget')
+    await webpackBuild({
+      mode: 'development',
+      context: root,
+      entry: './src/greeting.js',
+      output: {path: noWidget},
+      plugins: [concivWebpack({widget: false})],
+    })
+    expect(readdirSync(noWidget)).toEqual(readdirSync(plain))
+    expect(readFileSync(join(noWidget, 'main.js'), 'utf8')).toBe(plainOutput)
+    expect(existsSync(concivStateDir(root))).toBe(false)
+
+    const badPort = join(root, 'bad-port')
+    await webpackBuild({
+      mode: 'development',
+      context: root,
+      entry: './src/greeting.js',
+      output: {path: badPort},
+      plugins: [concivWebpack({port: 70_000})],
+    })
+    expect(readFileSync(join(badPort, 'main.js'), 'utf8')).toBe(plainOutput)
+    expect(existsSync(concivStateDir(root))).toBe(false)
+
+    writeFileSync(concivStateDir(root), '')
+    const unwritable = join(root, 'unwritable')
+    await webpackBuild({
+      mode: 'development',
+      context: root,
+      entry: './src/greeting.js',
+      output: {path: unwritable},
+      plugins: [concivWebpack()],
+    })
+    expect(readFileSync(join(unwritable, 'main.js'), 'utf8')).toBe(plainOutput)
   })
 })
