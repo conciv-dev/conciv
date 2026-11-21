@@ -33,6 +33,28 @@ export type HarnessApp = keyof typeof HARNESS_E2E_PORTS
 
 const PACKED_SPECS = '**/packed-*.spec.ts'
 
+const STORAGE_REFUSED_SPECS = '**/storage-refused.spec.ts'
+
+const BLOCK_ALL_COOKIES_AND_SITE_DATA = 2
+
+function appProjects(storageRefused: boolean) {
+  const chromium = {
+    name: 'chromium',
+    testIgnore: [PACKED_SPECS, STORAGE_REFUSED_SPECS],
+    use: {...devices['Desktop Chrome']},
+  }
+  if (!storageRefused) return [chromium]
+  const firefoxStorageRefused = {
+    name: 'firefox-storage-refused',
+    testMatch: STORAGE_REFUSED_SPECS,
+    use: {
+      ...devices['Desktop Firefox'],
+      launchOptions: {firefoxUserPrefs: {'network.cookie.cookieBehavior': BLOCK_ALL_COOKIES_AND_SITE_DATA}},
+    },
+  }
+  return [chromium, firefoxStorageRefused]
+}
+
 function reporters(configDir: string, appStateFolders: string[], runFolders: string[] = []): ReporterDescription[] {
   const cleanup: ReporterDescription = [
     join(import.meta.dirname, 'state-cleanup-reporter.ts'),
@@ -87,7 +109,13 @@ function runConcivHome(configDir: string): {CONCIV_HOME: string} {
 
 export function e2eConfig(
   app: E2EApp,
-  opts: {dir: string; command: (port: number) => string; timeout?: number; runFolders?: string[]},
+  opts: {
+    dir: string
+    command: (port: number) => string
+    timeout?: number
+    runFolders?: string[]
+    storageRefused?: boolean
+  },
 ): ReturnType<typeof defineConfig> {
   const port = E2E_PORTS[app]
   const timeout = opts.timeout ?? 90_000
@@ -106,7 +134,7 @@ export function e2eConfig(
       port,
       env: runConcivHome(opts.dir),
     }),
-    projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
+    projects: appProjects(opts.storageRefused ?? false),
   })
 }
 

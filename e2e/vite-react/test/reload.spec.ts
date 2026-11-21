@@ -44,3 +44,33 @@ test.describe('a draft typed in another browser', () => {
     await expect(composer).toHaveText('the draft typed in the other browser')
   })
 })
+
+test.describe('the quick terminal height after a reload', () => {
+  test('the user shrinks the quick terminal with the keyboard, reloads, and it opens again at the height they left', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await composer.click()
+    await expect(composer).toBeFocused()
+    await page.keyboard.press('ControlOrMeta+Backquote')
+    const separator = page.getByRole('separator', {name: 'Resize quick terminal height'})
+    await expect(page.getByRole('dialog', {name: 'conciv quick terminal'})).toBeVisible()
+
+    const opened = Number(await separator.getAttribute('aria-valuenow'))
+    await separator.press('ArrowUp')
+    await expect(separator).toHaveAttribute('aria-valuenow', String(opened - 24))
+    await expect(separator).toBeFocused()
+    await page.keyboard.press('ControlOrMeta+Backquote')
+    await expect(page.getByRole('dialog', {name: 'conciv quick terminal'})).not.toBeVisible()
+
+    await page.reload({waitUntil: 'domcontentloaded'})
+    const composerAfterReload = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await composerAfterReload.click()
+    await expect(composerAfterReload).toBeFocused()
+    await page.keyboard.press('ControlOrMeta+Backquote')
+    await expect(separator).toHaveAttribute('aria-valuenow', String(opened - 24))
+  })
+})
