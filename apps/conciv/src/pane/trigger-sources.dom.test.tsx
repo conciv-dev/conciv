@@ -89,4 +89,25 @@ describe('the mention list', () => {
     expect(input).toHaveTextContent('@Fix login bug')
     expect(screen.queryByRole('listbox', {name: 'Context'})).not.toBeInTheDocument()
   })
+
+  test('with no term, @ ranks a session open in another quick pane above a newer one that is not open', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const open = await engine.newSession('Open beside')
+    await engine.newSession('Newer elsewhere')
+    const typing = await engine.newSession('Typing here')
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: [`/quick?panes=${typing.id},${open.id}&focus=0`]}),
+    })
+
+    const pane = await screen.findByRole('region', {name: 'Session: Typing here'})
+    await user.type(within(pane).getByRole('textbox', {name: 'Message the conciv agent'}), '@')
+    const context = await screen.findByRole('listbox', {name: 'Context'})
+    expect(await within(context).findByRole('option', {name: 'Newer elsewhere'})).toBeVisible()
+    const sessions = within(context).getAllByRole('option', {name: /^(Open beside|Newer elsewhere|Typing here)$/})
+    expect(sessions).toHaveLength(2)
+    expect(sessions[0]).toHaveAccessibleName('Open beside')
+    expect(sessions[1]).toHaveAccessibleName('Newer elsewhere')
+  })
 })
