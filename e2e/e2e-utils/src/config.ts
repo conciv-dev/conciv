@@ -33,26 +33,33 @@ export type HarnessApp = keyof typeof HARNESS_E2E_PORTS
 
 const PACKED_SPECS = '**/packed-*.spec.ts'
 
-const STORAGE_REFUSED_SPECS = '**/storage-refused.spec.ts'
-
 const BLOCK_ALL_COOKIES_AND_SITE_DATA = 2
 
-function appProjects(storageRefused: boolean) {
-  const chromium = {
-    name: 'chromium',
-    testIgnore: [PACKED_SPECS, STORAGE_REFUSED_SPECS],
-    use: {...devices['Desktop Chrome']},
-  }
-  if (!storageRefused) return [chromium]
-  const firefoxStorageRefused = {
+const BROWSER_SETTING_PROJECTS = {
+  'storage-refused': {
     name: 'firefox-storage-refused',
-    testMatch: STORAGE_REFUSED_SPECS,
+    testMatch: '**/storage-refused.spec.ts',
     use: {
       ...devices['Desktop Firefox'],
       launchOptions: {firefoxUserPrefs: {'network.cookie.cookieBehavior': BLOCK_ALL_COOKIES_AND_SITE_DATA}},
     },
+  },
+  'pop-out-refused': {
+    name: 'chromium-pop-out-refused',
+    testMatch: '**/pop-out-refused.spec.ts',
+    use: {...devices['Desktop Chrome'], launchOptions: {args: ['--block-new-web-contents']}},
+  },
+}
+
+export type BrowserSetting = keyof typeof BROWSER_SETTING_PROJECTS
+
+function appProjects(settings: readonly BrowserSetting[]) {
+  const chromium = {
+    name: 'chromium',
+    testIgnore: [PACKED_SPECS, ...Object.values(BROWSER_SETTING_PROJECTS).map((project) => project.testMatch)],
+    use: {...devices['Desktop Chrome']},
   }
-  return [chromium, firefoxStorageRefused]
+  return [chromium, ...settings.map((setting) => BROWSER_SETTING_PROJECTS[setting])]
 }
 
 function reporters(configDir: string, appStateFolders: string[], runFolders: string[] = []): ReporterDescription[] {
@@ -114,7 +121,7 @@ export function e2eConfig(
     command: (port: number) => string
     timeout?: number
     runFolders?: string[]
-    storageRefused?: boolean
+    browserSettings?: readonly BrowserSetting[]
   },
 ): ReturnType<typeof defineConfig> {
   const port = E2E_PORTS[app]
@@ -134,7 +141,7 @@ export function e2eConfig(
       port,
       env: runConcivHome(opts.dir),
     }),
-    projects: appProjects(opts.storageRefused ?? false),
+    projects: appProjects(opts.browserSettings ?? []),
   })
 }
 

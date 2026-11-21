@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {z} from 'zod'
-import {makeBrowserRpcClient, makeRpcClient} from '@conciv/contract'
+import {makeRpcClient} from '@conciv/contract'
 import {concivStateDir} from '@conciv/protocol/state-types'
 
 const RecordedEngineSchema = z.object({port: z.number().int().min(1).max(65535), token: z.string().min(1)})
@@ -12,17 +12,6 @@ async function issuedCode(engineBase: string): Promise<string> {
 
 export async function magicLink(engineBase: string, pageUrl: string): Promise<string> {
   return `${pageUrl}#conciv_otp=${await issuedCode(engineBase)}`
-}
-
-export async function trustedBrowserToken(engineBase: string): Promise<string> {
-  const browser = makeBrowserRpcClient(new URL(engineBase).origin)
-  try {
-    const result = await browser.rpc.auth.exchange({code: await issuedCode(engineBase)})
-    if (!('token' in result)) throw new Error(`the engine refused the login code: ${result.refused}`)
-    return result.token
-  } finally {
-    browser.close()
-  }
 }
 
 function refuseOtherEngine(stateFile: string, recordedPort: number, servedOrigin: string): void {

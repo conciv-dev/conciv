@@ -8,7 +8,7 @@ import {
 } from '@conciv/e2e-utils/widget'
 
 test.describe('sessions on a vite react page when the engine fails a session change', () => {
-  test('the user renames the session, hears the rename fail when the engine refuses it, and the next rename is saved', async ({
+  test('the user renames the session, sees the new title while the engine holds the rename, hears it fail when the engine refuses it, and the old title comes back', async ({
     page,
   }) => {
     const failures = collectFailures(page)
@@ -30,14 +30,7 @@ test.describe('sessions on a vite react page when the engine fails a session cha
     rename.release('INTERNAL_SERVER_ERROR')
     await expect(page.getByRole('alert').filter({hasText: 'Rename failed'})).toBeVisible()
     await expect(page.getByRole('button', {name: 'Title the engine refuses, session options'})).toHaveCount(0)
-
-    await page.getByRole('button', {name: 'Rename session'}).click()
-    await expect(title).toBeFocused()
-    await title.press('ControlOrMeta+A')
-    await title.pressSequentially('Release notes')
-    await title.press('Enter')
-    await expect(page.getByRole('status').filter({hasText: 'Renamed to Release notes'})).toBeVisible()
-    await expect(page.getByRole('button', {name: 'Release notes, session options'})).toBeVisible()
+    await expect(page.getByRole('button', {name: 'New session, session options'})).toBeVisible()
   })
 
   test('the user starts a new session while the engine fails to create it, is told to check the engine, and the next try starts one', async ({

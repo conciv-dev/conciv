@@ -1,10 +1,10 @@
-import {readFileSync, watch, writeFileSync} from 'node:fs'
+import {readFileSync, watch} from 'node:fs'
 import {expect, test, type ConsoleMessage, type Page, type WebSocketRoute} from '@playwright/test'
 import {ORPCError, toORPCError} from '@orpc/client'
 import {StandardRPCJsonSerializer, StandardRPCSerializer, toHttpPath} from '@orpc/client/standard'
 import {decodeRequestMessage, encodeResponseMessage, MessageType} from '@orpc/standard-server-peer'
 import {contract} from '@conciv/contract'
-import {magicLink, recordedEngineBase, trustedBrowserToken} from './login.js'
+import {magicLink, recordedEngineBase} from './login.js'
 import {e2eConfigDir, e2eServerLog} from './config.js'
 
 export type PageFailures = {
@@ -95,7 +95,7 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
 
 const RPC_SOCKET_PATH = '/rpc-ws'
 
-export async function holdEngineSocket(page: Page): Promise<{arrived: Promise<void>; release: () => void}> {
+export async function refuseEngineSocket(page: Page): Promise<{arrived: Promise<void>; release: () => void}> {
   const arrived = Promise.withResolvers<void>()
   let released = false
   await page.routeWebSocket(
@@ -215,11 +215,6 @@ export async function loginWidget(page: Page, path = '/', projectDir = testProje
   await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()
 }
 
-export async function trustedEngineBase(page: Page, path = '/', projectDir = testProjectDir()): Promise<string> {
-  const {origin, base} = await pageEngine(page, path, projectDir)
-  return `${origin}/t/${await trustedBrowserToken(base)}`
-}
-
 const PRINTED_CODE = /#conciv_otp=(\d{6})/g
 
 function printedCodes(logPath: string): string[] {
@@ -248,33 +243,4 @@ export async function openLoginFromLockedLauncher(page: Page, path = '/'): Promi
   await page.getByRole('button', {name: 'Unauthorized. Authorize conciv'}).click()
   await expect(page.getByRole('dialog', {name: 'Authorize conciv'})).toBeVisible()
   return printed
-}
-
-export async function expectPluginBundleReloadsInPlace(
-  page: Page,
-  failures: PageFailures,
-  bundlePath: string,
-): Promise<void> {
-  const launcher = page.getByRole('button', {name: /conciv chat$/})
-  await expect(launcher).toBeVisible()
-  if ((await launcher.getAttribute('aria-expanded')) !== 'true') await launcher.click()
-  await page.getByRole('tab', {name: 'Chat'}).click()
-  await expectWidgetBoots(page, failures)
-  const original = readFileSync(bundlePath, 'utf8')
-  const draft = 'a draft the reload keeps'
-  const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
-  try {
-    await expect(page.getByText('live line first')).toBeVisible()
-    await composer.click()
-    await composer.pressSequentially(draft)
-    await expect(composer).toHaveText(draft)
-    await page.evaluate(() => Reflect.set(globalThis, 'concivLiveEditMarker', 'kept'))
-    writeFileSync(bundlePath, original.replace('live line first', 'live line second'))
-    await expect(page.getByText('live line second')).toBeVisible()
-    await expect(page.getByText('live line first')).toHaveCount(0)
-    await expect(composer).toHaveText(draft)
-    expect(await page.evaluate(() => Reflect.get(globalThis, 'concivLiveEditMarker'))).toBe('kept')
-  } finally {
-    writeFileSync(bundlePath, original)
-  }
 }

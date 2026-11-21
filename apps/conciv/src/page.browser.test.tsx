@@ -517,7 +517,7 @@ describe('the page follows the session the user switches to', () => {
 })
 
 describe('the user grabs an element for the agent', () => {
-  test('the picked element is staged in the composer, sent with the message, and reaches the agent', async () => {
+  test('the picked element is staged in the composer, which takes focus, and is sent with the message to the agent', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
@@ -532,7 +532,9 @@ describe('the user grabs an element for the agent', () => {
 
     await user.click(await screen.findByRole('button', {name: 'Select an element from the page'}))
     await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}))
-    await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'What does this do?')
+    expect(await screen.findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
+    expect(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
+    await user.keyboard('What does this do?')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
 
     expect(await screen.findByText('That button buys the fern')).toBeVisible()

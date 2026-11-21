@@ -1,40 +1,33 @@
-import {expect, test} from '@playwright/test'
+import {expect, test} from '@conciv/e2e-utils/fixtures'
 import {loginWidget} from '@conciv/e2e-utils/widget'
 
 test.describe('the widget in a browser that refuses site storage', () => {
-  test('the user signs in and types a draft, the draft is saved to the engine, and after a reload the widget asks to authorize again and the draft comes back from the engine', async ({
+  test('the user types a draft that another browser then shows from the engine, adds to it and closes the panel, and after a reload signs in again and gets the longer draft back from the engine', async ({
     page,
+    secondPage,
   }) => {
-    const draft = 'a draft only the engine keeps'
-    const longerDraft = `${draft}, written just before closing the panel`
-    const engineSaw = (text: string) => {
-      const seen = Promise.withResolvers<void>()
-      page.on('websocket', (socket) =>
-        socket.on('framesent', ({payload}) => {
-          if (String(payload).includes(text)) seen.resolve()
-        }),
-      )
-      return seen.promise
-    }
-    const draftSaved = engineSaw(draft)
-    const longerDraftSaved = engineSaw(longerDraft)
-
     await loginWidget(page)
     await page.getByRole('button', {name: /conciv chat$/}).click()
     const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
-    await composer.fill(draft)
-    await draftSaved
+    await composer.fill('a draft only the engine keeps')
 
-    await composer.fill(longerDraft)
+    await loginWidget(secondPage)
+    await secondPage.getByRole('button', {name: /conciv chat$/}).click()
+    await expect(secondPage.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveText(
+      'a draft only the engine keeps',
+    )
+
+    await composer.fill('a draft only the engine keeps, and a line added before closing the panel')
     await page.getByRole('button', {name: /conciv chat$/}).click()
     await expect(composer).not.toBeVisible()
-    await longerDraftSaved
 
     await page.reload({waitUntil: 'domcontentloaded'})
     await expect(page.getByRole('button', {name: 'Unauthorized. Authorize conciv'})).toBeVisible()
 
     await loginWidget(page)
     await page.getByRole('button', {name: /conciv chat$/}).click()
-    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveText(longerDraft)
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveText(
+      'a draft only the engine keeps, and a line added before closing the panel',
+    )
   })
 })

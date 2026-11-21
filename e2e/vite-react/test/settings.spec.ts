@@ -16,12 +16,12 @@ test.describe('settings on a vite react page when the engine fails to save them'
     const colorMode = page.getByRole('radiogroup', {name: 'Color mode'})
     await expect(colorMode.getByRole('radio', {name: 'Auto'})).toBeChecked()
 
-    await colorMode.getByText('Dark', {exact: true}).click()
+    await colorMode.getByRole('radio', {name: 'Dark'}).click()
     await save.arrived
     save.release('INTERNAL_SERVER_ERROR')
     await expect(page.getByText('Could not save this setting. Change it again to retry.')).toBeVisible()
 
-    await colorMode.getByText('Auto', {exact: true}).click()
+    await colorMode.getByRole('radio', {name: 'Auto'}).click()
     await expect(colorMode.getByRole('radio', {name: 'Auto'})).toBeChecked()
     await expect(page.getByText('Could not save this setting. Change it again to retry.')).not.toBeVisible()
   })

@@ -4,7 +4,7 @@ import {
   collectFailures,
   expectWidgetBoots,
   holdEngineCall,
-  holdEngineSocket,
+  refuseEngineSocket,
   loginWidget,
 } from '@conciv/e2e-utils/widget'
 
@@ -49,7 +49,7 @@ test.describe('the widget on a vite react page when its engine socket cannot con
     page,
   }) => {
     await loginWidget(page)
-    const engineSocket = await holdEngineSocket(page)
+    const engineSocket = await refuseEngineSocket(page)
     await page.clock.install()
     await page.reload({waitUntil: 'domcontentloaded'})
     await engineSocket.arrived
@@ -72,7 +72,7 @@ test.describe('the widget on a vite react page when its engine socket cannot con
     page,
   }) => {
     await loginWidget(page)
-    const engineSocket = await holdEngineSocket(page)
+    const engineSocket = await refuseEngineSocket(page)
     await page.clock.install()
     await page.reload({waitUntil: 'domcontentloaded'})
     await engineSocket.arrived
