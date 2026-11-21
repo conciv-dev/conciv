@@ -10,7 +10,7 @@ describe('notes from a plugin', () => {
   test('a pill attaches a note drawn by its plugin card, Remove takes it off, and a sent note reaches the agent and stays on the message', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({plugins: [reviewNotes]})
-    await engine.reply(TestLLM.text('Header is sticky now', 'reply'))
+    await engine.reply(TestLLM.text('Header is sticky now'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
@@ -72,7 +72,7 @@ describe('the composer actions menu', () => {
   test('Start a new session opens an empty session', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await engine.reply(TestLLM.text('Done with it', 'reply'))
+    await engine.reply(TestLLM.text('Done with it'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})

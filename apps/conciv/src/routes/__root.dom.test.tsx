@@ -22,7 +22,7 @@ describe('a reply finishes elsewhere', () => {
   test('the user starts a new session while a reply works and still hears it finish', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await engine.reply(TestLLM.text('Done in the background', 'reply'))
+    await engine.reply(TestLLM.text('Done in the background'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
@@ -46,7 +46,7 @@ describe('the launcher while a run works', () => {
   test('the launcher says it is busy until the reply finishes', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await engine.reply(TestLLM.text('Finished', 'reply'))
+    await engine.reply(TestLLM.text('Finished'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/']})})
 
@@ -73,7 +73,7 @@ describe('the launcher while a run waits', () => {
       TestLLM.toolCall('c1', 'execute_typescript', {
         typescriptCode: "return await external_page_eval({code: 'return 1 + 1'})",
       }),
-      TestLLM.text('Done', 'reply'),
+      TestLLM.text('Done'),
     )
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/']})})

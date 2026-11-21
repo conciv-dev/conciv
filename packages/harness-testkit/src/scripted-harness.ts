@@ -1,12 +1,12 @@
-import {Effect, Stream} from 'effect'
 import {z} from 'zod'
 import {makeTextAdapter} from '@conciv/ai/server'
+import {fakeText} from '@conciv/ai/testkit'
 import {defineHarness, type HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps, HarnessCommand, HarnessConnectContext, HarnessModel} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
-import type {Gate, ModelRequest, Response} from './test-llm.js'
+import type {FakeResponseStep, Gate, ModelRequest, Reply} from './test-llm.js'
 
 const FAKE_HARNESS_ID = 'engine'
 
@@ -40,15 +40,7 @@ function shellCommand(context: HarnessConnectContext): TtyCommand {
   }
 }
 
-type Run = {threadId: string; runId: string}
-
 type StreamOptions = Parameters<Parameters<typeof makeTextAdapter>[1]>[0]
-
-type RunRequest = Pick<StreamOptions, 'messages' | 'tools' | 'systemPrompts' | 'modelOptions'> & {
-  threadId?: string
-  runId?: string
-  request?: {signal?: AbortSignal | null}
-}
 
 type HeldGate = {started: PromiseWithResolvers<void>; released: PromiseWithResolvers<void>}
 
@@ -62,19 +54,12 @@ export type ReplyScript = {
   gate: () => Gate
   releaseGate: () => void
   requests: () => ModelRequest[]
-  add: (replies: readonly Response[]) => void
-}
-
-function stamped(event: ChatEvent, run: Run): ChatEvent {
-  if (event.type === ChatEventType.RUN_STARTED) return {...event, ...run}
-  if (event.type === ChatEventType.RUN_FINISHED) return {...event, ...run}
-  if (event.type === ChatEventType.RUN_ERROR) return {...event, ...run}
-  return event
+  add: (replies: readonly Reply[]) => void
 }
 
 const InputSchemaSchema = z.record(z.string(), z.unknown())
 
-function recorded(request: RunRequest, deps: HarnessChatDeps): ModelRequest {
+function recorded(request: StreamOptions, deps: HarnessChatDeps): ModelRequest {
   return {
     system: (request.systemPrompts ?? []).map((prompt) => (typeof prompt === 'string' ? prompt : prompt.content)),
     messages: [...request.messages],
@@ -89,53 +74,36 @@ function recorded(request: RunRequest, deps: HarnessChatDeps): ModelRequest {
   }
 }
 
-function abortedBy(signal: AbortSignal): Effect.Effect<void> {
-  return Effect.callback<void>((resume) => {
-    if (signal.aborted) resume(Effect.void)
-    else signal.addEventListener('abort', () => resume(Effect.void), {once: true})
-  })
-}
-
-function replyChunks(reply: Response, signal: AbortSignal | undefined): Iterable<ChatEvent> | AsyncIterable<ChatEvent> {
-  if (!Stream.isStream(reply)) return reply
-  if (signal === undefined) return Stream.toAsyncIterable(reply)
-  return Stream.toAsyncIterable(Stream.interruptWhen(reply, abortedBy(signal)))
-}
-
-async function* replyEvents(
-  deps: HarnessChatDeps,
-  request: RunRequest,
-  take: (request: ModelRequest) => Promise<Response>,
-): AsyncGenerator<ChatEvent> {
-  const run = {threadId: request.threadId ?? deps.sessionId, runId: request.runId ?? crypto.randomUUID()}
-  const reply = await take(recorded(request, deps))
-  yield {type: ChatEventType.RUN_STARTED, ...run}
-  yield {
-    type: ChatEventType.CUSTOM,
-    name: 'fake.session-id',
-    value: {sessionId: deps.resumeSessionId ?? `fake-${deps.sessionId}`},
-    ...run,
-  }
-  for await (const event of replyChunks(reply, request.request?.signal ?? undefined)) yield stamped(event, run)
-}
-
-export function replyScript(): ReplyScript {
-  const queued: Response[] = []
+export function replyScript(tokensPerSecond: number | undefined): ReplyScript {
+  const fake = fakeText(tokensPerSecond === undefined ? {} : {tokensPerSecond})
   const state: ScriptState = {requests: [], held: undefined}
-  const take = async (request: ModelRequest): Promise<Response> => {
-    const count = state.requests.push(request)
-    const reply = queued.shift()
-    if (reply === undefined) throw new Error(`the scripted harness has no reply for request ${count}`)
-    const held = state.held
-    if (held !== undefined) {
-      held.started.resolve()
-      await held.released.promise
+  const gated =
+    (reply: Reply): FakeResponseStep =>
+    async (call) => {
+      const held = state.held
+      if (held !== undefined) {
+        held.started.resolve()
+        await held.released.promise
+      }
+      return typeof reply === 'function' ? reply(call) : reply
     }
-    return reply
+  async function* scriptedRun(deps: HarnessChatDeps, request: StreamOptions): AsyncGenerator<ChatEvent> {
+    const count = state.requests.push(recorded(request, deps))
+    if (fake.pendingResponses() === 0) throw new Error(`the scripted harness has no reply for request ${count}`)
+    for await (const event of fake.chatStream(request)) {
+      yield event
+      if (event.type === ChatEventType.RUN_STARTED) {
+        yield {
+          type: ChatEventType.CUSTOM,
+          name: 'fake.session-id',
+          value: {sessionId: deps.resumeSessionId ?? `fake-${deps.sessionId}`},
+        }
+      }
+    }
   }
   const chatConfig =
     (name: string): HarnessAdapter['chatConfig'] =>
-    (deps) => ({adapter: makeTextAdapter(name, (request) => replyEvents(deps, request, take))})
+    (deps) => ({adapter: makeTextAdapter(name, (request) => scriptedRun(deps, request))})
   const releaseGate = (): void => {
     const held = state.held
     state.held = undefined
@@ -177,7 +145,7 @@ export function replyScript(): ReplyScript {
     releaseGate,
     requests: () => [...state.requests],
     add: (replies) => {
-      queued.push(...replies)
+      fake.appendResponses(replies.map(gated))
     },
   }
 }

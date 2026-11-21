@@ -8,7 +8,7 @@ describe('queueing while the agent works', () => {
   test('a message sent during a reply waits in the queue and runs after it', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await engine.reply(TestLLM.text('First answer', 'first'), TestLLM.text('Second answer', 'second'))
+    await engine.reply(TestLLM.text('First answer'), TestLLM.text('Second answer'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
@@ -42,7 +42,7 @@ describe('removing from the queue', () => {
   test('a removed message never reaches the agent', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await engine.reply(TestLLM.text('First answer', 'first'), TestLLM.text('Third answer', 'third'))
+    await engine.reply(TestLLM.text('First answer'), TestLLM.text('Third answer'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
@@ -77,7 +77,7 @@ describe('steering the agent', () => {
   test('Steer takes a queued message out of the queue and interrupts the reply with it', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await engine.reply(TestLLM.hangAfter(), TestLLM.text('Changed course', 'second'))
+    await engine.reply(TestLLM.hang(), TestLLM.text('Changed course'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
@@ -108,7 +108,7 @@ describe('stopping with a queue', () => {
   test('a long queue shows three rows and a count, and Stop puts every message back in the composer in order', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await engine.reply(TestLLM.text('Too late', 'first'))
+    await engine.reply(TestLLM.text('Too late'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 

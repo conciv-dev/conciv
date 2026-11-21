@@ -68,7 +68,7 @@ import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 test('the deploy tab shows the last deploy', async () => {
   const engine = await createEngine({plugins: ['.']})
-  await engine.reply(TestLLM.text('done', 'a'))
+  await engine.reply(TestLLM.text('done'))
   await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
   expect(await screen.findByRole('tab', {name: 'Deploy'})).toBeVisible()

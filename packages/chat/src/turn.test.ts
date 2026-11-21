@@ -4,7 +4,7 @@ import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 describe('a conversation', () => {
   it('the user sends two messages and the second request carries the first', async () => {
     const engine = await createEngine()
-    await engine.reply(TestLLM.text('Hello Ada', 'first'), TestLLM.text('You said your name is Ada', 'second'))
+    await engine.reply(TestLLM.text('Hello Ada'), TestLLM.text('You said your name is Ada'))
 
     await engine.session.send('My name is Ada')
     await engine.session.send('What is my name?')
@@ -30,7 +30,7 @@ describe('a conversation', () => {
     {prompt: 'off', systemPrompt: false, first: expect.stringMatching(/^# Code Mode/)},
   ])('the configured system prompt reaches the agent: $prompt', async ({systemPrompt, first}) => {
     const engine = await createEngine({systemPrompt})
-    await engine.reply(TestLLM.text('Ahoy', 'reply'))
+    await engine.reply(TestLLM.text('Ahoy'))
 
     await engine.session.send('Hello')
 

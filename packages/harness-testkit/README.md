@@ -12,14 +12,14 @@ The engine is the product's own `makeApp`, and the kit talks to it the way the p
 
 ## Replies
 
-`engine.reply(...responses)` appends to the reply queue; it takes the reply shapes of opencode's test model (`packages/ai/src/testing.ts` in opencode), on our `ChatEvent` chunks: an array of chunks, or an Effect `Stream` of them. Each model request takes the next reply. A tool turn takes two: the call, then the answer after the tool ran. A request with no reply left fails the run; there is no fallback reply. `TestLLM.text`, `TestLLM.toolCall`, `TestLLM.failAfter` and `TestLLM.hangAfter` build them. A session's `send` settles when the run ends and rejects with the run's error when it fails. `engine.gate()` holds the next model request until the test calls `release`, as opencode's `gate`; `stop` releases a held gate.
+The scripted model is one TanStack AI `fakeText` (`@tanstack/ai/testing`) per engine, shared by every scripted harness. `engine.reply(...replies)` appends to its queue and takes only a `TestLLM.Reply`: `TestLLM.text(value)`, `TestLLM.toolCall(id, name, input)`, `TestLLM.failAfter(error)` and `TestLLM.hang()` (a reply that stays open until the run is stopped). At run time a reply is the library's own `FakeResponse` or a function step. Each model request takes the next reply. A tool turn takes two: the call, then the answer after the tool ran. A request with no reply left fails the run; there is no fallback reply. `start.tokensPerSecond` is passed to `fakeText`, which then streams every reply's text at that pace. A session's `send` settles when the run ends and rejects with the run's error when it fails. `engine.gate()` holds the next model request until the test calls `release`, as opencode's `gate`; `stop` releases a held gate.
 
 ## Invariants
 
 - The kit does not depend on a test runner at run time; its own node tests use vitest.
 - The quick harness's terminal needs `bash` on the PATH.
-- The harness writes the request's own thread and run ids into every run start, finish and error chunk of a reply.
-- A streamed reply ends when the run is stopped.
+- Each turn's adapter records the request with the turn's model and effort, keeps the harness id as its name, and sends a `fake.session-id` custom chunk after `fakeText`'s run start, which the engine records as the session's native id.
+- A paced or held reply ends when the run is stopped.
 - An engine made with `clock: 'test'` runs its Effect clock reads and sleeps on a test clock that moves only through `engine.clock`; on the real clock every `engine.clock` call rejects with a plain message.
 
 ## Side Effects

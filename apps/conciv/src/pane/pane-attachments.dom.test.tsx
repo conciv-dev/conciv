@@ -8,7 +8,7 @@ describe('attaching text files', () => {
   test('pasted files show as chips, Backspace and Remove take them off, and the sent message carries the kept file', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await engine.reply(TestLLM.text('Read them', 'reply'))
+    await engine.reply(TestLLM.text('Read them'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})

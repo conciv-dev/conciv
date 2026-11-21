@@ -4,7 +4,7 @@ import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 describe('with no page open, the agent is offered no page tools', () => {
   it('leaves the page tools and the page skill out of the request and out of reach of a call', async () => {
     const engine = await createEngine()
-    await engine.reply(TestLLM.text('Open the page first', 'reply'))
+    await engine.reply(TestLLM.text('Open the page first'))
     await engine.session.send('Click the checkout button')
 
     const [request] = await engine.requests()

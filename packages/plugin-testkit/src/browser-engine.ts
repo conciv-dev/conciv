@@ -66,11 +66,11 @@ export async function createEngine(config: ConcivConfig = {}, options: EngineSta
       discover: (toolNames) => commands.concivOutsideDiscover(handle.id, agent, toolNames),
       call: (name, input) => commands.concivOutsideCall(handle.id, agent, name, input),
     }),
-    reply: async (...responses) => {
-      if (responses.some((reply) => !Array.isArray(reply))) {
-        throw new Error('a streamed reply cannot reach the engine in browser mode: test it in node or happy-dom')
+    reply: async (...replies) => {
+      if (replies.some((reply) => typeof reply === 'function')) {
+        throw new Error('TestLLM.hang() cannot reach the engine in browser mode: test it in node or happy-dom')
       }
-      await commands.concivReply(handle.id, responses)
+      await commands.concivReply(handle.id, replies)
     },
     stale: (staleness) => commands.concivStale(handle.id, staleness),
     version: (version) => commands.concivVersion(handle.id, version),

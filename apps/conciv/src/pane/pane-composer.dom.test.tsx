@@ -8,7 +8,7 @@ describe('sending with the keyboard', () => {
   test('Enter sends the typed message, the composer empties and asks for the next instruction', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await engine.reply(TestLLM.text('Hello from the agent', 'reply'))
+    await engine.reply(TestLLM.text('Hello from the agent'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
@@ -31,7 +31,7 @@ describe('stopping with Escape', () => {
   test('Escape in the composer stops a reply that is still working', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await engine.reply(TestLLM.text('Too late', 'reply'))
+    await engine.reply(TestLLM.text('Too late'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 

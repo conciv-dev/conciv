@@ -1,9 +1,14 @@
-import {Stream} from 'effect'
-import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import type {fakeText} from '@conciv/ai/testkit'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {ReasoningEffort} from '@conciv/protocol/chat-types'
 
-export type Response = readonly ChatEvent[] | Stream.Stream<ChatEvent, Error>
+type FakeText = ReturnType<typeof fakeText>
+
+export type FakeResponseStep = Parameters<FakeText['appendResponses']>[0][number]
+
+declare const brand: unique symbol
+
+export type Reply = FakeResponseStep & {readonly [brand]: 'TestLLM.Reply'}
 
 export type ModelRequestTool = {name: string; description: string; inputSchema: Record<string, unknown>}
 
@@ -18,40 +23,33 @@ export type ModelRequest = {
 
 export type Gate = Readonly<{started: Promise<void>; release: () => Promise<void>}>
 
-type FinishReason = 'stop' | 'tool_calls'
-
-function complete(reason: FinishReason, ...events: readonly ChatEvent[]): ChatEvent[] {
-  return [...events, {type: ChatEventType.RUN_FINISHED, threadId: '', runId: '', finishReason: reason}]
+function reply(step: FakeResponseStep): Reply
+function reply(step: FakeResponseStep): FakeResponseStep {
+  return step
 }
 
-function stop(...events: readonly ChatEvent[]): ChatEvent[] {
-  return complete('stop', ...events)
+function aborted(signal: AbortSignal | null | undefined): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) resolve()
+    else signal?.addEventListener('abort', () => resolve(), {once: true})
+  })
 }
 
-function toolCalls(...events: readonly ChatEvent[]): ChatEvent[] {
-  return complete('tool_calls', ...events)
+export function text(value: string): Reply {
+  return reply({text: value})
 }
 
-export function text(value: string, id: string): ChatEvent[] {
-  return stop(
-    {type: ChatEventType.TEXT_MESSAGE_START, messageId: id, role: 'assistant'},
-    {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: id, delta: value},
-    {type: ChatEventType.TEXT_MESSAGE_END, messageId: id},
-  )
+export function toolCall(id: string, name: string, input: unknown): Reply {
+  return reply({toolCalls: [{id, name, input}]})
 }
 
-export function toolCall(id: string, name: string, input: unknown): ChatEvent[] {
-  return toolCalls(
-    {type: ChatEventType.TOOL_CALL_START, toolCallId: id, toolCallName: name},
-    {type: ChatEventType.TOOL_CALL_ARGS, toolCallId: id, delta: JSON.stringify(input)},
-    {type: ChatEventType.TOOL_CALL_END, toolCallId: id},
-  )
+export function failAfter(error: Error): Reply {
+  return reply({error: error.message})
 }
 
-export function failAfter(error: Error, ...events: readonly ChatEvent[]): Stream.Stream<ChatEvent, Error> {
-  return Stream.concat(Stream.fromIterable(events), Stream.fail(error))
-}
-
-export function hangAfter(...events: readonly ChatEvent[]): Stream.Stream<ChatEvent, Error> {
-  return Stream.concat(Stream.fromIterable(events), Stream.never)
+export function hang(): Reply {
+  return reply(async ({request}) => {
+    await aborted(request.request?.signal)
+    return {}
+  })
 }

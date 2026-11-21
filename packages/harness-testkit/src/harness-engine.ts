@@ -19,7 +19,7 @@ import {callTool} from './call-tool.js'
 import {holdTestClock, realClock, type HarnessEngineClock, type HeldClock} from './clock.js'
 import {outsideAgent, type Outside, type OutsideAgent} from './outside.js'
 import {replyScript, type ReplyScript, type ScriptedHarness} from './scripted-harness.js'
-import type {Gate, ModelRequest, Response} from './test-llm.js'
+import type {Gate, ModelRequest, Reply} from './test-llm.js'
 import {isolatedEnv} from './isolated-env.js'
 import {until} from './until.js'
 
@@ -47,6 +47,7 @@ export type EngineStart = {
   clock?: 'test'
   port?: 'connect'
   token?: string
+  tokensPerSecond?: number
 }
 
 export type HarnessEngineStart = EngineStart & {harness?: HarnessAdapter}
@@ -105,7 +106,7 @@ export type HarnessEngine = {
   restart: () => Promise<void>
   clock: HarnessEngineClock
   outside: (agent?: OutsideAgent) => Outside
-  reply: (...responses: Response[]) => Promise<void>
+  reply: (...replies: Reply[]) => Promise<void>
   stale: (staleness: EngineStaleness) => Promise<void>
   version: (version: string) => Promise<void>
   write: (path: string, content: string) => Promise<void>
@@ -503,7 +504,7 @@ export async function createHarnessEngine(
   options: HarnessEngineStart = {},
 ): Promise<HarnessEngine> {
   const config = engineConfig(given)
-  const script = replyScript()
+  const script = replyScript(options.tokensPerSecond)
   const harnesses = pickedFirst(listedHarnesses(options, script), config.harness)
   const fixture = fixtureFolder(options)
   const root = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
@@ -572,8 +573,8 @@ export async function createHarnessEngine(
     restart,
     clock: heldClock?.clock ?? realClock,
     outside: (agent) => outsideAgent(apiBase, agent),
-    reply: async (...responses) => {
-      script.add(responses)
+    reply: async (...replies) => {
+      script.add(replies)
     },
     stale: async (staleness) => {
       live.staleness = staleness

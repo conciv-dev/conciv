@@ -305,7 +305,7 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
         engineFor(engineId).started.engine.outside(agent).discover(toolNames),
       concivOutsideCall: (_context, engineId, agent, name, input) =>
         engineFor(engineId).started.engine.outside(agent).call(name, input),
-      concivReply: (_context, engineId, responses) => engineFor(engineId).started.engine.reply(...responses),
+      concivReply: (_context, engineId, replies) => engineFor(engineId).started.engine.reply(...replies),
       concivStale: (_context, engineId, staleness) => engineFor(engineId).started.engine.stale(staleness),
       concivVersion: (_context, engineId, version) => engineFor(engineId).started.engine.version(version),
       concivWrite: (_context, engineId, path, content) => engineFor(engineId).started.engine.write(path, content),

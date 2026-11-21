@@ -8,7 +8,7 @@ describe('picking a model and an effort', () => {
   test('the prompt shows the picked model and effort, the agent runs on them, and a model with no efforts drops the effort', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await engine.reply(TestLLM.text('On Sonnet', 'sonnet'), TestLLM.text('On Haiku', 'haiku'))
+    await engine.reply(TestLLM.text('On Sonnet'), TestLLM.text('On Haiku'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     await user.click(await screen.findByRole('button', {name: 'Model: Opus 5.5'}))
@@ -56,7 +56,7 @@ describe('switching the harness', () => {
       {},
       {harnesses: [{id: 'engine'}, {id: 'second', models: [{id: 'second-fast', name: 'Fast 1', group: 'Second'}]}]},
     )
-    await engine.reply(TestLLM.text('First answer', 'first'), TestLLM.text('Second answer', 'second'))
+    await engine.reply(TestLLM.text('First answer'), TestLLM.text('Second answer'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})

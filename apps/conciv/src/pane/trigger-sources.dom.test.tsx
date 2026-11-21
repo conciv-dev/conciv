@@ -8,7 +8,7 @@ describe('the slash list', () => {
   test('/ lists the commands and a picked harness command reaches the agent as text', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await engine.reply(TestLLM.text('Deploying now', 'reply'))
+    await engine.reply(TestLLM.text('Deploying now'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})

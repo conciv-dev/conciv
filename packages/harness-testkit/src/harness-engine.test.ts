@@ -13,7 +13,7 @@ describe('scripted replies', () => {
   test('each model request takes the next reply in order, and a request with none left fails its turn', async ({
     engine,
   }) => {
-    await engine.reply(TestLLM.text('First answer', 'first'), TestLLM.text('Second answer', 'second'))
+    await engine.reply(TestLLM.text('First answer'), TestLLM.text('Second answer'))
 
     await engine.session.send('one')
     await engine.session.send('two')

@@ -163,7 +163,7 @@ describe('the agent reads the page during a reply', () => {
       TestLLM.toolCall('c2', 'execute_typescript', {
         typescriptCode: "return await external_page_text({selector: '#sold-out'})",
       }),
-      TestLLM.text('The fern is in stock', 'reply'),
+      TestLLM.text('The fern is in stock'),
     )
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived

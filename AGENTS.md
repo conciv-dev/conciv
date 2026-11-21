@@ -141,8 +141,9 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
 - The kits. `@conciv/plugin-testkit`: `createEngine(config, start)`, `TestLLM`. `@conciv/plugin-testkit/browser`:
   `mount` and `createEngineRouterHistory`; `mount({engine, history})` opens the app on the engine's saved history (`createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})`) or on any TanStack `RouterHistory`. `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. `config` is the product's own
   `ConcivConfig`; `start` is only what is not product config (`directory`, `timeouts`, `harnesses`, `env`, `fs`,
-  `clock`). The engine is real and its chat is scripted with `engine.reply(...)`, built by `TestLLM` (`text`,
-  `toolCall`, `failAfter`, `hangAfter`); `engine.gate()` holds a reply.
+  `clock`, `tokensPerSecond`). The engine is real and its chat is TanStack AI's `fakeText`, scripted with
+  `engine.reply(...)`, which takes only `TestLLM` replies (`text`, `toolCall`, `failAfter`, `hang`);
+  `engine.gate()` holds a reply.
   Nothing else is exported; a new kit export or option needs the maintainer's yes.
 - Kit tests run through `conciv-test`, which starts vitest with a home of its own and none of the developer's
   secrets or `CONCIV_*` variables; it keeps the developer's Playwright browsers folder. In-repo `test` scripts run

@@ -76,7 +76,7 @@ describe('a run in the list', () => {
   test('the picker names the harness of each session and marks the one whose reply is still working', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({}, {harnesses: [{id: 'alpha'}, {id: 'beta'}]})
-    await engine.reply(TestLLM.text('Done', 'reply'))
+    await engine.reply(TestLLM.text('Done'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
