@@ -36,7 +36,7 @@ describe('the agent acts on the page during a reply', () => {
     expect(within(reply).getByText('2 actions')).toBeVisible()
     expect(within(reply).getByText('Clicked')).toBeVisible()
     expect(within(reply).getByText('Styled an element')).toBeVisible()
-    expect(within(reply).getAllByText('#buy')).toHaveLength(2)
+    expect(within(reply).getAllByText('Buy the fern')).toHaveLength(2)
     expect(within(reply).getByRole('img', {name: 'Took a screenshot'})).toBeVisible()
     const [, , , answer] = await engine.requests()
     const shot = answer?.messages.find((message) => message.toolCallId === 'c3')
