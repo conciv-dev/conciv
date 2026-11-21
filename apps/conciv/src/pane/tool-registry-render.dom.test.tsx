@@ -182,3 +182,107 @@ describe('how long a tool took', () => {
     expect(durations.at(-1)).toBeVisible()
   })
 })
+
+describe('the agent asks other kinds of question', () => {
+  test('a multi-select question submits the pressed options and a typed other, and Submit waits for a choice', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode:
+          "return await external_conciv_ui({kind: 'choices', question: 'Which toppings?', options: ['Olives', 'Basil', 'Garlic'], multiSelect: true, allowOther: true})",
+      }),
+      TestLLM.text('Pizza ordered'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Order a pizza')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('Which toppings?')).toBeVisible()
+    expect(screen.getByRole('button', {name: 'Submit'})).toBeDisabled()
+    await user.click(screen.getByRole('button', {name: 'Olives'}))
+    await user.click(screen.getByRole('button', {name: 'Basil'}))
+    await user.click(screen.getByRole('button', {name: 'Olives'}))
+    expect(screen.getByRole('button', {name: 'Basil', pressed: true})).toBeVisible()
+    expect(screen.getByRole('button', {name: 'Olives', pressed: false})).toBeVisible()
+    await user.type(screen.getByRole('textbox', {name: 'Other'}), 'Chili')
+    await user.click(screen.getByRole('button', {name: 'Submit'}))
+
+    expect(await screen.findByText('Pizza ordered')).toBeVisible()
+    const answer = (await engine.requests()).at(-1)?.messages.at(-1)
+    expect(answer?.role).toBe('tool')
+    expect(answer?.content).toContain('"value":["Basil","Chili"]')
+  })
+
+  test('a confirm question shows its detail and Approve answers yes', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode:
+          "return await external_conciv_ui({kind: 'confirm', question: 'Delete the build folder?', detail: 'rm -r dist'})",
+      }),
+      TestLLM.text('Build folder deleted'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Clean the build')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('Delete the build folder?')).toBeVisible()
+    expect(await screen.findByText('rm -r dist')).toBeVisible()
+    expect(screen.getByRole('button', {name: 'Deny'})).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Approve'}))
+
+    expect(await screen.findByText('Build folder deleted')).toBeVisible()
+    expect((await engine.requests()).at(-1)?.messages.at(-1)?.content).toContain('"value":"yes"')
+  })
+
+  test('a diff question shows the change and Reject answers reject', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode:
+          "return await external_conciv_ui({kind: 'diff', question: 'Apply this change?', file: 'src/title.ts', before: 'export const title = 1', after: 'export const title = 2'})",
+      }),
+      TestLLM.text('Change dropped'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Bump the title')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('Apply this change?')).toBeVisible()
+    expect(await screen.findByText('src/title.ts')).toBeVisible()
+    expect(screen.getByRole('button', {name: 'Apply'})).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Reject'}))
+
+    expect(await screen.findByText('Change dropped')).toBeVisible()
+    expect((await engine.requests()).at(-1)?.messages.at(-1)?.content).toContain('"value":"reject"')
+  })
+
+  test('a form question sends the typed text and the first select option by default, and shows the answers', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode:
+          "return await external_conciv_ui({kind: 'form', title: 'New page', fields: [{name: 'path', label: 'Path', type: 'text'}, {name: 'layout', label: 'Layout', type: 'select', options: ['Wide', 'Narrow']}]})",
+      }),
+      TestLLM.text('Page created'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Make a page')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    await user.type(await screen.findByRole('textbox', {name: 'Path'}), '/pricing')
+    expect(screen.getByRole('combobox', {name: 'Layout'})).toHaveTextContent('Wide')
+    await user.click(screen.getByRole('button', {name: 'Submit'}))
+
+    expect(await screen.findByText('Page created')).toBeVisible()
+    expect((await engine.requests()).at(-1)?.messages.at(-1)?.content).toContain(
+      '"value":{"path":"/pricing","layout":"Wide"}',
+    )
+    const reply = screen.getByRole('article', {name: 'Reply to: Make a page'})
+    expect(within(reply).getByText('/pricing')).toBeVisible()
+  })
+})
