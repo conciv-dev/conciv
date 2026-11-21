@@ -55,7 +55,7 @@ function installedPlugin(name: string, directory: string): string {
   return installedPlugin(name, parent)
 }
 
-function pluginDirectory(target: string): string {
+export function pluginDirectory(target: string): string {
   if (isAbsolute(target)) return target
   if (target.startsWith('.')) return resolve(target)
   return installedPlugin(target, process.cwd())

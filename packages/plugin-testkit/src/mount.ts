@@ -2,7 +2,8 @@ import {onTestFinished} from 'vitest'
 import {createComponent} from 'solid-js'
 import {cleanup, render} from '@solidjs/testing-library'
 import {ConcivApp, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
-import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
+import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
+import {plugins as pluginLoaders} from 'virtual:conciv-test-plugins'
 import type {Engine} from './engine.js'
 
 declare module 'vitest' {
@@ -12,7 +13,8 @@ declare module 'vitest' {
 }
 
 export type MountOptions = {
-  engine: Engine
+  engine?: Engine
+  plugins?: ConcivConfig['plugins']
   seed?: {storage?: Record<string, unknown>}
   route?: string
   host?: ConcivSettingsInit
@@ -57,16 +59,47 @@ function writeStorage(storage: Record<string, unknown>): void {
     localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value))
 }
 
-function boundEngine(address: Engine['address'], login: MountOptions['login']): ReturnType<Platform['engine']> {
+type ComposedPlugin = NonNullable<Platform['plugins']>[number]
+
+type PluginEntry = NonNullable<ConcivConfig['plugins']>[number]
+
+async function composePlugin(entry: PluginEntry): Promise<ComposedPlugin> {
+  const [name, options] = typeof entry === 'string' ? [entry, {}] : entry
+  const loader = pluginLoaders[name]
+  if (loader === undefined) {
+    throw new Error(`the plugin ${name} is neither the package under test nor one of its conciv-plugin dependencies`)
+  }
+  const {setup, ...declarations} = (await loader.load()).default
+  return [{...declarations, id: loader.id, windowEntry: setup && (async () => ({default: setup}))}, options]
+}
+
+function mountedEngine(engine: Engine | undefined, login: MountOptions['login']): ReturnType<Platform['engine']> {
+  if (engine === undefined) return {kind: 'servers'}
+  const {address} = engine
   if (login === undefined) return {kind: 'bound', apiBase: address.apiBase, token: () => Promise.resolve(address.token)}
   return {kind: 'bound', apiBase: new URL(address.apiBase).origin}
+}
+
+const CONNECT_ROUTE = '/panel/connect?open=true'
+
+function mountedPlugins(options: MountOptions): Promise<ComposedPlugin[]> {
+  const entries = options.plugins ?? []
+  if (options.engine === undefined && entries.length === 0) {
+    throw new Error('mount needs an engine, or at least one plugin to find one: give it engine or plugins')
+  }
+  return Promise.all(entries.map(composePlugin))
+}
+
+function firstRoute(options: MountOptions): string {
+  if (options.route !== undefined) return options.route
+  return options.engine === undefined ? CONNECT_ROUTE : '/'
 }
 
 export type Mount = (options: MountOptions) => Promise<void>
 
 export function makeMount(): Mount {
   return async (options) => {
-    const {address} = options.engine
+    const plugins = await mountedPlugins(options)
     onTestFinished(() => {
       cleanup()
       localStorage.clear()
@@ -75,8 +108,9 @@ export function makeMount(): Mount {
     writeStorage(options.seed?.storage ?? {})
     const interactive = Promise.withResolvers<void>()
     const platform: Platform = {
-      engine: () => boundEngine(address, options.login),
-      navigation: {memory: options.route ?? '/'},
+      engine: () => mountedEngine(options.engine, options.login),
+      navigation: {memory: firstRoute(options)},
+      plugins,
       root: document,
       settings: options.host,
       timings: {engine: ENGINE_TIMINGS},

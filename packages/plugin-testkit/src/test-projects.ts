@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {dirname, join} from 'node:path'
 import type {Plugin, UserConfig} from 'vite'
@@ -7,8 +8,9 @@ import type {Page} from 'playwright'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 import {playwright} from '@vitest/browser-playwright'
+import {z} from 'zod'
 import type {TestLLM} from '@conciv/harness-testkit'
-import {startEngine, type Engine, type EngineSession, type StartedEngine} from './engine.js'
+import {pluginDirectory, startEngine, type Engine, type EngineSession, type StartedEngine} from './engine.js'
 import {disposeAll} from './dispose.js'
 import type {EngineCommands, PageCommands} from './browser-commands.js'
 
@@ -97,6 +99,68 @@ function engineModulesInNode(): Plugin {
       if (!conditions) return
       const kept = conditions.filter((condition) => !NODE_ONLY_CONDITIONS.includes(condition))
       conditions.splice(0, conditions.length, ...kept)
+    },
+  }
+}
+
+const TEST_PLUGINS = 'virtual:conciv-test-plugins'
+
+const ManifestSchema = z.object({
+  name: z.string().optional(),
+  dependencies: z.record(z.string(), z.string()).optional(),
+  devDependencies: z.record(z.string(), z.string()).optional(),
+})
+
+type Manifest = z.infer<typeof ManifestSchema>
+
+function readManifest(directory: string): Manifest {
+  return ManifestSchema.parse(JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')))
+}
+
+const PluginManifestSchema = z
+  .string()
+  .transform((text, context) => {
+    try {
+      return JSON.parse(text)
+    } catch {
+      context.addIssue({code: 'custom', message: 'the package.json is not JSON'})
+      return z.NEVER
+    }
+  })
+  .pipe(
+    z.object({
+      name: z.string(),
+      keywords: z.array(z.string()).refine((keywords) => keywords.includes('conciv-plugin')),
+    }),
+  )
+
+type TestablePlugin = {id: string; directory: string}
+
+function testablePlugin(name: string): TestablePlugin[] {
+  const directory = pluginDirectory(name)
+  const manifest = PluginManifestSchema.safeParse(readFileSync(join(directory, 'package.json'), 'utf8'))
+  if (!manifest.success) return []
+  return [{id: manifest.data.name, directory}]
+}
+
+function testablePlugins(): Record<string, TestablePlugin> {
+  const own = readManifest(process.cwd())
+  const names = [own.name ?? [], Object.keys({...own.dependencies, ...own.devDependencies})].flat()
+  return Object.fromEntries(names.flatMap((name) => testablePlugin(name).map((plugin) => [name, plugin])))
+}
+
+function pluginsByName(testable: Record<string, TestablePlugin>): Plugin {
+  const resolved = `\0${TEST_PLUGINS}`
+  return {
+    name: 'conciv:test-plugins',
+    resolveId: (id) => (id === TEST_PLUGINS ? resolved : undefined),
+    load: (id) => {
+      if (id !== resolved) return undefined
+      const entries = Object.entries(testable).map(
+        ([name, plugin]) =>
+          `${JSON.stringify(name)}: {id: ${JSON.stringify(plugin.id)}, load: () => import(${JSON.stringify(plugin.directory)})}`,
+      )
+      return `export const plugins = {${entries.join(', ')}}`
     },
   }
 }
@@ -264,6 +328,7 @@ function pageErrorCommands(): PageCommandHandlers {
 
 function testProjects(): TestProjectInlineConfiguration[] {
   const uno = appUnoConfig()
+  const byName = pluginsByName(testablePlugins())
   const engines = browserEngines()
   const provide = {concivPollTimeoutMs: POLL_TIMEOUT_MS}
   return [
@@ -280,7 +345,7 @@ function testProjects(): TestProjectInlineConfiguration[] {
     },
     {
       extends: true,
-      plugins: [UnoCSS({configFile: uno}), solidPlugin(), engineModulesInNode()],
+      plugins: [UnoCSS({configFile: uno}), solidPlugin(), engineModulesInNode(), byName],
       server: {fs: {strict: false}},
       resolve: {alias: [{find: BROWSER_ENTRY, replacement: join(KIT_DIST, 'happy-dom.js')}]},
       test: {
@@ -296,10 +361,13 @@ function testProjects(): TestProjectInlineConfiguration[] {
     },
     {
       extends: true,
-      plugins: [UnoCSS({configFile: uno}), solidPlugin(), engines.plugin],
+      plugins: [UnoCSS({configFile: uno}), solidPlugin(), engines.plugin, byName],
       server: {fs: {strict: false}},
       resolve: {alias: [{find: NODE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
-      optimizeDeps: {include: [...BROWSER_PREBUNDLED, ...installedTestingLibraries()]},
+      optimizeDeps: {
+        rolldownOptions: {plugins: [byName]},
+        include: [...BROWSER_PREBUNDLED, ...installedTestingLibraries()],
+      },
       test: {
         name: 'browser',
         include: ['src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx'],
