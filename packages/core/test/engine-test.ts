@@ -2,6 +2,8 @@ import {join} from 'node:path'
 import {createRouterClient, type RouterClient} from '@orpc/server'
 import {test as base, vi, type TestAPI} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {makeBrowserRpcClient, type BrowserRpcClient, type RpcClient} from '@conciv/contract'
+import type {Engine as KitEngine} from '@conciv/plugin-testkit'
 import {start, type Engine} from '../src/start.js'
 import {readEngineRouter} from '../src/api/rpc/engine-router.js'
 import {createTtySessions, type TtySessions} from '../src/pty/pty-sessions.js'
@@ -32,6 +34,7 @@ type EngineFixtures = {
   engine: Engine
   client: EngineClient
   launch: (root: string) => Promise<EngineClient>
+  connect: (engine: KitEngine) => RpcClient
   fakeTimers: (config: Parameters<typeof vi.useFakeTimers>[0]) => void
   ttySessions: (options: Parameters<typeof createTtySessions>[0]) => TtySessions
   settingsStorage: (storages: SettingsStorages) => SettingsStorage
@@ -55,6 +58,15 @@ export const test: TestAPI<EngineFixtures> = base.extend<EngineFixtures>({
       return clientFor(engine)
     })
     await Promise.all(running.map((engine) => engine.stop()))
+  },
+  connect: async ({task: _task}, use) => {
+    const clients: BrowserRpcClient[] = []
+    await use((engine) => {
+      const client = makeBrowserRpcClient(engine.address.apiBase, {session: () => engine.session.id})
+      clients.push(client)
+      return client.rpc
+    })
+    for (const client of clients) client.close()
   },
   fakeTimers: async ({task: _task}, use) => {
     await use((config) => {

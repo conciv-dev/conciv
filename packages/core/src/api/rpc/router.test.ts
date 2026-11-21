@@ -1,6 +1,6 @@
-import {describe, expect, test} from 'vitest'
-import {makeRpcClient} from '@conciv/contract'
+import {describe, expect} from 'vitest'
 import {createEngine} from '@conciv/plugin-testkit'
+import {test} from '../../../test/engine-test.js'
 
 describe('plugin rpc', () => {
   test('a method answers, a declared failure gives its type and message, and a crash is an internal failure', async () => {
@@ -53,7 +53,7 @@ describe('outside agents', () => {
 })
 
 describe('harness listing', () => {
-  test('the harness menu lists every harness of the engine with its models, the default first', async () => {
+  test('the harness menu lists every harness of the engine with its models, the default first', async ({connect}) => {
     const engine = await createEngine(
       {},
       {
@@ -64,7 +64,7 @@ describe('harness listing', () => {
       },
     )
 
-    await expect(makeRpcClient(engine.address.apiBase).meta.harnesses()).resolves.toMatchObject({
+    await expect(connect(engine).meta.harnesses()).resolves.toMatchObject({
       defaultHarness: 'claude',
       harnesses: [
         {id: 'claude', models: [expect.objectContaining({id: 'opus'})], modelsFailed: false},
