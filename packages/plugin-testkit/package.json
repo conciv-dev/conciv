@@ -36,8 +36,8 @@
       "import": "./dist/browser.js"
     },
     "./vitest": {
-      "types": "./dist/test-projects.d.ts",
-      "import": "./dist/test-projects.js"
+      "types": "./dist/vitest.d.ts",
+      "import": "./dist/vitest.js"
     }
   },
   "publishConfig": {

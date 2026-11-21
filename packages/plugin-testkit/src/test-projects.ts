@@ -311,13 +311,8 @@ function testProjects(): TestProjectInlineConfiguration[] {
   ]
 }
 
-export function concivTest(): Plugin {
-  return {
-    name: 'conciv:test',
-    config(config) {
-      const defaults = kitDefaults(config.test)
-      if (config.test?.name !== undefined) return {test: defaults}
-      return {test: {...defaults, projects: testProjects()}}
-    },
-  }
+export function kitTestConfig(config: UserConfig): UserConfig {
+  const defaults = kitDefaults(config.test)
+  if (config.test?.name !== undefined) return {test: defaults}
+  return {test: {...defaults, projects: testProjects()}}
 }

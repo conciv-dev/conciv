@@ -11,6 +11,7 @@ export default defineConfig({
     'src/browser-setup.ts',
     'src/dom-environment.ts',
     'src/test-projects.ts',
+    'src/vitest.ts',
   ],
   format: 'esm',
   fixedExtension: false,
