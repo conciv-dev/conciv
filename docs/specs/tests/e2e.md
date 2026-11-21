@@ -129,15 +129,17 @@ The maintainer moved building these helpers to a follow-up, so the init app has 
 
 ## Hosts no e2e app has
 
-| feature                                                                                             | journey | status                                                                                               |
-| --------------------------------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
-| sdk-embed:103 a second Vite dev server still boots                                                  |         | blocked: `e2eConfig` runs one dev server per app                                                     |
-| sdk-embed:117 closing or restarting the dev server stops the engine once, and the widget comes back |         | blocked: Playwright's `webServer` cannot be restarted from a test                                    |
-| sdk-embed:118, 120, 121 webpack/rspack dev                                                          |         | blocked: no webpack or rspack e2e app (the packed Next suite's `--webpack` project covers Next only) |
-| sdk-embed:109-110 Vite DevTools dock panel and its token                                            |         | blocked: no e2e app enables Vite DevTools                                                            |
-| app:415 standalone page with `?core=` / `?settings=`                                                |         | blocked: no e2e app serves the standalone page                                                       |
-| sdk-embed:136, plugins:128 native iOS page and WKWebView bridge                                     |         | blocked: a WKWebView peer                                                                            |
-| sdk-embed:138-141 the site's live widget and try panel                                              |         | elsewhere: `apps/site`'s own tests (not an `e2e/` app; no row in these ledgers)                      |
+| feature                                                                                             | journey | status                                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| sdk-embed:103 a second Vite dev server still boots                                                  |         | blocked: `e2eConfig` runs one dev server per app                                                                                                                                                                                           |
+| sdk-embed:117 closing or restarting the dev server stops the engine once, and the widget comes back |         | blocked: Playwright's `webServer` cannot be restarted from a test                                                                                                                                                                          |
+| sdk-embed:118, 120, 121 webpack/rspack dev                                                          |         | blocked: no webpack or rspack e2e app (the packed Next suite's `--webpack` project covers Next only)                                                                                                                                       |
+| sdk-embed:109-110 Vite DevTools dock panel and its token                                            |         | blocked: no e2e app enables Vite DevTools                                                                                                                                                                                                  |
+| app:415 standalone page with `?core=` / `?settings=`                                                |         | blocked: no e2e app serves the standalone page                                                                                                                                                                                             |
+| sdk-embed:136, plugins:128 native iOS page and WKWebView bridge                                     |         | blocked: a WKWebView peer                                                                                                                                                                                                                  |
+| sdk-embed:138-141 the site's live widget and try panel                                              |         | blocked: `apps/site` has no Playwright config and no test file; needs a site Playwright config (a config change, asked first)                                                                                                              |
+| sdk-embed:320 the embed restores the host's `window.__TSR_ROUTER__`                                 |         | blocked: its only reader is the router plugin's route hot update (`@tanstack/router-plugin` `core/hmr/vite-adapter.js`); proving it means editing a host route file from the spec, the same file-write ruling as the live-line bundle swap |
+| sdk-embed:C23 with browser storage blocked, the token is kept in memory only                        |         | blocked: needs a browser whose storage throws: a Firefox project in `e2eConfig` with `firefoxUserPrefs` `network.cookie.cookieBehavior: 2` (a config change, asked first); replacing `localStorage` from `addInitScript` is a stub         |
 
 ## Counts
 
@@ -147,9 +149,9 @@ The maintainer moved building these helpers to a follow-up, so the init app has 
 | written   | 3    |
 | planned   | 0    |
 | verify    | 0    |
-| blocked   | 45   |
+| blocked   | 48   |
 | browser   | 0    |
 | e2e       | 0    |
-| elsewhere | 1    |
+| elsewhere | 0    |
 | kept      | 0    |
-| total     | 70   |
+| total     | 72   |
