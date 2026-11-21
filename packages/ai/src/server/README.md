@@ -31,6 +31,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 ## Invariants
 
 - `chat-server.ts:run` (`conciv-steer` middleware) - starting a run ends every other live run on the same thread.
+- `local-sandbox.ts:killGroups` - every process group the sandbox spawns (POSIX) is kept until its process exits, and a synchronous `process.once('exit')` hook SIGKILLs the groups still in that set, as opencode's `killGroups` (`packages/util/src/cross-spawn-spawner.ts`): an engine process that exits without stopping its runs (a shutdown deadline, a second Ctrl+C, Next's `process.exit`) leaves no agent CLI running. A process killed by a signal it does not handle runs no exit hook.
 - `chat-server.ts:planned` - an exception from `hooks.plan` becomes a `failed-launch` adapter that emits RUN_ERROR.
 - `chat-server.ts:admitted` - `hooks.admit(turn)` is awaited before the last user message is looked up or handed to `TurnPlan.prompt`, before `chat()` runs: a rejection removes the live entry and ends the run stream with that error as its one RUN_ERROR, with no run row, no stored message, no `hooks.started` and no `hooks.end`.
 - `chat-server.ts:endedPhase` - a `completed` phase is reported as `aborted` when the record has `cancelRequested` (the user stopped the run while it was finishing by itself); `terminalChunk` and `buildLifecycle` both use it, so the terminal chunk, `hydrate`'s `lastRun` and `hooks.end` agree.
