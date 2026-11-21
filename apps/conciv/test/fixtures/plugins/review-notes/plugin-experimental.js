@@ -1,4 +1,4 @@
-const {ComposerPill, NoteCard, Plugin} = require('@conciv/plugin/experimental')
+const {Command, ComposerPill, NoteCard, Plugin} = require('@conciv/plugin/experimental')
 
 const headerNote = {
   type: 'note',
@@ -23,6 +23,24 @@ function closeButton(close) {
 module.exports = {
   default: Plugin.define({
     setup(ctx) {
+      ctx.add(Command, {
+        id: 'summary',
+        title: 'Summary',
+        description: 'Sum up the review',
+        slash: {name: 'summary'},
+        run: () => {
+          ctx.toast.show({title: 'Summary ready', persistent: true})
+        },
+      })
+      ctx.add(Command, {
+        id: 'review',
+        title: 'Review',
+        description: 'Review a part of the page',
+        slash: {name: 'review', arguments: true, after: 'model'},
+        run: (input) => {
+          ctx.toast.show({title: `Reviewing ${input}`, persistent: true})
+        },
+      })
       ctx.add(ComposerPill, {
         id: 'review',
         order: 3,
