@@ -1,4 +1,4 @@
-import type {TestLLM} from '@conciv/harness-testkit'
+import type {Outside, OutsideAgent, OutsideReply, TestLLM} from '@conciv/harness-testkit'
 import type {CreateEngineOptions, Engine, EngineAddress, EngineSetting, ToolFailure} from './engine.js'
 
 export type EngineHandle = {id: string; sessionId: string; address: EngineAddress; root: string}
@@ -31,6 +31,9 @@ export type EngineCommands = {
   concivStop: (engineId: string, sessionId: string) => Promise<void>
   concivToolCall: (engineId: string, sessionId: string, name: string, input: unknown) => Promise<unknown>
   concivToolFailure: (engineId: string, sessionId: string, name: string, input: unknown) => Promise<ToolFailure>
+  concivOutsideDescribe: (engineId: string, agent: OutsideAgent) => ReturnType<Outside['describe']>
+  concivOutsideDiscover: (engineId: string, agent: OutsideAgent, toolNames: string[]) => Promise<OutsideReply>
+  concivOutsideCall: (engineId: string, agent: OutsideAgent, name: string, input: unknown) => Promise<OutsideReply>
 }
 
 export type PageCommands = {

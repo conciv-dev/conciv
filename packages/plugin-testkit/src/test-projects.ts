@@ -208,6 +208,12 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
         sessionFor(engineId, sessionId).tool(name).call(input),
       concivToolFailure: (_context, engineId, sessionId, name, input) =>
         sessionFor(engineId, sessionId).tool(name).failure(input),
+      concivOutsideDescribe: (_context, engineId, agent) =>
+        engineFor(engineId).started.engine.outside(agent).describe(),
+      concivOutsideDiscover: (_context, engineId, agent, toolNames) =>
+        engineFor(engineId).started.engine.outside(agent).discover(toolNames),
+      concivOutsideCall: (_context, engineId, agent, name, input) =>
+        engineFor(engineId).started.engine.outside(agent).call(name, input),
     },
     plugin: {
       name: 'conciv:test-browser-engines',

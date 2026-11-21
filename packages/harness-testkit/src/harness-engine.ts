@@ -11,12 +11,14 @@ import {start} from '@conciv/core/start'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, runLifecycleEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import type {HubAccess} from '@conciv/protocol/chat-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {z} from 'zod'
 import {callTool} from './call-tool.js'
+import {outsideAgent, type Outside, type OutsideAgent} from './outside.js'
 import {replyScript, type ReplyScript, type ScriptedHarness} from './scripted-harness.js'
 import type {Gate, ModelRequest, Response} from './test-llm.js'
 import {isolatedEnv} from './isolated-env.js'
@@ -24,6 +26,7 @@ import {until} from './until.js'
 
 export * as TestLLM from './test-llm.js'
 export {cli, type CliOptions, type CliRun} from './cli.js'
+export type {Outside, OutsideAgent, OutsideReply} from './outside.js'
 
 export type HarnessEngineSetting = {scope: 'project' | 'global'; namespace: string; key: string; value: unknown}
 
@@ -53,6 +56,7 @@ export type HarnessEngineOptions = {
   commands?: HarnessCommand[]
   harnesses?: ScriptedHarness[]
   fs?: {filewatcher?: boolean}
+  hubAccess?: HubAccess
 }
 
 export type HarnessEngineToolFailure = {tool: string; message: string}
@@ -105,6 +109,7 @@ export type HarnessEngine = {
   loginCode: () => Promise<string>
   revokeBrowsers: () => Promise<void>
   restart: () => Promise<void>
+  outside: (agent?: OutsideAgent) => Outside
   stop: () => Promise<void>
 }
 
@@ -411,6 +416,7 @@ function bootApp(
       policies: options.policies,
       permission: config.permission,
       permissions: config.permissions,
+      hubAccess: options.hubAccess,
     },
     root: project,
     harness,
@@ -509,6 +515,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
       revokeBrowsers(concivStateDir(root), 'all')
     },
     restart,
+    outside: (agent) => outsideAgent(apiBase, agent),
     stop,
   }
 }

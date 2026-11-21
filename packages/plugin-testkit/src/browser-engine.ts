@@ -56,6 +56,11 @@ export async function createEngine(options: CreateEngineOptions = {}): Promise<E
       arrived.catch(() => {})
       return {arrived}
     },
+    outside: (agent = {}) => ({
+      describe: () => commands.concivOutsideDescribe(handle.id, agent),
+      discover: (toolNames) => commands.concivOutsideDiscover(handle.id, agent, toolNames),
+      call: (name, input) => commands.concivOutsideCall(handle.id, agent, name, input),
+    }),
     address: handle.address,
     root: handle.root,
   }
