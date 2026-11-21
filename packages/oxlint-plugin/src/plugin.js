@@ -14,6 +14,7 @@ import playwrightTestInE2e from './playwright-test-in-e2e.js'
 import pluginViewReadsThroughQuery from './plugin-view-reads-through-query.js'
 import routerIdioms from './router-idioms.js'
 import testFileBudget from './test-file-budget.js'
+import testFileTopLevel from './test-file-top-level.js'
 import {noInlineTimeouts, noTimersInTests} from './test-time.js'
 import {bannedVocabulary, corePurity, noOfSuffix} from './vocabulary.js'
 
@@ -264,6 +265,7 @@ export default {
     'router-idioms': routerIdioms,
     'solid-test-render': solidTestRender,
     'test-file-budget': testFileBudget,
+    'test-file-top-level': testFileTopLevel,
     'tool-card-shell': toolCardShell,
     'user-event-only': userEventOnly,
   },

@@ -37,6 +37,7 @@
     "conciv/playwright-test-in-e2e": "error",
     "conciv/solid-test-render": "error",
     "conciv/test-file-budget": "error",
+    "conciv/test-file-top-level": "error",
     "conciv/tool-card-shell": "error",
     "conciv/user-event-only": "error",
     "unicorn/consistent-function-scoping": "off",
