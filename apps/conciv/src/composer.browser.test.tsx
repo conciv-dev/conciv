@@ -1,11 +1,12 @@
 import {describe, expect, test} from 'vitest'
-import {screen, waitFor, within} from '@solidjs/testing-library'
+import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
+import {page} from 'vitest/browser'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('the model menu', () => {
-  test('a pick and Escape each close the menu and give the composer its focus back', async () => {
+  test('a pick, Escape and an outside click each close the menu and give the composer its focus back at once', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -15,13 +16,22 @@ describe('the model menu', () => {
     await user.click(
       within(await screen.findByRole('dialog', {name: 'Model'})).getByRole('option', {name: 'Sonnet 5.5'}),
     )
-    await waitFor(() => expect(input).toHaveFocus())
+    expect(input).toHaveFocus()
 
     await user.click(screen.getByRole('button', {name: 'Model: Sonnet 5.5'}))
     const search = await screen.findByRole('textbox', {name: 'Search models'})
-    await waitFor(() => expect(search).toHaveFocus())
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    expect(search).toHaveFocus()
     await user.keyboard('{Escape}')
-    await waitFor(() => expect(input).toHaveFocus())
+    expect(input).toHaveFocus()
+
+    await user.click(screen.getByRole('button', {name: 'Model: Sonnet 5.5'}))
+    const searchAgain = await screen.findByRole('textbox', {name: 'Search models'})
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    expect(searchAgain).toHaveFocus()
+    await page.getByText('How can I help you today?').click()
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    expect(input).toHaveFocus()
   })
 })
 

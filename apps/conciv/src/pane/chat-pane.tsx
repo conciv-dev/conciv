@@ -450,7 +450,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const compacting = messaging.compacting
 
   const focusInput = () => requestAnimationFrame(() => inputHandle()?.focus())
-  const modelMenu = useModelMenu(focusInput)
+  const modelMenu = useModelMenu(() => inputHandle()?.focus())
   const commandSources = useComposerTriggerSources({
     sessionId,
     openModelMenu: () => modelMenu.popover().setOpen(true),
