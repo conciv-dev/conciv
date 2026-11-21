@@ -284,6 +284,8 @@ What the run showed (lane report 012550-plugins-6b): with the chat open on a rou
 - Throwaway proof, happy-dom, in the app proof worktree: mount with the chat open on a session, then show through kit calls only that the page tab IS attached (for example a page tool answering for that session where before it answered that no tab is attached). Every tool name, input and expected answer in it is cited with the file:line it was read from. Failing run before the fill, passing run after.
 - README line for `dom-environment.ts`, changeset `.changeset/kit-happy-dom-navigation.md` (`@conciv/plugin-testkit` patch), commit the kit change only.
 
+Proof accepted for this fill (2026-11-21, lane report 013617-plugins-6b): no clean proof exists yet, because the page attaches asynchronously and nothing a test can wait on shows it (no kit wait, no UI). The throwaway diagnostic that polls `page_tabs_list` fails before the fill and passes after it; since it is never committed, it is accepted as the evidence for committing the fill. A real test of anything page-attached needs a wait without polling: that is step 2's "wait for an engine event" item, which must cover the tab-attached moment.
+
 Also found, not fixed here: a test file under `apps/conciv/src/routes/` makes the router generator warn on every start, so the throwaway proofs sit at `apps/conciv/src/panel.dom.test.tsx`. Where real app tests live relative to `routes/` is decided with the real tests.
 
 ---
