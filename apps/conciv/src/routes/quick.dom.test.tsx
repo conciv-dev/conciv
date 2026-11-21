@@ -1,7 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('quick terminal', () => {
@@ -154,5 +154,26 @@ describe('close one of two quick panes', () => {
     )
     expect(screen.queryByRole('region', {name: 'Session: Alpha'})).not.toBeInTheDocument()
     expect(screen.getByRole('region', {name: 'Session: Beta'})).toBeVisible()
+  })
+})
+
+describe('quick pane context usage', () => {
+  test('after a reply the quick pane shows how much of the model context the session used', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(TestLLM.text('Here is the summary'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/quick']})})
+
+    const terminal = await screen.findByRole('dialog', {name: 'conciv quick terminal'})
+    const input = await within(terminal).findByRole('textbox', {name: 'Message the conciv agent'})
+    expect(within(terminal).queryByRole('button', {name: 'Model context usage'})).not.toBeInTheDocument()
+    await user.type(input, 'Summarise the work')
+    await user.click(within(terminal).getByRole('button', {name: 'Send message'}))
+    expect(await within(terminal).findByText('Here is the summary')).toBeVisible()
+
+    const usage = await within(terminal).findByRole('button', {name: 'Model context usage'})
+    await user.hover(usage)
+    expect(await screen.findByText('Input')).toBeVisible()
+    expect(screen.getByText('Output')).toBeVisible()
   })
 })
