@@ -286,18 +286,19 @@ The orchestrator amends this plan with the fill's exact shape from that report (
 
 Ruled 2026-11-21: A, a wrapper starts vitest with the isolated environment, and each package's `test` script runs the wrapper.
 
-**Files:**
+**Files** (amended after the first real try, 2026-11-21: pnpm does not link a bin that points into `dist` when it installs before the build, a package's own bin is never linked into itself, and `harness-testkit` cannot depend on `plugin-testkit`):
 
-- Create: `packages/plugin-testkit/src/run-tests.ts` (the wrapper)
-- Modify: `packages/plugin-testkit/package.json` (`"bin": {"conciv-test": "./dist/run-tests.js"}`; the bin name is the maintainer's to change), `packages/plugin-testkit/tsdown.config.ts` (the new entry)
-- Modify: `packages/harness-testkit/package.json` and `tsdown.config.ts`: export `./isolated-env` (Task 3's file), so the wrapper and the engine use one rule
-- Modify: the `test` script of the three packages that run kit tests today, `packages/harness-testkit`, `packages/plugin-testkit`, `packages/plugins/test-runner`: `"test": "conciv-test"`. `packages/oxlint-plugin` keeps `vitest run`: its tests are lint-rule tests with no engine. Every package that later gets kit tests uses `conciv-test`.
-- Modify: both kit READMEs, `AGENTS.md` Testing (one line: tests run through `conciv-test`, which gives the test process its own home)
+- Create: `packages/harness-testkit/src/run-tests.ts` (the wrapper; it sits beside `isolated-env.ts`, which it imports)
+- Modify: `packages/harness-testkit/package.json` and `tsdown.config.ts`: export `./run-tests`
+- Create: `packages/plugin-testkit/bin/conciv-test.js`, a committed two-line file (the node shebang, then `import '@conciv/harness-testkit/run-tests'`), so the bin's target exists at install time
+- Modify: `packages/plugin-testkit/package.json`: `"bin": {"conciv-test": "./bin/conciv-test.js"}`, and `bin` added to `files`
+- Modify the `test` scripts: `packages/plugins/test-runner` runs `conciv-test`; `packages/plugin-testkit` runs `node bin/conciv-test.js` (its own file); `packages/harness-testkit` runs `node dist/run-tests.js` (its own file; turbo builds before test). `packages/oxlint-plugin` keeps `vitest run`: its tests are lint-rule tests with no engine. Every package that later gets kit tests depends on `@conciv/plugin-testkit` and runs `conciv-test`.
+- Modify: both kit READMEs, `AGENTS.md` Testing (one line: kit tests run through `conciv-test`, which gives the test process its own home)
 - Create: `.changeset/kit-test-wrapper.md` (both kits, patch)
 
 **Interfaces:**
 
-- Consumes: `isolatedEnv(source, home, temporary)` from Task 3, now also at `@conciv/harness-testkit/isolated-env`.
+- Consumes: `isolatedEnv(source, home, temporary)` from Task 3 (a file import inside `harness-testkit`; no new export of it).
 - Produces: the bin `conciv-test [...vitest args]`. It makes a folder with `mkdtempSync(join(tmpdir(), 'conciv-test-home-'))` and `<home>/tmp`, spawns `vitest run` plus its own arguments with `env: isolatedEnv(process.env, home, join(home, 'tmp'))` and inherited stdio, forwards SIGINT and SIGTERM to the child, removes the folder when the child exits, and exits with the child's code. Shape as opencode `packages/core/script/test.ts:5-8,37-54` (read).
 
 Why (read): `packages/plugin-host/src/core/filesystem/protected.ts:4` and the real harness adapters (`packages/harness/src/codex/models.ts:58`, `claude/index.ts:36`, `opencode/history.ts:29`, `pi/history.ts:74`) call `os.homedir()` directly; vitest's `test.env` reaches only its workers, while browser-mode engines start in vitest's own process (`packages/plugin-testkit/src/test-projects.ts:18,124`). Starting the whole process isolated covers both.
@@ -321,7 +322,7 @@ test('the test process has a home of its own', () => {
 - [ ] **Step 6: Gates (add `publint` and `attw` for both kits, since a bin and an export were added), commit the kit change only**
 
 ```bash
-git add packages/plugin-testkit/src/run-tests.ts packages/plugin-testkit/package.json packages/plugin-testkit/tsdown.config.ts packages/harness-testkit/package.json packages/harness-testkit/tsdown.config.ts packages/plugin-testkit/src/README.md packages/harness-testkit/src/README.md packages/plugins/test-runner/package.json AGENTS.md pnpm-lock.yaml .changeset/kit-test-wrapper.md
+git add packages/harness-testkit/src/run-tests.ts packages/harness-testkit/package.json packages/harness-testkit/tsdown.config.ts packages/plugin-testkit/bin/conciv-test.js packages/plugin-testkit/package.json packages/plugin-testkit/src/README.md packages/harness-testkit/src/README.md packages/plugins/test-runner/package.json AGENTS.md pnpm-lock.yaml .changeset/kit-test-wrapper.md
 git commit -m "feat(plugin-testkit): conciv-test runs vitest with a home of its own"
 ```
 
