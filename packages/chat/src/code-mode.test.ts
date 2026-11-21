@@ -1,9 +1,9 @@
-import {describe, expect, it} from 'vitest'
+import {describe, expect} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {test} from '../test/rpc-test.js'
 
 describe('offered tools', () => {
-  it.each<{effect: 'allow' | 'deny'; offered: boolean}>([
+  test.each<{effect: 'allow' | 'deny'; offered: boolean}>([
     {effect: 'allow', offered: true},
     {effect: 'deny', offered: false},
   ])('a plugin tool the permission rules $effect is offered to the agent: $offered', async ({effect, offered}) => {

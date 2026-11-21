@@ -1,9 +1,9 @@
-import {describe, expect, it} from 'vitest'
+import {describe, expect} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {test} from '../test/rpc-test.js'
 
 describe('stopping', () => {
-  it('the user stops a held reply and the turn ends', async () => {
+  test('the user stops a held reply and the turn ends', async () => {
     const engine = await createEngine()
     await engine.reply(TestLLM.hang())
     const gate = await engine.gate()
@@ -18,7 +18,7 @@ describe('stopping', () => {
     await expect(interrupted.arrived).resolves.toMatchObject({data: {reason: 'user'}})
   })
 
-  it('a stop sent before the run starts ends it', async () => {
+  test('a stop sent before the run starts ends it', async () => {
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Never shown'))
     const gate = await engine.gate()
@@ -34,7 +34,7 @@ describe('stopping', () => {
 })
 
 describe('two turns', () => {
-  it("a new message ends the session's running turn", async () => {
+  test("a new message ends the session's running turn", async () => {
     const engine = await createEngine()
     await engine.reply(TestLLM.hang(), TestLLM.text('Here is the second answer'))
     const gate = await engine.gate()
@@ -48,7 +48,7 @@ describe('two turns', () => {
     expect(await engine.requests()).toHaveLength(2)
   })
 
-  it('a turn still preparing its prompt when a new message comes ends without ending the new one', async () => {
+  test('a turn still preparing its prompt when a new message comes ends without ending the new one', async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/turn-holder']})
     await engine.reply(TestLLM.text('Here is the second answer'))
     const ended = await engine.event('session.execution.interrupted')
@@ -72,7 +72,7 @@ describe('two turns', () => {
 })
 
 describe('a failed reply', () => {
-  it("the turn rejects with the model's error", async () => {
+  test("the turn rejects with the model's error", async () => {
     const engine = await createEngine()
     await engine.reply(TestLLM.failAfter(new Error('the model is overloaded')))
 
@@ -81,7 +81,7 @@ describe('a failed reply', () => {
 })
 
 describe('run limits', () => {
-  it('a turn whose agent never starts fails with the start limit', async () => {
+  test('a turn whose agent never starts fails with the start limit', async () => {
     const engine = await createEngine({}, {timeouts: {firstStartTimeoutMs: 500}})
     await engine.reply(TestLLM.text('Too late'))
     await engine.gate()

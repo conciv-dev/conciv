@@ -1,9 +1,9 @@
-import {describe, expect, it} from 'vitest'
+import {describe, expect} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {test} from '../test/rpc-test.js'
 
 describe('a conversation', () => {
-  it('the user sends two messages and the second request carries the first', async () => {
+  test('the user sends two messages and the second request carries the first', async () => {
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Hello Ada'), TestLLM.text('You said your name is Ada'))
 
@@ -18,14 +18,14 @@ describe('a conversation', () => {
     ])
   })
 
-  it('an empty message is refused', async () => {
+  test('an empty message is refused', async () => {
     const engine = await createEngine()
 
     await expect(engine.session.send('')).rejects.toThrow('the message is empty')
     expect(await engine.requests()).toEqual([])
   })
 
-  it.each([
+  test.each([
     {prompt: 'default', systemPrompt: undefined, first: expect.stringMatching(/^You are the conciv chat agent/)},
     {prompt: 'custom', systemPrompt: 'You are a pirate', first: 'You are a pirate'},
     {prompt: 'off', systemPrompt: false, first: expect.stringMatching(/^# Code Mode/)},
@@ -41,7 +41,7 @@ describe('a conversation', () => {
 })
 
 describe('plugin hooks', () => {
-  it("a plugin's prompt and context hooks change the request the agent gets", async () => {
+  test("a plugin's prompt and context hooks change the request the agent gets", async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/request-shaper']})
     await engine.reply(TestLLM.text('Bonjour'))
 
