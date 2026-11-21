@@ -27,9 +27,9 @@ All of the step 0 plan's "Global Constraints" and the additions of the step 1 an
 
 **Files:** `packages/harness-testkit/src/isolated-env.ts`, `src/README.md`; `.changeset/kit-agent-shell-variables.md`.
 
-**Interfaces:** `isolatedEnv` also drops `CLAUDECODE`, `CODEX_THREAD_ID`, `GEMINI_CLI` and `OPENCODE`. These are the variables the CLI reads to tag a call with the calling agent (`packages/cli/src/request.ts:95-103`); with one set, an outside call is refused as "<agent> is disconnected from conciv". opencode's test environment filters its own agent variables the same way (`packages/core/script/test.ts:10-35`).
+**Interfaces:** `isolatedEnv` also drops `CLAUDECODE`, `CODEX_THREAD_ID`, `GEMINI_CLI` and `OPENCODE`. These are the variables the CLI reads to tag a call with the calling agent (`packages/cli/src/request.ts:95-103`); with one set, an outside call is refused as "<agent> is disconnected from conciv". This is a conciv-specific fix: opencode's runner redirects HOME and the XDG folders and filters secrets, but does not remove its own agent variable.
 
-Before the change, read `request.ts:95-103` and list the exact variable names it reads; drop exactly those (if the list differs from the four above, use the code's list and report it).
+Read in review: the four names come from the harness registry (`registry.ts:15,34,55`, `init.ts:49`). `GEMINI_CLI` is already dropped today by the `GEMINI_` provider rule; the change adds exact drops for `CLAUDECODE`, `CODEX_THREAD_ID` and `OPENCODE`.
 
 - [ ] **Step 1: Proof** (throwaway unit proof in `packages/harness-testkit/src/isolated-env.test.ts`):
 
@@ -54,17 +54,17 @@ test('the engine does not learn which agent shell started the tests', () => {
 
 ### Task 2: run the CLI
 
-**Files:** create `packages/harness-testkit/src/cli.ts`; modify `packages/harness-testkit/src/harness-engine.ts` (re-export), `package.json` (peer `@conciv/cli`, as the other `@conciv/*` peers), `src/README.md`; `packages/plugin-testkit/src/node.ts` (re-export; the browser entry does NOT get it); `.changeset/kit-cli.md`.
+**Files:** create `packages/harness-testkit/src/cli.ts`; modify `packages/harness-testkit/src/harness-engine.ts` (re-export), `package.json` (peer `@conciv/cli`, as the other `@conciv/*` peers; run `pnpm install` and commit `pnpm-lock.yaml` with it), `src/README.md`; `packages/plugin-testkit/src/node.ts` (re-export; the browser entry does NOT get it); `.changeset/kit-cli.md`.
 
 **Interfaces:**
 
-- Produces: `cli(args: string[], options?: {cwd?: string; env?: Record<string, string>}): Promise<{stdout: string; stderr: string; exitCode: number}>`. It spawns `process.execPath` on the built CLI bin, resolved from the package under test as `@conciv/cli/bin` (`packages/cli/package.json:18-27`), with `env: {...isolatedEnv(process.env, <a temp home made for this call>, <its tmp>), ...options.env}` and `cwd: options.cwd ?? <that temp home>`. The temp home is removed when the child exits. A non-zero exit resolves, it does not throw. After the kit's tool deadline (60 s, `call-tool.ts`) the child is killed and the call rejects with a plain message.
+- Produces: `cli(args: string[], options?: {cwd?: string; env?: Record<string, string>}): Promise<{stdout: string; stderr: string; exitCode: number}>`. It spawns `process.execPath` on the built CLI bin, resolved from the package under test as `@conciv/cli/bin` (`packages/cli/package.json:18-27`), with `env: {...isolatedEnv(process.env, <a temp home made for this call>, <its tmp>), ...options.env}` and `cwd: options.cwd ?? <that temp home>`. A non-zero exit resolves, it does not throw. `cli.ts` has its own limit, `const CLI_DEADLINE_MS = 60_000`: after it the child is killed and the call rejects with `the conciv CLI gave no result within 60000ms`. The temp home is removed in a `finally`, after the child has closed, on every path (exit, a spawn failure, the limit).
 - Exported from `@conciv/harness-testkit` and from `@conciv/plugin-testkit/node`. Node only: in browser mode the plugin testkit's entry has no `cli`.
 - A test that wants the CLI to reach its engine passes the engine itself: `env: {CONCIV_PORT: new URL(engine.address.apiBase).port, CONCIV_TOKEN: engine.address.token}` (`packages/cli/src/engine-origin.ts:20-49`).
 
 Facts (read): the bin runs only when it is the entry (`packages/cli/src/bin.ts:5-11`); results and failures print one JSON envelope line (`envelope.ts:9,17`); `--help` and `--version` print plain text (`run.ts:32,36`); opencode's tests keep a private `cli()` of this exact shape per file (`packages/cli/test/auth.test.ts:375-386`) with an isolated environment (`cli/test/fixture/environment.ts:8-26`).
 
-Before writing the proofs, read and cite: what `conciv --version` prints (the exact text and where it comes from), and the exact argv and envelope of one read-only command that needs only `CONCIV_PORT` and `CONCIV_TOKEN` (the facts name `plugin call` and `tools`); use the test runner plugin's `status` rpc if `plugin call` takes an rpc id and method.
+Read in review: `conciv --version` prints `conciv <core version>` and a newline, nothing on stderr, exit 0 (`packages/cli/src/main.ts:11`, `run.ts:35`); `['plugin', 'call', 'test-runner', 'status']` needs only `CONCIV_PORT` and `CONCIV_TOKEN` (`packages/cli/src/plugin.ts:23`, `engine-origin.ts:43,62`) and prints the envelope `{"ok":true,"data":{...the status result...}}`.
 
 - [ ] **Step 1: Proofs** `src/kit-cli.test.ts` (node):
 
@@ -76,18 +76,21 @@ test('the conciv CLI prints its version', async () => {
   const run = await cli(['--version'])
 
   expect(run).toMatchObject({exitCode: 0, stderr: ''})
-  expect(run.stdout).toMatch(VERSION_TEXT)
+  expect(run.stdout).toMatch(/^conciv \d+\.\d+\.\d+\n$/)
 })
 
 test("the conciv CLI calls a plugin of the test's engine", async () => {
   const engine = await createEngine({plugins: ['@conciv/plugin-test-runner']})
 
-  const run = await cli(PLUGIN_CALL_ARGS, {
+  const run = await cli(['plugin', 'call', 'test-runner', 'status'], {
     env: {CONCIV_PORT: new URL(engine.address.apiBase).port, CONCIV_TOKEN: engine.address.token},
   })
 
   expect(run.exitCode).toBe(0)
-  expect(JSON.parse(run.stdout)).toMatchObject(PLUGIN_CALL_ENVELOPE)
+  expect(JSON.parse(run.stdout)).toEqual({
+    ok: true,
+    data: {summary: {passed: 0, failed: 0, skipped: 0, durationMs: 0}, failures: [], tests: []},
+  })
 })
 
 test('a CLI command that fails answers with its exit code', async () => {
@@ -97,7 +100,19 @@ test('a CLI command that fails answers with its exit code', async () => {
 })
 ```
 
-`VERSION_TEXT`, `PLUGIN_CALL_ARGS` and `PLUGIN_CALL_ENVELOPE` are the literals read above, written inline.
+Two more proofs in the same file, for what the Review Focus promises:
+
+```ts
+test('the CLI does not see the home of whoever runs the tests', async () => {
+  const run = await cli(['plugin', 'call', 'test-runner', 'status'])
+
+  expect(run.exitCode).not.toBe(0)
+})
+```
+
+With no `CONCIV_PORT` given and an isolated home, the CLI finds no engine and fails, even while a real conciv dev server is running on the machine (start one for the passing run, or say plainly that none was running and this part is unproven).
+
+The limit is proven on a throwaway copy of `cli.ts` with `CLI_DEADLINE_MS` set to 300 and a command that waits for an engine that never answers (`CONCIV_PORT` of a port where a throwaway TCP server accepts and never replies): the call rejects with the limit's message, and the child's pid is gone afterwards (`process.kill(pid, 0)` throws). Report the output; the 60 s constant itself is not waited out.
 
 - [ ] **Step 2: Failing run** (`cli` is not exported). **Step 3: Change. Step 4: Passing run; check no temp home is left (`ls "$TMPDIR" | grep conciv`). Step 5: Gates plus `publint` and `attw` for both kits, `check-turbo-depends-on` (a new peer), commit** `feat(testkits): a node test runs the conciv CLI`.
 
@@ -111,6 +126,6 @@ test('a CLI command that fails answers with its exit code', async () => {
 
 ## Decisions to confirm (made by the orchestrator while the maintainer was away)
 
-1. `cli` lives in `@conciv/harness-testkit` and is re-exported by `@conciv/plugin-testkit/node` only.
+1. `cli` (named in `kit-plan.md` step 3) lives in `@conciv/harness-testkit` and is re-exported by `@conciv/plugin-testkit/node` only. The proofs reach the engine with `CONCIV_PORT` and `CONCIV_TOKEN`, so the item does not wait for the announced engine, which `kit-plan.md` lists as its dependency.
 2. Each `cli` call gets a fresh temp home; a test that wants the engine's home passes it in `env`.
 3. `@conciv/cli` becomes a peer of the harness testkit.

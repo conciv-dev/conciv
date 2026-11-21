@@ -1,8 +1,8 @@
-# Test kits, step 4a (product changes: engine version, the start limit, the clock seam) Implementation Plan
+# Test kits, step 4a (product changes: engine version, the start limit) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Three small product changes the kit needs, each mirroring something that already exists: the engine's reported version becomes an input (as opencode's `app.version`), the "agent did not start" limit becomes an option (as its sibling, the first-output limit, already is), and the engine's Effect runtime takes a clock (as opencode's test runtime runs under `TestClock`).
+**Goal:** Two small product changes the kit needs, each mirroring something that already exists: the engine's reported version becomes an input (as opencode's `app.version`), and the "agent did not start" limit becomes an option (as its sibling, the first-output limit, already is). The clock is described but not built: it waits for the maintainer.
 
 **Architecture:** Each is one optional field on `makeApp`'s options with today's behaviour as the default, threaded exactly the way an existing sibling field is, and then one option or call on the kits.
 
@@ -21,13 +21,13 @@ All of the step 0 plan's "Global Constraints" and the additions of the later ste
 
 ## Review Focus
 
-1. A default engine after each change: same version header, same 30 s start limit, same live clock. Covered by rerunning the earlier proofs in every task.
+1. A default engine after each change: same version header, same 30 s start limit. The rerun of the earlier proofs is a regression smoke only; each task adds one assert on the default (Task 1: a default engine's header equals the core package version; Task 2 cannot assert 30 s without waiting it out, so the default is checked by reading the diff: the constant stays the fallback).
 2. The version reaches BOTH places the header is written (the normal routes and the 401 path), Task 1.
 3. A test clock that also freezes work the engine must finish in real time (the HTTP round trip, the socket): the clock is given only to the plugin host's Effect runtime, Task 3.
 4. `advance` called on an engine that was not made with a test clock: it rejects with a plain message, Task 3.
 5. Browser mode: `advance` crosses as one command carrying a number, Task 3.
 
-Run order: 1, 2, 3. One lane.
+Run order: 1, 2. One lane. Task 3 is NOT executable: see its own first line.
 
 ---
 
@@ -37,7 +37,7 @@ Run order: 1, 2, 3. One lane.
 
 **Interfaces:**
 
-- Product: `MakeAppOpts.app?: {version?: string}`, default the core package's own version (today hard-coded at `cors.ts:55-57`), handed to `corsMiddleware` at both call sites (`app.ts:359` via `composeRoutes` called at `:822`, and the gate at `:858`). As opencode `app: {name?, version?, channel?}` (`packages/server/src/options.ts:8-14`, test `packages/server/test/process.test.ts:16,55`).
+- Product: `MakeAppOpts.app?: {version?: string}`, default the core package's own version (today hard-coded at `cors.ts:55-57`), handed to `corsMiddleware` at both call sites: the normal routes (`app.ts:359`) and the refusal app that answers 401 (`packages/core/src/.../engine-login.ts:297`, reached through `makeEngineGate`, built at `app.ts:858`). It changes the reported header only; the plugin host's own App service keeps the package version (`plugin-runtime.ts:114`). As opencode `app: {name?, version?, channel?}` (`packages/server/src/options.ts:8-14`, test `packages/server/test/process.test.ts:16,55`).
 - Kits: `app?: {version?: string}` on `HarnessEngineOptions` and `CreateEngineOptions`, passed through. Plain JSON.
 
 - [ ] **Step 1: Proof** `src/kit-version.test.ts` (node, test-runner):
@@ -55,7 +55,28 @@ test('the engine reports the version the test gave it', async () => {
 })
 ```
 
-Read the header's exact name in `cors.ts` first and use it; if it is not readable by `fetch` in node, report it.
+Read the header's exact name in `cors.ts` first and use it; if it is not readable by `fetch` in node, report it. Two more asserts in the same file:
+
+```ts
+test('a refused request carries the same version', async () => {
+  const engine = await createEngine({app: {version: '0.0.1'}})
+
+  const refused = await fetch(`${new URL(engine.address.apiBase).origin}/api/mcp`)
+
+  expect(refused.status).toBe(401)
+  expect(refused.headers.get('x-conciv-version')).toBe('0.0.1')
+})
+
+test('an engine given no version reports its own', async () => {
+  const engine = await createEngine()
+
+  const health = await fetch(`${engine.address.apiBase}/health`)
+
+  expect(health.headers.get('x-conciv-version')).toMatch(/^\d+\.\d+\.\d+$/)
+})
+```
+
+Pick the protected path from `engine-login.ts:28` (any path not in its open list); if `/api/mcp` is open or answers another status, use one that answers 401 and report it.
 
 A second proof in the app proof worktree, `apps/conciv/src/version.dom.test.tsx`: mount on `/panel/latest?open=true` with `app: {version: '0.0.1'}` and `expect(await screen.findByRole('alert')).toHaveTextContent('but the conciv engine is older')` (`apps/conciv/src/shell/engine-notice.tsx:21,64`). If `toHaveTextContent` is not available in the kit's setup, use `findByText` with a function matcher on that sentence and say so.
 
@@ -90,47 +111,26 @@ test('an agent that never starts fails the turn after the limit the test set', a
 
 500 ms reads "1s" if this text rounds as the first-output text does (`chat-server.ts:717,728`); read `:727` and its rounding, and use what the code produces.
 
-- [ ] **Step 2: Failing run:** vitest's own timeout (the product waits 30 s). **Step 3: Change. Step 4: Passing run (about a second); rerun every earlier proof. Step 5: Gates, commit** `feat(chat): the limit for an agent that never starts is an option`.
+- [ ] **Step 2: Failing run.** The product limit and vitest's test timeout are both 30 s, so the failing run would be a race between them. Give this one proof a shorter vitest timeout for the failing run only (`test(name, {timeout: 5000}, ...)`): it then fails on vitest's 5 s timeout, which shows the option is ignored. **Step 3: Change. Step 4: Passing run with the same 5 s timeout (the turn fails after about half a second; the text reads "1s" by rounding); rerun every earlier proof. Step 5: Gates, commit** `feat(chat): the limit for an agent that never starts is an option`.
 
 ---
 
-### Task 3: the engine's Effect runtime takes a clock
+### Task 3: the engine's Effect runtime takes a clock: NOT EXECUTABLE, waits for the maintainer
 
-**Files:** `packages/core/src/app.ts`, `packages/core/src/runtime/plugin-runtime.ts` (where `pluginHostLayer` is assembled and the host runtime made, `:339`); `packages/harness-testkit/src/harness-engine.ts`; `packages/plugin-testkit/src/engine.ts`, `browser-commands.ts`, `browser-engine.ts`, `test-projects.ts`; READMEs; `.changeset/engine-clock.md`.
+Not built. Two reasons, both found in review:
 
-**Interfaces:**
+1. **No valid proof exists.** The seam needs one engine behaviour that sleeps through Effect's `Clock` inside the plugin host runtime and that a test can observe without polling. The closest is the skill reload's 100 ms debounce (`packages/plugin-host/src/core/skill.ts:137,153`), but the file system's own callback can arrive after a single `advance(100)`, before the debounce sleep exists; opencode meets the same race and drives its test clock with repeated advances between real settles (`packages/core/test/lib/clock.ts:4-32`), which is a larger interface than the one call the overall plan names. The other candidates (the supervisor's 24 h sleep, server polling, the search's 20 ms sleep) show nothing a test can observe.
+2. **It would not complete the clock item anyway.** `kit-plan.md` says every engine read of the time goes through the clock; this seam reaches only the reads already on Effect's clock (about 50 of about 136).
 
-- Product: `MakeAppOpts.clock?: Layer.Layer<never>`, merged at the bottom of `pluginHostLayer`, beside where the config provider layer is merged. Absent: the live clock, as today. This is the whole product change: it moves the engine time reads that already go through Effect's `Clock` inside the plugin host runtime (about 50 sites by the inventory). As opencode, whose core test layers build under `TestClock.layer()` (`packages/core/test/lib/effect.ts:72,79-80`) and whose tests move it (`packages/core/test/lib/clock.ts:9-32`).
-- Kits: `clock?: 'test'` on `createEngine` (opt in), and `engine.clock.advance(ms: number): Promise<void>`, which runs `TestClock.adjust` on the host runtime the engine made (`MadeApp.pluginHost`, `app.ts:393`). On an engine made without `clock: 'test'` it rejects: `the engine was not made with clock: 'test'`. Browser mode: `concivClockAdvance(engineId, ms)`.
-
-Before the proof, read the inventory in `020243-plugins-q.md` and pick ONE time-based behaviour that (a) reads the time or sleeps through Effect's `Clock` inside the plugin host runtime, and (b) a test can observe with today's kit calls and no polling (an event through `engine.event`, a tool answer, a `requests()` entry). Cite its file:line. If no site meets both, STOP and report the candidates: the seam is not committed without a proof.
-
-- [ ] **Step 1: Proof** `src/kit-clock.test.ts` (node), same body as `.browser.test.tsx`, in this shape, with the behaviour picked above:
-
-```ts
-test('a test moves the engine clock instead of waiting', async () => {
-  const engine = await createEngine({clock: 'test'})
-  const wait = await engine.event(EVENT_THAT_FIRES_AFTER_A_DELAY)
-
-  START_THE_BEHAVIOUR
-  await engine.clock.advance(DELAY_MS)
-
-  expect(await wait.arrived).toMatchObject({type: EVENT_THAT_FIRES_AFTER_A_DELAY})
-})
-```
-
-Plus one line in the same file: `await expect((await createEngine()).clock.advance(1)).rejects.toThrow("the engine was not made with clock: 'test'")`.
-
-- [ ] **Step 2: Failing run. Step 3: Change. Step 4: Passing run, node and browser mode, in well under the real delay; rerun every earlier proof (a default engine still runs on the live clock). Step 5: Gates, commit** `feat(core): the engine's plugin host runtime takes a clock`.
+What the seam would be, for the ruling: `MakeAppOpts.clock`, a layer merged at the bottom of the plugin host layer beside the config provider layer (`packages/core/src/runtime/plugin-runtime.ts:339`); kit `clock: 'test'` and a call that drives `TestClock` on `MadeApp.pluginHost`, in browser mode one command carrying a number.
 
 ---
 
 ## Not in this plan: needs the maintainer
 
-1. **How far the clock goes.** The inventory found three groups of engine time reads: about 50 already on Effect's clock inside the plugin host runtime (Task 3 covers these), 3 on Effect but outside that runtime, and 83 raw ones (`Date.now`, `setTimeout`, `AbortSignal.timeout`) in about 30 files of core, chat, ai, db, the page plugin and the plugin host. The overall plan says "every engine read of the time goes through it". opencode itself does not go that far: its core source still has 75 raw `Date.now()` reads and its server tests run on the live clock. Moving the 83 is a large product change with no opencode precedent; it is left for a ruling. Until then, time-based journeys that depend on raw reads (the session list's "Yesterday" header reads a stored `Date.now()` stamp) are not reachable by the clock.
-2. **The other hard-coded timers.** The page plugin's permission sync is on the host runtime, so Task 3 reaches it. The whiteboard binding wait, the page's attach retries and mask limits, the recorder's waits and the ios pick limit are in the BROWSER, where no engine clock or engine option reaches; each needs a plugin option or stays untested. Listed for a ruling per plugin.
+1. **The clock, both its reach and its driving call.** The driving call first: one `advance(ms)`, or opencode's shape, a call that advances in steps between real settles until a condition holds. Then how far it goes. The inventory found three groups of engine time reads: about 50 already on Effect's clock inside the plugin host runtime (Task 3 covers these), 3 on Effect but outside that runtime, and 83 raw ones (`Date.now`, `setTimeout`, `AbortSignal.timeout`) in about 30 files of core, chat, ai, db, the page plugin and the plugin host. The overall plan says "every engine read of the time goes through it". opencode itself does not go that far: its core source still has 75 raw `Date.now()` reads and its server tests run on the live clock. Moving the 83 is a large product change with no opencode precedent; it is left for a ruling. Until then, time-based journeys that depend on raw reads (the session list's "Yesterday" header reads a stored `Date.now()` stamp) are not reachable by the clock.
+2. **The other hard-coded timers.** The page plugin's permission sync is on the host runtime, so the clock would reach it. The whiteboard binding wait, the page's attach retries and mask limits, the recorder's waits and the ios pick limit are in the BROWSER, where no engine clock or engine option reaches; each needs a plugin option or stays untested. Listed for a ruling per plugin.
 
 ## Decisions to confirm (made by the orchestrator while the maintainer was away)
 
-1. The names `app.version`, `timeouts.firstStartTimeoutMs`, `clock: 'test'`, `engine.clock.advance(ms)`.
-2. The test clock is opt in per engine; a default engine keeps the live clock.
+1. The names `app.version` and `timeouts.firstStartTimeoutMs`.
