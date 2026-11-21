@@ -138,6 +138,6 @@ describe('stopping with a queue', () => {
 
     expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
     expect(screen.queryByText('4 waiting · runs in order')).not.toBeInTheDocument()
-    expect(input).toHaveTextContent(/^Second task\s*Third task\s*Fourth task\s*Fifth task$/)
+    expect(input.textContent).toBe('Second taskThird taskFourth taskFifth task')
   })
 })

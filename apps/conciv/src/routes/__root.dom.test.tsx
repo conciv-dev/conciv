@@ -120,7 +120,7 @@ describe('a run fails with a message queued', () => {
     await gate.release()
     expect(await screen.findByRole('alert', {name: 'The model is unavailable'})).toBeVisible()
     expect(await within(input).findByText('Second task')).toBeVisible()
-    expect(input).toHaveTextContent(/^Second task$/)
+    expect(input.textContent).toBe('Second task')
     expect(screen.queryByText('1 waiting · runs in order')).not.toBeInTheDocument()
   })
 })
