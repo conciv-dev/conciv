@@ -80,7 +80,7 @@ describe('losing the engine', () => {
     expect(screen.getByRole('button', {name: 'Retry'})).toBeVisible()
     await restarted
 
-    await engine.reply(TestLLM.text('Still here', 'reply'))
+    await engine.reply(TestLLM.text('Still here'))
     await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Hello again')
     await user.click(await screen.findByRole('button', {name: 'Send message'}))
     expect(await screen.findByText('Still here')).toBeVisible()
