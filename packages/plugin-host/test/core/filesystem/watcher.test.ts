@@ -341,7 +341,9 @@ describe('FileSystem.find', () => {
           vcs: {type: 'git', store: AbsolutePath.make(path.join(directory, '.git'))},
         }),
       ),
-      Layer.provide(Global.layerWith({cache: path.join(directory, '.cache'), config: directory, state: directory})),
+      Layer.provide(
+        Global.layerWith({cache: path.join(directory, '.cache'), config: directory, state: directory, log: directory}),
+      ),
       Layer.provide(FSUtil.layer),
       Layer.provide(FetchHttpClient.layer),
       Layer.provide(NodeServices.layer),

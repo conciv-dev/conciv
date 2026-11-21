@@ -1,8 +1,11 @@
 import {spawn} from 'node:child_process'
 import {once} from 'node:events'
+import {readFile} from 'node:fs/promises'
+import path from 'node:path'
 import {text} from 'node:stream/consumers'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, test} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {resource} from './otlp.js'
 
 const withResourceAttributes = test.extend<{setResourceAttributes: (value: string) => void}>({
@@ -53,21 +56,28 @@ describe('resource', () => {
   })
 })
 
-test('an OTLP initialization failure neither fails nor prints', async () => {
+test('falls back to local logging when OTLP initialization fails', async () => {
+  const log = tempDir('conciv-observability-test-')
   const child = spawn(
     process.execPath,
     [
       '--input-type=module',
       '--eval',
       `
-        import {Effect} from 'effect'
-        import {Observability} from '@conciv/plugin-host'
-        await Effect.void.pipe(Effect.provide(Observability.layer({endpoint: '://invalid'})), Effect.scoped, Effect.runPromise)
+        import {Effect, Layer} from 'effect'
+        import {Global, Observability} from '@conciv/plugin-host'
+        const roots = Global.layerWith({cache: process.env.LOG_ROOT, config: process.env.LOG_ROOT, state: process.env.LOG_ROOT, log: process.env.LOG_ROOT})
+        await Effect.logInfo('after the fallback').pipe(Effect.provide(Observability.layer({endpoint: '://invalid'}).pipe(Layer.provide(roots))), Effect.scoped, Effect.runPromise)
       `,
     ],
-    {cwd: fileURLToPath(new URL('../../..', import.meta.url)), stdio: ['ignore', 'ignore', 'pipe']},
+    {
+      cwd: fileURLToPath(new URL('../../..', import.meta.url)),
+      env: {...process.env, LOG_ROOT: log, CONCIV_PRINT_LOGS: ''},
+      stdio: ['ignore', 'ignore', 'pipe'],
+    },
   )
   const [stderr, [exitCode]] = await Promise.all([text(child.stderr), once(child, 'exit')])
 
   expect({exitCode, stderr}).toEqual({exitCode: 0, stderr: ''})
+  expect(await readFile(path.join(log, 'conciv-local.log'), 'utf8')).toContain('message="after the fallback"')
 })

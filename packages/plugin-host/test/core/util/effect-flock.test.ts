@@ -45,6 +45,7 @@ const testGlobal = Global.layerWith({
   cache: globalRoot,
   config: globalRoot,
   state: globalRoot,
+  log: globalRoot,
 })
 
 const testLayer = EffectFlock.layer.pipe(
