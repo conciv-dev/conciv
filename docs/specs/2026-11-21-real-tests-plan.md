@@ -58,7 +58,10 @@
 - [ ] Copy the four feature lists from the orchestrator inbox into `docs/specs/tests/features/` unchanged: `app.md` (234354-plugins-a), `engine.md` (234512-plugins-q), `plugins.md` (234529-plugins-r), `sdk-embed.md` (234313-plugins3). They were judged against an older kit: their YES and NO marks are stale, their feature rows are the list.
 - [ ] Check that the app's `test` task is picked up by CI (`conciv-ci-shards plan` lists `@conciv/app`) and that `turbo run test --filter=@conciv/app` builds what it needs on a clean dist.
 
-Every other task starts when Task 0 is committed.
+**Two gates, both the maintainer's words (2026-11-21):**
+
+1. This plan does not start until the kit is complete: every piece in `docs/specs/kit-plan.md` and the plans beside it is built, and every open unknown has an answer.
+2. After Task 0, everything stops. The maintainer looks at the first real test file ("I do want to see the first real test file before we write anymore"). Tasks 1 to 8 start only on his word.
 
 ---
 
