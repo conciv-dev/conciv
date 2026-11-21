@@ -1,4 +1,6 @@
 import {z} from 'zod'
+import {observable} from 'solid-js'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import {difference} from 'es-toolkit'
 import {ORPCError} from '@orpc/client'
 import {
@@ -222,7 +224,17 @@ export function makeAppData(
       console.error('[conciv] could not empty the local draft store', error)
     })
   }
+  const engineBound = async (): Promise<void> => {
+    const bound = Promise.withResolvers<void>()
+    const watching = observable(server).subscribe((apiBase) => {
+      if (apiBase !== '') bound.resolve()
+    })
+    makeEventListener(reading.signal, 'abort', () => bound.resolve())
+    await bound.promise
+    watching.unsubscribe()
+  }
   const forgetDeletedSessions = async () => {
+    await engineBound()
     for await (const event of client.event.subscribe({signal: reading.signal})) {
       if (event.type !== 'session.deleted') continue
       const sessionId = event.data.sessionID
