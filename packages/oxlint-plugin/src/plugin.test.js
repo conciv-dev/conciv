@@ -8,6 +8,7 @@ RuleTester.it = it
 const tester = new RuleTester()
 const renderImport = "import {render} from 'solid-js/web'"
 const renderError = {messageId: 'solidWebRenderInTest', data: {name: 'render'}}
+const domTest = '/repo/src/view.dom.test.tsx'
 
 tester.run('solid-test-render', plugin.rules['solid-test-render'], {
   valid: [
@@ -46,6 +47,106 @@ tester.run('solid-test-render', plugin.rules['solid-test-render'], {
       code: "import {hydrate} from 'solid-js/web'",
       filename: '/repo/view.test.ts',
       errors: [{messageId: 'solidWebRenderInTest', data: {name: 'hydrate'}}],
+    },
+  ],
+})
+
+tester.run('no-delegated-focus', plugin.rules['no-delegated-focus'], {
+  valid: [
+    {name: 'a focus handler Solid does not delegate', code: '<input onFocus={open} />', filename: 'view.tsx'},
+    {name: 'a native focusin listener', code: '<input on:focusin={open} />', filename: 'view.tsx'},
+  ],
+  invalid: [
+    {
+      name: 'onFocusIn',
+      code: '<input onFocusIn={open} />',
+      filename: 'view.tsx',
+      errors: [{messageId: 'delegatedFocus', data: {name: 'onFocusIn'}}],
+    },
+    {
+      name: 'onfocusout',
+      code: '<input onfocusout={close} />',
+      filename: 'view.tsx',
+      errors: [{messageId: 'delegatedFocus', data: {name: 'onfocusout'}}],
+    },
+  ],
+})
+
+tester.run('tool-card-shell', plugin.rules['tool-card-shell'], {
+  valid: [
+    {
+      name: 'inside the chat kit',
+      code: "import {CollapsibleCard} from '@conciv/ui-kit-chat'",
+      filename: '/repo/packages/ui-kit-chat/src/tools/card.tsx',
+    },
+    {
+      name: 'a public kit part',
+      code: "import {CardShell} from '@conciv/ui-kit-chat/tools'",
+      filename: '/repo/apps/conciv/src/card.tsx',
+    },
+    {
+      name: 'another package with the kit name as a prefix',
+      code: "import {CollapsibleCard} from '@conciv/ui-kit-chat-tools'",
+      filename: '/repo/apps/conciv/src/card.tsx',
+    },
+  ],
+  invalid: [
+    {
+      name: 'the internal card outside the kit',
+      code: "import {CollapsibleCard} from '@conciv/ui-kit-chat/tools'",
+      filename: '/repo/apps/conciv/src/card.tsx',
+      errors: [{messageId: 'collapsibleCardOutsideKit'}],
+    },
+  ],
+})
+
+tester.run('user-event-only', plugin.rules['user-event-only'], {
+  valid: [
+    {
+      name: 'the IME guard',
+      code: "import {fireEvent} from '@solidjs/testing-library'\nfireEvent.keyDown(input, {isComposing: true})",
+      filename: domTest,
+    },
+    {
+      name: 'the IME guard through a namespace',
+      code: "import * as dom from '@testing-library/dom'\ndom.fireEvent.keyDown(input, {isComposing: true})",
+      filename: domTest,
+    },
+    {
+      name: 'a file that is not a dom test',
+      code: "import {fireEvent} from '@solidjs/testing-library'\nfireEvent.click(button)",
+      filename: '/repo/src/view.browser.test.tsx',
+    },
+    {
+      name: 'fireEvent from another module',
+      code: "import {fireEvent} from './events'\nfireEvent.click(button)",
+      filename: domTest,
+    },
+  ],
+  invalid: [
+    {
+      name: 'a fireEvent call',
+      code: "import {fireEvent} from '@solidjs/testing-library'\nfireEvent.click(button)",
+      filename: domTest,
+      errors: [{messageId: 'fireEvent'}],
+    },
+    {
+      name: 'an unused fireEvent import',
+      code: "import {fireEvent} from '@testing-library/dom'",
+      filename: domTest,
+      errors: [{messageId: 'fireEvent'}],
+    },
+    {
+      name: 'fireEvent through a namespace',
+      code: "import * as dom from '@testing-library/dom'\ndom.fireEvent.click(button)",
+      filename: domTest,
+      errors: [{messageId: 'fireEvent'}],
+    },
+    {
+      name: 'a keyDown that is not composing',
+      code: "import {fireEvent} from '@solidjs/testing-library'\nfireEvent.keyDown(input, {isComposing: false})",
+      filename: domTest,
+      errors: [{messageId: 'fireEvent'}],
     },
   ],
 })
