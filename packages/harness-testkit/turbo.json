@@ -17,14 +17,15 @@
         "@conciv/contract#build",
         "@conciv/harness#build",
         "@conciv/serve#build",
-        "@conciv/protocol#build"
+        "@conciv/protocol#build",
+        "@conciv/plugin-testkit#build:types"
       ]
     },
     "kit-runtime": {
       "dependsOn": ["@conciv/core#build"]
     },
     "test": {
-      "dependsOn": ["build", "build:types", "kit-runtime"]
+      "dependsOn": ["build", "build:types", "@conciv/plugin-testkit#build", "kit-runtime"]
     },
     "publint": {
       "dependsOn": ["build", "build:types"]
