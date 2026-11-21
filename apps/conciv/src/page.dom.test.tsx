@@ -149,6 +149,24 @@ describe('the agent runs code on the page', () => {
 
     expect(await result).toEqual({result: 2})
   })
+
+  test('the eval does not run when the user denies it', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => <p id="price">12 euros</p>)
+
+    const result = engine.session
+      .tool('page_eval')
+      .failure({code: "document.querySelector('#price').textContent = 'free'"})
+    const ask = await screen.findByRole('group', {name: 'Permission request'})
+    await user.click(within(ask).getByRole('button', {name: 'Deny'}))
+
+    expect(await result).toMatchObject({message: expect.stringMatching(/denied/)})
+    expect(screen.getByText('12 euros')).toBeVisible()
+  })
 })
 
 describe('the agent reads the page during a reply', () => {
@@ -182,5 +200,144 @@ describe('the agent reads the page during a reply', () => {
     expect(within(read).getByRole('img', {name: 'succeeded'})).toBeVisible()
     const failed = within(reply).getByRole('button', {name: /Page text/})
     expect(failed).toHaveTextContent('[page.invalid-args] no element for selector #sold-out')
+  })
+})
+
+describe('the agent works on a page that is open', () => {
+  test('with a page open the page tools and the page skill reach the agent and an outside agent finds them', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(TestLLM.text('This is the plant shop'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+
+    expect(await screen.findByText('This is the plant shop')).toBeVisible()
+    const [request] = await engine.requests()
+    const system = request?.system.join('\n')
+    expect(system).toContain('external_page_click')
+    expect(system).toContain('    <id>page</id>')
+    const found = await engine.outside().discover(['page_click'])
+    expect(found).toMatchObject({content: [{type: 'text', text: expect.stringContaining('page_click')}]})
+    expect(found).not.toMatchObject({content: [{type: 'text', text: expect.stringContaining('Unknown tool')}]})
+  })
+
+  test('the agent reads a plain attribute while a password stays masked in every read', async () => {
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <form id="login">
+        <label>
+          City <input id="city" name="city" placeholder="Lisbon" />
+        </label>
+        <label>
+          Password <input id="password" name="password" type="password" value="hunter2" />
+        </label>
+      </form>
+    ))
+
+    expect(await engine.session.tool('page_attr').call({selector: '#city', attribute: 'placeholder'})).toEqual({
+      value: 'Lisbon',
+    })
+    expect(await engine.session.tool('page_value').call({selector: '#password'})).toEqual({value: '***'})
+    expect(await engine.session.tool('page_attr').call({selector: '#password', attribute: 'value'})).toEqual({
+      value: '***',
+    })
+    expect(await engine.session.tool('page_dom').call({selector: '#login'})).not.toMatchObject({
+      html: expect.stringContaining('hunter2'),
+    })
+    expect(await engine.session.tool('page_snapshot').call({selector: '#login'})).toMatchObject({
+      nodes: expect.arrayContaining([{role: 'textbox', name: 'Password', value: '***'}]),
+    })
+  })
+
+  test('the agent reads what the page logged and waits for a toast the user brings up', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <main>
+        <button
+          type="button"
+          onClick={(event) => {
+            console.info('Fern added to cart')
+            event.currentTarget.nextElementSibling?.removeAttribute('hidden')
+          }}
+        >
+          Add the fern
+        </button>
+        <p id="toast" hidden>
+          Added to your cart
+        </p>
+      </main>
+    ))
+
+    const waited = engine.session.tool('page_wait').call({selector: '#toast', state: 'visible'})
+    await user.click(screen.getByRole('button', {name: 'Add the fern'}))
+
+    expect(screen.getByText('Added to your cart')).toBeVisible()
+    expect(await waited).toEqual({ok: true, state: 'visible'})
+    expect(await engine.session.tool('page_console').call({})).toMatchObject({
+      entries: expect.arrayContaining([expect.objectContaining({level: 'info', text: 'Fern added to cart'})]),
+    })
+  })
+
+  test('a page call that outlasts the reply window comes back as a timeout', async () => {
+    const engine = await createEngine({}, {timeouts: {pageReplyTimeoutMs: 500}})
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    expect(
+      await engine.session.tool('page_wait').failure({selector: '#never', state: 'visible', timeout: 5000}),
+    ).toMatchObject({
+      message: expect.stringContaining('[page.timeout] page.wait did not finish within 0.5 seconds'),
+    })
+  })
+
+  test('the page attaches again after the engine restarts and answers the agent', async () => {
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    const again = await engine.event('rpc.experimental.page.control')
+    await engine.restart()
+    await again.arrived
+
+    expect(await engine.session.tool('page_route').call({})).toMatchObject({pathname: '/', state: 'visible'})
+  })
+})
+
+describe('the agent drives a page effect', () => {
+  test('the highlight effect turns on, opens the inspector, and turns off again', async () => {
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    expect(await engine.session.tool('page_effect').call({action: 'enable', effect: 'highlight'})).toEqual({
+      effect: 'highlight',
+      enabled: true,
+    })
+    expect(
+      await screen.findByText(
+        (_, element) => element?.textContent === 'Inspecting · click to open source · Esc to exit',
+      ),
+    ).toBeVisible()
+
+    expect(await engine.session.tool('page_effect').call({action: 'disable', effect: 'highlight'})).toEqual({
+      effect: 'highlight',
+      enabled: false,
+    })
+    expect(
+      screen.queryByText((_, element) => element?.textContent === 'Inspecting · click to open source · Esc to exit'),
+    ).not.toBeInTheDocument()
   })
 })

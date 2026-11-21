@@ -369,6 +369,26 @@ describe('the agent moves around the page', () => {
     const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
     expect(within(reply).getByText('Queued page actions')).toBeVisible()
   })
+
+  test('a queued action the page does not confirm in time fails with a timeout', async () => {
+    const engine = await createEngine({}, {timeouts: {queuedActionTimeoutMs: 1}})
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <button id="buy" type="button">
+        Buy the fern
+      </button>
+    ))
+
+    expect(
+      await engine.session.tool('page_queue').call({actions: [{tool: 'page_click', selector: '#buy'}]}),
+    ).toMatchObject({
+      status: 'finished',
+      failed: 1,
+      outcomes: [{index: 0, tool: 'page_click', ok: false, error: expect.stringContaining('[page.timeout]')}],
+    })
+  })
 })
 
 describe('the agent edits the page', () => {
