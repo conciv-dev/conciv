@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import {codeDiscoverReply, codeExecuteReply, makeRpcClient, type CodeReply, type RpcClient} from '@conciv/contract'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, SessionId} from '@conciv/protocol/chat-types'
+import {externalCallProgram} from './call-tool.js'
 
 const TERMINAL_CLIENT = 'terminal'
 
@@ -39,10 +40,8 @@ export function outsideAgent(apiBase: string, agent: OutsideAgent = {}): Outside
     describe: () => rpc.code.describe(undefined),
     discover: (toolNames) => replied(rpc.code.discover({...session, toolNames}).then(codeDiscoverReply)),
     call: (name, input) =>
-      replied(
-        rpc.code
-          .execute({...session, typescriptCode: `return await external_${name}(${JSON.stringify(input ?? {})})`})
-          .then(codeExecuteReply),
+      Promise.try(() => externalCallProgram(name, input)).then((typescriptCode) =>
+        replied(rpc.code.execute({...session, typescriptCode}).then(codeExecuteReply)),
       ),
   }
 }

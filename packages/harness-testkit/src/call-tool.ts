@@ -44,6 +44,17 @@ function readReply(name: string, raw: unknown, decode: Decode): unknown {
   return reply
 }
 
+const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+export function externalCallProgram(name: string, input: unknown): string {
+  if (!PLAIN_IDENTIFIER.test(name)) {
+    throw new Error(
+      `the tool name "${name}" is not a plain identifier (letters, digits and _, not starting with a digit), so code mode cannot call it as external_${name}`,
+    )
+  }
+  return `return await external_${name}(${JSON.stringify(input ?? {})})`
+}
+
 export async function callTool(apiBase: string, session: string, name: string, input: unknown): Promise<unknown> {
   const client = new Client({name: 'conciv-test', version: '0.0.0'})
   await client.connect(
@@ -55,10 +66,9 @@ export async function callTool(apiBase: string, session: string, name: string, i
     const deadline = AbortSignal.timeout(DEADLINE_MS)
     const {tools} = await client.listTools(undefined, {signal: deadline})
     const direct = tools.some((tool) => tool.name === name)
-    const typescriptCode = `return await external_${name}(${JSON.stringify(input ?? {})})`
     const call = direct
       ? {name, arguments: z.record(z.string(), z.unknown()).parse(input ?? {})}
-      : {name: 'execute_typescript', arguments: {typescriptCode}}
+      : {name: 'execute_typescript', arguments: {typescriptCode: externalCallProgram(name, input)}}
     const raw = await client.callTool(call, undefined, {signal: deadline}).catch((error: unknown) => {
       if (!deadline.aborted) throw error
       throw new Error(`the tool ${name} gave no reply within ${DEADLINE_MS}ms`, {cause: error})

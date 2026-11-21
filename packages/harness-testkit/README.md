@@ -28,4 +28,4 @@ The engine is the product's own `makeApp`, and the kit talks to it the way the p
 
 ## Verification
 
-- `pnpm exec turbo run test --filter=@conciv/harness-testkit`: the quick harness's lists over the engine rpc, and a reply that fails part-way. Behaviour is also proven by the plugin tests that use `@conciv/plugin-testkit`.
+- `pnpm exec turbo run test --filter=@conciv/harness-testkit`: `src/harness-engine.test.ts`, the kit's own promises that no consumer test observes: replies taken in order and the error on an empty queue, the real clock refusing `engine.clock`, and a tool name that is not a plain identifier refused before a code-mode program is built. Behaviour is also proven by the plugin tests that use `@conciv/plugin-testkit`.
