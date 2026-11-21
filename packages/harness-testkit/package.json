@@ -24,6 +24,10 @@
     ".": {
       "types": "./dist/harness-engine.d.ts",
       "import": "./dist/harness-engine.js"
+    },
+    "./run-tests": {
+      "types": "./dist/run-tests.d.ts",
+      "import": "./dist/run-tests.js"
     }
   },
   "publishConfig": {
@@ -35,7 +39,7 @@
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "vitest run",
+    "test": "node dist/run-tests.js",
     "build:types": "tsdown -c tsdown.types.config.ts"
   },
   "dependencies": {

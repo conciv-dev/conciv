@@ -8,6 +8,7 @@
 - `test-llm.ts`: the reply shapes and helpers of opencode's test model, on `ChatEvent` chunks, and the shape of one recorded model request.
 - `call-tool.ts`: a session's tool call on `/api/mcp`: a tool the engine lists by its own name (a direct tool) is called by that name, any other through `execute_typescript`; a reply of one text part is parsed as JSON, a reply of several parts comes back as its content list.
 - `isolated-env.ts`: the environment the engine reads: the developer's own with provider keys, secrets and every `CONCIV_*` variable taken out, and `HOME`, the XDG folders and `TMPDIR` set inside the engine's state folder, as opencode's test runner does; `PATH` is kept.
+- `run-tests.ts`: the `./run-tests` entry behind the `conciv-test` bin. It runs the package's own `vitest run` with the caller's arguments in a fresh home folder, with `isolated-env.ts`'s environment, forwards SIGINT and SIGTERM, removes the folder when vitest exits, and exits with vitest's code.
 - `until.ts`: the private wait `approve` uses until the session has a pending ask.
 
 ## Invariants

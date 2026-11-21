@@ -142,6 +142,8 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. The engine is real and its chat is scripted
   with `replies` built by `TestLLM` (`text`, `toolCall`, `failAfter`, `hangAfter`); `engine.gate()` holds a reply.
   Nothing else is exported; a new kit export or option needs the maintainer's yes.
+- Kit tests run through `conciv-test` (the package's `test` script), which starts vitest with a home of its own
+  and none of the developer's secrets or `CONCIV_*` variables.
 - A package that runs kit tests lists the kit in its own `devDependencies`. The kits are leaves: they depend on no
   workspace package and name what they need as `peerDependencies`.
 - Who mounts the app. A package the app is made of (a dependency of `apps/conciv`: the page, terminal and tanstack

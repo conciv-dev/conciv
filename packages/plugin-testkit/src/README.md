@@ -7,6 +7,7 @@ The engine a test makes, the mount that shows the app on it, and the vitest proj
 ## Files
 
 - `node.ts`, `browser.ts`: the two public entries.
+- `../bin/conciv-test.js`: the `conciv-test` bin, committed so it exists at install time; it starts `@conciv/harness-testkit/run-tests`.
 - `engine.ts`: `createEngine` on `createHarnessEngine` from `@conciv/harness-testkit`, with the plugin names resolved from the package under test and `env` passed through to the engine. An engine made inside a test stops when the test ends; one made at file level stops after the file (`node-setup.ts`).
 - `browser-engine.ts`: the same `createEngine` for browser mode. Each call is a browser command, and the engine runs in Node (`test-projects.ts`). The browser project aliases `/node` to this file.
 - `mount.ts`: renders `ConcivApp` bound to the engine's address, with browser storage seeded, the route opened and an in-memory draft store. `happy-dom.ts` and `browser.ts` give it the address lookup for their side.
