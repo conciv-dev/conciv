@@ -14,6 +14,7 @@ describe('sending with the keyboard', () => {
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     expect(await screen.findByText('Ask a question…')).toBeVisible()
     await user.type(input, 'Hello agent')
+    expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
 
     expect(await screen.findByRole('article', {name: 'You: Hello agent'})).toBeVisible()
@@ -34,10 +35,13 @@ describe('stopping with Escape', () => {
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Take your time')
+    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(input, 'Take your time')
+    expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
     await gate.started
     expect(await screen.findByRole('button', {name: 'Stop generating'})).toBeVisible()
+    expect(input).toHaveFocus()
     await user.keyboard('{Escape}')
 
     expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
