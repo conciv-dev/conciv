@@ -119,7 +119,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   const visibleError = (): Error | undefined => {
     const error = deps.reachability.sustainedOffline() ? undefined : runError()
     if (compact.isSuccess && compact.context?.resolving === error) return undefined
-    return error && error.message !== 'stopped' ? error : undefined
+    return error
   }
 
   const sendState = (): SendState => ({
