@@ -102,4 +102,27 @@ describe('plugins in settings', () => {
     await user.click(screen.getByRole('button', {name: 'Back to chat'}))
     expect(await screen.findByRole('status', {name: 'TanStack inspector active'})).toBeVisible()
   })
+
+  test('a plugin page joins the sections and its section shows in General, an unknown plugin page opens General, and a plugin under a built-in ID is not loaded', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({
+      plugins: ['./test/fixtures/plugins/shell-board', './test/fixtures/plugins/terminal'],
+    })
+    await mount({
+      engine,
+      history: createEngineRouterHistory({
+        initialEntries: [`/panel/${engine.session.id}/settings/plugins/nowhere?open=true`],
+      }),
+    })
+
+    expect(await screen.findByRole('tab', {name: 'General', selected: true})).toBeVisible()
+    expect(await screen.findByText('Deploy notes live here')).toBeVisible()
+
+    await user.click(screen.getByRole('tab', {name: 'Deploy targets'}))
+    expect(await screen.findByText('Ship to staging first')).toBeVisible()
+    expect(screen.getByRole('tab', {name: 'Deploy targets', selected: true})).toBeVisible()
+
+    await user.click(screen.getByRole('tab', {name: 'Plugins'}))
+    expect(await screen.findByText('Not loaded. A built-in plugin already uses this ID.')).toBeVisible()
+  })
 })
