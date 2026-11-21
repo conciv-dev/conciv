@@ -187,10 +187,8 @@ async function readDistReads(
   })
   const files = lines.filter((line) => isAbsolute(line)).flatMap((file) => readProgramFile(root, packages, file))
   const readFromSource = new Set(files.filter((file) => !file.built).map((file) => readName(file.owner)))
-  const fromSource = resolutions.filter((resolution) =>
-    readProgramFile(root, packages, resolution.from).some((file) => !file.built),
-  )
-  return [...new Set(fromSource.map((resolution) => resolution.name))].filter(
+  const fromWorkspace = resolutions.filter((resolution) => readProgramFile(root, packages, resolution.from).length > 0)
+  return [...new Set(fromWorkspace.map((resolution) => resolution.name))].filter(
     (name) => name !== readName(pkg) && !readFromSource.has(name),
   )
 }

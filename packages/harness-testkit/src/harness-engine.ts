@@ -32,14 +32,16 @@ export type HarnessEngineSetting = {scope: 'project' | 'global'; namespace: stri
 
 export type EngineStart = {
   directory?: string
-  timeouts?: Pick<
-    StartOpts,
-    | 'firstChunkTimeoutMs'
-    | 'firstStartTimeoutMs'
-    | 'eventHeartbeatIntervalMs'
-    | 'stopGraceMs'
-    | 'pageReplyTimeoutMs'
-    | 'queuedActionTimeoutMs'
+  timeouts?: Partial<
+    Pick<
+      StartOpts,
+      | 'firstChunkTimeoutMs'
+      | 'firstStartTimeoutMs'
+      | 'eventHeartbeatIntervalMs'
+      | 'stopGraceMs'
+      | 'pageReplyTimeoutMs'
+      | 'queuedActionTimeoutMs'
+    >
   >
   harnesses?: ScriptedHarness[]
   env?: Record<string, string>

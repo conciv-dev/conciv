@@ -126,7 +126,7 @@ describe('a reply that reads the page before it answers', () => {
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {typescriptCode: 'return await external_page_route({})'}),
-      TestLLM.text('You are on the home page', 'reply'),
+      TestLLM.text('You are on the home page'),
     )
     const toolCall = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})

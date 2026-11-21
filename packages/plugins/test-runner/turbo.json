@@ -12,6 +12,9 @@
     },
     "test": {
       "dependsOn": ["^build", "build", "^build:types", "@conciv/harness-testkit#build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "^build:types", "@conciv/harness-testkit#build:types"]
     }
   }
 }
