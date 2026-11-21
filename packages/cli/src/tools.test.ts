@@ -1,0 +1,51 @@
+import {describe, expect, it} from 'vitest'
+import {cli, createEngine} from '@conciv/plugin-testkit'
+
+describe('tools', () => {
+  it("the plugin's group is listed beside the page group, a mistyped verb gets a fix, and a page tool with no page answers NO_PAGE_CLIENT", async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/shelf']})
+
+    const help = await cli(['tools', '--help'], {engine})
+    expect(help.exitCode).toBe(0)
+    expect(help.stdout).toMatch(/^ {2}shelf +the shelf tools the running dev server serves/m)
+    expect(help.stdout).toMatch(/^ {2}page +the page tools the running dev server serves/m)
+
+    const groupHelp = await cli(['tools', 'shelf', '--help'], {engine})
+    expect(groupHelp.stdout).toMatch(/^ {2}label +Print a label for a plant on the shelf/m)
+    expect(groupHelp.stdout).toMatch(/^ {2}restock +Restock a plant on the shelf/m)
+
+    const mistyped = await cli(['tools', 'shelf', 'lable', 'fern'], {engine})
+    expect(mistyped.exitCode).toBe(1)
+    expect(JSON.parse(mistyped.stdout)).toEqual({
+      ok: false,
+      error: {
+        kind: 'user',
+        message: "Unknown command 'lable' for conciv tools shelf. Did you mean 'label'?",
+        hint: 'run conciv tools shelf --help to list its commands',
+      },
+    })
+
+    const noPage = await cli(['tools', 'page', 'route'], {engine})
+    expect(noPage.exitCode).toBe(1)
+    expect(JSON.parse(noPage.stdout)).toEqual({
+      ok: false,
+      error: {kind: 'user', message: 'page_route: no widget connected to session', code: 'NO_PAGE_CLIENT'},
+    })
+  })
+
+  it('the verb runs with its positional argument and flags spelled from its schema', async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/shelf']})
+
+    const plain = await cli(['tools', 'shelf', 'label', 'fern'], {engine})
+    expect(plain.exitCode).toBe(0)
+    expect(JSON.parse(plain.stdout)).toEqual({ok: true, data: {plant: 'fern'}})
+
+    const flagged = await cli(['tools', 'shelf', 'label', 'fern', '--pots', '2', '--sunny', '--pot-color', 'red'], {
+      engine,
+    })
+    expect(JSON.parse(flagged.stdout)).toEqual({ok: true, data: {plant: 'fern', pots: 2, sunny: true, potColor: 'red'}})
+
+    const camel = await cli(['tools', 'shelf', 'label', 'fern', '--potColor', 'blue'], {engine})
+    expect(JSON.parse(camel.stdout)).toEqual({ok: true, data: {plant: 'fern', potColor: 'blue'}})
+  })
+})
