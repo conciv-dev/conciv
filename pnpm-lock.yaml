@@ -796,21 +796,33 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/harness-testkit':
+        specifier: workspace:*
+        version: link:../../packages/harness-testkit
       '@conciv/plugin-page':
         specifier: workspace:^
         version: link:../../packages/plugins/page
+      '@conciv/plugin-testkit':
+        specifier: workspace:*
+        version: link:../../packages/plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../packages/uno-preset
+      '@solidjs/testing-library':
+        specifier: 'catalog:'
+        version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
       '@tanstack/router-cli':
         specifier: 'catalog:'
         version: 1.167.46
       '@tanstack/router-plugin':
         specifier: 'catalog:'
         version: 1.168.48(@rspack/core@2.3.2(@swc/helpers@0.5.23))(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(esbuild@0.28.2)(rolldown@1.2.15)(rollup@4.62.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)(webpack@5.112.2(esbuild@0.28.2)(postcss@8.5.32))
+      '@testing-library/user-event':
+        specifier: 'catalog:'
+        version: 14.6.8(@testing-library/dom@10.4.2)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -847,6 +859,9 @@ importers:
       vite-plugin-solid:
         specifier: 'catalog:'
         version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
   apps/examples/nextjs-app:
     dependencies:
