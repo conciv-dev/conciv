@@ -242,6 +242,10 @@ export const make = Effect.fn('PageConnection.make')(function* (
         const permissions = reconcilePagePermissions(session.permissions, effect.allow)
         return permissions ? ctx.session.update({sessionId: effect.sessionId, permissions}) : Effect.void
       }),
+      Effect.catchIf(
+        (error) => !effect.allow && SessionNotFound(error),
+        () => Effect.void,
+      ),
       Effect.timeoutOption(Duration.millis(permissionSyncTimeoutMs)),
       Effect.matchCauseEffect({
         onSuccess: (done) =>

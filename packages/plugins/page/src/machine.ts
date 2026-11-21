@@ -332,7 +332,7 @@ function transitionRevoking(
     return undefined
 
   if (event.attempt !== entry.sync.attempt) return undefined
-  const warning = syncWarning(event, entry.sync)
+  const warning = entry.deleted ? [] : syncWarning(event, entry.sync)
 
   if (entry.sync.allow && !entry.deleted) {
     const sync = {attempt: nextAttempt, allow: false}
