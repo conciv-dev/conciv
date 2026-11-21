@@ -1,4 +1,4 @@
-import {readFileSync, writeFileSync} from 'node:fs'
+import {readFileSync, watch, writeFileSync} from 'node:fs'
 import {expect, test, type ConsoleMessage, type Page} from '@playwright/test'
 import {magicLink, recordedEngineBase, trustedBrowserToken} from './login.js'
 import {e2eConfigDir, e2eServerLog} from './config.js'
@@ -125,14 +125,26 @@ function printedCodes(logPath: string): string[] {
   )
 }
 
+function nextPrintedCode(logPath: string): Promise<string> {
+  const seen = printedCodes(logPath).length
+  const {promise, resolve, reject} = Promise.withResolvers<string>()
+  const watcher = watch(logPath, {persistent: false}, () => {
+    const code = printedCodes(logPath)[seen]
+    if (code === undefined) return
+    watcher.close()
+    resolve(code)
+  })
+  watcher.on('error', reject)
+  return promise
+}
+
 export async function openLoginFromLockedLauncher(page: Page, path = '/'): Promise<string> {
   await engineOrigin(page, path)
   const logPath = e2eServerLog(e2eConfigDir(test.info().config.configFile), Number(new URL(page.url()).port))
-  const seen = printedCodes(logPath).length
+  const printed = nextPrintedCode(logPath)
   await page.getByRole('button', {name: 'Unauthorized. Authorize conciv'}).click()
   await expect(page.getByRole('dialog', {name: 'Authorize conciv'})).toBeVisible()
-  await expect.poll(() => printedCodes(logPath).length).toBeGreaterThan(seen)
-  return printedCodes(logPath).at(-1) ?? ''
+  return printed
 }
 
 export async function expectPluginBundleReloadsInPlace(
