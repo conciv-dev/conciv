@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'vitest'
-import {render, screen} from '@solidjs/testing-library'
+import {render, screen, within} from '@solidjs/testing-library'
+import userEvent from '@testing-library/user-event'
 import {Dynamic} from 'solid-js/web'
 import {createEngine} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
@@ -130,5 +131,22 @@ describe('the agent lists the effects it can run on the page', () => {
         },
       ],
     })
+  })
+})
+
+describe('the agent runs code on the page', () => {
+  test('the eval asks first and runs once the user approves', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    const result = engine.session.tool('page_eval').call({code: 'return 1 + 1'})
+    const ask = await screen.findByRole('group', {name: 'Permission request'})
+    expect(ask).toHaveTextContent('page_eval return 1 + 1')
+    await user.click(within(ask).getByRole('button', {name: 'Approve'}))
+
+    expect(await result).toEqual({result: 2})
   })
 })
