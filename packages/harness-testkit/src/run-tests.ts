@@ -3,8 +3,11 @@ import {mkdirSync, mkdtempSync, readFileSync, rmSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {homedir, tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
+import {setTimeout as delay} from 'node:timers/promises'
 import {z} from 'zod'
 import {isolatedEnv} from './isolated-env.js'
+
+const GoneSchema = z.object({code: z.enum(['ESRCH', 'EPERM'])})
 
 const VitestManifestSchema = z.object({bin: z.object({vitest: z.string()})})
 
@@ -34,23 +37,41 @@ const home = mkdtempSync(join(tmpdir(), 'conciv-test-home-'))
 const temporary = join(home, 'tmp')
 mkdirSync(temporary)
 
+const grouped = process.platform !== 'win32'
 const child = spawn(process.execPath, [entry, 'run', ...process.argv.slice(2)], {
+  detached: grouped,
   env: {...isolatedEnv(process.env, home, temporary), PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsers(process.env)},
   stdio: 'inherit',
 })
+
+function signalRun(signal: NodeJS.Signals | 0): boolean {
+  if (!grouped || child.pid === undefined) return child.kill(signal)
+  try {
+    process.kill(-child.pid, signal)
+    return true
+  } catch (error) {
+    if (GoneSchema.safeParse(error).success) return false
+    throw error
+  }
+}
+
+async function removeHomeOnceRunIsGone(): Promise<void> {
+  signalRun('SIGKILL')
+  while (signalRun(0)) await delay(20)
+  rmSync(home, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
+}
+
 const interrupt = (): void => {
-  child.kill('SIGINT')
+  signalRun('SIGINT')
 }
 const terminate = (): void => {
-  child.kill('SIGTERM')
+  signalRun('SIGTERM')
 }
-process.once('SIGINT', interrupt)
-process.once('SIGTERM', terminate)
+process.on('SIGINT', interrupt)
+process.on('SIGTERM', terminate)
 child.once('exit', (code, signal) => {
-  process.off('SIGINT', interrupt)
-  process.off('SIGTERM', terminate)
-  rmSync(home, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
   process.exitCode = code ?? (signal === null ? 1 : 128)
+  void removeHomeOnceRunIsGone()
 })
 child.once('error', (error) => {
   rmSync(home, {recursive: true, force: true})
