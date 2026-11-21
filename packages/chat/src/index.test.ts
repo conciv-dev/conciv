@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {test} from '../test/rpc-test.js'
 
 describe('stopping', () => {
   it('the user stops a held reply and the turn ends', async () => {
@@ -86,5 +87,44 @@ describe('run limits', () => {
     await engine.gate()
 
     await expect(engine.session.send('Hello')).rejects.toThrow('the agent did not start within 1s')
+  })
+})
+
+describe('compacting', () => {
+  test("compacting asks the agent for a summary, and a plugin's compaction hook adds to that request", async ({
+    connect,
+  }) => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/request-shaper']})
+    const rpc = connect(engine)
+    await engine.reply(TestLLM.text('Bonjour'), TestLLM.text('We said hello'))
+
+    await engine.session.send('Hello')
+    await rpc.sessions.compact({sessionId: engine.session.id})
+
+    const [, compaction] = await engine.requests()
+    expect(compaction?.system).toContain('Keep the plugin notes in the summary')
+    expect(compaction?.messages.at(-1)).toEqual({
+      role: 'user',
+      content:
+        'Summarize our conversation so far as concisely as you can: the key decisions, the current state, and any open threads, so we can continue with less context.',
+    })
+  })
+
+  test("a plugin's compaction hook answers the summary and the agent is not asked", async ({connect}) => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/compaction-answer']})
+    const rpc = connect(engine)
+    await engine.reply(TestLLM.text('Hi'))
+
+    await engine.session.send('Hello')
+    await rpc.sessions.compact({sessionId: engine.session.id})
+
+    expect(await engine.requests()).toHaveLength(1)
+    const {messages} = await rpc.chat.hydrate({sessionId: engine.session.id})
+    expect(messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      parts: expect.arrayContaining([
+        expect.objectContaining({type: 'text', content: 'The user said hello and the plugin summarized it'}),
+      ]),
+    })
   })
 })
