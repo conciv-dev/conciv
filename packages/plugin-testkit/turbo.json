@@ -34,7 +34,7 @@
       ]
     },
     "test": {
-      "dependsOn": ["build", "build:types"]
+      "dependsOn": ["build", "build:types", "@conciv/harness-testkit#build"]
     },
     "publint": {
       "dependsOn": ["build", "build:types"]

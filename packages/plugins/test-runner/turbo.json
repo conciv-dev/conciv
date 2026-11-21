@@ -8,6 +8,9 @@
         "@conciv/unplugin#build",
         "@conciv/uno-preset#build"
       ]
+    },
+    "test": {
+      "dependsOn": ["^build", "build", "^build:types", "@conciv/harness-testkit#build"]
     }
   }
 }
