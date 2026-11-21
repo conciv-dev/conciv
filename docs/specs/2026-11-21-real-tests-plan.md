@@ -13,6 +13,7 @@
 ## Global Constraints
 
 - A test is only: kit calls, Testing Library queries by role, label or text, `user-event`, `expect`. Nothing else. No helper functions, no polling or wait loops, no sleeps, no per-call timeouts, no test ids, no CSS, DOM or geometry reads, no class or id locators, no mocks (`vi.fn`, `vi.mock`, `vi.spyOn`, `vi.stubGlobal`, `vi.stubEnv`), no `fireEvent`, no plugin or code written as a string, no harness written in the test.
+- An assert on what a query found is a jest-dom matcher that says what the user gets: `toBeVisible()`, `toHaveTextContent(...)`, `toBeDisabled()`, `toHaveValue(...)`. Never `toBeDefined()`, `toBeTruthy()` or `not.toBeNull()` on a query: the query already throws when nothing is found, so those prove nothing (the maintainer, 2026-11-21, on the first file). An oxlint rule reports them.
 - Allowed as input: raw chat events as a reply, a fixture plugin folder, a fixture project folder, a one-line program for the code tool, a plain fetch to an engine route, vitest's own `page.viewport` in browser mode.
 - Written from the feature: read the product source and the feature list. Never read, port or copy an old test. Never one test per old test or per spec line.
 - One `describe` per user flow, consecutive steps in one test, inputs as `it.each` tables. A test reads top to bottom like the journey.
