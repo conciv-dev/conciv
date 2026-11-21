@@ -558,6 +558,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         await idleFailed(sessionId, run.runId, Cause.squash(idled.cause))
     }
     if (run.phase === 'aborted') {
+      if (engineLife.signal.aborted) return
       await holdForNextReply(pagePlugin.delivery, sessionId).catch((error: unknown) =>
         logError(`[core] the page queue results of ${sessionId} could not wait for the next reply: ${String(error)}`),
       )
