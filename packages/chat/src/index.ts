@@ -32,6 +32,7 @@ const FIRST_START_TIMEOUT_MS = 30_000
 type ChatPlaneDeps = TurnDeps & {
   db: ConcivDb
   firstOutputTimeoutMs?: number
+  firstStartTimeoutMs?: number
   groupExitTimeoutMs?: number
   driver: CodeDriver | null
   pendingPermissions: (sessionId: SessionId) => Promise<ChatPendingApproval[]>
@@ -118,7 +119,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     sandbox: {dir: deps.cwd, groupExitTimeoutMs: deps.groupExitTimeoutMs},
     hooks: turnHooks(deps, {ui, transcripts, codeMode: deps.driver !== null}),
     codeModeResult: cappedValue,
-    startTimeoutMs: FIRST_START_TIMEOUT_MS,
+    startTimeoutMs: deps.firstStartTimeoutMs ?? FIRST_START_TIMEOUT_MS,
     firstOutputTimeoutMs: deps.firstOutputTimeoutMs ?? FIRST_OUTPUT_TIMEOUT_MS,
     log: deps.log,
     driver: deps.driver,

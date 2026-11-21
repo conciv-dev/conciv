@@ -218,6 +218,8 @@ export type MakeAppOpts = {
 
   firstChunkTimeoutMs?: number
 
+  firstStartTimeoutMs?: number
+
   eventHeartbeatIntervalMs?: number
 
   stopGraceMs?: number
@@ -688,6 +690,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     pluginInstructions: (sessionId, reset, inventory) =>
       pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
+    firstStartTimeoutMs: opts.firstStartTimeoutMs,
     groupExitTimeoutMs: opts.stopGraceMs,
     log: logError,
     driver,

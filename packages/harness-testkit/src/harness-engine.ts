@@ -40,7 +40,12 @@ export type HarnessEngineOptions = {
   sessionId?: string
   timeouts?: Pick<
     MakeAppOpts,
-    'firstChunkTimeoutMs' | 'eventHeartbeatIntervalMs' | 'stopGraceMs' | 'pageReplyTimeoutMs' | 'queuedActionTimeoutMs'
+    | 'firstChunkTimeoutMs'
+    | 'firstStartTimeoutMs'
+    | 'eventHeartbeatIntervalMs'
+    | 'stopGraceMs'
+    | 'pageReplyTimeoutMs'
+    | 'queuedActionTimeoutMs'
   >
   staleness?: EngineStaleness
   app?: MakeAppOpts['app']
