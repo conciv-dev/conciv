@@ -62,7 +62,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {
     "@conciv/ai": "workspace:^",
@@ -96,8 +97,11 @@
   },
   "devDependencies": {
     "@conciv/client": "workspace:^",
+    "@conciv/harness-testkit": "workspace:*",
+    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
     "solid-js": "catalog:",
@@ -108,6 +112,7 @@
     "unocss": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:",
     "ws": "catalog:"
   },
   "peerDependencies": {

@@ -100,6 +100,7 @@ import {makePluginRuntime, type PluginRuntime} from './runtime/plugin-runtime.js
 import type {CoreRuntime, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
+import {carryEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute} from '@conciv/serve/rpc'
 import {logError} from './lib/debug.js'
@@ -411,7 +412,7 @@ export type MadeApp = {
   runtime: CoreRuntime
   pluginHost: PluginHost
   awaitActivation: () => Promise<void>
-}
+} & EngineRouterBrand
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
   const history = harness.history
@@ -895,18 +896,21 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       throw error
     })
 
-  return {
-    app,
-    fetch,
-    agentToken,
-    trustBrowser: browsers.grant,
-    chat: chatDeps,
-    plane,
-    dispose,
-    runtime,
-    pluginHost,
-    awaitActivation: plugins.awaitActivation,
-  }
+  return carryEngineRouter(
+    {
+      app,
+      fetch,
+      agentToken,
+      trustBrowser: browsers.grant,
+      chat: chatDeps,
+      plane,
+      dispose,
+      runtime,
+      pluginHost,
+      awaitActivation: plugins.awaitActivation,
+    },
+    rpc,
+  )
 }
 
 async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig): Promise<void> {

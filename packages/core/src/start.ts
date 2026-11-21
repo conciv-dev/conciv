@@ -10,6 +10,7 @@ import type {Plugin} from '@conciv/plugin'
 import type {EngineStaleness} from '@conciv/contract'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {agentPath} from './engine-login.js'
+import {carryEngineRouter, readEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {createConcivStateDir, concivStateDir} from '@conciv/protocol/state-types'
@@ -124,7 +125,7 @@ export type Engine = {
   trustBrowser: (requester: BrowserRequester, grantedAt: number) => string
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
-}
+} & EngineRouterBrand
 
 type Served = Awaited<ReturnType<typeof serveHono>>
 type FetchHandler = ServeFetch
@@ -352,15 +353,18 @@ export async function start(opts: StartOpts): Promise<Engine> {
     await abandonStart([dispose])
     throw error
   }
-  return {
-    port,
-    agentToken,
-    cfg,
-    trustBrowser,
-    stop: async () => {
-      clearEndpoint()
-      retire()
-      await runInOrder([close, dispose], 'conciv: stopping the engine failed')
+  return carryEngineRouter(
+    {
+      port,
+      agentToken,
+      cfg,
+      trustBrowser,
+      stop: async () => {
+        clearEndpoint()
+        retire()
+        await runInOrder([close, dispose], 'conciv: stopping the engine failed')
+      },
     },
-  }
+    readEngineRouter(made),
+  )
 }

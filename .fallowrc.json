@@ -35,11 +35,16 @@
         "patterns": ["packages/core/src/lib/debug.ts"]
       },
       {
+        "name": "core-tests",
+        "patterns": ["packages/core/src/**/*.test.ts"]
+      },
+      {
         "name": "core-callers",
         "patterns": ["packages/core/src/**"]
       }
     ],
     "rules": [
+      {"from": "core-tests", "allow": ["core-callers", "session-facade", "core-shared-leaf"]},
       {
         "from": "core-callers",
         "allow": ["session-facade", "core-shared-leaf"]

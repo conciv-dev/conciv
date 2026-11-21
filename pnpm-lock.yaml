@@ -2471,12 +2471,21 @@ importers:
       '@conciv/client':
         specifier: workspace:^
         version: link:../client
+      '@conciv/harness-testkit':
+        specifier: workspace:*
+        version: link:../harness-testkit
+      '@conciv/plugin-testkit':
+        specifier: workspace:*
+        version: link:../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -2507,6 +2516,9 @@ importers:
       vite-plugin-solid:
         specifier: 'catalog:'
         version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
       ws:
         specifier: 'catalog:'
         version: 8.22.2
