@@ -104,3 +104,29 @@ describe('a plugin fills the session header and status', () => {
     expect(await screen.findByText('Next train at noon')).toBeVisible()
   })
 })
+
+describe('a tool card follows its call to the end', () => {
+  test('the card reads running while the question waits, and complete once the user answers', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode:
+          "return await external_conciv_ui({kind: 'choices', question: 'Which size?', options: ['Small', 'Large']})",
+      }),
+      TestLLM.text('Large it is'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Pick a size with me')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByRole('button', {name: 'Large'})).toBeVisible()
+    expect(screen.getAllByRole('img', {name: 'running'}).at(-1)).toBeVisible()
+    expect(screen.queryByRole('img', {name: 'complete'})).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', {name: 'Large'}))
+    expect(await screen.findByText('Large it is')).toBeVisible()
+    expect(screen.queryByRole('img', {name: 'running'})).not.toBeInTheDocument()
+    expect(screen.getAllByRole('img', {name: 'complete'}).at(-1)).toBeVisible()
+  })
+})
