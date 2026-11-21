@@ -63,7 +63,6 @@ describe('logging in', () => {
     await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
     expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
     await engine.revokeBrowsers()
-    await engine.restart()
     expect(await screen.findByText('This browser is no longer authorized to use conciv.')).toBeVisible()
     expect(screen.getByRole('button', {name: 'Log in'})).toBeVisible()
   })
