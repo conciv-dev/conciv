@@ -19,3 +19,58 @@ describe('loading plugins', () => {
     expect(await engine.session.tool('echo_options').call({})).toEqual({options: {greeting: 'Shalom', times: 2}})
   })
 })
+
+describe('a plugin that fails to load', () => {
+  const lister = './test/fixtures/plugins/lister'
+  const active = expect.objectContaining({id: 'lister', state: {status: 'active'}})
+
+  test.each([
+    ['bad-export', 'Plugin must export a default definition with an id and an effect or setup function.'],
+    ['setup-throws', expect.stringContaining('setup exploded')],
+    ['does-not-strip', 'Plugin failed to load'],
+  ])('the plugin %s fails alone and the engine lists why', async (name, error) => {
+    const engine = await createEngine({plugins: [lister, `./test/fixtures/plugins/${name}`]})
+
+    expect(await engine.session.tool('list_plugins').call({})).toEqual({
+      plugins: expect.arrayContaining([
+        active,
+        expect.objectContaining({
+          source: {type: 'local', path: expect.stringContaining(`/test/fixtures/plugins/${name}`)},
+          state: expect.objectContaining({status: 'failed', error}),
+        }),
+      ]),
+    })
+  })
+
+  test('a plugin folder with no entry is skipped and not listed', async () => {
+    const engine = await createEngine({plugins: [lister, './test/fixtures/plugins/no-entry']})
+
+    const listed = await engine.session.tool('list_plugins').call({})
+
+    expect(listed).toEqual({plugins: expect.arrayContaining([active])})
+    expect(listed).toEqual({
+      plugins: expect.not.arrayContaining([
+        expect.objectContaining({source: {type: 'local', path: expect.stringContaining('/no-entry')}}),
+      ]),
+    })
+  })
+
+  test('a second plugin with the same id is refused and the first keeps answering', async () => {
+    const engine = await createEngine({plugins: [lister, './test/fixtures/plugins/lister-twin']})
+
+    expect(await engine.session.tool('list_plugins').call({})).toEqual({
+      plugins: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'lister',
+          source: {type: 'local', path: expect.stringContaining('/lister-twin')},
+          state: {status: 'failed', error: 'Duplicate plugin ID: lister'},
+        }),
+        expect.objectContaining({
+          id: 'lister',
+          source: {type: 'local', path: expect.stringMatching(/\/lister$/)},
+          state: {status: 'active'},
+        }),
+      ]),
+    })
+  })
+})
