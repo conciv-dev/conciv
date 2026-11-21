@@ -49,3 +49,18 @@ describe('where the app opens', () => {
     expect(await screen.findByRole('button', {name: 'Plan the release, session options'})).toBeVisible()
   })
 })
+
+describe('a page that docks the chat', () => {
+  test('the docked chat opens on load with no close control', async () => {
+    const engine = await createEngine()
+    await mount({
+      engine,
+      host: {surface: 'dock'},
+      history: createEngineRouterHistory({initialEntries: ['/panel/latest']}),
+    })
+
+    expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Close chat'})).not.toBeInTheDocument()
+  })
+})
