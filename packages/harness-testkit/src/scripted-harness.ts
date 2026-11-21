@@ -124,13 +124,13 @@ export function replyScript(): ReplyScript {
   const state: ScriptState = {requests: [], held: undefined}
   const take = async (request: ModelRequest): Promise<Response> => {
     const count = state.requests.push(request)
+    const reply = queued.shift()
+    if (reply === undefined) throw new Error(`the scripted harness has no reply for request ${count}`)
     const held = state.held
     if (held !== undefined) {
       held.started.resolve()
       await held.released.promise
     }
-    const reply = queued.shift()
-    if (reply === undefined) throw new Error(`the scripted harness has no reply for request ${count}`)
     return reply
   }
   const chatConfig =

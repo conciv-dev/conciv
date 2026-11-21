@@ -12,7 +12,7 @@ The engine is the product's own `makeApp`, and the kit talks to it the way the p
 
 ## Replies
 
-`engine.reply(...responses)` appends to the reply queue; it takes the reply shapes of opencode's test model (`packages/ai/src/testing.ts` in opencode), on our `ChatEvent` chunks: an array of chunks, or an Effect `Stream` of them. Each model request takes the next reply, once a held gate releases it, so a reply given while a gate holds the turn is the one that turn takes. A tool turn takes two: the call, then the answer after the tool ran. A request with no reply left fails the run; there is no fallback reply. `TestLLM.text`, `TestLLM.toolCall`, `TestLLM.failAfter` and `TestLLM.hangAfter` build them. A session's `send` settles when the run ends and rejects with the run's error when it fails. `engine.gate()` holds the next model request until the test calls `release`, as opencode's `gate`; `stop` releases a held gate.
+`engine.reply(...responses)` appends to the reply queue; it takes the reply shapes of opencode's test model (`packages/ai/src/testing.ts` in opencode), on our `ChatEvent` chunks: an array of chunks, or an Effect `Stream` of them. Each model request takes the next reply. A tool turn takes two: the call, then the answer after the tool ran. A request with no reply left fails the run; there is no fallback reply. `TestLLM.text`, `TestLLM.toolCall`, `TestLLM.failAfter` and `TestLLM.hangAfter` build them. A session's `send` settles when the run ends and rejects with the run's error when it fails. `engine.gate()` holds the next model request until the test calls `release`, as opencode's `gate`; `stop` releases a held gate.
 
 ## Invariants
 
