@@ -11,7 +11,7 @@ test.describe('grabbing an element of the vite react host page', () => {
 
     await page.getByRole('button', {name: 'More composer actions'}).click()
     await page.getByRole('menuitem', {name: 'Select an element from the page'}).click()
-    await page.getByRole('heading', {name: 'Get started'}).click()
+    await page.getByRole('heading', {name: 'Get started'}).click({force: true})
 
     await expect(page.getByRole('button', {name: 'Open grabbed element'})).toBeVisible()
     await expect(page.getByText(/^in .*src\/App\.tsx:\d+/)).toBeVisible()
