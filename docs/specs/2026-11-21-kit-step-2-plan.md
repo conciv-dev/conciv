@@ -319,6 +319,11 @@ If the restart is over before the lost-connection label can be seen, report the 
 4. Restart: a running turn is aborted, then a held gate is released, a taken port fails loudly, and the kit's first session survives by being the configured session of the new boot.
 5. The mount option is named `host`.
 
+## Amended after the real run (2026-11-21, lane report 024700-plugins-p)
+
+- `mount({login})` is `'none'` only. `'stale'` was built and then removed: a browser that loads holding a refused token shows exactly what a logged-out browser shows (the same launcher label, the same code dialog); the revoked sentence lives only inside the open panel (`apps/conciv/src/routes/panel.tsx:173`), which cannot open while the browser is locked. So no test can tell `'stale'` from `'none'`, and a mode with no proof does not stay in the kit. It returns when the product shows the revoked state on load (the first product finding below). `kit-plan.md` names `'stale'`; this is the one place this plan delivers less than it.
+- `engine.loginCode()` asks through the HTTP client on the engine's token path, as `conciv link` does (`packages/cli/src/auth.ts:41`): the socket client carries no bearer, and the engine refuses it (`only the engine token may issue a login code`).
+
 ## Product findings, not fixed here
 
 - A revoked browser that reloads shows "Log in to use conciv on this page." and not the revoked text.
