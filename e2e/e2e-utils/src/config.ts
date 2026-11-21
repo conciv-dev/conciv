@@ -1,4 +1,3 @@
-import {mkdirSync, rmSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
 import {e2eStateDir} from './dev-endpoint.js'
@@ -86,12 +85,6 @@ function runConcivHome(configDir: string): {CONCIV_HOME: string} {
   return {CONCIV_HOME: home}
 }
 
-export function emptyE2eState(configDir: string): void {
-  rmSync(legacyStateDir(configDir), {recursive: true, force: true})
-  rmSync(e2eStateDir(configDir), {recursive: true, force: true})
-  mkdirSync(e2eStateDir(configDir), {recursive: true})
-}
-
 export function e2eConfig(
   app: E2EApp,
   opts: {dir: string; command: (port: number) => string; timeout?: number; runFolders?: string[]},
@@ -138,16 +131,19 @@ export function packedE2eConfig(opts: {
     timeout: 90_000,
     expect: {timeout: 90_000},
     reporter: reporters(opts.dir, [], opts.runFolders),
-    webServer: opts.servers.map((server) => ({
-      ...serverEntry({
-        configDir: opts.dir,
-        prepare: `mkdir -p '${stateDir}'`,
-        command: server.command(server.port),
-        port: server.port,
-        env: {...server.env, CONCIV_HOME: join(stateDir, `conciv-home-${server.name}`)},
-      }),
-      cwd: server.cwd,
-    })),
+    webServer: opts.servers.map((server) => {
+      const home = join(stateDir, `conciv-home-${server.name}`)
+      return {
+        ...serverEntry({
+          configDir: opts.dir,
+          prepare: freshFolder(home),
+          command: server.command(server.port),
+          port: server.port,
+          env: {...server.env, CONCIV_HOME: home},
+        }),
+        cwd: server.cwd,
+      }
+    }),
     projects: opts.servers.map((server) => ({
       name: server.name,
       use: {...devices['Desktop Chrome'], baseURL: `http://localhost:${server.port}`},

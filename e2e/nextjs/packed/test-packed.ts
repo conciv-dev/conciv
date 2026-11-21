@@ -1,7 +1,6 @@
 import {spawnSync} from 'node:child_process'
 import {cpSync, mkdirSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {emptyE2eState} from '@conciv/e2e-utils/config'
 import {buildAndPack, installPacked, readManifest} from '@conciv/vitest-config/pack'
 import {BUNDLERS, PACKED_ROOT, packedAppDir} from './packed-app-dir.ts'
 
@@ -30,7 +29,6 @@ function writeApps(): void {
 
 rmSync(PACKED_ROOT, {recursive: true, force: true})
 mkdirSync(TARBALL_DIR, {recursive: true})
-emptyE2eState(CONFIG_DIR)
 const {overrides} = await buildAndPack(TARBALL_DIR, CLOSURE_ROOTS)
 writeApps()
 await installPacked({
