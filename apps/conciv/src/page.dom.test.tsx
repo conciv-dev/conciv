@@ -2,7 +2,7 @@ import {describe, expect, test} from 'vitest'
 import {render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {Dynamic} from 'solid-js/web'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('the agent reads a page with a one-time code filled in', () => {
@@ -148,5 +148,39 @@ describe('the agent runs code on the page', () => {
     await user.click(within(ask).getByRole('button', {name: 'Approve'}))
 
     expect(await result).toEqual({result: 2})
+  })
+})
+
+describe('the agent reads the page during a reply', () => {
+  test('the thread shows a card for the read and one for the read that failed', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_page_text({selector: '#plants'})",
+      }),
+      TestLLM.toolCall('c2', 'execute_typescript', {
+        typescriptCode: "return await external_page_text({selector: '#sold-out'})",
+      }),
+      TestLLM.text('The fern is in stock', 'reply'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <section id="plants">
+        <h2>Ferns</h2>
+      </section>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+
+    expect(await screen.findByText('The fern is in stock')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
+    const read = within(reply).getByRole('button', {name: /Read the text/})
+    expect(read).toHaveTextContent('Read the text#plants')
+    expect(within(read).getByRole('img', {name: 'succeeded'})).toBeVisible()
+    const failed = within(reply).getByRole('button', {name: /Page text/})
+    expect(failed).toHaveTextContent('[page.invalid-args] no element for selector #sold-out')
   })
 })
