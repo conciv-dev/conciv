@@ -18,6 +18,7 @@ describe('a fresh session', () => {
     const reply = await screen.findByRole('article', {name: 'Reply to: Explain this page'})
     expect(await within(reply).findByText('This page is a demo shop')).toBeVisible()
     expect(screen.queryByText('How can I help you today?')).not.toBeInTheDocument()
+    expect(screen.getByRole('separator', {name: 'New session'})).toBeVisible()
   })
 })
 
@@ -58,6 +59,7 @@ describe('stopping and sending again', () => {
     await gate.release()
     const stopped = await screen.findByRole('article', {name: 'Reply to: Take your time'})
     expect(await within(stopped).findByText('there.')).toBeVisible()
+    expect(screen.getByText('Responding…')).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Stop generating'}))
 
     expect(await screen.findByRole('separator', {name: 'Stopped'})).toBeVisible()
@@ -146,5 +148,53 @@ describe('a reply that reads the page before it answers', () => {
     expect(await screen.findByText('You are on the home page')).toBeVisible()
     expect(screen.getByRole('button', {name: /Show trace/})).toHaveFocus()
     expect(screen.queryByRole('list', {name: 'Execution trace'})).not.toBeInTheDocument()
+  })
+})
+
+describe('the actions under a reply', () => {
+  test('the user copies a reply and hears it, then asks for the reply again and reads the new answer', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(TestLLM.text('The first answer'), TestLLM.text('The second answer'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Answer me')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    const reply = await screen.findByRole('article', {name: 'Reply to: Answer me'})
+    expect(await within(reply).findByText('The first answer')).toBeVisible()
+    const actions = await screen.findByRole('toolbar', {name: 'Message actions'})
+    await user.click(within(actions).getByRole('button', {name: 'Copy'}))
+    expect(await screen.findByText('Copied the message')).toBeVisible()
+
+    await user.click(within(actions).getByRole('button', {name: 'Refresh'}))
+    expect(await screen.findByText('The second answer')).toBeVisible()
+    expect(screen.queryByText('The first answer')).not.toBeInTheDocument()
+  })
+})
+
+describe('refreshing the conversation', () => {
+  test('the session menu refuses a refresh while a reply runs, then refreshes the conversation and says so', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(TestLLM.text('Here is the page'))
+    const gate = await engine.gate()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Read the page')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    await gate.started
+    await user.click(await screen.findByRole('button', {name: /, session options$/}))
+    const options = await screen.findByRole('dialog', {name: 'Session options'})
+    const refresh = within(options).getByRole('button', {name: 'Refresh the conversation'})
+    expect(refresh).toBeDisabled()
+
+    await gate.release()
+    expect(await screen.findByText('Here is the page')).toBeVisible()
+    expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
+    expect(refresh).toBeEnabled()
+    await user.click(refresh)
+
+    expect(await screen.findByText('Conversation refreshed.')).toBeVisible()
+    expect(screen.getByText('Here is the page')).toBeVisible()
   })
 })
