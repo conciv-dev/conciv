@@ -1,6 +1,7 @@
 import {expect, onTestFinished} from 'vitest'
 import {commands} from 'vitest/browser'
 import type {TestLLM} from '@conciv/harness-testkit'
+import {advanceUntil, refuseRealClock} from '@conciv/harness-testkit/clock'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {Engine, EngineClock, EngineSession, EngineStart} from './engine.js'
 import type {} from './browser-commands.js'
@@ -20,37 +21,12 @@ function sessionOn(engineId: string, id: string): EngineSession {
   }
 }
 
-const ADVANCE_LIMIT_MS = 15_000
-
-const NEVER_SETTLED = 'the engine clock was advanced for 15s and the awaited call never settled'
-
-const REAL_CLOCK = "this engine runs on the real clock: make it with clock: 'test'"
-
-async function advanceOn<T>(engineId: string, until: Promise<T>): Promise<T> {
-  const watch = {settled: false}
-  until
-    .finally(() => {
-      watch.settled = true
-    })
-    .catch(() => {})
-  const deadline = performance.now() + ADVANCE_LIMIT_MS
-  while (!watch.settled && performance.now() < deadline) await commands.concivClockTick(engineId)
-  if (!watch.settled) throw new Error(NEVER_SETTLED)
-  return until
-}
-
 function clockOn(engineId: string, clock: EngineStart['clock']): EngineClock {
-  if (clock !== 'test') {
-    return {
-      advance: async () => {
-        throw new Error(REAL_CLOCK)
-      },
-      drain: async () => {
-        throw new Error(REAL_CLOCK)
-      },
-    }
+  if (clock !== 'test') return {advance: refuseRealClock, drain: refuseRealClock}
+  return {
+    advance: (until) => advanceUntil(until, () => commands.concivClockTick(engineId)),
+    drain: () => commands.concivClockDrain(engineId),
   }
-  return {advance: (until) => advanceOn(engineId, until), drain: () => commands.concivClockDrain(engineId)}
 }
 
 function gateOn(engineId: string, gateId: string): TestLLM.Gate {

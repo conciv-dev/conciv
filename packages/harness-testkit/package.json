@@ -32,6 +32,10 @@
     "./test-llm": {
       "types": "./dist/test-llm.d.ts",
       "import": "./dist/test-llm.js"
+    },
+    "./clock": {
+      "types": "./dist/clock-steps.d.ts",
+      "import": "./dist/clock-steps.js"
     }
   },
   "publishConfig": {
