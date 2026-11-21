@@ -22,6 +22,8 @@ tester.run('no-teardown-hooks', rule, {
       code: teardown,
       filename: `/repo/src/${'/src/a'.repeat(60_000)}.ts`,
     },
+    {name: 'a hook that is not a teardown', code: 'beforeEach(() => {})', filename: '/repo/src/view.test.ts'},
+    {name: 'an object key named afterEach', code: 'const hooks = {afterEach: 1}', filename: '/repo/src/view.test.ts'},
   ],
   invalid: [
     {name: 'a test under src', code: teardown, filename: '/repo/src/view.test.ts', errors: [teardownError]},
@@ -31,6 +33,21 @@ tester.run('no-teardown-hooks', rule, {
       name: 'a deep test under src, Windows',
       code: teardown,
       filename: '/repo\\src\\a\\b\\view.test.tsx',
+      errors: [teardownError],
+    },
+    {
+      name: 'onTestFinished off the test context',
+      code: "test('runs', ({onTestFinished}) => {})\ntest('ends', (context) => context.onTestFinished(close))",
+      filename: '/repo/src/view.test.ts',
+      errors: [
+        {messageId: 'noTeardownHook', data: {name: 'onTestFinished'}},
+        {messageId: 'noTeardownHook', data: {name: 'onTestFinished'}},
+      ],
+    },
+    {
+      name: 'afterEach taken out of vitest',
+      code: "const {afterEach} = await import('vitest')",
+      filename: '/repo/src/view.test.ts',
       errors: [teardownError],
     },
   ],
