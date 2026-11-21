@@ -73,3 +73,15 @@ describe('harness listing', () => {
     })
   })
 })
+
+describe('tool registry', () => {
+  test('a call naming no registered tool is refused with UNKNOWN_TOOL', async ({connect}) => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
+    const rpc = connect(engine)
+
+    await expect(rpc.registry.call({name: 'desk_missing', input: {}})).rejects.toMatchObject({
+      code: 'UNKNOWN_TOOL',
+      message: 'no registered tool answers to that name',
+    })
+  })
+})
