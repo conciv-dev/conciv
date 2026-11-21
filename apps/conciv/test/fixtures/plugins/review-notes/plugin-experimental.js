@@ -44,7 +44,13 @@ module.exports = {
       ctx.add(ComposerPill, {
         id: 'review',
         order: 3,
-        show: (input) => ({label: 'Review', run: () => input.screen.composer.attach(headerNote)}),
+        show: (input) => ({
+          label: 'Review',
+          run: () => {
+            input.screen.composer.attach(headerNote)
+            input.screen.composer.focus()
+          },
+        }),
       })
       ctx.add(ComposerPill, {
         id: 'checks',

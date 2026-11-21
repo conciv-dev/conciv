@@ -5,7 +5,7 @@ import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('notes from a plugin', () => {
-  test('a pill attaches a note drawn by its plugin card, Remove takes it off, and a sent note reaches the agent and stays on the message', async () => {
+  test('a pill attaches a note drawn by its plugin card and hands the composer focus, Remove takes it off, and a sent note reaches the agent and stays on the message', async () => {
     const user = userEvent.setup({delay: null})
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
     await engine.reply(TestLLM.text('Header is sticky now'))
@@ -14,6 +14,7 @@ describe('notes from a plugin', () => {
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.click(await screen.findByRole('button', {name: 'Review'}))
+    expect(input).toHaveFocus()
     const notes = await screen.findByRole('list', {name: 'Notes'})
     expect(within(notes).getByText('Review card')).toBeVisible()
     await user.click(within(notes).getByRole('button', {name: 'Remove Make the header sticky'}))
@@ -84,6 +85,36 @@ describe('the composer actions menu', () => {
     await user.click(await screen.findByRole('menuitem', {name: 'Start a new session'}))
     expect(await screen.findByText('Ask a question…')).toBeVisible()
     expect(screen.queryByRole('article', {name: 'You: First task'})).not.toBeInTheDocument()
+  })
+
+  test('Compress the conversation compacts it, and a message sent while it compacts stays in the composer unsent', async () => {
+    const user = userEvent.setup({delay: null})
+    const engine = await createEngine()
+    await engine.reply(TestLLM.text('Done with it'), TestLLM.text('A summary of the talk so far'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(input, 'First task')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(await screen.findByRole('article', {name: 'Reply to: First task'})).toBeVisible()
+
+    const compaction = await engine.gate()
+    await user.click(screen.getByRole('button', {name: 'More composer actions'}))
+    await user.click(await screen.findByRole('menuitem', {name: 'Compress the conversation'}))
+    await compaction.started
+    expect(await screen.findByRole('separator', {name: 'Compacting…'})).toBeVisible()
+    await user.type(input, 'Second task')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(input).toHaveTextContent('Second task')
+    expect(screen.queryByText('1 waiting · runs in order')).not.toBeInTheDocument()
+
+    await compaction.release()
+    expect(await screen.findByRole('separator', {name: 'Context compacted'})).toBeVisible()
+    expect(input).toHaveTextContent('Second task')
+    expect(screen.queryByRole('article', {name: 'You: Second task'})).not.toBeInTheDocument()
+    expect(await engine.requests()).toHaveLength(2)
   })
 })
 
