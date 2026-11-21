@@ -1,3 +1,4 @@
+import {execFileSync} from 'node:child_process'
 import {cpSync, readdirSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
@@ -55,5 +56,24 @@ describe('dry run', () => {
       },
     })
     expect(readdirSync(empty)).toEqual([])
+  })
+
+  it('a project with uncommitted changes is refused and nothing is written', async () => {
+    const project = tempDir('vite-shop-')
+    cpSync(join(import.meta.dirname, '../../test/fixtures/vite-shop'), project, {recursive: true})
+    execFileSync('git', ['init', '--quiet'], {cwd: project})
+
+    const run = await cli(['init', '--dry-run', '--json'], {cwd: project})
+
+    expect(run.exitCode).toBe(1)
+    expect(JSON.parse(run.stdout)).toEqual({
+      ok: false,
+      error: {
+        kind: 'user',
+        message: 'uncommitted changes \u2014 commit first or pass --force',
+        hint: 'nothing was written',
+      },
+    })
+    expect(readdirSync(project).toSorted()).toEqual(['.git', 'package.json', 'vite.config.ts'])
   })
 })
