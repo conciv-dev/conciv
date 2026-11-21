@@ -122,6 +122,10 @@
             "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
           },
           {
+            "name": "@effect/platform-node",
+            "message": "Import @effect/platform-node by subpath (@effect/platform-node/NodeFileSystem and the like), never the bare barrel: it loads about 770 extra modules, a redis client among them, into every engine process."
+          },
+          {
             "name": "@tanstack/solid-query",
             "message": "Import TanStack Query from @conciv/client, never @tanstack/solid-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
           },
@@ -203,6 +207,10 @@
                 "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
               },
               {
+                "name": "@effect/platform-node",
+                "message": "Import @effect/platform-node by subpath (@effect/platform-node/NodeFileSystem and the like), never the bare barrel: it loads about 770 extra modules, a redis client among them, into every engine process."
+              },
+              {
                 "name": "@tanstack/solid-query",
                 "message": "Import TanStack Query from @conciv/client, never @tanstack/solid-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
               },
@@ -237,6 +245,10 @@
                 "name": "@hono/node-server",
                 "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
                 "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+              },
+              {
+                "name": "@effect/platform-node",
+                "message": "Import @effect/platform-node by subpath (@effect/platform-node/NodeFileSystem and the like), never the bare barrel: it loads about 770 extra modules, a redis client among them, into every engine process."
               }
             ],
             "patterns": [
@@ -265,6 +277,10 @@
                 "name": "@hono/node-server",
                 "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
                 "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+              },
+              {
+                "name": "@effect/platform-node",
+                "message": "Import @effect/platform-node by subpath (@effect/platform-node/NodeFileSystem and the like), never the bare barrel: it loads about 770 extra modules, a redis client among them, into every engine process."
               },
               {
                 "name": "@tanstack/solid-query",
