@@ -1,0 +1,134 @@
+# Ledger: e2e apps (Task 8)
+
+Feature rows are the `e2e` rows of the four lists in `features/` (`app.md`, `engine.md`, `plugins.md`, `sdk-embed.md`), cited as `list:line`. One row per feature: the journey that covers it and the test, or `blocked: <what it needs>`. A planned test names its file; it is replaced by `file › describe › test` when the file lands.
+
+What an e2e app is today: a host app scaffolded by its framework's CLI, wired with `@conciv/it`, one dev server per app through `e2eConfig` (`@conciv/e2e-utils/config`), Chromium only, `testDir ./test`. No app has a test file (the suites were removed in a15c22d2b). Two facts shape every row:
+
+- An e2e app names a harness only by id (`conciv({harness})`); no scripted replies reach an e2e engine (`kit-plan.md` open point 3). A chat turn in an e2e app is a turn of a real CLI.
+- The e2e helpers `kit-plan.md:124-127` lists (a git project, answering the init prompts, sending a signal to the CLI, reading the terminal's text, a stdio hub client) are not built.
+
+## Packed installs (first: the Packed workflow is red with "No tests found")
+
+| feature                                                                             | journey                                                                                                                        | test                                                                                                                                                       |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sdk-embed:143 Packed tarball installs                                               | the published-tarball vite-react copy boots the widget and signs in                                                            | `e2e/vite-react/test/widget.spec.ts` (planned): `vite-react-packed` runs the `vite-react` specs from its tarball install (`testDir: '../vite-react/test'`) |
+| sdk-embed:143 Packed tarball installs (Next)                                        | the packed Next app boots the engine from `register()` and the widget from instrumentation-client, under Turbopack and webpack | `e2e/nextjs/test/packed-install.spec.ts` (planned), on `e2e/nextjs/packed/harness.ts`                                                                      |
+| sdk-embed:123 Next `register()` boots the engine in dev, on the nodejs runtime only | same                                                                                                                           | same                                                                                                                                                       |
+| sdk-embed:124 The Next widget starts from instrumentation-client                    | same                                                                                                                           | same                                                                                                                                                       |
+
+## Every framework host: the widget boots
+
+One journey per app: open the page, the launcher shows, sign in by magic link, the panel opens with the composer, no page error, no third-party request.
+
+| feature                                                                                       | journey                                             | test                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sdk-embed:142 each e2e app opens the page, launcher, panel, composer, no errors               | widget boots                                        | `e2e/<app>/test/widget.spec.ts` (planned) for vite-vanilla, vite-react, vite-solid, svelte, solid-start, tanstack-start, tanstack-start-redact, nextjs, astro |
+| sdk-embed:102 Vite `conciv()` boots the engine at dev start                                   | widget boots                                        | vite apps' `widget.spec.ts`                                                                                                                                   |
+| sdk-embed:104 Served HTML gets the meta tags and script, and the widget appears               | widget boots                                        | vite apps' `widget.spec.ts`                                                                                                                                   |
+| sdk-embed:105 SSR hosts get the tags through the middleware; no second script, frames skipped | widget boots                                        | svelte, solid-start, tanstack-start `widget.spec.ts`. Part: "frames skipped" needs a page with a frame; none of the apps has one                              |
+| sdk-embed:126 one `<script src=conciv-widget.global.js>`; chunks from `widget/`               | widget boots                                        | vite-vanilla `widget.spec.ts`                                                                                                                                 |
+| sdk-embed:116 One Solid copy, and no console echo loop on the host                            | widget boots                                        | vite-solid `widget.spec.ts` (no page error)                                                                                                                   |
+| sdk-embed:137 React, Preact and Solid `<ConcivWidget/>`                                       | widget boots in the component host                  | `e2e/{vite-react,nextjs,vite-preact,vite-solid}-component/test/widget.spec.ts` (planned)                                                                      |
+| sdk-embed:106 `widget:false` boots the engine and injects no widget                           | component host shows only its own `<ConcivWidget/>` | the component apps' `widget.spec.ts`                                                                                                                          |
+
+## Sign-in in a host page (vite-react)
+
+| feature                                                                               | journey                                                         | test                                           |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------- |
+| sdk-embed:175 Magic link `#conciv_otp=` logs in and is removed from the URL           | sign in by magic link                                           | `e2e/vite-react/test/widget.spec.ts` (planned) |
+| app:74 Magic-link code in the address signs the browser in on load                    | same                                                            | same                                           |
+| engine:152 untrusted browser asks for a code, the engine prints it, the user types it | sign in from the locked launcher with the code from the dev log | same                                           |
+| sdk-embed:125 Login: locked launcher, code printed in the dev log, or magic link      | both journeys                                                   | same                                           |
+| engine:433 `conciv auth link <url>` prints a login link that logs the browser in      | blocked: a CLI runner in e2e-utils (not built)                  |                                                |
+| engine:434 `conciv auth revoke` lists or revokes trusted browsers                     | blocked: a CLI runner in e2e-utils (not built)                  |                                                |
+
+## Reload keeps the state (vite-react)
+
+| feature                                                                       | journey                                                                     | test                                                                                                                                     |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| app:94, engine:131 the app reopens where it was                               | open a session tab, reload, the same view is back                           | `e2e/vite-react/test/reload.spec.ts` (planned)                                                                                           |
+| app:95 launcher position, panel size, settings tab survive a reload           | move, resize, reload                                                        | same. Part: dragging the launcher and the panel edge; asserted by what the user sees, not geometry; a row that needs geometry is blocked |
+| app:147, engine:130, sdk-embed:135 a typed draft comes back after a reload    | type, reload, the draft is in the composer                                  | same                                                                                                                                     |
+| app:148 the engine's draft row written elsewhere replaces this browser's copy | a second page on the same engine types; the first page reloads and shows it | same                                                                                                                                     |
+| app:185 quick terminal height remembered                                      | blocked: asserted only by geometry                                          |                                                                                                                                          |
+| plugins:135 terminal output replayed after a page reload                      | run `echo` in the terminal tab, reload, the line is still there             | same                                                                                                                                     |
+
+## The host page around the widget (vite-react)
+
+| feature                                                                            | journey                                                                                                                                   | test                                                                                                                                         |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| sdk-embed:128 open shadow root, fixed full-viewport overlay                        | blocked: only a DOM or geometry read proves it                                                                                            |                                                                                                                                              |
+| sdk-embed:129 keys typed in widget inputs never reach host page handlers           | type in the composer; the host page's key counter stays at 0                                                                              | blocked: the vite-react page has no key handler to show; needs a host page element that shows received keys (an e2e app change, asked first) |
+| sdk-embed:130 a selection that starts in the widget stays in the widget            | blocked: asserted only by reading the selection (`page.evaluate`)                                                                         |                                                                                                                                              |
+| app:161, sdk-embed:111 grab a host element; the chip carries its source            | pick an element of the host page, the grab chip shows with its file:line                                                                  | `e2e/vite-react/test/host-page.spec.ts` (planned)                                                                                            |
+| app:162 composer note from a page comment                                          | grab, then comment                                                                                                                        | same                                                                                                                                         |
+| app:104, sdk-embed:131-133 host page commands, `createConciv`/`mountConciv` handle | blocked: no e2e page calls the handle; needs a host page with buttons that call open/close/toggle/rebind (an e2e app change, asked first) |                                                                                                                                              |
+| sdk-embed:127 API base order: global, meta, `?core=`                               | blocked: needs a host page that sets the global; same app change                                                                          |                                                                                                                                              |
+| app:184 host turns the quick terminal off; hotkey override                         | blocked: needs an e2e app whose `conciv({quickTerminal: false})` differs from the others (an e2e app change, asked first)                 |                                                                                                                                              |
+
+## Browser controls (vite-react)
+
+| feature                                                              | journey                                                                                  | test                                                     |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| sdk-embed:159 reduced motion: still pose, no gaze, no work loop      | blocked: what reduced motion changes is an animation; no role or text shows it           |                                                          |
+| sdk-embed:167 browser goes offline; the engine counts as offline     | `context.setOffline(true)`, the widget shows it is offline; back online, it recovers     | `e2e/vite-react/test/browser-controls.spec.ts` (planned) |
+| app:132 Export as Markdown (message.md download)                     | blocked: needs a message in the thread, which needs a reply (no scripted harness in e2e) |                                                          |
+| sdk-embed:86 `ctx.system.save` and `openExternal`                    | blocked: needs a plugin in an e2e app that calls them                                    |                                                          |
+| app:105 pop out to a window; closing it brings the chat back         | pop out, the chat is in the new page; close it, the chat is back inline                  | same                                                     |
+| app:106 pop-out blocked: "The pop-out window could not be reopened." | blocked: Playwright cannot make Chromium refuse `window.open` without a page script      |                                                          |
+| app:448 a real Picture-in-Picture window                             | blocked: Playwright does not reach a Document PiP window                                 |                                                          |
+| plugins:117-118 recorder Export video downloads recording.webm       | blocked: the recorder plugin is not in any e2e app                                       |                                                          |
+| plugins:119 "page reloaded" entry in the recorder log                | blocked: same                                                                            |                                                          |
+| plugins:98 a second tab follows the whiteboard live                  | blocked: the whiteboard plugin is not in any e2e app                                     |                                                          |
+
+## Plugin bundles in a host (vite-solid, nextjs)
+
+| feature                                                                                                    | journey                                                               | test                                                                                       |
+| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| sdk-embed:147, sdk-embed:69 a rebuilt `conciv/plugins/live-line` bundle swaps in place and keeps the draft | type a draft, rewrite the bundle, the new line shows, the draft stays | `e2e/vite-solid/test/live-plugin.spec.ts`, `e2e/nextjs/test/live-plugin.spec.ts` (planned) |
+
+## Real harness CLIs (harnesses app, one dev server per CLI)
+
+CI has no signed-in CLI. Every row that needs a model answer is blocked on that.
+
+| feature                                                                                                                                                              | journey                                                                         | test                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| engine:457 Claude without sign-in: a turn shows a visible error, never a hang                                                                                        | send a message, the error shows                                                 | `e2e/harnesses/test/harnesses.spec.ts` (planned), one project per CLI |
+| sdk-embed:144 widget against each real harness CLI                                                                                                                   | same, for each CLI                                                              | same                                                                  |
+| engine:476 the harness switch offers every harness whose CLI is on PATH                                                                                              | open the switch, the CLIs installed in CI are listed                            | same                                                                  |
+| engine:446-456, 458-459, 461-475, 477 models, slash commands, terminal, turns, effort, compact, images, resume, native sessions, resume command, Stop, usage, probes | blocked: a signed-in CLI (credentials in CI)                                    |                                                                       |
+| sdk-embed:115 the agent CLI finds `conciv` on its PATH                                                                                                               | blocked: a signed-in CLI                                                        |                                                                       |
+| sdk-embed:145 chat in an e2e app: send, reply, tool cards, approvals                                                                                                 | blocked: a scripted harness reachable from `conciv({harness})` (product change) |                                                                       |
+| sdk-embed:146 plugin-tanstack journeys that need the agent to call its tools                                                                                         | blocked: same                                                                   |                                                                       |
+| plugins:59, plugins:64, plugins:140-142 page hmr and reload ops, build errors, server traces, cards with dev-server data                                             | blocked: same (they need the agent to call a tool)                              |                                                                       |
+
+## CLI against a live dev server
+
+| feature                                                                  | journey                                              | test |
+| ------------------------------------------------------------------------ | ---------------------------------------------------- | ---- |
+| engine:423-426 `conciv tools page/react/tabs`, `--tab`                   | blocked: a CLI runner in e2e-utils (not built)       |      |
+| engine:432 `conciv plugin call server …`                                 | blocked: same                                        |      |
+| engine:435 `conciv mcp connect/disconnect/list <agent>`                  | blocked: same, and the real agent CLIs               |      |
+| engine:439, plugins:73-74 hub tasks, list_tabs, queue.wait, page.changes | blocked: a stdio hub client in e2e-utils (not built) |      |
+
+## `conciv init` (init app, vitest)
+
+| feature                                                                           | journey                                                                      | test |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---- |
+| engine:416 `init --dry-run` / `--json` prints the plan, writes nothing            | blocked: a git project and a CLI runner in e2e-utils (not built)             |      |
+| engine:417 `init --yes` installs and wires the project                            | blocked: same                                                                |      |
+| engine:418 init refuses a dirty tree, a non-interactive terminal, no package.json | blocked: same                                                                |      |
+| engine:419 Ctrl-C puts every file back                                            | blocked: sending a signal to the CLI (not built)                             |      |
+| engine:420 interactive init                                                       | blocked: answering the init prompts, reading the terminal's text (not built) |      |
+
+## Hosts no e2e app has
+
+| feature                                                                                             | journey                                                                                                 | test |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---- |
+| sdk-embed:103 a second Vite dev server still boots                                                  | blocked: `e2eConfig` runs one dev server per app                                                        |      |
+| sdk-embed:117 closing or restarting the dev server stops the engine once, and the widget comes back | blocked: Playwright's `webServer` cannot be restarted from a test                                       |      |
+| sdk-embed:118, 120, 121 webpack/rspack dev                                                          | blocked: no webpack or rspack e2e app (the packed Next harness has `--webpack`, which covers Next only) |      |
+| sdk-embed:109-110 Vite DevTools dock panel and its token                                            | blocked: no e2e app enables Vite DevTools                                                               |      |
+| app:415 standalone page with `?core=` / `?settings=`                                                | blocked: no e2e app serves the standalone page                                                          |      |
+| sdk-embed:136, plugins:128 native iOS page and WKWebView bridge                                     | blocked: a WKWebView peer                                                                               |      |
+| sdk-embed:138-141 the site's live widget and try panel                                              | not an `e2e/` app: `apps/site`                                                                          |      |
