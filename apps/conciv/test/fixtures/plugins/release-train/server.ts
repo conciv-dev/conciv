@@ -35,5 +35,24 @@ export default Plugin.define({
         output: z.object({window: z.string()}),
         execute: () => Effect.succeed({output: {window: 'noon to two'}}),
       })
+      tools.add({
+        name: 'release_ship',
+        description: 'Ship a branch once the user allows it',
+        input: z.object({branch: z.string()}),
+        output: z.object({shipped: z.boolean()}),
+        execute: ({branch}, tool) =>
+          ctx.permission
+            .assert({
+              action: 'release_ship',
+              resources: [branch],
+              save: [branch],
+              fallback: 'ask',
+              metadata: {},
+              sessionId: tool.sessionId,
+              agent: tool.agent,
+              source: {type: 'tool', messageId: tool.messageId, id: tool.id},
+            })
+            .pipe(Effect.as({output: {shipped: true}})),
+      })
     }),
 })

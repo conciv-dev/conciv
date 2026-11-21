@@ -198,3 +198,123 @@ describe('refreshing the conversation', () => {
     expect(screen.getByText('Here is the page')).toBeVisible()
   })
 })
+
+describe('the agent asks for permission', () => {
+  test('the ask is announced and listed with its target, the run waits, Allow once lets the tool run, and the card says it was allowed', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_release_ship({branch: 'main'})",
+      }),
+      TestLLM.text('Main is shipped'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship main')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+
+    const list = await screen.findByRole('list', {name: 'Permission requests'})
+    const ask = within(list).getByRole('group', {name: 'Permission request'})
+    expect(ask).toHaveTextContent('release_ship main')
+    expect(within(ask).getByRole('button', {name: 'Allow always'})).toBeVisible()
+    expect(within(ask).getByRole('button', {name: 'Deny'})).toBeVisible()
+    expect(await screen.findByText('conciv is asking for permission.')).toBeVisible()
+    const bar = screen.getByRole('toolbar', {name: 'Session status'})
+    expect(within(bar).getByRole('status')).toHaveTextContent('WAITING')
+
+    await user.click(within(ask).getByRole('button', {name: 'Allow once'}))
+
+    expect(await screen.findByText('Main is shipped')).toBeVisible()
+    expect(within(ask).getByText('Allowed')).toBeVisible()
+    expect(within(ask).queryByRole('button', {name: 'Allow once'})).not.toBeInTheDocument()
+    expect(screen.getByText('Allowed the request')).toBeVisible()
+  })
+
+  test('Deny refuses the ask, the card says it was denied, and the tool reads denied', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_release_ship({branch: 'main'})",
+      }),
+      TestLLM.text('Main stays put'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship main')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    const ask = await screen.findByRole('group', {name: 'Permission request'})
+    await user.click(within(ask).getByRole('button', {name: 'Deny'}))
+
+    expect(await screen.findByText('Main stays put')).toBeVisible()
+    expect(within(ask).getByText('Denied')).toBeVisible()
+    expect(screen.getByText('Denied the request')).toBeVisible()
+    expect(screen.getAllByRole('img', {name: 'denied'}).at(-1)).toBeVisible()
+  })
+
+  test('on the focused card Escape denies one ask and Ctrl+Enter allows the next', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_release_ship({branch: 'main'})",
+      }),
+      TestLLM.toolCall('c2', 'execute_typescript', {
+        typescriptCode: "return await external_release_ship({branch: 'next'})",
+      }),
+      TestLLM.text('Next is shipped'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship a branch')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    const first = await screen.findByRole('group', {name: 'Permission request'})
+    await user.click(first)
+    expect(first).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(await within(first).findByText('Denied')).toBeVisible()
+
+    const asks = await screen.findAllByRole('group', {name: 'Permission request'})
+    const second = asks.at(-1)
+    expect(second).toHaveTextContent('release_ship next')
+    if (second === undefined) return
+    await user.click(second)
+    expect(second).toHaveFocus()
+    await user.keyboard('{Control>}{Enter}{/Control}')
+
+    expect(await screen.findByText('Next is shipped')).toBeVisible()
+    expect(within(second).getByText('Allowed')).toBeVisible()
+  })
+
+  test('an ask that cannot be saved offers no Allow always', async () => {
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    void engine.session.tool('page_eval').call({code: 'return 1 + 1'})
+    const ask = await screen.findByRole('group', {name: 'Permission request'})
+    expect(within(ask).getByRole('button', {name: 'Allow once'})).toBeVisible()
+    expect(within(ask).queryByRole('button', {name: 'Allow always'})).not.toBeInTheDocument()
+  })
+
+  test('Stop while the card is open takes the ask away', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_release_ship({branch: 'main'})",
+      }),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship main')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByRole('group', {name: 'Permission request'})).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Stop generating'}))
+
+    expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Allow once'})).not.toBeInTheDocument()
+  })
+})
