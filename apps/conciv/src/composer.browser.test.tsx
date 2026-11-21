@@ -31,6 +31,31 @@ describe('the model menu', () => {
   })
 })
 
+describe('the model menu while a reply runs', () => {
+  test('the other harness’s models are disabled and the session’s own stay enabled', async () => {
+    const user = userEvent.setup({delay: null})
+    const engine = await createEngine(
+      {},
+      {harnesses: [{id: 'engine'}, {id: 'second', models: [{id: 'second-fast', name: 'Fast 1', group: 'Second'}]}]},
+    )
+    await engine.reply(TestLLM.hang())
+    const gate = await engine.gate()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(input, 'First task')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await gate.started
+    await gate.release()
+    expect(await screen.findByRole('button', {name: 'Stop generating'})).toBeVisible()
+
+    await user.click(screen.getByRole('button', {name: 'Model: Opus 5.5 (engine)'}))
+    await expect.element(page.getByRole('option', {name: 'Fast 1 (second)', disabled: true})).toBeVisible()
+    await expect.element(page.getByRole('option', {name: /^Sonnet 5\.5/, disabled: false})).toBeVisible()
+  })
+})
+
 describe('a draft and a send', () => {
   test('a sent message clears its session draft, and the session comes back with its messages and an empty composer', async () => {
     const user = userEvent.setup({delay: null})
