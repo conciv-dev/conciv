@@ -4,10 +4,10 @@ import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
-const STALE =
-  'Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.'
-
 describe('the engine asks for a restart or an update', () => {
+  const STALE =
+    'Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.'
+
   test('an engine running code older than the disk asks the user to restart the dev server', async () => {
     const engine = await createEngine()
     await engine.stale({

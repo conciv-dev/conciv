@@ -2,16 +2,16 @@ import {describe, expect, it, test} from 'vitest'
 import {DEFAULT_SKIN_NAME, SKIN_NAMES} from '@conciv/ui-kit-system'
 import {PreferencesSchema} from './preferences-schema.js'
 
-const CHOSEN = {
-  colorScheme: 'dark',
-  skin: 'terminal',
-  launcher: 'hidden',
-  openOnLoad: true,
-  closeOnOutsideClick: true,
-  commandShortcuts: {togglePanel: ['Mod+K']},
-}
-
 describe('the settings screen reads a stored skin and stored shortcuts', () => {
+  const CHOSEN = {
+    colorScheme: 'dark',
+    skin: 'terminal',
+    launcher: 'hidden',
+    openOnLoad: true,
+    closeOnOutsideClick: true,
+    commandShortcuts: {togglePanel: ['Mod+K']},
+  }
+
   it.each(SKIN_NAMES.filter((skin) => skin !== DEFAULT_SKIN_NAME))(
     'a stored skin %s that conciv ships is kept',
     (skin) => {
