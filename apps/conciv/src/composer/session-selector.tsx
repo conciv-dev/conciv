@@ -129,6 +129,7 @@ export function SessionSelector(props: {
   activeId: () => string | null
   onActivate: (id: string) => void
   onNewSession: () => void
+  triggerId?: string
 }): JSX.Element {
   const appData = useAppData()
   const announce = useAnnounce()
@@ -280,6 +281,7 @@ export function SessionSelector(props: {
   return (
     <Combobox.Root
       class="flex min-w-0 max-w-full"
+      ids={{trigger: props.triggerId}}
       collection={collection()}
       loading={searching()}
       translations={{loading: SEARCHING_LABEL}}

@@ -1,7 +1,7 @@
 import {createFileRoute, redirect, useRouter} from '@tanstack/solid-router'
 import {useQuery, useMutation} from '@conciv/client'
 import {createHotkeys, formatForDisplay} from '@tanstack/solid-hotkeys'
-import {For, Show, Suspense, createEffect, on, onCleanup, onMount, type JSX} from 'solid-js'
+import {For, Show, Suspense, createEffect, createUniqueId, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {Button, TooltipIconButton, createResizable} from '@conciv/ui-kit-system'
 import ChevronUp from 'lucide-solid/icons/chevron-up'
 import Columns2 from 'lucide-solid/icons/columns-2'
@@ -281,62 +281,67 @@ function QuickLayer(): JSX.Element {
           }
         >
           <For each={paneIds()}>
-            {(id, index) => (
-              <>
-                <Show when={index() > 0}>
-                  <div
-                    class="flex-[0_0_0.4375rem] cursor-col-resize relative before:bg-chat-line before:content-[''] before:transition-[background-color] before:duration-[120ms] before:ease-chat before:inset-x-[0.1875rem] before:inset-y-0 before:absolute hover:before:bg-chat-accent-line"
-                    aria-hidden="true"
-                    onPointerDown={onGutterDown}
-                  />
-                </Show>
-                <PaneProvider
-                  sessionId={id}
-                  onNewSession={addFreshPane}
-                  onReplaceSession={(next) => activatePane(index(), next)}
-                >
-                  <Show when={focusedIndex() === index()}>
-                    <PluginSession sessionId={id} />
+            {(id, index) => {
+              const sessionPillId = createUniqueId()
+              return (
+                <>
+                  <Show when={index() > 0}>
+                    <div
+                      class="flex-[0_0_0.4375rem] cursor-col-resize relative before:bg-chat-line before:content-[''] before:transition-[background-color] before:duration-[120ms] before:ease-chat before:inset-x-[0.1875rem] before:inset-y-0 before:absolute hover:before:bg-chat-accent-line"
+                      aria-hidden="true"
+                      onPointerDown={onGutterDown}
+                    />
                   </Show>
-                  <div
-                    data-conciv-qt-pane
-                    class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-chat relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-chat-accent before:opacity-90" : 'opacity-[0.62]'}`}
-                    onPointerDown={() => focusPane(index())}
-                    on:focusin={() => {
-                      if (focusedIndex() !== index()) focusPane(index())
-                    }}
+                  <PaneProvider
+                    sessionId={id}
+                    onNewSession={addFreshPane}
+                    onReplaceSession={(next) => activatePane(index(), next)}
                   >
-                    <div class="text-xs text-chat-text-3 leading-none font-chat-mono px-3 py-2 border-b border-b-chat-line-soft flex shrink-0 gap-2 items-center">
-                      <Suspense fallback={<SessionPillPending />}>
-                        <SessionSelector
-                          activeId={() => id}
-                          onActivate={(next) => activatePane(index(), next)}
-                          onNewSession={addFreshPane}
-                        />
-                      </Suspense>
-                      <Suspense fallback={<UsagePending />}>
-                        <PaneUsage sessionId={id} />
-                      </Suspense>
-                      <span class="flex-1" />
-                      <RefreshButton class={PANE_ACTION} />
-                      <TooltipIconButton
-                        tooltip="Close pane"
-                        class={PANE_ACTION}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          closePane(index())
-                        }}
-                      >
-                        <X size={14} aria-hidden="true" />
-                      </TooltipIconButton>
-                    </div>
-                    <Show when={{sessionId: id, generation: generation()}} keyed>
-                      {(paneKey) => <ChatPane sessionId={paneKey.sessionId} />}
+                    <Show when={focusedIndex() === index()}>
+                      <PluginSession sessionId={id} />
                     </Show>
-                  </div>
-                </PaneProvider>
-              </>
-            )}
+                    <section
+                      aria-labelledby={sessionPillId}
+                      data-conciv-qt-pane
+                      class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-chat relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-chat-accent before:opacity-90" : 'opacity-[0.62]'}`}
+                      onPointerDown={() => focusPane(index())}
+                      on:focusin={() => {
+                        if (focusedIndex() !== index()) focusPane(index())
+                      }}
+                    >
+                      <div class="text-xs text-chat-text-3 leading-none font-chat-mono px-3 py-2 border-b border-b-chat-line-soft flex shrink-0 gap-2 items-center">
+                        <Suspense fallback={<SessionPillPending />}>
+                          <SessionSelector
+                            activeId={() => id}
+                            onActivate={(next) => activatePane(index(), next)}
+                            onNewSession={addFreshPane}
+                            triggerId={sessionPillId}
+                          />
+                        </Suspense>
+                        <Suspense fallback={<UsagePending />}>
+                          <PaneUsage sessionId={id} />
+                        </Suspense>
+                        <span class="flex-1" />
+                        <RefreshButton class={PANE_ACTION} />
+                        <TooltipIconButton
+                          tooltip="Close pane"
+                          class={PANE_ACTION}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            closePane(index())
+                          }}
+                        >
+                          <X size={14} aria-hidden="true" />
+                        </TooltipIconButton>
+                      </div>
+                      <Show when={{sessionId: id, generation: generation()}} keyed>
+                        {(paneKey) => <ChatPane sessionId={paneKey.sessionId} />}
+                      </Show>
+                    </section>
+                  </PaneProvider>
+                </>
+              )
+            }}
           </For>
         </Show>
       </div>
