@@ -173,6 +173,7 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
         engineFor(engineId).started.engine.rpc.failure(rpcId, method, input),
       concivLoginCode: (_context, engineId) => engineFor(engineId).started.engine.loginCode(),
       concivRevokeBrowsers: (_context, engineId) => engineFor(engineId).started.engine.revokeBrowsers(),
+      concivRestart: (_context, engineId) => engineFor(engineId).started.engine.restart(),
       concivGateStarted: (_context, engineId, gateId) => gateFor(engineId, gateId).started,
       concivGateRelease: async (_context, engineId, gateId) => {
         const gate = gateFor(engineId, gateId)

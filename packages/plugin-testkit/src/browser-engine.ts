@@ -45,6 +45,7 @@ export async function createEngine(options: CreateEngineOptions = {}): Promise<E
     opened: () => commands.concivOpened(handle.id),
     loginCode: () => commands.concivLoginCode(handle.id),
     revokeBrowsers: () => commands.concivRevokeBrowsers(handle.id),
+    restart: () => commands.concivRestart(handle.id),
     rpc: {
       call: (rpcId, method, input) => commands.concivRpcCall(handle.id, rpcId, method, input),
       failure: (rpcId, method, input) => commands.concivRpcFailure(handle.id, rpcId, method, input),

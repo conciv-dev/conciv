@@ -15,7 +15,7 @@ import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {serveHono} from '@conciv/serve'
+import {serveHono, type ServedHono} from '@conciv/serve'
 import {z} from 'zod'
 import {callTool} from './call-tool.js'
 import {replyScript, type ReplyScript, type ScriptedHarness} from './scripted-harness.js'
@@ -98,6 +98,7 @@ export type HarnessEngine = {
   rpc: HarnessEngineRpc
   loginCode: () => Promise<string>
   revokeBrowsers: () => Promise<void>
+  restart: () => Promise<void>
   stop: () => Promise<void>
 }
 
@@ -114,6 +115,17 @@ type Turns = {
 }
 
 type Engine = {rpc: RpcClient; apiBase: string; turns: Turns}
+
+type Running = {app: MadeApp; served: ServedHono; close: () => void}
+
+type Boot = {
+  root: string
+  project: string
+  harnesses: HarnessList
+  options: HarnessEngineOptions
+  configProvider: ConfigProvider.ConfigProvider
+  opened: HarnessEngineOpened[]
+}
 
 async function settleInOrder(steps: Step[]): Promise<unknown[]> {
   const failures: unknown[] = []
@@ -367,22 +379,19 @@ function openedFile(file: string, line: number | undefined, column: number | und
 }
 
 async function bootApp(
-  root: string,
-  project: string,
-  [harness, ...others]: HarnessList,
-  options: HarnessEngineOptions,
-  configProvider: ConfigProvider.ConfigProvider,
-  opened: HarnessEngineOpened[],
+  {root, project, harnesses: [harness, ...others], options, configProvider, opened}: Boot,
+  sessionId: string | undefined,
+  agentToken: string | undefined,
 ): Promise<{app: MadeApp; sessionId: string | undefined}> {
   const config = options.config ?? {}
   const {staleness} = options
   const resolved = resolveConfig(
-    {sessionId: options.sessionId, permission: config.permission, permissions: config.permissions},
+    {sessionId, permission: config.permission, permissions: config.permissions},
     root,
     configProvider,
   )
-  for (const [path, content] of Object.entries(options.files ?? {})) writeInside(project, path, content)
   const app = await makeApp({
+    agentToken,
     print: () => {},
     cfg: {
       enabled: true,
@@ -411,6 +420,36 @@ async function bootApp(
   return {app, sessionId: resolved.sessionId}
 }
 
+function connect(engine: Engine, browser = makeBrowserRpcClient(engine.apiBase)): () => void {
+  engine.rpc = browser.rpc
+  engine.turns = makeTurns(browser.rpc)
+  return () => {
+    engine.turns.closeAll()
+    browser.close()
+  }
+}
+
+async function listenAgain(app: MadeApp, port: number): Promise<ServedHono> {
+  return serveHono({fetch: app.fetch, port}).catch((error: unknown) => {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(`the engine could not listen again on port ${port}: ${reason}`)
+  })
+}
+
+async function bootAgain(boot: Boot, engine: Engine, sessionId: string, running: Running): Promise<Running> {
+  const {app} = await bootApp(boot, sessionId, running.app.agentToken)
+  const served = await listenAgain(app, running.served.port).catch((error: unknown) =>
+    abandonStart(error, [() => app.dispose()]),
+  )
+  return {app, served, close: connect(engine)}
+}
+
+async function closeRunning(running: Running | undefined): Promise<unknown[]> {
+  if (running === undefined) return []
+  running.close()
+  return settleInOrder([() => running.served.close(), () => running.app.dispose()])
+}
+
 export async function createHarnessEngine(options: HarnessEngineOptions = {}): Promise<HarnessEngine> {
   const script = replyScript(options.replies ?? [])
   const harnesses = listedHarnesses(options, script)
@@ -419,27 +458,43 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
   const project = fixture ?? root
   const opened: HarnessEngineOpened[] = []
   const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
+  const boot: Boot = {root, project, harnesses, options, configProvider: isolatedProvider(root, options), opened}
   const {app, sessionId} = await Promise.resolve()
-    .then(() => bootApp(root, project, harnesses, options, isolatedProvider(root, options), opened))
+    .then(() => {
+      for (const [path, content] of Object.entries(options.files ?? {})) writeInside(project, path, content)
+      return bootApp(boot, options.sessionId, undefined)
+    })
     .catch((error: unknown) => abandonStart(error, [removeRoot]))
   const served = await serveHono({fetch: app.fetch}).catch((error: unknown) =>
     abandonStart(error, [() => app.dispose(), removeRoot]),
   )
   const apiBase = `http://127.0.0.1:${served.port}/t/${app.agentToken}`
   const browser = makeBrowserRpcClient(apiBase)
-  const engine: Engine = {rpc: browser.rpc, apiBase, turns: makeTurns(browser.rpc)}
+  const engine: Engine = {apiBase, rpc: browser.rpc, turns: makeTurns(browser.rpc)}
+  const state: {running: Running | undefined} = {running: {app, served, close: connect(engine, browser)}}
   const waits = new Set<AbortController>()
-  const stop = async (): Promise<void> => {
+  const halt = async (): Promise<unknown[]> => {
     for (const wait of waits) wait.abort()
-    script.releaseGate()
     engine.turns.closeAll()
-    browser.close()
-    const failures = await settleInOrder([() => served.close(), () => app.dispose(), removeRoot])
+    script.releaseGate()
+    const running = state.running
+    state.running = undefined
+    return closeRunning(running)
+  }
+  const stop = async (): Promise<void> => {
+    const failures = [...(await halt()), ...(await settleInOrder([removeRoot]))]
     if (failures.length > 0) throw new AggregateError(failures, 'the harness engine did not stop cleanly')
   }
   const started = await openFirstSession(engine, options.settings ?? [], sessionId).catch((error: unknown) =>
     abandonStart(error, [stop]),
   )
+  const restart = async (): Promise<void> => {
+    const running = state.running
+    if (running === undefined) throw new Error('the engine is stopped: it cannot restart')
+    const failures = await halt()
+    if (failures.length > 0) throw new AggregateError(failures, 'the harness engine did not stop cleanly')
+    state.running = await bootAgain(boot, engine, started.id, running)
+  }
   return {
     session: started,
     newSession: (title) => newSessionOn(engine, title),
@@ -457,6 +512,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     revokeBrowsers: async () => {
       revokeBrowsers(concivStateDir(root), 'all')
     },
+    restart,
     stop,
   }
 }
