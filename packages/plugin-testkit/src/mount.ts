@@ -2,6 +2,7 @@ import {onTestFinished} from 'vitest'
 import {createComponent} from 'solid-js'
 import {cleanup, render} from '@solidjs/testing-library'
 import {ConcivApp, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
+import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 import type {Engine} from './engine.js'
 
 declare module 'vitest' {
@@ -14,6 +15,7 @@ export type MountOptions = {
   engine: Engine
   seed?: {storage?: Record<string, unknown>}
   route?: string
+  host?: ConcivSettingsInit
 }
 
 const ENGINE_TIMINGS: NonNullable<Platform['timings']>['engine'] = {
@@ -70,6 +72,7 @@ export function makeMount(): Mount {
       engine: () => ({kind: 'bound', apiBase: address.apiBase, token: () => Promise.resolve(address.token)}),
       navigation: {memory: options.route ?? '/'},
       root: document,
+      settings: options.host,
       timings: {engine: ENGINE_TIMINGS},
       draftStore: memoryDraftStore(),
       onInteractive: () => interactive.resolve(),
