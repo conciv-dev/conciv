@@ -103,6 +103,21 @@ describe('plugins in settings', () => {
     expect(await screen.findByRole('status', {name: 'TanStack inspector active'})).toBeVisible()
   })
 
+  test('a plugin added to the project while the Plugins section is open joins the list', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']}, {fs: {filewatcher: true}})
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await user.click(await screen.findByRole('link', {name: 'Settings'}))
+    await user.click(await screen.findByRole('tab', {name: 'Plugins'}))
+    expect(await screen.findByRole('switch', {name: 'tanstack'})).toBeVisible()
+    expect(screen.queryByRole('switch', {name: 'desk-notes'})).not.toBeInTheDocument()
+
+    await engine.write('conciv/plugins/desk-notes.js', "export default {id: 'desk-notes', setup: () => undefined}\n")
+
+    expect(await screen.findByRole('switch', {name: 'desk-notes'})).toBeVisible()
+    expect(screen.getByRole('switch', {name: 'tanstack'})).toBeVisible()
+  })
+
   test('a plugin page joins the sections and its section shows in General, an unknown plugin page opens General, and a plugin under a built-in ID is not loaded', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({
