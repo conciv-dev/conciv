@@ -14,7 +14,7 @@ import {
   type HarnessEngineToolFailure,
 } from '@conciv/harness-testkit'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
-import {disposeAll} from './dispose.js'
+import {fileEngines} from './file-engines.js'
 
 export type EngineSetting = HarnessEngineSetting
 
@@ -33,8 +33,6 @@ export type Engine = Omit<HarnessEngine, 'stop' | 'clock'> & {clock: EngineClock
 export type EngineAddress = HarnessEngineAddress
 
 export type StartedEngine = {engine: Engine; stop: () => Promise<void>; tick: () => Promise<void>}
-
-const fileEngines: Array<() => Promise<void>> = []
 
 type PluginEntry = NonNullable<ConcivConfig['plugins']>[number]
 
@@ -80,8 +78,4 @@ export async function createEngine(config: ConcivConfig = {}, options: EngineSta
   if (expect.getState().currentTestName !== undefined) onTestFinished(started.stop)
   else fileEngines.push(started.stop)
   return started.engine
-}
-
-export function stopFileEngines(): Promise<void> {
-  return disposeAll(fileEngines.splice(0), 'sequential', 'an engine made at file level did not stop cleanly')
 }
