@@ -1339,9 +1339,18 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
 
   e2e/e2e-utils:
     dependencies:
@@ -1389,6 +1398,9 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -1468,6 +1480,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../packages/vitest-config
@@ -1516,6 +1531,9 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -1559,9 +1577,18 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
 
   e2e/svelte:
     dependencies:
@@ -1572,6 +1599,9 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -1584,6 +1614,9 @@ importers:
       '@sveltejs/vite-plugin-svelte':
         specifier: ^7.3.1
         version: 7.3.1(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5)
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
       svelte:
         specifier: ^5.57.3
         version: 5.57.3(@typescript-eslint/types@8.72.1)
@@ -1645,6 +1678,9 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -1718,6 +1754,9 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -1764,6 +1803,9 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -1798,6 +1840,9 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -1841,6 +1886,9 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -1899,6 +1947,9 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -1930,6 +1981,9 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -1955,9 +2009,15 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0

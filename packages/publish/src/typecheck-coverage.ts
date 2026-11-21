@@ -65,7 +65,9 @@ async function packageViolations(pkg: WorkspacePackage, files: string[]): Promis
   const main = await readTsconfig(join(pkg.dir, 'tsconfig.json')).catch(() => undefined)
   const onPreset = main !== undefined && extendsPreset(main)
   if (OFF_PRESET_PACKAGES.has(pkg.relativeDir)) {
-    return onPreset ? [`${pkg.relativeDir}: extends the @conciv/tsconfig preset, so it leaves the off-preset list`] : []
+    if (onPreset) return [`${pkg.relativeDir}: extends the @conciv/tsconfig preset, so it leaves the off-preset list`]
+    const repoOwned = files.filter(isRepoOwnedInScaffold)
+    return repoOwned.length === 0 ? [] : uncheckedFiles(pkg, repoOwned)
   }
   if (!onPreset) {
     return [
@@ -83,10 +85,21 @@ async function packageViolations(pkg: WorkspacePackage, files: string[]): Promis
       (key) => `${pkg.relativeDir}/${name}: sets "${key}", which the @conciv/tsconfig preset owns`,
     ),
   )
+  return [...ownedKeys, ...(await uncheckedFiles(pkg, files))]
+}
+
+function isRepoOwnedInScaffold(file: string): boolean {
+  return file.startsWith('test/') || file === 'playwright.config.ts'
+}
+
+async function uncheckedFiles(pkg: WorkspacePackage, files: string[]): Promise<string[]> {
+  const script = pkg.manifest.scripts?.typecheck
+  if (script === undefined) return [`${pkg.relativeDir}: has TypeScript files but no "typecheck" script`]
+  const projects = typecheckProjects(script)
+  if (projects.length === 0) return [`${pkg.relativeDir}: "typecheck" script runs no "tsc -p <tsconfig>"`]
   const checked = await Promise.all(projects.map((project) => listCheckedFiles(pkg.dir, resolve(pkg.dir, project))))
   const covered = new Set(checked.flat())
-  const unchecked = files.filter((file) => !covered.has(file)).map((file) => `${pkg.relativeDir}/${file}: not checked`)
-  return [...ownedKeys, ...unchecked]
+  return files.filter((file) => !covered.has(file)).map((file) => `${pkg.relativeDir}/${file}: not checked`)
 }
 
 async function readTsconfig(path: string): Promise<Tsconfig | undefined> {

@@ -37,7 +37,7 @@ const TASKS: Record<string, TaskConfig> = {
     plan: (rootDir, timings) => planShards(plannedPackages(rootDir), timings),
   },
   e2e: {
-    turboTasks: ['test:e2e', '--continue', '--concurrency=1'],
+    turboTasks: ['typecheck', 'test:e2e', '--continue', '--concurrency=1'],
     reportRoots: ['e2e', 'apps/site'],
     render: {title: 'E2e consumer apps', details: true},
     plan: (rootDir, timings) => planE2eShards(e2ePackages(rootDir), timings),

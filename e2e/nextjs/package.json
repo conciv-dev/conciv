@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "test:e2e": "playwright test",
-    "test:packed": "node packed/test-packed.ts"
+    "test:packed": "node packed/test-packed.ts",
+    "typecheck": "tsc -p tsconfig.e2e.json --noEmit"
   },
   "dependencies": {
     "@conciv/it": "workspace:*",
@@ -22,6 +23,7 @@
     "@conciv/contract": "workspace:*",
     "@conciv/e2e-utils": "workspace:*",
     "@conciv/protocol": "workspace:*",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
