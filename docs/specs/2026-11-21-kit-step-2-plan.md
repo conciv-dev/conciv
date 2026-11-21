@@ -266,7 +266,7 @@ test('the engine comes back on the same address, keeps the project as it is and 
   const before = engine.address.apiBase
   await engine.session.send('first')
   writeFileSync(join(engine.root, 'notes.txt'), 'two')
-  const started = await engine.event('server.connected')
+  const started = await engine.event('session.deleted')
 
   await engine.restart()
   await engine.session.send('second')
@@ -278,7 +278,7 @@ test('the engine comes back on the same address, keeps the project as it is and 
 })
 ```
 
-The last line is what a no-op `restart` cannot pass: the wait opened before the restart is refused because the engine really stopped (Task 1). If a wait on `server.connected` settles at once instead (the kit skips that first envelope), use any event type that does not fire here and report it.
+The last line is what a no-op `restart` cannot pass: the wait opened before the restart is refused because the engine really stopped (Task 1). If a wait on `session.deleted` settles at once instead (the kit skips that first envelope), use any event type that does not fire here and report it.
 
 `apps/conciv/src/restart.dom.test.tsx`, same body as `.browser.test.tsx`:
 
