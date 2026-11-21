@@ -42,16 +42,25 @@ const forgetDeletedSession = Effect.fn('app.sessions.forgetDeleted')(function* (
   yield* Effect.sync(() => forget(sessionId))
 })
 
+const subscriptionSignal = Effect.acquireRelease(
+  Effect.sync(() => new AbortController()),
+  (subscription) => Effect.sync(() => subscription.abort()),
+)
+
 const readDeletedSessions = Effect.fn('app.sessions.readDeleted')(
   function* (input: DeletedSessionsInput) {
     yield* awaitEngineBound(input.server)
-    yield* Stream.fromAsyncIterable(input.client.event.subscribe(), (cause) => SessionEventsFailed.make({cause})).pipe(
+    const subscription = yield* subscriptionSignal
+    yield* Stream.fromAsyncIterable(input.client.event.subscribe({signal: subscription.signal}), (cause) =>
+      SessionEventsFailed.make({cause}),
+    ).pipe(
       Stream.filter(isSessionDeleted),
       Stream.runForEach((event) => forgetDeletedSession(event.data.sessionID, input.forget)),
     )
   },
+  Effect.scoped,
   Effect.catchCauseIf(
-    (cause) => !Cause.hasInterrupts(cause),
+    (cause) => !Cause.hasInterruptsOnly(cause),
     (cause) => Effect.logError('[conciv] stopped reading session deletions', cause),
   ),
 )
