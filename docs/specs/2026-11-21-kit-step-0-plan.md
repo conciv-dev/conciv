@@ -77,7 +77,8 @@ test('a tool that runs through code mode still answers', async () => {
 - [ ] **Step 2: Run to verify the first fails**
 
 Run: `cd packages/plugins/test-runner && VITEST_MAX_FORKS=1 pnpm exec vitest run --project node src/tools.test.ts`
-Expected: the first test FAILS with `No tool named "test_runner_status" is currently available`; the second PASSES (if it does not, stop and report what `open` answered). If the first test's expected value differs from what the tool really answers before a run, stop and report the real value before changing the assert.
+Before any proof run in a fresh proof worktree: `pnpm exec turbo run build build:types --filter=@conciv/harness-testkit --filter=@conciv/plugin-testkit --filter=@conciv/plugin-test-runner` (the kits are peers, so a `...` filter does not build them).
+Expected: the first test FAILS with `'external_test_runner_status' is not defined` (a ReferenceError from the code-mode sandbox: the call went through `execute_typescript`, where a direct tool does not exist; observed in the real run, 2026-11-21); the second PASSES (if it does not, stop and report what `open` answered). If the first test's expected value differs from what the tool really answers before a run, stop and report the real value before changing the assert.
 
 - [ ] **Step 3: Change `callTool` in `packages/harness-testkit/src/call-tool.ts`**
 
