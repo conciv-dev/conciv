@@ -38,6 +38,8 @@ export type EngineStart = {
       StartOpts,
       | 'firstChunkTimeoutMs'
       | 'firstStartTimeoutMs'
+      | 'uiCallWaitMs'
+      | 'uiAnswerWaitMs'
       | 'eventHeartbeatIntervalMs'
       | 'stopGraceMs'
       | 'pageReplyTimeoutMs'

@@ -33,6 +33,8 @@ type ChatPlaneDeps = TurnDeps & {
   db: ConcivDb
   firstOutputTimeoutMs?: number
   firstStartTimeoutMs?: number
+  uiCallWaitMs?: number
+  uiAnswerWaitMs?: number
   groupExitTimeoutMs?: number
   driver: CodeDriver | null
   pendingPermissions: (sessionId: SessionId) => Promise<ChatPendingApproval[]>
@@ -101,7 +103,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     },
   })
   const pendingCards = (sessionId: SessionId): Promise<ChatPendingApproval[]> => deps.pendingPermissions(sessionId)
-  const ui = createUiChannel()
+  const ui = createUiChannel({callWaitMs: deps.uiCallWaitMs, answerWaitMs: deps.uiAnswerWaitMs})
   const transcripts = createTranscriptImporter({
     harnessFor: deps.harnessFor,
     stores,

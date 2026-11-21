@@ -111,6 +111,8 @@ export type StartOpts = {
   harnesses?: readonly HarnessAdapter[]
   firstChunkTimeoutMs?: number
   firstStartTimeoutMs?: number
+  uiCallWaitMs?: number
+  uiAnswerWaitMs?: number
   eventHeartbeatIntervalMs?: number
   stopGraceMs?: number
   pageReplyTimeoutMs?: number
@@ -290,6 +292,8 @@ export async function start(opts: StartOpts): Promise<Engine> {
     harnesses: opts.harnesses,
     firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
     firstStartTimeoutMs: opts.firstStartTimeoutMs,
+    uiCallWaitMs: opts.uiCallWaitMs,
+    uiAnswerWaitMs: opts.uiAnswerWaitMs,
     eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
     stopGraceMs: opts.stopGraceMs,
     pageReplyTimeoutMs: opts.pageReplyTimeoutMs,

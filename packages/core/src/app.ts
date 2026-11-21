@@ -233,6 +233,10 @@ export type MakeAppOpts = {
 
   firstStartTimeoutMs?: number
 
+  uiCallWaitMs?: number
+
+  uiAnswerWaitMs?: number
+
   eventHeartbeatIntervalMs?: number
 
   stopGraceMs?: number
@@ -708,6 +712,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
     firstStartTimeoutMs: opts.firstStartTimeoutMs,
+    uiCallWaitMs: opts.uiCallWaitMs,
+    uiAnswerWaitMs: opts.uiAnswerWaitMs,
     groupExitTimeoutMs: opts.stopGraceMs,
     log: logError,
     driver,
