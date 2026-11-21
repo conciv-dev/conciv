@@ -48,6 +48,19 @@ describe('where the app opens', () => {
     expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
     expect(await screen.findByRole('button', {name: 'Plan the release, session options'})).toBeVisible()
   })
+
+  test('the address of a session this engine never saw opens that session empty, not the newest one', async () => {
+    const engine = await createEngine()
+    await engine.newSession('Plan the release')
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: ['/panel/conciv_shared-by-a-teammate?open=true']}),
+    })
+
+    expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+    expect(await screen.findByRole('button', {name: 'New session, session options'})).toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Plan the release, session options'})).not.toBeInTheDocument()
+  })
 })
 
 describe('a page that docks the chat', () => {
