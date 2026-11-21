@@ -35,6 +35,7 @@ type EngineFixtures = {
   client: EngineClient
   launch: (root: string) => Promise<EngineClient>
   connect: (engine: KitEngine) => RpcClient
+  untrusted: (engine: KitEngine) => RpcClient
   fakeTimers: (config: Parameters<typeof vi.useFakeTimers>[0]) => void
   ttySessions: (options: Parameters<typeof createTtySessions>[0]) => TtySessions
   settingsStorage: (storages: SettingsStorages) => SettingsStorage
@@ -63,6 +64,15 @@ export const test: TestAPI<EngineFixtures> = base.extend<EngineFixtures>({
     const clients: BrowserRpcClient[] = []
     await use((engine) => {
       const client = makeBrowserRpcClient(engine.address.apiBase, {session: () => engine.session.id})
+      clients.push(client)
+      return client.rpc
+    })
+    for (const client of clients) client.close()
+  },
+  untrusted: async ({task: _task}, use) => {
+    const clients: BrowserRpcClient[] = []
+    await use((engine) => {
+      const client = makeBrowserRpcClient(new URL(engine.address.apiBase).origin)
       clients.push(client)
       return client.rpc
     })
