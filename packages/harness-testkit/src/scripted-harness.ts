@@ -1,4 +1,5 @@
 import {Effect, Stream} from 'effect'
+import {z} from 'zod'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {defineHarness, type HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
@@ -43,7 +44,7 @@ type Run = {threadId: string; runId: string}
 
 type StreamOptions = Parameters<Parameters<typeof makeTextAdapter>[1]>[0]
 
-type RunRequest = Pick<StreamOptions, 'messages' | 'tools'> & {
+type RunRequest = Pick<StreamOptions, 'messages' | 'tools' | 'systemPrompts' | 'modelOptions'> & {
   threadId?: string
   runId?: string
   request?: {signal?: AbortSignal | null}
@@ -67,10 +68,20 @@ function stamped(event: ChatEvent, run: Run): ChatEvent {
   return event
 }
 
-function recorded(request: RunRequest): ModelRequest {
+const InputSchemaSchema = z.record(z.string(), z.unknown())
+
+function recorded(request: RunRequest, deps: HarnessChatDeps): ModelRequest {
   return {
+    system: (request.systemPrompts ?? []).map((prompt) => (typeof prompt === 'string' ? prompt : prompt.content)),
     messages: [...request.messages],
-    tools: (request.tools ?? []).map((tool) => ({name: tool.name, description: tool.description})),
+    tools: (request.tools ?? []).map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: InputSchemaSchema.parse(tool.inputSchema ?? {}),
+    })),
+    model: deps.model ?? null,
+    effort: deps.effort ?? null,
+    options: {...request.modelOptions},
   }
 }
 
@@ -93,7 +104,7 @@ async function* replyEvents(
   take: (request: ModelRequest) => Promise<Response>,
 ): AsyncGenerator<ChatEvent> {
   const run = {threadId: request.threadId ?? deps.sessionId, runId: request.runId ?? crypto.randomUUID()}
-  const reply = await take(recorded(request))
+  const reply = await take(recorded(request, deps))
   yield {type: ChatEventType.RUN_STARTED, ...run}
   yield {
     type: ChatEventType.CUSTOM,
@@ -140,7 +151,7 @@ export function replyScript(replies: readonly Response[]): ReplyScript {
           resume: false,
           permissionGate: 'none',
           compaction: false,
-          systemPrompt: 'none',
+          systemPrompt: 'flag',
           mcp: 'none',
           init: 'none',
           imageInput: false,

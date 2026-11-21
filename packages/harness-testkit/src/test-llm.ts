@@ -1,12 +1,20 @@
 import {Stream} from 'effect'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
+import type {ReasoningEffort} from '@conciv/protocol/chat-types'
 
 export type Response = readonly ChatEvent[] | Stream.Stream<ChatEvent, Error>
 
-export type ModelRequestTool = {name: string; description: string}
+export type ModelRequestTool = {name: string; description: string; inputSchema: Record<string, unknown>}
 
-export type ModelRequest = {messages: ModelMessage[]; tools: ModelRequestTool[]}
+export type ModelRequest = {
+  system: string[]
+  messages: ModelMessage[]
+  tools: ModelRequestTool[]
+  model: string | null
+  effort: ReasoningEffort | null
+  options: Record<string, unknown>
+}
 
 export type Gate = Readonly<{started: Promise<void>; release: () => Promise<void>}>
 
