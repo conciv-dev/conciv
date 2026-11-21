@@ -22,6 +22,8 @@ export type EngineCommands = {
     method: string,
     input: unknown,
   ) => ReturnType<Engine['rpc']['failure']>
+  concivLoginCode: (engineId: string) => Promise<string>
+  concivRevokeBrowsers: (engineId: string) => Promise<void>
   concivOpened: (engineId: string) => ReturnType<Engine['opened']>
   concivSend: (engineId: string, sessionId: string, text: string) => Promise<void>
   concivApprove: (engineId: string, sessionId: string) => Promise<void>

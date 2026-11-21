@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os'
 import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
 import {ConfigProvider} from 'effect'
 import {rpcStream} from '@conciv/ai/client'
-import {makeBrowserRpcClient, type EngineStaleness, type RpcClient} from '@conciv/contract'
+import {makeBrowserRpcClient, makeRpcClient, type EngineStaleness, type RpcClient} from '@conciv/contract'
 import {makeApp, type MadeApp, type MakeAppOpts} from '@conciv/core/app'
 import {resolveConfig} from '@conciv/core/config'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -13,6 +13,7 @@ import {ChatEventType, runLifecycleEvent, type ChatEvent} from '@conciv/protocol
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
+import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveHono} from '@conciv/serve'
 import {z} from 'zod'
@@ -95,6 +96,8 @@ export type HarnessEngine = {
   opened: () => Promise<HarnessEngineOpened[]>
   event: (type: string) => Promise<HarnessEngineEventWait>
   rpc: HarnessEngineRpc
+  loginCode: () => Promise<string>
+  revokeBrowsers: () => Promise<void>
   stop: () => Promise<void>
 }
 
@@ -450,6 +453,10 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     opened: async () => [...opened],
     event: (type) => eventWait(engine, type, waits),
     rpc: pluginRpc(engine),
+    loginCode: async () => (await makeRpcClient(apiBase).auth.issueCode()).code,
+    revokeBrowsers: async () => {
+      revokeBrowsers(concivStateDir(root), 'all')
+    },
     stop,
   }
 }
