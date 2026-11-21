@@ -6,7 +6,7 @@ import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('notes from a plugin', () => {
   test('a pill attaches a note drawn by its plugin card, Remove takes it off, and a sent note reaches the agent and stays on the message', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
     await engine.reply(TestLLM.text('Header is sticky now'))
     const gate = await engine.gate()
@@ -18,6 +18,7 @@ describe('notes from a plugin', () => {
     expect(within(notes).getByText('Review card')).toBeVisible()
     await user.click(within(notes).getByRole('button', {name: 'Remove Make the header sticky'}))
     expect(screen.queryByRole('list', {name: 'Notes'})).not.toBeInTheDocument()
+    expect(input).toHaveFocus()
 
     await user.click(screen.getByRole('button', {name: 'Review'}))
     expect(within(await screen.findByRole('list', {name: 'Notes'})).getByText('Review card')).toBeVisible()

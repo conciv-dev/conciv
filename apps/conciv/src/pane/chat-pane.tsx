@@ -449,7 +449,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
 
   const compacting = messaging.compacting
 
-  const focusInput = () => requestAnimationFrame(() => inputHandle()?.focus())
   const modelMenu = useModelMenu(() => inputHandle()?.focus())
   const commandSources = useComposerTriggerSources({
     sessionId,
@@ -465,12 +464,12 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   }
   const insert = (text: string) => {
     inputHandle()?.append(text)
-    focusInput()
+    inputHandle()?.focus()
   }
   const insertFirst = (text: string) => {
     inputHandle()?.select({start: 0, end: 0})
     inputHandle()?.insert(`${text}\n`)
-    focusInput()
+    inputHandle()?.focus()
   }
   const attach = (file: File) => {
     const api = composerApi.current
@@ -479,7 +478,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
       return
     }
     void api.addAttachment(file)
-    focusInput()
+    inputHandle()?.focus()
   }
   const imageInput = () => harness()?.imageInput
   const attachments = createMemo(() => paneAttachments(imageInput(), appData.drafts))
@@ -488,7 +487,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   )
   const stageGrab = (grab: Grab) => {
     pane.grabStaging.stage(grab)
-    focusInput()
+    inputHandle()?.focus()
   }
 
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
@@ -622,7 +621,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   </div>
                   <div class={PILL_GROUP}>
                     <Suspense>
-                      <ConnectedAgents onDisconnected={focusInput} />
+                      <ConnectedAgents onDisconnected={() => inputHandle()?.focus()} />
                     </Suspense>
                     <SessionComposerPills pane={pluginSession} />
                   </div>
@@ -638,7 +637,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     inputLabel="Message the conciv agent"
                     attachmentAdapter={attachments().adapter}
                     AttachmentComponent={PaneAttachment}
-                    notes={<ComposerNotes session={pluginSession.view} onRemoved={focusInput} />}
+                    notes={<ComposerNotes session={pluginSession.view} onRemoved={() => inputHandle()?.focus()} />}
                     onInputReady={setInputHandle}
                     onSelectionChange={draftStorage.noteSelection}
                     busy={compactingIndicator(compacting())}
@@ -649,7 +648,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <SessionComposerBinding
                       pane={pluginSession}
                       input={inputHandle}
-                      focus={focusInput}
+                      focus={() => inputHandle()?.focus()}
                       restored={restored.promise}
                     />
                     <DraftRestore
