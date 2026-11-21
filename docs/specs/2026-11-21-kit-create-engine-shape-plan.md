@@ -29,7 +29,7 @@ createEngine(config?: ConcivConfig, start?: EngineStart): Promise<Engine>
 
 - These config fields are the kit's to set, and giving one is refused before the engine starts with a plain message naming the field: `stateRoot`, `homeDir`, `devEndpointDir`.
 - `harness` (an id) picks which of the scripted agents is the engine's; default the first.
-- `port` (a number) is the product's own field and is passed through.
+- `port` (a number) is the product's own field. `start` does not read it from the config (`core/src/config.ts:80-98`), so the kit maps it to `start`'s `port: {exact}`, as `unplugin/src/core/boot.ts:22` does. Giving it together with the second argument's `port` is refused with a plain message.
 - Everything else (`plugins`, `permission`, `permissions`, `policies`, `systemPrompt`, `sessionId`, `hubAccess`, `claudeSessionId`, `enabled`, `widget`) is passed through untouched.
 
 **`start`**, only what must be known before the engine starts and is not product config:
@@ -57,13 +57,13 @@ type EngineStart = {
 
 **On the engine**, added:
 
-| Call                          | Replaces                 | Notes                                                                                                                         |
-| ----------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `engine.reply(...responses)`  | the `replies` option     | Appends to the scripted queue; `Promise<void>`                                                                                |
-| `engine.stale(staleness)`     | the `staleness` option   | The kit hands `start` a function that returns the current value (`StartOpts.staleness` is already `() => EngineStaleness`)    |
-| `engine.version(version)`     | the `app.version` option | Needs the product to read the version per request: see Task 1                                                                 |
-| `engine.write(path, content)` | the `files` option       | Writes inside the project folder (same path guard as today); a file the engine reads at boot comes from a fixture `directory` |
-| `engine.setting(...)`         | the `settings` option    | Exists already; the option is removed                                                                                         |
+| Call                          | Replaces                 | Notes                                                                                                                                                                                                                                                       |
+| ----------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `engine.reply(...responses)`  | the `replies` option     | Appends to the scripted queue; `Promise<void>`                                                                                                                                                                                                              |
+| `engine.stale(staleness)`     | the `staleness` option   | The kit hands `start` a function that returns the current value; before the first `stale` call it returns `undefined`, which the product reads as its own check (`StartOpts.staleness` becomes `() => EngineStaleness \| undefined`, `core/src/app.ts:483`) |
+| `engine.version(version)`     | the `app.version` option | Needs the product to read the version per request: see Task 1                                                                                                                                                                                               |
+| `engine.write(path, content)` | the `files` option       | Writes inside the project folder (same path guard as today); a file the engine reads at boot comes from a fixture `directory`                                                                                                                               |
+| `engine.setting(...)`         | the `settings` option    | Exists already; the option is removed                                                                                                                                                                                                                       |
 
 Unchanged on the engine: `session`, `newSession`, `gate`, `requests`, `address`, `root`, `opened`, `event`, `rpc`, `outside`, `loginCode`, `revokeBrowsers`, `restart`, and `clock` from the last-pieces plan.
 
@@ -130,3 +130,5 @@ plus: `engine.stale(...)` then a mount shows the stale-code notice (read its tex
 1. The names: `engine.reply`, `engine.stale`, `engine.version`, `engine.write`, and the second argument's keys.
 2. `models` and `commands` only inside `harnesses`.
 3. The version as a function in the product.
+4. `StartOpts.staleness` and `MakeAppOpts.staleness` may return `undefined` for "the product's own check" (the kit is the option's only caller; no new export).
+5. `engine.write` is refused on an engine made with `directory` (it would write into the committed fixture folder).
