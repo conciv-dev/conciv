@@ -173,7 +173,7 @@ describe('the actions under a reply', () => {
 })
 
 describe('refreshing the conversation', () => {
-  test('the session menu refuses a refresh while a reply runs, then refreshes the conversation and says so', async () => {
+  test('the session menu refuses a refresh while a reply runs, shows the reply token counts, then refreshes and says so', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Here is the page'))
@@ -192,10 +192,76 @@ describe('refreshing the conversation', () => {
     expect(await screen.findByText('Here is the page')).toBeVisible()
     expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
     expect(refresh).toBeEnabled()
+    expect(await within(options).findByText('Input')).toBeVisible()
+    expect(within(options).getByText('Output')).toBeVisible()
     await user.click(refresh)
 
     expect(await screen.findByText('Conversation refreshed.')).toBeVisible()
     expect(screen.getByText('Here is the page')).toBeVisible()
+  })
+})
+
+describe('a conversation too long for the model', () => {
+  test('the user compacts from the overflow row, watches it compact, and goes on after the Context compacted mark', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.failAfter(Object.assign(new Error('prompt is too long'), {code: 'context_overflow'})),
+      TestLLM.text('A summary of the talk so far'),
+      TestLLM.text('Back to work'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Keep going')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    const overflow = await screen.findByRole('alert', {
+      name: 'This conversation is too long for the model. Compact it to keep going.',
+    })
+    const compaction = await engine.gate()
+    await user.click(within(overflow).getByRole('button', {name: 'Compact conversation'}))
+    await compaction.started
+
+    expect(await screen.findByRole('separator', {name: 'Compacting…'})).toBeVisible()
+    expect(screen.getByRole('status', {name: 'Compacting context…'})).toBeVisible()
+    await compaction.release()
+    expect(await screen.findByRole('separator', {name: 'Context compacted'})).toBeVisible()
+    expect(
+      screen.queryByRole('alert', {name: 'This conversation is too long for the model. Compact it to keep going.'}),
+    ).not.toBeInTheDocument()
+
+    await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Go on')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    const reply = await screen.findByRole('article', {name: 'Reply to: Go on'})
+    expect(await within(reply).findByText('Back to work')).toBeVisible()
+  })
+})
+
+describe('a session that switched harness', () => {
+  test('each reply names the harness that wrote it once the session holds replies from two harnesses', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine(
+      {},
+      {harnesses: [{id: 'engine'}, {id: 'second', models: [{id: 'second-fast', name: 'Fast 1', group: 'Second'}]}]},
+    )
+    await engine.reply(TestLLM.text('First answer'), TestLLM.text('Second answer'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'First task')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('First answer')).toBeVisible()
+    expect(screen.queryByText('engine')).not.toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', {name: 'Model: Opus 5.5 (engine)'}))
+    await user.click(await screen.findByRole('option', {name: 'Fast 1 (second)'}))
+    const confirm = await screen.findByRole('alertdialog', {name: 'Switch harness?'})
+    await user.click(within(confirm).getByRole('button', {name: 'Switch to second'}))
+    expect(await screen.findByRole('button', {name: 'Model: Fast 1 (second)'})).toBeVisible()
+    await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Second task')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+
+    expect(await screen.findByText('Second answer')).toBeVisible()
+    expect(screen.getByText('engine')).toBeVisible()
+    expect(screen.getByText('second')).toBeVisible()
   })
 })
 
