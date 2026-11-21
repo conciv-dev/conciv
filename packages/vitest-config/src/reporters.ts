@@ -14,6 +14,18 @@ export function ciReporters(): CiReporterEntry[] {
   return ['default', ['github-actions', {jobSummary: {enabled: false}}], ['json', {outputFile: 'test-results.json'}]]
 }
 
+export function ciReporting(): {reporters: CiReporterEntry[]; coverage: CiCoverage} {
+  return {
+    reporters: ciReporters(),
+    coverage: {
+      enabled: Boolean(process.env.GITHUB_ACTIONS),
+      provider: 'v8',
+      reporter: ['json-summary'],
+      reportsDirectory: 'coverage',
+    },
+  }
+}
+
 const TEST_TIMEOUT_MS = 30_000
 const HOOK_TIMEOUT_MS = 30_000
 export const POLL_TIMEOUT_MS = 5_000
@@ -39,17 +51,11 @@ export function ciTest(): {
 } {
   const maxWorkers = forkCap()
   return {
-    reporters: ciReporters(),
+    ...ciReporting(),
     testTimeout: TEST_TIMEOUT_MS,
     hookTimeout: HOOK_TIMEOUT_MS,
     teardownTimeout: 30_000,
     expect: {poll: {timeout: POLL_TIMEOUT_MS, interval: POLL_INTERVAL_MS}},
-    coverage: {
-      enabled: Boolean(process.env.GITHUB_ACTIONS),
-      provider: 'v8',
-      reporter: ['json-summary'],
-      reportsDirectory: 'coverage',
-    },
     globalSetup: [CONCIV_HOME_SETUP],
     setupFiles: [],
     ...(maxWorkers === undefined ? {} : {maxWorkers}),

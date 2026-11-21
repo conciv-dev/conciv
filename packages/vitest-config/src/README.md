@@ -8,6 +8,7 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 
 - `ciTest()` (`reporters.ts`): `{reporters, coverage (v8, json-summary, reportsDirectory 'coverage', enabled on CI only), testTimeout/hookTimeout/teardownTimeout 30_000, maxWorkers?, globalSetup: [setup/conciv-home-setup.ts]}`; calling it makes nothing.
 - `tempDir(prefix)` (`temp-dir.ts`, export `./temp-dir`): makes a folder inside one `conciv-test-*` folder per test file, which an `afterAll` registered when the module loads removes once that file is done, passed or failed. Every test that needs a temp folder takes it from here.
+- `ciReporting()` (`reporters.ts`): `{reporters: ciReporters(), coverage}`, the root-only part of `ciTest()` (vitest reads reporters and coverage only at the root). A package on `concivTest()` puts it at the root of its own `test`; `ciTest()` is not used there because its `globalSetup` sets a `CONCIV_HOME` the kit's engines never read (they get their home explicitly).
 - `ciReporters()` (`reporters.ts`): `['default']` locally; on CI adds `github-actions` (jobSummary off) and `json` -> `test-results.json`.
 - `ciTestSolidBrowser()` (`reporters.ts`): `ciTest()` plus `setupFiles: ['@conciv/vitest-config/solid-cleanup']`.
 - `browserOptimizeDeps(alsoInclude = [])`, `TANSTACK_AI_SOLID_DEPS` (`reporters.ts`).
