@@ -9,6 +9,7 @@ import {htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE, loadWidgetModule, resolveWidgetModule} from './widget-module.js'
 import {makeOpenInEditor} from './open-editor.js'
 import {makeViteBridge} from './vite-bridge.js'
+import {install as installShutdownDeadline, track} from './shutdown-deadline.js'
 import type {Builtins} from './boot.js'
 import {addSourceToJsx} from '@tanstack/devtools-bundler-core'
 
@@ -213,6 +214,7 @@ function widgetSettings(widget: ConcivConfig['widget'], docked: boolean): Conciv
 
 export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}): DevToolsPlugin {
   const engines: Engine[] = []
+  const deadlines: (() => void)[] = []
   let apiBase: string | undefined
 
   let managedExcludes: string[] = []
@@ -318,12 +320,16 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         builtins.nativePageDir,
       )
       engines.push(stopWhenHttpServerCloses(server, booted))
+      if (!server.config.server.middlewareMode) deadlines.push(installShutdownDeadline())
       apiBase = `http://127.0.0.1:${booted.port}`
       devServer = server
       mountWidget(server, apiBase, options.widget)
     },
     async closeServer() {
+      const settle = track('conciv engine stopping')
       await engines.shift()?.stop()
+      settle()
+      deadlines.shift()?.()
     },
   }
 }

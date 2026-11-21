@@ -72,7 +72,8 @@
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "build:types": "tsdown -c tsdown.types.config.ts"
+    "build:types": "tsdown -c tsdown.types.config.ts",
+    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {
     "@conciv/cli": "workspace:^",
@@ -87,7 +88,11 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/contract": "workspace:*",
+    "@conciv/harness-testkit": "workspace:*",
+    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@rspack/core": "catalog:",
     "@tanstack/devtools-vite": "catalog:",
     "@types/node": "catalog:",
