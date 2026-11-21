@@ -18,13 +18,21 @@ import type {
   ToolCaptureMode,
 } from '@conciv/protocol/element-capture-types'
 import {toolError, isToolError} from '@conciv/protocol/tool-call-types'
-import {addRef, buildSnapshot, describeElement, DOM_CAP, isOurs, selectDeep, type Refs} from './snapshot.js'
+import {
+  addRef,
+  buildSnapshot,
+  describeElement,
+  DOM_CAP,
+  isOurs,
+  isSensitiveField,
+  MASKED_VALUE,
+  selectDeep,
+  type Refs,
+} from './snapshot.js'
 import {dehydrate, navigatePath} from './dehydrate.js'
 import {
-  isSensitiveField,
   loadedSnapshotLibrary,
   loadSnapshotLibrary,
-  MASKED_VALUE,
   takeElementCapture,
   toCssBundle,
   type PendingCssText,

@@ -93,10 +93,22 @@ function isInteresting(el: Element): boolean {
   return tag in ROLE_BY_TAG
 }
 
-export const readValue = (el: Element): string | undefined =>
-  el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement
-    ? el.value
-    : undefined
+export const MASKED_VALUE = '***'
+
+const SENSITIVE_AUTOCOMPLETE = ['cc-', 'one-time-code', 'current-password', 'new-password']
+
+export function isSensitiveField(el: Element): boolean {
+  const type = el.getAttribute('type')?.toLowerCase() ?? ''
+  if (type === 'password') return true
+  const autocomplete = el.getAttribute('autocomplete')?.toLowerCase() ?? ''
+  return SENSITIVE_AUTOCOMPLETE.some((token) => autocomplete.includes(token))
+}
+
+export function readValue(el: Element): string | undefined {
+  if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement))
+    return undefined
+  return isSensitiveField(el) ? MASKED_VALUE : el.value
+}
 
 function snapNode(el: Element, addRef: RefAdder): SnapNode {
   const state = nodeState(el)
