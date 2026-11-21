@@ -164,3 +164,4 @@ One file per rule source, beside it, through oxlint's own `RuleTester` (`oxlint/
 | core-purity                               | core-purity › packages/oxlint-plugin/src/vocabulary.test.js › core-purity                                            |
 | no-of-suffix                              | no-of-suffix › packages/oxlint-plugin/src/vocabulary.test.js › no-of-suffix                                          |
 | lucide-per-icon                           | lucide-per-icon › packages/oxlint-plugin/src/lucide-per-icon.test.js › lucide-per-icon                               |
+| playwright-test-in-e2e                    | playwright-test-in-e2e › packages/oxlint-plugin/src/playwright-test-in-e2e.test.js › playwright-test-in-e2e          |
