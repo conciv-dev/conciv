@@ -106,7 +106,7 @@ git commit -m "fix(harness-testkit): session.tool calls a direct tool by its own
 - Modify: `packages/plugin-testkit/src/README.md` (the `mount.ts` line)
 - Modify: `apps/conciv/package.json` (devDependencies: `@conciv/unplugin`, `@conciv/plugin-testkit`, `@conciv/harness-testkit`, `@conciv/vitest-config`, `vitest`, `@solidjs/testing-library`, `@testing-library/user-event`, all `workspace:*` or `catalog:` as `packages/plugins/test-runner/package.json` has them; `"test": "vitest run"`)
 - Modify: `apps/conciv/vite.config.ts` (add `conciv()` from `@conciv/unplugin/vite` to `plugins`)
-- Test: `apps/conciv/src/routes/panel.dom.test.tsx`, `apps/conciv/src/shell.browser.test.tsx`
+- Test: `apps/conciv/src/panel.dom.test.tsx`, `apps/conciv/src/shell.browser.test.tsx`
 - Create: `.changeset/kit-mount-ready.md` (`@conciv/plugin-testkit` patch)
 
 **Interfaces:**
@@ -122,7 +122,7 @@ Add the devDependencies and `conciv()` listed above, run `pnpm install`, and con
 
 - [ ] **Step 2: Write the failing tests**
 
-`apps/conciv/src/routes/panel.dom.test.tsx`:
+`apps/conciv/src/panel.dom.test.tsx`:
 
 ```tsx
 import {expect, test} from 'vitest'
@@ -151,7 +151,7 @@ test('the app opened closed shows its launcher', async () => {
 
 - [ ] **Step 3: Run to verify the open-chat test fails**
 
-Run: `cd apps/conciv && VITEST_MAX_FORKS=1 pnpm exec vitest run src/routes/panel.dom.test.tsx src/shell.browser.test.tsx`
+Run: `cd apps/conciv && VITEST_MAX_FORKS=1 pnpm exec vitest run src/panel.dom.test.tsx src/shell.browser.test.tsx`
 Expected: "the app opened on its latest session shows the chat" FAILS in both projects inside `mount` itself, with Testing Library's "Unable to find" error for the button named "Open conciv chat" (the launcher reads "Minimize conciv chat" while the chat is open); "the app opened closed shows its launcher" PASSES.
 
 - [ ] **Step 4: Change `makeMount` in `packages/plugin-testkit/src/mount.ts`**
@@ -268,7 +268,7 @@ Facts (read): the page plugin calls the global `navigation.addEventListener('cur
 
 - [ ] **Step 2: Run it in happy-dom and keep the whole output**
 
-Run: `cd apps/conciv && VITEST_MAX_FORKS=1 pnpm exec vitest run --project happy-dom src/routes/panel.dom.test.tsx > navigation-run.txt 2>&1; echo "vitest exit $?"`, then `grep -n -i "navigation\|ReferenceError\|unhandled" navigation-run.txt`.
+Run: `cd apps/conciv && VITEST_MAX_FORKS=1 pnpm exec vitest run --project happy-dom src/panel.dom.test.tsx > navigation-run.txt 2>&1; echo "vitest exit $?"`, then `grep -n -i "navigation\|ReferenceError\|unhandled" navigation-run.txt`.
 
 - [ ] **Step 3: Run it again with `route: '/panel/latest?open=true'`** (the mount will hang on today's kit; give the run its normal timeout and keep the output the same way). The page renderer attaches once a session is routed (`packages/plugins/page/src/renderer.tsx:39`, built in at `apps/conciv/src/runtime/plugin/builtins.ts:15`).
 
@@ -276,9 +276,15 @@ Run: `cd apps/conciv && VITEST_MAX_FORKS=1 pnpm exec vitest run --project happy-
 
 State, with the output lines: does a mount in happy-dom reach `attachment.ts:329`; if it does, what fails (a thrown ReferenceError, an unhandled rejection, a logged error, nothing) and whether the test still passes.
 
-- [ ] **Step 5: The fill, inside step 0**
+- [ ] **Step 5: The fill, inside step 0** (amended from the real run, 2026-11-21)
 
-The orchestrator amends this plan with the fill's exact shape from that report (a `navigation` object in `packages/plugin-testkit/src/dom-environment.ts` beside its existing fills, with `addEventListener` and `currentEntry`, and history push and replace firing `currententrychange`), and it is built and proven before Task 2 runs. If the run shows nothing fails, no fill is written and the overall plan's item is closed with the run's output.
+What the run showed (lane report 012550-plugins-6b): with the chat open on a routed session, the page renderer reaches `packages/plugins/page/src/attachment.ts:329` and throws `ReferenceError: navigation is not defined`. The throw ends an unobserved fiber (`renderer.tsx:46-58`), so nothing is logged and no test fails, but the page tab is never attached to the engine. A closed mount never reaches that line. So every happy-dom test that needs the page attachment (page tools, the tab list) would fail with no visible cause.
+
+- Modify: `packages/plugin-testkit/src/dom-environment.ts`: a `navigation` global beside its existing fills, with what the product reads from it and nothing more. First grep every read of the global `navigation` in `apps/conciv/src` and `packages/*/src`, `packages/plugins/*/src`, and list them with file:line in the report; the fill covers exactly those members. `currententrychange` fires when the page's history changes (push, replace, traversal), as a browser does.
+- Throwaway proof, happy-dom, in the app proof worktree: mount with the chat open on a session, then show through kit calls only that the page tab IS attached (for example a page tool answering for that session where before it answered that no tab is attached). Every tool name, input and expected answer in it is cited with the file:line it was read from. Failing run before the fill, passing run after.
+- README line for `dom-environment.ts`, changeset `.changeset/kit-happy-dom-navigation.md` (`@conciv/plugin-testkit` patch), commit the kit change only.
+
+Also found, not fixed here: a test file under `apps/conciv/src/routes/` makes the router generator warn on every start, so the throwaway proofs sit at `apps/conciv/src/panel.dom.test.tsx`. Where real app tests live relative to `routes/` is decided with the real tests.
 
 ---
 
