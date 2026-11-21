@@ -1,7 +1,9 @@
 import {onTestFinished} from 'vitest'
 import {createComponent} from 'solid-js'
 import {cleanup, render} from '@solidjs/testing-library'
-import {ConcivApp, concivRoute, createDraftStore, type ConcivRoute, type DraftStore, type Platform} from '@conciv/app'
+import {createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
+import {ConcivApp, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
+import {makeBrowserRpcClient} from '@conciv/contract'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {plugins as pluginLoaders} from 'virtual:conciv-test-plugins'
 import type {Engine} from './engine.js'
@@ -12,11 +14,11 @@ declare module 'vitest' {
   }
 }
 
-export type MountOptions<TOptions = unknown> = {
+export type MountOptions = {
   engine?: Engine
   plugins?: ConcivConfig['plugins']
   seed?: {storage?: Record<string, unknown>}
-  route?: ConcivRoute<TOptions>
+  history?: RouterHistory | EngineRouterHistory
   host?: ConcivSettingsInit
   login?: 'none'
 }
@@ -93,18 +95,40 @@ function mountedPlugins(options: MountOptions): Promise<ComposedPlugin[]> {
   return Promise.all(entries.map(composePlugin))
 }
 
-const CONNECT_ROUTE = concivRoute({to: '/panel/connect', search: {open: true}})
+export type EngineRouterHistory = {initialEntries: readonly string[]; initialIndex?: number}
 
-const CLOSED_ROUTE = concivRoute({to: '/'})
-
-function firstRoute(options: MountOptions): ConcivRoute {
-  if (options.route !== undefined) return options.route
-  return options.engine === undefined ? CONNECT_ROUTE : CLOSED_ROUTE
+export function createEngineRouterHistory(options: EngineRouterHistory): EngineRouterHistory {
+  if (options.initialEntries.length === 0) throw new Error('createEngineRouterHistory needs at least one entry')
+  return options
 }
 
-export type Mount = <TOptions = unknown>(options: MountOptions<TOptions>) => Promise<void>
+async function saveEngineHistory(engine: Engine, history: EngineRouterHistory): Promise<void> {
+  const client = makeBrowserRpcClient(engine.address.apiBase)
+  try {
+    await client.rpc.auth.trust({token: engine.address.token})
+    await client.rpc.navigation.set({
+      entries: history.initialEntries.map((href) => ({href})),
+      index: history.initialIndex ?? history.initialEntries.length - 1,
+      updatedAt: Date.now(),
+    })
+  } finally {
+    client.close()
+  }
+}
 
-function mountApp<TOptions = unknown>(options: MountOptions<TOptions>): Promise<void>
+async function mountedNavigation(options: MountOptions): Promise<Platform['navigation']> {
+  const {history, engine} = options
+  if (history !== undefined && 'initialEntries' in history) {
+    if (engine === undefined) throw new Error('an engine history needs the engine it is saved in: give mount an engine')
+    await saveEngineHistory(engine, history)
+    return 'engine'
+  }
+  if (history !== undefined) return {history}
+  return {history: createMemoryHistory({initialEntries: [engine === undefined ? '/panel/connect?open=true' : '/']})}
+}
+
+export type Mount = (options: MountOptions) => Promise<void>
+
 async function mountApp(options: MountOptions): Promise<void> {
   const plugins = await mountedPlugins(options)
   onTestFinished(() => {
@@ -116,7 +140,7 @@ async function mountApp(options: MountOptions): Promise<void> {
   const interactive = Promise.withResolvers<void>()
   const platform: Platform = {
     engine: () => mountedEngine(options.engine, options.login),
-    navigation: {memory: firstRoute(options)},
+    navigation: await mountedNavigation(options),
     plugins,
     root: document,
     settings: options.host,

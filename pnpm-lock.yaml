@@ -3169,6 +3169,9 @@ importers:
 
   packages/plugin-testkit:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
@@ -3197,6 +3200,9 @@ importers:
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
+      '@tanstack/solid-router':
+        specifier: 'catalog:'
+        version: 1.170.43(solid-js@1.9.17)
       '@testing-library/user-event':
         specifier: 'catalog:'
         version: 14.6.8(@testing-library/dom@10.4.2)

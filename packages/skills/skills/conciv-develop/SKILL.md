@@ -194,9 +194,9 @@ or `@conciv` import.
   product's own `ConcivConfig`. `engine.reply(...)` gives the model's answers in order, built with
   `TestLLM`; `engine.write(path, content)` puts a file in the project. `engine.session.send(text)`,
   `engine.session.tool(name).call(input)`, `engine.rpc.call(id, method, input)`, `engine.gate()`.
-- `mount({engine, route})` (`/browser`): the whole widget on that engine; `route` is the router's
-  typed navigate options, e.g. `{to: '/panel/latest', search: {open: true}}`; the test drives it by
-  role and text.
+- `mount({engine, history})` (`/browser`): the whole widget on that engine; `history` is
+  `createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})`, the engine's saved
+  history, or any TanStack `RouterHistory`; the test drives it by role and text.
 - Add `concivTest()` from `@conciv/plugin-testkit/vitest` to the package's `vite.config.ts` and run
   tests with the `conciv-test` bin: node (`*.test.ts`), happy-dom (`*.dom.test.tsx`) and browser
   (`*.browser.test.tsx`) projects come from it. Your own `test: {...}` settings win over the kit's.

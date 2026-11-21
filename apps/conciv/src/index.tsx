@@ -1,13 +1,7 @@
 import {Show, createMemo, createRoot, from, getOwner, on, onCleanup, untrack, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
-import {
-  RouterProvider,
-  createBrowserHistory,
-  createMemoryHistory,
-  type RouterHistory,
-  type ValidateNavigateOptions,
-} from '@tanstack/solid-router'
+import {RouterProvider, createBrowserHistory, createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
 import {makeBrowserRpcClient, normalizeApiBase, type BrowserRpcClient, type RpcClient} from '@conciv/contract'
 import {createWebStorageHistory, type WebStorage} from '@conciv/storage-history'
 import type {GrabProvider} from '@conciv/grab'
@@ -24,7 +18,7 @@ export {createDraftStore, openBrowserDraftStore, type DraftStore} from './runtim
 
 export type Platform = {
   engine: Accessor<{kind: 'bound'; apiBase: string; token?: () => Promise<string>} | {kind: 'servers'}>
-  navigation: 'engine' | 'browser' | {memory: ConcivRoute}
+  navigation: 'engine' | 'browser' | {history: RouterHistory}
   root: ShadowRoot | Document
   settings?: ConcivSettingsInit
   plugins?: readonly ComposedPlugin[]
@@ -41,13 +35,6 @@ declare global {
 }
 
 type ConcivRouter = ReturnType<typeof createConcivRouter>
-
-export type ConcivRoute<TOptions = unknown> = ValidateNavigateOptions<ConcivRouter, TOptions>
-
-export function concivRoute<TOptions>(route: ConcivRoute<TOptions>): ConcivRoute
-export function concivRoute(route: ConcivRoute): ConcivRoute {
-  return route
-}
 
 type NavigationRpc = Pick<RpcClient, 'navigation'>
 
@@ -119,14 +106,7 @@ function runDisposers(disposers: ReadonlyArray<() => void>): void {
 function navigationHistory(navigation: Platform['navigation'], storage: NavigationStorage | undefined): RouterHistory {
   if (navigation === 'browser') return createBrowserHistory()
   if (navigation === 'engine') return storage ? createWebStorageHistory({storage}) : createMemoryHistory()
-  return createMemoryHistory()
-}
-
-function openMemoryRoute(router: ConcivRouter, navigation: Platform['navigation']): void {
-  if (typeof navigation === 'string') return
-  router.navigate({...navigation.memory, replace: true}).catch((error: unknown) => {
-    console.error('[conciv] the first route did not open', error)
-  })
+  return navigation.history
 }
 
 function routerConfig(
@@ -261,7 +241,6 @@ function BoundApp(props: AppParts): JSX.Element {
         console.error('[conciv] the address did not follow the rebind', error)
       })
   })
-  openMemoryRoute(router, platform.navigation)
   const stopRestore = storage ? restoreOnBoot(router, restore) : () => {}
   const restored = storage
     ? from<boolean>((set) => {
@@ -292,7 +271,6 @@ function ServersApp(props: AppParts): JSX.Element {
       setBound('apiBase', nextApiBase)
     },
   })
-  openMemoryRoute(router, platform.navigation)
   return renderRouter(router, () => true, [client.close])
 }
 

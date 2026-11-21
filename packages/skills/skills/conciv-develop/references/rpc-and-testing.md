@@ -53,21 +53,23 @@ The testkit runs the real engine with a scripted model; only the model and the a
   `session.tool(name).call(input)` and `.failure(input)`, `rpc.call(id, method, input)` and
   `rpc.failure(...)`, `event(type)`, `gate()`, `requests()` and `address`. It stops when the test
   ends.
-- `mount({engine, route})` from `@conciv/plugin-testkit/browser` shows the whole widget on that
-  engine, in happy-dom or a real browser, and resolves when it is ready. `route` is the router's
-  typed navigate options (`{to, params, search}`); a wrong path or search value does not compile. It returns nothing: find
+- `mount({engine, history})` from `@conciv/plugin-testkit/browser` shows the whole widget on that
+  engine, in happy-dom or a real browser, and resolves when it is ready. `history` is either
+  `createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})` (from the same import), the
+  engine's own saved history, which the app restores as it does in production, or any TanStack
+  `RouterHistory` such as `createMemoryHistory`, which the test keeps as a handle. It returns nothing: find
   things with Testing Library and act with `user-event`.
 
 ```ts
 import {expect, test} from 'vitest'
 import {screen} from '@solidjs/testing-library'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit/node'
-import {mount} from '@conciv/plugin-testkit/browser'
+import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 test('the deploy tab shows the last deploy', async () => {
   const engine = await createEngine({plugins: ['.']})
   await engine.reply(TestLLM.text('done', 'a'))
-  await mount({engine, route: {to: '/panel/latest', search: {open: true}}})
+  await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
   expect(await screen.findByRole('tab', {name: 'Deploy'})).toBeVisible()
 })

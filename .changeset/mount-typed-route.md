@@ -4,4 +4,4 @@
 '@conciv/embed': patch
 ---
 
-`mount`'s `route` is the app router's own navigate options, checked by TanStack Router (`{to: '/panel/latest', search: {open: true}}`), so a wrong path, a missing param or a wrong search value is a type error in the test. The app's memory navigation takes the same options and opens them with the router before the first render; the embed's servers mode passes its connect route that way.
+`mount({engine, history})`: `createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})` from `@conciv/plugin-testkit/browser` saves the entries in the engine through `navigation.set` and the app restores them as it does in production; any TanStack `RouterHistory` (`createMemoryHistory`) is used as the app router's history and stays a handle for the test. The app's `Platform.navigation` memory form is now `{history: RouterHistory}`, and the embed's servers mode builds its own memory history for the connect path.
