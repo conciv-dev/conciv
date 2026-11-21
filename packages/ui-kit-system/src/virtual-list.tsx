@@ -55,24 +55,27 @@ export function VirtualList<Row>(props: VirtualListProps<Row>): JSX.Element {
     >
       <div role="presentation" style={{position: 'relative', 'block-size': `${virtualizer.getTotalSize()}px`}}>
         <Key each={virtualizer.getVirtualItems()} by={(item) => item.key}>
-          {(item) => (
-            <div
-              role="presentation"
-              data-index={item().index}
-              ref={(element) => queueMicrotask(() => virtualizer.measureElement(element))}
-              style={{
-                position: 'absolute',
-                'inset-block-start': '0',
-                'inset-inline-start': '0',
-                'inline-size': '100%',
-                transform: `translateY(${item().start}px)`,
-              }}
-            >
-              <Show when={props.rows[item().index]} fallback={props.moreRow} keyed>
-                {(row) => props.children(row)}
-              </Show>
-            </div>
-          )}
+          {(item) => {
+            const key = item().key
+            return (
+              <div
+                role="presentation"
+                data-index={item().index}
+                ref={(element) => queueMicrotask(() => virtualizer.measureElement(element))}
+                style={{
+                  position: 'absolute',
+                  'inset-block-start': '0',
+                  'inset-inline-start': '0',
+                  'inline-size': '100%',
+                  transform: `translateY(${item().start}px)`,
+                }}
+              >
+                <Show when={props.rows.find((row) => props.readKey(row) === key)} fallback={props.moreRow} keyed>
+                  {(row) => props.children(row)}
+                </Show>
+              </div>
+            )
+          }}
         </Key>
       </div>
     </div>
