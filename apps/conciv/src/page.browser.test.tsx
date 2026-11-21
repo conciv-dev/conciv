@@ -1,4 +1,5 @@
 import {describe, expect, test} from 'vitest'
+import {userEvent as realInput} from 'vitest/browser'
 import {render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
@@ -530,7 +531,7 @@ describe('the user grabs an element for the agent', () => {
     ))
 
     await user.click(await screen.findByRole('button', {name: 'Select an element from the page'}))
-    await user.click(screen.getByRole('button', {name: 'Buy the fern'}))
+    await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}))
     await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'What does this do?')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
 

@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'vitest'
-import {screen, within} from '@solidjs/testing-library'
+import {userEvent as realInput} from 'vitest/browser'
+import {render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
@@ -271,6 +272,67 @@ describe("the user works the agent's comments on the canvas", () => {
     expect(screen.queryByRole('button', {name: /^Comments/})).not.toBeInTheDocument()
     expect(screen.queryByRole('button', {name: 'AI comment, resolved'})).not.toBeInTheDocument()
     expect(screen.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+  })
+})
+
+describe('the user comments on an element of the page', () => {
+  test('the user picks an element, writes a comment, is told it was added, and finds it on the board', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
+    })
+    render(() => (
+      <button type="button" id="buy">
+        Buy the fern
+      </button>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
+    expect(await screen.findByRole('button', {name: /^Comments/})).toBeVisible()
+    const input = screen.getByRole('textbox', {name: 'Message the conciv agent'})
+    await user.click(input)
+    expect(input).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('button', {name: /^Comments/})).not.toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', {name: 'Comment on an element'}))
+    await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}))
+    const compose = await screen.findByRole('dialog', {name: 'New comment'})
+    const comment = within(compose).getByRole('textbox', {name: 'Comment'})
+    expect(comment).toHaveFocus()
+    await user.type(comment, 'Make this button green')
+    await user.click(within(compose).getByRole('button', {name: 'Add comment'}))
+
+    expect(await screen.findByText('Comment added to the whiteboard')).toBeVisible()
+    expect(screen.queryByRole('dialog', {name: 'New comment'})).not.toBeInTheDocument()
+    expect(await engine.session.tool('whiteboard_comment_list').call({})).toMatchObject({
+      comments: [{authorKind: 'human', parts: [{type: 'text', text: 'Make this button green'}]}],
+    })
+    await user.click(screen.getByRole('button', {name: 'Open the whiteboard canvas'}))
+    expect(await screen.findByRole('button', {name: /^Human comment, open/})).toBeVisible()
+  })
+
+  test('with the canvas open the new comment goes straight onto the board and no toast is needed', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
+    })
+    render(() => <h1>Plant shop</h1>)
+
+    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
+    expect(await screen.findByRole('button', {name: /^Comments/})).toBeVisible()
+    await user.click(await screen.findByRole('button', {name: 'Comment on an element'}))
+    await realInput.click(screen.getByRole('heading', {name: 'Plant shop'}))
+    const compose = await screen.findByRole('dialog', {name: 'New comment'})
+    await user.type(within(compose).getByRole('textbox', {name: 'Comment'}), 'The title needs a tagline')
+    await user.click(within(compose).getByRole('button', {name: 'Add comment'}))
+
+    expect(await screen.findByRole('button', {name: /^Human comment, open/})).toBeVisible()
+    expect(screen.queryByText('Comment added to the whiteboard')).not.toBeInTheDocument()
   })
 })
 
