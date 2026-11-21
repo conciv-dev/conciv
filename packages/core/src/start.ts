@@ -7,6 +7,7 @@ import {z} from 'zod'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
+import type {EngineStaleness} from '@conciv/contract'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {agentPath} from './engine-login.js'
 import {makeEditorOpener} from './editor/open.js'
@@ -104,6 +105,16 @@ export type StartOpts = {
   devEndpointDir?: string
   homeDir?: string
   configProvider?: ConfigProvider.ConfigProvider
+
+  harnesses?: readonly HarnessAdapter[]
+  firstChunkTimeoutMs?: number
+  firstStartTimeoutMs?: number
+  eventHeartbeatIntervalMs?: number
+  stopGraceMs?: number
+  pageReplyTimeoutMs?: number
+  queuedActionTimeoutMs?: number
+  staleness?: () => EngineStaleness
+  app?: {version?: string}
 }
 
 export type Engine = {
@@ -273,6 +284,15 @@ export async function start(opts: StartOpts): Promise<Engine> {
     nativePageDir: opts.nativePageDir,
     tokenScopedBase,
     plugins: opts.plugins,
+    harnesses: opts.harnesses,
+    firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
+    firstStartTimeoutMs: opts.firstStartTimeoutMs,
+    eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
+    stopGraceMs: opts.stopGraceMs,
+    pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
+    queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
+    staleness: opts.staleness,
+    app: opts.app,
   }
   const madeApp = Promise.withResolvers<MadeApp>()
   madeApp.promise.catch(() => {})
