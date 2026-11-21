@@ -93,6 +93,8 @@ describe('the launcher while a run waits', () => {
     await user.click(within(ask).getByRole('button', {name: 'Approve'}))
 
     expect(await screen.findByText('conciv replied.')).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Close chat'}))
+    expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     expect(screen.queryByRole('button', {name: /^Waiting for your Allow/})).not.toBeInTheDocument()
   })
 })
