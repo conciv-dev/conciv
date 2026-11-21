@@ -2,12 +2,14 @@ import {spawn} from 'node:child_process'
 import {mkdirSync, mkdtempSync, readFileSync, rmSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {homedir, tmpdir} from 'node:os'
-import {dirname, join} from 'node:path'
+import {dirname, join, resolve} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
 import {z} from 'zod'
 import {isolatedEnv} from './isolated-env.js'
 
 const GoneSchema = z.object({code: z.enum(['ESRCH', 'EPERM'])})
+
+const CpuProfileFolderSchema = z.string().min(1).optional()
 
 const VitestManifestSchema = z.object({bin: z.object({vitest: z.string()})})
 
@@ -31,6 +33,11 @@ function playwrightBrowsers(env: NodeJS.ProcessEnv): string {
   return chosen || join(playwrightCacheDirectory(env), 'ms-playwright')
 }
 
+function cpuProfileFlags(env: NodeJS.ProcessEnv): string[] {
+  const folder = CpuProfileFolderSchema.parse(env.CONCIV_TEST_CPU_PROF)
+  return folder === undefined ? [] : ['--cpu-prof', `--cpu-prof-dir=${resolve(folder)}`]
+}
+
 const entry = vitestEntry()
 // oxlint-disable-next-line conciv/no-hand-made-temp-dir -- the test process's own home, as opencode's test runner: removed when vitest exits
 const home = mkdtempSync(join(tmpdir(), 'conciv-test-home-'))
@@ -38,7 +45,7 @@ const temporary = join(home, 'tmp')
 mkdirSync(temporary)
 
 const grouped = process.platform !== 'win32'
-const child = spawn(process.execPath, [entry, 'run', ...process.argv.slice(2)], {
+const child = spawn(process.execPath, [...cpuProfileFlags(process.env), entry, 'run', ...process.argv.slice(2)], {
   detached: grouped,
   env: {...isolatedEnv(process.env, home, temporary), PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsers(process.env)},
   stdio: 'inherit',

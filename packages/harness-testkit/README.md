@@ -18,6 +18,10 @@ The scripted model is one TanStack AI `fakeText` (`@tanstack/ai/testing`) per en
 
 A scripted harness takes `sessions`, plain data named as the product's `HarnessSessionMeta`: `{id, cwd?, derivedTitle, updatedAt, messages}`, where `cwd` left out is the project the engine runs in and another folder is another project. With it the harness reports `transcriptHistory` and `resume` (the command is the harness id then the session id) and its `history` answers from that data the way the real readers do: `list` newest first through `@conciv/harness/page` `pageAfter`, a folder with no sessions is empty, `tail` pages back at a user message with an `earlier` cursor, an unknown id has no `meta`. Without `sessions` nothing changes. Example: `createEngine({}, {harnesses: [{id: 'engine', sessions: [{id: 'past-1', derivedTitle: 'Fix the login form', updatedAt: Date.now() - 86_400_000, messages: [{id: 'm1', role: 'user', parts: [{type: 'text', content: 'why does login fail'}]}]}]}]})`.
 
+## Profiling
+
+`src/run-tests.ts`, the bin behind `conciv-test`, reads `CONCIV_TEST_CPU_PROF` from its own environment before it isolates the child's. A non-empty path makes it start vitest with `--cpu-prof --cpu-prof-dir=<resolved folder>`; vitest copies those flags to every test worker, so each process writes a `.cpuprofile` there on exit. Open it in Chrome DevTools (Performance tab, Load profile) or speedscope. Unset, the spawn is unchanged; an empty value is refused. vitest kills a worker 500 ms after asking it to stop, so on a heavily loaded machine a worker can die before its profile is written; the main process's profile is always there.
+
 ## Invariants
 
 - The kit does not depend on a test runner at run time; its own node tests use vitest.
@@ -32,4 +36,4 @@ A scripted harness takes `sessions`, plain data named as the product's `HarnessS
 
 ## Verification
 
-- `pnpm exec turbo run test --filter=@conciv/harness-testkit`: `src/harness-engine.test.ts`, the kit's own promises that no consumer test observes: replies taken in order and the error on an empty queue, the real clock refusing `engine.clock`, a tool name that is not a plain identifier refused before a code-mode program is built, and past sessions reaching the engine's list and preview (none without `sessions`). Behaviour is also proven by the plugin tests that use `@conciv/plugin-testkit`.
+- `pnpm exec turbo run test --filter=@conciv/harness-testkit`: `src/run-tests.test.ts`, the profiling switch (a run with it leaves profiles, a run without it none); `src/harness-engine.test.ts`, the kit's own promises that no consumer test observes: replies taken in order and the error on an empty queue, the real clock refusing `engine.clock`, a tool name that is not a plain identifier refused before a code-mode program is built, and past sessions reaching the engine's list and preview (none without `sessions`). Behaviour is also proven by the plugin tests that use `@conciv/plugin-testkit`.

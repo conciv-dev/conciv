@@ -186,6 +186,9 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   the kit cleans up.
 - The calm perf gate (frame-gap budgets) is `pnpm --filter @conciv/app test:perf`, kept out of `pnpm test`;
   run it locally in Chromium and Firefox before merging a chat-plane change.
+- Flame graph of a slow test: run it through the bin with `CONCIV_TEST_CPU_PROF=<folder>`
+  (`CONCIV_TEST_CPU_PROF=/tmp/prof node node_modules/@conciv/plugin-testkit/bin/conciv-test.js <file>`); every test process
+  writes a `.cpuprofile` there. Open it in Chrome DevTools (Performance, Load profile) or speedscope.
 - `e2e/` suites load the PREBUILT bundle (`packages/embed/dist/conciv-widget.global.js`): rebuild it
   (`pnpm turbo run build --filter=@conciv/embed`) before running them, or you test stale code. Use
   `browser.newPage()`, not `newContext()` (contexts leak and spike CPU/memory), and never wait for Playwright

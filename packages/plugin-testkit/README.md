@@ -12,6 +12,8 @@ The author adds `@conciv/plugin-testkit` to devDependencies and `concivTest()` f
 
 Outside vitest (`vite build`, `vite dev`) `concivTest()` does nothing and loads nothing of the test stack, so a package's build needs only the kit's own `dist`. For now `mount` and the happy-dom and browser projects work inside this repo only. Both need `@conciv/app`, which is not published, so the kit lists it (and `@conciv/uno-preset`, which the app's UnoCSS config loads) as devDependencies: `mount` imports the app, and under vitest `concivTest()` reads the app's `uno.config.ts` to build the projects. The engine side, `createEngine` from `@conciv/plugin-testkit` with its `TestLLM` replies, imports neither and works anywhere.
 
+A flame graph of a test run: set `CONCIV_TEST_CPU_PROF=<folder>` when running the `conciv-test` bin. The bin then starts vitest with `--cpu-prof --cpu-prof-dir=<folder>`, vitest passes those flags to every test worker, and each process writes a `.cpuprofile` into the folder when it exits. Open one in Chrome DevTools (Performance tab, Load profile) or in speedscope. Unset, nothing changes.
+
 Source details: [src/README.md](./src/README.md).
 
 ## Invariants
