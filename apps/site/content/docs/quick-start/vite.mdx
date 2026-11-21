@@ -38,6 +38,8 @@ init prints the whole plan and asks once before it writes anything; `--yes` appr
 pnpm add -D @conciv/it
 ```
 
+Under `trustPolicy: no-downgrade`, add `trustPolicyExclude: ['solid-js']` to your `pnpm-workspace.yaml`: Solid 1.x releases are published without provenance and Solid 2 releases with it, and pnpm compares trust by publish date.
+
 </Tab>
 
 <Tab value="npm">
