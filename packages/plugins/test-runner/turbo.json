@@ -3,6 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": [
+        "@conciv/harness-testkit#build",
         "@conciv/plugin#build",
         "@conciv/plugin-internal#build",
         "@conciv/plugin-testkit#build",
