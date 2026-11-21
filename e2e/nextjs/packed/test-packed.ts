@@ -10,6 +10,7 @@ const TARBALL_DIR = join(PACKED_ROOT, 'tarballs')
 const LOCK_PATH = join(import.meta.dirname, 'fixture-lock.yaml')
 const CLOSURE_ROOTS = ['@conciv/it']
 const APP_DEPENDENCIES = [...CLOSURE_ROOTS, 'next', 'react', 'react-dom']
+const APP_DEV_DEPENDENCIES = ['typescript', '@types/node', '@types/react', '@types/react-dom']
 
 function installedVersion(name: string): string {
   const {version} = readManifest(join(CONFIG_DIR, 'node_modules', name, 'package.json'))
@@ -17,11 +18,16 @@ function installedVersion(name: string): string {
   return version
 }
 
+function installedVersions(names: string[]): Record<string, string> {
+  return Object.fromEntries(names.map((name) => [name, installedVersion(name)]))
+}
+
 function writeApps(): void {
-  const dependencies = Object.fromEntries(APP_DEPENDENCIES.map((name) => [name, installedVersion(name)]))
+  const dependencies = installedVersions(APP_DEPENDENCIES)
+  const devDependencies = installedVersions(APP_DEV_DEPENDENCIES)
   for (const bundler of BUNDLERS) {
     cpSync(FIXTURE_APP, packedAppDir(bundler), {recursive: true})
-    const manifest = {name: `nextjs-packed-${bundler}`, private: true, dependencies}
+    const manifest = {name: `nextjs-packed-${bundler}`, private: true, dependencies, devDependencies}
     writeFileSync(join(packedAppDir(bundler), 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
   }
   writeFileSync(join(PACKED_ROOT, 'package.json'), `${JSON.stringify({name: 'nextjs-packed', private: true})}\n`)
