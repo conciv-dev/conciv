@@ -1,5 +1,6 @@
 import {describe, expect, vi} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {createEngine} from '@conciv/plugin-testkit'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {test} from '../../../test/engine-test.js'
 
@@ -75,5 +76,46 @@ describe('sessions', () => {
     expect(listed).not.toContain(empty.sessionId)
     expect(listed).toContain(drafted.sessionId)
     await expect(second.drafts.get({sessionId: drafted.sessionId})).resolves.toMatchObject({text: 'Plan the trip'})
+  })
+})
+
+describe('native sessions', () => {
+  test('a past CLI session is found by what was said in it, with the command that resumes it', async ({connect}) => {
+    const engine = await createEngine(
+      {},
+      {
+        harnesses: [
+          {
+            id: 'engine',
+            sessions: [
+              {
+                id: 'past-login',
+                derivedTitle: 'Fix the login form',
+                updatedAt: 1_000,
+                messages: [
+                  {id: 'm1', role: 'user', parts: [{type: 'text', content: 'the submit button throws a stacktrace'}]},
+                  {id: 'm2', role: 'assistant', parts: [{type: 'text', content: 'The token expired'}]},
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    )
+    const client = connect(engine)
+    const versions = (await client.sessions.changes())[Symbol.asyncIterator]()
+    await versions.next()
+
+    await client.sessions.list({})
+    await versions.next()
+    const found = await client.sessions.search({term: 'stacktrace'})
+
+    expect(found.sessions).toEqual([
+      expect.objectContaining({
+        title: 'Fix the login form',
+        excerpt: expect.stringContaining('stacktrace'),
+        resume: expect.stringMatching(/ && 'engine' 'past-login'$/),
+      }),
+    ])
   })
 })
