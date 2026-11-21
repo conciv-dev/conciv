@@ -58,9 +58,12 @@ describe('the model command', () => {
 })
 
 describe('the mention list', () => {
-  test('@ lists skills, tools and this project’s other sessions, a term narrows them, and a pick inserts its mention', async () => {
+  test('@ lists skills, subagents, tools and this project’s other sessions, a term narrows them, and a pick inserts its mention', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({}, {directory: 'test/fixtures/mention-project'})
+    const engine = await createEngine(
+      {plugins: ['./test/fixtures/plugins/reviewer-agent']},
+      {directory: 'test/fixtures/mention-project'},
+    )
     await engine.newSession('Fix login bug')
     await engine.newSession('Deploy the docs')
     await mount({
@@ -72,6 +75,8 @@ describe('the mention list', () => {
     await user.type(input, '@')
     const context = await screen.findByRole('listbox', {name: 'Context'})
     expect(await within(context).findByRole('option', {name: '@release-notes'})).toBeVisible()
+    expect(within(context).getByRole('option', {name: '@reviewer'})).toBeVisible()
+    expect(within(context).queryByRole('option', {name: '@build'})).not.toBeInTheDocument()
     expect(within(context).getByRole('option', {name: 'Fix login bug'})).toBeVisible()
     expect(within(context).getByRole('option', {name: 'Deploy the docs'})).toBeVisible()
     expect(within(context).getByRole('group', {name: 'Tools'})).toBeVisible()
