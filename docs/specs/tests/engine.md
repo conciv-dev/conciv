@@ -149,3 +149,12 @@ These rows are journeys a user sees in the widget. By the plan's "who mounts the
 | harness | 28                             | 0                | 9 (`codex/index`, `codex/history`, `claude/history`, `claude/index`, `opencode/history`, `opencode/index`, `pi/history`, `pi/index`, `gemini-cli/index`)                                                                                                                                                          |
 
 All within budget. Cites marked inferred were not opened at the line (`init/pipeline.ts`, `chat-server.ts`, `plugin-sessions.ts`, `engine-read.ts`, `api/rpc/hub.ts`, the run plane in `chat/src/index.ts`, plugin event publishing); every cite marked read was opened at that line in this worktree. Kit cites are all read.
+
+## packages/oxlint-plugin
+
+One file per rule source, beside it, through oxlint's own `RuleTester` (`oxlint/plugins-dev`) with inline `valid` / `invalid` cases. A rule that lives in `plugin.js` is a `tester.run` in `plugin.test.js`, so test files never outnumber source files.
+
+| rule                                      | test                                                                                                     |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| solid-test-render (test-path pattern)     | solid-test-render › packages/oxlint-plugin/src/plugin.test.js › solid-test-render                        |
+| no-teardown-hooks (new-layer src pattern) | no-teardown-hooks › packages/oxlint-plugin/src/no-teardown-hooks.test.js › no-teardown-hooks (path rows) |

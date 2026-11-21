@@ -23,7 +23,10 @@ const KIT_FILE = /(^|[\\/])packages[\\/]ui-kit-chat[\\/]/
 const KIT_INTERNAL_NAME = 'CollapsibleCard'
 const KIT_SOURCE = /^@conciv\/ui-kit-chat(\/|$)/
 
-const TEST_FILE = /(^|[\\/])test[\\/].*\.[jt]sx?$|\.(?:test|spec)\.[jt]sx?$/
+const SCRIPT_FILE = /\.[jt]sx?$/
+const TEST_SUFFIX = /\.(?:test|spec)\.[jt]sx?$/
+const TEST_DIRECTORY = /(?:^|[\\/])test[\\/]/
+const LINE_TERMINATORS = ['\n', '\r', '\u2028', '\u2029']
 const RENDER_EXEMPT_FILE = /[\\/]test[\\/]fixtures[\\/]host[\\/]main\.tsx$/
 const SOLID_WEB_SOURCE = 'solid-js/web'
 const SOLID_WEB_RENDER_NAMES = new Set(['render', 'hydrate'])
@@ -56,8 +59,16 @@ function checkKitImport(node, context) {
   for (const specifier of node.specifiers) reportKitSpecifier(specifier, context)
 }
 
+function readLastLine(filename) {
+  return filename.slice(Math.max(0, ...LINE_TERMINATORS.map((terminator) => filename.lastIndexOf(terminator))))
+}
+
+function isTestFile(filename) {
+  return TEST_SUFFIX.test(filename) || (SCRIPT_FILE.test(filename) && TEST_DIRECTORY.test(readLastLine(filename)))
+}
+
 function rendersInTestFile(filename) {
-  return TEST_FILE.test(filename) && !RENDER_EXEMPT_FILE.test(filename)
+  return isTestFile(filename) && !RENDER_EXEMPT_FILE.test(filename)
 }
 
 function reportSolidWebSpecifier(specifier, context) {
