@@ -34,7 +34,7 @@ Run order: 1, 2, 3, 4, 5, 6, 7, 8. All eight change `packages/harness-testkit/sr
 
 ### Task 1: the engine address on the plugin testkit's engine
 
-**Files:** `packages/plugin-testkit/src/engine.ts`, `browser-engine.ts`, `mount.ts`, `happy-dom.ts`, `browser.ts`, `node.ts`, `src/README.md`; `.changeset/kit-engine-address.md`.
+**Files:** `packages/plugin-testkit/src/engine.ts`, `browser-engine.ts`, `test-projects.ts` (it returns `started.address` at :135; it becomes `started.engine.address`), `mount.ts`, `happy-dom.ts`, `browser.ts`, `node.ts`, `src/README.md`; `.changeset/kit-engine-address.md`.
 
 **Interfaces:**
 
@@ -70,12 +70,12 @@ test('a test can call an engine route', async () => {
 
 **Interfaces:**
 
-- Produces on `HarnessEngineOptions` and `CreateEngineOptions`: `policies?: ConcivConfig['policies']`, `systemPrompt?: string`, `sessionId?: string`. `bootApp` builds `cfg` from `resolveConfig({...config, policies, systemPrompt, sessionId}, root, configProvider)` (`packages/core/src/config.ts:80-98`) and overrides only `enabled`, `stateRoot`, `harness`. When a test gives no `systemPrompt` the kit keeps today's `''`, and hub access stays `'project'`: the resolver's own defaults (`CHAT_SYSTEM_PROMPT`, `'open'`) are NOT taken.
-- With `sessionId`, `engine.session` is that session (the engine makes its row at boot, `app.ts:865,888-904`); the kit does not create another first session.
+- Produces on `HarnessEngineOptions` and `CreateEngineOptions`: `policies?: ConcivConfig['policies']`, `systemPrompt?: string`, `sessionId?: string`. `bootApp` keeps building `cfg` by hand, as today (`harness-engine.ts:226`), so no default changes: `policies: options.policies ?? []`, `systemPrompt: options.systemPrompt ?? ''`, hub access stays `'project'`. Only the session id goes through the product's resolver, in the one `resolveConfig` call the kit already makes for permissions: `resolveConfig({sessionId: options.sessionId, permission, permissions}, root, configProvider)`, taking `.sessionId` and `.permissions` from its result. (Passing the whole config through the resolver would switch the defaults to `CHAT_SYSTEM_PROMPT` and `'open'`, `packages/core/src/config.ts:63,92-93`; found in review.)
+- With `sessionId`, `engine.session` is that session (the engine makes its row at boot, `app.ts:865,888-904`); the kit does not create another first session: `openFirstSession` returns `sessionOn(engine, sessionId)` when a session id is configured and calls `newSessionOn` only when it is not (`harness-engine.ts:196-202` always creates one today).
 
 Facts (read): the only reader of policies is `plugin.use` (`packages/plugin-host/src/core/plugin/module.ts:51`), which blocks the plugin, so its tools are missing; `resolveSessionId` throws `the configured conciv session id "<id>" is not a conciv session id (conciv_...)` (`config.ts:43-49`).
 
-Before writing the proofs, read and cite: `isSessionId` (the shape a valid id must have) and how `module.ts:51` matches a policy's `resource` against a plugin (the exact string for `@conciv/plugin-test-runner`). Use those in the proofs. If either is unclear, stop and report.
+Read in review: a valid id matches `/^conciv_[A-Za-z0-9_-]{1,128}$/` (`packages/protocol/src/chat-types.ts:71`), so `VALID_ID` is `'conciv_a'`. The plugin testkit hands the engine the plugin's ABSOLUTE folder (`packages/plugin-testkit/src/engine.ts:50,71`), the policy is matched against that target (`module.ts:48`), and `*` in a resource means any characters (`wildcard.ts:3`), so `TEST_RUNNER_RESOURCE` is the portable `'*/packages/plugins/test-runner'`. The refusal text of test 1 has two candidates in the code (`config.ts:43-49` "the configured conciv session id ..." for a variable, and a schema message for the option): run it, and if the text differs from the proof's, report the real one and use it.
 
 - [ ] **Step 1: Proofs** `src/kit-settings.test.ts` (node):
 
@@ -125,7 +125,7 @@ test('a plugin the organization denies does not load', async () => {
 
 Facts (read): the adapter already receives each tool's schema as JSON Schema (`@tanstack/ai` 1.2.0 `dist/esm/activities/chat/index.js:770-774,800`), so NO export from `@conciv/ai` is needed (this corrects `kit-plan.md`); the system prompts reach the adapter call (`packages/chat/src/turn.ts:335`, `packages/ai/src/server/chat-server.ts:597-612`); the model and effort reach the harness only as `chatConfig({model, effort})` (`turn.ts:322-331`); the kit's default harness declares `systemPrompt: 'none'` (`scripted-harness.ts:143`), which is why the prompt is dropped today.
 
-Before the change, read and cite the allowed values of the `systemPrompt` capability and pick the one under which the product hands the prompt to the adapter; if that changes what an earlier proof sees, stop and report.
+Read in review: the capability's values are `'file' | 'flag' | 'none'` (`packages/protocol/src/harness-types.ts:7`); `'none'` makes the product drop the prompt (`packages/chat/src/turn.ts:104`), so the kit's own harness declares `'flag'`. A system prompt can arrive as a string or as an object with `content` (`@tanstack/ai` `types.d.ts:1100`): record `typeof prompt === 'string' ? prompt : prompt.content`, and `model ?? null`, `effort ?? null`, `modelOptions ?? {}`. If `'flag'` changes what an earlier proof sees, stop and report.
 
 - [ ] **Step 1: Proof** `src/kit-request.test.ts` (node):
 
@@ -151,9 +151,9 @@ test('the model request carries the system prompt and each tool with its input s
 })
 ```
 
-`permission: {execute: 'deny'}` makes every tool direct, so the plugin's tools reach the model under their own names (`packages/plugin-host/src/core/tool.ts:246-249`). The schema assert follows `z.object({pattern: z.string().optional()})` (`packages/plugins/test-runner/src/tools.ts:44`); if the real JSON Schema has another shape, stop and report it.
+`permission: {execute: 'deny'}` makes every tool direct, so the plugin's tools reach the model under their own names (`packages/plugin-host/src/core/tool.ts:246-249`). The schema assert follows `z.object({pattern: z.string().optional()})` (`packages/plugins/test-runner/src/tools.ts:40-46`); if the real JSON Schema has another shape, stop and report it.
 
-- [ ] **Step 2: Failing run.** Expected: `request.system` is undefined.
+- [ ] **Step 2: Failing run.** Expected: `request.system` is undefined. The proof also runs as `src/kit-request.browser.test.tsx` (same body), since `requests()` crosses as JSON in browser mode.
 - [ ] **Step 3: Change; all four browser-mode paths still return plain JSON.** **Step 4: Passing run.** **Step 5: Gates, commit** `feat(testkits): requests() keeps the system prompts, tool schemas, model and options`.
 
 ---
@@ -169,9 +169,38 @@ test('the model request carries the system prompt and each tool with its input s
 
 Facts (read): the composer's label is "Message the conciv agent" (`apps/conciv/src/pane/chat-pane.tsx:638`); a command option is labelled `/<name>` (`apps/conciv/src/pane/trigger-sources.ts:29-36`); the model trigger's label is `<MENU_LABEL>: <model name>` (`packages/ui-kit-chat/src/styled/harness-model-selector.tsx:149-151,493`); a harness's shown name is its id; never name a test command `model` (the widget's own `/model` hides it).
 
-Before writing the proofs, read and cite the value of `MENU_LABEL`, the role of a slash-menu item, and how the model selector labels a model of a second harness (`packages/ui-kit-chat/src/.../model-menu.ts:47-48`).
+Read in review: `MENU_LABEL` is `Model` (`packages/ui-kit-chat/src/styled/harness-model-selector.tsx:48`); with one harness the trigger reads `Model: <name>`, with several it reads `Model: <name> (<harness id>)` and a row reads `<name> (<harness id>)` (`harness-model-selector.tsx:371`, `model-menu.ts:47,105`); model rows and slash entries are listbox items (`harness-model-selector.tsx:214`, `apps/conciv/src/.../trigger-menu.tsx:197`), expected role `option` (inferred: confirm in the run).
 
-- [ ] **Step 1: Proofs** `src/kit-harness.dom.test.tsx` and the same body as `src/kit-harness.browser.test.tsx`: the two tests quoted in `013300-plugins-a.md` ("the model prompt shows the model the test gave the harness", "the slash menu lists the command the test gave the harness"), with every label replaced by the literal read above, plus:
+- [ ] **Step 1: Proofs** `src/kit-harness.dom.test.tsx` and the same body as `src/kit-harness.browser.test.tsx`: these three tests:
+
+```tsx
+import {expect, test} from 'vitest'
+import {screen} from '@solidjs/testing-library'
+import userEvent from '@testing-library/user-event'
+import {createEngine} from '@conciv/plugin-testkit/node'
+import {mount} from '@conciv/plugin-testkit/browser'
+
+test('the model prompt shows the model the test gave the harness', async () => {
+  const engine = await createEngine({models: [{id: 'kit-model', name: 'Kit Model'}]})
+
+  await mount({engine, route: '/panel/latest?open=true'})
+
+  expect(await screen.findByRole('button', {name: 'Model: Kit Model'})).toBeDefined()
+})
+
+test('the slash menu lists the command the test gave the harness', async () => {
+  const user = userEvent.setup()
+  const engine = await createEngine({commands: [{name: 'kit-review', description: 'Review the branch'}]})
+  await mount({engine, route: '/panel/latest?open=true'})
+
+  await user.click(await screen.findByRole('textbox', {name: 'Message the conciv agent'}))
+  await user.keyboard('/')
+
+  expect(await screen.findByRole('option', {name: '/kit-review'})).toBeDefined()
+})
+```
+
+and:
 
 ```tsx
 test('the model menu offers the model of a second harness', async () => {
@@ -184,9 +213,9 @@ test('the model menu offers the model of a second harness', async () => {
   })
   await mount({engine, route: '/panel/latest?open=true'})
 
-  await user.click(await screen.findByRole('button', {name: MODEL_TRIGGER_FOR_MODEL_ONE}))
+  await user.click(await screen.findByRole('button', {name: 'Model: Model One (first)'}))
 
-  expect(await screen.findByRole(MODEL_ITEM_ROLE, {name: SECOND_HARNESS_MODEL_LABEL})).toBeDefined()
+  expect(await screen.findByRole('option', {name: 'Model Two (second)'})).toBeDefined()
 })
 ```
 
@@ -219,7 +248,7 @@ test('a silent agent fails the turn after the limit the test set', async () => {
 
 The text rounds 500 ms to "1s" (`packages/ai/src/server/chat-server.ts:717,728`).
 
-- [ ] **Step 2: Failing run.** Expected: it fails after the product's 30 s default with "within 30s", or on vitest's own timeout; either is the stated reason. **Step 3: Change. Step 4: Passing run (under 2 s). Step 5: Gates, commit** `feat(testkits): the test engine takes the product's timeouts`.
+- [ ] **Step 2: Failing run.** Expected: the test hits vitest's own timeout (the product default is 30 s, `packages/chat/src/index.ts:29`), which shows only that the option was ignored; the behaviour is asserted by the passing run's exact error text. **Step 3: Change. Step 4: Passing run (under 2 s). Step 5: Gates, commit** `feat(testkits): the test engine takes the product's timeouts`.
 
 ---
 
@@ -227,9 +256,9 @@ The text rounds 500 ms to "1s" (`packages/ai/src/server/chat-server.ts:717,728`)
 
 **Files:** as Task 5; `.changeset/kit-staleness.md`.
 
-**Interfaces:** `staleness?: EngineStaleness` (the plain value; type from `packages/contract/src/contract.ts:183-191`), passed to `makeApp` as `staleness: () => options.staleness` (`app.ts:235,464`). A value that changes during a test is not in this plan.
+**Interfaces:** `staleness?: EngineStaleness` (the plain value; type from `packages/contract/src/contract.ts:183-191`), passed to `makeApp` as `staleness: () => value` ONLY when the option is given; without it the property is left out, so the product's own check stays (`app.ts:235,464`). A value that changes during a test is not in this plan.
 
-- [ ] **Step 1: Proof** `src/kit-staleness.test.ts` (node): read `EngineStaleness` and write the smallest valid stale value inline as `STALE`:
+- [ ] **Step 1: Proof** `src/kit-staleness.test.ts` (node): `STALE` is `{stale: true, changed: [], tracked: [], bootedAt: 0, fingerprint: ''}` (every field is required, `packages/contract/src/contract.ts:183-191`), written inline:
 
 ```ts
 test('the engine reports the stale code the test gave it', async () => {
@@ -241,7 +270,7 @@ test('the engine reports the stale code the test gave it', async () => {
 })
 ```
 
-- [ ] **Step 2: Failing run:** `engine: {stale: false}`. **Step 3 to 5** as above, commit `feat(testkits): the test engine can report stale code`.
+- [ ] **Step 2: Failing run:** `engine: {stale: false}`. After the change also rerun Task 1's proof: a default engine's health still answers. **Step 3 to 5** as above, commit `feat(testkits): the test engine can report stale code`.
 
 ---
 
@@ -252,7 +281,7 @@ test('the engine reports the stale code the test gave it', async () => {
 **Interfaces:**
 
 - `engine.root: string`: the project folder, real path. In browser mode it comes on the engine handle.
-- `directory?: string`: an existing folder, resolved against the working directory as plugin paths are (`engine.ts:64-67`). The engine runs with `cwd` there; `stateRoot`, `home` and the temp folder stay in the kit's own temp root, which is the only thing removed on stop. `engine.root` is then the fixture folder. `directory` together with `files` throws.
+- `directory?: string`: an existing folder, resolved with `resolve(options.directory)` against the working directory (NOT the plugin resolver, which treats a bare path as a package name, `engine.ts:64-67`); a folder that does not exist throws. The engine runs with `cwd` there; `stateRoot`, `home` and the temp folder stay in the kit's own temp root, which is the only thing removed on stop. `engine.root` is then the fixture folder. `directory` together with `files` throws.
 
 Facts (read): `makeApp` already keeps `cwd` apart from `stateRoot` and `home`; the test runner resolves vitest by walking up from the project folder (`packages/plugins/test-runner/src/vitest-run.ts:94`), so a fixture inside `packages/plugins/test-runner` finds the package's own vitest; the product can write into the project (`.conciv/` screenshots, the vitest cache), so a fixture folder gets a `.gitignore` for those when the real tests add one.
 
@@ -279,7 +308,7 @@ test('the agent runs the tests of a fixture project', async () => {
 })
 ```
 
-- [ ] **Step 2: Failing run:** test 1 `engine.root` is undefined; test 2 a tool failure saying the runner is unavailable (needs the run for the text). **Step 3: Change. Step 4: Passing run; after it the fixture folder still exists and holds no `.conciv` state of the engine (`ls -a fixtures/sample`), report anything the run wrote there. Step 5: Gates, commit** `feat(testkits): the project folder, and an engine run on a fixture project`.
+- [ ] **Step 2: Failing run** (the first proof also runs in browser mode as `src/kit-project.browser.test.tsx`, reading the file with vitest's `commands.readFile(join-free absolute path)` in place of `node:fs`): test 1 `engine.root` is undefined; test 2 a tool failure saying the runner is unavailable (needs the run for the text). **Step 3: Change. Step 4: Passing run; after it the fixture folder still exists and holds no `.conciv` state of the engine (`ls -a fixtures/sample`), report anything the run wrote there. Step 5: Gates, commit** `feat(testkits): the project folder, and an engine run on a fixture project`.
 
 ---
 
