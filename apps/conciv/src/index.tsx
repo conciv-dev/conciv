@@ -57,6 +57,7 @@ function makeNavigationStorage(
   rpc: NavigationRpc,
   trust: {ready: Promise<boolean>; isTrusted: () => boolean},
   restore: NavigationRestore,
+  appLife: AbortSignal,
 ): NavigationStorage {
   const state: NavigationStorageState = {cache: null, lastStamp: 0, wroteLocally: false}
   const stamp = (): number => {
@@ -65,7 +66,8 @@ function makeNavigationStorage(
   }
   const send = (navigation: NavigationState, updatedAt: number): void => {
     if (!trust.isTrusted()) return
-    rpc.navigation.set({...navigation, updatedAt}).catch((error: unknown) => {
+    rpc.navigation.set({...navigation, updatedAt}, {signal: appLife}).catch((error: unknown) => {
+      if (appLife.aborted) return
       console.warn('[conciv] could not save the navigation', error)
     })
   }
@@ -211,9 +213,15 @@ function BoundApp(props: AppParts): JSX.Element {
   const firstApiBase = untrack(apiBase)
   const onFirstApiBase = createMemo(() => apiBase() === firstApiBase)
   const restore: NavigationRestore = {current: onFirstApiBase, apply: () => {}}
+  const appLife = new AbortController()
   const storage =
     platform.navigation === 'engine'
-      ? makeNavigationStorage(client.rpc, {ready: trusted, isTrusted: () => login.trust().isTrusted()}, restore)
+      ? makeNavigationStorage(
+          client.rpc,
+          {ready: trusted, isTrusted: () => login.trust().isTrusted()},
+          restore,
+          appLife.signal,
+        )
       : undefined
   const engineHistory = storage ? createWebStorageHistory({storage}) : undefined
   const router = createConcivRouter({
@@ -254,7 +262,7 @@ function BoundApp(props: AppParts): JSX.Element {
         return () => {}
       })
     : () => true
-  return renderRouter(router, restored, [client.close, stopRestore])
+  return renderRouter(router, restored, [() => appLife.abort(), client.close, stopRestore])
 }
 
 function ServersApp(props: AppParts): JSX.Element {
