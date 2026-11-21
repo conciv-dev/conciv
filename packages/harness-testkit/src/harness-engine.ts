@@ -6,7 +6,7 @@ import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
 import {ConfigProvider} from 'effect'
 import {rpcStream} from '@conciv/ai/client'
 import {makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
-import {makeApp, type MadeApp} from '@conciv/core/app'
+import {makeApp, type MadeApp, type MakeAppOpts} from '@conciv/core/app'
 import {resolveConfig} from '@conciv/core/config'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, runLifecycleEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
@@ -34,6 +34,10 @@ export type HarnessEngineOptions = {
   policies?: ConcivConfig['policies']
   systemPrompt?: string
   sessionId?: string
+  timeouts?: Pick<
+    MakeAppOpts,
+    'firstChunkTimeoutMs' | 'eventHeartbeatIntervalMs' | 'stopGraceMs' | 'pageReplyTimeoutMs' | 'queuedActionTimeoutMs'
+  >
 }
 
 export type HarnessEngineToolFailure = {tool: string; message: string}
@@ -258,6 +262,7 @@ async function bootApp(
     harnesses: [],
     home: engineHome(root),
     configProvider,
+    ...options.timeouts,
   })
   await app.awaitActivation().catch((error: unknown) => abandonStart(error, [() => app.dispose()]))
   return {app, sessionId: resolved.sessionId}
