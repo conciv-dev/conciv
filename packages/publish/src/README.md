@@ -12,6 +12,7 @@ The `conciv-publish` citty command tree. It runs release guards (workspace root,
   - `check-catalog`: `assertSharedDependenciesCatalogued`.
   - `check-typecheck-coverage`: `assertTypecheckCoversTrackedFiles`.
   - `check-turbo-depends-on`: `assertBuildDependsOnCoversImports`, then `assertTypeTasksDependOnDistReads`. A package whose `build` is `tsdown` alone and whose types come from `build:types` (the testkits) is skipped by the first, since its transpile reads no other dist; the second checks both `typecheck` and `build:types`, and asks for `<name>#build:types` when the package read has one, else `<name>#build`.
+  - `check-dependency-loops`: `assertNoRuntimeDependencyLoop`. Workspace packages may form a loop only through a devDependency or a peerDependency (the kit and the app it mounts test each other); a loop made of `dependencies` and `optionalDependencies` alone, the edges a build and an install follow, fails. pnpm's `disallowWorkspaceCycles` cannot make that split: it counts every kind of edge.
   - `check-plugin-ui-kit`: `assertPluginsDrawThroughContextUi`.
   - `check`: `pnpm exec turbo run build publint attw`.
   - `release`: `assertPublicSet`, `assertPublicDepsPublic`, `assertVersioned`, turbo build/publint/attw, `changeset publish`.
@@ -19,14 +20,14 @@ The `conciv-publish` citty command tree. It runs release guards (workspace root,
   - `sync` (`--dry-run`, `--json`): plans from `registryRecord` states and applies publish/trust/tag actions.
   - `swift-mirror` (`--dry-run`): constants `MIRROR_REPOSITORY` = `'conciv-dev/conciv-swift'`, `MIRROR_TREE` = `'native/swift'`, `BRIDGE_MANIFEST` = `'packages/plugins/ios/package.json'`.
 - `PUBLIC_PACKAGES` (`guards.ts`): the 42 public `@conciv/*` package names.
-- Guards (`guards.ts`): `assertWorkspaceRoot`, `assertValidTag`, `assertVersioned`, `assertBootstrappable`, `assertChangesetsResolve`, `assertPublishedChangesCovered`, `assertPublicSet`, `assertPublicDepsPublic`, `assertSharedDependenciesCatalogued`.
+- Guards (`guards.ts`): `assertWorkspaceRoot`, `assertValidTag`, `assertVersioned`, `assertBootstrappable`, `assertChangesetsResolve`, `assertPublishedChangesCovered`, `assertPublicSet`, `assertPublicDepsPublic`, `assertNoRuntimeDependencyLoop`, `assertSharedDependenciesCatalogued`.
 - `qualifiesForCoverage(path, filesAllowlist)` (`guards.ts`).
 - `assertTypecheckCoversTrackedFiles(cwd)` (`typecheck-coverage.ts`).
 - `assertBuildDependsOnCoversImports(cwd)`, `assertPluginsDrawThroughContextUi(cwd)` (`workspace-imports.ts`).
 - `parseManifest(raw, path)`, `Manifest` (`workspace.ts`).
 - `registryRecord(name)`, `recordFromDocument(value)`, `RegistryState` (`'missing' | 'trusted' | 'untrusted'`), `RegistryRecord` (`sync.ts`).
 - `buildSyncPlan(cwd, states)`, `pushMissingTags(cwd, names)`, `SyncPackageState`, `SyncAction` (`'publish' | 'trust' | 'tag'`), `SyncPlanEntry` (`sync.ts`).
-- `readWorkspacePackages(cwd)`, `findOwner(packages, path)`, `buildDependencyGraph(packages)`, `transitiveDependents(graph, target)`, `WorkspacePackage` (`workspace.ts`).
+- `readWorkspacePackages(cwd)`, `findOwner(packages, path)`, `buildDependencyGraph(packages, fields = ['dependencies', 'devDependencies'])`, `transitiveDependents(graph, target)`, `WorkspacePackage` (`workspace.ts`).
 - `assertBareSemver`, `readBridgeVersion`, `resolveVersionCommit`, `extractCommitSubtree`, `assembleMirrorTree`, `fingerprintTree`, `treesMatch`, `MirrorLayout`, `MirrorTree` (`swift-mirror.ts`).
 
 ## Invariants

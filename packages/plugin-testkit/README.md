@@ -10,6 +10,8 @@ Published test package for plugin authors. It has three entries with one export 
 
 The author adds `@conciv/plugin-testkit` to devDependencies and `concivTest()` from `@conciv/plugin-testkit/vitest` to the plugins of the package's one `vite.config.ts`. Under vitest it adds three test projects: node (`*.test.ts`), happy-dom (`*.dom.test.ts(x)`) and vitest browser mode (`*.browser.test.ts(x)`).
 
+For now `mount` and `concivTest()` work inside this repo only. Both need `@conciv/app`, which is not published, so the kit lists it (and `@conciv/uno-preset`, which the app's UnoCSS config loads) as devDependencies: `mount` imports the app, and `concivTest()` reads the app's `uno.config.ts` when vitest loads the config. The engine side, `createEngine` from `@conciv/plugin-testkit/node` with its `TestLLM` replies, imports neither and works anywhere.
+
 Source details: [src/README.md](./src/README.md).
 
 ## Invariants

@@ -330,6 +330,35 @@ export async function assertPublicDepsPublic(cwd: string): Promise<void> {
   }
 }
 
+function findLoop(graph: Map<string, string[]>): string[] | undefined {
+  const finished = new Set<string>()
+  const visit = (name: string, path: string[]): string[] | undefined => {
+    if (path.includes(name)) return [...path.slice(path.indexOf(name)), name]
+    if (finished.has(name)) return undefined
+    for (const next of graph.get(name) ?? []) {
+      const loop = visit(next, [...path, name])
+      if (loop !== undefined) return loop
+    }
+    finished.add(name)
+    return undefined
+  }
+  for (const name of graph.keys()) {
+    const loop = visit(name, [])
+    if (loop !== undefined) return loop
+  }
+  return undefined
+}
+
+export async function assertNoRuntimeDependencyLoop(cwd: string): Promise<void> {
+  const graph = buildDependencyGraph(await readWorkspacePackages(cwd), ['dependencies', 'optionalDependencies'])
+  const loop = findLoop(graph)
+  if (loop !== undefined) {
+    throw new Error(
+      `workspace packages form a loop through dependencies and optionalDependencies alone: ${loop.join(' -> ')}. A loop may only close through a devDependency or a peerDependency, never through an edge a build or an install follows.`,
+    )
+  }
+}
+
 type DependencyUse = {name: string; manifestDir: string; spec: string}
 
 function externalDependencyUses(pkg: WorkspacePackage): DependencyUse[] {

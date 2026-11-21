@@ -10,7 +10,6 @@ packages:
 syncInjectedDepsAfterScripts:
   - build
 
-disallowWorkspaceCycles: true
 
 # @orpc peer-pins every sibling package to the identical version (tanstack-query@1.15.0
 # peer-requires client@1.15.0 exactly), so a caret range is unsafe on any fresh install:

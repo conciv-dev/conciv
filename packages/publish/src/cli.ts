@@ -8,6 +8,7 @@ import {
   PUBLIC_PACKAGES,
   assertBootstrappable,
   assertChangesetsResolve,
+  assertNoRuntimeDependencyLoop,
   assertPublicDepsPublic,
   assertPublicSet,
   assertPublishedChangesCovered,
@@ -121,6 +122,18 @@ const checkTurboDependsOn = defineCommand({
     const {cwd} = await atRoot()
     await assertBuildDependsOnCoversImports(cwd)
     await assertTypeTasksDependOnDistReads(cwd)
+  },
+})
+
+const checkDependencyLoops = defineCommand({
+  meta: {
+    name: 'check-dependency-loops',
+    description:
+      'Fail when workspace packages form a loop through dependencies and optionalDependencies alone; a loop that needs a devDependency or a peerDependency passes',
+  },
+  async run() {
+    const {cwd} = await atRoot()
+    await assertNoRuntimeDependencyLoop(cwd)
   },
 })
 
@@ -412,6 +425,7 @@ const main = defineCommand({
     'check-catalog': checkCatalog,
     'check-typecheck-coverage': checkTypecheckCoverage,
     'check-turbo-depends-on': checkTurboDependsOn,
+    'check-dependency-loops': checkDependencyLoops,
     'check-plugin-ui-kit': checkPluginUiKit,
     check,
     release,

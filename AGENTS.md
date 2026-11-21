@@ -146,8 +146,11 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   secrets or `CONCIV_*` variables; it keeps the developer's Playwright browsers folder. In-repo `test` scripts run
   the committed file `node node_modules/@conciv/plugin-testkit/bin/conciv-test.js`, never the bin name: pnpm's
   repeat-install check skips relinking bins, so a bin added after a checkout's install is never linked there.
-- A package that runs kit tests lists the kit in its own `devDependencies`. The kits are leaves: they depend on no
-  workspace package and name what they need as `peerDependencies`.
+- A package that runs kit tests lists the kit in its own `devDependencies`. The kits' builds are leaves: they depend on
+  no workspace package's build and name what they need as `peerDependencies`, except the private `@conciv/app` and
+  `@conciv/uno-preset`, which `@conciv/plugin-testkit` lists as `devDependencies` (`mount` works in this repo only
+  until the app is published). So `apps/conciv` and the kit test each other: a loop is allowed when it closes through a
+  devDependency or a peer, never through `dependencies` alone (`conciv-publish check-dependency-loops`, CI repo checks).
 - Who mounts the app. A package the app is made of (a dependency of `apps/conciv`: the page, terminal and tanstack
   plugins, the plugin SDK, the ui kits, the mascot) never mounts the app: it keeps node tests of its machines, models,
   tools and rpc, and stories of its components, and its on-screen journeys live in the app's tests under

@@ -3154,25 +3154,25 @@ importers:
 
   packages/plugin-testkit:
     dependencies:
-      '@conciv/app':
-        specifier: workspace:*
-        version: link:../../apps/conciv
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@conciv/uno-preset':
-        specifier: workspace:*
-        version: link:../uno-preset
       zod:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/app':
+        specifier: workspace:*
+        version: link:../../apps/conciv
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@conciv/uno-preset':
+        specifier: workspace:*
+        version: link:../uno-preset
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
