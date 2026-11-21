@@ -11,3 +11,14 @@ test('a message to a CLI that is not signed in ends in a visible error, never a 
   await expect(page.getByRole('alert').filter({has: page.getByRole('button', {name: 'Retry'})})).toBeVisible()
   await expect(page.getByRole('button', {name: 'Stop generating'})).not.toBeVisible()
 })
+
+test('a message to Pi says Pi is not installed or not yet supported', async ({page}, testInfo) => {
+  test.skip(testInfo.project.name !== 'pi', 'only the Pi adapter answers every turn as unsupported')
+  const failures = collectFailures(page)
+  await loginWidget(page, '/', '.conciv-pi')
+  await expectWidgetBoots(page, failures)
+  const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+  await composer.fill('Reply with a short greeting')
+  await composer.press('Enter')
+  await expect(page.getByRole('alert', {name: 'pi is not installed or not yet supported'})).toBeVisible()
+})
