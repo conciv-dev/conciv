@@ -64,3 +64,35 @@ describe('the launcher while a run works', () => {
     expect(screen.queryByRole('button', {name: 'Open conciv chat', busy: true})).not.toBeInTheDocument()
   })
 })
+
+describe('the launcher while a run waits', () => {
+  test('the launcher tells the user a run waits for their Allow', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_page_eval({code: 'return 1 + 1'})",
+      }),
+      TestLLM.text('Done', 'reply'),
+    )
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/']})})
+
+    await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
+    await control.arrived
+    await user.type(
+      await screen.findByRole('textbox', {name: 'Message the conciv agent'}),
+      'Add one and one on the page',
+    )
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByRole('group', {name: 'Permission request'})).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Close chat'}))
+
+    await user.click(await screen.findByRole('button', {name: 'Waiting for your Allow. Open conciv chat'}))
+    const ask = await screen.findByRole('group', {name: 'Permission request'})
+    await user.click(within(ask).getByRole('button', {name: 'Approve'}))
+
+    expect(await screen.findByText('conciv replied.')).toBeVisible()
+    expect(screen.queryByRole('button', {name: /^Waiting for your Allow/})).not.toBeInTheDocument()
+  })
+})
