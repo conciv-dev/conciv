@@ -130,8 +130,8 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
 - The file name picks the runner. `src/x.test.ts` beside `src/x.ts` runs in node; `src/x.dom.test.tsx` beside
   `src/x.tsx` runs in happy-dom; one `src/<package>.browser.test.tsx` per package runs in vitest browser mode
   (Chromium). Playwright Test exists only under `e2e/` (`conciv/playwright-test-in-e2e`). Never jsdom.
-- One `vite.config.ts` per package and no `vitest*.config` file: `conciv()` (`@conciv/unplugin`) sets the test
-  projects when vite's mode is `test`.
+- One `vite.config.ts` per package and no `vitest*.config` file: `concivTest()` (`@conciv/plugin-testkit/vitest`)
+  adds the test projects; `conciv()` (`@conciv/unplugin`) adds nothing under vitest.
 - A behaviour lives in the cheapest place that proves it, and only there: node, then happy-dom, then browser mode
   (layout, scrolling, canvas, real focus), then `e2e/` (the built bundle in a real host app, real harness CLIs).
 - Budgets (`conciv/test-file-budget`): never more test files than source files in a package; one browser-mode file

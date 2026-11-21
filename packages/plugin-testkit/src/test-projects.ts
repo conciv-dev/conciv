@@ -1,6 +1,6 @@
 import {createRequire} from 'node:module'
 import {dirname, join} from 'node:path'
-import type {Plugin} from 'vite'
+import type {Plugin, UserConfig} from 'vite'
 import {configDefaults, type TestProjectInlineConfiguration} from 'vitest/config'
 import type {BrowserCommandContext} from 'vitest/node'
 import type {Page} from 'playwright'
@@ -58,22 +58,23 @@ function installedTestingLibraries(): string[] {
   })
 }
 
-function workerCap(): {maxWorkers?: number} {
+function workerCap(): number | undefined {
   const cap = Number(process.env.VITEST_MAX_FORKS)
-  return Number.isInteger(cap) && cap >= 1 ? {maxWorkers: cap} : {}
+  return Number.isInteger(cap) && cap >= 1 ? cap : undefined
 }
 
-function kitTest(): {
-  testTimeout: number
-  hookTimeout: number
-  expect: {poll: {timeout: number; interval: number}}
-  maxWorkers?: number
-} {
+type AuthorTest = NonNullable<UserConfig['test']>
+
+function pollDefaults(expect: AuthorTest['expect'] = {}): {timeout: number; interval: number} {
+  return {timeout: expect.poll?.timeout ?? POLL_TIMEOUT_MS, interval: expect.poll?.interval ?? POLL_INTERVAL_MS}
+}
+
+function kitDefaults(test: AuthorTest = {}): AuthorTest {
   return {
-    testTimeout: TEST_TIMEOUT_MS,
-    hookTimeout: HOOK_TIMEOUT_MS,
-    expect: {poll: {timeout: POLL_TIMEOUT_MS, interval: POLL_INTERVAL_MS}},
-    ...workerCap(),
+    testTimeout: test.testTimeout ?? TEST_TIMEOUT_MS,
+    hookTimeout: test.hookTimeout ?? HOOK_TIMEOUT_MS,
+    expect: {poll: pollDefaults(test.expect)},
+    maxWorkers: test.maxWorkers ?? workerCap(),
   }
 }
 
@@ -249,7 +250,7 @@ function pageErrorCommands(): PageCommandHandlers {
   }
 }
 
-export function testProjects(): TestProjectInlineConfiguration[] {
+function testProjects(): TestProjectInlineConfiguration[] {
   const uno = appUnoConfig()
   const engines = browserEngines()
   const provide = {concivPollTimeoutMs: POLL_TIMEOUT_MS}
@@ -258,7 +259,6 @@ export function testProjects(): TestProjectInlineConfiguration[] {
       extends: true,
       plugins: [engineModulesInNode()],
       test: {
-        ...kitTest(),
         name: 'node',
         environment: 'node',
         include: ['src/**/*.test.ts'],
@@ -272,7 +272,6 @@ export function testProjects(): TestProjectInlineConfiguration[] {
       server: {fs: {strict: false}},
       resolve: {alias: [{find: BROWSER_ENTRY, replacement: join(KIT_DIST, 'happy-dom.js')}]},
       test: {
-        ...kitTest(),
         name: 'happy-dom',
         isolate: false,
         include: ['src/**/*.dom.test.ts', 'src/**/*.dom.test.tsx'],
@@ -290,7 +289,6 @@ export function testProjects(): TestProjectInlineConfiguration[] {
       resolve: {alias: [{find: NODE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
       optimizeDeps: {include: [...BROWSER_PREBUNDLED, ...installedTestingLibraries()]},
       test: {
-        ...kitTest(),
         name: 'browser',
         include: ['src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx'],
         setupFiles: [join(KIT_DIST, 'browser-setup.js'), join(KIT_DIST, 'browser.js')],
@@ -305,4 +303,15 @@ export function testProjects(): TestProjectInlineConfiguration[] {
       },
     },
   ]
+}
+
+export function concivTest(): Plugin {
+  return {
+    name: 'conciv:test',
+    config(config) {
+      const defaults = kitDefaults(config.test)
+      if (config.test?.name !== undefined) return {test: defaults}
+      return {test: {...defaults, projects: testProjects()}}
+    },
+  }
 }

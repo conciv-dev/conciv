@@ -6,9 +6,9 @@ Published test package for plugin authors. It has three entries with one export 
 
 - `@conciv/plugin-testkit/node`: `createEngine(options)` starts conciv's real engine with the plugins and a scripted AI that answers with `replies` in order, built with the `TestLLM` helpers it also exports. A `harness` option passes a real adapter from `@conciv/harness` straight to the engine, whose chat stays scripted. `engine.gate()` holds the next model request until the test releases it.
 - `@conciv/plugin-testkit/browser`: `mount({engine, seed, route})` shows the whole app on that engine and cleans up after the test. It returns nothing; the test drives the app through the UI.
-- `@conciv/plugin-testkit/vitest`: `testProjects()` returns the three vitest projects below, with the kit's own settings and nothing from a private package.
+- `@conciv/plugin-testkit/vitest`: `concivTest()`, the vite plugin that adds the three vitest projects below, with the kit's own settings and nothing from a private package.
 
-The author adds `@conciv/plugin-testkit` to devDependencies and `conciv()` from `@conciv/unplugin/vite` to the package's one `vite.config.ts`. Under vitest, `testProjects()` from `@conciv/plugin-testkit/vitest` gives its three test projects: node (`*.test.ts`), happy-dom (`*.dom.test.ts(x)`) and vitest browser mode (`*.browser.test.ts(x)`).
+The author adds `@conciv/plugin-testkit` to devDependencies and `concivTest()` from `@conciv/plugin-testkit/vitest` to the plugins of the package's one `vite.config.ts`. Under vitest it adds three test projects: node (`*.test.ts`), happy-dom (`*.dom.test.ts(x)`) and vitest browser mode (`*.browser.test.ts(x)`).
 
 Source details: [src/README.md](./src/README.md).
 

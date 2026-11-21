@@ -38,9 +38,11 @@ user; an operation that must ask is a tool.
 
 The testkit runs the real engine with a scripted model; only the model and the agent CLIs are faked.
 
-- Set up: `@conciv/plugin-testkit` in devDependencies, `conciv()` from `@conciv/unplugin/vite` in
-  the package's one `vite.config.ts`, and `"test": "conciv-test"`. That gives three projects:
-  node (`*.test.ts`), happy-dom (`*.dom.test.ts(x)`) and browser (`*.browser.test.ts(x)`).
+- Set up: `@conciv/plugin-testkit` in devDependencies, `concivTest()` from
+  `@conciv/plugin-testkit/vitest` in the package's one `vite.config.ts`, and `"test": "conciv-test"`.
+  That gives three projects: node (`*.test.ts`), happy-dom (`*.dom.test.ts(x)`) and browser
+  (`*.browser.test.ts(x)`). A setting in your own `test: {...}` (a timeout, `maxWorkers`, a
+  reporter) wins over the kit's.
 - `createEngine({plugins, replies, files, settings})` from `@conciv/plugin-testkit/node` starts the
   engine with your plugins in a fresh project folder. `replies` answer the model's requests in order
   (`TestLLM.text(...)`, `TestLLM.toolCall(...)`). The engine has `session.send(text)`,

@@ -6,7 +6,7 @@
 
 **Architecture:** One lane per product area, all on `test/plugin-testkit-mounts`. Each lane takes its area's feature list, groups the features into user flows, and writes one test file beside the source it covers. The first file, `apps/conciv/src/chat.dom.test.tsx`, is the template every file follows.
 
-**Tech Stack:** vitest through `conciv()` and `conciv-test`; `@conciv/plugin-testkit` (`createEngine`, `mount`, `TestLLM`); `@solidjs/testing-library`; `@testing-library/user-event`; Playwright Test only under `e2e/`.
+**Tech Stack:** vitest through `concivTest()` and `conciv-test`; `@conciv/plugin-testkit` (`createEngine`, `mount`, `TestLLM`); `@solidjs/testing-library`; `@testing-library/user-event`; Playwright Test only under `e2e/`.
 
 **Spec:** the Testing section of `AGENTS.md` on this branch (the rules), `docs/specs/kit-plan.md` (what the kits carry and what they do not), and the feature lists in `docs/specs/tests/features/` (Task 0 puts them there).
 
@@ -51,7 +51,7 @@
 
 ### Task 0: the ground (one lane, first, alone)
 
-**Files:** `apps/conciv/package.json` (devDependencies `@conciv/plugin-testkit`, `@solidjs/testing-library`, `@testing-library/user-event`, `vitest`; script `"test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"`), `apps/conciv/vite.config.ts` (`conciv()`), `pnpm-lock.yaml`, `apps/conciv/src/chat.dom.test.tsx`, `docs/specs/tests/features/*.md`, `docs/specs/tests/app-pane.md`.
+**Files:** `apps/conciv/package.json` (devDependencies `@conciv/plugin-testkit`, `@solidjs/testing-library`, `@testing-library/user-event`, `vitest`; script `"test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"`), `apps/conciv/vite.config.ts` (`concivTest()`), `pnpm-lock.yaml`, `apps/conciv/src/chat.dom.test.tsx`, `docs/specs/tests/features/*.md`, `docs/specs/tests/app-pane.md`.
 
 - [ ] The app's test setup, with only the dependencies the app's tests import. If the kit still needs `@conciv/harness-testkit`, `@conciv/unplugin` or `@conciv/vitest-config` listed in the app for a run to work, list them and report it: that is the peers problem showing, not something to hide.
 - [ ] Commit `chat.dom.test.tsx` (three flows: send and read the reply, stop a held reply, a model failure found by `findByRole('alert', {name})`), after the per-file steps.
@@ -80,7 +80,7 @@ Each task is the per-file steps, repeated for each file of the area, in the orde
 | 7    | plugins3                                 | Plugin SDK and host, unplugin, embed, mascot, grab, client, connection machine    | `sdk-embed.md`                   | node tests beside the sources; components are stories                                                                                                                                                                                                                              |
 | 8    | plugins-p (after the vitest config plan) | `e2e/` apps: the built bundle in a host page, real harness CLIs, browser controls | the `e2e` rows of all four lists | Playwright Test under `e2e/`, with the `e2e-utils` helpers `kit-plan.md` lists                                                                                                                                                                                                     |
 
-A package gets its test setup (kit devDependency, `conciv()` in its one `vite.config.ts`, the `test` script) from the lane that owns it, in its first commit there. Packages below the kits (`core`, `chat`, `ai`, `db`, `serve`, `protocol`, `contract`) cannot use the kit: their node tests call the product function directly, and Task 5 starts by stating which plain vitest setup they use and stops for a ruling if none exists.
+A package gets its test setup (kit devDependency, `concivTest()` in its one `vite.config.ts`, the `test` script) from the lane that owns it, in its first commit there. Packages below the kits (`core`, `chat`, `ai`, `db`, `serve`, `protocol`, `contract`) cannot use the kit: their node tests call the product function directly, and Task 5 starts by stating which plain vitest setup they use and stops for a ruling if none exists.
 
 Order inside an area: the flows most used first (the ones a user meets in the first minute), then errors and edges.
 

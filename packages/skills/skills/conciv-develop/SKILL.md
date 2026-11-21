@@ -195,9 +195,9 @@ or `@conciv` import.
   `engine.session.tool(name).call(input)`, `engine.rpc.call(id, method, input)`, `engine.gate()`.
 - `mount({engine, route})` (`/browser`): the whole widget on that engine; the test drives it by
   role and text.
-- Add `conciv()` from `@conciv/unplugin/vite` to the package's `vite.config.ts` and run tests with
-  the `conciv-test` bin: node (`*.test.ts`), happy-dom (`*.dom.test.tsx`) and browser
-  (`*.browser.test.tsx`) projects come from it.
+- Add `concivTest()` from `@conciv/plugin-testkit/vitest` to the package's `vite.config.ts` and run
+  tests with the `conciv-test` bin: node (`*.test.ts`), happy-dom (`*.dom.test.tsx`) and browser
+  (`*.browser.test.tsx`) projects come from it. Your own `test: {...}` settings win over the kit's.
 
 See [rpc-and-testing](references/rpc-and-testing.md).
 
