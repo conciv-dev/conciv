@@ -246,9 +246,9 @@ export type MakeAppOpts = {
 
   plugins?: readonly Plugin.Plugin[]
 
-  staleness?: () => EngineStaleness
+  staleness?: () => EngineStaleness | undefined
 
-  app?: {version?: string}
+  app?: {version?: () => string | undefined}
 
   home?: string
 
@@ -359,7 +359,7 @@ function composeRoutes(
   deps: {
     engineId: string
     staleness: () => EngineStaleness
-    version: string | undefined
+    version: (() => string | undefined) | undefined
     onShutdown?: () => void
     trust: ConnectionTrust
   },
@@ -480,7 +480,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     engineLife.abort(new Error('conciv: the engine stopped'))
     await Promise.all(listings.map(endListing))
   }
-  const staleness = opts.staleness ?? engineStaleness
+  const staleness = (): EngineStaleness => opts.staleness?.() ?? engineStaleness()
   const dbScope = Effect.runSync(Scope.make())
   const closeDb = () => Effect.runPromise(Scope.close(dbScope, Exit.void))
   const failedStart =

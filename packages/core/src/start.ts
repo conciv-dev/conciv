@@ -114,8 +114,8 @@ export type StartOpts = {
   stopGraceMs?: number
   pageReplyTimeoutMs?: number
   queuedActionTimeoutMs?: number
-  staleness?: () => EngineStaleness
-  app?: {version?: string}
+  staleness?: () => EngineStaleness | undefined
+  app?: {version?: () => string | undefined}
 }
 
 export type Engine = {

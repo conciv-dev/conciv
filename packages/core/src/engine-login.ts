@@ -294,7 +294,10 @@ export type AuthRouter = ReturnType<typeof makeAuthRouter>
 
 export type GatedFetch<Env> = (request: Request, env?: Env) => Response | Promise<Response>
 
-function refusal(allowedOrigins: readonly string[], version: string | undefined): Hono<{Variables: CorsVars}> {
+function refusal(
+  allowedOrigins: readonly string[],
+  version: (() => string | undefined) | undefined,
+): Hono<{Variables: CorsVars}> {
   return new Hono<{Variables: CorsVars}>()
     .use(async (c, next) => {
       c.set('cors', {allowedOrigins: [...allowedOrigins]})
@@ -334,7 +337,7 @@ export function makeEngineGate<Env>(opts: {
   fetch: GatedFetch<Env>
   trusts: (token: string) => boolean
   allowedOrigins: readonly string[]
-  version?: string
+  version?: () => string | undefined
   onTrusted?: () => void
 }): GatedFetch<Env> {
   const refuse = refusal(opts.allowedOrigins, opts.version)
