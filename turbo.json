@@ -33,7 +33,7 @@
       "outputs": ["dist/**/*.d.ts"]
     },
     "dev": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@conciv/cli#build"],
       "cache": false,
       "persistent": true
     },
@@ -67,7 +67,7 @@
       "dependsOn": ["build"]
     },
     "test:e2e": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@conciv/cli#build"],
       "cache": false,
       "env": ["CI", "GITHUB_ACTIONS"],
       "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"]
