@@ -2804,6 +2804,9 @@ importers:
       '@conciv/ai':
         specifier: workspace:^
         version: link:../ai
+      '@conciv/cli':
+        specifier: workspace:^
+        version: link:../cli
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract

@@ -59,6 +59,7 @@
   },
   "peerDependencies": {
     "@conciv/ai": "workspace:^",
+    "@conciv/cli": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/core": "workspace:^",
     "@conciv/harness": "workspace:^",

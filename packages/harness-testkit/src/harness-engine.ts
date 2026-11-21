@@ -24,6 +24,7 @@ import {isolatedEnv} from './isolated-env.js'
 import {until} from './until.js'
 
 export * as TestLLM from './test-llm.js'
+export {cli, type CliOptions, type CliRun} from './cli.js'
 
 export type HarnessEngineSetting = {scope: 'project' | 'global'; namespace: string; key: string; value: unknown}
 
