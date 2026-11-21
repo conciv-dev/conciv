@@ -18,6 +18,32 @@ describe('loading plugins', () => {
 
     expect(await engine.session.tool('echo_options').call({})).toEqual({options: {greeting: 'Shalom', times: 2}})
   })
+
+  test("a plugin dropped into the project's conciv/plugins folder loads with no plugins in the config", async () => {
+    const engine = await createEngine({}, {directory: './test/fixtures/projects/dropped-plugin'})
+
+    expect(await engine.session.tool('greet_dropped').call({name: 'Ada'})).toEqual({
+      greeting: 'Hello Ada, from conciv/plugins',
+    })
+  })
+
+  test('an organization policy that denies plugin.use keeps that plugin out and loads the rest', async () => {
+    const engine = await createEngine({
+      plugins: ['./test/fixtures/plugins/lister', './test/fixtures/plugins/greeter-promise'],
+      policies: [{action: 'plugin.use', resource: '*/greeter-promise', effect: 'deny'}],
+    })
+
+    const listed = await engine.session.tool('list_plugins').call({})
+
+    expect(listed).toEqual({
+      plugins: expect.arrayContaining([expect.objectContaining({id: 'lister', state: {status: 'active'}})]),
+    })
+    expect(listed).toEqual({
+      plugins: expect.not.arrayContaining([
+        expect.objectContaining({source: {type: 'local', path: expect.stringContaining('/greeter-promise')}}),
+      ]),
+    })
+  })
 })
 
 describe('a plugin that fails to load', () => {
