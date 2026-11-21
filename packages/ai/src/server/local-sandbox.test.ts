@@ -1,36 +1,17 @@
-import {spawn, spawnSync} from 'node:child_process'
+import {spawn} from 'node:child_process'
 import {once} from 'node:events'
 import {join} from 'node:path'
 import {createInterface} from 'node:readline'
 import {pathToFileURL} from 'node:url'
-import {test as base, describe, expect} from 'vitest'
+import {describe, expect} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-
-const sandboxModule = pathToFileURL(join(import.meta.dirname, 'local-sandbox.ts')).href
-
-const test = base.extend<{groups: number[]}>({
-  groups: async ({task: _task}, use) => {
-    const groups: number[] = []
-    await use(groups)
-    for (const group of groups) {
-      try {
-        process.kill(-group, 'SIGKILL')
-      } catch {
-        continue
-      }
-    }
-  },
-})
-
-function running(pid: number): boolean {
-  const state = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)], {encoding: 'utf8'}).stdout.trim()
-  return state !== '' && !state.startsWith('Z')
-}
+import {running, test} from '../../test/ai-test.js'
 
 describe.skipIf(process.platform === 'win32')('the local sandbox', () => {
   test('kills every agent process group still running when the engine process exits without stopping it', async ({
     groups,
   }) => {
+    const sandboxModule = pathToFileURL(join(import.meta.dirname, 'local-sandbox.ts')).href
     const program = [
       `import {localSandbox} from ${JSON.stringify(sandboxModule)}`,
       'const sandbox = await localSandbox({dir: process.cwd()}).create({})',

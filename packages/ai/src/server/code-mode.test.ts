@@ -1,7 +1,7 @@
 import {describe, expect} from 'vitest'
 import {z} from 'zod'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {test} from '../../test/code-mode-test.js'
+import {test} from '../../test/ai-test.js'
 import {codeModeTools} from './code-mode.js'
 
 describe('the agent runs its own program', () => {
