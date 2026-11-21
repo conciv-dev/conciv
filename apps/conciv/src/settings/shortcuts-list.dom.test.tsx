@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {screen, waitForElementToBeRemoved} from '@solidjs/testing-library'
+import {screen} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
@@ -28,8 +28,9 @@ describe('recording keyboard shortcuts', () => {
 
     await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
-    await user.click(await screen.findByRole('button', {name: 'Clear New quick terminal pane'}))
+    await user.click(await screen.findByRole('button', {name: 'Clear Quick terminal'}))
     expect(await screen.findByText('Add shortcut')).toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Clear Quick terminal'})).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', {name: 'Quick terminal'}))
     await user.keyboard('{Escape}')
@@ -42,9 +43,9 @@ describe('recording keyboard shortcuts', () => {
       'Ctrl+K is also Open or close conciv. Saving moves it here.',
     )
     await user.click(screen.getByRole('button', {name: 'Save'}))
-    await waitForElementToBeRemoved(() => screen.queryByRole('button', {name: 'Clear Open or close conciv'}))
-    expect(screen.getAllByText('Add shortcut')).toHaveLength(2)
-    expect(screen.getByRole('button', {name: 'Clear Quick terminal'})).toBeVisible()
+    expect(await screen.findByRole('button', {name: 'Clear Quick terminal'})).toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Clear Open or close conciv'})).not.toBeInTheDocument()
+    expect(screen.getByText('Add shortcut')).toBeVisible()
     expect(screen.getByText('Ctrl+K')).toBeVisible()
   })
 

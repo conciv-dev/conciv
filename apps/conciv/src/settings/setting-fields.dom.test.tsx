@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {screen, waitForElementToBeRemoved} from '@solidjs/testing-library'
+import {screen} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
@@ -15,18 +15,18 @@ describe('the general settings change the panel', () => {
     await user.click(screen.getByRole('radio', {name: 'Terminal'}))
     await user.click(screen.getByRole('combobox', {name: 'Launcher'}))
     await user.click(await screen.findByRole('option', {name: 'Hidden'}))
-    await waitForElementToBeRemoved(() => screen.queryByRole('button', {name: 'Minimize conciv chat'}))
+    await user.click(screen.getByRole('switch', {name: 'Close on outside click'}))
+    await user.click(screen.getByRole('button', {name: 'Back to chat'}))
+    await user.click(await screen.findByRole('link', {name: 'Settings'}))
+    expect(await screen.findByRole('switch', {name: 'Close on outside click', checked: true})).toBeVisible()
+    expect(screen.getByRole('radio', {name: 'Dark'})).toBeChecked()
+    expect(screen.getByRole('radio', {name: 'Terminal'})).toBeChecked()
+    expect(screen.getByRole('combobox', {name: 'Launcher'})).toHaveTextContent('Hidden')
+    expect(screen.queryByRole('button', {name: 'Minimize conciv chat'})).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('combobox', {name: 'Launcher'}))
     await user.click(await screen.findByRole('option', {name: 'Mascot'}))
     expect(await screen.findByRole('button', {name: 'Minimize conciv chat'})).toBeVisible()
-
-    await user.click(screen.getByRole('switch', {name: 'Close on outside click'}))
-    await user.click(screen.getByRole('button', {name: 'Back to chat'}))
-    await user.click(await screen.findByRole('link', {name: 'Settings'}))
-    expect(await screen.findByRole('radio', {name: 'Dark'})).toBeChecked()
-    expect(screen.getByRole('radio', {name: 'Terminal'})).toBeChecked()
-    expect(screen.getByRole('switch', {name: 'Close on outside click'})).toBeChecked()
 
     await user.click(document.body)
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
