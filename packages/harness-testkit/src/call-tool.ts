@@ -14,25 +14,31 @@ const ExecuteReplySchema = z.object({result: z.unknown()}).loose()
 
 const TruncatedReplySchema = z.object({'conciv:truncated': z.literal(true), reason: z.string()}).loose()
 
-function decodeReply(raw: string): unknown {
+type Decode = (raw: string) => unknown
+
+function parseReply(raw: string): unknown {
   try {
-    const parsed: unknown = JSON.parse(raw)
-    const reply = ExecuteReplySchema.safeParse(parsed)
-    return reply.success && 'result' in reply.data ? reply.data.result : parsed
+    return JSON.parse(raw)
   } catch {
     return raw
   }
+}
+
+function decodeExecuteReply(raw: string): unknown {
+  const parsed = parseReply(raw)
+  const reply = ExecuteReplySchema.safeParse(parsed)
+  return reply.success && 'result' in reply.data ? reply.data.result : parsed
 }
 
 function readText(content: z.infer<typeof CallResultSchema>['content']): string {
   return content.flatMap((part) => (part.type === 'text' && part.text !== undefined ? [part.text] : [])).join('\n')
 }
 
-function readReply(name: string, raw: unknown): unknown {
+function readReply(name: string, raw: unknown, decode: Decode): unknown {
   const result = CallResultSchema.parse(raw)
   if (result.isError === true) throw new Error(readText(result.content))
   const only = result.content[0]
-  const reply = result.content.length === 1 && only?.text !== undefined ? decodeReply(only.text) : result.content
+  const reply = result.content.length === 1 && only?.text !== undefined ? decode(only.text) : result.content
   const truncated = TruncatedReplySchema.safeParse(reply)
   if (truncated.success) throw new Error(`the reply for tool "${name}" was truncated (${truncated.data.reason})`)
   return reply
@@ -46,15 +52,18 @@ export async function callTool(apiBase: string, session: string, name: string, i
     }),
   )
   try {
-    const typescriptCode = `return await external_${name}(${JSON.stringify(input ?? {})})`
     const deadline = AbortSignal.timeout(DEADLINE_MS)
-    const raw = await client
-      .callTool({name: 'execute_typescript', arguments: {typescriptCode}}, undefined, {signal: deadline})
-      .catch((error: unknown) => {
-        if (!deadline.aborted) throw error
-        throw new Error(`the tool ${name} gave no reply within ${DEADLINE_MS}ms`, {cause: error})
-      })
-    return readReply(name, raw)
+    const {tools} = await client.listTools(undefined, {signal: deadline})
+    const direct = tools.some((tool) => tool.name === name)
+    const typescriptCode = `return await external_${name}(${JSON.stringify(input ?? {})})`
+    const call = direct
+      ? {name, arguments: z.record(z.string(), z.unknown()).parse(input ?? {})}
+      : {name: 'execute_typescript', arguments: {typescriptCode}}
+    const raw = await client.callTool(call, undefined, {signal: deadline}).catch((error: unknown) => {
+      if (!deadline.aborted) throw error
+      throw new Error(`the tool ${name} gave no reply within ${DEADLINE_MS}ms`, {cause: error})
+    })
+    return readReply(name, raw, direct ? parseReply : decodeExecuteReply)
   } finally {
     await client.close().catch(() => {})
   }

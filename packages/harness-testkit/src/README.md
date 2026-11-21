@@ -6,7 +6,7 @@
 
 - `scripted-harness.ts`: the harness the engine runs. A given adapter keeps everything but its chat, which answers each model request with the next of `replies`, records what each model request was given (its messages, and of each tool only the name and description, since the tool's functions and schema objects do not serialize), and holds it while a gate is set; without one, the quick adapter with id `engine` does the same and also lists a fixed model list, the `model` and `deploy` slash commands, and a plain bash terminal.
 - `test-llm.ts`: the reply shapes and helpers of opencode's test model, on `ChatEvent` chunks, and the shape of one recorded model request.
-- `call-tool.ts`: a session's tool call, run through `execute_typescript` on `/api/mcp`.
+- `call-tool.ts`: a session's tool call on `/api/mcp`: a tool the engine lists by its own name (a direct tool) is called by that name, any other through `execute_typescript`; a reply of one text part is parsed as JSON, a reply of several parts comes back as its content list.
 - `until.ts`: the private wait `approve` uses until the session has a pending ask.
 
 ## Invariants
