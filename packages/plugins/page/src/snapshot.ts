@@ -50,7 +50,7 @@ export function readRole(el: Element): string {
   if (explicit) return explicit
   if (el instanceof HTMLInputElement) return INPUT_ROLES[el.type] ?? 'textbox'
   const tag = el.tagName.toLowerCase()
-  return ROLE_BY_TAG[tag] ?? tag
+  return Object.hasOwn(ROLE_BY_TAG, tag) ? (ROLE_BY_TAG[tag] ?? tag) : tag
 }
 
 function labelName(el: Element): string | undefined {
@@ -90,7 +90,7 @@ function isInteresting(el: Element): boolean {
   const tag = el.tagName.toLowerCase()
   if (['a', 'button', 'input', 'select', 'textarea', 'label', 'summary'].includes(tag)) return true
   if (el.getAttribute('role')) return true
-  return tag in ROLE_BY_TAG
+  return Object.hasOwn(ROLE_BY_TAG, tag)
 }
 
 export const MASKED_VALUE = '***'
