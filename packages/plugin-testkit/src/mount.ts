@@ -23,11 +23,10 @@ export type MountOptions = {
   login?: 'none'
 }
 
-const ENGINE_TIMINGS: NonNullable<Platform['timings']>['engine'] = {
-  reconnectMinDelayMs: 10,
-  reconnectMaxDelayMs: 50,
-  connectionLossRetryDelayMs: 10,
-  offlineGraceMs: 10,
+const TIMINGS: NonNullable<Platform['timings']> = {
+  engine: {reconnectMinDelayMs: 10, reconnectMaxDelayMs: 50, connectionLossRetryDelayMs: 10, offlineGraceMs: 10},
+  chatRunReconnect: {firstDelayMs: 10, maxDelayMs: 50},
+  queryRetryDelayMs: 10,
 }
 
 function memoryDraftStore(): DraftStore {
@@ -144,7 +143,7 @@ async function mountApp(options: MountOptions): Promise<void> {
     plugins,
     root: document,
     settings: options.host,
-    timings: {engine: ENGINE_TIMINGS},
+    timings: TIMINGS,
     draftStore: () => memoryDraftStore(),
     onInteractive: () => interactive.resolve(),
   }
