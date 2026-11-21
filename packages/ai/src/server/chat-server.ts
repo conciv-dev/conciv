@@ -48,6 +48,7 @@ import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type T
 import {guardedAdapter} from './run-guard.js'
 import {localSandbox} from './local-sandbox.js'
 import {answeredAdapter, answeredMetadata, hookedRequest, type RequestHook} from './model-request.js'
+import {formatLoggedError} from './logged-error.js'
 import {cloneDeepWith, isPlainObject} from 'es-toolkit'
 
 const COMPACTION: z.infer<typeof CompactionMetadataSchema> = {conciv: {compaction: true}}
@@ -471,7 +472,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     debug: () => undefined,
     info: () => undefined,
     warn: (message) => config.log(`[ai] ${message}`),
-    error: (message, meta) => config.log(`[ai] ${message}: ${String(meta?.error)}`),
+    error: (message, meta) => config.log(formatLoggedError(message, meta?.error)),
   })
   const sandbox = defineSandbox({
     id: 'conciv',
