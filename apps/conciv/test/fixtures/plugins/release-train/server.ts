@@ -28,5 +28,12 @@ export default Plugin.define({
         output: z.object({notes: z.string()}),
         execute: () => Effect.succeed({output: {notes: 'Faster login'}}),
       })
+      tools.add({
+        name: 'release_window',
+        description: 'Tell when a branch may ship',
+        input: z.object({branch: z.string()}),
+        output: z.object({window: z.string()}),
+        execute: () => Effect.succeed({output: {window: 'noon to two'}}),
+      })
     }),
 })

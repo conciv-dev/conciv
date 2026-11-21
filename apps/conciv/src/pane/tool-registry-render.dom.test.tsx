@@ -130,3 +130,32 @@ describe('a tool card follows its call to the end', () => {
     expect(screen.getAllByRole('img', {name: 'complete'}).at(-1)).toBeVisible()
   })
 })
+
+describe('opening a tool card while the turn goes on', () => {
+  test('the user opens the card of a tool with no card of its own, its body shows, and it stays open when the answer arrives', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_release_window({branch: 'main'})",
+      }),
+      TestLLM.text('The window is set'),
+    )
+    const toolCall = await engine.gate()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'When can we ship')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    await toolCall.started
+    const answer = await engine.gate()
+    await toolCall.release()
+    await answer.started
+    const reply = await screen.findByRole('article', {name: 'Reply to: When can we ship'})
+    await user.click(await within(reply).findByRole('button', {name: /main/}))
+    expect(await within(reply).findByText(/noon to two/)).toBeVisible()
+
+    await answer.release()
+    expect(await screen.findByText('The window is set')).toBeVisible()
+    expect(within(reply).getByText(/noon to two/)).toBeVisible()
+  })
+})
