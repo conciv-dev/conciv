@@ -14,7 +14,7 @@ import {createEngineLogin, engineConnected, startEngineLogin} from './app/engine
 import {reserveComposedPlugins, type ComposedPlugin} from './runtime/plugin/root.js'
 import type {DraftStore} from './runtime/persistence/drafts.js'
 
-export {createBrowserDraftStore, createDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
+export {createDraftStore, openBrowserDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
 
 export type Platform = {
   engine: Accessor<{kind: 'bound'; apiBase: string; token?: () => Promise<string>} | {kind: 'servers'}>

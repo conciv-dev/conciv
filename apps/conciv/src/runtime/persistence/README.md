@@ -55,6 +55,9 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
   made in a test without a mock.
 - A draft database that does not open is logged once (`drafts.ts`, the catch on `db`). In the source that failure is
   an unhandled rejection whenever nothing reads the store first.
+- A browser where IndexedDB cannot be opened at all (no `indexedDB`, or `indexedDB.open` throws) gets no draft store
+  (`drafts.ts` `openBrowserDraftStore`, the one entry both the standalone app and the embed use): the throw is logged
+  as `[conciv] drafts stay engine-only` and the app runs with drafts kept by the engine only.
 - A stored draft document is checked with zod, not Effect Schema, because the app checks untrusted input with zod. A document that fails the check is logged and read as absent.
 - Every `media:` piece of the source's `drafts.ts` is left out (the media loaders, `setMediaBlobLoader`,
   `pinMediaBlob`, `createLegacyBlobReference` and the media branches of `resolveBlobUrl`, `encode` and `blobDataUrl`):

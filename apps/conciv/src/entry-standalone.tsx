@@ -1,5 +1,5 @@
 import {render} from 'solid-js/web'
-import {ConcivApp, createBrowserDraftStore} from './index.js'
+import {ConcivApp, openBrowserDraftStore} from './index.js'
 import {readSettingsInit} from './data/settings.js'
 
 const params = new URLSearchParams(window.location.search)
@@ -15,7 +15,7 @@ if (root)
           navigation: 'browser',
           root: document,
           settings: readSettingsInit(params.get('settings') ?? ''),
-          draftStore: createBrowserDraftStore(),
+          draftStore: openBrowserDraftStore(),
         }}
       />
     ),

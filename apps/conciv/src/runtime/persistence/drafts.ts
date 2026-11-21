@@ -433,7 +433,16 @@ function split(text: string) {
   return pieces
 }
 
-export function createBrowserDraftStore(): DraftStore {
+export function openBrowserDraftStore(): DraftStore | undefined {
+  try {
+    return createBrowserDraftStore()
+  } catch (error) {
+    console.error('[conciv] drafts stay engine-only', error)
+    return undefined
+  }
+}
+
+function createBrowserDraftStore(): DraftStore {
   const request = indexedDB.open('conciv-drafts', 1)
   request.addEventListener('upgradeneeded', () => {
     request.result.createObjectStore('documents')

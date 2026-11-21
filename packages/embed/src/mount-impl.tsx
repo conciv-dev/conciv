@@ -1,7 +1,7 @@
 import {render} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {installReactBridge} from '@conciv/plugin-page/client'
-import {ConcivApp, createBrowserDraftStore, type DraftStore, type Platform} from '@conciv/app'
+import {ConcivApp, openBrowserDraftStore, type Platform} from '@conciv/app'
 import type {ConcivSettingsInit, ConcivSurface} from '@conciv/protocol/config-types'
 import type {ConcivInit} from './mount.js'
 
@@ -49,15 +49,6 @@ function metaSettings(): ConcivSettingsInit {
     return isSettingsInit(parsed) ? parsed : {}
   } catch {
     return {}
-  }
-}
-
-function openDraftStore(): DraftStore | undefined {
-  try {
-    return createBrowserDraftStore()
-  } catch (error) {
-    console.error('[conciv] drafts stay engine-only', error)
-    return undefined
   }
 }
 
@@ -161,7 +152,7 @@ export function mountImpl(
     grabProvider: init.grabProvider,
     onInteractive: interactive.resolve,
     timings: init.timings,
-    draftStore: openDraftStore(),
+    draftStore: openBrowserDraftStore(),
   }
   const container = document.createElement('div')
   shadow.root.appendChild(container)
