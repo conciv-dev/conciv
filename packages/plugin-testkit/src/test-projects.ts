@@ -335,17 +335,18 @@ function pageErrorCommands(): PageCommandHandlers {
 
 const PluginListSchema = z.array(z.unknown())
 
-const NamedPluginSchema = z.object({name: z.string()})
+const NamedPluginSchema = z.object({name: z.string(), apply: z.unknown().optional()})
 
-function hasPlugin(option: unknown, name: string): boolean {
+function hasServingPlugin(option: unknown, name: string): boolean {
   const list = PluginListSchema.safeParse(option)
-  if (list.success) return list.data.some((item) => hasPlugin(item, name))
-  return NamedPluginSchema.safeParse(option).data?.name === name
+  if (list.success) return list.data.some((item) => hasServingPlugin(item, name))
+  const plugin = NamedPluginSchema.safeParse(option).data
+  return plugin?.name === name && (plugin.apply === undefined || plugin.apply === 'serve')
 }
 
 function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineConfiguration[] {
   const uno = appUnoConfig()
-  const solid = hasPlugin(authorPlugins, 'solid') ? [] : [solidPlugin()]
+  const solid = hasServingPlugin(authorPlugins, 'solid') ? [] : [solidPlugin()]
   const byName = pluginsByName(testablePlugins())
   const engines = browserEngines()
   const provide = {concivPollTimeoutMs: POLL_TIMEOUT_MS}
