@@ -19,6 +19,7 @@ Source details: [src/README.md](./src/README.md).
 - No helper exports. Everything else in `dist` is loaded by path from the test projects, never imported by a test.
 - The engine always runs in Node: in the test process for node and happy-dom, and behind browser commands for browser mode.
 - Browser commands carry JSON only, so in browser mode `engine.reply` refuses a streamed reply (an Effect `Stream`, such as `TestLLM.failAfter` or `TestLLM.hangAfter`); it is tested in node or happy-dom. A real harness adapter is `@conciv/harness-testkit`'s, not this kit's.
+- `mount` renders the app inside a `data-conciv-root` host appended to `document.body`, as the embed does, but with no shadow root, because Testing Library's `screen` cannot see into one.
 - In happy-dom every file shares one document, so a test that leaves any element in `document.body` after cleanup fails in its own file, and the leftovers are removed so later files start on an empty page (`happy-dom-setup.ts`). Browser mode gives each file its own page.
 - In browser mode the Playwright page's console errors, uncaught errors and responses with status 400 or more are collected per test, as opencode's `trackPageErrors`. `pageErrors()` on the test context reads them when the test asks; nothing fails on its own (`page-errors.ts`).
 - The setup files load none of the engine: `node-setup.ts` imports only the file-level engine list (`file-engines.ts`), so a test that never calls `createEngine` never imports `@conciv/harness-testkit` or core.

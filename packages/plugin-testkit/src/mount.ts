@@ -148,7 +148,10 @@ async function mountApp(options: MountOptions): Promise<void> {
     draftStore: () => memoryDraftStore(),
     onInteractive: () => interactive.resolve(),
   }
-  render(() => createComponent(ConcivApp, {platform}))
+  const host = document.createElement('div')
+  host.setAttribute('data-conciv-root', '')
+  document.body.appendChild(host)
+  render(() => createComponent(ConcivApp, {platform}), {container: host})
   await interactive.promise
 }
 

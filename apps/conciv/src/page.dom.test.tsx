@@ -49,3 +49,16 @@ describe('the agent reads a page with an element named after a built-in', () => 
     })
   })
 })
+
+describe('the agent picks an element on a page with the widget open on it', () => {
+  test('a selector that also matches the widget picks the host element only', async () => {
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => <button type="button">Buy the fern</button>)
+
+    expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
+    expect(await engine.session.tool('page_text').call({selector: 'button'})).toEqual({text: 'Buy the fern'})
+  })
+})
