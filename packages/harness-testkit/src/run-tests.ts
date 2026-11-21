@@ -1,7 +1,7 @@
 import {spawn} from 'node:child_process'
 import {mkdirSync, mkdtempSync, readFileSync, rmSync} from 'node:fs'
 import {createRequire} from 'node:module'
-import {tmpdir} from 'node:os'
+import {homedir, tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {z} from 'zod'
 import {isolatedEnv} from './isolated-env.js'
@@ -14,6 +14,20 @@ function vitestEntry(): string {
   return join(dirname(manifest), bin.vitest)
 }
 
+function playwrightCacheDirectory(env: NodeJS.ProcessEnv): string {
+  if (process.platform === 'linux') return env.XDG_CACHE_HOME || join(homedir(), '.cache')
+  if (process.platform === 'win32') return env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local')
+  return join(homedir(), 'Library', 'Caches')
+}
+
+function playwrightBrowsers(env: NodeJS.ProcessEnv): string {
+  const chosen =
+    env.PLAYWRIGHT_BROWSERS_PATH ??
+    env.npm_config_playwright_browsers_path ??
+    env.npm_package_config_playwright_browsers_path
+  return chosen || join(playwrightCacheDirectory(env), 'ms-playwright')
+}
+
 const entry = vitestEntry()
 // oxlint-disable-next-line conciv/no-hand-made-temp-dir -- the test process's own home, as opencode's test runner: removed when vitest exits
 const home = mkdtempSync(join(tmpdir(), 'conciv-test-home-'))
@@ -21,7 +35,7 @@ const temporary = join(home, 'tmp')
 mkdirSync(temporary)
 
 const child = spawn(process.execPath, [entry, 'run', ...process.argv.slice(2)], {
-  env: isolatedEnv(process.env, home, temporary),
+  env: {...isolatedEnv(process.env, home, temporary), PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsers(process.env)},
   stdio: 'inherit',
 })
 const interrupt = (): void => {
