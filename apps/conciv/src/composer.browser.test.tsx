@@ -66,10 +66,10 @@ describe('the composer actions menu', () => {
     const trigger = await screen.findByRole('button', {name: 'More composer actions'})
     await user.click(trigger)
     const menu = await screen.findByRole('menu', {name: 'More composer actions'})
-    await waitFor(() => expect(menu).toHaveFocus())
+    expect(menu).toHaveFocus()
     await user.keyboard('{Escape}')
 
-    await waitFor(() => expect(trigger).toHaveFocus())
+    expect(trigger).toHaveFocus()
     expect(screen.queryByRole('menu', {name: 'More composer actions'})).not.toBeInTheDocument()
   })
 })
