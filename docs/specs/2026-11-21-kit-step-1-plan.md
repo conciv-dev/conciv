@@ -28,7 +28,7 @@ All of `docs/specs/2026-11-21-kit-step-0-plan.md` "Global Constraints" apply unc
 4. `directory` given together with `files`, or a fixture the kit would delete on stop: Task 7.
 5. A recorded request that cannot cross to browser mode (a function or a schema object in it): Task 3 keeps only plain data.
 
-Run order: 1, 2, 3, 4, 5, 6, 7, 8. All eight change `packages/harness-testkit/src/harness-engine.ts`, so one lane does them one after another.
+Run order: 1, 2, 2b, 3, 4, 5, 6, 7, 8. All eight change `packages/harness-testkit/src/harness-engine.ts`, so one lane does them one after another.
 
 ---
 
@@ -112,6 +112,33 @@ test('a plugin the organization denies does not load', async () => {
 - [ ] **Step 2: Failing run.** Expected: test 1 resolves instead of rejecting; test 2 gets a generated id; test 3: `failure` throws "answered instead of failing".
 - [ ] **Step 3: Change.** **Step 4: Passing run.** Rerun every earlier proof: the default engine behaves as before (same empty system prompt, same hub access).
 - [ ] **Step 5: Gates, commit** `feat(testkits): policies, system prompt and a configured session reach the test engine`.
+
+---
+
+### Task 2b: `TestLLM` imports in browser mode (added 2026-11-21 from the real run)
+
+Found when Task 3's browser-mode proof ran: `import {createEngine, TestLLM} from '@conciv/plugin-testkit/node'` fails in browser mode, because that entry resolves to `browser-engine.ts`, which exports no `TestLLM`. The kits export `TestLLM` by an earlier ruling (`docs/specs/test-rewrite-after-port.md`), so this is a kit defect, not a new export.
+
+**Files:** `packages/harness-testkit/package.json` and `tsdown.config.ts` (subpath `./test-llm`, entry `src/test-llm.ts`); `packages/plugin-testkit/src/node.ts` and `browser-engine.ts` (both `export * as TestLLM from '@conciv/harness-testkit/test-llm'`); both READMEs; `.changeset/kit-test-llm-in-browser-mode.md`.
+
+**Interfaces:** `import {createEngine, TestLLM} from '@conciv/plugin-testkit/node'` is the same line in node, happy-dom and browser mode. The `./test-llm` chunk imports nothing from core and no node builtin (check the built file's imports and report them).
+
+- [ ] **Step 1: Proof** `src/kit-test-llm.browser.test.tsx`:
+
+```tsx
+import {expect, test} from 'vitest'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit/node'
+
+test('a browser-mode test scripts a reply with TestLLM', async () => {
+  const engine = await createEngine({replies: [TestLLM.text('ok', 'a')]})
+
+  await engine.session.send('hello')
+
+  expect(await engine.requests()).toHaveLength(1)
+})
+```
+
+- [ ] **Step 2: Failing run:** the import fails ("does not provide an export named 'TestLLM'"). **Step 3: Change. Step 4: Passing run, plus `publint` and `attw` for both kits. Step 5: Gates, commit** `fix(testkits): TestLLM imports in browser mode from a browser-safe entry`.
 
 ---
 
