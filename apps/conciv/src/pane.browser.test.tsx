@@ -39,7 +39,7 @@ describe('a reply with a diagram', () => {
     expect(await within(reply).findByRole('graphics-document')).toBeVisible()
     expect(within(reply).getByText('Start')).toBeVisible()
     expect(within(reply).getByText('Done')).toBeVisible()
-    expect(within(reply).getByText('const total = 1 + 1')).toBeVisible()
+    expect(reply).toMatchTextContent('const total = 1 + 1')
   })
 })
 
@@ -82,8 +82,7 @@ describe('a long saved session', () => {
     const last = await screen.findByRole('article', {name: 'Reply to: Question 26'})
     expect(await within(last).findByText('Answer 26')).toBeVisible()
     expect(screen.queryByRole('article', {name: 'Reply to: Question 1'})).not.toBeInTheDocument()
-    const latest = screen.getByRole('button', {name: 'Latest'})
-    expect(latest).not.toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Latest'})).not.toBeInTheDocument()
 
     await browserInput.click(last)
     await browserInput.keyboard('{Home}')
@@ -93,6 +92,7 @@ describe('a long saved session', () => {
     expect(rows[1]).toHaveAccessibleName('Reply to: Question 1')
     expect(rows[2]).toHaveAccessibleName('You: Question 2')
     expect(rows[3]).toHaveAccessibleName('Reply to: Question 2')
+    const latest = await screen.findByRole('button', {name: 'Latest'})
     expect(latest).toBeVisible()
 
     await user.click(latest)

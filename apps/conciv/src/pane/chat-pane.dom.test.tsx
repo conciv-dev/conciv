@@ -301,6 +301,28 @@ describe('the agent asks for permission', () => {
     expect(screen.getByText('Allowed the request')).toBeVisible()
   })
 
+  test('an ask answered from another window leaves this page without its buttons and the run goes on', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_release_ship({branch: 'main'})",
+      }),
+      TestLLM.text('Main is shipped'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship main')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByRole('button', {name: 'Allow once'})).toBeVisible()
+
+    await engine.session.approve()
+
+    expect(await screen.findByText('Main is shipped')).toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Allow once'})).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
+  })
+
   test('Deny refuses the ask, the card says it was denied, and the tool reads denied', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})

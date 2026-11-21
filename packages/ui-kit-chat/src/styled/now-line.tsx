@@ -27,7 +27,7 @@ export function NowLine(props: {title: string; onStop?: () => void}): JSX.Elemen
   )
   const glyph = createMemo(() => (reducedMotion() ? FROZEN_FRAME : (FRAMES[frameIndex()] ?? FROZEN_FRAME)))
   return (
-    <div class={ROOT} role="status">
+    <div class={ROOT} role="status" aria-label="Agent activity">
       <span class={GLYPH} aria-hidden="true">
         {glyph()}
       </span>

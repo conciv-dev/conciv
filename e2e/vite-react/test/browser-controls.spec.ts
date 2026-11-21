@@ -129,3 +129,58 @@ test.describe('the widget on a vite react page when the engine is slow or fails 
     await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
   })
 })
+
+test.describe('the chat on a vite react page when the engine is slow or fails to load or compact the conversation', () => {
+  test('the user reloads, sees the conversation loading while the engine holds it, the load error when it fails, and Retry brings the chat back', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const history = await holdEngineCall(page, ['chat', 'hydrate'])
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await history.arrived
+
+    await expect(page.getByRole('status', {name: 'Loading conversation'})).toBeVisible()
+
+    history.release('INTERNAL_SERVER_ERROR')
+    await expect(page.getByRole('alert').filter({hasText: 'Couldn’t load this conversation'})).toBeVisible()
+    await expect(page.getByRole('status', {name: 'Loading conversation'})).toBeHidden()
+
+    await page.getByRole('alert').getByRole('button', {name: 'Retry'}).click()
+    await expect(page.getByText('How can I help you today?')).toBeVisible()
+    await expect(page.getByRole('alert').filter({hasText: 'Couldn’t load this conversation'})).toBeHidden()
+  })
+
+  test('the user compresses a session the engine no longer has and is told it no longer exists', async ({page}) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const compact = await holdEngineCall(page, ['sessions', 'compact'])
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+
+    await page.getByRole('button', {name: 'More composer actions'}).click()
+    await page.getByRole('menuitem', {name: 'Compress the conversation'}).click()
+    await compact.arrived
+    compact.release('NOT_FOUND')
+
+    await expect(page.getByText('This session no longer exists.')).toBeVisible()
+  })
+
+  test('the user compresses while the engine refuses and is told to try again in a moment', async ({page}) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const compact = await holdEngineCall(page, ['sessions', 'compact'])
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+
+    await page.getByRole('button', {name: 'More composer actions'}).click()
+    await page.getByRole('menuitem', {name: 'Compress the conversation'}).click()
+    await compact.arrived
+    compact.release('INTERNAL_SERVER_ERROR')
+
+    await expect(page.getByText('Compaction failed. The session may be busy. Try again in a moment.')).toBeVisible()
+  })
+})

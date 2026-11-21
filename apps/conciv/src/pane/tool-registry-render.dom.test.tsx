@@ -121,11 +121,13 @@ describe('a tool card follows its call to the end', () => {
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Pick a size with me')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByRole('button', {name: 'Large'})).toBeVisible()
+    expect(screen.getByRole('status', {name: 'Agent activity'})).toHaveTextContent('conciv_ui')
     expect(screen.getAllByRole('img', {name: 'running'}).at(-1)).toBeVisible()
     expect(screen.queryByRole('img', {name: 'complete'})).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', {name: 'Large'}))
     expect(await screen.findByText('Large it is')).toBeVisible()
+    expect(screen.queryByRole('status', {name: 'Agent activity'})).not.toBeInTheDocument()
     expect(screen.queryByRole('img', {name: 'running'})).not.toBeInTheDocument()
     expect(screen.getAllByRole('img', {name: 'complete'}).at(-1)).toBeVisible()
   })
