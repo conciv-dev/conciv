@@ -11,7 +11,7 @@
       "outputs": ["dist/**"]
     },
     "typecheck": {
-      "dependsOn": ["^build", "gen-migrations"]
+      "dependsOn": ["^build", "^build:types", "gen-migrations"]
     }
   }
 }
