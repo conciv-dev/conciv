@@ -101,15 +101,18 @@ Status words: `done` (committed test), `planned` (flow and runner chosen, file n
 
 ## Notes, pills and actions (`composer/note-card.dom.test.tsx`)
 
-| feature                                                                        | flow           | test                                                              |
-| ------------------------------------------------------------------------------ | -------------- | ----------------------------------------------------------------- |
-| Plugin composer pills: plain, `rows`, `menu`, `order`, `show`                  | fixture plugin | planned                                                           |
-| Composer notes from a plugin: "Notes" list, Remove, the plugin `NoteCard`      | fixture plugin | planned                                                           |
-| Send with notes: the agent gets the comment sentences, "Notes on this message" | fixture plugin | planned                                                           |
-| Plugin `draft` host call and mounted-session draft edits                       | fixture plugin | planned                                                           |
-| "..." menu: Start a new session, Compress the conversation                     | click the menu | planned                                                           |
-| Connect agents menu and connected agents row                                   | none           | blocked: a hub-capable harness and connection rows in the home db |
-| Grab an element, page comments as notes                                        | none           | e2e                                                               |
+The fixture plugin is `apps/conciv/test/fixtures/plugins/review-notes`: a hand-written `plugin-experimental.js` bundle, as the e2e `live-line` fixture, loaded with `createEngine({plugins: [...]})`.
+
+| feature                                                                        | flow                                                 | test                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plugin composer pills: plain, `rows`, `menu`, `order`, `show`                  | fixture plugin with three pills                      | `apps/conciv/src/composer/note-card.dom.test.tsx` › plugin pills › pills sit in their order, a row runs, a menu pill shows its content, and a pill shows only while its plugin says so. Plain pill (`run`): the notes test |
+| Composer notes from a plugin: "Notes" list, Remove, the plugin `NoteCard`      | a pill attaches a note                               | `apps/conciv/src/composer/note-card.dom.test.tsx` › notes from a plugin › a pill attaches a note drawn by its plugin card, Remove takes it off, and a sent note reaches the agent and stays on the message                 |
+| Send with notes: the agent gets the comment sentences, "Notes on this message" | same flow, Enter, requests                           | same test                                                                                                                                                                                                                  |
+| Plugin `draft` host call and mounted-session draft edits                       | a pill row calls `screen.composer.insert`            | same test as the pills (the row's insert); `attach`: the notes test. `setText`, `update`, `detach` and `layout.draft` not asserted                                                                                         |
+| "..." menu: Start a new session                                                | send, "More composer actions", "Start a new session" | `apps/conciv/src/composer/note-card.dom.test.tsx` › the composer actions menu › Start a new session opens an empty session                                                                                                 |
+| "..." menu: Compress the conversation                                          | none                                                 | blocked: the quick harness has `compaction: false`                                                                                                                                                                         |
+| Connect agents menu and connected agents row                                   | none                                                 | blocked: a hub-capable harness and connection rows in the home db                                                                                                                                                          |
+| Grab an element, page comments as notes                                        | none                                                 | e2e                                                                                                                                                                                                                        |
 
 ## Real focus and IME (`composer.browser.test.tsx`)
 
