@@ -1,0 +1,57 @@
+import {writeFileSync} from 'node:fs'
+import {join} from 'node:path'
+import {ConfigProvider} from 'effect'
+import {describe, expect, it} from 'vitest'
+import {codexModels} from '@conciv/ai/server'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
+import {codex} from './index.js'
+
+describe('codex', () => {
+  it('a CODEX_HOME with a models cache and a config lists those models and picks the configured default', async () => {
+    const home = tempDir('codex-home-')
+    writeFileSync(
+      join(home, 'models_cache.json'),
+      JSON.stringify({
+        models: [
+          {
+            slug: 'gpt-5.6-sol',
+            display_name: 'GPT-5.6 Sol',
+            visibility: 'list',
+            priority: 2,
+            supported_reasoning_levels: [{effort: 'low'}, {effort: 'high'}],
+          },
+          {slug: 'gpt-5.5', display_name: 'GPT-5.5', visibility: 'list', priority: 1},
+          {slug: 'gpt-internal', display_name: 'Internal', visibility: 'hide', priority: 0},
+        ],
+      }),
+    )
+    writeFileSync(join(home, 'config.toml'), 'model = "gpt-5.6-sol"\n\n[profiles.fast]\nmodel = "gpt-5.5"\n')
+
+    const harness = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: home}))
+
+    expect(await harness.models()).toEqual([
+      {id: 'gpt-5.5', name: 'GPT-5.5', group: 'Codex'},
+      {id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', group: 'Codex', efforts: ['low', 'high']},
+    ])
+    expect(harness.defaultModel).toBe('gpt-5.6-sol')
+    expect(harness.resume.command({cwd: '/workspace', nativeId: HarnessSessionId.parse('thread-1')})).toEqual({
+      bin: 'codex',
+      args: ['resume', 'thread-1'],
+    })
+    expect(harness).toMatchObject({
+      tty: undefined,
+      commands: undefined,
+      capabilities: {slashCommands: 'none', imageInput: false},
+    })
+  })
+
+  it('an empty CODEX_HOME lists the built-in models and defaults to the first', async () => {
+    const harness = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')}))
+
+    const models = await harness.models()
+
+    expect(models.map((model) => model.id)).toEqual([...codexModels])
+    expect(harness.defaultModel).toBe(codexModels[0])
+  })
+})
