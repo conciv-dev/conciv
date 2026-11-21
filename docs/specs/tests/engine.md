@@ -163,3 +163,4 @@ One file per rule source, beside it, through oxlint's own `RuleTester` (`oxlint/
 | banned-vocabulary                         | banned-vocabulary › packages/oxlint-plugin/src/vocabulary.test.js › banned-vocabulary                                |
 | core-purity                               | core-purity › packages/oxlint-plugin/src/vocabulary.test.js › core-purity                                            |
 | no-of-suffix                              | no-of-suffix › packages/oxlint-plugin/src/vocabulary.test.js › no-of-suffix                                          |
+| lucide-per-icon                           | lucide-per-icon › packages/oxlint-plugin/src/lucide-per-icon.test.js › lucide-per-icon                               |
