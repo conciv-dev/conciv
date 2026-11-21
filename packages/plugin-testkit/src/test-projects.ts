@@ -161,6 +161,7 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
       concivApprove: (_context, engineId, sessionId) => sessionFor(engineId, sessionId).approve(),
       concivStop: (_context, engineId, sessionId) => sessionFor(engineId, sessionId).stop(),
       concivRequests: (_context, engineId) => engineFor(engineId).started.engine.requests(),
+      concivOpened: (_context, engineId) => engineFor(engineId).started.engine.opened(),
       concivToolCall: (_context, engineId, sessionId, name, input) =>
         sessionFor(engineId, sessionId).tool(name).call(input),
       concivToolFailure: (_context, engineId, sessionId, name, input) =>

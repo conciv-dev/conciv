@@ -59,6 +59,8 @@ export type HarnessEngineSession = {
 
 export type HarnessEngineAddress = {apiBase: string; token: string}
 
+type HarnessEngineOpened = {file: string; line?: number; column?: number}
+
 export type HarnessEngine = {
   session: HarnessEngineSession
   newSession: (title?: string) => Promise<HarnessEngineSession>
@@ -67,6 +69,7 @@ export type HarnessEngine = {
   requests: () => Promise<ModelRequest[]>
   address: HarnessEngineAddress
   root: string
+  opened: () => Promise<HarnessEngineOpened[]>
   stop: () => Promise<void>
 }
 
@@ -243,12 +246,17 @@ function fixtureFolder(options: HarnessEngineOptions): string | undefined {
   return folder
 }
 
+function openedFile(file: string, line: number | undefined, column: number | undefined): HarnessEngineOpened {
+  return {file, ...(line === undefined ? {} : {line}), ...(column === undefined ? {} : {column})}
+}
+
 async function bootApp(
   root: string,
   project: string,
   harness: HarnessAdapter,
   options: HarnessEngineOptions,
   configProvider: ConfigProvider.ConfigProvider,
+  opened: HarnessEngineOpened[],
 ): Promise<{app: MadeApp; sessionId: string | undefined}> {
   const config = options.config ?? {}
   const {staleness} = options
@@ -273,7 +281,9 @@ async function bootApp(
       permissions: resolved.permissions,
     },
     cwd: project,
-    openInEditor: () => {},
+    openInEditor: (file, line, column) => {
+      opened.push(openedFile(file, line, column))
+    },
     harness,
     harnesses: [],
     home: engineHome(root),
@@ -291,9 +301,10 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
   const fixture = fixtureFolder(options)
   const root = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
   const project = fixture ?? root
+  const opened: HarnessEngineOpened[] = []
   const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
   const {app, sessionId} = await Promise.resolve()
-    .then(() => bootApp(root, project, harness, options, isolatedProvider(root, options.env ?? {})))
+    .then(() => bootApp(root, project, harness, options, isolatedProvider(root, options.env ?? {}), opened))
     .catch((error: unknown) => abandonStart(error, [removeRoot]))
   const served = await serveHono({fetch: app.fetch}).catch((error: unknown) =>
     abandonStart(error, [() => app.dispose(), removeRoot]),
@@ -321,6 +332,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     requests: async () => script.requests(),
     address: {apiBase, token: app.agentToken},
     root: realpathSync(project),
+    opened: async () => [...opened],
     stop,
   }
 }

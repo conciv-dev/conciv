@@ -42,6 +42,7 @@ export async function createEngine(options: CreateEngineOptions = {}): Promise<E
     setting: (setting) => commands.concivSetting(handle.id, setting),
     gate: async () => gateOn(handle.id, await commands.concivGate(handle.id)),
     requests: () => commands.concivRequests(handle.id),
+    opened: () => commands.concivOpened(handle.id),
     address: handle.address,
     root: handle.root,
   }
