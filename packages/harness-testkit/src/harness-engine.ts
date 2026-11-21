@@ -12,10 +12,11 @@ import type {HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, runLifecycleEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
+import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveHono} from '@conciv/serve'
 import {callTool} from './call-tool.js'
-import {replyScript} from './scripted-harness.js'
+import {replyScript, type ReplyScript, type ScriptedHarness} from './scripted-harness.js'
 import type {Gate, ModelRequest, Response} from './test-llm.js'
 import {isolatedEnv} from './isolated-env.js'
 import {until} from './until.js'
@@ -40,6 +41,9 @@ export type HarnessEngineOptions = {
   >
   staleness?: EngineStaleness
   directory?: string
+  models?: HarnessModel[]
+  commands?: HarnessCommand[]
+  harnesses?: ScriptedHarness[]
 }
 
 export type HarnessEngineToolFailure = {tool: string; message: string}
@@ -235,6 +239,45 @@ function isolatedProvider(root: string, env: Record<string, string>): ConfigProv
   )
 }
 
+function repeatedId(harnesses: ScriptedHarness[]): string | undefined {
+  const ids = harnesses.map((harness) => harness.id)
+  return ids.find((id, index) => ids.indexOf(id) !== index)
+}
+
+type HarnessList = [HarnessAdapter, ...HarnessAdapter[]]
+
+function scriptedList(options: HarnessEngineOptions, harnesses: ScriptedHarness[], script: ReplyScript): HarnessList {
+  if (options.harness !== undefined)
+    throw new Error('harnesses and harness cannot be given together: harnesses are scripted')
+  if (options.models !== undefined) {
+    throw new Error('harnesses and models cannot be given together: give each harness its models')
+  }
+  if (options.commands !== undefined) {
+    throw new Error('harnesses and commands cannot be given together: give each harness its commands')
+  }
+  const [first, ...rest] = harnesses
+  if (first === undefined) throw new Error('harnesses is empty: give at least the engine harness')
+  const repeated = repeatedId(harnesses)
+  if (repeated !== undefined) throw new Error(`harnesses lists the id ${repeated} twice: each harness needs its own id`)
+  return [script.scripted(first), ...rest.map((other) => script.scripted(other))]
+}
+
+function adapterList(options: HarnessEngineOptions, harness: HarnessAdapter, script: ReplyScript): HarnessList {
+  if (options.models !== undefined) {
+    throw new Error('models and harness cannot be given together: the adapter lists its own models')
+  }
+  if (options.commands !== undefined) {
+    throw new Error('commands and harness cannot be given together: the adapter lists its own commands')
+  }
+  return [script.adapter(harness)]
+}
+
+function listedHarnesses(options: HarnessEngineOptions, script: ReplyScript): HarnessList {
+  if (options.harnesses !== undefined) return scriptedList(options, options.harnesses, script)
+  if (options.harness !== undefined) return adapterList(options, options.harness, script)
+  return [script.scripted({models: options.models, commands: options.commands})]
+}
+
 function fixtureFolder(options: HarnessEngineOptions): string | undefined {
   if (options.directory === undefined) return undefined
   if (options.files !== undefined)
@@ -253,7 +296,7 @@ function openedFile(file: string, line: number | undefined, column: number | und
 async function bootApp(
   root: string,
   project: string,
-  harness: HarnessAdapter,
+  [harness, ...others]: HarnessList,
   options: HarnessEngineOptions,
   configProvider: ConfigProvider.ConfigProvider,
   opened: HarnessEngineOpened[],
@@ -285,7 +328,7 @@ async function bootApp(
       opened.push(openedFile(file, line, column))
     },
     harness,
-    harnesses: [],
+    harnesses: others,
     home: engineHome(root),
     configProvider,
     ...options.timeouts,
@@ -297,14 +340,14 @@ async function bootApp(
 
 export async function createHarnessEngine(options: HarnessEngineOptions = {}): Promise<HarnessEngine> {
   const script = replyScript(options.replies ?? [])
-  const harness = script.harness(options.harness)
+  const harnesses = listedHarnesses(options, script)
   const fixture = fixtureFolder(options)
   const root = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
   const project = fixture ?? root
   const opened: HarnessEngineOpened[] = []
   const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
   const {app, sessionId} = await Promise.resolve()
-    .then(() => bootApp(root, project, harness, options, isolatedProvider(root, options.env ?? {}), opened))
+    .then(() => bootApp(root, project, harnesses, options, isolatedProvider(root, options.env ?? {}), opened))
     .catch((error: unknown) => abandonStart(error, [removeRoot]))
   const served = await serveHono({fetch: app.fetch}).catch((error: unknown) =>
     abandonStart(error, [() => app.dispose(), removeRoot]),

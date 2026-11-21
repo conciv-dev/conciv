@@ -54,8 +54,11 @@ type HeldGate = {started: PromiseWithResolvers<void>; released: PromiseWithResol
 
 type ScriptState = {requests: ModelRequest[]; held: HeldGate | undefined}
 
+export type ScriptedHarness = {id: string; models?: HarnessModel[]; commands?: HarnessCommand[]}
+
 export type ReplyScript = {
-  harness: (harness: HarnessAdapter | undefined) => HarnessAdapter
+  adapter: (harness: HarnessAdapter) => HarnessAdapter
+  scripted: (harness: Partial<ScriptedHarness>) => HarnessAdapter
   gate: () => Gate
   releaseGate: () => void
   requests: () => ModelRequest[]
@@ -138,14 +141,14 @@ export function replyScript(replies: readonly Response[]): ReplyScript {
     held?.released.resolve()
   }
   return {
-    harness: (harness) => {
-      if (harness !== undefined) return {...harness, chatConfig: chatConfig('scripted')}
-      return defineHarness({
-        id: FAKE_HARNESS_ID,
+    adapter: (harness) => ({...harness, chatConfig: chatConfig('scripted')}),
+    scripted: ({id = FAKE_HARNESS_ID, models = MODELS, commands = COMMANDS}) =>
+      defineHarness({
+        id,
         binName: 'true',
-        chatConfig: chatConfig(FAKE_HARNESS_ID),
-        models: MODELS,
-        commands: async () => COMMANDS,
+        chatConfig: chatConfig(id),
+        models,
+        commands: async () => commands,
         tty: {command: shellCommand},
         capabilities: {
           resume: false,
@@ -158,8 +161,7 @@ export function replyScript(replies: readonly Response[]): ReplyScript {
           transcriptHistory: false,
           slashCommands: 'live',
         },
-      })
-    },
+      }),
     gate: () => {
       const held: HeldGate = {started: Promise.withResolvers<void>(), released: Promise.withResolvers<void>()}
       state.held = held

@@ -32,6 +32,9 @@ export type CreateEngineOptions = {
   timeouts?: HarnessEngineOptions['timeouts']
   staleness?: HarnessEngineOptions['staleness']
   directory?: HarnessEngineOptions['directory']
+  models?: HarnessEngineOptions['models']
+  commands?: HarnessEngineOptions['commands']
+  harnesses?: HarnessEngineOptions['harnesses']
 }
 
 export type ToolFailure = HarnessEngineToolFailure
