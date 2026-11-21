@@ -116,7 +116,7 @@ CI has no signed-in CLI, and by the maintainer's ruling (as opencode) no CI test
 
 ## `conciv init` (init app, vitest)
 
-The maintainer moved building these helpers to a follow-up, so the init app has no test yet and its `test:e2e` (`vitest run`) reports "No test files found" until they exist.
+The maintainer moved building these helpers to a follow-up, so the init app has no test yet. Its `test:e2e` script (`vitest run`) is removed so the CI shard planner skips the app; the script comes back with the first test.
 
 | feature                                                                           | journey                                                                      | test |
 | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---- |
