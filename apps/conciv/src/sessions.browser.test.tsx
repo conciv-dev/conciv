@@ -129,7 +129,7 @@ describe('swap a quick pane’s session', () => {
 })
 
 describe('preview a session', () => {
-  test('the user highlights an earlier session, reads its thread in the preview and closes it with Escape', async () => {
+  test('the user highlights an earlier session, reads its thread in the preview, moves between the thread and the search with the Alt arrows and closes it with Escape', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await engine.reply(TestLLM.text('The plan has three steps'))
@@ -151,6 +151,14 @@ describe('preview a session', () => {
     const preview = await screen.findByRole('dialog', {name: 'Preview of Show me the plan'})
     expect(await within(preview).findByText('The plan has three steps')).toBeVisible()
     expect(within(preview).getAllByText('Show me the plan')).toHaveLength(2)
+
+    const search = screen.getByRole('combobox', {name: 'Search sessions'})
+    expect(search).toHaveFocus()
+    await user.keyboard('{Alt>}{ArrowRight}{/Alt}')
+    expect(within(preview).getByRole('log')).toHaveFocus()
+    await user.keyboard('{Alt>}{ArrowLeft}{/Alt}')
+    expect(search).toHaveFocus()
+    expect(screen.getByRole('dialog', {name: 'Preview of Show me the plan'})).toBeVisible()
 
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', {name: 'Preview of Show me the plan'})).not.toBeInTheDocument()
