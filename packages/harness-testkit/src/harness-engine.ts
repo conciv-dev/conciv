@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os'
 import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
 import {ConfigProvider} from 'effect'
 import {rpcStream} from '@conciv/ai/client'
-import {makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
+import {makeBrowserRpcClient, type EngineStaleness, type RpcClient} from '@conciv/contract'
 import {makeApp, type MadeApp, type MakeAppOpts} from '@conciv/core/app'
 import {resolveConfig} from '@conciv/core/config'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -38,6 +38,7 @@ export type HarnessEngineOptions = {
     MakeAppOpts,
     'firstChunkTimeoutMs' | 'eventHeartbeatIntervalMs' | 'stopGraceMs' | 'pageReplyTimeoutMs' | 'queuedActionTimeoutMs'
   >
+  staleness?: EngineStaleness
 }
 
 export type HarnessEngineToolFailure = {tool: string; message: string}
@@ -236,6 +237,7 @@ async function bootApp(
   configProvider: ConfigProvider.ConfigProvider,
 ): Promise<{app: MadeApp; sessionId: string | undefined}> {
   const config = options.config ?? {}
+  const {staleness} = options
   const resolved = resolveConfig(
     {sessionId: options.sessionId, permission: config.permission, permissions: config.permissions},
     root,
@@ -263,6 +265,7 @@ async function bootApp(
     home: engineHome(root),
     configProvider,
     ...options.timeouts,
+    ...(staleness === undefined ? {} : {staleness: () => staleness}),
   })
   await app.awaitActivation().catch((error: unknown) => abandonStart(error, [() => app.dispose()]))
   return {app, sessionId: resolved.sessionId}
