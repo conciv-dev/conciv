@@ -85,3 +85,34 @@ describe('the composer actions menu', () => {
     expect(screen.queryByRole('article', {name: 'You: First task'})).not.toBeInTheDocument()
   })
 })
+
+describe('plugin slash commands', () => {
+  test('a plugin command is listed under Commands where its after places it, runs when picked, and a typed command runs with its arguments instead of sending', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(input, '/')
+    const commands = await screen.findByRole('listbox', {name: 'Commands'})
+    expect(await within(commands).findByRole('option', {name: '/summary'})).toBeVisible()
+    const listed = within(commands).getAllByRole('option', {name: /^\/(model|review|summary)$/})
+    expect(listed).toHaveLength(3)
+    expect(listed[0]).toHaveAccessibleName('/model')
+    expect(listed[1]).toHaveAccessibleName('/review')
+    expect(listed[2]).toHaveAccessibleName('/summary')
+
+    await user.click(within(commands).getByRole('option', {name: '/summary'}))
+    expect(await screen.findByText('Summary ready')).toBeVisible()
+
+    await user.type(input, '/rev')
+    await user.click(await screen.findByRole('option', {name: '/review'}))
+    await user.type(input, 'the header')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    expect(await screen.findByText('Reviewing the header')).toBeVisible()
+    expect(screen.queryByRole('article', {name: /^You: /})).not.toBeInTheDocument()
+    expect(await engine.requests()).toHaveLength(0)
+  })
+})
