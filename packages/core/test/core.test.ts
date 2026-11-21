@@ -1116,6 +1116,35 @@ describe('engine config provider', () => {
   })
 })
 
+describe('engine traces', () => {
+  it('sends the plugin host spans to the OTLP endpoint the provider names', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const received: {path: string; body: string}[] = []
+    const receiver = createHttpServer(async (request, response) => {
+      received.push({path: request.url ?? '', body: await bodyText(request)})
+      response.writeHead(200, JSON_TYPE).end('{}')
+    })
+    receiver.listen(0, '127.0.0.1')
+    await once(receiver, 'listening')
+    onTestFinished(() => new Promise<void>((resolve) => receiver.close(() => resolve())))
+    const address = receiver.address()
+    if (address === null || typeof address === 'string') throw new Error('the OTLP receiver has no port')
+    const engine = await start({
+      options: {systemPrompt: false},
+      root,
+      launchEditor: () => {},
+      configProvider: ConfigProvider.fromUnknown({
+        CONCIV_STATE_ROOT: root,
+        OTEL_EXPORTER_OTLP_ENDPOINT: `http://127.0.0.1:${address.port}`,
+      }),
+    })
+    await engine.stop()
+    const traces = received.filter((entry) => entry.path === '/v1/traces')
+    expect(traces.length).toBeGreaterThan(0)
+    expect(traces.map((entry) => entry.body).join('\n')).toContain('core.globalRoots.make')
+  })
+})
+
 describe('local state files', () => {
   it('the dev endpoint file is owner-only, reads null when missing or malformed, and only its owner pid removes it', () => {
     const dir = tempDir('conciv-core-unit-')

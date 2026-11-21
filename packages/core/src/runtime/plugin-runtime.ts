@@ -47,16 +47,19 @@ import {
   ConfigPolicy,
   Global,
   ManagedPolicy,
+  Observability,
   PluginHost,
 } from '@conciv/plugin-host'
 import {
   Cause,
+  Config,
   ConfigProvider,
   Effect,
   Exit,
   FileSystem as PlatformFileSystem,
   Layer,
   ManagedRuntime,
+  Option,
   PlatformError,
   Schedule,
   Schema,
@@ -113,6 +116,25 @@ export function provideEditorSource(openInEditor: (file: string, line?: number, 
 
 export function provideApp() {
   return Layer.succeed(App.Service, App.make({version: corePackage.version}))
+}
+
+const OtlpExporterConfig = Config.all({
+  endpoint: Config.option(Config.String('OTEL_EXPORTER_OTLP_ENDPOINT')),
+  headers: Config.option(Config.String('OTEL_EXPORTER_OTLP_HEADERS')),
+})
+
+function provideObservability(configProvider: ConfigProvider.ConfigProvider) {
+  return Layer.unwrap(
+    OtlpExporterConfig.pipe(
+      Effect.map(({endpoint, headers}) =>
+        Observability.layer({
+          endpoint: Option.getOrUndefined(endpoint),
+          headers: Option.getOrUndefined(headers),
+          version: corePackage.version,
+        }),
+      ),
+    ),
+  ).pipe(Layer.provide(ConfigProvider.layer(configProvider)), Layer.orDie)
 }
 
 export function provideConfiguredPolicies(policies: ConcivConfig['policies']) {
@@ -308,6 +330,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         ConfigProvider.layer(input.configProvider),
       ),
     ),
+    Layer.provideMerge(provideObservability(input.configProvider)),
   )
 }
 
