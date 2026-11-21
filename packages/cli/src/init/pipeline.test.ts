@@ -33,7 +33,7 @@ describe('dry run', () => {
       ok: false,
       error: {
         kind: 'user',
-        message: 'Non-interactive terminal — re-run with --yes or --dry-run',
+        message: 'Non-interactive terminal \u2014 re-run with --yes or --dry-run',
         hint: 'nothing was written',
       },
     })
@@ -50,7 +50,7 @@ describe('dry run', () => {
       ok: false,
       error: {
         kind: 'user',
-        message: 'no package.json here — run init from your app directory',
+        message: 'no package.json here \u2014 run init from your app directory',
         hint: 'nothing was written',
       },
     })
