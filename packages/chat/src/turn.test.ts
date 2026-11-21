@@ -1,5 +1,6 @@
 import {describe, expect} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {test} from '../test/rpc-test.js'
 
 describe('a conversation', () => {
@@ -146,5 +147,56 @@ describe('model and harness', () => {
       {role: 'assistant', content: 'Hello Ada'},
       {role: 'user', content: 'What is my name?'},
     ])
+  })
+})
+
+describe('native transcript', () => {
+  test("a CLI's past session opens with its own transcript, and its next turn resumes it with only the new message", async ({
+    connect,
+  }) => {
+    const engine = await createEngine(
+      {},
+      {
+        harnesses: [
+          {
+            id: 'engine',
+            sessions: [
+              {
+                id: 'past-login',
+                cwd: '/workspace/shop',
+                derivedTitle: 'Fix the login form',
+                updatedAt: 1_000,
+                messages: [
+                  {id: 'm1', role: 'user', parts: [{type: 'text', content: 'Why does login fail?'}]},
+                  {id: 'm2', role: 'assistant', parts: [{type: 'text', content: 'The token expired'}]},
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    )
+    const rpc = connect(engine)
+    await engine.reply(TestLLM.text('The reset link is sent by email'))
+
+    const {sessionId} = await rpc.sessions.open({harnessKind: 'engine', cwd: '/workspace/shop', nativeId: 'past-login'})
+    const imported = await rpc.chat.hydrate({sessionId})
+
+    expect(imported.messages).toMatchObject([
+      {role: 'user', parts: [expect.objectContaining({type: 'text', content: 'Why does login fail?'})]},
+      {role: 'assistant', parts: [expect.objectContaining({type: 'text', content: 'The token expired'})]},
+    ])
+
+    const turn = await rpc.chat.send({
+      sessionId,
+      runId: 'run-resumed',
+      messages: [{id: 'message-1', role: 'user', content: 'And the reset link?'}],
+    })
+    const events: ChatEvent[] = []
+    for await (const event of turn) events.push(event)
+
+    expect(events).toContainEqual(expect.objectContaining({type: 'RUN_FINISHED'}))
+    const [request] = await engine.requests()
+    expect(request?.messages).toMatchObject([{role: 'user', content: 'And the reset link?'}])
   })
 })
