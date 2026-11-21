@@ -10,7 +10,8 @@ import UnoCSS from 'unocss/vite'
 import {playwright} from '@vitest/browser-playwright'
 import {z} from 'zod'
 import type {TestLLM} from '@conciv/harness-testkit'
-import {pluginDirectory, startEngine, type Engine, type EngineSession, type StartedEngine} from './engine.js'
+import type {Engine, EngineSession, StartedEngine} from './engine.js'
+import {pluginDirectory} from './plugin-directory.js'
 import {disposeAll} from './dispose.js'
 import type {EngineCommands, PageCommands} from './browser-commands.js'
 
@@ -211,6 +212,7 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
   return {
     commands: {
       concivCreateEngine: async ({testPath}, config, options, scope) => {
+        const {startEngine} = await import('./engine.js')
         const started = await startEngine(config, options)
         counter.next += 1
         const id = String(counter.next)
