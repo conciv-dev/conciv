@@ -138,9 +138,11 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   per package (add a `describe`, never a second file); a test file is at most 1,000 lines. The app is the one
   exception, as opencode's keeper suites (`_ref/opencode/packages/app/e2e/regression/`): `apps/conciv` has one
   browser-mode file per product area (`src/<area>.browser.test.tsx`), and a new case goes into its area's file.
-- The kits. `@conciv/plugin-testkit/node`: `createEngine`, `TestLLM`. `@conciv/plugin-testkit/browser`: `mount`.
-  `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. The engine is real and its chat is scripted
-  with `replies` built by `TestLLM` (`text`, `toolCall`, `failAfter`, `hangAfter`); `engine.gate()` holds a reply.
+- The kits. `@conciv/plugin-testkit/node`: `createEngine(config, start)`, `TestLLM`. `@conciv/plugin-testkit/browser`:
+  `mount`. `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. `config` is the product's own
+  `ConcivConfig`; `start` is only what is not product config (`directory`, `timeouts`, `harnesses`, `env`, `fs`,
+  `clock`). The engine is real and its chat is scripted with `engine.reply(...)`, built by `TestLLM` (`text`,
+  `toolCall`, `failAfter`, `hangAfter`); `engine.gate()` holds a reply.
   Nothing else is exported; a new kit export or option needs the maintainer's yes.
 - Kit tests run through `conciv-test`, which starts vitest with a home of its own and none of the developer's
   secrets or `CONCIV_*` variables; it keeps the developer's Playwright browsers folder. In-repo `test` scripts run

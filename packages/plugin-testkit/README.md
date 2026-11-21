@@ -4,7 +4,7 @@
 
 Published test package for plugin authors. It has three entries with one export each:
 
-- `@conciv/plugin-testkit/node`: `createEngine(options)` starts conciv's real engine with the plugins and a scripted AI that answers with `replies` in order, built with the `TestLLM` helpers it also exports. A `harness` option passes a real adapter from `@conciv/harness` straight to the engine, whose chat stays scripted. `engine.gate()` holds the next model request until the test releases it. `clock: 'test'` puts the engine's Effect clock on a test clock, and `engine.clock.advance(call)` moves it until that call settles.
+- `@conciv/plugin-testkit/node`: `createEngine(config, start)` starts conciv's real engine. `config` is the product's own `ConcivConfig` (`plugins`, `permission`, `hubAccess`, `harness`, `port` and the rest, as a `conciv.config` file gives them); `start` holds what is not product config (`directory`, `timeouts`, `harnesses`, `env`, `fs`, `clock`). The AI is scripted: the test gives its replies with `engine.reply(...)`, built with the `TestLLM` helpers the entry also exports, and changes the engine after start with `engine.write`, `engine.setting`, `engine.stale` and `engine.version`. `engine.gate()` holds the next model request until the test releases it. `clock: 'test'` puts the engine's Effect clock on a test clock, and `engine.clock.advance(call)` moves it until that call settles.
 - `@conciv/plugin-testkit/browser`: `mount({engine, seed, route})` shows the whole app on that engine and cleans up after the test. It returns nothing; the test drives the app through the UI.
 - `@conciv/plugin-testkit/vitest`: `concivTest()`, the vite plugin that adds the three vitest projects below, with the kit's own settings and nothing from a private package.
 
@@ -18,7 +18,7 @@ Source details: [src/README.md](./src/README.md).
 
 - No helper exports. Everything else in `dist` is loaded by path from the test projects, never imported by a test.
 - The engine always runs in Node: in the test process for node and happy-dom, and behind browser commands for browser mode.
-- Browser commands carry JSON only, so in browser mode `createEngine` refuses a `harness` and a streamed reply; those are tested in node or happy-dom.
+- Browser commands carry JSON only, so in browser mode `engine.reply` refuses a streamed reply (an Effect `Stream`, such as `TestLLM.failAfter` or `TestLLM.hangAfter`); it is tested in node or happy-dom. A real harness adapter is `@conciv/harness-testkit`'s, not this kit's.
 - In happy-dom every file shares one document, so a test that leaves any element in `document.body` after cleanup fails in its own file, and the leftovers are removed so later files start on an empty page (`happy-dom-setup.ts`). Browser mode gives each file its own page.
 - In browser mode the Playwright page's console errors, uncaught errors and responses with status 400 or more are collected per test, as opencode's `trackPageErrors`. `pageErrors()` on the test context reads them when the test asks; nothing fails on its own (`page-errors.ts`).
 - `package.json`: exports point at the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`.

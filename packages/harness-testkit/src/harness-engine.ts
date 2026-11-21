@@ -6,14 +6,11 @@ import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
 import {ConfigProvider} from 'effect'
 import {rpcStream} from '@conciv/ai/client'
 import {makeBrowserRpcClient, makeRpcClient, type EngineStaleness, type RpcClient} from '@conciv/contract'
-import type {MakeAppOpts} from '@conciv/core/app'
-import {start} from '@conciv/core/start'
+import {start, type StartOpts} from '@conciv/core/start'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, runLifecycleEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
-import type {HubAccess} from '@conciv/protocol/chat-types'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
-import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
+import {ConcivConfigSchema, type ConcivConfig} from '@conciv/protocol/config-types'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {z} from 'zod'
@@ -32,18 +29,10 @@ export type {Outside, OutsideAgent, OutsideReply} from './outside.js'
 
 export type HarnessEngineSetting = {scope: 'project' | 'global'; namespace: string; key: string; value: unknown}
 
-export type HarnessEngineOptions = {
-  harness?: HarnessAdapter
-  config?: ConcivConfig
-  replies?: readonly Response[]
-  files?: Record<string, string>
-  settings?: HarnessEngineSetting[]
-  env?: Record<string, string>
-  policies?: ConcivConfig['policies']
-  systemPrompt?: string
-  sessionId?: string
+export type EngineStart = {
+  directory?: string
   timeouts?: Pick<
-    MakeAppOpts,
+    StartOpts,
     | 'firstChunkTimeoutMs'
     | 'firstStartTimeoutMs'
     | 'eventHeartbeatIntervalMs'
@@ -51,16 +40,13 @@ export type HarnessEngineOptions = {
     | 'pageReplyTimeoutMs'
     | 'queuedActionTimeoutMs'
   >
-  staleness?: EngineStaleness
-  app?: MakeAppOpts['app']
-  directory?: string
-  models?: HarnessModel[]
-  commands?: HarnessCommand[]
   harnesses?: ScriptedHarness[]
+  env?: Record<string, string>
   fs?: {filewatcher?: boolean}
   clock?: 'test'
-  hubAccess?: HubAccess
 }
+
+export type HarnessEngineStart = EngineStart & {harness?: HarnessAdapter}
 
 export type HarnessEngineToolFailure = {tool: string; message: string}
 
@@ -114,6 +100,10 @@ export type HarnessEngine = {
   restart: () => Promise<void>
   clock: HarnessEngineClock
   outside: (agent?: OutsideAgent) => Outside
+  reply: (...responses: Response[]) => Promise<void>
+  stale: (staleness: EngineStaleness) => Promise<void>
+  version: (version: string) => Promise<void>
+  write: (path: string, content: string) => Promise<void>
   stop: () => Promise<void>
 }
 
@@ -135,13 +125,17 @@ type Started = Awaited<ReturnType<typeof start>>
 
 type Running = {started: Started; close: () => void}
 
+type Live = {staleness: EngineStaleness | undefined; version: string | undefined}
+
 type Boot = {
   root: string
   project: string
   harnesses: HarnessList
-  options: HarnessEngineOptions
+  config: ConcivConfig
+  options: HarnessEngineStart
   configProvider: ConfigProvider.ConfigProvider
   opened: HarnessEngineOpened[]
+  live: Live
   heldClock: HeldClock | undefined
 }
 
@@ -270,12 +264,7 @@ async function newSessionOn(engine: Engine, title: string | undefined): Promise<
   return sessionOn(engine, sessionId)
 }
 
-async function openFirstSession(
-  engine: Engine,
-  settings: HarnessEngineSetting[],
-  sessionId: string | undefined,
-): Promise<HarnessEngineSession> {
-  for (const setting of settings) await engine.rpc.settings.set(setting)
+async function openFirstSession(engine: Engine, sessionId: string | undefined): Promise<HarnessEngineSession> {
   if (sessionId !== undefined) return sessionOn(engine, sessionId)
   return newSessionOn(engine, undefined)
 }
@@ -336,7 +325,7 @@ function engineHome(root: string): string {
   return join(concivStateDir(root), 'home')
 }
 
-function isolatedProvider(root: string, options: HarnessEngineOptions): ConfigProvider.ConfigProvider {
+function isolatedProvider(root: string, options: HarnessEngineStart): ConfigProvider.ConfigProvider {
   const temporary = join(concivStateDir(root), 'tmp')
   mkdirSync(temporary, {recursive: true})
   return ConfigProvider.fromEnvRecord(
@@ -356,15 +345,9 @@ function repeatedId(harnesses: ScriptedHarness[]): string | undefined {
 
 type HarnessList = [HarnessAdapter, ...HarnessAdapter[]]
 
-function scriptedList(options: HarnessEngineOptions, harnesses: ScriptedHarness[], script: ReplyScript): HarnessList {
+function scriptedList(options: HarnessEngineStart, harnesses: ScriptedHarness[], script: ReplyScript): HarnessList {
   if (options.harness !== undefined)
     throw new Error('harnesses and harness cannot be given together: harnesses are scripted')
-  if (options.models !== undefined) {
-    throw new Error('harnesses and models cannot be given together: give each harness its models')
-  }
-  if (options.commands !== undefined) {
-    throw new Error('harnesses and commands cannot be given together: give each harness its commands')
-  }
   const [first, ...rest] = harnesses
   if (first === undefined) throw new Error('harnesses is empty: give at least the engine harness')
   const repeated = repeatedId(harnesses)
@@ -372,26 +355,35 @@ function scriptedList(options: HarnessEngineOptions, harnesses: ScriptedHarness[
   return [script.scripted(first), ...rest.map((other) => script.scripted(other))]
 }
 
-function adapterList(options: HarnessEngineOptions, harness: HarnessAdapter, script: ReplyScript): HarnessList {
-  if (options.models !== undefined) {
-    throw new Error('models and harness cannot be given together: the adapter lists its own models')
-  }
-  if (options.commands !== undefined) {
-    throw new Error('commands and harness cannot be given together: the adapter lists its own commands')
-  }
-  return [script.adapter(harness)]
-}
-
-function listedHarnesses(options: HarnessEngineOptions, script: ReplyScript): HarnessList {
+function listedHarnesses(options: HarnessEngineStart, script: ReplyScript): HarnessList {
   if (options.harnesses !== undefined) return scriptedList(options, options.harnesses, script)
-  if (options.harness !== undefined) return adapterList(options, options.harness, script)
-  return [script.scripted({models: options.models, commands: options.commands})]
+  if (options.harness !== undefined) return [script.adapter(options.harness)]
+  return [script.scripted({})]
 }
 
-function fixtureFolder(options: HarnessEngineOptions): string | undefined {
+function pickedFirst(harnesses: HarnessList, id: string | undefined): HarnessList {
+  if (id === undefined) return harnesses
+  const picked = harnesses.find((harness) => harness.id === id)
+  if (picked === undefined) {
+    const ids = harnesses.map((harness) => harness.id).join(', ')
+    throw new Error(`the config names the harness ${id}, but the engine's harnesses are ${ids}`)
+  }
+  return [picked, ...harnesses.filter((harness) => harness !== picked)]
+}
+
+const KIT_OWNED_FIELDS = ['stateRoot', 'homeDir', 'devEndpointDir'] as const
+
+function engineConfig(given: ConcivConfig): ConcivConfig {
+  const config = ConcivConfigSchema.parse(given)
+  const owned = KIT_OWNED_FIELDS.find((field) => config[field] !== undefined)
+  if (owned !== undefined) {
+    throw new Error(`the kit sets ${owned} itself, inside the engine's temp root: leave ${owned} out of the config`)
+  }
+  return config
+}
+
+function fixtureFolder(options: HarnessEngineStart): string | undefined {
   if (options.directory === undefined) return undefined
-  if (options.files !== undefined)
-    throw new Error('directory and files cannot be given together: a fixture project already holds its files')
   const folder = resolve(options.directory)
   if (!statSync(folder, {throwIfNoEntry: false})?.isDirectory()) {
     throw new Error(`the directory ${folder} is not an existing folder`)
@@ -404,31 +396,23 @@ function openedFile(file: string, line: number | undefined, column: number | und
 }
 
 function bootApp(
-  {root, project, harnesses: [harness, ...others], options, configProvider, opened, heldClock}: Boot,
-  sessionId: string | undefined,
-  previous: Started | undefined,
+  {root, project, harnesses: [harness, ...others], config, options, configProvider, opened, live, heldClock}: Boot,
+  previous: {started: Started; sessionId: string} | undefined,
 ): Promise<Started> {
-  const config = options.config ?? {}
-  const {staleness} = options
   const home = engineHome(root)
   return start({
     options: {
+      ...config,
       stateRoot: root,
       harness: harness.id,
-      sessionId,
-      systemPrompt: options.systemPrompt,
-      plugins: config.plugins,
-      policies: options.policies,
-      permission: config.permission,
-      permissions: config.permissions,
-      hubAccess: options.hubAccess,
+      ...(previous === undefined ? {} : {sessionId: previous.sessionId}),
     },
     root: project,
     harness,
     harnesses: others,
     ...options.timeouts,
-    ...(staleness === undefined ? {} : {staleness: () => staleness}),
-    app: options.app,
+    staleness: () => live.staleness,
+    app: {version: () => live.version},
     homeDir: home,
     devEndpointDir: join(home, 'dev-endpoint'),
     configProvider,
@@ -437,8 +421,24 @@ function bootApp(
       opened.push(openedFile(file, line, column))
     },
     print: () => {},
-    ...(previous === undefined ? {} : {port: {exact: previous.port}, accessToken: previous.agentToken}),
+    ...portRequest(config, previous?.started),
   })
+}
+
+function portRequest(config: ConcivConfig, previous: Started | undefined): Pick<StartOpts, 'port' | 'accessToken'> {
+  if (previous !== undefined) return {port: {exact: previous.port}, accessToken: previous.agentToken}
+  return config.port === undefined ? {} : {port: {exact: config.port}}
+}
+
+function fixtureWrite(project: string, fixture: string | undefined): (path: string, content: string) => Promise<void> {
+  return async (path, content) => {
+    if (fixture !== undefined) {
+      throw new Error(
+        `the engine runs on the fixture folder ${fixture}: put its files in the fixture, not through write`,
+      )
+    }
+    writeInside(project, path, content)
+  }
 }
 
 function connect(engine: Engine, browser = makeBrowserRpcClient(engine.apiBase)): () => void {
@@ -451,7 +451,7 @@ function connect(engine: Engine, browser = makeBrowserRpcClient(engine.apiBase))
 }
 
 async function bootAgain(boot: Boot, engine: Engine, sessionId: string, running: Running): Promise<Running> {
-  const started = await bootApp(boot, sessionId, running.started)
+  const started = await bootApp(boot, {started: running.started, sessionId})
   return {started, close: connect(engine)}
 }
 
@@ -461,13 +461,18 @@ async function closeRunning(running: Running | undefined): Promise<unknown[]> {
   return settleInOrder([() => running.started.stop()])
 }
 
-export async function createHarnessEngine(options: HarnessEngineOptions = {}): Promise<HarnessEngine> {
-  const script = replyScript(options.replies ?? [])
-  const harnesses = listedHarnesses(options, script)
+export async function createHarnessEngine(
+  given: ConcivConfig = {},
+  options: HarnessEngineStart = {},
+): Promise<HarnessEngine> {
+  const config = engineConfig(given)
+  const script = replyScript()
+  const harnesses = pickedFirst(listedHarnesses(options, script), config.harness)
   const fixture = fixtureFolder(options)
   const root = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
   const project = fixture ?? root
   const opened: HarnessEngineOpened[] = []
+  const live: Live = {staleness: undefined, version: undefined}
   const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
   const heldClock = options.clock === 'test' ? await holdTestClock() : undefined
   const closeClock = async (): Promise<void> => heldClock?.close()
@@ -475,17 +480,14 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     root,
     project,
     harnesses,
+    config,
     options,
     configProvider: isolatedProvider(root, options),
     opened,
+    live,
     heldClock,
   }
-  const first = await Promise.resolve()
-    .then(() => {
-      for (const [path, content] of Object.entries(options.files ?? {})) writeInside(project, path, content)
-      return bootApp(boot, options.sessionId, undefined)
-    })
-    .catch((error: unknown) => abandonStart(error, [removeRoot, closeClock]))
+  const first = await bootApp(boot, undefined).catch((error: unknown) => abandonStart(error, [removeRoot, closeClock]))
   const apiBase = `http://127.0.0.1:${first.port}/t/${first.agentToken}`
   const browser = makeBrowserRpcClient(apiBase)
   const engine: Engine = {apiBase, rpc: browser.rpc, turns: makeTurns(browser.rpc)}
@@ -503,7 +505,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     const failures = [...(await halt()), ...(await settleInOrder([removeRoot, closeClock]))]
     if (failures.length > 0) throw new AggregateError(failures, 'the harness engine did not stop cleanly')
   }
-  const started = await openFirstSession(engine, options.settings ?? [], first.cfg.sessionId).catch((error: unknown) =>
+  const started = await openFirstSession(engine, first.cfg.sessionId).catch((error: unknown) =>
     abandonStart(error, [stop]),
   )
   const restart = async (): Promise<void> => {
@@ -533,6 +535,16 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     restart,
     clock: heldClock?.clock ?? realClock,
     outside: (agent) => outsideAgent(apiBase, agent),
+    reply: async (...responses) => {
+      script.add(responses)
+    },
+    stale: async (staleness) => {
+      live.staleness = staleness
+    },
+    version: async (version) => {
+      live.version = version
+    },
+    write: fixtureWrite(project, fixture),
     stop,
   }
 }

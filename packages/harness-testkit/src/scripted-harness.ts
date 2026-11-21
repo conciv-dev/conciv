@@ -62,6 +62,7 @@ export type ReplyScript = {
   gate: () => Gate
   releaseGate: () => void
   requests: () => ModelRequest[]
+  add: (replies: readonly Response[]) => void
 }
 
 function stamped(event: ChatEvent, run: Run): ChatEvent {
@@ -118,18 +119,18 @@ async function* replyEvents(
   for await (const event of replyChunks(reply, request.request?.signal ?? undefined)) yield stamped(event, run)
 }
 
-export function replyScript(replies: readonly Response[]): ReplyScript {
-  const queued = [...replies]
+export function replyScript(): ReplyScript {
+  const queued: Response[] = []
   const state: ScriptState = {requests: [], held: undefined}
   const take = async (request: ModelRequest): Promise<Response> => {
     const count = state.requests.push(request)
-    const reply = queued.shift()
-    if (reply === undefined) throw new Error(`the scripted harness has no reply for request ${count}`)
     const held = state.held
     if (held !== undefined) {
       held.started.resolve()
       await held.released.promise
     }
+    const reply = queued.shift()
+    if (reply === undefined) throw new Error(`the scripted harness has no reply for request ${count}`)
     return reply
   }
   const chatConfig =
@@ -175,5 +176,8 @@ export function replyScript(replies: readonly Response[]): ReplyScript {
     },
     releaseGate,
     requests: () => [...state.requests],
+    add: (replies) => {
+      queued.push(...replies)
+    },
   }
 }

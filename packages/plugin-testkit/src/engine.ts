@@ -6,41 +6,19 @@ import {
   createHarnessEngine,
   type HarnessEngine,
   type HarnessEngineAddress,
+  type EngineStart,
   type HarnessEngineClock,
-  type HarnessEngineOptions,
   type HarnessEngineSession,
   type HarnessEngineSetting,
   type HarnessEngineTool,
   type HarnessEngineToolFailure,
-  type TestLLM,
 } from '@conciv/harness-testkit'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {disposeAll} from './dispose.js'
 
 export type EngineSetting = HarnessEngineSetting
 
-export type CreateEngineOptions = {
-  plugins?: ConcivConfig['plugins']
-  harness?: HarnessEngineOptions['harness']
-  replies?: readonly TestLLM.Response[]
-  settings?: EngineSetting[]
-  files?: Record<string, string>
-  permission?: ConcivConfig['permission']
-  env?: HarnessEngineOptions['env']
-  policies?: HarnessEngineOptions['policies']
-  systemPrompt?: HarnessEngineOptions['systemPrompt']
-  sessionId?: HarnessEngineOptions['sessionId']
-  timeouts?: HarnessEngineOptions['timeouts']
-  staleness?: HarnessEngineOptions['staleness']
-  app?: HarnessEngineOptions['app']
-  directory?: HarnessEngineOptions['directory']
-  models?: HarnessEngineOptions['models']
-  commands?: HarnessEngineOptions['commands']
-  harnesses?: HarnessEngineOptions['harnesses']
-  fs?: HarnessEngineOptions['fs']
-  hubAccess?: HarnessEngineOptions['hubAccess']
-  clock?: HarnessEngineOptions['clock']
-}
+export type {EngineStart}
 
 export type ToolFailure = HarnessEngineToolFailure
 
@@ -88,18 +66,17 @@ function locatePlugin(entry: PluginEntry): PluginEntry {
   return [pluginDirectory(entry[0]), entry[1]]
 }
 
-export async function startEngine(options: CreateEngineOptions): Promise<StartedEngine> {
-  const {plugins: names, permission, ...engineOptions} = options
-  const plugins = names?.map(locatePlugin)
-  const {stop, clock, ...engine} = await createHarnessEngine({
-    ...engineOptions,
-    config: {plugins, permission},
-  })
+export async function startEngine(config: ConcivConfig = {}, options: EngineStart = {}): Promise<StartedEngine> {
+  const plugins = config.plugins?.map(locatePlugin)
+  const {stop, clock, ...engine} = await createHarnessEngine(
+    plugins === undefined ? config : {...config, plugins},
+    options,
+  )
   return {engine: {...engine, clock: {advance: clock.advance, drain: clock.drain}}, stop, tick: clock.tick}
 }
 
-export async function createEngine(options: CreateEngineOptions = {}): Promise<Engine> {
-  const started = await startEngine(options)
+export async function createEngine(config: ConcivConfig = {}, options: EngineStart = {}): Promise<Engine> {
+  const started = await startEngine(config, options)
   if (expect.getState().currentTestName !== undefined) onTestFinished(started.stop)
   else fileEngines.push(started.stop)
   return started.engine

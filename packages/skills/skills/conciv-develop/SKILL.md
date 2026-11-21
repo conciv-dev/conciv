@@ -190,8 +190,9 @@ or `@conciv` import.
 
 `@conciv/plugin-testkit` runs the real engine with a scripted model:
 
-- `createEngine({plugins, replies, files})` (`/node`): the engine with your plugins; `replies` are
-  the model's answers in order, built with `TestLLM`. `engine.session.send(text)`,
+- `createEngine({plugins})` (`/node`): the engine with your plugins; the first argument is the
+  product's own `ConcivConfig`. `engine.reply(...)` gives the model's answers in order, built with
+  `TestLLM`; `engine.write(path, content)` puts a file in the project. `engine.session.send(text)`,
   `engine.session.tool(name).call(input)`, `engine.rpc.call(id, method, input)`, `engine.gate()`.
 - `mount({engine, route})` (`/browser`): the whole widget on that engine; the test drives it by
   role and text.

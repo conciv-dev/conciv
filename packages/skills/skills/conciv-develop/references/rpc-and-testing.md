@@ -43,9 +43,13 @@ The testkit runs the real engine with a scripted model; only the model and the a
   That gives three projects: node (`*.test.ts`), happy-dom (`*.dom.test.ts(x)`) and browser
   (`*.browser.test.ts(x)`). A setting in your own `test: {...}` (a timeout, `maxWorkers`, a
   reporter) wins over the kit's.
-- `createEngine({plugins, replies, files, settings})` from `@conciv/plugin-testkit/node` starts the
-  engine with your plugins in a fresh project folder. `replies` answer the model's requests in order
-  (`TestLLM.text(...)`, `TestLLM.toolCall(...)`). The engine has `session.send(text)`,
+- `createEngine(config, start)` from `@conciv/plugin-testkit/node` starts the engine in a fresh
+  project folder. `config` is the product's own `ConcivConfig` (`{plugins: ['.']}`, `permission`,
+  `hubAccess`, ...); `start` holds what is not product config (`directory`, `timeouts`, `harnesses`,
+  `env`, `fs`, `clock`). `engine.reply(...)` answers the model's requests in order
+  (`TestLLM.text(...)`, `TestLLM.toolCall(...)`); `engine.write(path, content)`,
+  `engine.setting(...)`, `engine.stale(...)` and `engine.version(...)` change the engine after start.
+  The engine has `session.send(text)`,
   `session.tool(name).call(input)` and `.failure(input)`, `rpc.call(id, method, input)` and
   `rpc.failure(...)`, `event(type)`, `gate()`, `requests()` and `address`. It stops when the test
   ends.
@@ -60,7 +64,8 @@ import {createEngine, TestLLM} from '@conciv/plugin-testkit/node'
 import {mount} from '@conciv/plugin-testkit/browser'
 
 test('the deploy tab shows the last deploy', async () => {
-  const engine = await createEngine({plugins: ['.'], replies: [TestLLM.text('done', 'a')]})
+  const engine = await createEngine({plugins: ['.']})
+  await engine.reply(TestLLM.text('done', 'a'))
   await mount({engine, route: '/panel/latest?open=true'})
 
   expect(await screen.findByRole('tab', {name: 'Deploy'})).toBeDefined()

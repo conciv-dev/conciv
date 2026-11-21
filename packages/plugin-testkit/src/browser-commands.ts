@@ -1,10 +1,11 @@
 import type {Outside, OutsideAgent, OutsideReply, TestLLM} from '@conciv/harness-testkit'
-import type {CreateEngineOptions, Engine, EngineAddress, EngineSetting, ToolFailure} from './engine.js'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
+import type {Engine, EngineAddress, EngineSetting, EngineStart, ToolFailure} from './engine.js'
 
 export type EngineHandle = {id: string; sessionId: string; address: EngineAddress; root: string}
 
 export type EngineCommands = {
-  concivCreateEngine: (options: CreateEngineOptions, scope: 'test' | 'file') => Promise<EngineHandle>
+  concivCreateEngine: (config: ConcivConfig, options: EngineStart, scope: 'test' | 'file') => Promise<EngineHandle>
   concivStopEngine: (engineId: string) => Promise<void>
   concivStopFileEngines: () => Promise<void>
   concivNewSession: (engineId: string, title?: string) => Promise<string>
@@ -36,6 +37,10 @@ export type EngineCommands = {
   concivOutsideDescribe: (engineId: string, agent: OutsideAgent) => ReturnType<Outside['describe']>
   concivOutsideDiscover: (engineId: string, agent: OutsideAgent, toolNames: string[]) => Promise<OutsideReply>
   concivOutsideCall: (engineId: string, agent: OutsideAgent, name: string, input: unknown) => Promise<OutsideReply>
+  concivReply: (engineId: string, responses: TestLLM.Response[]) => Promise<void>
+  concivStale: (engineId: string, staleness: Parameters<Engine['stale']>[0]) => Promise<void>
+  concivVersion: (engineId: string, version: string) => Promise<void>
+  concivWrite: (engineId: string, path: string, content: string) => Promise<void>
 }
 
 export type PageCommands = {

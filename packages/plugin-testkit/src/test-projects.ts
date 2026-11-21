@@ -141,8 +141,8 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
     )
   return {
     commands: {
-      concivCreateEngine: async ({testPath}, options, scope) => {
-        const started = await startEngine(options)
+      concivCreateEngine: async ({testPath}, config, options, scope) => {
+        const started = await startEngine(config, options)
         counter.next += 1
         const id = String(counter.next)
         engines[id] = {
@@ -216,6 +216,10 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
         engineFor(engineId).started.engine.outside(agent).discover(toolNames),
       concivOutsideCall: (_context, engineId, agent, name, input) =>
         engineFor(engineId).started.engine.outside(agent).call(name, input),
+      concivReply: (_context, engineId, responses) => engineFor(engineId).started.engine.reply(...responses),
+      concivStale: (_context, engineId, staleness) => engineFor(engineId).started.engine.stale(staleness),
+      concivVersion: (_context, engineId, version) => engineFor(engineId).started.engine.version(version),
+      concivWrite: (_context, engineId, path, content) => engineFor(engineId).started.engine.write(path, content),
     },
     plugin: {
       name: 'conciv:test-browser-engines',

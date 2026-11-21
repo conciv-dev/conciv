@@ -1,7 +1,8 @@
 import {expect, onTestFinished} from 'vitest'
 import {commands} from 'vitest/browser'
 import type {TestLLM} from '@conciv/harness-testkit'
-import type {CreateEngineOptions, Engine, EngineClock, EngineSession} from './engine.js'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
+import type {Engine, EngineClock, EngineSession, EngineStart} from './engine.js'
 import type {} from './browser-commands.js'
 
 export * as TestLLM from '@conciv/harness-testkit/test-llm'
@@ -38,7 +39,7 @@ async function advanceOn<T>(engineId: string, until: Promise<T>): Promise<T> {
   return until
 }
 
-function clockOn(engineId: string, clock: CreateEngineOptions['clock']): EngineClock {
+function clockOn(engineId: string, clock: EngineStart['clock']): EngineClock {
   if (clock !== 'test') {
     return {
       advance: async () => {
@@ -59,15 +60,9 @@ function gateOn(engineId: string, gateId: string): TestLLM.Gate {
   }
 }
 
-export async function createEngine(options: CreateEngineOptions = {}): Promise<Engine> {
-  if (options.harness !== undefined) {
-    throw new Error('a harness adapter cannot reach the engine in browser mode: test it in node or happy-dom')
-  }
-  if (options.replies?.some((reply) => !Array.isArray(reply))) {
-    throw new Error('a streamed reply cannot reach the engine in browser mode: test it in node or happy-dom')
-  }
+export async function createEngine(config: ConcivConfig = {}, options: EngineStart = {}): Promise<Engine> {
   const inTest = expect.getState().currentTestName !== undefined
-  const handle = await commands.concivCreateEngine(options, inTest ? 'test' : 'file')
+  const handle = await commands.concivCreateEngine(config, options, inTest ? 'test' : 'file')
   if (inTest) onTestFinished(() => commands.concivStopEngine(handle.id))
   return {
     session: sessionOn(handle.id, handle.sessionId),
@@ -95,6 +90,15 @@ export async function createEngine(options: CreateEngineOptions = {}): Promise<E
       discover: (toolNames) => commands.concivOutsideDiscover(handle.id, agent, toolNames),
       call: (name, input) => commands.concivOutsideCall(handle.id, agent, name, input),
     }),
+    reply: async (...responses) => {
+      if (responses.some((reply) => !Array.isArray(reply))) {
+        throw new Error('a streamed reply cannot reach the engine in browser mode: test it in node or happy-dom')
+      }
+      await commands.concivReply(handle.id, responses)
+    },
+    stale: (staleness) => commands.concivStale(handle.id, staleness),
+    version: (version) => commands.concivVersion(handle.id, version),
+    write: (path, content) => commands.concivWrite(handle.id, path, content),
     address: handle.address,
     root: handle.root,
   }

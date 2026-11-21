@@ -1,6 +1,6 @@
 export {createEngine} from './engine.js'
 export type {
-  CreateEngineOptions,
+  EngineStart,
   Engine,
   EngineAddress,
   EngineSession,
