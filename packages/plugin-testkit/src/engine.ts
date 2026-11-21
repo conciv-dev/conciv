@@ -34,13 +34,12 @@ export type EngineTool = HarnessEngineTool
 
 export type EngineSession = HarnessEngineSession
 
-export type Engine = Pick<HarnessEngine, 'session' | 'newSession' | 'setting' | 'gate' | 'requests'>
+export type Engine = Pick<HarnessEngine, 'session' | 'newSession' | 'setting' | 'gate' | 'requests' | 'address'>
 
 export type EngineAddress = HarnessEngineAddress
 
-export type StartedEngine = {engine: Engine; address: EngineAddress; stop: () => Promise<void>}
+export type StartedEngine = {engine: Engine; stop: () => Promise<void>}
 
-const addresses = new WeakMap<Engine, EngineAddress>()
 const fileEngines: Array<() => Promise<void>> = []
 
 type PluginEntry = NonNullable<ConcivConfig['plugins']>[number]
@@ -84,21 +83,14 @@ export async function startEngine(options: CreateEngineOptions): Promise<Started
     settings,
     env,
   })
-  return {engine: {session, newSession, setting, gate, requests}, address, stop}
+  return {engine: {session, newSession, setting, gate, requests, address}, stop}
 }
 
 export async function createEngine(options: CreateEngineOptions = {}): Promise<Engine> {
   const started = await startEngine(options)
-  addresses.set(started.engine, started.address)
   if (expect.getState().currentTestName !== undefined) onTestFinished(started.stop)
   else fileEngines.push(started.stop)
   return started.engine
-}
-
-export function engineAddress(engine: Engine): EngineAddress {
-  const address = addresses.get(engine)
-  if (!address) throw new Error('mount needs an engine made by createEngine from @conciv/plugin-testkit/node')
-  return address
 }
 
 export function stopFileEngines(): Promise<void> {

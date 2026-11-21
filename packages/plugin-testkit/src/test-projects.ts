@@ -132,7 +132,7 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
           testPath,
           scope,
         }
-        return {id, sessionId: started.engine.session.id, address: started.address}
+        return {id, sessionId: started.engine.session.id, address: started.engine.address}
       },
       concivStopEngine: (_context, engineId) => stop(engineId),
       concivStopFileEngines: ({testPath}) =>

@@ -2,7 +2,7 @@ import {onTestFinished} from 'vitest'
 import {createComponent} from 'solid-js'
 import {cleanup, render} from '@solidjs/testing-library'
 import {ConcivApp, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
-import type {Engine, EngineAddress} from './engine.js'
+import type {Engine} from './engine.js'
 
 declare module 'vitest' {
   interface TestContext {
@@ -56,9 +56,9 @@ function writeStorage(storage: Record<string, unknown>): void {
 
 export type Mount = (options: MountOptions) => Promise<void>
 
-export function makeMount(engineAddress: (engine: Engine) => EngineAddress): Mount {
+export function makeMount(): Mount {
   return async (options) => {
-    const address = engineAddress(options.engine)
+    const {address} = options.engine
     onTestFinished(() => {
       cleanup()
       localStorage.clear()
