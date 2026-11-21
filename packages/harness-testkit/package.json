@@ -52,6 +52,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
@@ -64,8 +66,6 @@
     "@conciv/core": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@conciv/serve": "workspace:^",
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*"
+    "@conciv/serve": "workspace:^"
   }
 }

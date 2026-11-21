@@ -7,13 +7,6 @@ import type {Page} from 'playwright'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 import {playwright} from '@vitest/browser-playwright'
-import {
-  POLL_TIMEOUT_MS,
-  TANSTACK_AI_SOLID_DEPS,
-  browserOptimizeDeps,
-  ciTest,
-  ciTestSolidBrowser,
-} from '@conciv/vitest-config'
 import type {TestLLM} from '@conciv/harness-testkit'
 import {startEngine, type Engine, type EngineSession, type StartedEngine} from './engine.js'
 import {disposeAll} from './dispose.js'
@@ -34,8 +27,14 @@ const SOLID_INJECTED_JEST_DOM = '@testing-library/jest-dom/vitest'
 const PAGE_DEPENDENCIES_TO_INLINE = [/solid/, /@ark-ui/, /@zag-js/, /lucide/, /packages\/(core|tools)\/dist\/cards/]
 const ENGINE_IN_NODE = [/plugin-testkit\/dist\/(node|engine-[\w-]+)\.js$/]
 const APP_FROM_KIT = '@conciv/plugin-testkit > @conciv/app'
+const TEST_TIMEOUT_MS = 30_000
+const HOOK_TIMEOUT_MS = 30_000
+const POLL_TIMEOUT_MS = 5_000
+const POLL_INTERVAL_MS = 50
 const BROWSER_PREBUNDLED = [
-  ...TANSTACK_AI_SOLID_DEPS,
+  '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client',
+  '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client/byok',
+  '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client/devtools',
   '@conciv/mascot > gsap',
   '@conciv/mascot > gsap/MotionPathPlugin',
   '@tanstack/hotkeys',
@@ -57,6 +56,25 @@ function installedTestingLibraries(): string[] {
       return false
     }
   })
+}
+
+function workerCap(): {maxWorkers?: number} {
+  const cap = Number(process.env.VITEST_MAX_FORKS)
+  return Number.isInteger(cap) && cap >= 1 ? {maxWorkers: cap} : {}
+}
+
+function kitTest(): {
+  testTimeout: number
+  hookTimeout: number
+  expect: {poll: {timeout: number; interval: number}}
+  maxWorkers?: number
+} {
+  return {
+    testTimeout: TEST_TIMEOUT_MS,
+    hookTimeout: HOOK_TIMEOUT_MS,
+    expect: {poll: {timeout: POLL_TIMEOUT_MS, interval: POLL_INTERVAL_MS}},
+    ...workerCap(),
+  }
 }
 
 function appUnoConfig(): string {
@@ -235,17 +253,16 @@ export function testProjects(): TestProjectInlineConfiguration[] {
   const uno = appUnoConfig()
   const engines = browserEngines()
   const provide = {concivPollTimeoutMs: POLL_TIMEOUT_MS}
-  const page = ciTestSolidBrowser()
   return [
     {
       extends: true,
       plugins: [engineModulesInNode()],
       test: {
-        ...ciTest(),
+        ...kitTest(),
         name: 'node',
         environment: 'node',
         include: ['src/**/*.test.ts'],
-        setupFiles: [...ciTest().setupFiles, join(KIT_DIST, 'node-setup.js')],
+        setupFiles: [join(KIT_DIST, 'node-setup.js')],
         exclude: [...configDefaults.exclude, '**/*.dom.test.*', '**/*.browser.test.*'],
       },
     },
@@ -255,13 +272,13 @@ export function testProjects(): TestProjectInlineConfiguration[] {
       server: {fs: {strict: false}},
       resolve: {alias: [{find: BROWSER_ENTRY, replacement: join(KIT_DIST, 'happy-dom.js')}]},
       test: {
-        ...page,
+        ...kitTest(),
         name: 'happy-dom',
         isolate: false,
         include: ['src/**/*.dom.test.ts', 'src/**/*.dom.test.tsx'],
         environment: join(KIT_DIST, 'dom-environment.js'),
         environmentOptions: {happyDOM: {width: 1280, height: 800}},
-        setupFiles: [...page.setupFiles, join(KIT_DIST, 'node-setup.js'), join(KIT_DIST, 'happy-dom-setup.js')],
+        setupFiles: [join(KIT_DIST, 'node-setup.js'), join(KIT_DIST, 'happy-dom-setup.js')],
         provide,
         server: {deps: {inline: PAGE_DEPENDENCIES_TO_INLINE, external: ENGINE_IN_NODE}},
       },
@@ -271,12 +288,12 @@ export function testProjects(): TestProjectInlineConfiguration[] {
       plugins: [UnoCSS({configFile: uno}), solidPlugin(), engines.plugin],
       server: {fs: {strict: false}},
       resolve: {alias: [{find: NODE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
-      optimizeDeps: browserOptimizeDeps([...BROWSER_PREBUNDLED, ...installedTestingLibraries()]),
+      optimizeDeps: {include: [...BROWSER_PREBUNDLED, ...installedTestingLibraries()]},
       test: {
-        ...page,
+        ...kitTest(),
         name: 'browser',
         include: ['src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx'],
-        setupFiles: [...page.setupFiles, join(KIT_DIST, 'browser-setup.js'), join(KIT_DIST, 'browser.js')],
+        setupFiles: [join(KIT_DIST, 'browser-setup.js'), join(KIT_DIST, 'browser.js')],
         provide,
         browser: {
           enabled: true,

@@ -1,10 +1,12 @@
-import {afterAll, inject} from 'vitest'
+import {afterAll, afterEach, inject} from 'vitest'
 import {commands} from 'vitest/browser'
-import {configure} from '@solidjs/testing-library'
+import {cleanup, configure} from '@solidjs/testing-library'
 import {providePageErrors} from './page-errors.js'
 import type {} from './browser-commands.js'
 
 configure({asyncUtilTimeout: inject('concivPollTimeoutMs')})
+
+afterEach(cleanup)
 
 providePageErrors({watch: () => commands.concivWatchPage(), read: () => commands.concivPageErrors()})
 
