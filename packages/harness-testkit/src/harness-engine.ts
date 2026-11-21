@@ -6,8 +6,8 @@ import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
 import {ConfigProvider} from 'effect'
 import {rpcStream} from '@conciv/ai/client'
 import {makeBrowserRpcClient, makeRpcClient, type EngineStaleness, type RpcClient} from '@conciv/contract'
-import {makeApp, type MadeApp, type MakeAppOpts} from '@conciv/core/app'
-import {resolveConfig} from '@conciv/core/config'
+import type {MakeAppOpts} from '@conciv/core/app'
+import {start} from '@conciv/core/start'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, runLifecycleEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -15,7 +15,6 @@ import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {serveHono, type ServedHono} from '@conciv/serve'
 import {z} from 'zod'
 import {callTool} from './call-tool.js'
 import {replyScript, type ReplyScript, type ScriptedHarness} from './scripted-harness.js'
@@ -123,7 +122,9 @@ type Turns = {
 
 type Engine = {rpc: RpcClient; apiBase: string; turns: Turns}
 
-type Running = {app: MadeApp; served: ServedHono; close: () => void}
+type Started = Awaited<ReturnType<typeof start>>
+
+type Running = {started: Started; close: () => void}
 
 type Boot = {
   root: string
@@ -392,47 +393,40 @@ function openedFile(file: string, line: number | undefined, column: number | und
   return {file, ...(line === undefined ? {} : {line}), ...(column === undefined ? {} : {column})}
 }
 
-async function bootApp(
+function bootApp(
   {root, project, harnesses: [harness, ...others], options, configProvider, opened}: Boot,
   sessionId: string | undefined,
-  agentToken: string | undefined,
-): Promise<{app: MadeApp; sessionId: string | undefined}> {
+  previous: Started | undefined,
+): Promise<Started> {
   const config = options.config ?? {}
   const {staleness} = options
-  const resolved = resolveConfig(
-    {sessionId, permission: config.permission, permissions: config.permissions},
-    root,
-    configProvider,
-  )
-  const app = await makeApp({
-    agentToken,
-    print: () => {},
-    cfg: {
-      enabled: true,
+  const home = engineHome(root)
+  return start({
+    options: {
       stateRoot: root,
       harness: harness.id,
-      sessionId: resolved.sessionId,
-      harnessSessionId: undefined,
-      systemPrompt: options.systemPrompt ?? '',
-      hubAccess: 'project',
-      plugins: config.plugins ?? [],
-      policies: options.policies ?? [],
-      permissions: resolved.permissions,
+      sessionId,
+      systemPrompt: options.systemPrompt,
+      plugins: config.plugins,
+      policies: options.policies,
+      permission: config.permission,
+      permissions: config.permissions,
     },
-    cwd: project,
-    openInEditor: (file, line, column) => {
-      opened.push(openedFile(file, line, column))
-    },
+    root: project,
     harness,
     harnesses: others,
-    home: engineHome(root),
-    configProvider,
     ...options.timeouts,
     ...(staleness === undefined ? {} : {staleness: () => staleness}),
     app: options.app,
+    homeDir: home,
+    devEndpointDir: join(home, 'dev-endpoint'),
+    configProvider,
+    launchEditor: (file, line, column) => {
+      opened.push(openedFile(file, line, column))
+    },
+    print: () => {},
+    ...(previous === undefined ? {} : {port: {exact: previous.port}, accessToken: previous.agentToken}),
   })
-  await app.awaitActivation().catch((error: unknown) => abandonStart(error, [() => app.dispose()]))
-  return {app, sessionId: resolved.sessionId}
 }
 
 function connect(engine: Engine, browser = makeBrowserRpcClient(engine.apiBase)): () => void {
@@ -444,25 +438,15 @@ function connect(engine: Engine, browser = makeBrowserRpcClient(engine.apiBase))
   }
 }
 
-async function listenAgain(app: MadeApp, port: number): Promise<ServedHono> {
-  return serveHono({fetch: app.fetch, port}).catch((error: unknown) => {
-    const reason = error instanceof Error ? error.message : String(error)
-    throw new Error(`the engine could not listen again on port ${port}: ${reason}`)
-  })
-}
-
 async function bootAgain(boot: Boot, engine: Engine, sessionId: string, running: Running): Promise<Running> {
-  const {app} = await bootApp(boot, sessionId, running.app.agentToken)
-  const served = await listenAgain(app, running.served.port).catch((error: unknown) =>
-    abandonStart(error, [() => app.dispose()]),
-  )
-  return {app, served, close: connect(engine)}
+  const started = await bootApp(boot, sessionId, running.started)
+  return {started, close: connect(engine)}
 }
 
 async function closeRunning(running: Running | undefined): Promise<unknown[]> {
   if (running === undefined) return []
   running.close()
-  return settleInOrder([() => running.served.close(), () => running.app.dispose()])
+  return settleInOrder([() => running.started.stop()])
 }
 
 export async function createHarnessEngine(options: HarnessEngineOptions = {}): Promise<HarnessEngine> {
@@ -474,19 +458,16 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
   const opened: HarnessEngineOpened[] = []
   const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
   const boot: Boot = {root, project, harnesses, options, configProvider: isolatedProvider(root, options), opened}
-  const {app, sessionId} = await Promise.resolve()
+  const first = await Promise.resolve()
     .then(() => {
       for (const [path, content] of Object.entries(options.files ?? {})) writeInside(project, path, content)
       return bootApp(boot, options.sessionId, undefined)
     })
     .catch((error: unknown) => abandonStart(error, [removeRoot]))
-  const served = await serveHono({fetch: app.fetch}).catch((error: unknown) =>
-    abandonStart(error, [() => app.dispose(), removeRoot]),
-  )
-  const apiBase = `http://127.0.0.1:${served.port}/t/${app.agentToken}`
+  const apiBase = `http://127.0.0.1:${first.port}/t/${first.agentToken}`
   const browser = makeBrowserRpcClient(apiBase)
   const engine: Engine = {apiBase, rpc: browser.rpc, turns: makeTurns(browser.rpc)}
-  const state: {running: Running | undefined} = {running: {app, served, close: connect(engine, browser)}}
+  const state: {running: Running | undefined} = {running: {started: first, close: connect(engine, browser)}}
   const waits = new Set<AbortController>()
   const halt = async (): Promise<unknown[]> => {
     for (const wait of waits) wait.abort()
@@ -500,7 +481,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     const failures = [...(await halt()), ...(await settleInOrder([removeRoot]))]
     if (failures.length > 0) throw new AggregateError(failures, 'the harness engine did not stop cleanly')
   }
-  const started = await openFirstSession(engine, options.settings ?? [], sessionId).catch((error: unknown) =>
+  const started = await openFirstSession(engine, options.settings ?? [], first.cfg.sessionId).catch((error: unknown) =>
     abandonStart(error, [stop]),
   )
   const restart = async (): Promise<void> => {
@@ -518,7 +499,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     },
     gate: async () => script.gate(),
     requests: async () => script.requests(),
-    address: {apiBase, token: app.agentToken},
+    address: {apiBase, token: first.agentToken},
     root: realpathSync(project),
     opened: async () => [...opened],
     event: (type) => eventWait(engine, type, waits),

@@ -65,7 +65,6 @@
     "@conciv/contract": "workspace:^",
     "@conciv/core": "workspace:^",
     "@conciv/harness": "workspace:^",
-    "@conciv/protocol": "workspace:^",
-    "@conciv/serve": "workspace:^"
+    "@conciv/protocol": "workspace:^"
   }
 }

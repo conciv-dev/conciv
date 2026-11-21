@@ -83,6 +83,8 @@ test('the CLI finds the test engine from its project folder', async () => {
 
 Read `packages/cli/src/engine-origin.ts` first: if the CLI finds an engine from the folder's `server.json` this is the proof as written; if it needs the home database or a variable too, give exactly that in `env` and say what you gave. A second proof with the real CLI command that lists engines, if one exists (name it from `packages/cli/src`), showing the test engine listed while it runs and gone after `engine.restart()` is not used: after the test ends is not observable, so assert only "listed while running".
 
+The proof build needs the CLI: `TURBO_CONCURRENCY=70% pnpm exec turbo run build --filter=@conciv/harness-testkit... --filter=@conciv/plugin-testkit... --filter=@conciv/plugin-test-runner... --filter=@conciv/cli...`, then `build:types` for both kits.
+
 - [ ] **Step 2: Failing run** at the Task 1 head (the CLI finds no engine). **Step 3: Change. Step 4: Passing run; rerun EVERY earlier proof** (steps 0 to 4a, node, happy-dom and browser mode, and the app proofs) and list each one that changed. **Step 5: the Task 0 script again, three times;** report before and after. If the median start is more than 10 ms slower per engine, stop and report where the time goes (do not optimise on your own). **Step 6: check nothing is left behind:** after a run, no engine row remains un-retired in a test home that still exists, and nothing was written outside the temp root and home (list the developer's `~/.conciv` before and after). **Step 7: Gates plus `publint` and `attw` for both kits, commit** `refactor(testkits): the test engine starts through the product's start`.
 
 ---
