@@ -91,6 +91,28 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
 
 const RPC_SOCKET_PATH = '/rpc-ws'
 
+export async function holdEngineSocket(page: Page): Promise<{arrived: Promise<void>; release: () => void}> {
+  const arrived = Promise.withResolvers<void>()
+  let released = false
+  await page.routeWebSocket(
+    (url) => url.pathname === RPC_SOCKET_PATH,
+    async (socket) => {
+      arrived.resolve()
+      if (released) {
+        socket.connectToServer()
+        return
+      }
+      await socket.close()
+    },
+  )
+  return {
+    arrived: arrived.promise,
+    release: () => {
+      released = true
+    },
+  }
+}
+
 async function engineOrigin(page: Page, path: string): Promise<string> {
   const rpcSocket = page.waitForEvent('websocket', (socket) => new URL(socket.url()).pathname === RPC_SOCKET_PATH)
   await page.goto(path, {waitUntil: 'domcontentloaded', timeout: 60_000})
