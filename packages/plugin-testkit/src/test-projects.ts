@@ -131,16 +131,20 @@ const PluginManifestSchema = z
     z.object({
       name: z.string(),
       keywords: z.array(z.string()).refine((keywords) => keywords.includes('conciv-plugin')),
+      exports: z.record(z.string(), z.unknown()).catch({}),
     }),
   )
 
-type TestablePlugin = {id: string; directory: string}
+const ENGINE_SUBPATHS = ['./server', './plugin-experimental']
+
+type TestablePlugin = {id: string; directory: string; engine: boolean}
 
 function testablePlugin(name: string): TestablePlugin[] {
   const directory = pluginDirectory(name)
   const manifest = PluginManifestSchema.safeParse(readFileSync(join(directory, 'package.json'), 'utf8'))
   if (!manifest.success) return []
-  return [{id: manifest.data.name, directory}]
+  const engine = ENGINE_SUBPATHS.some((subpath) => Object.hasOwn(manifest.data.exports, subpath))
+  return [{id: manifest.data.name, directory, engine}]
 }
 
 function testablePlugins(): Record<string, TestablePlugin> {
@@ -156,9 +160,10 @@ function pluginsByName(testable: Record<string, TestablePlugin>): Plugin {
     resolveId: (id) => (id === TEST_PLUGINS ? resolved : undefined),
     load: (id) => {
       if (id !== resolved) return undefined
-      const entries = Object.entries(testable).map(
-        ([name, plugin]) =>
-          `${JSON.stringify(name)}: {id: ${JSON.stringify(plugin.id)}, load: () => import(${JSON.stringify(plugin.directory)})}`,
+      const entries = Object.entries(testable).map(([name, plugin]) =>
+        plugin.engine
+          ? `${JSON.stringify(name)}: {id: ${JSON.stringify(plugin.id)}, kind: 'engine'}`
+          : `${JSON.stringify(name)}: {id: ${JSON.stringify(plugin.id)}, kind: 'host', load: () => import(${JSON.stringify(plugin.directory)})}`,
       )
       return `export const plugins = {${entries.join(', ')}}`
     },

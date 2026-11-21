@@ -69,6 +69,11 @@ async function composePlugin(entry: PluginEntry): Promise<ComposedPlugin> {
   if (loader === undefined) {
     throw new Error(`the plugin ${name} is neither the package under test nor one of its conciv-plugin dependencies`)
   }
+  if (loader.kind === 'engine') {
+    throw new Error(
+      `the plugin ${name} runs in the engine: give it to createEngine({plugins}), and its page part reaches the page from the engine`,
+    )
+  }
   const {setup, ...declarations} = (await loader.load()).default
   return [{...declarations, id: loader.id, windowEntry: setup && (async () => ({default: setup}))}, options]
 }
