@@ -78,7 +78,7 @@ function PreviewBody(props: {target: PreviewTarget; input: () => HTMLElement | n
     ...appData.utils.sessions.preview.infiniteOptions({
       input,
       initialPageParam: null,
-      getNextPageParam: (page: {earlier: string | null}) => page.earlier,
+      getNextPageParam: (page) => page.earlier,
     }),
     retry: false,
   }))
