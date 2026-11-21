@@ -43,6 +43,12 @@ export async function createEngine(options: CreateEngineOptions = {}): Promise<E
     gate: async () => gateOn(handle.id, await commands.concivGate(handle.id)),
     requests: () => commands.concivRequests(handle.id),
     opened: () => commands.concivOpened(handle.id),
+    event: async (type) => {
+      const waitId = await commands.concivEvent(handle.id, type)
+      const arrived = commands.concivEventArrived(handle.id, waitId)
+      arrived.catch(() => {})
+      return {arrived}
+    },
     address: handle.address,
     root: handle.root,
   }

@@ -65,6 +65,10 @@ export type HarnessEngineAddress = {apiBase: string; token: string}
 
 type HarnessEngineOpened = {file: string; line?: number; column?: number}
 
+type HarnessEngineEvent = {type: string; data: unknown}
+
+type HarnessEngineEventWait = {arrived: Promise<HarnessEngineEvent>}
+
 export type HarnessEngine = {
   session: HarnessEngineSession
   newSession: (title?: string) => Promise<HarnessEngineSession>
@@ -74,6 +78,7 @@ export type HarnessEngine = {
   address: HarnessEngineAddress
   root: string
   opened: () => Promise<HarnessEngineOpened[]>
+  event: (type: string) => Promise<HarnessEngineEventWait>
   stop: () => Promise<void>
 }
 
@@ -226,6 +231,32 @@ async function openFirstSession(
   return newSessionOn(engine, undefined)
 }
 
+async function matching(
+  events: AsyncIterable<{type: string; data: unknown}>,
+  type: string,
+): Promise<HarnessEngineEvent> {
+  for await (const event of events) if (event.type === type) return {type: event.type, data: event.data}
+  throw new Error(`the engine stopped before a ${type} event arrived`)
+}
+
+async function eventWait(engine: Engine, type: string, waits: Set<AbortController>): Promise<HarnessEngineEventWait> {
+  const abort = new AbortController()
+  waits.add(abort)
+  const events = await engine.rpc.event.subscribe({types: [type]}, {signal: abort.signal}).catch((error: unknown) => {
+    waits.delete(abort)
+    throw error
+  })
+  await events.next()
+  const arrived = matching(events, type)
+    .catch((error: unknown) => {
+      if (abort.signal.aborted) throw new Error(`the engine stopped before a ${type} event arrived`)
+      throw error
+    })
+    .finally(() => waits.delete(abort))
+  arrived.catch(() => {})
+  return {arrived}
+}
+
 function engineHome(root: string): string {
   return join(concivStateDir(root), 'home')
 }
@@ -355,7 +386,9 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
   const apiBase = `http://127.0.0.1:${served.port}/t/${app.agentToken}`
   const browser = makeBrowserRpcClient(apiBase)
   const engine: Engine = {rpc: browser.rpc, apiBase, turns: makeTurns(browser.rpc)}
+  const waits = new Set<AbortController>()
   const stop = async (): Promise<void> => {
+    for (const wait of waits) wait.abort()
     script.releaseGate()
     engine.turns.closeAll()
     browser.close()
@@ -376,6 +409,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     address: {apiBase, token: app.agentToken},
     root: realpathSync(project),
     opened: async () => [...opened],
+    event: (type) => eventWait(engine, type, waits),
     stop,
   }
 }

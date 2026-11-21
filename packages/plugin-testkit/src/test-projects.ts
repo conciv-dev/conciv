@@ -15,7 +15,7 @@ import {
   ciTestSolidBrowser,
 } from '@conciv/vitest-config'
 import type {TestLLM} from '@conciv/harness-testkit'
-import {startEngine, type EngineSession, type StartedEngine} from './engine.js'
+import {startEngine, type Engine, type EngineSession, type StartedEngine} from './engine.js'
 import {disposeAll} from './dispose.js'
 import type {EngineCommands, PageCommands} from './browser-commands.js'
 
@@ -86,6 +86,7 @@ type BrowserEngine = {
   started: StartedEngine
   sessions: Record<string, EngineSession>
   gates: Record<string, TestLLM.Gate>
+  waits: Record<string, Awaited<ReturnType<Engine['event']>>>
   testPath: string | undefined
   scope: 'test' | 'file'
 }
@@ -129,6 +130,7 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
           started,
           sessions: {[started.engine.session.id]: started.engine.session},
           gates: {},
+          waits: {},
           testPath,
           scope,
         }
@@ -150,6 +152,20 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
         const gateId = String(counter.next)
         engine.gates[gateId] = await engine.started.engine.gate()
         return gateId
+      },
+      concivEvent: async (_context, engineId, type) => {
+        const engine = engineFor(engineId)
+        counter.next += 1
+        const waitId = String(counter.next)
+        engine.waits[waitId] = await engine.started.engine.event(type)
+        return waitId
+      },
+      concivEventArrived: (_context, engineId, waitId) => {
+        const engine = engineFor(engineId)
+        const wait = engine.waits[waitId]
+        if (!wait) throw new Error(`engine ${engineId} has no event wait ${waitId}`)
+        delete engine.waits[waitId]
+        return wait.arrived
       },
       concivGateStarted: (_context, engineId, gateId) => gateFor(engineId, gateId).started,
       concivGateRelease: async (_context, engineId, gateId) => {
