@@ -13,6 +13,7 @@ const EXISTENCE_MATCHERS = new Set([
 ])
 const NULL_ARGUMENT_MATCHERS = new Set(['toBe', 'toEqual', 'toStrictEqual'])
 const LENGTH_MATCHER = 'toHaveLength'
+const IN_DOCUMENT_MATCHER = 'toBeInTheDocument'
 
 const DOM_OR_BROWSER_TEST_FILE = /\.(?:dom|browser)\.test\.[cm]?[jt]sx?$/
 const SOLID_TESTING_LIBRARY = '@solidjs/testing-library'
@@ -86,18 +87,20 @@ function readAssertion(matcherCall) {
   const target = callee.object
   if (isStaticMember(target) && target.property.name === 'not') {
     const subject = expectedSubject(target.object)
-    return subject === undefined ? undefined : {matcher: `not.${matcher}`, name: matcher, subject}
+    return subject === undefined ? undefined : {matcher: `not.${matcher}`, name: matcher, negated: true, subject}
   }
   const subject = expectedSubject(target)
-  return subject === undefined ? undefined : {matcher, name: matcher, subject}
+  return subject === undefined ? undefined : {matcher, name: matcher, negated: false, subject}
 }
 
 function isNullLiteral(node) {
   return node?.type === 'Literal' && node.value === null && node.regex === undefined
 }
 
-function provesExistenceOnly(name, matcherCall, query) {
+function provesExistenceOnly(assertion, matcherCall, query) {
+  const name = assertion.name
   if (EXISTENCE_MATCHERS.has(name)) return true
+  if (name === IN_DOCUMENT_MATCHER) return !assertion.negated && !query.startsWith('query')
   if (NULL_ARGUMENT_MATCHERS.has(name)) return isNullLiteral(matcherCall.arguments[0])
   if (name === LENGTH_MATCHER) return !query.includes('AllBy')
   return false
@@ -108,7 +111,7 @@ function checkMatcherCall(node, context) {
   if (assertion === undefined) return
   const query = subjectQueryName(assertion.subject, context.sourceCode)
   if (query === undefined) return
-  if (!provesExistenceOnly(assertion.name, node, query)) return
+  if (!provesExistenceOnly(assertion, node, query)) return
   context.report({node, messageId: 'existenceOnly', data: {matcher: assertion.matcher, query}})
 }
 
@@ -117,7 +120,7 @@ export default {
     type: 'problem',
     messages: {
       existenceOnly:
-        'expect({{query}}(...)).{{matcher}}() proves nothing: a getBy/findBy query already throws when nothing matches, and a queryBy result says only whether a node exists. Assert what the user sees with a jest-dom matcher: toBeVisible(), toBeInTheDocument() (or .not.toBeInTheDocument() on a queryBy for absence), toHaveTextContent(...), toHaveAccessibleName(...), toBeDisabled() / toBeEnabled(), toHaveValue(...), toBeChecked().',
+        'expect({{query}}(...)).{{matcher}}() proves nothing: a getBy/findBy query already throws when nothing matches, and a queryBy result says only whether a node exists. Assert what the user sees with a jest-dom matcher: toBeVisible(), toHaveTextContent(...), toHaveAccessibleName(...), toBeDisabled() / toBeEnabled(), toHaveValue(...), toBeChecked(). For absence, use expect(queryBy...(...)).not.toBeInTheDocument().',
     },
     schema: [],
   },
