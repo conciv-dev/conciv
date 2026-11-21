@@ -108,16 +108,12 @@ function readMatched(session: PickerSession): string[] {
 function buildPreview(session: PickerSession | undefined) {
   if (session === undefined) return null
   const native = 'preview' in session ? session.preview : session.native
-  if (!native) return null
-  const shared = {
-    title: session.title,
-    harness: native.harnessKind,
-    nativeId: native.nativeId,
-    matched: readMatched(session),
-  }
   const elsewhere = readElsewhere(session)
-  if (elsewhere === null) return {...shared, project: formatProject(native.cwd), cwd: null, resume: null}
-  return {...shared, project: elsewhere.project, cwd: elsewhere.cwd, resume: elsewhere.resume}
+  const shared = {title: session.title, matched: readMatched(session)}
+  if (!native) return {...shared, read: {sessionId: session.id}, project: elsewhere?.project ?? '', resume: null}
+  const read = {harness: native.harnessKind, nativeId: native.nativeId}
+  if (elsewhere === null) return {...shared, read, project: formatProject(native.cwd), resume: null}
+  return {...shared, read: {...read, cwd: elsewhere.cwd}, project: elsewhere.project, resume: elsewhere.resume}
 }
 
 function readElsewhere(session: PickerSession | undefined): Elsewhere | null {

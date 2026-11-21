@@ -10,7 +10,6 @@ import {
   type HarnessMenuEntry,
   type HarnessSessionId,
   type HarnessMeta,
-  type NativeSessionRef,
   type ReasoningEffort,
   type SessionRecord,
 } from '@conciv/protocol/chat-types'
@@ -77,7 +76,8 @@ async function loadTranscriptTail(
   options: TranscriptTailOptions,
 ): Promise<TranscriptPage | null> {
   const history = chat.harnesses.find((harness) => harness.id === harnessKind)?.history
-  if (history === undefined) return loadSavedPage(chat, {harnessKind, cwd, nativeId}, options)
+  if (history === undefined)
+    return loadSavedPage(chat, await rowByNativeRef(chat.db, {harnessKind, cwd, nativeId}), options)
   if (history.withinProject && !history.withinProject(cwd, nativeId)) return null
   try {
     return await history.tail(cwd, nativeId, options)
@@ -90,10 +90,9 @@ async function loadTranscriptTail(
 
 async function loadSavedPage(
   chat: ChatContext,
-  ref: NativeSessionRef,
+  row: SessionRecord | null,
   options: TranscriptTailOptions,
 ): Promise<TranscriptPage | null> {
-  const row = await rowByNativeRef(chat.db, ref)
   if (row === null) return null
   const {messages, page} = await chat.plane.hydrate(row.id, {
     limit: options.limit,
@@ -275,15 +274,15 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return meta
     }),
     preview: os.sessions.preview.handler(async ({input, errors, signal}) => {
-      const page = await loadTranscriptTail(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd, {
-        limit: input.limit,
-        before: input.before,
-        signal,
-      })
+      const options = {limit: input.limit, before: input.before, signal}
+      const page =
+        'sessionId' in input
+          ? await loadSavedPage(chat, await rowById(db, input.sessionId), options)
+          : await loadTranscriptTail(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd, options)
       if (page === null || (page.messages.length === 0 && page.earlier === null && input.before === null)) {
         throw errors.NOT_FOUND()
       }
-      if (input.cwd !== undefined) search.cover(input.cwd)
+      if ('cwd' in input && input.cwd !== undefined) search.cover(input.cwd)
       return page
     }),
     create: os.sessions.create.handler(async () => {

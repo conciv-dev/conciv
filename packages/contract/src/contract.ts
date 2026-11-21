@@ -66,13 +66,18 @@ const SessionSearchPageSchema = z.object({
   next: HarnessListCursorSchema.nullable(),
 })
 
-const SessionPreviewInput = z.object({
-  harness: z.string().min(1),
-  nativeId: HarnessSessionId,
-  cwd: z.string().min(1).optional(),
+const SessionPreviewPage = z.object({
   before: z.string().min(1).nullable(),
   limit: z.number().int().min(1).max(100),
 })
+const SessionPreviewInput = z.union([
+  SessionPreviewPage.extend({
+    harness: z.string().min(1),
+    nativeId: HarnessSessionId,
+    cwd: z.string().min(1).optional(),
+  }),
+  SessionPreviewPage.extend({sessionId: SessionId}),
+])
 const SessionPreviewSchema = z.object({messages: ChatHistorySchema, earlier: z.string().min(1).nullable()})
 
 const SessionsChangeSchema = z.object({version: z.number().int().nonnegative()})
