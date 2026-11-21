@@ -7,7 +7,7 @@ import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('the model menu', () => {
   test('a pick, Escape and an outside click each close the menu and give the composer its focus back at once', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
@@ -20,18 +20,14 @@ describe('the model menu', () => {
 
     await user.click(screen.getByRole('button', {name: 'Model: Sonnet 5.5'}))
     const search = await screen.findByRole('textbox', {name: 'Search models'})
-    await new Promise((resolve) => requestAnimationFrame(resolve))
-    expect(search).toHaveFocus()
+    await expect.element(search).toHaveFocus()
     await user.keyboard('{Escape}')
     expect(input).toHaveFocus()
 
     await user.click(screen.getByRole('button', {name: 'Model: Sonnet 5.5'}))
-    const searchAgain = await screen.findByRole('textbox', {name: 'Search models'})
-    await new Promise((resolve) => requestAnimationFrame(resolve))
-    expect(searchAgain).toHaveFocus()
+    await expect.element(await screen.findByRole('textbox', {name: 'Search models'})).toHaveFocus()
     await page.getByText('How can I help you today?').click()
-    await new Promise((resolve) => requestAnimationFrame(resolve))
-    expect(input).toHaveFocus()
+    await expect.element(input).toHaveFocus()
   })
 })
 
@@ -75,8 +71,7 @@ describe('the composer actions menu', () => {
 
     const trigger = await screen.findByRole('button', {name: 'More composer actions'})
     await user.click(trigger)
-    const menu = await screen.findByRole('menu', {name: 'More composer actions'})
-    expect(menu).toHaveFocus()
+    await expect.element(await screen.findByRole('menu', {name: 'More composer actions'})).toHaveFocus()
     await user.keyboard('{Escape}')
 
     expect(trigger).toHaveFocus()
