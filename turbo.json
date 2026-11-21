@@ -50,8 +50,9 @@
       "dependsOn": ["^build", "^build:types"],
       "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
     },
+    "kit-runtime": {},
     "test": {
-      "dependsOn": ["^build", "build", "^build:types"],
+      "dependsOn": ["^build", "build", "^build:types", "^kit-runtime"],
       "env": ["CI", "GITHUB_ACTIONS"],
       "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"],
       "outputs": ["test-results.json", "coverage/coverage-summary.json"]

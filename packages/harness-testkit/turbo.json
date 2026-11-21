@@ -20,8 +20,11 @@
         "@conciv/protocol#build"
       ]
     },
+    "kit-runtime": {
+      "dependsOn": ["@conciv/core#build"]
+    },
     "test": {
-      "dependsOn": ["build", "build:types"]
+      "dependsOn": ["build", "build:types", "kit-runtime"]
     },
     "publint": {
       "dependsOn": ["build", "build:types"]

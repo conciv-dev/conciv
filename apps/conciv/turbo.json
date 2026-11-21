@@ -2,6 +2,9 @@
   "$schema": "https://v2-10-3.turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
+    "kit-runtime": {
+      "dependsOn": ["^build"]
+    },
     "build": {
       "inputs": [
         "$TURBO_EXTENDS$",
