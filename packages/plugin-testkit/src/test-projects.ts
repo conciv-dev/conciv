@@ -23,11 +23,11 @@ type EngineCommandHandlers = {
 
 const KIT_DIST = import.meta.dirname
 const BROWSER_ENTRY = /^@conciv\/plugin-testkit\/browser$/
-const NODE_ENTRY = /^@conciv\/plugin-testkit\/node$/
+const ENGINE_ENTRY = /^@conciv\/plugin-testkit$/
 const NODE_ONLY_CONDITIONS = ['browser', 'solid']
 const SOLID_INJECTED_JEST_DOM = '@testing-library/jest-dom/vitest'
 const PAGE_DEPENDENCIES_TO_INLINE = [/solid/, /@ark-ui/, /@zag-js/, /lucide/, /packages\/(core|tools)\/dist\/cards/]
-const ENGINE_IN_NODE = [/plugin-testkit\/dist\/(node|engine-[\w-]+)\.js$/]
+const ENGINE_IN_NODE = [/plugin-testkit\/dist\/(index|engine-[\w-]+)\.js$/]
 const APP_FROM_KIT = '@conciv/plugin-testkit > @conciv/app'
 const TEST_TIMEOUT_MS = 30_000
 const HOOK_TIMEOUT_MS = 30_000
@@ -369,7 +369,7 @@ function testProjects(): TestProjectInlineConfiguration[] {
       extends: true,
       plugins: [UnoCSS({configFile: uno}), solidPlugin(), engines.plugin, byName],
       server: {fs: {strict: false}},
-      resolve: {alias: [{find: NODE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
+      resolve: {alias: [{find: ENGINE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
       optimizeDeps: {
         rolldownOptions: {plugins: [byName]},
         include: [...BROWSER_PREBUNDLED, ...installedTestingLibraries()],

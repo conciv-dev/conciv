@@ -43,7 +43,7 @@ The testkit runs the real engine with a scripted model; only the model and the a
   That gives three projects: node (`*.test.ts`), happy-dom (`*.dom.test.ts(x)`) and browser
   (`*.browser.test.ts(x)`). A setting in your own `test: {...}` (a timeout, `maxWorkers`, a
   reporter) wins over the kit's.
-- `createEngine(config, start)` from `@conciv/plugin-testkit/node` starts the engine in a fresh
+- `createEngine(config, start)` from `@conciv/plugin-testkit` starts the engine in a fresh
   project folder. `config` is the product's own `ConcivConfig` (`{plugins: ['.']}`, `permission`,
   `hubAccess`, ...); `start` holds what is not product config (`directory`, `timeouts`, `harnesses`,
   `env`, `fs`, `clock`). `engine.reply(...)` answers the model's requests in order
@@ -63,7 +63,7 @@ The testkit runs the real engine with a scripted model; only the model and the a
 ```ts
 import {expect, test} from 'vitest'
 import {screen} from '@solidjs/testing-library'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit/node'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 test('the deploy tab shows the last deploy', async () => {

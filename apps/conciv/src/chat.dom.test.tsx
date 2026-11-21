@@ -1,7 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit/node'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('sending a message', () => {

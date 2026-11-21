@@ -3,7 +3,7 @@ import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {RouterProvider, createBrowserHistory, createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
 import {makeBrowserRpcClient, normalizeApiBase, type BrowserRpcClient, type RpcClient} from '@conciv/contract'
-import {createWebStorageHistory, type WebStorage, type WebStorageHistory} from '@conciv/storage-history'
+import {createWebStorageHistory, type WebStorage} from '@conciv/storage-history'
 import type {GrabProvider} from '@conciv/grab'
 import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {NavigationStateSchema, type NavigationState} from '@conciv/protocol/chat-types'
@@ -51,7 +51,7 @@ type NavigationStorage = WebStorage & {restored: Promise<void>}
 
 type NavigationStorageState = {cache: string | null; lastStamp: number; wroteLocally: boolean}
 
-type NavigationRestore = {current: () => boolean; apply: () => void}
+type NavigationRestore = {current: () => boolean; apply: (href: string) => void}
 
 function makeNavigationStorage(
   rpc: NavigationRpc,
@@ -76,7 +76,8 @@ function makeNavigationStorage(
       if (!restore.current() || state.wroteLocally || !initial) return
       state.lastStamp = initial.updatedAt
       state.cache = JSON.stringify({entries: initial.entries, index: initial.index})
-      if (initial.entries.length > 0) restore.apply()
+      const current = initial.entries[initial.index]
+      if (current) restore.apply(current.href)
     })
   return {
     getItem: () => state.cache,
@@ -102,12 +103,9 @@ function runDisposers(disposers: ReadonlyArray<() => void>): void {
   }
 }
 
-function navigationHistory(
-  navigation: Platform['navigation'],
-  engineHistory: RouterHistory | undefined,
-): RouterHistory {
+function navigationHistory(navigation: Platform['navigation'], storage: NavigationStorage | undefined): RouterHistory {
   if (navigation === 'browser') return createBrowserHistory()
-  if (navigation === 'engine') return engineHistory ?? createMemoryHistory()
+  if (navigation === 'engine') return storage ? createWebStorageHistory({storage}) : createMemoryHistory()
   return navigation.history
 }
 
@@ -159,14 +157,11 @@ function renderRouter(
   return tree.view
 }
 
-function restoreOnBoot(router: ConcivRouter, restore: NavigationRestore, history: WebStorageHistory): () => void {
+function restoreOnBoot(router: ConcivRouter, restore: NavigationRestore): () => void {
   const boot = {href: router.state.location.href, moved: false}
-  restore.apply = () => {
+  restore.apply = (href) => {
     if (boot.moved || router.state.location.href !== boot.href || router.state.status !== 'idle') return
-    history.restore()
-    router.load().catch((error: unknown) => {
-      console.error('[conciv] the restored navigation did not load', error)
-    })
+    void router.navigate({href, replace: true})
   }
   const stop = router.subscribe('onBeforeNavigate', (event) => {
     if (event.hrefChanged) boot.moved = true
@@ -215,12 +210,11 @@ function BoundApp(props: AppParts): JSX.Element {
     platform.navigation === 'engine'
       ? makeNavigationStorage(client.rpc, {ready: trusted, isTrusted: () => login.trust().isTrusted()}, restore)
       : undefined
-  const engineHistory = storage ? createWebStorageHistory({storage}) : undefined
   const router = createConcivRouter({
     ...routerConfig(
       {platform, settings: untrack(() => props.settings), plugins: untrack(() => props.plugins)},
       client,
-      navigationHistory(platform.navigation, engineHistory),
+      navigationHistory(platform.navigation, storage),
       session,
     ),
     connected: () => engineConnected(login.status()),
@@ -247,7 +241,7 @@ function BoundApp(props: AppParts): JSX.Element {
         console.error('[conciv] the address did not follow the rebind', error)
       })
   })
-  const stopRestore = engineHistory ? restoreOnBoot(router, restore, engineHistory) : () => {}
+  const stopRestore = storage ? restoreOnBoot(router, restore) : () => {}
   const restored = storage
     ? from<boolean>((set) => {
         void storage.restored.then(() => set(true))

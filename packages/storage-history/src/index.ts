@@ -58,13 +58,12 @@ function rehydratedState(entry: PersistedEntry, position: number): ParsedHistory
   return entry.state ? {...entry.state, __TSR_index: position} : freshState(position)
 }
 
-export type WebStorageHistory = RouterHistory & {restore: () => void}
-
-export function createWebStorageHistory(opts: {storage: WebStorage; key?: string}): WebStorageHistory {
+export function createWebStorageHistory(opts: {storage: WebStorage; key?: string}): RouterHistory {
   const key = opts.key ?? DEFAULT_KEY
-  const entries: string[] = []
-  const states: ParsedHistoryState[] = []
-  let index = 0
+  const persisted = readPersisted(opts.storage, key)
+  const entries = persisted.entries.map((entry) => entry.href)
+  const states = persisted.entries.map(rehydratedState)
+  let index = persisted.index
 
   const persist = (): void => {
     try {
@@ -83,19 +82,9 @@ export function createWebStorageHistory(opts: {storage: WebStorage; key?: string
     index = Math.max(index - excess, 0)
   }
 
-  const read = (): void => {
-    const persisted = readPersisted(opts.storage, key)
-    entries.splice(0, entries.length, ...persisted.entries.map((entry) => entry.href))
-    states.splice(0, states.length, ...persisted.entries.map(rehydratedState))
-    index = persisted.index
-    trim()
-  }
-
-  read()
-
   let blockers: Array<NavigationBlocker> = []
 
-  const history = createHistory({
+  return createHistory({
     getLocation: () => parseHref(entries[index] ?? '/', states[index]),
     getLength: () => entries.length,
     pushState: (path, state) => {
@@ -132,9 +121,4 @@ export function createWebStorageHistory(opts: {storage: WebStorage; key?: string
       blockers = next
     },
   })
-  const restore = (): void => {
-    read()
-    history.notify({type: 'REPLACE'})
-  }
-  return Object.assign(history, {restore})
 }

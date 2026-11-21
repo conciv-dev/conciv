@@ -6,12 +6,12 @@ Implements `createWebStorageHistory`, an entries/index history stack on @tanstac
 
 ## Interface
 
-- `createWebStorageHistory(opts: {storage, key?}): WebStorageHistory` (`index.ts`): key defaults to 'conciv-history'; `restore()` reads the storage again, replacing the entries and index, and notifies with a `REPLACE`, for a storage that is filled after the history is created
+- `createWebStorageHistory(opts: {storage, key?}): RouterHistory` (`index.ts`): key defaults to 'conciv-history'
 - `WebStorage` type (`index.ts`): Pick&lt;Storage, 'getItem' | 'setItem'&gt;
 
 ## Invariants
 
-- `MAX_ENTRIES` (`index.ts`): 100, on push and on read; `trim` drops the oldest entries past this and shifts the index down (floored at 0)
+- `MAX_ENTRIES` (`index.ts`): 100; `trim` drops the oldest entries past this and shifts the index down (floored at 0)
 - `isPersisted` (`index.ts`): stored data must be {entries: non-empty array of {href, state?: {__TSR_index}}, index: integer}, otherwise [{href:'/'}] at index 0
 - `readPersisted` (`index.ts`): clamps the stored index to [0, entries.length-1]; a parse or getItem throw falls back to the default
 - `rehydratedState` (`index.ts`): rewrites __TSR_index to the array position; entries without state get a fresh {key, __TSR_index}
@@ -22,7 +22,7 @@ Implements `createWebStorageHistory`, an entries/index history stack on @tanstac
 ## Side Effects
 
 - `persist` (`index.ts`): storage.setItem(key, JSON) on every push, replace, back, forward and go
-- `readPersisted` (`index.ts`): storage.getItem(key) at creation and on every `restore()`
+- `readPersisted` (`index.ts`): storage.getItem(key) once at creation
 - `freshState` (`index.ts`): calls crypto.randomUUID()
 
 ## Verification

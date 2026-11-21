@@ -1,4 +1,6 @@
 import {z} from 'zod'
+import {observable} from 'solid-js'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import {difference} from 'es-toolkit'
 import {ORPCError} from '@orpc/client'
 import {
@@ -13,7 +15,6 @@ import {Conciv, type ConcivClient} from '@conciv/plugin'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {dropLeavingCopies} from '../runtime/persistence/leaving-copy.js'
 import {Definition as PageDefinition} from '@conciv/plugin-page/rpc'
-import {forgetDeletedSessions} from './forget-deleted-sessions.js'
 import {
   DraftRowSchema,
   SessionMetaSchema,
@@ -223,21 +224,37 @@ export function makeAppData(
       console.error('[conciv] could not empty the local draft store', error)
     })
   }
-  const forgetDeletedSession = (sessionId: string): void => {
-    queryClient.setQueryData(sessionKey(sessionId), (meta) => meta && {...meta, hidden: true})
-    endDraftSaves(sessionId)
-    queryClient.setQueriesData<SessionPage>({queryKey: utils.sessions.list.key({type: 'query'})}, (data) =>
-      data ? withoutSessionOnPage(data, sessionId) : data,
-    )
-    queryClient.setQueriesData<ListedPages<'list'>>({queryKey: utils.sessions.list.key({type: 'infinite'})}, (data) =>
-      withoutSessionInPages(data, sessionId),
-    )
-    queryClient.setQueriesData<ListedPages<'search'>>(
-      {queryKey: utils.sessions.search.key({type: 'infinite'})},
-      (data) => withoutSessionInPages(data, sessionId),
-    )
+  const engineBound = async (): Promise<void> => {
+    const bound = Promise.withResolvers<void>()
+    const watching = observable(server).subscribe((apiBase) => {
+      if (apiBase !== '') bound.resolve()
+    })
+    makeEventListener(reading.signal, 'abort', () => bound.resolve())
+    await bound.promise
+    watching.unsubscribe()
   }
-  const stopReadingDeletions = forgetDeletedSessions({client, server, forget: forgetDeletedSession})
+  const forgetDeletedSessions = async () => {
+    await engineBound()
+    for await (const event of client.event.subscribe({signal: reading.signal})) {
+      if (event.type !== 'session.deleted') continue
+      const sessionId = event.data.sessionID
+      queryClient.setQueryData(sessionKey(sessionId), (meta) => meta && {...meta, hidden: true})
+      endDraftSaves(sessionId)
+      queryClient.setQueriesData<SessionPage>({queryKey: utils.sessions.list.key({type: 'query'})}, (data) =>
+        data ? withoutSessionOnPage(data, sessionId) : data,
+      )
+      queryClient.setQueriesData<ListedPages<'list'>>({queryKey: utils.sessions.list.key({type: 'infinite'})}, (data) =>
+        withoutSessionInPages(data, sessionId),
+      )
+      queryClient.setQueriesData<ListedPages<'search'>>(
+        {queryKey: utils.sessions.search.key({type: 'infinite'})},
+        (data) => withoutSessionInPages(data, sessionId),
+      )
+    }
+  }
+  forgetDeletedSessions().catch((error: unknown) => {
+    if (!reading.signal.aborted) console.error('[conciv] stopped reading session deletions', error)
+  })
   return {
     utils,
     client,
@@ -253,9 +270,6 @@ export function makeAppData(
     forgetLocalDrafts,
     lockedOut,
     sessionDeleted: (sessionId) => queryClient.getQueryData(sessionKey(sessionId))?.hidden === true,
-    dispose: () => {
-      reading.abort()
-      stopReadingDeletions()
-    },
+    dispose: () => reading.abort(),
   }
 }

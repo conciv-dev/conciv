@@ -2,7 +2,7 @@ import {defineConfig} from 'tsdown'
 
 export default defineConfig({
   entry: [
-    'src/node.ts',
+    'src/index.ts',
     'src/browser.ts',
     'src/browser-engine.ts',
     'src/happy-dom.ts',

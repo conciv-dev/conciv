@@ -138,7 +138,7 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   per package (add a `describe`, never a second file); a test file is at most 1,000 lines. The app is the one
   exception, as opencode's keeper suites (`_ref/opencode/packages/app/e2e/regression/`): `apps/conciv` has one
   browser-mode file per product area (`src/<area>.browser.test.tsx`), and a new case goes into its area's file.
-- The kits. `@conciv/plugin-testkit/node`: `createEngine(config, start)`, `TestLLM`. `@conciv/plugin-testkit/browser`:
+- The kits. `@conciv/plugin-testkit`: `createEngine(config, start)`, `TestLLM`. `@conciv/plugin-testkit/browser`:
   `mount` and `createEngineRouterHistory`; `mount({engine, history})` opens the app on the engine's saved history (`createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})`) or on any TanStack `RouterHistory`. `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. `config` is the product's own
   `ConcivConfig`; `start` is only what is not product config (`directory`, `timeouts`, `harnesses`, `env`, `fs`,
   `clock`). The engine is real and its chat is scripted with `engine.reply(...)`, built by `TestLLM` (`text`,
@@ -164,7 +164,7 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
 - Assert with the jest-dom matchers (`toBeVisible`, `toHaveAccessibleName`, `toBeDisabled`, ...), never
   `toBeDefined()` or `toBeTruthy()` on a Testing Library query: a `find`/`get` query already throws when nothing
   matches, so those asserts prove nothing. One visible match is `getByRole(...)` (it throws on two) then
-  `toBeVisible()`. The kit loads the matchers in happy-dom and their types come with `@conciv/plugin-testkit/node`;
+  `toBeVisible()`. The kit loads the matchers in happy-dom and their types come with `@conciv/plugin-testkit`;
   browser mode uses vitest's own. The happy-dom project processes CSS (`css: true`), so the mounted app carries the
   same UnoCSS utilities and reset as in browser mode and `toBeVisible` sees a class that hides. happy-dom still
   cannot prove two things, which stay in browser mode: a native `popover` element that was never opened (happy-dom
