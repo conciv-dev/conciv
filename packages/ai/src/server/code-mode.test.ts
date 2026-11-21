@@ -77,3 +77,52 @@ describe('secrets', () => {
     expect(opened).toEqual([])
   })
 })
+
+describe('limits', () => {
+  test.for([
+    {
+      limit: 'time',
+      timeoutMs: 200,
+      program: 'while (true) {}',
+      error: {name: 'TimeoutError', message: 'Code execution timed out'},
+    },
+    {
+      limit: 'memory',
+      timeoutMs: undefined,
+      program: "let text = 'x'\nwhile (true) text += text",
+      error: {name: 'MemoryLimitError', message: 'Code execution exceeded memory limit'},
+    },
+  ])(
+    'a program past its $limit limit is stopped and the agent gets the reason',
+    async ({timeoutMs, program, error}, {driver}) => {
+      const shelfCount = defineTool({
+        name: 'shelf_count',
+        description: 'Count the pots of one plant on the shelf',
+        inputSchema: z.object({plant: z.string()}),
+        outputSchema: z.object({count: z.number()}),
+      }).server(async () => ({count: 0}))
+      const coded = codeModeTools(
+        driver,
+        [shelfCount],
+        null,
+        (value) => value,
+        {
+          errors: false,
+          provider: false,
+          output: false,
+          middleware: false,
+          tools: false,
+          agentLoop: false,
+          config: false,
+          request: false,
+          sandbox: false,
+        },
+        timeoutMs,
+      )
+
+      const result = await coded?.execute.execute?.({typescriptCode: program})
+
+      expect(result).toMatchObject({success: false, error})
+    },
+  )
+})

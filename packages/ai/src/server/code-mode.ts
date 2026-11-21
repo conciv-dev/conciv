@@ -251,13 +251,14 @@ export function codeModeTools(
   search: ((input: unknown) => Promise<unknown>) | null,
   shapeResult: (value: unknown) => unknown,
   debug: DebugConfig,
+  timeoutMs = CODE_MODE_TIMEOUT_MS,
 ): CodeModeTools | null {
   const serverTools = tools.filter(isServerTool).map(convertedSchemas)
   if (serverTools.length === 0) return null
   const secrets = new Map<string, string>()
   const config = {
     driver,
-    timeout: CODE_MODE_TIMEOUT_MS,
+    timeout: timeoutMs,
     debug,
     onSecretParameter: (found: {toolName: string; paramPath: string[]}) =>
       secrets.set(found.toolName, found.paramPath.join('.')),
