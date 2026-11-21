@@ -171,6 +171,10 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   cannot prove two things, which stay in browser mode: a native `popover` element that was never opened (happy-dom
   has no popover support, so it reads as visible), and anything that needs layout (size, position, scroll,
   overflow), because happy-dom lays nothing out.
+- A test that opens a pane on a session that already has saved messages (history, switching back to a session with
+  replies, reopening a past session) goes in the area's browser file (`apps/conciv/src/<area>.browser.test.tsx`),
+  never happy-dom: happy-dom has no canvas, and the thread's text measurement (`@chenglou/pretext`, via
+  `packages/ui-kit-chat/src/styled/text-metrics.ts`) throws for saved turns.
 - No mocks or stubs (`vi.fn`, `vi.mock`, `vi.spyOn`, `vi.stubGlobal`, `vi.stubEnv`, fake modules). A fake is a real
   implementation the product accepts (the scripted harness, an in-memory draft store). Config goes through Effect
   `ConfigProvider`, never env writes.
