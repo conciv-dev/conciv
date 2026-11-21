@@ -4,12 +4,10 @@ import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
-const reviewNotes = './test/fixtures/plugins/review-notes'
-
 describe('notes from a plugin', () => {
   test('a pill attaches a note drawn by its plugin card, Remove takes it off, and a sent note reaches the agent and stays on the message', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: [reviewNotes]})
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
     await engine.reply(TestLLM.text('Header is sticky now'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -45,7 +43,7 @@ describe('notes from a plugin', () => {
 describe('plugin pills', () => {
   test('pills sit in their order, a row runs, a menu pill shows its content, and a pill shows only while its plugin says so', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: [reviewNotes]})
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
