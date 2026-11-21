@@ -1,4 +1,4 @@
-# Test kits, step 2 (new calls) Implementation Plan
+# Test kits, step 2a (new calls, without the outside-agent call) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** as step 0.
 
-**Spec:** `docs/specs/kit-plan.md` (step 2). Facts: lane reports `015930-plugins-x.md` and `020124-plugins-6b.md` in the orchestrator inbox, with the reader files they name.
+**Spec:** `docs/specs/kit-plan.md` (step 2). This plan is step 2a: the outside-agent call, the `hubAccess` option and the header-guard tests of step 2 are NOT in it, because they need the maintainer (see the end). Step 2 is complete only when those are ruled and built. Facts: lane reports `015930-plugins-x.md` and `020124-plugins-6b.md` in the orchestrator inbox, with the reader files they name.
 
 ## Global Constraints
 
@@ -26,7 +26,7 @@ All of `docs/specs/2026-11-21-kit-step-0-plan.md` "Global Constraints" and the a
 4. A restart that loses the kit's own first session, or re-applies `files` and `settings` (Task 6).
 5. A failure answer that crosses to browser mode as a thrown Error and loses its fields (Task 3).
 
-Run order: 1, 2, 3, 4, 5, 6. Tasks 1, 2, 3, 4 and 6 change `harness-engine.ts` (one lane, in order). Task 5 changes only `mount.ts` and can run beside them.
+Run order: 1, 2, 3, 4, 5, 6. Tasks 1, 2, 3, 4 and 6 change `harness-engine.ts` (one lane, in order). Task 5 changes only `mount.ts`; it can run beside Tasks 1, 2, 3 and 6, but not beside Task 4, which also changes `mount.ts`.
 
 ---
 
@@ -36,7 +36,7 @@ Run order: 1, 2, 3, 4, 5, 6. Tasks 1, 2, 3, 4 and 6 change `harness-engine.ts` (
 
 **Interfaces:**
 
-- Produces: `engine.event(type: string): Promise<{arrived: Promise<EngineEvent>}>` with `EngineEvent = {type: string; data: unknown}` (the envelope's plain fields). The outer promise resolves once the subscription is live, so `await engine.event(...)` placed before the action cannot miss the event. `arrived` resolves with the first event of that type. When the engine stops first, `arrived` rejects with a plain message, and a wait nobody awaits raises no unhandled rejection.
+- Produces: `engine.event(type: string): Promise<{arrived: Promise<EngineEvent>}>` with `EngineEvent = {type: string; data: unknown}`, a projection of the envelope (which also has an id and a created time, `contract.ts:270`). The outer promise resolves once the subscription is live, so `await engine.event(...)` placed before the action cannot miss the event. `arrived` resolves with the first event of that type. When the engine stops first, `arrived` rejects with a plain message, and a wait nobody awaits raises no unhandled rejection.
 - Browser mode: `concivEvent(engineId, type)` returns a wait id once live; `concivEventArrived(engineId, waitId)` returns the event. Same split as `gate`.
 
 Facts (read): `event.subscribe({types?})` streams envelopes, engine-wide (`packages/contract/src/contract.ts:616-621`, served at `packages/core/src/api/rpc/router.ts:590-593`); `server.connected` comes first and the subscriber is registered before it is sent (`router.ts:301-318`, `event-feed.ts:93-100`); nothing earlier is replayed; heartbeats arrive on a filtered stream and are skipped; `session.created` is published before `sessions.create` answers (`packages/core/src/sessions/session-rows.ts:144-153`). opencode: subscribe, act, await, no polling (`core/test/config/skill.test.ts:111-124`).
@@ -59,7 +59,26 @@ test('a test waits for an engine event without polling', async () => {
 
 The field name `sessionID` is the reader's (`packages/core/src/app.ts:411-416`); if the real event names it otherwise, report the real shape and use it.
 
-- [ ] **Step 2: Failing run. Step 3: Change. Step 4: Passing run, node and browser mode. Step 5: Gates, commit** `feat(testkits): a test waits for an engine event`.
+A second proof, `packages/harness-testkit/src/kit-event-stop.test.ts` (node), for the stop case:
+
+```ts
+import {expect, test} from 'vitest'
+import {createHarnessEngine} from './harness-engine.js'
+
+test('a wait still open when the engine stops is refused, and one nobody awaits is silent', async () => {
+  const engine = await createHarnessEngine()
+  const awaited = await engine.event('session.created')
+  await engine.event('session.created')
+
+  await engine.stop()
+
+  await expect(awaited.arrived).rejects.toThrow('the engine stopped')
+})
+```
+
+The second wait is never awaited on purpose: vitest fails the run on an unhandled rejection, so the proof also shows there is none. The rejection text contains "the engine stopped".
+
+- [ ] **Step 2: Failing run. Step 3: Change. Step 4: Passing run, node and browser mode, plus the stop proof. Step 5: Gates, commit** `feat(testkits): a test waits for an engine event`.
 
 ---
 
@@ -71,7 +90,7 @@ The field name `sessionID` is the reader's (`packages/core/src/app.ts:411-416`);
 
 Facts (read): the only reader is `packages/plugin-host/src/core/filesystem/watcher.ts:32`; with the watcher on, a changed skill list publishes `skill.updated` with data `{}` (`packages/plugin/src/schema/skill.ts:36`, `packages/plugin-host/src/core/skill.ts:153-159`); a project skill is `<root>/conciv/skills/<id>/SKILL.md` with optional frontmatter `name`, `description`; there is a 100 ms debounce. opencode never turns its watcher on in a test, so this proof has no precedent. On macOS the watcher uses fs-events; watcher tests have saturated it before, so this proof runs alone and is reported with its run time.
 
-- [ ] **Step 1: Proof** `src/kit-watcher.test.ts` (node only):
+- [ ] **Step 1: Proof** `src/kit-watcher.test.ts` (node), and once in browser mode as `src/kit-watcher.browser.test.tsx` with the same steps, writing the file with vitest's own `commands.writeFile` on the absolute path under `engine.root` (so the `fs` option is shown to cross to the engine in browser mode):
 
 ```ts
 import {mkdirSync, writeFileSync} from 'node:fs'
@@ -140,7 +159,7 @@ Rpc id and method: `packages/plugins/test-runner/src/rpc.ts:22-25`; the failure:
 
 - `engine.loginCode(): Promise<string>`: the six digits from `auth.issueCode`, called with the engine's own credential (`contract.ts:423-425`, `packages/core/src/.../engine-login.ts:285-289`). As opencode's test reads its pair code with the server credential (`packages/server/test/process.test.ts:172-192`).
 - `engine.revokeBrowsers(): Promise<void>`: what `conciv auth revoke --all` does, `revokeBrowsers(concivStateDir(root), 'all')` (`packages/protocol/src/engine-trust.ts:83-91`).
-- `mount({login: 'none'})`: the app is bound to the engine's bare origin (`new URL(address.apiBase).origin`) with NO token source, so it is really logged out. The default mount is unchanged. (The kit's `apiBase` ends in `/t/<token>`, which the engine turns into its own bearer, `engine-login.ts:38,348-350`; passing it would log the browser in silently.)
+- `mount({login: 'none' | 'stale'})`, as `kit-plan.md` names it. Both bind the app to the engine's bare origin (`new URL(address.apiBase).origin`). `'none'` gives NO token source, so the browser is untrusted. `'stale'` gives a token source that answers a non-empty token the engine refuses, so the browser is revoked (a refused non-empty token ends in `revoked`, an empty one in `untrusted`, `packages/contract/src/engine-connection-machine.ts:99`). The default mount is unchanged. (The kit's `apiBase` ends in `/t/<token>`, which the engine turns into its own bearer, `engine-login.ts:38,348-350`; passing it would log the browser in silently.)
 - Browser mode: `concivLoginCode`, `concivRevokeBrowsers`.
 
 Labels (read): the locked launcher is "Unauthorized. Authorize conciv" (`apps/conciv/src/shell/fab.tsx:133`); the dialog is "Authorize conciv" (`apps/conciv/src/app/engine-login.tsx:135`) with six textboxes "Digit 1 of 6" to "Digit 6 of 6" (`:160,163`); a full code submits itself; the open chat is the dialog "conciv chat agent"; the revoked text is "This browser is no longer authorized to use conciv." (`apps/conciv/src/shell/engine-lock-messages.ts:3`).
@@ -171,6 +190,7 @@ test('a logged-out browser gets in with the code, and is put out when it is revo
 
   await user.click(await screen.findByRole('button', {name: 'Unauthorized. Authorize conciv'}))
   await user.type(await screen.findByRole('textbox', {name: 'Digit 1 of 6'}), await engine.loginCode())
+  await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
   expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeDefined()
 
   await engine.revokeBrowsers()
@@ -178,7 +198,21 @@ test('a logged-out browser gets in with the code, and is put out when it is revo
 })
 ```
 
-Needs the run, report what happens and adjust only the typing step: whether typing the six digits into "Digit 1 of 6" fills all six boxes or each digit must go into its own box; and whether the chat dialog opens by itself after the code or needs the launcher clicked again.
+Read in review: typing six digits into the first box fills all six and submits (`@zag-js/pin-input` `pin-input.machine.mjs:66,97`, inferred, confirm in the run); a successful login does NOT open the chat (nothing navigates, `apps/conciv/src/router.tsx:227`), so the launcher, now reading "Open conciv chat", is clicked; the engine notices a revoke within its 250 ms check and closes the socket (`engine-login.ts:159`).
+
+A third test in the same files, for `'stale'`:
+
+```tsx
+test('a browser holding a refused token is told it is no longer authorized', async () => {
+  const engine = await createEngine()
+
+  await mount({engine, login: 'stale'})
+
+  expect(await screen.findByText('This browser is no longer authorized to use conciv.')).toBeDefined()
+})
+```
+
+Where that text shows for a revoked browser on the closed route needs the run (it may need the launcher clicked first): report what the app shows and adjust only the steps before the assert.
 
 - [ ] **Step 2: Failing run** (`login` ignored: the launcher reads "Open conciv chat", so the first query fails). **Step 3: Change. Step 4: Passing run, happy-dom and browser mode. Step 5: Gates, commit** `feat(testkits): the login code, revoking browsers, and a logged-out mount`.
 
@@ -212,41 +246,60 @@ test('a host that opens the chat by default gets it open', async () => {
 
 **Files:** `packages/harness-testkit/src/harness-engine.ts`; `packages/plugin-testkit/src/engine.ts`, `browser-commands.ts`, `browser-engine.ts`, `test-projects.ts`; both READMEs; `.changeset/kit-restart.md`.
 
-**Interfaces:** `engine.restart(): Promise<void>`: a full stop and boot of the engine on the same project folder, state, home, token and port. It is a product lifecycle event, not a connection fault: sockets close only because the engine stops. Order: abort the kit's open turns, release a held gate, close the server, dispose the app, make a new app with the same `agentToken` (`packages/core/src/app.ts:197,448`), listen on the same port (`packages/serve/src/serve.ts:14,50`; if the port is taken, fail with a plain message). `files` and `settings` are NOT applied again. The reply queue, `requests()` and `opened()` carry on across it. `engine.session` stays usable: before stopping, the kit gives a session that has no title and no turn a title, because every boot removes empty untitled sessions (`session-rows.ts:342-367`). Browser mode: `concivRestart`.
+**Interfaces:** `engine.restart(): Promise<void>`: a full stop and boot of the engine on the same project folder, state, home, token and port. It is a product lifecycle event, not a connection fault: sockets close only because the engine stops. Order: abort the kit's open turns, release a held gate, close the server, dispose the app, make a new app with the same `agentToken` (`packages/core/src/app.ts:197,448`), listen on the same port (`packages/serve/src/serve.ts:14,50`; if the port is taken, fail with a plain message). `files` and `settings` are NOT applied again. The reply queue, `requests()` and `opened()` carry on across it. `engine.session` stays usable without inventing a title: every boot removes empty untitled sessions (`session-rows.ts:342-367`) and then makes sure the configured session exists (`app.ts:888`, `session-rows.ts:203`), so the kit boots the new app with its first session's id as the configured `sessionId`. Turns are aborted BEFORE a held gate is released, so a held reply does not resume for a moment (today's `stop` does the reverse, `harness-engine.ts:285`). `engine.stop` (which `createEngine` hands to `onTestFinished`, `engine.ts:97`, and the browser handler keeps, `test-projects.ts:111`) is ONE stable function over the current app and server, so a restarted engine is still stopped at the end of the test. If the new app or the listen fails, the new app is disposed, the project root stays for the final stop to remove, and `restart` rejects. Browser mode: `concivRestart`.
 
 Labels (read): while the engine is down the Send button reads "conciv lost connection to the engine"; back up it reads "Send message" (`apps/conciv/src/pane/pane-composer.tsx:58,62,79`); the composer is "Message the conciv agent".
 
-- [ ] **Step 1: Proofs.** `src/kit-restart.test.ts` (node, test-runner):
+- [ ] **Step 1: Proofs.** A proof must fail if `restart` does nothing. `src/kit-restart.test.ts` (node, test-runner):
 
 ```ts
-test('the engine comes back on the same address and keeps answering', async () => {
-  const engine = await createEngine({replies: [TestLLM.text('one', 'a'), TestLLM.text('two', 'b')]})
+import {readFileSync, writeFileSync} from 'node:fs'
+import {join} from 'node:path'
+import {expect, test} from 'vitest'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit/node'
+
+test('the engine comes back on the same address, keeps the project as it is and keeps answering', async () => {
+  const engine = await createEngine({
+    files: {'notes.txt': 'one'},
+    replies: [TestLLM.text('one', 'a'), TestLLM.text('two', 'b')],
+  })
   const before = engine.address.apiBase
   await engine.session.send('first')
+  writeFileSync(join(engine.root, 'notes.txt'), 'two')
+  const started = await engine.event('server.connected')
 
   await engine.restart()
   await engine.session.send('second')
 
   expect(engine.address.apiBase).toBe(before)
+  expect(readFileSync(join(engine.root, 'notes.txt'), 'utf8')).toBe('two')
   expect(await engine.requests()).toHaveLength(2)
+  await expect(started.arrived).rejects.toThrow('the engine stopped')
 })
 ```
+
+The last line is what a no-op `restart` cannot pass: the wait opened before the restart is refused because the engine really stopped (Task 1). If a wait on `server.connected` settles at once instead (the kit skips that first envelope), use any event type that does not fire here and report it.
 
 `apps/conciv/src/restart.dom.test.tsx`, same body as `.browser.test.tsx`:
 
 ```tsx
-test('the open chat reconnects after the engine restarts', async () => {
+test('the open chat loses the engine and reconnects when it restarts', async () => {
   const user = userEvent.setup()
   const engine = await createEngine({replies: [TestLLM.text('back again', 'a')]})
   await mount({engine, route: '/panel/latest?open=true'})
+  await screen.findByRole('button', {name: 'Send message'})
 
-  await engine.restart()
+  const restarted = engine.restart()
+  expect(await screen.findByRole('button', {name: 'conciv lost connection to the engine'})).toBeDefined()
+  await restarted
+
   await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'hello')
   await user.click(await screen.findByRole('button', {name: 'Send message'}))
-
   expect(await screen.findByText('back again')).toBeDefined()
 })
 ```
+
+If the restart is over before the lost-connection label can be seen, report the timing; do not add a delay or a poll.
 
 - [ ] **Step 2: Failing run. Step 3: Change. Step 4: Passing run, node, happy-dom and browser mode; report any page error the browser run shows during the restart. Step 5: Gates, commit** `feat(testkits): a test restarts the engine on the same folder and address`.
 
@@ -260,10 +313,10 @@ test('the open chat reconnects after the engine restarts', async () => {
 
 ## Decisions to confirm (made by the orchestrator while the maintainer was away)
 
-1. `mount({login: 'none'})` only; `'stale'` is left out, because on the closed route it shows the same lock as `'none'`.
+1. `'stale'` is a token source answering a non-empty refused token (the revoked state), not a stored token.
 2. An open event wait rejects when the engine stops, without an unhandled rejection.
 3. `engine.rpc.failure` answers `{type, message, data?}`, as opencode; a non-plugin error is rethrown.
-4. Restart: a running turn is aborted, a held gate is released, a taken port fails loudly, the kit titles an empty first session so it survives.
+4. Restart: a running turn is aborted, then a held gate is released, a taken port fails loudly, and the kit's first session survives by being the configured session of the new boot.
 5. The mount option is named `host`.
 
 ## Product findings, not fixed here
