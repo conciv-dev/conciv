@@ -49,7 +49,7 @@ import {guardedAdapter} from './run-guard.js'
 import {localSandbox} from './local-sandbox.js'
 import {answeredAdapter, answeredMetadata, hookedRequest, type RequestHook} from './model-request.js'
 import {formatLoggedError} from './logged-error.js'
-import {cloneDeepWith, isPlainObject} from 'es-toolkit'
+import {cloneDeepWith, isPlainObject, takeWhile} from 'es-toolkit'
 
 const COMPACTION: z.infer<typeof CompactionMetadataSchema> = {conciv: {compaction: true}}
 
@@ -504,12 +504,17 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     })
   }
 
-  const filterLiveRuns = (threadId: string, except?: string): [string, LiveRun][] =>
-    [...live.entries()].filter(([runId, entry]) => entry.threadId === threadId && runId !== except)
+  const filterLiveRuns = (threadId: string): [string, LiveRun][] =>
+    [...live.entries()].filter(([, entry]) => entry.threadId === threadId)
 
-  const endRuns = async (threadId: string, except?: string): Promise<void> => {
+  const olderLiveRuns = (threadId: string, runId: string): [string, LiveRun][] =>
+    takeWhile([...live.entries()], ([liveRunId]) => liveRunId !== runId).filter(
+      ([, entry]) => entry.threadId === threadId,
+    )
+
+  const endRuns = async (threadId: string, runs: [string, LiveRun][]): Promise<void> => {
     const cancels = await Promise.allSettled(
-      filterLiveRuns(threadId, except).map(async ([runId, entry]) => {
+      runs.map(async ([runId, entry]) => {
         entry.stopping = true
         try {
           await requestRunCancel(stores.runs, runId)
@@ -529,12 +534,17 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
 
   const endThreadRuns = async (threadId: string): Promise<void> => {
     const running = filterLiveRuns(threadId)
-    const interrupted = endRuns(threadId).finally(() => {
+    const interrupted = endRuns(threadId, running).finally(() => {
       for (const [, entry] of running) entry.controller.abort(RUN_CANCEL_REASON)
     })
     const ending = running.map(([, entry]) => entry.settled.promise)
     const [cancelled] = await Promise.allSettled([interrupted, Promise.all(ending)])
     if (cancelled.status === 'rejected') throw cancelled.reason
+  }
+
+  const endOlderRuns = async (turn: Turn, entry: LiveRun): Promise<void> => {
+    if (entry.ending.signal.aborted) return
+    await endRuns(turn.threadId, olderLiveRuns(turn.threadId, turn.runId))
   }
 
   const stopPreparing = (threadId: string, runIds: readonly string[] | undefined): boolean => {
@@ -742,7 +752,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       middleware: [
         defineChatMiddleware({
           name: 'conciv-steer',
-          setup: () => endRuns(turn.threadId, turn.runId),
+          setup: () => endOlderRuns(turn, entry),
         }),
         defineChatMiddleware({
           name: 'conciv-image-tools',

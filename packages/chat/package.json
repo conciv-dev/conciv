@@ -51,6 +51,7 @@
   },
   "devDependencies": {
     "@conciv/harness-testkit": "workspace:*",
+    "@conciv/plugin": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@effect/sql-sqlite-node": "catalog:",

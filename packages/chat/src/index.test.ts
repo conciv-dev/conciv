@@ -46,6 +46,28 @@ describe('two turns', () => {
     await expect(first).resolves.toBeUndefined()
     expect(await engine.requests()).toHaveLength(2)
   })
+
+  it('a turn still preparing its prompt when a new message comes ends without ending the new one', async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/turn-holder']})
+    await engine.reply(TestLLM.text('Here is the second answer', 'second'))
+    const ended = await engine.event('session.execution.interrupted')
+    const held = engine.session.tool('turn_held')
+    const release = engine.session.tool('turn_release')
+
+    const first = engine.session.send('Write a long story')
+    await held.call({hook: 'prompt'})
+    const second = engine.session.send('Never mind, say hi')
+    await held.call({hook: 'context'})
+    await release.call({hook: 'prompt'})
+    await ended.arrived
+    await release.call({hook: 'context'})
+
+    await expect(first).resolves.toBeUndefined()
+    await expect(second).resolves.toBeUndefined()
+    const requests = await engine.requests()
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.messages.at(-1)).toMatchObject({role: 'user', content: 'Never mind, say hi'})
+  })
 })
 
 describe('a failed reply', () => {
