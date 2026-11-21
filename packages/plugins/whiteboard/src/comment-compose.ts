@@ -24,7 +24,6 @@ type ComposeSteps = {
 
 const IDLE: ComposePhase = {status: 'idle'}
 const FALLBACK_ANCHOR: ElementRect = {x: 80, y: 80, width: 0, height: 0}
-const BINDING_WAIT = Duration.seconds(5)
 
 function readComposeTarget(anchor: ElementRect, grab: Grab): ComposeTarget {
   return {
@@ -35,66 +34,67 @@ function readComposeTarget(anchor: ElementRect, grab: Grab): ComposeTarget {
 
 const commentsUnbound = (): CommentsUnbound => CommentsUnbound.make({})
 
-export const makeCommentCompose = Effect.gen(function* () {
-  const phase = yield* SubscriptionRef.make<ComposePhase>(IDLE)
-  const cover = yield* SubscriptionRef.make<ChatCover | undefined>(undefined)
-  const running = yield* FiberHandle.make<void>()
+export const makeCommentCompose = (bindDeadlineMs: number) =>
+  Effect.gen(function* () {
+    const phase = yield* SubscriptionRef.make<ComposePhase>(IDLE)
+    const cover = yield* SubscriptionRef.make<ChatCover | undefined>(undefined)
+    const running = yield* FiberHandle.make<void>()
 
-  const boundCover = (room: string | undefined) =>
-    SubscriptionRef.changes(cover).pipe(
-      Stream.filter((next): next is ChatCover => next !== undefined && (room === undefined || next.room === room)),
-      Stream.runHead,
-      Effect.timeout(BINDING_WAIT),
-      Effect.flatMap(Effect.fromOption(commentsUnbound)),
-      Effect.mapError(commentsUnbound),
-    )
-
-  const roomLeft = (room: string | undefined) =>
-    SubscriptionRef.changes(cover).pipe(
-      Stream.filter((next) => room !== undefined && next !== undefined && next.room !== room),
-      Stream.runHead,
-      Effect.as(''),
-    )
-
-  const compose = (steps: ComposeSteps) =>
-    Effect.gen(function* () {
-      const room = (yield* SubscriptionRef.get(cover))?.room
-      yield* SubscriptionRef.set(phase, {status: 'picking'})
-      const grab = yield* Effect.tryPromise(steps.pick).pipe(
-        Effect.tapError((error) => Effect.logWarning('[whiteboard] the element pick failed', error)),
-        Effect.orElseSucceed(() => null),
+    const boundCover = (room: string | undefined) =>
+      SubscriptionRef.changes(cover).pipe(
+        Stream.filter((next): next is ChatCover => next !== undefined && (room === undefined || next.room === room)),
+        Stream.runHead,
+        Effect.timeout(Duration.millis(bindDeadlineMs)),
+        Effect.flatMap(Effect.fromOption(commentsUnbound)),
+        Effect.mapError(commentsUnbound),
       )
-      if (!grab) return
-      const anchor = grab.rect ?? FALLBACK_ANCHOR
-      const target = readComposeTarget(anchor, grab)
-      const reply = yield* Deferred.make<string>()
-      yield* SubscriptionRef.set(phase, {status: 'composing', target, anchor, reply})
-      const text = (yield* Effect.race(Deferred.await(reply), roomLeft(room))).trim()
-      if (!text) return
-      const bound = yield* boundCover(room)
-      const reveal = steps.canvasOpen()
-      bound.addComment(target, text, reveal)
-      if (!reveal) steps.added()
-    }).pipe(
-      Effect.catchTag('Whiteboard.CommentsUnbound', (error) =>
-        Effect.logWarning('[whiteboard] the comments never bound, the comment was not added', error).pipe(
-          Effect.andThen(Effect.sync(steps.unbound)),
+
+    const roomLeft = (room: string | undefined) =>
+      SubscriptionRef.changes(cover).pipe(
+        Stream.filter((next) => room !== undefined && next !== undefined && next.room !== room),
+        Stream.runHead,
+        Effect.as(''),
+      )
+
+    const compose = (steps: ComposeSteps) =>
+      Effect.gen(function* () {
+        const room = (yield* SubscriptionRef.get(cover))?.room
+        yield* SubscriptionRef.set(phase, {status: 'picking'})
+        const grab = yield* Effect.tryPromise(steps.pick).pipe(
+          Effect.tapError((error) => Effect.logWarning('[whiteboard] the element pick failed', error)),
+          Effect.orElseSucceed(() => null),
+        )
+        if (!grab) return
+        const anchor = grab.rect ?? FALLBACK_ANCHOR
+        const target = readComposeTarget(anchor, grab)
+        const reply = yield* Deferred.make<string>()
+        yield* SubscriptionRef.set(phase, {status: 'composing', target, anchor, reply})
+        const text = (yield* Effect.race(Deferred.await(reply), roomLeft(room))).trim()
+        if (!text) return
+        const bound = yield* boundCover(room)
+        const reveal = steps.canvasOpen()
+        bound.addComment(target, text, reveal)
+        if (!reveal) steps.added()
+      }).pipe(
+        Effect.catchTag('Whiteboard.CommentsUnbound', (error) =>
+          Effect.logWarning('[whiteboard] the comments never bound, the comment was not added', error).pipe(
+            Effect.andThen(Effect.sync(steps.unbound)),
+          ),
         ),
-      ),
-      Effect.ensuring(SubscriptionRef.set(phase, IDLE)),
-    )
+        Effect.ensuring(SubscriptionRef.set(phase, IDLE)),
+      )
 
-  const answer = (text: string) =>
-    SubscriptionRef.get(phase).pipe(
-      Effect.flatMap((current) =>
-        current.status === 'composing' ? Deferred.succeed(current.reply, text) : Effect.succeed(false),
-      ),
-    )
+    const answer = (text: string) =>
+      SubscriptionRef.get(phase).pipe(
+        Effect.flatMap((current) =>
+          current.status === 'composing' ? Deferred.succeed(current.reply, text) : Effect.succeed(false),
+        ),
+      )
 
-  return {
-    phase,
-    cover,
-    start: (steps: ComposeSteps) => FiberHandle.run(running, compose(steps), {onlyIfMissing: true}),
-    answer,
-  }
-})
+    return {
+      phase,
+      cover,
+      start: (steps: ComposeSteps) => FiberHandle.run(running, compose(steps), {onlyIfMissing: true}),
+      answer,
+    }
+  })
