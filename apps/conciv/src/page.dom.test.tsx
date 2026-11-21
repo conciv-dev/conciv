@@ -145,7 +145,7 @@ describe('the agent runs code on the page', () => {
     const result = engine.session.tool('page_eval').call({code: 'return 1 + 1'})
     const ask = await screen.findByRole('group', {name: 'Permission request'})
     expect(ask).toHaveTextContent('page_eval return 1 + 1')
-    await user.click(within(ask).getByRole('button', {name: 'Approve'}))
+    await user.click(within(ask).getByRole('button', {name: 'Allow once'}))
 
     expect(await result).toEqual({result: 2})
   })

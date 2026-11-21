@@ -57,9 +57,9 @@ All verify: the ask comes from `createEngine({permission: 'ask'})` (or a `permis
 | Permission card list "Permission requests": target, explanation, Approve, Deny | the agent asks, the user approves; the tool runs and the reply shows | verify                                   |
 | Announcement "conciv is asking for permission."                                | same flow                                                            | verify                                   |
 | Status chip WAITING while a permission is open                                 | same flow                                                            | verify                                   |
-| Decision chip "Approved"/"Denied" and live status "Approved the request"       | approve, and in a second test deny                                   | verify                                   |
+| Decision chip "Allowed"/"Denied" and live status "Allowed the request"         | approve, and in a second test deny                                   | verify                                   |
 | Tool outcome denied (after Deny)                                               | deny                                                                 | verify                                   |
-| "Always allow" shown only when the ask can be saved                            | `it.each` over a savable and a non-savable ask                       | verify                                   |
+| "Allow always" shown only when the ask can be saved                            | `it.each` over a savable and a non-savable ask                       | verify                                   |
 | Keyboard on a focused permission card: Escape denies, Ctrl/Cmd+Enter approves  | keyboard                                                             | verify; real focus may need browser mode |
 | Permission answered from elsewhere (outside approve) removes the card          | `engine.outside()` approves                                          | verify                                   |
 | Stopping the run removes an open permission card                               | Stop while the card is open                                          | verify                                   |
