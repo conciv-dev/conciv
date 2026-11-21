@@ -31,6 +31,9 @@ export type HarnessEngineOptions = {
   files?: Record<string, string>
   settings?: HarnessEngineSetting[]
   env?: Record<string, string>
+  policies?: ConcivConfig['policies']
+  systemPrompt?: string
+  sessionId?: string
 }
 
 export type HarnessEngineToolFailure = {tool: string; message: string}
@@ -199,8 +202,13 @@ async function newSessionOn(engine: Engine, title: string | undefined): Promise<
   return sessionOn(engine, sessionId)
 }
 
-async function openFirstSession(engine: Engine, settings: HarnessEngineSetting[]): Promise<HarnessEngineSession> {
+async function openFirstSession(
+  engine: Engine,
+  settings: HarnessEngineSetting[],
+  sessionId: string | undefined,
+): Promise<HarnessEngineSession> {
   for (const setting of settings) await engine.rpc.settings.set(setting)
+  if (sessionId !== undefined) return sessionOn(engine, sessionId)
   return newSessionOn(engine, undefined)
 }
 
@@ -222,8 +230,13 @@ async function bootApp(
   harness: HarnessAdapter,
   options: HarnessEngineOptions,
   configProvider: ConfigProvider.ConfigProvider,
-): Promise<MadeApp> {
+): Promise<{app: MadeApp; sessionId: string | undefined}> {
   const config = options.config ?? {}
+  const resolved = resolveConfig(
+    {sessionId: options.sessionId, permission: config.permission, permissions: config.permissions},
+    root,
+    configProvider,
+  )
   for (const [path, content] of Object.entries(options.files ?? {})) writeInside(root, path, content)
   const app = await makeApp({
     print: () => {},
@@ -231,14 +244,13 @@ async function bootApp(
       enabled: true,
       stateRoot: root,
       harness: harness.id,
-      sessionId: undefined,
+      sessionId: resolved.sessionId,
       harnessSessionId: undefined,
-      systemPrompt: '',
+      systemPrompt: options.systemPrompt ?? '',
       hubAccess: 'project',
       plugins: config.plugins ?? [],
-      policies: [],
-      permissions: resolveConfig({permission: config.permission, permissions: config.permissions}, root, configProvider)
-        .permissions,
+      policies: options.policies ?? [],
+      permissions: resolved.permissions,
     },
     cwd: root,
     openInEditor: () => {},
@@ -248,7 +260,7 @@ async function bootApp(
     configProvider,
   })
   await app.awaitActivation().catch((error: unknown) => abandonStart(error, [() => app.dispose()]))
-  return app
+  return {app, sessionId: resolved.sessionId}
 }
 
 export async function createHarnessEngine(options: HarnessEngineOptions = {}): Promise<HarnessEngine> {
@@ -256,7 +268,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
   const harness = script.harness(options.harness)
   const root = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
   const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
-  const app = await Promise.resolve()
+  const {app, sessionId} = await Promise.resolve()
     .then(() => bootApp(root, harness, options, isolatedProvider(root, options.env ?? {})))
     .catch((error: unknown) => abandonStart(error, [removeRoot]))
   const served = await serveHono({fetch: app.fetch}).catch((error: unknown) =>
@@ -272,7 +284,7 @@ export async function createHarnessEngine(options: HarnessEngineOptions = {}): P
     const failures = await settleInOrder([() => served.close(), () => app.dispose(), removeRoot])
     if (failures.length > 0) throw new AggregateError(failures, 'the harness engine did not stop cleanly')
   }
-  const started = await openFirstSession(engine, options.settings ?? []).catch((error: unknown) =>
+  const started = await openFirstSession(engine, options.settings ?? [], sessionId).catch((error: unknown) =>
     abandonStart(error, [stop]),
   )
   return {

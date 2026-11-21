@@ -26,6 +26,9 @@ export type CreateEngineOptions = {
   files?: Record<string, string>
   permission?: ConcivConfig['permission']
   env?: HarnessEngineOptions['env']
+  policies?: HarnessEngineOptions['policies']
+  systemPrompt?: HarnessEngineOptions['systemPrompt']
+  sessionId?: HarnessEngineOptions['sessionId']
 }
 
 export type ToolFailure = HarnessEngineToolFailure
@@ -73,7 +76,7 @@ function locatePlugin(entry: PluginEntry): PluginEntry {
 }
 
 export async function startEngine(options: CreateEngineOptions): Promise<StartedEngine> {
-  const {harness, replies, files, settings, permission, env} = options
+  const {harness, replies, files, settings, permission, env, policies, systemPrompt, sessionId} = options
   const plugins = options.plugins?.map(locatePlugin)
   const {session, newSession, setting, gate, requests, address, stop} = await createHarnessEngine({
     harness,
@@ -82,6 +85,9 @@ export async function startEngine(options: CreateEngineOptions): Promise<Started
     files,
     settings,
     env,
+    policies,
+    systemPrompt,
+    sessionId,
   })
   return {engine: {session, newSession, setting, gate, requests, address}, stop}
 }
