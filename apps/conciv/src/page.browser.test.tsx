@@ -79,3 +79,393 @@ describe('the user stops the agent from the page', () => {
     expect(screen.queryByText('Never shown')).not.toBeInTheDocument()
   })
 })
+
+describe('the agent fills in a form on the page', () => {
+  test('the agent types, picks, ticks and submits an order, and the host page takes it', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_page_fill({selector: '#name', value: 'Ada'})",
+      }),
+      TestLLM.toolCall('c2', 'execute_typescript', {
+        typescriptCode: "return await external_page_select({selector: '#size', value: 'Large'})",
+      }),
+      TestLLM.toolCall('c3', 'execute_typescript', {
+        typescriptCode: "return await external_page_check({selector: '#gift'})",
+      }),
+      TestLLM.toolCall('c4', 'execute_typescript', {
+        typescriptCode: "return await external_page_uncheck({selector: '#news'})",
+      }),
+      TestLLM.toolCall('c5', 'execute_typescript', {
+        typescriptCode: "return await external_page_submit({selector: '#name'})",
+      }),
+      TestLLM.text('The order is placed'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          const order = new FormData(event.currentTarget)
+          event.currentTarget.append(
+            `Order placed for ${String(order.get('name'))}, ${String(order.get('size'))} pot, ${order.get('gift') ? 'gift wrapped' : 'no wrap'}, ${order.get('news') ? 'with news' : 'no news'}`,
+          )
+        }}
+      >
+        <label>
+          Your name
+          <input id="name" name="name" />
+        </label>
+        <label>
+          Pot size
+          <select id="size" name="size">
+            <option value="small">Small</option>
+            <option value="large">Large</option>
+          </select>
+        </label>
+        <label>
+          <input id="gift" name="gift" type="checkbox" />
+          Gift wrap
+        </label>
+        <label>
+          <input id="news" name="news" type="checkbox" checked />
+          Send me news
+        </label>
+      </form>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+
+    expect(await screen.findByText('The order is placed')).toBeVisible()
+    expect(screen.getByRole('textbox', {name: 'Your name'})).toHaveValue('Ada')
+    expect(screen.getByRole('combobox', {name: 'Pot size'})).toHaveValue('large')
+    expect(screen.getByRole('checkbox', {name: 'Gift wrap'})).toBeChecked()
+    expect(screen.getByRole('checkbox', {name: 'Send me news'})).not.toBeChecked()
+    expect(screen.getByText('Order placed for Ada, large pot, gift wrapped, no news')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
+    expect(within(reply).getByText('5 actions')).toBeVisible()
+    expect(within(reply).getByText('Typed')).toBeVisible()
+    expect(within(reply).getByText('Selected')).toBeVisible()
+    expect(within(reply).getByText('Checked a box')).toBeVisible()
+    expect(within(reply).getByText('Unchecked a box')).toBeVisible()
+    expect(within(reply).getByText('Submitted the form')).toBeVisible()
+  })
+
+  test('the agent fills a whole form in one call and writes into an editable note', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode:
+          "return await external_page_fill_form({fields: [{type: 'text', selector: '#street', value: '12 Fern Lane'}, {type: 'select', selector: '#day', value: 'Tuesday'}, {type: 'check', selector: '#door', checked: true}]})",
+      }),
+      TestLLM.toolCall('c2', 'execute_typescript', {
+        typescriptCode: "return await external_page_fill({selector: '#note', value: 'Happy birthday'})",
+      }),
+      TestLLM.text('The delivery is filled in'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <form>
+        <label>
+          Street
+          <input id="street" />
+        </label>
+        <label>
+          Delivery day
+          <select id="day">
+            <option value="monday">Monday</option>
+            <option value="tuesday">Tuesday</option>
+          </select>
+        </label>
+        <label>
+          <input id="door" type="checkbox" />
+          Leave at the door
+        </label>
+        <div id="note" role="textbox" aria-label="Gift note" contentEditable />
+      </form>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+
+    expect(await screen.findByText('The delivery is filled in')).toBeVisible()
+    expect(screen.getByRole('textbox', {name: 'Street'})).toHaveValue('12 Fern Lane')
+    expect(screen.getByRole('combobox', {name: 'Delivery day'})).toHaveValue('tuesday')
+    expect(screen.getByRole('checkbox', {name: 'Leave at the door'})).toBeChecked()
+    expect(screen.getByRole('textbox', {name: 'Gift note'})).toHaveTextContent('Happy birthday')
+    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
+    expect(within(reply).getByText('Filled the form')).toBeVisible()
+    expect(within(reply).getByText('Typed')).toBeVisible()
+  })
+
+  test('the agent reads the controls, then types and clicks by the refs the snapshot gave', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_page_snapshot({selector: '#signup'})",
+      }),
+      TestLLM.toolCall('c2', 'execute_typescript', {
+        typescriptCode: "return await external_page_fill({ref: 'v1', value: 'ada@example.com'})",
+      }),
+      TestLLM.toolCall('c3', 'execute_typescript', {
+        typescriptCode: "return await external_page_click({ref: 'v2'})",
+      }),
+      TestLLM.text('You are signed up'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <form
+        id="signup"
+        onSubmit={(event) => {
+          event.preventDefault()
+          event.currentTarget.append(`Thanks for joining, ${String(new FormData(event.currentTarget).get('email'))}`)
+        }}
+      >
+        <input name="email" aria-label="Email" />
+        <button type="submit">Join</button>
+      </form>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+
+    expect(await screen.findByText('You are signed up')).toBeVisible()
+    expect(screen.getByText('Thanks for joining, ada@example.com')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
+    expect(within(reply).getByText('Captured a snapshot')).toBeVisible()
+    expect(within(reply).getByText('Clicked')).toBeVisible()
+  })
+})
+
+describe('the agent moves around the page', () => {
+  test('the agent hovers a button, presses Enter in a search field and scrolls to the reviews', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_page_hover({selector: '#shipping'})",
+      }),
+      TestLLM.toolCall('c2', 'execute_typescript', {
+        typescriptCode: "return await external_page_fill({selector: '#search', value: 'ferns'})",
+      }),
+      TestLLM.toolCall('c3', 'execute_typescript', {
+        typescriptCode: "return await external_page_press({selector: '#search', key: 'Enter'})",
+      }),
+      TestLLM.toolCall('c4', 'execute_typescript', {
+        typescriptCode: "return await external_page_scroll({selector: '#reviews'})",
+      }),
+      TestLLM.text('Shipping is free over 50 dollars'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <main>
+        <button
+          id="shipping"
+          type="button"
+          onMouseEnter={(event) => event.currentTarget.nextElementSibling?.removeAttribute('hidden')}
+        >
+          Shipping
+        </button>
+        <p hidden>Free shipping over $50</p>
+        <input
+          id="search"
+          aria-label="Search plants"
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.nextElementSibling?.removeAttribute('hidden')
+          }}
+        />
+        <p hidden>Results for ferns</p>
+        <div style={{height: '300vh'}} />
+        <h2 id="reviews">Reviews</h2>
+      </main>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+
+    expect(await screen.findByText('Shipping is free over 50 dollars')).toBeVisible()
+    expect(screen.getByText('Free shipping over $50')).toBeVisible()
+    expect(screen.getByText('Results for ferns')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
+    expect(within(reply).getByText('Hovered')).toBeVisible()
+    expect(within(reply).getByText('Pressed')).toBeVisible()
+    expect(within(reply).getByText('Scrolled')).toBeVisible()
+  })
+
+  test('the agent plays a list of actions in one call and the page answers each', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode:
+          "return await external_page_queue({actions: [{tool: 'page_fill', selector: '#name', value: 'Ada'}, {tool: 'page_click', selector: '#save'}]})",
+      }),
+      TestLLM.text('Your name is saved'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          event.currentTarget.append(`Saved ${String(new FormData(event.currentTarget).get('name'))}`)
+        }}
+      >
+        <input id="name" name="name" aria-label="Your name" />
+        <button id="save" type="submit">
+          Save
+        </button>
+      </form>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+
+    expect(await screen.findByText('Your name is saved')).toBeVisible()
+    expect(screen.getByText('Saved Ada')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
+    expect(within(reply).getByText('Played page actions')).toBeVisible()
+  })
+
+  test('the agent queues the actions, answers at once, and the page plays them after', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode:
+          "return await external_page_queue_async({actions: [{tool: 'page_fill', selector: '#name', value: 'Ada'}, {tool: 'page_click', selector: '#save'}]})",
+      }),
+      TestLLM.text('Saving your name'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          event.currentTarget.append(`Saved ${String(new FormData(event.currentTarget).get('name'))}`)
+        }}
+      >
+        <input id="name" name="name" aria-label="Your name" />
+        <button id="save" type="submit">
+          Save
+        </button>
+      </form>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+
+    expect(await screen.findByText('Saving your name')).toBeVisible()
+    expect(await screen.findByText('Saved Ada')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
+    expect(within(reply).getByText('Queued page actions')).toBeVisible()
+  })
+})
+
+describe('the agent edits the page', () => {
+  test('a class, new text and a stylesheet change what the user sees, in one edit card', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_page_addclass({selector: '#fern', class: 'sold-out'})",
+      }),
+      TestLLM.toolCall('c2', 'execute_typescript', {
+        typescriptCode: "return await external_page_settext({selector: '#title', text: 'Fern shop'})",
+      }),
+      TestLLM.toolCall('c3', 'execute_typescript', {
+        typescriptCode: "return await external_page_css({text: '#promo { display: none }'})",
+      }),
+      TestLLM.text('The shop is updated'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <main>
+        <style>{'.sold-out { display: none }'}</style>
+        <h1 id="title">Plant shop</h1>
+        <p id="promo">Spring sale</p>
+        <p id="fern">Boston fern</p>
+        <p>Snake plant</p>
+      </main>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+
+    expect(await screen.findByText('The shop is updated')).toBeVisible()
+    expect(screen.getByRole('heading', {name: 'Fern shop'})).toBeVisible()
+    expect(screen.getByText('Boston fern')).not.toBeVisible()
+    expect(screen.getByText('Spring sale')).not.toBeVisible()
+    expect(screen.getByText('Snake plant')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
+    expect(within(reply).getByText('Edited the page')).toBeVisible()
+    expect(within(reply).getByText('3 actions')).toBeVisible()
+    expect(within(reply).getByText('Added a class')).toBeVisible()
+    expect(within(reply).getByText('Set the text')).toBeVisible()
+    expect(within(reply).getByText('Injected CSS')).toBeVisible()
+  })
+})
+
+describe('the element inspector', () => {
+  test('the user holds Alt to inspect the page and Esc leaves it', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <button type="button" id="buy">
+        Buy the fern
+      </button>
+    ))
+    const buy = screen.getByRole('button', {name: 'Buy the fern'})
+    await user.click(buy)
+    expect(buy).toHaveFocus()
+
+    await user.keyboard('{Alt>}')
+    expect(
+      await screen.findByText(
+        (_, element) => element?.textContent === 'Inspecting · click to open source · Esc to exit',
+      ),
+    ).toBeVisible()
+    await user.keyboard('{Escape}')
+
+    expect(
+      screen.queryByText((_, element) => element?.textContent === 'Inspecting · click to open source · Esc to exit'),
+    ).not.toBeInTheDocument()
+    await user.keyboard('{/Alt}')
+  })
+
+  test('the agent turns the highlight effect on and the inspector opens on the page', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_page_effect({action: 'enable', effect: 'highlight'})",
+      }),
+      TestLLM.text('The highlight is on'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+
+    expect(await screen.findByText('The highlight is on')).toBeVisible()
+    expect(
+      screen.getByText((_, element) => element?.textContent === 'Inspecting · click to open source · Esc to exit'),
+    ).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
+    expect(within(reply).getByText('Drove an effect')).toBeVisible()
+  })
+})
