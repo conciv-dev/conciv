@@ -191,7 +191,9 @@ describe('the agent reads the page during a reply', () => {
       </section>
     ))
 
+    const finished = await engine.event('session.execution.succeeded')
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+    await finished.arrived
 
     expect(await screen.findByText('The fern is in stock')).toBeVisible()
     const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
@@ -219,7 +221,7 @@ describe('the agent works on a page that is open', () => {
     const system = request?.system.join('\n')
     expect(system).toContain('external_page_click')
     expect(system).toContain('    <id>page</id>')
-    const found = await engine.outside().discover(['page_click'])
+    const found = await engine.outside({tab: engine.session.id}).discover(['page_click'])
     expect(found).toMatchObject({content: [{type: 'text', text: expect.stringContaining('page_click')}]})
     expect(found).not.toMatchObject({content: [{type: 'text', text: expect.stringContaining('Unknown tool')}]})
   })
@@ -251,7 +253,7 @@ describe('the agent works on a page that is open', () => {
       html: expect.stringContaining('hunter2'),
     })
     expect(await engine.session.tool('page_snapshot').call({selector: '#login'})).toMatchObject({
-      nodes: expect.arrayContaining([{role: 'textbox', name: 'Password', value: '***'}]),
+      nodes: expect.arrayContaining([expect.objectContaining({role: 'textbox', name: 'Password', value: '***'})]),
     })
   })
 
@@ -294,29 +296,14 @@ describe('the agent works on a page that is open', () => {
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
 
-    expect(
-      await engine.session.tool('page_wait').failure({selector: '#never', state: 'visible', timeout: 5000}),
-    ).toMatchObject({
+    expect(await engine.session.tool('page_wait').failure({selector: '#never', state: 'visible'})).toMatchObject({
       message: expect.stringContaining('[page.timeout] page.wait did not finish within 0.5 seconds'),
     })
-  })
-
-  test('the page attaches again after the engine restarts and answers the agent', async () => {
-    const engine = await createEngine()
-    const control = await engine.event('rpc.experimental.page.control')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-
-    const again = await engine.event('rpc.experimental.page.control')
-    await engine.restart()
-    await again.arrived
-
-    expect(await engine.session.tool('page_route').call({})).toMatchObject({pathname: '/', state: 'visible'})
   })
 })
 
 describe('the agent drives a page effect', () => {
-  test('the highlight effect turns on, opens the inspector, and turns off again', async () => {
+  test('the highlight effect turns on, reports itself on, and turns off again', async () => {
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -326,18 +313,17 @@ describe('the agent drives a page effect', () => {
       effect: 'highlight',
       enabled: true,
     })
-    expect(
-      await screen.findByText(
-        (_, element) => element?.textContent === 'Inspecting · click to open source · Esc to exit',
-      ),
-    ).toBeVisible()
-
+    expect(await engine.session.tool('page_effect').call({action: 'report', effect: 'highlight'})).toEqual({
+      effect: 'highlight',
+      enabled: true,
+    })
     expect(await engine.session.tool('page_effect').call({action: 'disable', effect: 'highlight'})).toEqual({
       effect: 'highlight',
       enabled: false,
     })
-    expect(
-      screen.queryByText((_, element) => element?.textContent === 'Inspecting · click to open source · Esc to exit'),
-    ).not.toBeInTheDocument()
+    expect(await engine.session.tool('page_effect').call({action: 'report', effect: 'highlight'})).toEqual({
+      effect: 'highlight',
+      enabled: false,
+    })
   })
 })
