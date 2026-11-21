@@ -19,6 +19,7 @@ Source details: [src/README.md](./src/README.md).
 - No helper exports. Everything else in `dist` is loaded by path from the test projects, never imported by a test.
 - The engine always runs in Node: in the test process for node and happy-dom, and behind browser commands for browser mode.
 - Browser commands carry JSON only, so in browser mode `createEngine` refuses a `harness` and a streamed reply; those are tested in node or happy-dom.
+- In happy-dom every file shares one document, so a test that leaves any element in `document.body` after cleanup fails in its own file, and the leftovers are removed so later files start on an empty page (`happy-dom-setup.ts`). Browser mode gives each file its own page.
 - In browser mode the Playwright page's console errors, uncaught errors and responses with status 400 or more are collected per test, as opencode's `trackPageErrors`. `pageErrors()` on the test context reads them when the test asks; nothing fails on its own (`page-errors.ts`).
 - `package.json`: exports point at the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`.
 
