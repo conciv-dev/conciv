@@ -96,12 +96,12 @@ All verify: the ask comes from `createEngine({permission: 'ask'})` (or a `permis
 
 ## Status bar (`pane/status-bar.dom.test.tsx`)
 
-| feature                                                                                 | flow                                            | test                                                                                                                                                  |
-| --------------------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status chip RUNNING, RUNNING 1/N with a queued message, DONE, FAILED (title = reason)   | a run with a queued message, then a failing run | planned: `apps/conciv/src/pane/status-bar.dom.test.tsx` (`engine.gate()` holds the first run)                                                         |
-| Status bar view tabs: Chat + plugin tabs with digit hints, click switches and announces | a fixture plugin with a tab                     | planned: `apps/conciv/src/pane/status-bar.dom.test.tsx`; same fixture plugin as `apps/conciv/src/pane/tool-registry-render.dom.test.tsx`              |
-| Status bar diff cell (N files +adds −dels)                                              | the agent edits a file                          | verify: `apps/conciv/src/pane/status-bar.dom.test.tsx`; whether `engine.write` or a scripted edit feeds the diff; hidden below `@sm` is a browser row |
-| Status bar elapsed clock ("--" before a run, mm:ss after)                               | a run of known length                           | blocked: a browser-side clock (the test clock moves only the engine's Effect clock; fake timers are `vi.*`)                                           |
+| feature                                                                                 | flow                                            | test                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status chip RUNNING, RUNNING 1/N with a queued message, DONE, FAILED (title = reason)   | a run with a queued message, then a failing run | written: `apps/conciv/src/pane/status-bar.dom.test.tsx` › the session status chip › a fresh session shows no chip, a run shows RUNNING and RUNNING 1/2 with a queued message, then DONE, and a failed run shows FAILED with its reason                                                                                                                                                                                                                                                                              |
+| Status bar view tabs: Chat + plugin tabs with digit hints, click switches and announces | a fixture plugin with a tab                     | tested: `apps/conciv/src/shell/plugin-surfaces.dom.test.tsx` › view tabs › the user switches from the chat to the built-in Terminal tab and back, and hears each switch; `apps/conciv/src/shell/plugin-surfaces.dom.test.tsx` › a plugin tab, its dialogs and its overlay › a plugin tab that crashes comes back on Retry, its dialogs answer, and its overlay hides the panel until it closes. The digit hints are `aria-hidden` decoration with no key behind them (`pane/status-bar.tsx`), so no role shows them |
+| Status bar diff cell (N files +adds −dels)                                              | the agent edits a file                          | verify: `apps/conciv/src/pane/status-bar.dom.test.tsx`; whether `engine.write` or a scripted edit feeds the diff; hidden below `@sm` is a browser row                                                                                                                                                                                                                                                                                                                                                               |
+| Status bar elapsed clock ("--" before a run, mm:ss after)                               | a run of known length                           | blocked: a browser-side clock (the test clock moves only the engine's Effect clock; fake timers are `vi.*`)                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 ## Browser mode (`pane.browser.test.tsx`)
 
@@ -117,8 +117,9 @@ All verify: the ask comes from `createEngine({permission: 'ask'})` (or a `permis
 
 | status    | rows |
 | --------- | ---- |
-| tested    | 9    |
-| planned   | 15   |
+| tested    | 10   |
+| written   | 1    |
+| planned   | 13   |
 | verify    | 30   |
 | blocked   | 12   |
 | browser   | 6    |
