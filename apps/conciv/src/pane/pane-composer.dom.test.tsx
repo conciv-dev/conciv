@@ -6,7 +6,7 @@ import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('sending with the keyboard', () => {
   test('Enter sends the typed message, the composer empties and asks for the next instruction, and Enter while an IME composes does not send', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Hello from the agent'))
     await engine.reply(TestLLM.text('Composed'))
@@ -38,7 +38,7 @@ describe('sending with the keyboard', () => {
 
 describe('stopping with Escape', () => {
   test('Escape in the composer stops a reply that is still working', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Too late'))
     const gate = await engine.gate()

@@ -6,7 +6,7 @@ import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('picking a model and an effort', () => {
   test('the prompt shows the picked model and effort, the agent runs on them, and a model with no efforts drops the effort', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('On Sonnet'), TestLLM.text('On Haiku'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -51,7 +51,7 @@ describe('picking a model and an effort', () => {
 
 describe('switching the harness', () => {
   test('a model of another harness asks first when the chat has history, and the next reply runs on it', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine(
       {},
       {harnesses: [{id: 'engine'}, {id: 'second', models: [{id: 'second-fast', name: 'Fast 1', group: 'Second'}]}]},

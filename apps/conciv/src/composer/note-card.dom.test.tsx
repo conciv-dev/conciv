@@ -69,7 +69,7 @@ describe('plugin pills', () => {
 
 describe('the composer actions menu', () => {
   test('Start a new session opens an empty session', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Done with it'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -89,7 +89,7 @@ describe('the composer actions menu', () => {
 
 describe('plugin slash commands', () => {
   test('a plugin command is listed under Commands where its after places it, runs when picked, and a typed command runs with its arguments instead of sending', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 

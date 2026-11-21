@@ -33,7 +33,7 @@ describe('the model menu', () => {
 
 describe('a draft and a send', () => {
   test('a sent message clears its session draft, and the session comes back with its messages and an empty composer', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Shipped'))
     const alpha = await engine.newSession('Alpha')
@@ -64,7 +64,7 @@ describe('a draft and a send', () => {
 
 describe('the composer actions menu', () => {
   test('Escape closes the menu and gives its trigger the focus back', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await screen.findByRole('textbox', {name: 'Message the conciv agent'})

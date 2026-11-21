@@ -6,7 +6,7 @@ import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('attaching text files', () => {
   test('pasted files show as chips, Backspace and Remove take them off, and the sent message carries the kept file', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Read them'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -60,7 +60,7 @@ describe('the send caps', () => {
       notice: 'Message too large to send. Remove an attachment or shorten it.',
     },
   ])('$cap is refused with a notice, and the message stays in the composer', async ({files, notice}) => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 

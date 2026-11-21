@@ -6,7 +6,7 @@ import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('the slash list', () => {
   test('/ lists the commands and a picked harness command reaches the agent as text', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Deploying now'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -42,7 +42,7 @@ describe('the model command', () => {
   })
 
   test('sending exactly /model opens the model menu and sends nothing', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 

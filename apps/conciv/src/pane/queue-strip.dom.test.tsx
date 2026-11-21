@@ -6,7 +6,7 @@ import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('queueing while the agent works', () => {
   test('a message sent during a reply waits in the queue and runs after it', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('First answer'), TestLLM.text('Second answer'))
     const gate = await engine.gate()
@@ -40,7 +40,7 @@ describe('queueing while the agent works', () => {
 
 describe('removing from the queue', () => {
   test('a removed message never reaches the agent', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('First answer'), TestLLM.text('Third answer'))
     const gate = await engine.gate()
@@ -75,7 +75,7 @@ describe('removing from the queue', () => {
 
 describe('steering the agent', () => {
   test('Steer takes a queued message out of the queue and interrupts the reply with it', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.hang(), TestLLM.text('Changed course'))
     const gate = await engine.gate()
@@ -106,7 +106,7 @@ describe('steering the agent', () => {
 
 describe('stopping with a queue', () => {
   test('a long queue shows three rows and a count, and Stop puts every message back in the composer in order', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Too late'))
     const gate = await engine.gate()
