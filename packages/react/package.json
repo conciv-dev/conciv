@@ -36,7 +36,6 @@
     "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vite build --config vite.fixture.config.ts && vitest run",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -44,21 +43,16 @@
     "@conciv/embed": "workspace:^"
   },
   "devDependencies": {
-    "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "playwright": "catalog:",
     "publint": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:",
-    "vitest": "catalog:"
+    "vite": "catalog:"
   },
   "peerDependencies": {
     "@types/react": ">=16.8",

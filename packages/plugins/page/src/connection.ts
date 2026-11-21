@@ -189,6 +189,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
   )
   const work = yield* Scope.make()
   yield* Effect.addFinalizer((exit) => Scope.close(work, exit))
+  const context = yield* Effect.context<never>()
   const machine = {state: createConnectionState()}
   const records = fromStorage(ctx.storage)
   const attachments = yield* RcMap.make({
@@ -409,7 +410,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
         {discard: true},
       )
     })
-    Effect.runSync(
+    Effect.runSyncWith(context)(
       Effect.forkIn(
         serialized(
           sessionId,
@@ -573,7 +574,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
       'captures.list': (input) => records.captures(input.sessionId),
       'sessions.attached': () => Effect.sync(() => selectAttachedSessions(machine.state)),
       'tabs.list': (input) => Effect.sync(() => selectTabs(machine.state, input.sessionId)),
-      symbolicate: (input) => Effect.promise(() => symbolicateFrames(input.frames, ctx.location.directory)),
+      symbolicate: (input) => symbolicateFrames(input.frames, ctx.location.directory),
       'queue.wait': (input, call) =>
         unavailable(
           (signal) => queues.wait(input.sessionId, input.queueId, input.waitMs, signal),

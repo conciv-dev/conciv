@@ -84,12 +84,18 @@ function heldUntilReplied(streams: SocketStreams, replied: Promise<boolean> | un
   void replied.finally(() => streams.replies.delete(replied))
 }
 
+function endedOnRevoke(signal: AbortSignal | undefined, streams: SocketStreams | undefined): AbortSignal | undefined {
+  if (streams === undefined) return signal
+  return AbortSignal.any(signal === undefined ? [streams.revoked] : [signal, streams.revoked])
+}
+
 function rpcHandlerOptions(streams?: SocketStreams): StandardRPCHandlerOptions<RpcContext> {
   return {
     rootInterceptors: [
       (options) =>
         options.next({
           ...options,
+          request: {...options.request, signal: endedOnRevoke(options.request.signal, streams)},
           context: {
             ...options.context,
             headers: {...options.context.headers, ...options.request.headers},

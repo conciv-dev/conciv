@@ -22,60 +22,53 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/testkit.d.ts",
-      "import": "./dist/testkit.js"
+      "types": "./dist/harness-engine.d.ts",
+      "import": "./dist/harness-engine.js"
     },
-    "./until": {
-      "types": "./dist/until.d.ts",
-      "import": "./dist/until.js"
+    "./run-tests": {
+      "types": "./dist/run-tests.d.ts",
+      "import": "./dist/run-tests.js"
     },
-    "./login": {
-      "types": "./dist/login.d.ts",
-      "import": "./dist/login.js"
+    "./test-llm": {
+      "types": "./dist/test-llm.d.ts",
+      "import": "./dist/test-llm.js"
     },
-    "./rpc-mounts": {
-      "types": "./dist/rpc-mounts.d.ts",
-      "import": "./dist/rpc-mounts.js"
-    },
-    "./node": {
-      "types": "./dist/node.d.ts",
-      "import": "./dist/node.js"
+    "./clock": {
+      "types": "./dist/clock-steps.d.ts",
+      "import": "./dist/clock-steps.js"
     }
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test": "node dist/run-tests.js",
+    "build:types": "tsdown -c tsdown.types.config.ts"
   },
   "dependencies": {
-    "@conciv/ai": "workspace:^",
-    "@conciv/contract": "workspace:^",
-    "@conciv/harness": "workspace:^",
-    "@conciv/protocol": "workspace:^",
-    "@conciv/serve": "workspace:^",
     "@modelcontextprotocol/sdk": "catalog:",
-    "@orpc/server": "catalog:",
     "effect": "catalog:",
-    "es-toolkit": "catalog:",
-    "hono": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "vitest": "^5.1.0"
+    "@conciv/ai": "workspace:^",
+    "@conciv/cli": "workspace:^",
+    "@conciv/contract": "workspace:^",
+    "@conciv/core": "workspace:^",
+    "@conciv/harness": "workspace:^",
+    "@conciv/protocol": "workspace:^"
   }
 }

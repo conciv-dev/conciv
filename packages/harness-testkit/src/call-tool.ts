@@ -1,163 +1,70 @@
+import {Client} from '@modelcontextprotocol/sdk/client/index.js'
+import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import {z} from 'zod'
-import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import {connectMcpClient} from './mcp-client.js'
-import {approvalIds} from './run-events.js'
-import {makeBrowserRpcClient} from '@conciv/contract'
 
-export type CallTool = (name: string, input: unknown) => Promise<unknown>
+const DEADLINE_MS = 60_000
 
-export type RunTypescript = (typescriptCode: string) => Promise<unknown>
+const CallResultSchema = z.object({
+  content: z.array(z.object({type: z.string(), text: z.string().optional()}).loose()),
+  isError: z.boolean().optional(),
+})
 
 const ExecuteReplySchema = z.object({result: z.unknown()}).loose()
 
-const TruncatedReplySchema = z
-  .object({'conciv:truncated': z.literal(true), reason: z.string(), head: z.string()})
-  .loose()
+const TruncatedReplySchema = z.object({'conciv:truncated': z.literal(true), reason: z.string()}).loose()
 
-function directCall(name: string, input: unknown): string {
-  return `return await external_${name}(${JSON.stringify(input ?? {})})`
-}
+type Decode = (raw: string) => unknown
 
-function decodeReply(raw: string): unknown {
+function parseReply(raw: string): unknown {
   try {
-    const parsed: unknown = JSON.parse(raw)
-    const reply = ExecuteReplySchema.safeParse(parsed)
-    if (reply.success && 'result' in reply.data) return reply.data.result
-    return parsed
+    return JSON.parse(raw)
   } catch {
     return raw
   }
 }
 
-const DiscoveredToolsSchema = z.object({
-  tools: z.array(z.object({name: z.string(), description: z.string(), typeStub: z.string()})),
-  errors: z.array(z.string()).optional(),
-})
-
-export type DiscoveredTools = z.infer<typeof DiscoveredToolsSchema>
-
-export type DiscoverTools = (toolNames: string[]) => Promise<DiscoveredTools>
-
-export type McpCallOptions = {deadlineMs?: number; label?: string}
-
-const DEFAULT_DEADLINE_MS = 60_000
-
-const DEFAULT_LABEL = 'execute_typescript'
-
-function deadlineMessage(label: string, deadlineMs: number): string {
-  return `runTypescript(${label}) exceeded ${deadlineMs}ms waiting on the MCP execute; the server-side run continues until its own timeout`
+function decodeExecuteReply(raw: string): unknown {
+  const parsed = parseReply(raw)
+  const reply = ExecuteReplySchema.safeParse(parsed)
+  return reply.success && 'result' in reply.data ? reply.data.result : parsed
 }
 
-function toolsDeadlineMessage(label: string, deadlineMs: number): string {
-  return `runTypescript(${label}) exceeded ${deadlineMs}ms waiting on the MCP tools/list; the execute never started`
+function readText(content: z.infer<typeof CallResultSchema>['content']): string {
+  return content.flatMap((part) => (part.type === 'text' && part.text !== undefined ? [part.text] : [])).join('\n')
 }
 
-export function makeRunTypescript(apiBase: string, session: string, options: McpCallOptions = {}): RunTypescript {
-  const deadlineMs = options.deadlineMs ?? DEFAULT_DEADLINE_MS
-  const label = options.label ?? DEFAULT_LABEL
-  return async (typescriptCode) => {
-    const mcp = await connectMcpClient(`${apiBase}/api/mcp`, {[CONCIV_SESSION_HEADER]: session})
-    const deadline = AbortSignal.timeout(deadlineMs)
-    try {
-      const execute = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
-      if (!execute) throw new Error('execute_typescript not on /api/mcp')
-      if (deadline.aborted) throw new Error(toolsDeadlineMessage(label, deadlineMs))
-      const raw = await Promise.resolve(execute.execute({typescriptCode}, {signal: deadline})).catch(
-        (error: unknown) => {
-          if (!deadline.aborted) throw error
-          throw new Error(deadlineMessage(label, deadlineMs), {cause: error})
-        },
-      )
-      if (typeof raw !== 'string') return raw
-      return decodeReply(raw)
-    } finally {
-      await mcp.close().catch(() => {})
-    }
-  }
+function readReply(name: string, raw: unknown, decode: Decode): unknown {
+  const result = CallResultSchema.parse(raw)
+  if (result.isError === true) throw new Error(readText(result.content))
+  const only = result.content[0]
+  const reply = result.content.length === 1 && only?.text !== undefined ? decode(only.text) : result.content
+  const truncated = TruncatedReplySchema.safeParse(reply)
+  if (truncated.success) throw new Error(`the reply for tool "${name}" was truncated (${truncated.data.reason})`)
+  return reply
 }
 
-export function makeDiscoverTools(apiBase: string, session: string): DiscoverTools {
-  return async (toolNames) => {
-    const mcp = await connectMcpClient(`${apiBase}/api/mcp`, {[CONCIV_SESSION_HEADER]: session})
-    try {
-      const discover = (await mcp.tools()).find((entry) => entry.name === 'discover_tools')
-      if (!discover) throw new Error('discover_tools not on /api/mcp')
-      const raw = await discover.execute({toolNames})
-      return DiscoveredToolsSchema.parse(typeof raw === 'string' ? JSON.parse(raw) : raw)
-    } finally {
-      await mcp.close()
-    }
-  }
-}
-
-export function makeCallTool(apiBase: string, session: string, options: McpCallOptions = {}): CallTool {
-  return async (name, input) => {
-    const runTypescript = makeRunTypescript(apiBase, session, {...options, label: options.label ?? name})
-    const reply = await runTypescript(directCall(name, input))
-    const truncated = TruncatedReplySchema.safeParse(reply)
-    if (!truncated.success) return reply
-    throw new Error(
-      `the reply for tool "${name}" was truncated (${truncated.data.reason}); aggregate inside the sandbox with makeRunTypescript instead of pulling the full result`,
-    )
-  }
-}
-
-function abortSignalPromise(signal: AbortSignal): Promise<'aborted'> {
-  if (signal.aborted) return Promise.resolve('aborted')
-  return new Promise((resolve) => signal.addEventListener('abort', () => resolve('aborted'), {once: true}))
-}
-
-async function pumpApprovals(
-  stream: AsyncIterable<ChatEvent>,
-  signal: AbortSignal,
-  decide: (approvalId: string) => Promise<void>,
-): Promise<void> {
-  const iterator = stream[Symbol.asyncIterator]()
-  const aborted = abortSignalPromise(signal)
-  for (;;) {
-    const next = await Promise.race([iterator.next(), aborted])
-    if (next === 'aborted') {
-      await iterator.return?.(undefined)?.catch(() => undefined)
-      return
-    }
-    if (next.done) return
-    for (const approvalId of approvalIds(next.value)) await decide(approvalId)
-  }
-}
-
-export async function withAutoApproval<Result>(
-  apiBase: string,
-  session: string,
-  run: () => Promise<Result>,
-): Promise<Result> {
-  const browser = makeBrowserRpcClient(apiBase, {session: () => session})
-  const abort = new AbortController()
-  const stream = await browser.rpc.chat.events({sessionId: session}, {signal: abort.signal})
-  const decided = new Set<string>()
-  const decide = async (approvalId: string): Promise<void> => {
-    if (decided.has(approvalId)) return
-    decided.add(approvalId)
-    await browser.rpc.chat.permissionDecision({approvalId, reply: 'once'}, {signal: abort.signal})
-  }
-  const pump = pumpApprovals(stream, abort.signal, decide)
-  pump.catch(() => {})
+export async function callTool(apiBase: string, session: string, name: string, input: unknown): Promise<unknown> {
+  const client = new Client({name: 'conciv-test', version: '0.0.0'})
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL(`${apiBase}/api/mcp`), {
+      requestInit: {headers: {[CONCIV_SESSION_HEADER]: session}},
+    }),
+  )
   try {
-    return await run()
+    const deadline = AbortSignal.timeout(DEADLINE_MS)
+    const {tools} = await client.listTools(undefined, {signal: deadline})
+    const direct = tools.some((tool) => tool.name === name)
+    const typescriptCode = `return await external_${name}(${JSON.stringify(input ?? {})})`
+    const call = direct
+      ? {name, arguments: z.record(z.string(), z.unknown()).parse(input ?? {})}
+      : {name: 'execute_typescript', arguments: {typescriptCode}}
+    const raw = await client.callTool(call, undefined, {signal: deadline}).catch((error: unknown) => {
+      if (!deadline.aborted) throw error
+      throw new Error(`the tool ${name} gave no reply within ${DEADLINE_MS}ms`, {cause: error})
+    })
+    return readReply(name, raw, direct ? parseReply : decodeExecuteReply)
   } finally {
-    abort.abort()
-    await pump.finally(() => browser.close())
-  }
-}
-
-export async function approvePending(apiBase: string, session: string): Promise<string[]> {
-  const browser = makeBrowserRpcClient(apiBase, {session: () => session})
-  try {
-    const {pendingApprovals} = await browser.rpc.chat.hydrate({sessionId: session})
-    const pending = pendingApprovals.map((ask) => ask.approvalId)
-    for (const approvalId of pending) await browser.rpc.chat.permissionDecision({approvalId, reply: 'once'})
-    return pending
-  } finally {
-    browser.close()
+    await client.close().catch(() => {})
   }
 }

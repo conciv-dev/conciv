@@ -1,0 +1,33 @@
+{
+  "$schema": "https://v2-10-3.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": [],
+      "outputs": ["dist/**"]
+    },
+    "build:types": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**/*.d.ts", "dist/**/*.d.ts.map"]
+    },
+    "typecheck": {
+      "dependsOn": [
+        "@conciv/core#build",
+        "@conciv/ai#build",
+        "@conciv/contract#build",
+        "@conciv/harness#build",
+        "@conciv/serve#build",
+        "@conciv/protocol#build"
+      ]
+    },
+    "test": {
+      "dependsOn": ["build", "build:types"]
+    },
+    "publint": {
+      "dependsOn": ["build", "build:types"]
+    },
+    "attw": {
+      "dependsOn": ["build", "build:types"]
+    }
+  }
+}

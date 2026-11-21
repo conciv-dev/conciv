@@ -2,27 +2,30 @@
 
 ## Overview
 
-Package root for `@conciv/harness-testkit`. `package.json` exports the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`.
+Starts the real conciv engine (`@conciv/core`) on a local port with a scripted AI chat, for tests. The entry exports `createHarnessEngine(config, start)` and the `TestLLM` reply helpers. `config` is the product's own `ConcivConfig`, as a `conciv.config` file would give it; `start` holds only what must be known before the engine starts and is not product config. A harness author passes the real adapter as `start.harness`, and its chat runs through the scripted replies while its models, commands and history stay its own. Without a harness the engine uses its own quick harness: a fixed model list with a `Claude` group and an `Older versions` group, two slash commands (`model`, `deploy`), and a terminal that is a plain bash shell printing one start line (`model <id> <cols>x<rows>`). So the app's model picker, slash command and terminal journeys run with no CLI; real adapters are proven in e2e. `@conciv/plugin-testkit` builds its `createEngine` on it. Two more entries import nothing from core and no node builtin, so browser mode loads them: `./test-llm`, the `TestLLM` helpers, and `./clock`, the engine clock's advance loop, which `@conciv/plugin-testkit`'s browser mode runs with its own step.
+
+`package.json` exports the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`. Source: [src](./src/README.md).
 
 ## Product path
 
-The testkit runs the real product path and fakes only the expensive externals, the LLM harness and the agent CLIs. A helper talks to the engine the way the product caller it stands in for does: a browser caller goes through the product's browser transport, the partysocket `/rpc-ws` socket from `@conciv/contract`, and a node caller (the CLI, an MCP agent) uses HTTP `/rpc` or `/api/mcp`. Interception observes or faults calls but never swaps the transport.
+The engine is the product's own `makeApp`, and the kit talks to it the way the product callers do: turns, settings, sessions and permission answers over the browser socket from `@conciv/contract`, tool calls over `/api/mcp` as an agent does. Only the AI chat is scripted.
 
-## Interface
+## Replies
 
-- `package.json:exports` - `.` (`src/testkit.ts`), `./until`, `./login`, `./rpc-mounts`.
-- `./login` reads the local engine's port and token from the project's `.conciv/server.json` to build the authenticated engine URL and mint a login code or trusted browser token.
-- `vitest.config.ts` - `ciTest()` with the `node` environment.
-- Source: [src](./src/README.md).
+`engine.reply(...responses)` appends to the reply queue; it takes the reply shapes of opencode's test model (`packages/ai/src/testing.ts` in opencode), on our `ChatEvent` chunks: an array of chunks, or an Effect `Stream` of them. Each model request takes the next reply. A tool turn takes two: the call, then the answer after the tool ran. A request with no reply left fails the run; there is no fallback reply. `TestLLM.text`, `TestLLM.toolCall`, `TestLLM.failAfter` and `TestLLM.hangAfter` build them. A session's `send` settles when the run ends and rejects with the run's error when it fails. `engine.gate()` holds the next model request until the test calls `release`, as opencode's `gate`; `stop` releases a held gate.
 
 ## Invariants
 
-- None
+- The kit does not depend on a test runner at run time; its own node tests use vitest.
+- The quick harness's terminal needs `bash` on the PATH.
+- The harness writes the request's own thread and run ids into every run start, finish and error chunk of a reply.
+- A streamed reply ends when the run is stopped.
+- An engine made with `clock: 'test'` runs its Effect clock reads and sleeps on a test clock that moves only through `engine.clock`; on the real clock every `engine.clock` call rejects with a plain message.
 
 ## Side Effects
 
-- The package root (configs and manifest) has none. At runtime `setup` creates a `conciv-kit-*` temp state root and boots an engine; `cleanup` removes it. Full list in [src/README.md](./src/README.md#side-effects).
+- Each engine makes a `conciv-kit-*` temp folder as its project root and binds a port on `127.0.0.1`; `stop` closes both.
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/harness-testkit` from the repo root (turbo builds the package and its dependencies first)
+- `pnpm exec turbo run test --filter=@conciv/harness-testkit`: the quick harness's lists over the engine rpc, and a reply that fails part-way. Behaviour is also proven by the plugin tests that use `@conciv/plugin-testkit`.

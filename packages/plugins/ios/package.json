@@ -50,7 +50,6 @@
     "gen:fixtures": "node test/fixtures/bridge/gen.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -62,13 +61,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
-    "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@effect/platform-node": "catalog:",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",

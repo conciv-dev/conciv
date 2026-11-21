@@ -113,17 +113,22 @@ export function findOwner(packages: WorkspacePackage[], path: string): Workspace
     .at(0)
 }
 
-function workspaceDependencyNames(manifest: Manifest): string[] {
-  const deps = {...manifest.dependencies, ...manifest.devDependencies}
-  return Object.entries(deps)
+type DependencyField = 'dependencies' | 'devDependencies' | 'optionalDependencies'
+
+function workspaceDependencyNames(manifest: Manifest, fields: DependencyField[]): string[] {
+  const deps = Object.assign({}, ...fields.map((field) => manifest[field]))
+  return Object.entries<string>(deps)
     .filter(([, version]) => version.startsWith('workspace:'))
     .map(([name]) => name)
 }
 
-export function buildDependencyGraph(packages: WorkspacePackage[]): Map<string, string[]> {
+export function buildDependencyGraph(
+  packages: WorkspacePackage[],
+  fields: DependencyField[] = ['dependencies', 'devDependencies'],
+): Map<string, string[]> {
   return packages.reduce((graph, pkg) => {
     if (typeof pkg.manifest.name !== 'string') return graph
-    graph.set(pkg.manifest.name, workspaceDependencyNames(pkg.manifest))
+    graph.set(pkg.manifest.name, workspaceDependencyNames(pkg.manifest, fields))
     return graph
   }, new Map<string, string[]>())
 }

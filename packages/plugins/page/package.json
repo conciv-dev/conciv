@@ -36,10 +36,6 @@
       "types": "./dist/renderer.d.ts",
       "import": "./dist/renderer.js"
     },
-    "./testing": {
-      "types": "./dist/testing.d.ts",
-      "import": "./dist/testing.js"
-    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -49,7 +45,6 @@
     "build": "tsdown && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run --project browser-firefox --coverage.enabled=false && vitest run --project !browser-firefox",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -81,10 +76,6 @@
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
-    "@fontsource-variable/wix-madefor-text": "^5.3.0",
-    "@jridgewell/gen-mapping": "catalog:",
-    "@solidjs/testing-library": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tiptap/core": "catalog:",
     "@tiptap/extension-document": "catalog:",
@@ -95,9 +86,6 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@vitest/browser-playwright": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "playwright": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "solid-js": "catalog:",
@@ -107,8 +95,7 @@
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:"
+    "vite-plugin-solid": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

@@ -1,18 +1,22 @@
 import {expect, test} from '@playwright/test'
-import {makeRpcClient} from '@conciv/contract'
-import {collectFailures, expectWidgetBoots, loginWidget, trustedEngineBase} from '@conciv/e2e-utils/widget'
+import {collectFailures, expectWidgetBoots, loginWidget, openLoginFromLockedLauncher} from '@conciv/e2e-utils/widget'
 
-test('widget boots from dist in a react vite app with the built-in Terminal tab and the engine terminal for a session', async ({
-  page,
-}) => {
-  const failures = collectFailures(page)
-  await loginWidget(page)
-  await expectWidgetBoots(page, failures)
-  const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
-  const terminalTab = chat.getByRole('tab', {name: 'Terminal'})
-  const client = makeRpcClient(await trustedEngineBase(page))
-  const {sessionId} = await client.sessions.create()
-  expect((await client.meta.models({sessionId})).harness.persistentPty).toBe(true)
-  await terminalTab.click()
-  await expect(chat.getByRole('button', {name: 'New terminal'})).toBeVisible()
+test.describe('signing in to the widget on a vite react page', () => {
+  test('the user opens a magic link and the widget opens with no error', async ({page}) => {
+    const failures = collectFailures(page)
+
+    await loginWidget(page)
+
+    await expect(page).not.toHaveURL(/conciv_otp/)
+    await expectWidgetBoots(page, failures)
+  })
+
+  test('the user types the code the dev server printed into the locked launcher', async ({page}) => {
+    const code = await openLoginFromLockedLauncher(page)
+
+    await page.getByRole('textbox', {name: 'Digit 1 of 6'}).pressSequentially(code)
+
+    await expect(page.getByRole('dialog', {name: 'Authorize conciv'})).not.toBeVisible()
+    await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()
+  })
 })

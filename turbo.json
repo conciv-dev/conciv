@@ -29,8 +29,11 @@
         "!LICENSE"
       ]
     },
+    "build:types": {
+      "outputs": ["dist/**/*.d.ts"]
+    },
     "dev": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@conciv/cli#build"],
       "cache": false,
       "persistent": true
     },
@@ -44,11 +47,11 @@
       "outputs": ["storybook-static/**"]
     },
     "typecheck": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "^build:types"],
       "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
     },
     "test": {
-      "dependsOn": ["^build", "build"],
+      "dependsOn": ["^build", "build", "^build:types"],
       "env": ["CI", "GITHUB_ACTIONS"],
       "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"],
       "outputs": ["test-results.json", "coverage/coverage-summary.json"]
@@ -63,12 +66,8 @@
     "attw": {
       "dependsOn": ["build"]
     },
-    "test:perf": {
-      "dependsOn": ["^build"],
-      "cache": false
-    },
     "test:e2e": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@conciv/cli#build"],
       "cache": false,
       "env": ["CI", "GITHUB_ACTIONS"],
       "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"]

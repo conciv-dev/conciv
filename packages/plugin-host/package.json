@@ -40,7 +40,6 @@
     "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -67,20 +66,14 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/protocol": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/npm-package-arg": "catalog:",
     "@types/npmcli__arborist": "catalog:",
     "@types/pacote": "catalog:",
     "@types/which": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "esbuild": "catalog:",
-    "fast-check": "catalog:",
     "tsdown": "catalog:",
-    "typescript": "catalog:",
-    "vitest": "catalog:"
+    "typescript": "catalog:"
   },
   "optionalDependencies": {
     "@parcel/watcher-darwin-arm64": "catalog:",

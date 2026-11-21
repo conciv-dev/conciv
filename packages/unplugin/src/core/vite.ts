@@ -3,7 +3,6 @@ import {readdirSync, existsSync} from 'node:fs'
 import type {Plugin, ViteDevServer} from 'vite'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {Engine} from '@conciv/core/start'
-import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {htmlTags, makeWidgetInject} from './widget-middleware.js'
@@ -39,7 +38,7 @@ function resolvableFrom(id: string, root: string): boolean {
   }
 }
 
-export function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly string[]} = {}) {
+function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly string[]} = {}) {
   const root = opts.root
   const singletons =
     root === undefined ? [...SOLID_SINGLETONS] : SOLID_SINGLETONS.filter((id) => resolvableFrom(id, root))
@@ -102,7 +101,7 @@ async function bootEngine(
     options,
     root: server.config.root,
     port: options.port === undefined ? undefined : {preferred: options.port},
-    bridge: makeViteBridge(server),
+    bridge: await makeViteBridge(server),
     launchEditor: makeOpenInEditor(server.config.root),
     allowedOrigins: devOrigins(server),
     nativePageDir,
@@ -219,6 +218,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
   let managedExcludes: string[] = []
   let docked = false
   let devServer: ViteDevServer | undefined
+  let testing = false
   return {
     name: 'conciv',
     apply: 'serve',
@@ -247,7 +247,8 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         })
       },
     },
-    config(userConfig) {
+    config(userConfig, env) {
+      if (env.mode === 'test') return {}
       const embedFiles =
         builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...embedChunks(builtins.embedEntry)]
       const base = concivSolidConfig({
@@ -273,7 +274,10 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
     configEnvironment(_name, environmentConfig) {
       dropIncludedFromExcludes(environmentConfig.optimizeDeps, managedExcludes)
     },
-    configResolved(config) {
+    async configResolved(config) {
+      testing = config.mode === 'test'
+      if (testing) return
+      const {resolveConfig} = await import('@conciv/core/config')
       docked =
         options.widget !== false &&
         resolveConfig(options, config.root).enabled &&
@@ -286,12 +290,13 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       return loadWidgetModule(id, apiBase, builtins.embedEntry)
     },
     transform(code, id) {
-      if (options.enabled === false) return null
+      if (options.enabled === false || testing) return null
       return stampJsxSource(code, id)
     },
     transformIndexHtml: {
       order: 'pre',
-      handler(_html, ctx) {
+      async handler(_html, ctx) {
+        const {resolveConfig} = await import('@conciv/core/config')
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
         const engine = engines.at(-1)
         if (!cfg.enabled || !engine) return []
@@ -302,6 +307,8 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       },
     },
     async configureServer(server: ViteDevServer) {
+      if (testing) return
+      const {resolveConfig} = await import('@conciv/core/config')
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
       const booted = await bootEngine(

@@ -1,0 +1,157 @@
+import {onTestFinished} from 'vitest'
+import {createComponent} from 'solid-js'
+import {cleanup, render} from '@solidjs/testing-library'
+import {createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
+import {ConcivApp, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
+import {makeBrowserRpcClient} from '@conciv/contract'
+import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
+import {plugins as pluginLoaders} from 'virtual:conciv-test-plugins'
+import type {Engine} from './engine.js'
+
+declare module 'vitest' {
+  interface TestContext {
+    pageErrors: () => Promise<string[]>
+  }
+}
+
+export type MountOptions = {
+  engine?: Engine
+  plugins?: ConcivConfig['plugins']
+  seed?: {storage?: Record<string, unknown>}
+  history?: RouterHistory | EngineRouterHistory
+  host?: ConcivSettingsInit
+  login?: 'none'
+}
+
+const ENGINE_TIMINGS: NonNullable<Platform['timings']>['engine'] = {
+  reconnectMinDelayMs: 10,
+  reconnectMaxDelayMs: 50,
+  connectionLossRetryDelayMs: 10,
+  offlineGraceMs: 10,
+}
+
+function memoryDraftStore(): DraftStore {
+  const documents: Record<string, string> = {}
+  const blobs: Record<string, Blob> = {}
+  return createDraftStore({
+    get: async (key) => documents[key] ?? null,
+    set: async (key, value) => {
+      documents[key] = value
+      return []
+    },
+    remove: async (key) => {
+      delete documents[key]
+    },
+    keys: async () => Object.keys(documents),
+    clear: async () => {
+      for (const key of Object.keys(documents)) delete documents[key]
+      for (const key of Object.keys(blobs)) delete blobs[key]
+    },
+    putBlob: async (blob) => {
+      const id = crypto.randomUUID()
+      blobs[id] = blob
+      return id
+    },
+    getBlob: async (id) => blobs[id] ?? null,
+  })
+}
+
+function writeStorage(storage: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(storage))
+    localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value))
+}
+
+type ComposedPlugin = NonNullable<Platform['plugins']>[number]
+
+type PluginEntry = NonNullable<ConcivConfig['plugins']>[number]
+
+async function composePlugin(entry: PluginEntry): Promise<ComposedPlugin> {
+  const [name, options] = typeof entry === 'string' ? [entry, {}] : entry
+  const loader = pluginLoaders[name]
+  if (loader === undefined) {
+    throw new Error(`the plugin ${name} is neither the package under test nor one of its conciv-plugin dependencies`)
+  }
+  if (loader.kind === 'engine') {
+    throw new Error(
+      `the plugin ${name} runs in the engine: give it to createEngine({plugins}), and its page part reaches the page from the engine`,
+    )
+  }
+  const {setup, ...declarations} = (await loader.load()).default
+  return [{...declarations, id: loader.id, windowEntry: setup && (async () => ({default: setup}))}, options]
+}
+
+function mountedEngine(engine: Engine | undefined, login: MountOptions['login']): ReturnType<Platform['engine']> {
+  if (engine === undefined) return {kind: 'servers'}
+  const {address} = engine
+  if (login === undefined) return {kind: 'bound', apiBase: address.apiBase, token: () => Promise.resolve(address.token)}
+  return {kind: 'bound', apiBase: new URL(address.apiBase).origin}
+}
+
+function mountedPlugins(options: MountOptions): Promise<ComposedPlugin[]> {
+  const entries = options.plugins ?? []
+  if (options.engine === undefined && entries.length === 0) {
+    throw new Error('mount needs an engine, or at least one plugin to find one: give it engine or plugins')
+  }
+  return Promise.all(entries.map(composePlugin))
+}
+
+export type EngineRouterHistory = {initialEntries: readonly string[]; initialIndex?: number}
+
+export function createEngineRouterHistory(options: EngineRouterHistory): EngineRouterHistory {
+  if (options.initialEntries.length === 0) throw new Error('createEngineRouterHistory needs at least one entry')
+  return options
+}
+
+async function saveEngineHistory(engine: Engine, history: EngineRouterHistory): Promise<void> {
+  const client = makeBrowserRpcClient(engine.address.apiBase)
+  try {
+    await client.rpc.auth.trust({token: engine.address.token})
+    await client.rpc.navigation.set({
+      entries: history.initialEntries.map((href) => ({href})),
+      index: history.initialIndex ?? history.initialEntries.length - 1,
+      updatedAt: Date.now(),
+    })
+  } finally {
+    client.close()
+  }
+}
+
+async function mountedNavigation(options: MountOptions): Promise<Platform['navigation']> {
+  const {history, engine} = options
+  if (history !== undefined && 'initialEntries' in history) {
+    if (engine === undefined) throw new Error('an engine history needs the engine it is saved in: give mount an engine')
+    await saveEngineHistory(engine, history)
+    return 'engine'
+  }
+  if (history !== undefined) return {history}
+  return {history: createMemoryHistory({initialEntries: [engine === undefined ? '/panel/connect?open=true' : '/']})}
+}
+
+export type Mount = (options: MountOptions) => Promise<void>
+
+async function mountApp(options: MountOptions): Promise<void> {
+  const plugins = await mountedPlugins(options)
+  onTestFinished(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+  writeStorage(options.seed?.storage ?? {})
+  const interactive = Promise.withResolvers<void>()
+  const platform: Platform = {
+    engine: () => mountedEngine(options.engine, options.login),
+    navigation: await mountedNavigation(options),
+    plugins,
+    root: document,
+    settings: options.host,
+    timings: {engine: ENGINE_TIMINGS},
+    draftStore: () => memoryDraftStore(),
+    onInteractive: () => interactive.resolve(),
+  }
+  render(() => createComponent(ConcivApp, {platform}))
+  await interactive.promise
+}
+
+export function makeMount(): Mount {
+  return mountApp
+}

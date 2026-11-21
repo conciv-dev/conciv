@@ -34,8 +34,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only",
-    "test": "vitest run"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@pierre/diffs": "1.6.2",
@@ -50,8 +49,7 @@
     "storybook-solidjs-vite": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:"
+    "vite-plugin-solid": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

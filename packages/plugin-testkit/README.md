@@ -2,20 +2,33 @@
 
 ## Overview
 
-Published test package that boots the real engine and widget with the fake model chat for widget and plugin tests. The root holds the manifest and the typecheck and test configs.
+Published test package for plugin authors. It has three entries with one export each:
 
-## Product path
+- `@conciv/plugin-testkit` (the package root): `createEngine(config, start)` starts conciv's real engine. `config` is the product's own `ConcivConfig` (`plugins`, `permission`, `hubAccess`, `harness`, `port` and the rest, as a `conciv.config` file gives them); `start` holds what is not product config (`directory`, `timeouts`, `harnesses`, `env`, `fs`, `clock`). The AI is scripted: the test gives its replies with `engine.reply(...)`, built with the `TestLLM` helpers the entry also exports, and changes the engine after start with `engine.write`, `engine.setting`, `engine.stale` and `engine.version`. `engine.gate()` holds the next model request until the test releases it. `clock: 'test'` puts the engine's Effect clock on a test clock, and `engine.clock.advance(call)` moves it until that call settles.
+- `@conciv/plugin-testkit/browser`: `mount({engine, plugins, seed, history})` shows the whole app on that engine and cleans up after the test. `history` is `createEngineRouterHistory({initialEntries: ['/panel/latest?open=true'], initialIndex})` from the same import, the product's own engine-saved history: `mount` saves the entries in the engine (`navigation.set`) and the app restores the whole list as it does in production: the entry at `initialIndex` (the last one by default) shows, the others are its back and forward entries; or any TanStack `RouterHistory` (`createMemoryHistory` from `@tanstack/solid-router`, which the test then holds as a handle). The entries are href strings, not typed routes. Without `history` the app opens closed at `/` with an engine, and on the connect panel in servers mode. The test drives the app through the UI and asserts with the jest-dom matchers (`expect(await screen.findByRole(...)).toBeVisible()`), never `toBeDefined()` or `toBeTruthy()` on a query, which already throws when nothing matches. The matchers are loaded in happy-dom by the kit, browser mode has vitest's own, and the types come with the package root. `plugins` names window plugins as the config does (a name, or `[name, options]`); a plugin with an engine part (its package exports `./server` or `./plugin-experimental`) is refused there, and goes to `createEngine({plugins})`, whose engine sends its page part to the app; with plugins and no engine the app opens in servers mode on its connect panel, as the embed does. `createEngine({}, {port: 'connect', token})` starts the engine on a connect port (4732 to 4741) with that token, so a servers-mode plugin such as try-it finds it. It returns nothing; the test drives the app through the UI.
+- `@conciv/plugin-testkit/vitest`: `concivTest()`, the vite plugin that adds the three vitest projects below, with the kit's own settings and nothing from a private package.
 
-The testkit runs the real product path: the page under test uses the same transports and clients as the product (browser rpc over the partysocket `/rpc-ws` socket), and only the expensive externals, the LLM harness and the agent CLIs, are faked. Interception with `page.routeWebSocket` observes or faults calls on that socket but never swaps the transport. Details in [src/README.md](./src/README.md#product-path).
+The author adds `@conciv/plugin-testkit` to devDependencies and `concivTest()` from `@conciv/plugin-testkit/vitest` to the plugins of the package's one `vite.config.ts`. Under vitest (vite's mode `test`) it adds three test projects: node (`*.test.ts`), happy-dom (`*.dom.test.ts(x)`) and vitest browser mode (`*.browser.test.ts(x)`).
 
-Source and helper behaviour: [src/README.md](./src/README.md).
+Outside vitest (`vite build`, `vite dev`) `concivTest()` does nothing and loads nothing of the test stack, so a package's build needs only the kit's own `dist`. For now `mount` and the happy-dom and browser projects work inside this repo only. Both need `@conciv/app`, which is not published, so the kit lists it (and `@conciv/uno-preset`, which the app's UnoCSS config loads) as devDependencies: `mount` imports the app, and under vitest `concivTest()` reads the app's `uno.config.ts` to build the projects. The engine side, `createEngine` from `@conciv/plugin-testkit` with its `TestLLM` replies, imports neither and works anywhere.
+
+Source details: [src/README.md](./src/README.md).
 
 ## Invariants
 
-- `vitest.config.ts`: `fileParallelism: false`, `testTimeout` 60s
-- `package.json`: exports point at the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`
+- No helper exports. Everything else in `dist` is loaded by path from the test projects, never imported by a test.
+- The engine always runs in Node: in the test process for node and happy-dom, and behind browser commands for browser mode.
+- Browser commands carry JSON only, so in browser mode `engine.reply` refuses a streamed reply (an Effect `Stream`, such as `TestLLM.failAfter` or `TestLLM.hangAfter`); it is tested in node or happy-dom. A real harness adapter is `@conciv/harness-testkit`'s, not this kit's.
+- In happy-dom every file shares one document, so a test that leaves any element in `document.body` after cleanup fails in its own file, and the leftovers are removed so later files start on an empty page (`happy-dom-setup.ts`). Browser mode gives each file its own page.
+- In browser mode the Playwright page's console errors, uncaught errors and responses with status 400 or more are collected per test, as opencode's `trackPageErrors`. `pageErrors()` on the test context reads them when the test asks; nothing fails on its own (`page-errors.ts`).
+- The setup files load none of the engine: `node-setup.ts` imports only the file-level engine list (`file-engines.ts`), so a test that never calls `createEngine` never imports `@conciv/harness-testkit` or core.
+- The vitest config loads none of the engine either: `test-projects.ts` imports the engine only inside the browser command that starts one, so the config costs the same whether or not a run makes an engine.
+- The happy-dom project inlines the page's Solid, Ark, Zag and lucide packages by their name after `node_modules/`, never by a word anywhere in the path: a checkout whose path holds `solid` would otherwise inline every dependency, happy-dom included, whose CommonJS `buffer` import then stops the worker with `require is not defined`.
+- The happy-dom and browser projects add `vite-plugin-solid` only when the author's `vite.config.ts` has none: the projects extend that config, so a second copy compiled every file twice.
+- `--project` with only kit project names (`node`, `happy-dom`, `browser`) makes the kit add only those projects: vitest resolves every project's vite config before it filters, once per project with its own server, so `--project node` ran the author's config and plugins (the router generator among them) for the happy-dom and browser projects too. A filter with a wildcard, a `!` or any other name keeps all three, and vitest filters as before.
+- `package.json`: exports point at the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`.
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/plugin-testkit` from the repo root (turbo builds the package's dependencies first)
-- Typecheck and lint: `cd packages/plugin-testkit && pnpm typecheck && pnpm lint`
+- Typecheck and lint: `pnpm exec turbo run typecheck --filter=@conciv/plugin-testkit`, then `pnpm lint` in this folder.
+- Behaviour is proven by the plugin tests that use the kit.

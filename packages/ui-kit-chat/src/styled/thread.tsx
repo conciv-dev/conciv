@@ -435,7 +435,6 @@ function AssistantTurn(props: {
   return (
     <Message.Root data-conciv-msg role="article" aria-label={label()} class={ASSISTANT_ROOT_CLASS}>
       <NodeListView nodes={nodes()} />
-      <Message.Error />
     </Message.Root>
   )
 }

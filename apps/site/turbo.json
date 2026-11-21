@@ -6,7 +6,7 @@
       "outputs": ["dist/**", ".wrangler/deploy/**"]
     },
     "test:e2e": {
-      "dependsOn": ["^build", "build"]
+      "dependsOn": ["^build", "build", "@conciv/cli#build"]
     }
   }
 }

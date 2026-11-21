@@ -2,11 +2,12 @@ import {randomUUID} from 'node:crypto'
 import {inspect} from 'node:util'
 import {serveHono, type ServeFetch} from '@conciv/serve'
 import {checkEngines, registerEngine, retireEngine, withHomeDb, type EngineRow} from '@conciv/db'
-import {type ConfigProvider, Effect} from 'effect'
+import {type ConfigProvider, Effect, type Layer} from 'effect'
 import {z} from 'zod'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
+import type {EngineStaleness} from '@conciv/contract'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {agentPath} from './engine-login.js'
 import {makeEditorOpener} from './editor/open.js'
@@ -104,6 +105,17 @@ export type StartOpts = {
   devEndpointDir?: string
   homeDir?: string
   configProvider?: ConfigProvider.ConfigProvider
+  clock?: Layer.Layer<never>
+
+  harnesses?: readonly HarnessAdapter[]
+  firstChunkTimeoutMs?: number
+  firstStartTimeoutMs?: number
+  eventHeartbeatIntervalMs?: number
+  stopGraceMs?: number
+  pageReplyTimeoutMs?: number
+  queuedActionTimeoutMs?: number
+  staleness?: () => EngineStaleness | undefined
+  app?: {version?: () => string | undefined}
 }
 
 export type Engine = {
@@ -255,6 +267,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const appOpts: MakeAppOpts = {
     home,
     configProvider,
+    clock: opts.clock,
     harnessRegistry: registry,
     cfg,
     cwd: opts.root,
@@ -273,6 +286,15 @@ export async function start(opts: StartOpts): Promise<Engine> {
     nativePageDir: opts.nativePageDir,
     tokenScopedBase,
     plugins: opts.plugins,
+    harnesses: opts.harnesses,
+    firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
+    firstStartTimeoutMs: opts.firstStartTimeoutMs,
+    eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
+    stopGraceMs: opts.stopGraceMs,
+    pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
+    queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
+    staleness: opts.staleness,
+    app: opts.app,
   }
   const madeApp = Promise.withResolvers<MadeApp>()
   madeApp.promise.catch(() => {})

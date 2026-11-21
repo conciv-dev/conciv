@@ -48,7 +48,6 @@
     "build": "tsdown && tsc -p tsconfig.build.json && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -63,24 +62,17 @@
   "devDependencies": {
     "@conciv/client": "workspace:^",
     "@conciv/embed": "workspace:*",
-    "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-internal": "workspace:*",
-    "@conciv/plugin-testkit": "workspace:^",
-    "@conciv/protocol": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@excalidraw/excalidraw": "catalog:",
     "@excalidraw/mermaid-to-excalidraw": "catalog:",
-    "@playwright/test": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@tanstack/solid-db": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "playwright": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-error-boundary": "catalog:",
@@ -89,8 +81,7 @@
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:"
+    "vite-plugin-solid": "catalog:"
   },
   "peerDependencies": {
     "@conciv/plugin": "workspace:^"

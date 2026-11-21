@@ -1,0 +1,587 @@
+import {randomUUID} from 'node:crypto'
+import {mkdirSync, mkdtempSync, realpathSync, statSync, writeFileSync} from 'node:fs'
+import {rm} from 'node:fs/promises'
+import {tmpdir} from 'node:os'
+import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
+import {ConfigProvider} from 'effect'
+import {rpcStream} from '@conciv/ai/client'
+import {makeBrowserRpcClient, makeRpcClient, type EngineStaleness, type RpcClient} from '@conciv/contract'
+import {start, type StartOpts} from '@conciv/core/start'
+import type {HarnessAdapter} from '@conciv/harness'
+import {ChatEventType, runLifecycleEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import {ConcivConfigSchema, type ConcivConfig} from '@conciv/protocol/config-types'
+import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-ports'
+import {revokeBrowsers} from '@conciv/protocol/engine-trust'
+import {concivStateDir} from '@conciv/protocol/state-types'
+import {z} from 'zod'
+import {callTool} from './call-tool.js'
+import {holdTestClock, realClock, type HarnessEngineClock, type HeldClock} from './clock.js'
+import {outsideAgent, type Outside, type OutsideAgent} from './outside.js'
+import {replyScript, type ReplyScript, type ScriptedHarness} from './scripted-harness.js'
+import type {Gate, ModelRequest, Response} from './test-llm.js'
+import {isolatedEnv} from './isolated-env.js'
+import {until} from './until.js'
+
+export * as TestLLM from './test-llm.js'
+export {cli, type CliOptions, type CliRun} from './cli.js'
+export type {HarnessEngineClock} from './clock.js'
+export type {Outside, OutsideAgent, OutsideReply} from './outside.js'
+
+export type HarnessEngineSetting = {scope: 'project' | 'global'; namespace: string; key: string; value: unknown}
+
+export type EngineStart = {
+  directory?: string
+  timeouts?: Pick<
+    StartOpts,
+    | 'firstChunkTimeoutMs'
+    | 'firstStartTimeoutMs'
+    | 'eventHeartbeatIntervalMs'
+    | 'stopGraceMs'
+    | 'pageReplyTimeoutMs'
+    | 'queuedActionTimeoutMs'
+  >
+  harnesses?: ScriptedHarness[]
+  env?: Record<string, string>
+  fs?: {filewatcher?: boolean}
+  clock?: 'test'
+  port?: 'connect'
+  token?: string
+}
+
+export type HarnessEngineStart = EngineStart & {harness?: HarnessAdapter}
+
+export type HarnessEngineToolFailure = {tool: string; message: string}
+
+export type HarnessEngineTool = {
+  call: (input: unknown) => Promise<unknown>
+  failure: (input: unknown) => Promise<HarnessEngineToolFailure>
+}
+
+export type HarnessEngineSession = {
+  id: string
+  send: (text: string) => Promise<void>
+  approve: () => Promise<void>
+  stop: () => Promise<void>
+  tool: (name: string) => HarnessEngineTool
+}
+
+export type HarnessEngineAddress = {apiBase: string; token: string}
+
+type HarnessEngineOpened = {file: string; line?: number; column?: number}
+
+type HarnessEngineEvent = {type: string; data: unknown}
+
+type HarnessEngineEventWait = {arrived: Promise<HarnessEngineEvent>}
+
+type HarnessEngineRpcFailure = {type: string; message: string; data?: unknown}
+
+type HarnessEngineRpc = {
+  call: (rpcId: string, method: string, input?: unknown) => Promise<unknown>
+  failure: (rpcId: string, method: string, input?: unknown) => Promise<HarnessEngineRpcFailure>
+}
+
+const PluginRpcErrorSchema = z.object({
+  defined: z.literal(true),
+  code: z.enum(['PLUGIN_RPC', 'PLUGIN_RPC_INTERNAL']),
+  data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
+})
+
+const AddressInUseSchema = z.object({code: z.literal('EADDRINUSE')})
+
+export type HarnessEngine = {
+  session: HarnessEngineSession
+  newSession: (title?: string) => Promise<HarnessEngineSession>
+  setting: (setting: HarnessEngineSetting) => Promise<void>
+  gate: () => Promise<Gate>
+  requests: () => Promise<ModelRequest[]>
+  address: HarnessEngineAddress
+  root: string
+  opened: () => Promise<HarnessEngineOpened[]>
+  event: (type: string) => Promise<HarnessEngineEventWait>
+  rpc: HarnessEngineRpc
+  loginCode: () => Promise<string>
+  revokeBrowsers: () => Promise<void>
+  restart: () => Promise<void>
+  clock: HarnessEngineClock
+  outside: (agent?: OutsideAgent) => Outside
+  reply: (...responses: Response[]) => Promise<void>
+  stale: (staleness: EngineStaleness) => Promise<void>
+  version: (version: string) => Promise<void>
+  write: (path: string, content: string) => Promise<void>
+  stop: () => Promise<void>
+}
+
+type Step = () => unknown
+
+type TurnMessage = {id: string; role: 'user'; parts: ChatMessage['parts']}
+
+type OpenTurn = {sessionId: string; runId: string; abort: AbortController}
+
+type Turns = {
+  send: (sessionId: string, text: string) => Promise<void>
+  runIds: (sessionId: string) => string[]
+  closeAll: () => void
+}
+
+type Engine = {rpc: RpcClient; apiBase: string; turns: Turns}
+
+type Started = Awaited<ReturnType<typeof start>>
+
+type Running = {started: Started; close: () => void}
+
+type Live = {staleness: EngineStaleness | undefined; version: string | undefined}
+
+type Boot = {
+  root: string
+  project: string
+  harnesses: HarnessList
+  config: ConcivConfig
+  options: HarnessEngineStart
+  configProvider: ConfigProvider.ConfigProvider
+  opened: HarnessEngineOpened[]
+  live: Live
+  heldClock: HeldClock | undefined
+}
+
+async function settleInOrder(steps: Step[]): Promise<unknown[]> {
+  const failures: unknown[] = []
+  for (const step of steps) {
+    const [outcome] = await Promise.allSettled([Promise.resolve().then(step)])
+    if (outcome?.status === 'rejected') failures.push(outcome.reason)
+  }
+  return failures
+}
+
+async function abandonStart(error: unknown, steps: Step[]): Promise<never> {
+  const failures = await settleInOrder(steps)
+  if (failures.length === 0) throw error
+  throw new AggregateError([error, ...failures], 'the harness engine did not start')
+}
+
+function writeInside(root: string, path: string, content: string): void {
+  const target = resolve(root, path)
+  const inside = relative(root, target)
+  if (inside === '' || inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside)) {
+    throw new Error(`the project file ${path} resolves outside the project root ${root}`)
+  }
+  mkdirSync(dirname(target), {recursive: true})
+  writeFileSync(target, content)
+}
+
+async function* streamed(opened: Promise<AsyncIterable<ChatEvent>>): AsyncGenerator<ChatEvent> {
+  yield* await opened
+}
+
+function endsRun(event: ChatEvent, runId: string): boolean {
+  if (event.type === ChatEventType.RUN_FINISHED) return event.finishReason !== 'tool_calls'
+  const lifecycle = runLifecycleEvent.parse(event)
+  return lifecycle?.phase === 'aborted' && lifecycle.runId === runId
+}
+
+async function readTurn(
+  events: AsyncIterable<ChatEvent>,
+  runId: string,
+  ended: () => void,
+  failed: (error: Error) => void,
+): Promise<void> {
+  for await (const event of events) {
+    if (event.type === ChatEventType.RUN_ERROR) failed(new Error(event.message))
+    else if (endsRun(event, runId)) ended()
+  }
+  ended()
+}
+
+function makeTurns(rpc: RpcClient): Turns {
+  const open: OpenTurn[] = []
+  const connection = rpcStream((_messages, _data, signal, input) =>
+    streamed(rpc.chat.send({sessionId: input.threadId, runId: input.runId, messages: input.messages}, {signal})),
+  )
+  return {
+    send: (sessionId, text) => {
+      const runId = randomUUID()
+      const abort = new AbortController()
+      open.push({sessionId, runId, abort})
+      const message: TurnMessage = {id: `${runId}-user`, role: 'user', parts: [{type: 'text', content: text}]}
+      const events = connection.connect([message], {}, abort.signal, {threadId: sessionId, runId})
+      const {promise, resolve: ended, reject} = Promise.withResolvers<void>()
+      readTurn(events, runId, ended, reject).catch(reject)
+      return promise
+    },
+    runIds: (sessionId) => open.filter((turn) => turn.sessionId === sessionId).map((turn) => turn.runId),
+    closeAll: () => {
+      for (const turn of open.splice(0)) turn.abort.abort()
+    },
+  }
+}
+
+function failedTool(name: string, call: Promise<unknown>): Promise<HarnessEngineToolFailure> {
+  return call.then(
+    (output) => {
+      throw new Error(`the tool ${name} answered instead of failing: ${JSON.stringify(output)}`)
+    },
+    (error: unknown) => ({tool: name, message: error instanceof Error ? error.message : String(error)}),
+  )
+}
+
+async function asSession(engine: Engine, sessionId: string, use: (rpc: RpcClient) => Promise<void>): Promise<void> {
+  const browser = makeBrowserRpcClient(engine.apiBase, {session: () => sessionId})
+  try {
+    await use(browser.rpc)
+  } finally {
+    browser.close()
+  }
+}
+
+function approvePending(engine: Engine, sessionId: string): Promise<void> {
+  return asSession(engine, sessionId, async (rpc) => {
+    const pending = (): Promise<string[]> =>
+      rpc.chat.hydrate({sessionId}).then(({pendingApprovals}) => pendingApprovals.map((ask) => ask.approvalId))
+    await until(async () => (await pending()).length > 0)
+    for (const approvalId of await pending()) await rpc.chat.permissionDecision({approvalId, reply: 'once'})
+  })
+}
+
+function stopRun(engine: Engine, sessionId: string): Promise<void> {
+  return asSession(engine, sessionId, async (rpc) => {
+    const {activeRun} = await rpc.chat.hydrate({sessionId})
+    const runIds = engine.turns.runIds(sessionId)
+    await rpc.chat.stop({sessionId, runIds: activeRun === null ? runIds : [activeRun.runId, ...runIds]})
+  })
+}
+
+function sessionOn(engine: Engine, id: string): HarnessEngineSession {
+  return {
+    id,
+    send: (text) => engine.turns.send(id, text),
+    approve: () => approvePending(engine, id),
+    stop: () => stopRun(engine, id),
+    tool: (name) => ({
+      call: (input) => callTool(engine.apiBase, id, name, input),
+      failure: (input) => failedTool(name, callTool(engine.apiBase, id, name, input)),
+    }),
+  }
+}
+
+async function newSessionOn(engine: Engine, title: string | undefined): Promise<HarnessEngineSession> {
+  const {sessionId} = await engine.rpc.sessions.create()
+  if (title !== undefined) await engine.rpc.sessions.rename({sessionId, title})
+  return sessionOn(engine, sessionId)
+}
+
+async function openFirstSession(engine: Engine, sessionId: string | undefined): Promise<HarnessEngineSession> {
+  if (sessionId !== undefined) return sessionOn(engine, sessionId)
+  return newSessionOn(engine, undefined)
+}
+
+async function matching(
+  events: AsyncIterable<{type: string; data: unknown}>,
+  type: string,
+): Promise<HarnessEngineEvent> {
+  for await (const event of events) if (event.type === type) return {type: event.type, data: event.data}
+  throw new Error(`the engine stopped before a ${type} event arrived`)
+}
+
+const OPENING_EVENT = 'server.connected'
+
+async function eventWait(engine: Engine, type: string, waits: Set<AbortController>): Promise<HarnessEngineEventWait> {
+  if (type === OPENING_EVENT) {
+    throw new Error(
+      `${OPENING_EVENT} cannot be waited for: the engine sends it once, as the first frame of each event subscription, and event() resolves once that frame has come`,
+    )
+  }
+  const abort = new AbortController()
+  waits.add(abort)
+  const events = await engine.rpc.event.subscribe({types: [type]}, {signal: abort.signal}).catch((error: unknown) => {
+    waits.delete(abort)
+    throw error
+  })
+  await events.next()
+  const arrived = matching(events, type)
+    .catch((error: unknown) => {
+      if (abort.signal.aborted) throw new Error(`the engine stopped before a ${type} event arrived`)
+      throw error
+    })
+    .finally(() => waits.delete(abort))
+  arrived.catch(() => {})
+  return {arrived}
+}
+
+function rpcFailure(error: unknown): HarnessEngineRpcFailure {
+  const failure = PluginRpcErrorSchema.safeParse(error)
+  if (!failure.success) throw error
+  const {type, message, data} = failure.data.data
+  return data === undefined ? {type, message} : {type, message, data}
+}
+
+function pluginRpc(engine: Engine): HarnessEngineRpc {
+  const call = (rpcId: string, method: string, input?: unknown): Promise<unknown> =>
+    engine.rpc.plugin.call({rpcId, method, input})
+  return {
+    call,
+    failure: (rpcId, method, input) =>
+      call(rpcId, method, input).then((output) => {
+        throw new Error(`the rpc ${rpcId}.${method} answered instead of failing: ${JSON.stringify(output)}`)
+      }, rpcFailure),
+  }
+}
+
+function engineHome(root: string): string {
+  return join(concivStateDir(root), 'home')
+}
+
+function isolatedProvider(root: string, options: HarnessEngineStart): ConfigProvider.ConfigProvider {
+  const temporary = join(concivStateDir(root), 'tmp')
+  mkdirSync(temporary, {recursive: true})
+  return ConfigProvider.fromEnvRecord(
+    {
+      ...isolatedEnv(process.env, engineHome(root), temporary),
+      ...options.env,
+      ...(options.fs?.filewatcher === true ? {} : {CONCIV_DISABLE_FILEWATCHER: 'true'}),
+    },
+    {preserveEmptyStrings: true},
+  )
+}
+
+function repeatedId(harnesses: ScriptedHarness[]): string | undefined {
+  const ids = harnesses.map((harness) => harness.id)
+  return ids.find((id, index) => ids.indexOf(id) !== index)
+}
+
+type HarnessList = [HarnessAdapter, ...HarnessAdapter[]]
+
+function scriptedList(options: HarnessEngineStart, harnesses: ScriptedHarness[], script: ReplyScript): HarnessList {
+  if (options.harness !== undefined)
+    throw new Error('harnesses and harness cannot be given together: harnesses are scripted')
+  const [first, ...rest] = harnesses
+  if (first === undefined) throw new Error('harnesses is empty: give at least the engine harness')
+  const repeated = repeatedId(harnesses)
+  if (repeated !== undefined) throw new Error(`harnesses lists the id ${repeated} twice: each harness needs its own id`)
+  return [script.scripted(first), ...rest.map((other) => script.scripted(other))]
+}
+
+function listedHarnesses(options: HarnessEngineStart, script: ReplyScript): HarnessList {
+  if (options.harnesses !== undefined) return scriptedList(options, options.harnesses, script)
+  if (options.harness !== undefined) return [script.adapter(options.harness)]
+  return [script.scripted({})]
+}
+
+function pickedFirst(harnesses: HarnessList, id: string | undefined): HarnessList {
+  if (id === undefined) return harnesses
+  const picked = harnesses.find((harness) => harness.id === id)
+  if (picked === undefined) {
+    const ids = harnesses.map((harness) => harness.id).join(', ')
+    throw new Error(`the config names the harness ${id}, but the engine's harnesses are ${ids}`)
+  }
+  return [picked, ...harnesses.filter((harness) => harness !== picked)]
+}
+
+const KIT_OWNED_FIELDS = ['stateRoot', 'homeDir', 'devEndpointDir'] as const
+
+function engineConfig(given: ConcivConfig): ConcivConfig {
+  const config = ConcivConfigSchema.parse(given)
+  const owned = KIT_OWNED_FIELDS.find((field) => config[field] !== undefined)
+  if (owned !== undefined) {
+    throw new Error(`the kit sets ${owned} itself, inside the engine's temp root: leave ${owned} out of the config`)
+  }
+  return config
+}
+
+function fixtureFolder(options: HarnessEngineStart): string | undefined {
+  if (options.directory === undefined) return undefined
+  const folder = resolve(options.directory)
+  if (!statSync(folder, {throwIfNoEntry: false})?.isDirectory()) {
+    throw new Error(`the directory ${folder} is not an existing folder`)
+  }
+  return folder
+}
+
+function openedFile(file: string, line: number | undefined, column: number | undefined): HarnessEngineOpened {
+  return {file, ...(line === undefined ? {} : {line}), ...(column === undefined ? {} : {column})}
+}
+
+function bootApp(
+  {root, project, harnesses: [harness, ...others], config, options, configProvider, opened, live, heldClock}: Boot,
+  previous: {started: Started; sessionId: string} | undefined,
+  connectPort?: number,
+): Promise<Started> {
+  const home = engineHome(root)
+  return start({
+    options: {
+      ...config,
+      stateRoot: root,
+      harness: harness.id,
+      ...(previous === undefined ? {} : {sessionId: previous.sessionId}),
+    },
+    root: project,
+    harness,
+    harnesses: others,
+    ...options.timeouts,
+    staleness: () => live.staleness,
+    app: {version: () => live.version},
+    homeDir: home,
+    devEndpointDir: join(home, 'dev-endpoint'),
+    configProvider,
+    clock: heldClock?.layer,
+    launchEditor: (file, line, column) => {
+      opened.push(openedFile(file, line, column))
+    },
+    print: () => {},
+    ...portRequest(config, options.token, previous?.started, connectPort),
+  })
+}
+
+function portRequest(
+  config: ConcivConfig,
+  token: string | undefined,
+  previous: Started | undefined,
+  connectPort: number | undefined,
+): Pick<StartOpts, 'port' | 'accessToken'> {
+  if (previous !== undefined) return {port: {exact: previous.port}, accessToken: previous.agentToken}
+  const port = connectPort ?? config.port
+  return port === undefined ? {accessToken: token} : {port: {exact: port}, accessToken: token}
+}
+
+async function bootOnConnectPort(boot: Boot, port: number, refused: unknown): Promise<Started> {
+  if (port > CONNECT_LAST_PORT) {
+    throw new Error(`no free port between ${CONNECT_FIRST_PORT} and ${CONNECT_LAST_PORT}: ${String(refused)}`)
+  }
+  return bootApp(boot, undefined, port).catch((error: unknown) => {
+    if (!AddressInUseSchema.safeParse(error).success) throw error
+    return bootOnConnectPort(boot, port + 1, error)
+  })
+}
+
+async function bootFirst(boot: Boot): Promise<Started> {
+  if (boot.options.port !== 'connect') {
+    if (boot.options.token !== undefined) {
+      throw new Error("start gives a token without port: 'connect': the token is the connect port's pairing token")
+    }
+    return bootApp(boot, undefined)
+  }
+  if (boot.config.port !== undefined) {
+    throw new Error(
+      `the config gives port ${boot.config.port} and start gives port: 'connect': give the engine one port`,
+    )
+  }
+  return bootOnConnectPort(boot, CONNECT_FIRST_PORT, undefined)
+}
+
+function fixtureWrite(project: string, fixture: string | undefined): (path: string, content: string) => Promise<void> {
+  return async (path, content) => {
+    if (fixture !== undefined) {
+      throw new Error(
+        `the engine runs on the fixture folder ${fixture}: put its files in the fixture, not through write`,
+      )
+    }
+    writeInside(project, path, content)
+  }
+}
+
+function connect(engine: Engine, browser = makeBrowserRpcClient(engine.apiBase)): () => void {
+  engine.rpc = browser.rpc
+  engine.turns = makeTurns(browser.rpc)
+  return () => {
+    engine.turns.closeAll()
+    browser.close()
+  }
+}
+
+async function bootAgain(boot: Boot, engine: Engine, sessionId: string, running: Running): Promise<Running> {
+  const started = await bootApp(boot, {started: running.started, sessionId})
+  return {started, close: connect(engine)}
+}
+
+async function closeRunning(running: Running | undefined): Promise<unknown[]> {
+  if (running === undefined) return []
+  running.close()
+  return settleInOrder([() => running.started.stop()])
+}
+
+export async function createHarnessEngine(
+  given: ConcivConfig = {},
+  options: HarnessEngineStart = {},
+): Promise<HarnessEngine> {
+  const config = engineConfig(given)
+  const script = replyScript()
+  const harnesses = pickedFirst(listedHarnesses(options, script), config.harness)
+  const fixture = fixtureFolder(options)
+  const root = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
+  const project = fixture ?? root
+  const opened: HarnessEngineOpened[] = []
+  const live: Live = {staleness: undefined, version: undefined}
+  const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
+  const heldClock = options.clock === 'test' ? await holdTestClock() : undefined
+  const closeClock = async (): Promise<void> => heldClock?.close()
+  const boot: Boot = {
+    root,
+    project,
+    harnesses,
+    config,
+    options,
+    configProvider: isolatedProvider(root, options),
+    opened,
+    live,
+    heldClock,
+  }
+  const first = await bootFirst(boot).catch((error: unknown) => abandonStart(error, [removeRoot, closeClock]))
+  const apiBase = `http://127.0.0.1:${first.port}/t/${first.agentToken}`
+  const browser = makeBrowserRpcClient(apiBase)
+  const engine: Engine = {apiBase, rpc: browser.rpc, turns: makeTurns(browser.rpc)}
+  const state: {running: Running | undefined} = {running: {started: first, close: connect(engine, browser)}}
+  const waits = new Set<AbortController>()
+  const halt = async (): Promise<unknown[]> => {
+    for (const wait of waits) wait.abort()
+    engine.turns.closeAll()
+    script.releaseGate()
+    const running = state.running
+    state.running = undefined
+    return closeRunning(running)
+  }
+  const stop = async (): Promise<void> => {
+    const failures = [...(await halt()), ...(await settleInOrder([removeRoot, closeClock]))]
+    if (failures.length > 0) throw new AggregateError(failures, 'the harness engine did not stop cleanly')
+  }
+  const started = await openFirstSession(engine, first.cfg.sessionId).catch((error: unknown) =>
+    abandonStart(error, [stop]),
+  )
+  const restart = async (): Promise<void> => {
+    const running = state.running
+    if (running === undefined) throw new Error('the engine is stopped: it cannot restart')
+    const failures = await halt()
+    if (failures.length > 0) throw new AggregateError(failures, 'the harness engine did not stop cleanly')
+    state.running = await bootAgain(boot, engine, started.id, running)
+  }
+  return {
+    session: started,
+    newSession: (title) => newSessionOn(engine, title),
+    setting: async (setting) => {
+      await engine.rpc.settings.set(setting)
+    },
+    gate: async () => script.gate(),
+    requests: async () => script.requests(),
+    address: {apiBase, token: first.agentToken},
+    root: realpathSync(project),
+    opened: async () => [...opened],
+    event: (type) => eventWait(engine, type, waits),
+    rpc: pluginRpc(engine),
+    loginCode: async () => (await makeRpcClient(apiBase).auth.issueCode()).code,
+    revokeBrowsers: async () => {
+      revokeBrowsers(concivStateDir(root), 'all')
+    },
+    restart,
+    clock: heldClock?.clock ?? realClock,
+    outside: (agent) => outsideAgent(apiBase, agent),
+    reply: async (...responses) => {
+      script.add(responses)
+    },
+    stale: async (staleness) => {
+      live.staleness = staleness
+    },
+    version: async (version) => {
+      live.version = version
+    },
+    write: fixtureWrite(project, fixture),
+    stop,
+  }
+}

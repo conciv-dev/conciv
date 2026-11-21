@@ -1,4 +1,4 @@
-import {Deferred, Duration, Effect, Exit, Fiber, FiberMap, Schedule, Semaphore, Predicate} from 'effect'
+import {Cause, Deferred, Duration, Effect, Exit, Fiber, FiberMap, Schedule, Semaphore, Predicate} from 'effect'
 import {z} from 'zod'
 import type {MountedSession} from '@conciv/plugin/experimental'
 import type {PageOperation, ReactFiber} from '@conciv/plugin/experimental/page'
@@ -27,6 +27,7 @@ export type Attaching = {
   readonly changed: (report: () => void, signal: AbortSignal) => void
   readonly operations: PageOperations
   readonly registered: () => readonly PageOperation[]
+  readonly notify: (title: string) => void
 }
 
 const CONTROL: `rpc.${typeof Definition.id}.control` = `rpc.${Definition.id}.control`
@@ -47,6 +48,13 @@ const UNSUPPORTED: Outcome = {
   message:
     'This page does not support the requested page operation. Ask the user to reload the page so it runs the same conciv version as the engine, or use another operation.',
 }
+
+const PAGE_TOOLS_OFF: Partial<Record<AttachmentOutcome, string>> = {
+  refused: 'Page tools couldn’t attach to this session. Reload the page or start a new session.',
+  unsupported: 'Page tools are off. Reload the page so it runs the same conciv version as the engine.',
+}
+
+const PAGE_TOOLS_BROKEN = 'Page tools stopped working. Reload the page.'
 
 function attachmentFailure(cause: unknown): AttachmentOutcome {
   const type = RpcFailure.safeParse(cause).data?.type
@@ -227,11 +235,21 @@ function connectOnce(input: Attaching): Effect.Effect<AttachmentEnd> {
   )
 }
 
+function reportFailure(input: Pick<Attaching, 'notify'>, title: string | undefined, cause: unknown) {
+  if (!title) return
+  console.warn('[conciv] page attach failed', cause)
+  input.notify(title)
+}
+
 export function keepAttached(input: Attaching): Effect.Effect<AttachmentEnd> {
   return connectOnce(input).pipe(
     Effect.repeat({schedule: TRANSIENT_RETRY, while: (end) => end.outcome === 'transient'}),
     Effect.tap((end) => (end.outcome === 'closed' && end.attached ? woken() : Effect.void)),
     Effect.repeat({while: (end) => end.outcome === 'born' || (end.outcome === 'closed' && end.attached)}),
+    Effect.tap((end) => Effect.sync(() => reportFailure(input, PAGE_TOOLS_OFF[end.outcome], end.outcome))),
+    Effect.tapCause((cause) =>
+      Effect.sync(() => Cause.hasInterruptsOnly(cause) || reportFailure(input, PAGE_TOOLS_BROKEN, Cause.pretty(cause))),
+    ),
   )
 }
 

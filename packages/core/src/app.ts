@@ -56,7 +56,19 @@ import {
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
 import {differenceBy, isNotNil, memoize, pickBy} from 'es-toolkit'
-import {Cause, Config, type ConfigProvider, Effect, Exit, Fiber, FiberMap, Option, Schema, Scope} from 'effect'
+import {
+  Cause,
+  Config,
+  type ConfigProvider,
+  Effect,
+  Exit,
+  Fiber,
+  FiberMap,
+  type Layer,
+  Option,
+  Schema,
+  Scope,
+} from 'effect'
 import {Bus, Permission, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
@@ -218,6 +230,8 @@ export type MakeAppOpts = {
 
   firstChunkTimeoutMs?: number
 
+  firstStartTimeoutMs?: number
+
   eventHeartbeatIntervalMs?: number
 
   stopGraceMs?: number
@@ -232,11 +246,15 @@ export type MakeAppOpts = {
 
   plugins?: readonly Plugin.Plugin[]
 
-  staleness?: () => EngineStaleness
+  staleness?: () => EngineStaleness | undefined
+
+  app?: {version?: () => string | undefined}
 
   home?: string
 
   configProvider?: ConfigProvider.ConfigProvider
+
+  clock?: Layer.Layer<never>
 }
 
 function executable(file: string): boolean {
@@ -341,6 +359,7 @@ function composeRoutes(
   deps: {
     engineId: string
     staleness: () => EngineStaleness
+    version: (() => string | undefined) | undefined
     onShutdown?: () => void
     trust: ConnectionTrust
   },
@@ -356,7 +375,7 @@ function composeRoutes(
       c.set('mcp', vars.mcp)
       await next()
     })
-    .use(corsMiddleware())
+    .use(corsMiddleware(deps.version))
     .get('/health', (c) =>
       c.json(HealthSchema.parse({ok: true, harness: vars.harnessId, engine: deps.staleness(), id: deps.engineId})),
     )
@@ -461,7 +480,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     engineLife.abort(new Error('conciv: the engine stopped'))
     await Promise.all(listings.map(endListing))
   }
-  const staleness = opts.staleness ?? engineStaleness
+  const staleness = (): EngineStaleness => opts.staleness?.() ?? engineStaleness()
   const dbScope = Effect.runSync(Scope.make())
   const closeDb = () => Effect.runPromise(Scope.close(dbScope, Exit.void))
   const failedStart =
@@ -539,6 +558,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         await idleFailed(sessionId, run.runId, Cause.squash(idled.cause))
     }
     if (run.phase === 'aborted') {
+      if (engineLife.signal.aborted) return
       await holdForNextReply(pagePlugin.delivery, sessionId).catch((error: unknown) =>
         logError(`[core] the page queue results of ${sessionId} could not wait for the next reply: ${String(error)}`),
       )
@@ -564,6 +584,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       cwd: opts.cwd,
       home: appEnv.home,
       configProvider,
+      clock: opts.clock,
       fallbackRoots: join(stateDir, 'plugin-host'),
       engineId,
       config: opts.cfg,
@@ -685,6 +706,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     pluginInstructions: (sessionId, reset, inventory) =>
       pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
+    firstStartTimeoutMs: opts.firstStartTimeoutMs,
     groupExitTimeoutMs: opts.stopGraceMs,
     log: logError,
     driver,
@@ -829,6 +851,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       engineId,
       staleness,
+      version: opts.app?.version,
       onShutdown: opts.onShutdown,
       trust,
     },
@@ -859,6 +882,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     fetch: (request, env) => app.fetch(request, env),
     trusts: trust.trusts,
     allowedOrigins: opts.allowedOrigins ?? [],
+    version: opts.app?.version,
     onTrusted: opts.onTrusted,
   })
 

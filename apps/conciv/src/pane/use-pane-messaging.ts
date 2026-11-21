@@ -163,6 +163,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
       )
       return
     }
+    if (failure === visibleError()) return
     notifyUnlessOffline(deps.reachability.sustainedOffline(), () =>
       deps.notices.notify(failureMessage(failure), {tone: 'danger'}),
     )

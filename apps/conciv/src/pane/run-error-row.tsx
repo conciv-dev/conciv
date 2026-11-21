@@ -1,4 +1,4 @@
-import {Show, type JSX} from 'solid-js'
+import {Show, createUniqueId, type JSX} from 'solid-js'
 import {CONTEXT_OVERFLOW_CODE, SESSION_DELETED_CODE} from '@conciv/protocol/chat-event-types'
 import {Button} from '@conciv/ui-kit-system'
 import {rpcErrorCode} from '../shell/rpc-error-message.js'
@@ -29,9 +29,12 @@ function rowMessage(error: Error): string {
 export function RunErrorRow(props: RunErrorRowProps): JSX.Element {
   const overflowed = () => rpcErrorCode(props.error) === CONTEXT_OVERFLOW_CODE
   const retry = () => (sessionDeleted(props.error) ? undefined : props.onRetry)
+  const messageId = createUniqueId()
   return (
-    <div class={ERROR} role="alert">
-      <span class="flex-1">{rowMessage(props.error)}</span>
+    <div class={ERROR} role="alert" aria-labelledby={messageId}>
+      <span id={messageId} class="flex-1">
+        {rowMessage(props.error)}
+      </span>
       <Show
         when={overflowed()}
         fallback={

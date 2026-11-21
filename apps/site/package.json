@@ -18,9 +18,7 @@
     "deploy": "pnpm run build && wrangler deploy",
     "cf-typegen": "wrangler types",
     "typecheck": "fumadocs-mdx && tsc --noEmit",
-    "lint": "oxlint",
-    "test": "vitest run",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts"
+    "lint": "oxlint"
   },
   "dependencies": {
     "@conciv/brand": "workspace:*",
@@ -63,12 +61,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.69.1",
-    "@conciv/browser-fixture": "workspace:*",
-    "@conciv/core": "workspace:*",
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/try": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/devtools-bundler-core": "catalog:",
     "@types/mdx": "^2.0.14",
@@ -76,11 +69,8 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "playwright": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
     "wrangler": "4.160.0"
   }
 }
