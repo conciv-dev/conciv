@@ -2,11 +2,12 @@
 
 ## Purpose
 
-`harness-engine.ts` is the package entry, with `createHarnessEngine`. It writes `files` into a fresh project root, starts core with `makeApp` (only `plugins`, `permission` and `permissions` are read from `config`), serves it, writes `settings` through the settings rpc and opens the first session.
+`harness-engine.ts` is the package entry, with `createHarnessEngine`. It writes `files` into a fresh project root, starts core with `makeApp` (only `plugins`, `permission` and `permissions` are read from `config`), reads its configuration from the isolated environment with `env` laid over it, serves it, writes `settings` through the settings rpc and opens the first session.
 
 - `scripted-harness.ts`: the harness the engine runs. A given adapter keeps everything but its chat, which answers each model request with the next of `replies`, records what each model request was given (its messages, and of each tool only the name and description, since the tool's functions and schema objects do not serialize), and holds it while a gate is set; without one, the quick adapter with id `engine` does the same and also lists a fixed model list, the `model` and `deploy` slash commands, and a plain bash terminal.
 - `test-llm.ts`: the reply shapes and helpers of opencode's test model, on `ChatEvent` chunks, and the shape of one recorded model request.
 - `call-tool.ts`: a session's tool call on `/api/mcp`: a tool the engine lists by its own name (a direct tool) is called by that name, any other through `execute_typescript`; a reply of one text part is parsed as JSON, a reply of several parts comes back as its content list.
+- `isolated-env.ts`: the environment the engine reads: the developer's own with provider keys, secrets and every `CONCIV_*` variable taken out, and `HOME`, the XDG folders and `TMPDIR` set inside the engine's state folder, as opencode's test runner does; `PATH` is kept.
 - `until.ts`: the private wait `approve` uses until the session has a pending ask.
 
 ## Invariants

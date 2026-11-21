@@ -17,6 +17,7 @@ import {serveHono} from '@conciv/serve'
 import {callTool} from './call-tool.js'
 import {replyScript} from './scripted-harness.js'
 import type {Gate, ModelRequest, Response} from './test-llm.js'
+import {isolatedEnv} from './isolated-env.js'
 import {until} from './until.js'
 
 export * as TestLLM from './test-llm.js'
@@ -29,6 +30,7 @@ export type HarnessEngineOptions = {
   replies?: readonly Response[]
   files?: Record<string, string>
   settings?: HarnessEngineSetting[]
+  env?: Record<string, string>
 }
 
 export type HarnessEngineToolFailure = {tool: string; message: string}
@@ -202,6 +204,19 @@ async function openFirstSession(engine: Engine, settings: HarnessEngineSetting[]
   return newSessionOn(engine, undefined)
 }
 
+function engineHome(root: string): string {
+  return join(concivStateDir(root), 'home')
+}
+
+function isolatedProvider(root: string, env: Record<string, string>): ConfigProvider.ConfigProvider {
+  const temporary = join(concivStateDir(root), 'tmp')
+  mkdirSync(temporary, {recursive: true})
+  return ConfigProvider.fromEnvRecord(
+    {...isolatedEnv(process.env, engineHome(root), temporary), ...env, CONCIV_DISABLE_FILEWATCHER: 'true'},
+    {preserveEmptyStrings: true},
+  )
+}
+
 async function bootApp(
   root: string,
   harness: HarnessAdapter,
@@ -229,7 +244,7 @@ async function bootApp(
     openInEditor: () => {},
     harness,
     harnesses: [],
-    home: join(concivStateDir(root), 'home'),
+    home: engineHome(root),
     configProvider,
   })
   await app.awaitActivation().catch((error: unknown) => abandonStart(error, [() => app.dispose()]))
@@ -239,15 +254,11 @@ async function bootApp(
 export async function createHarnessEngine(options: HarnessEngineOptions = {}): Promise<HarnessEngine> {
   const script = replyScript(options.replies ?? [])
   const harness = script.harness(options.harness)
-  const configProvider = ConfigProvider.fromEnvRecord(
-    {...process.env, CONCIV_DISABLE_FILEWATCHER: 'true'},
-    {preserveEmptyStrings: true},
-  )
   const root = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
   const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
-  const app = await bootApp(root, harness, options, configProvider).catch((error: unknown) =>
-    abandonStart(error, [removeRoot]),
-  )
+  const app = await Promise.resolve()
+    .then(() => bootApp(root, harness, options, isolatedProvider(root, options.env ?? {})))
+    .catch((error: unknown) => abandonStart(error, [removeRoot]))
   const served = await serveHono({fetch: app.fetch}).catch((error: unknown) =>
     abandonStart(error, [() => app.dispose(), removeRoot]),
   )
