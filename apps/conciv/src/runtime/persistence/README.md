@@ -41,8 +41,9 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
 - The draft store lists its document keys (`DraftStore.keys`, the driver's `keys`: `getAllKeys` on `documents`, in key
   order). The source has no such call; conciv uses it once per start to remove the local drafts of sessions the engine
   no longer has (`data/app-data.ts` `forgetGoneDrafts`).
-- The draft store takes a `writable` check (`createBrowserDraftStore({writable})`), asked right after the database
-  opens and before each write transaction is made (the driver's `set`, `putBlob` and `remove`); a write it refuses
+- The draft store takes a `writable` check (`openBrowserDraftStore(writable)`: `Platform.draftStore` is that factory,
+  and the router calls it with `() => !lockedOut()`), asked right after the database opens and before each write
+  transaction is made (the driver's `set`, `putBlob` and `remove`); a write it refuses
   rejects. The source has no such check; conciv refuses writes while the engine does not trust this browser, so no
   write lands after `clear` empties the store (`pane/README.md`).
 - The draft store empties itself (`DraftStore.clear`, the driver's `clear`: one `readwrite` transaction that clears

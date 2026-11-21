@@ -15,7 +15,7 @@ if (root)
           navigation: 'browser',
           root: document,
           settings: readSettingsInit(params.get('settings') ?? ''),
-          draftStore: openBrowserDraftStore(),
+          draftStore: openBrowserDraftStore,
         }}
       />
     ),

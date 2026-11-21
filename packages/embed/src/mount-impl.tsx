@@ -152,7 +152,7 @@ export function mountImpl(
     grabProvider: init.grabProvider,
     onInteractive: interactive.resolve,
     timings: init.timings,
-    draftStore: openBrowserDraftStore(),
+    draftStore: openBrowserDraftStore,
   }
   const container = document.createElement('div')
   shadow.root.appendChild(container)

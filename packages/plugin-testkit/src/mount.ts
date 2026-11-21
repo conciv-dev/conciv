@@ -80,7 +80,7 @@ export function makeMount(): Mount {
       root: document,
       settings: options.host,
       timings: {engine: ENGINE_TIMINGS},
-      draftStore: memoryDraftStore(),
+      draftStore: () => memoryDraftStore(),
       onInteractive: () => interactive.resolve(),
     }
     render(() => createComponent(ConcivApp, {platform}))

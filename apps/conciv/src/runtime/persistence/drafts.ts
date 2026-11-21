@@ -433,16 +433,16 @@ function split(text: string) {
   return pieces
 }
 
-export function openBrowserDraftStore(): DraftStore | undefined {
+export function openBrowserDraftStore(writable: () => boolean): DraftStore | undefined {
   try {
-    return createBrowserDraftStore()
+    return createBrowserDraftStore(writable)
   } catch (error) {
     console.error('[conciv] drafts stay engine-only', error)
     return undefined
   }
 }
 
-function createBrowserDraftStore(): DraftStore {
+function createBrowserDraftStore(writable: () => boolean): DraftStore {
   const request = indexedDB.open('conciv-drafts', 1)
   request.addEventListener('upgradeneeded', () => {
     request.result.createObjectStore('documents')
@@ -493,7 +493,13 @@ function createBrowserDraftStore(): DraftStore {
       transaction.addEventListener('abort', () => reject(transaction.error))
     })
 
-  const writeTransaction = async (stores: string | string[]) => (await db).transaction(stores, 'readwrite')
+  const writeTransaction = async (stores: string | string[]) => {
+    const database = await db
+
+    if (!writable()) throw new Error('the draft store takes no writes while the engine does not trust this browser')
+
+    return database.transaction(stores, 'readwrite')
+  }
 
   const write = async (store: string, key: string, value?: unknown) => {
     const transaction = await writeTransaction(store)
@@ -570,16 +576,4 @@ function referenced(json: string) {
   })
 
   return ids
-}
-
-export function gateDraftWrites(store: DraftStore, writable: () => boolean): DraftStore {
-  const refuse = () =>
-    Promise.reject(new Error('the draft store takes no writes while the engine does not trust this browser'))
-  return {
-    ...store,
-    setItem: (key, value) => (writable() ? store.setItem(key, value) : refuse()),
-    removeItem: (key) => (writable() ? store.removeItem(key) : refuse()),
-    setDocument: (key, document) => (writable() ? store.setDocument(key, document) : refuse()),
-    putBlob: (blob) => (writable() ? store.putBlob(blob) : refuse()),
-  }
 }

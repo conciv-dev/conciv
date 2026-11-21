@@ -25,7 +25,7 @@ export type Platform = {
   grabProvider?: GrabProvider
   onInteractive?: () => void
   timings?: ConcivTimings
-  draftStore?: DraftStore
+  draftStore?: (writable: () => boolean) => DraftStore | undefined
 }
 
 declare global {
