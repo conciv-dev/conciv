@@ -38,3 +38,28 @@ describe('a draft per session', () => {
     expect(await within(backInBeta).findByText('Beta notes')).toBeVisible()
   })
 })
+
+describe('a deleted session with a draft', () => {
+  test('closing the quick pane of a session deletes it, and New session on its panel carries the typed draft over', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const doomed = await engine.newSession('Doomed work')
+    await mount({
+      engine,
+      history: createEngineRouterHistory({
+        initialEntries: [`/panel/${doomed.id}?open=true`, `/quick?panes=${doomed.id}&focus=0`],
+      }),
+    })
+
+    const pane = await screen.findByRole('region', {name: 'Session: Doomed work'})
+    await user.type(within(pane).getByRole('textbox', {name: 'Message the conciv agent'}), 'Keep this thought')
+    await user.click(within(pane).getByRole('button', {name: 'Close pane'}))
+
+    expect(await screen.findByText('This session was deleted.')).toBeVisible()
+    expect(await screen.findByText('Your draft moves to the new session.')).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'New session'}))
+    const moved = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    expect(await within(moved).findByText('Keep this thought')).toBeVisible()
+    expect(screen.queryByText('This session was deleted.')).not.toBeInTheDocument()
+  })
+})
