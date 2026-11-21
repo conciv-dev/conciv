@@ -27,6 +27,21 @@ describe('the slash list', () => {
     const requests = await engine.requests()
     expect(requests.map((request) => request.messages.at(-1))).toMatchObject([{role: 'user', content: '/deploy'}])
   })
+
+  test('/ lists the commands of the session’s own harness', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine(
+      {},
+      {harnesses: [{id: 'engine', commands: [{name: 'review-pr', description: 'Review the open pull request'}]}]},
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), '/')
+    const commands = await screen.findByRole('listbox', {name: 'Commands'})
+    expect(await within(commands).findByRole('option', {name: '/review-pr'})).toBeVisible()
+    expect(within(commands).getByRole('option', {name: '/model'})).toBeVisible()
+    expect(within(commands).queryByRole('option', {name: '/deploy'})).not.toBeInTheDocument()
+  })
 })
 
 describe('the model command', () => {
@@ -109,5 +124,37 @@ describe('the mention list', () => {
     expect(sessions).toHaveLength(2)
     expect(sessions[0]).toHaveAccessibleName('Open beside')
     expect(sessions[1]).toHaveAccessibleName('Newer elsewhere')
+  })
+
+  test('a typed term finds a session of another project, which a bare @ leaves out', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine(
+      {},
+      {
+        harnesses: [
+          {
+            id: 'engine',
+            sessions: [
+              {
+                id: 'billing-elsewhere',
+                cwd: '/elsewhere/billing-app',
+                derivedTitle: 'Fix the billing page',
+                updatedAt: 1_000,
+                messages: [{id: 'm1', role: 'user', parts: [{type: 'text', content: 'the billing totals are wrong'}]}],
+              },
+            ],
+          },
+        ],
+      },
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(input, '@')
+    const context = await screen.findByRole('listbox', {name: 'Context'})
+    expect(await within(context).findByRole('group', {name: 'Tools'})).toBeVisible()
+    expect(within(context).queryByRole('option', {name: 'Fix the billing page'})).not.toBeInTheDocument()
+    await user.type(input, 'billing')
+    expect(await within(context).findByRole('option', {name: 'Fix the billing page'})).toBeVisible()
   })
 })
