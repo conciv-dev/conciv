@@ -433,9 +433,11 @@ function AssistantTurn(props: {
     </Key>
   )
   return (
-    <Message.Root data-conciv-msg role="article" aria-label={label()} class={ASSISTANT_ROOT_CLASS}>
-      <NodeListView nodes={nodes()} />
-    </Message.Root>
+    <Show when={nodes().length > 0}>
+      <Message.Root data-conciv-msg role="article" aria-label={label()} class={ASSISTANT_ROOT_CLASS}>
+        <NodeListView nodes={nodes()} />
+      </Message.Root>
+    </Show>
   )
 }
 

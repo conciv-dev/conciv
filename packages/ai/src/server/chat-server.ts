@@ -4,6 +4,7 @@ import {
   convertMessagesToModelMessages,
   defineChatMiddleware,
   EventType,
+  generateMessageId,
   requestRunCancel,
   RUN_CANCEL_REASON,
   StreamProcessor,
@@ -393,7 +394,10 @@ function unsavedParts(message: ChatMessage, saved: ReadonlySet<string>): ChatMes
 }
 
 async function saveStoppedTurn(messages: MessageStore, threadId: string, processor: StreamProcessor): Promise<void> {
-  await saveShown(messages, threadId, processor, (message) => withTanstackMetadata(message, {stopReason: 'aborted'}))
+  const stopped = (message: ModelMessage) => withTanstackMetadata(message, {stopReason: 'aborted'})
+  await saveShown(messages, threadId, processor, stopped, [
+    stopped({role: 'assistant', content: null, id: generateMessageId()}),
+  ])
 }
 
 async function saveShown(
@@ -401,6 +405,7 @@ async function saveShown(
   threadId: string,
   processor: StreamProcessor,
   finish: (message: ModelMessage) => ModelMessage,
+  unshown: readonly ModelMessage[],
 ): Promise<void> {
   const stored = await messages.loadThread(threadId)
   const saved = storedToolCallIds(stored)
@@ -411,10 +416,11 @@ async function saveShown(
     .filter((message) => message.parts.length > 0)
     .flatMap(uiMessageToModelMessages)
     .map(finish)
-  if (shown.length === 0) return
-  const replaced = new Set(shown.flatMap((message) => (message.id === undefined ? [] : [message.id])))
+  const saving = shown.length > 0 ? shown : unshown
+  if (saving.length === 0) return
+  const replaced = new Set(saving.flatMap((message) => (message.id === undefined ? [] : [message.id])))
   const kept = stored.filter((message) => message.id === undefined || !replaced.has(message.id))
-  await messages.saveThread(threadId, [...kept, ...shown])
+  await messages.saveThread(threadId, [...kept, ...saving])
 }
 
 function untilAborted<Value>(work: Promise<Value>, signal: AbortSignal): Promise<Value> {
@@ -830,7 +836,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       const processor = timedProcessor()
       for (const chunk of chunks) followRun(processor, chunk)
       await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
-      await savingShown(threadId, () => saveShown(stores.messages, threadId, processor, (message) => message))
+      await savingShown(threadId, () => saveShown(stores.messages, threadId, processor, (message) => message, []))
     },
     codeRunner: (codeMode, search) => {
       if (driver === null) return null
