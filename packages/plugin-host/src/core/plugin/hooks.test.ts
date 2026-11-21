@@ -1,0 +1,74 @@
+import {describe, expect, test} from 'vitest'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+
+describe('what the model is given', () => {
+  test('the code-mode preface with the plugin tools reaches the model as a system prompt', async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/greeter-promise']})
+    await engine.reply(TestLLM.text('Hello'))
+
+    await engine.session.send('Hi')
+
+    expect((await engine.requests())[0]?.system).toEqual(
+      expect.arrayContaining([expect.stringMatching(/# Code Mode[\s\S]*\/\/ Greet someone from the Promise entry/)]),
+    )
+  })
+
+  test('a session instruction entry reaches the model, a changed value supersedes it and a removed one is dropped', async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/instruction-notes']})
+    await engine.reply(TestLLM.text('Noted'), TestLLM.text('Noted again'), TestLLM.text('Dropped'))
+    const metric = '<context key="units">\nUse metric units\n</context>'
+    const imperial = '<context key="units">\nUse imperial units\n</context>'
+
+    await engine.session.tool('note_put').call({value: 'Use metric units'})
+    await engine.session.send('First')
+    await engine.session.tool('note_put').call({value: 'Use imperial units'})
+    await engine.session.send('Second')
+    await engine.session.tool('note_remove').call({})
+    await engine.session.send('Third')
+
+    const [first, second, third] = await engine.requests()
+    expect(first?.system).toEqual(expect.arrayContaining([expect.stringContaining(metric)]))
+    expect(second?.system).toEqual(expect.arrayContaining([expect.stringContaining(imperial)]))
+    expect(second?.system).toEqual(expect.not.arrayContaining([expect.stringContaining(metric)]))
+    expect(third?.system).toEqual(expect.not.arrayContaining([expect.stringContaining('<context key="units">')]))
+  })
+
+  test("the prompt hook changes the user's message before the model gets it", async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/request-shaper']})
+    await engine.reply(TestLLM.text('Hello'))
+
+    await engine.session.send('Hello')
+
+    expect((await engine.requests())[0]?.messages).toEqual(
+      expect.arrayContaining([expect.objectContaining({role: 'user', content: 'Hello, from the prompt hook'})]),
+    )
+  })
+
+  test('the context hook edits the system prompts, messages, model options and tools the model gets', async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/request-shaper']})
+    await engine.reply(TestLLM.text('Hello'))
+
+    await engine.session.send('Hello')
+
+    const [request] = await engine.requests()
+    expect(request?.system).toEqual(expect.arrayContaining(['Answer in one short sentence.']))
+    expect(request?.messages.at(-1)).toEqual(
+      expect.objectContaining({role: 'user', content: 'Reminder from the context hook.'}),
+    )
+    expect(request?.options).toEqual(expect.objectContaining({temperature: 0.2}))
+    expect(request?.tools).toEqual(
+      expect.arrayContaining([
+        {
+          name: 'shaped_tool',
+          description: 'Looks up a topic, shaped by the context hook',
+          inputSchema: {
+            type: 'object',
+            properties: {topic: {type: 'string'}, depth: {type: 'number'}},
+            required: ['topic'],
+          },
+        },
+      ]),
+    )
+    expect(request?.tools).toEqual(expect.not.arrayContaining([expect.objectContaining({name: 'hidden_tool'})]))
+  })
+})
