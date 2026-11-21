@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom/vitest'
 export {createEngine} from './engine.js'
 export type {
   EngineStart,

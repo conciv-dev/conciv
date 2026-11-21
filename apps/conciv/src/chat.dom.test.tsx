@@ -14,9 +14,9 @@ describe('sending a message', () => {
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Hello agent')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
 
-    expect(await screen.findByRole('article', {name: 'You: Hello agent'})).toBeDefined()
+    expect(await screen.findByRole('article', {name: 'You: Hello agent'})).toBeVisible()
     const reply = await screen.findByRole('article', {name: 'Reply to: Hello agent'})
-    expect(await within(reply).findByText('Hello from the agent')).toBeDefined()
+    expect(await within(reply).findByText('Hello from the agent')).toBeVisible()
   })
 })
 
@@ -31,10 +31,10 @@ describe('stopping a reply', () => {
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Take your time')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     await gate.started
-    expect(await screen.findByText('Thinking…')).toBeDefined()
+    expect(await screen.findByText('Thinking…')).toBeVisible()
     await user.click(await screen.findByRole('button', {name: 'Stop generating'}))
 
-    expect(await screen.findByRole('button', {name: 'Send message'})).toBeDefined()
+    expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
   })
 })
 
@@ -48,8 +48,8 @@ describe('a failed reply', () => {
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Are you there')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
 
-    expect(await screen.findByRole('alert', {name: 'The model is unavailable'})).toBeDefined()
-    await screen.findByRole('button', {name: 'Send message'})
-    expect(screen.getAllByRole('alert', {name: 'The model is unavailable'})).toHaveLength(1)
+    expect(await screen.findByRole('alert', {name: 'The model is unavailable'})).toBeVisible()
+    expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
+    expect(screen.getByRole('alert', {name: 'The model is unavailable'})).toBeVisible()
   })
 })

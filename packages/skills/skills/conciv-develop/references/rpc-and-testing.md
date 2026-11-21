@@ -68,11 +68,11 @@ test('the deploy tab shows the last deploy', async () => {
   await engine.reply(TestLLM.text('done', 'a'))
   await mount({engine, route: '/panel/latest?open=true'})
 
-  expect(await screen.findByRole('tab', {name: 'Deploy'})).toBeDefined()
+  expect(await screen.findByRole('tab', {name: 'Deploy'})).toBeVisible()
 })
 ```
 
-Rules: drive the widget by role and visible text; no test-ids or class selectors; no polling waits;
+Rules: drive the widget by role and visible text; assert with the jest-dom matchers (`toBeVisible`, `toHaveAccessibleName`, ...), never `toBeDefined()` or `toBeTruthy()` on a query, which already throws when nothing matches; no test-ids or class selectors; no polling waits;
 rebuild the plugin's `dist` before a run (tests load the built plugin).
 
 ## Sources

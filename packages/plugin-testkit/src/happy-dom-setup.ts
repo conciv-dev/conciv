@@ -1,5 +1,6 @@
 import {afterEach, beforeEach, inject} from 'vitest'
 import {cleanup, configure} from '@solidjs/testing-library'
+import '@testing-library/jest-dom/vitest'
 import type {} from './browser-commands.js'
 
 configure({asyncUtilTimeout: inject('concivPollTimeoutMs')})

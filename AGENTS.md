@@ -161,6 +161,12 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
 - Tests do what a user does: queries by role, label and text, `user-event` (never `fireEvent`, except
   `fireEvent.keyDown` with `isComposing` for the IME guard). No CSS, DOM or geometry reads (`toHaveCSS`,
   `getComputedStyle`, `page.evaluate` reads), no class or id locators, no test-ids.
+- Assert with the jest-dom matchers (`toBeVisible`, `toHaveAccessibleName`, `toBeDisabled`, ...), never
+  `toBeDefined()` or `toBeTruthy()` on a Testing Library query: a `find`/`get` query already throws when nothing
+  matches, so those asserts prove nothing. One visible match is `getByRole(...)` (it throws on two) then
+  `toBeVisible()`. The kit loads the matchers in happy-dom and their types come with `@conciv/plugin-testkit/node`;
+  browser mode uses vitest's own. In happy-dom the app's UnoCSS is not loaded, so `toBeVisible` cannot see an
+  element hidden by a utility class there (it does see `hidden`, inline styles and a closed `<dialog>`).
 - No mocks or stubs (`vi.fn`, `vi.mock`, `vi.spyOn`, `vi.stubGlobal`, `vi.stubEnv`, fake modules). A fake is a real
   implementation the product accepts (the scripted harness, an in-memory draft store). Config goes through Effect
   `ConfigProvider`, never env writes.

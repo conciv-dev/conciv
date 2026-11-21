@@ -53,6 +53,7 @@
     "build:types": "tsdown -c tsdown.types.config.ts"
   },
   "dependencies": {
+    "@testing-library/jest-dom": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

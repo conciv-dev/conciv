@@ -264,6 +264,9 @@ catalogs:
     '@tanstack/store':
       specifier: 0.11.2
       version: 0.11.2
+    '@testing-library/jest-dom':
+      specifier: 6.9.1
+      version: 6.9.1
     '@testing-library/user-event':
       specifier: 14.6.8
       version: 14.6.8
@@ -3172,6 +3175,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@testing-library/jest-dom':
+        specifier: 'catalog:'
+        version: 6.9.1
       zod:
         specifier: 'catalog:'
         version: 4.6.7
