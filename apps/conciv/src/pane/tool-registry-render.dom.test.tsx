@@ -65,3 +65,42 @@ describe('the user stops while the agent asks', () => {
     expect(screen.queryByRole('img', {name: 'running'})).not.toBeInTheDocument()
   })
 })
+
+describe('a plugin draws its own tool cards', () => {
+  test('a plugin card shows open, a failed call draws the plugin error card, and a card that throws falls back to the generic card', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_release_check({branch: 'main'})",
+      }),
+      TestLLM.toolCall('c2', 'execute_typescript', {
+        typescriptCode: "return await external_release_block({branch: 'main'})",
+      }),
+      TestLLM.toolCall('c3', 'execute_typescript', {
+        typescriptCode: "return await external_release_notes({branch: 'main'})",
+      }),
+      TestLLM.text('Main is checked'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Can main ship')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+
+    expect(await screen.findByText('Main is checked')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: Can main ship'})
+    expect(within(reply).getByText('Release card for main')).toBeVisible()
+    expect(within(reply).getByText(/^Release held: .*The release train is frozen/)).toBeVisible()
+    expect(within(reply).getByRole('button', {name: /Called release_notes/})).toBeVisible()
+  })
+})
+
+describe('a plugin fills the session header and status', () => {
+  test('the header slot and the status slot show what the plugin draws', async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    expect(await screen.findByText('Release train: on time')).toBeVisible()
+    expect(await screen.findByText('Next train at noon')).toBeVisible()
+  })
+})
