@@ -104,7 +104,12 @@ async function pageEngine(page: Page, path: string, projectDir: string): Promise
   return {origin, base: recordedEngineBase(projectDir, origin)}
 }
 
-export async function loginWidget(page: Page, path = '/', projectDir = process.cwd()): Promise<void> {
+function testProjectDir(): string {
+  const projectDir: unknown = test.info().project.metadata['projectDir']
+  return typeof projectDir === 'string' ? projectDir : process.cwd()
+}
+
+export async function loginWidget(page: Page, path = '/', projectDir = testProjectDir()): Promise<void> {
   const {base} = await pageEngine(page, path, projectDir)
   const link = await magicLink(base, page.url())
   await page.goto('about:blank')
@@ -112,7 +117,7 @@ export async function loginWidget(page: Page, path = '/', projectDir = process.c
   await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()
 }
 
-export async function trustedEngineBase(page: Page, path = '/', projectDir = process.cwd()): Promise<string> {
+export async function trustedEngineBase(page: Page, path = '/', projectDir = testProjectDir()): Promise<string> {
   const {origin, base} = await pageEngine(page, path, projectDir)
   return `${origin}/t/${await trustedBrowserToken(base)}`
 }

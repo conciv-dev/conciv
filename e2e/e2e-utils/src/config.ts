@@ -117,17 +117,42 @@ export function e2eConfig(
   })
 }
 
-export function packedE2eConfig(opts: {dir: string}): ReturnType<typeof defineConfig> {
-  runConcivHome(opts.dir)
+export type PackedServer = {
+  name: string
+  port: number
+  command: (port: number) => string
+  cwd: string
+  env: Record<string, string>
+}
+
+export function packedE2eConfig(opts: {
+  dir: string
+  runFolders: string[]
+  servers: PackedServer[]
+}): ReturnType<typeof defineConfig> {
+  const stateDir = e2eStateDir(opts.dir)
   return defineConfig({
     testDir: './test',
     testMatch: PACKED_SPECS,
-    globalSetup: join(import.meta.dirname, 'packed-global-setup.ts'),
     workers: 1,
     timeout: 90_000,
     expect: {timeout: 90_000},
-    reporter: reporters(opts.dir, []),
-    projects: [{name: 'packed', use: {...devices['Desktop Chrome']}}],
+    reporter: reporters(opts.dir, [], opts.runFolders),
+    webServer: opts.servers.map((server) => ({
+      ...serverEntry({
+        configDir: opts.dir,
+        prepare: `mkdir -p '${stateDir}'`,
+        command: server.command(server.port),
+        port: server.port,
+        env: {...server.env, CONCIV_HOME: join(stateDir, `conciv-home-${server.name}`)},
+      }),
+      cwd: server.cwd,
+    })),
+    projects: opts.servers.map((server) => ({
+      name: server.name,
+      use: {...devices['Desktop Chrome'], baseURL: `http://localhost:${server.port}`},
+      metadata: {projectDir: server.cwd},
+    })),
   })
 }
 

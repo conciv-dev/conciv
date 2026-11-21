@@ -65,8 +65,11 @@ Everything that packs runs only in `.github/workflows/packed.yml`, never in `pnp
 CI planner, or on a laptop. Each suite is a `test:packed` script:
 
 - `vite-react-packed`: the whole app (it has no `test:e2e`).
-- `nextjs`: specs named `test/packed-*.spec.ts`, run by `playwright.packed.config.ts`; the shared
-  `e2eConfig` ignores that pattern, so `test:e2e` never picks them up.
+- `nextjs`: `packed/test-packed.ts` packs `@conciv/it`'s closure, installs the committed `packed/app`
+  fixture twice into a temp dir outside the workspace (`packages/turbopack` and `packages/webpack`, only
+  their `package.json` generated), then runs `playwright.packed.config.ts`: one `next dev` web server and
+  one project per bundler, each with its own engine port and `CONCIV_HOME`, running the specs named
+  `test/packed-*.spec.ts`. The shared `e2eConfig` ignores that pattern, so `test:e2e` never picks them up.
 - `mascot`, `mascot-react`, `plugin-tanstack`: describes tagged `packed`; their vitest configs define the
   `packed` tag as skipped unless vitest runs in `packed` mode, and `test:packed` runs
   `vitest run --mode packed --tags-filter=packed` (with `--project <node project>` where the config has

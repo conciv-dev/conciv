@@ -5,8 +5,9 @@ name: Packed
 # the only place pack runs: `pnpm test`, `test:e2e` and the CI planner never select
 # them, and every pack helper (@conciv/vitest-config/pack) throws outside GitHub Actions.
 # Each suite is a `test:packed` script:
-#   - e2e/nextjs keeps its packed specs as test/packed-*.spec.ts, run by
-#     playwright.packed.config.ts (the default config ignores them)
+#   - e2e/nextjs: packed/test-packed.ts packs, installs the committed packed/app fixture twice
+#     (Turbopack and webpack) and runs its test/packed-*.spec.ts with playwright.packed.config.ts
+#     (the default config ignores them)
 #   - e2e/vite-react-packed is packed end to end
 # It runs on pull requests that touch the paths below, and on demand; on main, release.yml
 # calls it on every push, so a broken tarball blocks npm publish (no standalone push trigger,

@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "test:e2e": "playwright test",
-    "test:packed": "playwright test -c playwright.packed.config.ts"
+    "test:packed": "node packed/test-packed.ts"
   },
   "dependencies": {
     "@conciv/it": "workspace:*",
