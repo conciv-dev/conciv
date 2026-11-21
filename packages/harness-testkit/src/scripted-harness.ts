@@ -2,9 +2,24 @@ import {z} from 'zod'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
 import {defineHarness, type HarnessAdapter} from '@conciv/harness'
+import {pageAfter} from '@conciv/harness/page'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import type {ReasoningEffort} from '@conciv/protocol/chat-types'
-import type {HarnessChatDeps, HarnessCommand, HarnessConnectContext, HarnessModel} from '@conciv/protocol/harness-types'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
+import type {
+  HarnessCapabilities,
+  HarnessChatDeps,
+  HarnessCommand,
+  HarnessConnectContext,
+  HarnessHistory,
+  HarnessListScope,
+  HarnessModel,
+  HarnessSessionMeta,
+  TranscriptFailure,
+  TranscriptHandle,
+  TranscriptPage,
+  TranscriptTailOptions,
+} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {FakeResponseStep, Gate, ModelRequest, Reply} from './test-llm.js'
 
@@ -46,11 +61,105 @@ type HeldGate = {started: PromiseWithResolvers<void>; released: PromiseWithResol
 
 type ScriptState = {requests: ModelRequest[]; held: HeldGate | undefined}
 
-export type ScriptedHarness = {id: string; models?: HarnessModel[]; commands?: HarnessCommand[]}
+export type ScriptedSession = {
+  id: string
+  cwd?: string
+  derivedTitle: string
+  updatedAt: number
+  messages: ChatMessage[]
+}
+
+export type ScriptedHarness = {
+  id: string
+  models?: HarnessModel[]
+  commands?: HarnessCommand[]
+  sessions?: ScriptedSession[]
+}
+
+type StoredSession = {meta: HarnessSessionMeta; messages: ChatMessage[]}
+
+const CAPABILITIES = {
+  permissionGate: 'none',
+  compaction: false,
+  systemPrompt: 'flag',
+  mcp: 'none',
+  init: 'none',
+  imageInput: false,
+  slashCommands: 'live',
+} satisfies Omit<HarnessCapabilities, 'resume' | 'transcriptHistory'>
+
+const REVISION = 'scripted'
+
+const TailCursorSchema = z.string().regex(/^\d+$/).transform(Number)
+
+function storedSession(session: ScriptedSession, project: string): StoredSession {
+  const id = HarnessSessionId.safeParse(session.id)
+  if (!id.success) {
+    throw new Error(`the scripted session id ${session.id} is not a harness session id: use letters, digits, _ and -`)
+  }
+  const meta = {
+    id: id.data,
+    cwd: session.cwd ?? project,
+    derivedTitle: session.derivedTitle,
+    updatedAt: session.updatedAt,
+  }
+  return {meta, messages: session.messages}
+}
+
+function inScope(meta: HarnessSessionMeta, scope: HarnessListScope): boolean {
+  return 'everywhere' in scope || meta.cwd === scope.cwd
+}
+
+function pageBefore(messages: ChatMessage[], end: number, limit: number): TranscriptPage {
+  const start = messages.findLastIndex(
+    (message, index) => index > 0 && index < end && message.role === 'user' && end - index >= limit,
+  )
+  if (start === -1) return {messages: messages.slice(0, end), earlier: null}
+  return {messages: messages.slice(start, end), earlier: String(start)}
+}
+
+function tailPage(messages: ChatMessage[], options: TranscriptTailOptions): TranscriptPage {
+  if (options.before === null) return pageBefore(messages, messages.length, options.limit)
+  const before = TailCursorSchema.safeParse(options.before)
+  if (!before.success) return {messages: [], earlier: null}
+  return pageBefore(messages, Math.min(before.data, messages.length), options.limit)
+}
+
+function observedSession(session: StoredSession | undefined, cwd: string, sessionId: string): TranscriptHandle {
+  const missing: TranscriptFailure = {
+    ok: false,
+    reason: 'missing',
+    detail: `no scripted session ${sessionId} in ${cwd}`,
+  }
+  return {
+    revision: async () => (session === undefined ? missing : {rev: REVISION, changedAt: session.meta.updatedAt}),
+    read: async () =>
+      session === undefined
+        ? missing
+        : {ok: true, rev: REVISION, changedAt: session.meta.updatedAt, messages: [...session.messages], replaced: true},
+    close: () => {},
+  }
+}
+
+function scriptedHistory(sessions: StoredSession[]): HarnessHistory {
+  const found = (cwd: string, sessionId: string): StoredSession | undefined =>
+    sessions.find((session) => session.meta.id === sessionId && session.meta.cwd === cwd)
+  return {
+    list: async (scope, page) => {
+      const metas = sessions.map((session) => session.meta).filter((meta) => inScope(meta, scope))
+      const paged = pageAfter(metas, page, (meta) => ({updatedAt: meta.updatedAt, id: meta.id}))
+      return {sessions: paged.items, next: paged.next}
+    },
+    meta: async (cwd, sessionId) => found(cwd, sessionId)?.meta ?? null,
+    messages: async (cwd, sessionId) => [...(found(cwd, sessionId)?.messages ?? [])],
+    tail: async (cwd, sessionId, options) => tailPage(found(cwd, sessionId)?.messages ?? [], options),
+    observe: (cwd, sessionId) => observedSession(found(cwd, sessionId), cwd, sessionId),
+  }
+}
 
 export type ReplyScript = {
   adapter: (harness: HarnessAdapter) => HarnessAdapter
-  scripted: (harness: Partial<ScriptedHarness>) => HarnessAdapter
+  scripted: (harness: Partial<ScriptedHarness>, project: string) => HarnessAdapter
   gate: () => Gate
   releaseGate: () => void
   requests: () => ModelRequest[]
@@ -111,26 +220,25 @@ export function replyScript(tokensPerSecond: number | undefined): ReplyScript {
   }
   return {
     adapter: (harness) => ({...harness, chatConfig: chatConfig('scripted')}),
-    scripted: ({id = FAKE_HARNESS_ID, models = MODELS, commands = COMMANDS}) =>
-      defineHarness({
+    scripted: ({id = FAKE_HARNESS_ID, models = MODELS, commands = COMMANDS, sessions}, project) => {
+      const base = {
         id,
         binName: 'true',
         chatConfig: chatConfig(id),
         models,
         commands: async () => commands,
         tty: {command: shellCommand},
-        capabilities: {
-          resume: false,
-          permissionGate: 'none',
-          compaction: false,
-          systemPrompt: 'flag',
-          mcp: 'none',
-          init: 'none',
-          imageInput: false,
-          transcriptHistory: false,
-          slashCommands: 'live',
-        },
-      }),
+      }
+      if (sessions === undefined) {
+        return defineHarness({...base, capabilities: {...CAPABILITIES, resume: false, transcriptHistory: false}})
+      }
+      return defineHarness({
+        ...base,
+        capabilities: {...CAPABILITIES, resume: true, transcriptHistory: true},
+        history: scriptedHistory(sessions.map((session) => storedSession(session, project))),
+        resume: {command: ({nativeId}) => ({bin: id, args: [nativeId]})},
+      })
+    },
     gate: () => {
       const held: HeldGate = {started: Promise.withResolvers<void>(), released: Promise.withResolvers<void>()}
       state.held = held

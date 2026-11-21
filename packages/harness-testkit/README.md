@@ -14,6 +14,10 @@ The engine is the product's own `makeApp`, and the kit talks to it the way the p
 
 The scripted model is one TanStack AI `fakeText` (`@tanstack/ai/testing`) per engine, shared by every scripted harness. `engine.reply(...replies)` appends to its queue and takes only a `TestLLM.Reply`: `TestLLM.text(value)`, `TestLLM.toolCall(id, name, input)`, `TestLLM.failAfter(error)` and `TestLLM.hang()` (a reply that stays open until the run is stopped). At run time a reply is the library's own `FakeResponse` or a function step. Each model request takes the next reply. A tool turn takes two: the call, then the answer after the tool ran. A request with no reply left fails the run; there is no fallback reply. `start.tokensPerSecond` is passed to `fakeText`, which then streams every reply's text at that pace. A session's `send` settles when the run ends and rejects with the run's error when it fails. `engine.gate()` holds the next model request until the test calls `release`, as opencode's `gate`; `stop` releases a held gate.
 
+## Past sessions
+
+A scripted harness takes `sessions`, plain data named as the product's `HarnessSessionMeta`: `{id, cwd?, derivedTitle, updatedAt, messages}`, where `cwd` left out is the project the engine runs in and another folder is another project. With it the harness reports `transcriptHistory` and `resume` (the command is the harness id then the session id) and its `history` answers from that data the way the real readers do: `list` newest first through `@conciv/harness/page` `pageAfter`, a folder with no sessions is empty, `tail` pages back at a user message with an `earlier` cursor, an unknown id has no `meta`. Without `sessions` nothing changes. Example: `createEngine({}, {harnesses: [{id: 'engine', sessions: [{id: 'past-1', derivedTitle: 'Fix the login form', updatedAt: Date.now() - 86_400_000, messages: [{id: 'm1', role: 'user', parts: [{type: 'text', content: 'why does login fail'}]}]}]}]})`.
+
 ## Invariants
 
 - The kit does not depend on a test runner at run time; its own node tests use vitest.
@@ -28,4 +32,4 @@ The scripted model is one TanStack AI `fakeText` (`@tanstack/ai/testing`) per en
 
 ## Verification
 
-- `pnpm exec turbo run test --filter=@conciv/harness-testkit`: `src/harness-engine.test.ts`, the kit's own promises that no consumer test observes: replies taken in order and the error on an empty queue, the real clock refusing `engine.clock`, and a tool name that is not a plain identifier refused before a code-mode program is built. Behaviour is also proven by the plugin tests that use `@conciv/plugin-testkit`.
+- `pnpm exec turbo run test --filter=@conciv/harness-testkit`: `src/harness-engine.test.ts`, the kit's own promises that no consumer test observes: replies taken in order and the error on an empty queue, the real clock refusing `engine.clock`, a tool name that is not a plain identifier refused before a code-mode program is built, and past sessions reaching the engine's list and preview (none without `sessions`). Behaviour is also proven by the plugin tests that use `@conciv/plugin-testkit`.

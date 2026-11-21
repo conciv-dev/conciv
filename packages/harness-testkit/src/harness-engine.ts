@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {mkdirSync, mkdtempSync, realpathSync, statSync, writeFileSync} from 'node:fs'
+import {mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync} from 'node:fs'
 import {rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
@@ -27,6 +27,7 @@ export * as TestLLM from './test-llm.js'
 export {cli, type CliOptions, type CliRun} from './cli.js'
 export type {HarnessEngineClock} from './clock.js'
 export type {Outside, OutsideAgent, OutsideReply} from './outside.js'
+export type {ScriptedHarness, ScriptedSession} from './scripted-harness.js'
 
 export type HarnessEngineSetting = {scope: 'project' | 'global'; namespace: string; key: string; value: unknown}
 
@@ -353,20 +354,25 @@ function repeatedId(harnesses: ScriptedHarness[]): string | undefined {
 
 type HarnessList = [HarnessAdapter, ...HarnessAdapter[]]
 
-function scriptedList(options: HarnessEngineStart, harnesses: ScriptedHarness[], script: ReplyScript): HarnessList {
+function scriptedList(
+  options: HarnessEngineStart,
+  harnesses: ScriptedHarness[],
+  script: ReplyScript,
+  project: string,
+): HarnessList {
   if (options.harness !== undefined)
     throw new Error('harnesses and harness cannot be given together: harnesses are scripted')
   const [first, ...rest] = harnesses
   if (first === undefined) throw new Error('harnesses is empty: give at least the engine harness')
   const repeated = repeatedId(harnesses)
   if (repeated !== undefined) throw new Error(`harnesses lists the id ${repeated} twice: each harness needs its own id`)
-  return [script.scripted(first), ...rest.map((other) => script.scripted(other))]
+  return [script.scripted(first, project), ...rest.map((other) => script.scripted(other, project))]
 }
 
-function listedHarnesses(options: HarnessEngineStart, script: ReplyScript): HarnessList {
-  if (options.harnesses !== undefined) return scriptedList(options, options.harnesses, script)
+function listedHarnesses(options: HarnessEngineStart, script: ReplyScript, project: string): HarnessList {
+  if (options.harnesses !== undefined) return scriptedList(options, options.harnesses, script, project)
   if (options.harness !== undefined) return [script.adapter(options.harness)]
-  return [script.scripted({})]
+  return [script.scripted({}, project)]
 }
 
 function pickedFirst(harnesses: HarnessList, id: string | undefined): HarnessList {
@@ -377,6 +383,21 @@ function pickedFirst(harnesses: HarnessList, id: string | undefined): HarnessLis
     throw new Error(`the config names the harness ${id}, but the engine's harnesses are ${ids}`)
   }
   return [picked, ...harnesses.filter((harness) => harness !== picked)]
+}
+
+function engineHarnesses(
+  options: HarnessEngineStart,
+  script: ReplyScript,
+  project: string,
+  configured: string | undefined,
+  root: string,
+): HarnessList {
+  try {
+    return pickedFirst(listedHarnesses(options, script, project), configured)
+  } catch (error) {
+    rmSync(root, {recursive: true, force: true})
+    throw error
+  }
 }
 
 const KIT_OWNED_FIELDS = ['stateRoot', 'homeDir', 'devEndpointDir'] as const
@@ -507,10 +528,10 @@ export async function createHarnessEngine(
 ): Promise<HarnessEngine> {
   const config = engineConfig(given)
   const script = replyScript(options.tokensPerSecond)
-  const harnesses = pickedFirst(listedHarnesses(options, script), config.harness)
   const fixture = fixtureFolder(options)
   const root = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
   const project = fixture ?? root
+  const harnesses = engineHarnesses(options, script, project, config.harness, root)
   const opened: HarnessEngineOpened[] = []
   const live: Live = {staleness: undefined, version: undefined}
   const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
