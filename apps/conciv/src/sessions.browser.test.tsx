@@ -127,3 +127,33 @@ describe('swap a quick pane’s session', () => {
     expect(await within(terminal).findByRole('button', {name: 'Session: Alpha'})).toBeVisible()
   })
 })
+
+describe('preview a session', () => {
+  test('the user highlights an earlier session, reads its thread in the preview and closes it with Escape', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(TestLLM.text('The plan has three steps'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Show me the plan')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('conciv replied.')).toBeVisible()
+
+    await user.click(await screen.findByRole('button', {name: 'Show me the plan, session options'}))
+    await user.click(await screen.findByRole('button', {name: 'Session: Show me the plan'}))
+    await user.click(await screen.findByRole('button', {name: 'New session'}))
+    expect(await screen.findByText('Started a new session')).toBeVisible()
+
+    await user.click(await screen.findByRole('button', {name: 'New session, session options'}))
+    await user.click(await screen.findByRole('button', {name: 'Session: New session'}))
+    await user.click(await screen.findByRole('combobox', {name: 'Search sessions'}))
+    await user.keyboard('{ArrowDown}')
+    const preview = await screen.findByRole('dialog', {name: 'Preview of Show me the plan'})
+    expect(await within(preview).findByText('The plan has three steps')).toBeVisible()
+    expect(within(preview).getAllByText('Show me the plan')).toHaveLength(2)
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', {name: 'Preview of Show me the plan'})).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', {name: 'Search sessions'})).toBeVisible()
+  })
+})

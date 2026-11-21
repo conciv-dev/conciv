@@ -10,6 +10,7 @@ import {
   type HarnessMenuEntry,
   type HarnessSessionId,
   type HarnessMeta,
+  type NativeSessionRef,
   type ReasoningEffort,
   type SessionRecord,
 } from '@conciv/protocol/chat-types'
@@ -30,6 +31,7 @@ import {
   resolveRow,
   restoreRow,
   rowById,
+  rowByNativeRef,
   switchRowHarness,
   type NativePage,
 } from '../../sessions/session-rows.js'
@@ -75,7 +77,7 @@ async function loadTranscriptTail(
   options: TranscriptTailOptions,
 ): Promise<TranscriptPage | null> {
   const history = chat.harnesses.find((harness) => harness.id === harnessKind)?.history
-  if (history === undefined) return null
+  if (history === undefined) return loadSavedPage(chat, {harnessKind, cwd, nativeId}, options)
   if (history.withinProject && !history.withinProject(cwd, nativeId)) return null
   try {
     return await history.tail(cwd, nativeId, options)
@@ -84,6 +86,20 @@ async function loadTranscriptTail(
     logError(`[core] previewing the ${harnessKind} native session ${nativeId} failed: ${String(error)}`)
     return null
   }
+}
+
+async function loadSavedPage(
+  chat: ChatContext,
+  ref: NativeSessionRef,
+  options: TranscriptTailOptions,
+): Promise<TranscriptPage | null> {
+  const row = await rowByNativeRef(chat.db, ref)
+  if (row === null) return null
+  const {messages, page} = await chat.plane.hydrate(row.id, {
+    limit: options.limit,
+    ...(options.before === null ? {} : {before: options.before}),
+  })
+  return {messages, earlier: page?.truncated ? page.cursor : null}
 }
 
 async function listedPages(chat: ChatContext, page: HarnessListPage): Promise<NativePage[]> {
