@@ -7,8 +7,15 @@ const SECRET_SUFFIX = /(?:^|_)(?:API_KEY|AUTHORIZATION|TOKEN|SECRET|PASSWORD|CRE
 
 const CONCIV_PREFIX = /^CONCIV_/
 
+const AGENT_SHELL_VARIABLES = new Set(['CLAUDECODE', 'CODEX_THREAD_ID', 'GEMINI_CLI', 'OPENCODE'])
+
 function kept(name: string): boolean {
-  return !PROVIDER_PREFIX.test(name) && !SECRET_SUFFIX.test(name) && !CONCIV_PREFIX.test(name)
+  return (
+    !PROVIDER_PREFIX.test(name) &&
+    !SECRET_SUFFIX.test(name) &&
+    !CONCIV_PREFIX.test(name) &&
+    !AGENT_SHELL_VARIABLES.has(name)
+  )
 }
 
 export function isolatedEnv(
