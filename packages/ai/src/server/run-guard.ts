@@ -1,3 +1,4 @@
+import {setTimeout as delay} from 'node:timers/promises'
 import {EventType} from '@tanstack/ai'
 import type {TextAdapter} from '../adapters/adapters.js'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
@@ -7,6 +8,7 @@ export type RunGuard = {
   stopped: AbortSignal
   startMs: number
   firstOutputMs: number
+  closeMs: number
   onNotStarted: () => void
   onSilence: () => void
   stop: () => void
@@ -46,6 +48,24 @@ async function* stopped(ending: ChatEvent, guard: RunGuard): AsyncIterable<ChatE
   }
 }
 
+async function closed(iterator: AsyncIterator<ChatEvent>, guard: RunGuard): Promise<void> {
+  const closing = Promise.resolve(iterator.return?.()).then(
+    () => true,
+    (error: unknown) => {
+      guard.log(`[ai] closing the adapter stream failed: ${String(error)}`)
+      return true
+    },
+  )
+  const settled = new AbortController()
+  const late = delay(guard.closeMs, false, {ref: false, signal: settled.signal}).catch(() => true)
+  try {
+    const closedInTime = await Promise.race([closing, late])
+    if (!closedInTime) guard.log(`[ai] the adapter stream did not close within ${guard.closeMs}ms`)
+  } finally {
+    settled.abort()
+  }
+}
+
 async function* guarded(start: () => AsyncIterable<ChatEvent>, guard: RunGuard): AsyncIterable<ChatEvent> {
   if (guard.ended.aborted) {
     yield* stopped(guard.ended.reason, guard)
@@ -75,9 +95,7 @@ async function* guarded(start: () => AsyncIterable<ChatEvent>, guard: RunGuard):
     watch.disarm()
     guard.ended.removeEventListener('abort', end)
     guard.stopped.removeEventListener('abort', finish)
-    Promise.resolve(iterator.return?.()).catch((error: unknown) => {
-      guard.log(`[ai] closing the adapter stream failed: ${String(error)}`)
-    })
+    await closed(iterator, guard)
   }
 }
 

@@ -47,7 +47,7 @@ import {codeModeTools, readSecretRefusal, stoppedWith} from './code-mode.js'
 import type {CodeDriver} from './quickjs-thread.js'
 import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
-import {localSandbox} from './local-sandbox.js'
+import {GROUP_EXIT_TIMEOUT_MS, localSandbox} from './local-sandbox.js'
 import {answeredAdapter, answeredMetadata, hookedRequest, type RequestHook} from './model-request.js'
 import {formatLoggedError} from './logged-error.js'
 import {cloneDeepWith, isPlainObject, takeWhile} from 'es-toolkit'
@@ -741,6 +741,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         stopped: controller.signal,
         startMs: config.startTimeoutMs,
         firstOutputMs: config.firstOutputTimeoutMs,
+        closeMs: config.sandbox.groupExitTimeoutMs ?? GROUP_EXIT_TIMEOUT_MS,
         onNotStarted: () => failed(`the agent did not start within ${seconds(config.startTimeoutMs)}s`),
         onSilence: () => failed(`the agent produced no output within ${seconds(config.firstOutputTimeoutMs)}s`),
         stop: () => controller.abort(RUN_CANCEL_REASON),
