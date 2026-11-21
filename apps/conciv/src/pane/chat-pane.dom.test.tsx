@@ -118,3 +118,33 @@ describe('retrying a failed reply', () => {
     expect(screen.queryByRole('alert', {name: 'The model is unavailable'})).not.toBeInTheDocument()
   })
 })
+
+describe('a reply that reads the page before it answers', () => {
+  test('the trace the user hid while the reply waited stays hidden when the answer arrives', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {typescriptCode: 'return await external_page_route({})'}),
+      TestLLM.text('You are on the home page', 'reply'),
+    )
+    const toolCall = await engine.gate()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Where am I')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    await toolCall.started
+    const answer = await engine.gate()
+    await toolCall.release()
+    await answer.started
+    const reply = await screen.findByRole('article', {name: 'Reply to: Where am I'})
+    expect(await within(reply).findByText('Read the route')).toBeVisible()
+    await user.click(within(reply).getByRole('button', {name: /Hide trace/}))
+    await answer.release()
+
+    expect(await screen.findByText('You are on the home page')).toBeVisible()
+    expect(screen.getByRole('button', {name: /Show trace/})).toHaveFocus()
+    expect(screen.queryByRole('list', {name: 'Execution trace'})).not.toBeInTheDocument()
+  })
+})

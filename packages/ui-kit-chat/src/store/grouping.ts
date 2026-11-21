@@ -93,10 +93,18 @@ function sourceUnchanged(
   )
 }
 
-function buildTurn(messages: ReadonlyArray<ChatMessage>, bound: TurnBounds): Turn {
+function turnKey(prev: Turn | undefined, bound: TurnBounds, messages: ReadonlyArray<ChatMessage>): string {
+  const before = prev?.messages[0]
+  if (!prev || !before || prev.start !== bound.start || before.role !== bound.first.role) return bound.first.id
+  if (before.id === bound.first.id) return prev.key
+  const renamed = bound.first.role === 'assistant' && !messages.some(({id}) => id === before.id)
+  return renamed ? prev.key : bound.first.id
+}
+
+function buildTurn(messages: ReadonlyArray<ChatMessage>, bound: TurnBounds, key: string): Turn {
   const source = messages.slice(bound.start, bound.end + 1)
   return {
-    key: bound.first.id,
+    key,
     role: bound.first.role,
     parts: source.flatMap((message) => message.parts),
     messages: source,
@@ -115,7 +123,7 @@ export function diffTurns(
     const prev = prevTurns[index]
     if (prev && prev.start === bound.start && prev.end === bound.end && sourceUnchanged(bound, prevMessages, messages))
       return prev
-    return buildTurn(messages, bound)
+    return buildTurn(messages, bound, turnKey(prev, bound, messages))
   })
 }
 
