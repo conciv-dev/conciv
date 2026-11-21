@@ -1,7 +1,6 @@
 import {dirname, join} from 'node:path'
 import {readdirSync, existsSync} from 'node:fs'
-import {z} from 'zod'
-import type {Plugin, UserConfig, ViteDevServer} from 'vite'
+import type {Plugin, ViteDevServer} from 'vite'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {Engine} from '@conciv/core/start'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
@@ -51,23 +50,6 @@ function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly string[]
     },
     server: {forwardConsole: false, warmup: {clientFiles: [...(opts.warmupFiles ?? [])]}},
   }
-}
-
-const TESTKIT = '@conciv/plugin-testkit'
-
-const ModuleNotFoundSchema = z.object({code: z.literal('ERR_MODULE_NOT_FOUND'), message: z.string()})
-
-function isTestkitMissing(error: unknown): boolean {
-  return ModuleNotFoundSchema.safeParse(error).data?.message.includes(`'${TESTKIT}'`) ?? false
-}
-
-async function testConfig(userConfig: UserConfig): Promise<UserConfig> {
-  if (userConfig.test?.name !== undefined) return {}
-  const loaded = await import('@conciv/plugin-testkit/vitest').catch((error: unknown) => {
-    if (isTestkitMissing(error)) return null
-    throw error
-  })
-  return loaded ? {test: {projects: loaded.testProjects()}} : {}
 }
 
 function dropIncludedFromExcludes(
@@ -266,7 +248,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       },
     },
     config(userConfig, env) {
-      if (env.mode === 'test') return testConfig(userConfig)
+      if (env.mode === 'test') return {}
       const embedFiles =
         builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...embedChunks(builtins.embedEntry)]
       const base = concivSolidConfig({

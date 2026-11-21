@@ -3507,9 +3507,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/embed':
-        specifier: workspace:^
-        version: link:../../embed
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../../plugin
@@ -3522,9 +3519,6 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
-      '@conciv/unplugin':
-        specifier: workspace:^
-        version: link:../../unplugin
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -4698,9 +4692,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
