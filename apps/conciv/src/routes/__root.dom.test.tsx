@@ -44,20 +44,22 @@ describe('a reply finishes elsewhere', () => {
 
 describe('the launcher while a run works', () => {
   test('the launcher says it is busy until the reply finishes', async () => {
+    const user = userEvent.setup()
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Finished', 'reply'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/']})})
 
-    expect(await screen.findByRole('button', {name: 'Open conciv chat', busy: false})).toBeVisible()
-    const sent = engine.session.send('Run something long')
+    await user.click(await screen.findByRole('button', {name: 'Open conciv chat', busy: false}))
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Run something long')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
     await gate.started
+    await user.click(await screen.findByRole('button', {name: 'Close chat'}))
 
     expect(await screen.findByRole('button', {name: 'Open conciv chat', busy: true})).toBeVisible()
     expect(screen.queryByRole('button', {name: 'Open conciv chat', busy: false})).not.toBeInTheDocument()
 
     await gate.release()
-    await sent
     expect(await screen.findByRole('button', {name: 'Open conciv chat', busy: false})).toBeVisible()
     expect(screen.queryByRole('button', {name: 'Open conciv chat', busy: true})).not.toBeInTheDocument()
   })
