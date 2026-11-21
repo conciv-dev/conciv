@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {page} from 'vitest/browser'
+import {page, userEvent as browserUserEvent} from 'vitest/browser'
 import {screen, waitFor, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine} from '@conciv/plugin-testkit'
@@ -272,5 +272,59 @@ describe('phone width', () => {
     await user.click(screen.getByRole('button', {name: 'Go back'}))
     await waitFor(() => expect(details).toHaveFocus())
     expect(screen.queryByText('The board details')).not.toBeInTheDocument()
+  })
+})
+
+describe('tucking the launcher away', () => {
+  test('the user drags the launcher past the left edge into a tab, and the tab brings it back with focus', async () => {
+    await page.viewport(1280, 800)
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await mount({engine})
+
+    const launcher = await screen.findByRole('button', {name: 'Open conciv chat'})
+    await browserUserEvent.pointer([
+      {target: launcher, keys: '[MouseLeft>]'},
+      {coords: {x: -40, y: 400}},
+      {keys: '[/MouseLeft]'},
+    ])
+    const tab = await screen.findByRole('button', {name: 'Show conciv launcher'})
+    expect(tab).toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Open conciv chat'})).not.toBeInTheDocument()
+
+    await user.click(tab)
+    const restored = await screen.findByRole('button', {name: 'Open conciv chat'})
+    await waitFor(() => expect(restored).toHaveFocus())
+    expect(screen.queryByRole('button', {name: 'Show conciv launcher'})).not.toBeInTheDocument()
+  })
+})
+
+describe('a link to a past harness session', () => {
+  test('the address of the harness session id opens that session under its conciv id with its saved thread', async () => {
+    await page.viewport(1280, 800)
+    const engine = await createEngine(
+      {},
+      {
+        harnesses: [
+          {
+            id: 'engine',
+            sessions: [
+              {
+                id: 'past-1',
+                derivedTitle: 'Fix the login form',
+                updatedAt: Date.now() - 86_400_000,
+                messages: [{id: 'm1', role: 'user', parts: [{type: 'text', content: 'why does login fail'}]}],
+              },
+            ],
+          },
+        ],
+      },
+    )
+    await engine.newSession('Plan the release')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/past-1?open=true']})})
+
+    expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+    expect(await screen.findByText('why does login fail')).toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Plan the release, session options'})).not.toBeInTheDocument()
   })
 })
