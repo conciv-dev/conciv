@@ -489,3 +489,54 @@ describe('the element inspector', () => {
     expect(within(reply).getByText('Drove an effect')).toBeVisible()
   })
 })
+
+describe('the page follows the session the user switches to', () => {
+  test('after a switch the page answers the session the user picked and the old one is told it is gone', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const alpha = await engine.newSession('Alpha')
+    const bravo = await engine.newSession('Bravo')
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    expect(await bravo.tool('page_route').call({})).toMatchObject({pathname: '/'})
+
+    const again = await engine.event('rpc.experimental.page.control')
+    await user.click(await screen.findByRole('button', {name: 'Bravo, session options'}))
+    await user.click(await screen.findByRole('button', {name: 'Session: Bravo'}))
+    await user.click(await screen.findByRole('option', {name: /^Alpha, Edited/}))
+    expect(await screen.findByText('Switched to Alpha')).toBeVisible()
+    await again.arrived
+
+    expect(await alpha.tool('page_route').call({})).toMatchObject({pathname: '/'})
+    expect(await bravo.tool('page_route').failure({})).toMatchObject({
+      message: expect.stringContaining('[page.disconnected]'),
+    })
+  })
+})
+
+describe('the user grabs an element for the agent', () => {
+  test('the picked element is staged in the composer, sent with the message, and reaches the agent', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(TestLLM.text('That button buys the fern'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <button type="button" id="buy">
+        Buy the fern
+      </button>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'Select an element from the page'}))
+    await user.click(screen.getByRole('button', {name: 'Buy the fern'}))
+    await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'What does this do?')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+
+    expect(await screen.findByText('That button buys the fern')).toBeVisible()
+    expect(screen.getByRole('button', {name: 'Open grabbed element'})).toBeVisible()
+    const [request] = await engine.requests()
+    expect(JSON.stringify(request?.messages)).toContain('Buy the fern')
+  })
+})
