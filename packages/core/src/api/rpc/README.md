@@ -26,7 +26,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - `PAGE_ERROR_NAME` (`router.ts`): PageErrorCode to NO_PAGE_CLIENT, PAGE_TIMEOUT, UNKNOWN_TOOL, INVALID_ARGS, HANDLER_ERROR
 - `os`, `makeSessionOs`, `makeHubAdmission`, `callerScope`, `RpcDeps`, `ChatContext`, `SessionOs`, `CompositeRpcRouter` (`mount.ts`)
 - `carryEngineRouter`, `readEngineRouter` (`engine-router.ts`, not in the package's `exports`): `makeApp` and `start` carry the engine's router on their result under a module-private, non-enumerable symbol (the public types show only the opaque `EngineRouterBrand`), so core's own node tests call procedures the oRPC way (`call` / `createRouterClient`); this brand is deleted when `makeApp` becomes Effect layers and the router a service
-- The `.fallowrc.json` boundary zone `core-tests` (`packages/core/src/**/*.test.ts`) exists only so core's tests can call `createRouterClient`, which `calls.forbidden` bans for `core-callers` and fallow 3.36 cannot exempt per file; the zone keeps `core-callers`' import rule
+- The `.fallowrc.json` boundary zone `core-tests` (`packages/core/src/**/*.test.ts` and `packages/core/test/**`) exists only so core's test fixture `packages/core/test/engine-test.ts`, the one module every core router test imports its `test` from, can call `createRouterClient`, which `calls.forbidden` bans for `core-callers` and fallow 3.36 cannot exempt per file; the zone keeps `core-callers`' import rule
 
 ## Invariants
 

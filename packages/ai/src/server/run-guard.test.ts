@@ -6,10 +6,10 @@ import {makeTextAdapter} from '../adapters/adapters.js'
 import {runAdapterTurn} from '../testkit.js'
 import {guardedAdapter} from './run-guard.js'
 
-const started: ChatEvent = {type: EventType.RUN_STARTED, threadId: 'thread', runId: 'run'}
-const finished: ChatEvent = {type: EventType.RUN_FINISHED, threadId: 'thread', runId: 'run', finishReason: 'stop'}
-
 describe('the run guard', () => {
+  const started: ChatEvent = {type: EventType.RUN_STARTED, threadId: 'thread', runId: 'run'}
+  const finished: ChatEvent = {type: EventType.RUN_FINISHED, threadId: 'thread', runId: 'run', finishReason: 'stop'}
+
   it('ends a run that starts and then sends no output with the silence limit', async () => {
     const ended = new AbortController()
     const stopped = new AbortController()

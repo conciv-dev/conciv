@@ -1,43 +1,15 @@
-import {join} from 'node:path'
-import {createRouterClient, type RouterClient} from '@orpc/server'
-import {describe, expect, test as base, vi} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {describe, expect, vi} from 'vitest'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
-import {start, type Engine} from '../../start.js'
-import {readEngineRouter} from './engine-router.js'
-
-const test = base.extend<{engine: Engine; client: RouterClient<ReturnType<typeof readEngineRouter>>}>({
-  engine: async ({task: _task}, use) => {
-    const root = tempDir('sessions-')
-    const engine = await start({
-      options: {stateRoot: root},
-      root,
-      homeDir: join(root, 'home'),
-      devEndpointDir: join(root, 'dev-endpoint'),
-      launchEditor: () => {},
-      print: () => {},
-    })
-    await use(engine)
-    await engine.stop()
-  },
-  client: async ({engine}, use) => {
-    await use(
-      createRouterClient(readEngineRouter(engine), {
-        context: {origin: `http://127.0.0.1:${engine.port}`, callerOrigin: null, headers: {}},
-      }),
-    )
-  },
-})
+import {test} from '../../../test/engine-test.js'
 
 describe('sessions', () => {
-  test('the list answers the newest session first, a page at a time', async ({client}) => {
-    vi.useFakeTimers({toFake: ['Date'], now: 1_000})
+  test('the list answers the newest session first, a page at a time', async ({client, fakeTimers}) => {
+    fakeTimers({toFake: ['Date'], now: 1_000})
     const oldest = await client.sessions.create({})
     vi.setSystemTime(2_000)
     const middle = await client.sessions.create({})
     vi.setSystemTime(3_000)
     const newest = await client.sessions.create({})
-    vi.useRealTimers()
     const first = await client.sessions.list({limit: 2})
     const second = await client.sessions.list({limit: 2, cursor: first.next})
 

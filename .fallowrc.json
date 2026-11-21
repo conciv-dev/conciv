@@ -36,7 +36,7 @@
       },
       {
         "name": "core-tests",
-        "patterns": ["packages/core/src/**/*.test.ts"]
+        "patterns": ["packages/core/src/**/*.test.ts", "packages/core/test/**"]
       },
       {
         "name": "core-callers",
