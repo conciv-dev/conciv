@@ -341,10 +341,15 @@ export function readTab(id: string): Tab {
   }
 }
 
+export function reportRouteChanges(report: () => void, signal: AbortSignal) {
+  if (typeof navigation === 'undefined') return
+  navigation.addEventListener('currententrychange', report, {signal})
+}
+
 export function reportChanges(report: () => void, signal: AbortSignal) {
   TAB_EVENTS.forEach((type) => window.addEventListener(type, report, {signal}))
   document.addEventListener('visibilitychange', report, {signal})
-  navigation.addEventListener('currententrychange', report, {signal})
+  reportRouteChanges(report, signal)
   const last = {title: document.title}
   const titles = new MutationObserver(() => {
     if (document.title === last.title) return

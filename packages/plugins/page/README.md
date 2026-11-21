@@ -69,6 +69,11 @@ back-off does. Any other refusal before it attached (the session belongs to
 another location, or the page plugin is shutting down; the type `unavailable`) stops attaching until the server
 reconnects or the panel routes another session.
 
+The tab reports its state again on focus, blur, a visibility change, a title change and a route change
+(`reportChanges` in `attachment.ts`). Route changes come from the Navigation API's `currententrychange`; in a browser
+without it (Firefox before 147, Safari before 26.2) `reportRouteChanges` subscribes to nothing, the tab still attaches,
+and a route change reaches the agent with the next report or attach.
+
 The terminal runs the page tools as `conciv tools page <verb>`, as main: core's `registry.call` runs the plugin's
 tool for the session `--tab` or `CONCIV_SESSION_ID` names; `eval` from there asks as the cli README's 'Who is asked'
 says. Inside a chat turn the `eval` tool asks the user first.
