@@ -97,3 +97,28 @@ describe('a runner the plugin does not implement', () => {
     },
   )
 })
+
+describe('a playwright project', () => {
+  test('the agent lists the spec files, runs them all and narrows a run to one file', async () => {
+    const engine = await createEngine(
+      {plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]},
+      {directory: 'test/fixtures/seed-catalog'},
+    )
+
+    expect(await engine.session.tool('test_runner_list').call({})).toEqual({
+      files: expect.arrayContaining([
+        {file: expect.stringContaining('/seed-catalog/catalog.spec.js'), relPath: 'catalog.spec.js'},
+        {file: expect.stringContaining('/seed-catalog/order.spec.js'), relPath: 'order.spec.js'},
+      ]),
+    })
+    expect(await engine.session.tool('test_runner_run').call({})).toMatchObject({
+      summary: {passed: 1, failed: 1, skipped: 0},
+      failures: [{file: 'order.spec.js', name: 'an order of three packets costs 9'}],
+    })
+    expect(await engine.session.tool('test_runner_run').call({pattern: 'catalog'})).toMatchObject({
+      summary: {passed: 1, failed: 0, skipped: 0},
+      failures: [],
+      tests: [{name: 'the catalog lists basil', state: 'pass'}],
+    })
+  })
+})
