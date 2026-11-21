@@ -11,6 +11,7 @@ import type {HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, runLifecycleEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {ConcivConfigSchema, type ConcivConfig} from '@conciv/protocol/config-types'
+import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-ports'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {z} from 'zod'
@@ -44,6 +45,8 @@ export type EngineStart = {
   env?: Record<string, string>
   fs?: {filewatcher?: boolean}
   clock?: 'test'
+  port?: 'connect'
+  token?: string
 }
 
 export type HarnessEngineStart = EngineStart & {harness?: HarnessAdapter}
@@ -83,6 +86,8 @@ const PluginRpcErrorSchema = z.object({
   code: z.enum(['PLUGIN_RPC', 'PLUGIN_RPC_INTERNAL']),
   data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
 })
+
+const AddressInUseSchema = z.object({code: z.literal('EADDRINUSE')})
 
 export type HarnessEngine = {
   session: HarnessEngineSession
@@ -398,6 +403,7 @@ function openedFile(file: string, line: number | undefined, column: number | und
 function bootApp(
   {root, project, harnesses: [harness, ...others], config, options, configProvider, opened, live, heldClock}: Boot,
   previous: {started: Started; sessionId: string} | undefined,
+  connectPort?: number,
 ): Promise<Started> {
   const home = engineHome(root)
   return start({
@@ -421,13 +427,44 @@ function bootApp(
       opened.push(openedFile(file, line, column))
     },
     print: () => {},
-    ...portRequest(config, previous?.started),
+    ...portRequest(config, options.token, previous?.started, connectPort),
   })
 }
 
-function portRequest(config: ConcivConfig, previous: Started | undefined): Pick<StartOpts, 'port' | 'accessToken'> {
+function portRequest(
+  config: ConcivConfig,
+  token: string | undefined,
+  previous: Started | undefined,
+  connectPort: number | undefined,
+): Pick<StartOpts, 'port' | 'accessToken'> {
   if (previous !== undefined) return {port: {exact: previous.port}, accessToken: previous.agentToken}
-  return config.port === undefined ? {} : {port: {exact: config.port}}
+  const port = connectPort ?? config.port
+  return port === undefined ? {accessToken: token} : {port: {exact: port}, accessToken: token}
+}
+
+async function bootOnConnectPort(boot: Boot, port: number, refused: unknown): Promise<Started> {
+  if (port > CONNECT_LAST_PORT) {
+    throw new Error(`no free port between ${CONNECT_FIRST_PORT} and ${CONNECT_LAST_PORT}: ${String(refused)}`)
+  }
+  return bootApp(boot, undefined, port).catch((error: unknown) => {
+    if (!AddressInUseSchema.safeParse(error).success) throw error
+    return bootOnConnectPort(boot, port + 1, error)
+  })
+}
+
+async function bootFirst(boot: Boot): Promise<Started> {
+  if (boot.options.port !== 'connect') {
+    if (boot.options.token !== undefined) {
+      throw new Error("start gives a token without port: 'connect': the token is the connect port's pairing token")
+    }
+    return bootApp(boot, undefined)
+  }
+  if (boot.config.port !== undefined) {
+    throw new Error(
+      `the config gives port ${boot.config.port} and start gives port: 'connect': give the engine one port`,
+    )
+  }
+  return bootOnConnectPort(boot, CONNECT_FIRST_PORT, undefined)
 }
 
 function fixtureWrite(project: string, fixture: string | undefined): (path: string, content: string) => Promise<void> {
@@ -487,7 +524,7 @@ export async function createHarnessEngine(
     live,
     heldClock,
   }
-  const first = await bootApp(boot, undefined).catch((error: unknown) => abandonStart(error, [removeRoot, closeClock]))
+  const first = await bootFirst(boot).catch((error: unknown) => abandonStart(error, [removeRoot, closeClock]))
   const apiBase = `http://127.0.0.1:${first.port}/t/${first.agentToken}`
   const browser = makeBrowserRpcClient(apiBase)
   const engine: Engine = {apiBase, rpc: browser.rpc, turns: makeTurns(browser.rpc)}
