@@ -1,6 +1,6 @@
 import {onTestFinished} from 'vitest'
 import {createComponent} from 'solid-js'
-import {cleanup, render, screen} from '@solidjs/testing-library'
+import {cleanup, render} from '@solidjs/testing-library'
 import {ConcivApp, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
 import type {Engine, EngineAddress} from './engine.js'
 
@@ -65,14 +65,16 @@ export function makeMount(engineAddress: (engine: Engine) => EngineAddress): Mou
       sessionStorage.clear()
     })
     writeStorage(options.seed?.storage ?? {})
+    const interactive = Promise.withResolvers<void>()
     const platform: Platform = {
       engine: () => ({kind: 'bound', apiBase: address.apiBase, token: () => Promise.resolve(address.token)}),
       navigation: {memory: options.route ?? '/'},
       root: document,
       timings: {engine: ENGINE_TIMINGS},
       draftStore: memoryDraftStore(),
+      onInteractive: () => interactive.resolve(),
     }
     render(() => createComponent(ConcivApp, {platform}))
-    await screen.findByRole('button', {name: 'Open conciv chat'})
+    await interactive.promise
   }
 }
