@@ -1,0 +1,101 @@
+import {describe, expect, test} from 'vitest'
+import {page, userEvent as browserInput} from 'vitest/browser'
+import {screen, within} from '@solidjs/testing-library'
+import userEvent from '@testing-library/user-event'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+
+describe('a saved session that failed', () => {
+  test('the run failure shows again when the user comes back to the session, with its Retry', async () => {
+    const engine = await createEngine()
+    await engine.reply(TestLLM.failAfter(new Error('The model is unavailable')))
+    await expect(engine.session.send('Are you there')).rejects.toThrow('The model is unavailable')
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
+    })
+
+    expect(await screen.findByRole('article', {name: 'You: Are you there'})).toBeVisible()
+    const alert = await screen.findByRole('alert', {name: 'The model is unavailable'})
+    expect(within(alert).getByRole('button', {name: 'Retry'})).toBeVisible()
+  })
+})
+
+describe('a reply with a diagram', () => {
+  test('the user reads a mermaid block as a drawn diagram and a code block as code', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.text(
+        '```mermaid\ngraph TD\n  A[Start] --> B[Done]\n```\n\n```ts\nconst total = 1 + 1\n```\n\nThat is the flow.',
+      ),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Draw the flow')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    const reply = await screen.findByRole('article', {name: 'Reply to: Draw the flow'})
+
+    expect(await within(reply).findByRole('graphics-document')).toBeVisible()
+    expect(within(reply).getByText('Start')).toBeVisible()
+    expect(within(reply).getByText('Done')).toBeVisible()
+    expect(within(reply).getByText('const total = 1 + 1')).toBeVisible()
+  })
+})
+
+describe('the files a reply changed', () => {
+  test('the status bar counts the files and lines the agent edited in the last reply', async () => {
+    await page.viewport(1280, 800)
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.toolCall('c1', 'Edit', {file_path: 'src/app.ts', old_string: 'one', new_string: 'two\nthree'}),
+      TestLLM.text('Edited the app'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Change the app')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('Edited the app')).toBeVisible()
+
+    const bar = screen.getByRole('toolbar', {name: 'Session status'})
+    expect(within(bar).getByText('1 file')).toBeVisible()
+    expect(within(bar).getByText('+2')).toBeVisible()
+    expect(within(bar).getByText('−1')).toBeVisible()
+  })
+})
+
+describe('a long saved session', () => {
+  test('the user scrolls to the start, earlier messages load in order, and Latest brings the end back', async () => {
+    await page.viewport(1280, 800)
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(...Array.from({length: 26}, (_, index) => TestLLM.text(`Answer ${index + 1}`)))
+    for (const index of Array.from({length: 26}, (_, offset) => offset + 1)) {
+      await engine.session.send(`Question ${index}`)
+    }
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
+    })
+
+    const last = await screen.findByRole('article', {name: 'Reply to: Question 26'})
+    expect(await within(last).findByText('Answer 26')).toBeVisible()
+    expect(screen.queryByRole('article', {name: 'Reply to: Question 1'})).not.toBeInTheDocument()
+    const latest = screen.getByRole('button', {name: 'Latest'})
+    expect(latest).not.toBeVisible()
+
+    await browserInput.click(last)
+    await browserInput.keyboard('{Home}')
+    expect(await screen.findByRole('article', {name: 'Reply to: Question 1'})).toBeVisible()
+    const rows = screen.getAllByRole('article')
+    expect(rows[0]).toHaveAccessibleName('You: Question 1')
+    expect(rows[1]).toHaveAccessibleName('Reply to: Question 1')
+    expect(rows[2]).toHaveAccessibleName('You: Question 2')
+    expect(rows[3]).toHaveAccessibleName('Reply to: Question 2')
+    expect(latest).toBeVisible()
+
+    await user.click(latest)
+    expect(await screen.findByText('Answer 26')).toBeVisible()
+  })
+})
