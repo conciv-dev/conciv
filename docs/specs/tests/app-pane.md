@@ -118,16 +118,16 @@ All verify: the ask comes from `createEngine({permission: 'ask'})` (or a `permis
 
 | status    | rows |
 | --------- | ---- |
-| tested    | 10   |
+| tested    | 11   |
 | written   | 1    |
-| planned   | 13   |
+| planned   | 12   |
 | verify    | 30   |
 | blocked   | 12   |
 | browser   | 6    |
 | e2e       | 2    |
 | elsewhere | 0    |
-| kept      | 1    |
-| total     | 75   |
+| kept      | 2    |
+| total     | 76   |
 
 ## Not in this area
 
