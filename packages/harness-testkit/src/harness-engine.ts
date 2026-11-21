@@ -277,7 +277,14 @@ async function matching(
   throw new Error(`the engine stopped before a ${type} event arrived`)
 }
 
+const OPENING_EVENT = 'server.connected'
+
 async function eventWait(engine: Engine, type: string, waits: Set<AbortController>): Promise<HarnessEngineEventWait> {
+  if (type === OPENING_EVENT) {
+    throw new Error(
+      `${OPENING_EVENT} cannot be waited for: the engine sends it once, as the first frame of each event subscription, and event() resolves once that frame has come`,
+    )
+  }
   const abort = new AbortController()
   waits.add(abort)
   const events = await engine.rpc.event.subscribe({types: [type]}, {signal: abort.signal}).catch((error: unknown) => {
