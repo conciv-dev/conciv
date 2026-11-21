@@ -109,10 +109,10 @@ jobs:
           firewall-version: 1.16.0 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
 
-      # Build the workspace packages the e2e-utils Playwright config imports (harness-testkit);
+      # Build the workspace packages e2e-utils imports (contract, protocol) and the CLI;
       # the e2e suites build their closure themselves.
       - name: Build packed packages
-        run: pnpm exec turbo run build --filter=@conciv/harness-testkit --filter=@conciv/cli
+        run: pnpm exec turbo run build --filter=@conciv/contract --filter=@conciv/protocol --filter=@conciv/cli
       # Each suite runs even when an earlier one failed, so one run reports them all.
       - name: nextjs
         if: ${{ !cancelled() }}
