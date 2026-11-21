@@ -1,8 +1,6 @@
 import {dirname, join} from 'node:path'
-import {readdirSync, existsSync, readFileSync} from 'node:fs'
-import {pathToFileURL} from 'node:url'
+import {readdirSync, existsSync} from 'node:fs'
 import {z} from 'zod'
-import type {TestProjectInlineConfiguration} from 'vitest/config'
 import type {Plugin, UserConfig, ViteDevServer} from 'vite'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {Engine} from '@conciv/core/start'
@@ -57,45 +55,19 @@ function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly string[]
 
 const TESTKIT = '@conciv/plugin-testkit'
 
-const ManifestSchema = z.object({
-  name: z.string().optional(),
-  dependencies: z.record(z.string(), z.string()).optional(),
-  devDependencies: z.record(z.string(), z.string()).optional(),
-})
+const ModuleNotFoundSchema = z.object({code: z.literal('ERR_MODULE_NOT_FOUND'), message: z.string()})
 
-function readManifest(dir: string): z.infer<typeof ManifestSchema> | null {
-  const file = join(dir, 'package.json')
-  if (!existsSync(file)) return null
-  return ManifestSchema.parse(JSON.parse(readFileSync(file, 'utf8')))
+function isTestkitMissing(error: unknown): boolean {
+  return ModuleNotFoundSchema.safeParse(error).data?.message.includes(`'${TESTKIT}'`) ?? false
 }
-
-function installedTestkit(root: string, dir: string): string {
-  const installed = join(dir, 'node_modules', TESTKIT)
-  if (existsSync(join(installed, 'package.json'))) return installed
-  const parent = dirname(dir)
-  if (parent === dir) throw new Error(`${TESTKIT} is listed in ${root}/package.json but is not installed`)
-  return installedTestkit(root, parent)
-}
-
-function findTestkit(root: string): string | null {
-  const own = readManifest(root)
-  if (own?.name === TESTKIT) return root
-  if (own?.dependencies?.[TESTKIT] === undefined && own?.devDependencies?.[TESTKIT] === undefined) return null
-  return installedTestkit(root, root)
-}
-
-const TestProjectsModuleSchema = z.object({
-  testProjects: z.custom<() => TestProjectInlineConfiguration[]>((value) => typeof value === 'function'),
-})
 
 async function testConfig(userConfig: UserConfig): Promise<UserConfig> {
   if (userConfig.test?.name !== undefined) return {}
-  const testkit = findTestkit(userConfig.root ?? process.cwd())
-  if (!testkit) return {}
-  const loaded = TestProjectsModuleSchema.parse(
-    await import(pathToFileURL(join(testkit, 'dist/test-projects.js')).href),
-  )
-  return {test: {projects: loaded.testProjects()}}
+  const loaded = await import('@conciv/plugin-testkit/vitest').catch((error: unknown) => {
+    if (isTestkitMissing(error)) return null
+    throw error
+  })
+  return loaded ? {test: {projects: loaded.testProjects()}} : {}
 }
 
 function dropIncludedFromExcludes(

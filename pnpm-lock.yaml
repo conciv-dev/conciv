@@ -4698,6 +4698,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/plugin-testkit':
+        specifier: workspace:^
+        version: link:../plugin-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig

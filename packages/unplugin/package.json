@@ -87,6 +87,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@rspack/core": "catalog:",
     "@tanstack/devtools-vite": "catalog:",
@@ -99,6 +100,7 @@
     "webpack": "catalog:"
   },
   "peerDependencies": {
+    "@conciv/plugin-testkit": "workspace:^",
     "next": "^15.3.0 || ^16.0.0",
     "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
   },
@@ -107,6 +109,9 @@
       "optional": true
     },
     "next": {
+      "optional": true
+    },
+    "@conciv/plugin-testkit": {
       "optional": true
     }
   }
