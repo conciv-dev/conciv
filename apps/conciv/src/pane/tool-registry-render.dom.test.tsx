@@ -159,3 +159,26 @@ describe('opening a tool card while the turn goes on', () => {
     expect(within(reply).getByText(/noon to two/)).toBeVisible()
   })
 })
+
+describe('how long a tool took', () => {
+  test('a finished tool card shows its duration in seconds', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_release_window({branch: 'main'})",
+      }),
+      TestLLM.text('The window is set'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'When can we ship')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+
+    expect(await screen.findByText('The window is set')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: When can we ship'})
+    await user.click(within(reply).getByRole('button', {name: /main/}))
+    const durations = await within(reply).findAllByText(/^\d+\.\ds$/)
+    expect(durations.at(-1)).toBeVisible()
+  })
+})
