@@ -24,6 +24,7 @@ Source details: [src/README.md](./src/README.md).
 - The setup files load none of the engine: `node-setup.ts` imports only the file-level engine list (`file-engines.ts`), so a test that never calls `createEngine` never imports `@conciv/harness-testkit` or core.
 - The vitest config loads none of the engine either: `test-projects.ts` imports the engine only inside the browser command that starts one, so the config costs the same whether or not a run makes an engine.
 - The happy-dom and browser projects add `vite-plugin-solid` only when the author's `vite.config.ts` has none: the projects extend that config, so a second copy compiled every file twice.
+- `--project` with only kit project names (`node`, `happy-dom`, `browser`) makes the kit add only those projects: vitest resolves every project's vite config before it filters, once per project with its own server, so `--project node` ran the author's config and plugins (the router generator among them) for the happy-dom and browser projects too. A filter with a wildcard, a `!` or any other name keeps all three, and vitest filters as before.
 - `package.json`: exports point at the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`.
 
 ## Verification

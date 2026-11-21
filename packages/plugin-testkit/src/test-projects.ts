@@ -405,8 +405,18 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
   ]
 }
 
+const KIT_PROJECTS = ['node', 'happy-dom', 'browser']
+
+const ProjectFilterSchema = z.object({project: z.union([z.string(), z.array(z.string())]).optional()})
+
+function selectedProjects(projects: TestProjectInlineConfiguration[], test: unknown): TestProjectInlineConfiguration[] {
+  const names = [ProjectFilterSchema.safeParse(test).data?.project ?? []].flat()
+  if (names.length === 0 || !names.every((name) => KIT_PROJECTS.includes(name))) return projects
+  return projects.filter((project) => typeof project.test?.name === 'string' && names.includes(project.test.name))
+}
+
 export function kitTestConfig(config: UserConfig): UserConfig {
   const defaults = kitDefaults(config.test)
   if (config.test?.name !== undefined) return {test: defaults}
-  return {test: {...defaults, projects: testProjects(config.plugins)}}
+  return {test: {...defaults, projects: selectedProjects(testProjects(config.plugins), config.test)}}
 }
