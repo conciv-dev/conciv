@@ -27,7 +27,12 @@ const BROWSER_ENTRY = /^@conciv\/plugin-testkit\/browser$/
 const ENGINE_ENTRY = /^@conciv\/plugin-testkit$/
 const NODE_ONLY_CONDITIONS = ['browser', 'solid']
 const SOLID_INJECTED_JEST_DOM = '@testing-library/jest-dom/vitest'
-const PAGE_DEPENDENCIES_TO_INLINE = [/solid/, /@ark-ui/, /@zag-js/, /lucide/, /packages\/(core|tools)\/dist\/cards/]
+const PAGE_DEPENDENCIES_TO_INLINE = [
+  /\/node_modules\/(@[^/]+\/)?[^/]*(solid|lucide)/,
+  '@ark-ui/',
+  '@zag-js/',
+  /packages\/(core|tools)\/dist\/cards/,
+]
 const ENGINE_IN_NODE = [/plugin-testkit\/dist\/(index|engine-[\w-]+|file-engines-[\w-]+)\.js$/]
 const APP_FROM_KIT = '@conciv/plugin-testkit > @conciv/app'
 const TEST_TIMEOUT_MS = 30_000
