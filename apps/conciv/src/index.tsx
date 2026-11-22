@@ -15,6 +15,7 @@ import {keepLastScreen, readLastScreen} from './runtime/persistence/last-screen.
 
 export {createDraftStore, openBrowserDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
 export {WIDGET_LAYER} from './lib/widget-layer.js'
+export {keepLastScreen} from './runtime/persistence/last-screen.js'
 
 export type Platform = {
   engine: Accessor<{kind: 'bound'; apiBase: string; token?: () => Promise<string>} | {kind: 'servers'}>

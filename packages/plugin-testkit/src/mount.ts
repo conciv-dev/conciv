@@ -2,7 +2,7 @@ import {inject, onTestFinished} from 'vitest'
 import {createComponent} from 'solid-js'
 import {cleanup, render} from '@solidjs/testing-library'
 import {createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
-import {ConcivApp, WIDGET_LAYER, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
+import {ConcivApp, WIDGET_LAYER, createDraftStore, keepLastScreen, type DraftStore, type Platform} from '@conciv/app'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {loaders} from 'virtual:conciv-test-plugins'
 import type {Engine} from './engine.js'
@@ -108,7 +108,7 @@ function mountedNavigation(options: MountOptions): Platform['navigation'] {
   const {history, engine} = options
   if (history !== undefined && 'initialEntries' in history) {
     const screen = history.initialEntries[history.initialIndex ?? history.initialEntries.length - 1]
-    if (screen !== undefined) sessionStorage.setItem('conciv-last-screen', screen)
+    if (screen !== undefined) keepLastScreen(screen)
     return 'tab'
   }
   if (history !== undefined) return {history}
