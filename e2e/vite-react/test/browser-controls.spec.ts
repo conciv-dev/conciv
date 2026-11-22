@@ -1,5 +1,4 @@
 import {expect, test} from '@conciv/e2e-utils/fixtures'
-import {defaultEngineConnectionTimings} from '@conciv/contract'
 import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
 
 test.describe('the browser around the widget on a vite react page', () => {
@@ -17,7 +16,7 @@ test.describe('the browser around the widget on a vite react page', () => {
     await composer.pressSequentially('Ship the header fix')
     await expect(composer).toHaveText('Ship the header fix')
 
-    await page.clock.pauseAt(Date.now() + defaultEngineConnectionTimings.offlineGraceMs)
+    await page.clock.pauseAt(Date.now() + 1000)
     await context.setOffline(true)
     await expect(page.getByRole('button', {name: 'conciv lost connection to the engine'})).toBeVisible()
     await composer.press('Enter')
