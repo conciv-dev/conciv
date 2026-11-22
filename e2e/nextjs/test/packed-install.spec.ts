@@ -1,7 +1,8 @@
-import {mkdirSync, rmSync, writeFileSync} from 'node:fs'
+import {execFile, execFileSync} from 'node:child_process'
+import {mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
+import {promisify} from 'node:util'
 import {expect, test} from '@playwright/test'
-import {assertTrustedResolutions, buildAndPack, firewalledPnpm, releaseAgeYaml, run} from '@conciv/vitest-config/pack'
 import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
 import {PACKED_ROOT} from '../packed/packed-app-dir.ts'
 
@@ -21,13 +22,20 @@ test.describe('installing the packed @conciv/it into a fresh project under pnpm 
   test('the install succeeds and every package it resolves comes from the npm registry', async () => {
     test.setTimeout(6 * 60_000)
     const trustPolicyExcludes = ['semver', 'langium', '@pierre/theme', 'solid-js']
+    const tarballs = join(PACKED_ROOT, 'tarballs')
+    const overrides = readdirSync(tarballs).flatMap((file) => {
+      const packed = /^conciv-(.+)-\d+\.\d+\.\d+[^/]*\.tgz$/.exec(file)
+      return packed?.[1] === undefined ? [] : [{name: `@conciv/${packed[1]}`, value: `file:${join(tarballs, file)}`}]
+    })
+    const concivIt = overrides.find(({name}) => name === '@conciv/it')?.value
+    if (concivIt === undefined) throw new Error(`test-packed.ts left no @conciv/it tarball in ${tarballs}`)
+    const workspaceConfig = (key: string): unknown =>
+      JSON.parse(execFileSync('pnpm', ['config', 'get', key, '--json'], {cwd: import.meta.dirname, encoding: 'utf8'}))
+    const minimumReleaseAge = workspaceConfig('minimumReleaseAge')
+    const releaseAgeExclude = workspaceConfig('minimumReleaseAgeExclude')
     const root = join(PACKED_ROOT, `trust-policy-${test.info().project.name}`)
-    const tarballs = join(root, 'tarballs')
     rmSync(root, {recursive: true, force: true})
-    mkdirSync(tarballs, {recursive: true})
-    const {overrides} = await buildAndPack(tarballs, ['@conciv/it'])
-    const concivIt = overrides['@conciv/it']
-    if (concivIt === undefined) throw new Error('buildAndPack did not produce a tarball for @conciv/it')
+    mkdirSync(root, {recursive: true})
     writeFileSync(
       join(root, 'package.json'),
       `${JSON.stringify({name: 'trust-policy-fixture', version: '0.0.0', private: true}, null, 2)}\n`,
@@ -37,21 +45,27 @@ test.describe('installing the packed @conciv/it into a fresh project under pnpm 
       [
         'packages:',
         "  - '.'",
-        ...releaseAgeYaml(),
+        `minimumReleaseAge: ${JSON.stringify(minimumReleaseAge)}`,
+        'minimumReleaseAgeExclude:',
+        ...(Array.isArray(releaseAgeExclude) ? releaseAgeExclude : []).map((name) => `  - ${JSON.stringify(name)}`),
         'trustPolicy: no-downgrade',
         'trustPolicyExclude:',
         ...trustPolicyExcludes.map((name) => `  - ${JSON.stringify(name)}`),
         'allowBuilds:',
         '  protobufjs: false',
         'overrides:',
-        ...Object.entries(overrides).map(([name, value]) => `  ${JSON.stringify(name)}: ${JSON.stringify(value)}`),
+        ...overrides.map(({name, value}) => `  ${JSON.stringify(name)}: ${JSON.stringify(value)}`),
         '',
       ].join('\n'),
     )
 
-    const [command, args] = firewalledPnpm(['add', '-D', concivIt])
-    await run(command, args, root)
+    await promisify(execFile)('sfw', ['pnpm', 'add', '-D', concivIt], {
+      cwd: root,
+      env: {...process.env, CI: 'true'},
+      maxBuffer: 64 * 1024 * 1024,
+    })
 
-    expect(() => assertTrustedResolutions(root)).not.toThrow()
+    const lock = readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8')
+    expect(lock).not.toMatch(/resolution: \{[^}]*(tarball: (?!file:)|type: git|commit: )/)
   })
 })
