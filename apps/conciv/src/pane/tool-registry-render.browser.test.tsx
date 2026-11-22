@@ -1,4 +1,5 @@
 import {describe, expect, test} from 'vitest'
+import {page} from 'vitest/browser'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
@@ -192,7 +193,7 @@ describe('the agent asks other kinds of question', () => {
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Clean the build')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByText('Delete the build folder?')).toBeVisible()
-    expect(await screen.findByText('rm -r dist')).toBeVisible()
+    await expect.element(page.getByText('rm -r dist')).toBeVisible()
     expect(screen.getByRole('button', {name: 'Deny'})).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Approve'}))
 
@@ -215,7 +216,7 @@ describe('the agent asks other kinds of question', () => {
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Bump the title')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByText('Apply this change?')).toBeVisible()
-    expect(await screen.findByText('src/title.ts')).toBeVisible()
+    await expect.element(page.getByText('src/title.ts')).toBeVisible()
     expect(screen.getByRole('button', {name: 'Apply'})).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Reject'}))
 
@@ -237,7 +238,10 @@ describe('the agent asks other kinds of question', () => {
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Make a page')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
-    await user.type(await screen.findByRole('textbox', {name: 'Path'}), '/pricing')
+    const path = await screen.findByRole('textbox', {name: 'Path'})
+    await user.type(path, '/pricing')
+    expect(screen.getByRole('textbox', {name: 'Path'})).toBe(path)
+    expect(path).toHaveFocus()
     expect(screen.getByRole('combobox', {name: 'Layout'})).toMatchTextContent('Wide')
     await user.click(screen.getByRole('button', {name: 'Submit'}))
 
@@ -256,10 +260,13 @@ describe('an outside agent calls a tool', () => {
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
 
-    const reply = await engine.outside({client: 'conciv-test'}).call('release_window', {branch: 'main'})
+    const reply = await engine
+      .outside({client: 'conciv-test', tab: engine.session.id})
+      .call('release_window', {branch: 'main'})
 
     expect(reply).toMatchObject({content: [{type: 'text', text: expect.stringContaining('noon to two')}]})
-    expect(await screen.findByText('from conciv-test')).toBeVisible()
+    expect(await screen.findByText('ok')).toBeVisible()
+    expect(screen.getAllByText('from conciv-test')).toHaveLength(2)
     expect(screen.queryByRole('article', {name: /^You:/})).not.toBeInTheDocument()
   })
 })
@@ -270,7 +277,7 @@ describe('the agent opens a file in the editor', () => {
     const engine = await createEngine()
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_server_open({file: 'src/app.ts', line: 12})",
+        typescriptCode: "return await external_open({file: 'src/app.ts', line: 12})",
       }),
       TestLLM.text('It is open'),
     )
@@ -281,7 +288,7 @@ describe('the agent opens a file in the editor', () => {
 
     expect(await screen.findByText('It is open')).toBeVisible()
     const reply = screen.getByRole('article', {name: 'Reply to: Show me the app file'})
-    expect(within(reply).getByText('Open in editor')).toBeVisible()
+    expect(within(reply).getByText('open')).toBeVisible()
     expect(within(reply).getByText('src/app.ts:12')).toBeVisible()
     expect(within(reply).getByText('Opened in your editor.')).toBeVisible()
     expect(await engine.opened()).toEqual([{file: 'src/app.ts', line: 12}])
