@@ -207,10 +207,21 @@ jobs:
           pattern: test-results-*
           merge-multiple: true
           path: shard-reports
-      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports
+      # One folder per shard: a package split into parts has an lcov in several of
+      # them, and summarize merges those line by line into one set per package.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-*
+          path: coverage-shards
+      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports --coverage coverage-shards --coverage-output coverage
         if: github.event_name == 'pull_request'
-      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports --timings ci-test-timings.json
+      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports --coverage coverage-shards --coverage-output coverage --timings ci-test-timings.json
         if: github.event_name == 'push'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'push'
         with:

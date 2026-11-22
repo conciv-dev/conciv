@@ -273,36 +273,6 @@ export function parseReport(reportPackage: string, raw: string): PackageSummary[
   return [...byPackage.entries()].map(([name, grouped]) => summaryOfFiles(name, grouped))
 }
 
-function coverageOfEntry(entry: Record<string, unknown>): Coverage {
-  const lines = isRecord(entry.lines) ? entry.lines : {}
-  return {covered: asNumber(lines.covered), total: asNumber(lines.total)}
-}
-
-function parseCoverage(reportPackage: string, raw: string): Map<string, Coverage> {
-  const report: unknown = JSON.parse(raw)
-  const entries = isRecord(report) ? Object.entries(report).filter(([key]) => key !== 'total') : []
-  const byPackage = groupBy(
-    entries.map(([path, entry]): [string, Coverage] => [
-      owningPackage(dirname(path)) ?? reportPackage,
-      isRecord(entry) ? coverageOfEntry(entry) : {covered: 0, total: 0},
-    ]),
-  )
-  return new Map(
-    [...byPackage.entries()].map(([name, coverages]) => [
-      name,
-      coverages.reduce((sum, entry) => ({covered: sum.covered + entry.covered, total: sum.total + entry.total}), {
-        covered: 0,
-        total: 0,
-      }),
-    ]),
-  )
-}
-
-function toCoverage(value: unknown): Coverage | null {
-  if (!isRecord(value)) return null
-  return {covered: asNumber(value.covered), total: asNumber(value.total)}
-}
-
 function toCaseStatus(value: unknown): CaseStatus {
   const status = asString(value)
   if (status === 'passed' || status === 'failed' || status === 'flaky' || status === 'skipped') return status
@@ -329,7 +299,6 @@ export function parseSummaries(raw: string): PackageSummary[] {
       (Array.isArray(entry.cases) ? entry.cases : []).map(toCaseResult),
       asNumber(entry.timeMs),
     ),
-    coverage: toCoverage(entry.coverage),
   }))
 }
 
@@ -337,10 +306,7 @@ export function mergeSummaries(summaries: PackageSummary[]): PackageSummary[] {
   const byName = groupBy(summaries.map((summary): [string, PackageSummary] => [summary.name, summary]))
   return [...byName.entries()].map(([name, grouped]) =>
     grouped.reduce(
-      (merged, entry) => ({
-        ...summaryOfCases(name, [...merged.cases, ...entry.cases], merged.timeMs + entry.timeMs),
-        coverage: mergeCoverage(merged.coverage, entry.coverage),
-      }),
+      (merged, entry) => summaryOfCases(name, [...merged.cases, ...entry.cases], merged.timeMs + entry.timeMs),
       emptySummary(name),
     ),
   )
@@ -352,23 +318,54 @@ function mergeCoverage(left: Coverage | null, right: Coverage | null): Coverage 
   return {covered: left.covered + right.covered, total: left.total + right.total}
 }
 
-function attachCoverage(summaries: PackageSummary[], coverage: Map<string, Coverage>): PackageSummary[] {
-  return summaries.map((summary) => ({
-    ...summary,
-    coverage: mergeCoverage(summary.coverage, coverage.get(summary.name) ?? null),
-  }))
+export function loadSummaries(roots: string[]): PackageSummary[] {
+  const summaries = findFiles(roots, 'test-results.json').flatMap((path) =>
+    parseReport(manifestName(dirname(path)), readFileSync(path, 'utf8')),
+  )
+  return mergeSummaries(summaries)
 }
 
-export function loadSummaries(roots: string[]): PackageSummary[] {
-  const summaries = findFiles(roots, 'test-results.json').flatMap((path) => {
-    const reportDir = dirname(path)
-    const reportPackage = manifestName(reportDir)
-    const parsed = parseReport(reportPackage, readFileSync(path, 'utf8'))
-    const coveragePath = join(reportDir, 'coverage', 'coverage-summary.json')
-    if (!existsSync(coveragePath)) return parsed
-    return attachCoverage(parsed, parseCoverage(reportPackage, readFileSync(coveragePath, 'utf8')))
+export type MergedLcov = {lcov: string; coverage: Coverage}
+
+export function mergeLcov(reports: string[]): MergedLcov {
+  const hitsByFile = new Map<string, Map<number, number>>()
+  for (const report of reports) {
+    let hits: Map<number, number> | undefined
+    for (const line of report.split('\n')) {
+      if (line.startsWith('SF:')) {
+        const file = line.slice(3)
+        hits = hitsByFile.get(file) ?? new Map<number, number>()
+        hitsByFile.set(file, hits)
+      }
+      const data = /^DA:(\d+),(\d+)/.exec(line)
+      if (data === null || hits === undefined) continue
+      const lineNumber = Number(data[1])
+      hits.set(lineNumber, (hits.get(lineNumber) ?? 0) + Number(data[2]))
+    }
+  }
+  const files = [...hitsByFile.entries()].toSorted(([a], [b]) => a.localeCompare(b))
+  const records = files.map(([file, hits]) => {
+    const lines = [...hits.entries()].toSorted(([a], [b]) => a - b)
+    const covered = lines.filter(([, count]) => count > 0).length
+    return {
+      covered,
+      total: lines.length,
+      text: [
+        `SF:${file}`,
+        ...lines.map(([lineNumber, count]) => `DA:${lineNumber},${count}`),
+        `LF:${lines.length}`,
+        `LH:${covered}`,
+        'end_of_record',
+      ].join('\n'),
+    }
   })
-  return mergeSummaries(summaries)
+  return {
+    lcov: records.map((record) => `${record.text}\n`).join(''),
+    coverage: {
+      covered: records.reduce((sum, record) => sum + record.covered, 0),
+      total: records.reduce((sum, record) => sum + record.total, 0),
+    },
+  }
 }
 
 function escapeHtml(text: string): string {

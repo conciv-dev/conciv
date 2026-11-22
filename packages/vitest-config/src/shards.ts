@@ -111,9 +111,13 @@ export function readPackagePart(entry: string): PackagePart {
 
 type WeightedEntry = WorkspacePackage & {weightMs: number}
 
-function splitHeavy(entry: WeightedEntry, sizing: ShardSizing): WeightedEntry[] {
-  const count = Math.min(Math.ceil(entry.weightMs / sizing.targetMs), sizing.maxShards)
-  if (!sizing.splitHeavy || count < 2) return [entry]
+function partCount(entry: WeightedEntry, sizing: ShardSizing, limit: number): number {
+  if (!sizing.splitHeavy) return 1
+  return Math.max(Math.min(Math.ceil(entry.weightMs / sizing.targetMs), limit), 1)
+}
+
+function splitHeavy(entry: WeightedEntry, count: number): WeightedEntry[] {
+  if (count < 2) return [entry]
   return Array.from({length: count}, (_, index) => ({
     ...entry,
     name: `${entry.name}${PART_SEPARATOR}${index + 1}/${count}`,
@@ -127,24 +131,30 @@ export function planShards(
   sizing: ShardSizing = PACKAGE_SHARD_SIZING,
 ): ShardPlan[] {
   if (packages.length === 0) return []
-  const weighted = packages
-    .map((entry) => ({...entry, weightMs: (timings[entry.name] ?? DEFAULT_PACKAGE_MS) + sizing.overheadMs}))
-    .flatMap((entry) => splitHeavy(entry, sizing))
-    .toSorted((a, b) => b.weightMs - a.weightMs || a.name.localeCompare(b.name))
-  const totalMs = weighted.reduce((sum, entry) => sum + entry.weightMs, 0)
+  const measured = packages.map((entry) => ({
+    ...entry,
+    weightMs: (timings[entry.name] ?? DEFAULT_PACKAGE_MS) + sizing.overheadMs,
+  }))
+  const totalMs = measured.reduce((sum, entry) => sum + entry.weightMs, 0)
   const measuredCount = Math.max(Math.ceil(totalMs / sizing.targetMs), sizing.minShards, 1)
+  const entryCount = measured.reduce((sum, entry) => sum + partCount(entry, sizing, sizing.maxShards), 0)
   const shardCount = Math.min(
     Object.keys(timings).length === 0 ? Math.max(measuredCount, sizing.bootstrapShards) : measuredCount,
     sizing.maxShards,
-    packages.length,
+    entryCount,
   )
+  const weighted = measured
+    .flatMap((entry) => splitHeavy(entry, partCount(entry, sizing, shardCount)))
+    .toSorted((a, b) => b.weightMs - a.weightMs || a.name.localeCompare(b.name))
   const bins = Array.from({length: shardCount}, (_, index) => ({
     shard: `shard-${index + 1}`,
     loadMs: 0,
     members: [] as WorkspacePackage[],
   }))
   for (const entry of weighted) {
-    const lightest = bins.reduce((best, bin) => (bin.loadMs < best.loadMs ? bin : best))
+    const owner = readPackagePart(entry.name).name
+    const free = bins.filter((bin) => !bin.members.some((member) => readPackagePart(member.name).name === owner))
+    const lightest = free.reduce((best, bin) => (bin.loadMs < best.loadMs ? bin : best))
     lightest.loadMs += entry.weightMs
     lightest.members.push(entry)
   }

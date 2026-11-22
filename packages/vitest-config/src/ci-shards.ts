@@ -25,6 +25,7 @@ import {
   findFiles,
   loadSummaries,
   manifestName,
+  mergeLcov,
   mergeSummaries,
   type PackageSummary,
   parseSummaries,
@@ -32,7 +33,7 @@ import {
   renderSummary,
 } from './summary.ts'
 
-const VALUE_FLAGS = ['--timings', '--task', '--output']
+const VALUE_FLAGS = ['--timings', '--task', '--output', '--coverage', '--coverage-output']
 
 type TaskConfig = {
   turboTasks: string[]
@@ -133,12 +134,14 @@ function report(args: string[]): void {
 
 const COVERAGE_FILES = ['coverage-summary.json', 'lcov.info']
 
+const PACKAGE_DIR_SEPARATOR = '__'
+
 function coverage(args: string[]): void {
   const outputDir = argValue(args, '--output') ?? 'coverage-report'
   for (const lcov of findFiles(taskConfig(args).reportRoots, 'lcov.info')) {
     const reportDir = dirname(lcov)
     if (basename(reportDir) !== 'coverage') continue
-    const target = join(outputDir, manifestName(dirname(reportDir)).replaceAll('/', '__'))
+    const target = join(outputDir, manifestName(dirname(reportDir)).replaceAll('/', PACKAGE_DIR_SEPARATOR))
     mkdirSync(target, {recursive: true})
     for (const file of COVERAGE_FILES)
       if (existsSync(join(reportDir, file))) copyFileSync(join(reportDir, file), join(target, file))
@@ -161,8 +164,29 @@ function readReports(dir: string): PackageSummary[] {
     })
 }
 
+function withCoverage(summaries: PackageSummary[], args: string[]): PackageSummary[] {
+  const coverageDir = argValue(args, '--coverage')
+  if (coverageDir === null || !existsSync(coverageDir)) return summaries
+  const reportsByPackage = Map.groupBy(findFiles([coverageDir], 'lcov.info'), (path) =>
+    basename(dirname(path)).replaceAll(PACKAGE_DIR_SEPARATOR, '/'),
+  )
+  const outputDir = argValue(args, '--coverage-output')
+  const coverageByPackage = new Map(
+    [...reportsByPackage.entries()].map(([name, paths]) => {
+      const merged = mergeLcov(paths.map((path) => readFileSync(path, 'utf8')))
+      if (outputDir !== null) {
+        const target = join(outputDir, name.replaceAll('/', PACKAGE_DIR_SEPARATOR))
+        mkdirSync(target, {recursive: true})
+        writeFileSync(join(target, 'lcov.info'), merged.lcov)
+      }
+      return [name, merged.coverage]
+    }),
+  )
+  return summaries.map((summary) => ({...summary, coverage: coverageByPackage.get(summary.name) ?? null}))
+}
+
 function summarize(args: string[]): void {
-  const merged = mergeSummaries(positionals(args).flatMap(readReports))
+  const merged = withCoverage(mergeSummaries(positionals(args).flatMap(readReports)), args)
   const summaryPath = process.env.GITHUB_STEP_SUMMARY
   const rendered = renderSummary(merged, taskConfig(args).render)
   if (summaryPath === undefined) process.stdout.write(rendered)
