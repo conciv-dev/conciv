@@ -27,7 +27,7 @@ test.describe('signing in to the widget on a vite react page', () => {
 })
 
 test.describe('the conciv CLI against the vite react dev server', () => {
-  test('the user lists the open tabs with conciv tools tabs, allows the terminal always on the first page read with --tab, reads the page and its react components, and calls the page plugin with conciv plugin call', async ({
+  test('the user lists the open tabs with conciv tools tabs, reads the page with --tab and no Allow card under the default open hub access, reads its react components, and calls the page plugin with conciv plugin call', async ({
     page,
   }) => {
     const project = join(import.meta.dirname, '..')
@@ -45,15 +45,13 @@ test.describe('the conciv CLI against the vite react dev server', () => {
     })
     const tab = new RegExp(`"tab":"([^"]+)"[^{}]*"href":"${page.url()}"`).exec(listed)?.[1] ?? ''
 
-    const route = text(
+    const route = await text(
       spawn(process.execPath, [conciv, 'tools', 'page', 'route', '--tab', tab], {
         cwd: project,
         env: {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME},
       }).stdout,
     )
-    const ask = page.getByRole('group', {name: 'Permission request'})
-    await ask.getByRole('button', {name: 'Allow always'}).click()
-    expect(JSON.parse(await route)).toMatchObject({ok: true, data: {pathname: '/', title: 'vite-react'}})
+    expect(JSON.parse(route)).toMatchObject({ok: true, data: {pathname: '/', title: 'vite-react'}})
 
     const heading = await text(
       spawn(process.execPath, [conciv, 'tools', 'page', 'text', 'h1', '--tab', tab], {
@@ -70,7 +68,7 @@ test.describe('the conciv CLI against the vite react dev server', () => {
       }).stdout,
     )
     expect(JSON.parse(found)).toMatchObject({ok: true, data: {total: 1}})
-    await expect(ask).toHaveCount(0)
+    await expect(page.getByRole('group', {name: 'Permission request'})).toHaveCount(0)
 
     const attached = await text(
       spawn(process.execPath, [conciv, 'plugin', 'call', 'experimental.page', 'sessions.attached', '--data', '{}'], {
