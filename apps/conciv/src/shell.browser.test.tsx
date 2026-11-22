@@ -5,33 +5,6 @@ import userEvent from '@testing-library/user-event'
 import {createEngine} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
-describe('focus around the panel', () => {
-  test('opening the panel puts focus in the composer, Tab stays inside the panel, and closing gives the launcher its focus back', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({engine})
-
-    await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
-    const panel = await screen.findByRole('dialog', {name: 'conciv chat agent'})
-    const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
-    await expect.element(composer).toHaveFocus()
-
-    await user.click(panel)
-    await user.tab()
-    const heightHandle = screen.getByRole('separator', {name: 'Resize chat height'})
-    expect(heightHandle).toHaveFocus()
-    await user.tab({shift: true})
-    expect(screen.getByRole('tab', {name: 'Chat', selected: true})).toHaveFocus()
-    await user.tab()
-    expect(heightHandle).toHaveFocus()
-
-    await user.keyboard('{Escape}')
-    const launcher = await screen.findByRole('button', {name: 'Open conciv chat'})
-    await expect.element(launcher).toHaveFocus()
-    await expect.element(panel).not.toBeVisible()
-  })
-})
-
 describe('the panel size', () => {
   test('the user resizes the panel from the keyboard, and a drag below the floor closes it', async () => {
     const user = userEvent.setup()

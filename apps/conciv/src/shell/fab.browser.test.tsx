@@ -6,7 +6,7 @@ import {createEngine} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('opening and closing the panel', () => {
-  test('the user opens the panel from the launcher and closes it every way the shell offers', async () => {
+  test('the user opens the panel from the launcher, Tab stays inside it, and the user closes it every way the shell offers', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({engine})
@@ -42,6 +42,15 @@ describe('opening and closing the panel', () => {
 
     await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
     const closable = await screen.findByRole('dialog', {name: 'conciv chat agent'})
+    await expect.element(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
+    await user.click(closable)
+    await user.tab()
+    const heightHandle = screen.getByRole('separator', {name: 'Resize chat height'})
+    expect(heightHandle).toHaveFocus()
+    await user.tab({shift: true})
+    expect(screen.getByRole('tab', {name: 'Chat', selected: true})).toHaveFocus()
+    await user.tab()
+    expect(heightHandle).toHaveFocus()
     await user.click(await screen.findByRole('button', {name: 'Close chat'}))
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     await expect.element(closable).not.toBeVisible()
