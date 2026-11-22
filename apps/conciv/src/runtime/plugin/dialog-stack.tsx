@@ -18,7 +18,7 @@ import {
   Show,
 } from 'solid-js'
 import {Portal} from 'solid-js/web'
-import {Dialog, activeElementIn, isShadowRoot} from '@conciv/ui-kit-system'
+import {Dialog, activeElementIn, isShadowRoot, prefersReducedMotion} from '@conciv/ui-kit-system'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {uuid} from './uuid'
 import {
@@ -112,7 +112,10 @@ function init(container: () => HTMLElement | undefined, stack: () => HTMLElement
       clearTimeout(timers.get(effect.attempt))
       timers.set(
         effect.attempt,
-        setTimeout(() => dispatch({type: 'exit.completed', attempt: effect.attempt}), effect.delayMs),
+        setTimeout(
+          () => dispatch({type: 'exit.completed', attempt: effect.attempt}),
+          prefersReducedMotion() ? 0 : effect.delayMs,
+        ),
       )
 
       return
