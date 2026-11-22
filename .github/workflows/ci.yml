@@ -415,7 +415,7 @@ jobs:
           mode: firewall-free
           firewall-version: 1.16.0 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      - run: pnpm exec turbo run typecheck lint --filter='./apps/storybook'
+      - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook'
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always()
         with:
