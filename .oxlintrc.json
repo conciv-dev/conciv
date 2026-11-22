@@ -580,6 +580,7 @@
     "**/*.gen.ts",
     "**/*.gen.tsx",
     "**/test-results",
+    "packages/oxlint-plugin/src/fixtures/test-file-budget",
     "e2e/solid-start/src",
     "e2e/svelte/src",
     "e2e/tanstack-start/src",
