@@ -426,6 +426,23 @@ describe('the terminal', () => {
     expect(await screen.findByText('now:sonnet')).toBeVisible()
   })
 
+  test('a press on the terminal toolbar leaves focus in the terminal, and the next keys still reach the CLI', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
+    const input = await screen.findByRole('textbox', {name: 'Terminal input'})
+    expect(await screen.findByText(/^model opus \d+x\d+$/)).toBeVisible()
+    await expect.element(input).toHaveFocus()
+
+    await user.click(screen.getByRole('toolbar', {name: 'Terminal'}))
+
+    await expect.element(input).toHaveFocus()
+    await browserUserEvent.keyboard('echo "still:here"{Enter}')
+    expect(await screen.findByText('still:here')).toBeVisible()
+  })
+
   test('a grab picked from the toolbar is pasted into the CLI on Enter, and Back to chat leaves an ended CLI', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
