@@ -34,10 +34,15 @@
       ]
     },
     "kit-runtime": {
-      "dependsOn": ["@conciv/core#build", "@conciv/app#kit-runtime", "@conciv/harness-testkit#kit-runtime"]
+      "dependsOn": [
+        "@conciv/core#build",
+        "@conciv/app#build",
+        "@conciv/app#kit-runtime",
+        "@conciv/harness-testkit#kit-runtime"
+      ]
     },
     "test": {
-      "dependsOn": ["build", "build:types", "@conciv/harness-testkit#build", "kit-runtime"]
+      "dependsOn": ["^build", "build", "build:types", "@conciv/harness-testkit#build", "kit-runtime"]
     },
     "publint": {
       "dependsOn": ["build", "build:types"]
