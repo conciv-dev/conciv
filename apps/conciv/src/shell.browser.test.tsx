@@ -217,8 +217,8 @@ describe('phone width', () => {
     await user.click(details)
     expect(await screen.findByText('The board details')).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Go back'}))
-    expect(details).toHaveFocus()
-    expect(screen.queryByText('The board details')).not.toBeInTheDocument()
+    await expect.element(page.getByText('The board details', {exact: true})).not.toBeInTheDocument()
+    await expect.element(details).toHaveFocus()
   })
 })
 
@@ -240,7 +240,7 @@ describe('tucking the launcher away', () => {
 
     await user.click(tab)
     const restored = await screen.findByRole('button', {name: 'Open conciv chat'})
-    expect(restored).toHaveFocus()
+    await expect.element(restored).toHaveFocus()
     expect(screen.queryByRole('button', {name: 'Show conciv launcher'})).not.toBeInTheDocument()
   })
 })
@@ -419,7 +419,7 @@ describe('opening and closing the panel', () => {
     await browserUserEvent.keyboard('{ControlOrMeta>}.{/ControlOrMeta}')
     const toggled = await screen.findByRole('dialog', {name: 'conciv chat agent'})
     expect(toggled).toBeVisible()
-    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
+    await expect.element(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
     await browserUserEvent.keyboard('{ControlOrMeta>}.{/ControlOrMeta}')
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     await expect.element(toggled).not.toBeVisible()
@@ -431,7 +431,7 @@ describe('opening and closing the panel', () => {
     await user.keyboard('{Escape}')
     const layered = await screen.findByRole('dialog', {name: 'conciv chat agent'})
     expect(layered).toBeVisible()
-    expect(screen.queryByRole('dialog', {name: 'Session options'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('dialog', {name: 'Session options', exact: true})).not.toBeInTheDocument()
     await expect.element(screen.getByRole('button', {name: 'New session, session options'})).toHaveFocus()
     await user.keyboard('{Escape}')
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
@@ -594,13 +594,17 @@ describe('view tabs', () => {
 
     expect(await screen.findByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
     expect(await screen.findByRole('tabpanel', {name: 'Terminal'})).toBeVisible()
-    expect(screen.getByRole('status', {name: 'conciv announcements'})).toHaveTextContent('Terminal')
+    await expect
+      .element(page.getByRole('status', {name: 'conciv announcements', exact: true}))
+      .toHaveTextContent('Terminal')
     expect(screen.queryByRole('textbox', {name: 'Message the conciv agent'})).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', {name: 'Chat'}))
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
     expect(screen.getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
-    expect(screen.getByRole('status', {name: 'conciv announcements'})).toHaveTextContent('Chat')
+    await expect
+      .element(page.getByRole('status', {name: 'conciv announcements', exact: true}))
+      .toHaveTextContent('Chat')
     expect(screen.queryByRole('tabpanel', {name: 'Terminal'})).not.toBeInTheDocument()
   })
 })
@@ -614,8 +618,11 @@ describe('a plugin tab, its dialogs and its overlay', () => {
     await user.click(await screen.findByRole('tab', {name: 'Desk'}))
     expect(await screen.findByText('The shell-board plugin crashed')).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Retry'}))
-    const desk = await screen.findByRole('tabpanel', {name: 'Desk'})
-    expect(within(desk).getByRole('button', {name: 'Publish'})).toBeVisible()
+    await expect
+      .element(
+        page.getByRole('tabpanel', {name: 'Desk', exact: true}).getByRole('button', {name: 'Publish', exact: true}),
+      )
+      .toBeVisible()
   })
 
   it.each([
@@ -652,8 +659,10 @@ describe('a plugin tab, its dialogs and its overlay', () => {
       dialog: 'Pick a colour',
       answer: async (user: UserEvent, dialog: HTMLElement) => {
         await user.type(within(dialog).getByRole('textbox', {name: 'Pick a colour'}), 'tl')
+        await expect
+          .element(page.elementLocator(dialog).getByRole('option', {name: 'Crimson', exact: true}))
+          .not.toBeInTheDocument()
         expect(await within(dialog).findByRole('option', {name: 'Teal'})).toBeVisible()
-        expect(within(dialog).queryByRole('option', {name: 'Crimson'})).not.toBeInTheDocument()
         await user.click(within(dialog).getByRole('option', {name: 'Teal'}))
       },
       shown: 'Picked teal',
