@@ -79,6 +79,7 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
     throw detail === '' ? error : new Error(`widget did not boot\n${detail}`, {cause: error})
   }
   if ((await launcher.getAttribute('aria-expanded')) !== 'true') await launcher.click()
+  await page.getByRole('tab', {name: 'Chat'}).click()
   await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
   const transientOptimizerReload = /Failed to fetch dynamically imported module|504 \(Outdated Optimize Dep\)/
   const detail = describeFailures(failures)
