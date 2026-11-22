@@ -1,5 +1,10 @@
+import {ConfigProvider} from 'effect'
 import {describe, expect, test} from 'vitest'
+import {resolveHarnessModels} from '@conciv/harness'
+import {codex} from '@conciv/harness/codex'
 import {createEngine} from '@conciv/plugin-testkit'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {withSavedModels} from './app.js'
 
 describe('http surface', () => {
   test('health answers, an untokened route is refused, a foreign origin is refused, and every reply carries the version', async () => {
@@ -45,5 +50,27 @@ describe('staleness', () => {
     const {execute} = await engine.outside().describe()
     expect(execute).toMatch(/^WARNING: this engine is running outdated code\./)
     expect(execute).toContain('src/routes/cart.ts')
+  })
+})
+
+describe('the saved model list', () => {
+  test('a model probe that fails after a good listing keeps answering the last good list, across restarts', async () => {
+    const stateDir = tempDir('saved-models-')
+    const signal = new AbortController().signal
+    const adapter = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')}))
+    const listed = [{id: 'gpt-5.6-sol', name: 'GPT 5.6 Sol'}]
+    const signedOut = () => Promise.reject(new Error('the CLI is signed out'))
+
+    const first = withSavedModels({...adapter, models: () => Promise.resolve(listed)}, stateDir, signal)
+    await expect(resolveHarnessModels(first.harness, {signal})).resolves.toEqual(listed)
+    await first.settled()
+
+    const failing = withSavedModels({...adapter, models: signedOut}, stateDir, signal)
+    await expect(resolveHarnessModels(failing.harness, {signal})).resolves.toEqual(listed)
+    await failing.settled()
+
+    const afterFailure = withSavedModels({...adapter, models: signedOut}, stateDir, signal)
+    await expect(resolveHarnessModels(afterFailure.harness, {signal})).resolves.toEqual(listed)
+    await afterFailure.settled()
   })
 })
