@@ -21,6 +21,7 @@ describe('the agent acts on the page during a reply', () => {
       TestLLM.toolCall('c3', 'execute_typescript', {typescriptCode: 'return await external_page_screenshot({})'}),
       TestLLM.text('The button is red now'),
     )
+    const finished = await engine.event('session.execution.succeeded')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
     render(() => (
@@ -30,14 +31,19 @@ describe('the agent acts on the page during a reply', () => {
     ))
 
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+    await finished.arrived
 
     expect(await screen.findByText('The button is red now')).toBeVisible()
     const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
     expect(within(reply).getByText('Edited the page')).toBeVisible()
-    expect(within(within(reply).getByRole('list')).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(reply).getByText('2 actions')).toBeVisible()
     expect(within(reply).getByText('Clicked')).toBeVisible()
     expect(within(reply).getByText('Styled an element')).toBeVisible()
-    expect(within(reply).getAllByText('Buy the fern')).toHaveLength(2)
+    await expect
+      .element(
+        page.getByRole('article', {name: 'Reply to: Explain this page'}).getByText('Buy the fern', {exact: true}),
+      )
+      .toHaveLength(2)
     expect(within(reply).getByRole('img', {name: 'Took a screenshot'})).toBeVisible()
     const [, , , answer] = await engine.requests()
     const shot = answer?.messages.find((message) => message.toolCallId === 'c3')
@@ -176,6 +182,7 @@ describe('the agent fills in a form on the page', () => {
       }),
       TestLLM.text('The delivery is filled in'),
     )
+    const finished = await engine.event('session.execution.succeeded')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
     render(() => (
@@ -200,6 +207,7 @@ describe('the agent fills in a form on the page', () => {
     ))
 
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+    await finished.arrived
 
     expect(await screen.findByText('The delivery is filled in')).toBeVisible()
     expect(screen.getByRole('textbox', {name: 'Street'})).toHaveValue('12 Fern Lane')
@@ -227,6 +235,7 @@ describe('the agent fills in a form on the page', () => {
       }),
       TestLLM.text('You are signed up'),
     )
+    const finished = await engine.event('session.execution.succeeded')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
     render(() => (
@@ -243,6 +252,7 @@ describe('the agent fills in a form on the page', () => {
     ))
 
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+    await finished.arrived
 
     expect(await screen.findByText('You are signed up')).toBeVisible()
     expect(screen.getByText('Thanks for joining, ada@example.com')).toBeVisible()
@@ -272,6 +282,7 @@ describe('the agent moves around the page', () => {
       }),
       TestLLM.text('Shipping is free over 50 dollars'),
     )
+    const finished = await engine.event('session.execution.succeeded')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
     render(() => (
@@ -298,6 +309,7 @@ describe('the agent moves around the page', () => {
     ))
 
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+    await finished.arrived
 
     expect(await screen.findByText('Shipping is free over 50 dollars')).toBeVisible()
     expect(screen.getByText('Free shipping over $50')).toBeVisible()
@@ -319,6 +331,7 @@ describe('the agent moves around the page', () => {
       }),
       TestLLM.text('Your name is saved'),
     )
+    const finished = await engine.event('session.execution.succeeded')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
     render(() => (
@@ -336,6 +349,7 @@ describe('the agent moves around the page', () => {
     ))
 
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+    await finished.arrived
 
     expect(await screen.findByText('Your name is saved')).toBeVisible()
     expect(screen.getByText('Saved Ada')).toBeVisible()
@@ -354,6 +368,8 @@ describe('the agent moves around the page', () => {
       }),
       TestLLM.text('Saving your name'),
     )
+    const finished = await engine.event('session.execution.succeeded')
+    const played = await engine.event('rpc.experimental.page.queue.finished')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
     render(() => (
@@ -371,11 +387,18 @@ describe('the agent moves around the page', () => {
     ))
 
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+    await finished.arrived
 
     expect(await screen.findByText('Saving your name')).toBeVisible()
-    expect(await screen.findByText('Saved Ada')).toBeVisible()
-    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
-    expect(within(reply).getByText('Queued page actions')).toBeVisible()
+    await played.arrived
+    expect(screen.getByText('Saved Ada')).toBeVisible()
+    await expect
+      .element(
+        page
+          .getByRole('article', {name: 'Reply to: Explain this page'})
+          .getByText('Queued page actions', {exact: true}),
+      )
+      .toHaveLength(2)
   })
 
   test('a queued action the page does not confirm in time comes back lost, as it may already have run', async () => {
@@ -422,6 +445,7 @@ describe('the agent edits the page', () => {
       }),
       TestLLM.text('The shop is updated'),
     )
+    const finished = await engine.event('session.execution.succeeded')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
     const host = render(() => (
@@ -435,6 +459,7 @@ describe('the agent edits the page', () => {
     ))
 
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+    await finished.arrived
 
     expect(await screen.findByText('The shop is updated')).toBeVisible()
     expect(within(host.container).getByRole('heading', {name: 'Fern shop'})).toBeVisible()
@@ -490,10 +515,12 @@ describe('the element inspector', () => {
       }),
       TestLLM.text('The highlight is on'),
     )
+    const finished = await engine.event('session.execution.succeeded')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
 
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+    await finished.arrived
 
     expect(await screen.findByText('The highlight is on')).toBeVisible()
     await expect.element(page.getByText('Inspecting · click to open source · Esc to exit', {exact: true})).toBeVisible()
@@ -649,7 +676,9 @@ describe('the agent finds the tab through the TanStack plugin', () => {
       tabs: [{focused: true, visible: true}],
     })
     expect(await engine.session.tool('tanstack_navigate').failure({to: 7})).toMatchObject({
-      message: expect.stringContaining('Invalid input for tanstack.navigate.'),
+      message: expect.stringContaining(
+        'Invalid arguments for tool \\"tanstack_navigate\\":\\n- to: Invalid input: expected string, received number',
+      ),
     })
   })
 })
@@ -751,7 +780,7 @@ describe('the agent runs code on the page', () => {
 
     const result = engine.session.tool('page_eval').call({code: 'return 1 + 1'})
     const ask = await screen.findByRole('group', {name: 'Permission request'})
-    expect(ask).toHaveTextContent('page_eval return 1 + 1')
+    expect(within(ask).getByText('page_eval return 1 + 1')).toBeVisible()
     await user.click(within(ask).getByRole('button', {name: 'Allow once'}))
 
     expect(await result).toEqual({result: 2})
@@ -805,10 +834,11 @@ describe('the agent reads the page during a reply', () => {
     expect(await screen.findByText('The fern is in stock')).toBeVisible()
     const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
     const read = within(reply).getByRole('button', {name: /Read the text/})
-    expect(read).toHaveTextContent('Read the text#plants')
+    expect(within(read).getByText('Read the text')).toBeVisible()
+    expect(within(read).getByText('#plants')).toBeVisible()
     expect(within(read).getByRole('img', {name: 'succeeded'})).toBeVisible()
     const failed = within(reply).getByRole('button', {name: /Page text/})
-    expect(failed).toHaveTextContent('[page.invalid-args] no element for selector #sold-out')
+    expect(within(failed).getByText('[page.invalid-args] no element for selector #sold-out')).toBeVisible()
   })
 })
 
