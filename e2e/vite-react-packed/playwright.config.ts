@@ -9,5 +9,9 @@ export default defineConfig(
       `pnpm --dir ${JSON.stringify(PACKED_APP_DIR)} exec vite --port ${port} --strictPort ${coldStart}`,
     runFolders: [PACKED_ROOT],
   }),
-  {testDir: '../vite-react/test'},
+  {
+    testDir: '../vite-react/test',
+    testMatch: 'widget.spec.ts',
+    grep: /the user opens a magic link and the widget opens with no error|the code the dev server prints in its log signs the browser in/,
+  },
 )
