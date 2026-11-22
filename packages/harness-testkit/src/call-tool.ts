@@ -14,7 +14,9 @@ const ExecuteReplySchema = z.object({result: z.unknown()}).loose()
 
 const TruncatedReplySchema = z.object({'conciv:truncated': z.literal(true), reason: z.string()}).loose()
 
-type Decode = (raw: string) => unknown
+type Reply = z.infer<typeof CallResultSchema>['content']
+
+type Decode = {value: (raw: string) => unknown; holdsValue: (raw: string) => boolean}
 
 function parseReply(raw: string): unknown {
   try {
@@ -24,21 +26,37 @@ function parseReply(raw: string): unknown {
   }
 }
 
+function isExecuteReply(raw: string): boolean {
+  const reply = ExecuteReplySchema.safeParse(parseReply(raw))
+  return reply.success && 'result' in reply.data
+}
+
 function decodeExecuteReply(raw: string): unknown {
   const parsed = parseReply(raw)
   const reply = ExecuteReplySchema.safeParse(parsed)
   return reply.success && 'result' in reply.data ? reply.data.result : parsed
 }
 
-function readText(content: z.infer<typeof CallResultSchema>['content']): string {
+const directReply: Decode = {value: parseReply, holdsValue: () => true}
+
+const executeReply: Decode = {value: decodeExecuteReply, holdsValue: isExecuteReply}
+
+function withoutNotes(content: Reply, decode: Decode): Reply {
+  const [first, ...rest] = content
+  if (first?.text === undefined || !decode.holdsValue(first.text)) return content
+  return [first, ...rest.filter((part) => part.type !== 'text')]
+}
+
+function readText(content: Reply): string {
   return content.flatMap((part) => (part.type === 'text' && part.text !== undefined ? [part.text] : [])).join('\n')
 }
 
 function readReply(name: string, raw: unknown, decode: Decode): unknown {
   const result = CallResultSchema.parse(raw)
   if (result.isError === true) throw new Error(readText(result.content))
-  const only = result.content[0]
-  const reply = result.content.length === 1 && only?.text !== undefined ? decode(only.text) : result.content
+  const content = withoutNotes(result.content, decode)
+  const only = content[0]
+  const reply = content.length === 1 && only?.text !== undefined ? decode.value(only.text) : content
   const truncated = TruncatedReplySchema.safeParse(reply)
   if (truncated.success) throw new Error(`the reply for tool "${name}" was truncated (${truncated.data.reason})`)
   return reply
@@ -106,7 +124,7 @@ export function toolClients(apiBase: string): ToolClients {
         if (!deadline.aborted) throw error
         throw new Error(`the tool ${name} gave no reply within ${DEADLINE_MS}ms`, {cause: error})
       })
-      return readReply(name, raw, direct ? parseReply : decodeExecuteReply)
+      return readReply(name, raw, direct ? directReply : executeReply)
     },
     close: async () => {
       const open = [...sessions.values()]

@@ -21,6 +21,27 @@ export default Plugin.define({
         execute: async ({length}) => ({output: {text: `measured ${length} cm`}}),
       })
       tools.add({
+        name: 'measure_noted',
+        description: 'Measure a length in centimetres and add a note for the model',
+        input: z.object({length: z.number()}),
+        output: z.object({text: z.string()}),
+        execute: async ({length}) => ({
+          output: {text: `measured ${length} cm`},
+          content: [{type: 'text' as const, text: 'The ruler is a guess, not a measurement.'}],
+        }),
+      })
+      tools.add({
+        name: 'measure_noted_direct',
+        description: 'Measure a length in centimetres, called by its own name, and add a note for the model',
+        input: z.object({length: z.number()}),
+        output: z.object({text: z.string()}),
+        options: {codemode: false},
+        execute: async ({length}) => ({
+          output: {text: `measured ${length} cm`},
+          content: [{type: 'text' as const, text: 'The ruler is a guess, not a measurement.'}],
+        }),
+      })
+      tools.add({
         name: 'explode',
         description: 'Always fails',
         input: z.object({}),

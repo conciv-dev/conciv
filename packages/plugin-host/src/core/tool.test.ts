@@ -59,6 +59,13 @@ describe('plugin tools', () => {
     expect(await engine.session.tool('measure_direct').call({length: 3})).toEqual({text: 'measured 3 cm'})
     expect(await engine.outside().call('measure_direct', {length: 3})).toEqual(expect.objectContaining({isError: true}))
   })
+
+  test('a tool that adds a note for the model answers a test call with its result, in code mode and by its own name', async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/toolbox']})
+
+    expect(await engine.session.tool('measure_noted').call({length: 3})).toEqual({text: 'measured 3 cm'})
+    expect(await engine.session.tool('measure_noted_direct').call({length: 3})).toEqual({text: 'measured 3 cm'})
+  })
 })
 
 describe('an outside agent', () => {
