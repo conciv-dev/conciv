@@ -2,7 +2,7 @@ import {describe, expect, test} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 
 describe("the agent runs the project's tests", () => {
-  test('the agent is told about the runner, lists the files, reads an empty status, runs everything, narrows a run with a pattern, and two runs asked at once each report their own tests', async () => {
+  test('the agent is told about the runner, lists the files and reads an empty status before any run', async () => {
     const engine = await createEngine(
       {plugins: ['@conciv/plugin-test-runner']},
       {directory: 'test/fixtures/plant-shop'},
@@ -26,6 +26,13 @@ describe("the agent runs the project's tests", () => {
       failures: [],
       tests: [],
     })
+  })
+
+  test('the agent runs everything, narrows a run with a pattern, and the status then reads the last run', async () => {
+    const engine = await createEngine(
+      {plugins: ['@conciv/plugin-test-runner']},
+      {directory: 'test/fixtures/plant-shop'},
+    )
 
     expect(await engine.session.tool('test_runner_run').call({})).toMatchObject({
       summary: {passed: 1, failed: 1, skipped: 0},
@@ -46,6 +53,13 @@ describe("the agent runs the project's tests", () => {
       summary: {passed: 1, failed: 0, skipped: 0},
       tests: [{name: 'a fern in the cart costs 12', state: 'pass'}],
     })
+  })
+
+  test('two runs asked at once each report their own tests', async () => {
+    const engine = await createEngine(
+      {plugins: ['@conciv/plugin-test-runner']},
+      {directory: 'test/fixtures/plant-shop'},
+    )
 
     const [cart, discount] = await Promise.all([
       engine.session.tool('test_runner_run').call({pattern: 'cart'}),
@@ -57,25 +71,44 @@ describe("the agent runs the project's tests", () => {
 })
 
 describe('the runner is stopped from outside', () => {
-  test('a client joining mid-run reads the run so far, stop ends a run that never finishes, and the runner takes the next run', async () => {
+  test('a client joining mid-run reads the run so far, a second run waits, stop ends the run that never finishes, and the waiting run then runs and is read back', async () => {
     const engine = await createEngine(
       {plugins: ['@conciv/plugin-test-runner']},
       {directory: 'test/fixtures/greenhouse'},
     )
     const started = await engine.event('rpc.test-runner.event')
 
-    const endless = engine.rpc.call('test-runner', 'run', {})
-    expect((await started.arrived).data).toMatchObject({type: 'run-start'})
+    const endless = engine.rpc.call('test-runner', 'run', {patterns: ['watering']})
+    expect((await started.arrived).data).toMatchObject({
+      type: 'run-start',
+      files: [expect.stringContaining('watering.test.js')],
+    })
     expect(await engine.rpc.call('test-runner', 'current')).toMatchObject({
       events: expect.arrayContaining([expect.objectContaining({type: 'run-start'})]),
       unavailable: null,
     })
+    const next = await engine.event('rpc.test-runner.event')
+    const waiting = engine.rpc.call('test-runner', 'run', {patterns: ['beds']})
     expect(await engine.rpc.call('test-runner', 'stop')).toEqual({ok: true})
     await endless
 
-    expect(await engine.rpc.call('test-runner', 'run', {patterns: ['beds']})).toMatchObject({
+    expect((await next.arrived).data).toMatchObject({
+      type: 'run-start',
+      files: expect.arrayContaining([expect.stringContaining('beds/pruning.test.js')]),
+    })
+    expect(await waiting).toMatchObject({
       summary: {passed: 1, failed: 1, skipped: 0},
       failures: [{name: 'the pruned rose blooms', message: 'expected 3 to be 4 // Object.is equality'}],
+    })
+    expect(await engine.rpc.call('test-runner', 'status')).toMatchObject({
+      summary: {passed: 1, failed: 1, skipped: 0},
+      failures: [{name: 'the pruned rose blooms'}],
+    })
+    expect(await engine.rpc.call('test-runner', 'list', {})).toEqual({
+      files: expect.arrayContaining([
+        {file: expect.stringContaining('/greenhouse/watering.test.js'), relPath: 'watering.test.js'},
+        {file: expect.stringContaining('/greenhouse/beds/pruning.test.js'), relPath: 'beds/pruning.test.js'},
+      ]),
     })
   })
 })
