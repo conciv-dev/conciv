@@ -63,8 +63,8 @@ export async function startEngine(config: ConcivConfig = {}, options: EngineStar
 
 export async function createEngine(config: ConcivConfig = {}, options: EngineStart = {}): Promise<Engine> {
   const started = await startEngine(config, options)
-  const test = engineTests.getStore()
-  if (test === undefined) fileEngines.push(started.stop)
-  else test.onTestFinished(started.stop)
+  const onTestFinished = engineTests.getStore()
+  if (onTestFinished === undefined) fileEngines.push(started.stop)
+  else onTestFinished(started.stop)
   return started.engine
 }
