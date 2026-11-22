@@ -1,6 +1,7 @@
 export * as TestRunnerRunMachine from './run-machine.js'
+import {keyBy, omit, sumBy} from 'es-toolkit'
 import type {ChildMessage} from './child-protocol.js'
-import type {Summary, TestEvent, TestRunResult} from './events.js'
+import {countStates, type Summary, type TestEvent, type TestRow, type TestRunResult} from './events.js'
 import type {ListFile} from './runner.js'
 
 type ChildExit =
@@ -192,12 +193,37 @@ function settleExit(state: RunState, event: Extract<RunEvent, {readonly type: 'c
   }
 }
 
+type RunEnd = Extract<TestEvent, {readonly type: 'run-end'}>
+
+function stoppedEnd(state: Extract<RunState, {readonly status: 'running'}>): RunEnd | undefined {
+  const [start] = state.buffer.flatMap((event) => (event.type === 'run-start' ? [event] : []))
+  if (start === undefined) return undefined
+  const received = state.buffer.flatMap((event): TestRow[] => (event.type === 'test' ? [omit(event, ['type'])] : []))
+  const tests = Object.values(keyBy(received, (test) => test.id))
+  return {
+    type: 'run-end',
+    runId: start.runId,
+    summary: {...countStates(tests), durationMs: sumBy(tests, (test) => test.durationMs)},
+    failures: tests.flatMap((test) => (test.error ? [test.error] : [])),
+    tests,
+  }
+}
+
 function stop(state: RunState): RunTransition {
   if (state.status !== 'running' && state.status !== 'listing') return {state, effects: []}
+  const kill: RunEffect = {type: 'kill', attempt: state.attempt}
+  const end = state.status === 'running' ? stoppedEnd(state) : undefined
+
+  if (end === undefined) return {state: {...cache(state), status: 'stopping', attempt: state.attempt}, effects: [kill]}
 
   return {
-    state: {...cache(state), status: 'stopping', attempt: state.attempt},
-    effects: [{type: 'kill', attempt: state.attempt}],
+    state: {
+      ...cache(state),
+      last: {summary: end.summary, failures: end.failures, tests: end.tests},
+      status: 'stopping',
+      attempt: state.attempt,
+    },
+    effects: [{type: 'publish', event: end}, kill],
   }
 }
 
