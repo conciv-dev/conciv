@@ -44,10 +44,14 @@ README.md; this file is the non-obvious operational rules.
 - Affected-only shortcuts for a branch: `pnpm test:affected` / `typecheck:affected` / `build:affected`
   (`TURBO_SCM_BASE=origin/main turbo run <task> --affected`). `turbo.json` sets
   `futureFlags.affectedUsingTaskInputs`, so `--affected` selects a TASK when a changed file is one of its
-  inputs or a task it depends on is selected: a test-only edit reruns that package's `test` and `typecheck`
-  and no dependent, a `src` edit reruns every dependent through `^build`, and a file another package's
-  build scans (the UnoCSS `$TURBO_ROOT$/...` build inputs in `packages/embed` and `apps/conciv`) reruns that
-  build. `--filter=...[ref]` ignores the flag and still selects whole packages plus manifest dependents.
+  inputs or a task it depends on is selected: a test-only edit reruns that package's `test`, `typecheck` and
+  `lint` and no dependent and no build, a `src` edit reruns every dependent through `^build`, and a file another
+  package's build scans (the UnoCSS `$TURBO_ROOT$/...` build inputs in `packages/embed`, `apps/conciv`,
+  `packages/ui-kit-chat`, `packages/ui-kit-chat-tools` and `packages/ui-kit-tap`) reruns that build. That holds
+  only while every task `test` and `typecheck` depend on (`build`, `build:types`, `kit-runtime`) excludes tests,
+  specs and stories from its `inputs`, and while each `$TURBO_ROOT$` build input carries the same exclusion as
+  the `content.filesystem` globs in that package's `uno.config.ts`. `--filter=...[ref]` ignores the flag and
+  still selects whole packages plus manifest dependents.
   A root file in `globalDependencies` (`pnpm-workspace.yaml`) selects every task; `.oxlintrc.json` is a
   `lint` input only.
 - Gates run with the turbo cache on. `turbo run --force` is banned by `.claude/hooks/turbo-filter-gate.sh`

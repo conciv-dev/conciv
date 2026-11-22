@@ -30,7 +30,23 @@
       ]
     },
     "build:types": {
-      "outputs": ["dist/**/*.d.ts"]
+      "outputs": ["dist/**/*.d.ts"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE"
+      ]
     },
     "dev": {
       "dependsOn": ["^build", "@conciv/cli#build"],
@@ -50,7 +66,24 @@
       "dependsOn": ["^build", "^build:types"],
       "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
     },
-    "kit-runtime": {},
+    "kit-runtime": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE"
+      ]
+    },
     "test": {
       "dependsOn": ["^build", "build", "^build:types", "^kit-runtime"],
       "env": ["CI", "GITHUB_ACTIONS"],
