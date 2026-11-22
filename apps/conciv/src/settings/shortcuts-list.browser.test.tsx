@@ -1,4 +1,5 @@
 import {describe, expect, test} from 'vitest'
+import {userEvent as browserUserEvent} from 'vitest/browser'
 import {screen} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine} from '@conciv/plugin-testkit'
@@ -22,7 +23,7 @@ describe('recording keyboard shortcuts', () => {
     await user.click(screen.getByRole('button', {name: 'Back to chat'}))
     await user.click(await screen.findByRole('textbox', {name: 'Message the conciv agent'}))
     expect(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
-    await user.keyboard('{Control>}.{/Control}')
+    await browserUserEvent.keyboard('{ControlOrMeta>}.{/ControlOrMeta}')
     await user.keyboard('{Control>}k{/Control}')
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     await expect.element(panel).not.toBeVisible()

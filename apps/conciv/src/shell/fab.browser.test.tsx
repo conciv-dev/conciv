@@ -1,4 +1,5 @@
 import {describe, expect, it, test} from 'vitest'
+import {userEvent as browserUserEvent} from 'vitest/browser'
 import {screen} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine} from '@conciv/plugin-testkit'
@@ -18,23 +19,23 @@ describe('opening and closing the panel', () => {
     await expect.element(opened).not.toBeVisible()
 
     await expect.element(screen.getByRole('button', {name: 'Open conciv chat'})).toHaveFocus()
-    await user.keyboard('{Control>}.{/Control}')
+    await browserUserEvent.keyboard('{ControlOrMeta>}.{/ControlOrMeta}')
     const toggled = await screen.findByRole('dialog', {name: 'conciv chat agent'})
     expect(toggled).toBeVisible()
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
-    await user.keyboard('{Control>}.{/Control}')
+    await browserUserEvent.keyboard('{ControlOrMeta>}.{/ControlOrMeta}')
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     await expect.element(toggled).not.toBeVisible()
 
     await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
     await user.click(await screen.findByRole('button', {name: 'New session, session options'}))
     expect(await screen.findByRole('dialog', {name: 'Session options'})).toBeVisible()
-    expect(await screen.findByRole('button', {name: 'Session: New session'})).toHaveFocus()
+    await expect.element(await screen.findByRole('button', {name: 'Session: New session'})).toHaveFocus()
     await user.keyboard('{Escape}')
     const layered = await screen.findByRole('dialog', {name: 'conciv chat agent'})
     expect(layered).toBeVisible()
     expect(screen.queryByRole('dialog', {name: 'Session options'})).not.toBeInTheDocument()
-    expect(screen.getByRole('button', {name: 'New session, session options'})).toHaveFocus()
+    await expect.element(screen.getByRole('button', {name: 'New session, session options'})).toHaveFocus()
     await user.keyboard('{Escape}')
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     await expect.element(layered).not.toBeVisible()
