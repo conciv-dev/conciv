@@ -33,6 +33,23 @@ describe('what the model is given', () => {
     expect(third?.system).toEqual(expect.not.arrayContaining([expect.stringContaining('<context key="units">')]))
   })
 
+  test('on a harness that resumes its own session, an unchanged entry reaches the first request only', async () => {
+    const engine = await createEngine(
+      {plugins: ['./test/fixtures/plugins/instruction-notes']},
+      {harnesses: [{id: 'engine', sessions: []}]},
+    )
+    await engine.reply(TestLLM.text('Noted'), TestLLM.text('Still noted'))
+    const metric = '<context key="units">\nUse metric units\n</context>'
+
+    await engine.session.tool('note_put').call({value: 'Use metric units'})
+    await engine.session.send('First')
+    await engine.session.send('Second')
+
+    const [first, second] = await engine.requests()
+    expect(first?.system).toEqual(expect.arrayContaining([expect.stringContaining(metric)]))
+    expect(second?.system).toEqual(expect.not.arrayContaining([expect.stringContaining(metric)]))
+  })
+
   test("the prompt hook changes the user's message before the model gets it", async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/request-shaper']})
     await engine.reply(TestLLM.text('Hello'))

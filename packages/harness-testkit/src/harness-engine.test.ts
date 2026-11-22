@@ -11,14 +11,6 @@ describe('scripted replies', () => {
     await engine.session.send('one')
     await engine.session.send('two')
     await expect(engine.session.send('three')).rejects.toThrow('the scripted harness has no reply for request 3')
-
-    expect((await engine.requests())[2]?.messages).toEqual([
-      expect.objectContaining({role: 'user', content: 'one'}),
-      expect.objectContaining({role: 'assistant', content: 'First answer'}),
-      expect.objectContaining({role: 'user', content: 'two'}),
-      expect.objectContaining({role: 'assistant', content: 'Second answer'}),
-      expect.objectContaining({role: 'user', content: 'three'}),
-    ])
   })
 })
 

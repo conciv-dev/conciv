@@ -53,10 +53,11 @@ describe('plugin tools', () => {
     )
   })
 
-  test('an outside agent calls a tool that is not in code mode by its own name', async () => {
+  test('an outside agent calls a tool that is not in code mode by its own name, and code mode does not have it', async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/toolbox']})
 
     expect(await engine.session.tool('measure_direct').call({length: 3})).toEqual({text: 'measured 3 cm'})
+    expect(await engine.outside().call('measure_direct', {length: 3})).toEqual(expect.objectContaining({isError: true}))
   })
 })
 

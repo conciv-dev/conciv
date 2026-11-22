@@ -27,7 +27,7 @@ describe('loading plugins', () => {
     })
   })
 
-  test('an organization policy that denies plugin.use keeps that plugin out and loads the rest', async () => {
+  test('an organization policy that denies plugin.use keeps that plugin and its tool out and loads the rest', async () => {
     const engine = await createEngine({
       plugins: ['./test/fixtures/plugins/lister', './test/fixtures/plugins/greeter-promise'],
       policies: [{action: 'plugin.use', resource: '*/greeter-promise', effect: 'deny'}],
@@ -43,6 +43,9 @@ describe('loading plugins', () => {
         expect.objectContaining({source: {type: 'local', path: expect.stringContaining('/greeter-promise')}}),
       ]),
     })
+    expect(await engine.session.tool('greet_promise').failure({name: 'Ada'})).toEqual(
+      expect.objectContaining({tool: 'greet_promise'}),
+    )
   })
 })
 
