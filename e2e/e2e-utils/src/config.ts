@@ -47,13 +47,16 @@ const BROWSER_SETTING_PROJECTS = {
 
 export type BrowserSetting = keyof typeof BROWSER_SETTING_PROJECTS
 
-function appProjects(settings: readonly BrowserSetting[]) {
+function appProjects(settings: readonly BrowserSetting[], concivHome: string) {
   const chromium = {
     name: 'chromium',
     testIgnore: [PACKED_SPECS, ...Object.values(BROWSER_SETTING_PROJECTS).map((project) => project.testMatch)],
     use: {...devices['Desktop Chrome']},
   }
-  return [chromium, ...settings.map((setting) => BROWSER_SETTING_PROJECTS[setting])]
+  return [chromium, ...settings.map((setting) => BROWSER_SETTING_PROJECTS[setting])].map((project) => ({
+    ...project,
+    metadata: {concivHome},
+  }))
 }
 
 function reporters(configDir: string, appStateFolders: string[], runFolders: string[] = []): ReporterDescription[] {
@@ -157,6 +160,7 @@ export async function e2eConfig(
 ): Promise<ReturnType<typeof defineConfig>> {
   const port = await e2ePort(app)
   const timeout = opts.timeout ?? 90_000
+  const home = runConcivHome(opts.dir)
   return defineConfig({
     testDir: './test',
     testIgnore: PACKED_SPECS,
@@ -174,9 +178,9 @@ export async function e2eConfig(
       ].join(' && '),
       command: `rm -rf .conciv && ${opts.command(port, VITE_COLD_START)}`,
       port,
-      env: {...runConcivHome(opts.dir), ...pathWithOnly(opts.dir, opts.fakeClis ?? [])},
+      env: {...home, ...pathWithOnly(opts.dir, opts.fakeClis ?? [])},
     }),
-    projects: appProjects(opts.browserSettings ?? []),
+    projects: appProjects(opts.browserSettings ?? [], home.CONCIV_HOME),
   })
 }
 
@@ -191,6 +195,10 @@ async function withPorts<T extends {name: string}>(servers: readonly T[]): Promi
   const picked: (T & {port: number})[] = []
   for (const server of servers) picked.push({...server, port: await e2ePort(server.name)})
   return picked
+}
+
+function packedHome(stateDir: string, server: string): string {
+  return join(stateDir, `conciv-home-${server}`)
 }
 
 export async function packedE2eConfig(opts: {
@@ -208,7 +216,7 @@ export async function packedE2eConfig(opts: {
     expect: {timeout: 90_000},
     reporter: reporters(opts.dir, [], opts.runFolders),
     webServer: servers.map((server) => {
-      const home = join(stateDir, `conciv-home-${server.name}`)
+      const home = packedHome(stateDir, server.name)
       return {
         ...serverEntry({
           configDir: opts.dir,
@@ -223,7 +231,7 @@ export async function packedE2eConfig(opts: {
     projects: servers.map((server) => ({
       name: server.name,
       use: {...devices['Desktop Chrome'], baseURL: `http://localhost:${server.port}`},
-      metadata: {projectDir: server.cwd},
+      metadata: {projectDir: server.cwd, concivHome: packedHome(stateDir, server.name)},
     })),
   })
 }
@@ -276,6 +284,10 @@ export async function harnessMatrixConfig(opts: {
     projects: entries.map(({name: harness, port}) => ({
       name: harness,
       use: {...devices['Desktop Chrome'], baseURL: `http://localhost:${port}`},
+      metadata: {
+        projectDir: join(opts.dir, `.conciv-${harness}`),
+        concivHome: isolatedHome(opts.dir, harness).CONCIV_HOME,
+      },
     })),
   })
 }
