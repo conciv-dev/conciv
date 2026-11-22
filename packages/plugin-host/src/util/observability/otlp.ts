@@ -11,6 +11,7 @@ export interface App {
   readonly client: string
   readonly version: string
   readonly channel: string
+  readonly instance?: string
 }
 
 function parseHeaders(value?: string) {
@@ -54,6 +55,7 @@ export function resource(app: App = {client: 'conciv', version: 'unknown', chann
       'conciv.client': app.client,
       'conciv.run': runID(),
       'service.instance.id': runID(),
+      ...(app.instance === undefined ? {} : {'conciv.engine.id': app.instance}),
     },
   }
 }
