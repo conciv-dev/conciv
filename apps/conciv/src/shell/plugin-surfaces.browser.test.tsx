@@ -1,7 +1,8 @@
 import {describe, expect, it, test} from 'vitest'
+import {userEvent as browserInput} from 'vitest/browser'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent, {type UserEvent} from '@testing-library/user-event'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('view tabs', () => {
@@ -104,5 +105,30 @@ describe('a plugin tab, its dialogs and its overlay', () => {
     expect(screen.queryByRole('dialog', {name: 'conciv chat agent'})).not.toBeInTheDocument()
     await user.click(uncover)
     expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+  })
+})
+
+describe('a plugin opens local files from a reply', () => {
+  test('a path the plugin knows is a link that opens on a click and on Enter, and a path it says is missing stays plain', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/shell-board']})
+    await engine.reply(TestLLM.text('Read `src/board.ts`, then `src/desk.ts`. The old `src/gone.ts` is gone.'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Where are the files')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    const reply = await screen.findByRole('article', {name: 'Reply to: Where are the files'})
+    const board = await within(reply).findByRole('link', {name: 'src/board.ts'})
+    expect(within(reply).getByText('src/gone.ts')).toBeVisible()
+    expect(within(reply).queryByRole('link', {name: 'src/gone.ts'})).not.toBeInTheDocument()
+
+    await browserInput.click(board)
+    expect(await screen.findByText('Opened src/board.ts')).toBeVisible()
+
+    const desk = within(reply).getByRole('link', {name: 'src/desk.ts'})
+    await browserInput.tab()
+    expect(desk).toHaveFocus()
+    await browserInput.keyboard('{Enter}')
+    expect(await screen.findByText('Opened src/desk.ts')).toBeVisible()
   })
 })

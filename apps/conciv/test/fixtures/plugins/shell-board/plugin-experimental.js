@@ -1,5 +1,5 @@
 const {z} = require('zod')
-const {Panel, Plugin, SettingsPage, Slot, Store, useDrawer} = require('@conciv/plugin/experimental')
+const {LinkHandler, Panel, Plugin, SettingsPage, Slot, Store, useDrawer} = require('@conciv/plugin/experimental')
 
 function button(label, run) {
   const element = Object.assign(document.createElement('button'), {type: 'button', textContent: label})
@@ -10,6 +10,8 @@ function button(label, run) {
 function text(content) {
   return Object.assign(document.createElement('p'), {textContent: content})
 }
+
+const files = ['src/board.ts', 'src/desk.ts']
 
 const colours = [
   {title: 'Crimson', value: 'crimson'},
@@ -112,6 +114,12 @@ module.exports = {
         page: 'general',
         title: 'Deploy notes',
         render: () => text('Deploy notes live here'),
+      })
+
+      ctx.add(LinkHandler, {
+        match: () => true,
+        exists: (link) => files.includes(link.href),
+        open: (link) => ctx.toast.show({title: `Opened ${link.href}`, persistent: true}),
       })
     },
   }),
