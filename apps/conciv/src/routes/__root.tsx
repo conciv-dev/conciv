@@ -457,7 +457,11 @@ function RootChrome(props: {
       replace: settings.surface !== 'dock' && Boolean(panelMatch()),
     })
   }
-  const toggleQuick = () => (awaitingLogin() ? showPanel() : switchQuick())
+  const toggleQuick = () => {
+    if (login?.status() === 'checking') return
+    if (awaitingLogin()) showPanel()
+    else switchQuick()
+  }
   createHotkeys(() => [
     ...preferences.shortcut('togglePanel').map((binding) => ({hotkey: toRawHotkey(binding), callback: togglePanel})),
     ...(settings.quickTerminal.enabled
