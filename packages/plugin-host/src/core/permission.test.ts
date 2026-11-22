@@ -27,28 +27,7 @@ describe('asks', () => {
     expect(await call).toEqual({read: 'notes.txt'})
   })
 
-  test("a plugin lists, reads and answers the session's pending ask", async () => {
-    const engine = await createEngine({
-      plugins: ['./test/fixtures/plugins/guarded'],
-      permission: {'guarded.write': 'ask'},
-    })
-    const sessionId = engine.session.id
-    const asked = await engine.event('permission.asked')
-
-    const call = engine.session.tool('guarded_write').call({file: 'notes.txt'})
-    const {id} = z.object({id: z.string()}).parse((await asked.arrived).data)
-
-    const pending = {id, action: 'guarded.write', resources: ['notes.txt']}
-    expect(await engine.rpc.call('asks', 'list', {sessionId})).toEqual([pending])
-    expect(await engine.rpc.call('asks', 'get', {sessionId, requestId: id})).toEqual(pending)
-    expect(await engine.rpc.call('asks', 'reply', {sessionId, requestId: id, decision: 'once'})).toEqual({
-      replied: true,
-    })
-    expect(await call).toEqual({written: 'notes.txt'})
-    expect(await engine.rpc.call('asks', 'list', {sessionId})).toEqual([])
-  })
-
-  test('an ask answered always is saved for that file, so the next call does not ask, and an ask answered reject fails the call', async () => {
+  test("a plugin lists, reads and answers the session's pending ask: once lets the call finish, always is saved for that file so the next call does not ask, and reject fails the call", async () => {
     const engine = await createEngine({
       plugins: ['./test/fixtures/plugins/guarded'],
       permission: {'guarded.write': 'ask'},
@@ -56,19 +35,31 @@ describe('asks', () => {
     const sessionId = engine.session.id
     const asked = z.object({id: z.string()})
 
-    const firstAsk = await engine.event('permission.asked')
-    const first = engine.session.tool('guarded_write').call({file: 'notes.txt'})
-    const {id: firstId} = asked.parse((await firstAsk.arrived).data)
-    await engine.rpc.call('asks', 'reply', {sessionId, requestId: firstId, decision: 'always'})
-    expect(await first).toEqual({written: 'notes.txt'})
+    const onceAsk = await engine.event('permission.asked')
+    const once = engine.session.tool('guarded_write').call({file: 'notes.txt'})
+    const {id: onceId} = asked.parse((await onceAsk.arrived).data)
+    const pending = {id: onceId, action: 'guarded.write', resources: ['notes.txt']}
+    expect(await engine.rpc.call('asks', 'list', {sessionId})).toEqual([pending])
+    expect(await engine.rpc.call('asks', 'get', {sessionId, requestId: onceId})).toEqual(pending)
+    expect(await engine.rpc.call('asks', 'reply', {sessionId, requestId: onceId, decision: 'once'})).toEqual({
+      replied: true,
+    })
+    expect(await once).toEqual({written: 'notes.txt'})
+    expect(await engine.rpc.call('asks', 'list', {sessionId})).toEqual([])
+
+    const alwaysAsk = await engine.event('permission.asked')
+    const always = engine.session.tool('guarded_write').call({file: 'notes.txt'})
+    const {id: alwaysId} = asked.parse((await alwaysAsk.arrived).data)
+    await engine.rpc.call('asks', 'reply', {sessionId, requestId: alwaysId, decision: 'always'})
+    expect(await always).toEqual({written: 'notes.txt'})
 
     expect(await engine.session.tool('guarded_write').call({file: 'notes.txt'})).toEqual({written: 'notes.txt'})
     expect(await engine.rpc.call('asks', 'list', {sessionId})).toEqual([])
 
-    const secondAsk = await engine.event('permission.asked')
+    const rejectAsk = await engine.event('permission.asked')
     const rejected = engine.session.tool('guarded_write').failure({file: 'other.txt'})
-    const {id: secondId} = asked.parse((await secondAsk.arrived).data)
-    await engine.rpc.call('asks', 'reply', {sessionId, requestId: secondId, decision: 'reject'})
+    const {id: rejectId} = asked.parse((await rejectAsk.arrived).data)
+    await engine.rpc.call('asks', 'reply', {sessionId, requestId: rejectId, decision: 'reject'})
     expect(await rejected).toEqual(expect.objectContaining({tool: 'guarded_write'}))
     expect(await engine.rpc.call('asks', 'list', {sessionId})).toEqual([])
   })
