@@ -39,14 +39,15 @@ describe('a reply with a diagram', () => {
     expect(await within(reply).findByRole('graphics-document')).toBeVisible()
     expect(within(reply).getByText('Start')).toBeVisible()
     expect(within(reply).getByText('Done')).toBeVisible()
-    expect(reply).toMatchTextContent('const total = 1 + 1')
+    await expect
+      .element(page.getByRole('article', {name: 'Reply to: Draw the flow'}).getByText('const total = 1 + 1'))
+      .toBeVisible()
   })
 })
 
 describe('a long saved session', () => {
   test('the user scrolls to the start, earlier messages load in order, and Latest brings the end back', async () => {
     await page.viewport(1280, 800)
-    const user = userEvent.setup()
     const engine = await createEngine()
     await engine.reply(...Array.from({length: 26}, (_, index) => TestLLM.text(`Answer ${index + 1}`)))
     for (const index of Array.from({length: 26}, (_, offset) => offset + 1)) {
@@ -60,7 +61,8 @@ describe('a long saved session', () => {
     const last = await screen.findByRole('article', {name: 'Reply to: Question 26'})
     expect(await within(last).findByText('Answer 26')).toBeVisible()
     expect(screen.queryByRole('article', {name: 'Reply to: Question 1'})).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', {name: 'Latest'})).not.toBeInTheDocument()
+    const latest = page.getByRole('button', {name: 'Scroll to bottom', includeHidden: true})
+    await expect.element(latest).toBeDisabled()
 
     await browserInput.click(last)
     await browserInput.keyboard('{Home}')
@@ -70,11 +72,12 @@ describe('a long saved session', () => {
     expect(rows[1]).toHaveAccessibleName('Reply to: Question 1')
     expect(rows[2]).toHaveAccessibleName('You: Question 2')
     expect(rows[3]).toHaveAccessibleName('Reply to: Question 2')
-    const latest = await screen.findByRole('button', {name: 'Latest'})
-    expect(latest).toBeVisible()
+    await expect.element(latest).toBeEnabled()
+    await expect.element(latest).toBeVisible()
+    await expect.element(latest).toHaveTextContent('Latest')
 
-    await user.click(latest)
+    await latest.click()
     expect(await screen.findByText('Answer 26')).toBeVisible()
-    await expect.element(page.getByRole('button', {name: 'Latest', includeHidden: true})).not.toBeVisible()
+    await expect.element(latest).toBeDisabled()
   })
 })
