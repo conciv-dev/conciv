@@ -16,8 +16,6 @@
   "dependencies": {
     "@conciv/contract": "workspace:*",
     "@conciv/protocol": "workspace:*",
-    "@orpc/client": "catalog:",
-    "@orpc/standard-server-peer": "catalog:",
     "@playwright/test": "catalog:",
     "zod": "catalog:"
   },
