@@ -1,14 +1,15 @@
 import {ConfigProvider} from 'effect'
-import {describe, expect, test} from 'vitest'
+import {describe, expect} from 'vitest'
 import {createEngine} from '@conciv/plugin-testkit'
+import {test} from '../test/engine-test.js'
 import {resolveConfig} from './config.js'
 
 describe('config', () => {
-  test('an engine started for one session has that session from the start', async () => {
+  test('an engine started for one session has that session from the start', async ({connect}) => {
     const sessionId = 'conciv_11111111-1111-4111-8111-111111111111'
     const engine = await createEngine({sessionId})
 
-    expect(engine.session.id).toBe(sessionId)
+    expect(await connect(engine).sessions.resolve({})).toEqual({sessionId})
   })
 
   test.each([
