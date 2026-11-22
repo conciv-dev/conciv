@@ -104,7 +104,6 @@ import {makeRpcRouter} from './api/rpc/router.js'
 import {carryEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute} from '@conciv/serve/rpc'
-import {logError} from './lib/debug.js'
 import {GROUP_EXIT_TIMEOUT_MS, inSpan, loadIsolateDriver, type Tracer} from '@conciv/ai/server'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
@@ -124,6 +123,7 @@ import type {OpenInEditor} from './editor/open.js'
 import type {AttachmentDocumentPart, ContentPart} from '@conciv/protocol/chat-message-types'
 import {GRAB_MIME, parseGrabPayload} from '@conciv/grab/grab-attachment'
 import {writePrivateFile} from './lib/dev-endpoint.js'
+import {logOnContext, logOnRuntime, type Log, type LogOptions} from './lib/logging.js'
 
 const NO_TAB_MESSAGE = 'pass tab to execute_typescript; list_tabs lists the open tabs'
 
@@ -153,15 +153,20 @@ function readSaved(path: string): HarnessModel[] | null {
   }
 }
 
-function writeSaved(path: string, models: HarnessModel[]): void {
+function writeSaved(path: string, models: HarnessModel[], log: Log): void {
   try {
     writePrivateFile(path, JSON.stringify(models))
   } catch (error) {
-    logError(`[core] the model list could not be saved: ${String(error)}`)
+    log(Effect.logError('[core] the model list could not be saved', {path, error}))
   }
 }
 
-export function withSavedModels(adapter: HarnessAdapter, stateDir: string, signal: AbortSignal): SavedModelsHarness {
+export function withSavedModels(
+  adapter: HarnessAdapter,
+  stateDir: string,
+  signal: AbortSignal,
+  log: Log,
+): SavedModelsHarness {
   if (typeof adapter.models !== 'function') return {harness: adapter, settled: () => Promise.resolve()}
   const path = join(stateDir, `${adapter.id}-models.json`)
   const state: {saved: HarnessModel[] | null; refreshing?: Promise<HarnessModel[]>} = {saved: readSaved(path)}
@@ -174,7 +179,7 @@ export function withSavedModels(adapter: HarnessAdapter, stateDir: string, signa
       .then((listed) => {
         signal.throwIfAborted()
         state.saved = listed
-        writeSaved(path, listed)
+        writeSaved(path, listed, log)
         return listed
       })
       .catch((error: unknown) => {
@@ -187,7 +192,8 @@ export function withSavedModels(adapter: HarnessAdapter, stateDir: string, signa
     const fresh = refresh()
     if (state.saved === null) return fresh
     fresh.catch((error: unknown) => {
-      if (!signal.aborted) logError(`[core] the model list could not be refreshed: ${String(error)}`)
+      if (!signal.aborted)
+        log(Effect.logError('[core] the model list could not be refreshed', {harness: adapter.id, error}))
     })
     return Promise.resolve(state.saved)
   }
@@ -210,7 +216,6 @@ export type MakeAppOpts = {
   cwd: string
   agentToken?: string
   engineId?: string
-  print?: (text: string) => void
   onTrusted?: () => void
   bridge?: Bundler.BundlerBridge
   openInEditor: OpenInEditor
@@ -260,6 +265,7 @@ export type MakeAppOpts = {
 
   configProvider?: ConfigProvider.ConfigProvider
 
+  log?: LogOptions
   clock?: Layer.Layer<never>
   observability?: EngineObservability
 }
@@ -275,10 +281,10 @@ function executable(file: string): boolean {
 
 const PathConfig = Config.String('PATH').pipe(Config.withDefault(''))
 
-const readAppEnv = Effect.fn('core.app.readEnv')(function* (homeDir: string | undefined) {
+const readAppEnv = Effect.fn('core.app.readEnv')(function* (homeDir: string | undefined, log: Log) {
   const home = yield* readConcivHome(homeDir)
   const env = yield* readProcessEnv
-  return {home, path: yield* PathConfig, env, hub: yield* makeHubInstaller(home, env)}
+  return {home, path: yield* PathConfig, env, hub: yield* makeHubInstaller(home, env, log)}
 })
 
 function onPath(path: string, bin: string): boolean {
@@ -297,9 +303,10 @@ function availableHarnesses(
   stateDir: string,
   signal: AbortSignal,
   path: string,
+  log: Log,
 ): SavedModelsHarness[] {
   const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses(registry, path))).map((adapter) =>
-    withSavedModels(adapter, stateDir, signal),
+    withSavedModels(adapter, stateDir, signal, log),
   )
   return [boot, ...others.filter((other) => other.harness.id !== boot.harness.id)]
 }
@@ -373,6 +380,7 @@ function composeRoutes(
     version: (() => string | undefined) | undefined
     onShutdown?: () => void
     trust: ConnectionTrust
+    log: Log
     tracer: Tracer | undefined
   },
 ) {
@@ -380,7 +388,7 @@ function composeRoutes(
   const app = new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
-      logError(`[core] unhandled route error: ${String(error)}`)
+      deps.log(Effect.logError('[core] unhandled route error', {path: c.req.path, error}))
       return c.json({message: 'internal error'}, 500)
     })
     .use(async (c, next) => {
@@ -403,7 +411,7 @@ function composeRoutes(
       RPC_WS_PATH,
       rpcWebsocketRoute(rpc, {
         upgrade: upgradeWebSocket,
-        onError: logError,
+        onError: (message) => deps.log(Effect.logError(message)),
         gate: (c) => rpcSocketGate(deps.trust, c.req.header('authorization')),
         traceCall,
       }),
@@ -505,42 +513,57 @@ async function mcpSessionId(
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const configProvider = opts.configProvider ?? defaultConfigProvider()
-  const appEnv = await runWithProvider(configProvider, readAppEnv(opts.home))
   const stateDir = concivStateDir(opts.cfg.stateRoot)
+  const engineId = opts.engineId ?? randomUUID()
+  const givenObservability = opts.observability
+  const observability =
+    givenObservability ??
+    (await startObservability({
+      home: await runWithProvider(configProvider, readConcivHome(opts.home)),
+      fallbackRoots: join(stateDir, 'plugin-host'),
+      configProvider,
+      engineId,
+      log: opts.log,
+    }))
+  const releaseObservability = (): Promise<void> | undefined =>
+    givenObservability === undefined ? observability.dispose() : undefined
+  const tracer = observability.tracer
+  const earlyLog = logOnContext(observability.context)
+  const appEnv = await runWithProvider(configProvider, readAppEnv(opts.home, earlyLog)).catch(
+    async (error: unknown) => {
+      await releaseObservability()
+      throw error
+    },
+  )
   const engineLife = new AbortController()
   const registry = opts.harnessRegistry ?? harnessRegistry(configProvider)
-  const boot = withSavedModels(opts.harness ?? requireHarness(registry, opts.cfg.harness), stateDir, engineLife.signal)
+  const boot = withSavedModels(
+    opts.harness ?? requireHarness(registry, opts.cfg.harness),
+    stateDir,
+    engineLife.signal,
+    earlyLog,
+  )
   const harness = boot.harness
   const agentToken = opts.agentToken ?? randomUUID()
   const basePath = agentPath(agentToken)
-  const browsers = watchTrustedBrowsers(stateDir)
+  const browsers = watchTrustedBrowsers(stateDir, earlyLog)
   const trust = makeConnectionTrust(agentToken, browsers)
-  const listings = availableHarnesses(boot, opts, registry, stateDir, engineLife.signal, appEnv.path)
+  const listings = availableHarnesses(boot, opts, registry, stateDir, engineLife.signal, appEnv.path, earlyLog)
   const harnesses = listings.map((listing) => listing.harness)
-  const print = opts.print ?? ((text: string) => console.log(text))
   const endListing = async (listing: SavedModelsHarness): Promise<void> => {
     const ended = listing.settled().then(() => true)
     if (await Promise.race([ended, delay(opts.stopGraceMs ?? GROUP_EXIT_TIMEOUT_MS, false, {ref: false})])) return
-    print(`[core] the ${listing.harness.id} model listing did not end when the engine stopped; closing without it`)
+    earlyLog(
+      Effect.logWarning('[core] the model listing did not end when the engine stopped; closing without it', {
+        harness: listing.harness.id,
+      }),
+    )
   }
   const endListings = async (): Promise<void> => {
     engineLife.abort(new Error('conciv: the engine stopped'))
     await Promise.all(listings.map(endListing))
   }
   const staleness = (): EngineStaleness => opts.staleness?.() ?? engineStaleness()
-  const engineId = opts.engineId ?? randomUUID()
-  const givenObservability = opts.observability
-  const observability =
-    givenObservability ??
-    (await startObservability({
-      home: appEnv.home,
-      fallbackRoots: join(stateDir, 'plugin-host'),
-      configProvider,
-      engineId,
-    }))
-  const releaseObservability = (): Promise<void> | undefined =>
-    givenObservability === undefined ? observability.dispose() : undefined
-  const tracer = observability.tracer
   const dbScope = Effect.runSync(Scope.make())
   const closeDb = () => Effect.runPromise(Scope.close(dbScope, Exit.void))
   const failedStart =
@@ -549,7 +572,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       await runInOrder(
         [endListings, ...steps, () => browsers.close(), closeDb, releaseObservability],
         'conciv: disposing after a failed start failed',
-      ).catch((failure: unknown) => logError(`[core] ${String(failure)}`))
+      ).catch((failure: unknown) => earlyLog(Effect.logError('[core] cleanup after a failed start failed', {failure})))
       throw error
     }
   const db = await inSpan(tracer, 'Engine.openDatabase', {}, () =>
@@ -560,7 +583,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
   const pagePlugin = makePagePlugin(() => pluginHost)
-  const settings = createSettingsStorage(settingsOnDisk({global: appEnv.home, project: stateDir}))
+  const settings = createSettingsStorage(settingsOnDisk({global: appEnv.home, project: stateDir}), earlyLog)
   const primitives = makeSessionPrimitives()
   const {stream} = primitives
   const rows: RowScope = {
@@ -585,20 +608,24 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     makeServerHarness(await harnessFor(sessionId), opts.cwd)
 
   const idleFailed = async (sessionId: SessionId, runId: string, error: unknown): Promise<void> => {
-    logError(`[core] the experimental.idle hook failed: ${String(error)}`)
+    log(Effect.logError('[core] the experimental.idle hook failed', {sessionId, runId, error}))
     const message = error instanceof Error ? error.message : String(error)
-    await plane
-      .recordRunError(sessionId, runId, message)
-      .catch((recordError: unknown) =>
-        logError(`[core] recording the experimental.idle failure of run ${runId} failed: ${String(recordError)}`),
-      )
+    await plane.recordRunError(sessionId, runId, message).catch((recordError: unknown) =>
+      log(
+        Effect.logError('[core] recording the experimental.idle failure failed', {
+          sessionId,
+          runId,
+          error: recordError,
+        }),
+      ),
+    )
     stream.publish(sessionId, idleFailedEvent.create({runId}))
   }
   const onRunStart = async (sessionId: SessionId): Promise<void> => {
     await pluginHost
       .runPromise(publishRunStart(sessionId))
       .catch((error: unknown) =>
-        logError(`[core] publishing the start of a run in ${sessionId} failed: ${String(error)}`),
+        log(Effect.logError('[core] publishing the start of a run failed', {sessionId, error})),
       )
   }
   const onRunEnd = async (sessionId: SessionId, run: RunLifecycle): Promise<void> => {
@@ -606,7 +633,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       .runPromise(
         publishRunEnd(sessionId, run, planeRef.current === null || engineLife.signal.aborted ? 'shutdown' : 'user'),
       )
-      .catch((error: unknown) => logError(`[core] publishing how run ${run.runId} ended failed: ${String(error)}`))
+      .catch((error: unknown) =>
+        log(Effect.logError('[core] publishing how the run ended failed', {sessionId, runId: run.runId, error})),
+      )
     if (run.phase === 'completed' && !(await owedFollowUp(sessionId))) {
       const idled = await pluginHost
         .runPromiseExit(
@@ -629,7 +658,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     if (run.phase === 'aborted') {
       if (engineLife.signal.aborted) return
       await holdForNextReply(pagePlugin.delivery, sessionId).catch((error: unknown) =>
-        logError(`[core] the page queue results of ${sessionId} could not wait for the next reply: ${String(error)}`),
+        log(Effect.logError('[core] the page queue results could not wait for the next reply', {sessionId, error})),
       )
       return
     }
@@ -637,7 +666,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   const owedFollowUp = (sessionId: SessionId): Promise<boolean> =>
     owesFollowUp(pagePlugin.delivery, sessionId).catch((error: unknown) => {
-      logError(`[core] the page queue results owed to ${sessionId} could not be read: ${String(error)}`)
+      log(Effect.logError('[core] the page queue results owed could not be read', {sessionId, error}))
       return false
     })
   const sessionModel = (sessionId: SessionId): Promise<string | null> => readModel(db, sessionId)
@@ -682,6 +711,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   const plugins = await Promise.try(startPlugins).catch(failedStart([settings.close]))
   const pluginHost: PluginHost = plugins.runtime
+  const log = logOnRuntime(pluginHost)
+  const logMessage = (message: string): void => log(Effect.logError(message))
   const startFailed = (steps: ShutdownStep[]) =>
     failedStart([
       plugins.closeRpc,
@@ -713,7 +744,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     )
   const publishCard = (sessionId: SessionId, chunk: ChatEvent): void => stream.publish(sessionId, chunk)
   const reportToolCollision = memoize((name: string) =>
-    logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
+    log(Effect.logError('[core] a plugin tool is left out: a built-in capability already has that name', {name})),
   )
   const withPluginTools = async (sessionId: SessionId, capabilities: CodeCapability[]): Promise<CodeCapability[]> =>
     toolDomainCapabilities(
@@ -740,7 +771,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     new Set([...(await sessionTools(sessionId)).map((tool) => tool.name), ...concivSandboxToolNames()])
 
   const hub = appEnv.hub
-  const driver = await inSpan(tracer, 'Engine.loadIsolateDriver', {}, async () => loadIsolateDriver(logError))
+  const driver = await inSpan(tracer, 'Engine.loadIsolateDriver', {}, async () => loadIsolateDriver(logMessage))
   const askPermission = async (
     sessionId: SessionId,
     ask: HarnessPermissionAsk,
@@ -749,7 +780,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     const asked = await pluginHost.runPromiseExit(askForHarness(sessionId, ask, publishCard), {signal})
     if (Exit.isSuccess(asked)) return asked.value
     if (!Cause.hasInterruptsOnly(asked.cause))
-      logError(`[core] the permission ask of session ${sessionId} failed: ${String(Cause.squash(asked.cause))}`)
+      log(Effect.logError('[core] the permission ask failed', {sessionId, error: Cause.squash(asked.cause)}))
     return {allowed: false, message: 'The ask ended before the user answered it.'}
   }
   const plane = await inSpan(tracer, 'Engine.createChatPlane', {}, () =>
@@ -780,7 +811,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       uiCallWaitMs: opts.uiCallWaitMs,
       uiAnswerWaitMs: opts.uiAnswerWaitMs,
       groupExitTimeoutMs: opts.stopGraceMs,
-      log: logError,
+      log: logMessage,
       driver,
       askPermission,
       pendingPermissions: (sessionId) => pluginHost.runPromise(pendingPermissionCards(sessionId)),
@@ -801,6 +832,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     rows,
     plane,
     signal: engineLife.signal,
+    log,
     tracer,
   }
 
@@ -811,13 +843,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     staleness,
     interruptIdle,
     symbolicate: pagePlugin.symbolicateOrNone,
+    log,
   })
 
   function followUpOwedQueues(sessionId: SessionId): void {
     if (planeRef.current === null) return
-    void startQueueFollowUp(pagePlugin.delivery, planeRef.current, sessionId, (id) => isDeletedRow(db, id)).catch(
+    void startQueueFollowUp(pagePlugin.delivery, planeRef.current, sessionId, (id) => isDeletedRow(db, id), log).catch(
       (error: unknown) =>
-        logError(`[core] the page queue follow-up turn for ${sessionId} could not start: ${String(error)}`),
+        log(Effect.logError('[core] the page queue follow-up turn could not start', {sessionId, error})),
     )
   }
 
@@ -829,12 +862,20 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     chunks.forEach((chunk) => scope.stream.publish(chunk))
     void scope.run
       .record(chunks)
-      .catch((error: unknown) => logError(`[core] recording queue ${result.queueId} failed: ${String(error)}`))
+      .catch((error: unknown) =>
+        log(Effect.logError('[core] recording a queue failed', {sessionId, queueId: result.queueId, error})),
+      )
     if (!pagePlugin.fromHub(sessionId, finished.toolCallId)) followUpOwedQueues(sessionId)
   }
   await pagePlugin.followFinished((finished) => {
     publishFinished(finished).catch((error: unknown) =>
-      logError(`[core] publishing the finished queue ${finished.result.queueId} failed: ${String(error)}`),
+      log(
+        Effect.logError('[core] publishing a finished queue failed', {
+          sessionId: finished.sessionId,
+          queueId: finished.result.queueId,
+          error,
+        }),
+      ),
     )
   })
 
@@ -854,7 +895,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     return readOutsideRefusal(exit, client)
   }
 
-  const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses, tracer})
+  const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses, log, tracer})
   const mcp: McpVars['mcp'] = {
     codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
     hubCall: pagePlugin.hubCall,
@@ -868,6 +909,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     admitOutside,
     hubRefusal: hub.refusal,
     staleness,
+    log,
   }
   const ptys = createPersistentPtys({
     harness: serverHarness,
@@ -889,6 +931,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
       root: opts.cwd,
       instructions: systemPromptText,
+      log,
     }),
     queues: pagePlugin,
     queueWait: pagePlugin.queueWait,
@@ -908,7 +951,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     answerPermission: (sessionId, requestId, reply) =>
       pluginHost.runPromise(answerPermission(sessionId, requestId, reply)),
     auth: makeAuthRouter({
-      codes: makeCodeStore({now: Date.now, print}),
+      codes: makeCodeStore({now: Date.now, log}),
       trust,
       browsers,
       now: Date.now,
@@ -928,6 +971,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       version: opts.app?.version,
       onShutdown: opts.onShutdown,
       trust,
+      log,
       tracer,
     },
   )
@@ -967,11 +1011,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     onTrusted: opts.onTrusted,
   })
 
-  await inSpan(tracer, 'Engine.ensureConfiguredRows', {}, () => ensureConfiguredRows(rows, opts.cfg))
+  await inSpan(tracer, 'Engine.ensureConfiguredRows', {}, () => ensureConfiguredRows(rows, opts.cfg, log))
     .then(() => inSpan(tracer, 'Engine.supervisePlugins', {}, plugins.supervise))
+    .then(() =>
+      pluginHost.runPromise(
+        Effect.logInfo('conciv: the engine started').pipe(
+          Effect.annotateLogs({engineId, harness: harness.id, cwd: opts.cwd}),
+        ),
+      ),
+    )
     .catch(async (error: unknown) => {
       await dispose().catch((failure: unknown) =>
-        logError(`[core] disposing after a failed start also failed: ${String(failure)}`),
+        earlyLog(Effect.logError('[core] disposing after a failed start also failed', {failure})),
       )
       throw error
     })
@@ -993,9 +1044,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
 }
 
-async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig): Promise<void> {
+async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig, log: Log): Promise<void> {
   await sweepEmptyRows(rows.db).catch((error: unknown) =>
-    logError(`[core] the empty session row sweep failed: ${String(error)}`),
+    log(Effect.logError('[core] the empty session row sweep failed', {error})),
   )
   const {sessionId, harnessSessionId} = cfg
   if (harnessSessionId !== undefined) {

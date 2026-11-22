@@ -168,7 +168,12 @@ function harnessModelInfo(harnessId: string, model: HarnessModel): HostModel.Inf
 
 const listedModels = Effect.fn('core.models.list')(function* (harness: HarnessAdapter, signal: AbortSignal) {
   yield* Effect.annotateCurrentSpan({harness: harness.id})
-  const entry = yield* Effect.promise(() => buildHarnessMenuEntry(harness, signal))
+  const context = yield* Effect.context<never>()
+  const entry = yield* Effect.promise(() =>
+    buildHarnessMenuEntry(harness, signal, (logged) => {
+      Effect.runForkWith(context)(logged)
+    }),
+  )
   const all = entry.models.map((model) => harnessModelInfo(harness.id, model))
   return {all, available: all.filter((model) => model.enabled), defaultModel: entry.defaultModel}
 })
@@ -360,7 +365,7 @@ export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
         {signal},
       ),
     closeRpc: () => runtime.runPromise(Rpc.Service.use((rpc) => rpc.close)),
-    closePlugins: () => Effect.runPromise(Scope.close(supervised, Exit.void)),
+    closePlugins: () => runtime.runPromise(Scope.close(supervised, Exit.void)),
     closePermissions: () => runtime.runPromise(Permission.Service.use((permission) => permission.close)),
   }
 }

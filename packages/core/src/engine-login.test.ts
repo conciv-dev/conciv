@@ -5,7 +5,7 @@ import {CODE_LIFETIME_MS, makeCodeStore} from './engine-login.js'
 
 describe('login code', () => {
   test('five wrong codes void the code, and the right code is refused after that', () => {
-    const store = makeCodeStore({now: () => 0, print: () => {}})
+    const store = makeCodeStore({now: () => 0, log: () => {}})
     const {code} = store.issue()
 
     expect([1, 2, 3, 4, 5].map(() => store.exchange('wrong'))).toEqual([
@@ -20,7 +20,7 @@ describe('login code', () => {
 
   test('a code is trusted once inside its lifetime and refused after it', () => {
     const clock = {now: 0}
-    const store = makeCodeStore({now: () => clock.now, print: () => {}})
+    const store = makeCodeStore({now: () => clock.now, log: () => {}})
     const first = store.issue()
     clock.now = CODE_LIFETIME_MS - 1
 

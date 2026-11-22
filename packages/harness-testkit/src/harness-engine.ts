@@ -498,7 +498,6 @@ function bootApp(
     launchEditor: (file, line, column) => {
       opened.push(openedFile(file, line, column))
     },
-    print: () => {},
     ...portRequest(config, options.token, previous?.started, connectPort),
   })
 }

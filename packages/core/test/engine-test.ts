@@ -62,7 +62,7 @@ export const test: TestAPI<EngineFixtures> = base.extend<EngineFixtures>({
   settingsStorage: async ({task: _task}, use) => {
     const opened: SettingsStorage[] = []
     await use((storages) => {
-      const storage = createSettingsStorage(storages)
+      const storage = createSettingsStorage(storages, () => {})
       opened.push(storage)
       return storage
     })

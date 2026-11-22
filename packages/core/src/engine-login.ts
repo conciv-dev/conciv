@@ -1,6 +1,7 @@
 import {randomInt, timingSafeEqual} from 'node:crypto'
 import {unwatchFile, watchFile} from 'node:fs'
 import {join} from 'node:path'
+import {Effect} from 'effect'
 import {Hono} from 'hono'
 import type {WSContext} from 'hono/ws'
 import {REVOKED_SOCKET_CLOSE_CODE, type ExchangeRefusal} from '@conciv/contract'
@@ -17,7 +18,7 @@ import {
 import {NATIVE_PAGE_PATH} from './api/native-page.js'
 import {os} from './api/rpc/mount.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
-import {logError} from './lib/debug.js'
+import type {Log} from './lib/logging.js'
 
 export const AUTH_PROCEDURE_PATHS: readonly string[] = [
   '/rpc/auth/trust',
@@ -86,7 +87,7 @@ export function loginBanner(code: string, expiresAt: number, requester: BrowserR
   ])
 }
 
-export function makeCodeStore(deps: {now: () => number; print: (text: string) => void}): CodeStore {
+export function makeCodeStore(deps: {now: () => number; log: Log}): CodeStore {
   const state: CodeState = {code: null, expiresAt: 0, failures: 0}
   const live = (): string | null => (state.code !== null && deps.now() < state.expiresAt ? state.code : null)
   const discard = (): void => {
@@ -105,7 +106,11 @@ export function makeCodeStore(deps: {now: () => number; print: (text: string) =>
     request: (requester, reissue) => {
       if (!reissue && live() !== null) return {expiresAt: state.expiresAt}
       const issued = issue()
-      deps.print(loginBanner(issued.code, issued.expiresAt, requester))
+      deps.log(
+        Effect.logInfo(loginBanner(issued.code, issued.expiresAt, requester)).pipe(
+          Effect.annotateLogs({code: issued.code, expiresAt: issued.expiresAt, requester}),
+        ),
+      )
       return {expiresAt: issued.expiresAt}
     },
     exchange: (code) => {
@@ -158,20 +163,20 @@ export type TrustedBrowsers = {
 
 const TRUST_FILE_POLL_MS = 250
 
-function trustedHashes(stateDir: string): Set<string> {
+function trustedHashes(stateDir: string, log: Log): Set<string> {
   try {
     return new Set(readTrustedBrowsers(stateDir).map((entry) => entry.hash))
   } catch (error) {
-    logError(`[core] the trusted browsers file could not be read: ${String(error)}`)
+    log(Effect.logError('[core] the trusted browsers file could not be read', {stateDir, error}))
     return new Set()
   }
 }
 
-export function watchTrustedBrowsers(stateDir: string): TrustedBrowsers {
+export function watchTrustedBrowsers(stateDir: string, log: Log): TrustedBrowsers {
   createConcivStateDir(stateDir)
   const sockets = new Map<EngineSocket, string>()
   const closeRevoked = (): void => {
-    const hashes = trustedHashes(stateDir)
+    const hashes = trustedHashes(stateDir, log)
     for (const [socket, hash] of sockets) {
       if (!hashes.has(hash)) socket.close(REVOKED_SOCKET_CLOSE_CODE, 'this browser is no longer trusted')
     }
@@ -179,11 +184,11 @@ export function watchTrustedBrowsers(stateDir: string): TrustedBrowsers {
   const file = join(stateDir, TRUSTED_BROWSERS_FILE)
   watchFile(file, {interval: TRUST_FILE_POLL_MS, persistent: false}, closeRevoked)
   return {
-    has: (token) => trustedHashes(stateDir).has(tokenHash(token)),
+    has: (token) => trustedHashes(stateDir, log).has(tokenHash(token)),
     grant: (requester, grantedAt) => grantBrowser(stateDir, requester, grantedAt),
     hold: (socket, token) => {
       const hash = tokenHash(token)
-      if (!trustedHashes(stateDir).has(hash)) return () => {}
+      if (!trustedHashes(stateDir, log).has(hash)) return () => {}
       sockets.set(socket, hash)
       return () => {
         sockets.delete(socket)

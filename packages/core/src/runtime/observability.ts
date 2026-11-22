@@ -4,6 +4,7 @@ import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import {Cause, Config, ConfigProvider, Effect, Layer, ManagedRuntime, Option, type Context} from 'effect'
 import corePackage from '../../package.json' with {type: 'json'}
 import {provideGlobalRoots} from './plugin-runtime.js'
+import {layer as hostLogs, type LogOptions} from '../lib/logging.js'
 
 const OtlpExporterConfig = Config.all({
   endpoint: Config.option(Config.String('OTEL_EXPORTER_OTLP_ENDPOINT')),
@@ -44,10 +45,12 @@ export type ObservabilityInput = {
   fallbackRoots: string
   configProvider: ConfigProvider.ConfigProvider
   engineId: string
+  log?: LogOptions
 }
 
 function observabilityLayer(input: ObservabilityInput): Layer.Layer<Global.Interface> {
-  return provideObservability(input.configProvider, input.engineId).pipe(
+  return hostLogs(input.log).pipe(
+    Layer.provideMerge(provideObservability(input.configProvider, input.engineId)),
     Layer.provideMerge(machineRoots(input.home, input.fallbackRoots)),
   )
 }

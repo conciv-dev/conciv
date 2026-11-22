@@ -70,7 +70,8 @@ describe.concurrent('the vite dev server', () => {
       .map((file) => readFileSync(join(home, 'log', file), 'utf8'))
       .join('\n')
     expect(logged).toMatch(/^timestamp=\S+ level=INFO run=\S+ message="watcher started"/m)
-    expect(printed.join('\n')).not.toContain('watcher started')
+    expect(logged).toMatch(/^timestamp=\S+ level=INFO run=\S+ message="conciv: the engine started"/m)
+    expect(printed.join('\n')).not.toMatch(/watcher started|the engine started/)
   })
 
   test('a second dev server whose engine port is taken still boots, with its engine on another port', async ({

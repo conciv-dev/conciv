@@ -7,7 +7,7 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 ## Interface
 
 - `corsMiddleware` / `originAllowed` / `widgetCaller` / `loopbackHostAllowlist` / `CorsVars` (`cors.ts`)
-- `logError` (`debug.ts`): writes a line to stderr
+- `layer` / `logOnRuntime` / `logBeforeRuntime` / `formatLogEntry` / `Log` / `LogOptions` (`logging.ts`): the engine's Effect logger; `Log` runs an `Effect.log*` on the engine runtime, or before it exists on its own runtime with the same `layer(log)`
 - `DevEndpointSchema` / `DevEndpoint` (`dev-endpoint.ts`): {apiBase, token: string|null, pid}
 - `defaultDevEndpointDir` / `writePrivateFile` / `writeDevEndpoint` / `readDevEndpoint` / `removeDevEndpoint` (`dev-endpoint.ts`): `<dir>/dev-endpoint.json`, default dir ~/.conciv
 - `makeStalenessProbe` / `loadedModules` / `engineStaleness` / `TrackedModule` (`engine-stamp.ts`): {stale, changed, tracked, bootedAt, fingerprint}
@@ -34,7 +34,7 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 
 ## Side Effects
 
-- `logError` (`debug.ts`): writes to process.stderr
+- `logging.ts`: emits only through the caller's `log.emit`; with no `log`, nothing is written
 - `writeDevEndpoint` / `removeDevEndpoint` (`dev-endpoint.ts`): write or delete files under ~/.conciv by default
 - `engine-stamp.ts`: on load resolves modules with `import.meta.resolve` and hashes them; each `engineStaleness` call re-reads them
 - `writeText` (`../start.ts`), `writePersistedPort` (`../start.ts`): write files

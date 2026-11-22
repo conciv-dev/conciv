@@ -5,7 +5,8 @@ import type {ChatPlane, FollowUpOutcome} from '@conciv/chat'
 import {ChatEventType, pageQueueEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {generateMessageId} from '@conciv/protocol/chat-message-types'
 import {queueNotice} from '@conciv/contract'
-import {logError} from '../lib/debug.js'
+import {Effect} from 'effect'
+import type {Log} from '../lib/logging.js'
 
 type Delivery = 'owed' | 'nextReply' | 'delivered'
 
@@ -40,6 +41,7 @@ export async function startQueueFollowUp(
   plane: Pick<ChatPlane, 'live' | 'followUp'>,
   sessionId: SessionId,
   deleted: (sessionId: SessionId) => Promise<boolean>,
+  log: Log,
 ): Promise<void> {
   if (!(await owesFollowUp(queues, sessionId)) || (await plane.live(sessionId))) return
   const owed = await queues.owed(sessionId, true)
@@ -57,9 +59,12 @@ export async function startQueueFollowUp(
   const outcome = await followUp().then(
     (attempt): FollowUpOutcome => attempt ?? {kind: 'failed', error: 'the follow-up retryer did not run'},
     (error: unknown): FollowUpOutcome => {
-      const queueIds = owed.map((queue) => queue.queueId).join(', ')
-      logError(
-        `[core] the follow-up turns for queues ${queueIds} failed; they wait for the next reply: ${String(error)}`,
+      log(
+        Effect.logError('[core] the follow-up turns for queues failed; they wait for the next reply', {
+          sessionId,
+          queueIds: owed.map((queue) => queue.queueId),
+          error,
+        }),
       )
       return {kind: 'failed', error: String(error)}
     },

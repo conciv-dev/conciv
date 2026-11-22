@@ -60,16 +60,17 @@ describe('the saved model list', () => {
     const adapter = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')}))
     const listed = [{id: 'gpt-5.6-sol', name: 'GPT 5.6 Sol'}]
     const signedOut = () => Promise.reject(new Error('the CLI is signed out'))
+    const unlogged = () => {}
 
-    const first = withSavedModels({...adapter, models: () => Promise.resolve(listed)}, stateDir, signal)
+    const first = withSavedModels({...adapter, models: () => Promise.resolve(listed)}, stateDir, signal, unlogged)
     await expect(resolveHarnessModels(first.harness, {signal})).resolves.toEqual(listed)
     await first.settled()
 
-    const failing = withSavedModels({...adapter, models: signedOut}, stateDir, signal)
+    const failing = withSavedModels({...adapter, models: signedOut}, stateDir, signal, unlogged)
     await expect(resolveHarnessModels(failing.harness, {signal})).resolves.toEqual(listed)
     await failing.settled()
 
-    const afterFailure = withSavedModels({...adapter, models: signedOut}, stateDir, signal)
+    const afterFailure = withSavedModels({...adapter, models: signedOut}, stateDir, signal, unlogged)
     await expect(resolveHarnessModels(afterFailure.harness, {signal})).resolves.toEqual(listed)
     await afterFailure.settled()
   })

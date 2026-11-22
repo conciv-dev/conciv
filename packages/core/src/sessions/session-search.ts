@@ -23,7 +23,7 @@ import type {HarnessAdapter} from '@conciv/harness'
 import {sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
 import {sessions, type ConcivDb} from '@conciv/db'
-import {logError} from '../lib/debug.js'
+import type {Log} from '../lib/logging.js'
 import type {SessionsChange} from '@conciv/contract'
 import type {Found, NativePage} from './session-rows.js'
 import type {SearchIndexRouter} from './search-index-worker.js'
@@ -32,6 +32,7 @@ type SessionSearchDeps = {
   db: ConcivDb
   cwd: string
   harnesses: readonly HarnessAdapter[]
+  log: Log
   tracer: Tracer | undefined
 }
 
@@ -117,7 +118,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     started: true,
     onError: (error) => {
       if (state.running?.stopped.signal.aborted) return
-      logError(`[core] indexing the sessions for search failed, a later search retries: ${String(error)}`)
+      deps.log(Effect.logError('[core] indexing the sessions for search failed, a later search retries', {error}))
     },
   })
 
@@ -152,15 +153,21 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       const indexedIds = (await statesOwned()).map((row) => row.id)
       const mismatched = xor(indexedIds, listedIds)
       if (mismatched.length > 0) {
-        logError(
-          `[core] the ${source.harness.id} search index and its session list disagree on: ${mismatched.join(', ')}`,
+        deps.log(
+          Effect.logError('[core] the search index and its session list disagree', {
+            harness: source.harness.id,
+            mismatched,
+          }),
         )
       }
       return {changed: gone.length > 0 || retitled.length > 0, unread: listed.filter(unreadNow)}
     } catch (error) {
       if (!signal.aborted) {
-        logError(
-          `[core] indexing the ${source.harness.id} sessions for search failed, a later search retries: ${String(error)}`,
+        deps.log(
+          Effect.logError('[core] indexing the sessions for search failed, a later search retries', {
+            harness: source.harness.id,
+            error,
+          }),
         )
       }
       return {changed: false, unread: []}
@@ -186,8 +193,11 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     const current = entry.current
     const text = await entry.source.history.messages(entry.cwd, entry.meta.id).then(readText, (error: unknown) => {
       if (current === undefined || current.read || current.readAt === 0) {
-        logError(
-          `[core] reading the ${entry.source.harness.id} session ${entry.meta.id} for search failed, it is found by its title until a later search reads it: ${String(error)}`,
+        deps.log(
+          Effect.logError(
+            '[core] reading a session for search failed, it is found by its title until a later search reads it',
+            {harness: entry.source.harness.id, nativeId: entry.meta.id, error},
+          ),
         )
       }
       return null
@@ -237,11 +247,11 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       const running = startIndex(() => {
         running.stopped.abort()
         state.running = null
-      })
+      }, deps.log)
       state.running = running
       state.everywhere = widenEverywhere(running)
       void inSpan(deps.tracer, 'SessionSearch.startWorker', {}, async () => once(running.worker, 'online')).catch(
-        (error: unknown) => logError(`[core] the session search index worker did not start: ${String(error)}`),
+        (error: unknown) => deps.log(Effect.logError('[core] the session search index worker did not start', {error})),
       )
       setImmediate(refresh)
     },
@@ -292,10 +302,10 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
   }
 }
 
-function startIndex(exited: () => void): Running {
+function startIndex(exited: () => void, log: Log): Running {
   const channel = new MessageChannel()
   const worker = new Worker(workerUrl(), {workerData: {port: channel.port2}, transferList: [channel.port2]})
-  worker.on('error', (error) => logError(`[core] the session search index worker failed: ${String(error)}`))
+  worker.on('error', (error) => log(Effect.logError('[core] the session search index worker failed', {error})))
   worker.on('exit', exited)
   worker.unref()
   channel.port1.unref()
