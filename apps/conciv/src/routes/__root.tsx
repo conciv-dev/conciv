@@ -10,7 +10,7 @@ import {
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@conciv/client'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
-import {createClientSettings} from '@conciv/contract'
+import {createClientSettings, type TrustStatus} from '@conciv/contract'
 import {createHotkeys} from '@tanstack/solid-hotkeys'
 import {Show, createEffect, createMemo, createReaction, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
@@ -459,15 +459,17 @@ function RootChrome(props: {
   }
   let pendingPress: (() => void) | undefined
   onCleanup(() => pendingPress?.())
+  const onTrustSettled = (status: TrustStatus) => {
+    if (status === 'checking') return
+    pendingPress?.()
+    pendingPress = undefined
+    if (engineConnected(status)) switchQuick()
+    else showPanel()
+  }
   const toggleQuick = () => {
     if (login?.status() === 'checking') {
       if (pendingPress) return
-      pendingPress = login.trust().subscribe((status) => {
-        if (status === 'checking') return
-        pendingPress?.()
-        pendingPress = undefined
-        toggleQuick()
-      })
+      pendingPress = login.trust().subscribe(onTrustSettled)
       return
     }
     if (awaitingLogin()) showPanel()
