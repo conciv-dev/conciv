@@ -5,24 +5,28 @@ import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {test} from '../../../test/engine-test.js'
 
 describe('sessions', () => {
-  test('the list answers the newest session first, a page at a time', async ({client, fakeTimers}) => {
-    fakeTimers({toFake: ['Date'], now: 1_000})
+  test('the list answers the newest session first, a page at a time', async ({connect, fakeTimers}) => {
+    const engine = await createEngine()
+    const client = connect(engine)
+    const now = Date.now()
+    fakeTimers({toFake: ['Date'], now: now + 1_000})
     const oldest = await client.sessions.create({})
-    vi.setSystemTime(2_000)
+    vi.setSystemTime(now + 2_000)
     const middle = await client.sessions.create({})
-    vi.setSystemTime(3_000)
+    vi.setSystemTime(now + 3_000)
     const newest = await client.sessions.create({})
     const first = await client.sessions.list({limit: 2})
     const second = await client.sessions.list({limit: 2, cursor: first.next})
 
     expect(first.sessions.map((session) => session.id)).toEqual([newest.sessionId, middle.sessionId])
-    expect(second.sessions.map((session) => session.id)).toEqual([oldest.sessionId])
+    expect(second.sessions.map((session) => session.id)).toEqual([oldest.sessionId, engine.session.id])
     expect(second.next).toBeNull()
   })
 
   test('a rename reaches the event stream and get answers the title cleaned, and an unknown id is refused', async ({
-    client,
+    connect,
   }) => {
+    const client = connect(await createEngine())
     const {sessionId} = await client.sessions.create({})
     const events = (await client.event.subscribe({types: ['session.renamed']}))[Symbol.asyncIterator]()
     await events.next()
@@ -41,8 +45,9 @@ describe('sessions', () => {
   })
 
   test('a deleted session leaves the list and refuses a new turn and a compact, and restore brings it back', async ({
-    client,
+    connect,
   }) => {
+    const client = connect(await createEngine())
     const {sessionId} = await client.sessions.create({})
     await client.sessions.delete({sessionId})
     const afterDelete = await client.sessions.list({})
@@ -63,10 +68,10 @@ describe('sessions', () => {
   })
 
   test('an empty session is swept when the engine starts again, and a session with a typed draft keeps it', async ({
-    launch,
+    connect,
   }) => {
-    const root = tempDir('sweep-')
-    const first = await launch(root)
+    const engine = await createEngine()
+    const first = connect(engine)
     const empty = await first.sessions.create({})
     const drafted = await first.sessions.create({})
     await first.drafts.set({
@@ -77,7 +82,8 @@ describe('sessions', () => {
       updatedAt: 1_000,
     })
 
-    const second = await launch(root)
+    await engine.restart()
+    const second = connect(engine)
     const listed = (await second.sessions.list({})).sessions.map((session) => session.id)
 
     expect(listed).not.toContain(empty.sessionId)

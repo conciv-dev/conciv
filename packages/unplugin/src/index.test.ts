@@ -63,49 +63,31 @@ describe('bundler builds', () => {
     expect(existsSync(concivStateDir(root))).toBe(false)
   })
 
-  test('a webpack development build gives the same output as one without conciv() when conciv adds no widget: widget false, a bad port, or a .conciv it cannot write', async ({
-    project,
-    webpackBuild,
-  }) => {
-    const root = project('app')
-    const plain = join(root, 'plain')
-    await webpackBuild({mode: 'development', context: root, entry: './src/greeting.js', output: {path: plain}})
-    const plainOutput = readFileSync(join(plain, 'main.js'), 'utf8')
+  test.for<{name: string; options: Parameters<typeof concivWebpack>[0]; blockState: boolean}>([
+    {name: 'widget false', options: {widget: false}, blockState: false},
+    {name: 'a bad port', options: {port: 70_000}, blockState: false},
+    {name: 'a .conciv it cannot write', options: {}, blockState: true},
+  ])(
+    'a webpack development build gives the same output as one without conciv() when conciv adds no widget: $name',
+    async ({options, blockState}, {project, webpackBuild}) => {
+      const root = project('app')
+      if (blockState) writeFileSync(concivStateDir(root), '')
+      const plain = join(root, 'plain')
+      await webpackBuild({mode: 'development', context: root, entry: './src/greeting.js', output: {path: plain}})
+      const withConciv = join(root, 'with-conciv')
+      await webpackBuild({
+        mode: 'development',
+        context: root,
+        entry: './src/greeting.js',
+        output: {path: withConciv},
+        plugins: [concivWebpack(options)],
+      })
 
-    const noWidget = join(root, 'no-widget')
-    await webpackBuild({
-      mode: 'development',
-      context: root,
-      entry: './src/greeting.js',
-      output: {path: noWidget},
-      plugins: [concivWebpack({widget: false})],
-    })
-    expect(readdirSync(noWidget)).toEqual(readdirSync(plain))
-    expect(readFileSync(join(noWidget, 'main.js'), 'utf8')).toBe(plainOutput)
-    expect(existsSync(concivStateDir(root))).toBe(false)
-
-    const badPort = join(root, 'bad-port')
-    await webpackBuild({
-      mode: 'development',
-      context: root,
-      entry: './src/greeting.js',
-      output: {path: badPort},
-      plugins: [concivWebpack({port: 70_000})],
-    })
-    expect(readFileSync(join(badPort, 'main.js'), 'utf8')).toBe(plainOutput)
-    expect(existsSync(concivStateDir(root))).toBe(false)
-
-    writeFileSync(concivStateDir(root), '')
-    const unwritable = join(root, 'unwritable')
-    await webpackBuild({
-      mode: 'development',
-      context: root,
-      entry: './src/greeting.js',
-      output: {path: unwritable},
-      plugins: [concivWebpack()],
-    })
-    expect(readFileSync(join(unwritable, 'main.js'), 'utf8')).toBe(plainOutput)
-  })
+      expect(readdirSync(withConciv)).toEqual(readdirSync(plain))
+      expect(readFileSync(join(withConciv, 'main.js'), 'utf8')).toBe(readFileSync(join(plain, 'main.js'), 'utf8'))
+      expect(existsSync(concivStateDir(root))).toBe(blockState)
+    },
+  )
 
   test('a webpack development watch build boots the engine and adds the widget entry to every entry', async ({
     project,
