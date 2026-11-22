@@ -141,7 +141,7 @@ export function MentionField(props: {
     editor = instance
     createEffect(() => instance.view.setProps({attributes: editableAttributes()}))
     props.onReady?.({
-      focus: () => instance.view.focus(),
+      focus: () => instance.commands.focus(),
       clear: () => instance.commands.clearContent(),
       submit,
       element: instance.view.dom,
