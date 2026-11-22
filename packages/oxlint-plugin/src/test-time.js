@@ -8,7 +8,7 @@ const EXPECT_WAITS = new Set(['element', 'poll', 'soft'])
 const TEST_NAMES = new Set(['test', 'it', 'describe'])
 const LIBRARY_WAIT = /^(?:waitFor\w*|find(?:All)?By\w+)$/
 const MATCHER = /^to[A-Z]/
-const DATA_MATCHERS = new Set([
+export const DATA_MATCHERS = new Set([
   'toBe',
   'toEqual',
   'toStrictEqual',

@@ -20,7 +20,7 @@
     "build:affected": "TURBO_SCM_BASE=origin/main turbo run build --affected --filter=!@conciv/extension-design",
     "test": "turbo run test",
     "test:affected": "TURBO_SCM_BASE=origin/main turbo run test --affected --filter=!@conciv/extension-design",
-    "e2e": "turbo run test:e2e --concurrency=1 --continue",
+    "e2e": "turbo run test:e2e --continue",
     "typecheck": "turbo run typecheck",
     "typecheck:affected": "TURBO_SCM_BASE=origin/main turbo run typecheck --affected --filter=!@conciv/extension-design",
     "lint": "turbo run lint",

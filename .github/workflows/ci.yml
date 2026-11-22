@@ -148,6 +148,25 @@ jobs:
           name: playwright-traces-${{ matrix.shard }}
           path: packages/embed/test-results/
           if-no-files-found: ignore
+      # The test kit saves a screenshot of every failed browser test under the
+      # package's .vitest/attachments/failure-screenshots/. Listed by literal path
+      # per package with browser tests, same no-glob rule as below; the folder is
+      # hidden, so hidden files are included on purpose.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: failure-screenshots-${{ matrix.shard }}
+          path: |
+            apps/conciv/.vitest/attachments/failure-screenshots/
+            packages/ai/.vitest/attachments/failure-screenshots/
+            packages/embed/.vitest/attachments/failure-screenshots/
+            packages/plugin-testkit/.vitest/attachments/failure-screenshots/
+            packages/plugins/recorder/.vitest/attachments/failure-screenshots/
+            packages/plugins/test-runner/.vitest/attachments/failure-screenshots/
+            packages/plugins/try-it/.vitest/attachments/failure-screenshots/
+            packages/plugins/whiteboard/.vitest/attachments/failure-screenshots/
+          include-hidden-files: true
+          if-no-files-found: ignore
       # Collapse this shard's per-package results (vitest emits test-results.json
       # only in CI; turbo caches them so cache-hit packages still report) into ONE
       # file, then upload it by literal name. Never glob packages/** here: the
@@ -518,8 +537,7 @@ jobs:
           exit 1
       # Consumer-shape suites: dist widget in CLI-scaffolded apps (root e2e/).
       # test:e2e is cache:false in turbo.json, so every run
-      # exercises the real servers; --concurrency=1 keeps a shard's apps serial because
-      # they bind fixed ports.
+      # exercises the real servers; each app takes a free port (e2ePort), so a shard's apps run side by side.
       - run: pnpm exec conciv-ci-shards run --task e2e
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}

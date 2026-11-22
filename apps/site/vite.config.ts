@@ -23,7 +23,7 @@ function dropOnnxRuntimeWasmFromServerBundle(): Plugin {
   }
 }
 
-export default defineConfig({
+export default defineConfig(({mode}) => ({
   server: {
     port: 3001,
   },
@@ -33,7 +33,7 @@ export default defineConfig({
   plugins: [
     sourceAnnotations(import.meta.dirname),
     dropOnnxRuntimeWasmFromServerBundle(),
-    cloudflare({viteEnvironment: {name: 'ssr'}}),
+    mode !== 'test' && cloudflare({viteEnvironment: {name: 'ssr'}}),
     mdx(),
     tailwindcss(),
     tanstackStart({
@@ -56,4 +56,4 @@ export default defineConfig({
       ...brandAssetsAlias,
     },
   },
-})
+}))

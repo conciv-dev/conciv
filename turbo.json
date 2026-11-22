@@ -104,6 +104,10 @@
       "dependsOn": ["^build"],
       "cache": false
     },
+    "sync-injected": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
     "test:e2e": {
       "dependsOn": ["^build", "@conciv/cli#build"],
       "cache": false,

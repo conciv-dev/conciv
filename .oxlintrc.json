@@ -431,6 +431,29 @@
       }
     },
     {
+      "files": [
+        "**/*.test.*",
+        "**/*.spec.*",
+        "**/test/**",
+        "**/playwright.config.*",
+        "**/vitest.config.*",
+        "**/vite.config.*",
+        "packages/vitest-config/**",
+        "e2e/e2e-utils/**",
+        "packages/plugin-testkit/src/**",
+        "packages/harness-testkit/src/**"
+      ],
+      "rules": {
+        "conciv/max-test-timeout": "error"
+      }
+    },
+    {
+      "files": ["**/test/fixtures/**"],
+      "rules": {
+        "conciv/max-test-timeout": "off"
+      }
+    },
+    {
       "files": ["packages/harness-testkit/src/**", "packages/plugin-testkit/src/**"],
       "rules": {
         "conciv/no-predicate-waits": "error"

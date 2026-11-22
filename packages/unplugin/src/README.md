@@ -21,7 +21,7 @@ The unplugin factory and its per-bundler entries. Vite gets the full hook; webpa
 
 ## Side Effects
 
-- `core/widget-start.ts:startConcivWidget(port)` - in a browser, outside `production` and for an integer `port` in 1..65535 (any other value mounts nothing), sets `window.__CONCIV_API_BASE__` to `http://127.0.0.1:<port>`, waits for `DOMContentLoaded`, dynamically imports `@conciv/embed` and mounts the widget; a failed mount is logged with `console.error`.
+- `core/widget-start.ts:startConcivWidget(port)` - in a browser, outside `production` and for an integer `port` in 1..65535 (any other value mounts nothing), sets `window.__CONCIV_API_BASE__` to `http://127.0.0.1:<port>` unless the page already set it, waits for `DOMContentLoaded`, dynamically imports `@conciv/embed` and mounts the widget; a failed mount is logged with `console.error`.
 - `index.ts` - the webpack and rspack hooks write `.conciv/widget-client.<port>.gen.js` and change `compiler.options.resolve.alias`.
 - `index.ts` - booting reads `process.cwd()` as the project root.
 

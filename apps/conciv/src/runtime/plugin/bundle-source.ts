@@ -94,7 +94,7 @@ type BundleData = Awaited<ReturnType<ConcivClient['plugin']['experimental']>>['d
 type EngineEvent = ReturnType<ConcivClient['event']['subscribe']> extends AsyncIterable<infer Event> ? Event : never
 
 export type EngineSignal =
-  | {readonly type: 'session.deleted'; readonly sessionId: string}
+  | {readonly type: 'session.changed'; readonly sessionId: string}
   | {readonly type: 'server.connected'}
   | {readonly type: 'plugin.updated'}
 
@@ -140,7 +140,8 @@ function endpointFor(url: string): HostEndpoint | undefined {
 }
 
 function readEngineSignal(event: EngineEvent): readonly EngineSignal[] {
-  if (event.type === 'session.deleted') return [{type: 'session.deleted', sessionId: event.data.sessionID}]
+  if (event.type === 'session.deleted' || event.type === 'session.renamed')
+    return [{type: 'session.changed', sessionId: event.data.sessionID}]
   if (event.type === 'server.connected' || event.type === 'plugin.updated') return [{type: event.type}]
 
   return []
@@ -307,8 +308,8 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
   const onEngineSignal = (signal: EngineSignal, attempt: number): Effect.Effect<void> =>
     Match.value(signal).pipe(
       Match.discriminatorsExhaustive('type')({
-        'session.deleted': (deleted) =>
-          PubSub.publish(signals, {type: 'sessions-changed', sessionId: deleted.sessionId}).pipe(Effect.asVoid),
+        'session.changed': (changed) =>
+          PubSub.publish(signals, {type: 'sessions-changed', sessionId: changed.sessionId}).pipe(Effect.asVoid),
         'server.connected': () =>
           PubSub.publish(signals, {type: 'sessions-changed', sessionId: undefined}).pipe(
             Effect.andThen(relist(attempt)),

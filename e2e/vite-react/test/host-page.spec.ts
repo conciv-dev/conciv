@@ -54,9 +54,10 @@ test.describe('the engine address a vite react page gives the widget', () => {
 
   test('an address the page sets as a global wins over the meta tag, and the meta tag wins over ?core=', async ({
     page,
+    secondPage,
   }) => {
-    const globalSocket = page.waitForEvent('websocket', (socket) => new URL(socket.url()).pathname === '/rpc-ws')
-    await page.goto('/api-base.html', {waitUntil: 'domcontentloaded'})
+    const globalSocket = secondPage.waitForEvent('websocket', (socket) => new URL(socket.url()).pathname === '/rpc-ws')
+    await secondPage.goto('/api-base.html', {waitUntil: 'domcontentloaded'})
     expect(new URL((await globalSocket).url()).host).toBe('127.0.0.1:1')
 
     const failures = collectFailures(page)
@@ -70,7 +71,7 @@ test.describe('the Recorder tab recording the vite react host page', () => {
     page,
   }) => {
     await page.getByRole('tab', {name: 'Recorder'}).click()
-    await expect(page.getByText('LIVE')).toBeVisible()
+    await expect(page.getByText('LIVE', {exact: true})).toBeVisible()
     const search = page.getByRole('textbox', {name: 'Search plants'})
     await search.click()
     await expect(search).toBeFocused()

@@ -6,6 +6,7 @@ import noForcedClick from './no-forced-click.js'
 import noHandMadeTempDir from './no-hand-made-temp-dir.js'
 import {isDomTestFile} from '@conciv/vitest-config/new-layer'
 import noLocatorPoll from './no-locator-poll.js'
+import maxTestTimeout from './max-test-timeout.js'
 import noMocks from './no-mocks.js'
 import noPredicateWaits from './no-predicate-waits.js'
 import noQueryExistenceAssert from './no-query-existence-assert.js'
@@ -248,6 +249,7 @@ export default {
     'banned-vocabulary': bannedVocabulary,
     'core-purity': corePurity,
     'lucide-per-icon': lucidePerIcon,
+    'max-test-timeout': maxTestTimeout,
     'playwright-test-in-e2e': playwrightTestInE2e,
     'no-await-effect-query': noAwaitEffectQuery,
     'no-comments': noComments,

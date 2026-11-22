@@ -1,6 +1,6 @@
 import type {Tracer} from '@conciv/ai/server'
 import {Global, Observability} from '@conciv/plugin-host'
-import {NodeFileSystem} from '@effect/platform-node'
+import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import {Cause, Config, ConfigProvider, Effect, Layer, ManagedRuntime, Option, type Context} from 'effect'
 import corePackage from '../../package.json' with {type: 'json'}
 import {provideGlobalRoots} from './plugin-runtime.js'

@@ -1,6 +1,7 @@
 import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process'
 import {createWriteStream} from 'node:fs'
 import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
+import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {createInterface} from 'node:readline'
 import {stripVTControlCharacters} from 'node:util'
@@ -34,6 +35,15 @@ function viteListening(child: ChildProcessWithoutNullStreams, output: string[]):
   return promise
 }
 
+function playwrightBrowsersPath(): string {
+  if (process.env.PLAYWRIGHT_BROWSERS_PATH) return process.env.PLAYWRIGHT_BROWSERS_PATH
+  if (process.platform === 'linux')
+    return join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'ms-playwright')
+  if (process.platform === 'win32')
+    return join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'ms-playwright')
+  return join(homedir(), 'Library', 'Caches', 'ms-playwright')
+}
+
 async function wipeState(server: AppServer): Promise<void> {
   await Promise.all([rm(join(server.dir, '.conciv'), REMOVE), rm(server.concivHome, REMOVE)])
 }
@@ -57,7 +67,13 @@ async function runAppServer(
   const {file, args} = server.command(port)
   const child = spawn(file, args, {
     cwd: server.dir,
-    env: {...process.env, ...server.env, CONCIV_HOME: server.concivHome, HOME: home},
+    env: {
+      ...process.env,
+      ...server.env,
+      CONCIV_HOME: server.concivHome,
+      HOME: home,
+      PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsersPath(),
+    },
   })
   const exited = new Promise((resolve) => child.once('exit', resolve))
   const log = createWriteStream(e2eServerLog(configDir, port))
