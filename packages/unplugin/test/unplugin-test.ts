@@ -9,7 +9,7 @@ import {pathToFileURL} from 'node:url'
 import {stripVTControlCharacters} from 'node:util'
 import {test as base} from 'vitest'
 import {createServer, type InlineConfig, type ViteDevServer} from 'vite'
-import {createServer as createNetServer} from 'node:net'
+import {createServer as createNetServer, type Server} from 'node:net'
 import webpack, {type Compiler, type Configuration, type Stats, type Watching} from 'webpack'
 import {z} from 'zod'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
@@ -69,15 +69,20 @@ function closeWatching(watching: Watching): Promise<void> {
   })
 }
 
-async function freePort(): Promise<number> {
+async function holdPort(port: number, held: Server[]): Promise<number> {
   const server = createNetServer()
-  server.listen(0, '127.0.0.1')
+  held.push(server)
+  server.listen(port, '127.0.0.1')
   await once(server, 'listening')
   const address = server.address()
-  server.close()
-  await once(server, 'close')
   if (address === null || typeof address === 'string') throw new Error('no local port could be opened')
   return address.port
+}
+
+async function releasePort(server: Server): Promise<void> {
+  if (!server.listening) return
+  server.close()
+  await once(server, 'close')
 }
 
 function closeCompiler(compiler: Compiler): Promise<void> {
@@ -116,6 +121,8 @@ function nextOpened(log: string): Promise<string> {
   return promise
 }
 
+const NEXT_CONFIG_ENV_KEYS = ['CONCIV_OPTIONS', 'NEXT_PUBLIC_CONCIV_PORT']
+
 type UnpluginFixtures = {
   editor: {next: () => Promise<string>}
   viteDev: (options: ConcivConfig) => Promise<RecordedEngine>
@@ -126,7 +133,8 @@ type UnpluginFixtures = {
   serve: (config: InlineConfig) => Promise<ViteDevServer>
   webpackBuild: (config: Configuration) => Promise<void>
   webpackWatch: (config: Configuration) => Promise<Stats>
-  freePort: () => Promise<number>
+  holdPort: (port?: number) => Promise<number>
+  nextEnv: {forget: () => void}
 }
 
 export const test = base.extend<UnpluginFixtures>({
@@ -216,8 +224,21 @@ export const test = base.extend<UnpluginFixtures>({
     await Promise.all(watchings.map(closeWatching))
     await Promise.all(compilers.map(closeCompiler))
   },
-  freePort: async ({task: _task}, use) => {
-    await use(freePort)
+  nextEnv: [
+    async ({task: _task}, use) => {
+      const forget = () => {
+        for (const key of NEXT_CONFIG_ENV_KEYS) Reflect.deleteProperty(process.env, key)
+      }
+      forget()
+      await use({forget})
+      forget()
+    },
+    {auto: true},
+  ],
+  holdPort: async ({task: _task}, use) => {
+    const held: Server[] = []
+    await use((port = 0) => holdPort(port, held))
+    await Promise.all(held.map(releasePort))
   },
   browser: async ({task: _task}, use) => {
     const clients: BrowserRpcClient[] = []

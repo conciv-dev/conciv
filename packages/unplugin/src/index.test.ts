@@ -1,4 +1,4 @@
-import {existsSync, readFileSync, readdirSync, realpathSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe} from 'vitest'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -92,24 +92,27 @@ describe.concurrent('bundler builds', () => {
 })
 
 describe('a webpack development watch build', () => {
-  test('boots the engine and adds the widget entry to every entry', async ({
+  test('boots the engine on a free port when the asked one is held, and builds every entry with a widget client for that same port', async ({
     project,
     webpackWatch,
-    freePort,
+    holdPort,
     expect,
   }) => {
     const root = project('app')
-    const port = await freePort()
+    const asked = await holdPort()
     const stats = await webpackWatch({
       mode: 'development',
       context: root,
       entry: {first: './src/greeting.js', second: './src/greeting.js'},
       output: {path: join(root, 'dist')},
       externals: ['@conciv/embed'],
-      plugins: [concivWebpack({port, stateRoot: root, homeDir: join(root, 'home')})],
+      plugins: [concivWebpack({port: asked, stateRoot: root, homeDir: join(root, 'home')})],
     })
 
-    expect((await fetch(`http://127.0.0.1:${port}/health`)).status).toBe(200)
+    const client = join(concivStateDir(realpathSync(root)), `widget-client.${asked}.gen.js`)
+    const builtPort = Number(/startConcivWidget\((\d+)\)/.exec(readFileSync(client, 'utf8'))?.[1])
+    expect(builtPort).not.toBe(asked)
+    expect((await fetch(`http://127.0.0.1:${builtPort}/health`)).status).toBe(200)
 
     const {entrypoints, chunkGraph} = stats.compilation
     const entryModules = [...entrypoints].map(([name, entrypoint]) => ({
@@ -118,11 +121,31 @@ describe('a webpack development watch build', () => {
         .flatMap((chunk) => [...chunkGraph.getChunkModulesIterable(chunk)])
         .map((module) => module.nameForCondition()),
     }))
-    const client = join(concivStateDir(realpathSync(root)), `widget-client.${port}.gen.js`)
     const greeting = join(realpathSync(root), 'src', 'greeting.js')
     expect(entryModules).toEqual([
       {name: 'first', modules: expect.arrayContaining([greeting, client])},
       {name: 'second', modules: expect.arrayContaining([greeting, client])},
     ])
+  })
+
+  test('fails the build when the engine cannot start, instead of leaving the page on no engine', async ({
+    project,
+    webpackWatch,
+    expect,
+  }) => {
+    const root = project('app')
+    const blocked = join(root, 'blocked')
+    mkdirSync(blocked)
+    writeFileSync(concivStateDir(blocked), '')
+    await expect(
+      webpackWatch({
+        mode: 'development',
+        context: root,
+        entry: './src/greeting.js',
+        output: {path: join(root, 'dist')},
+        externals: ['@conciv/embed'],
+        plugins: [concivWebpack({stateRoot: blocked, homeDir: join(root, 'home')})],
+      }),
+    ).rejects.toThrow('conciv: the engine failed to start')
   })
 })

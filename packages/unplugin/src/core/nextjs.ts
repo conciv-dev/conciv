@@ -1,5 +1,6 @@
 import {existsSync} from 'node:fs'
 import {join} from 'node:path'
+import getPort from 'get-port'
 import {ConcivConfigSchema, type ConcivConfig} from '@conciv/protocol/config-types'
 import type * as Boot from './boot.js'
 
@@ -50,13 +51,26 @@ function compileInstrumentationFirst(config: WebpackConfig, context: WebpackCont
   })
 }
 
-export function withConciv<T extends object>(nextConfig: T = {} as T, options: ConcivConfig = {}): WithConcivResult<T> {
+export function chooseEnginePort(preferred: number | undefined): Promise<number> {
+  return getPort({port: preferred ?? CONCIV_DEFAULT_PORT})
+}
+
+function loadedEnginePort(): number | undefined {
+  const loaded = process.env.CONCIV_OPTIONS
+  if (loaded === undefined) return undefined
+  return readConcivOptions(loaded).port
+}
+
+export async function withConciv<T extends object>(
+  nextConfig: T = {} as T,
+  options: ConcivConfig = {},
+): Promise<WithConcivResult<T>> {
   const base = nextConfig as ConfigWithEnv
   const baseEnv = base.env ?? {}
   const baseExternals = base.serverExternalPackages ?? []
   const serverExternalPackages = [...new Set([...baseExternals, ...ENGINE_EXTERNALS])]
   if (options.enabled === false) return {...nextConfig, env: baseEnv, serverExternalPackages}
-  const port = options.port ?? CONCIV_DEFAULT_PORT
+  const port = loadedEnginePort() ?? (await chooseEnginePort(options.port))
   const resolved: ConcivConfig = {...options, port}
   const widgetOff = options.widget === false
   const widgetEnv = widgetOff ? {} : {[WIDGET_PORT_KEY]: String(port)}

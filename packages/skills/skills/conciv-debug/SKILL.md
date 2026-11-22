@@ -40,11 +40,10 @@ running engine, or the engine rejects the origin.
   engine falls back to an OS-assigned port and logs `port ${preferred} is already in use, the engine
   is listening on http://127.0.0.1:${serving.port} instead` (`packages/core/src/start.ts:84-92`), and
   the page picks up the port it actually bound. On Next.js and the generic webpack/Rspack plugin
-  there is no such fallback path for the client: the client learns the port before the engine boots
-  (Next inlines it into `next.config`'s env; webpack/Rspack build it into the widget entry they add,
-  24170 unless you pass `port`), so a taken port there fails the boot instead of silently reconnecting:
-  fix the conflict (kill whatever else holds the port, or pin a different one) rather than expecting
-  a fallback.
+  the free port is picked before the client is built (Next inlines it into `next.config`'s env;
+  webpack/Rspack build it into the widget entry they add), 24170 or the `port` you pass when it is
+  free. A later Next config load in the same dev server reuses the first port through
+  `CONCIV_OPTIONS`. If the engine still fails to start, webpack/Rspack fail the build with the reason.
 - **CORS / wrong origin.** The engine only allows loopback origins (`localhost`, `127.0.0.1`, `[::1]`)
   plus anything in `allowedOrigins` by default (`packages/core/src/lib/cors.ts`:
   `originAllowed`/`LOOPBACK_HOSTNAMES`). A widget served from a non-loopback host (a tunnel, a LAN IP,
