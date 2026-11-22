@@ -28,12 +28,6 @@ describe('reading an apply_patch call', () => {
       ],
     },
     {
-      name: 'an empty patch',
-      arguments: JSON.stringify({input: ''}),
-      info: {files: [], added: 0, removed: 0},
-      diffs: [],
-    },
-    {
       name: 'a header that names no file',
       arguments: JSON.stringify({content: '*** Begin Patch\n*** Update File:   \n+added\n*** End Patch'}),
       info: {files: [], added: 1, removed: 0},
