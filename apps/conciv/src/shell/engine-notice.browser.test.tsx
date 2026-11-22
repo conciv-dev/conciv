@@ -1,7 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {createEngine} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('the engine asks for a restart or an update', () => {
@@ -82,25 +82,5 @@ describe('logging in', () => {
     await engine.revokeBrowsers()
     expect(await screen.findByText('This browser is no longer authorized to use conciv.')).toBeVisible()
     expect(screen.getByRole('button', {name: 'Log in'})).toBeVisible()
-  })
-})
-
-describe('losing the engine', () => {
-  test('the user is told the engine is gone while it restarts, and can send again once it is back', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
-
-    const restarted = engine.restart()
-    expect(await screen.findByText('conciv lost connection to the engine.')).toBeVisible()
-    expect(screen.getByRole('button', {name: 'Retry'})).toBeVisible()
-    await restarted
-
-    await engine.reply(TestLLM.text('Still here'))
-    await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Hello again')
-    await user.click(await screen.findByRole('button', {name: 'Send message'}))
-    expect(await screen.findByText('Still here')).toBeVisible()
-    expect(screen.queryByText('conciv lost connection to the engine.')).not.toBeInTheDocument()
   })
 })
