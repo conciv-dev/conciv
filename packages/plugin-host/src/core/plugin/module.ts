@@ -117,7 +117,7 @@ const load = Effect.fn('PluginModule.load')(function* (
   const entrypoints: Host.Entrypoints =
     local && (yield* Effect.promise(() => stat(operation.target))).isFile()
       ? {server: pathToFileURL(operation.target).href}
-      : yield* Effect.sync(() => Host.resolve(installed ?? {directory: operation.target}))
+      : yield* Effect.promise(() => Host.resolve(installed ?? {directory: operation.target}))
   const entrypoint = entrypoints.server
   const found = entrypoint || entrypoints.experimental
   if (!local && options?.install === false && !found) return {pending: true as const}
@@ -127,7 +127,7 @@ const load = Effect.fn('PluginModule.load')(function* (
     ? yield* loadServer(entrypoint, local ? sources : undefined, installed?.revision)
     : undefined
   const plugin = server?.plugin ?? {
-    id: Host.packageId(installed ?? {directory: operation.target}),
+    id: yield* Effect.promise(() => Host.packageId(installed ?? {directory: operation.target})),
     effect: () => Effect.void,
   }
   const revision = JSON.stringify([operation, server ? server.version : installed?.revision])
