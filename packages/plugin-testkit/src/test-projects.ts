@@ -344,6 +344,7 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
       concivStale: (_context, engineId, staleness) => engineFor(engineId).started.engine.stale(staleness),
       concivVersion: (_context, engineId, version) => engineFor(engineId).started.engine.version(version),
       concivWrite: (_context, engineId, path, content) => engineFor(engineId).started.engine.write(path, content),
+      concivCommit: (_context, engineId, message) => engineFor(engineId).started.engine.commit(message),
     },
     plugin: {
       name: 'conciv:test-browser-engines',

@@ -22,6 +22,7 @@ import {outsideAgent, type Outside, type OutsideAgent} from './outside.js'
 import {replyScript, type ReplyScript, type ScriptedHarness} from './scripted-harness.js'
 import type {Gate, ModelRequest, Reply} from './test-llm.js'
 import {isolatedEnv} from './isolated-env.js'
+import {commitAll, initGitProject} from './git-project.js'
 import {until} from './until.js'
 
 export * as TestLLM from './test-llm.js'
@@ -55,6 +56,7 @@ export type EngineStart = {
   token?: string
   tokensPerSecond?: number
   home?: string
+  git?: boolean
 }
 
 export type HarnessEngineStart = EngineStart & {harness?: HarnessAdapter}
@@ -118,6 +120,7 @@ export type HarnessEngine = {
   stale: (staleness: EngineStaleness) => Promise<void>
   version: (version: string) => Promise<void>
   write: (path: string, content: string) => Promise<void>
+  commit: (message: string) => Promise<void>
   stop: () => Promise<void>
 }
 
@@ -536,6 +539,13 @@ export async function createHarnessEngine(
   const fixture = fixtureFolder(options)
   const root = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
   const project = fixture ?? root
+  if (options.git === true) {
+    if (fixture !== undefined) {
+      await rm(root, {recursive: true, force: true})
+      throw new Error(`git: true needs the engine's own temp project, not the fixture folder ${fixture}`)
+    }
+    await initGitProject(project)
+  }
   const harnesses = engineHarnesses(options, script, project, config.harness, root)
   const opened: HarnessEngineOpened[] = []
   const live: Live = {staleness: undefined, version: undefined}
@@ -613,6 +623,10 @@ export async function createHarnessEngine(
       live.version = version
     },
     write: fixtureWrite(project, fixture),
+    commit: async (message) => {
+      if (options.git !== true) throw new Error('this engine has no git project: make it with git: true')
+      await commitAll(project, message)
+    },
     stop,
   }
 }

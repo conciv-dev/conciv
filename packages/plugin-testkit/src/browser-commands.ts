@@ -40,6 +40,7 @@ export type EngineCommands = {
   concivReply: (engineId: string, replies: (TestLLM.Reply | 'hang')[]) => Promise<void>
   concivStale: (engineId: string, staleness: Parameters<Engine['stale']>[0]) => Promise<void>
   concivVersion: (engineId: string, version: string) => Promise<void>
+  concivCommit: (engineId: string, message: string) => Promise<void>
   concivWrite: (engineId: string, path: string, content: string) => Promise<void>
 }
 

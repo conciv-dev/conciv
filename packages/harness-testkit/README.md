@@ -36,6 +36,7 @@ A scripted harness also takes `contextWindow` and `contextTokens`, the two numbe
 
 - Each engine makes a `conciv-kit-*` temp folder as its project root and binds a port on `127.0.0.1`; `stop` closes both.
 - `engine.home` is the engine's conciv home. `createEngine(config, {home: engine.home})` starts a second engine on it, so both share global settings and the home's engine registry. The home lives in the first engine's temp root, so `stop` on that engine removes it. The engine writes settings to disk 100 ms after each change and when it closes, so a test restarts the first engine before it reads that state from the second one. `cli(args, {engine})` runs the CLI on that home.
+- `createEngine(config, {git: true})` makes the temp project a git repository (branch `main`, one empty `initial` commit, `.conciv/` excluded, no global or system git config) and `engine.commit(message)` commits every change on top. A fixture folder cannot take `git: true`.
 
 ## Verification
 

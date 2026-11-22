@@ -1,3 +1,5 @@
+import {execFile} from 'node:child_process'
+import {promisify} from 'node:util'
 import {describe, expect} from 'vitest'
 import {CONTEXT_OVERFLOW_CODE} from '@conciv/protocol/chat-event-types'
 import {TestLLM} from './harness-engine.js'
@@ -60,6 +62,28 @@ describe('several tool calls in one reply', () => {
       {role: 'tool', toolCallId: 'c1', content: expect.stringContaining('1')},
       {role: 'tool', toolCallId: 'c2', content: expect.stringContaining('2')},
     ])
+  })
+})
+
+describe('a git project', () => {
+  const run = promisify(execFile)
+
+  test('an engine made with git: true runs in a repository with a first commit, and commit records an edit on top', async ({
+    launch,
+  }) => {
+    const {engine} = await launch({}, {git: true})
+    await engine.write('src/app.ts', 'export const answer = 42\n')
+
+    await engine.commit('add the app')
+
+    const {stdout: log} = await run('git', ['log', '--format=%s'], {cwd: engine.root})
+    expect(log.trim().split('\n')).toEqual(['add the app', 'initial'])
+    const {stdout: status} = await run('git', ['status', '--porcelain'], {cwd: engine.root})
+    expect(status).toBe('')
+  })
+
+  test('commit on an engine made without git says how to get one', async ({engine}) => {
+    await expect(engine.commit('nothing')).rejects.toThrow('this engine has no git project: make it with git: true')
   })
 })
 

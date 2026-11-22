@@ -79,6 +79,7 @@ export async function createEngine(config: ConcivConfig = {}, options: EngineSta
     stale: (staleness) => commands.concivStale(handle.id, staleness),
     version: (version) => commands.concivVersion(handle.id, version),
     write: (path, content) => commands.concivWrite(handle.id, path, content),
+    commit: (message) => commands.concivCommit(handle.id, message),
     address: handle.address,
     root: handle.root,
     home: handle.home,
