@@ -16,27 +16,29 @@ export function cancelPick(): void {
   cancelFn?.()
 }
 
-let pendingResolve: ((grab: Grab | null) => void) | null = null
+type PendingPick = {resolve: (grab: Grab | null) => void; grab: Grab | null}
+
+let pending: PendingPick | null = null
 
 createRoot(() => {
   createEffect(() => {
     if (picking()) return
-    const resolve = pendingResolve
-    if (!resolve) return
-    pendingResolve = null
-    resolve(null)
+    const finished = pending
+    if (!finished) return
+    pending = null
+    finished.resolve(finished.grab)
   })
 })
 
 function startPick(mode: 'activate' | 'comment'): Promise<Grab | null> {
   return new Promise((resolve) => {
-    pendingResolve?.(null)
-    pendingResolve = resolve
+    pending?.resolve(null)
+    const pick: PendingPick = {resolve, grab: null}
+    pending = pick
     void getReactGrabAdapter().then((adapter) =>
       adapter[mode]((grab) => {
-        if (pendingResolve !== resolve) return
-        pendingResolve = null
-        resolve(grab)
+        if (pending !== pick) return
+        pick.grab = grab
       }),
     )
   })
