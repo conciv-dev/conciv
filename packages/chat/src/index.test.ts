@@ -1,9 +1,9 @@
-import {describe, expect} from 'vitest'
+import {describe} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {test} from '../test/rpc-test.js'
 
-describe('stopping', () => {
-  test('the user stops a held reply and the turn ends', async () => {
+describe.concurrent('stopping', () => {
+  test('the user stops a held reply and the turn ends', async ({expect}) => {
     const engine = await createEngine()
     await engine.reply(TestLLM.hang())
     const gate = await engine.gate()
@@ -18,7 +18,9 @@ describe('stopping', () => {
     await expect(interrupted.arrived).resolves.toMatchObject({data: {reason: 'user'}})
   })
 
-  test('a stop sent while the turn still prepares its prompt, before its run is recorded, ends it, the message is taken back and the agent is never asked', async () => {
+  test('a stop sent while the turn still prepares its prompt, before its run is recorded, ends it, the message is taken back and the agent is never asked', async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/turn-holder']})
     await engine.reply(TestLLM.text('Never shown'))
 
@@ -35,8 +37,8 @@ describe('stopping', () => {
   })
 })
 
-describe('two turns', () => {
-  test("a new message ends the session's running turn", async () => {
+describe.concurrent('two turns', () => {
+  test("a new message ends the session's running turn", async ({expect}) => {
     const engine = await createEngine()
     await engine.reply(TestLLM.hang(), TestLLM.text('Here is the second answer'))
     const gate = await engine.gate()
@@ -50,7 +52,9 @@ describe('two turns', () => {
     expect(await engine.requests()).toHaveLength(2)
   })
 
-  test('a turn still preparing its prompt when a new message comes ends without ending the new one', async () => {
+  test('a turn still preparing its prompt when a new message comes ends without ending the new one', async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/turn-holder']})
     await engine.reply(TestLLM.text('Here is the second answer'))
     const ended = await engine.event('session.execution.interrupted')
@@ -73,8 +77,8 @@ describe('two turns', () => {
   })
 })
 
-describe('run limits', () => {
-  test('a turn whose agent never starts fails with the start limit', async () => {
+describe.concurrent('run limits', () => {
+  test('a turn whose agent never starts fails with the start limit', async ({expect}) => {
     const engine = await createEngine({}, {timeouts: {firstStartTimeoutMs: 500}})
     await engine.reply(TestLLM.text('Too late'))
     await engine.gate()
@@ -83,9 +87,10 @@ describe('run limits', () => {
   })
 })
 
-describe('compacting', () => {
+describe.concurrent('compacting', () => {
   test("compacting asks the agent for a summary, and a plugin's compaction hook adds to that request", async ({
     connect,
+    expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/request-shaper']})
     const rpc = connect(engine)
@@ -107,7 +112,7 @@ describe('compacting', () => {
     })
   })
 
-  test("a plugin's compaction hook answers the summary and the agent is not asked", async ({connect}) => {
+  test("a plugin's compaction hook answers the summary and the agent is not asked", async ({connect, expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/compaction-answer']})
     const rpc = connect(engine)
     await engine.reply(TestLLM.text('Hi'))

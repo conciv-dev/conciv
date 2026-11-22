@@ -1,33 +1,33 @@
-import {describe, expect} from 'vitest'
+import {describe} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {test} from '../test/rpc-test.js'
 
-describe('a conversation', () => {
-  test('an empty message is refused', async () => {
+describe.concurrent('a conversation', () => {
+  test('an empty message is refused', async ({expect}) => {
     const engine = await createEngine()
 
     await expect(engine.session.send('')).rejects.toThrow('the message is empty')
     expect(await engine.requests()).toEqual([])
   })
 
-  test.each([
-    {prompt: 'default', systemPrompt: undefined, first: expect.stringMatching(/^You are the conciv chat agent/)},
-    {prompt: 'custom', systemPrompt: 'You are a pirate', first: 'You are a pirate'},
-    {prompt: 'off', systemPrompt: false, first: expect.stringMatching(/^# Code Mode/)},
-  ])('the configured system prompt reaches the agent: $prompt', async ({systemPrompt, first}) => {
+  test.for([
+    {prompt: 'default', systemPrompt: undefined, first: /^You are the conciv chat agent/},
+    {prompt: 'custom', systemPrompt: 'You are a pirate', first: /^You are a pirate$/},
+    {prompt: 'off', systemPrompt: false, first: /^# Code Mode/},
+  ])('the configured system prompt reaches the agent: $prompt', async ({systemPrompt, first}, {expect}) => {
     const engine = await createEngine({systemPrompt})
     await engine.reply(TestLLM.text('Ahoy'))
 
     await engine.session.send('Hello')
 
     const [request] = await engine.requests()
-    expect(request?.system[0]).toEqual(first)
+    expect(request?.system[0]).toEqual(expect.stringMatching(first))
   })
 })
 
-describe('plugin hooks', () => {
-  test("a plugin's prompt and context hooks change the request the agent gets", async () => {
+describe.concurrent('plugin hooks', () => {
+  test("a plugin's prompt and context hooks change the request the agent gets", async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/request-shaper']})
     await engine.reply(TestLLM.text('Bonjour'))
 
@@ -45,8 +45,8 @@ describe('plugin hooks', () => {
   })
 })
 
-describe('the session', () => {
-  test('the first message titles the session and a later one leaves the title', async ({connect}) => {
+describe.concurrent('the session', () => {
+  test('the first message titles the session and a later one leaves the title', async ({connect, expect}) => {
     const engine = await createEngine()
     const rpc = connect(engine)
     await engine.reply(TestLLM.text('Lisbon is lovely'), TestLLM.text('Booked'))
@@ -59,7 +59,10 @@ describe('the session', () => {
     })
   })
 
-  test('deleting a session with a running reply ends the run, drops its draft and tells plugins', async ({connect}) => {
+  test('deleting a session with a running reply ends the run, drops its draft and tells plugins', async ({
+    connect,
+    expect,
+  }) => {
     const engine = await createEngine()
     const sessionId = engine.session.id
     const rpc = connect(engine)
@@ -86,6 +89,7 @@ describe('the session', () => {
 
   test("a finished turn records its token usage and the harness's context size and window on the session", async ({
     connect,
+    expect,
   }) => {
     const engine = await createEngine({}, {harnesses: [{id: 'engine', contextTokens: 1200, contextWindow: 200_000}]})
     const rpc = connect(engine)
@@ -100,8 +104,8 @@ describe('the session', () => {
   })
 })
 
-describe('model and harness', () => {
-  test('the model and effort the user picked reach the next request', async ({connect}) => {
+describe.concurrent('model and harness', () => {
+  test('the model and effort the user picked reach the next request', async ({connect, expect}) => {
     const engine = await createEngine()
     const sessionId = engine.session.id
     const rpc = connect(engine)
@@ -115,7 +119,10 @@ describe('model and harness', () => {
     expect(request).toMatchObject({model: 'sonnet', effort: 'high'})
   })
 
-  test('a session switched to another harness sends its next turn there with the whole history', async ({connect}) => {
+  test('a session switched to another harness sends its next turn there with the whole history', async ({
+    connect,
+    expect,
+  }) => {
     const engine = await createEngine(
       {},
       {harnesses: [{id: 'engine'}, {id: 'second', models: [{id: 'gpt-6', name: 'GPT 6'}]}]},
@@ -139,9 +146,10 @@ describe('model and harness', () => {
   })
 })
 
-describe('native transcript', () => {
+describe.concurrent('native transcript', () => {
   test("a CLI's past session opens with its own transcript, and its next turn resumes it with only the new message", async ({
     connect,
+    expect,
   }) => {
     const engine = await createEngine(
       {},
@@ -190,8 +198,11 @@ describe('native transcript', () => {
   })
 })
 
-describe('a long tool loop', () => {
-  test('a turn with nine tool calls in a row runs every tool and ends with the final answer', async ({connect}) => {
+describe.concurrent('a long tool loop', () => {
+  test('a turn with nine tool calls in a row runs every tool and ends with the final answer', async ({
+    connect,
+    expect,
+  }) => {
     const engine = await createEngine()
     const rpc = connect(engine)
     const callIds = Array.from({length: 9}, (_, index) => `call-${index + 1}`)
@@ -214,9 +225,10 @@ describe('a long tool loop', () => {
   })
 })
 
-describe('several tool calls in one step', () => {
+describe.concurrent('several tool calls in one step', () => {
   test('the agent calls two tools in one step, the next request carries both results in call order, and the saved thread shows both calls with their results', async ({
     connect,
+    expect,
   }) => {
     const engine = await createEngine()
     const rpc = connect(engine)
