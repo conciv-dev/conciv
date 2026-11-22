@@ -5,7 +5,7 @@ import {cli, createEngine} from '@conciv/plugin-testkit'
 describe('discovery', () => {
   it('the engine in the environment wins, then server.json found from a subfolder, else the no-server hint', async () => {
     const project = await createEngine()
-    const other = await createEngine({plugins: ['./test/fixtures/plugins/shelf']})
+    const other = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
     await project.write('src/app/main.ts', 'export {}\n')
 
     const fromEnv = await cli(['tools', '--help'], {cwd: project.root, engine: other})

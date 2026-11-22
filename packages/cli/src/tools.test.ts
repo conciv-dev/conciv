@@ -3,7 +3,7 @@ import {cli, createEngine} from '@conciv/plugin-testkit'
 
 describe('tools', () => {
   it("the plugin's group is listed beside the page group, a mistyped verb gets a fix, and a page tool with no page answers NO_PAGE_CLIENT", async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/shelf']})
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
 
     const help = await cli(['tools', '--help'], {engine})
     expect(help.exitCode).toBe(0)
@@ -34,7 +34,7 @@ describe('tools', () => {
   })
 
   it('the verb runs with its positional argument and flags spelled from its schema', async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/shelf']})
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
 
     const plain = await cli(['tools', 'shelf', 'label', 'fern'], {engine})
     expect(plain.exitCode).toBe(0)

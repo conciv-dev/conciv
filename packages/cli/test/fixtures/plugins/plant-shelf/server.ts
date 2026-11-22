@@ -7,7 +7,7 @@ const Plant = z.object({plant: z.string()})
 const Stock = z.object({plant: z.string(), count: z.number()})
 
 const Shelf = Rpc.define({
-  id: 'shelf',
+  id: 'plant-shelf',
   methods: {
     count: {input: Plant, output: Stock},
     sell: {input: Plant, output: Stock, errors: {'sold-out': Plant}},
@@ -16,7 +16,7 @@ const Shelf = Rpc.define({
 })
 
 export default Plugin.define({
-  id: 'shelf',
+  id: 'plant-shelf',
   async setup(ctx) {
     const stock = {count: 1}
     await ctx.rpc.register(Shelf, {

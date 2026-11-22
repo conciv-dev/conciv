@@ -3,7 +3,7 @@ import {cli, createEngine} from '@conciv/plugin-testkit'
 
 describe('session', () => {
   it('a bad CONCIV_SESSION_ID is refused, and an asking tool run in the named session waits until it is approved', async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/shelf']})
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
     await engine.newSession('Later work')
 
     const refused = await cli(['tools', 'shelf', 'label', 'fern'], {engine, env: {CONCIV_SESSION_ID: 'not-a-session'}})
