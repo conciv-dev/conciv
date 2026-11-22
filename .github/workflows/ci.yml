@@ -513,27 +513,35 @@ jobs:
       # sfw exits 0 even when it crashes mid-install ("Socket Firewall encountered an
       # unexpected error: TypeError: fetch failed"), so a green step used to mean nothing
       # and the missing CLI surfaced much later as `claude: not found` inside a turn
-      # assertion. Success is keyed on the binaries resolving, never on the exit code.
+      # assertion. Success is keyed on every CLI answering --version, never on the exit code.
+      # claude-code and opencode-ai fetch their native binary in a postinstall script;
+      # npm 11 skips install scripts not named in --allow-scripts, which left `claude` as
+      # its stub that only prints "claude native binary not installed" and exits 1.
       - name: Install harness CLIs
         if: matrix.harnesses
         run: |
           packages="@anthropic-ai/claude-code@2.1.212 @openai/codex@0.144.5 @google/gemini-cli@0.51.0 opencode-ai@1.18.3"
           missing=""
           for attempt in 1 2 3; do
-            sfw npm install -g $packages || echo "attempt ${attempt}: sfw npm install -g reported a failure"
+            sfw npm install -g --allow-scripts=@anthropic-ai/claude-code,opencode-ai $packages ||
+              echo "attempt ${attempt}: sfw npm install -g reported a failure"
             missing=""
             for binary in claude codex gemini opencode; do
-              command -v "$binary" >/dev/null 2>&1 || missing="${missing} ${binary}"
+              "$binary" --version || missing="${missing} ${binary}"
             done
             if [ -z "$missing" ]; then
+              echo "claude resolves to $(readlink -f "$(command -v claude)")"
+              started=$(date +%s%N)
+              claude --version
+              echo "claude --version took $((($(date +%s%N) - started) / 1000000)) ms"
               exit 0
             fi
-            echo "attempt ${attempt}: harness CLIs still missing:${missing}"
+            echo "attempt ${attempt}: harness CLIs that do not answer --version:${missing}"
             if [ "$attempt" -lt 3 ]; then
               sleep $((attempt * 15))
             fi
           done
-          echo "::error::harness CLI install failed after 3 attempts; missing binaries:${missing}"
+          echo "::error::harness CLI install failed after 3 attempts; CLIs that do not answer --version:${missing}"
           exit 1
       # Consumer-shape suites: dist widget in CLI-scaffolded apps (root e2e/).
       # test:e2e is cache:false in turbo.json, so every run
