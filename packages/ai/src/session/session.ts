@@ -256,11 +256,15 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     return [...(await reaching(older)), ...hydration.messages]
   }
   const latestWindow = async (): Promise<ChatMessage[]> => reaching(await connection.refresh())
-  const showWindow = (window: readonly ChatMessage[]): void => {
-    chat.setMessages(stitched(chat.messages(), window))
+  const shownIds = (): Set<string> => new Set(chat.messages().map((message) => message.id))
+  const showWindow = (window: readonly ChatMessage[], shown: Set<string>): void => {
+    const fetched = new Set(window.map((message) => message.id))
+    const sentSince = chat.messages().filter((message) => !shown.has(message.id) && !fetched.has(message.id))
+    chat.setMessages(stitched(chat.messages(), [...window, ...sentSince]))
   }
   const refresh = async (): Promise<void> => {
-    showWindow(await latestWindow())
+    const shown = shownIds()
+    showWindow(await latestWindow(), shown)
   }
   const declinesRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId || loadFailed()
   const declinesKnownRun = (runId: string, known: boolean): boolean =>
@@ -268,9 +272,10 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const joinedRun = async (runId: string): Promise<boolean> => {
     const known = runSource()?.lifecycle.runId === runId
     if (declinesKnownRun(runId, known)) return false
+    const shown = shownIds()
     const window = await latestWindow()
     if (declinesKnownRun(runId, known)) return false
-    showWindow(window)
+    showWindow(window, shown)
     return true
   }
   const chat: Chat = useChat({
