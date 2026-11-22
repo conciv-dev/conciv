@@ -595,13 +595,13 @@ describe('view tabs', () => {
 
     expect(await screen.findByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
     expect(await screen.findByRole('tabpanel', {name: 'Terminal'})).toBeVisible()
-    expect(screen.getByRole('status')).toHaveTextContent('Terminal')
+    expect(screen.getByRole('status', {name: 'conciv announcements'})).toHaveTextContent('Terminal')
     expect(screen.queryByRole('textbox', {name: 'Message the conciv agent'})).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', {name: 'Chat'}))
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
     expect(screen.getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
-    expect(screen.getByRole('status')).toHaveTextContent('Chat')
+    expect(screen.getByRole('status', {name: 'conciv announcements'})).toHaveTextContent('Chat')
     expect(screen.queryByRole('tabpanel', {name: 'Terminal'})).not.toBeInTheDocument()
   })
 })
