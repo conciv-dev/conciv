@@ -33,7 +33,7 @@ const PORT_SLOT = '{port}'
 const DEFAULTS = {
   timeout: 30_000,
   expect: {timeout: 10_000},
-  use: {reducedMotion: 'reduce'},
+  use: {reducedMotion: 'reduce', trace: 'retain-on-failure'},
 } satisfies PlaywrightTestConfig
 
 const AppServerSchema = z.object({
