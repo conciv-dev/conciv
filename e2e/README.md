@@ -25,8 +25,9 @@ pnpm --filter conciv-e2e-vite-vanilla test:e2e   # one app (build @conciv/it fir
 `pnpm test` does not run these.
 
 Specs import `test` from `@conciv/e2e-utils/fixtures`: it signs `page` and `secondPage` in before each test
-(`test.use({signedIn: false})` opts out), and after every test it deletes every engine session and resets
-every setting, so no test sees another's state.
+(`test.use({signedIn: false})` opts out). `vite-react` starts its dev server fresh for every test, on a free
+port with an empty `.conciv` and conciv home folder and a new temp folder as `HOME`, so no test sees another's
+state; the framework apps start theirs once per run.
 
 A `prepare` script here must not load the app's framework config. `prepare` runs during
 `pnpm install`, when no `@conciv/*` package has a `dist/` yet, and every app's config imports

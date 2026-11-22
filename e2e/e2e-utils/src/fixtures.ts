@@ -1,18 +1,19 @@
-import {existsSync} from 'node:fs'
-import {readdir, readFile, writeFile} from 'node:fs/promises'
+import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process'
+import {createWriteStream} from 'node:fs'
+import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
-import {test as base, type Page, type TestInfo} from '@playwright/test'
-import {makeRpcClient, type RpcClient, type SettingsScope} from '@conciv/contract'
-import {concivStateDir} from '@conciv/protocol/state-types'
-import {e2eConfigDir} from './config.js'
-import {e2ePluginCopyDir} from './dev-endpoint.js'
-import {recordedEngineBase, testProjectDir} from './login.js'
+import {createInterface} from 'node:readline'
+import {stripVTControlCharacters} from 'node:util'
+import {test as base, type Page} from '@playwright/test'
+import getPort from 'get-port'
+import {e2eConfigDir, e2eServerLog, readAppServer, type AppServer} from './config.js'
+import {e2ePluginCopyDir, e2eStateDir} from './dev-endpoint.js'
 import {collectFailures, expectWidgetBoots, loginWidget} from './widget.js'
 
 type RebuildPlugin = (plugin: string, from: string, to: string) => Promise<void>
 
-const SESSION_PAGE = 100
-const SETTINGS_FILE = '.json'
+const VITE_LISTENING = 'Local:'
+const REMOVE = {recursive: true, force: true, maxRetries: 5}
 
 async function signIn(page: Page, signedIn: boolean): Promise<void> {
   const failures = collectFailures(page)
@@ -21,60 +22,79 @@ async function signIn(page: Page, signedIn: boolean): Promise<void> {
   await expectWidgetBoots(page, failures)
 }
 
-async function listEverySession(rpc: RpcClient) {
-  let page = await rpc.sessions.list({limit: SESSION_PAGE})
-  const sessions = [...page.sessions]
-  while (page.next !== null) {
-    page = await rpc.sessions.list({cursor: page.next, limit: SESSION_PAGE})
-    sessions.push(...page.sessions)
+function viteListening(child: ChildProcessWithoutNullStreams, output: string[]): Promise<void> {
+  const {promise, resolve, reject} = Promise.withResolvers<void>()
+  createInterface({input: child.stdout}).on('line', (line) => {
+    if (stripVTControlCharacters(line).includes(VITE_LISTENING)) resolve()
+  })
+  child.once('error', reject)
+  child.once('exit', (code, signal) => {
+    reject(new Error(`the dev server exited (${code ?? signal}) before it listened\n${output.join('')}`))
+  })
+  return promise
+}
+
+async function wipeState(server: AppServer): Promise<void> {
+  await Promise.all([rm(join(server.dir, '.conciv'), REMOVE), rm(server.concivHome, REMOVE)])
+}
+
+async function stopServer(child: ChildProcessWithoutNullStreams, exited: Promise<unknown>): Promise<void> {
+  if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return
+  child.kill('SIGTERM')
+  await exited
+}
+
+async function runAppServer(
+  server: AppServer,
+  port: number,
+  configDir: string,
+  use: (origin: string) => Promise<void>,
+): Promise<void> {
+  const root = await mkdtemp(join(e2eStateDir(configDir), 'test-'))
+  const home = join(root, 'home')
+  await mkdir(home)
+  await wipeState(server)
+  const {file, args} = server.command(port)
+  const child = spawn(file, args, {
+    cwd: server.dir,
+    env: {...process.env, ...server.env, CONCIV_HOME: server.concivHome, HOME: home},
+  })
+  const exited = new Promise((resolve) => child.once('exit', resolve))
+  const log = createWriteStream(e2eServerLog(configDir, port))
+  const output: string[] = []
+  for (const stream of [child.stdout, child.stderr]) {
+    stream.on('data', (chunk: Buffer) => {
+      log.write(chunk)
+      output.push(String(chunk))
+    })
   }
-  return sessions
-}
-
-async function settingsNamespaces(folder: string): Promise<string[]> {
-  const settings = join(folder, 'settings')
-  if (!existsSync(settings)) return []
-  const files = await readdir(settings)
-  return files.filter((file) => file.endsWith(SETTINGS_FILE)).map((file) => file.slice(0, -SETTINGS_FILE.length))
-}
-
-async function resetSettings(rpc: RpcClient, scope: SettingsScope, folder: string): Promise<void> {
-  for (const namespace of await settingsNamespaces(folder)) {
-    const {value} = await rpc.settings.all({scope, namespace})
-    for (const key of Object.keys(value)) await rpc.settings.delete({scope, namespace, key})
+  try {
+    await viteListening(child, output)
+    await use(`http://localhost:${port}`)
+  } finally {
+    await stopServer(child, exited)
+    log.end()
+    await Promise.all([rm(root, REMOVE), wipeState(server)])
   }
-}
-
-function testConcivHome(testInfo: TestInfo): string {
-  const home: unknown = testInfo.project.metadata['concivHome']
-  if (typeof home !== 'string')
-    throw new Error(`the ${testInfo.project.name} project sets no concivHome in its metadata`)
-  return home
-}
-
-async function resetEngine(testInfo: TestInfo): Promise<void> {
-  const projectDir = testProjectDir()
-  const rpc = makeRpcClient(recordedEngineBase(projectDir))
-  for (const session of await listEverySession(rpc)) await rpc.sessions.delete({sessionId: session.id})
-  await resetSettings(rpc, 'project', concivStateDir(projectDir))
-  await resetSettings(rpc, 'global', testConcivHome(testInfo))
 }
 
 export const test = base.extend<{
   signedIn: boolean
   secondPage: Page
   rebuildPlugin: RebuildPlugin
-  resetEngineAfter: void
+  appServer: string | undefined
 }>({
   signedIn: [true, {option: true}],
-  resetEngineAfter: [
-    // eslint-disable-next-line no-empty-pattern
-    async ({}, use, testInfo) => {
-      await use()
-      await resetEngine(testInfo)
-    },
-    {auto: true},
-  ],
+  // eslint-disable-next-line no-empty-pattern
+  appServer: async ({}, use, testInfo) => {
+    const server = readAppServer(testInfo.project.metadata)
+    if (server === undefined) return use(undefined)
+    const port = await getPort()
+    await runAppServer(server, port, e2eConfigDir(testInfo.config.configFile), use)
+  },
+  baseURL: async ({appServer, baseURL}, use) => {
+    await use(appServer ?? baseURL)
+  },
   page: async ({page, signedIn}, use) => {
     await signIn(page, signedIn)
     await use(page)

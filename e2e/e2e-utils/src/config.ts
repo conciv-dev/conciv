@@ -1,6 +1,7 @@
 import {delimiter, dirname, join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
 import getPort from 'get-port'
+import {z} from 'zod'
 import {e2ePluginCopyDir, e2eStateDir} from './dev-endpoint.js'
 
 export type E2EApp =
@@ -27,6 +28,22 @@ const PACKED_SPECS = '**/packed-*.spec.ts'
 
 const VITE_COLD_START = process.env.CI ? '--force' : ''
 
+const PORT_SLOT = '{port}'
+
+const AppServerSchema = z.object({
+  dir: z.string(),
+  argv: z.array(z.string()),
+  concivHome: z.string(),
+  env: z.record(z.string(), z.string()),
+})
+
+export type AppServer = {
+  dir: string
+  concivHome: string
+  env: Record<string, string>
+  command: (port: number) => {file: string; args: string[]}
+}
+
 const BLOCK_ALL_COOKIES_AND_SITE_DATA = 2
 
 const BROWSER_SETTING_PROJECTS = {
@@ -47,7 +64,7 @@ const BROWSER_SETTING_PROJECTS = {
 
 export type BrowserSetting = keyof typeof BROWSER_SETTING_PROJECTS
 
-function appProjects(settings: readonly BrowserSetting[], concivHome: string) {
+function appProjects(settings: readonly BrowserSetting[], metadata: Record<string, unknown>) {
   const chromium = {
     name: 'chromium',
     testIgnore: [PACKED_SPECS, ...Object.values(BROWSER_SETTING_PROJECTS).map((project) => project.testMatch)],
@@ -55,7 +72,7 @@ function appProjects(settings: readonly BrowserSetting[], concivHome: string) {
   }
   return [chromium, ...settings.map((setting) => BROWSER_SETTING_PROJECTS[setting])].map((project) => ({
     ...project,
-    metadata: {concivHome},
+    metadata,
   }))
 }
 
@@ -146,41 +163,78 @@ function runConcivHome(configDir: string): {CONCIV_HOME: string} {
   return {CONCIV_HOME: home}
 }
 
+export function readAppServer(metadata: Record<string, unknown>): AppServer | undefined {
+  if (metadata['appServer'] === undefined) return undefined
+  const server = AppServerSchema.parse(metadata['appServer'])
+  return {
+    dir: server.dir,
+    concivHome: server.concivHome,
+    env: server.env,
+    command: (port) => {
+      const [file, ...args] = server.argv.map((part) => (part === PORT_SLOT ? String(port) : part))
+      if (file === undefined) throw new Error('the appServer project metadata holds an empty argv')
+      return {file, args}
+    },
+  }
+}
+
 export async function e2eConfig(
   app: E2EApp,
   opts: {
     dir: string
-    command: (port: number, coldStart: string) => string
     timeout?: number
     runFolders?: string[]
     browserSettings?: readonly BrowserSetting[]
     pluginCopies?: readonly string[]
     fakeClis?: readonly string[]
-  },
+  } & (
+    | {command: (port: number, coldStart: string) => string; viteServerPerTest?: never}
+    | {viteServerPerTest: string; command?: never}
+  ),
 ): Promise<ReturnType<typeof defineConfig>> {
-  const port = await e2ePort(app)
   const timeout = opts.timeout ?? 90_000
   const home = runConcivHome(opts.dir)
-  return defineConfig({
+  const prepare = [
+    freshFolder(e2eStateDir(opts.dir)),
+    ...copyPlugins(opts.dir, opts.pluginCopies ?? []),
+    ...writeFakeClis(opts.dir, opts.fakeClis ?? []),
+  ].join(' && ')
+  const path = pathWithOnly(opts.dir, opts.fakeClis ?? [])
+  const shared = {
     testDir: './test',
     testIgnore: PACKED_SPECS,
     workers: 1,
     timeout,
     expect: {timeout},
     reporter: reporters(opts.dir, ['.conciv'], opts.runFolders),
+  }
+  if (opts.viteServerPerTest !== undefined) {
+    return defineConfig({
+      ...shared,
+      globalSetup: join(import.meta.dirname, 'prepare-run.ts'),
+      metadata: {prepare: `rm -rf '${legacyStateDir(opts.dir)}' && ${prepare}`},
+      projects: appProjects(opts.browserSettings ?? [], {
+        appServer: {
+          dir: opts.dir,
+          argv: [opts.viteServerPerTest, '--port', PORT_SLOT, '--strictPort'],
+          concivHome: home.CONCIV_HOME,
+          env: path,
+        },
+      }),
+    })
+  }
+  const port = await e2ePort(app)
+  return defineConfig({
+    ...shared,
     use: {baseURL: `http://localhost:${port}`},
     webServer: serverEntry({
       configDir: opts.dir,
-      prepare: [
-        freshFolder(e2eStateDir(opts.dir)),
-        ...copyPlugins(opts.dir, opts.pluginCopies ?? []),
-        ...writeFakeClis(opts.dir, opts.fakeClis ?? []),
-      ].join(' && '),
+      prepare,
       command: `rm -rf .conciv && ${opts.command(port, VITE_COLD_START)}`,
       port,
-      env: {...home, ...pathWithOnly(opts.dir, opts.fakeClis ?? [])},
+      env: {...home, ...path},
     }),
-    projects: appProjects(opts.browserSettings ?? [], home.CONCIV_HOME),
+    projects: appProjects(opts.browserSettings ?? [], {}),
   })
 }
 
@@ -231,7 +285,7 @@ export async function packedE2eConfig(opts: {
     projects: servers.map((server) => ({
       name: server.name,
       use: {...devices['Desktop Chrome'], baseURL: `http://localhost:${server.port}`},
-      metadata: {projectDir: server.cwd, concivHome: packedHome(stateDir, server.name)},
+      metadata: {projectDir: server.cwd},
     })),
   })
 }
@@ -284,10 +338,7 @@ export async function harnessMatrixConfig(opts: {
     projects: entries.map(({name: harness, port}) => ({
       name: harness,
       use: {...devices['Desktop Chrome'], baseURL: `http://localhost:${port}`},
-      metadata: {
-        projectDir: join(opts.dir, `.conciv-${harness}`),
-        concivHome: isolatedHome(opts.dir, harness).CONCIV_HOME,
-      },
+      metadata: {projectDir: join(opts.dir, `.conciv-${harness}`)},
     })),
   })
 }
