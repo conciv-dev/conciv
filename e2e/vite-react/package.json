@@ -17,7 +17,6 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
-    "@conciv/contract": "workspace:*",
     "@conciv/e2e-utils": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@playwright/test": "catalog:",
