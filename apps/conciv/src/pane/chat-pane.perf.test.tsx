@@ -15,7 +15,7 @@ describe('the calm chat plane', () => {
       Read: (index: number) => ({filePath: `step-${index}.tsx`}),
       Edit: (index: number) => ({file_path: `step-${index}.tsx`, old_string: diffBefore, new_string: diffAfter}),
     }
-    const steps: Array<keyof typeof inputs> = [
+    const twenty: Array<keyof typeof inputs> = [
       'Bash',
       'Read',
       'Bash',
@@ -37,23 +37,24 @@ describe('the calm chat plane', () => {
       'Bash',
       'Read',
     ]
+    const steps = [...twenty, ...twenty, ...twenty]
     const engine = await createEngine()
     await engine.reply(
       ...steps.map((name, index) => TestLLM.toolCall(`step-${index}`, name, inputs[name](index))),
-      TestLLM.text('All twenty steps are done.'),
+      TestLLM.text('All sixty steps are done.'),
     )
     const held = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
 
-    await input.fill('run twenty tools then answer')
+    await input.fill('run sixty tools then answer')
     await userEvent.keyboard('{Enter}')
-    await expect.element(page.getByRole('article', {name: 'You: run twenty tools then answer'})).toBeVisible()
+    await expect.element(page.getByRole('article', {name: 'You: run sixty tools then answer'})).toBeVisible()
     await held.started
     const watch = watchCalm(task.name)
     await watch.checkpoint()
     await held.release()
-    await expect.element(page.getByText('All twenty steps are done.', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('All sixty steps are done.', {exact: true})).toBeVisible()
     await watch.checkpoint()
 
     watch.expectSmooth()
