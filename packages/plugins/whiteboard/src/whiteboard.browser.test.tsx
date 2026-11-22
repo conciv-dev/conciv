@@ -183,6 +183,7 @@ describe("the user works the agent's comments on the canvas", () => {
     })
     expect(byUnread[0]).toHaveAccessibleName(/The price wraps on small screens/)
     await user.click(within(inbox).getByRole('button', {name: 'Mark all as read'}))
+    await expect.element(page.getByRole('button', {name: 'AI comment, open, unread'})).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', {name: 'AI comment, open'})).toHaveLength(2)
 
     await user.click(within(inbox).getByRole('button', {name: /The hero image is blurry/}))
@@ -209,14 +210,15 @@ describe("the user works the agent's comments on the canvas", () => {
     await user.click(heroReply)
     expect(heroReply).toHaveFocus()
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', {name: 'Comment thread'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('dialog', {name: 'Comment thread'})).not.toBeInTheDocument()
     expect(inbox).toBeVisible()
 
     await user.click(within(inbox).getByRole('button', {name: /The hero image is blurry/}))
     await user.click(
       within(await screen.findByRole('dialog', {name: 'Comment thread'})).getByRole('button', {name: 'Resolve thread'}),
     )
-    expect(within(inbox).queryByRole('button', {name: /The hero image is blurry/})).not.toBeInTheDocument()
+    const inboxRows = page.getByRole('complementary', {name: 'Comments inbox'})
+    await expect.element(inboxRows.getByRole('button', {name: /The hero image is blurry/})).not.toBeInTheDocument()
     expect(await screen.findByRole('button', {name: 'AI comment, resolved'})).toBeVisible()
     await user.click(within(inbox).getByRole('button', {name: 'Filter comments'}))
     await user.click(await screen.findByRole('menuitemcheckbox', {name: 'Show resolved comments'}))
@@ -228,8 +230,10 @@ describe("the user works the agent's comments on the canvas", () => {
     )
     const confirm = await screen.findByRole('dialog', {name: 'Delete this thread?'})
     await user.click(within(confirm).getByRole('button', {name: 'Delete'}))
-    expect(within(inbox).queryByRole('button', {name: /The price wraps on small screens/})).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', {name: /^AI comment, open/})).not.toBeInTheDocument()
+    await expect
+      .element(inboxRows.getByRole('button', {name: /The price wraps on small screens/}))
+      .not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: /^AI comment, open/})).not.toBeInTheDocument()
     await user.click(within(inbox).getByRole('button', {name: 'Close inbox'}))
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
@@ -262,8 +266,8 @@ describe("the user works the agent's comments on the canvas", () => {
 
     expect(input).toHaveFocus()
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('button', {name: /^Comments/})).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', {name: /^AI comment/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: /^Comments/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: /^AI comment/})).not.toBeInTheDocument()
     expect(screen.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
   })
 })
