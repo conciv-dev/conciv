@@ -180,37 +180,6 @@ describe('notices', () => {
   })
 })
 
-describe('logging in again', () => {
-  test('a revoked browser moves focus from the composer to Log in, and back to the composer once it logs in', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({
-      engine,
-      login: 'none',
-      history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']}),
-    })
-
-    await user.click(await screen.findByRole('button', {name: 'Unauthorized. Authorize conciv'}))
-    const first = await screen.findByRole('dialog', {name: 'Authorize conciv'})
-    await user.click(within(first).getByRole('textbox', {name: 'Digit 1 of 6'}))
-    await user.keyboard(await engine.loginCode())
-    await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
-    const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
-    await expect.element(composer).toHaveFocus()
-
-    await engine.revokeBrowsers()
-    const logIn = await screen.findByRole('button', {name: 'Log in'})
-    expect(logIn).toHaveFocus()
-    await user.keyboard('{Enter}')
-    const again = await screen.findByRole('dialog', {name: 'Authorize conciv'})
-    await user.click(within(again).getByRole('textbox', {name: 'Digit 1 of 6'}))
-    await user.keyboard(await engine.loginCode())
-
-    await expect.element(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
-    expect(screen.queryByRole('button', {name: 'Log in'})).not.toBeInTheDocument()
-  })
-})
-
 describe('phone width', () => {
   test('the panel opens as a sheet with no resize handles and no launcher, and closing brings the launcher back', async () => {
     await page.viewport(375, 800)

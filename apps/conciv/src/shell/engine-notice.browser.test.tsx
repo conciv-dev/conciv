@@ -34,7 +34,7 @@ describe('the engine asks for a restart or an update', () => {
 })
 
 describe('logging in', () => {
-  test('a browser with no token logs in with the code the dev server prints, and is told when the engine revokes it', async () => {
+  test('a browser with no token logs in with the code the dev server prints, is told when the engine revokes it with the composer locked and focus on Log in, and logging in again gives the composer its focus back', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({
@@ -79,8 +79,19 @@ describe('logging in', () => {
 
     await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
     expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+    await expect.element(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
     await engine.revokeBrowsers()
     expect(await screen.findByText('This browser is no longer authorized to use conciv.')).toBeVisible()
-    expect(screen.getByRole('button', {name: 'Log in'})).toBeVisible()
+    expect(screen.getByRole('button', {name: 'This browser is no longer authorized to use conciv.'})).toBeDisabled()
+    const logIn = screen.getByRole('button', {name: 'Log in'})
+    expect(logIn).toBeVisible()
+    await expect.element(logIn).toHaveFocus()
+
+    await user.keyboard('{Enter}')
+    const again = await screen.findByRole('dialog', {name: 'Authorize conciv'})
+    await user.click(within(again).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard(await engine.loginCode())
+    await expect.element(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
+    expect(screen.queryByRole('button', {name: 'Log in'})).not.toBeInTheDocument()
   })
 })
