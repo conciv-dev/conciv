@@ -1,11 +1,27 @@
-import {useState} from 'react'
+import {useState, useSyncExternalStore} from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
 import './App.css'
 
+let keysReceived = 0
+window.addEventListener('keydown', () => {
+  keysReceived += 1
+})
+
+function subscribeToKeys(onKey: () => void) {
+  window.addEventListener('keydown', onKey)
+  return () => window.removeEventListener('keydown', onKey)
+}
+
+function readKeysReceived() {
+  return keysReceived
+}
+
 function App() {
   const [count, setCount] = useState(0)
+  const [query, setQuery] = useState('')
+  const keys = useSyncExternalStore(subscribeToKeys, readKeysReceived)
 
   return (
     <>
@@ -24,6 +40,11 @@ function App() {
         <button type="button" className="counter" onClick={() => setCount((count) => count + 1)}>
           Count is {count}
         </button>
+        <label>
+          Search plants <input name="search" value={query} onChange={(event) => setQuery(event.target.value)} />
+        </label>
+        <output name="query">{query === '' ? '' : `Searching for ${query}`}</output>
+        <output name="keys">Keys the page received: {keys}</output>
       </section>
 
       <div className="ticks"></div>
