@@ -107,7 +107,7 @@ describe('the composer actions menu', () => {
     await user.type(input, 'Second task')
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
-    expect(input).toHaveTextContent('Second task')
+    await expect.element(input).toHaveTextContent('Second task')
     expect(screen.queryByText('1 waiting · runs in order')).not.toBeInTheDocument()
 
     await compaction.release()
