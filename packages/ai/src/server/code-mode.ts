@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
+import {uniq} from 'es-toolkit'
 import {
   CapabilityRegistry,
   convertSchemaToJsonSchema,
@@ -147,7 +148,9 @@ export function describeSchemas(
 }
 
 export const CodeFilesCapability =
-  createCapability<(files: readonly ChatContentPart[]) => void>()('conciv.code-mode-files')
+  createCapability<(files: readonly ChatContentPart[], text: readonly string[]) => void>()('conciv.code-mode-files')
+
+type CallParts = {files: ChatContentPart[]; text: string[]}
 
 const [, provideCodeFiles] = CodeFilesCapability
 
@@ -164,25 +167,24 @@ function convertedSchemas(tool: CodeModeTool): ChildTool {
   }
 }
 
-function filesContext(files: ChatContentPart[]): Pick<NonNullable<ToolContext>, 'getOptional'> {
+function filesContext(parts: CallParts): Pick<NonNullable<ToolContext>, 'getOptional'> {
   const scope = {capabilities: new CapabilityRegistry()}
-  provideCodeFiles(scope, (parts) => files.push(...parts))
+  provideCodeFiles(scope, (files, text) => {
+    parts.files.push(...files)
+    parts.text.push(...text)
+  })
   return {getOptional: <Value>(capability: Capability<Value>) => capability[0](scope, {optional: true})}
 }
 
-function childCall(
-  {tool, converted}: ChildTool,
-  secrets: ReadonlyMap<string, string>,
-  run: ChatContentPart[][],
-): CodeModeTool {
+function childCall({tool, converted}: ChildTool, secrets: ReadonlyMap<string, string>, run: CallParts[]): CodeModeTool {
   const execute = tool.execute
   if (!execute) return tool
   return {
     ...converted,
     execute: async (args, context) => {
       const callId = randomUUID()
-      const files: ChatContentPart[] = []
-      run.push(files)
+      const parts: CallParts = {files: [], text: []}
+      run.push(parts)
       context?.emitCustomEvent(codeModeCallEvent.name, {callId, function: tool.name, args})
       try {
         const parameter = secrets.get(`${CODE_MODE_EXTERNAL_PREFIX}${tool.name}`)
@@ -192,10 +194,10 @@ function childCall(
         const input = validated(tool.inputSchema, args, `Input validation failed for tool ${tool.name}`)
         const output: unknown = await execute(
           input,
-          context === undefined ? undefined : {...context, toolCallId: callId, ...filesContext(files)},
+          context === undefined ? undefined : {...context, toolCallId: callId, ...filesContext(parts)},
         )
         const result = validated(tool.outputSchema, output, `Output validation failed for tool ${tool.name}`)
-        context?.emitCustomEvent(codeModeResultEvent.name, {callId, result: cardResult(result, files)})
+        context?.emitCustomEvent(codeModeResultEvent.name, {callId, result: cardResult(result, parts.files)})
         return result
       } catch (error) {
         context?.emitCustomEvent(codeModeErrorEvent.name, {
@@ -286,11 +288,12 @@ export function codeModeTools(
     ...codeMode.tool,
     outputSchema: ExecuteResultSchema,
     execute: async (args: unknown, context?: ToolContext) => {
-      const run: ChatContentPart[][] = []
+      const run: CallParts[] = []
       const {execute} = createCodeModeTool({...config, tools: serverTools.map((each) => childCall(each, secrets, run))})
       if (!execute) throw new Error('the code mode tool has no execute')
       const result = ExecuteResultSchema.parse(await execute(ProgramInputSchema.parse(args), context))
-      const files = run.flat()
+      const notes = uniq(run.flatMap((parts) => parts.text)).map((content) => ({type: 'text' as const, content}))
+      const files = [...notes, ...run.flatMap((parts) => parts.files)]
       return files.length === 0 ? result : {...result, files}
     },
   }

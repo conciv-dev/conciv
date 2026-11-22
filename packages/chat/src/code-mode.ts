@@ -36,7 +36,7 @@ export type CodeCapability = {
   execute: (input: unknown, request: ToolRequest) => Promise<CapabilityResult>
 }
 
-export type CapabilityResult = {value: unknown; files: ChatContentPart[]}
+export type CapabilityResult = {value: unknown; files: ChatContentPart[]; text: string[]}
 
 export type ToolDomain = {snapshot: Tool.Snapshot; agent: Agent.Id}
 
@@ -56,7 +56,7 @@ export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] 
     description: tool.description,
     errors: [],
     inputSchema: tool.inputSchema,
-    execute: async (input) => ({value: await tool.execute(input), files: []}),
+    execute: async (input) => ({value: await tool.execute(input), files: [], text: []}),
   }))
 }
 
@@ -126,7 +126,11 @@ async function runTool<R>(
 ): Promise<CapabilityResult> {
   const exit = await run(effect, signal)
   if (Exit.isFailure(exit)) throw refusal(name, exit.cause)
-  return {value: resultValue(exit.value), files: outputFiles(exit.value.content)}
+  return {
+    value: resultValue(exit.value),
+    files: outputFiles(exit.value.content),
+    text: exit.value.output === undefined ? [] : textParts(exit.value.content),
+  }
 }
 
 function outputFiles(content: Tool.NormalizedResult['content']): ChatContentPart[] {
@@ -139,9 +143,13 @@ function outputFiles(content: Tool.NormalizedResult['content']): ChatContentPart
   })
 }
 
+function textParts(content: Tool.NormalizedResult['content']): string[] {
+  return content.flatMap((part) => (part.type === 'text' ? [part.text] : []))
+}
+
 function resultValue(result: Tool.NormalizedResult): unknown {
   if (result.output !== undefined) return result.output
-  const text = result.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
+  const text = textParts(result.content).join('\n')
   return text === '' ? null : text
 }
 
@@ -381,13 +389,13 @@ function chatTool(capability: CodeCapability, request: ToolRequest, lazy: boolea
     try {
       const toolCallId = context?.toolCallId
       const signal = context?.abortSignal
-      const {value, files} = await capability.execute(args, {
+      const {value, files, text} = await capability.execute(args, {
         ...request,
         ...(toolCallId === undefined ? {} : {toolCallId}),
         ...(signal === undefined ? {} : {signal}),
       })
       if (!lazy) return cappedValue(files.length === 0 ? value : [...valueParts(value), ...files])
-      context?.getOptional?.(CodeFilesCapability)?.(files)
+      context?.getOptional?.(CodeFilesCapability)?.(files, text)
       return value
     } catch (error) {
       throw withDeclaredCode(error)
