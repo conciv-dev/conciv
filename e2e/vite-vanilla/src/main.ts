@@ -18,6 +18,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <button id="counter" type="button" class="counter"></button>
   <label>Search plants <input name="search" /></label>
   <output name="query"></output>
+  <output name="keys">Keys the page received: 0</output>
 </section>
 
 <div class="ticks"></div>
@@ -64,4 +65,11 @@ setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
 document.querySelector<HTMLInputElement>('input[name="search"]')?.addEventListener('input', (event) => {
   const query = document.querySelector<HTMLOutputElement>('output[name="query"]')
   if (query && event.target instanceof HTMLInputElement) query.textContent = `Searching for ${event.target.value}`
+})
+
+let keysReceived = 0
+window.addEventListener('keydown', () => {
+  keysReceived += 1
+  const keys = document.querySelector<HTMLOutputElement>('output[name="keys"]')
+  if (keys) keys.textContent = `Keys the page received: ${keysReceived}`
 })

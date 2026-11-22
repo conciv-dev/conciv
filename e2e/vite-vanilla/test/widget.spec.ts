@@ -1,3 +1,4 @@
+import {stat} from 'node:fs/promises'
 import {expect, test} from '@playwright/test'
 import {collectFailures, expectWidgetBoots, holdEngineCall, loginWidget} from '@conciv/e2e-utils/widget'
 
@@ -37,6 +38,30 @@ test.describe('the user types into the host page with the panel open', () => {
 
     await expect(search).toHaveValue('Boston fern? /k')
     await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveText('')
+  })
+  test('keys typed in the host field reach the host page key handler, and keys typed in the composer never do', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    await expect(page.getByText('Keys the page received: 0')).toBeVisible()
+
+    const search = page.getByRole('textbox', {name: 'Search plants'})
+    await search.click()
+    await expect(search).toBeFocused()
+    await page.keyboard.type('fern')
+    await expect(search).toHaveValue('fern')
+    await expect(page.getByText('Keys the page received: 4')).toBeVisible()
+
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await composer.click()
+    await expect(composer).toBeFocused()
+    await page.keyboard.type('water the fern')
+    await expect(composer).toHaveText('water the fern')
+
+    await expect(page.getByText('Keys the page received: 4')).toBeVisible()
+    await expect(search).toHaveValue('fern')
   })
 })
 
@@ -302,5 +327,40 @@ test.describe('the model menu when the engine fails to list models', () => {
     await expect(menu.getByRole('group', {name: 'Codex'})).toBeVisible()
     await expect(menu.getByRole('group', {name: 'Gemini CLI'})).toBeVisible()
     await expect(retry).toHaveCount(0)
+  })
+})
+
+test.describe('exporting a screen recording of the vite vanilla page', () => {
+  test('the user exports the live recording as a video, sends it to the composer, plays it and exports the same video from the replay', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    await page.getByRole('tab', {name: 'Recorder'}).click()
+    await expect(page.getByText('LIVE')).toBeVisible()
+    const search = page.getByRole('textbox', {name: 'Search plants'})
+    await search.click()
+    await page.keyboard.type('Boston fern')
+    await expect(page.getByText('Searching for Boston fern')).toBeVisible()
+
+    const panelDownload = page.waitForEvent('download')
+    await page.getByRole('button', {name: 'Export video'}).click()
+    const panelVideo = await panelDownload
+    expect(panelVideo.suggestedFilename()).toBe('recording.webm')
+    expect((await stat(await panelVideo.path())).size).toBeGreaterThan(0)
+
+    await page.getByRole('button', {name: 'Send to agent'}).click()
+    const notes = page.getByRole('list', {name: 'Notes'})
+    await expect(notes.getByText('Screen recording', {exact: true})).toBeVisible()
+    await notes.getByRole('button', {name: 'Play'}).click()
+    const replay = page.getByRole('dialog', {name: 'Screen recording replay'})
+    await expect(replay).toBeVisible()
+
+    const replayDownload = page.waitForEvent('download')
+    await replay.getByRole('button', {name: 'Export video'}).click()
+    const replayVideo = await replayDownload
+    expect(replayVideo.suggestedFilename()).toBe('recording.webm')
+    expect((await stat(await replayVideo.path())).size).toBeGreaterThan(0)
   })
 })
