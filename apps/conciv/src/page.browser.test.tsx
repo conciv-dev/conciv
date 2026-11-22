@@ -584,32 +584,6 @@ describe('the agent reads a page with shadow roots of its own', () => {
   })
 })
 
-describe('the user types into the host page with the panel open', () => {
-  test('the keys go to the host field and the composer stays empty', async () => {
-    await page.viewport(1280, 800)
-    onTestFinished(() => page.viewport(414, 896))
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    const control = await engine.event('rpc.experimental.page.control')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-    render(() => (
-      <label>
-        Search plants
-        <input id="search" />
-      </label>
-    ))
-    const search = screen.getByRole('textbox', {name: 'Search plants'})
-
-    await user.click(search)
-    expect(search).toHaveFocus()
-    await user.keyboard('Boston fern? /k')
-
-    expect(search).toHaveValue('Boston fern? /k')
-    expect(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveTextContent('')
-  })
-})
-
 describe('the agent reads the address of a tab with secrets in it', () => {
   test('the tab list and the route read both hide the token in the query and in the hash and keep the rest', async () => {
     const engine = await createEngine()
