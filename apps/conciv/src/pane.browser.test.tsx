@@ -191,7 +191,7 @@ describe('a message with no words', () => {
 describe('stopping and sending again', () => {
   test('the user stops a streaming reply, keeps its text marked stopped, and sends again', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({}, {tokensPerSecond: 20})
+    const engine = await createEngine({}, {tokensPerSecond: 400})
     await engine.reply(
       TestLLM.text(`Halfway there. ${'More words keep coming. '.repeat(500)}The very last words.`),
       TestLLM.text('Short answer'),
