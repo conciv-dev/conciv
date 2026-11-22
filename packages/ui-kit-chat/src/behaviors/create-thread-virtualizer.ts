@@ -268,7 +268,6 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     scrollToFn,
     onChange: () => update(),
     useAnimationFrameWithResizeObserver: true,
-    useScrollendEvent: true,
   })
 
   const instance = new Virtualizer(resolveOptions())
