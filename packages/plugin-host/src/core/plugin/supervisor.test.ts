@@ -27,6 +27,20 @@ describe('loading plugins', () => {
     })
   })
 
+  test('a ./ plugin path resolves against the project folder, and a path to a file is skipped', async () => {
+    const engine = await createEngine(
+      {plugins: ['./tools/greeter-local', './tools/greeter-file/server.ts']},
+      {directory: './test/fixtures/projects/local-plugins'},
+    )
+
+    expect(await engine.session.tool('greet_local').call({name: 'Ada'})).toEqual({
+      greeting: 'Hello Ada, from the project',
+    })
+    expect(await engine.session.tool('greet_file').failure({name: 'Ada'})).toEqual(
+      expect.objectContaining({tool: 'greet_file'}),
+    )
+  })
+
   test('an organization policy that denies plugin.use keeps that plugin and its tool out and loads the rest', async () => {
     const engine = await createEngine({
       plugins: ['./test/fixtures/plugins/lister', './test/fixtures/plugins/greeter-promise'],
@@ -100,6 +114,41 @@ describe('a plugin that fails to load', () => {
           state: {status: 'active'},
         }),
       ]),
+    })
+  })
+})
+
+describe('remove entries in the config', () => {
+  const lister = './test/fixtures/plugins/lister'
+  const greeter = './test/fixtures/plugins/greeter-promise'
+  const active = expect.objectContaining({id: 'lister', state: {status: 'active'}})
+
+  test.each([
+    {
+      case: 'a remove entry naming a plugin id',
+      plugins: [lister, greeter, '-greeter-promise'],
+      tool: 'greet_promise',
+      input: {name: 'Ada'},
+    },
+    {
+      case: 'a remove entry ending in .* that names the built-ins',
+      plugins: [lister, '-conciv.*'],
+      tool: 'server_config',
+      input: {},
+    },
+    {
+      case: 'a remove entry of * ahead of a plugin listed after it',
+      plugins: [greeter, '*', lister],
+      tool: 'greet_promise',
+      input: {name: 'Ada'},
+    },
+  ])('$case drops the plugins it names and keeps the one listed after it', async ({plugins, tool, input}) => {
+    const engine = await createEngine({plugins})
+
+    expect(await engine.session.tool('list_plugins').call({})).toEqual({plugins: expect.arrayContaining([active])})
+    expect(await engine.session.tool(tool).failure(input)).toEqual({
+      tool,
+      message: expect.not.stringContaining('no dev server is attached'),
     })
   })
 })
