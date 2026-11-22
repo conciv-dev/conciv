@@ -307,6 +307,8 @@ describe('the agent moves around the page', () => {
         <h2 id="reviews">Reviews</h2>
       </main>
     ))
+    const reviews = page.getByRole('heading', {name: 'Reviews'})
+    await expect.element(reviews).not.toBeInViewport()
 
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
     await finished.arrived
@@ -318,6 +320,7 @@ describe('the agent moves around the page', () => {
     expect(within(reply).getByText('Hovered')).toBeVisible()
     expect(within(reply).getByText('Pressed')).toBeVisible()
     expect(within(reply).getByText('Scrolled')).toBeVisible()
+    await expect.element(reviews).toBeInViewport()
   })
 
   test('the agent plays a list of actions in one call and the page answers each', async () => {
