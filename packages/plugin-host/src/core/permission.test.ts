@@ -59,4 +59,29 @@ describe('asks', () => {
     expect(await call).toEqual({written: 'notes.txt'})
     expect(await engine.rpc.call('asks', 'list', {sessionId})).toEqual([])
   })
+
+  test('an ask answered always is saved for that file, so the next call does not ask, and an ask answered reject fails the call', async () => {
+    const engine = await createEngine({
+      plugins: ['./test/fixtures/plugins/guarded'],
+      permission: {'guarded.write': 'ask'},
+    })
+    const sessionId = engine.session.id
+    const asked = z.object({id: z.string()})
+
+    const firstAsk = await engine.event('permission.asked')
+    const first = engine.session.tool('guarded_write').call({file: 'notes.txt'})
+    const {id: firstId} = asked.parse((await firstAsk.arrived).data)
+    await engine.rpc.call('asks', 'reply', {sessionId, requestId: firstId, decision: 'always'})
+    expect(await first).toEqual({written: 'notes.txt'})
+
+    expect(await engine.session.tool('guarded_write').call({file: 'notes.txt'})).toEqual({written: 'notes.txt'})
+    expect(await engine.rpc.call('asks', 'list', {sessionId})).toEqual([])
+
+    const secondAsk = await engine.event('permission.asked')
+    const rejected = engine.session.tool('guarded_write').failure({file: 'other.txt'})
+    const {id: secondId} = asked.parse((await secondAsk.arrived).data)
+    await engine.rpc.call('asks', 'reply', {sessionId, requestId: secondId, decision: 'reject'})
+    expect(await rejected).toEqual(expect.objectContaining({tool: 'guarded_write'}))
+    expect(await engine.rpc.call('asks', 'list', {sessionId})).toEqual([])
+  })
 })
