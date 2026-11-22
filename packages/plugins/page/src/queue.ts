@@ -229,7 +229,11 @@ export function fromPlay(deps: {
       throw new Error(`no queue ${queueId} on this tab`)
     }
     if (record.result === null && waitMs > 0) {
-      await Promise.race([record.done, delay(waitMs, signal === undefined ? {} : {signal})]).catch(() => undefined)
+      const settled = new AbortController()
+      const stop = signal === undefined ? settled.signal : AbortSignal.any([signal, settled.signal])
+      await Promise.race([record.done, delay(waitMs, {signal: stop})])
+        .catch(() => undefined)
+        .finally(() => settled.abort())
     }
     signal?.throwIfAborted()
     return record
