@@ -1,6 +1,7 @@
 import {createFileRoute, redirect, useRouter} from '@tanstack/solid-router'
 import {useQuery, useMutation} from '@conciv/client'
 import {createHotkeys, formatForDisplay} from '@tanstack/solid-hotkeys'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import {For, Show, Suspense, createEffect, createUniqueId, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {Button, TooltipIconButton, createResizable} from '@conciv/ui-kit-system'
 import ChevronUp from 'lucide-solid/icons/chevron-up'
@@ -49,28 +50,30 @@ function resetPaneFlex(row: HTMLDivElement | undefined): void {
   for (const el of row?.querySelectorAll<HTMLElement>('[data-conciv-qt-pane]') ?? []) el.style.flex = ''
 }
 
-function onGutterDown(e: PointerEvent) {
-  e.preventDefault()
-  if (!(e.currentTarget instanceof HTMLElement)) return
-  const gutter = e.currentTarget
-  const prev = gutter.previousElementSibling
-  const next = gutter.nextElementSibling
-  if (!(prev instanceof HTMLElement) || !(next instanceof HTMLElement)) return
-  const startX = e.clientX
-  const prevW = prev.getBoundingClientRect().width
-  const nextW = next.getBoundingClientRect().width
-  const total = prevW + nextW
-  const move = (ev: PointerEvent) => {
-    const newPrev = Math.max(180, Math.min(total - 180, prevW + (ev.clientX - startX)))
-    prev.style.flex = `0 0 ${newPrev}px`
-    next.style.flex = '1 1 0'
+type GutterDrag = {prev: HTMLElement; next: HTMLElement; startX: number; prevW: number; total: number}
+
+function createGutterDrag(): (e: PointerEvent) => void {
+  let drag: GutterDrag | undefined
+  makeEventListener(window, 'pointermove', (ev: PointerEvent) => {
+    if (!drag) return
+    const newPrev = Math.max(180, Math.min(drag.total - 180, drag.prevW + (ev.clientX - drag.startX)))
+    drag.prev.style.flex = `0 0 ${newPrev}px`
+    drag.next.style.flex = '1 1 0'
+  })
+  makeEventListener(window, 'pointerup', () => {
+    drag = undefined
+  })
+  return (e) => {
+    e.preventDefault()
+    if (!(e.currentTarget instanceof HTMLElement)) return
+    const gutter = e.currentTarget
+    const prev = gutter.previousElementSibling
+    const next = gutter.nextElementSibling
+    if (!(prev instanceof HTMLElement) || !(next instanceof HTMLElement)) return
+    const prevW = prev.getBoundingClientRect().width
+    const nextW = next.getBoundingClientRect().width
+    drag = {prev, next, startX: e.clientX, prevW, total: prevW + nextW}
   }
-  const up = () => {
-    window.removeEventListener('pointermove', move)
-    window.removeEventListener('pointerup', up)
-  }
-  window.addEventListener('pointermove', move)
-  window.addEventListener('pointerup', up)
 }
 
 function QuickTerminalHeader(props: {
@@ -118,6 +121,7 @@ function QuickLayer(): JSX.Element {
   const router = useRouter()
   const generation = useConnectionGeneration()
   const search = Route.useSearch()
+  const onGutterDown = createGutterDrag()
   const paneIds = () => quickPaneIds(search())
   const focusedIndex = () => Math.min(search().focus, Math.max(0, paneIds().length - 1))
 
