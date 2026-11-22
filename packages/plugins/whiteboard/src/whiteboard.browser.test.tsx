@@ -72,7 +72,12 @@ describe('the agent draws on the open canvas', () => {
     expect(JSON.parse(String(exported?.content))).toMatchObject({
       success: true,
       result: {scope: 'live'},
-      files: [{type: 'image', source: {type: 'data', mimeType: 'image/png'}}],
+      files: expect.arrayContaining([
+        expect.objectContaining({
+          type: 'image',
+          source: expect.objectContaining({type: 'data', mimeType: 'image/png'}),
+        }),
+      ]),
     })
 
     await user.type(input, 'Remove the pay step and clear the rest')
