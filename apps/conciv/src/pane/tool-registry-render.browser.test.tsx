@@ -178,51 +178,48 @@ describe('the agent asks other kinds of question', () => {
     expect(answer?.content).toContain('"value":["Basil","Chili"]')
   })
 
-  test('a confirm question shows its detail and Approve answers yes', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode:
-          "return await external_conciv_ui({kind: 'confirm', question: 'Delete the build folder?', detail: 'rm -r dist'})",
-      }),
-      TestLLM.text('Build folder deleted'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+  test.each([
+    {
+      kind: 'confirm',
+      call: "return await external_conciv_ui({kind: 'confirm', question: 'Delete the build folder?', detail: 'rm -r dist'})",
+      prompt: 'Clean the build',
+      question: 'Delete the build folder?',
+      detail: 'rm -r dist',
+      other: 'Deny',
+      button: 'Approve',
+      reply: 'Build folder deleted',
+      value: '"value":"yes"',
+    },
+    {
+      kind: 'diff',
+      call: "return await external_conciv_ui({kind: 'diff', question: 'Apply this change?', file: 'src/title.ts', before: 'export const title = 1', after: 'export const title = 2'})",
+      prompt: 'Bump the title',
+      question: 'Apply this change?',
+      detail: 'src/title.ts',
+      other: 'Apply',
+      button: 'Reject',
+      reply: 'Change dropped',
+      value: '"value":"reject"',
+    },
+  ])(
+    'a $kind question shows its detail, offers $other, and $button sends its answer',
+    async ({call, prompt, question, detail, other, button, reply, value}) => {
+      const user = userEvent.setup()
+      const engine = await createEngine()
+      await engine.reply(TestLLM.toolCall('c1', 'execute_typescript', {typescriptCode: call}), TestLLM.text(reply))
+      await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Clean the build')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    expect(await screen.findByText('Delete the build folder?')).toBeVisible()
-    await expect.element(page.getByText('rm -r dist')).toBeVisible()
-    expect(screen.getByRole('button', {name: 'Deny'})).toBeVisible()
-    await user.click(screen.getByRole('button', {name: 'Approve'}))
+      await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), prompt)
+      await user.click(screen.getByRole('button', {name: 'Send message'}))
+      expect(await screen.findByText(question)).toBeVisible()
+      await expect.element(page.getByText(detail)).toBeVisible()
+      expect(screen.getByRole('button', {name: other})).toBeVisible()
+      await user.click(screen.getByRole('button', {name: button}))
 
-    expect(await screen.findByText('Build folder deleted')).toBeVisible()
-    expect((await engine.requests()).at(-1)?.messages.at(-1)?.content).toContain('"value":"yes"')
-  })
-
-  test('a diff question shows the change and Reject answers reject', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode:
-          "return await external_conciv_ui({kind: 'diff', question: 'Apply this change?', file: 'src/title.ts', before: 'export const title = 1', after: 'export const title = 2'})",
-      }),
-      TestLLM.text('Change dropped'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Bump the title')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    expect(await screen.findByText('Apply this change?')).toBeVisible()
-    await expect.element(page.getByText('src/title.ts')).toBeVisible()
-    expect(screen.getByRole('button', {name: 'Apply'})).toBeVisible()
-    await user.click(screen.getByRole('button', {name: 'Reject'}))
-
-    expect(await screen.findByText('Change dropped')).toBeVisible()
-    expect((await engine.requests()).at(-1)?.messages.at(-1)?.content).toContain('"value":"reject"')
-  })
+      expect(await screen.findByText(reply)).toBeVisible()
+      expect((await engine.requests()).at(-1)?.messages.at(-1)?.content).toContain(value)
+    },
+  )
 
   test('a form question sends the typed text and the first select option by default, and shows the answers', async () => {
     const user = userEvent.setup()
