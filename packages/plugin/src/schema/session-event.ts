@@ -143,6 +143,20 @@ export const InboxEnqueued = Event.durable({
 })
 export type InboxEnqueued = typeof InboxEnqueued.Type
 
+export const InboxCancelled = Event.durable({
+  type: 'session.inbox.cancelled',
+  ...options,
+  schema: InboxRef,
+})
+export type InboxCancelled = typeof InboxCancelled.Type
+
+export const InboxDeliveryChanged = Event.durable({
+  type: 'session.inbox.delivery.changed',
+  ...options,
+  schema: {...InboxRef, delivery: SessionInbox.Delivery},
+})
+export type InboxDeliveryChanged = typeof InboxDeliveryChanged.Type
+
 export const Definitions = Event.inventory(
   Created,
   Renamed,
@@ -158,6 +172,8 @@ export const Definitions = Event.inventory(
   Synthetic,
   InboxDelivered,
   InboxEnqueued,
+  InboxCancelled,
+  InboxDeliveryChanged,
 )
 
 export const DurableDefinitions = Event.inventory(

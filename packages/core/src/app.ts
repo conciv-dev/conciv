@@ -69,7 +69,7 @@ import {
   Schema,
   Scope,
 } from 'effect'
-import {Bus, Permission, PluginHooks, SessionEvent, SessionInbox, SessionSchema} from '@conciv/plugin-host'
+import {Bus, Database, Permission, PluginHooks, SessionEvent, SessionInbox, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
 import {readModel, openDb, sessions, type ConcivDb} from '@conciv/db'
@@ -671,7 +671,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   const inboxWaiting = (sessionId: SessionId): Promise<boolean> =>
     pluginHost
-      .runPromise(SessionInbox.Service.use((inbox) => inbox.has(sessionId, 'input')))
+      .runPromise(Database.Service.use((database) => SessionInbox.has(database.db, sessionId, 'input')))
       .catch((error: unknown) => {
         log(Effect.logError('[core] the session inbox could not be read', {sessionId, error}))
         return false
@@ -838,7 +838,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       tracer,
       inbox: {
         promote: (sessionId) =>
-          pluginHost.runPromise(SessionInbox.Service.use((inbox) => inbox.promote(sessionId, 'input'))),
+          pluginHost.runPromise(
+            Effect.gen(function* () {
+              const database = yield* Database.Service
+              const bus = yield* Bus.Service
+              return yield* SessionInbox.promote(database.db, bus, sessionId, 'input')
+            }),
+          ),
       },
     }),
   ).catch(startFailed([]))
