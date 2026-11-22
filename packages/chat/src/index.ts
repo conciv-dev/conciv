@@ -41,7 +41,7 @@ type ChatPlaneDeps = TurnDeps & {
   driver: CodeDriver | null
   pendingPermissions: (sessionId: SessionId) => Promise<ChatPendingApproval[]>
   tracer: Tracer | undefined
-  inbox: {promote: (sessionId: SessionId) => Promise<readonly ModelMessage[]>}
+  inbox: {promote: (sessionId: SessionId) => Promise<number | undefined>}
 }
 
 export type CodeTool = {
@@ -177,12 +177,15 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     )
   }
 
+  const deliveredMessages = async (sessionId: SessionId, promoted: number | undefined): Promise<ModelMessage[]> =>
+    promoted === undefined || promoted === 0 ? [] : (await stores.messages.loadThread(sessionId)).slice(-promoted)
+
   async function* send(request: ChatSend, signal?: AbortSignal): AsyncGenerator<ChatEvent> {
     if (!isSessionId(request.threadId) || (await stores.runs.known(request.runId))) {
       yield* server.send(request, signal)
       return
     }
-    const delivered = await deps.inbox.promote(request.threadId)
+    const delivered = await deliveredMessages(request.threadId, await deps.inbox.promote(request.threadId))
     yield* server.send(
       {
         ...request,
@@ -195,7 +198,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
 
   const wake = async (sessionId: SessionId): Promise<void> => {
     if (server.driving(sessionId) || (await stores.runs.findActiveRun(sessionId)) !== null) return
-    const delivered = await deps.inbox.promote(sessionId)
+    const delivered = await deliveredMessages(sessionId, await deps.inbox.promote(sessionId))
     if (delivered.length === 0) return
     const runId = randomUUID()
     server

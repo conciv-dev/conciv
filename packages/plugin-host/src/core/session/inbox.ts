@@ -1,6 +1,6 @@
 export * as SessionInbox from './inbox.js'
 
-import {and, asc, eq, inArray, or} from 'drizzle-orm'
+import {and, asc, eq, or} from 'drizzle-orm'
 import {Context, DateTime, Effect, Layer, Option, Schema} from 'effect'
 import {chatMessages} from '@conciv/db'
 import {
@@ -532,7 +532,7 @@ const publish = Effect.fn('SessionInbox.publish')(function* (
       ),
     {discard: true},
   )
-  return yield* deliveredMessages(db, sessionID, rows)
+  return rows.length
 })
 
 export const promote = Effect.fn('SessionInbox.promote')(function* (
@@ -545,14 +545,27 @@ export const promote = Effect.fn('SessionInbox.promote')(function* (
     sessionID,
     Effect.gen(function* () {
       const steers = yield* pendingSteers(db, sessionID)
-      if (steers.length > 0 || scope === 'steer') return yield* publish(db, bus, sessionID, steers)
+      if (steers.length > 0 || scope === 'steer') {
+        const first = steers[0]
+        if (first !== undefined && isControl(first)) return undefined
+        return yield* publish(db, bus, sessionID, beforeControl(steers))
+      }
+
       const queued = yield* firstQueued(db, sessionID)
-      if (queued === undefined) return []
+      if (!queued) return 0
+      if (isControl(queued)) return undefined
       const promoted = yield* publish(db, bus, sessionID, [queued])
-      return [...promoted, ...(yield* publish(db, bus, sessionID, yield* pendingSteers(db, sessionID)))]
+      return promoted + (yield* publish(db, bus, sessionID, beforeControl(yield* pendingSteers(db, sessionID))))
     }),
   )
 })
+
+const isControl = (row: InboxRow) => row.type === 'compaction' || row.type === 'move'
+
+const beforeControl = (rows: Array<InboxRow>) => {
+  const control = rows.findIndex(isControl)
+  return control === -1 ? rows : rows.slice(0, control)
+}
 
 const firstQueued = (db: DatabaseService, sessionID: SessionId) =>
   db
@@ -571,26 +584,11 @@ const pendingSteers = (db: DatabaseService, sessionID: SessionId) =>
     .where(and(eq(SessionInboxTable.session_id, sessionID), eq(SessionInboxTable.delivery, 'steer')))
     .orderBy(asc(SessionInboxTable.enqueued_seq))
     .all()
-    .pipe(Effect.orDie)
-
-const deliveredMessages = (db: DatabaseService, sessionID: SessionId, rows: readonly InboxRow[]) =>
-  rows.length === 0
-    ? Effect.succeed<StoredMessage[]>([])
-    : db
-        .select({message: chatMessages.messageJson})
-        .from(chatMessages)
-        .where(
-          and(
-            eq(chatMessages.threadId, sessionID),
-            inArray(
-              chatMessages.messageId,
-              rows.map((row) => row.id),
-            ),
-          ),
-        )
-        .orderBy(asc(chatMessages.position))
-        .all()
-        .pipe(
-          Effect.orDie,
-          Effect.map((found) => found.map((row) => row.message)),
-        )
+    .pipe(
+      Effect.orDie,
+      Effect.map((rows) => {
+        const control = rows.findIndex(isControl)
+        if (control > 0 && rows[control]?.type === 'compaction') rows.unshift(...rows.splice(control, 1))
+        return rows
+      }),
+    )
