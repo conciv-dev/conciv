@@ -1,6 +1,6 @@
-import {existsSync} from 'node:fs'
 import {join} from 'node:path'
 import {detectPackageManager, type PackageManagerName} from 'nypm'
+import {pathExists} from './interrupt.js'
 import {hasDependency, readManifest} from './steps/manifest.js'
 
 export type Framework = 'nextjs' | 'astro' | 'vite' | 'webpack' | 'rspack' | 'rollup' | 'esbuild' | 'unknown'
@@ -34,11 +34,14 @@ const frameworkRules: FrameworkRule[] = [
   {framework: 'esbuild', packages: ['esbuild'], configFiles: []},
 ]
 
-export function detectFramework(cwd: string): {framework: Framework; configFile: string | null} {
-  const declared = existsSync(join(cwd, 'package.json')) ? readManifest(cwd) : {}
+export async function detectFramework(cwd: string): Promise<{framework: Framework; configFile: string | null}> {
+  const declared = (await pathExists(join(cwd, 'package.json'))) ? await readManifest(cwd) : {}
   const rule = frameworkRules.find((candidate) => candidate.packages.some((name) => hasDependency(declared, name)))
   if (!rule) return {framework: 'unknown', configFile: null}
-  const configFile = rule.configFiles.find((name) => existsSync(join(cwd, name))) ?? null
+  const found = await Promise.all(
+    rule.configFiles.map(async (name) => ((await pathExists(join(cwd, name))) ? name : null)),
+  )
+  const configFile = found.find((name) => name !== null) ?? null
   return {framework: rule.framework, configFile}
 }
 
@@ -48,5 +51,5 @@ export async function detectPackageManagerName(cwd: string): Promise<PackageMana
 }
 
 export async function detectProject(cwd: string): Promise<Detected> {
-  return {...detectFramework(cwd), packageManager: await detectPackageManagerName(cwd)}
+  return {...(await detectFramework(cwd)), packageManager: await detectPackageManagerName(cwd)}
 }
