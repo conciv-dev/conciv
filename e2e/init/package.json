@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "test:e2e": "vitest run"
   },
   "devDependencies": {
     "@conciv/cli": "workspace:*",
