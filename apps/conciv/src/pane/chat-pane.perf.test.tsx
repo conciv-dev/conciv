@@ -97,7 +97,7 @@ describe('the calm chat plane', () => {
       {length: 40},
       (_, index) => `  const step${index} = await resolve(input.steps[${index}], {retries: ${index % 4}})`,
     )
-    const engine = await createEngine({}, {tokensPerSecond: 450})
+    const engine = await createEngine({}, {tokensPerSecond: 100})
     await engine.reply(
       TestLLM.text(
         [
@@ -127,6 +127,8 @@ describe('the calm chat plane', () => {
     const watch = watchCalm(task.name)
     await watch.checkpoint()
     await held.release()
+    await expect.element(page.getByRole('button', {name: /^\d+ more lines?$/})).toBeVisible()
+    await expect.element(page.getByRole('button', {name: /^[2-9]\d more lines$/})).toBeVisible()
     await expect.element(page.getByText('That is the whole helper.', {exact: true})).toBeVisible()
     await watch.checkpoint()
 
