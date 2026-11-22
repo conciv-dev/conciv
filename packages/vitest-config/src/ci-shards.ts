@@ -28,7 +28,7 @@ import {
   renderSummary,
 } from './summary.ts'
 
-const VALUE_FLAGS = ['--timings', '--task', '--output', '--coverage', '--coverage-output']
+const VALUE_FLAGS = ['--timings', '--task', '--output', '--coverage', '--coverage-output', '--untested']
 
 type TaskConfig = {
   turboTasks: string[]
@@ -157,12 +157,18 @@ function readReports(dir: string): PackageSummary[] {
     })
 }
 
+function untestedRoots(args: string[]): string[] {
+  const untestedDir = argValue(args, '--untested')
+  return untestedDir !== null && existsSync(untestedDir) ? [untestedDir] : []
+}
+
 function withCoverage(summaries: PackageSummary[], args: string[]): PackageSummary[] {
   const coverageDir = argValue(args, '--coverage')
   if (coverageDir === null || !existsSync(coverageDir)) return summaries
   const merged = mergeLcov(
     findFiles([coverageDir], 'lcov.info').map((path) => readFileSync(path, 'utf8')),
     isWorkspaceSource,
+    findFiles(untestedRoots(args), 'lcov.info').map((path) => readFileSync(path, 'utf8')),
   )
   const outputDir = argValue(args, '--coverage-output')
   if (outputDir !== null) {

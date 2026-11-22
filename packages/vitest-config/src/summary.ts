@@ -360,8 +360,16 @@ function lcovRecord(file: string, hits: Map<number, number>): FileCoverage & {te
   return {file, covered, total: lines.length, text}
 }
 
-export function mergeLcov(reports: string[], keep: (file: string) => boolean = () => true): MergedLcov {
-  const records = [...readHits(reports, keep).entries()]
+export function mergeLcov(
+  reports: string[],
+  keep: (file: string) => boolean = () => true,
+  untested: string[] = [],
+): MergedLcov {
+  const hitsByFile = readHits(reports, keep)
+  for (const [file, hits] of readHits(untested, (source) => keep(source) && !hitsByFile.has(source))) {
+    hitsByFile.set(file, hits)
+  }
+  const records = [...hitsByFile.entries()]
     .toSorted(([a], [b]) => a.localeCompare(b))
     .map(([file, hits]) => lcovRecord(file, hits))
   return {
