@@ -55,7 +55,7 @@ const layoutWatch: {documents: WeakSet<Document>; stop: AbortController} = {
 
 const aimed = new ReactiveMap<string, CursorLook>()
 
-function reducedMotion(): boolean {
+export function reducedMotion(): boolean {
   return matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 

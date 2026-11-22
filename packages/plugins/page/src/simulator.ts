@@ -19,6 +19,7 @@ import {
   dropCursor,
   pageAt,
   pressCursor,
+  reducedMotion,
   windowAt,
   type Point,
 } from './cursor.js'
@@ -220,6 +221,7 @@ function unmountRun(run: Run): void {
 }
 
 function createGlow(layer: HTMLElement): Motion | null {
+  if (reducedMotion()) return null
   try {
     const glow = new Motion({
       mode: isPageDark() ? 'dark' : 'light',
@@ -255,8 +257,10 @@ function show(agent: string): void {
   }
   sim.shown = true
   sim.run ??= mountRun(sim.root)
-  sim.run.glow?.start()
-  sim.run.glow?.fadeIn().catch(warnUnlessCanceled)
+  if (!reducedMotion()) {
+    sim.run.glow?.start()
+    sim.run.glow?.fadeIn().catch(warnUnlessCanceled)
+  }
   sim.run.layer.classList.add(VISIBLE_CLASS)
   aimAtCenter({run: sim.run, agent})
 }
