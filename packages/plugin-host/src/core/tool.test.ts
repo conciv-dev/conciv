@@ -13,7 +13,7 @@ describe('plugin tools', () => {
         expect.objectContaining({
           role: 'tool',
           toolCallId: 'c1',
-          content: expect.stringContaining('is currently available. Please use a tool from the available tool list.'),
+          error: 'Unknown tool: nope',
         }),
       ]),
     )
