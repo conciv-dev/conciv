@@ -322,8 +322,8 @@ describe('the agent fills in a form on the page', () => {
   })
 })
 
-describe('the agent moves around the page', () => {
-  test('the agent plays a list of actions in one call and the page answers each', async () => {
+describe('the agent plays a list of actions on the page', () => {
+  test('a played list answers each action in the reply, and a queued list answers at once and the page plays it after', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
@@ -332,44 +332,11 @@ describe('the agent moves around the page', () => {
         typescriptCode:
           "return await external_page_queue({actions: [{tool: 'page_fill', selector: '#name', value: 'Ada'}, {tool: 'page_click', selector: '#save'}]})",
       }),
-      TestLLM.text('Your name is saved'),
-    )
-    const finished = await engine.event('session.execution.succeeded')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-    render(() => (
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          event.currentTarget.append(`Saved ${String(new FormData(event.currentTarget).get('name'))}`)
-        }}
-      >
-        <input id="name" name="name" aria-label="Your name" />
-        <button id="save" type="submit">
-          Save
-        </button>
-      </form>
-    ))
-
-    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
-    await finished.arrived
-
-    expect(await screen.findByText('Your name is saved')).toBeVisible()
-    expect(screen.getByText('Saved Ada')).toBeVisible()
-    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
-    expect(within(reply).getByText('Played page actions')).toBeVisible()
-  })
-
-  test('the agent queues the actions, answers at once, and the page plays them after', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    const control = await engine.event('rpc.experimental.page.control')
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
+      TestLLM.toolCall('c2', 'execute_typescript', {
         typescriptCode:
-          "return await external_page_queue_async({actions: [{tool: 'page_fill', selector: '#name', value: 'Ada'}, {tool: 'page_click', selector: '#save'}]})",
+          "return await external_page_queue_async({actions: [{tool: 'page_fill', selector: '#name', value: 'Grace'}, {tool: 'page_click', selector: '#save'}]})",
       }),
-      TestLLM.text('Saving your name'),
+      TestLLM.text('Saving your names'),
     )
     const finished = await engine.event('session.execution.succeeded')
     const played = await engine.event('rpc.experimental.page.queue.finished')
@@ -392,9 +359,12 @@ describe('the agent moves around the page', () => {
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
     await finished.arrived
 
-    expect(await screen.findByText('Saving your name')).toBeVisible()
-    await played.arrived
+    expect(await screen.findByText('Saving your names')).toBeVisible()
     expect(screen.getByText('Saved Ada')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
+    expect(within(reply).getByText('Played page actions')).toBeVisible()
+    await played.arrived
+    expect(screen.getByText('Saved Grace')).toBeVisible()
     await expect
       .element(
         page
@@ -542,7 +512,7 @@ describe('the agent reads a page with shadow roots of its own', () => {
 })
 
 describe('the agent reads the address of a tab with secrets in it', () => {
-  test('the tab list and the route read both hide the token in the query and in the hash and keep the rest', async () => {
+  test('the tab list names the focused tab and the route reads its address, both hiding the token in the query and in the hash', async () => {
     const engine = await createEngine()
     const address = new URL(location.href)
     history.replaceState(null, '', `${address.pathname}?plant=fern&token=abc123#jwt=xyz789`)
@@ -552,12 +522,20 @@ describe('the agent reads the address of a tab with secrets in it', () => {
     await control.arrived
 
     expect(await engine.session.tool('page_tabs_list').call({})).toMatchObject({
-      tabs: [{url: `${address.origin}${address.pathname}?plant=fern&token=%5Bredacted%5D#jwt=%5Bredacted%5D`}],
+      tabs: [
+        {
+          url: `${address.origin}${address.pathname}?plant=fern&token=%5Bredacted%5D#jwt=%5Bredacted%5D`,
+          focused: true,
+          visible: true,
+        },
+      ],
     })
-    expect(await engine.session.tool('page_route').call({})).toMatchObject({
+    expect(await engine.session.tool('page_route').call({})).toEqual({
       pathname: address.pathname,
       search: '?plant=fern&token=%5Bredacted%5D',
       href: `${address.origin}${address.pathname}?plant=fern&token=%5Bredacted%5D#jwt=%5Bredacted%5D`,
+      title: document.title,
+      state: 'visible',
     })
   })
 })
@@ -638,29 +616,6 @@ describe('the agent picks an element on a page with the widget open on it', () =
 
     expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
     expect(await engine.session.tool('page_text').call({selector: 'button'})).toEqual({text: 'Buy the fern'})
-  })
-})
-
-describe('the agent finds the tab and the route its page is on', () => {
-  test('the tab list names the focused tab and the route reads its address', async () => {
-    const engine = await createEngine()
-    const address = new URL(location.href)
-    history.replaceState(null, '', address.pathname)
-    onTestFinished(() => history.replaceState(null, '', address.href))
-    const control = await engine.event('rpc.experimental.page.control')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-
-    expect(await engine.session.tool('page_tabs_list').call({})).toMatchObject({
-      tabs: [{url: `${address.origin}${address.pathname}`, focused: true, visible: true}],
-    })
-    expect(await engine.session.tool('page_route').call({})).toEqual({
-      pathname: address.pathname,
-      search: '',
-      href: `${address.origin}${address.pathname}`,
-      title: document.title,
-      state: 'visible',
-    })
   })
 })
 
