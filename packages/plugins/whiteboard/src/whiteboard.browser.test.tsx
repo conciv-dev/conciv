@@ -531,14 +531,14 @@ describe('the user draws on the canvas', () => {
     })
 
     await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
-    const rectangle = page.getByRole('radio', {name: 'Rectangle'})
-    await realInput.click(rectangle, {force: true})
-    await expect.element(rectangle).toBeChecked()
+    const canvas = page.getByRole('region', {name: 'Whiteboard canvas'})
+    await realInput.click(canvas, {position: {x: 300, y: 300}})
+    await realInput.keyboard('r')
+    await expect.element(page.getByRole('radio', {name: 'Rectangle'})).toBeChecked()
     const saved = await engine.event('rpc.whiteboard.changed')
-    await realInput.dragAndDrop(document.body, document.body, {
+    await realInput.dragAndDrop(canvas, canvas, {
       sourcePosition: {x: 300, y: 300},
       targetPosition: {x: 500, y: 440},
-      force: true,
     })
     expect((await saved.arrived).data).toMatchObject({table: 'canvasElements', type: 'upsert'})
 
@@ -577,9 +577,9 @@ describe('the board stays clear while the user draws', () => {
     })
 
     await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
-    const rectangle = page.getByRole('radio', {name: 'Rectangle'})
-    await realInput.click(rectangle, {force: true})
-    await expect.element(rectangle).toBeChecked()
+    await realInput.click(page.getByRole('region', {name: 'Whiteboard canvas'}), {position: {x: 300, y: 300}})
+    await realInput.keyboard('r')
+    await expect.element(page.getByRole('radio', {name: 'Rectangle'})).toBeChecked()
 
     await expect.element(page.getByRole('region', {name: 'Selected shape actions', exact: true})).not.toBeInViewport()
     await expect.element(page.getByRole('checkbox', {name: 'Library', exact: true})).not.toBeInViewport()
