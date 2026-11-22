@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {cli, createEngine} from '@conciv/plugin-testkit'
 
 describe('tools', () => {
-  it("the plugin's group is listed beside the page group, a mistyped verb gets a fix, and a page tool with no page answers NO_PAGE_CLIENT", async () => {
+  it("the plugin's group is listed beside the page group, its verb runs with flags spelled from its schema, a mistyped verb gets a fix, and a page tool with no page answers NO_PAGE_CLIENT", async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
 
     const help = await cli(['tools', '--help'], {engine})
@@ -13,6 +13,18 @@ describe('tools', () => {
     const groupHelp = await cli(['tools', 'shelf', '--help'], {engine})
     expect(groupHelp.stdout).toMatch(/^ {2}label +Print a label for a plant on the shelf/m)
     expect(groupHelp.stdout).toMatch(/^ {2}restock +Restock a plant on the shelf/m)
+
+    const plain = await cli(['tools', 'shelf', 'label', 'fern'], {engine})
+    expect(plain.exitCode).toBe(0)
+    expect(JSON.parse(plain.stdout)).toEqual({ok: true, data: {plant: 'fern'}})
+
+    const flagged = await cli(['tools', 'shelf', 'label', 'fern', '--pots', '2', '--sunny', '--pot-color', 'red'], {
+      engine,
+    })
+    expect(JSON.parse(flagged.stdout)).toEqual({ok: true, data: {plant: 'fern', pots: 2, sunny: true, potColor: 'red'}})
+
+    const camel = await cli(['tools', 'shelf', 'label', 'fern', '--potColor', 'blue'], {engine})
+    expect(JSON.parse(camel.stdout)).toEqual({ok: true, data: {plant: 'fern', potColor: 'blue'}})
 
     const mistyped = await cli(['tools', 'shelf', 'lable', 'fern'], {engine})
     expect(mistyped.exitCode).toBe(1)
@@ -31,21 +43,5 @@ describe('tools', () => {
       ok: false,
       error: {kind: 'user', message: 'page_route: no widget connected to session', code: 'NO_PAGE_CLIENT'},
     })
-  })
-
-  it('the verb runs with its positional argument and flags spelled from its schema', async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
-
-    const plain = await cli(['tools', 'shelf', 'label', 'fern'], {engine})
-    expect(plain.exitCode).toBe(0)
-    expect(JSON.parse(plain.stdout)).toEqual({ok: true, data: {plant: 'fern'}})
-
-    const flagged = await cli(['tools', 'shelf', 'label', 'fern', '--pots', '2', '--sunny', '--pot-color', 'red'], {
-      engine,
-    })
-    expect(JSON.parse(flagged.stdout)).toEqual({ok: true, data: {plant: 'fern', pots: 2, sunny: true, potColor: 'red'}})
-
-    const camel = await cli(['tools', 'shelf', 'label', 'fern', '--potColor', 'blue'], {engine})
-    expect(JSON.parse(camel.stdout)).toEqual({ok: true, data: {plant: 'fern', potColor: 'blue'}})
   })
 })

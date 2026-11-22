@@ -84,8 +84,10 @@ describe('the session', () => {
     await expect(rpc.drafts.get({sessionId})).resolves.toBeNull()
   })
 
-  test('a finished turn records its token usage on the session', async ({connect}) => {
-    const engine = await createEngine()
+  test("a finished turn records its token usage and the harness's context size and window on the session", async ({
+    connect,
+  }) => {
+    const engine = await createEngine({}, {harnesses: [{id: 'engine', contextTokens: 1200, contextWindow: 200_000}]})
     const rpc = connect(engine)
     await engine.reply(TestLLM.text('Hello there, how can I help?'))
 
@@ -94,6 +96,7 @@ describe('the session', () => {
     const session = await rpc.sessions.get({sessionId: engine.session.id})
     expect(session.usage?.inputTokens).toBeGreaterThan(0)
     expect(session.usage?.outputTokens).toBeGreaterThan(0)
+    expect(session.usage).toMatchObject({contextTokens: 1200, contextWindow: 200_000})
   })
 })
 
@@ -212,7 +215,7 @@ describe('a long tool loop', () => {
 })
 
 describe('several tool calls in one step', () => {
-  test('the agent calls two tools in one step and the saved thread shows both calls with their results', async ({
+  test('the agent calls two tools in one step, the next request carries both results in call order, and the saved thread shows both calls with their results', async ({
     connect,
   }) => {
     const engine = await createEngine()
@@ -237,5 +240,10 @@ describe('several tool calls in one step', () => {
       ]),
     )
     expect(messages.at(-1)?.parts.at(-1)).toMatchObject({type: 'text', content: 'Both steps are done'})
+    const [, second] = await engine.requests()
+    expect(second?.messages.slice(-2)).toMatchObject([
+      {role: 'tool', toolCallId: 'c1', content: expect.stringContaining('first')},
+      {role: 'tool', toolCallId: 'c2', content: expect.stringContaining('second')},
+    ])
   })
 })

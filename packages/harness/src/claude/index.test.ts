@@ -4,29 +4,15 @@ import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {claude, claudeTtyCommand} from './index.js'
 
 describe('claude', () => {
-  it('the resume and terminal commands carry the session, the model and the conciv tools', () => {
-    const nativeId = HarnessSessionId.parse('5b1c2d3e-0000-4000-8000-000000000001')
-    const harness = claude(ConfigProvider.fromEnvRecord({}))
-
-    expect(harness.resume.command({cwd: '/workspace', nativeId})).toEqual({
-      bin: 'claude',
-      args: ['--resume', nativeId],
-    })
-    expect(
-      claudeTtyCommand({
-        cwd: '/workspace',
-        stateDir: '/workspace/.conciv',
-        concivSessionId: SessionId.parse('conciv_one'),
-        harnessSessionId: nativeId,
-        resume: true,
-        model: 'opus',
-        mcpUrl: 'http://127.0.0.1:4100/api/mcp',
-      }),
-    ).toEqual({
-      bin: 'claude',
+  it.each([
+    {
+      terminal: 'a resumed terminal session carries the session, the model and the conciv tools',
+      resume: true,
+      model: 'opus',
+      mcpUrl: 'http://127.0.0.1:4100/api/mcp',
       args: [
         '--resume',
-        nativeId,
+        '5b1c2d3e-0000-4000-8000-000000000001',
         '--model',
         'opus',
         '--mcp-config',
@@ -41,24 +27,36 @@ describe('claude', () => {
         }),
         '--strict-mcp-config',
       ],
-      env: {TERM: 'xterm-256color', COLORTERM: 'truecolor'},
-      unsetEnvPrefixes: ['CLAUDECODE', 'CLAUDE_CODE_', 'CLAUDE_EFFORT', 'AI_AGENT'],
-    })
-  })
-
-  it('a new terminal session starts with its id and without a model or tools', () => {
-    const nativeId = HarnessSessionId.parse('5b1c2d3e-0000-4000-8000-000000000002')
-
-    const command = claudeTtyCommand({
-      cwd: '/workspace',
-      stateDir: '/workspace/.conciv',
-      concivSessionId: SessionId.parse('conciv_two'),
-      harnessSessionId: nativeId,
+    },
+    {
+      terminal: 'a new terminal session starts with its id and without a model or tools',
       resume: false,
       model: null,
       mcpUrl: null,
-    })
+      args: ['--session-id', '5b1c2d3e-0000-4000-8000-000000000001'],
+    },
+  ])('the resume command carries the session, and $terminal', ({resume, model, mcpUrl, args}) => {
+    const nativeId = HarnessSessionId.parse('5b1c2d3e-0000-4000-8000-000000000001')
 
-    expect(command.args).toEqual(['--session-id', nativeId])
+    expect(claude(ConfigProvider.fromEnvRecord({})).resume.command({cwd: '/workspace', nativeId})).toEqual({
+      bin: 'claude',
+      args: ['--resume', nativeId],
+    })
+    expect(
+      claudeTtyCommand({
+        cwd: '/workspace',
+        stateDir: '/workspace/.conciv',
+        concivSessionId: SessionId.parse('conciv_one'),
+        harnessSessionId: nativeId,
+        resume,
+        model,
+        mcpUrl,
+      }),
+    ).toEqual({
+      bin: 'claude',
+      args,
+      env: {TERM: 'xterm-256color', COLORTERM: 'truecolor'},
+      unsetEnvPrefixes: ['CLAUDECODE', 'CLAUDE_CODE_', 'CLAUDE_EFFORT', 'AI_AGENT'],
+    })
   })
 })

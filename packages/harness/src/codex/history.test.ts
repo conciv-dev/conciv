@@ -8,15 +8,25 @@ import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {codex} from './index.js'
 
 describe('history', () => {
-  it('a session in the CLI store lists for its project with its title and preview, archived ones left out', async () => {
+  it('a session in the CLI store lists for its project with its title and preview, archived ones left out, and opening it reads back the whole conversation, tool calls and results included, with its context size', async () => {
     const home = tempDir('codex-home-')
     const project = realpathSync(tempDir('codex-project-'))
-    const rollout = join(home, 'sessions', '2026', '11', '21', 'rollout-thread-1.jsonl')
+    const sessionId = HarnessSessionId.parse('thread-1')
+    const rollout = join(home, 'sessions', '2026', '11', '21', 'rollout-2026-11-21T10-00-00-thread-1.jsonl')
     mkdirSync(join(home, 'sessions', '2026', '11', '21'), {recursive: true})
-    writeFileSync(
-      rollout,
-      `${JSON.stringify({type: 'session_meta', payload: {cwd: project, session_id: 'thread-1'}})}\n`,
-    )
+    const lines = [
+      {type: 'session_meta', payload: {cwd: project, session_id: 'thread-1'}},
+      {type: 'event_msg', payload: {type: 'user_message', message: 'Fix the login button'}},
+      {
+        type: 'response_item',
+        payload: {type: 'function_call', name: 'shell', arguments: '{"command":"ls"}', call_id: 'call_1'},
+      },
+      {type: 'response_item', payload: {type: 'function_call_output', call_id: 'call_1', output: 'src'}},
+      {type: 'event_msg', payload: {type: 'agent_message', message: 'The button now submits'}},
+      {type: 'event_msg', payload: {type: 'token_count', info: {total_token_usage: {total_tokens: 4321}}}},
+    ].map((line) => JSON.stringify(line))
+    writeFileSync(rollout, `${lines.join('\n')}\n`)
+    const offsets = lines.map((_, index) => lines.slice(0, index).reduce((sum, line) => sum + line.length + 1, 0))
     const db = new DatabaseSync(join(home, 'state_5.sqlite'))
     db.exec(
       'create table threads (id text, rollout_path text, cwd text, title text, first_user_message text, preview text, model text, tokens_used integer, created_at integer, updated_at integer, created_at_ms integer, updated_at_ms integer, archived integer)',
@@ -39,12 +49,9 @@ describe('history', () => {
     )
     insert.run('thread-2', rollout, project, 'Old work', null, null, 'gpt-5.5', 0, 0, 0, 500, 900, 1)
     db.close()
+    const history = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: home})).history
 
-    const page = await codex(ConfigProvider.fromEnvRecord({CODEX_HOME: home})).history.list(
-      {cwd: project},
-      {after: null, limit: 10},
-    )
-
+    const page = await history.list({cwd: project}, {after: null, limit: 10})
     expect(page).toEqual({
       sessions: [
         expect.objectContaining({
@@ -59,30 +66,8 @@ describe('history', () => {
       ],
       next: null,
     })
-  })
-  it('opening the session reads back the whole conversation, tool calls and results included, with its context size', async () => {
-    const home = tempDir('codex-home-')
-    const project = realpathSync(tempDir('codex-project-'))
-    const sessionId = HarnessSessionId.parse('thread-1')
-    const rollout = join(home, 'sessions', '2026', '11', '21', 'rollout-2026-11-21T10-00-00-thread-1.jsonl')
-    mkdirSync(join(home, 'sessions', '2026', '11', '21'), {recursive: true})
-    const lines = [
-      {type: 'session_meta', payload: {cwd: project, session_id: 'thread-1'}},
-      {type: 'event_msg', payload: {type: 'user_message', message: 'Fix the login button'}},
-      {
-        type: 'response_item',
-        payload: {type: 'function_call', name: 'shell', arguments: '{"command":"ls"}', call_id: 'call_1'},
-      },
-      {type: 'response_item', payload: {type: 'function_call_output', call_id: 'call_1', output: 'src'}},
-      {type: 'event_msg', payload: {type: 'agent_message', message: 'The button now submits'}},
-      {type: 'event_msg', payload: {type: 'token_count', info: {total_token_usage: {total_tokens: 4321}}}},
-    ].map((line) => JSON.stringify(line))
-    writeFileSync(rollout, `${lines.join('\n')}\n`)
-    const offsets = lines.map((_, index) => lines.slice(0, index).reduce((sum, line) => sum + line.length + 1, 0))
-    const history = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: home})).history
 
     const messages = await history.messages(project, sessionId)
-
     expect(messages).toEqual([
       {id: `thread-1:o${offsets[1]}`, role: 'user', parts: [{type: 'text', content: 'Fix the login button'}]},
       {

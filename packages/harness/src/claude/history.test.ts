@@ -8,14 +8,15 @@ import {listClaudeSessionsInChild} from '../../test/claude-sdk-env.js'
 import {claude} from './index.js'
 
 describe('history', () => {
-  it('a transcript in the CLAUDE_CONFIG_DIR lists for its project with its title, and its tail reads back', async () => {
+  it('a transcript in the CLAUDE_CONFIG_DIR lists for its project with its title, its tail reads back, and opening it reads back the whole conversation, tool calls and results included, with its context size', async () => {
     const configDir = tempDir('claude-config-')
     const project = realpathSync(tempDir('claude-project-'))
     const sessionId = HarnessSessionId.parse('5b1c2d3e-0000-4000-8000-000000000001')
     const folder = join(configDir, 'projects', project.replace(/[^a-zA-Z0-9]/g, '-'))
+    const transcript = join(folder, `${sessionId}.jsonl`)
     mkdirSync(folder, {recursive: true})
     writeFileSync(
-      join(folder, `${sessionId}.jsonl`),
+      transcript,
       [
         {
           type: 'user',
@@ -30,42 +31,7 @@ describe('history', () => {
           uuid: 'a1',
           sessionId,
           cwd: project,
-          timestamp: '2026-11-21T10:00:05.000Z',
-          message: {id: 'msg_1', role: 'assistant', content: [{type: 'text', text: 'The button now submits'}]},
-        },
-      ]
-        .map((record) => JSON.stringify(record))
-        .join('\n'),
-    )
-    const history = claude(ConfigProvider.fromEnvRecord({CLAUDE_CONFIG_DIR: configDir})).history
-
-    const page = await listClaudeSessionsInChild(configDir, project)
-    const tail = await history.tail(project, sessionId, {limit: 10, before: null})
-
-    expect(page).toEqual({
-      sessions: [expect.objectContaining({id: sessionId, derivedTitle: 'Fix the login button'})],
-      next: null,
-    })
-    expect(tail.messages).toEqual([
-      {id: 'u1', role: 'user', parts: [{type: 'text', content: 'Fix the login button'}]},
-      {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'The button now submits'}]},
-    ])
-  })
-  it('opening the session reads back the whole conversation, tool calls and results included, with its context size', async () => {
-    const configDir = tempDir('claude-config-')
-    const project = realpathSync(tempDir('claude-project-'))
-    const sessionId = HarnessSessionId.parse('5b1c2d3e-0000-4000-8000-000000000002')
-    const folder = join(configDir, 'projects', project.replace(/[^a-zA-Z0-9]/g, '-'))
-    const transcript = join(folder, `${sessionId}.jsonl`)
-    mkdirSync(folder, {recursive: true})
-    writeFileSync(
-      transcript,
-      [
-        {type: 'user', uuid: 'u1', sessionId, message: {role: 'user', content: 'Fix the login button'}},
-        {
-          type: 'assistant',
-          uuid: 'a1',
-          sessionId,
+          timestamp: '2026-11-21T10:00:02.000Z',
           message: {
             id: 'msg_1',
             role: 'assistant',
@@ -76,12 +42,16 @@ describe('history', () => {
           type: 'user',
           uuid: 'u2',
           sessionId,
+          cwd: project,
+          timestamp: '2026-11-21T10:00:03.000Z',
           message: {role: 'user', content: [{type: 'tool_result', tool_use_id: 'toolu_1', content: 'src'}]},
         },
         {
           type: 'assistant',
           uuid: 'a2',
           sessionId,
+          cwd: project,
+          timestamp: '2026-11-21T10:00:05.000Z',
           message: {
             id: 'msg_2',
             role: 'assistant',
@@ -94,10 +64,7 @@ describe('history', () => {
         .join('\n'),
     )
     const history = claude(ConfigProvider.fromEnvRecord({CLAUDE_CONFIG_DIR: configDir})).history
-
-    const messages = await history.messages(project, sessionId)
-
-    expect(messages).toEqual([
+    const conversation = [
       {id: 'u1', role: 'user', parts: [{type: 'text', content: 'Fix the login button'}]},
       {
         id: 'a1',
@@ -108,7 +75,14 @@ describe('history', () => {
         ],
       },
       {id: 'a2', role: 'assistant', parts: [{type: 'text', content: 'The button now submits'}]},
-    ])
+    ]
+
+    expect(await listClaudeSessionsInChild(configDir, project)).toEqual({
+      sessions: [expect.objectContaining({id: sessionId, derivedTitle: 'Fix the login button'})],
+      next: null,
+    })
+    expect((await history.tail(project, sessionId, {limit: 10, before: null})).messages).toEqual(conversation)
+    expect(await history.messages(project, sessionId)).toEqual(conversation)
     expect(history.contextTokens?.(readFileSync(transcript, 'utf8'))).toBe(2400)
   })
 })

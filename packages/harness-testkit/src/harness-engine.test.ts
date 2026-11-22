@@ -72,28 +72,6 @@ describe('a reply that thinks first', () => {
   })
 })
 
-describe('several tool calls in one reply', () => {
-  test('a reply with two tool calls runs both, and the next request carries both results in call order', async ({
-    engine,
-  }) => {
-    await engine.reply(
-      TestLLM.toolCalls(
-        {id: 'c1', name: 'execute_typescript', input: {typescriptCode: 'return 1'}},
-        {id: 'c2', name: 'execute_typescript', input: {typescriptCode: 'return 2'}},
-      ),
-      TestLLM.text('Both ran'),
-    )
-
-    await engine.session.send('Run both')
-
-    const [, second] = await engine.requests()
-    expect(second?.messages.slice(-2)).toMatchObject([
-      {role: 'tool', toolCallId: 'c1', content: expect.stringContaining('1')},
-      {role: 'tool', toolCallId: 'c2', content: expect.stringContaining('2')},
-    ])
-  })
-})
-
 describe('a git project', () => {
   const run = promisify(execFile)
 
@@ -128,26 +106,6 @@ describe('waiting for an engine event that matches', () => {
     await other.send('In the other session')
 
     expect(await wait.arrived).toEqual({type: 'session.execution.succeeded', data: {sessionID: other.id}})
-  })
-})
-
-describe('token use from a scripted harness', () => {
-  test("a harness given a context size and a context window reports both on the session after its run, as the pane's context meter reads them", async ({
-    launch,
-  }) => {
-    const {engine, client} = await launch(
-      {},
-      {harnesses: [{id: 'engine', contextTokens: 1200, contextWindow: 200_000}]},
-    )
-    await engine.reply(TestLLM.text('Done'))
-
-    await engine.session.send('Count me')
-
-    const session = await client.sessions.get({sessionId: engine.session.id})
-    expect(session.usage).toMatchObject({
-      contextTokens: 1200,
-      contextWindow: 200_000,
-    })
   })
 })
 
