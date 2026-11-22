@@ -48,7 +48,7 @@ describe('find and switch sessions', () => {
 })
 
 describe('a run in the list', () => {
-  test('the picker names the harness of each session and marks the one whose reply is still working', async () => {
+  test('the picker marks the running session and names each harness, the user starts a new session, previews the running one, and hears the reply finish as the row stops running', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({}, {harnesses: [{id: 'alpha'}, {id: 'beta'}]})
     await engine.reply(TestLLM.text('Done'))
@@ -62,10 +62,25 @@ describe('a run in the list', () => {
     await user.click(await screen.findByRole('button', {name: 'New session, session options'}))
     await user.click(await screen.findByRole('button', {name: 'Session: New session'}))
     expect(await screen.findByRole('option', {name: /, Edited .* · alpha, running$/})).toBeVisible()
+    await user.click(await screen.findByRole('button', {name: 'New session'}))
+    expect(await screen.findByText('Started a new session')).toBeVisible()
+    expect(await screen.findByRole('button', {name: 'New session, session options'})).toBeVisible()
 
+    await user.click(screen.getByRole('button', {name: 'New session, session options'}))
+    await user.click(await screen.findByRole('button', {name: 'Session: New session'}))
+    expect(await screen.findByRole('option', {name: /^Keep going, Edited .* · alpha, running$/})).toBeVisible()
+    const search = screen.getByRole('combobox', {name: 'Search sessions'})
+    await user.click(search)
+    expect(search).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    const preview = await screen.findByRole('dialog', {name: 'Preview of Keep going'})
+    expect(await within(await within(preview).findByRole('log')).findByText('Keep going')).toBeVisible()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', {name: 'Preview of Keep going'})).not.toBeInTheDocument()
     await gate.release()
     expect(await screen.findByText('conciv replied.')).toBeVisible()
-    expect(await screen.findByRole('option', {name: /, Edited .* · alpha$/})).toBeVisible()
+    expect(await screen.findByRole('option', {name: /^Keep going, Edited .* · alpha$/})).toBeVisible()
   })
 })
 
@@ -165,39 +180,6 @@ describe('preview a session that has no messages', () => {
     expect(within(failedAgain).getByText('Couldn’t load this session.')).toBeVisible()
     expect(within(preview).getByRole('button', {name: 'Retry'})).toBeVisible()
     expect(screen.getByRole('dialog', {name: 'Preview of Alpha'})).toBeVisible()
-  })
-})
-
-describe('preview a session that is still running', () => {
-  test('the user starts a new session while the first one still replies and previews the running one', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Done'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Keep going')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    await gate.started
-
-    await user.click(await screen.findByRole('button', {name: 'New session, session options'}))
-    await user.click(await screen.findByRole('button', {name: 'Session: New session'}))
-    await user.click(await screen.findByRole('button', {name: 'New session'}))
-    expect(await screen.findByText('Started a new session')).toBeVisible()
-
-    await user.click(await screen.findByRole('button', {name: 'New session, session options'}))
-    await user.click(await screen.findByRole('button', {name: 'Session: New session'}))
-    expect(await screen.findByRole('option', {name: /^Keep going, Edited/})).toBeVisible()
-    const search = screen.getByRole('combobox', {name: 'Search sessions'})
-    await user.click(search)
-    expect(search).toHaveFocus()
-    await user.keyboard('{ArrowDown}')
-    const preview = await screen.findByRole('dialog', {name: 'Preview of Keep going'})
-    expect(await within(await within(preview).findByRole('log')).findByText('Keep going')).toBeVisible()
-
-    await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', {name: 'Preview of Keep going'})).not.toBeInTheDocument()
-    await gate.release()
   })
 })
 

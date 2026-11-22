@@ -18,30 +18,6 @@ describe('open the chat', () => {
   })
 })
 
-describe('a reply finishes elsewhere', () => {
-  test('the user starts a new session while a reply works and still hears it finish', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Done in the background'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Work on this')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    await gate.started
-
-    await user.click(await screen.findByRole('button', {name: /, session options$/}))
-    const options = await screen.findByRole('dialog', {name: 'Session options'})
-    await user.click(await within(options).findByRole('button', {name: /^Session: /}))
-    await user.click(await screen.findByRole('button', {name: 'New session'}))
-    expect(await screen.findByText('Started a new session')).toBeVisible()
-    expect(await screen.findByRole('button', {name: 'New session, session options'})).toBeVisible()
-
-    await gate.release()
-    expect(await screen.findByText('conciv replied.')).toBeVisible()
-  })
-})
-
 describe('the launcher while a run works', () => {
   test('the launcher says it is busy until the reply finishes', async () => {
     const user = userEvent.setup()
