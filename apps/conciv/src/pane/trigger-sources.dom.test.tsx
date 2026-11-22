@@ -19,8 +19,7 @@ describe('the slash list', () => {
     await user.type(input, 'dep')
     await user.click(await within(commands).findByRole('option', {name: '/deploy'}))
     expect(input).toHaveTextContent('/deploy')
-    expect(input).toHaveFocus()
-    await user.keyboard('{Enter}')
+    await user.type(input, '{Enter}')
 
     const reply = await screen.findByRole('article', {name: 'Reply to: /deploy'})
     expect(await within(reply).findByText('Deploying now')).toBeVisible()
@@ -59,6 +58,7 @@ describe('the model command', () => {
   test('sending exactly /model opens the model menu and sends nothing', async () => {
     const user = userEvent.setup({delay: null})
     const engine = await createEngine()
+    await engine.reply(TestLLM.text('Hi there'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
@@ -66,9 +66,18 @@ describe('the model command', () => {
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
 
-    expect(await screen.findByRole('textbox', {name: 'Search models'})).toBeVisible()
+    const search = await screen.findByRole('textbox', {name: 'Search models'})
+    expect(search).toBeVisible()
+    await user.type(search, '{Escape}')
+    await user.type(input, 'Hello')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+    const reply = await screen.findByRole('article', {name: 'Reply to: Hello'})
+    expect(await within(reply).findByText('Hi there')).toBeVisible()
     expect(screen.queryByRole('article', {name: 'You: /model'})).not.toBeInTheDocument()
-    expect(await engine.requests()).toHaveLength(0)
+    const requests = await engine.requests()
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.messages.at(-1)).toMatchObject({role: 'user', content: 'Hello'})
   })
 })
 

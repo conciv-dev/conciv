@@ -5,12 +5,17 @@ import {page} from 'vitest/browser'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
-describe('the model menu', () => {
-  test('a pick, Escape and an outside click each close the menu and give the composer its focus back at once', async () => {
+describe('the composer menus', () => {
+  test('a pick from the slash list or the model menu, Escape and an outside click each close the menu and give the composer its focus back at once', async () => {
     const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+
+    await user.type(input, '/dep')
+    await user.click(await screen.findByRole('option', {name: '/deploy'}))
+    expect(input).toHaveTextContent('/deploy')
+    expect(input).toHaveFocus()
 
     await user.click(await screen.findByRole('button', {name: 'Model: Opus 5.5'}))
     await user.click(
