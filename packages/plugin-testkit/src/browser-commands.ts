@@ -14,7 +14,7 @@ export type EngineCommands = {
   concivGateStarted: (engineId: string, gateId: string) => Promise<void>
   concivGateRelease: (engineId: string, gateId: string) => Promise<void>
   concivRequests: (engineId: string) => Promise<TestLLM.ModelRequest[]>
-  concivEvent: (engineId: string, type: string) => Promise<string>
+  concivEvent: (engineId: string, type: string, match: Parameters<Engine['event']>[1]) => Promise<string>
   concivEventArrived: (engineId: string, waitId: string) => Awaited<ReturnType<Engine['event']>>['arrived']
   concivRpcCall: (engineId: string, rpcId: string, method: string, input: unknown) => Promise<unknown>
   concivRpcFailure: (

@@ -295,11 +295,11 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
         engine.gates[gateId] = await engine.started.engine.gate()
         return gateId
       },
-      concivEvent: async (_context, engineId, type) => {
+      concivEvent: async (_context, engineId, type, match) => {
         const engine = engineFor(engineId)
         counter.next += 1
         const waitId = String(counter.next)
-        engine.waits[waitId] = await engine.started.engine.event(type)
+        engine.waits[waitId] = await engine.started.engine.event(type, match)
         return waitId
       },
       concivEventArrived: (_context, engineId, waitId) => {

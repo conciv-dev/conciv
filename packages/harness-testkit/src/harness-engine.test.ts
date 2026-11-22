@@ -87,6 +87,21 @@ describe('a git project', () => {
   })
 })
 
+describe('waiting for an engine event that matches', () => {
+  test('a wait with data to match passes over events whose data differs and resolves with the first one that matches', async ({
+    engine,
+  }) => {
+    const other = await engine.newSession('Other')
+    const wait = await engine.event('session.execution.succeeded', {data: {sessionID: other.id}})
+    await engine.reply(TestLLM.text('First'), TestLLM.text('Second'))
+
+    await engine.session.send('In the first session')
+    await other.send('In the other session')
+
+    expect(await wait.arrived).toEqual({type: 'session.execution.succeeded', data: {sessionID: other.id}})
+  })
+})
+
 describe('token use from a scripted harness', () => {
   test("a harness given a context size and a context window reports both on the session after its run, as the pane's context meter reads them", async ({
     launch,

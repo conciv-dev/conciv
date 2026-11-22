@@ -4,6 +4,7 @@ import {rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
 import {ConfigProvider} from 'effect'
+import {isMatch} from 'es-toolkit/compat'
 import {rpcStream} from '@conciv/ai/client'
 import {readFinishReason} from '@conciv/ai/server'
 import {makeBrowserRpcClient, makeRpcClient, type EngineStaleness, type RpcClient} from '@conciv/contract'
@@ -84,6 +85,8 @@ type HarnessEngineEvent = {type: string; data: unknown}
 
 type HarnessEngineEventWait = {arrived: Promise<HarnessEngineEvent>}
 
+type HarnessEngineEventMatch = {data: object}
+
 type HarnessEngineRpcFailure = {type: string; message: string; data?: unknown}
 
 type HarnessEngineRpc = {
@@ -109,7 +112,7 @@ export type HarnessEngine = {
   root: string
   home: string
   opened: () => Promise<HarnessEngineOpened[]>
-  event: (type: string) => Promise<HarnessEngineEventWait>
+  event: (type: string, match?: HarnessEngineEventMatch) => Promise<HarnessEngineEventWait>
   rpc: HarnessEngineRpc
   loginCode: () => Promise<string>
   revokeBrowsers: () => Promise<void>
@@ -286,17 +289,32 @@ async function openFirstSession(engine: Engine, sessionId: string | undefined): 
   return newSessionOn(engine, undefined)
 }
 
+function matches(data: unknown, match: HarnessEngineEventMatch | undefined): boolean {
+  if (match === undefined) return true
+  return typeof data === 'object' && data !== null && isMatch(data, match.data)
+}
+
 async function matching(
   events: AsyncIterable<{type: string; data: unknown}>,
   type: string,
+  match: HarnessEngineEventMatch | undefined,
 ): Promise<HarnessEngineEvent> {
-  for await (const event of events) if (event.type === type) return {type: event.type, data: event.data}
+  for await (const event of events) {
+    if (event.type === type && matches(event.data, match)) {
+      return {type: event.type, data: event.data}
+    }
+  }
   throw new Error(`the engine stopped before a ${type} event arrived`)
 }
 
 const OPENING_EVENT = 'server.connected'
 
-async function eventWait(engine: Engine, type: string, waits: Set<AbortController>): Promise<HarnessEngineEventWait> {
+async function eventWait(
+  engine: Engine,
+  type: string,
+  match: HarnessEngineEventMatch | undefined,
+  waits: Set<AbortController>,
+): Promise<HarnessEngineEventWait> {
   if (type === OPENING_EVENT) {
     throw new Error(
       `${OPENING_EVENT} cannot be waited for: the engine sends it once, as the first frame of each event subscription, and event() resolves once that frame has come`,
@@ -309,7 +327,7 @@ async function eventWait(engine: Engine, type: string, waits: Set<AbortControlle
     throw error
   })
   await events.next()
-  const arrived = matching(events, type)
+  const arrived = matching(events, type, match)
     .catch((error: unknown) => {
       if (abort.signal.aborted) throw new Error(`the engine stopped before a ${type} event arrived`)
       throw error
@@ -604,7 +622,7 @@ export async function createHarnessEngine(
     root: realpathSync(project),
     home: engineHome(root, options),
     opened: async () => [...opened],
-    event: (type) => eventWait(engine, type, waits),
+    event: (type, match) => eventWait(engine, type, match, waits),
     rpc: pluginRpc(engine),
     loginCode: async () => (await makeRpcClient(apiBase).auth.issueCode()).code,
     revokeBrowsers: async () => {

@@ -62,8 +62,8 @@ export async function createEngine(config: ConcivConfig = {}, options: EngineSta
       call: (rpcId, method, input) => commands.concivRpcCall(handle.id, rpcId, method, input),
       failure: (rpcId, method, input) => commands.concivRpcFailure(handle.id, rpcId, method, input),
     },
-    event: async (type) => {
-      const waitId = await commands.concivEvent(handle.id, type)
+    event: async (type, match) => {
+      const waitId = await commands.concivEvent(handle.id, type, match)
       const arrived = commands.concivEventArrived(handle.id, waitId)
       arrived.catch(() => {})
       return {arrived}

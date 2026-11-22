@@ -45,3 +45,17 @@ describe('a scripted reply that hangs, in browser mode', () => {
     await expect(engine.session.send('Go on')).resolves.toBeUndefined()
   })
 })
+
+describe('waiting for an engine event that matches, in browser mode', () => {
+  test('the data to match crosses to the engine, which passes over an earlier event and resolves with the one that matches', async () => {
+    const engine = await createEngine()
+    const other = await engine.newSession('Other')
+    const wait = await engine.event('session.execution.succeeded', {data: {sessionID: other.id}})
+    await engine.reply(TestLLM.text('First'), TestLLM.text('Second'))
+
+    await engine.session.send('In the first session')
+    await other.send('In the other session')
+
+    expect(await wait.arrived).toEqual({type: 'session.execution.succeeded', data: {sessionID: other.id}})
+  })
+})
