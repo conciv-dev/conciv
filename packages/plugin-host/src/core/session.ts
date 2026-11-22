@@ -8,6 +8,7 @@ import type {
   SessionCreateInput,
   SessionInboxCompaction,
   SessionInboxDelivery,
+  SessionInboxSynthetic,
   SessionInfo,
   SessionListInput,
 } from '@conciv/plugin'
@@ -16,7 +17,9 @@ import type {
   CompactionConflictError,
   InvalidListCursorError,
   NotFoundError,
+  SyntheticConflictError,
 } from './session/error.js'
+import type {SessionSynthetic} from './session/synthetic.js'
 
 type SessionId = SessionInfo['id']
 type Metadata = NonNullable<SessionInfo['metadata']>
@@ -25,6 +28,8 @@ type CreateInput = Omit<SessionCreateInput, 'id'> & {id?: SessionId} & (
     | {location: Location.Ref; parentId?: never}
     | {parentId: Exclude<SessionCreateInput['parentId'], undefined>; location?: never}
   )
+
+type SyntheticInput = Parameters<ReturnType<typeof SessionSynthetic.make>>[0]
 
 type CompactInput = {id?: string; delivery?: SessionInboxDelivery} & {sessionId: SessionId}
 
@@ -50,6 +55,9 @@ export interface Interface {
   readonly compact: (
     input: CompactInput,
   ) => Effect.Effect<SessionInboxCompaction, NotFoundError | CompactionConflictError>
+  readonly synthetic: (
+    input: SyntheticInput,
+  ) => Effect.Effect<SessionInboxSynthetic, NotFoundError | SyntheticConflictError>
   readonly wait: (id: SessionId) => Effect.Effect<void, NotFoundError>
   readonly interrupt: (sessionId: SessionId, options?: {readonly resume?: boolean}) => Effect.Effect<boolean>
 }

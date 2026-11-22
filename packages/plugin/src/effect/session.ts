@@ -9,8 +9,10 @@ import type {
   SessionCreateInput,
   SessionInboxCompaction,
   SessionInboxDelivery,
+  SessionInboxSynthetic,
   SessionInfo,
   SessionListInput,
+  SessionSyntheticInput,
   SessionUpdateInput,
 } from '../client/promise/generated/types.js'
 import type {ModelHooks} from './registration.js'
@@ -101,7 +103,7 @@ export type SessionDomain = {
     readonly id?: string | undefined
     readonly delivery?: SessionInboxDelivery | undefined
   }) => Effect.Effect<SessionInboxCompaction, unknown>
-  readonly synthetic: undefined
+  readonly synthetic: (input: SessionSyntheticInput) => Effect.Effect<SessionInboxSynthetic, unknown>
   readonly interrupt: (input: {
     readonly sessionId: SessionId
     readonly resume?: boolean | undefined

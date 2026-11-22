@@ -5,6 +5,8 @@ import {optional} from './schema.js'
 import {Event} from './event.js'
 import {Instruction} from './instruction.js'
 import {SessionId} from './session-id.js'
+import {SessionInbox} from './session-inbox.js'
+import {SessionMessage} from './session-message.js'
 
 const Base = {
   sessionID: SessionId,
@@ -119,6 +121,28 @@ export const Synthetic = Event.durable({
 })
 export type Synthetic = typeof Synthetic.Type
 
+const InboxRef = {
+  ...Base,
+  inboxID: SessionMessage.Id,
+}
+
+export const InboxDelivered = Event.durable({
+  type: 'session.inbox.delivered',
+  ...options,
+  schema: InboxRef,
+})
+export type InboxDelivered = typeof InboxDelivered.Type
+
+export const InboxEnqueued = Event.durable({
+  type: 'session.inbox.enqueued',
+  ...options,
+  schema: {
+    ...InboxRef,
+    item: SessionInbox.Item,
+  },
+})
+export type InboxEnqueued = typeof InboxEnqueued.Type
+
 export const Definitions = Event.inventory(
   Created,
   Renamed,
@@ -132,6 +156,8 @@ export const Definitions = Event.inventory(
   Execution.Interrupted,
   InstructionsUpdated,
   Synthetic,
+  InboxDelivered,
+  InboxEnqueued,
 )
 
 export const DurableDefinitions = Event.inventory(

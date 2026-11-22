@@ -1,0 +1,357 @@
+export * as SessionInbox from './inbox.js'
+
+import {and, asc, eq, inArray, max} from 'drizzle-orm'
+import {Context, Effect, Layer, Option, Schema} from 'effect'
+import {chatMessages} from '@conciv/db'
+import {Info, Synthetic, SyntheticPayload, type Delivery, type Item} from '@conciv/plugin/schema/session-inbox'
+import {SessionEvent} from '@conciv/plugin/schema/session-event'
+import type {SessionId} from '@conciv/plugin/schema/session-id'
+import {SessionMessage} from '@conciv/plugin/schema/session-message'
+import {Database} from '../database/database.js'
+import {Bus} from '../bus.js'
+import {KeyedMutex} from '../effect/keyed-mutex.js'
+import {SessionInboxTable} from './sql.js'
+
+type DatabaseService = Database.Interface['db']
+type InboxRow = typeof SessionInboxTable.$inferSelect
+type StoredMessage = (typeof chatMessages.$inferSelect)['messageJson']
+type PendingRef = {readonly id: SessionMessage.Id; readonly sessionId: SessionId}
+
+export type Promotable = 'input' | 'steer'
+
+export type Scope = 'input' | Delivery
+
+export const LifecycleConflict = Schema.TaggedStruct('SessionInbox.LifecycleConflict', {id: SessionMessage.Id})
+export type LifecycleConflict = typeof LifecycleConflict.Type & globalThis.Error
+
+export const makeLifecycleConflict = (fields: Omit<typeof LifecycleConflict.Type, '_tag'>): LifecycleConflict =>
+  Object.assign(new globalThis.Error(), LifecycleConflict.make(fields), {name: 'SessionInbox.LifecycleConflict'})
+
+const isLifecycleConflict = Schema.is(LifecycleConflict)
+
+const SyntheticTag = Schema.Struct({
+  conciv: Schema.Struct({
+    synthetic: Schema.Struct({
+      description: Schema.optional(Schema.String),
+      metadata: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
+    }),
+  }),
+})
+
+const decodeSynthetic = Schema.decodeUnknownSync(SyntheticPayload)
+const readSyntheticTag = Schema.decodeUnknownOption(SyntheticTag)
+
+const fromRow = (row: InboxRow): Info =>
+  Synthetic.make({
+    id: SessionMessage.Id.make(row.id),
+    sessionId: row.session_id,
+    time: {created: row.time_created},
+    type: 'synthetic',
+    payload: decodeSynthetic(row.payload),
+    delivery: row.delivery,
+  })
+
+const find = Effect.fn('SessionInbox.find')(function* (db: DatabaseService, id: SessionMessage.Id) {
+  const row = yield* db.select().from(SessionInboxTable).where(eq(SessionInboxTable.id, id)).get().pipe(Effect.orDie)
+  return row === undefined ? undefined : fromRow(row)
+})
+
+const storedMessage = (db: DatabaseService, id: SessionMessage.Id) =>
+  db
+    .select({threadId: chatMessages.threadId, message: chatMessages.messageJson})
+    .from(chatMessages)
+    .where(eq(chatMessages.messageId, id))
+    .get()
+    .pipe(Effect.orDie)
+
+const createdAt = (message: StoredMessage): number => {
+  const created = message.createdAt === undefined ? Number.NaN : new Date(message.createdAt).getTime()
+  return Number.isFinite(created) ? created : 0
+}
+
+const promotedFromMessage = Effect.fn('SessionInbox.promotedFromMessage')(function* (
+  db: DatabaseService,
+  sessionId: SessionId,
+  id: SessionMessage.Id,
+  delivery: Delivery,
+) {
+  const row = yield* storedMessage(db, id)
+  if (row === undefined) return undefined
+  const tag = readSyntheticTag(row.message.metadata)
+  if (row.threadId !== sessionId || row.message.role !== 'user' || Option.isNone(tag))
+    return yield* Effect.fail(makeLifecycleConflict({id}))
+  return Synthetic.make({
+    id,
+    sessionId,
+    time: {created: createdAt(row.message)},
+    type: 'synthetic',
+    delivery,
+    payload: SyntheticPayload.make({
+      text: typeof row.message.content === 'string' ? row.message.content : '',
+      description: tag.value.conciv.synthetic.description,
+      metadata: tag.value.conciv.synthetic.metadata,
+    }),
+  })
+})
+
+const listRows = (db: DatabaseService, sessionId: SessionId) =>
+  db
+    .select()
+    .from(SessionInboxTable)
+    .where(eq(SessionInboxTable.session_id, sessionId))
+    .orderBy(asc(SessionInboxTable.enqueued_seq))
+    .all()
+    .pipe(Effect.orDie)
+
+const firstQueued = (db: DatabaseService, sessionId: SessionId) =>
+  db
+    .select()
+    .from(SessionInboxTable)
+    .where(and(eq(SessionInboxTable.session_id, sessionId), eq(SessionInboxTable.delivery, 'queue')))
+    .orderBy(asc(SessionInboxTable.enqueued_seq))
+    .limit(1)
+    .get()
+    .pipe(Effect.orDie)
+
+const pendingSteers = (db: DatabaseService, sessionId: SessionId) =>
+  db
+    .select()
+    .from(SessionInboxTable)
+    .where(and(eq(SessionInboxTable.session_id, sessionId), eq(SessionInboxTable.delivery, 'steer')))
+    .orderBy(asc(SessionInboxTable.enqueued_seq))
+    .all()
+    .pipe(Effect.orDie)
+
+const deliveredMessages = (db: DatabaseService, sessionId: SessionId, rows: readonly InboxRow[]) =>
+  rows.length === 0
+    ? Effect.succeed<StoredMessage[]>([])
+    : db
+        .select({message: chatMessages.messageJson})
+        .from(chatMessages)
+        .where(
+          and(
+            eq(chatMessages.threadId, sessionId),
+            inArray(
+              chatMessages.messageId,
+              rows.map((row) => row.id),
+            ),
+          ),
+        )
+        .orderBy(asc(chatMessages.position))
+        .all()
+        .pipe(
+          Effect.orDie,
+          Effect.map((found) => found.map((row) => row.message)),
+        )
+
+export interface Interface {
+  readonly list: (sessionId: SessionId) => Effect.Effect<Info[]>
+  readonly reconcile: (request: {
+    readonly id: SessionMessage.Id
+    readonly sessionId: SessionId
+    readonly type: Item['type']
+    readonly delivery: Delivery
+  }) => Effect.Effect<Info | undefined, LifecycleConflict>
+  readonly admit: (request: {
+    readonly id: SessionMessage.Id
+    readonly sessionId: SessionId
+    readonly item: Item
+  }) => Effect.Effect<Info, LifecycleConflict>
+  readonly has: (sessionId: SessionId, scope: Scope) => Effect.Effect<boolean>
+  readonly nextPromotable: (
+    sessionId: SessionId,
+    promotable: Promotable,
+  ) => Effect.Effect<
+    {readonly id: SessionMessage.Id; readonly type: Item['type']; readonly delivery: Delivery} | undefined
+  >
+  readonly promote: (sessionId: SessionId, scope: Promotable) => Effect.Effect<StoredMessage[]>
+}
+
+export const Service = Context.Service<Interface>('@conciv/SessionInbox')
+
+export const layer = Layer.effect(
+  Service,
+  Effect.gen(function* () {
+    const db = (yield* Database.Service).db
+    const bus = yield* Bus.Service
+    const locks = yield* KeyedMutex.make<SessionId>()
+
+    const reconcile: Interface['reconcile'] = Effect.fn('SessionInbox.reconcile')(function* (request) {
+      const existing =
+        (yield* find(db, request.id)) ??
+        (yield* promotedFromMessage(db, request.sessionId, request.id, request.delivery))
+      if (existing === undefined) return undefined
+      if (existing.sessionId !== request.sessionId || existing.type !== request.type)
+        return yield* Effect.fail(makeLifecycleConflict({id: request.id}))
+      return existing
+    })
+
+    const admit: Interface['admit'] = Effect.fn('SessionInbox.admit')(function* (request) {
+      const existing = yield* reconcile({
+        ...request,
+        type: request.item.type,
+        delivery: request.item.delivery,
+      })
+      if (existing !== undefined) return existing
+      const admitted = yield* bus
+        .publish(SessionEvent.InboxEnqueued, {
+          inboxID: request.id,
+          sessionID: request.sessionId,
+          item: request.item,
+        })
+        .pipe(
+          Effect.map((event) =>
+            Info.make({
+              id: request.id,
+              sessionId: request.sessionId,
+              time: {created: event.created},
+              ...request.item,
+            }),
+          ),
+          Effect.catchDefect((defect) =>
+            isLifecycleConflict(defect)
+              ? find(db, request.id).pipe(
+                  Effect.flatMap((stored) =>
+                    stored === undefined
+                      ? Effect.fail(makeLifecycleConflict({id: request.id}))
+                      : Effect.succeed(stored),
+                  ),
+                )
+              : Effect.die(defect),
+          ),
+        )
+      if (admitted.sessionId !== request.sessionId || admitted.type !== request.item.type)
+        return yield* Effect.fail(makeLifecycleConflict({id: request.id}))
+      return admitted
+    })
+
+    const publish = (sessionId: SessionId, rows: readonly InboxRow[]) =>
+      Effect.forEach(
+        rows,
+        (row) =>
+          bus
+            .publish(SessionEvent.InboxDelivered, {sessionID: sessionId, inboxID: SessionMessage.Id.make(row.id)})
+            .pipe(
+              Effect.catchDefect((defect) =>
+                isLifecycleConflict(defect)
+                  ? promotedFromMessage(db, sessionId, SessionMessage.Id.make(row.id), row.delivery).pipe(
+                      Effect.flatMap((stored) => (stored !== undefined ? Effect.void : Effect.die(defect))),
+                      Effect.orDie,
+                    )
+                  : Effect.die(defect),
+              ),
+            ),
+        {discard: true},
+      ).pipe(Effect.andThen(deliveredMessages(db, sessionId, rows)))
+
+    return Service.of({
+      list: Effect.fn('SessionInbox.list')(function* (sessionId) {
+        return (yield* listRows(db, sessionId)).map(fromRow)
+      }),
+      reconcile,
+      admit,
+      has: Effect.fn('SessionInbox.has')(function* (sessionId, scope) {
+        const row = yield* db
+          .select({id: SessionInboxTable.id})
+          .from(SessionInboxTable)
+          .where(
+            and(
+              eq(SessionInboxTable.session_id, sessionId),
+              scope === 'input' ? undefined : eq(SessionInboxTable.delivery, scope),
+            ),
+          )
+          .limit(1)
+          .get()
+          .pipe(Effect.orDie)
+        return row !== undefined
+      }),
+      nextPromotable: Effect.fn('SessionInbox.nextPromotable')(function* (sessionId, promotable) {
+        const steer = (yield* pendingSteers(db, sessionId))[0]
+        const next = steer ?? (promotable === 'input' ? yield* firstQueued(db, sessionId) : undefined)
+        return next === undefined
+          ? undefined
+          : {id: SessionMessage.Id.make(next.id), type: next.type, delivery: next.delivery}
+      }),
+      promote: Effect.fn('SessionInbox.promote')(function* (sessionId, scope) {
+        return yield* locks.withLock(sessionId)(
+          Effect.gen(function* () {
+            const steers = yield* pendingSteers(db, sessionId)
+            if (steers.length > 0 || scope === 'steer') return yield* publish(sessionId, steers)
+            const queued = yield* firstQueued(db, sessionId)
+            if (queued === undefined) return []
+            const promoted = yield* publish(sessionId, [queued])
+            return [...promoted, ...(yield* publish(sessionId, yield* pendingSteers(db, sessionId)))]
+          }),
+        )
+      }),
+    })
+  }),
+)
+
+export const projectAdmitted = Effect.fn('SessionInbox.projectAdmitted')(function* (
+  db: DatabaseService,
+  request: {
+    readonly enqueuedSeq: number
+    readonly id: SessionMessage.Id
+    readonly sessionId: SessionId
+    readonly item: Item
+    readonly timeCreated: number
+  },
+) {
+  if ((yield* storedMessage(db, request.id)) !== undefined)
+    return yield* Effect.die(makeLifecycleConflict({id: request.id}))
+  const stored = yield* db
+    .insert(SessionInboxTable)
+    .values({
+      id: request.id,
+      session_id: request.sessionId,
+      type: request.item.type,
+      payload: Schema.encodeSync(SyntheticPayload)(request.item.payload),
+      delivery: request.item.delivery,
+      enqueued_seq: request.enqueuedSeq,
+      time_created: request.timeCreated,
+    })
+    .onConflictDoNothing()
+    .returning({id: SessionInboxTable.id})
+    .get()
+    .pipe(Effect.orDie)
+  if (!stored) return yield* Effect.die(makeLifecycleConflict({id: request.id}))
+})
+
+const syntheticMessage = (row: InboxRow, delivered: number): StoredMessage => ({
+  id: row.id,
+  role: 'user',
+  content: row.payload.text,
+  createdAt: new Date(delivered),
+  metadata: {conciv: {synthetic: {description: row.payload.description, metadata: row.payload.metadata}}},
+})
+
+export const projectDelivered = Effect.fn('SessionInbox.projectDelivered')(function* (
+  db: DatabaseService,
+  input: PendingRef & {readonly timeDelivered: number},
+) {
+  const deleted = yield* db
+    .delete(SessionInboxTable)
+    .where(and(eq(SessionInboxTable.id, input.id), eq(SessionInboxTable.session_id, input.sessionId)))
+    .returning()
+    .get()
+    .pipe(Effect.orDie)
+  if (!deleted) return yield* Effect.die(makeLifecycleConflict({id: input.id}))
+  const last = yield* db
+    .select({position: max(chatMessages.position)})
+    .from(chatMessages)
+    .where(eq(chatMessages.threadId, input.sessionId))
+    .get()
+    .pipe(Effect.orDie)
+  yield* db
+    .insert(chatMessages)
+    .values({
+      threadId: input.sessionId,
+      position: (last?.position ?? -1) + 1,
+      messageId: deleted.id,
+      role: 'user',
+      messageJson: syntheticMessage(deleted, input.timeDelivered),
+    })
+    .run()
+    .pipe(Effect.orDie)
+})
