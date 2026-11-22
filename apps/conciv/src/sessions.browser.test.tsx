@@ -56,7 +56,7 @@ describe('find and switch sessions', () => {
 
 describe('a run in the list', () => {
   test('the picker marks the running session and names each harness, the user starts a new session, previews the running one, and hears the reply finish as the row stops running', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine({}, {harnesses: [{id: 'alpha'}, {id: 'beta'}]})
     await engine.reply(TestLLM.text('Done'))
     const gate = await engine.gate()
@@ -79,6 +79,8 @@ describe('a run in the list', () => {
     const search = screen.getByRole('combobox', {name: 'Search sessions'})
     await user.click(search)
     expect(search).toHaveFocus()
+    const current = screen.getByRole('option', {name: /^New session, Edited/})
+    await expect.element(search).toHaveAttribute('aria-activedescendant', current.id)
     await user.keyboard('{ArrowDown}')
     const preview = await screen.findByRole('dialog', {name: 'Preview of Keep going'})
     expect(await within(await within(preview).findByRole('log')).findByText('Keep going')).toBeVisible()
@@ -116,7 +118,10 @@ describe('paging the list', () => {
     await user.click(await screen.findByRole('button', {name: 'Session: New session'}))
     expect(await screen.findByRole('option', {name: /^Session 31, Edited/})).toBeVisible()
 
-    await user.click(screen.getByRole('combobox', {name: 'Search sessions'}))
+    const search = screen.getByRole('combobox', {name: 'Search sessions'})
+    await user.click(search)
+    const current = screen.getByRole('option', {name: /^New session, Edited/})
+    await expect.element(search).toHaveAttribute('aria-activedescendant', current.id)
     await user.keyboard('{ArrowDown>29/}')
     expect(await screen.findByRole('option', {name: /^Session 1, Edited/})).toBeVisible()
   })
