@@ -149,8 +149,9 @@ function textParts(content: Tool.NormalizedResult['content']): string[] {
 
 function outputNotes(result: Tool.NormalizedResult): string[] {
   if (result.output === undefined) return []
-  const echoed = typeof result.output === 'string' ? result.output : JSON.stringify(result.output)
-  return textParts(result.content).filter((text) => text !== echoed)
+  const serialized = safeStringify(result.output)
+  const echoed = typeof result.output === 'string' ? result.output : serialized
+  return textParts(result.content).filter((text) => text !== echoed && !serialized.includes(JSON.stringify(text)))
 }
 
 function resultValue(result: Tool.NormalizedResult): unknown {
