@@ -2,7 +2,18 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "dependsOn": ["@conciv/plugin#build", "@conciv/protocol#build", "@conciv/plugin-internal#build"]
+      "dependsOn": [
+        "@conciv/plugin#build",
+        "@conciv/protocol#build",
+        "@conciv/plugin-internal#build",
+        "@conciv/plugin-testkit#build"
+      ]
+    },
+    "test": {
+      "dependsOn": ["^build", "build", "^build:types", "@conciv/harness-testkit#build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "^build:types", "@conciv/harness-testkit#build:types"]
     }
   }
 }
