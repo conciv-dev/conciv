@@ -34,7 +34,7 @@
       ]
     },
     "kit-runtime": {
-      "dependsOn": ["@conciv/core#build", "@conciv/app#kit-runtime"]
+      "dependsOn": ["@conciv/core#build", "@conciv/app#kit-runtime", "@conciv/harness-testkit#kit-runtime"]
     },
     "test": {
       "dependsOn": ["build", "build:types", "@conciv/harness-testkit#build", "kit-runtime"]

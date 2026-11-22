@@ -22,7 +22,7 @@
       ]
     },
     "kit-runtime": {
-      "dependsOn": ["@conciv/core#build"]
+      "dependsOn": ["@conciv/core#build", "@conciv/cli#build"]
     },
     "test": {
       "dependsOn": ["build", "build:types", "@conciv/plugin-testkit#build", "kit-runtime"]
