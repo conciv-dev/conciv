@@ -20,10 +20,6 @@ export type E2EApp =
   | 'tanstack-start-redact'
   | 'vite-react-packed'
 
-const HARNESSES = ['claude', 'codex', 'gemini-cli', 'opencode', 'pi'] as const
-
-export type HarnessApp = (typeof HARNESSES)[number]
-
 const PACKED_SPECS = '**/packed-*.spec.ts'
 
 const VITE_COLD_START = process.env.CI ? '--force' : ''
@@ -292,54 +288,29 @@ export async function packedE2eConfig(opts: {
   })
 }
 
-function isHarnessApp(name: string): name is HarnessApp {
-  return HARNESSES.some((harness) => harness === name)
-}
-
-function selectedHarnesses(): readonly HarnessApp[] {
-  const filter = process.env.CONCIV_HARNESS
-  if (!filter) return HARNESSES
-  if (!isHarnessApp(filter)) {
-    throw new Error(`CONCIV_HARNESS="${filter}" is not a harness; pick one of ${HARNESSES.join(', ')}`)
-  }
-  return [filter]
-}
-
-export function harnessHome(configDir: string, harness: HarnessApp): string {
-  return join(e2eStateDir(configDir), harness)
-}
-
-function isolatedHome(configDir: string, harness: HarnessApp): {CONCIV_HOME: string} & Record<string, string> {
-  const home = harnessHome(configDir, harness)
+function isolatedHome(configDir: string): {HOME: string; CODEX_HOME: string; CONCIV_HOME: string} {
+  const home = join(e2eStateDir(configDir), 'home')
   return {HOME: home, CODEX_HOME: join(home, '.codex'), CONCIV_HOME: join(home, '.conciv-home')}
 }
 
 export async function harnessMatrixConfig(opts: {
   dir: string
-  command: (harness: HarnessApp, port: number, coldStart: string) => string
+  command: (port: number, coldStart: string) => string
 }): Promise<ReturnType<typeof defineConfig>> {
-  const entries = await withPorts(selectedHarnesses().map((name) => ({name})))
+  const port = await e2ePort('harnesses')
+  const home = isolatedHome(opts.dir)
   return defineConfig({
     testDir: './test',
     workers: 1,
     ...DEFAULTS,
-    reporter: reporters(
-      opts.dir,
-      entries.map(({name}) => `.conciv-${name}`),
-    ),
-    webServer: entries.map(({name: harness, port}) =>
-      serverEntry({
-        configDir: opts.dir,
-        prepare: `rm -rf '${harnessHome(opts.dir, harness)}' && mkdir -p '${join(harnessHome(opts.dir, harness), '.codex')}'`,
-        command: `rm -rf .conciv-${harness} && ${opts.command(harness, port, VITE_COLD_START)}`,
-        port,
-        env: isolatedHome(opts.dir, harness),
-      }),
-    ),
-    projects: entries.map(({name: harness, port}) => ({
-      name: harness,
-      use: {...devices['Desktop Chrome'], baseURL: `http://localhost:${port}`},
-      metadata: {projectDir: join(opts.dir, `.conciv-${harness}`)},
-    })),
+    use: {...DEFAULTS.use, ...devices['Desktop Chrome'], baseURL: `http://localhost:${port}`},
+    reporter: reporters(opts.dir, ['.conciv']),
+    webServer: serverEntry({
+      configDir: opts.dir,
+      prepare: `${freshFolder(home.HOME)} && mkdir -p '${home.CODEX_HOME}'`,
+      command: `rm -rf .conciv && ${opts.command(port, VITE_COLD_START)}`,
+      port,
+      env: home,
+    }),
   })
 }
