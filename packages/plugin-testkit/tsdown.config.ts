@@ -9,7 +9,6 @@ export default defineConfig({
     'src/node-setup.ts',
     'src/happy-dom-setup.ts',
     'src/browser-setup.ts',
-    'src/dom-environment.ts',
     'src/test-projects.ts',
     'src/vitest.ts',
   ],
