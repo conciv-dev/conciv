@@ -1,4 +1,5 @@
 import {Effect, Fiber} from 'effect'
+import {z} from 'zod'
 import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import utilities from 'virtual:uno.css?inline'
@@ -16,12 +17,15 @@ import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 import {addRef, type Refs} from './snapshot.js'
 import {dehydrate} from './dehydrate.js'
 import {describe, locate, reactBridge, rootFibers} from './react.js'
-import {grabApi} from './grab.js'
+import {disposeReactGrab, grabApi} from './grab.js'
 import {showToast} from './toast.js'
 import {capturePlugins} from './screenshot.js'
 
+const PageOptionsSchema = z.object({taskTimeoutMs: z.number().int().positive().optional()}).catch({})
+
 export default Plugin.define({
   setup(ctx) {
+    const {taskTimeoutMs} = PageOptionsSchema.parse(ctx.options)
     const connectionId = crypto.randomUUID()
     const tabId = `tab_${crypto.randomUUID()}`
     const routed = () => ctx.sessions.current()
@@ -51,6 +55,7 @@ export default Plugin.define({
             changed: reportChanges,
             operations,
             registered: () => ctx.list(PageOperation),
+            notify: (title) => void ctx.toast.show({title, variant: 'error'}),
           }),
         )
 
@@ -69,6 +74,7 @@ export default Plugin.define({
                 root: element,
                 session: () => routed()?.id ?? null,
                 running: (sessionId) => routed()?.id === sessionId && routed()?.run.status() === 'running',
+                taskTimeoutMs,
                 onStop: (sessionId) => {
                   const session = routed()
 
@@ -109,7 +115,10 @@ export default Plugin.define({
     ctx.provide(Page, {...pageMembers, symbolicate: (input) => symbolicate(input.frames)})
     ctx.provide(ReactTree, makeReactTree())
 
-    return () => operations.dispose()
+    return () => {
+      operations.dispose()
+      disposeReactGrab()
+    }
   },
 })
 

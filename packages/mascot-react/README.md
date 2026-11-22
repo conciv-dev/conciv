@@ -32,7 +32,6 @@ closes over. Solid reads `mount` inside its own tracked scope, so an inline arro
 - `package.json:exports` - `.` only: [src](./src/README.md).
 - `package.json:dependencies` - `@conciv/mascot`, reached only through `.`, `./adapter` and `./effects/binary`.
 - `tsdown.config.ts:entry` - `src/index.ts` (unbundled, ESM).
-- Tests: `test/unit/` (packed install and publish surface) and `test/browser/` (React wrapper in Chromium).
 
 ## Invariants
 
@@ -44,5 +43,4 @@ closes over. Solid reads `mount` inside its own tracked scope, so an inline arro
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/mascot-react` from the repo root (turbo builds the package and its dependencies first)
 - Run: `pnpm exec turbo run typecheck --filter=@conciv/mascot-react` from the repo root (turbo builds the package and its dependencies first)

@@ -5,7 +5,7 @@
 conciv's built-in page plugin, both halves in one package (as opencode's `plugin-browser` and `gui-plugins/browser`):
 the engine part (`.`: the plugin `conciv.page`, its connection, tools, skill and queue), the RPC contract (`./rpc`),
 the browser part the widget runs eagerly (`./client`: the DOM helpers, the cards and the page tool names), the window
-setup loaded lazily by the built-ins (`./renderer`) and the fake tabs for tests (`./testing`).
+setup loaded lazily by the built-ins (`./renderer`).
 
 The engine part, the plugin `conciv.page` (`.`), registers the RPC `experimental.page` (`./rpc`) and answers it: each
 tab's attachment and the commands it runs, page operations, live changes, captures, action queues and `symbolicate`.
@@ -22,7 +22,7 @@ A built-in: it draws with the UI kits directly, like opencode's gui plugins, and
 ## Interface
 
 - default export (`index.ts`): the engine plugin `conciv.page`
-- `symbolicateFrame` / `symbolicateFrames` (`symbolicate.ts`, internal): map frames (`RawFrame`) to original source
+- `symbolicateFrames` (`symbolicate.ts`, internal): an Effect that maps frames (`RawFrame`) to original source
   (`SourceLoc`, both from `@conciv/contract`) with @jridgewell/trace-mapping; the `symbolicate`
   method answers with `symbolicateFrames`
 - `Definition` (`rpc.ts`, `./rpc`): the RPC `experimental.page`
@@ -33,9 +33,6 @@ A built-in: it draws with the UI kits directly, like opencode's gui plugins, and
 - option `permissionSyncTimeoutMs` (`connection.ts`, milliseconds, default 10 000): how long granting or revoking a tab's page permissions on its session may take before the attach is refused (the tab retries on its back-off)
 - `client.ts` (`./client`): the DOM helpers, `reactBridge` as a namespace, `pageAttachmentCards`, `pageSessionEntry`, `PAGE_ACT_TOOL_NAMES`, `PAGE_TOOL_PREFIX`, `pageToolMeta`
 - `renderer.tsx` (`./renderer`): the window setup (default export) the built-ins load lazily
-- `testing.ts` (`./testing`, node-safe): `pageTabs()`, a plugin that opens fake browser tabs on the page plugin's
-  connection (`experimental.page` attach, state, command, result), so engine and terminal tests drive page tools the way
-  the widget does, without a browser. Its `PageReply`/`PageAnswer` types and the RPC as `Page`.
 - `grab.ts:getReactGrabAdapter` - creates the adapter once and returns `{activate(onGrab), comment(onGrab), deactivate(), isActive()}` (`ReactGrabAdapter`).
 - `grab.ts:GrabSink` - `(grab: Grab) => void`.
 - `grab.ts:picking` / `setPicking` - Solid signal for pick mode; `setCancelPick` / `cancelPick`.
@@ -71,6 +68,16 @@ without end on `TRANSIENT_RETRY` in `attachment.ts`, 1 s doubling to at most 30 
 back-off does. Any other refusal before it attached (the session belongs to
 another location, or the page plugin is shutting down; the type `unavailable`) stops attaching until the server
 reconnects or the panel routes another session.
+
+The tab reports its state again on focus, blur, a visibility change, a title change and a route change
+(`reportChanges` in `attachment.ts`). Route changes come from the Navigation API's `currententrychange`; in a browser
+without it (Firefox before 147, Safari before 26.2) `reportRouteChanges` subscribes to nothing, the tab still attaches,
+and a route change reaches the agent with the next report or attach.
+
+Every address the page hands out goes through `redactedUrl` (`redacted-url.ts`): the tab list's `url` and the
+`route` operation's `pathname`, `search` and `href`. It drops user info, and puts `[redacted]` in place of secret
+query and hash values and secret route params. The same answer reaches the model, outside agents through the hub,
+the terminal and the thread's tool card.
 
 The terminal runs the page tools as `conciv tools page <verb>`, as main: core's `registry.call` runs the plugin's
 tool for the session `--tab` or `CONCIV_SESSION_ID` names; `eval` from there asks as the cli README's 'Who is asked'
@@ -146,7 +153,8 @@ Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTo
 
 - `readFileInRoot` (`symbolicate.ts`): throws on a realpath outside the project root
 - `fetchLoopback` (`symbolicate.ts`): refuses hosts other than localhost, 127.0.0.1, ::1 or [::1]
-- `symbolicateFrames` (`symbolicate.ts`): skips node_modules results; `symbolicateFrame` returns null on any error
+- `symbolicateFrames` (`symbolicate.ts`): skips node_modules results; a frame that fails to map counts as null; it runs in the calling host fiber, so its source fetch timeout is on the engine's clock
+- queued page plays (`connection.ts`) fork on the context the connection was built in, so their reply timeouts are on the engine's clock
 - `capture.ts:isSensitiveField` - `type=password` or an `autocomplete` containing `cc-`, `one-time-code`, `current-password` or `new-password` is sensitive; its value reads as `MASKED_VALUE`.
 - `snapshot.ts:selectDeep` - matches in the document first, then in the page's open shadow roots, never in the widget's own.
 - `react.ts:installTracker` - installs the commit hook only once.

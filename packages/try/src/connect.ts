@@ -94,7 +94,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
         allowedOrigins: [opts.origin ?? DEFAULT_ORIGIN],
         onClientRequest: () => onEvent({type: 'client-connected'}),
         onShutdown: opts.onShutdown,
-        log: {level: 'info', emit: writeShownEntry},
+        log: {emit: writeShownEntry},
       })
       onEvent({type: 'started', port: engine.port, harness: adapter.id})
       return engine

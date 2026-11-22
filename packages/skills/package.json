@@ -27,15 +27,12 @@
     "intent:validate": "intent validate skills --check",
     "intent:stale": "intent stale --json",
     "check:refs": "node --experimental-strip-types src/cli.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@tanstack/intent": "0.5.6",
     "@types/node": "catalog:",
-    "typescript": "catalog:",
-    "vitest": "catalog:"
+    "typescript": "catalog:"
   }
 }

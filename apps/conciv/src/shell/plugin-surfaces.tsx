@@ -212,6 +212,7 @@ export function PluginOverlay() {
       .items(Slot)
       .flatMap((item) => (item.value.at === 'page.overlay' && item.value.hides !== false ? [item.value] : [])),
   )
+  const trapped = createMemo(() => overlays().length > 0)
 
   return (
     <Show when={host.ready()}>
@@ -222,7 +223,7 @@ export function PluginOverlay() {
           return null
         }}
       </For>
-      <FocusTrap disabled={overlays().length === 0}>
+      <FocusTrap class="contents pointer-events-auto" disabled={!trapped()}>
         <PluginSlot at="page.overlay" input={{}} />
       </FocusTrap>
     </Show>

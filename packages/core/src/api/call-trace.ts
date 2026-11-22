@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {generateMessageId, type OutsideCallMetadataSchema} from '@conciv/protocol/chat-message-types'
-import {ChatEventType, toolTimeEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CONCIV_CLIENT_HEADER, CONCIV_NAMED_TAB_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
 import {safeStringify} from '@conciv/contract'
 import {Effect} from 'effect'
@@ -43,8 +43,7 @@ export function callTrace(header: (name: string) => string | null) {
       ]
     },
     result: (run: CallRun, text: string, failed: boolean): ChatEvent[] => [
-      resultChunk(callId, text, failed, marker),
-      toolTimeEvent.create({toolCallId: callId, time: {start: clock.startedAt, end: Date.now()}}),
+      resultChunk(callId, text, failed, marker, {start: clock.startedAt, end: Date.now()}),
       ...(run.live ? [] : [runFinished(run.threadId, callId)]),
     ],
     mirror: (run: CallRun, sink: MirrorSink) => mirrorRun(run, marker !== null, sink),
@@ -127,14 +126,19 @@ function startChunks(
   ]
 }
 
-function resultChunk(callId: string, text: string, failed: boolean, marker: CallMarker): ChatEvent {
+function resultChunk(
+  callId: string,
+  text: string,
+  failed: boolean,
+  marker: CallMarker,
+  time: {start: number; end: number},
+): ChatEvent {
   const failure = failed ? {tanstack: {state: 'output-error'}} : null
-  const metadata = marker === null && failure === null ? {} : {metadata: {...marker, ...failure}}
   return {
     type: ChatEventType.TOOL_CALL_RESULT,
     messageId: generateMessageId(),
     toolCallId: callId,
     content: text || JSON.stringify({result: 'non-text content'}),
-    ...metadata,
+    metadata: {...marker, ...failure, time},
   }
 }

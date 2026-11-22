@@ -1,0 +1,8 @@
+{
+  "name": "fixture-unbuilt-browser-part",
+  "type": "module",
+  "exports": {
+    "./server": "./server.js",
+    "./plugin-experimental": "./plugin-experimental.tsx"
+  }
+}

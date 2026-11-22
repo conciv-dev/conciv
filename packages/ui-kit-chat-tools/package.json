@@ -33,9 +33,9 @@
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run --passWithNoTests",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
@@ -47,15 +47,13 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/harness-testkit": "workspace:*",
+    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",
     "@unocss/postcss": "catalog:",
-    "@vitest/browser-playwright": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "playwright": "catalog:",
     "postcss": "catalog:",
     "solid-js": "catalog:",
     "storybook": "catalog:",

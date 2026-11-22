@@ -151,6 +151,6 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
   })
 }
 
-export const unplugin = createConcivUnplugin()
+export const unplugin: UnpluginInstance<ConcivConfig | undefined> = createConcivUnplugin()
 
 export default unplugin

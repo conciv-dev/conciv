@@ -7,7 +7,7 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 ## Interface
 
 - `db.ts:openDb(stateRoot)` - returns `ConcivDb` (`db.ts:ConcivDb = ReturnType<typeof drizzle>`).
-- `schema.ts` tables: `sessions` (`sessions`), `drafts` (`drafts`), `navigation` (`navigation`), `markers` (`markers`); the plugin host's tables, which `@conciv/plugin-host` reads and writes on its own connection: `InstructionBlobTable` (`instruction_blob`), `InstructionStateTable` (`instruction_state`), `EventSequenceTable` (`event_sequence`), `EventTable` (`event`), `KVTable` (`kv`), `PermissionTable` (`permission`).
+- `schema.ts` tables: `sessions` (`sessions`), `drafts` (`drafts`), `markers` (`markers`); the plugin host's tables, which `@conciv/plugin-host` reads and writes on its own connection: `InstructionBlobTable` (`instruction_blob`), `InstructionStateTable` (`instruction_state`), `EventSequenceTable` (`event_sequence`), `EventTable` (`event`), `KVTable` (`kv`), `PermissionTable` (`permission`).
 - `run-schema.ts` tables: `chatRuns` (`chat_runs`, PK `run_id`; indexes `chat_runs_status_detached`, `chat_runs_thread_started`), `chatMessages` (`chat_messages`, one row per message: PK `thread_id, position`, plus `message_id`, `role`, `message_json`; index `thread_id, message_id`), `chatMetadata` (`chat_metadata`, composite PK namespace + key). `@conciv/ai/server` re-exports them for `drizzleChatStores`.
 - `index.ts:readModel` reads a session's model; `run-migrations.ts:markRunningRunsDetached` stamps every running chat run as detached at boot.
 - `run-schema.ts` also holds the chat metadata namespace for harness transcripts (`conciv.transcript`) and the key under which a thread's transcript anchor is stored.
@@ -22,7 +22,7 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 
 - `schema.ts:sessions.effort` is a nullable reasoning effort (`ReasoningEffort`); null means the CLI's default.
 - `schema.ts:sessions` has unique index `sessions_native_key_unique` on (`harness_kind`, `cwd`, `harness_session_id`); `origin` is one of `chat`, `agent`, `external`.
-- `markers.kind` is `new` or `compact`; `navigation.id` defaults to `'navigation'` (a single row).
+- `markers.kind` is `new` or `compact`.
 - `db.ts:openDb` runs, in order and under `BEGIN EXCLUSIVE` on the sibling `conciv.lock` (`open/migrated-db.ts:openMigratedDb`): the WAL switch, the migrations, then `markRunningRunsDetached`. Two openers of one state root (two engines, or an engine and the CLI) therefore migrate one at a time.
 - Chat databases from before the plugin port are not imported: migration `20261119205922_drop_legacy_runs` drops the old `runs`, `run_messages` and `image_history` tables with whatever they held.
 - `chat_messages` (migration `20261107095617_chat_messages`) is filled from every `chat_threads.messages_json` array with `json_each`, one row per message at its array index; `20261107095629_drop_chat_threads` then drops `chat_threads`.

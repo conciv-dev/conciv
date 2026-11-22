@@ -2,6 +2,7 @@ import {from, getOwner, onCleanup, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {Effect, Exit, Fiber, Scope, Stream, SubscriptionRef} from 'effect'
+import {z} from 'zod'
 import {useQuery} from '@conciv/client'
 import {ComposerPill, SettingsPage, Slot, ToolRegistry, usePlugin, type Plugin} from '@conciv/plugin/experimental'
 import {defineInternalPlugin} from '@conciv/plugin-internal'
@@ -12,6 +13,11 @@ import {ComposePopover} from './compose-popover.js'
 import {WhiteboardCanvas, WhiteboardNotices} from './overlay.js'
 import {readCanvasBackground, whiteboardStores, type CanvasBackground} from './stores.js'
 import type {ChatCover} from './comments-model.js'
+
+const COMMENT_BIND_DEADLINE_MS = 5_000
+const ComposeOptions = z.object({
+  commentBindDeadlineMs: z.number().positive().default(COMMENT_BIND_DEADLINE_MS).catch(COMMENT_BIND_DEADLINE_MS),
+})
 
 const CANVAS_BACKGROUND_ROW = 'settings-whiteboard-canvas-background'
 const LABEL = 'Canvas background: see the page through the canvas'
@@ -55,7 +61,9 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
     const [canvas, setCanvas] = createStore({open: false, engaged: false})
     const scope = Effect.runSync(Scope.make())
     onCleanup(() => void Effect.runFork(Scope.close(scope, Exit.void)))
-    const compose = Effect.runSync(makeCommentCompose.pipe(Scope.provide(scope)))
+    const compose = Effect.runSync(
+      makeCommentCompose(ComposeOptions.parse(ctx.options).commentBindDeadlineMs).pipe(Scope.provide(scope)),
+    )
     const phase = refAccessor(compose.phase, {status: 'idle'})
     const comments = refAccessor<ChatCover | undefined>(compose.cover, undefined)
     const composing = (): Extract<ComposePhase, {status: 'composing'}> | undefined => {

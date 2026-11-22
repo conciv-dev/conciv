@@ -17,7 +17,7 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 - UI input (`ui-types.ts`): UiInputSchema, UiAnswerSchema, `aguiSnapshotFor`
 - Usage helpers (`usage-types.ts`)
 - Bundler (`bundler-types.ts`): BundlerConfigSchema, ModuleNodeSchema (the bridge itself is `@conciv/plugin/schema/bundler`)
-- Harness contracts (`harness-types.ts`): HarnessCapabilities, HarnessInit, TranscriptHandle, TRANSCRIPT_FAILURES
+- Harness contracts (`harness-types.ts`): HarnessCapabilities, HarnessInit
 - RPC (`rpc-types.ts`): WS_MAX_PAYLOAD_BYTES (16 MiB), WS_RPC_PAYLOAD_BUDGET_BYTES, `CONCIV_VERSION_HEADER` (`'x-conciv-version'`), `RPC_WS_PATH` (`'/rpc-ws'`), RpcContext (with optional `clientVersion` and `socket`, the per-connection `RpcSocketTrust` `{allows(path), admit(token)}` a socket-served call carries, and `replied`, a per-request promise that resolves true once that call's reply has gone out and false when it did not), `rpcHeader`
 - Event bus (`event-bus.ts`): `createEventBus`, `createEventBusClient`, DISPATCH_EVENT, CONNECT_EVENT, GLOBAL_EVENT, PANEL_PLUGIN_ID
 - Sanitizer (`element-capture-sanitize.ts`): `neutralizeSubtree`, `isDangerousTag`, `isDroppableAttribute`, `decodeEntities`

@@ -1,4 +1,4 @@
-import {createMemo, createSignal, For, Match, Show, Switch, type JSX} from 'solid-js'
+import {createMemo, createSignal, For, Index, Match, Show, Switch, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import Check from 'lucide-solid/icons/check'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
@@ -295,28 +295,28 @@ function Form(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiAnsw
   }
   return (
     <form class="flex flex-col gap-2.5" onSubmit={submit}>
-      <For each={fields()}>
+      <Index each={fields()}>
         {(field) => (
           <Show
-            when={field.type === 'select'}
+            when={field().type === 'select'}
             fallback={
               <TextField
-                label={field.label}
+                label={field().label}
                 disabled={props.disabled}
-                value={readFieldValue(field)}
-                onInput={(event) => setValues(field.name, event.currentTarget.value)}
+                value={readFieldValue(field())}
+                onInput={(event) => setValues(field().name, event.currentTarget.value)}
               />
             }
           >
             <SelectField
-              field={field}
-              value={readFieldValue(field)}
+              field={field()}
+              value={readFieldValue(field())}
               disabled={props.disabled}
-              onChange={(value) => setValues(field.name, value)}
+              onChange={(value) => setValues(field().name, value)}
             />
           </Show>
         )}
-      </For>
+      </Index>
       <ActionRow>
         <Button type="submit" class={ACTION} disabled={props.disabled}>
           Submit

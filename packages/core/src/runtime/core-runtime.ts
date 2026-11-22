@@ -1,20 +1,15 @@
-import {eq, lt} from 'drizzle-orm'
 import {Effect} from 'effect'
-import type {SessionId, NavigationWrite} from '@conciv/protocol/chat-types'
+import type {SessionId} from '@conciv/protocol/chat-types'
 import type {EngineStaleness, RawFrame, SourceLoc} from '@conciv/contract'
-import {navigation, type ConcivDb} from '@conciv/db'
 import type {ChatPlane} from '@conciv/chat'
 import {sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {Log} from '../lib/logging.js'
 import type {SessionPrimitives} from './primitives.js'
 import type {CoreRuntime, EngineScope, SessionScope} from './scope-types.js'
 
-const MAX_NAVIGATION_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000
-
 export type CoreRuntimeDeps = {
   primitives: SessionPrimitives
   plane: ChatPlane
-  db: ConcivDb
   model: (sessionId: SessionId) => Promise<string | null>
   staleness: () => EngineStaleness
   interruptIdle: (sessionId: SessionId, stopped: boolean) => Promise<boolean>
@@ -23,28 +18,9 @@ export type CoreRuntimeDeps = {
 }
 
 function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
-  const db = deps.db
   return {
     staleness: deps.staleness,
     symbolicate: deps.symbolicate,
-    navigation: {
-      get: async () => {
-        const rows = await Effect.runPromise(db.select().from(navigation).where(eq(navigation.id, 'navigation')))
-        const row = rows[0]
-        return row ? {entries: row.entries, index: row.index, updatedAt: row.updatedAt} : null
-      },
-      set: async (write: NavigationWrite) => {
-        if (write.updatedAt > Date.now() + MAX_NAVIGATION_CLOCK_SKEW_MS) return {ok: true as const, applied: false}
-        const row = {id: 'navigation', entries: write.entries, index: write.index, updatedAt: write.updatedAt}
-        const result = await Effect.runPromise(
-          db
-            .insert(navigation)
-            .values(row)
-            .onConflictDoUpdate({target: navigation.id, set: row, setWhere: lt(navigation.updatedAt, write.updatedAt)}),
-        )
-        return {ok: true as const, applied: Number(result.changes) > 0}
-      },
-    },
   }
 }
 

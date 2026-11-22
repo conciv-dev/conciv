@@ -44,14 +44,14 @@ command, so restart your own dev server in your terminal. Who is asked depends o
 server:
 
 - Inside the project, the CLI acts on your latest chat (an agent conciv started acts on its own).
-  Unless a rule already covers the call, an asking tool shows the Approve card in the tab and the
-  command waits on it, with no timeout: Approve runs it, Deny fails it with `APPROVAL_DENIED`, and
+  Unless a rule already covers the call, an asking tool shows the permission card in the tab and the
+  command waits on it, with no timeout: Allow once runs it, Deny fails it with `APPROVAL_DENIED`, and
   leaving the command (Ctrl-C) stops the wait. Each call asks again.
-- With `--tab`, the CLI is an outside agent that named its tab; an asking tool waits on its Approve card
+- With `--tab`, the CLI is an outside agent that named its tab; an asking tool waits on its permission card
   the same way.
 - With no `.conciv/server.json` in this folder or a parent and no `CONCIV_PORT`, the CLI uses the most
   recently started dev server on this machine and acts on that server's latest chat. It is an outside
-  agent that named no tab, so an asking tool still shows the Approve card in the tab, on the same
+  agent that named no tab, so an asking tool still shows the permission card in the tab, on the same
   terms as inside the project. A
   `.conciv/server.json` left over from a stopped server still counts: the CLI uses it and fails with
   `No conciv dev server on 127.0.0.1:<port>.`
@@ -62,7 +62,7 @@ so later calls in every tab run with no card. A deny refuses that call only; the
 The default, `'open'`, asks nothing.
 
 Whoever holds the engine's token is the owner. The CLI reads it from the project's `.conciv` folder,
-and conciv hands it to the agents it starts. The Approve and Allow cards guard against the model's
+and conciv hands it to the agents it starts. The permission cards guard against the model's
 mistakes inside a chat turn, not against another program running as you on this machine. The engine
 listens on this machine only.
 
@@ -73,7 +73,7 @@ These commands, and their `--help`, need the dev server running; without one the
 
 ## Headless and CI
 
-With nobody at the tab to answer an Approve card, decide ahead of time in the options of the conciv
+With nobody at the tab to answer a permission card, decide ahead of time in the options of the conciv
 plugin in your bundler config:
 
 ```ts
@@ -120,10 +120,9 @@ Package root of @conciv/cli, the `conciv` binary, built by tsdown from src/bin.t
 
 - `bin.conciv` (`package.json`): ./dist/bin.js
 - `exports['./bin']` (`package.json`): ./dist/bin.js is the only export
-- `scripts` (`package.json`): build (`tsdown && chmod +x dist/bin.js`), typecheck, lint, test, publint, attw
+- `scripts` (`package.json`): build (`tsdown && chmod +x dist/bin.js`), typecheck, lint, publint, attw
 - `tsdown.config.ts`: entry src/bin.ts, esm, dts false; every pure-JS dependency is bundled (they are devDependencies), only the native `@ast-grep/napi` stays a runtime dependency (`deps.onlyImport`), and the harness, extensions and agent SDKs are never bundled (`deps.neverBundle`, so reaching one fails the build)
 - `tsconfig.json`: declaration off, matching `dts: false` (the router's inferred route types are not nameable in a .d.ts)
-- `vitest.config.ts`: `ciTest()` from @conciv/vitest-config
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - commands, argument validation, JSON envelopes and engine RPC
 
@@ -139,5 +138,4 @@ Package root of @conciv/cli, the `conciv` binary, built by tsdown from src/bin.t
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/cli` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/cli && pnpm typecheck && pnpm lint`

@@ -67,12 +67,13 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "build:types": "tsdown -c tsdown.types.config.ts",
+    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {
     "@conciv/cli": "workspace:^",
@@ -87,17 +88,15 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/harness-testkit": "workspace:^",
-    "@conciv/plugin-testkit": "workspace:^",
+    "@conciv/contract": "workspace:*",
+    "@conciv/harness-testkit": "workspace:*",
+    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@rspack/core": "catalog:",
     "@tanstack/devtools-vite": "catalog:",
     "@types/node": "catalog:",
     "@vitejs/devtools": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "get-port": "catalog:",
-    "playwright": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

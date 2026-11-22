@@ -8,7 +8,7 @@ import type {
   ElementDescriptor,
 } from '@conciv/protocol/element-capture-types'
 import {showToast} from './toast.js'
-import {readAccessibleName, readCheckedState, readRole, readValue} from './snapshot.js'
+import {MASKED_VALUE, readAccessibleName, readCheckedState, readRole, readValue} from './snapshot.js'
 import {componentHostAt, describe, sourceFromAttr} from './react.js'
 
 const TARGET_MARKER = 'data-rr-target'
@@ -249,17 +249,6 @@ export async function toCssBundle(pending: PendingCssText): Promise<CssBundle> {
   return {hash: await hashCssText(pending.css), css: pending.css}
 }
 
-export const MASKED_VALUE = '***'
-
-const SENSITIVE_AUTOCOMPLETE = ['cc-', 'one-time-code', 'current-password', 'new-password']
-
-export function isSensitiveField(el: Element): boolean {
-  const type = el.getAttribute('type')?.toLowerCase() ?? ''
-  if (type === 'password') return true
-  const autocomplete = el.getAttribute('autocomplete')?.toLowerCase() ?? ''
-  return SENSITIVE_AUTOCOMPLETE.some((token) => autocomplete.includes(token))
-}
-
 function segmentFor(el: Element): string {
   const tag = el.tagName.toLowerCase()
   if (el.id !== '') return `${tag}#${CSS.escape(el.id)}`
@@ -296,8 +285,7 @@ function describeComponent(el: Element): {componentName?: string; sourceFile?: s
 export function elementDescriptor(el: Element): ElementDescriptor {
   const rect = el.getBoundingClientRect()
   const name = readAccessibleName(el)
-  const rawValue = readValue(el)
-  const value = rawValue === undefined ? undefined : isSensitiveField(el) ? MASKED_VALUE : rawValue
+  const value = readValue(el)
   const checked = readCheckedState(el)
   return {
     tagName: el.tagName.toLowerCase(),

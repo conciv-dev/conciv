@@ -274,6 +274,7 @@ export function RichTextField(props: {
       focus: (focusOptions) => {
         if (editor.isDestroyed) return
         editor.commands.focus(focusOptions?.end ? 'end' : editor.state.selection.from)
+        editor.view.focus()
       },
       clear: () => {
         if (editor.isDestroyed) return

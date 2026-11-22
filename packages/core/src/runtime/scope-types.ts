@@ -1,7 +1,6 @@
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {NavigationWrite} from '@conciv/protocol/chat-types'
 import type {ChatHistoryWindow, ChatHydration, EngineStaleness, RawFrame, SourceLoc} from '@conciv/contract'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 
@@ -38,10 +37,6 @@ export type SessionScope = {
 export type EngineScope = {
   staleness: () => EngineStaleness
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
-  navigation: {
-    get: () => Promise<NavigationWrite | null>
-    set: (write: NavigationWrite) => Promise<{ok: true; applied: boolean}>
-  }
 }
 
 export type CoreRuntime = {

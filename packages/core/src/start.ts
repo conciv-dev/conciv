@@ -1,14 +1,18 @@
 import {randomUUID} from 'node:crypto'
 import {serveHono, type ServeFetch} from '@conciv/serve'
 import {checkEngines, registerEngine, retireEngine, withHomeDb, type EngineRow} from '@conciv/db'
-import {type ConfigProvider, Effect} from 'effect'
+import {type ConfigProvider, Effect, type Layer} from 'effect'
 import {z} from 'zod'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
+import type {EngineStaleness} from '@conciv/contract'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
-import {logBeforeRuntime, logOnRuntime, type Log, type LogEntry, type LogOptions} from './lib/logging.js'
+import {logOnContext, logOnRuntime, type Log, type LogEntry, type LogOptions} from './lib/logging.js'
+import {inSpan, type Tracer} from '@conciv/ai/server'
+import {startObservability, type EngineObservability} from './runtime/observability.js'
 import {agentPath} from './engine-login.js'
+import {carryEngineRouter, readEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {createConcivStateDir, concivStateDir} from '@conciv/protocol/state-types'
@@ -104,6 +108,19 @@ export type StartOpts = {
   homeDir?: string
   configProvider?: ConfigProvider.ConfigProvider
   log?: LogOptions
+  clock?: Layer.Layer<never>
+
+  harnesses?: readonly HarnessAdapter[]
+  firstChunkTimeoutMs?: number
+  firstStartTimeoutMs?: number
+  uiCallWaitMs?: number
+  uiAnswerWaitMs?: number
+  eventHeartbeatIntervalMs?: number
+  stopGraceMs?: number
+  pageReplyTimeoutMs?: number
+  queuedActionTimeoutMs?: number
+  staleness?: () => EngineStaleness | undefined
+  app?: {version?: () => string | undefined}
 }
 
 export type Engine = {
@@ -112,7 +129,7 @@ export type Engine = {
   trustBrowser: (requester: BrowserRequester, grantedAt: number) => string
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
-}
+} & EngineRouterBrand
 
 export type {LogEntry, LogOptions}
 
@@ -180,8 +197,11 @@ async function servePort(
   request: PortRequest | undefined,
   state: {file: string; token: string},
   log: Log,
+  tracer: Tracer | undefined,
 ): Promise<Served & {restoreRecord: ShutdownStep}> {
-  const serving = await serveRequestedPort(fetchHandler, request, state.file, log)
+  const serving = await inSpan(tracer, 'Engine.listen', {}, () =>
+    serveRequestedPort(fetchHandler, request, state.file, log),
+  )
   try {
     return {...serving, restoreRecord: writePersistedPort(state.file, {port: serving.port, token: state.token})}
   } catch (error) {
@@ -236,20 +256,68 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const systemPrompt = cfg.systemPrompt
   if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)
 
+  const agentToken = opts.accessToken ?? randomUUID()
+  const engineId = randomUUID()
+  const {home, env} = await runWithProvider(
+    configProvider,
+    Effect.all({home: readConcivHome(opts.homeDir), env: readProcessEnv}),
+  )
+  const observability = await startObservability({
+    home,
+    fallbackRoots: join(paths.dir, 'plugin-host'),
+    configProvider,
+    engineId,
+    log: opts.log,
+  })
+  return inSpan(
+    observability.tracer,
+    'Engine.start',
+    {'conciv.engine.id': engineId, 'conciv.harness.id': cfg.harness},
+    () =>
+      startEngine({
+        opts,
+        cfg,
+        configProvider,
+        registry,
+        paths,
+        home,
+        env,
+        agentToken,
+        engineId,
+        systemPrompt,
+        observability,
+      }),
+  ).catch(async (error: unknown) => {
+    await observability.dispose()
+    throw error
+  })
+}
+
+type EngineStart = {
+  opts: StartOpts
+  cfg: ResolvedConcivConfig
+  configProvider: ConfigProvider.ConfigProvider
+  registry: ReturnType<typeof harnessRegistry>
+  paths: StatePaths
+  home: string
+  env: NodeJS.ProcessEnv
+  agentToken: string
+  engineId: string
+  systemPrompt: string | undefined
+  observability: EngineObservability
+}
+
+async function startEngine(engine: EngineStart): Promise<Engine> {
+  const {opts, cfg, configProvider, registry, paths, home, env, agentToken, engineId, systemPrompt, observability} =
+    engine
+  const tracer = observability.tracer
   const openInEditor = makeEditorOpener(
     (file, line, column) => opts.launchEditor(file, line, column),
     4000,
     () => Date.now(),
   )
-
-  const earlyLog = logBeforeRuntime(opts.log)
-  const agentToken = opts.accessToken ?? randomUUID()
-  const engineId = randomUUID()
+  const earlyLog = logOnContext(observability.context)
   const portRef = {port: 0}
-  const {home, env} = await runWithProvider(
-    configProvider,
-    Effect.all({home: readConcivHome(opts.homeDir), env: readProcessEnv}),
-  )
   const harnessEnv = (sessionId?: SessionId): NodeJS.ProcessEnv => {
     const baseEnv = {...(opts.childEnv ? opts.childEnv(portRef.port) : env), CONCIV_TOKEN: agentToken}
     return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
@@ -262,6 +330,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const appOpts: MakeAppOpts = {
     home,
     configProvider,
+    clock: opts.clock,
     harnessRegistry: registry,
     cfg,
     cwd: opts.root,
@@ -279,7 +348,18 @@ export async function start(opts: StartOpts): Promise<Engine> {
     nativePageDir: opts.nativePageDir,
     tokenScopedBase,
     plugins: opts.plugins,
-    log: opts.log,
+    harnesses: opts.harnesses,
+    firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
+    firstStartTimeoutMs: opts.firstStartTimeoutMs,
+    uiCallWaitMs: opts.uiCallWaitMs,
+    uiAnswerWaitMs: opts.uiAnswerWaitMs,
+    eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
+    stopGraceMs: opts.stopGraceMs,
+    pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
+    queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
+    staleness: opts.staleness,
+    app: opts.app,
+    observability,
   }
   const madeApp = Promise.withResolvers<MadeApp>()
   madeApp.promise.catch(() => {})
@@ -288,11 +368,12 @@ export async function start(opts: StartOpts): Promise<Engine> {
     opts.port,
     {file: paths.server, token: agentToken},
     earlyLog,
+    tracer,
   )
   portRef.port = port
   const abandonStart = (steps: readonly ShutdownStep[]): Promise<void> =>
     cleanupAfterFailedStart([close, ...steps, restoreRecord], earlyLog)
-  const made = await makeApp(appOpts).catch(async (error: unknown) => {
+  const made = await inSpan(tracer, 'Engine.makeApp', {}, () => makeApp(appOpts)).catch(async (error: unknown) => {
     madeApp.reject(error)
     await abandonStart([])
     throw error
@@ -336,22 +417,31 @@ export async function start(opts: StartOpts): Promise<Engine> {
     }
   }
   try {
-    await awaitActivation()
+    await inSpan(tracer, 'Engine.awaitActivation', {}, awaitActivation)
   } catch (error) {
     clearEndpoint()
     retire()
     await abandonStart([dispose])
     throw error
   }
-  return {
-    port,
-    agentToken,
-    cfg,
-    trustBrowser,
-    stop: async () => {
-      clearEndpoint()
-      retire()
-      await runInOrder([close, dispose], 'conciv: stopping the engine failed')
+  return carryEngineRouter(
+    {
+      port,
+      agentToken,
+      cfg,
+      trustBrowser,
+      stop: async () => {
+        try {
+          await inSpan(tracer, 'Engine.stop', {'conciv.engine.id': engineId}, async () => {
+            clearEndpoint()
+            retire()
+            await runInOrder([close, dispose], 'conciv: stopping the engine failed')
+          })
+        } finally {
+          await observability.dispose()
+        }
+      },
     },
-  }
+    readEngineRouter(made),
+  )
 }

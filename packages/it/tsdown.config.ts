@@ -1,6 +1,7 @@
 import {defineConfig} from 'tsdown'
 
 export default defineConfig({
+  sourcemap: true,
   entry: [
     'src/plugin/vite.ts',
     'src/plugin/webpack.ts',

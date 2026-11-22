@@ -172,9 +172,9 @@
     "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run --passWithNoTests",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {
     "@conciv/contract": "workspace:^",
@@ -185,13 +185,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/harness-testkit": "workspace:*",
+    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
-    "@solidjs/testing-library": "catalog:",
-    "@tanstack/solid-query": "catalog:",
     "@types/node": "catalog:",
-    "@vitest/browser-playwright": "catalog:",
-    "playwright": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

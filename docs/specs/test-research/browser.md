@@ -1,6 +1,6 @@
 # Browser test layer (layer 3): how it is written, what it costs, fixtures, rewrites
 
-Repo: /Users/omrikatz/Public/web/aidx at 476a97995 (origin/main). Timing data: CI run 44537686715 (baseline, main 58b649460),
+Repo: <workspace>/aidx at 476a97995 (origin/main). Timing data: CI run 44537686715 (baseline, main 58b649460),
 cross-checked against runs 44542062949 and 44547323365. Timing source: per-test lines in the vitest default
 reporter of the shard logs (`run-*/clean|logs/*.log`) and the per-package `cases` of `shard-report-shard-*.json`.
 The vitest JSON reports (`test-results.json`) were NOT kept in the baseline: the shard reports only carry

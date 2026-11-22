@@ -11,6 +11,7 @@ import {openPipWindow, type PipWindow} from '../shell/pip.js'
 import {NoticeSurface} from '../shell/notice-context.js'
 import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
 import {PluginSession} from '../shell/plugin-surfaces.js'
+import {PluginStyles} from '../runtime/plugin/render.js'
 
 const PIP_ACTION = 'text-chat-text-2 leading-none size-8 hover:text-chat-text hover:bg-chat-fill-strong'
 const POPPED_OUT =
@@ -65,6 +66,7 @@ function PipSession(): JSX.Element {
         {(target) => (
           <Portal mount={target.wrap}>
             <EnvironmentProvider value={() => target.root}>
+              <PluginStyles root={target.root} />
               <Show when={paneKey()} keyed>
                 {(key) => (
                   <PaneProvider sessionId={key.sessionId}>

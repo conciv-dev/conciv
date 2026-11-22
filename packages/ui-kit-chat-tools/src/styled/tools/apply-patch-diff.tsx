@@ -2,13 +2,8 @@ import {type JSX} from 'solid-js'
 import FileDiff from 'lucide-solid/icons/file-diff'
 import {type FileDiffOptions} from '@conciv/solid-diffs'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {
-  ApplyPatch,
-  parseClaudePatchBlocks,
-  readPatchText,
-  useApplyPatch,
-  type ApplyPatchInfo,
-} from '../../primitives/tools/apply-patch.js'
+import {ApplyPatch, useApplyPatch} from '../../primitives/tools/apply-patch.js'
+import {parseClaudePatchBlocks, readPatchText, type ApplyPatchInfo} from '../../primitives/tools/apply-patch-text.js'
 import {diffBlockClass, FILE_HEADER_CSS, ToolCard} from '@conciv/ui-kit-chat/tools'
 import {codeTheme} from '@conciv/ui-kit-chat/theme/code-theme'
 

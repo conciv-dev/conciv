@@ -1,6 +1,7 @@
 import {existsSync, readFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {addDependencyCommand, detectPackageManager, dlxCommand} from 'nypm'
+import {addDependencyCommand, dlxCommand} from 'nypm'
+import {detectPackageManagerName} from '../detect.js'
 import {captureFile} from '../interrupt.js'
 import type {ManualCard} from '../ledger.js'
 import type {InitContext, InitStep, SpawnBin} from '../pipeline.js'
@@ -30,8 +31,7 @@ function intentBlockPresent(cwd: string): boolean {
 }
 
 async function resolveIntentCommands(cwd: string): Promise<IntentCommands> {
-  const found = await detectPackageManager(cwd, {ignoreArgv: true})
-  const pmName = found?.name ?? 'npm'
+  const pmName = await detectPackageManagerName(cwd)
   const intentLine = dlxCommand(pmName, intentPackage, {args: ['install']})
   const [bin, ...args] = intentLine.split(' ')
   if (bin === undefined) throw new Error(`nypm dlxCommand returned an empty command: ${intentLine}`)
@@ -67,7 +67,7 @@ export function docsPackStep(add: AddDep, spawn: SpawnBin): InitStep {
       const depPresent = hasDependency(readManifest(ctx.cwd), skillsName)
       if (!depPresent) {
         ctx.backup(captureFile(join(ctx.cwd, 'package.json')))
-        const addFailure = await add(skillsName, {cwd: ctx.cwd}).then(
+        const addFailure = await add(skillsName, {cwd: ctx.cwd, signal: ctx.signal}).then(
           () => null,
           (error: unknown) => message(error),
         )

@@ -1,15 +1,13 @@
 # HarnessHistory: the transcript-parsing deep dive
 
 This is the densest part of a real adapter. `codex` (`packages/harness/src/codex/history.ts`) is the
-clearest full example — it parses a JSONL rollout file into `UIMessage[]`, drives live-tail
-`observe()`, and lists past sessions from a local SQLite state db. Read it alongside this file.
+clearest full example — it parses a JSONL rollout file into `UIMessage[]` and lists past sessions from a local SQLite state db. Read it alongside this file.
 
 ## The shape you're filling in
 
 ```ts
 export type HarnessHistory = {
   messages(cwd: string, sessionId: string): Promise<UIMessage[]>
-  observe(cwd: string, sessionId: string): TranscriptHandle
   transcriptPath?(cwd: string, sessionId: string): string
   withinProject?(cwd: string, sessionId: string): boolean
   nameFromTranscript?(raw: string): string | null
@@ -46,60 +44,11 @@ to whichever earlier message owns the matching `tool-call` id (`attachOutput`,
 (`transcriptMessages`, `packages/harness/src/codex/history.ts:320-323`) is just: resolve the file for
 this `(cwd, sessionId)`, read it, `raw.split('\n').reduce(foldLine, emptySpine()).messages`.
 
-## `observe()`: live-tail with `makeJsonlHandle`
+## Project scoping
 
-`packages/harness/src/_shared/jsonl-handle.ts:76-140` is the shared incremental-read engine both
-`claude` and `codex` build `observe()` on. You give it a `JsonlSource<State>`:
-
-```ts
-export type JsonlParser<State> = {
-  empty(): State
-  foldLine(state: State, line: string, offset: number): State
-  messages(state: State): UIMessage[]
-}
-export type JsonlSource<State> = {
-  parser: JsonlParser<State>
-  resolvePath(): Promise<string | TranscriptFailure>
-  verifyHead?(head: string): TranscriptFailure | null
-}
-```
-
-and it returns a `TranscriptHandle` (`revision()/read()/close()`) that:
-
-- tracks a byte `offset` and re-reads only the new tail on each `read()` call, not the whole file
-  (`readBytes(found.path, state.offset, ...)`, `packages/harness/src/_shared/jsonl-handle.ts:125`);
-- only counts **complete** lines (splits on the last `\n` in the buffer,
-  `completeLines`, `packages/harness/src/_shared/jsonl-handle.ts:65-70`) so a partial write mid-flush
-  never corrupts the fold;
-- resets to offset 0 and re-empties state if the file shrank (`found.info.size < state.offset`,
-  `packages/harness/src/_shared/jsonl-handle.ts:120-123`) — handles log rotation/truncation;
-- calls your optional `verifyHead(head)` exactly once, on the first successful stat, against the head
-  bytes of the file (the first 64 KiB, `readHead` in `packages/harness/src/_shared/read-head.ts`) — this is where you reject a transcript that belongs to a
-  different project.
-
-Codex's `observeTranscript` (`packages/harness/src/codex/history.ts:344-358`) wires the same
-`{empty, foldLine, messages}` triple used by `parseHistory` into `makeJsonlHandle`, and its
-`verifyHead` calls `rolloutCwd(head)` to confirm the transcript's own recorded cwd matches the
-requested `cwd` via `sameCwd` (`packages/harness/src/_shared/cwd.ts:1`, re-exported from
-`@conciv/harness-init/paths`) — returning a `transcriptFailure('missing', ...)` when it doesn't. This
-is the mechanism that stops a stale/foreign session's transcript from being adopted into the wrong
-project's chat pane.
-
-## `TranscriptFailure`: three reasons, not a thrown error
-
-```ts
-export const TRANSCRIPT_FAILURES = ['missing', 'unreadable', 'corrupt'] as const
-export type TranscriptFailure = {ok: false; reason: TranscriptFailureReason; detail: string}
-```
-
-(`packages/protocol/src/harness-types.ts:155-161`.) Only `TranscriptHandle`'s own methods
-(`revision()`/`read()`) return this discriminated union by signature — `HarnessHistory`'s methods
-(`messages()`, `list()`, and the optional refinements) don't. The `resolvePath()`/`verifyHead()` hooks
-you hand to `makeJsonlHandle` also return it (`JsonlSource`, `packages/harness/src/_shared/jsonl-handle.ts:21-25`)
-— build one with `transcriptFailure(reason, detail)` (`packages/harness/src/_shared/jsonl-handle.ts:27-29`).
-Use `'missing'` when the file/session doesn't exist yet or belongs to a different project, `'unreadable'`
-for I/O errors, `'corrupt'` when the file exists but its content fails a structural check (e.g. no
-`session_meta` envelope in the head).
+`messages()` reads the rollout's own recorded cwd (`session_meta`) and returns `[]` unless it matches
+the requested `cwd` via `sameCwd` (`packages/harness/src/_shared/cwd.ts`). This is the mechanism that
+stops a stale/foreign session's transcript from being adopted into the wrong project's chat pane.
 
 ## `list()`: enumerate past sessions
 

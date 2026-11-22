@@ -1,13 +1,6 @@
 import {index, integer, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
 import type {Brand, Schema} from 'effect'
-import type {
-  DraftItem,
-  NavigationEntry,
-  PermissionRule,
-  ReasoningEffort,
-  SessionId,
-  SessionMetadata,
-} from '@conciv/protocol/chat-types'
+import type {DraftItem, PermissionRule, ReasoningEffort, SessionId, SessionMetadata} from '@conciv/protocol/chat-types'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 
 export const sessions = sqliteTable(
@@ -43,13 +36,6 @@ export const drafts = sqliteTable('drafts', {
   selectionEnd: integer('selection_end').notNull(),
   attachments: text('attachments', {mode: 'json'}).$type<PersistedAttachment[]>(),
   items: text('items', {mode: 'json'}).$type<DraftItem[]>(),
-  updatedAt: integer('updated_at').notNull(),
-})
-
-export const navigation = sqliteTable('navigation', {
-  id: text('id').primaryKey().default('navigation'),
-  entries: text('entries', {mode: 'json'}).$type<NavigationEntry[]>().notNull(),
-  index: integer('index').notNull(),
   updatedAt: integer('updated_at').notNull(),
 })
 

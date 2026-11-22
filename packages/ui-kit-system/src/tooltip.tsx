@@ -18,6 +18,7 @@ import {useEnvironmentContext} from '@ark-ui/solid/environment'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {Timer, TooltipGroup, useTooltipGroup, type TooltipGroupApi, type TooltipGroupMember} from './tooltip-group.js'
 import {popIn, sideFromPlacement} from './tooltip-motion.js'
+import {prefersReducedMotion} from './motion.js'
 import {isDocument, isHTMLElement, isShadowRoot} from './realm.js'
 import {nativeFocusPart} from './native-focus.js'
 import {LayerPortal} from './layer-portal.js'
@@ -93,7 +94,7 @@ function PlainRoot(props: RootProps) {
     <Ark.Root
       lazyMount
       unmountOnExit
-      openDelay={local.openDelay ?? 300}
+      openDelay={prefersReducedMotion() ? 0 : (local.openDelay ?? 300)}
       closeDelay={local.closeDelay ?? 80}
       positioning={{strategy: 'fixed', placement: 'top', gutter: 6, ...local.positioning}}
       id={id}
@@ -121,7 +122,7 @@ function GroupRoot(props: RootProps & {group: TooltipGroupApi}) {
   const [trigger, setTrigger] = createSignal<HTMLElement>()
   const [label, setLabel] = createSignal<{children?: JSX.Element}>({})
   const [hold, setHold] = createSignal<Hold>({phase: 'idle'})
-  const openDelay = () => local.openDelay ?? local.group.openDelay()
+  const openDelay = () => (prefersReducedMotion() ? 0 : (local.openDelay ?? local.group.openDelay()))
   const member: TooltipGroupMember = {
     id: triggerId,
     side: () => sideFromPlacement(local.positioning?.placement),

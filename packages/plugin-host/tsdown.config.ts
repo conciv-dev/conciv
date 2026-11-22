@@ -1,6 +1,7 @@
 import {defineConfig} from 'tsdown'
 
 export default defineConfig({
+  sourcemap: true,
   entry: {
     index: 'src/index.ts',
     'photon-worker': 'src/core/image/photon-worker.ts',

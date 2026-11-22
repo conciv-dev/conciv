@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {defineChatMiddleware, generateMessageId, type ModelMessage} from '@tanstack/ai'
+import {defineChatMiddleware, generateMessageId, withTanstackMetadata, type ModelMessage} from '@tanstack/ai'
 import {
   ChatEventType,
   codeModeCallEvent,
@@ -83,16 +83,33 @@ function childResultChunks(event: ChatEvent, shapeResult: ShapeResult): ChatEven
   ]
 }
 
+const FailedRunSchema = z.looseObject({success: z.literal(false)})
+
+function failedRun(content: unknown): boolean {
+  if (typeof content !== 'string') return false
+  try {
+    return FailedRunSchema.safeParse(JSON.parse(content)).success
+  } catch {
+    return false
+  }
+}
+
+function deniedChild(event: ChatEvent): boolean {
+  const failed = codeModeErrorEvent.parse(event)
+  return failed?.outcome === 'denied'
+}
+
 function childErrorChunks(event: ChatEvent): ChatEvent[] | null {
   const failed = codeModeErrorEvent.parse(event)
   if (failed === null) return null
+  const outcome = failed.outcome === undefined ? {} : {toolResultOutcome: failed.outcome}
   return [
     {
       type: ChatEventType.TOOL_CALL_RESULT,
       messageId: generateMessageId(),
       toolCallId: failed.callId,
       content: serialized({error: failed.error}),
-      metadata: {tanstack: {state: 'output-error'}},
+      metadata: {tanstack: {state: 'output-error', ...outcome}},
     },
   ]
 }
@@ -108,11 +125,20 @@ export function childCardChunks(
 
 export function childCards(shapeResult: ShapeResult) {
   const execution: {parent: string | null} = {parent: null}
+  const deniedParents = new Set<string>()
   return defineChatMiddleware({
     name: 'conciv-child-cards',
     onChunk: (_ctx, chunk) => {
       if (chunk.type === ChatEventType.TOOL_CALL_START && chunk.toolCallName.endsWith(EXECUTE_TOOL_SUFFIX)) {
         execution.parent = chunk.toolCallId
+      }
+      if (execution.parent !== null && deniedChild(chunk)) deniedParents.add(execution.parent)
+      if (
+        chunk.type === ChatEventType.TOOL_CALL_RESULT &&
+        deniedParents.has(chunk.toolCallId) &&
+        failedRun(chunk.content)
+      ) {
+        return [withTanstackMetadata(chunk, {toolResultOutcome: 'denied'})]
       }
       return childCardChunks(chunk, execution.parent, shapeResult) ?? undefined
     },

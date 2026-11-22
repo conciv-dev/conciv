@@ -34,8 +34,7 @@
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
-    "test": "vitest run --passWithNoTests"
+    "lint": "oxlint"
   },
   "dependencies": {
     "@solid-primitives/event-listener": "catalog:",
@@ -44,20 +43,15 @@
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
-    "@solidjs/testing-library": "catalog:",
     "@storybook/addon-docs": "catalog:",
     "@types/node": "catalog:",
-    "@vitest/browser-playwright": "catalog:",
-    "playwright": "catalog:",
     "solid-js": "catalog:",
     "storybook": "catalog:",
     "storybook-solidjs-vite": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:"
+    "vite-plugin-solid": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

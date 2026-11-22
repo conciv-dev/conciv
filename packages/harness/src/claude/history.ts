@@ -8,13 +8,11 @@ import type {
   HarnessListScope,
   HarnessSessionMeta,
   HarnessSessionPage,
-  TranscriptHandle,
   TranscriptPage,
   TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
-import {getSessionInfo, listSessions as listSdkSessions, type SDKSessionInfo} from '@anthropic-ai/claude-agent-sdk'
+import type {SDKSessionInfo} from '@anthropic-ai/claude-agent-sdk'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
-import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {containedPath} from '../_shared/contained-path.js'
 import {realpathOrSelf} from '../_shared/cwd.js'
 import {pageAfter} from '../_shared/page.js'
@@ -22,6 +20,7 @@ import {whenMissing} from '../_shared/when-missing.js'
 import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
 import {tailLines} from '../_shared/tail-lines.js'
 import {CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from '@conciv/harness-init/claude/names'
+import {loadClaudeAgentSdk} from './sdk.js'
 
 const TextBlock = z.object({type: z.literal('text'), text: z.string()})
 const ThinkingBlock = z.object({type: z.literal('thinking'), thinking: z.string()})
@@ -336,10 +335,6 @@ function foldTranscript(jsonl: string): ClaudeFold {
   return folded.state
 }
 
-function foldMessages(state: ClaudeFold): ChatMessage[] {
-  return state.messages.map((message) => ({...message, parts: [...message.parts]}))
-}
-
 export function parseHistory(jsonl: string): ChatMessage[] {
   return foldTranscript(jsonl).messages
 }
@@ -400,6 +395,7 @@ export function parseSessionMeta(id: string, cwd: string, jsonl: string, mtime: 
 
 async function listSessions(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage> {
   const projectCwd = 'cwd' in scope ? scope.cwd : null
+  const {listSessions: listSdkSessions} = await loadClaudeAgentSdk()
   const listed = await listSdkSessions(projectCwd === null ? {} : {dir: projectCwd, includeWorktrees: false})
   const metas = listed.flatMap((info) => metaOfInfo(info, projectCwd))
   const paged = pageAfter(metas, page, (meta) => ({updatedAt: meta.updatedAt, id: meta.id}))
@@ -428,20 +424,9 @@ export async function sessionMeta(
   sessionId: string,
 ): Promise<HarnessSessionMeta | null> {
   if (!withinProject(configDir, cwd, sessionId)) return null
+  const {getSessionInfo} = await loadClaudeAgentSdk()
   const info = await getSessionInfo(sessionId, {dir: cwd})
   return info === undefined ? null : (metaOfInfo(info, cwd).at(0) ?? null)
-}
-
-function observeTranscript(configDir: string, cwd: string, sessionId: string): TranscriptHandle {
-  return makeJsonlHandle<ClaudeFold>({
-    parser: {empty: emptyFold, foldLine, messages: foldMessages},
-    resolvePath: async () => {
-      if (!withinProject(configDir, cwd, sessionId)) {
-        return transcriptFailure('missing', `${sessionId} is not a transcript of ${cwd}`)
-      }
-      return transcriptPath(configDir, cwd, sessionId)
-    },
-  })
 }
 
 export function withinProject(configDir: string, cwd: string, sessionId: string): boolean {
@@ -511,7 +496,6 @@ export function claudeHistory(configDir: string): HarnessHistory {
   return {
     messages: (cwd, sessionId, options) => transcriptMessages(configDir, cwd, sessionId, options),
     tail: (cwd, sessionId, options) => transcriptTail(configDir, cwd, sessionId, options),
-    observe: (cwd, sessionId) => observeTranscript(configDir, cwd, sessionId),
     transcriptPath: (cwd, sessionId) => transcriptPath(configDir, cwd, sessionId),
     transcriptRoot: (cwd) => transcriptRoot(configDir, cwd),
     withinProject: (cwd, sessionId) => withinProject(configDir, cwd, sessionId),

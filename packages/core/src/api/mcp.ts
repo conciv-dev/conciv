@@ -2,7 +2,7 @@ import {Effect} from 'effect'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {ChatEventType, toolTimeEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {
   cappedText,
   cappedValue,
@@ -272,7 +272,7 @@ export async function openCodeSession(
     if (chunk.type !== ChatEventType.TOOL_CALL_RESULT) return [chunk]
     const start = childStarts.get(chunk.toolCallId)
     const time = start === undefined ? {end: Date.now()} : {start, end: Date.now()}
-    return [chunk, toolTimeEvent.create({toolCallId: chunk.toolCallId, time})]
+    return [{...chunk, metadata: {...chunk.metadata, time}}]
   }
   const publish = (chunk: ChatEvent): void => {
     if (hub && chunk.type === ChatEventType.TOOL_CALL_START) deps.hubCall(scope.id, chunk.toolCallId)

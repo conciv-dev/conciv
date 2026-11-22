@@ -31,12 +31,16 @@ Once opened, the canvas stays mounted and hidden after Escape, so the agent keep
 where the canvas was never opened, drawing answers `NO_CANVAS` after 8 seconds and a PNG export answers `EXPORT_TIMEOUT`.
 Excalidraw loads its fonts from esm.sh.
 
+The "Comment" pill above the composer lets the user pick an element on the page and comment on it. The comment waits
+for the whiteboard's comments to bind for the `commentBindDeadlineMs` option (5000 ms by default); past it, the comment
+is not added and a toast says so.
+
 ```ts
 plugins: ['@conciv/plugin-whiteboard']
 ```
 
 ```ts
-plugins: [['@conciv/plugin-whiteboard', {catchUpRetryMs: 500}]]
+plugins: [['@conciv/plugin-whiteboard', {catchUpRetryMs: 500, commentBindDeadlineMs: 2000}]]
 ```
 
 The canvas is transparent so the page shows through it. The "Canvas background" row in the general settings turns

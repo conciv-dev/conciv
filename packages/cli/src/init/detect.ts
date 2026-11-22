@@ -1,6 +1,6 @@
 import {existsSync} from 'node:fs'
 import {join} from 'node:path'
-import {detectPackageManager} from 'nypm'
+import {detectPackageManager, type PackageManagerName} from 'nypm'
 import {hasDependency, readManifest} from './steps/manifest.js'
 
 export type Framework = 'nextjs' | 'astro' | 'vite' | 'webpack' | 'rspack' | 'rollup' | 'esbuild' | 'unknown'
@@ -42,7 +42,11 @@ export function detectFramework(cwd: string): {framework: Framework; configFile:
   return {framework: rule.framework, configFile}
 }
 
-export async function detectProject(cwd: string): Promise<Detected> {
+export async function detectPackageManagerName(cwd: string): Promise<PackageManagerName> {
   const found = await detectPackageManager(cwd, {ignoreArgv: true})
-  return {...detectFramework(cwd), packageManager: found?.name ?? 'npm'}
+  return found?.name ?? 'npm'
+}
+
+export async function detectProject(cwd: string): Promise<Detected> {
+  return {...detectFramework(cwd), packageManager: await detectPackageManagerName(cwd)}
 }

@@ -13,6 +13,8 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 ## Invariants
 
 - webpack and rspack add the widget entry and boot the engine only when `enabled !== false` and `mode` is not `production` (an unset `mode` counts as `production`; `development` and `none` get both), the engine only while the bundler watches; a taken `port` logs one line and leaves the bundler running; the Next.js widget starts only in a browser with `NEXT_PUBLIC_CONCIV_PORT` set and `NODE_ENV` not `production`. Full list in [src/README.md](./src/README.md#invariants).
+- Vite (not in middleware mode, where the user's own script owns the process): Ctrl+C, and SIGHUP when a terminal is attached, is sent on as SIGTERM, so Vite's own close runs every plugin's `closeServer` and conciv's stops the engine, which ends the live runs with their adapter cleanup and their agent CLI, then exits (143). Opencode's shutdown deadline (`src/core/shutdown-deadline.ts`, from opencode `packages/cli/src/shutdown-deadline.ts`) bounds that close: past 10 s, or on a second Ctrl+C, it prints what is still pending and exits 1. Its listeners go in `closeServer` unless a shutdown has started.
+- Next.js: `register()` keeps no engine handle and Next's worker has no close hook, so Ctrl+C on `next dev` never stops the engine and a live run's adapter files can stay in the project. The agent CLI is killed by `@conciv/ai`'s exit hook when the worker exits through its own `process.exit`; when `next dev` SIGKILLs the worker first (`NEXT_EXIT_TIMEOUT_MS`, 100 ms by default) no code runs and the CLI can outlive it. A larger `NEXT_EXIT_TIMEOUT_MS` gives the worker time to exit itself.
 
 ## Side Effects
 
@@ -20,4 +22,4 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/unplugin` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run test --filter=@conciv/unplugin` from the repo root (turbo builds the package and its dependencies first): `src/core/shutdown-deadline.test.ts` (the deadline and the second Ctrl+C, in a child process) and `src/core/vite.test.ts` (a real `vite` dev server with the plugin and a fake `claude` on its PATH gets Ctrl+C mid-run; afterwards no adapter file is in the project and the CLI is gone)

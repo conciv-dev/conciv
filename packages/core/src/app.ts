@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {accessSync, constants, existsSync, readFileSync} from 'node:fs'
 import {delimiter, join} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
-import {Hono} from 'hono'
+import {Hono, type MiddlewareHandler} from 'hono'
 import {z} from 'zod'
 import {EngineStalenessSchema, type EngineStaleness} from '@conciv/contract'
 import {upgradeWebSocket} from '@conciv/serve'
@@ -56,7 +56,19 @@ import {
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
 import {differenceBy, isNotNil, memoize, pickBy} from 'es-toolkit'
-import {Cause, Config, type ConfigProvider, Effect, Exit, Fiber, FiberMap, Option, Schema, Scope} from 'effect'
+import {
+  Cause,
+  Config,
+  type ConfigProvider,
+  Effect,
+  Exit,
+  Fiber,
+  FiberMap,
+  type Layer,
+  Option,
+  Schema,
+  Scope,
+} from 'effect'
 import {Bus, Permission, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
@@ -85,12 +97,14 @@ import {
   currentToolDomain,
 } from './runtime/permission-cards.js'
 import {makePluginRuntime, type PluginRuntime} from './runtime/plugin-runtime.js'
+import {startObservability, type EngineObservability} from './runtime/observability.js'
 import type {CoreRuntime, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
+import {carryEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute} from '@conciv/serve/rpc'
-import {GROUP_EXIT_TIMEOUT_MS, loadIsolateDriver} from '@conciv/ai/server'
+import {GROUP_EXIT_TIMEOUT_MS, inSpan, loadIsolateDriver, type Tracer} from '@conciv/ai/server'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
@@ -109,7 +123,7 @@ import type {OpenInEditor} from './editor/open.js'
 import type {AttachmentDocumentPart, ContentPart} from '@conciv/protocol/chat-message-types'
 import {GRAB_MIME, parseGrabPayload} from '@conciv/grab/grab-attachment'
 import {writePrivateFile} from './lib/dev-endpoint.js'
-import {logBeforeRuntime, logOnRuntime, type Log, type LogOptions} from './lib/logging.js'
+import {logOnContext, logOnRuntime, type Log, type LogOptions} from './lib/logging.js'
 
 const NO_TAB_MESSAGE = 'pass tab to execute_typescript; list_tabs lists the open tabs'
 
@@ -223,6 +237,12 @@ export type MakeAppOpts = {
 
   firstChunkTimeoutMs?: number
 
+  firstStartTimeoutMs?: number
+
+  uiCallWaitMs?: number
+
+  uiAnswerWaitMs?: number
+
   eventHeartbeatIntervalMs?: number
 
   stopGraceMs?: number
@@ -237,13 +257,17 @@ export type MakeAppOpts = {
 
   plugins?: readonly Plugin.Plugin[]
 
-  staleness?: () => EngineStaleness
+  staleness?: () => EngineStaleness | undefined
+
+  app?: {version?: () => string | undefined}
 
   home?: string
 
   configProvider?: ConfigProvider.ConfigProvider
 
   log?: LogOptions
+  clock?: Layer.Layer<never>
+  observability?: EngineObservability
 }
 
 function executable(file: string): boolean {
@@ -291,7 +315,11 @@ async function recordSessionUsage(db: ConcivDb, sessionId: SessionId, usage: Usa
   await Effect.runPromise(db.update(sessions).set({usage, updatedAt: Date.now()}).where(eq(sessions.id, sessionId)))
 }
 
-function sessionPort(db: ConcivDb, rows: RowScope, hooks: Pick<SessionPort, 'onRunEnd' | 'publish'>): SessionPort {
+function sessionPort(
+  db: ConcivDb,
+  rows: RowScope,
+  hooks: Pick<SessionPort, 'onRunStart' | 'onRunEnd' | 'publish'>,
+): SessionPort {
   return {
     row: async (sessionId) => {
       const row = await currentRow(db, sessionId)
@@ -314,7 +342,7 @@ function sessionPort(db: ConcivDb, rows: RowScope, hooks: Pick<SessionPort, 'onR
       if (usage) await recordSessionUsage(db, sessionId, {...usage, contextTokens})
     },
     recordActivity: (sessionId, title, at) => recordActivity(db, sessionId, title, at),
-    onRunStart: async () => undefined,
+    onRunStart: hooks.onRunStart,
     onRunEnd: hooks.onRunEnd,
     publish: hooks.publish,
   }
@@ -349,12 +377,15 @@ function composeRoutes(
   deps: {
     engineId: string
     staleness: () => EngineStaleness
+    version: (() => string | undefined) | undefined
     onShutdown?: () => void
     trust: ConnectionTrust
     log: Log
+    tracer: Tracer | undefined
   },
 ) {
-  return new Hono<{Variables: CoreVars}>()
+  const traceCall = deps.tracer === undefined ? undefined : rpcSpan(deps.tracer)
+  const app = new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
       deps.log(Effect.logError('[core] unhandled route error', {path: c.req.path, error}))
@@ -365,7 +396,9 @@ function composeRoutes(
       c.set('mcp', vars.mcp)
       await next()
     })
-    .use(corsMiddleware())
+    .use(corsMiddleware(deps.version))
+  if (deps.tracer !== undefined) app.use('/api/mcp', mcpSpan(deps.tracer))
+  return app
     .get('/health', (c) =>
       c.json(HealthSchema.parse({ok: true, harness: vars.harnessId, engine: deps.staleness(), id: deps.engineId})),
     )
@@ -380,10 +413,36 @@ function composeRoutes(
         upgrade: upgradeWebSocket,
         onError: (message) => deps.log(Effect.logError(message)),
         gate: (c) => rpcSocketGate(deps.trust, c.req.header('authorization')),
+        traceCall,
       }),
     )
-    .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
+    .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc, traceCall))
     .route('/api/mcp', mcpApp)
+}
+
+function rpcSpan(tracer: Tracer) {
+  return (path: readonly string[], call: () => Promise<unknown>): Promise<unknown> =>
+    inSpan(tracer, `Rpc.${path.join('.')}`, {'rpc.procedure': path.join('.')}, call, {root: true})
+}
+
+function mcpSpan(tracer: Tracer): MiddlewareHandler {
+  return async (c, next) => inSpan(tracer, 'Mcp.request', await mcpAttributes(c.req.raw), next, {root: true})
+}
+
+const McpMessageSchema = z
+  .object({
+    method: z.string().catch('unknown'),
+    params: z.object({name: z.string()}).optional().catch(undefined),
+  })
+  .catch({method: 'unknown'})
+
+async function mcpAttributes(request: Request): Promise<Record<string, string>> {
+  const body: unknown = await request
+    .clone()
+    .json()
+    .catch(() => null)
+  const {method, params} = McpMessageSchema.parse(body)
+  return params === undefined ? {'rpc.method': method} : {'rpc.method': method, 'conciv.tool.name': params.name}
 }
 
 export type AppType = ReturnType<typeof composeRoutes>
@@ -401,7 +460,7 @@ export type MadeApp = {
   runtime: CoreRuntime
   pluginHost: PluginHost
   awaitActivation: () => Promise<void>
-}
+} & EngineRouterBrand
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
   const history = harness.history
@@ -421,6 +480,12 @@ function publishCreated(born: SessionRecord) {
   const sessionID = SessionSchema.Id.make(born.id)
   return Bus.Service.use((bus) =>
     bus.publish(SessionEvent.Created, born.title === null ? {sessionID} : {sessionID, title: born.title}),
+  ).pipe(Effect.asVoid)
+}
+
+function publishRunStart(sessionId: SessionId) {
+  return Bus.Service.use((bus) =>
+    bus.publish(SessionEvent.Execution.Started, {sessionID: SessionSchema.Id.make(sessionId)}),
   ).pipe(Effect.asVoid)
 }
 
@@ -448,9 +513,28 @@ async function mcpSessionId(
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const configProvider = opts.configProvider ?? defaultConfigProvider()
-  const earlyLog = logBeforeRuntime(opts.log)
-  const appEnv = await runWithProvider(configProvider, readAppEnv(opts.home, earlyLog))
   const stateDir = concivStateDir(opts.cfg.stateRoot)
+  const engineId = opts.engineId ?? randomUUID()
+  const givenObservability = opts.observability
+  const observability =
+    givenObservability ??
+    (await startObservability({
+      home: await runWithProvider(configProvider, readConcivHome(opts.home)),
+      fallbackRoots: join(stateDir, 'plugin-host'),
+      configProvider,
+      engineId,
+      log: opts.log,
+    }))
+  const releaseObservability = (): Promise<void> | undefined =>
+    givenObservability === undefined ? observability.dispose() : undefined
+  const tracer = observability.tracer
+  const earlyLog = logOnContext(observability.context)
+  const appEnv = await runWithProvider(configProvider, readAppEnv(opts.home, earlyLog)).catch(
+    async (error: unknown) => {
+      await releaseObservability()
+      throw error
+    },
+  )
   const engineLife = new AbortController()
   const registry = opts.harnessRegistry ?? harnessRegistry(configProvider)
   const boot = withSavedModels(
@@ -479,19 +563,21 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     engineLife.abort(new Error('conciv: the engine stopped'))
     await Promise.all(listings.map(endListing))
   }
-  const staleness = opts.staleness ?? engineStaleness
+  const staleness = (): EngineStaleness => opts.staleness?.() ?? engineStaleness()
   const dbScope = Effect.runSync(Scope.make())
   const closeDb = () => Effect.runPromise(Scope.close(dbScope, Exit.void))
   const failedStart =
     (steps: ShutdownStep[]) =>
     async (error: unknown): Promise<never> => {
       await runInOrder(
-        [endListings, ...steps, () => browsers.close(), closeDb],
+        [endListings, ...steps, () => browsers.close(), closeDb, releaseObservability],
         'conciv: disposing after a failed start failed',
       ).catch((failure: unknown) => earlyLog(Effect.logError('[core] cleanup after a failed start failed', {failure})))
       throw error
     }
-  const db = await Effect.runPromise(openDb(opts.cfg.stateRoot).pipe(Scope.provide(dbScope))).catch(failedStart([]))
+  const db = await inSpan(tracer, 'Engine.openDatabase', {}, () =>
+    Effect.runPromise(openDb(opts.cfg.stateRoot).pipe(Scope.provide(dbScope))),
+  ).catch(failedStart([]))
   const planeRef: {current: ChatPlane | null} = {current: null}
 
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
@@ -535,6 +621,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     )
     stream.publish(sessionId, idleFailedEvent.create({runId}))
   }
+  const onRunStart = async (sessionId: SessionId): Promise<void> => {
+    await pluginHost
+      .runPromise(publishRunStart(sessionId))
+      .catch((error: unknown) =>
+        log(Effect.logError('[core] publishing the start of a run failed', {sessionId, error})),
+      )
+  }
   const onRunEnd = async (sessionId: SessionId, run: RunLifecycle): Promise<void> => {
     await pluginHost
       .runPromise(
@@ -563,6 +656,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         await idleFailed(sessionId, run.runId, Cause.squash(idled.cause))
     }
     if (run.phase === 'aborted') {
+      if (engineLife.signal.aborted) return
       await holdForNextReply(pagePlugin.delivery, sessionId).catch((error: unknown) =>
         log(Effect.logError('[core] the page queue results could not wait for the next reply', {sessionId, error})),
       )
@@ -580,7 +674,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     askUi: () => runtime.forSession(sessionId).asks.ui(),
   })
 
-  const engineId = opts.engineId ?? randomUUID()
   const startPlugins = (): PluginRuntime => {
     assertUniqueCapabilityNames([['a conciv assist tool', concivSandboxToolNames()]])
     return makePluginRuntime({
@@ -588,8 +681,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       cwd: opts.cwd,
       home: appEnv.home,
       configProvider,
-      log: opts.log,
-      fallbackRoots: join(stateDir, 'plugin-host'),
+      clock: opts.clock,
+      observability: observability.context,
       engineId,
       config: opts.cfg,
       plugins: opts.plugins ?? [],
@@ -629,7 +722,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       () => pluginHost.dispose(),
       settings.close,
     ])
-  await pluginHost.context().catch(startFailed([]))
+  await inSpan(tracer, 'Engine.buildPluginHost', {}, () => pluginHost.context()).catch(startFailed([]))
   const idleScope = await pluginHost.runPromise(Scope.fork(pluginHost.scope, 'sequential')).catch(startFailed([]))
   const idleTriggers = await pluginHost
     .runPromise(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
@@ -678,7 +771,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     new Set([...(await sessionTools(sessionId)).map((tool) => tool.name), ...concivSandboxToolNames()])
 
   const hub = appEnv.hub
-  const driver = loadIsolateDriver(logMessage)
+  const driver = await inSpan(tracer, 'Engine.loadIsolateDriver', {}, async () => loadIsolateDriver(logMessage))
   const askPermission = async (
     sessionId: SessionId,
     ask: HarnessPermissionAsk,
@@ -690,34 +783,41 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       log(Effect.logError('[core] the permission ask failed', {sessionId, error: Cause.squash(asked.cause)}))
     return {allowed: false, message: 'The ask ended before the user answered it.'}
   }
-  const plane = await createChatPlane({
-    cwd: opts.cwd,
-    harnessFor,
-    harnessEnv: opts.harnessEnv ?? (() => appEnv.env),
-    systemPrompt: {
-      systemPromptFile: opts.systemPromptFile,
-      systemPromptText,
-    },
-    db,
-    sessions: sessionPort(db, rows, {
-      onRunEnd,
-      publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
+  const plane = await inSpan(tracer, 'Engine.createChatPlane', {}, () =>
+    createChatPlane({
+      cwd: opts.cwd,
+      harnessFor,
+      harnessEnv: opts.harnessEnv ?? (() => appEnv.env),
+      systemPrompt: {
+        systemPromptFile: opts.systemPromptFile,
+        systemPromptText,
+      },
+      db,
+      sessions: sessionPort(db, rows, {
+        onRunStart,
+        onRunEnd,
+        publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
+      }),
+      toolNames: sessionToolNames,
+      capabilities: codeModeCapabilities,
+      attachmentExpanders: grabExpander,
+      prompt: plugins.prompt,
+      promptHooked: plugins.promptHooked,
+      context: plugins.context,
+      pluginInstructions: (sessionId, reset, inventory) =>
+        pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
+      firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
+      firstStartTimeoutMs: opts.firstStartTimeoutMs,
+      uiCallWaitMs: opts.uiCallWaitMs,
+      uiAnswerWaitMs: opts.uiAnswerWaitMs,
+      groupExitTimeoutMs: opts.stopGraceMs,
+      log: logMessage,
+      driver,
+      askPermission,
+      pendingPermissions: (sessionId) => pluginHost.runPromise(pendingPermissionCards(sessionId)),
+      tracer,
     }),
-    toolNames: sessionToolNames,
-    capabilities: codeModeCapabilities,
-    attachmentExpanders: grabExpander,
-    prompt: plugins.prompt,
-    promptHooked: plugins.promptHooked,
-    context: plugins.context,
-    pluginInstructions: (sessionId, reset, inventory) =>
-      pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
-    firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
-    groupExitTimeoutMs: opts.stopGraceMs,
-    log: logMessage,
-    driver,
-    askPermission,
-    pendingPermissions: (sessionId) => pluginHost.runPromise(pendingPermissionCards(sessionId)),
-  }).catch(startFailed([]))
+  ).catch(startFailed([]))
   planeRef.current = plane
   await pluginHost
     .runPromise(followPermissionCards({publish: publishCard}))
@@ -733,12 +833,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     plane,
     signal: engineLife.signal,
     log,
+    tracer,
   }
 
   const runtime = makeCoreRuntime({
     primitives,
     plane,
-    db,
     model: sessionModel,
     staleness,
     interruptIdle,
@@ -795,7 +895,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     return readOutsideRefusal(exit, client)
   }
 
-  const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses, log})
+  const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses, log, tracer})
   const mcp: McpVars['mcp'] = {
     codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
     hubCall: pagePlugin.hubCall,
@@ -868,42 +968,51 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       engineId,
       staleness,
+      version: opts.app?.version,
       onShutdown: opts.onShutdown,
       trust,
       log,
+      tracer,
     },
   )
 
   if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))
 
+  const disposeStep =
+    (name: string, step: () => unknown): ShutdownStep =>
+    () =>
+      inSpan(tracer, `Engine.dispose.${name}`, {}, async () => step())
   const dispose = (): Promise<void> =>
-    runInOrder(
-      [
-        endListings,
-        plugins.closeRpc,
-        plugins.closePlugins,
-        () => pluginHost.runPromise(Scope.close(idleScope, Exit.void)),
-        plugins.closePermissions,
-        () => plane.endAllRuns(),
-        ptys.shutdown,
-        search.dispose,
-        settings.close,
-        () => browsers.close(),
-        () => pluginHost.dispose(),
-        closeDb,
-      ],
-      'conciv: disposing the engine failed',
-    )
+    inSpan(tracer, 'Engine.dispose', {}, () =>
+      runInOrder(
+        [
+          disposeStep('endListings', endListings),
+          disposeStep('closeRpc', plugins.closeRpc),
+          disposeStep('closePlugins', plugins.closePlugins),
+          disposeStep('closeIdleTriggers', () => pluginHost.runPromise(Scope.close(idleScope, Exit.void))),
+          disposeStep('closePermissions', plugins.closePermissions),
+          disposeStep('endAllRuns', () => plane.endAllRuns()),
+          disposeStep('shutdownPtys', ptys.shutdown),
+          disposeStep('disposeSearch', search.dispose),
+          disposeStep('closeSettings', settings.close),
+          disposeStep('closeBrowsers', () => browsers.close()),
+          disposeStep('disposePluginHost', () => pluginHost.dispose()),
+          disposeStep('closeDatabase', closeDb),
+        ],
+        'conciv: disposing the engine failed',
+      ),
+    ).finally(releaseObservability)
 
   const fetch = makeEngineGate<unknown>({
     fetch: (request, env) => app.fetch(request, env),
     trusts: trust.trusts,
     allowedOrigins: opts.allowedOrigins ?? [],
+    version: opts.app?.version,
     onTrusted: opts.onTrusted,
   })
 
-  await ensureConfiguredRows(rows, opts.cfg, log)
-    .then(plugins.supervise)
+  await inSpan(tracer, 'Engine.ensureConfiguredRows', {}, () => ensureConfiguredRows(rows, opts.cfg, log))
+    .then(() => inSpan(tracer, 'Engine.supervisePlugins', {}, plugins.supervise))
     .then(() =>
       pluginHost.runPromise(
         Effect.logInfo('conciv: the engine started').pipe(
@@ -918,18 +1027,21 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       throw error
     })
 
-  return {
-    app,
-    fetch,
-    agentToken,
-    trustBrowser: browsers.grant,
-    chat: chatDeps,
-    plane,
-    dispose,
-    runtime,
-    pluginHost,
-    awaitActivation: plugins.awaitActivation,
-  }
+  return carryEngineRouter(
+    {
+      app,
+      fetch,
+      agentToken,
+      trustBrowser: browsers.grant,
+      chat: chatDeps,
+      plane,
+      dispose,
+      runtime,
+      pluginHost,
+      awaitActivation: plugins.awaitActivation,
+    },
+    rpc,
+  )
 }
 
 async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig, log: Log): Promise<void> {

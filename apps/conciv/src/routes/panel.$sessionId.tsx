@@ -345,6 +345,7 @@ function PanelSession(): JSX.Element {
     isStreaming: isStreaming(),
     queueLength: chat().queue().length,
     stopping: chat().stopping(),
+    approvalPending: chat().pendingApprovals().length > 0,
     runError: chat().runError(),
     stopped: chat().stopped(),
     ran: (row()?.lastRunAt ?? null) !== null || chat().runSource() !== null,

@@ -1,0 +1,7 @@
+{
+  "name": "webpack-shop",
+  "private": true,
+  "devDependencies": {
+    "webpack": "^5.0.0"
+  }
+}

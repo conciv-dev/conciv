@@ -1,8 +1,0 @@
-import * as Solid from 'solid-js'
-import {createResource as load} from 'solid-js'
-
-export function AcmeView() {
-  const [first] = Solid.createResource(() => 'a')
-  const [second] = load(() => 'b')
-  return <p>{String(first())}{String(second())}</p>
-}

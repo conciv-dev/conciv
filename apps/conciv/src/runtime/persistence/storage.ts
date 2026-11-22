@@ -215,13 +215,15 @@ function evict(storage: Storage, keep: string, value: string) {
   return false
 }
 
-function readStored(name: string) {
+type StoredRead = {readable: true; value: string | null} | {readable: false}
+
+function readStored(name: string): StoredRead {
   try {
-    return localStorage.getItem(name)
+    return {readable: true, value: localStorage.getItem(name)}
   } catch (error) {
     console.error(`[persistence] read failed for ${name}`, error)
 
-    return null
+    return {readable: false}
   }
 }
 
@@ -233,10 +235,15 @@ function localStorageView(prefix: string): LocalStorageView {
       const name = item(key)
       const stored = readStored(name)
 
-      if (stored === null) return cacheGet(name) ?? null
-      cacheSet(name, stored)
+      if (!stored.readable) return cacheGet(name) ?? null
+      if (stored.value === null) {
+        cacheDelete(name)
 
-      return stored
+        return null
+      }
+      cacheSet(name, stored.value)
+
+      return stored.value
     },
     setItem: (key, value) => write(item(key), value),
     removeItem: (key) => {

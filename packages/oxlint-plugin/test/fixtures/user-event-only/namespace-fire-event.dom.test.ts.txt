@@ -1,6 +1,0 @@
-import * as testing from '@testing-library/dom'
-import {test} from 'vitest'
-
-test('clicks', () => {
-  testing.fireEvent.click(testing.screen.getByRole('button'))
-})

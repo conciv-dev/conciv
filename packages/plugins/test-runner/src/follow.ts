@@ -85,10 +85,10 @@ const followTestRun = Effect.fn('TestRunner.follow')(function* (
 })
 
 function fromRef(ref: SubscriptionRef.SubscriptionRef<RunView>): Accessor<RunView> {
-  const [store, setStore] = createStore<{view: RunView}>({view: initialRunView})
+  const [store, setStore] = createStore<{view: RunView}>({view: structuredClone(initialRunView)})
   const fiber = Effect.runFork(
     Stream.runForEach(SubscriptionRef.changes(ref), (value) =>
-      Effect.sync(() => setStore('view', reconcile(value, {key: 'id'}))),
+      Effect.sync(() => setStore('view', reconcile(structuredClone(value), {key: 'id'}))),
     ),
   )
   onCleanup(() => void Effect.runFork(Fiber.interrupt(fiber)))

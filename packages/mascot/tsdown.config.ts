@@ -2,6 +2,7 @@ import {defineConfig} from 'tsdown'
 import solidPlugin from 'vite-plugin-solid'
 
 export default defineConfig({
+  sourcemap: true,
   entry: [
     'src/core/index.ts',
     'src/core/style-merge.ts',

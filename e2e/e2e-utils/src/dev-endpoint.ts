@@ -7,3 +7,7 @@ export function e2eStateDir(configDir: string): string {
 export function e2eDevEndpointDir(configDir: string): string {
   return join(e2eStateDir(configDir), 'dev-endpoint')
 }
+
+export function e2ePluginCopyDir(configDir: string, plugin: string): string {
+  return join(e2eStateDir(configDir), 'plugins', plugin)
+}

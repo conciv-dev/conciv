@@ -1,4 +1,4 @@
-import {Effect, Formatter, Layer, Logger, References} from 'effect'
+import {Effect, Formatter, Logger, type Context} from 'effect'
 import {invert} from 'es-toolkit'
 
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
@@ -13,7 +13,6 @@ export type LogEntry = {
 export type LogWriter = (entry: LogEntry) => void
 
 export type LogOptions = {
-  readonly level?: LogLevel
   readonly emit: LogWriter
 }
 
@@ -79,10 +78,7 @@ export function layer(log?: LogOptions) {
     if (!log || !level) return
     emitSafely(log, readEntry(options, level))
   })
-  return Layer.merge(
-    Logger.layer([logger], {mergeWithExisting: false}),
-    Layer.succeed(References.MinimumLogLevel, levels[log?.level ?? 'info']),
-  )
+  return Logger.layer([logger], {mergeWithExisting: true})
 }
 
 export type Log = (entry: Effect.Effect<void>) => void
@@ -95,9 +91,8 @@ export function logOnRuntime(runtime: Forking): Log {
   }
 }
 
-export function logBeforeRuntime(log?: LogOptions): Log {
-  const logs = layer(log)
+export function logOnContext<Services>(context: Context.Context<Services>): Log {
   return (entry) => {
-    Effect.runFork(entry.pipe(Effect.provide(logs)))
+    Effect.runForkWith(context)(entry)
   }
 }

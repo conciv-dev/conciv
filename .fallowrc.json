@@ -7,8 +7,6 @@
     "**/*.d.ts",
     "**/*.generated.ts",
     "packages/extensions/design/**",
-    "packages/plugins/tanstack/test/fixtures/**",
-    "packages/unplugin/test/fixtures/plugin/**",
     "apps/examples/**",
     "native/swift/**",
     "e2e/astro/**",
@@ -23,7 +21,6 @@
     "packages/core/vite.config.ts",
     "packages/tools/vite.config.ts",
     "**/*.stories.tsx",
-    "**/*.test-d.ts",
     "**/*.fixtures.ts",
     "**/*.fixtures.tsx"
   ],
@@ -38,11 +35,16 @@
         "patterns": ["packages/core/src/lib/debug.ts"]
       },
       {
+        "name": "core-tests",
+        "patterns": ["packages/core/src/**/*.test.ts", "packages/core/test/**"]
+      },
+      {
         "name": "core-callers",
         "patterns": ["packages/core/src/**"]
       }
     ],
     "rules": [
+      {"from": "core-tests", "allow": ["core-callers", "session-facade", "core-shared-leaf"]},
       {
         "from": "core-callers",
         "allow": ["session-facade", "core-shared-leaf"]
@@ -68,12 +70,6 @@
     "maxCrap": 30,
     "thresholdOverrides": [
       {
-        "files": ["apps/conciv/src/runtime/persistence/persist-machine.test.ts"],
-        "functions": ["describe(\"persist store machine\")"],
-        "maxUnitSize": 149,
-        "reason": "copied from opencode packages/app/src/runtime/persistence/persist-machine.test.ts: describe(\"persist store machine\") keeps the source's shape; Day ruling 113"
-      },
-      {
         "files": ["apps/conciv/src/runtime/persistence/persist-machine.ts"],
         "functions": ["transitionPersistStore"],
         "maxCyclomatic": 31,
@@ -97,22 +93,10 @@
         "reason": "copied from opencode packages/app/src/runtime/persistence/drafts.ts: encode and decode keep the source's shape; draft local-first plan, ported whole by ruling"
       },
       {
-        "files": ["apps/conciv/src/runtime/persistence/persist.browser.test.ts"],
-        "functions": ["describe(\"persistStore\")"],
-        "maxUnitSize": 203,
-        "reason": "copied from opencode packages/app/src/runtime/persistence/persist.test.ts: describe(\"persistStore\") keeps the source's shape; Day ruling 113"
-      },
-      {
         "files": ["apps/conciv/src/runtime/persistence/persist.ts"],
         "functions": ["persistStore"],
         "maxUnitSize": 113,
         "reason": "copied from opencode packages/app/src/runtime/persistence/persist.ts: persistStore keeps the source's shape; Day ruling 113"
-      },
-      {
-        "files": ["apps/conciv/src/runtime/persistence/schema.test.ts"],
-        "functions": ["describe(\"persistence schemas\")"],
-        "maxUnitSize": 230,
-        "reason": "copied from opencode packages/app/src/runtime/persistence/schema.test.ts: describe(\"persistence schemas\") keeps the source's shape; conciv cases added under Night rulings 17, 52; Day ruling 113"
       },
       {
         "files": ["apps/conciv/src/runtime/plugin/attach-machine.ts"],
@@ -133,12 +117,6 @@
         "functions": ["perform"],
         "maxCrap": 38,
         "reason": "a copy with substitutions of opencode packages/desktop/src/main/plugin/host.ts:446 perform; Day ruling 115"
-      },
-      {
-        "files": ["apps/conciv/src/runtime/plugin/composer-write-machine.test.ts"],
-        "functions": ["describe(\"composer write machine\")"],
-        "maxUnitSize": 95,
-        "reason": "copied from opencode packages/app/src/runtime/plugin/composer-write-machine.test.ts: describe(\"composer write machine\") keeps the source's shape; Day ruling 113"
       },
       {
         "files": ["apps/conciv/src/runtime/plugin/dialog-stack-machine.ts"],
@@ -211,12 +189,6 @@
         "functions": ["createPluginAttachment"],
         "maxUnitSize": 259,
         "reason": "copied from opencode packages/app/src/runtime/plugin/host-apis.tsx: createPluginAttachment keeps the source's shape; edited under ruling A, Night rulings 22, 52, 67, Day ruling 82; Day ruling 113"
-      },
-      {
-        "files": ["apps/conciv/src/runtime/plugin/host-machine.test.ts"],
-        "functions": ["describe(\"plugin host follow\")"],
-        "maxUnitSize": 109,
-        "reason": "copied from opencode packages/desktop/src/main/plugin/host-machine.test.ts: describe(\"plugin host follow\") keeps the source's shape; Day ruling 113"
       },
       {
         "files": ["apps/conciv/src/runtime/plugin/host-machine.ts"],
@@ -324,12 +296,6 @@
         "reason": "copied from opencode packages/app/src/runtime/plugin/panels.tsx: RegionContent keeps the source's shape; edited under rulings A and C, Night ruling 49; Day ruling 113"
       },
       {
-        "files": ["apps/conciv/src/runtime/plugin/plugin-experimental-machine.test.ts"],
-        "functions": ["describe(\"plugin experimental machine\")"],
-        "maxUnitSize": 153,
-        "reason": "copied from opencode packages/app/src/runtime/plugin/plugin-gui-machine.test.ts describe(\"plugin GUI machine\"), renamed: describe(\"plugin experimental machine\") keeps the source's shape; Day ruling 113"
-      },
-      {
         "files": ["apps/conciv/src/runtime/plugin/plugin-experimental-machine.ts"],
         "functions": ["transitionPluginExperimental"],
         "maxCyclomatic": 24,
@@ -428,13 +394,6 @@
         "reason": "copied from opencode packages/client/src/shared-events.ts: run keeps opencode's shape"
       },
       {
-        "files": ["packages/plugin-host/test/core/plugin/host.ts"],
-        "maxCyclomatic": 40,
-        "maxCognitive": 26,
-        "maxCrap": 46,
-        "reason": "copied from opencode packages/core/test/plugin/host.ts: host keeps opencode's shape"
-      },
-      {
         "files": [
           "packages/plugins/whiteboard/src/anchor-resolver.ts",
           "packages/plugins/whiteboard/src/oxc-capture.ts"
@@ -487,6 +446,8 @@
     "@conciv/embed",
     "@conciv/grab",
     "@conciv/mascot",
+    "@conciv/plugin-ios",
+    "@conciv/plugin-try-it",
     "@conciv/skills",
     "@conciv/solid-diffs",
     "@conciv/ui-kit-chat-tools",
@@ -581,7 +542,8 @@
         "Location",
         "durable",
         "ephemeral",
-        "versionedType"
+        "versionedType",
+        "loggers"
       ]
     },
     {
@@ -817,17 +779,12 @@
   ],
   "entry": [
     "packages/plugin-host/src/core/database/**",
-    "packages/plugin-host/test/core/fixture/*-worker.ts",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/embed/src/native-entry.ts",
-    "packages/vitest-config/src/setup/nothing-logged-setup.ts",
     "e2e/harnesses/vite.*.config.ts",
-    "e2e/e2e-utils/src/packed-global-setup.ts",
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",
-    "packages/db/drizzle-home.config.ts",
-    "apps/conciv/test/commands/core-control.ts",
-    "packages/ui-kit-terminal/test/control-server.global.ts",
-    "apps/conciv/test/commands/core-testkit.ts"
+    "e2e/e2e-utils/src/prepare-run.ts",
+    "packages/db/drizzle-home.config.ts"
   ],
   "framework": [
     {
@@ -843,8 +800,7 @@
         "@chromatic-com/storybook",
         "@storybook/addon-a11y",
         "@storybook/addon-docs",
-        "@storybook/addon-themes",
-        "@storybook/addon-vitest"
+        "@storybook/addon-themes"
       ]
     }
   ]

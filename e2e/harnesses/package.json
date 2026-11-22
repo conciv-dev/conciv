@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc -b && vite build --config vite.claude.config.ts",
     "lint": "oxlint",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.e2e.json --noEmit"
   },
   "dependencies": {
     "@conciv/it": "workspace:*",
@@ -15,6 +16,7 @@
   },
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",
+    "@conciv/tsconfig": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

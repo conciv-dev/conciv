@@ -14,7 +14,7 @@ import {pluginIdAvailable, type Entry} from '@conciv/plugin/experimental/host'
 import type {PluginOptions} from '@conciv/plugin/experimental'
 import type {ConcivClient} from '@conciv/plugin'
 import {useRouteContext} from '@tanstack/solid-router'
-import {useApiBase, useAppData} from '../../app/context'
+import {useApiBase, useAppData, useEnvironment} from '../../app/context'
 import {builtins} from './builtins'
 import {createBundleSource, type BundleSource, type PluginManager} from './bundle-source'
 import {PluginExperimentalLoader, type PluginExperimental, type PluginExperimentalSource} from './plugins'
@@ -23,6 +23,7 @@ import type {InstalledSource} from './startup'
 import {createPluginAttachment, createHostApis, PluginAttachmentProvider} from './host-apis'
 import {HostApisProvider, useHostApis} from './host-apis-context'
 import {PluginServersProvider} from './servers'
+import {PluginStyles} from './render'
 import {createContext, useContext} from 'solid-js'
 
 const PluginsContext = createContext<{
@@ -85,6 +86,7 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
   const apiBase = useApiBase()
   const bound = createMemo(() => !props.servers || apiBase() !== '')
   const appData = useAppData()
+  const environment = useEnvironment()
   const login = useRouteContext({strict: false, select: (context) => context.login})
   const timings = useRouteContext({strict: false, select: (context) => context.timings})
   const composed = untrack(() => props.composed)
@@ -199,13 +201,14 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
           installed={installed}
           builtins={builtinIds}
           servers={props.servers}
-          options={(id) => composed.find(([plugin]) => plugin.id === id)?.[1]}
+          options={(id) => (id === 'page' ? timings()?.page : composed.find(([plugin]) => plugin.id === id)?.[1])}
           apis={apis.apis}
           whenMounted={apis.whenMounted}
           plugin={(id) => loaded().plugins.find((plugin) => plugin.definition.id === id)}
           unavailableClient={apis.unavailableClient}
           queryClient={apis.queryClient}
         >
+          <PluginStyles root={environment.rootNode} />
           {PluginHotReload && (
             <Suspense>
               <PluginHotReload />

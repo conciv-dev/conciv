@@ -18,7 +18,7 @@ import {makeAppData, type AppData} from './data/app-data.js'
 import type {ConcivSettings} from './data/settings.js'
 import {PendingPane} from './shell/pending.js'
 import {becameTrusted, engineLock, engineLocked, type EngineLogin} from './app/engine-login.js'
-import {createBrowserDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
+import type {DraftStore} from './runtime/persistence/drafts.js'
 import type {ComposedPlugin} from './runtime/plugin/root.js'
 import {ErrorScreen} from './shell/error-screen.js'
 import {classifyRpcError, rpcErrorCode, type RpcErrorClassification} from './shell/rpc-error-message.js'
@@ -35,8 +35,8 @@ function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
     classifyRpcError(props.error, ENGINE_UNREACHABLE_MESSAGE, GENERIC_ERROR_MESSAGE),
   )
   const retry = async (): Promise<void> => {
-    await login()?.requestTrust()
     if (classification().transportFailure) resetBrowserRpcConnection(apiBase()?.() ?? '')
+    await login()?.requestTrust()
     await router.invalidate()
   }
   const onTrustChange: TrustListener = (status, previous) => {
@@ -57,6 +57,8 @@ export type ConcivTimings = {
   engine?: Partial<EngineConnectionTimings>
   chatRunReconnect?: ChatConnectionOptions['runReconnect']
   queryRetryDelayMs?: number
+  page?: {taskTimeoutMs?: number}
+  picker?: {searchWaitMs?: number; previewWaitMs?: number}
 }
 
 export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}
@@ -105,15 +107,7 @@ export type ConcivRouterConfig = {
   notifyInteractive?: () => void
   login?: EngineLogin
   timings?: ConcivTimings
-}
-
-function openDraftStore(writable: () => boolean): DraftStore | null {
-  try {
-    return createBrowserDraftStore({writable})
-  } catch (error) {
-    console.error('[conciv] drafts stay engine-only', error)
-    return null
-  }
+  draftStore?: (writable: () => boolean) => DraftStore | undefined
 }
 
 type TrustHandlers = {rerunRefused: () => void; trusted: () => void; revoked: () => void}
@@ -188,7 +182,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const data = makeAppData(
     config.rpc,
     queryClient,
-    openDraftStore(() => !lockedOut()),
+    config.draftStore?.(() => !lockedOut()) ?? null,
     lockedOut,
     apiBase,
     timings.engine,

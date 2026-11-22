@@ -325,7 +325,7 @@ export const Operations = [
       timeout: z.coerce.number().optional().describe('max wait in ms'),
     },
     z.object({ok: z.literal(true), state: PageWaitStateSchema}),
-    {mutating: false, capture: 'after'},
+    reading,
   ),
   operation(
     'reload',

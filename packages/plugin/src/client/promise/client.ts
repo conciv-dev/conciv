@@ -49,7 +49,6 @@ export function make(
     settings: raw.settings,
     drafts: raw.drafts,
     markers: raw.markers,
-    navigation: raw.navigation,
     chat: raw.chat,
     registry: raw.registry,
     tabs: raw.tabs,

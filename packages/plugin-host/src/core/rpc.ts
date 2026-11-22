@@ -106,6 +106,7 @@ export const layer = Layer.effect(
     })
 
     const call = Effect.fn('Rpc.call')(function* (rpcId: string, name: string, input: unknown) {
+      yield* Effect.annotateCurrentSpan({'rpc.id': rpcId, 'rpc.method': name})
       if (yield* Deferred.isDone(closed))
         return yield* Effect.fail(failure('rpc.unavailable', `RPC is unavailable: ${rpcId}`))
       const entry = registrations.get(rpcId)?.at(-1)

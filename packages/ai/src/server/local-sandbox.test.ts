@@ -1,57 +1,33 @@
-import {describe, expect, it, vi} from 'vitest'
+import {once} from 'node:events'
+import {join} from 'node:path'
+import {createInterface} from 'node:readline'
+import {pathToFileURL} from 'node:url'
+import {describe, expect} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {localSandbox} from './local-sandbox.js'
+import {running, test} from '../../test/ai-test.js'
 
-function groupAlive(group: number): boolean {
-  try {
-    process.kill(-group, 0)
-    return true
-  } catch {
-    return false
-  }
-}
+describe('the local sandbox', () => {
+  test('kills every agent process group still running when the engine process exits without stopping it', async ({
+    groups,
+    runNode,
+  }) => {
+    const sandboxModule = pathToFileURL(join(import.meta.dirname, 'local-sandbox.ts')).href
+    const program = [
+      `import {localSandbox} from ${JSON.stringify(sandboxModule)}`,
+      'const sandbox = await localSandbox({dir: process.cwd()}).create({})',
+      "const agent = await sandbox.process.spawn('sleep 600')",
+      'console.log(agent.pid)',
+      'process.exit(0)',
+    ].join('\n')
+    const engine = runNode(program, tempDir('sandbox-exit-'))
+    const exited = once(engine, 'exit')
+    const [line] = await once(createInterface({input: engine.stdout}), 'line')
+    const agent = Number(line)
+    groups.push(agent)
 
-type Spawned = {pid: number; kill: (signal: NodeJS.Signals) => unknown}
+    await exited
 
-type SandboxFixtures = {frozenDate: void; spawned: <Agent extends Spawned>(agent: Agent) => Agent}
-
-const withFrozenDate = it.extend<SandboxFixtures>({
-  frozenDate: [
-    // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
-    async ({}, use) => {
-      vi.useFakeTimers({toFake: ['Date']})
-      try {
-        await use()
-      } finally {
-        vi.useRealTimers()
-      }
-    },
-    {auto: true},
-  ],
-  // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
-  spawned: async ({}, use) => {
-    const agents: Spawned[] = []
-    try {
-      await use((agent) => {
-        agents.push(agent)
-        return agent
-      })
-    } finally {
-      agents.forEach((agent) => agent.kill('SIGKILL'))
-    }
-  },
-})
-
-describe('local sandbox stop grace', () => {
-  withFrozenDate(
-    'kills a child that ignores SIGTERM once the grace it was given is over, on a clock that never moves',
-    async ({spawned}) => {
-      const provider = localSandbox({dir: tempDir('conciv-stop-grace-'), groupExitTimeoutMs: 0})
-      const live = await provider.create({})
-      const agent = spawned(await live.process.spawn(`(trap '' TERM; echo ready; exec sleep 600) & wait`))
-      expect((await agent.stdout[Symbol.asyncIterator]().next()).value).toBe('ready\n')
-      await provider.destroy({id: live.id})
-      await vi.waitFor(() => expect(groupAlive(agent.pid)).toBe(false))
-    },
-  )
+    expect(agent).toBeGreaterThan(0)
+    expect(running(agent)).toBe(false)
+  })
 })

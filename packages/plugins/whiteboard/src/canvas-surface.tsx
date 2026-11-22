@@ -14,7 +14,9 @@ import type {ChatCover} from './comments-model.js'
 import {ThreadPopover} from './thread.js'
 import type {CanvasBackground} from './stores.js'
 
-const CANVAS_STYLES = excalidrawCss.replaceAll(/:root(?=\s*\{)/g, ':host')
+const CANVAS_STYLES = excalidrawCss
+  .replaceAll(/:root\[dir=(ltr|rtl)\]/g, ':host(:dir($1))')
+  .replaceAll(/:root(?=\s*\{)/g, ':host')
 
 const EXCALIDRAW_INSIDE_MARKER = 'data-prevent-outside-click'
 

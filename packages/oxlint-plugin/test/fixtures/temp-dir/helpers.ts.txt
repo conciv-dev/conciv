@@ -1,7 +1,0 @@
-import {mkdtempSync} from 'node:fs'
-import {join} from 'node:path'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
-
-export function makeFolders(someOtherRoot: string): string[] {
-  return [tempDir('x-'), mkdtempSync(join(someOtherRoot, 'x-'))]
-}
