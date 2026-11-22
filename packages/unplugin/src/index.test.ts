@@ -1,4 +1,4 @@
-import {existsSync, readFileSync, readdirSync, writeFileSync} from 'node:fs'
+import {existsSync, readFileSync, readdirSync, realpathSync, writeFileSync} from 'node:fs'
 import {basename, join} from 'node:path'
 import {describe, expect} from 'vitest'
 import {resolveConfig} from 'vite'
@@ -132,5 +132,37 @@ describe('bundler builds', () => {
       plugins: [concivWebpack()],
     })
     expect(readFileSync(join(unwritable, 'main.js'), 'utf8')).toBe(plainOutput)
+  })
+
+  test('a webpack development watch build boots the engine and adds the widget entry to every entry', async ({
+    project,
+    webpackWatch,
+    freePort,
+  }) => {
+    const root = project('app')
+    const port = await freePort()
+    const stats = await webpackWatch({
+      mode: 'development',
+      context: root,
+      entry: {first: './src/greeting.js', second: './src/greeting.js'},
+      output: {path: join(root, 'dist')},
+      plugins: [concivWebpack({port, stateRoot: root, homeDir: join(root, 'home')})],
+    })
+
+    expect((await fetch(`http://127.0.0.1:${port}/health`)).status).toBe(200)
+
+    const {entrypoints, chunkGraph} = stats.compilation
+    const entryModules = [...entrypoints].map(([name, entrypoint]) => ({
+      name,
+      modules: entrypoint.chunks
+        .flatMap((chunk) => [...chunkGraph.getChunkModulesIterable(chunk)])
+        .map((module) => module.nameForCondition()),
+    }))
+    const client = join(concivStateDir(realpathSync(root)), `widget-client.${port}.gen.js`)
+    const greeting = join(realpathSync(root), 'src', 'greeting.js')
+    expect(entryModules).toEqual([
+      {name: 'first', modules: expect.arrayContaining([greeting, client])},
+      {name: 'second', modules: expect.arrayContaining([greeting, client])},
+    ])
   })
 })

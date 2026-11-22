@@ -8,7 +8,8 @@ import type {Readable} from 'node:stream'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {test as base} from 'vitest'
 import {createServer, type InlineConfig, type ViteDevServer} from 'vite'
-import webpack, {type Compiler, type Configuration} from 'webpack'
+import {createServer as createNetServer} from 'node:net'
+import webpack, {type Compiler, type Configuration, type Stats, type Watching} from 'webpack'
 import {z} from 'zod'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
@@ -46,6 +47,36 @@ function runCompiler(compiler: Compiler): Promise<void> {
       resolve()
     })
   })
+}
+
+function watchCompiler(compiler: Compiler, watchings: Watching[]): Promise<Stats> {
+  return new Promise((resolve, reject) => {
+    const watching = compiler.watch({}, (error, stats) => {
+      if (error) return reject(error)
+      if (stats === undefined) return reject(new Error('webpack watch gave no stats'))
+      if (stats.hasErrors()) return reject(new Error(stats.toString('errors-only')))
+      resolve(stats)
+    })
+    if (watching === undefined) return reject(new Error('webpack could not start watching'))
+    watchings.push(watching)
+  })
+}
+
+function closeWatching(watching: Watching): Promise<void> {
+  return new Promise((resolve, reject) => {
+    watching.close((error) => (error ? reject(error) : resolve()))
+  })
+}
+
+async function freePort(): Promise<number> {
+  const server = createNetServer()
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address()
+  server.close()
+  await once(server, 'close')
+  if (address === null || typeof address === 'string') throw new Error('no local port could be opened')
+  return address.port
 }
 
 function closeCompiler(compiler: Compiler): Promise<void> {
@@ -94,6 +125,8 @@ type UnpluginFixtures = {
   project: (name: string) => string
   serve: (config: InlineConfig) => Promise<ViteDevServer>
   webpackBuild: (config: Configuration) => Promise<void>
+  webpackWatch: (config: Configuration) => Promise<Stats>
+  freePort: () => Promise<number>
 }
 
 export const test = base.extend<UnpluginFixtures>({
@@ -178,6 +211,20 @@ export const test = base.extend<UnpluginFixtures>({
       return runCompiler(compiler)
     })
     await Promise.all(compilers.map(closeCompiler))
+  },
+  webpackWatch: async ({task: _task}, use) => {
+    const compilers: Compiler[] = []
+    const watchings: Watching[] = []
+    await use((config) => {
+      const compiler = webpack(config)
+      compilers.push(compiler)
+      return watchCompiler(compiler, watchings)
+    })
+    await Promise.all(watchings.map(closeWatching))
+    await Promise.all(compilers.map(closeCompiler))
+  },
+  freePort: async ({task: _task}, use) => {
+    await use(freePort)
   },
   browser: async ({task: _task}, use) => {
     const clients: BrowserRpcClient[] = []
