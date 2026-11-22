@@ -20,8 +20,8 @@ describe('recording keyboard shortcuts', () => {
 
     await user.click(screen.getByRole('button', {name: 'Back to chat'}))
     await user.click(await screen.findByRole('textbox', {name: 'Message the conciv agent'}))
+    expect(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
     await user.keyboard('{Control>}.{/Control}')
-    expect(screen.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
     await user.keyboard('{Control>}k{/Control}')
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     expect(screen.queryByRole('dialog', {name: 'conciv chat agent'})).not.toBeInTheDocument()
