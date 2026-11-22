@@ -11,8 +11,9 @@ test.describe('the widget on a plain vite page', () => {
   test('the model menu offers a harness for each agent CLI on the PATH and none for a CLI that is missing', async ({
     page,
   }) => {
+    const failures = collectFailures(page)
     await loginWidget(page)
-    await page.getByRole('button', {name: /conciv chat$/}).click()
+    await expectWidgetBoots(page, failures)
     await page.getByRole('button', {name: /^Model: /}).click()
 
     const menu = page.getByRole('dialog', {name: 'Model'})
