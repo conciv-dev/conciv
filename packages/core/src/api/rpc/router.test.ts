@@ -1,4 +1,5 @@
 import {describe, expect} from 'vitest'
+import {makeRpcClient} from '@conciv/contract'
 import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../../../test/engine-test.js'
 
@@ -105,6 +106,29 @@ describe('outside agent CLIs', () => {
     expect((await listings.next()).value).toMatchObject({
       installs: [expect.objectContaining({harnessId: 'claude'})],
       connections: [],
+    })
+  })
+})
+
+describe('terminal access', () => {
+  test('a terminal opened from one origin answers that origin and is unknown to another', async () => {
+    const engine = await createEngine()
+    const opener = makeRpcClient(engine.address.apiBase, {headers: {origin: 'http://localhost:5173'}})
+    const stranger = makeRpcClient(engine.address.apiBase, {headers: {origin: 'http://127.0.0.1:5174'}})
+
+    const pty = await opener.experimental.persistentPty.create({sessionId: engine.session.id})
+
+    await expect(opener.experimental.persistentPty.resize({ptyId: pty.id, cols: 100, rows: 30})).resolves.toEqual({
+      ok: true,
+    })
+    await expect(
+      stranger.experimental.persistentPty.resize({ptyId: pty.id, cols: 100, rows: 30}),
+    ).rejects.toMatchObject({code: 'PTY_NOT_FOUND', message: 'no terminal with that id'})
+    await expect(stranger.experimental.persistentPty.create({sessionId: engine.session.id})).resolves.toMatchObject({
+      id: pty.id,
+    })
+    await expect(stranger.experimental.persistentPty.resize({ptyId: pty.id, cols: 100, rows: 30})).resolves.toEqual({
+      ok: true,
     })
   })
 })
