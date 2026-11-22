@@ -30,9 +30,6 @@ test.describe('a project plugin that saves a file and opens a link on a vite sol
     page,
     context,
   }) => {
-    await context.route('https://conciv.dev/**', (route) =>
-      route.fulfill({contentType: 'text/html', body: 'conciv.dev'}),
-    )
     const failures = collectFailures(page)
     await loginWidget(page)
     await expectWidgetBoots(page, failures)
@@ -46,7 +43,8 @@ test.describe('a project plugin that saves a file and opens a link on a vite sol
     const opened = context.waitForEvent('page')
     await page.getByRole('button', {name: 'Open conciv.dev'}).click()
     const tab = await opened
-    await expect(tab).toHaveURL('https://conciv.dev/')
+    expect(tab.url()).toBe('https://conciv.dev/')
+    await tab.close()
     await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
   })
 })
