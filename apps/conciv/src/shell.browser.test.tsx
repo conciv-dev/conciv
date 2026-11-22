@@ -559,11 +559,9 @@ describe('logging in', () => {
     await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
     await user.keyboard(code)
 
-    expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
-    expect(screen.queryByRole('dialog', {name: 'Authorize conciv'})).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
     expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+    expect(await screen.findByRole('button', {name: 'Minimize conciv chat'})).toBeVisible()
+    expect(screen.queryByRole('dialog', {name: 'Authorize conciv'})).not.toBeInTheDocument()
     await expect.element(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
     await engine.revokeBrowsers()
     expect(await screen.findByText('This browser is no longer authorized to use conciv.')).toBeVisible()
