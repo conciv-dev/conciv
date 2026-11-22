@@ -2,11 +2,10 @@ export * as SessionSynthetic from './synthetic.js'
 
 import type {Effect as EffectType} from 'effect'
 import {Effect} from 'effect'
-import type {Delivery} from '@conciv/plugin/schema/session-inbox'
 import type {SessionId} from '@conciv/plugin/schema/session-id'
 import {SessionMessage} from '@conciv/plugin/schema/session-message'
 import {makeSyntheticConflictError, type NotFoundError} from './error.js'
-import type {SessionInbox} from './inbox.js'
+import {SessionInbox} from './inbox.js'
 
 export type Store = {readonly get: (sessionID: SessionId) => EffectType.Effect<unknown, NotFoundError>}
 
@@ -21,7 +20,7 @@ export const make = (
     text: string
     description?: string
     metadata?: Record<string, unknown>
-    delivery?: Delivery
+    delivery?: SessionInbox.Delivery
     resume?: boolean
   }) {
     const sessionID = input.sessionID
@@ -34,7 +33,11 @@ export const make = (
         item: {
           type: 'synthetic',
           delivery: input.delivery ?? 'steer',
-          payload: {text: input.text, description: input.description, metadata: input.metadata},
+          payload: SessionInbox.SyntheticPayload.make({
+            text: input.text,
+            description: input.description,
+            metadata: input.metadata,
+          }),
         },
       })
       .pipe(
