@@ -351,7 +351,9 @@ describe('the agent plays a list of actions on the page', () => {
       <form
         onSubmit={(event) => {
           event.preventDefault()
-          event.currentTarget.append(`Saved ${String(new FormData(event.currentTarget).get('name'))}`)
+          const saved = document.createElement('p')
+          saved.textContent = `Saved ${String(new FormData(event.currentTarget).get('name'))}`
+          event.currentTarget.append(saved)
         }}
       >
         <input id="name" name="name" aria-label="Your name" />
