@@ -641,7 +641,9 @@ describe('a plugin tab, its dialogs and its overlay', () => {
       dialog: 'Name the notes',
       answer: async (user: UserEvent, dialog: HTMLElement) => {
         expect(within(dialog).getByRole('button', {name: 'Submit'})).toBeDisabled()
-        await user.type(within(dialog).getByRole('textbox', {name: 'Name the notes'}), 'Launch plan')
+        const name = within(dialog).getByRole('textbox', {name: 'Name the notes'})
+        await expect.element(name).toHaveFocus()
+        await user.type(name, 'Launch plan')
         await user.click(within(dialog).getByRole('button', {name: 'Submit'}))
       },
       shown: 'Named Launch plan',
