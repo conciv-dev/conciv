@@ -53,9 +53,10 @@ describe('the calm chat plane', () => {
     await held.started
     const watch = watchCalm(task.name)
     await watch.checkpoint()
+    const end = watch.endWhenDrawn('All sixty steps are done.')
     await held.release()
+    await end
     await expect.element(page.getByText('All sixty steps are done.', {exact: true})).toBeVisible()
-    await watch.checkpoint()
 
     watch.expectSmooth()
   })
@@ -86,9 +87,10 @@ describe('the calm chat plane', () => {
     await held.started
     const watch = watchCalm(task.name)
     await watch.checkpoint()
+    const end = watch.endWhenDrawn('The long thread is done.')
     await held.release()
+    await end
     await expect.element(page.getByText('The long thread is done.', {exact: true})).toBeVisible()
-    await watch.checkpoint()
 
     watch.expectSmooth()
   })
@@ -127,11 +129,12 @@ describe('the calm chat plane', () => {
     await held.started
     const watch = watchCalm(task.name)
     await watch.checkpoint()
+    const end = watch.endWhenDrawn('That is the whole helper.')
     await held.release()
     await expect.element(page.getByRole('button', {name: /^\d+ more lines?$/})).toBeVisible()
     await expect.element(page.getByRole('button', {name: /^[2-9]\d more lines$/})).toBeVisible()
+    await end
     await expect.element(page.getByText('That is the whole helper.', {exact: true})).toBeVisible()
-    await watch.checkpoint()
 
     watch.expectSmooth()
   })
@@ -157,10 +160,11 @@ describe('the calm chat plane', () => {
 
     const watch = watchCalm(task.name)
     await watch.checkpoint()
+    const end = watch.endWhenScrolledToEnd()
     await latest.click()
+    await end
     await expect.element(last).toBeInViewport()
     await expect.element(latest).toBeDisabled()
-    await watch.checkpoint()
 
     watch.expectSmooth()
   })

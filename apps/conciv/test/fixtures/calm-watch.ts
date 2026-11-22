@@ -5,15 +5,58 @@ const FRAME_JANK_BUDGET = 2
 const MIN_SAMPLED_WINDOW_MS = 300
 const JANK_FRAME_MS = 33
 const SETTLE_PASSES = 3
+const TAIL_FRAMES = 30
 
 type FrameGaps = {sampledMs: number; p50: number; p95: number; max: number; over33: number}
 
-export type CalmWatch = {checkpoint: () => Promise<void>; expectSmooth: () => void}
+export type CalmWatch = {
+  checkpoint: () => Promise<void>
+  endWhenDrawn: (text: string) => Promise<void>
+  endWhenScrolledToEnd: () => Promise<void>
+  expectSmooth: () => void
+}
 
 function threadViewport(): HTMLElement {
   const viewport = document.querySelector<HTMLElement>('[role="log"][aria-live="off"]')
   if (!viewport) throw new Error('the calm watch could not find the thread viewport')
   return viewport
+}
+
+function hasText(root: Node, text: string): boolean {
+  return root.textContent?.includes(text) ?? false
+}
+
+function textDrawn(viewport: HTMLElement, text: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (hasText(viewport, text)) return resolve()
+    const observer = new MutationObserver(() => {
+      if (!hasText(viewport, text)) return
+      observer.disconnect()
+      resolve()
+    })
+    observer.observe(viewport, {childList: true, subtree: true, characterData: true})
+  })
+}
+
+function atEnd(viewport: HTMLElement): boolean {
+  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 1
+}
+
+function scrolledToEnd(viewport: HTMLElement): Promise<void> {
+  return new Promise((resolve) => {
+    const settled = (): void => {
+      if (!atEnd(viewport)) return
+      viewport.removeEventListener('scrollend', settled)
+      resolve()
+    }
+    viewport.addEventListener('scrollend', settled)
+  })
+}
+
+async function framesAfter(count: number): Promise<void> {
+  for (let frame = 0; frame < count; frame += 1) {
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+  }
 }
 
 function hasFiniteIterations(animation: Animation): boolean {
@@ -67,6 +110,11 @@ export function watchCalm(measurement: string): CalmWatch {
   }
   const pause = (): void => cancelAnimationFrame(frame.handle)
   resume()
+  const endAfter = async (event: Promise<void>): Promise<void> => {
+    await event
+    await framesAfter(TAIL_FRAMES)
+    pause()
+  }
   return {
     checkpoint: async () => {
       pause()
@@ -76,6 +124,8 @@ export function watchCalm(measurement: string): CalmWatch {
         resume()
       }
     },
+    endWhenDrawn: (text) => endAfter(textDrawn(threadViewport(), text)),
+    endWhenScrolledToEnd: () => endAfter(scrolledToEnd(threadViewport())),
     expectSmooth: () => {
       pause()
       const measured = summariseGaps(gaps)
