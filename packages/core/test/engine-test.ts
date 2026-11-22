@@ -1,3 +1,4 @@
+import {writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {createRouterClient, type RouterClient} from '@orpc/server'
 import {test as base, vi, type TestAPI} from 'vitest'
@@ -36,6 +37,7 @@ type EngineFixtures = {
   launch: (root: string) => Promise<EngineClient>
   connect: (engine: KitEngine) => RpcClient
   untrusted: (engine: KitEngine) => RpcClient
+  agentPath: (bins: string[]) => string
   fakeTimers: (config: Parameters<typeof vi.useFakeTimers>[0]) => void
   ttySessions: (options: Parameters<typeof createTtySessions>[0]) => TtySessions
   settingsStorage: (storages: SettingsStorages) => SettingsStorage
@@ -68,6 +70,13 @@ export const test: TestAPI<EngineFixtures> = base.extend<EngineFixtures>({
       return client.rpc
     })
     for (const client of clients) client.close()
+  },
+  agentPath: async ({task: _task}, use) => {
+    await use((bins) => {
+      const folder = tempDir('agent-bin-')
+      for (const bin of bins) writeFileSync(join(folder, bin), '#!/bin/sh\nexit 0\n', {mode: 0o755})
+      return folder
+    })
   },
   untrusted: async ({task: _task}, use) => {
     const clients: BrowserRpcClient[] = []

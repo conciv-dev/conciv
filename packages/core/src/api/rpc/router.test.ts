@@ -85,3 +85,29 @@ describe('tool registry', () => {
     })
   })
 })
+
+describe('outside agent CLIs', () => {
+  test("an agent CLI on the engine's PATH is offered, connects to conciv, and disconnects", async ({
+    connect,
+    agentPath,
+  }) => {
+    const engine = await createEngine({}, {env: {PATH: agentPath(['claude'])}})
+    const rpc = connect(engine)
+    const listings = (await rpc.meta.hubAgents())[Symbol.asyncIterator]()
+
+    expect((await listings.next()).value).toMatchObject({
+      installs: [expect.objectContaining({harnessId: 'claude'})],
+      connections: [],
+    })
+    await expect(rpc.meta.connectHub({harness: 'claude'})).resolves.toMatchObject({ok: true})
+    expect((await listings.next()).value).toMatchObject({
+      installs: [],
+      connections: [expect.objectContaining({harnessId: 'claude'})],
+    })
+    await expect(rpc.meta.disconnectHub({harness: 'claude'})).resolves.toMatchObject({ok: true})
+    expect((await listings.next()).value).toMatchObject({
+      installs: [expect.objectContaining({harnessId: 'claude'})],
+      connections: [],
+    })
+  })
+})
