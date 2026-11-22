@@ -107,13 +107,13 @@ All verify: the ask comes from `createEngine({permission: 'ask'})` (or a `permis
 
 ## Browser mode (`pane.browser.test.tsx`)
 
-| feature                                                                       | flow                              | test                                                                                                                 |
-| ----------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Paging: scrolling near the top loads earlier messages (more than 50 messages) | a long session, scroll to the top | written: `apps/conciv/src/pane.browser.test.tsx` › a long saved session (26 turns, page size 50)                     |
-| "Latest" chip scrolls back to the bottom when not at bottom                   | scroll up, click Latest           | written: `apps/conciv/src/pane.browser.test.tsx` › a long saved session                                              |
-| Virtualized long thread (over 15 turns) keeps rows in order                   | a long session                    | written: `apps/conciv/src/pane.browser.test.tsx` › a long saved session (rows in order after the earlier page loads) |
-| Code highlighting and mermaid in replies                                      | a reply with code and mermaid     | kept: duplicate of row 'Code highlighting and mermaid in replies' above, written there                               |
-| Trace rail drawing / joins                                                    | look only                         | kept: a story, by ruling (look is a story)                                                                           |
+| feature                                                                       | flow                              | test                                                                                                                |
+| ----------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Paging: scrolling near the top loads earlier messages (more than 50 messages) | a long session, scroll to the top | tested: `apps/conciv/src/pane.browser.test.tsx` › a long saved session (26 turns, page size 50)                     |
+| "Latest" chip scrolls back to the bottom when not at bottom                   | scroll up, click Latest           | tested: `apps/conciv/src/pane.browser.test.tsx` › a long saved session                                              |
+| Virtualized long thread (over 15 turns) keeps rows in order                   | a long session                    | tested: `apps/conciv/src/pane.browser.test.tsx` › a long saved session (rows in order after the earlier page loads) |
+| Code highlighting and mermaid in replies                                      | a reply with code and mermaid     | kept: duplicate of row 'Code highlighting and mermaid in replies' above, written there                              |
+| Trace rail drawing / joins                                                    | look only                         | kept: a story, by ruling (look is a story)                                                                          |
 
 ## Package tests (node, the kits the pane draws with)
 
@@ -128,8 +128,8 @@ All verify: the ask comes from `createEngine({permission: 'ask'})` (or a `permis
 
 | status    | rows |
 | --------- | ---- |
-| tested    | 56   |
-| written   | 7    |
+| tested    | 59   |
+| written   | 4    |
 | planned   | 0    |
 | verify    | 0    |
 | blocked   | 0    |
