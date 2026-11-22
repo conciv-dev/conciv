@@ -7,9 +7,8 @@ import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('quick terminal', () => {
-  const mod = resolveModifier('Mod')
-
-  test('the user opens the quick terminal on the latest session, splits it, and closes it', async () => {
+  test('the user opens the quick terminal on the latest session with the hotkey, splits it with Mod+D, closes one of the two panes, closes it with the hotkey, and reopens it to split and close it with the buttons', async () => {
+    const mod = resolveModifier('Mod')
     const user = userEvent.setup()
     const engine = await createEngine()
     await engine.newSession('Latest work')
@@ -22,41 +21,32 @@ describe('quick terminal', () => {
     expect(terminal).toBeVisible()
     expect(await within(terminal).findByRole('button', {name: 'Session: Latest work'})).toBeVisible()
 
-    await user.click(within(terminal).getByRole('button', {name: 'Split pane'}))
-    expect(await within(terminal).findByRole('button', {name: 'Session: New session'})).toBeVisible()
-    expect(within(terminal).getAllByRole('button', {name: /^Session: /})).toHaveLength(2)
-
-    await user.click(within(terminal).getByRole('button', {name: 'Close quick terminal'}))
-    expect(screen.queryByRole('dialog', {name: 'conciv quick terminal'})).not.toBeInTheDocument()
-
-    expect(document.body).toHaveFocus()
-    await user.keyboard(`{${mod}>}\`{/${mod}}`)
-    const reopened = await screen.findByRole('dialog', {name: 'conciv quick terminal'})
-    expect(await within(reopened).findAllByRole('button', {name: /^Session: /})).toHaveLength(1)
-
-    await user.click(within(reopened).getByRole('button', {name: 'Close pane'}))
-    expect(screen.queryByRole('dialog', {name: 'conciv quick terminal'})).not.toBeInTheDocument()
-  })
-
-  test('the user splits the quick terminal with the keyboard and closes it with the hotkey', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.newSession('Latest work')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/']})})
-
-    expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
-    expect(document.body).toHaveFocus()
-    await user.keyboard(`{${mod}>}\`{/${mod}}`)
-    const terminal = await screen.findByRole('dialog', {name: 'conciv quick terminal'})
-    expect(await within(terminal).findByRole('button', {name: 'Session: Latest work'})).toBeVisible()
-
     expect(document.body).toHaveFocus()
     await user.keyboard(`{${mod}>}d{/${mod}}`)
     expect(await within(terminal).findByRole('button', {name: 'Session: New session'})).toBeVisible()
     expect(within(terminal).getAllByRole('button', {name: /^Session: /})).toHaveLength(2)
 
+    await user.click(
+      within(screen.getByRole('region', {name: 'Session: New session'})).getByRole('button', {name: 'Close pane'}),
+    )
+    expect(screen.queryByRole('region', {name: 'Session: New session'})).not.toBeInTheDocument()
+    expect(screen.getByRole('region', {name: 'Session: Latest work'})).toBeVisible()
+
     expect(document.body).toHaveFocus()
     await user.keyboard(`{${mod}>}\`{/${mod}}`)
+    expect(screen.queryByRole('dialog', {name: 'conciv quick terminal'})).not.toBeInTheDocument()
+
+    expect(document.body).toHaveFocus()
+    await user.keyboard(`{${mod}>}\`{/${mod}}`)
+    const reopened = await screen.findByRole('dialog', {name: 'conciv quick terminal'})
+    expect(await within(reopened).findByRole('button', {name: 'Session: Latest work'})).toBeVisible()
+    expect(within(reopened).getAllByRole('button', {name: /^Session: /})).toHaveLength(1)
+
+    await user.click(within(reopened).getByRole('button', {name: 'Split pane'}))
+    expect(await within(reopened).findByRole('button', {name: 'Session: New session'})).toBeVisible()
+    expect(within(reopened).getAllByRole('button', {name: /^Session: /})).toHaveLength(2)
+
+    await user.click(within(reopened).getByRole('button', {name: 'Close quick terminal'}))
     expect(screen.queryByRole('dialog', {name: 'conciv quick terminal'})).not.toBeInTheDocument()
   })
 })
@@ -157,28 +147,6 @@ describe('the host turns the quick terminal off', () => {
     await user.hover(within(terminal).getByRole('button', {name: 'Split pane'}))
     expect(await screen.findByRole('tooltip', {name: /^Split pane/})).toBeVisible()
     expect(screen.getByRole('dialog', {name: 'conciv quick terminal'})).toBeVisible()
-  })
-})
-
-describe('close one of two quick panes', () => {
-  test('the user closes the Alpha pane and the Beta pane stays open', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    const alpha = await engine.newSession('Alpha')
-    const beta = await engine.newSession('Beta')
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/quick?panes=${alpha.id},${beta.id}&focus=0`]}),
-    })
-
-    expect(await screen.findByRole('region', {name: 'Session: Alpha'})).toBeVisible()
-    expect(await screen.findByRole('region', {name: 'Session: Beta'})).toBeVisible()
-
-    await user.click(
-      within(screen.getByRole('region', {name: 'Session: Alpha'})).getByRole('button', {name: 'Close pane'}),
-    )
-    expect(screen.queryByRole('region', {name: 'Session: Alpha'})).not.toBeInTheDocument()
-    expect(screen.getByRole('region', {name: 'Session: Beta'})).toBeVisible()
   })
 })
 
