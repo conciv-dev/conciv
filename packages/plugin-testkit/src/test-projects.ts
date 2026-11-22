@@ -91,7 +91,7 @@ function kitDefaults(test: AuthorTest = {}): AuthorTest {
       reporter: ['json-summary', 'lcovonly'],
       reportsDirectory: 'coverage',
       reportOnFailure: true,
-      include: ['src/**/*.{ts,tsx}'],
+      include: ['src/**/*.{ts,tsx}', 'dist/**/*.js'],
       exclude: ['src/**/*.test.*', 'src/**/*.stories.*'],
     },
     testTimeout: test.testTimeout ?? TEST_TIMEOUT_MS,

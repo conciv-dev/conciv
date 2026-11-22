@@ -1,6 +1,7 @@
 import {defineConfig} from 'tsdown'
 
 export default defineConfig({
+  sourcemap: true,
   entry: {
     'promise/index': 'src/promise/index.ts',
     rpc: 'src/rpc.ts',
