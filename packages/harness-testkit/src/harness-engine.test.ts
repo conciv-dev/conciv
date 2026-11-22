@@ -63,6 +63,26 @@ describe('several tool calls in one reply', () => {
   })
 })
 
+describe('token use from a scripted harness', () => {
+  test("a harness given a context size and a context window reports both on the session after its run, as the pane's context meter reads them", async ({
+    launch,
+  }) => {
+    const {engine, client} = await launch(
+      {},
+      {harnesses: [{id: 'engine', contextTokens: 1200, contextWindow: 200_000}]},
+    )
+    await engine.reply(TestLLM.text('Done'))
+
+    await engine.session.send('Count me')
+
+    const session = await client.sessions.get({sessionId: engine.session.id})
+    expect(session.usage).toMatchObject({
+      contextTokens: 1200,
+      contextWindow: 200_000,
+    })
+  })
+})
+
 describe('a second engine on the same home', () => {
   test("an engine started on another engine's home reads the global settings that home saved, and a project setting stays with its own project", async ({
     launch,

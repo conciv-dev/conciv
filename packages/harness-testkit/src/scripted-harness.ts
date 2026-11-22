@@ -1,3 +1,5 @@
+import {mkdir, writeFile} from 'node:fs/promises'
+import {dirname, join} from 'node:path'
 import {z} from 'zod'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
@@ -74,7 +76,11 @@ export type ScriptedHarness = {
   models?: HarnessModel[]
   commands?: HarnessCommand[]
   sessions?: ScriptedSession[]
+  contextTokens?: number
+  contextWindow?: number
 }
+
+type ScriptedUsage = Pick<ScriptedHarness, 'contextTokens' | 'contextWindow'> & {project?: string}
 
 type StoredSession = {meta: HarnessSessionMeta; messages: ChatMessage[]}
 
@@ -121,6 +127,41 @@ function tailPage(messages: ChatMessage[], options: TranscriptTailOptions): Tran
   const before = TailCursorSchema.safeParse(options.before)
   if (!before.success) return {messages: [], earlier: null}
   return pageBefore(messages, Math.min(before.data, messages.length), options.limit)
+}
+
+function transcriptRoot(cwd: string): string {
+  return join(cwd, '.conciv', 'scripted-transcripts')
+}
+
+function transcriptPath(cwd: string, sessionId: string): string {
+  return join(transcriptRoot(cwd), `${sessionId}.txt`)
+}
+
+const ContextTokensSchema = z.coerce.number().int().nonnegative()
+
+function countedHistory(sessions: StoredSession[]): HarnessHistory {
+  return {
+    ...scriptedHistory(sessions),
+    transcriptRoot,
+    transcriptPath,
+    contextTokens: (raw) => ContextTokensSchema.safeParse(raw.trim()).data,
+  }
+}
+
+async function writeContextTokens(cwd: string, sessionId: string, contextTokens: number): Promise<void> {
+  const path = transcriptPath(cwd, sessionId)
+  await mkdir(dirname(path), {recursive: true})
+  await writeFile(path, String(contextTokens), 'utf8')
+}
+
+function withContextWindow(event: ChatEvent, contextWindow: number | undefined): ChatEvent {
+  if (event.type !== ChatEventType.RUN_FINISHED || contextWindow === undefined || event.usage === undefined)
+    return event
+  if (Array.isArray(event.usage)) return event
+  return {
+    ...event,
+    usage: {...event.usage, providerUsageDetails: {...event.usage.providerUsageDetails, contextWindow}},
+  }
 }
 
 function scriptedHistory(sessions: StoredSession[]): HarnessHistory {
@@ -181,26 +222,34 @@ export function replyScript(tokensPerSecond: number | undefined): ReplyScript {
       if (coded.success) codes.set(call.request, coded.data.code)
       return step
     }
-  async function* scriptedRun(deps: HarnessChatDeps, request: StreamOptions): AsyncGenerator<ChatEvent> {
+  async function* scriptedRun(
+    deps: HarnessChatDeps,
+    request: StreamOptions,
+    usage: ScriptedUsage,
+  ): AsyncGenerator<ChatEvent> {
     const count = state.requests.push(recorded(request, deps))
     if (fake.pendingResponses() === 0) throw new Error(`the scripted harness has no reply for request ${count}`)
+    const nativeId = deps.resumeSessionId ?? `fake-${deps.sessionId}`
     for await (const event of fake.chatStream(request)) {
       const code = codes.get(request)
+      if (event.type === ChatEventType.RUN_FINISHED && usage.contextTokens !== undefined && usage.project) {
+        await writeContextTokens(usage.project, nativeId, usage.contextTokens)
+      }
       yield event.type === ChatEventType.RUN_ERROR && code !== undefined
         ? {...event, code, error: {message: event.message, code}}
-        : event
+        : withContextWindow(event, usage.contextWindow)
       if (event.type === ChatEventType.RUN_STARTED) {
         yield {
           type: ChatEventType.CUSTOM,
           name: 'fake.session-id',
-          value: {sessionId: deps.resumeSessionId ?? `fake-${deps.sessionId}`},
+          value: {sessionId: nativeId},
         }
       }
     }
   }
   const chatConfig =
-    (name: string): HarnessAdapter['chatConfig'] =>
-    (deps) => ({adapter: makeTextAdapter(name, (request) => scriptedRun(deps, request))})
+    (name: string, usage: ScriptedUsage = {}): HarnessAdapter['chatConfig'] =>
+    (deps) => ({adapter: makeTextAdapter(name, (request) => scriptedRun(deps, request, usage))})
   const releaseGate = (): void => {
     const held = state.held
     state.held = undefined
@@ -208,22 +257,25 @@ export function replyScript(tokensPerSecond: number | undefined): ReplyScript {
   }
   return {
     adapter: (harness) => ({...harness, chatConfig: chatConfig('scripted')}),
-    scripted: ({id = FAKE_HARNESS_ID, models = MODELS, commands = COMMANDS, sessions}, project) => {
+    scripted: (
+      {id = FAKE_HARNESS_ID, models = MODELS, commands = COMMANDS, sessions, contextTokens, contextWindow},
+      project,
+    ) => {
       const base = {
         id,
         binName: 'true',
-        chatConfig: chatConfig(id),
+        chatConfig: chatConfig(id, {contextTokens, contextWindow, project}),
         models,
         commands: async () => commands,
         tty: {command: shellCommand},
       }
-      if (sessions === undefined) {
+      if (sessions === undefined && contextTokens === undefined) {
         return defineHarness({...base, capabilities: {...CAPABILITIES, resume: false, transcriptHistory: false}})
       }
       return defineHarness({
         ...base,
         capabilities: {...CAPABILITIES, resume: true, transcriptHistory: true},
-        history: scriptedHistory(sessions.map((session) => storedSession(session, project))),
+        history: countedHistory((sessions ?? []).map((session) => storedSession(session, project))),
         resume: {command: ({nativeId}) => ({bin: id, args: [nativeId]})},
       })
     },
