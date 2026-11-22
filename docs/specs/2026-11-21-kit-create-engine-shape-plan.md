@@ -121,7 +121,7 @@ plus: `engine.stale(...)` then a mount shows the stale-code notice (read its tex
 
 ### Task 3: the first test file's draft
 
-- [ ] Rewrite `/Users/omrikatz/Public/web/aidx-wt-chat-test/apps/conciv/src/chat.dom.test.tsx` (uncommitted, the maintainer's template) to the new shape, run it three times through the bin on the landed head with the app's test setup (the kit as a devDependency, `concivTest()`), and report the file. Do not commit it: the test plan's Task 0 does.
+- [ ] Rewrite `<workspace>/aidx-wt-chat-test/apps/conciv/src/chat.dom.test.tsx` (uncommitted, the maintainer's template) to the new shape, run it three times through the bin on the landed head with the app's test setup (the kit as a devDependency, `concivTest()`), and report the file. Do not commit it: the test plan's Task 0 does.
 
 ---
 

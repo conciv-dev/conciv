@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Worktree `/Users/omrikatz/Public/web/aidx-wt-kit-mounts`, branch `test/plugin-testkit-mounts`. Local commits only, by pathspec. Never push, never open a PR, never `--no-verify`.
+- Worktree `<workspace>/aidx-wt-kit-mounts`, branch `test/plugin-testkit-mounts`. Local commits only, by pathspec. Never push, never open a PR, never `--no-verify`.
 - A test contains only: kit calls, Testing Library queries by role, label or text, user-event, asserts. No mocks, no polling (`vi.waitFor`, `expect.poll`), no private helper around the engine, no code written as strings, no test ids, no CSS or DOM-structure reads.
 - Node and happy-dom tests sit next to their source: `src/x.test.ts`, `src/x.dom.test.tsx`. Browser mode: `src/<area>.browser.test.tsx`.
 - Zero code comments in TS. Functions, not classes. No identifier ending in "Of". No `any`, `as`, `@ts-ignore`.

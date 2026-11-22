@@ -94,7 +94,7 @@ Other environment: 32. Read terminal text in e2e. 1 (C). opencode: app/e2e/utils
 
 # Feature pass: packages/core (READ ONLY)
 
-Worktree /Users/omrikatz/Public/web/aidx-wt-kit-mounts at 4079f98b7 (kit additions reverted). kit-gaps.md is gone; nothing counted as coming.
+Worktree <workspace>/aidx-wt-kit-mounts at 4079f98b7 (kit additions reverted). kit-gaps.md is gone; nothing counted as coming.
 Out of scope (other reader): `/api/mcp`, code mode (`code.*`, execute_typescript, discover_tools, the code-run card in `src/cards`), the hub (`meta.hubAgents/connectHub/disconnectHub`, `api/rpc/hub.ts`, `call-trace.ts`, outside-agent admission).
 
 ## The kit as it is now (all read, whole files)
@@ -246,7 +246,7 @@ Runner rule (AGENTS.md Testing): node first; on-screen journeys of the app in ap
 
 # Feature pass: MCP / code mode / hub (core), packages/chat, packages/ai (server), packages/db
 
-Worktree /Users/omrikatz/Public/web/aidx-wt-kit-mounts, REDONE at 4079f98b7 (kit additions reverted, kit-gaps.md gone, nothing counted as coming). READ ONLY; nothing built or run.
+Worktree <workspace>/aidx-wt-kit-mounts, REDONE at 4079f98b7 (kit additions reverted, kit-gaps.md gone, nothing counted as coming). READ ONLY; nothing built or run.
 Kit files re-read in full at 4079f98b7: harness-testkit/src/{harness-engine (278 lines), call-tool (unchanged), scripted-harness (166), test-llm (49), until}.ts; plugin-testkit/src/{engine (104), node (3), mount (78), browser-engine (54), browser-commands (36)}.ts.
 
 ## What the kit has now (read)
@@ -373,7 +373,7 @@ Node rows use only send/stop/gate/requests/tool/approve(once). Rows marked happy
 
 # Feature pass: packages/cli and packages/harness (read only)
 
-Worktree `/Users/omrikatz/Public/web/aidx-wt-kit-mounts` at 4079f98b7 (kit additions reverted; docs/specs/kit-gaps.md is gone, nothing counted as coming). All paths below are relative to it unless they start with `_ref/opencode` (= `/Users/omrikatz/Public/web/_ref/opencode`).
+Worktree `<workspace>/aidx-wt-kit-mounts` at 4079f98b7 (kit additions reverted; docs/specs/kit-gaps.md is gone, nothing counted as coming). All paths below are relative to it unless they start with `_ref/opencode` (= `<workspace>/_ref/opencode`).
 Marks: **R** = I opened that file at that line. **I** = inferred.
 
 ## Ground facts the verdicts rest on (all R, at 4079f98b7)

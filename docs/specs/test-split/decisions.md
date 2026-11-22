@@ -4,7 +4,7 @@ Status: research, 2026-11-21. Read at `test/plugin-testkit-mounts` HEAD 2fad6dfc
 seven area files end with: app.md, core.md, cli-harness.md, kits.md, plugin-sdk.md, embed-flows.md and plugins.md.
 Decisions the area files already mark as answered (app 3, 5, 6, 14; core D2, D3) are left out.
 
-Opencode is read at `/Users/omrikatz/Public/web/_ref/opencode` (commit 3dc66ab6); its paths below are relative to that
+Opencode is read at `<workspace>/_ref/opencode` (commit 3dc66ab6); its paths below are relative to that
 root. "Rows" counts the table rows in the area file that the decision decides, either rows that cite it or rows it
 names itself. A row marked "(each xN)" counts once unless the cell says cases.
 
@@ -16,7 +16,7 @@ The two checks for each decision:
    - `docs/specs/kit-replies.md` and `kit-build-cycle.md`;
    - `docs/specs/page-plugin-out-of-core.md`;
    - `docs/specs/orchestrator-handoff-2026-11-20.md` (main checkout; it says at :4 "All rulings below are the maintainer's");
-   - the memory folder (`~/.claude/projects/-Users-omrikatz-Public-web-aidx/memory`).
+   - the memory folder (`<memory folder>`).
 
    A line written by the orchestrator under the maintainer's "rule without me, stay as opencode" is marked
    "orchestrator", not his.

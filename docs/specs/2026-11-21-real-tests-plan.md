@@ -23,7 +23,7 @@
 - A journey that cannot be written this cleanly is NOT hacked. It is left out and written into the area's ledger with the exact kit call or product change it needs.
 - A product bug found by a test is reported at once with the failing test text; the lane does not commit a failing test and does not work around the bug.
 - No new dependency without asking. `@testing-library/user-event` and `happy-dom` are already in the catalog.
-- Commit locally by pathspec under the commit lock (`mkdir /Users/omrikatz/Public/web/aidx/.git/kit-commit.lock`, `rmdir` after), never push, never open a PR, never `--no-verify`. The orchestrator reads every file, runs it, and pushes.
+- Commit locally by pathspec under the commit lock (`mkdir <workspace>/aidx/.git/kit-commit.lock`, `rmdir` after), never push, never open a PR, never `--no-verify`. The orchestrator reads every file, runs it, and pushes.
 - Subagents are opus and told "You are a subagent. Don't run memo". Reports go to the orchestrator inbox as new files.
 
 ## Review Focus

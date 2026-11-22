@@ -1,6 +1,6 @@
 # Feature pass: the widget app (apps/conciv, ui-kit-chat, ui-kit-chat-tools, ui-kit-system, tools cards)
 
-READ ONLY. Kit judged at aidx-wt-kit-mounts head 4079f98b7, after the revert. Nothing is counted as coming (kit-gaps.md is gone). Four opus readers each covered one slice (shell and navigation, chat pane and cards, composer and drafts, sessions and ui-kit-system). I merged their reports here. The full per-slice files are in /private/tmp/claude-501/-Users-omrikatz-Public-web-aidx/bb0bf4ee-2dd8-400e-8c5e-fa98013b6aef/scratchpad/fp-{shell,pane,composer,sessions}.md. Every row there is marked read or inferred.
+READ ONLY. Kit judged at aidx-wt-kit-mounts head 4079f98b7, after the revert. Nothing is counted as coming (kit-gaps.md is gone). Four opus readers each covered one slice (shell and navigation, chat pane and cards, composer and drafts, sessions and ui-kit-system). I merged their reports here. The full per-slice files are in <scratchpad>/bb0bf4ee-2dd8-400e-8c5e-fa98013b6aef/scratchpad/fp-{shell,pane,composer,sessions}.md. Every row there is marked read or inferred.
 
 I checked the kit myself (read):
 

@@ -14,8 +14,8 @@
 
 All of the step 0 plan's "Global Constraints" apply (never push, never open a PR, never `--no-verify`, no test file committed, throwaway proofs with a failing run before and a passing run at the new head, opus subagents told "You are a subagent. Don't run memo", one inbox report per task).
 
-- **Where the work is done.** `git worktree add -b kit/<task> ../aidx-wt-kit-<task> test/plugin-testkit-mounts`, `pnpm install`, build. Commit there freely. Never edit `/Users/omrikatz/Public/web/aidx-wt-kit-mounts` directly except to land.
-- **Landing.** When a task is done and proven: take the commit lock (`mkdir /Users/omrikatz/Public/web/aidx/.git/kit-commit.lock`), `git -C /Users/omrikatz/Public/web/aidx-wt-kit-mounts cherry-pick <commits>`, release the lock. On a conflict: abort the cherry-pick, release the lock, bring your branch onto the new head yourself (a merge of `test/plugin-testkit-mounts` into your branch, then squash your work into fresh commits on top), rerun your proofs, and land again. Report the landed commit ids.
+- **Where the work is done.** `git worktree add -b kit/<task> ../aidx-wt-kit-<task> test/plugin-testkit-mounts`, `pnpm install`, build. Commit there freely. Never edit `<workspace>/aidx-wt-kit-mounts` directly except to land.
+- **Landing.** When a task is done and proven: take the commit lock (`mkdir <workspace>/aidx/.git/kit-commit.lock`), `git -C <workspace>/aidx-wt-kit-mounts cherry-pick <commits>`, release the lock. On a conflict: abort the cherry-pick, release the lock, bring your branch onto the new head yourself (a merge of `test/plugin-testkit-mounts` into your branch, then squash your work into fresh commits on top), rerun your proofs, and land again. Report the landed commit ids.
 - **Before starting**, the head must contain "the test engine starts through the product's start" (lane plugins-q) and, for Task 4, the test-only loop change (lane plugins-p). If it does not yet, read and prepare, and start when it does.
 - Every kit call added here must work in node, happy-dom and browser mode: its arguments and results are plain JSON, and it gets its browser command (`browser-commands.ts`, handler in `test-projects.ts`, caller in `browser-engine.ts`).
 - A value, label or message used in a proof is read from the product file first. Where a report says "unknown, needs the run", run it once, read the real value, then write the assert.
@@ -141,7 +141,7 @@ A second: the unnamed client lists and calls a tool by name (`engine.outside()` 
 
 **Rulings:** a plugin is given by name or `[name, options]`, the config's own form ("that's not how we define plugins"); servers mode as the embed does it, the engine on a connect port (R6).
 
-**Facts:** the spike in `/Users/omrikatz/Public/web/aidx-wt-tryit-spike` and inbox `090859-plugins-a.md`; inbox `020119-plugins-a.md` (servers mode, connect ports).
+**Facts:** the spike in `<workspace>/aidx-wt-tryit-spike` and inbox `090859-plugins-a.md`; inbox `020119-plugins-a.md` (servers mode, connect ports).
 
 **Files:** `packages/plugin-testkit/src/mount.ts`, `test-projects.ts`, `engine.ts`; `packages/harness-testkit/src/harness-engine.ts`; `apps/conciv/src/data/app-data.ts` (the product defect below); READMEs; changesets.
 

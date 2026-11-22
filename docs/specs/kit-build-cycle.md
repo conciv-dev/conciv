@@ -87,7 +87,7 @@ whiteboard, recorder, mascot-react, try and brand-react are outside the closure 
 ## 2. How opencode arranges this
 
 Full notes with citations: the research file kept beside this one at
-/private/tmp/claude-501/-Users-omrikatz-Public-web-aidx/1929ba4e-d617-49a8-944f-3909dabd397d/scratchpad/kit-cycle/opencode.md.
+<scratchpad>/1929ba4e-d617-49a8-944f-3909dabd397d/scratchpad/kit-cycle/opencode.md.
 Paths below are relative to `_ref/opencode`.
 
 - **No testkit package.** Helpers live in the package whose tests use them: `packages/app/e2e/utils/`,
@@ -244,7 +244,7 @@ kit-everywhere ruling.
 Maintainer: the kit is a devDependency of every package that runs tests, and a leaf is a package that depends on no
 workspace package. The root-only idea and the 12 build lists are both dropped. Proven for real by plugins-6b in a
 throwaway worktree (report: orchestrator inbox `210407-plugins-6b.md`; diff kept at
-`/private/tmp/claude-501/-Users-omrikatz-Public-web-aidx/1929ba4e-d617-49a8-944f-3909dabd397d/scratchpad/kit-cycle/leaf.diff`):
+`<scratchpad>/1929ba4e-d617-49a8-944f-3909dabd397d/scratchpad/kit-cycle/leaf.diff`):
 
 - Both kits name every `@conciv/*` package they need as `peerDependencies` only. pnpm 11.7.0 links each peer into the
   kit's `node_modules`.

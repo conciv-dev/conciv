@@ -83,7 +83,7 @@ Little here goes to happy-dom: the two app journeys above, plus ui-kit-system cl
 
 # Part 1: ui-kit-chat composer tests and their story plays (merge prefix CMP)
 
-Worktree /Users/omrikatz/Public/web/aidx-wt-test-split (origin/main 86d94e743). Every file below was read in full there. Line numbers are from the worktree. "conciv:N" = apps/conciv/test/conciv.browser.test.tsx, "system:N" = packages/ui-kit-system/test/ui-kit-system.browser.test.tsx. Story paths are relative to packages/ui-kit-chat/src.
+Worktree <workspace>/aidx-wt-test-split (origin/main 86d94e743). Every file below was read in full there. Line numbers are from the worktree. "conciv:N" = apps/conciv/test/conciv.browser.test.tsx, "system:N" = packages/ui-kit-system/test/ui-kit-system.browser.test.tsx. Story paths are relative to packages/ui-kit-chat/src.
 
 Product wiring checked (git grep in the worktree):
 
@@ -337,7 +337,7 @@ Browser tests a story play already duplicates (decision 5): 13 here (245, 349, 3
 
 # Part 2: ui-kit-chat thread test + thread-area story plays (merge-id prefix THR)
 
-Worktree /Users/omrikatz/Public/web/aidx-wt-test-split (origin/main 86d94e743). Every file below read in full there. The
+Worktree <workspace>/aidx-wt-test-split (origin/main 86d94e743). Every file below read in full there. The
 audit (test-audit-ui-kit-chat-thread.md) was written against an older 1,838-line file; line numbers here are the
 worktree's. Three tests changed or appeared since that audit: 1249 (now "offers no session action"), 1258 ("Always
 allow"), 1480 ("turn action rows"); 1026 no longer checks a copy refusal.
@@ -714,7 +714,7 @@ as page calls drawn through `ToolRegistry`:
 
 # Part 3: ui-kit-chat cards, markdown, node file and tool stories
 
-Worktree /Users/omrikatz/Public/web/aidx-wt-test-split (origin/main 86d94e743). Every file below read in full. Line numbers are the worktree's. Audit hints (test-audit-ui-kit-chat-cards.md, -rest.md) were made at 51708bc06 and their line numbers are stale; several cards tests changed since (the dispatch "accepts chain" test is gone, the approval tests now assert the ask is NOT on the card).
+Worktree <workspace>/aidx-wt-test-split (origin/main 86d94e743). Every file below read in full. Line numbers are the worktree's. Audit hints (test-audit-ui-kit-chat-cards.md, -rest.md) were made at 51708bc06 and their line numbers are stale; several cards tests changed since (the dispatch "accepts chain" test is gone, the approval tests now assert the ask is NOT on the card).
 
 Ground rule used here: every component in these files is a published or internal ui-kit-chat kit component mounted alone with a hand-built part and an inert ctx. None needs the engine or the app shell, so nothing goes to the app's happy-dom files. Most need real layout, shadow DOM, workers or tooltips (see the last section), and Storybook already runs in real Chromium, so the kit behaviour goes to story.
 
@@ -1034,7 +1034,7 @@ All rows above go to story (real Chromium) or node, so none is planned for happy
 
 # Part 4: ui-kit-chat-tools (browser test + story plays)
 
-Worktree /Users/omrikatz/Public/web/aidx-wt-test-split (origin/main 86d94e743). Line numbers are from the worktree.
+Worktree <workspace>/aidx-wt-test-split (origin/main 86d94e743). Line numbers are from the worktree.
 
 Facts checked before ruling:
 
@@ -1212,7 +1212,7 @@ Nothing here is ruled happy-dom, so happy-dom is not on the path; these notes ar
 
 # Part 5: packages/ui-kit-system (browser file, node file, story plays)
 
-Worktree /Users/omrikatz/Public/web/aidx-wt-test-split (origin/main 86d94e743). Every assigned file read in full. Line numbers are from the worktree. The audit (51708bc06) was a hint only: lines moved by up to about 20, and the browser file has one test the audit never saw (1035, "tooltip on a rising panel").
+Worktree <workspace>/aidx-wt-test-split (origin/main 86d94e743). Every assigned file read in full. Line numbers are from the worktree. The audit (51708bc06) was a hint only: lines moved by up to about 20, and the browser file has one test the audit never saw (1035, "tooltip on a rising panel").
 
 The ground rule for this package: it is a kit. A behaviour of one kit component (a state, a click, a key, real layout inside one component) goes to story. Storybook plays run in real Chromium, so layout, focus-visible and CSS animation work there. Pure math goes to the node file as node tables. Only the shadow-root, other-document and starved-frame cases stay in a small `ui-kit-system.browser.test.tsx` (browser mode). Nothing here goes to happy-dom happy-dom (no app shell, no engine).
 
