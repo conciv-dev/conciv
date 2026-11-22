@@ -636,30 +636,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       .catch((error: unknown) =>
         log(Effect.logError('[core] publishing how the run ended failed', {sessionId, runId: run.runId, error})),
       )
-    if (run.phase === 'completed' && !(await owedFollowUp(sessionId))) {
-      if (await inboxWaiting(sessionId)) {
-        wakeAfterRun(sessionId)
-        return
-      }
-      const idled = await pluginHost
-        .runPromiseExit(
-          FiberMap.run(
-            idleTriggers,
-            sessionId,
-            PluginHooks.Service.use((hooks) =>
-              hooks.trigger('session', 'experimental.idle', {
-                sessionId: SessionSchema.Id.make(sessionId),
-                background: [],
-              }),
-            ),
-            {onlyIfMissing: true},
-          ).pipe(Effect.flatMap(Fiber.join)),
-        )
-        .catch((error: unknown) => Exit.die(error))
-      if (Exit.isFailure(idled) && !Cause.hasInterruptsOnly(idled.cause))
-        await idleFailed(sessionId, run.runId, Cause.squash(idled.cause))
-      if (await inboxWaiting(sessionId)) wakeAfterRun(sessionId)
-    }
+    if (run.phase === 'completed' && !(await owedFollowUp(sessionId))) await idleOrWake(sessionId, run.runId)
     if (run.phase === 'aborted') {
       if (engineLife.signal.aborted) return
       await holdForNextReply(pagePlugin.delivery, sessionId).catch((error: unknown) =>
@@ -668,6 +645,29 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       return
     }
     followUpOwedQueues(sessionId)
+  }
+  const runIdle = async (sessionId: SessionId, runId: string): Promise<void> => {
+    const idled = await pluginHost
+      .runPromiseExit(
+        FiberMap.run(
+          idleTriggers,
+          sessionId,
+          PluginHooks.Service.use((hooks) =>
+            hooks.trigger('session', 'experimental.idle', {
+              sessionId: SessionSchema.Id.make(sessionId),
+              background: [],
+            }),
+          ),
+          {onlyIfMissing: true},
+        ).pipe(Effect.flatMap(Fiber.join)),
+      )
+      .catch((error: unknown) => Exit.die(error))
+    if (Exit.isFailure(idled) && !Cause.hasInterruptsOnly(idled.cause))
+      await idleFailed(sessionId, runId, Cause.squash(idled.cause))
+  }
+  const idleOrWake = async (sessionId: SessionId, runId: string): Promise<void> => {
+    if (!(await inboxWaiting(sessionId))) await runIdle(sessionId, runId)
+    if (await inboxWaiting(sessionId)) wakeAfterRun(sessionId)
   }
   const inboxWaiting = (sessionId: SessionId): Promise<boolean> =>
     pluginHost
