@@ -138,7 +138,7 @@ describe('a toolbar tooltip', () => {
 
     const attach = await screen.findByRole('button', {name: 'Add an attachment'})
     await browserUserEvent.hover(attach)
-    expect(await screen.findByRole('tooltip', {name: 'Add an attachment'})).toBeVisible()
+    await expect.element(page.getByRole('tooltip', {name: 'Add an attachment'})).toBeVisible()
     await browserUserEvent.keyboard('{Escape}')
     await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
     expect(screen.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
@@ -147,7 +147,7 @@ describe('a toolbar tooltip', () => {
     await browserUserEvent.click(screen.getByRole('textbox', {name: 'Message the conciv agent'}))
     await browserUserEvent.tab()
     expect(attach).toHaveFocus()
-    expect(await screen.findByRole('tooltip', {name: 'Add an attachment'})).toBeVisible()
+    await expect.element(page.getByRole('tooltip', {name: 'Add an attachment'})).toBeVisible()
     await browserUserEvent.keyboard('{Escape}')
     await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
     expect(attach).toHaveFocus()
