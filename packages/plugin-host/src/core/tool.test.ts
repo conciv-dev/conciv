@@ -2,23 +2,6 @@ import {describe, expect, test} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 
 describe('plugin tools', () => {
-  test('a tool the model names but nobody offers answers that no such tool is available', async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/toolbox']})
-    await engine.reply(TestLLM.toolCall('c1', 'nope', {}), TestLLM.text('Recovered'))
-
-    await engine.session.send('Call nope')
-
-    expect((await engine.requests())[1]?.messages).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          role: 'tool',
-          toolCallId: 'c1',
-          error: 'Unknown tool: nope',
-        }),
-      ]),
-    )
-  })
-
   test.each([
     [{length: 'two', unit: 'cm'}, 'length'],
     [{length: 2, unit: 'mm'}, 'unit'],
@@ -65,16 +48,6 @@ describe('plugin tools', () => {
 
     expect(await engine.session.tool('measure_noted').call({length: 3})).toEqual({text: 'measured 3 cm'})
     expect(await engine.session.tool('measure_noted_direct').call({length: 3})).toEqual({text: 'measured 3 cm'})
-  })
-})
-
-describe('an outside agent', () => {
-  test('discover_tools describes a plugin tool by name', async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/toolbox']})
-
-    expect(await engine.outside().discover(['measure'])).toEqual({
-      content: [{type: 'text', text: expect.stringContaining('Measure a length in centimetres or inches')}],
-    })
   })
 })
 

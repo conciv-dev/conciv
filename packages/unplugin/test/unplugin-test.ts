@@ -5,7 +5,7 @@ import {createRequire} from 'node:module'
 import {delimiter, dirname, join} from 'node:path'
 import {createInterface} from 'node:readline'
 import type {Readable} from 'node:stream'
-import {fileURLToPath, pathToFileURL} from 'node:url'
+import {pathToFileURL} from 'node:url'
 import {stripVTControlCharacters} from 'node:util'
 import {test as base} from 'vitest'
 import {createServer, type InlineConfig, type ViteDevServer} from 'vite'
@@ -117,7 +117,6 @@ function nextOpened(log: string): Promise<string> {
 }
 
 type UnpluginFixtures = {
-  embedDist: {entry: string; stale: string}
   editor: {next: () => Promise<string>}
   viteDev: (options: ConcivConfig) => Promise<RecordedEngine>
   started: number[]
@@ -174,13 +173,6 @@ export const test = base.extend<UnpluginFixtures>({
       return RecordedEngineSchema.parse(JSON.parse(readFileSync(join(concivStateDir(project), 'server.json'), 'utf8')))
     })
     await Promise.all(servers.map(stopDevServer))
-  },
-  embedDist: async ({task: _task}, use) => {
-    const folder = tempDir('embed-dist-')
-    cpSync(dirname(fileURLToPath(import.meta.resolve('@conciv/embed'))), folder, {recursive: true})
-    const stale = join(folder, 'mount-impl-Stale0ld.js')
-    writeFileSync(stale, 'export function mountImpl() {}\n')
-    await use({entry: join(folder, 'mount.js'), stale})
   },
   project: async ({task: _task}, use) => {
     await use((name) => {

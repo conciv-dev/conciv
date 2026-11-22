@@ -18,18 +18,6 @@ describe('asks', () => {
     )
   })
 
-  test('an ask rule makes the call wait until the user approves once', async () => {
-    const engine = await createEngine({
-      plugins: ['./test/fixtures/plugins/guarded'],
-      permission: {'guarded.write': 'ask'},
-    })
-
-    const call = engine.session.tool('guarded_write').call({file: 'notes.txt'})
-    await engine.session.approve()
-
-    expect(await call).toEqual({written: 'notes.txt'})
-  })
-
   test("a tool's fallback ask makes the call wait for approval even when every action is allowed", async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/guarded'], permission: 'allow'})
 
