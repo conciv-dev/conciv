@@ -1,11 +1,14 @@
-import {readFileSync, readdirSync} from 'node:fs'
+import {readFileSync} from 'node:fs'
+import {glob, readFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
-import {dirname, join} from 'node:path'
+import {dirname, join, matchesGlob} from 'node:path'
+import {pathToFileURL} from 'node:url'
 import type {Plugin, UserConfig} from 'vite'
 import {configDefaults, type TestProjectInlineConfiguration} from 'vitest/config'
 import type {BrowserCommandContext} from 'vitest/node'
 import type {Page} from 'playwright'
 import solidPlugin from 'vite-plugin-solid'
+import {createGenerator, type UserConfig as UnoConfig} from 'unocss'
 import {playwright} from '@vitest/browser-playwright'
 import {z} from 'zod'
 import type {TestLLM} from '@conciv/harness-testkit'
@@ -112,34 +115,60 @@ function kitDefaults(test: AuthorTest = {}): AuthorTest {
 }
 
 const UTILITY_SHEETS = new Set(['virtual:uno.css', '/__uno.css'])
+const GENERATED_SHEET = '/__conciv-test-uno.css'
+const PACKAGE_SOURCES = ['src/**/*.{ts,tsx}', '!src/**/*.{test,spec,stories}.*']
+
+const UnoConfigShapeSchema = z.object({content: z.object({filesystem: z.array(z.string())})})
+
+const UnoConfigModuleSchema = z.object({
+  default: z.custom<UnoConfig>((value) => UnoConfigShapeSchema.safeParse(value).success),
+})
 
 function appDirectory(): string {
   return dirname(createRequire(import.meta.url).resolve('@conciv/app/package.json'))
 }
 
-function builtWidgetSheet(): string {
-  const assets = join(appDirectory(), 'dist', 'assets')
-  const sheets = readdirSync(assets).filter((file) => file.startsWith('index-') && file.endsWith('.css'))
-  const [sheet] = sheets
-  if (sheet === undefined || sheets.length > 1) {
-    throw new Error(`expected one built stylesheet in ${assets}, found ${sheets.length}: build @conciv/app first`)
-  }
-  return join(assets, sheet)
+async function scannedFiles(patterns: readonly string[]): Promise<string[]> {
+  const included = patterns.filter((pattern) => !pattern.startsWith('!'))
+  const excluded = patterns.filter((pattern) => pattern.startsWith('!')).map((pattern) => pattern.slice(1))
+  const files: string[] = []
+  for await (const file of glob(included)) files.push(file)
+  return [...new Set(files)].filter((file) => !excluded.some((pattern) => matchesGlob(file, pattern)))
 }
 
-function builtStyles(): Plugin {
-  let sheet: string | undefined
+async function generateTestSheet(): Promise<string> {
+  const loaded = UnoConfigModuleSchema.parse(await import(pathToFileURL(join(appDirectory(), 'uno.config.ts')).href))
+  const config = loaded.default
+  const appSources = config.content?.filesystem ?? []
+  const packageSources = PACKAGE_SOURCES.map((pattern) =>
+    pattern.startsWith('!') ? `!${join(process.cwd(), pattern.slice(1))}` : join(process.cwd(), pattern),
+  )
+  const generator = await createGenerator(config)
+  const tokens = new Set<string>()
+  const files = await scannedFiles([...appSources, ...packageSources])
+  await Promise.all(files.map(async (file) => generator.applyExtractors(await readFile(file, 'utf8'), file, tokens)))
+  const {css} = await generator.generate(tokens)
+  return css
+}
+
+function generatedStyles(): Plugin {
+  let sheet: Promise<string> | undefined
   let app: string | undefined
   return {
-    name: 'conciv:test-built-styles',
+    name: 'conciv:test-generated-styles',
     enforce: 'pre',
     resolveId(source, importer) {
       const [path, query] = source.split('?')
+      if (path === GENERATED_SHEET) return source
       if (path === undefined || !UTILITY_SHEETS.has(path) || importer === undefined) return null
       app ??= join(appDirectory(), 'src')
       if (!importer.startsWith(app)) return null
-      sheet ??= builtWidgetSheet()
-      return query === undefined ? sheet : `${sheet}?${query}`
+      return query === undefined ? GENERATED_SHEET : `${GENERATED_SHEET}?${query}`
+    },
+    load(id) {
+      if (id.split('?')[0] !== GENERATED_SHEET) return null
+      sheet ??= generateTestSheet()
+      return sheet
     },
   }
 }
@@ -430,7 +459,7 @@ function hasServingPlugin(option: unknown, name: string): boolean {
 }
 
 function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineConfiguration[] {
-  const styles = builtStyles()
+  const styles = generatedStyles()
   const solid = hasServingPlugin(authorPlugins, 'solid') ? [] : [solidPlugin()]
   const testable = testablePlugins()
   const byName = pluginsByName(testable)
