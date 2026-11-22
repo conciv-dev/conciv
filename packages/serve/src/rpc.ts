@@ -103,7 +103,7 @@ function rpcHandlerOptions(
         }),
     ],
     clientInterceptors: [
-      (options) => (traceCall === undefined ? options.next() : traceCall(options.path, () => options.next())),
+      ...(traceCall === undefined ? [] : [tracedCall(traceCall)]),
       (options) => {
         if (options.context.socket?.allows(options.path) === false) {
           throw new ORPCError('UNAUTHORIZED', {message: 'this connection is not trusted'})
@@ -118,6 +118,12 @@ function rpcHandlerOptions(
       },
     ],
   }
+}
+
+function tracedCall(
+  traceCall: TraceRpcCall,
+): NonNullable<StandardRPCHandlerOptions<RpcContext>['clientInterceptors']>[number] {
+  return (options) => traceCall(options.path, () => options.next())
 }
 
 function readClientVersion(headers: RpcHeaders): string | undefined {

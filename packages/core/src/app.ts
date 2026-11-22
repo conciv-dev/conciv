@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {accessSync, constants, existsSync, readFileSync} from 'node:fs'
 import {delimiter, join} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
-import {Hono} from 'hono'
+import {Hono, type MiddlewareHandler} from 'hono'
 import {z} from 'zod'
 import {EngineStalenessSchema, type EngineStaleness} from '@conciv/contract'
 import {upgradeWebSocket} from '@conciv/serve'
@@ -349,9 +349,8 @@ function composeRoutes(
     tracer: Tracer | undefined
   },
 ) {
-  const traceCall = (path: readonly string[], call: () => Promise<unknown>): Promise<unknown> =>
-    inSpan(deps.tracer, `Rpc.${path.join('.')}`, {'rpc.procedure': path.join('.')}, call, {root: true})
-  return new Hono<{Variables: CoreVars}>()
+  const traceCall = deps.tracer === undefined ? undefined : rpcSpan(deps.tracer)
+  const app = new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
       logError(`[core] unhandled route error: ${String(error)}`)
@@ -363,6 +362,8 @@ function composeRoutes(
       await next()
     })
     .use(corsMiddleware())
+  if (deps.tracer !== undefined) app.use('/api/mcp', mcpSpan(deps.tracer))
+  return app
     .get('/health', (c) =>
       c.json(HealthSchema.parse({ok: true, harness: vars.harnessId, engine: deps.staleness(), id: deps.engineId})),
     )
@@ -381,10 +382,16 @@ function composeRoutes(
       }),
     )
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc, traceCall))
-    .use('/api/mcp', async (c, next) =>
-      inSpan(deps.tracer, 'Mcp.request', await mcpAttributes(c.req.raw), next, {root: true}),
-    )
     .route('/api/mcp', mcpApp)
+}
+
+function rpcSpan(tracer: Tracer) {
+  return (path: readonly string[], call: () => Promise<unknown>): Promise<unknown> =>
+    inSpan(tracer, `Rpc.${path.join('.')}`, {'rpc.procedure': path.join('.')}, call, {root: true})
+}
+
+function mcpSpan(tracer: Tracer): MiddlewareHandler {
+  return async (c, next) => inSpan(tracer, 'Mcp.request', await mcpAttributes(c.req.raw), next, {root: true})
 }
 
 const McpMessageSchema = z.object({

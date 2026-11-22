@@ -96,9 +96,12 @@ async function answer(
   if (request.method !== 'POST') return void response.writeHead(405).end()
   const message = parsed(await text(request))
   if (message === undefined) return void response.writeHead(400).end('invalid JSON body')
-  const reply = await inSpan(tracer, 'ToolServer.request', toolServerAttributes(message), () =>
-    handleBridgeJsonRpc(core, message),
-  )
+  const reply =
+    tracer === undefined
+      ? await handleBridgeJsonRpc(core, message)
+      : await inSpan(tracer, 'ToolServer.request', toolServerAttributes(message), () =>
+          handleBridgeJsonRpc(core, message),
+        )
   if (reply === null) return void response.writeHead(202).end()
   response.writeHead(200, {'content-type': 'application/json'}).end(JSON.stringify(withImageBlocks(reply)))
 }

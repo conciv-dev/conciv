@@ -156,6 +156,15 @@ describe('engine spans', () => {
       ).rejects.toThrow()
       expect(collector.spans()).toEqual([])
 
+      const untraced = await startObservability({
+        home: tempDir('conciv-spans-home-'),
+        fallbackRoots: join(root, 'untraced-plugin-host'),
+        configProvider: ConfigProvider.fromEnv({env: {}}),
+        engineId: 'spans-untraced-engine',
+      })
+      expect(untraced.tracer).toBeUndefined()
+      await untraced.dispose()
+
       const engine = await start({
         options: {stateRoot: root, systemPrompt: false},
         root,
