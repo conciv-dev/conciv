@@ -8,7 +8,12 @@ export default Plugin.define({
       tools.add({
         name: 'notice',
         description: 'Admits a synthetic notice to the calling session',
-        input: z.object({text: z.string(), description: z.string().optional(), resume: z.boolean().optional()}),
+        input: z.object({
+          text: z.string(),
+          description: z.string().optional(),
+          metadata: z.record(z.string(), z.json()).optional(),
+          resume: z.boolean().optional(),
+        }),
         output: z.unknown(),
         execute: async (notice, context) => ({
           output: await ctx.session.synthetic({...notice, sessionId: context.sessionId}),

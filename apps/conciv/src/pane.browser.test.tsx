@@ -972,4 +972,25 @@ describe('a notice from a plugin', () => {
     expect(screen.queryByText('Quiet note')).not.toBeInTheDocument()
     expect(screen.getByText('Build finished')).toBeVisible()
   })
+
+  test('a notice whose description is only spaces shows no row, and a failed notice with no description shows its text as its row', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/build-notices']})
+    await engine.reply(TestLLM.text('Looking into it'))
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
+    })
+    const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+
+    await engine.session.tool('notice').call({text: 'Blank label', description: '   ', resume: false})
+    await engine.session.tool('notice').call({text: 'The deploy failed', metadata: {state: 'error'}, resume: false})
+    await user.type(composer, 'What happened')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+
+    expect(await screen.findByText('Looking into it')).toBeVisible()
+    expect(screen.getByRole('note', {name: 'The deploy failed'})).toBeVisible()
+    expect(screen.getAllByRole('note')).toHaveLength(1)
+    expect(screen.queryByText('Blank label')).not.toBeInTheDocument()
+  })
 })

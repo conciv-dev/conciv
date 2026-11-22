@@ -236,6 +236,49 @@ describe.concurrent('session.synthetic admission', () => {
     ])
   })
 
+  test('keeps the first admission across sessions, including delivered retries and identity conflicts', async ({
+    expect,
+  }) => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/inbox-notices']})
+    await engine.reply(TestLLM.text('Seen'))
+    const other = await engine.newSession('Other')
+    const notice = engine.session.tool('notice')
+
+    const id = 'msg_original_completion'
+    const synthetic = await notice.call({id, text: 'Original completion', description: 'Job', resume: false})
+    expect(synthetic).toEqual({
+      id,
+      sessionID: engine.session.id,
+      time: {created: expect.any(Number)},
+      type: 'synthetic',
+      payload: {text: 'Original completion', description: 'Job'},
+      delivery: 'steer',
+    })
+    const retry = {id, text: 'Ignore this', metadata: {source: 'retry'}, resume: false}
+    expect(await notice.call(retry)).toEqual(synthetic)
+    expect(await notice.call({...retry, sessionId: other.id})).toEqual({
+      refused: 'Session.SyntheticConflictError',
+      conflict: {sessionID: other.id, inputID: id},
+    })
+
+    await engine.session.send('Go')
+
+    expect(await notice.call(retry)).toMatchObject({
+      id,
+      payload: {text: 'Original completion', description: 'Job'},
+    })
+    expect(await notice.call({...retry, sessionId: other.id})).toEqual({
+      refused: 'Session.SyntheticConflictError',
+      conflict: {sessionID: other.id, inputID: id},
+    })
+    const requests = await engine.requests()
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.messages.filter((message) => message.role === 'user')).toMatchObject([
+      {content: 'Original completion'},
+      {content: 'Go'},
+    ])
+  })
+
   test('a deleted session refuses a notice with NotFoundError, and its waiting notice is gone with it', async ({
     expect,
   }) => {

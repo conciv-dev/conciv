@@ -15,6 +15,8 @@ const NoticeSchema = z.object({
   resume: z.boolean().optional(),
 })
 
+const ConflictSchema = z.object({sessionID: z.string(), inputID: z.string()})
+
 export default Plugin.define({
   id: 'inbox-notices',
   async setup(ctx) {
@@ -50,7 +52,12 @@ export default Plugin.define({
           const target = sessionId === undefined ? context.sessionId : readSessionId(sessionId)
           return ctx.session.synthetic({...notice, sessionId: target}).then(
             (admitted) => ({output: admitted}),
-            (error: unknown) => ({output: {refused: error instanceof Error ? error.name : String(error)}}),
+            (error: unknown) => ({
+              output: {
+                refused: error instanceof Error ? error.name : String(error),
+                conflict: ConflictSchema.safeParse(error).data,
+              },
+            }),
           )
         },
       })
