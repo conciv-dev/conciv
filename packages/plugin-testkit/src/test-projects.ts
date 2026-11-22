@@ -13,6 +13,7 @@ import type {TestLLM} from '@conciv/harness-testkit'
 import type {Engine, EngineSession, StartedEngine} from './engine.js'
 import {pluginDirectory} from './plugin-directory.js'
 import {disposeAll} from './dispose.js'
+import {engineCoverage} from './engine-coverage.js'
 import type {EngineCommands, PageCommands} from './browser-commands.js'
 
 type EngineCommandHandlers = {
@@ -219,6 +220,7 @@ type BrowserEngine = {
 function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
   const engines: Record<string, BrowserEngine> = {}
   const counter = {next: 0}
+  const coverage = engineCoverage()
   const engineFor = (engineId: string): BrowserEngine => {
     const found = engines[engineId]
     if (!found) throw new Error(`no engine ${engineId}: it was never made or has stopped`)
@@ -247,7 +249,8 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
     )
   return {
     commands: {
-      concivCreateEngine: async ({testPath}, config, options, scope) => {
+      concivCreateEngine: async (context, config, options, scope) => {
+        await coverage.start(context)
         const {startEngine} = await import('./engine.js')
         const started = await startEngine(config, options)
         counter.next += 1
@@ -257,14 +260,16 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
           sessions: {[started.engine.session.id]: started.engine.session},
           gates: {},
           waits: {},
-          testPath,
+          testPath: context.testPath,
           scope,
         }
         return {id, sessionId: started.engine.session.id, address: started.engine.address, root: started.engine.root}
       },
       concivStopEngine: (_context, engineId) => stop(engineId),
-      concivStopFileEngines: ({testPath}) =>
-        stopWhere((engine) => engine.testPath === testPath && engine.scope === 'file'),
+      concivStopFileEngines: async (context) => {
+        await stopWhere((engine) => engine.testPath === context.testPath && engine.scope === 'file')
+        await coverage.hand(context)
+      },
       concivNewSession: async (_context, engineId, title) => {
         const engine = engineFor(engineId)
         const session = await engine.started.engine.newSession(title)
