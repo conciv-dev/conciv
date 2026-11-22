@@ -63,6 +63,33 @@ describe('loading plugins', () => {
   })
 })
 
+describe('remove entries in the config', () => {
+  const lister = './test/fixtures/plugins/lister'
+  const greeter = './test/fixtures/plugins/greeter-promise'
+
+  test('a remove entry drops the plugin it names, and the rest stay active', async () => {
+    const engine = await createEngine({plugins: [lister, greeter, '-greeter-promise']})
+
+    expect(await engine.session.tool('list_plugins').call({})).toEqual({
+      plugins: expect.arrayContaining([expect.objectContaining({id: 'lister', state: {status: 'active'}})]),
+    })
+    expect(await engine.session.tool('greet_promise').failure({name: 'Ada'})).toEqual(
+      expect.objectContaining({tool: 'greet_promise'}),
+    )
+  })
+
+  test('a remove-every-plugin entry drops the ones before it, and a plugin added after it loads', async () => {
+    const engine = await createEngine({plugins: [greeter, '-*', lister]})
+
+    expect(await engine.session.tool('list_plugins').call({})).toEqual({
+      plugins: expect.arrayContaining([expect.objectContaining({id: 'lister', state: {status: 'active'}})]),
+    })
+    expect(await engine.session.tool('greet_promise').failure({name: 'Ada'})).toEqual(
+      expect.objectContaining({tool: 'greet_promise'}),
+    )
+  })
+})
+
 describe('a plugin that fails to load', () => {
   const lister = './test/fixtures/plugins/lister'
   const active = expect.objectContaining({id: 'lister', state: {status: 'active'}})

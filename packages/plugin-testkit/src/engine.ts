@@ -34,9 +34,17 @@ export type StartedEngine = {engine: Engine; stop: () => Promise<void>; tick: ()
 
 type PluginEntry = NonNullable<ConcivConfig['plugins']>[number]
 
+function isSelector(target: string): boolean {
+  return target.startsWith('-') || target.includes('*') || target.startsWith('conciv.')
+}
+
+function locateTarget(target: string): string {
+  return isSelector(target) ? target : pluginDirectory(target)
+}
+
 function locatePlugin(entry: PluginEntry): PluginEntry {
-  if (typeof entry === 'string') return pluginDirectory(entry)
-  return [pluginDirectory(entry[0]), entry[1]]
+  if (typeof entry === 'string') return locateTarget(entry)
+  return [locateTarget(entry[0]), entry[1]]
 }
 
 export async function startEngine(config: ConcivConfig = {}, options: EngineStart = {}): Promise<StartedEngine> {
