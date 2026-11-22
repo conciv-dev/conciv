@@ -24,6 +24,10 @@ pnpm --filter conciv-e2e-vite-vanilla test:e2e   # one app (build @conciv/it fir
 
 `pnpm test` does not run these.
 
+Specs import `test` from `@conciv/e2e-utils/fixtures`: it signs `page` and `secondPage` in before each test
+(`test.use({signedIn: false})` opts out), and after every test it deletes every engine session and resets
+every setting, so no test sees another's state.
+
 A `prepare` script here must not load the app's framework config. `prepare` runs during
 `pnpm install`, when no `@conciv/*` package has a `dist/` yet, and every app's config imports
 `@conciv/it`: `vite.config.ts` in the vite and SvelteKit apps, `next.config.ts` in `nextjs` and

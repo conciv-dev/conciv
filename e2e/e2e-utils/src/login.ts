@@ -1,5 +1,6 @@
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
+import {test} from '@playwright/test'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -27,4 +28,9 @@ export function recordedEngineBase(projectDir: string, servedOrigin?: string): s
   const recorded = RecordedEngineSchema.parse(JSON.parse(readFileSync(stateFile, 'utf8')))
   if (servedOrigin !== undefined) refuseOtherEngine(stateFile, recorded.port, servedOrigin)
   return `http://127.0.0.1:${recorded.port}/t/${recorded.token}`
+}
+
+export function testProjectDir(): string {
+  const projectDir: unknown = test.info().project.metadata['projectDir']
+  return typeof projectDir === 'string' ? projectDir : process.cwd()
 }

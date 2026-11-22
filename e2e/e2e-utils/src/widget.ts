@@ -1,6 +1,6 @@
 import {readFileSync, watch} from 'node:fs'
 import {expect, test, type ConsoleMessage, type Page} from '@playwright/test'
-import {magicLink, recordedEngineBase} from './login.js'
+import {magicLink, recordedEngineBase, testProjectDir} from './login.js'
 import {e2eConfigDir, e2eServerLog} from './config.js'
 
 export type PageFailures = {
@@ -103,11 +103,6 @@ async function engineOrigin(page: Page, path: string): Promise<string> {
 async function pageEngine(page: Page, path: string, projectDir: string): Promise<{origin: string; base: string}> {
   const origin = await engineOrigin(page, path)
   return {origin, base: recordedEngineBase(projectDir, origin)}
-}
-
-function testProjectDir(): string {
-  const projectDir: unknown = test.info().project.metadata['projectDir']
-  return typeof projectDir === 'string' ? projectDir : process.cwd()
 }
 
 export async function loginWidget(page: Page, path = '/', projectDir = testProjectDir()): Promise<void> {
