@@ -11,9 +11,12 @@ describe('sessions and events', () => {
     expect(await engine.session.tool('idle_session').call({})).toEqual({sessionId: engine.session.id})
   })
 
-  test('a plugin creates a session and lists it beside the sessions the user made, and renames its own session and reads it back', async () => {
+  test('a plugin receives the session-created event of a session the user made, creates a session and lists it beside the sessions the user made, and renames its own session and reads it back', async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/session-watcher']})
     const other = await engine.newSession('Second')
+    expect(await engine.session.tool('created_session').call({sessionID: other.id})).toEqual({
+      event: {sessionID: other.id},
+    })
     expect(await engine.session.tool('session_rename').call({title: 'Launch plan'})).toEqual({title: 'Launch plan'})
 
     const created = await engine.session.tool('session_create').call({title: 'From the plugin'})
@@ -28,14 +31,8 @@ describe('sessions and events', () => {
     })
   })
 
-  test('a plugin subscribed to an event type receives it when a session is created, and hears each run start and end', async () => {
+  test('a plugin hears each run start and end', async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/session-watcher']})
-
-    const watched = await engine.newSession('Watched')
-
-    expect(await engine.session.tool('created_session').call({sessionID: watched.id})).toEqual({
-      event: {sessionID: watched.id},
-    })
 
     await engine.reply(TestLLM.text('First answer'))
     await engine.session.send('one')
