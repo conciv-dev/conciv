@@ -5,7 +5,10 @@ import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 
 describe('session events', () => {
   test('a plugin hears each run start and end, runs its idle hook after a completed run, and its instructions reach the model until it takes them back', async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/run-listener']})
+    const engine = await createEngine(
+      {plugins: ['./test/fixtures/plugins/run-listener']},
+      {harnesses: [{id: 'resuming', sessions: []}]},
+    )
     await engine.session.tool('runs_note').call({text: 'Answer in British English'})
 
     await engine.reply(TestLLM.text('First answer'))
