@@ -67,6 +67,30 @@ export const InstructionStateTable = sqliteTable('instruction_state', {
     .$type<Readonly<Record<string, string & Brand.Brand<'Instruction.Hash'>>>>(),
 })
 
+type SessionInboxPayload = {text: string; description?: string; metadata?: Record<string, unknown>}
+
+export const SessionInboxTable = sqliteTable(
+  'session_inbox',
+  {
+    id: text().primaryKey(),
+    session_id: text()
+      .$type<SessionId>()
+      .notNull()
+      .references(() => sessions.id, {onDelete: 'cascade'}),
+    type: text().$type<'synthetic'>().notNull(),
+    payload: text({mode: 'json'}).$type<SessionInboxPayload>().notNull(),
+    delivery: text().$type<'steer' | 'queue'>().notNull(),
+    enqueued_seq: integer().notNull(),
+    time_created: integer()
+      .notNull()
+      .$default(() => Date.now()),
+  },
+  (table) => [
+    index('session_inbox_session_delivery_seq_idx').on(table.session_id, table.delivery, table.enqueued_seq),
+    uniqueIndex('session_inbox_session_enqueued_seq_idx').on(table.session_id, table.enqueued_seq),
+  ],
+)
+
 const Timestamps = {
   time_created: integer()
     .notNull()
