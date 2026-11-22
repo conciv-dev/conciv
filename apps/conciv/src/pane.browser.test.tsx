@@ -67,9 +67,15 @@ describe('a reply with a diagram', () => {
 
 describe('a long saved session', () => {
   test('the user scrolls to the start, earlier messages load in order, and Latest brings the end back', async () => {
-    await page.viewport(1280, 800)
+    await page.viewport(1280, 500)
     const engine = await createEngine()
-    await engine.reply(...Array.from({length: 26}, (_, index) => TestLLM.text(`Answer ${index + 1}`)))
+    await engine.reply(
+      ...Array.from({length: 26}, (_, index) =>
+        TestLLM.text(
+          `Answer ${index + 1}\n\nThe migration moves each table in its own step, checks the row counts on both sides, and keeps the old table readable until the new one has served a full day of traffic without a single error.`,
+        ),
+      ),
+    )
     for (const index of Array.from({length: 26}, (_, offset) => offset + 1)) {
       await engine.session.send(`Question ${index}`)
     }
@@ -85,6 +91,7 @@ describe('a long saved session', () => {
     await expect.element(latest).toBeDisabled()
 
     await browserInput.click(last)
+    expect(screen.getByRole('log')).toHaveFocus()
     await browserInput.keyboard('{Home}')
     expect(await screen.findByRole('article', {name: 'Reply to: Question 1'})).toBeVisible()
     const rows = screen.getAllByRole('article')
@@ -95,6 +102,9 @@ describe('a long saved session', () => {
     await expect.element(latest).toBeEnabled()
     await expect.element(latest).toBeVisible()
     await expect.element(latest).toHaveTextContent('Latest')
+    expect(screen.getByRole('log')).toHaveFocus()
+    await browserInput.keyboard('{Home}')
+    await expect.element(page.getByRole('article', {name: 'You: Question 1'})).toBeInViewport()
 
     await latest.click()
     expect(await screen.findByText('Answer 26')).toBeVisible()
