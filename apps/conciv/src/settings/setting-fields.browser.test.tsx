@@ -1,4 +1,5 @@
 import {describe, expect, it, test} from 'vitest'
+import {userEvent as browserInput} from 'vitest/browser'
 import {render, screen} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine} from '@conciv/plugin-testkit'
@@ -53,6 +54,40 @@ describe('the general settings change the panel', () => {
     expect(await screen.findByRole('combobox', {name: 'Launcher'})).toHaveTextContent('Native')
     expect(screen.getByText('Set in conciv({launcher}) by this project.')).toBeVisible()
     expect(screen.getByText('Set in conciv({defaultOpen}) by this project.')).toBeVisible()
+  })
+})
+
+describe('dragging a settings switch', () => {
+  test('a drag cancelled with Escape leaves the switch as it was, and a drag past the middle turns the setting on', async () => {
+    const user = userEvent.setup()
+    render(() => <p>The host page</p>)
+    const engine = await createEngine()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const panel = await screen.findByRole('dialog', {name: 'conciv chat agent'})
+    await user.click(await screen.findByRole('link', {name: 'Settings'}))
+    const outsideClick = await screen.findByRole<HTMLInputElement>('switch', {name: 'Close on outside click'})
+    const control = outsideClick.closest('label') ?? outsideClick
+
+    await browserInput.pointer([
+      {target: control, coords: {x: 4, y: 9}, keys: '[MouseLeft>]'},
+      {target: control, coords: {x: 28, y: 9}},
+    ])
+    expect(await screen.findByRole('switch', {name: 'Close on outside click', checked: true})).toBeVisible()
+    await browserInput.keyboard('{Escape}')
+    expect(await screen.findByRole('switch', {name: 'Close on outside click', checked: false})).toBeVisible()
+    await browserInput.pointer('[/MouseLeft]')
+    expect(screen.getByRole('switch', {name: 'Close on outside click'})).not.toBeChecked()
+    await browserInput.click(screen.getByText('The host page'))
+    expect(panel).toBeVisible()
+
+    await browserInput.pointer([
+      {target: control, coords: {x: 4, y: 9}, keys: '[MouseLeft>]'},
+      {target: control, coords: {x: 28, y: 9}, keys: '[/MouseLeft]'},
+    ])
+    expect(await screen.findByRole('switch', {name: 'Close on outside click', checked: true})).toBeVisible()
+    await browserInput.click(screen.getByText('The host page'))
+    expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
+    await expect.element(panel).not.toBeVisible()
   })
 })
 
