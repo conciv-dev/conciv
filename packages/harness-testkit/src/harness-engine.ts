@@ -259,9 +259,13 @@ function approvePending(engine: Engine, sessionId: string): Promise<void> {
 
 function stopRun(engine: Engine, sessionId: string): Promise<void> {
   return asSession(engine, sessionId, async (rpc) => {
-    const {activeRun} = await rpc.chat.hydrate({sessionId})
     const runIds = engine.turns.runIds(sessionId)
-    await rpc.chat.stop({sessionId, runIds: activeRun === null ? runIds : [activeRun.runId, ...runIds]})
+    if (runIds.length > 0) {
+      await rpc.chat.stop({sessionId, runIds})
+      return
+    }
+    const {activeRun} = await rpc.chat.hydrate({sessionId})
+    await rpc.chat.stop({sessionId, runIds: activeRun === null ? [] : [activeRun.runId]})
   })
 }
 
