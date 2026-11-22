@@ -1,4 +1,5 @@
 import {once} from 'node:events'
+import {setImmediate as nextTurn} from 'node:timers/promises'
 import {MessageChannel, Worker} from 'node:worker_threads'
 import {Effect} from 'effect'
 import {realpath} from 'node:fs/promises'
@@ -101,8 +102,15 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     }, Promise.resolve())
   }
 
+  const titlePasses = async (running: Running, scope: HarnessListScope): Promise<TitlePass[]> =>
+    indexed.reduce<Promise<TitlePass[]>>(async (previous, source) => {
+      const done = await previous
+      await nextTurn()
+      return [...done, await titlePass(running, source, scope)]
+    }, Promise.resolve([]))
+
   const indexScope = async (running: Running, scope: HarnessListScope): Promise<void> => {
-    const passes = await Promise.all(indexed.map((source) => titlePass(running, source, scope)))
+    const passes = await titlePasses(running, scope)
     if (passes.some((pass) => pass.changed)) indexedChanged()
     if (
       await textPass(
@@ -183,7 +191,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
 
   const widenEverywhere = async (running: Running): Promise<void> => {
     const scope: HarnessListScope = {everywhere: true}
-    const passes = await Promise.all(indexed.map((source) => titlePass(running, source, scope)))
+    const passes = await titlePasses(running, scope)
     if (!state.scopes.some((listed) => 'everywhere' in listed)) state.scopes.push(scope)
     if (passes.some((pass) => pass.changed)) indexedChanged()
   }
@@ -254,9 +262,9 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       const running = startIndex(() => {
         running.stopped.abort()
         state.running = null
+        state.everywhere = null
       }, deps.log)
       state.running = running
-      state.everywhere = widenEverywhere(running)
       void inSpan(deps.tracer, 'SessionSearch.startWorker', {}, async () => once(running.worker, 'online')).catch(
         (error: unknown) => deps.log(Effect.logError('[core] the session search index worker did not start', {error})),
       )
@@ -271,7 +279,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       const running = state.running
       if (running === null)
         return indexed.map(({harness}) => ({harnessKind: harness.id, page: {sessions: [], next: null}}))
-      if (everywhere) await state.everywhere
+      if (everywhere) await (state.everywhere ??= widenEverywhere(running))
       refresh()
       const found = await searchHits(running, term, page.after, page.limit, everywhere)
       const paged = pageAfter(found, page, (hit) => ({

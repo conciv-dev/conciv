@@ -99,7 +99,7 @@ describe('sessions', () => {
 })
 
 describe.concurrent('native sessions', () => {
-  test('a past CLI session is found by what was said in it, with the command that resumes it, and a folder spelled through a symlink or by a gone path is one folder', async ({
+  test('a past CLI session is found by what was said in it, with the command that resumes it, and a folder spelled through a symlink or by a gone path, opened before the first search everywhere, is one folder', async ({
     connect,
     expect,
   }) => {
@@ -146,6 +146,10 @@ describe.concurrent('native sessions', () => {
               session('unrelated', unrelated, 'Walrus in an unrelated folder', 'unrelated'),
             ],
           },
+          {
+            id: 'second',
+            sessions: [session('second-unrelated', unrelated, 'Walrus from the second harness', 'second')],
+          },
         ],
       },
     )
@@ -159,11 +163,14 @@ describe.concurrent('native sessions', () => {
       return found.sessions.length > 0 ? found : readFound()
     }
 
+    await client.sessions.list({})
     await client.sessions.preview({...page, harness: 'engine', nativeId: 'covered-by-link', cwd: coveredLink})
     await client.sessions.preview({...page, harness: 'engine', nativeId: 'gone-covered', cwd: gone})
-    await client.sessions.list({})
     const walrus = await client.sessions.search({term: 'walrus', everywhere: true})
-    expect(walrus.sessions.map((hit) => hit.title)).toEqual(['Walrus in an unrelated folder'])
+    expect(walrus.sessions.map((hit) => hit.title).toSorted()).toEqual([
+      'Walrus from the second harness',
+      'Walrus in an unrelated folder',
+    ])
 
     const found = await readFound()
     expect(found.sessions).toEqual([
