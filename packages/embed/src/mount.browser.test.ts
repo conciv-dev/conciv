@@ -1,10 +1,29 @@
-import {describe, expect, onTestFinished, test} from 'vitest'
+import {describe, expect, test as baseTest} from 'vitest'
 import {page} from 'vitest/browser'
 import {createEngine} from '@conciv/plugin-testkit'
-import {createConciv, mountConciv} from './mount.js'
+import {createConciv, mountConciv, type ConcivHandle} from './mount.js'
 
 describe('the host page drives the widget through its handle', () => {
-  test('the handle mounts the widget, opens, closes and toggles the panel, rebinds it to another engine, and unmounts it', async () => {
+  const test = baseTest.extend<{element: HTMLElement; handles: ConcivHandle[]}>({
+    // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
+    element: async ({}, use) => {
+      const element = document.createElement('div')
+      document.body.append(element)
+      await use(element)
+      element.remove()
+    },
+    // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
+    handles: async ({}, use) => {
+      const handles: ConcivHandle[] = []
+      await use(handles)
+      for (const handle of handles) handle.unmount()
+    },
+  })
+
+  test('the handle mounts the widget, opens, closes and toggles the panel, rebinds it to another engine, and unmounts it', async ({
+    element,
+    handles,
+  }) => {
     const first = await createEngine()
     const second = await createEngine()
     await second.newSession('Work on the second engine')
@@ -13,12 +32,7 @@ describe('the host page drives the widget through its handle', () => {
       apiBase: first.address.apiBase,
       engineToken: () => Promise.resolve(bound.address.token),
     })
-    const element = document.createElement('div')
-    document.body.append(element)
-    onTestFinished(() => {
-      handle.unmount()
-      element.remove()
-    })
+    handles.push(handle)
 
     await handle.mount(element)
     const launcher = page.getByRole('button', {name: 'Open conciv chat'})
@@ -48,14 +62,20 @@ describe('the host page drives the widget through its handle', () => {
 })
 
 describe('the script tag mounts one widget', () => {
-  test('a second mountConciv call keeps the one widget the first call mounted', async () => {
+  const test = baseTest.extend<{apiBaseTag: HTMLMetaElement}>({
+    // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
+    apiBaseTag: async ({}, use) => {
+      const tag = Object.assign(document.createElement('meta'), {name: 'conciv-api-base'})
+      document.head.append(tag)
+      await use(tag)
+      tag.remove()
+      for (const root of document.querySelectorAll('[data-conciv-script-root]')) root.remove()
+    },
+  })
+
+  test('a second mountConciv call keeps the one widget the first call mounted', async ({apiBaseTag}) => {
     const engine = await createEngine()
-    const apiBase = Object.assign(document.createElement('meta'), {
-      name: 'conciv-api-base',
-      content: engine.address.apiBase,
-    })
-    document.head.append(apiBase)
-    onTestFinished(() => apiBase.remove())
+    apiBaseTag.content = engine.address.apiBase
 
     await mountConciv()
     await mountConciv()
