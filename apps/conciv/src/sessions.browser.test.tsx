@@ -26,15 +26,15 @@ describe('find and switch sessions', () => {
     await user.tripleClick(search)
     await user.keyboard('Alp')
     expect(await screen.findByRole('option', {name: /^Alpha, Edited/})).toBeVisible()
-    expect(screen.queryByRole('option', {name: /^Beta, Edited/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^Beta, Edited/})).not.toBeInTheDocument()
 
     await user.tripleClick(search)
     await user.keyboard('x'.repeat(201))
     expect(await screen.findByText("Couldn't load sessions")).toBeVisible()
 
     await user.click(screen.getByRole('button', {name: 'Clear search'}))
-    expect(search).toHaveValue('')
-    expect(search).toHaveFocus()
+    await expect.element(search).toHaveValue('')
+    await expect.element(search).toHaveFocus()
     expect(await screen.findByRole('option', {name: /^Beta, Edited/})).toBeVisible()
     expect(screen.queryByText("Couldn't load sessions")).not.toBeInTheDocument()
 
@@ -84,7 +84,7 @@ describe('a run in the list', () => {
     expect(await within(await within(preview).findByRole('log')).findByText('Keep going')).toBeVisible()
 
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', {name: 'Preview of Keep going'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('dialog', {name: 'Preview of Keep going', exact: true})).not.toBeInTheDocument()
     await gate.release()
     expect(await screen.findByText('conciv replied.')).toBeVisible()
     expect(await screen.findByRole('option', {name: /^Keep going, Edited .* · alpha$/})).toBeVisible()
@@ -152,13 +152,15 @@ describe('preview a session', () => {
     const search = screen.getByRole('combobox', {name: 'Search sessions'})
     expect(search).toHaveFocus()
     await user.keyboard('{Alt>}{ArrowRight}{/Alt}')
-    expect(within(preview).getByRole('log')).toHaveFocus()
+    await expect.element(within(preview).getByRole('log')).toHaveFocus()
     await user.keyboard('{Alt>}{ArrowLeft}{/Alt}')
-    expect(search).toHaveFocus()
+    await expect.element(search).toHaveFocus()
     expect(screen.getByRole('dialog', {name: 'Preview of Show me the plan'})).toBeVisible()
 
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', {name: 'Preview of Show me the plan'})).not.toBeInTheDocument()
+    await expect
+      .element(page.getByRole('dialog', {name: 'Preview of Show me the plan', exact: true}))
+      .not.toBeInTheDocument()
     expect(screen.getByRole('combobox', {name: 'Search sessions'})).toBeVisible()
   })
 })
@@ -204,6 +206,7 @@ describe('past sessions the CLI started', () => {
     expect(screen.queryByRole('switch', {name: 'All projects', checked: false})).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', {name: 'Session: Alpha'}))
+    await expect.element(page.getByRole('combobox', {name: 'Search sessions', exact: true})).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', {name: 'Session: Alpha'}))
     const search = await screen.findByRole('combobox', {name: 'Search sessions'})
     expect(search).toHaveValue('checkout')
@@ -227,7 +230,9 @@ describe('past sessions the CLI started', () => {
     expect(await within(screen.getByRole('status', {name: 'conciv announcements'})).findByText('Copied')).toBeVisible()
     expect(copy).toHaveFocus()
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', {name: 'Preview of Ship the checkout page'})).not.toBeInTheDocument()
+    await expect
+      .element(page.getByRole('dialog', {name: 'Preview of Ship the checkout page', exact: true}))
+      .not.toBeInTheDocument()
 
     await user.click(screen.getByRole('option', {name: /^Ship the checkout page, Edited/}))
     expect(await screen.findByRole('tooltip', {name: 'Copied'})).toBeVisible()
@@ -238,7 +243,7 @@ describe('past sessions the CLI started', () => {
     expect(screen.queryByRole('option', {name: /^Ship the checkout page/})).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', {name: 'Clear search'}))
-    expect(search).toHaveValue('')
+    await expect.element(search).toHaveValue('')
     expect(await screen.findByRole('option', {name: /^Alpha, Edited .* · started in conciv$/})).toBeVisible()
     expect(
       await screen.findByRole('option', {name: /^Fix the login form, Edited .* · started externally$/}),
@@ -250,21 +255,25 @@ describe('past sessions the CLI started', () => {
     expect(screen.getByText('Earlier')).toBeVisible()
 
     await user.type(search, 'cookie')
-    const login = await screen.findByRole('option', {
-      name: /^Fix the login form, Edited/,
-      description: /The session cookie expires too early/,
-    })
-    expect(within(login).getByRole('mark')).toHaveTextContent('cookie')
+    expect(
+      await screen.findByRole('option', {
+        name: /^Fix the login form, Edited/,
+        description: /The session cookie expires too early/,
+      }),
+    ).toBeVisible()
+    await expect
+      .element(page.getByRole('option', {name: /^Fix the login form, Edited/}).getByRole('mark'))
+      .toHaveTextContent('cookie')
     expect(screen.getByText('Yesterday')).toBeVisible()
-    expect(screen.queryByText('Today')).not.toBeInTheDocument()
-    expect(screen.queryByText('Earlier')).not.toBeInTheDocument()
-    expect(screen.queryByRole('option', {name: /^Tidy the footer/})).not.toBeInTheDocument()
+    await expect.element(page.getByText('Today', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByText('Earlier', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^Tidy the footer/})).not.toBeInTheDocument()
 
     await user.tripleClick(search)
     await user.keyboard('links')
     expect(await screen.findByRole('option', {name: /^Tidy the footer, Edited/})).toBeVisible()
     expect(screen.getByText('Earlier')).toBeVisible()
-    expect(screen.queryByText('Yesterday')).not.toBeInTheDocument()
+    await expect.element(page.getByText('Yesterday', {exact: true})).not.toBeInTheDocument()
   })
 })
 
@@ -306,7 +315,7 @@ describe('a long past session in the preview', () => {
     expect(within(preview).queryByRole('article', {name: 'You: Question 1'})).not.toBeInTheDocument()
 
     await user.keyboard('{Alt>}{ArrowRight}{/Alt}')
-    expect(within(preview).getByRole('log')).toHaveFocus()
+    await expect.element(within(preview).getByRole('log')).toHaveFocus()
     await browserInput.keyboard('{Home}')
     expect(await within(preview).findByRole('article', {name: 'Reply to: Question 1'})).toHaveTextContent('Answer 1')
     expect(within(preview).getByRole('log')).toHaveFocus()
@@ -435,12 +444,12 @@ describe('quick terminal', () => {
     await user.click(
       within(screen.getByRole('region', {name: 'Session: New session'})).getByRole('button', {name: 'Close pane'}),
     )
-    expect(screen.queryByRole('region', {name: 'Session: New session'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('region', {name: 'Session: New session', exact: true})).not.toBeInTheDocument()
     expect(screen.getByRole('region', {name: 'Session: Latest work'})).toBeVisible()
 
     expect(document.body).toHaveFocus()
     await user.keyboard(`{${mod}>}\`{/${mod}}`)
-    expect(screen.queryByRole('dialog', {name: 'conciv quick terminal'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('dialog', {name: 'conciv quick terminal', exact: true})).not.toBeInTheDocument()
 
     expect(document.body).toHaveFocus()
     await user.keyboard(`{${mod}>}\`{/${mod}}`)
@@ -453,7 +462,7 @@ describe('quick terminal', () => {
     expect(within(reopened).getAllByRole('button', {name: /^Session: /})).toHaveLength(2)
 
     await user.click(within(reopened).getByRole('button', {name: 'Close quick terminal'}))
-    expect(screen.queryByRole('dialog', {name: 'conciv quick terminal'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('dialog', {name: 'conciv quick terminal', exact: true})).not.toBeInTheDocument()
   })
 })
 
