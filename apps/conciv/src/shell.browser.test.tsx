@@ -167,6 +167,23 @@ describe('Escape keeps its place', () => {
   })
 })
 
+describe('a toolbar tooltip', () => {
+  test('hovering a composer toolbar button shows its tooltip, and Escape closes it while the docked chat stays', async () => {
+    const engine = await createEngine()
+    await mount({
+      engine,
+      host: {surface: 'dock'},
+      history: createEngineRouterHistory({initialEntries: ['/panel/latest']}),
+    })
+
+    await browserUserEvent.hover(await screen.findByRole('button', {name: 'Add an attachment'}))
+    expect(await screen.findByRole('tooltip', {name: 'Add an attachment'})).toBeVisible()
+    await browserUserEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+  })
+})
+
 describe('notices', () => {
   test('at most three notices stand at once, an error reads as an alert, a dismissed one makes room, and an action runs', async () => {
     const user = userEvent.setup()
