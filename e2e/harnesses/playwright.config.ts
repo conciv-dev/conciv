@@ -11,5 +11,7 @@ const matrix = harnessMatrixConfig({
 
 export default defineConfig({
   ...matrix,
-  projects: matrix.projects?.map((project) => (project.name === 'pi' ? project : {...project, testIgnore: PI_SPEC})),
+  projects: matrix.projects?.map((project) =>
+    project.name === 'pi' ? {...project, testMatch: PI_SPEC} : {...project, testIgnore: PI_SPEC},
+  ),
 })
