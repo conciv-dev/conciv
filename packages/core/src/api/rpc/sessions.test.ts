@@ -20,10 +20,17 @@ describe('sessions', () => {
     expect(second.next).toBeNull()
   })
 
-  test('get answers a renamed session with its title cleaned, and refuses an unknown id', async ({client}) => {
+  test('a rename reaches the event stream and get answers the title cleaned, and an unknown id is refused', async ({
+    client,
+  }) => {
     const {sessionId} = await client.sessions.create({})
+    const events = (await client.event.subscribe({types: ['session.renamed']}))[Symbol.asyncIterator]()
+    await events.next()
     await client.sessions.rename({sessionId, title: '  Plan  the\u0007 trip\n'})
 
+    await expect(events.next()).resolves.toMatchObject({
+      value: {type: 'session.renamed', data: {sessionID: sessionId, title: 'Plan the trip'}},
+    })
     await expect(client.sessions.get({sessionId})).resolves.toMatchObject({
       id: sessionId,
       title: 'Plan the trip',

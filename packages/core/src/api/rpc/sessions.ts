@@ -306,7 +306,7 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return {sessionId: input.sessionId}
     }),
     rename: os.sessions.rename.handler(async ({input, errors}) => {
-      const outcome = await renameSession({db, search}, input.sessionId, input.title)
+      const outcome = await renameSession({db, search, pluginHost: deps.pluginHost}, input.sessionId, input.title)
       if (outcome === 'missing') throw errors.NOT_FOUND()
       return outcome
     }),

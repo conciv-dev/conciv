@@ -376,6 +376,16 @@ type SessionCreated = {
   data: {sessionID: SessionId; title?: string}
 }
 
+type SessionRenamed = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.renamed'
+  durable: {aggregateID: string; seq: number; version: 1}
+  location?: LocationRef
+  data: {sessionID: SessionId; title: string}
+}
+
 export type SessionDeleted = {
   id: string
   created: number
@@ -422,6 +432,7 @@ export type EventSubscribeOutput =
   | PermissionAsked
   | PermissionReplied
   | SessionCreated
+  | SessionRenamed
   | SessionDeleted
   | SessionInstructionsUpdated
   | V2EventRpc
