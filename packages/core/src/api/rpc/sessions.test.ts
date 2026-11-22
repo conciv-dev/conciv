@@ -1,11 +1,11 @@
-import {describe, expect, vi} from 'vitest'
+import {describe, vi} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {createEngine} from '@conciv/plugin-testkit'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {test} from '../../../test/engine-test.js'
 
 describe('sessions', () => {
-  test('the list answers the newest session first, a page at a time', async ({connect, fakeTimers}) => {
+  test('the list answers the newest session first, a page at a time', async ({connect, fakeTimers, expect}) => {
     const engine = await createEngine()
     const client = connect(engine)
     const now = Date.now()
@@ -23,8 +23,9 @@ describe('sessions', () => {
     expect(second.next).toBeNull()
   })
 
-  test('a rename reaches the event stream and get answers the title cleaned, and an unknown id is refused', async ({
+  test.concurrent('a rename reaches the event stream and get answers the title cleaned, and an unknown id is refused', async ({
     connect,
+    expect,
   }) => {
     const client = connect(await createEngine())
     const {sessionId} = await client.sessions.create({})
@@ -44,8 +45,9 @@ describe('sessions', () => {
     )
   })
 
-  test('a deleted session leaves the list and refuses a new turn and a compact, and restore brings it back', async ({
+  test.concurrent('a deleted session leaves the list and refuses a new turn and a compact, and restore brings it back', async ({
     connect,
+    expect,
   }) => {
     const client = connect(await createEngine())
     const {sessionId} = await client.sessions.create({})
@@ -67,8 +69,9 @@ describe('sessions', () => {
     expect(afterRestore.sessions.map((session) => session.id)).toContain(sessionId)
   })
 
-  test('an empty session is swept when the engine starts again, and a session with a typed draft keeps it', async ({
+  test.concurrent('an empty session is swept when the engine starts again, and a session with a typed draft keeps it', async ({
     connect,
+    expect,
   }) => {
     const engine = await createEngine()
     const first = connect(engine)
@@ -92,8 +95,11 @@ describe('sessions', () => {
   })
 })
 
-describe('native sessions', () => {
-  test('a past CLI session is found by what was said in it, with the command that resumes it', async ({connect}) => {
+describe.concurrent('native sessions', () => {
+  test('a past CLI session is found by what was said in it, with the command that resumes it', async ({
+    connect,
+    expect,
+  }) => {
     const otherProject = tempDir('other-project-')
     const engine = await createEngine(
       {},

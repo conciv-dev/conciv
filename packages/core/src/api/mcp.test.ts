@@ -1,9 +1,11 @@
-import {describe, expect} from 'vitest'
+import {describe} from 'vitest'
 import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../../test/engine-test.js'
 
-describe('agent tools', () => {
-  test('a capability answers, an oversized answer is truncated, a photo comes back as an image, and a direct tool is called by name', async () => {
+describe.concurrent('agent tools', () => {
+  test('a capability answers, an oversized answer is truncated, a photo comes back as an image, and a direct tool is called by name', async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/shelf']})
 
     expect(await engine.session.tool('shelf_count').call({shelf: 'poetry'})).toEqual({shelf: 'poetry', count: 3})
@@ -23,7 +25,9 @@ describe('agent tools', () => {
     expect(await engine.session.tool('shelf_reset').call({})).toEqual({reset: true})
   })
 
-  test('the outside agent reads the tool description and catalog, discovers a capability, and a call with no tab fails with its declared code', async () => {
+  test('the outside agent reads the tool description and catalog, discovers a capability, and a call with no tab fails with its declared code', async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/shelf'], hubAccess: 'open'})
     const outside = engine.outside()
 
@@ -56,7 +60,7 @@ describe('agent tools', () => {
     )
   })
 
-  test('a malformed session header is refused', async () => {
+  test('a malformed session header is refused', async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/shelf']})
 
     const refused = await fetch(`${engine.address.apiBase}/api/mcp`, {
