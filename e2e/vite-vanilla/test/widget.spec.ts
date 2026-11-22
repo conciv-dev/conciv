@@ -43,3 +43,30 @@ test.describe('the terminal gives focus back to the host', () => {
     await expect(search).toBeFocused()
   })
 })
+
+test.describe('the user types in the page while the Recorder tab replays live', () => {
+  test('a click on a page field takes focus out of the panel, and the live replay leaves it there while the user types', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+
+    await page.getByRole('tab', {name: 'Recorder'}).click()
+    await expect(page.getByText('LIVE')).toBeVisible()
+    const search = page.getByRole('textbox', {name: 'Search plants'})
+    await search.click()
+    await expect(search).toBeFocused()
+    await page.keyboard.type('B')
+    await expect(page.getByText('Searching for B')).toBeVisible()
+
+    const replay = page.frames().find((frame) => frame !== page.mainFrame())
+    if (!replay) throw new Error('the Recorder tab drew no replay frame')
+    await expect(replay.getByText('Searching for B')).toBeVisible()
+    await expect(search).toBeFocused()
+    await page.keyboard.type('oston fern')
+
+    await expect(search).toHaveValue('Boston fern')
+    await expect(search).toBeFocused()
+  })
+})

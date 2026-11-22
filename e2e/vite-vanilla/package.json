@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.e2e.json --noEmit"
   },
   "dependencies": {
-    "@conciv/it": "workspace:*"
+    "@conciv/it": "workspace:*",
+    "@conciv/plugin-recorder": "workspace:*"
   },
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",

@@ -17,6 +17,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   </div>
   <button id="counter" type="button" class="counter"></button>
   <label>Search plants <input name="search" /></label>
+  <output name="query"></output>
 </section>
 
 <div class="ticks"></div>
@@ -59,3 +60,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 `
 
 setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+
+const search = document.querySelector<HTMLInputElement>('input[name="search"]')!
+const query = document.querySelector<HTMLOutputElement>('output[name="query"]')!
+search.addEventListener('input', () => {
+  query.textContent = `Searching for ${search.value}`
+})
