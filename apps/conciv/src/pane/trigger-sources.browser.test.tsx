@@ -5,63 +5,47 @@ import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('the slash list', () => {
-  test('/ lists the commands and a picked harness command reaches the agent as text', async () => {
+  test('/ lists the commands of the session’s own harness and a picked one reaches the agent as text', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Deploying now'))
+    const engine = await createEngine(
+      {},
+      {harnesses: [{id: 'engine', commands: [{name: 'review-pr', description: 'Review the open pull request'}]}]},
+    )
+    await engine.reply(TestLLM.text('Reviewing now'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, '/')
     const commands = await screen.findByRole('listbox', {name: 'Commands'})
-    expect(await within(commands).findByRole('option', {name: '/model'})).toBeVisible()
-    expect(await within(commands).findByRole('option', {name: '/deploy'})).toBeVisible()
-    await user.type(input, 'dep')
-    await user.click(await within(commands).findByRole('option', {name: '/deploy'}))
-    expect(input).toHaveTextContent('/deploy')
-    await user.type(input, '{Enter}')
-
-    const reply = await screen.findByRole('article', {name: 'Reply to: /deploy'})
-    expect(await within(reply).findByText('Deploying now')).toBeVisible()
-    const requests = await engine.requests()
-    expect(requests.map((request) => request.messages.at(-1))).toMatchObject([{role: 'user', content: '/deploy'}])
-  })
-
-  test('/ lists the commands of the session’s own harness', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine(
-      {},
-      {harnesses: [{id: 'engine', commands: [{name: 'review-pr', description: 'Review the open pull request'}]}]},
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), '/')
-    const commands = await screen.findByRole('listbox', {name: 'Commands'})
     expect(await within(commands).findByRole('option', {name: '/review-pr'})).toBeVisible()
     expect(within(commands).getByRole('option', {name: '/model'})).toBeVisible()
     expect(within(commands).queryByRole('option', {name: '/deploy'})).not.toBeInTheDocument()
+    await user.type(input, 'rev')
+    await user.click(await within(commands).findByRole('option', {name: '/review-pr'}))
+    expect(input).toHaveTextContent('/review-pr')
+    await user.type(input, '{Enter}')
+
+    const reply = await screen.findByRole('article', {name: 'Reply to: /review-pr'})
+    expect(await within(reply).findByText('Reviewing now')).toBeVisible()
+    const requests = await engine.requests()
+    expect(requests.map((request) => request.messages.at(-1))).toMatchObject([{role: 'user', content: '/review-pr'}])
   })
 })
 
 describe('the model command', () => {
-  test('picking /model from the list opens the model menu', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), '/mo')
-    await user.click(await screen.findByRole('option', {name: '/model'}))
-
-    expect(await screen.findByRole('textbox', {name: 'Search models'})).toBeVisible()
-  })
-
-  test('sending exactly /model opens the model menu and sends nothing', async () => {
+  test('picking /model from the list or sending exactly /model opens the model menu and sends nothing', async () => {
     const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Hi there'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(input, '/mo')
+    await user.click(await screen.findByRole('option', {name: '/model'}))
+    const picked = await screen.findByRole('textbox', {name: 'Search models'})
+    expect(picked).toBeVisible()
+    await user.type(picked, '{Escape}')
+
     await user.type(input, '/model ')
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
