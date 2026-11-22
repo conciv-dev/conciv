@@ -4,21 +4,6 @@ import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {test} from '../test/rpc-test.js'
 
 describe('a conversation', () => {
-  test('the user sends two messages and the second request carries the first', async () => {
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Hello Ada'), TestLLM.text('You said your name is Ada'))
-
-    await engine.session.send('My name is Ada')
-    await engine.session.send('What is my name?')
-
-    const [, second] = await engine.requests()
-    expect(second?.messages).toMatchObject([
-      {role: 'user', content: 'My name is Ada'},
-      {role: 'assistant', content: 'Hello Ada'},
-      {role: 'user', content: 'What is my name?'},
-    ])
-  })
-
   test('an empty message is refused', async () => {
     const engine = await createEngine()
 

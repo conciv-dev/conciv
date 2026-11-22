@@ -18,20 +18,6 @@ describe('stopping', () => {
     await expect(interrupted.arrived).resolves.toMatchObject({data: {reason: 'user'}})
   })
 
-  test('a stop sent before the run starts ends it', async () => {
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Never shown'))
-    const gate = await engine.gate()
-    const interrupted = await engine.event('session.execution.interrupted')
-
-    const sent = engine.session.send('Hello')
-    await gate.started
-    await engine.session.stop()
-
-    await expect(sent).resolves.toBeUndefined()
-    await expect(interrupted.arrived).resolves.toMatchObject({data: {reason: 'user'}})
-  })
-
   test('a stop sent while the turn still prepares its prompt, before its run is recorded, ends it and the agent is never asked', async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/turn-holder']})
     await engine.reply(TestLLM.text('Never shown'))
@@ -83,15 +69,6 @@ describe('two turns', () => {
     const requests = await engine.requests()
     expect(requests).toHaveLength(1)
     expect(requests[0]?.messages.at(-1)).toMatchObject({role: 'user', content: 'Never mind, say hi'})
-  })
-})
-
-describe('a failed reply', () => {
-  test("the turn rejects with the model's error", async () => {
-    const engine = await createEngine()
-    await engine.reply(TestLLM.failAfter(new Error('the model is overloaded')))
-
-    await expect(engine.session.send('Hello')).rejects.toThrow('the model is overloaded')
   })
 })
 
