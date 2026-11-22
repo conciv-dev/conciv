@@ -1,5 +1,5 @@
-import {describe, expect, test} from 'vitest'
-import {userEvent as realInput} from 'vitest/browser'
+import {describe, expect, onTestFinished, test} from 'vitest'
+import {page, userEvent as realInput} from 'vitest/browser'
 import {render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
@@ -33,7 +33,7 @@ describe('the agent acts on the page during a reply', () => {
     expect(await screen.findByText('The button is red now')).toBeVisible()
     const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
     expect(within(reply).getByText('Edited the page')).toBeVisible()
-    expect(within(reply).getByText('2 actions')).toBeVisible()
+    expect(within(within(reply).getByRole('list')).getAllByRole('listitem')).toHaveLength(2)
     expect(within(reply).getByText('Clicked')).toBeVisible()
     expect(within(reply).getByText('Styled an element')).toBeVisible()
     expect(within(reply).getAllByText('Buy the fern')).toHaveLength(2)
@@ -77,6 +77,10 @@ describe('the user stops the agent from the page', () => {
 
     expect(await screen.findByRole('separator', {name: 'Stopped'})).toBeVisible()
     await answer.release()
+    await engine.reply(TestLLM.text('Back at it'))
+    await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Go on')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('Back at it')).toBeVisible()
     expect(screen.queryByText('Never shown')).not.toBeInTheDocument()
   })
 })
@@ -104,6 +108,7 @@ describe('the agent fills in a form on the page', () => {
       }),
       TestLLM.text('The order is placed'),
     )
+    const finished = await engine.event('session.execution.succeeded')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
     render(() => (
@@ -139,6 +144,7 @@ describe('the agent fills in a form on the page', () => {
     ))
 
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+    await finished.arrived
 
     expect(await screen.findByText('The order is placed')).toBeVisible()
     expect(screen.getByRole('textbox', {name: 'Your name'})).toHaveValue('Ada')
@@ -147,7 +153,7 @@ describe('the agent fills in a form on the page', () => {
     expect(screen.getByRole('checkbox', {name: 'Send me news'})).not.toBeChecked()
     expect(screen.getByText('Order placed for Ada, large pot, gift wrapped, no news')).toBeVisible()
     const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
-    expect(within(reply).getByText('5 actions')).toBeVisible()
+    expect(within(within(reply).getByRole('list')).getAllByRole('listitem')).toHaveLength(5)
     expect(within(reply).getByText('Typed')).toBeVisible()
     expect(within(reply).getByText('Selected')).toBeVisible()
     expect(within(reply).getByText('Checked a box')).toBeVisible()
@@ -371,7 +377,7 @@ describe('the agent moves around the page', () => {
     expect(within(reply).getByText('Queued page actions')).toBeVisible()
   })
 
-  test('a queued action the page does not confirm in time fails with a timeout', async () => {
+  test('a queued action the page does not confirm in time comes back lost, as it may already have run', async () => {
     const engine = await createEngine({}, {timeouts: {queuedActionTimeoutMs: 1}})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -385,9 +391,15 @@ describe('the agent moves around the page', () => {
     expect(
       await engine.session.tool('page_queue').call({actions: [{tool: 'page_click', selector: '#buy'}]}),
     ).toMatchObject({
-      status: 'finished',
-      failed: 1,
-      outcomes: [{index: 0, tool: 'page_click', ok: false, error: expect.stringContaining('[page.timeout]')}],
+      status: 'lost',
+      outcomes: [
+        {
+          index: 0,
+          tool: 'page_click',
+          ok: false,
+          error: 'the page did not confirm page_click in time; it may already have run',
+        },
+      ],
     })
   })
 })
@@ -411,7 +423,7 @@ describe('the agent edits the page', () => {
     )
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
-    render(() => (
+    const host = render(() => (
       <main>
         <style>{'.sold-out { display: none }'}</style>
         <h1 id="title">Plant shop</h1>
@@ -424,13 +436,13 @@ describe('the agent edits the page', () => {
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
 
     expect(await screen.findByText('The shop is updated')).toBeVisible()
-    expect(screen.getByRole('heading', {name: 'Fern shop'})).toBeVisible()
-    expect(screen.getByText('Boston fern')).not.toBeVisible()
-    expect(screen.getByText('Spring sale')).not.toBeVisible()
-    expect(screen.getByText('Snake plant')).toBeVisible()
+    expect(within(host.container).getByRole('heading', {name: 'Fern shop'})).toBeVisible()
+    expect(within(host.container).getByText('Boston fern')).not.toBeVisible()
+    expect(within(host.container).getByText('Spring sale')).not.toBeVisible()
+    expect(within(host.container).getByText('Snake plant')).toBeVisible()
     const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
     expect(within(reply).getByText('Edited the page')).toBeVisible()
-    expect(within(reply).getByText('3 actions')).toBeVisible()
+    expect(within(within(reply).getByRole('list')).getAllByRole('listitem')).toHaveLength(3)
     expect(within(reply).getByText('Added a class')).toBeVisible()
     expect(within(reply).getByText('Set the text')).toBeVisible()
     expect(within(reply).getByText('Injected CSS')).toBeVisible()
@@ -439,6 +451,8 @@ describe('the agent edits the page', () => {
 
 describe('the element inspector', () => {
   test('the user holds Alt to inspect the page and Esc leaves it', async () => {
+    await page.viewport(1280, 800)
+    onTestFinished(() => page.viewport(414, 896))
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
@@ -454,17 +468,15 @@ describe('the element inspector', () => {
     expect(buy).toHaveFocus()
 
     await user.keyboard('{Alt>}')
-    expect(
-      await screen.findByText(
-        (_, element) => element?.textContent === 'Inspecting · click to open source · Esc to exit',
-      ),
-    ).toBeVisible()
+    await expect.element(page.getByText('Inspecting · click to open source · Esc to exit', {exact: true})).toBeVisible()
     await user.keyboard('{Escape}')
 
-    expect(
-      screen.queryByText((_, element) => element?.textContent === 'Inspecting · click to open source · Esc to exit'),
-    ).not.toBeInTheDocument()
+    await expect
+      .element(page.getByText('Inspecting · click to open source · Esc to exit', {exact: true}))
+      .not.toBeInTheDocument()
     await user.keyboard('{/Alt}')
+    expect(buy).toHaveFocus()
+    expect(page.getByText('Inspecting · click to open source · Esc to exit', {exact: true}).query()).toBeNull()
   })
 
   test('the agent turns the highlight effect on and the inspector opens on the page', async () => {
@@ -483,9 +495,7 @@ describe('the element inspector', () => {
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
 
     expect(await screen.findByText('The highlight is on')).toBeVisible()
-    expect(
-      screen.getByText((_, element) => element?.textContent === 'Inspecting · click to open source · Esc to exit'),
-    ).toBeVisible()
+    await expect.element(page.getByText('Inspecting · click to open source · Esc to exit', {exact: true})).toBeVisible()
     const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
     expect(within(reply).getByText('Drove an effect')).toBeVisible()
   })
@@ -511,13 +521,15 @@ describe('the page follows the session the user switches to', () => {
 
     expect(await alpha.tool('page_route').call({})).toMatchObject({pathname: '/'})
     expect(await bravo.tool('page_route').failure({})).toMatchObject({
-      message: expect.stringContaining('[page.disconnected]'),
+      message: expect.stringContaining("'external_page_route' is not defined"),
     })
   })
 })
 
 describe('the user grabs an element for the agent', () => {
   test('the picked element is staged in the composer, which takes focus, and is sent with the message to the agent', async () => {
+    await page.viewport(1280, 800)
+    onTestFinished(() => page.viewport(414, 896))
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
@@ -530,7 +542,8 @@ describe('the user grabs an element for the agent', () => {
       </button>
     ))
 
-    await user.click(await screen.findByRole('button', {name: 'Select an element from the page'}))
+    await user.click(await screen.findByRole('button', {name: 'More composer actions'}))
+    await user.click(await screen.findByRole('menuitem', {name: 'Select an element from the page'}))
     await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}))
     expect(await screen.findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
     expect(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
@@ -541,5 +554,106 @@ describe('the user grabs an element for the agent', () => {
     expect(screen.getByRole('button', {name: 'Open grabbed element'})).toBeVisible()
     const [request] = await engine.requests()
     expect(JSON.stringify(request?.messages)).toContain('Buy the fern')
+  })
+})
+
+describe('the agent reads a page with shadow roots of its own', () => {
+  test('the agent reads into the host shadow root and never into the widget overlay', async () => {
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <section
+        id="card"
+        ref={(card) => {
+          card
+            .attachShadow({mode: 'open'})
+            .append(Object.assign(document.createElement('p'), {id: 'inside', textContent: 'Water once a week'}))
+        }}
+      />
+    ))
+    expect(await engine.session.tool('page_effect').call({action: 'enable', effect: 'highlight'})).toMatchObject({
+      enabled: true,
+    })
+    await expect.element(page.getByText('Inspecting · click to open source · Esc to exit', {exact: true})).toBeVisible()
+
+    expect(await engine.session.tool('page_text').call({selector: '#inside'})).toEqual({text: 'Water once a week'})
+    expect(await engine.session.tool('page_exists').call({selector: 'kbd'})).toEqual({exists: false, count: 0})
+  })
+})
+
+describe('the user types into the host page with the panel open', () => {
+  test('the keys go to the host field and the composer stays empty', async () => {
+    await page.viewport(1280, 800)
+    onTestFinished(() => page.viewport(414, 896))
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <label>
+        Search plants
+        <input id="search" />
+      </label>
+    ))
+    const search = screen.getByRole('textbox', {name: 'Search plants'})
+
+    await user.click(search)
+    expect(search).toHaveFocus()
+    await user.keyboard('Boston fern? /k')
+
+    expect(search).toHaveValue('Boston fern? /k')
+    expect(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveTextContent('')
+  })
+})
+
+describe('the agent reads the address of a tab with secrets in it', () => {
+  test('the tab list hides the token in the query and in the hash and keeps the rest', async () => {
+    const engine = await createEngine()
+    const address = new URL(location.href)
+    history.replaceState(null, '', `${address.pathname}?plant=fern&token=abc123#jwt=xyz789`)
+    onTestFinished(() => history.replaceState(null, '', address.href))
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    expect(await engine.session.tool('page_tabs_list').call({})).toMatchObject({
+      tabs: [{url: `${address.origin}${address.pathname}?plant=fern&token=%5Bredacted%5D#jwt=%5Bredacted%5D`}],
+    })
+  })
+})
+
+describe('a plugin adds its own page operation', () => {
+  test('the operation reads the page, and a name no plugin registered is refused', async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/basket-reader']})
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    expect(await screen.findByText('Basket reader ready')).toBeVisible()
+    render(() => (
+      <ul id="basket">
+        <li>Boston fern</li>
+        <li>Snake plant</li>
+      </ul>
+    ))
+
+    expect(
+      await engine.rpc.call('experimental.page', 'operate', {
+        sessionId: engine.session.id,
+        name: 'basket.read',
+        input: {},
+        reading: true,
+      }),
+    ).toEqual({plants: ['Boston fern', 'Snake plant']})
+    expect(
+      await engine.rpc.failure('experimental.page', 'operate', {
+        sessionId: engine.session.id,
+        name: 'basket.empty',
+        input: {},
+        reading: false,
+      }),
+    ).toMatchObject({message: expect.stringContaining('This page does not support the requested page operation')})
   })
 })

@@ -5,32 +5,6 @@ import {Dynamic} from 'solid-js/web'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
-describe('the agent reads a page with a one-time code filled in', () => {
-  test('the value and the snapshot give the code as masked', async () => {
-    const engine = await createEngine()
-    const control = await engine.event('rpc.experimental.page.control')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-    render(() => (
-      <form id="verify">
-        <label>
-          Code <input name="code" autocomplete="one-time-code" value="123456" />
-        </label>
-      </form>
-    ))
-
-    expect(screen.getByRole('textbox', {name: 'Code'})).toHaveValue('123456')
-
-    expect(await engine.session.tool('page_value').call({selector: '#verify input'})).toEqual({value: '***'})
-    expect(await engine.session.tool('page_snapshot').call({selector: '#verify'})).toMatchObject({
-      nodes: [
-        {role: 'label', name: 'Code'},
-        {role: 'textbox', name: 'Code', value: '***'},
-      ],
-    })
-  })
-})
-
 describe('the agent reads a page with an element named after a built-in', () => {
   test('the snapshot lists only the real controls', async () => {
     const engine = await createEngine()
@@ -111,25 +85,6 @@ describe('the agent reads host content', () => {
     expect(await engine.session.tool('page_text').call({selector: '#plants'})).toEqual({text: 'FernsBuy the fern'})
     expect(await engine.session.tool('page_dom').call({selector: '#plants'})).toEqual({
       html: '<section id="plants"><h2>Ferns</h2><button type="button" id="buy">Buy the fern</button></section>',
-    })
-  })
-})
-
-describe('the agent lists the effects it can run on the page', () => {
-  test('the highlight effect is listed and off', async () => {
-    const engine = await createEngine()
-    const control = await engine.event('rpc.experimental.page.control')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-
-    expect(await engine.session.tool('page_effect').call({action: 'list'})).toEqual({
-      effects: [
-        {
-          name: 'highlight',
-          description: 'outline the element under the pointer and open its source on click',
-          enabled: false,
-        },
-      ],
     })
   })
 })
@@ -226,7 +181,7 @@ describe('the agent works on a page that is open', () => {
     expect(found).not.toMatchObject({content: [{type: 'text', text: expect.stringContaining('Unknown tool')}]})
   })
 
-  test('the agent reads a plain attribute while a password stays masked in every read', async () => {
+  test('the agent reads a plain attribute while a password and a one-time code stay masked in every read', async () => {
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -239,21 +194,30 @@ describe('the agent works on a page that is open', () => {
         <label>
           Password <input id="password" name="password" type="password" value="hunter2" />
         </label>
+        <label>
+          Code <input id="code" name="code" autocomplete="one-time-code" value="123456" />
+        </label>
       </form>
     ))
+
+    expect(screen.getByRole('textbox', {name: 'Code'})).toHaveValue('123456')
 
     expect(await engine.session.tool('page_attr').call({selector: '#city', attribute: 'placeholder'})).toEqual({
       value: 'Lisbon',
     })
     expect(await engine.session.tool('page_value').call({selector: '#password'})).toEqual({value: '***'})
+    expect(await engine.session.tool('page_value').call({selector: '#code'})).toEqual({value: '***'})
     expect(await engine.session.tool('page_attr').call({selector: '#password', attribute: 'value'})).toEqual({
       value: '***',
     })
-    expect(await engine.session.tool('page_dom').call({selector: '#login'})).not.toMatchObject({
-      html: expect.stringContaining('hunter2'),
-    })
+    const markup = await engine.session.tool('page_dom').call({selector: '#login'})
+    expect(markup).not.toMatchObject({html: expect.stringContaining('hunter2')})
+    expect(markup).not.toMatchObject({html: expect.stringContaining('123456')})
     expect(await engine.session.tool('page_snapshot').call({selector: '#login'})).toMatchObject({
-      nodes: expect.arrayContaining([expect.objectContaining({role: 'textbox', name: 'Password', value: '***'})]),
+      nodes: expect.arrayContaining([
+        expect.objectContaining({role: 'textbox', name: 'Password', value: '***'}),
+        expect.objectContaining({role: 'textbox', name: 'Code', value: '***'}),
+      ]),
     })
   })
 
@@ -303,11 +267,21 @@ describe('the agent works on a page that is open', () => {
 })
 
 describe('the agent drives a page effect', () => {
-  test('the highlight effect turns on, reports itself on, and turns off again', async () => {
+  test('the highlight effect is listed off, turns on, reports itself on, and turns off again', async () => {
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
+
+    expect(await engine.session.tool('page_effect').call({action: 'list'})).toEqual({
+      effects: [
+        {
+          name: 'highlight',
+          description: 'outline the element under the pointer and open its source on click',
+          enabled: false,
+        },
+      ],
+    })
 
     expect(await engine.session.tool('page_effect').call({action: 'enable', effect: 'highlight'})).toEqual({
       effect: 'highlight',
