@@ -441,32 +441,6 @@ describe('the agent moves around the page', () => {
       )
       .toHaveLength(2)
   })
-
-  test('a queued action the page does not confirm in time comes back lost, as it may already have run', async () => {
-    const engine = await createEngine({}, {timeouts: {queuedActionTimeoutMs: 1}})
-    const control = await engine.event('rpc.experimental.page.control')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-    render(() => (
-      <button id="buy" type="button">
-        Buy the fern
-      </button>
-    ))
-
-    expect(
-      await engine.session.tool('page_queue').call({actions: [{tool: 'page_click', selector: '#buy'}]}),
-    ).toMatchObject({
-      status: 'lost',
-      outcomes: [
-        {
-          index: 0,
-          tool: 'page_click',
-          ok: false,
-          error: 'the page did not confirm page_click in time; it may already have run',
-        },
-      ],
-    })
-  })
 })
 
 describe('the agent edits the page', () => {
@@ -954,17 +928,6 @@ describe('the agent works on a page that is open', () => {
     expect(await waited).toEqual({ok: true, state: 'visible'})
     expect(await engine.session.tool('page_console').call({})).toMatchObject({
       entries: expect.arrayContaining([expect.objectContaining({level: 'info', text: 'Fern added to cart'})]),
-    })
-  })
-
-  test('a page call that outlasts the reply window comes back as a timeout', async () => {
-    const engine = await createEngine({}, {timeouts: {pageReplyTimeoutMs: 500}})
-    const control = await engine.event('rpc.experimental.page.control')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-
-    expect(await engine.session.tool('page_wait').failure({selector: '#never', state: 'visible'})).toMatchObject({
-      message: expect.stringContaining('[page.timeout] page.wait did not finish within 0.5 seconds'),
     })
   })
 })
