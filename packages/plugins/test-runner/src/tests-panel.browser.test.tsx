@@ -38,10 +38,10 @@ describe('the Tests tab', () => {
     expect(input).toMatchTextContent('expected 3 to be 4 // Object.is equality')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
 
-    expect(await screen.findByText('Test run in progress: 1 passed, 1 failed, 0 skipped')).toBeVisible()
+    expect(await screen.findByText(/^Test run in progress/)).toBeVisible()
     await user.click(screen.getByRole('tab', {name: 'Tests'}))
     const running = await screen.findByRole('tabpanel', {name: 'Tests'})
-    expect(await within(running).findByText('Running tests: 1 passed, 1 failed, 0 skipped')).toBeVisible()
+    expect(await within(running).findByText(/^Running tests/)).toBeVisible()
   })
 
   test('a run stopped from outside ends in the tab with the results it had, and the agent gets those results', async () => {

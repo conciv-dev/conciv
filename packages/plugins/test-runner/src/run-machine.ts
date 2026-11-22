@@ -1,5 +1,5 @@
 export * as TestRunnerRunMachine from './run-machine.js'
-import {keyBy, omit, sumBy} from 'es-toolkit'
+import {isEqual, keyBy, omit, sumBy} from 'es-toolkit'
 import type {ChildMessage} from './child-protocol.js'
 import {countStates, type Summary, type TestEvent, type TestRow, type TestRunResult} from './events.js'
 import type {ListFile} from './runner.js'
@@ -102,6 +102,10 @@ function succeeded(state: RunState, files: readonly ListFile[]): Settlement {
   return {ok: true, result: state.last, files}
 }
 
+function requestStart(attempt: number): TestEvent {
+  return {type: 'run-start', runId: `attempt-${attempt}`, files: []}
+}
+
 function request(
   state: RunState,
   event: Extract<RunEvent, {readonly type: 'run-requested' | 'list-requested'}>,
@@ -125,7 +129,12 @@ function request(
   if (event.type === 'list-requested')
     return {state: {...next, status: 'listing', attempt: event.attempt, files: null, error: null}, effects: [spawn]}
 
-  return {state: {...next, status: 'running', attempt: event.attempt, buffer: [], error: null}, effects: [spawn]}
+  const start = requestStart(event.attempt)
+
+  return {
+    state: {...next, status: 'running', attempt: event.attempt, buffer: [start], unavailable: null, error: null},
+    effects: [{type: 'publish', event: start}, spawn],
+  }
 }
 
 function receive(state: RunState, event: Extract<RunEvent, {readonly type: 'child-event'}>): RunTransition {
@@ -159,7 +168,8 @@ function exitReason(state: Extract<RunState, {readonly status: 'running' | 'list
   if (state.error !== null) return state.error
   if (exit.type === 'failed') return exit.reason
   if (exit.type === 'stopped') return null
-  const silent = state.status === 'running' ? state.buffer.length === 0 : state.files === null
+  const silent =
+    state.status === 'running' ? isEqual(state.buffer, [requestStart(state.attempt)]) : state.files === null
 
   if (silent && (exit.code !== 0 || exit.signal !== null))
     return `child exited without producing results (exit code ${exit.code}, signal ${exit.signal})`
