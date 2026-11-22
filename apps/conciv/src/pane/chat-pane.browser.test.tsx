@@ -135,18 +135,25 @@ describe('stopping and sending again', () => {
     expect(screen.getByRole('article', {name: 'Reply to: Take your time'})).toMatchTextContent('Halfway there.')
   })
 
-  test('a reply stopped before its first word leaves no reply in the thread after the next turn', async () => {
+  test('a Stop before the first word shows STOPPING and Stopping… until the run ends, then STOPPED, and the next turn leaves no reply for the stopped one', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Never shown'), TestLLM.text('Here it is'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
+    const bar = await screen.findByRole('toolbar', {name: 'Session status'})
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Wait for it')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     await gate.started
     await user.click(await screen.findByRole('button', {name: 'Stop generating'}))
+
+    expect(await within(bar).findByText('STOPPING')).toBeVisible()
+    expect(screen.getByRole('button', {name: 'Stopping the run'})).toBeVisible()
+    expect(await within(bar).findByText('STOPPED')).toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Stopping the run'})).not.toBeInTheDocument()
     expect(await screen.findByRole('separator', {name: 'Stopped'})).toBeVisible()
+    expect(screen.getByRole('button', {name: 'Send message'})).toBeVisible()
 
     await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Try again')
     await user.click(screen.getByRole('button', {name: 'Send message'}))

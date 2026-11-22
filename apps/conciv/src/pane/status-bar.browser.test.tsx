@@ -68,26 +68,6 @@ describe('the session status chip', () => {
     expect(within(bar).queryByText('−1')).not.toBeInTheDocument()
   })
 
-  test('a Stop while the reply is held shows STOPPING and Stopping… until the run ends, then STOPPED', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Too late'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    const bar = await screen.findByRole('toolbar', {name: 'Session status'})
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Take your time')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    await gate.started
-    await user.click(await screen.findByRole('button', {name: 'Stop generating'}))
-
-    expect(await within(bar).findByText('STOPPING')).toBeVisible()
-    expect(screen.getByRole('button', {name: 'Stopping the run'})).toBeVisible()
-
-    expect(await within(bar).findByText('STOPPED')).toBeVisible()
-    expect(screen.queryByRole('button', {name: 'Stopping the run'})).not.toBeInTheDocument()
-    expect(screen.getByRole('button', {name: 'Send message'})).toBeVisible()
-  })
   test('while a permission card is open the chip says WAITING and no activity line names the call a second time', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
