@@ -52,7 +52,7 @@ function writeToStorage(
   return draft
 }
 
-export function useComposerDraftPersistence(options: ComposerDraftPersistenceOptions): void {
+export function useComposerDraftPersistence(options: ComposerDraftPersistenceOptions): () => void {
   const debouncer = new AsyncDebouncer(writeComposerDraft, {wait: DRAFT_WRITE_DELAY_MS})
   createEffect<ComposerDraft | undefined>((previous) => {
     const draft = options.draft()
@@ -62,6 +62,8 @@ export function useComposerDraftPersistence(options: ComposerDraftPersistenceOpt
     if (!storage) return previous
     return writeToStorage(debouncer, storage, options.key(), draft, previous)
   })
-  makeEventListener(window, 'pagehide', () => void debouncer.flush())
-  onCleanup(() => void debouncer.flush())
+  const flush = () => void debouncer.flush()
+  makeEventListener(window, 'pagehide', flush)
+  onCleanup(flush)
+  return flush
 }
