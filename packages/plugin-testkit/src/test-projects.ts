@@ -45,6 +45,7 @@ const BROWSER_PREBUNDLED = [
   '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client/devtools',
   '@conciv/mascot > gsap',
   '@conciv/mascot > gsap/MotionPathPlugin',
+  '@conciv/ui-kit-chat > mermaid',
   '@tanstack/hotkeys',
   '@tanstack/solid-hotkeys',
   '@solid-primitives/mutation-observer',
