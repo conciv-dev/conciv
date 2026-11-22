@@ -44,7 +44,7 @@ describe('the agent draws on the open canvas', () => {
     expect(await screen.findByRole('button', {name: /^Comments/})).toBeVisible()
     const input = screen.getByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'Sketch the checkout flow')
-    expect(input).toHaveFocus()
+    await expect.element(input).toHaveFocus()
     const sketchedTurn = await engine.event('session.execution.succeeded')
     await user.keyboard('{Enter}')
     await sketchedTurn.arrived
@@ -81,7 +81,7 @@ describe('the agent draws on the open canvas', () => {
     })
 
     await user.type(input, 'Remove the pay step and clear the rest')
-    expect(input).toHaveFocus()
+    await expect.element(input).toHaveFocus()
     const tidiedTurn = await engine.event('session.execution.succeeded')
     await user.keyboard('{Enter}')
     await user.click(await screen.findByRole('button', {name: 'Allow once'}))
@@ -155,17 +155,21 @@ describe("the user works the agent's comments on the canvas", () => {
 
     await user.click(toggle)
     const inbox = await screen.findByRole('complementary', {name: 'Comments inbox'})
+    const inboxRows = page.getByRole('complementary', {name: 'Comments inbox'})
     expect(screen.queryByRole('dialog', {name: 'conciv chat agent'})).not.toBeInTheDocument()
     const search = within(inbox).getByRole('searchbox', {name: 'Quick search'})
     await user.type(search, 'blurry')
+    await expect
+      .element(inboxRows.getByRole('button', {name: /The price wraps on small screens/}))
+      .not.toBeInTheDocument()
     expect(within(inbox).getByRole('button', {name: /The hero image is blurry/})).toBeVisible()
-    expect(within(inbox).queryByRole('button', {name: /The price wraps on small screens/})).not.toBeInTheDocument()
     await user.clear(search)
+    expect(await within(inbox).findByRole('button', {name: /The price wraps on small screens/})).toBeVisible()
     await user.type(search, 'checkout')
-    expect(within(inbox).getByText('No comments match “checkout”.')).toBeVisible()
+    expect(await within(inbox).findByText('No comments match “checkout”.')).toBeVisible()
     await user.clear(search)
 
-    await user.click(within(inbox).getByRole('button', {name: /The hero image is blurry/}))
+    await user.click(await within(inbox).findByRole('button', {name: /The hero image is blurry/}))
     await user.click(
       within(await screen.findByRole('dialog', {name: 'Comment thread'})).getByRole('button', {name: 'Close thread'}),
     )
@@ -178,10 +182,11 @@ describe("the user works the agent's comments on the canvas", () => {
     expect(within(inbox).getByText('1 reply')).toBeVisible()
     await user.click(within(inbox).getByRole('button', {name: 'Filter comments'}))
     await user.click(await screen.findByRole('menuitemradio', {name: 'Sort by unread'}))
-    const byUnread = within(inbox).getAllByRole('button', {
-      name: /The hero image is blurry|The price wraps on small screens/,
-    })
-    expect(byUnread[0]).toHaveAccessibleName(/The price wraps on small screens/)
+    await expect
+      .element(
+        inboxRows.getByRole('button', {name: /The hero image is blurry|The price wraps on small screens/}).first(),
+      )
+      .toHaveAccessibleName(/The price wraps on small screens/)
     await user.click(within(inbox).getByRole('button', {name: 'Mark all as read'}))
     await expect.element(page.getByRole('button', {name: 'AI comment, open, unread'})).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', {name: 'AI comment, open'})).toHaveLength(2)
@@ -208,7 +213,7 @@ describe("the user works the agent's comments on the canvas", () => {
     expect(await within(thread).findByText('The hero image is blurry')).toBeVisible()
     const heroReply = within(thread).getByRole('textbox', {name: 'Reply'})
     await user.click(heroReply)
-    expect(heroReply).toHaveFocus()
+    await expect.element(heroReply).toHaveFocus()
     await user.keyboard('{Escape}')
     await expect.element(page.getByRole('dialog', {name: 'Comment thread'})).not.toBeInTheDocument()
     expect(inbox).toBeVisible()
@@ -217,7 +222,6 @@ describe("the user works the agent's comments on the canvas", () => {
     await user.click(
       within(await screen.findByRole('dialog', {name: 'Comment thread'})).getByRole('button', {name: 'Resolve thread'}),
     )
-    const inboxRows = page.getByRole('complementary', {name: 'Comments inbox'})
     await expect.element(inboxRows.getByRole('button', {name: /The hero image is blurry/})).not.toBeInTheDocument()
     expect(await screen.findByRole('button', {name: 'AI comment, resolved'})).toBeVisible()
     await user.click(within(inbox).getByRole('button', {name: 'Filter comments'}))
@@ -238,7 +242,7 @@ describe("the user works the agent's comments on the canvas", () => {
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'Did you see my reply, and what is left on the board?')
-    expect(input).toHaveFocus()
+    await expect.element(input).toHaveFocus()
     const turn = await engine.event('session.execution.succeeded')
     await user.keyboard('{Enter}')
     await turn.arrived
@@ -340,8 +344,8 @@ describe('the user drags pins on the canvas', () => {
         name: 'Disconnect from source',
       }),
     )
-    expect(within(cart).queryByText('cart.tsx:8')).not.toBeInTheDocument()
-    expect(screen.queryByRole('dialog', {name: 'Pin drift'})).not.toBeInTheDocument()
+    await expect.element(cart).not.toHaveTextContent('cart.tsx:8')
+    await expect.element(page.getByRole('dialog', {name: 'Pin drift'})).not.toBeInTheDocument()
   })
 })
 
@@ -452,10 +456,10 @@ describe('the whiteboard settings', () => {
     const background = await screen.findByRole('switch', {name: 'Canvas background: see the page through the canvas'})
     expect(background).toBeChecked()
     await user.click(background)
-    expect(background).not.toBeChecked()
+    await expect.element(background).not.toBeChecked()
 
     await user.click(general)
-    expect(general).toHaveFocus()
+    await expect.element(general).toHaveFocus()
     await user.keyboard('{Escape}')
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     expect(await screen.findByRole('tab', {name: 'General', selected: true})).toBeVisible()
@@ -501,7 +505,7 @@ describe('the user comments on an element of the page', () => {
     await user.click(within(thread).getByRole('button', {name: 'Close thread'}))
 
     await user.click(whiteboard)
-    expect(screen.queryByRole('button', {name: /^Comments/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: /^Comments/})).not.toBeInTheDocument()
     await user.click(await screen.findByRole('button', {name: 'Comment on an element'}))
     // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
     await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
