@@ -7,7 +7,7 @@ import {defineConfig} from 'vitest/config'
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 
 const WORKSPACE_SOURCES = ['packages', 'packages/plugins', 'packages/extensions', 'apps'].map(
-  (group) => `${group}/*/src/**/*.{ts,tsx}`,
+  (group) => `${group}/*/src/**/*.{ts,tsx,js}`,
 )
 
 const siteRequire = createRequire(join(ROOT, 'apps/site/package.json'))
