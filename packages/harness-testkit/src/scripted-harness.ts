@@ -1,3 +1,4 @@
+import {once} from 'node:events'
 import {mkdir, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 import {z} from 'zod'
@@ -205,6 +206,15 @@ function recorded(request: StreamOptions, deps: HarnessChatDeps): ModelRequest {
   }
 }
 
+async function releasedOrStopped(held: HeldGate, signal: AbortSignal | undefined): Promise<void> {
+  if (signal === undefined) return held.released.promise
+  if (signal.aborted) return
+  const settled = new AbortController()
+  await Promise.race([held.released.promise, once(signal, 'abort', {signal: settled.signal})])
+    .catch(() => undefined)
+    .finally(() => settled.abort())
+}
+
 export function replyScript(tokensPerSecond: number | undefined): ReplyScript {
   const fake = fakeText(tokensPerSecond === undefined ? {} : {tokensPerSecond})
   const state: ScriptState = {requests: [], held: undefined}
@@ -215,7 +225,8 @@ export function replyScript(tokensPerSecond: number | undefined): ReplyScript {
       const held = state.held
       if (held !== undefined) {
         held.started.resolve()
-        await held.released.promise
+        await releasedOrStopped(held, call.request.request?.signal ?? call.request.abortController?.signal)
+        if (state.held === held) state.held = undefined
       }
       const step = typeof reply === 'function' ? await reply(call) : reply
       const coded = CodedErrorSchema.safeParse(step)

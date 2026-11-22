@@ -28,6 +28,23 @@ describe('scripted replies', () => {
   })
 })
 
+describe('a held reply', () => {
+  test('a Stop while the reply is held ends the turn without a release, and the next turn takes the next reply', async ({
+    engine,
+  }) => {
+    const gate = await engine.gate()
+    await engine.reply(TestLLM.text('never sent'), TestLLM.text('Second answer'))
+
+    const turn = engine.session.send('one')
+    await gate.started
+    await engine.session.stop()
+
+    await expect(turn).resolves.toBeUndefined()
+    await engine.session.send('two')
+    expect(await engine.requests()).toHaveLength(2)
+  })
+})
+
 describe('a reply that thinks first', () => {
   test("the thread keeps the reply's reasoning ahead of its answer", async ({launch}) => {
     const {engine, client} = await launch()
