@@ -33,6 +33,8 @@ export type HarnessApp = keyof typeof HARNESS_E2E_PORTS
 
 const PACKED_SPECS = '**/packed-*.spec.ts'
 
+const VITE_COLD_START = process.env.CI ? '--force' : ''
+
 const BLOCK_ALL_COOKIES_AND_SITE_DATA = 2
 
 const BROWSER_SETTING_PROJECTS = {
@@ -144,7 +146,7 @@ export function e2eConfig(
   app: E2EApp,
   opts: {
     dir: string
-    command: (port: number) => string
+    command: (port: number, coldStart: string) => string
     timeout?: number
     runFolders?: string[]
     browserSettings?: readonly BrowserSetting[]
@@ -169,7 +171,7 @@ export function e2eConfig(
         ...copyPlugins(opts.dir, opts.pluginCopies ?? []),
         ...writeFakeClis(opts.dir, opts.fakeClis ?? []),
       ].join(' && '),
-      command: `rm -rf .conciv && ${opts.command(port)}`,
+      command: `rm -rf .conciv && ${opts.command(port, VITE_COLD_START)}`,
       port,
       env: {...runConcivHome(opts.dir), ...pathWithOnly(opts.dir, opts.fakeClis ?? [])},
     }),
@@ -246,7 +248,7 @@ function isolatedHome(configDir: string, harness: HarnessApp): {CONCIV_HOME: str
 
 export function harnessMatrixConfig(opts: {
   dir: string
-  command: (harness: HarnessApp, port: number) => string
+  command: (harness: HarnessApp, port: number, coldStart: string) => string
 }): ReturnType<typeof defineConfig> {
   const entries = selectedHarnesses()
   return defineConfig({
@@ -262,7 +264,7 @@ export function harnessMatrixConfig(opts: {
       serverEntry({
         configDir: opts.dir,
         prepare: `rm -rf '${harnessHome(opts.dir, harness)}' && mkdir -p '${join(harnessHome(opts.dir, harness), '.codex')}'`,
-        command: `rm -rf .conciv-${harness} && ${opts.command(harness, port)}`,
+        command: `rm -rf .conciv-${harness} && ${opts.command(harness, port, VITE_COLD_START)}`,
         port,
         env: isolatedHome(opts.dir, harness),
       }),

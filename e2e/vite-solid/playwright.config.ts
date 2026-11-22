@@ -4,5 +4,5 @@ export default e2eConfig('vite-solid', {
   dir: import.meta.dirname,
   pluginCopies: ['live-line', 'host-controls'],
   browserSettings: ['storage-refused'],
-  command: (port) => `pnpm exec vite --port ${port} --strictPort --force`,
+  command: (port, coldStart) => `pnpm exec vite --port ${port} --strictPort ${coldStart}`,
 })

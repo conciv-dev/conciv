@@ -8,9 +8,12 @@ suite (`test/` + `playwright.config.ts`). Layout follows TanStack Router's `e2e/
 
 Every host, in-repo or not, consumes `@conciv/*` packages from `dist/`. These apps add what the
 in-repo apps cannot: each is scaffolded by its framework's own CLI and wired the way a user would,
-so they catch what a real consumer setup does with the published `dist/`. Vite apps also run with
-`--force` (or a cleared cache) so every run is a cold dep-optimization start, which is where
-dist-only failures show up.
+so they catch what a real consumer setup does with the published `dist/`. In CI (`CI` set) Vite apps
+run with `--force`, so every run is a cold dep-optimization start, which is where dist-only failures
+show up. Local runs leave it off and reuse the warm Vite cache: measured 2026-11-22, a cold start costs
+1.8 GB and 4.6 s against 0.46 GB and 1.7 s warm. `e2eConfig` and `harnessMatrixConfig` decide this in
+one place and hand each app's `command` the flag as its `coldStart` argument. Astro clears
+`node_modules/.vite` on every start instead (`astro dev` has no dep-optimizer `--force`).
 
 ## Running
 

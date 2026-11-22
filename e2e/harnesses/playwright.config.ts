@@ -5,8 +5,8 @@ const PI_SPEC = '**/pi.spec.ts'
 
 const matrix = harnessMatrixConfig({
   dir: import.meta.dirname,
-  command: (harness, port) =>
-    `node_modules/.bin/vite --config vite.${harness}.config.ts --port ${port} --strictPort --force`,
+  command: (harness, port, coldStart) =>
+    `node_modules/.bin/vite --config vite.${harness}.config.ts --port ${port} --strictPort ${coldStart}`,
 })
 
 export default defineConfig({
