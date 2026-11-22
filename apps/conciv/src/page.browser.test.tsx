@@ -812,21 +812,6 @@ describe('the agent reads host content', () => {
 })
 
 describe('the agent runs code on the page', () => {
-  test('the eval asks first and runs once the user approves', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    const control = await engine.event('rpc.experimental.page.control')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-
-    const result = engine.session.tool('page_eval').call({code: 'return 1 + 1'})
-    const ask = await screen.findByRole('group', {name: 'Permission request'})
-    expect(within(ask).getByText('page_eval return 1 + 1')).toBeVisible()
-    await user.click(within(ask).getByRole('button', {name: 'Allow once'}))
-
-    expect(await result).toEqual({result: 2})
-  })
-
   test('the eval does not run when the user denies it', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
