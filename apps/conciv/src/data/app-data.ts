@@ -51,6 +51,24 @@ function withoutSessionInPages<Pages extends {pages: readonly {sessions: readonl
   return {...data, pages: data.pages.map((page) => withoutSessionOnPage(page, sessionId))}
 }
 
+function withSessionOnPage<Page extends {sessions: readonly {id: string}[]}>(
+  page: Page,
+  session: Page['sessions'][number],
+): Page {
+  if (page.sessions.some((listed) => listed.id === session.id)) return page
+  return {...page, sessions: [session, ...page.sessions]}
+}
+
+function withSessionInPages<Pages extends {pages: readonly {sessions: readonly {id: string}[]}[]}>(
+  data: Pages | undefined,
+  session: Pages['pages'][number]['sessions'][number],
+): Pages | undefined {
+  const [first, ...rest] = data?.pages ?? []
+  if (!data || !first || data.pages.some((page) => page.sessions.some((listed) => listed.id === session.id)))
+    return data
+  return {...data, pages: [withSessionOnPage(first, session), ...rest]}
+}
+
 const DRAFT_SAVE_RETRIES = 3
 
 const SETTLED: readonly string[] = ['error', 'success']
@@ -176,15 +194,21 @@ export function makeAppData(
   }
   const invalidateSession = (sessionId: string) =>
     invalidate([...listKeys, utils.sessions.get.key({input: {sessionId}})])
-  const createSession = async (): Promise<{sessionId: string}> => {
-    const {sessionId, session} = await rpc.sessions.create(undefined)
-    seed(session)
-    void invalidateSession(sessionId)
-    return {sessionId}
-  }
   type ListedPages<Procedure extends 'list' | 'search'> = NonNullable<
     ReturnType<typeof queryClient.getQueryData<unknown, ReturnType<(typeof utils.sessions)[Procedure]['infiniteKey']>>>
   >
+  const createSession = async (): Promise<{sessionId: string}> => {
+    const {sessionId, session} = await rpc.sessions.create(undefined)
+    seed(session)
+    queryClient.setQueriesData<SessionPage>({queryKey: utils.sessions.list.key({type: 'query'})}, (data) =>
+      data ? withSessionOnPage(data, session) : data,
+    )
+    queryClient.setQueriesData<ListedPages<'list'>>({queryKey: utils.sessions.list.key({type: 'infinite'})}, (data) =>
+      withSessionInPages(data, session),
+    )
+    void invalidateSession(sessionId)
+    return {sessionId}
+  }
   const endDraftSaves = (sessionId: string): void => {
     queryClient.setQueryData(draftQuery(sessionId).queryKey, null)
     forgetDraftSaves(sessionId, SETTLED)
