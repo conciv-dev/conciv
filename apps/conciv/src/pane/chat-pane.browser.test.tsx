@@ -152,7 +152,7 @@ describe('a reply that reads the page before it answers', () => {
 
     expect(await screen.findByText('You are on the home page')).toBeVisible()
     expect(screen.getByRole('button', {name: /Show trace/})).toHaveFocus()
-    expect(screen.queryByRole('list', {name: 'Execution trace'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('list', {name: 'Execution trace'})).not.toBeInTheDocument()
   })
 })
 
