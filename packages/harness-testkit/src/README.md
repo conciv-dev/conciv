@@ -18,7 +18,7 @@
 
 ## Invariants
 
-- `send` resolves when the turn's run finishes, fails or is stopped.
+- `send` resolves when the turn's run finishes, fails or is stopped. A RUN_FINISHED whose finish reason (top level, or `metadata.tanstack.finishReason` where @tanstack/ai puts it on a model call's RUN_FINISHED) is `tool_calls` ends one model call, not the run, as the TanStack chat client reads it.
 - `requests` is a copy of the model requests recorded so far, in arrival order, recorded before a gate holds them. Each is plain data: the system prompts as strings, the messages, each tool with its name, description and JSON Schema input, the model and effort the harness was configured with (or `null`), and the model options; after `send` resolves or a gate's `started` settles, it holds that request.
 - A session's `stop` sends the chat stop rpc, as a session-scoped client the way the widget's Stop does, for the session's active run and every run the kit started on it; it resolves when the engine answers, and the run's `send` then resolves.
 - `approve` waits up to 5000 ms for a pending ask, then answers every pending ask once.

@@ -180,7 +180,8 @@ async function* streamed(opened: Promise<AsyncIterable<ChatEvent>>): AsyncGenera
 }
 
 function endsRun(event: ChatEvent, runId: string): boolean {
-  if (event.type === ChatEventType.RUN_FINISHED) return event.finishReason !== 'tool_calls'
+  if (event.type === ChatEventType.RUN_FINISHED)
+    return (event.finishReason ?? event.metadata?.tanstack?.finishReason) !== 'tool_calls'
   const lifecycle = runLifecycleEvent.parse(event)
   return lifecycle?.phase === 'aborted' && lifecycle.runId === runId
 }
