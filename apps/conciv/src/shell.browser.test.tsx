@@ -574,8 +574,12 @@ describe('logging in', () => {
     const logIn = screen.getByRole('button', {name: 'Log in'})
     expect(logIn).toBeVisible()
     await expect.element(logIn).toHaveFocus()
+    const lockedComposer = screen.getByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(lockedComposer, 'Ship it')
+    expect(lockedComposer).toHaveTextContent('')
+    expect(screen.queryByText('Ship it')).not.toBeInTheDocument()
 
-    await user.keyboard('{Enter}')
+    await user.click(logIn)
     const again = await screen.findByRole('dialog', {name: 'Authorize conciv'})
     await user.click(within(again).getByRole('textbox', {name: 'Digit 1 of 6'}))
     await user.keyboard(await engine.loginCode())
