@@ -83,8 +83,8 @@ describe('the Tests tab', () => {
 
     await engine.restart()
 
-    const reconnected = await screen.findByRole('tabpanel', {name: 'Tests'})
-    expect(await within(reconnected).findByText('No test run yet')).toBeVisible()
+    expect(await screen.findByText('No test run yet')).toBeVisible()
+    const reconnected = screen.getByRole('tabpanel', {name: 'Tests'})
     expect(within(reconnected).queryByText(/^Test run finished/)).not.toBeInTheDocument()
   })
 })
