@@ -148,7 +148,7 @@ describe('a playwright project', () => {
       summary: {passed: 1, failed: 1, skipped: 0},
       failures: [{file: 'order.spec.js', name: 'an order of three packets costs 9'}],
     })
-    expect(await engine.session.tool('test_runner_run').call({pattern: 'catalog'})).toMatchObject({
+    expect(await engine.session.tool('test_runner_run').call({pattern: 'catalog.spec'})).toMatchObject({
       summary: {passed: 1, failed: 0, skipped: 0},
       failures: [],
       tests: [{name: 'the catalog lists basil', state: 'pass'}],
