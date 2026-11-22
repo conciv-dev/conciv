@@ -1,5 +1,5 @@
 import {delimiter, dirname, join} from 'node:path'
-import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
+import {defineConfig, devices, type PlaywrightTestConfig, type ReporterDescription} from '@playwright/test'
 import getPort from 'get-port'
 import {z} from 'zod'
 import {e2ePluginCopyDir, e2eStateDir} from './dev-endpoint.js'
@@ -30,7 +30,11 @@ const VITE_COLD_START = process.env.CI ? '--force' : ''
 
 const PORT_SLOT = '{port}'
 
-const BOUNDS = {timeout: 30_000, expect: {timeout: 10_000}}
+const DEFAULTS = {
+  timeout: 30_000,
+  expect: {timeout: 10_000},
+  use: {reducedMotion: 'reduce'},
+} satisfies PlaywrightTestConfig
 
 const AppServerSchema = z.object({
   dir: z.string(),
@@ -204,7 +208,7 @@ export async function e2eConfig(
     testDir: './test',
     testIgnore: PACKED_SPECS,
     workers: 1,
-    ...BOUNDS,
+    ...DEFAULTS,
     reporter: reporters(opts.dir, ['.conciv'], opts.runFolders),
   }
   if (opts.viteServerPerTest !== undefined) {
@@ -225,7 +229,7 @@ export async function e2eConfig(
   const port = await e2ePort(app)
   return defineConfig({
     ...shared,
-    use: {baseURL: `http://localhost:${port}`},
+    use: {...DEFAULTS.use, baseURL: `http://localhost:${port}`},
     webServer: serverEntry({
       configDir: opts.dir,
       prepare,
@@ -265,7 +269,7 @@ export async function packedE2eConfig(opts: {
     testDir: './test',
     testMatch: PACKED_SPECS,
     workers: 1,
-    ...BOUNDS,
+    ...DEFAULTS,
     reporter: reporters(opts.dir, [], opts.runFolders),
     webServer: servers.map((server) => {
       const home = packedHome(stateDir, server.name)
@@ -318,7 +322,7 @@ export async function harnessMatrixConfig(opts: {
   return defineConfig({
     testDir: './test',
     workers: 1,
-    ...BOUNDS,
+    ...DEFAULTS,
     reporter: reporters(
       opts.dir,
       entries.map(({name}) => `.conciv-${name}`),
