@@ -43,7 +43,7 @@ function readTerminalFont(element: Element, font: string): string {
 
 function takesFocusOnPress(node: EventTarget, view: Window & typeof globalThis): boolean {
   if (!(node instanceof view.HTMLElement) || node.matches(':disabled')) return false
-  return node.tabIndex >= 0 || node.hasAttribute('tabindex')
+  return node.tabIndex >= 0
 }
 
 function keepFocusInsideTheWidget(element: HTMLElement): void {
