@@ -201,3 +201,27 @@ describe('native transcript', () => {
     expect(request?.messages).toMatchObject([{role: 'user', content: 'And the reset link?'}])
   })
 })
+
+describe('a long tool loop', () => {
+  test('a turn with nine tool calls in a row runs every tool and ends with the final answer', async ({connect}) => {
+    const engine = await createEngine()
+    const rpc = connect(engine)
+    const callIds = Array.from({length: 9}, (_, index) => `call-${index + 1}`)
+    await engine.reply(
+      ...callIds.map((id, index) =>
+        TestLLM.toolCall(id, 'execute_typescript', {typescriptCode: `return ${index + 1}`}),
+      ),
+      TestLLM.text('All nine steps are done'),
+    )
+
+    await engine.session.send('Do nine steps')
+
+    const requests = await engine.requests()
+    expect(requests).toHaveLength(10)
+    expect(requests.at(-1)?.messages.filter((message) => message.role === 'tool')).toMatchObject(
+      callIds.map((toolCallId, index) => ({toolCallId, content: expect.stringContaining(String(index + 1))})),
+    )
+    const {messages} = await rpc.chat.hydrate({sessionId: engine.session.id})
+    expect(messages.at(-1)?.parts.at(-1)).toMatchObject({type: 'text', content: 'All nine steps are done'})
+  })
+})
