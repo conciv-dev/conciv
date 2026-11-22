@@ -86,9 +86,9 @@ describe('the agent records what the user does on the page', () => {
     })
     expect(await stopped).toBe(log)
 
-    expect(await engine.session.tool('recording_pull').call({secondsBack: 60, keyframes: 1})).toMatchObject([
-      {type: 'text', content: log},
-      {type: 'image', source: {type: 'data', mimeType: expect.stringMatching(/^image\//)}},
+    expect(await engine.session.tool('recording_pull').call({secondsBack: 60, keyframes: 1})).toEqual([
+      {type: 'text', text: JSON.stringify({result: log, logs: []})},
+      {type: 'image', data: expect.stringMatching(/^iVBORw0KGgo/), mimeType: 'image/png'},
     ])
 
     const saved = z
@@ -273,17 +273,21 @@ describe('the user sends and exports a recording', () => {
       return {...bare, data: {source: 0, text}}
     }
     const oversized = 'oversized-tab'
-    const opening = [
-      {type: 4, data: {href: 'http://localhost:5173/', width: 800, height: 600}, timestamp: at},
-      {type: 2, data: {node: {id: 1, type: 0, childNodes: []}, initialOffset: {top: 0, left: 0}}, timestamp: at},
-    ]
-    const openingBytes = opening.reduce((sum, event) => sum + new TextEncoder().encode(JSON.stringify(event)).length, 0)
+    const snapshot = {
+      type: 2,
+      data: {node: {id: 1, type: 0, childNodes: []}, initialOffset: {top: 0, left: 0}},
+      timestamp: at,
+    }
+    const snapshotBytes = new TextEncoder().encode(JSON.stringify(snapshot)).length
     const firstHalf = 8 * 1024 * 1024 - 2
-    await engine.rpc.call('recorder', 'flush', {clientId: oversized, events: opening})
+    await engine.rpc.call('recorder', 'flush', {
+      clientId: oversized,
+      events: [{type: 4, data: {href: 'http://localhost:5173/', width: 800, height: 600}, timestamp: at}, snapshot],
+    })
     await engine.rpc.call('recorder', 'flush', {clientId: oversized, events: [pad(firstHalf, at)]})
     await engine.rpc.call('recorder', 'flush', {
       clientId: oversized,
-      events: [pad(16 * 1024 * 1024 - openingBytes - firstHalf, at)],
+      events: [pad(16 * 1024 * 1024 - snapshotBytes - firstHalf, at)],
     })
     expect(await engine.rpc.call('recorder', 'recordings.save', {clientId: oversized})).toEqual({
       saved: false,
