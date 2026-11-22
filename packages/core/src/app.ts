@@ -85,13 +85,14 @@ import {
   currentToolDomain,
 } from './runtime/permission-cards.js'
 import {makePluginRuntime, type PluginRuntime} from './runtime/plugin-runtime.js'
+import {startObservability, type EngineObservability} from './runtime/observability.js'
 import type {CoreRuntime, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute} from '@conciv/serve/rpc'
 import {logError} from './lib/debug.js'
-import {GROUP_EXIT_TIMEOUT_MS, loadIsolateDriver} from '@conciv/ai/server'
+import {GROUP_EXIT_TIMEOUT_MS, inSpan, loadIsolateDriver, type Tracer} from '@conciv/ai/server'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
@@ -237,6 +238,8 @@ export type MakeAppOpts = {
   home?: string
 
   configProvider?: ConfigProvider.ConfigProvider
+
+  observability?: EngineObservability
 }
 
 function executable(file: string): boolean {
@@ -343,8 +346,11 @@ function composeRoutes(
     staleness: () => EngineStaleness
     onShutdown?: () => void
     trust: ConnectionTrust
+    tracer: Tracer | undefined
   },
 ) {
+  const traceCall = (path: readonly string[], call: () => Promise<unknown>): Promise<unknown> =>
+    inSpan(deps.tracer, `Rpc.${path.join('.')}`, {'rpc.procedure': path.join('.')}, call, {root: true})
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
@@ -371,10 +377,28 @@ function composeRoutes(
         upgrade: upgradeWebSocket,
         onError: logError,
         gate: (c) => rpcSocketGate(deps.trust, c.req.header('authorization')),
+        traceCall,
       }),
     )
-    .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
+    .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc, traceCall))
+    .use('/api/mcp', async (c, next) =>
+      inSpan(deps.tracer, 'Mcp.request', await mcpAttributes(c.req.raw), next, {root: true}),
+    )
     .route('/api/mcp', mcpApp)
+}
+
+const McpMessageSchema = z.object({
+  method: z.string().catch('unknown'),
+  params: z.object({name: z.string()}).optional().catch(undefined),
+})
+
+async function mcpAttributes(request: Request): Promise<Record<string, string>> {
+  const body: unknown = await request
+    .clone()
+    .json()
+    .catch(() => null)
+  const {method, params} = McpMessageSchema.parse(body ?? {})
+  return params === undefined ? {'rpc.method': method} : {'rpc.method': method, 'conciv.tool.name': params.name}
 }
 
 export type AppType = ReturnType<typeof composeRoutes>
@@ -462,18 +486,33 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     await Promise.all(listings.map(endListing))
   }
   const staleness = opts.staleness ?? engineStaleness
+  const engineId = opts.engineId ?? randomUUID()
+  const givenObservability = opts.observability
+  const observability =
+    givenObservability ??
+    (await startObservability({
+      home: appEnv.home,
+      fallbackRoots: join(stateDir, 'plugin-host'),
+      configProvider,
+      engineId,
+    }))
+  const releaseObservability = (): Promise<void> | undefined =>
+    givenObservability === undefined ? observability.dispose() : undefined
+  const tracer = observability.tracer
   const dbScope = Effect.runSync(Scope.make())
   const closeDb = () => Effect.runPromise(Scope.close(dbScope, Exit.void))
   const failedStart =
     (steps: ShutdownStep[]) =>
     async (error: unknown): Promise<never> => {
       await runInOrder(
-        [endListings, ...steps, () => browsers.close(), closeDb],
+        [endListings, ...steps, () => browsers.close(), closeDb, releaseObservability],
         'conciv: disposing after a failed start failed',
       ).catch((failure: unknown) => logError(`[core] ${String(failure)}`))
       throw error
     }
-  const db = await Effect.runPromise(openDb(opts.cfg.stateRoot).pipe(Scope.provide(dbScope))).catch(failedStart([]))
+  const db = await inSpan(tracer, 'Engine.openDatabase', {}, () =>
+    Effect.runPromise(openDb(opts.cfg.stateRoot).pipe(Scope.provide(dbScope))),
+  ).catch(failedStart([]))
   const planeRef: {current: ChatPlane | null} = {current: null}
 
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
@@ -556,7 +595,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     askUi: () => runtime.forSession(sessionId).asks.ui(),
   })
 
-  const engineId = opts.engineId ?? randomUUID()
   const startPlugins = (): PluginRuntime => {
     assertUniqueCapabilityNames([['a conciv assist tool', concivSandboxToolNames()]])
     return makePluginRuntime({
@@ -564,7 +602,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       cwd: opts.cwd,
       home: appEnv.home,
       configProvider,
-      fallbackRoots: join(stateDir, 'plugin-host'),
+      observability: observability.context,
       engineId,
       config: opts.cfg,
       plugins: opts.plugins ?? [],
@@ -602,7 +640,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       () => pluginHost.dispose(),
       settings.close,
     ])
-  await pluginHost.context().catch(startFailed([]))
+  await inSpan(tracer, 'Engine.buildPluginHost', {}, () => pluginHost.context()).catch(startFailed([]))
   const idleScope = await pluginHost.runPromise(Scope.fork(pluginHost.scope, 'sequential')).catch(startFailed([]))
   const idleTriggers = await pluginHost
     .runPromise(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
@@ -651,7 +689,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     new Set([...(await sessionTools(sessionId)).map((tool) => tool.name), ...concivSandboxToolNames()])
 
   const hub = appEnv.hub
-  const driver = loadIsolateDriver(logError)
+  const driver = await inSpan(tracer, 'Engine.loadIsolateDriver', {}, async () => loadIsolateDriver(logError))
   const askPermission = async (
     sessionId: SessionId,
     ask: HarnessPermissionAsk,
@@ -663,34 +701,37 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       logError(`[core] the permission ask of session ${sessionId} failed: ${String(Cause.squash(asked.cause))}`)
     return {allowed: false, message: 'The ask ended before the user answered it.'}
   }
-  const plane = await createChatPlane({
-    cwd: opts.cwd,
-    harnessFor,
-    harnessEnv: opts.harnessEnv ?? (() => appEnv.env),
-    systemPrompt: {
-      systemPromptFile: opts.systemPromptFile,
-      systemPromptText,
-    },
-    db,
-    sessions: sessionPort(db, rows, {
-      onRunEnd,
-      publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
+  const plane = await inSpan(tracer, 'Engine.createChatPlane', {}, () =>
+    createChatPlane({
+      cwd: opts.cwd,
+      harnessFor,
+      harnessEnv: opts.harnessEnv ?? (() => appEnv.env),
+      systemPrompt: {
+        systemPromptFile: opts.systemPromptFile,
+        systemPromptText,
+      },
+      db,
+      sessions: sessionPort(db, rows, {
+        onRunEnd,
+        publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
+      }),
+      toolNames: sessionToolNames,
+      capabilities: codeModeCapabilities,
+      attachmentExpanders: grabExpander,
+      prompt: plugins.prompt,
+      promptHooked: plugins.promptHooked,
+      context: plugins.context,
+      pluginInstructions: (sessionId, reset, inventory) =>
+        pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
+      firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
+      groupExitTimeoutMs: opts.stopGraceMs,
+      log: logError,
+      driver,
+      askPermission,
+      pendingPermissions: (sessionId) => pluginHost.runPromise(pendingPermissionCards(sessionId)),
+      tracer,
     }),
-    toolNames: sessionToolNames,
-    capabilities: codeModeCapabilities,
-    attachmentExpanders: grabExpander,
-    prompt: plugins.prompt,
-    promptHooked: plugins.promptHooked,
-    context: plugins.context,
-    pluginInstructions: (sessionId, reset, inventory) =>
-      pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
-    firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
-    groupExitTimeoutMs: opts.stopGraceMs,
-    log: logError,
-    driver,
-    askPermission,
-    pendingPermissions: (sessionId) => pluginHost.runPromise(pendingPermissionCards(sessionId)),
-  }).catch(startFailed([]))
+  ).catch(startFailed([]))
   planeRef.current = plane
   await pluginHost
     .runPromise(followPermissionCards({publish: publishCard}))
@@ -705,6 +746,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     rows,
     plane,
     signal: engineLife.signal,
+    tracer,
   }
 
   const runtime = makeCoreRuntime({
@@ -758,7 +800,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     return readOutsideRefusal(exit, client)
   }
 
-  const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses})
+  const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses, tracer})
   const mcp: McpVars['mcp'] = {
     codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
     hubCall: pagePlugin.hubCall,
@@ -831,29 +873,36 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       staleness,
       onShutdown: opts.onShutdown,
       trust,
+      tracer,
     },
   )
 
   if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))
 
+  const disposeStep =
+    (name: string, step: () => unknown): ShutdownStep =>
+    () =>
+      inSpan(tracer, `Engine.dispose.${name}`, {}, async () => step())
   const dispose = (): Promise<void> =>
-    runInOrder(
-      [
-        endListings,
-        plugins.closeRpc,
-        plugins.closePlugins,
-        () => pluginHost.runPromise(Scope.close(idleScope, Exit.void)),
-        plugins.closePermissions,
-        () => plane.endAllRuns(),
-        ptys.shutdown,
-        search.dispose,
-        settings.close,
-        () => browsers.close(),
-        () => pluginHost.dispose(),
-        closeDb,
-      ],
-      'conciv: disposing the engine failed',
-    )
+    inSpan(tracer, 'Engine.dispose', {}, () =>
+      runInOrder(
+        [
+          disposeStep('endListings', endListings),
+          disposeStep('closeRpc', plugins.closeRpc),
+          disposeStep('closePlugins', plugins.closePlugins),
+          disposeStep('closeIdleTriggers', () => pluginHost.runPromise(Scope.close(idleScope, Exit.void))),
+          disposeStep('closePermissions', plugins.closePermissions),
+          disposeStep('endAllRuns', () => plane.endAllRuns()),
+          disposeStep('shutdownPtys', ptys.shutdown),
+          disposeStep('disposeSearch', search.dispose),
+          disposeStep('closeSettings', settings.close),
+          disposeStep('closeBrowsers', () => browsers.close()),
+          disposeStep('disposePluginHost', () => pluginHost.dispose()),
+          disposeStep('closeDatabase', closeDb),
+        ],
+        'conciv: disposing the engine failed',
+      ),
+    ).finally(releaseObservability)
 
   const fetch = makeEngineGate<unknown>({
     fetch: (request, env) => app.fetch(request, env),
@@ -862,8 +911,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     onTrusted: opts.onTrusted,
   })
 
-  await ensureConfiguredRows(rows, opts.cfg)
-    .then(plugins.supervise)
+  await inSpan(tracer, 'Engine.ensureConfiguredRows', {}, () => ensureConfiguredRows(rows, opts.cfg))
+    .then(() => inSpan(tracer, 'Engine.supervisePlugins', {}, plugins.supervise))
     .catch(async (error: unknown) => {
       await dispose().catch((failure: unknown) =>
         logError(`[core] disposing after a failed start also failed: ${String(failure)}`),

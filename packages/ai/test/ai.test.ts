@@ -720,6 +720,7 @@ const watched = require('node:net').connect(data.socket, () => {
       log,
       driver,
       askPermission: async () => ({allowed: false, message: 'no permission prompt runs in this test'}),
+      tracer: undefined,
     })
     onTestFinished(() => server.endAllRuns())
     return server

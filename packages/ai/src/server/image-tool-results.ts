@@ -18,6 +18,7 @@ import type {AnyTool} from '@tanstack/ai'
 import {z} from 'zod'
 import {imageBlocks, imagesIn, withoutImages} from '@conciv/protocol/chat-message-types'
 import type {HarnessPermissionAsk, HarnessPermissionVerdict} from '@conciv/protocol/harness-types'
+import {inSpan, type SpanAttributes, type Tracer} from './spans.js'
 
 export type AskPermission = (
   threadId: string,
@@ -76,11 +77,28 @@ function withImageBlocks(reply: unknown): unknown {
   return {...tool.data, result: {...tool.data.result, content}}
 }
 
-async function answer(core: ToolBridgeCore, request: IncomingMessage, response: ServerResponse): Promise<void> {
+const ToolServerMessageSchema = z.object({
+  method: z.string().catch('unknown'),
+  params: z.object({name: z.string()}).optional().catch(undefined),
+})
+
+function toolServerAttributes(message: unknown): SpanAttributes {
+  const {method, params} = ToolServerMessageSchema.parse(message ?? {})
+  return params === undefined ? {'rpc.method': method} : {'rpc.method': method, 'conciv.tool.name': params.name}
+}
+
+async function answer(
+  core: ToolBridgeCore,
+  request: IncomingMessage,
+  response: ServerResponse,
+  tracer: Tracer | undefined,
+): Promise<void> {
   if (request.method !== 'POST') return void response.writeHead(405).end()
   const message = parsed(await text(request))
   if (message === undefined) return void response.writeHead(400).end('invalid JSON body')
-  const reply = await handleBridgeJsonRpc(core, message)
+  const reply = await inSpan(tracer, 'ToolServer.request', toolServerAttributes(message), () =>
+    handleBridgeJsonRpc(core, message),
+  )
   if (reply === null) return void response.writeHead(202).end()
   response.writeHead(200, {'content-type': 'application/json'}).end(JSON.stringify(withImageBlocks(reply)))
 }
@@ -90,9 +108,16 @@ function promptPermission(
   ask: AskPermission,
   threadId: string,
   signal: AbortSignal,
+  tracer: Tracer | undefined,
 ): BridgePermission | undefined {
   if (permission === undefined) return undefined
-  return {toolName: permission.toolName, resolve: (request) => answerPrompt(ask, threadId, request, signal)}
+  return {
+    toolName: permission.toolName,
+    resolve: (request) =>
+      inSpan(tracer, 'ToolServer.permission', {'conciv.session.id': threadId}, () =>
+        answerPrompt(ask, threadId, request, signal),
+      ),
+  }
 }
 
 function requestSignal(response: ServerResponse, run: AbortSignal | undefined): AbortSignal {
@@ -101,8 +126,16 @@ function requestSignal(response: ServerResponse, run: AbortSignal | undefined): 
   return run === undefined ? closed.signal : AbortSignal.any([closed.signal, run])
 }
 
-export function askingToolProvisioner(ask: AskPermission): ToolBridgeProvisioner {
-  return {provision: (tools, {provider, ...options}) => provisionToolServer(tools, provider, options, ask)}
+export function askingToolProvisioner(ask: AskPermission, tracer: Tracer | undefined): ToolBridgeProvisioner {
+  return {
+    provision: (tools, {provider, ...options}) =>
+      inSpan(
+        tracer,
+        'ToolServer.provision',
+        {'conciv.session.id': options.threadId, 'conciv.tool.count': tools.length},
+        () => provisionToolServer(tools, provider, options, ask, tracer),
+      ),
+  }
 }
 
 async function provisionToolServer(
@@ -110,6 +143,7 @@ async function provisionToolServer(
   provider: string,
   options: ToolBridgeCoreOptions,
   ask: AskPermission,
+  tracer: Tracer | undefined,
 ): Promise<ProvisionedBridge> {
   const token = randomBytes(24).toString('hex')
   const server = createServer((request, response) => {
@@ -120,9 +154,9 @@ async function provisionToolServer(
     const signal = requestSignal(response, options.signal)
     const core = createToolBridgeCore(tools, {
       ...options,
-      permission: promptPermission(options.permission, ask, options.threadId, signal),
+      permission: promptPermission(options.permission, ask, options.threadId, signal, tracer),
     })
-    answer(core, request, response).catch((error: unknown) => {
+    answer(core, request, response, tracer).catch((error: unknown) => {
       console.error(`[ai] the tool bridge request failed: ${String(error)}`)
       if (!response.headersSent) response.writeHead(500)
       response.end()

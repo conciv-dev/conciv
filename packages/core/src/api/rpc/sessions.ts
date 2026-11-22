@@ -37,6 +37,7 @@ import {logError} from '../../lib/debug.js'
 import {createChatSession, deleteSession, renameSession} from '../../sessions/session-actions.js'
 import type {createSessionSearch} from '../../sessions/session-search.js'
 import {os, type ChatContext, type RpcDeps} from './mount.js'
+import {inSpan} from '@conciv/ai/server'
 
 async function loadNativePage(
   chat: ChatContext,
@@ -46,7 +47,10 @@ async function loadNativePage(
   const history = harness.history
   if (!harness.capabilities.transcriptHistory || history === undefined) return null
   try {
-    return {harnessKind: harness.id, page: await history.list({cwd: chat.cwd}, page)}
+    const listed = await inSpan(chat.tracer, 'Sessions.listNative', {'conciv.harness.id': harness.id}, () =>
+      history.list({cwd: chat.cwd}, page),
+    )
+    return {harnessKind: harness.id, page: listed}
   } catch (error) {
     logError(
       `[core] listing the ${harness.id} native sessions failed, its sessions list from their rows: ${String(error)}`,
@@ -60,7 +64,10 @@ async function loadNativeMeta(chat: ChatContext, row: SessionRecord): Promise<Ha
   const history = chat.harnesses.find((harness) => harness.id === row.harnessKind)?.history
   if (nativeId === null || history === undefined) return undefined
   try {
-    return (await history.meta(chat.cwd, nativeId)) ?? undefined
+    const meta = await inSpan(chat.tracer, 'Sessions.readNativeMeta', {'conciv.harness.id': row.harnessKind}, () =>
+      history.meta(chat.cwd, nativeId),
+    )
+    return meta ?? undefined
   } catch (error) {
     logError(`[core] reading the ${row.harnessKind} native session ${nativeId} failed: ${String(error)}`)
     return undefined
@@ -78,7 +85,9 @@ async function loadTranscriptTail(
   if (history === undefined) return null
   if (history.withinProject && !history.withinProject(cwd, nativeId)) return null
   try {
-    return await history.tail(cwd, nativeId, options)
+    return await inSpan(chat.tracer, 'Sessions.readTranscriptTail', {'conciv.harness.id': harnessKind}, () =>
+      history.tail(cwd, nativeId, options),
+    )
   } catch (error) {
     if (options.signal?.aborted) throw error
     logError(`[core] previewing the ${harnessKind} native session ${nativeId} failed: ${String(error)}`)

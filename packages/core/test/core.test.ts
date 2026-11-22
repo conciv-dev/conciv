@@ -958,6 +958,7 @@ describe('chat plane', () => {
       driver,
       askPermission: async () => ({allowed: false, message: 'nobody answers an ask in this test'}),
       pendingPermissions: async () => [],
+      tracer: undefined,
       ...given,
     })
   }
@@ -2774,7 +2775,12 @@ async function bornRows(root: string, ids: readonly SessionId[]): Promise<void> 
 }
 
 function sessionKey(made: MadeApp) {
-  const search = createSessionSearch({db: made.chat.db, cwd: made.chat.cwd, harnesses: made.chat.harnesses})
+  const search = createSessionSearch({
+    db: made.chat.db,
+    cwd: made.chat.cwd,
+    harnesses: made.chat.harnesses,
+    tracer: undefined,
+  })
   onTestFinished(() => search.dispose())
   const queues = makePagePlugin(() => made.pluginHost)
   const layer = provideSessions(() => ({

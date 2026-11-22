@@ -47,19 +47,15 @@ import {
   ConfigPolicy,
   Global,
   ManagedPolicy,
-  Observability,
   PluginHost,
 } from '@conciv/plugin-host'
 import {
-  Cause,
-  Config,
   ConfigProvider,
   Effect,
   Exit,
   FileSystem as PlatformFileSystem,
   Layer,
   ManagedRuntime,
-  Option,
   PlatformError,
   Schedule,
   Schema,
@@ -80,6 +76,7 @@ import {buildHarnessMenuEntry} from '../api/rpc/sessions.js'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import * as Bundler from '@conciv/plugin/schema/bundler'
 import corePackage from '../../package.json' with {type: 'json'}
+import type {EngineObservability} from './observability.js'
 
 export function provideBundlerSource(bundler: Bundler.BundlerBridge | undefined) {
   return Layer.succeed(PluginHost.BundlerSource, bundler)
@@ -116,25 +113,6 @@ export function provideEditorSource(openInEditor: (file: string, line?: number, 
 
 export function provideApp() {
   return Layer.succeed(App.Service, App.make({version: corePackage.version}))
-}
-
-const OtlpExporterConfig = Config.all({
-  endpoint: Config.option(Config.String('OTEL_EXPORTER_OTLP_ENDPOINT')),
-  headers: Config.option(Config.String('OTEL_EXPORTER_OTLP_HEADERS')),
-})
-
-function provideObservability(configProvider: ConfigProvider.ConfigProvider) {
-  return Layer.unwrap(
-    OtlpExporterConfig.pipe(
-      Effect.map(({endpoint, headers}) =>
-        Observability.layer({
-          endpoint: Option.getOrUndefined(endpoint),
-          headers: Option.getOrUndefined(headers),
-          version: corePackage.version,
-        }),
-      ),
-    ),
-  ).pipe(Layer.provide(ConfigProvider.layer(configProvider)), Layer.orDie)
 }
 
 export function provideConfiguredPolicies(policies: ConcivConfig['policies']) {
@@ -220,7 +198,6 @@ export type PluginRuntimeInput = {
   db: ConcivDb
   cwd: string
   home: string
-  fallbackRoots: string
   engineId: string
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies' | 'permissions'>
   plugins: readonly PluginDefinition.Plugin[]
@@ -231,6 +208,7 @@ export type PluginRuntimeInput = {
   openInEditor: (file: string, line?: number, column?: number) => void
   sessions: Parameters<typeof provideSessions>[0]
   configProvider: ConfigProvider.ConfigProvider
+  observability: EngineObservability['context']
 }
 
 const VCS_MARKERS = [
@@ -251,22 +229,7 @@ function locationLayer(cwd: string) {
   return Layer.succeed(Location.Service, Location.Service.of({...info, vcs: detectVcs(cwd)}))
 }
 
-function machineRoots(home: string, fallback: string) {
-  return provideGlobalRoots(home).pipe(
-    Layer.catchCause((cause) =>
-      Layer.unwrap(
-        Effect.logError("[core] the plugin host's folders could not be made, using the fallback folder").pipe(
-          Effect.annotateLogs({home, fallback, cause: Cause.pretty(cause)}),
-          Effect.as(provideGlobalRoots(fallback)),
-        ),
-      ),
-    ),
-    Layer.provide(NodeFileSystem.layer),
-  )
-}
-
 function pluginHostLayer(input: PluginRuntimeInput) {
-  const roots = machineRoots(input.home, input.fallbackRoots)
   return Layer.mergeAll(
     Plugin.layer,
     SdkPlugins.layer,
@@ -324,14 +287,13 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     Layer.provideMerge(
       Layer.mergeAll(
         Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, input.db.$client)),
-        roots,
         NodeFileSystem.layer,
         NodeChildProcessSpawner.layer.pipe(Layer.provide(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer))),
         FetchHttpClient.layer,
         ConfigProvider.layer(input.configProvider),
       ),
     ),
-    Layer.provideMerge(provideObservability(input.configProvider).pipe(Layer.provide(roots))),
+    Layer.provideMerge(Layer.succeedContext(input.observability)),
   )
 }
 

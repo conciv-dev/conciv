@@ -1270,7 +1270,12 @@ describe('api harness switching', () => {
 
     const app = made.app
     if (app === null) throw new Error('the app did not boot')
-    const search = createSessionSearch({db: app.chat.db, cwd: app.chat.cwd, harnesses: app.chat.harnesses})
+    const search = createSessionSearch({
+      db: app.chat.db,
+      cwd: app.chat.cwd,
+      harnesses: app.chat.harnesses,
+      tracer: undefined,
+    })
     onTestFinished(() => search.dispose())
     const sessionKey = provideSessions(() => ({
       chat: app.chat,
@@ -3969,7 +3974,7 @@ return seen`
 
       it('the tool bridge hands the CLI an image block, with the text capped apart from it', async () => {
         const unasked = async () => ({allowed: false as const, message: 'the bridge offers no permission tool'})
-        const bridge = await askingToolProvisioner(unasked).provision(
+        const bridge = await askingToolProvisioner(unasked, undefined).provision(
           [{name: 'shot', description: 'shot', execute: async () => cappedValue({path: 'a.webp', image: BIG_IMAGE})}],
           {threadId: 'thread', provider: 'local-process'},
         )

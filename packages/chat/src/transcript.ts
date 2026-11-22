@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {toModelMessages, type ChatMessage} from '@conciv/protocol/chat-message-types'
-import type {ChatStores} from '@conciv/ai/server'
+import {inSpan, type ChatStores, type Tracer} from '@conciv/ai/server'
 import {anchorKey, TRANSCRIPT_NAMESPACE} from '@conciv/db'
 import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -97,6 +97,7 @@ export type TranscriptSource = {
   toolNames: (sessionId: SessionId) => Promise<ReadonlySet<string>>
   native: (sessionId: SessionId) => Promise<{nativeId: HarnessSessionId; cwd: string; harnessKind: string} | null>
   log: (message: string) => void
+  tracer: Tracer | undefined
 }
 
 export type TranscriptImporter = {
@@ -114,7 +115,12 @@ export function createTranscriptImporter(source: TranscriptSource): TranscriptIm
       return null
     }
     try {
-      return await history.messages(native.cwd, native.nativeId)
+      return await inSpan(
+        source.tracer,
+        'Transcript.readNative',
+        {'conciv.session.id': sessionId, 'conciv.harness.id': harness.id},
+        () => history.messages(native.cwd, native.nativeId),
+      )
     } catch (error) {
       source.log(`[chat] reading the transcript of ${native.nativeId} failed: ${String(error)}`)
       return null
@@ -128,25 +134,28 @@ export function createTranscriptImporter(source: TranscriptSource): TranscriptIm
     await stores.metadata.set(TRANSCRIPT_NAMESPACE, anchorKey(sessionId), {nativeId: tail.id})
   }
   return {
-    sync: async (sessionId) => {
-      const transcript = await read(sessionId)
-      if (transcript === null) return
-      const anchor = await loadAnchor(sessionId)
-      const anchored = anchor === null ? -1 : transcript.findIndex((message) => message.id === anchor.nativeId)
-      const fresh = anchor !== null && anchored === -1 ? [] : transcript.slice(anchored + 1)
-      const normalize = toolNameNormalizer(await source.toolNames(sessionId))
-      const stored = await stores.messages.loadThread(sessionId)
-      const known = new Set(stored.flatMap((message) => ('id' in message && message.id ? [message.id] : [])))
-      const harnessId = (await source.harnessFor(sessionId)).id
-      const novel = normalizedMessages(fresh, normalize)
-        .filter((message) => !known.has(message.id))
-        .map((message) => stampedImport(message, harnessId))
-      if (novel.length > 0) await stores.messages.saveThread(sessionId, [...stored, ...toModelMessages(novel)])
-      await advance(sessionId, transcript)
-    },
+    sync: (sessionId) =>
+      inSpan(source.tracer, 'Transcript.sync', {'conciv.session.id': sessionId}, () => syncTranscript(sessionId)),
     settle: async (sessionId) => {
       const transcript = await read(sessionId)
       if (transcript !== null) await advance(sessionId, transcript)
     },
+  }
+
+  async function syncTranscript(sessionId: SessionId): Promise<void> {
+    const transcript = await read(sessionId)
+    if (transcript === null) return
+    const anchor = await loadAnchor(sessionId)
+    const anchored = anchor === null ? -1 : transcript.findIndex((message) => message.id === anchor.nativeId)
+    const fresh = anchor !== null && anchored === -1 ? [] : transcript.slice(anchored + 1)
+    const normalize = toolNameNormalizer(await source.toolNames(sessionId))
+    const stored = await stores.messages.loadThread(sessionId)
+    const known = new Set(stored.flatMap((message) => ('id' in message && message.id ? [message.id] : [])))
+    const harnessId = (await source.harnessFor(sessionId)).id
+    const novel = normalizedMessages(fresh, normalize)
+      .filter((message) => !known.has(message.id))
+      .map((message) => stampedImport(message, harnessId))
+    if (novel.length > 0) await stores.messages.saveThread(sessionId, [...stored, ...toModelMessages(novel)])
+    await advance(sessionId, transcript)
   }
 }

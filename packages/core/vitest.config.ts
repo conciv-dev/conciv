@@ -22,7 +22,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'node',
-          include: ['test/**/*.test.ts'],
+          include: ['test/**/*.test.ts', 'src/**/*.test.ts'],
           exclude: ['test/fixtures/**', 'node_modules/**', 'dist/**', realHarnessTests],
           execArgv: ['--expose-gc'],
           env: fixtureHarnessHomes('node'),
