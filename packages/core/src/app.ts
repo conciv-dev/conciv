@@ -306,7 +306,11 @@ async function recordSessionUsage(db: ConcivDb, sessionId: SessionId, usage: Usa
   await Effect.runPromise(db.update(sessions).set({usage, updatedAt: Date.now()}).where(eq(sessions.id, sessionId)))
 }
 
-function sessionPort(db: ConcivDb, rows: RowScope, hooks: Pick<SessionPort, 'onRunEnd' | 'publish'>): SessionPort {
+function sessionPort(
+  db: ConcivDb,
+  rows: RowScope,
+  hooks: Pick<SessionPort, 'onRunStart' | 'onRunEnd' | 'publish'>,
+): SessionPort {
   return {
     row: async (sessionId) => {
       const row = await currentRow(db, sessionId)
@@ -329,7 +333,7 @@ function sessionPort(db: ConcivDb, rows: RowScope, hooks: Pick<SessionPort, 'onR
       if (usage) await recordSessionUsage(db, sessionId, {...usage, contextTokens})
     },
     recordActivity: (sessionId, title, at) => recordActivity(db, sessionId, title, at),
-    onRunStart: async () => undefined,
+    onRunStart: hooks.onRunStart,
     onRunEnd: hooks.onRunEnd,
     publish: hooks.publish,
   }
@@ -439,6 +443,12 @@ function publishCreated(born: SessionRecord) {
   ).pipe(Effect.asVoid)
 }
 
+function publishRunStart(sessionId: SessionId) {
+  return Bus.Service.use((bus) =>
+    bus.publish(SessionEvent.Execution.Started, {sessionID: SessionSchema.Id.make(sessionId)}),
+  ).pipe(Effect.asVoid)
+}
+
 function publishRunEnd(sessionId: SessionId, run: RunLifecycle, interrupted: 'user' | 'shutdown') {
   const sessionID = SessionSchema.Id.make(sessionId)
   return Bus.Service.use((bus) => {
@@ -536,6 +546,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         logError(`[core] recording the experimental.idle failure of run ${runId} failed: ${String(recordError)}`),
       )
     stream.publish(sessionId, idleFailedEvent.create({runId}))
+  }
+  const onRunStart = async (sessionId: SessionId): Promise<void> => {
+    await pluginHost
+      .runPromise(publishRunStart(sessionId))
+      .catch((error: unknown) =>
+        logError(`[core] publishing the start of a run in ${sessionId} failed: ${String(error)}`),
+      )
   }
   const onRunEnd = async (sessionId: SessionId, run: RunLifecycle): Promise<void> => {
     await pluginHost
@@ -699,6 +716,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
     db,
     sessions: sessionPort(db, rows, {
+      onRunStart,
       onRunEnd,
       publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
     }),
