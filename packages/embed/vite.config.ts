@@ -45,8 +45,8 @@ function classicScriptLoaders(): Plugin {
   }
 }
 
-export default defineConfig(({mode}) => ({
-  plugins: [...(mode === 'test' ? [] : [UnoCSS()]), solid(), classicScriptLoaders(), concivTest()],
+export default defineConfig({
+  plugins: [UnoCSS(), solid(), classicScriptLoaders(), concivTest()],
 
   define: {'define.amd': 'false'},
   build: {cssCodeSplit: false},
@@ -90,4 +90,4 @@ export default defineConfig(({mode}) => ({
       }
     },
   },
-}))
+})
