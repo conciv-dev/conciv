@@ -360,6 +360,30 @@ test.describe('the chat on a vite react page when the engine is slow or fails to
     await expect(failed).toBeHidden()
   })
 
+  test('the user refreshes the conversation while the engine fails to load it, is told conciv could not refresh it, and refreshing again says it is refreshed', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const history = await holdEngineCall(page, ['chat', 'hydrate'], {armed: false, fail: 'INTERNAL_SERVER_ERROR'})
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await expect(page.getByText('How can I help you today?')).toBeVisible()
+    history.arm()
+
+    await page.getByRole('button', {name: /, session options$/}).click()
+    await page.getByRole('button', {name: 'Refresh the conversation'}).click()
+    await history.arrived
+    await expect(page.getByRole('alert', {name: 'conciv alerts'})).toHaveText(
+      'conciv could not refresh the conversation. Try again.',
+    )
+
+    await page.getByRole('button', {name: /, session options$/}).click()
+    await page.getByRole('button', {name: 'Refresh the conversation'}).click()
+    await expect(page.getByRole('status', {name: 'conciv announcements'})).toHaveText('Conversation refreshed.')
+    await expect(page.getByText('How can I help you today?')).toBeVisible()
+  })
+
   test('the user compresses a session the engine no longer has and is told it no longer exists', async ({page}) => {
     const failures = collectFailures(page)
     await loginWidget(page)
