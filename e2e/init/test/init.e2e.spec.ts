@@ -1,7 +1,8 @@
-import {execFile, execFileSync, spawn} from 'node:child_process'
+import {execFile, execFileSync, spawn, spawnSync} from 'node:child_process'
 import {once} from 'node:events'
 import {mkdirSync, readFileSync, symlinkSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
+import {constants} from 'node:os'
 import {join} from 'node:path'
 import {promisify} from 'node:util'
 import {expect, test} from '@playwright/test'
@@ -69,28 +70,53 @@ test.describe('conciv init on a real project', () => {
     ).toMatchObject({name: 'conciv', plugins: [{name: 'conciv-connect'}]})
   })
 
-  test('Ctrl-C while @conciv/it installs puts package.json back and says the config was restored', async () => {
-    const {project, env, bin} = seedProject(['npm', 'git'])
+  function childPids(pid: number): number[] {
+    const listed = spawnSync('pgrep', ['-P', String(pid)], {encoding: 'utf8'}).stdout
+    return listed.split('\n').filter(Boolean).map(Number)
+  }
 
-    const child = spawn(process.execPath, [bin, 'init', '--yes'], {cwd: project, env, detached: true})
-    const output: string[] = []
-    const installing = Promise.withResolvers<void>()
-    const read = (chunk: string) => {
-      output.push(chunk)
-      if (output.join('').includes('Installing @conciv/it with npm')) installing.resolve()
+  function alive(pid: number): boolean {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
     }
-    child.stdout.setEncoding('utf8').on('data', read)
-    child.stderr.setEncoding('utf8').on('data', read)
-    const closed = once(child, 'close')
-    await installing.promise
-    if (child.pid === undefined) throw new Error('conciv init did not start')
-    process.kill(-child.pid, 'SIGINT')
-    const [exitCode] = await closed
+  }
 
-    expect(exitCode).toBe(130)
-    expect(output.join('')).toContain('Interrupted')
-    expect(output.join('')).toContain('your config was restored.')
-    expect(readFileSync(join(project, 'package.json'), 'utf8')).toBe(manifest)
-    expect(readFileSync(join(project, 'vite.config.ts'), 'utf8')).not.toContain('conciv')
-  })
+  for (const stop of [
+    {name: 'Ctrl-C', signal: 'SIGINT', group: true},
+    {name: 'SIGTERM', signal: 'SIGTERM', group: false},
+    {name: 'SIGHUP', signal: 'SIGHUP', group: false},
+  ] satisfies {name: string; signal: NodeJS.Signals; group: boolean}[]) {
+    test(`${stop.name} while @conciv/it installs stops the npm install, puts package.json back and says the config was restored`, async () => {
+      const {project, env, bin} = seedProject(['npm', 'git'])
+
+      const child = spawn(process.execPath, [bin, 'init', '--yes'], {cwd: project, env, detached: true})
+      const output: string[] = []
+      const installing = Promise.withResolvers<void>()
+      const read = (chunk: string) => {
+        output.push(chunk)
+        if (output.join('').includes('Installing @conciv/it with npm')) installing.resolve()
+      }
+      child.stdout.setEncoding('utf8').on('data', read)
+      child.stderr.setEncoding('utf8').on('data', read)
+      const closed = once(child, 'close')
+      await installing.promise
+      const initPid = child.pid
+      if (initPid === undefined) throw new Error('conciv init did not start')
+      await expect.poll(() => childPids(initPid)).toHaveLength(1)
+      const [installPid] = childPids(initPid)
+      if (installPid === undefined) throw new Error('conciv init started no npm install')
+      process.kill(stop.group ? -initPid : initPid, stop.signal)
+      const [exitCode] = await closed
+
+      expect(exitCode).toBe(128 + constants.signals[stop.signal])
+      await expect.poll(() => alive(installPid)).toBe(false)
+      expect(output.join('')).toContain('Interrupted')
+      expect(output.join('')).toContain('your config was restored.')
+      expect(readFileSync(join(project, 'package.json'), 'utf8')).toBe(manifest)
+      expect(readFileSync(join(project, 'vite.config.ts'), 'utf8')).not.toContain('conciv')
+    })
+  }
 })
