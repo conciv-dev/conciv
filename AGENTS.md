@@ -141,7 +141,7 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   than source files under `src/`; every test file lives beside the source it tests; a test file is at most 1,000
   lines.
 - The kits. `@conciv/plugin-testkit`: `createEngine(config, start)`, `TestLLM`. `@conciv/plugin-testkit/browser`:
-  `mount` and `createEngineRouterHistory`; `mount({engine, history})` opens the app on the engine's saved history (`createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})`) or on any TanStack `RouterHistory`. `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. `config` is the product's own
+  `mount` and `createEngineRouterHistory`; `mount({engine, history})` opens the app on a tab's last screen (`createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})`, written to sessionStorage) or on any TanStack `RouterHistory`. `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. `config` is the product's own
   `ConcivConfig`; `start` is only what is not product config (`directory`, `timeouts`, `harnesses`, `env`, `fs`,
   `clock`, `tokensPerSecond`). The engine is real and its chat is TanStack AI's `fakeText`, scripted with
   `engine.reply(...)`, which takes only `TestLLM` replies (`text`, `toolCall`, `failAfter`, `hang`);

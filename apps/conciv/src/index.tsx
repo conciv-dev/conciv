@@ -18,7 +18,7 @@ export {WIDGET_LAYER} from './lib/widget-layer.js'
 
 export type Platform = {
   engine: Accessor<{kind: 'bound'; apiBase: string; token?: () => Promise<string>} | {kind: 'servers'}>
-  navigation: 'tab' | 'engine' | 'browser' | {history: RouterHistory}
+  navigation: 'tab' | 'browser' | {history: RouterHistory}
   root: ShadowRoot | Document
   settings?: ConcivSettingsInit
   plugins?: readonly ComposedPlugin[]
@@ -56,7 +56,7 @@ function tabHistory(): RouterHistory {
 
 function navigationHistory(navigation: Platform['navigation']): RouterHistory {
   if (navigation === 'browser') return createBrowserHistory()
-  if (navigation === 'tab' || navigation === 'engine') return tabHistory()
+  if (navigation === 'tab') return tabHistory()
   return navigation.history
 }
 

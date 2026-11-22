@@ -3,7 +3,6 @@ import {createComponent} from 'solid-js'
 import {cleanup, render} from '@solidjs/testing-library'
 import {createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
 import {ConcivApp, WIDGET_LAYER, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
-import {makeBrowserRpcClient} from '@conciv/contract'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {loaders} from 'virtual:conciv-test-plugins'
 import type {Engine} from './engine.js'
@@ -105,26 +104,12 @@ export function createEngineRouterHistory(options: EngineRouterHistory): EngineR
   return options
 }
 
-async function saveEngineHistory(engine: Engine, history: EngineRouterHistory): Promise<void> {
-  const client = makeBrowserRpcClient(engine.address.apiBase)
-  try {
-    await client.rpc.auth.trust({token: engine.address.token})
-    await client.rpc.navigation.set({
-      entries: history.initialEntries.map((href) => ({href})),
-      index: history.initialIndex ?? history.initialEntries.length - 1,
-      updatedAt: Date.now(),
-    })
-  } finally {
-    client.close()
-  }
-}
-
-async function mountedNavigation(options: MountOptions): Promise<Platform['navigation']> {
+function mountedNavigation(options: MountOptions): Platform['navigation'] {
   const {history, engine} = options
   if (history !== undefined && 'initialEntries' in history) {
-    if (engine === undefined) throw new Error('an engine history needs the engine it is saved in: give mount an engine')
-    await saveEngineHistory(engine, history)
-    return 'engine'
+    const screen = history.initialEntries[history.initialIndex ?? history.initialEntries.length - 1]
+    if (screen !== undefined) sessionStorage.setItem('conciv-last-screen', screen)
+    return 'tab'
   }
   if (history !== undefined) return {history}
   return {history: createMemoryHistory({initialEntries: [engine === undefined ? '/panel/connect?open=true' : '/']})}
@@ -143,7 +128,7 @@ async function mountApp(options: MountOptions): Promise<void> {
   const interactive = Promise.withResolvers<void>()
   const platform: Platform = {
     engine: () => mountedEngine(options.engine, options.login),
-    navigation: await mountedNavigation(options),
+    navigation: mountedNavigation(options),
     plugins,
     root: document,
     settings: options.host,
