@@ -455,3 +455,40 @@ test.describe('the composer on a vite react page when one engine answer fails', 
     await expect(unsaved).not.toBeVisible()
   })
 })
+
+test.describe('the chat on a vite react page when its session is deleted while a message is on its way', () => {
+  test('the user sends a message, another browser closes the session in its quick terminal before the engine takes the message, and the user is told the session was deleted so the message was not sent', async ({
+    page,
+    secondPage,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const send = await holdEngineCall(page, ['chat', 'send'])
+    await page.reload({waitUntil: 'domcontentloaded'})
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await expect(composer).toBeVisible()
+
+    await composer.click()
+    await composer.pressSequentially('Ship the header fix')
+    await page.getByRole('button', {name: 'Send message'}).click()
+    await send.arrived
+
+    const otherFailures = collectFailures(secondPage)
+    await loginWidget(secondPage)
+    await expectWidgetBoots(secondPage, otherFailures)
+    const otherComposer = secondPage.getByRole('textbox', {name: 'Message the conciv agent'})
+    await otherComposer.click()
+    await expect(otherComposer).toBeFocused()
+    await secondPage.keyboard.press('ControlOrMeta+Backquote')
+    const terminal = secondPage.getByRole('dialog', {name: 'conciv quick terminal'})
+    await expect(terminal.getByRole('button', {name: 'Close pane'})).toBeVisible()
+    await terminal.getByRole('button', {name: 'Close pane'}).click()
+    await expect(page.getByRole('region', {name: 'Deleted session'}).getByRole('status')).toHaveText(
+      'This session was deleted.',
+    )
+
+    send.release()
+    await expect(page.getByText('This session was deleted, so your message was not sent.')).toBeVisible()
+  })
+})

@@ -144,4 +144,4 @@ All verify: the ask comes from `createEngine({permission: 'ask'})` (or a `permis
 - Draft notice, queue strip, sent notes, composer wiring: composer lane (Task 3).
 - Page-session group of page act tools: plugins lane (Task 6).
 - `ContextTracker` hover badge: not mounted by any route (grep of `apps/conciv/src`), so no flow.
-- "This session was deleted, so your message was not sent.": a delete/send race; blocked: a way to delete between send and answer.
+- "This session was deleted, so your message was not sent.": a delete/send race; written: `e2e/vite-react/test/browser-controls.spec.ts` › the chat on a vite react page when its session is deleted while a message is on its way › the user sends a message, another browser closes the session in its quick terminal before the engine takes the message, and the user is told the session was deleted so the message was not sent (`holdEngineCall` on `chat.send`; the engine refuses the turn at admit, `packages/chat/src/turn.ts:305-307`)
