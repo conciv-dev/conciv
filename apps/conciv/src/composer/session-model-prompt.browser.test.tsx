@@ -1,6 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
+import {page} from 'vitest/browser'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
@@ -50,19 +51,30 @@ describe('picking a model and an effort', () => {
 })
 
 describe('switching the harness', () => {
-  test('a model of another harness asks first when the chat has history, the next reply runs on it, and each reply then names its harness', async () => {
+  test('while a reply runs the other harness’s models are disabled, a model of another harness asks first when the chat has history, the next reply runs on it, and each reply then names its harness', async () => {
     const user = userEvent.setup({delay: null})
     const engine = await createEngine(
       {},
       {harnesses: [{id: 'engine'}, {id: 'second', models: [{id: 'second-fast', name: 'Fast 1', group: 'Second'}]}]},
     )
     await engine.reply(TestLLM.text('First answer'), TestLLM.text('Second answer'))
+    const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'First task')
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
+    await gate.started
+    expect(await screen.findByRole('button', {name: 'Stop generating'})).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Model: Opus 5.5 (engine)'}))
+    await expect.element(page.getByRole('option', {name: 'Fast 1 (second)', disabled: true})).toBeVisible()
+    await expect.element(page.getByRole('option', {name: /^Sonnet 5\.5/, disabled: false})).toBeVisible()
+    const search = await screen.findByRole('textbox', {name: 'Search models'})
+    await expect.element(search).toHaveFocus()
+    await user.keyboard('{Escape}')
+    await gate.release()
+
     const first = await screen.findByRole('article', {name: 'Reply to: First task'})
     expect(await within(first).findByText('First answer')).toBeVisible()
     expect(screen.queryByText('engine')).not.toBeInTheDocument()
