@@ -67,27 +67,4 @@ describe('the session status chip', () => {
     expect(within(bar).queryByText('+2')).not.toBeInTheDocument()
     expect(within(bar).queryByText('−1')).not.toBeInTheDocument()
   })
-
-  test('while a permission card is open the chip says WAITING and no activity line names the call a second time', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_release_ship({branch: 'main'})",
-      }),
-      TestLLM.text('Main is shipped'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    const bar = await screen.findByRole('toolbar', {name: 'Session status'})
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship main')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    const ask = await screen.findByRole('group', {name: 'Permission request'})
-    expect(await within(bar).findByText('WAITING')).toBeVisible()
-    expect(screen.queryByRole('status', {name: 'Agent activity'})).not.toBeInTheDocument()
-
-    await user.click(within(ask).getByRole('button', {name: 'Allow once'}))
-    expect(await screen.findByText('Main is shipped')).toBeVisible()
-    expect(await within(bar).findByText('DONE')).toBeVisible()
-  })
 })

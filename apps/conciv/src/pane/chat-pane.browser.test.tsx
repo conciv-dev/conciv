@@ -323,6 +323,7 @@ describe('the agent asks for permission', () => {
     expect(await screen.findByText('conciv is asking for permission.')).toBeVisible()
     const bar = screen.getByRole('toolbar', {name: 'Session status'})
     expect(within(bar).getByRole('status')).toHaveTextContent('WAITING')
+    expect(screen.queryByRole('status', {name: 'Agent activity'})).not.toBeInTheDocument()
 
     await user.click(within(ask).getByRole('button', {name: 'Allow once'}))
 
