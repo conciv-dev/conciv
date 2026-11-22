@@ -2,4 +2,4 @@
 '@conciv/app': patch
 ---
 
-On the standalone conciv page, focus inside a plugin overlay (such as the whiteboard canvas) counts as outside the widget, as in the embed, so the panel no longer pulls focus back and canvas shortcuts work.
+The open panel no longer pulls focus out of a plugin overlay (such as the whiteboard canvas) on the standalone conciv page, so canvas shortcuts work, while focus in overlay dialogs (the comment thread's reply, a new comment) stays where it lands.

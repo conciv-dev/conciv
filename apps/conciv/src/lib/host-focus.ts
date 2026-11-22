@@ -1,5 +1,3 @@
-import {PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
-
 export function hostFocusTarget(widgetContainer: HTMLElement): HTMLElement | null {
   let active: Element | null = document.activeElement
   while (active) {
@@ -17,5 +15,5 @@ export function hostPageHasFocus(rootNode: Node): boolean {
   const active = document.activeElement
   if (active === null || active === document.body || active === document.documentElement) return false
   if (rootNode instanceof ShadowRoot) return active !== rootNode.host
-  return !rootNode.contains(active) || active.hasAttribute(PLUGIN_OVERLAY_ATTR)
+  return !rootNode.contains(active)
 }

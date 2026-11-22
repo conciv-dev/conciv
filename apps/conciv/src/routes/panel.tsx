@@ -8,6 +8,7 @@ import {makePanelComposerFocus, PanelComposerFocusContext} from '../app/panel-fo
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import {hostPageHasFocus} from '../lib/host-focus.js'
+import {PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
 import {NoticeSurface} from '../shell/notice-context.js'
 import {
   EngineLockedNotice,
@@ -119,6 +120,8 @@ function PanelLayout(): JSX.Element {
 
   const composerFocus = makePanelComposerFocus()
   const keepTrapFromFocusing = (): false => false
+  const focusedOverlay = (): Element | null => document.activeElement?.closest(`[${PLUGIN_OVERLAY_ATTR}]`) ?? null
+  const overlaysKeepFocus = [focusedOverlay]
   const activeElement = createActiveElement()
   const hostHoldsFocus = createMemo(() => activeElement() !== null && hostPageHasFocus(environment.rootNode))
   const restoringFocus = useLocation({select: (location) => location.state.restoreFocus !== undefined})
@@ -154,6 +157,7 @@ function PanelLayout(): JSX.Element {
           disabled={docked || !open() || layers.anyOpen() || hostHoldsFocus()}
           initialFocus={keepTrapFromFocusing}
           returnFocusOnDeactivate={false}
+          persistentElements={overlaysKeepFocus}
         >
           <section
             class={`${PANEL_BASE} ${sheet() ? PANEL_SHEET : PANEL_CARD} ${open() ? PANEL_OPEN : PANEL_CLOSING}`}
