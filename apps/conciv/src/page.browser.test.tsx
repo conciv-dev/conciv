@@ -1,6 +1,6 @@
 import {describe, expect, onTestFinished, test} from 'vitest'
 import {page, userEvent as realInput} from 'vitest/browser'
-import {render, screen, within} from '@solidjs/testing-library'
+import {render, screen, waitFor, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {Dynamic} from 'solid-js/web'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
@@ -89,6 +89,44 @@ describe('the user stops the agent from the page', () => {
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByText('Back at it')).toBeVisible()
     expect(screen.queryByText('Never shown')).not.toBeInTheDocument()
+  })
+})
+
+describe('the agent leaves the page alone for a while', () => {
+  test("with a short page task timeout the agent's mask goes away on its own while the reply still waits", async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_page_click({selector: '#buy'})",
+      }),
+      TestLLM.text('Clicked'),
+    )
+    const click = await engine.gate()
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']}),
+      timings: {page: {taskTimeoutMs: 50}},
+    })
+    await control.arrived
+    render(() => (
+      <button type="button" id="buy">
+        Buy the fern
+      </button>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+    await click.started
+    const answer = await engine.gate()
+    const masked = screen.findByRole('status', {name: 'Agent is using this page'})
+    await click.release()
+    const mask = await masked
+    await answer.started
+
+    await waitFor(() => expect(mask).not.toBeInTheDocument())
+    await answer.release()
+    expect(await screen.findByText('Clicked')).toBeVisible()
   })
 })
 

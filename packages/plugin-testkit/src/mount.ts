@@ -21,6 +21,7 @@ export type MountOptions = {
   history?: RouterHistory | EngineRouterHistory
   host?: ConcivSettingsInit
   login?: 'none'
+  timings?: Pick<NonNullable<Platform['timings']>, 'page'>
 }
 
 const TIMINGS: NonNullable<Platform['timings']> = {
@@ -146,7 +147,7 @@ async function mountApp(options: MountOptions): Promise<void> {
     plugins,
     root: document,
     settings: options.host,
-    timings: TIMINGS,
+    timings: {...TIMINGS, ...options.timings},
     draftStore: () => memoryDraftStore(),
     onInteractive: () => interactive.resolve(),
   }

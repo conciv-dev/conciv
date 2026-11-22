@@ -1,4 +1,5 @@
 import {Effect, Fiber} from 'effect'
+import {z} from 'zod'
 import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import utilities from 'virtual:uno.css?inline'
@@ -20,8 +21,11 @@ import {grabApi} from './grab.js'
 import {showToast} from './toast.js'
 import {capturePlugins} from './screenshot.js'
 
+const PageOptionsSchema = z.object({taskTimeoutMs: z.number().int().positive().optional()}).catch({})
+
 export default Plugin.define({
   setup(ctx) {
+    const {taskTimeoutMs} = PageOptionsSchema.parse(ctx.options)
     const connectionId = crypto.randomUUID()
     const tabId = `tab_${crypto.randomUUID()}`
     const routed = () => ctx.sessions.current()
@@ -70,6 +74,7 @@ export default Plugin.define({
                 root: element,
                 session: () => routed()?.id ?? null,
                 running: (sessionId) => routed()?.id === sessionId && routed()?.run.status() === 'running',
+                taskTimeoutMs,
                 onStop: (sessionId) => {
                   const session = routed()
 

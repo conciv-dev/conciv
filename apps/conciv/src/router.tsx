@@ -57,6 +57,7 @@ export type ConcivTimings = {
   engine?: Partial<EngineConnectionTimings>
   chatRunReconnect?: ChatConnectionOptions['runReconnect']
   queryRetryDelayMs?: number
+  page?: {taskTimeoutMs?: number}
 }
 
 export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}
