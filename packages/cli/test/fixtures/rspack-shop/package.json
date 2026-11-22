@@ -1,0 +1,7 @@
+{
+  "name": "rspack-shop",
+  "private": true,
+  "devDependencies": {
+    "@rspack/core": "^1.0.0"
+  }
+}

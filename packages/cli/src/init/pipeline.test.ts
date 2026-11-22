@@ -23,6 +23,33 @@ describe('dry run', () => {
     expect(readdirSync(project).toSorted()).toEqual(['package.json', 'vite.config.ts'])
   })
 
+  it.each([
+    {
+      fixture: 'next-shop',
+      files: ['next.config.mjs', 'package.json'],
+      plan: /^Install @conciv\/it +package\.json\nWire next\.js +next\.config\.mjs, instrumentation\.ts, instrumentation-client\.ts\n/,
+    },
+    {
+      fixture: 'webpack-shop',
+      files: ['package.json', 'webpack.config.js'],
+      plan: /^Install @conciv\/it +package\.json\nWire the webpack config +webpack\.config\.js\n/,
+    },
+    {
+      fixture: 'rspack-shop',
+      files: ['package.json', 'rspack.config.js'],
+      plan: /^Install @conciv\/it +package\.json\nWire the rspack config +rspack\.config\.js\n/,
+    },
+  ])('a $fixture project gets its own plan and nothing is written', async ({fixture, files, plan}) => {
+    const project = tempDir(`${fixture}-`)
+    cpSync(join(import.meta.dirname, '../../test/fixtures', fixture), project, {recursive: true})
+
+    const planned = await cli(['init', '--dry-run', '--json', '--force'], {cwd: project})
+
+    expect(planned.exitCode).toBe(0)
+    expect(JSON.parse(planned.stdout)).toEqual({ok: true, data: {dryRun: true, plan: expect.stringMatching(plan)}})
+    expect(readdirSync(project).toSorted()).toEqual(files)
+  })
+
   it('a run without --yes in a non-interactive terminal is refused and nothing is written', async () => {
     const project = tempDir('vite-shop-')
     cpSync(join(import.meta.dirname, '../../test/fixtures/vite-shop'), project, {recursive: true})
