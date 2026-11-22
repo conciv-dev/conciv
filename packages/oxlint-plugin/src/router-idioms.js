@@ -80,7 +80,6 @@ function fieldFallsBack(property) {
 }
 
 function isUncaughtField(property, reported) {
-  if (property.type !== 'Property') return false
   if (property.computed === true) return false
   if (reported.has(property)) return false
   return !fieldFallsBack(property)
