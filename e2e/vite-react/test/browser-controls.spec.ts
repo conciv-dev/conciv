@@ -93,6 +93,71 @@ test.describe('the widget on a vite react page when its engine socket cannot con
       page.getByText("conciv couldn't reach the engine. Check that the dev server is still running."),
     ).not.toBeVisible()
   })
+
+  test('the user reloads with the chat open while the engine socket cannot connect, is told conciv lost connection to the engine with a Retry, and once the socket connects again the notice goes and the chat comes back on its own', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const engineSocket = await refuseEngineSocket(page)
+    await page.clock.install()
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await engineSocket.arrived
+
+    await page.clock.runFor(
+      defaultEngineConnectionTimings.authTimeoutMs + defaultEngineConnectionTimings.offlineGraceMs,
+    )
+    await expect(page.getByText('conciv lost connection to the engine.')).toBeVisible()
+    await expect(page.getByRole('button', {name: 'Retry'}).first()).toBeVisible()
+
+    engineSocket.release()
+    await page.clock.runFor(defaultEngineConnectionTimings.reconnectMaxDelayMs)
+    await expect(page.getByText('conciv lost connection to the engine.')).not.toBeVisible()
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+  })
+
+  test('the user reloads with the chat open during a short socket blip, and the chat opens with no error once the socket connects again', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const engineSocket = await refuseEngineSocket(page)
+    await page.clock.install()
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await engineSocket.arrived
+
+    engineSocket.release()
+    await page.clock.runFor(defaultEngineConnectionTimings.reconnectMaxDelayMs)
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    await expect(page.getByRole('button', {name: 'Retry'})).toHaveCount(0)
+  })
+})
+
+test.describe('the widget on a vite react page when the engine does not answer the trust check', () => {
+  test("the user opens the chat while the engine has not answered the trust check, sees that conciv couldn't reach the engine, and Retry asks again and brings the chat back", async ({
+    page,
+  }) => {
+    await loginWidget(page)
+    const trust = await holdEngineCall(page, ['auth', 'trust'])
+    await page.clock.install()
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await trust.arrived
+
+    await page.clock.runFor(defaultEngineConnectionTimings.authTimeoutMs)
+    await page.getByRole('button', {name: /conciv chat$/}).click()
+    await page.clock.runFor(
+      defaultEngineConnectionTimings.callDeadlineMs + defaultEngineConnectionTimings.connectionLossRetryDelayMs,
+    )
+    await expect(
+      page.getByText("conciv couldn't reach the engine. Check that the dev server is still running."),
+    ).toBeVisible()
+
+    trust.release()
+    await page.getByRole('button', {name: 'Retry'}).click()
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+  })
 })
 
 test.describe('the widget on a vite react page when the engine is slow or fails to say which session to open', () => {
