@@ -9,22 +9,6 @@ import {
 } from '@conciv/e2e-utils/widget'
 
 test.describe('the browser around the widget on a vite react page', () => {
-  test('when the browser goes offline the send button says the engine connection is lost, and back online it is the send button again', async ({
-    page,
-    context,
-  }) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
-    await expect(page.getByRole('button', {name: 'Send message'})).toBeVisible()
-
-    await context.setOffline(true)
-    await expect(page.getByRole('button', {name: 'conciv lost connection to the engine'})).toBeVisible()
-
-    await context.setOffline(false)
-    await expect(page.getByRole('button', {name: 'Send message'})).toBeVisible()
-  })
-
   test('the user sends a message while the browser has just gone offline, is told conciv lost connection to the engine and the message is still in the composer, and back online the send button returns with the message kept', async ({
     page,
     context,
