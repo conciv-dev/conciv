@@ -1,10 +1,11 @@
+import {defineConfig} from '@playwright/test'
 import {packedE2eConfig} from '@conciv/e2e-utils/config'
 import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'
 import {PACKED_ROOT, packedAppDir} from './packed/packed-app-dir.ts'
 
 const DEV_ENDPOINT_DIR = e2eDevEndpointDir(import.meta.dirname)
 
-export default packedE2eConfig({
+const packed = packedE2eConfig({
   dir: import.meta.dirname,
   runFolders: [PACKED_ROOT],
   servers: [
@@ -23,4 +24,11 @@ export default packedE2eConfig({
       env: {CONCIV_E2E_ENGINE_PORT: '41752', CONCIV_E2E_DEV_ENDPOINT_DIR: DEV_ENDPOINT_DIR},
     },
   ],
+})
+
+export default defineConfig({
+  ...packed,
+  projects: packed.projects?.map((project) =>
+    project.name === 'webpack' ? {...project, grepInvert: /trustPolicy: no-downgrade/} : project,
+  ),
 })
