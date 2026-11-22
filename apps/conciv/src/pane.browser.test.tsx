@@ -22,34 +22,12 @@ describe('a saved session that failed', () => {
 })
 
 describe('a reply with a diagram', () => {
-  test('the user reads a mermaid block as a drawn diagram and a code block as code', async () => {
+  test('the user reads a drawn diagram, a code block as code, and a diagram that fails to draw as its source in plain text', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await engine.reply(
       TestLLM.text(
-        '```mermaid\ngraph TD\n  A[Start] --> B[Done]\n```\n\n```ts\nconst total = 1 + 1\n```\n\nThat is the flow.',
-      ),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Draw the flow')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    const reply = await screen.findByRole('article', {name: 'Reply to: Draw the flow'})
-
-    expect(await within(reply).findByRole('graphics-document')).toBeVisible()
-    expect(within(reply).getByText('Start')).toBeVisible()
-    expect(within(reply).getByText('Done')).toBeVisible()
-    await expect
-      .element(page.getByRole('article', {name: 'Reply to: Draw the flow'}).getByText('const total = 1 + 1'))
-      .toBeVisible()
-  })
-
-  test('a diagram that fails to draw shows its source as plain text', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.text(
-        '```mermaid\nthis is not a diagram\n```\n\n```mermaid\ngraph TD\n  A[Start] --> B[Done]\n```\n\nOne of them draws.',
+        '```mermaid\nthis is not a diagram\n```\n\n```mermaid\ngraph TD\n  A[Start] --> B[Done]\n```\n\n```ts\nconst total = 1 + 1\n```\n\nOne of them draws.',
       ),
     )
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -60,8 +38,12 @@ describe('a reply with a diagram', () => {
 
     expect(await within(reply).findByRole('graphics-document')).toBeVisible()
     expect(within(reply).getByText('Start')).toBeVisible()
+    expect(within(reply).getByText('Done')).toBeVisible()
     expect(within(reply).getAllByRole('graphics-document')).toHaveLength(1)
     expect(within(reply).getByText('this is not a diagram')).toBeVisible()
+    await expect
+      .element(page.getByRole('article', {name: 'Reply to: Draw both'}).getByText('const total = 1 + 1'))
+      .toBeVisible()
   })
 })
 
