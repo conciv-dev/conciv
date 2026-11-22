@@ -60,7 +60,6 @@ describe('the agent draws on the open canvas', () => {
     expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_svg\s*svg to draft/})).toBeVisible()
     expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_diagram\s*mermaid to draft/})).toBeVisible()
     expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_discard\s*\d+ discarded/})).toBeVisible()
-    await user.click(within(sketch).getByRole('button', {name: /\bwhiteboard_canvas_export\b/}))
     expect(await within(sketch).findByRole('img', {name: 'canvas export'})).toBeVisible()
     const sketched = (await engine.requests()).at(-1)
     const committed = sketched?.messages.find((message) => message.toolCallId === 'c2')
