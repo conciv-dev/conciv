@@ -364,3 +364,36 @@ test.describe('exporting a screen recording of the vite vanilla page', () => {
     expect((await stat(await replayVideo.path())).size).toBeGreaterThan(0)
   })
 })
+
+test.describe('the engine address a vite vanilla page gives the widget', () => {
+  test('an address the page sets as a global wins over the meta tag, and the meta tag wins over ?core=', async ({
+    page,
+  }) => {
+    const globalSocket = page.waitForEvent('websocket', (socket) => new URL(socket.url()).pathname === '/rpc-ws')
+    await page.goto('/api-base.html', {waitUntil: 'domcontentloaded'})
+    expect(new URL((await globalSocket).url()).host).toBe('127.0.0.1:1')
+
+    const failures = collectFailures(page)
+    await loginWidget(page, '/?core=http://127.0.0.1:1')
+    await expectWidgetBoots(page, failures)
+  })
+})
+
+test.describe('the standalone conciv page on the vite vanilla engine', () => {
+  test('the standalone page takes its engine address from ?core= and opens the panel because ?settings= says so', async ({
+    page,
+  }) => {
+    const hostSocket = page.waitForEvent('websocket', (socket) => new URL(socket.url()).pathname === '/rpc-ws')
+    await page.goto('/', {waitUntil: 'domcontentloaded'})
+    const engine = new URL((await hostSocket).url())
+    engine.protocol = engine.protocol === 'wss:' ? 'https:' : 'http:'
+    const standalone = new URL('http://localhost:4330/')
+    standalone.searchParams.set('core', engine.origin)
+    standalone.searchParams.set('settings', JSON.stringify({defaultOpen: true}))
+
+    await loginWidget(page, standalone.href)
+
+    await expect(page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible()
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+  })
+})
