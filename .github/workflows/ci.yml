@@ -537,8 +537,7 @@ jobs:
           exit 1
       # Consumer-shape suites: dist widget in CLI-scaffolded apps (root e2e/).
       # test:e2e is cache:false in turbo.json, so every run
-      # exercises the real servers; --concurrency=1 keeps a shard's apps serial because
-      # they bind fixed ports.
+      # exercises the real servers; each app takes a free port (e2ePort), so a shard's apps run side by side.
       - run: pnpm exec conciv-ci-shards run --task e2e
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}
