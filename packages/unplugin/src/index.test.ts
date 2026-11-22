@@ -1,7 +1,9 @@
 import {existsSync, readFileSync, readdirSync, writeFileSync} from 'node:fs'
-import {join} from 'node:path'
+import {basename, join} from 'node:path'
 import {describe, expect} from 'vitest'
+import {resolveConfig} from 'vite'
 import {concivStateDir} from '@conciv/protocol/state-types'
+import {createConcivUnplugin} from './index.js'
 import conciv from './vite.js'
 import concivWebpack from './webpack.js'
 import {test} from '../test/unplugin-test.js'
@@ -34,6 +36,31 @@ describe('a vite server on a fixture project', () => {
       expect(existsSync(concivStateDir(root))).toBe(false)
     },
   )
+})
+
+describe('the vite dev server warm-up', () => {
+  test('warms the embed entry and only the mount chunk that mount.js imports, never a stale chunk left beside it', async ({
+    embedDist,
+    project,
+  }) => {
+    const root = project('app')
+    const config = await resolveConfig(
+      {
+        root,
+        configFile: false,
+        logLevel: 'silent',
+        plugins: [createConcivUnplugin({embedEntry: embedDist.entry}).vite({homeDir: join(root, 'home')})],
+      },
+      'serve',
+      'development',
+    )
+    const warmed = config.server.warmup.clientFiles ?? []
+
+    expect(warmed).not.toContain(embedDist.stale)
+    expect(warmed).toHaveLength(2)
+    expect(warmed[0]).toBe(embedDist.entry)
+    expect(readFileSync(embedDist.entry, 'utf8')).toContain(`import("./${basename(warmed[1] ?? 'no second file')}")`)
+  })
 })
 
 describe('bundler builds', () => {

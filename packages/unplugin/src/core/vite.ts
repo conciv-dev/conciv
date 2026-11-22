@@ -1,5 +1,5 @@
 import {dirname, join} from 'node:path'
-import {readdirSync, existsSync} from 'node:fs'
+import {readFileSync, existsSync} from 'node:fs'
 import type {Plugin, ViteDevServer} from 'vite'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {Engine} from '@conciv/core/start'
@@ -176,12 +176,10 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
 
 const EMBED_SOLID_RUNTIME = ['solid-js', 'solid-js/web', 'solid-js/store']
 
-function embedChunks(embedEntry: string): string[] {
-  const dir = dirname(embedEntry)
+function readMountChunk(embedEntry: string): string[] {
   try {
-    return readdirSync(dir)
-      .filter((name) => /^mount-impl.*\.js$/.test(name))
-      .map((name) => join(dir, name))
+    const chunk = /import\(\s*["']\.\/(mount-impl-[\w-]+\.js)["']\s*\)/.exec(readFileSync(embedEntry, 'utf8'))?.[1]
+    return chunk === undefined ? [] : [join(dirname(embedEntry), chunk)]
   } catch {
     return []
   }
@@ -252,7 +250,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
     config(userConfig, env) {
       if (env.mode === 'test') return {}
       const embedFiles =
-        builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...embedChunks(builtins.embedEntry)]
+        builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...readMountChunk(builtins.embedEntry)]
       const base = concivSolidConfig({
         root: userConfig.root ?? process.cwd(),
         warmupFiles: embedFiles,
