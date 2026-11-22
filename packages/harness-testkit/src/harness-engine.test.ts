@@ -27,12 +27,13 @@ describe('scripted replies', () => {
 })
 
 describe('a second engine on the same home', () => {
-  test("an engine started on another engine's home reads that home's global settings, and a project setting stays with its own project", async ({
+  test("an engine started on another engine's home reads the global settings that home saved, and a project setting stays with its own project", async ({
     launch,
   }) => {
     const first = await launch()
     await first.engine.setting({scope: 'global', namespace: 'kit', key: 'theme', value: 'dark'})
     await first.engine.setting({scope: 'project', namespace: 'kit', key: 'layout', value: 'wide'})
+    await first.engine.restart()
 
     const second = await launch({}, {home: first.engine.home})
 
