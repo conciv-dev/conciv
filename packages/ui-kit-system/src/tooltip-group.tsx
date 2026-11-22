@@ -485,14 +485,6 @@ export function TooltipGroup(props: TooltipGroupProps): JSX.Element {
     const view = resolveView(state.active?.trigger())
     makeEventListener(
       view,
-      'keydown',
-      (event) => {
-        if (event.key === 'Escape') closeNow()
-      },
-      {capture: true},
-    )
-    makeEventListener(
-      view,
       'focusout',
       (event) => {
         if (pathHas({event, element: state.active?.trigger()})) closeNow()

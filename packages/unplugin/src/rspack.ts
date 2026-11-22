@@ -1,4 +1,8 @@
+import type {UnpluginInstance} from 'unplugin'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {unplugin} from './index.js'
 
-export default unplugin.rspack
-export type {ConcivConfig} from '@conciv/protocol/config-types'
+const plugin: UnpluginInstance<ConcivConfig | undefined>['rspack'] = unplugin.rspack
+
+export default plugin
+export type {ConcivConfig}

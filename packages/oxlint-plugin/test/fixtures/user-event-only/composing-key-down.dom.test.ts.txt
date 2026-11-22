@@ -1,8 +1,0 @@
-import {fireEvent, screen} from '@testing-library/dom'
-import * as testing from '@testing-library/dom'
-import {test} from 'vitest'
-
-test('composes', () => {
-  fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter', isComposing: true})
-  testing.fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter', isComposing: true})
-})

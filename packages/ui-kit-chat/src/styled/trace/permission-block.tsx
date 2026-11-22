@@ -25,12 +25,12 @@ const ALWAYS = `${BUTTON_BASE} [background:transparent] [border:1px_solid_var(--
 const HINT = 'select-none text-chat-micro leading-none [font-family:var(--chat-mono)] opacity-70'
 const REQUEST_ITEM = 'list-none min-w-0 relative'
 
-const DECISION_MESSAGE = {approved: 'Approved the request', denied: 'Denied the request'} as const
+const DECISION_MESSAGE = {approved: 'Allowed the request', denied: 'Denied the request'} as const
 
 const DECIDED = `${BUTTON_SHAPE} [background:transparent] [border:1px_solid_transparent]`
 
 const DECISION_CHIP = {
-  approved: {label: 'Approved', class: `${DECIDED} text-chat-text-2`},
+  approved: {label: 'Allowed', class: `${DECIDED} text-chat-text-2`},
   denied: {label: 'Denied', class: `${DECIDED} ${OUTCOME_TONE.error.text}`},
 } as const
 
@@ -87,7 +87,7 @@ function Block(props: {target: string; explanation?: string}): JSX.Element {
                 }
               >
                 <Button variant="plain" size="none" class={APPROVE} onClick={permission.approve}>
-                  Approve
+                  Allow once
                   <span class={HINT} aria-hidden="true">
                     ⌘⏎
                   </span>
@@ -100,7 +100,7 @@ function Block(props: {target: string; explanation?: string}): JSX.Element {
                     title="Allows this in this project from now on"
                     onClick={permission.always}
                   >
-                    Always allow
+                    Allow always
                   </Button>
                 </Show>
                 <Button variant="plain" size="none" class={DENY} onClick={permission.reject}>

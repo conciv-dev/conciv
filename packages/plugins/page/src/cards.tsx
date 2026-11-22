@@ -5,17 +5,7 @@ import {GrabCard} from './grab-card.js'
 import {PageSessionCard} from './session-card.js'
 import {PAGE_TOOL_PREFIX, pageOperation, pageVerbOfTool} from './rpc.js'
 import {Show, type JSX, For, Match, Switch} from 'solid-js'
-import {
-  ElementPreview,
-  DANGER_TEXT_CLASS,
-  JsonTree,
-  SUNKEN_SURFACE,
-  ResultImage,
-  CodeBlock,
-  DiffBlock,
-  Chip,
-} from '@conciv/ui-kit-chat/tools'
-import {useToolCapture} from './captures.js'
+import {DANGER_TEXT_CLASS, JsonTree, SUNKEN_SURFACE, ResultImage, CodeBlock, Chip} from '@conciv/ui-kit-chat/tools'
 import {
   ELEMENT_TARGET_KEYS,
   PageTool,
@@ -30,10 +20,9 @@ import {
   pageTitle,
 } from './shared.js'
 import {z} from 'zod'
-import {StatusDot, type StatusDotTone, Tabs, TruncatedText} from '@conciv/ui-kit-system'
+import {StatusDot, type StatusDotTone, TruncatedText} from '@conciv/ui-kit-system'
 import type {report as trackReport} from './react.js'
 import {RawFrameSchema} from '@conciv/contract'
-import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import type {buildSnapshot} from './snapshot.js'
 import {html} from 'js-beautify'
 
@@ -87,25 +76,7 @@ export const pageSessionEntry: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render
 export const pageAttachmentCards: AttachmentCardSlot[] = [{mime: GRAB_MIME, render: GrabCard}]
 
 export function ActCard(props: ToolProps): JSX.Element {
-  const capture = useToolCapture()
-  const after = () => capture()?.after
-  return (
-    <PageTool
-      {...props}
-      subtitle={after() === undefined ? elementTarget(props.input) : undefined}
-      skip={ELEMENT_TARGET_KEYS}
-      hasContent={after() !== undefined}
-    >
-      <Show when={after()}>
-        {(value) => (
-          <ElementPreview.Root capture={value()} css={capture()?.css}>
-            <ElementPreview.Frame />
-            <ElementPreview.Descriptor />
-          </ElementPreview.Root>
-        )}
-      </Show>
-    </PageTool>
-  )
+  return <PageTool {...props} subtitle={elementTarget(props.input)} skip={ELEMENT_TARGET_KEYS} hasContent={false} />
 }
 
 const ConsolePayload = pageOperation('console').output
@@ -475,19 +446,6 @@ const CODE_VERBS = new Set(['eval', 'css'])
 
 const CODE_INPUT_KEYS = new Set(['code', 'text'])
 
-function descriptorSummary(capture: ElementCapture | undefined): string {
-  if (capture === undefined) return ''
-  const descriptor = capture.descriptor
-  const lines = [
-    `tag: ${descriptor.tagName}`,
-    descriptor.role === undefined ? undefined : `role: ${descriptor.role}`,
-    descriptor.accessibleName === undefined ? undefined : `name: ${descriptor.accessibleName}`,
-    descriptor.value === undefined ? undefined : `value: ${descriptor.value}`,
-    descriptor.checked === undefined ? undefined : `checked: ${descriptor.checked}`,
-  ]
-  return `${lines.filter((line): line is string => line !== undefined).join('\n')}\n`
-}
-
 function codeLanguage(verb: string): string {
   return verb === 'css' ? 'css' : 'javascript'
 }
@@ -502,60 +460,19 @@ function codeContents(input: Record<string, unknown>): string {
 }
 
 export function EditLiveCard(props: ToolProps): JSX.Element {
-  const capture = useToolCapture()
   const verb = () => pageVerbOfTool(props.tool)
-  const before = () => capture()?.before
-  const after = () => capture()?.after
-  const skip = () => (CODE_VERBS.has(verb()) ? CODE_INPUT_KEYS : undefined)
+  const isCode = () => CODE_VERBS.has(verb())
   return (
-    <PageTool {...props} skip={skip()} hasContent={CODE_VERBS.has(verb()) || before() !== undefined}>
-      <div class="flex flex-col gap-1.5">
-        <Switch>
-          <Match when={CODE_VERBS.has(verb())}>
-            <CodeBlock
-              file={{
-                name: codeFileName(verb()),
-                lang: codeLanguage(verb()),
-                contents: codeContents(props.input),
-              }}
-            />
-          </Match>
-          <Match when={before() !== undefined && after() !== undefined}>
-            <Tabs.Root defaultValue="after">
-              <Tabs.List>
-                <Tabs.Trigger value="before">Before</Tabs.Trigger>
-                <Tabs.Trigger value="after">After</Tabs.Trigger>
-                <Tabs.Indicator />
-              </Tabs.List>
-              <Tabs.Content value="before">
-                <ElementPreview.Root capture={before()} css={capture()?.css}>
-                  <ElementPreview.Frame />
-                  <ElementPreview.Descriptor />
-                </ElementPreview.Root>
-              </Tabs.Content>
-              <Tabs.Content value="after">
-                <ElementPreview.Root capture={after()} css={capture()?.css}>
-                  <ElementPreview.Frame />
-                  <ElementPreview.Descriptor />
-                </ElementPreview.Root>
-              </Tabs.Content>
-            </Tabs.Root>
-            <DiffBlock
-              file={{
-                name: 'element.txt',
-                before: descriptorSummary(before()),
-                after: descriptorSummary(after()),
-              }}
-            />
-          </Match>
-          <Match when={before() !== undefined}>
-            <ElementPreview.Root capture={before()} css={capture()?.css}>
-              <ElementPreview.Frame />
-              <ElementPreview.Descriptor />
-            </ElementPreview.Root>
-          </Match>
-        </Switch>
-      </div>
+    <PageTool {...props} skip={isCode() ? CODE_INPUT_KEYS : undefined} hasContent={isCode()}>
+      <Show when={isCode()}>
+        <CodeBlock
+          file={{
+            name: codeFileName(verb()),
+            lang: codeLanguage(verb()),
+            contents: codeContents(props.input),
+          }}
+        />
+      </Show>
     </PageTool>
   )
 }

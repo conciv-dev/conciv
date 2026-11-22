@@ -30,6 +30,7 @@ import {
   resolveRow,
   restoreRow,
   rowById,
+  rowByNativeRef,
   switchRowHarness,
   type NativePage,
 } from '../../sessions/session-rows.js'
@@ -82,7 +83,8 @@ async function loadTranscriptTail(
   options: TranscriptTailOptions,
 ): Promise<TranscriptPage | null> {
   const history = chat.harnesses.find((harness) => harness.id === harnessKind)?.history
-  if (history === undefined) return null
+  if (history === undefined)
+    return loadSavedPage(chat, await rowByNativeRef(chat.db, {harnessKind, cwd, nativeId}), options)
   if (history.withinProject && !history.withinProject(cwd, nativeId)) return null
   try {
     return await inSpan(chat.tracer, 'Sessions.readTranscriptTail', {'conciv.harness.id': harnessKind}, () =>
@@ -93,6 +95,19 @@ async function loadTranscriptTail(
     logError(`[core] previewing the ${harnessKind} native session ${nativeId} failed: ${String(error)}`)
     return null
   }
+}
+
+async function loadSavedPage(
+  chat: ChatContext,
+  row: SessionRecord | null,
+  options: TranscriptTailOptions,
+): Promise<TranscriptPage | null> {
+  if (row === null) return null
+  const {messages, page} = await chat.plane.hydrate(row.id, {
+    limit: options.limit,
+    ...(options.before === null ? {} : {before: options.before}),
+  })
+  return {messages, earlier: page?.truncated ? page.cursor : null}
 }
 
 async function listedPages(chat: ChatContext, page: HarnessListPage): Promise<NativePage[]> {
@@ -268,15 +283,15 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return meta
     }),
     preview: os.sessions.preview.handler(async ({input, errors, signal}) => {
-      const page = await loadTranscriptTail(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd, {
-        limit: input.limit,
-        before: input.before,
-        signal,
-      })
+      const options = {limit: input.limit, before: input.before, signal}
+      const page =
+        'sessionId' in input
+          ? await loadSavedPage(chat, await rowById(db, input.sessionId), options)
+          : await loadTranscriptTail(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd, options)
       if (page === null || (page.messages.length === 0 && page.earlier === null && input.before === null)) {
         throw errors.NOT_FOUND()
       }
-      if (input.cwd !== undefined) search.cover(input.cwd)
+      if ('cwd' in input && input.cwd !== undefined) search.cover(input.cwd)
       return page
     }),
     create: os.sessions.create.handler(async () => {
@@ -300,7 +315,7 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return {sessionId: input.sessionId}
     }),
     rename: os.sessions.rename.handler(async ({input, errors}) => {
-      const outcome = await renameSession({db, search}, input.sessionId, input.title)
+      const outcome = await renameSession({db, search, pluginHost: deps.pluginHost}, input.sessionId, input.title)
       if (outcome === 'missing') throw errors.NOT_FOUND()
       return outcome
     }),

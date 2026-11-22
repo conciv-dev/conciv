@@ -2,7 +2,7 @@
 
 ## Overview
 
-The npm packages that make up conciv. `@conciv/it` is the one users install; it pulls in the engine (`core`), the bundler plugin, the browser widget (`embed` and the `ui-kit-*` packages), the agent harness adapters and the built-in plugins. The rest are contracts shared between those halves (`protocol`, `contract`, `plugin`, `grab`), published SDKs for host frameworks (`react`, `preact`, `solid`), and private tooling for this repo (`publish`, `vitest-config`, `oxlint-plugin`, `bundle-size`, `browser-fixture`, `uno-preset`).
+The npm packages that make up conciv. `@conciv/it` is the one users install; it pulls in the engine (`core`), the bundler plugin, the browser widget (`embed` and the `ui-kit-*` packages), the agent harness adapters and the built-in plugins. The rest are contracts shared between those halves (`protocol`, `contract`, `plugin`, `grab`), published SDKs for host frameworks (`react`, `preact`, `solid`), and private tooling for this repo (`publish`, `vitest-config`, `oxlint-plugin`, `bundle-size`, `uno-preset`).
 
 ## Subdirectories & Boundaries
 
@@ -75,4 +75,3 @@ Repo tooling (private):
 - oxlint-plugin: [oxlint-plugin/README.md](./oxlint-plugin/README.md) - The repo's custom oxlint rules.
 - uno-preset: [uno-preset/README.md](./uno-preset/README.md) - The shared UnoCSS preset.
 - bundle-size: [bundle-size/README.md](./bundle-size/README.md) - CI gzip size check against a main-branch baseline.
-- browser-fixture: [browser-fixture/README.md](./browser-fixture/README.md) - One vitest fixture that launches a single Playwright Chromium per file.

@@ -6,6 +6,10 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
 
 ## Differences from opencode
 
+- A key missing from `localStorage` reads as missing and drops its entry in the read cache (`storage.ts`
+  `localStorageView.getItem`); only a read that throws falls back to the cache. The source answers from the cache
+  whenever `getItem` gives null, so a key cleared outside the app (site data cleared, another tab's remove) kept its
+  old value in this page.
 - The draft write transaction commits as soon as its document is put (`drafts.ts`, `transaction.commit()` in the
   driver's `set`). The source waits for the auto-commit, which needs a round trip an unloading page never gets: the
   put that the `pagehide` flush issues was lost on a reload in Chromium and in Firefox, and the reloaded page read the
@@ -41,8 +45,9 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
 - The draft store lists its document keys (`DraftStore.keys`, the driver's `keys`: `getAllKeys` on `documents`, in key
   order). The source has no such call; conciv uses it once per start to remove the local drafts of sessions the engine
   no longer has (`data/app-data.ts` `forgetGoneDrafts`).
-- The draft store takes a `writable` check (`createBrowserDraftStore({writable})`), asked right after the database
-  opens and before each write transaction is made (the driver's `set`, `putBlob` and `remove`); a write it refuses
+- The draft store takes a `writable` check (`openBrowserDraftStore(writable)`: `Platform.draftStore` is that factory,
+  and the router calls it with `() => !lockedOut()`), asked right after the database opens and before each write
+  transaction is made (the driver's `set`, `putBlob` and `remove`); a write it refuses
   rejects. The source has no such check; conciv refuses writes while the engine does not trust this browser, so no
   write lands after `clear` empties the store (`pane/README.md`).
 - The draft store empties itself (`DraftStore.clear`, the driver's `clear`: one `readwrite` transaction that clears
@@ -55,6 +60,9 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
   made in a test without a mock.
 - A draft database that does not open is logged once (`drafts.ts`, the catch on `db`). In the source that failure is
   an unhandled rejection whenever nothing reads the store first.
+- A browser where IndexedDB cannot be opened at all (no `indexedDB`, or `indexedDB.open` throws) gets no draft store
+  (`drafts.ts` `openBrowserDraftStore`, the one entry both the standalone app and the embed use): the throw is logged
+  as `[conciv] drafts stay engine-only` and the app runs with drafts kept by the engine only.
 - A stored draft document is checked with zod, not Effect Schema, because the app checks untrusted input with zod. A document that fails the check is logged and read as absent.
 - Every `media:` piece of the source's `drafts.ts` is left out (the media loaders, `setMediaBlobLoader`,
   `pinMediaBlob`, `createLegacyBlobReference` and the media branches of `resolveBlobUrl`, `encode` and `blobDataUrl`):

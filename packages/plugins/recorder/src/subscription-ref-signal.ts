@@ -1,7 +1,13 @@
 import {from, observable, onCleanup, type Accessor} from 'solid-js'
-import {Effect, Exit, Fiber, Queue, Scope, Stream, SubscriptionRef, type ManagedRuntime} from 'effect'
+import {Effect, Exit, Fiber, Layer, ManagedRuntime, Queue, Scope, Stream, SubscriptionRef} from 'effect'
 
 export type PluginRuntime = ManagedRuntime.ManagedRuntime<never, never>
+
+export function makePluginRuntime(): PluginRuntime {
+  const runtime = ManagedRuntime.make(Layer.empty)
+  onCleanup(() => void Effect.runPromise(Scope.close(runtime.scope, Exit.void)).then(() => runtime.dispose()))
+  return runtime
+}
 
 export function subscriptionRefSignal<Value>(
   runtime: PluginRuntime,
@@ -29,7 +35,9 @@ export function runInOwnerScope<Value>(
   runtime: PluginRuntime,
   effect: Effect.Effect<Value, never, Scope.Scope>,
 ): Value {
-  const scope = Scope.makeUnsafe()
-  onCleanup(() => void runtime.runFork(Scope.close(scope, Exit.void)))
+  const scope = Scope.forkUnsafe(runtime.scope)
+  onCleanup(
+    () => void Effect.runFork(Effect.forkIn(Scope.close(scope, Exit.void), runtime.scope, {startImmediately: true})),
+  )
   return runtime.runSync(Scope.provide(effect, scope))
 }

@@ -115,7 +115,7 @@ export function provideServersSource(input: ServersSourceInput) {
       )
       const listed = (): ReadonlyArray<EngineRow> => {
         Latch.openUnsafe(read)
-        return current().rows
+        return withHomeDb(input.home, listEngines)
       }
       const incompatible = yield* Ref.make<ReadonlyArray<EngineRow>>([])
       const markTooOld = (apiBase: string): void =>

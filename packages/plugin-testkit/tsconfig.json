@@ -1,6 +1,7 @@
 {
-  "extends": "@conciv/tsconfig/tsconfig.web.json",
+  "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
-    "types": ["node"]
+    "types": ["vite/client", "node"],
+    "allowImportingTsExtensions": true
   }
 }

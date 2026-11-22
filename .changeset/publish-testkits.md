@@ -1,7 +1,6 @@
 ---
 '@conciv/plugin-testkit': patch
 '@conciv/harness-testkit': patch
-'@conciv/browser-fixture': patch
 ---
 
-The plugin testkit, the harness testkit and the browser fixture are published to npm.
+The plugin testkit and the harness testkit are published to npm.

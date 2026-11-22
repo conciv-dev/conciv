@@ -196,6 +196,7 @@ function mountStreamPlayer(
         events: playerEvents.parse(buffer),
         autoPlay: false,
         liveMode: true,
+        triggerFocus: false,
         showController: true,
         skipInactive: false,
       },
@@ -263,7 +264,12 @@ export function mountPlayer(kit: PlayerKit, container: HTMLDivElement, events: R
     const {scope, known} = injectPlayerStyles(kit, container)
     const mounted = new kit.Player({
       target: container,
-      props: {...playerSize(container, aspect), events: playerEvents.parse(detached), autoPlay: false},
+      props: {
+        ...playerSize(container, aspect),
+        events: playerEvents.parse(detached),
+        autoPlay: false,
+        triggerFocus: false,
+      },
     })
     demoteInjectedStyles(scope, known)
     enhanceControllerAccess(container, mounted)

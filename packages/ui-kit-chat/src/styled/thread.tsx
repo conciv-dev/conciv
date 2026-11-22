@@ -16,7 +16,7 @@ import {
 import {Dynamic} from 'solid-js/web'
 import {createStore} from 'solid-js/store'
 import {Key} from '@solid-primitives/keyed'
-import {isEqual, sumBy, takeRightWhile} from 'es-toolkit'
+import {isEqual, sumBy} from 'es-toolkit'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
 import {TruncatedTextGroup} from '@conciv/ui-kit-system'
 import {
@@ -192,16 +192,6 @@ function planBody(part: () => Extract<ChatPart, {type: 'thinking'}>): (() => JSX
   return () => <TraceBodyFrame>{text}</TraceBodyFrame>
 }
 
-function outsideCallsMarkdown(turns: readonly Turn[]): string {
-  return turns
-    .flatMap((turn) =>
-      turn.parts.flatMap((part) =>
-        part.type === 'tool-call' ? [`\`\`\`\n${part.name}(${part.arguments})\n\`\`\``] : [],
-      ),
-    )
-    .join('\n\n')
-}
-
 function useOutsideAt(): (offset: number) => boolean {
   const message = useMessage()
   const thread = useThread()
@@ -254,12 +244,6 @@ function AssistantTurn(props: {
   const outsideAt = useOutsideAt()
   const outside = createMemo(() => outsideAt(0))
   const joinsBelow = createMemo(() => outside() && outsideAt(1))
-  const outsideRunText = () =>
-    outsideCallsMarkdown(
-      takeRightWhile(thread.turns.slice(0, message.index() + 1), (item) => isOutsideTurn(item.turn())).map((item) =>
-        item.turn(),
-      ),
-    )
   const actionRowIndex = createMemo(() =>
     runActive() || joinsBelow() ? undefined : parts().findLastIndex((part) => asText(part) !== null),
   )
@@ -367,9 +351,8 @@ function AssistantTurn(props: {
               <Show when={leafProps.node.index === actionRowIndex()}>
                 <div class={ANSWER_ACTION_ROW_CLASS}>
                   <AssistantActionBar
-                    readOnly={config.readOnly() || outside()}
+                    readOnly={config.readOnly()}
                     refreshDisabled={config.refreshDisabled()}
-                    copyText={outside() ? outsideRunText() : undefined}
                     keepVisible={message.index() === latestTextTurnIndex()}
                   />
                 </div>
@@ -433,10 +416,11 @@ function AssistantTurn(props: {
     </Key>
   )
   return (
-    <Message.Root data-conciv-msg role="article" aria-label={label()} class={ASSISTANT_ROOT_CLASS}>
-      <NodeListView nodes={nodes()} />
-      <Message.Error />
-    </Message.Root>
+    <Show when={nodes().length > 0}>
+      <Message.Root data-conciv-msg role="article" aria-label={label()} class={ASSISTANT_ROOT_CLASS}>
+        <NodeListView nodes={nodes()} />
+      </Message.Root>
+    </Show>
   )
 }
 
@@ -637,6 +621,7 @@ function ThreadViewport(props: ParentProps<{ref?: (element: HTMLElement) => void
         ref={props.ref}
         class="px-5 pb-4 pt-3 flex flex-1 flex-col gap-1.5 min-h-0 relative overflow-y-auto [&>[data-thread-list]]:gap-0"
         role="log"
+        tabindex="-1"
         aria-live="off"
         footer={<LatestStrip />}
       >

@@ -1,21 +1,22 @@
-import {createRoot, type Accessor} from 'solid-js'
+import {createRoot, For, type Accessor} from 'solid-js'
 import {PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
 import {themeClasses, type HostTheme} from '../../lib/color-scheme'
 import {createStyleSheet, widgetSheet} from '../../lib/widget-styles'
-
-const OVERLAY_Z_INDEX = '2147482999'
+import {WIDGET_LAYER} from '../../lib/widget-layer'
+import {AdoptedStyle} from './render'
 
 function placeHost(host: HTMLElement): void {
   host.setAttribute(PLUGIN_OVERLAY_ATTR, '')
   host.style.position = 'fixed'
   host.style.inset = '0'
   host.style.pointerEvents = 'none'
-  host.style.zIndex = OVERLAY_Z_INDEX
+  host.style.zIndex = String(WIDGET_LAYER - 1)
 }
 
 export function mountOverlay(
   theme: Accessor<HostTheme>,
   styles: readonly string[] | undefined,
+  pluginStyles: Accessor<readonly string[]>,
 ): {readonly element: HTMLElement; dispose(): void} {
   return createRoot((disposeRoot) => {
     const host = <div class={themeClasses(theme())} />
@@ -29,6 +30,7 @@ export function mountOverlay(
     const shared = widgetSheet()
     root.adoptedStyleSheets = styles === undefined ? [shared] : [shared, createStyleSheet(styles.join('\n'))]
     root.append(element)
+    void (<For each={pluginStyles()}>{(css) => <AdoptedStyle root={root} css={css} />}</For>)
 
     return {
       element,

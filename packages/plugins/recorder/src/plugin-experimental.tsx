@@ -1,5 +1,4 @@
-import {For, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
-import {Layer, ManagedRuntime} from 'effect'
+import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {
   NoteCard,
@@ -13,7 +12,7 @@ import {defineInternalPlugin, type InternalUi} from '@conciv/plugin-internal'
 import {bootCapture} from './page-capture.js'
 import {RecorderPanel} from './panel-view.js'
 import {RecordingCard} from './recording-card.js'
-import {runInOwnerScope, subscriptionRefSignal} from './subscription-ref-signal.js'
+import {makePluginRuntime, runInOwnerScope, subscriptionRefSignal} from './subscription-ref-signal.js'
 
 const RECORDING_TOOLS = ['recording_start', 'recording_stop', 'recording_pull'] as const
 
@@ -157,8 +156,7 @@ const recorder: Plugin.Definition = defineInternalPlugin({
         </>
       ),
     }
-    const runtime = ManagedRuntime.make(Layer.empty)
-    onCleanup(() => void runtime.dispose())
+    const runtime = makePluginRuntime()
     const clientId = crypto.randomUUID()
     const capture = runInOwnerScope(runtime, bootCapture(ctx, runtime, clientId))
     const boot = subscriptionRefSignal(runtime, capture.boot)

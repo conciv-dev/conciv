@@ -12,13 +12,19 @@ import type {createSessionSearch} from './session-search.js'
 import type {PagePlugin} from '../page/page-plugin.js'
 import type {CoreRuntime} from '../runtime/scope-types.js'
 
-type SessionRenaming = {db: ConcivDb; search: Pick<ReturnType<typeof createSessionSearch>, 'retitle'>}
+type PluginHost = ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
+
+type SessionRenaming = {
+  db: ConcivDb
+  search: Pick<ReturnType<typeof createSessionSearch>, 'retitle'>
+  pluginHost: PluginHost
+}
 
 type SessionDeletion = {
   db: ConcivDb
   plane: Pick<ChatPlane, 'clear' | 'endRuns'>
   runtime: Pick<CoreRuntime, 'forSession'>
-  pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
+  pluginHost: PluginHost
   queues: Pick<PagePlugin, 'cancelSession'>
 }
 
@@ -69,6 +75,9 @@ export async function renameSession(
     renaming.db.update(sessions).set({title, updatedAt: Date.now()}).where(eq(sessions.id, sessionId)),
   )
   if (row.harnessSessionId !== null) await renaming.search.retitle(row.harnessKind, row.harnessSessionId, title)
+  await renaming.pluginHost.runPromise(
+    Bus.Service.use((bus) => bus.publish(SessionEvent.Renamed, {sessionID: SessionSchema.Id.make(sessionId), title})),
+  )
   return {title}
 }
 

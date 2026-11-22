@@ -1,7 +1,0 @@
-import {mkdtempSync, rmSync} from 'node:fs'
-import {join} from 'node:path'
-
-const dir = mkdtempSync(join(import.meta.dirname, 'x-'))
-process.once('exit', () => rmSync(dir, {recursive: true, force: true}))
-
-export default {test: {env: {DIR: dir}}}

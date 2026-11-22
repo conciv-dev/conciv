@@ -2,16 +2,20 @@ import {isIdentifier} from './ast-walk.js'
 import lucidePerIcon from './lucide-per-icon.js'
 import noAwaitEffectQuery from './no-await-effect-query.js'
 import noComments from './no-comments.js'
+import noForcedClick from './no-forced-click.js'
 import noHandMadeTempDir from './no-hand-made-temp-dir.js'
 import {isDomTestFile} from '@conciv/vitest-config/new-layer'
 import noLocatorPoll from './no-locator-poll.js'
 import noMocks from './no-mocks.js'
 import noPredicateWaits from './no-predicate-waits.js'
+import noQueryExistenceAssert from './no-query-existence-assert.js'
 import noSignalRef from './no-signal-ref.js'
 import noTeardownHooks from './no-teardown-hooks.js'
+import playwrightTestInE2e from './playwright-test-in-e2e.js'
 import pluginViewReadsThroughQuery from './plugin-view-reads-through-query.js'
 import routerIdioms from './router-idioms.js'
 import testFileBudget from './test-file-budget.js'
+import testFileTopLevel from './test-file-top-level.js'
 import {noInlineTimeouts, noTimersInTests} from './test-time.js'
 import {bannedVocabulary, corePurity, noOfSuffix} from './vocabulary.js'
 
@@ -21,7 +25,10 @@ const KIT_FILE = /(^|[\\/])packages[\\/]ui-kit-chat[\\/]/
 const KIT_INTERNAL_NAME = 'CollapsibleCard'
 const KIT_SOURCE = /^@conciv\/ui-kit-chat(\/|$)/
 
-const TEST_FILE = /(^|[\\/])test[\\/].*\.[jt]sx?$|\.(?:test|spec)\.[jt]sx?$/
+const SCRIPT_FILE = /\.[jt]sx?$/
+const TEST_SUFFIX = /\.(?:test|spec)\.[jt]sx?$/
+const TEST_DIRECTORY = /(?:^|[\\/])test[\\/]/
+const LINE_TERMINATORS = ['\n', '\r', '\u2028', '\u2029']
 const RENDER_EXEMPT_FILE = /[\\/]test[\\/]fixtures[\\/]host[\\/]main\.tsx$/
 const SOLID_WEB_SOURCE = 'solid-js/web'
 const SOLID_WEB_RENDER_NAMES = new Set(['render', 'hydrate'])
@@ -54,8 +61,16 @@ function checkKitImport(node, context) {
   for (const specifier of node.specifiers) reportKitSpecifier(specifier, context)
 }
 
+function readLastLine(filename) {
+  return filename.slice(Math.max(0, ...LINE_TERMINATORS.map((terminator) => filename.lastIndexOf(terminator))))
+}
+
+function isTestFile(filename) {
+  return TEST_SUFFIX.test(filename) || (SCRIPT_FILE.test(filename) && TEST_DIRECTORY.test(readLastLine(filename)))
+}
+
 function rendersInTestFile(filename) {
-  return TEST_FILE.test(filename) && !RENDER_EXEMPT_FILE.test(filename)
+  return isTestFile(filename) && !RENDER_EXEMPT_FILE.test(filename)
 }
 
 function reportSolidWebSpecifier(specifier, context) {
@@ -233,15 +248,18 @@ export default {
     'banned-vocabulary': bannedVocabulary,
     'core-purity': corePurity,
     'lucide-per-icon': lucidePerIcon,
+    'playwright-test-in-e2e': playwrightTestInE2e,
     'no-await-effect-query': noAwaitEffectQuery,
     'no-comments': noComments,
     'no-delegated-focus': noDelegatedFocus,
+    'no-forced-click': noForcedClick,
     'no-hand-made-temp-dir': noHandMadeTempDir,
     'no-inline-timeouts': noInlineTimeouts,
     'no-locator-poll': noLocatorPoll,
     'no-mocks': noMocks,
     'no-of-suffix': noOfSuffix,
     'no-predicate-waits': noPredicateWaits,
+    'no-query-existence-assert': noQueryExistenceAssert,
     'no-signal-ref': noSignalRef,
     'no-teardown-hooks': noTeardownHooks,
     'no-timers-in-tests': noTimersInTests,
@@ -249,6 +267,7 @@ export default {
     'router-idioms': routerIdioms,
     'solid-test-render': solidTestRender,
     'test-file-budget': testFileBudget,
+    'test-file-top-level': testFileTopLevel,
     'tool-card-shell': toolCardShell,
     'user-event-only': userEventOnly,
   },

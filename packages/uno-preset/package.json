@@ -24,8 +24,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
-    "test": "vitest run"
+    "lint": "oxlint"
   },
   "dependencies": {
     "@unocss/preset-typography": "^66.13.0",
@@ -33,12 +32,9 @@
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
-    "unocss": "catalog:",
-    "vitest": "catalog:"
+    "unocss": "catalog:"
   },
   "peerDependencies": {
     "unocss": "^66.7.2"

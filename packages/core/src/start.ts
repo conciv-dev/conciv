@@ -2,15 +2,17 @@ import {randomUUID} from 'node:crypto'
 import {inspect} from 'node:util'
 import {serveHono, type ServeFetch} from '@conciv/serve'
 import {checkEngines, registerEngine, retireEngine, withHomeDb, type EngineRow} from '@conciv/db'
-import {type ConfigProvider, Effect} from 'effect'
+import {type ConfigProvider, Effect, type Layer} from 'effect'
 import {z} from 'zod'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
+import type {EngineStaleness} from '@conciv/contract'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {inSpan, type Tracer} from '@conciv/ai/server'
 import {startObservability, type EngineObservability} from './runtime/observability.js'
 import {agentPath} from './engine-login.js'
+import {carryEngineRouter, readEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {createConcivStateDir, concivStateDir} from '@conciv/protocol/state-types'
@@ -106,6 +108,19 @@ export type StartOpts = {
   devEndpointDir?: string
   homeDir?: string
   configProvider?: ConfigProvider.ConfigProvider
+  clock?: Layer.Layer<never>
+
+  harnesses?: readonly HarnessAdapter[]
+  firstChunkTimeoutMs?: number
+  firstStartTimeoutMs?: number
+  uiCallWaitMs?: number
+  uiAnswerWaitMs?: number
+  eventHeartbeatIntervalMs?: number
+  stopGraceMs?: number
+  pageReplyTimeoutMs?: number
+  queuedActionTimeoutMs?: number
+  staleness?: () => EngineStaleness | undefined
+  app?: {version?: () => string | undefined}
 }
 
 export type Engine = {
@@ -114,7 +129,7 @@ export type Engine = {
   trustBrowser: (requester: BrowserRequester, grantedAt: number) => string
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
-}
+} & EngineRouterBrand
 
 type Served = Awaited<ReturnType<typeof serveHono>>
 type FetchHandler = ServeFetch
@@ -305,6 +320,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
   const appOpts: MakeAppOpts = {
     home,
     configProvider,
+    clock: opts.clock,
     harnessRegistry: registry,
     cfg,
     cwd: opts.root,
@@ -323,6 +339,17 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     nativePageDir: opts.nativePageDir,
     tokenScopedBase,
     plugins: opts.plugins,
+    harnesses: opts.harnesses,
+    firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
+    firstStartTimeoutMs: opts.firstStartTimeoutMs,
+    uiCallWaitMs: opts.uiCallWaitMs,
+    uiAnswerWaitMs: opts.uiAnswerWaitMs,
+    eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
+    stopGraceMs: opts.stopGraceMs,
+    pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
+    queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
+    staleness: opts.staleness,
+    app: opts.app,
     observability,
   }
   const madeApp = Promise.withResolvers<MadeApp>()
@@ -382,21 +409,24 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     await abandonStart([dispose])
     throw error
   }
-  return {
-    port,
-    agentToken,
-    cfg,
-    trustBrowser,
-    stop: async () => {
-      try {
-        await inSpan(tracer, 'Engine.stop', {'conciv.engine.id': engineId}, async () => {
-          clearEndpoint()
-          retire()
-          await runInOrder([close, dispose], 'conciv: stopping the engine failed')
-        })
-      } finally {
-        await observability.dispose()
-      }
+  return carryEngineRouter(
+    {
+      port,
+      agentToken,
+      cfg,
+      trustBrowser,
+      stop: async () => {
+        try {
+          await inSpan(tracer, 'Engine.stop', {'conciv.engine.id': engineId}, async () => {
+            clearEndpoint()
+            retire()
+            await runInOrder([close, dispose], 'conciv: stopping the engine failed')
+          })
+        } finally {
+          await observability.dispose()
+        }
+      },
     },
-  }
+    readEngineRouter(made),
+  )
 }

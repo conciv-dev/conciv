@@ -12,12 +12,20 @@ export {
 } from './react.js'
 export {dehydrate, navigatePath} from './dehydrate.js'
 export {showToast} from './toast.js'
-export {addRef, buildSnapshot, describeElement, DOM_CAP, isOurs, selectDeep, type Refs} from './snapshot.js'
 export {
+  addRef,
+  buildSnapshot,
+  describeElement,
+  DOM_CAP,
+  isOurs,
   isSensitiveField,
+  MASKED_VALUE,
+  selectDeep,
+  type Refs,
+} from './snapshot.js'
+export {
   loadedSnapshotLibrary,
   loadSnapshotLibrary,
-  MASKED_VALUE,
   takeElementCapture,
   toCssBundle,
   type PendingCssText,

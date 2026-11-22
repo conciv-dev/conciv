@@ -1,3 +1,4 @@
 {
-  "target": "solid"
+  "target": "solid",
+  "routeFileIgnorePattern": "\\.test\\.tsx?$"
 }

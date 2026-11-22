@@ -13,7 +13,6 @@ import {
   HarnessListCursorSchema,
   HarnessSessionId,
   NativeSessionRefSchema,
-  NavigationWriteSchema,
   PermissionDecisionSchema,
   PermissionRuleSchema,
   ReasoningEffortSchema,
@@ -66,13 +65,18 @@ const SessionSearchPageSchema = z.object({
   next: HarnessListCursorSchema.nullable(),
 })
 
-const SessionPreviewInput = z.object({
-  harness: z.string().min(1),
-  nativeId: HarnessSessionId,
-  cwd: z.string().min(1).optional(),
+const SessionPreviewPage = z.object({
   before: z.string().min(1).nullable(),
   limit: z.number().int().min(1).max(100),
 })
+const SessionPreviewInput = z.union([
+  SessionPreviewPage.extend({
+    harness: z.string().min(1),
+    nativeId: HarnessSessionId,
+    cwd: z.string().min(1).optional(),
+  }),
+  SessionPreviewPage.extend({sessionId: SessionId}),
+])
 const SessionPreviewSchema = z.object({messages: ChatHistorySchema, earlier: z.string().min(1).nullable()})
 
 const SessionsChangeSchema = z.object({version: z.number().int().nonnegative()})
@@ -139,7 +143,6 @@ export const ChatHydrationSchema = z.object({
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 const Ok = z.object({ok: z.literal(true)})
 
-const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
 const HubHarnessInput = z.object({harness: z.enum(INIT_HARNESS_IDS)})
@@ -486,10 +489,6 @@ export const contract = {
   },
   markers: {
     list: oc.errors(approvalDenied).input(SessionIdInput).output(z.array(MarkerRowSchema)),
-  },
-  navigation: {
-    get: oc.output(NavigationWriteSchema.nullable()),
-    set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
   },
   chat: {
     events: oc.errors(approvalDenied).input(SessionIdInput).output(ChatEventStreamSchema),

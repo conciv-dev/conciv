@@ -6,7 +6,9 @@ import type {createChatPlane} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
 import {existsSync} from 'node:fs'
 import {dirname, join} from 'node:path'
-import {NodeChildProcessSpawner, NodeFileSystem, NodePath} from '@effect/platform-node'
+import * as NodeChildProcessSpawner from '@effect/platform-node/NodeChildProcessSpawner'
+import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
+import * as NodePath from '@effect/platform-node/NodePath'
 import {FetchHttpClient} from 'effect/http'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {SqliteClient} from '@effect/sql-sqlite-node'
@@ -208,6 +210,7 @@ export type PluginRuntimeInput = {
   openInEditor: (file: string, line?: number, column?: number) => void
   sessions: Parameters<typeof provideSessions>[0]
   configProvider: ConfigProvider.ConfigProvider
+  clock: Layer.Layer<never> | undefined
   observability: EngineObservability['context']
 }
 
@@ -322,7 +325,7 @@ export type PluginRuntime = {
 }
 
 export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
-  const runtime = ManagedRuntime.make(pluginHostLayer(input))
+  const runtime = ManagedRuntime.make(pluginHostLayer(input).pipe(Layer.provideMerge(input.clock ?? Layer.empty)))
   const supervised = Scope.forkUnsafe(runtime.scope, 'sequential')
   return {
     runtime,

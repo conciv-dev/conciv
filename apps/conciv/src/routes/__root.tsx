@@ -4,14 +4,13 @@ import {
   retainSearchParams,
   stripSearchParams,
   useMatchRoute,
-  useParams,
+  getRouteApi,
   useRouter,
-  useSearch,
   type AnyRouter,
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@conciv/client'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
-import {createClientSettings} from '@conciv/contract'
+import {createClientSettings, type TrustStatus} from '@conciv/contract'
 import {createHotkeys} from '@tanstack/solid-hotkeys'
 import {Show, createEffect, createMemo, createReaction, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
@@ -53,6 +52,7 @@ import {createElementSize} from '@solid-primitives/resize-observer'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {hostFocusTarget} from '../lib/host-focus.js'
 import {quickPaneIds} from '../lib/quick-search.js'
+import {leaveScreen} from '../lib/leave-screen.js'
 import {sessionPickerSearchSchema} from '../lib/session-search-schemas.js'
 import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
@@ -102,9 +102,9 @@ function RootComponent() {
 
 function AppRoot() {
   const app = Route.useRouteContext()()
-  const panelParams = useParams({from: '/panel/$sessionId', shouldThrow: false})
-  const pipParams = useParams({from: '/pip/$sessionId', shouldThrow: false})
-  const quickSearch = useSearch({from: '/quick', shouldThrow: false})
+  const panelParams = getRouteApi('/panel/$sessionId').useParams({shouldThrow: false})
+  const pipParams = getRouteApi('/pip/$sessionId').useParams({shouldThrow: false})
+  const quickSearch = getRouteApi('/quick').useSearch({shouldThrow: false})
   const notices = useNotices()
 
   const [politeMessage, setPoliteMessage] = createSignal('')
@@ -419,6 +419,7 @@ function RootChrome(props: {
     if (event.key !== 'Escape') return
     const dismissableLayerWasOpen = dismissableLayerOpenAtEscapeCapture
     dismissableLayerOpenAtEscapeCapture = false
+    if (event.defaultPrevented) return
     if (dismissableLayerWasOpen) return
     if (escapeInTerminal(rootEl)) return
     const settingsRoute = settingsMatch()
@@ -440,14 +441,14 @@ function RootChrome(props: {
     }
     if (closedMatch()) return
     event.preventDefault()
-    router.history.back()
+    leaveScreen(router, props.activeSession())
   }
 
   const switchQuick = () => {
     if (!connected()) return
     const revealed = revealDock()
     if (quickMatch()) {
-      if (!revealed) router.history.back()
+      if (!revealed) leaveScreen(router, props.activeSession())
       return
     }
     void router.navigate({
@@ -456,7 +457,24 @@ function RootChrome(props: {
       replace: settings.surface !== 'dock' && Boolean(panelMatch()),
     })
   }
-  const toggleQuick = () => (awaitingLogin() ? showPanel() : switchQuick())
+  let pendingPress: (() => void) | undefined
+  onCleanup(() => pendingPress?.())
+  const onTrustSettled = (status: TrustStatus) => {
+    if (status === 'checking') return
+    pendingPress?.()
+    pendingPress = undefined
+    if (engineConnected(status)) switchQuick()
+    else showPanel()
+  }
+  const toggleQuick = () => {
+    if (login?.status() === 'checking') {
+      if (pendingPress) return
+      pendingPress = login.trust().subscribe(onTrustSettled)
+      return
+    }
+    if (awaitingLogin()) showPanel()
+    else switchQuick()
+  }
   createHotkeys(() => [
     ...preferences.shortcut('togglePanel').map((binding) => ({hotkey: toRawHotkey(binding), callback: togglePanel})),
     ...(settings.quickTerminal.enabled
@@ -490,10 +508,10 @@ function RootChrome(props: {
       <Show when={loginOpen() ? login : undefined}>
         {(current) => <EngineLoginDialog trust={current().trust()} onClose={() => void setShutter(router, false)} />}
       </Show>
-      <div class="sr-only" role="status" aria-live="polite">
+      <div class="sr-only" role="status" aria-live="polite" aria-label="conciv announcements">
         {props.politeMessage()}
       </div>
-      <div class="sr-only" role="alert" aria-live="assertive">
+      <div class="sr-only" role="alert" aria-live="assertive" aria-label="conciv alerts">
         {props.assertiveMessage()}
       </div>
     </div>

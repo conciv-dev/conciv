@@ -50,7 +50,7 @@ export function readRole(el: Element): string {
   if (explicit) return explicit
   if (el instanceof HTMLInputElement) return INPUT_ROLES[el.type] ?? 'textbox'
   const tag = el.tagName.toLowerCase()
-  return ROLE_BY_TAG[tag] ?? tag
+  return Object.hasOwn(ROLE_BY_TAG, tag) ? (ROLE_BY_TAG[tag] ?? tag) : tag
 }
 
 function labelName(el: Element): string | undefined {
@@ -90,13 +90,25 @@ function isInteresting(el: Element): boolean {
   const tag = el.tagName.toLowerCase()
   if (['a', 'button', 'input', 'select', 'textarea', 'label', 'summary'].includes(tag)) return true
   if (el.getAttribute('role')) return true
-  return tag in ROLE_BY_TAG
+  return Object.hasOwn(ROLE_BY_TAG, tag)
 }
 
-export const readValue = (el: Element): string | undefined =>
-  el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement
-    ? el.value
-    : undefined
+export const MASKED_VALUE = '***'
+
+const SENSITIVE_AUTOCOMPLETE = ['cc-', 'one-time-code', 'current-password', 'new-password']
+
+export function isSensitiveField(el: Element): boolean {
+  const type = el.getAttribute('type')?.toLowerCase() ?? ''
+  if (type === 'password') return true
+  const autocomplete = el.getAttribute('autocomplete')?.toLowerCase() ?? ''
+  return SENSITIVE_AUTOCOMPLETE.some((token) => autocomplete.includes(token))
+}
+
+export function readValue(el: Element): string | undefined {
+  if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement))
+    return undefined
+  return isSensitiveField(el) ? MASKED_VALUE : el.value
+}
 
 function snapNode(el: Element, addRef: RefAdder): SnapNode {
   const state = nodeState(el)

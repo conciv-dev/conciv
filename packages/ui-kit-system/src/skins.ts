@@ -11,7 +11,7 @@ export const DEFAULT_SKIN_NAME: SkinName = 'conciv'
 export const SKIN_NAMES: SkinName[] = Object.keys(SKINS).filter((name): name is SkinName => name in SKINS)
 
 export function isSkinName(value: string): value is SkinName {
-  return value in SKINS
+  return Object.hasOwn(SKINS, value)
 }
 
 export function skinDefinition(name: SkinName): Skin {

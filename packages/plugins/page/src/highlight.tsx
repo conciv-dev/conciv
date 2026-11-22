@@ -4,7 +4,7 @@ import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {createKeyHold} from '@tanstack/solid-hotkeys'
 import {render} from 'solid-js/web'
-import {Kbd} from '@conciv/ui-kit-system'
+import {Kbd, prefersReducedMotion} from '@conciv/ui-kit-system'
 import {addRef, type Refs} from './snapshot.js'
 import {describe, locate} from './react.js'
 import type {PageEffect} from './operations.js'
@@ -91,7 +91,7 @@ function HighlightInspector(props: HighlightOptions & {onExit: () => void}): JSX
   makeEventListener(window, 'resize', reposition)
   onCleanup(() => cancelAnimationFrame(frame.id))
 
-  const glide = matchMedia('(prefers-reduced-motion: reduce)').matches ? '' : GLIDE
+  const glide = prefersReducedMotion() ? '' : GLIDE
 
   return (
     <>

@@ -44,7 +44,8 @@ const tool = defineTool({
     streamTitle: {type: 'string', description: 'Optional label shown on the card while the call streams.'},
     approval: {
       type: "'ask'",
-      description: 'Surface an Approve / Deny card before every run. Omit for tools that are safe to run freely.',
+      description:
+        'Surface a permission card (Allow once or Deny) before every run. Omit for tools that are safe to run freely.',
     },
   }}
 />

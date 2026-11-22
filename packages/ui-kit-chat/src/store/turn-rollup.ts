@@ -101,8 +101,9 @@ function isFailedCall(part: ToolCallPart, result: ToolResultPart | undefined): b
 export function turnRollup(turn: Pick<Turn, 'parts'>): TurnRollup {
   const {byCallId} = pairResults(turn.parts)
   const toolCalls = turn.parts.filter((part): part is ToolCallPart => part.type === 'tool-call')
-  const patchInfos = toolCalls.filter((call) => call.name === 'apply_patch').map(applyPatchInfo)
-  const editInfos = toolCalls.filter((call) => FILE_EDIT_TOOL_NAMES.has(call.name)).map(fileEditInfo)
+  const applied = toolCalls.filter((call) => !isFailedCall(call, byCallId.get(call.id)))
+  const patchInfos = applied.filter((call) => call.name === 'apply_patch').map(applyPatchInfo)
+  const editInfos = applied.filter((call) => FILE_EDIT_TOOL_NAMES.has(call.name)).map(fileEditInfo)
   const editInfoAll = [...patchInfos, ...editInfos]
   const files = [...new Set(editInfoAll.flatMap((info) => info.files))]
   const adds = editInfoAll.reduce((sum, info) => sum + info.added, 0)

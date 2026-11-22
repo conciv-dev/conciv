@@ -8,7 +8,8 @@
     "build": "vite build",
     "start": "vite start",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.e2e.json --noEmit"
   },
   "dependencies": {
     "@conciv/it": "workspace:*",
@@ -21,7 +22,10 @@
   },
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",
-    "@playwright/test": "catalog:"
+    "@conciv/tsconfig": "workspace:*",
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
   },
   "engines": {
     "node": ">=26.0.0"

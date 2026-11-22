@@ -86,7 +86,18 @@ const ABNORMAL_CLOSE_CODE = 1006
 const SOCKET_LINK_URL = 'http://orpc'
 const WEBSOCKET_OPEN = 1
 const SOCKET_NOT_OPEN_MESSAGE = 'Cannot send message, WebSocket is not open.'
+const CONNECTION_CLOSED_MESSAGE = 'The engine connection closed before the call was answered.'
 const TOKEN_STORAGE_PREFIX = 'conciv:engine-token:'
+
+export type EngineUnreachable = Error & {readonly isEngineUnreachable: true}
+
+export function engineUnreachable(message: string, cause?: unknown): EngineUnreachable {
+  return Object.assign(new Error(message, {cause}), {isEngineUnreachable: true as const})
+}
+
+export function isEngineUnreachable(value: unknown): value is EngineUnreachable {
+  return value instanceof Error && Reflect.get(value, 'isEngineUnreachable') === true
+}
 
 function storageRefused(error: unknown): boolean {
   return error instanceof DOMException && (error.name === 'SecurityError' || error.name === 'QuotaExceededError')
@@ -252,7 +263,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     const encoded = await encodeRequestMessage(id, type, payload)
     if (type !== MessageType.ABORT_SIGNAL) await run(settled(undefined))
     const written = await run(writeIfOpen(frame(encoded)))
-    if (!written && type !== MessageType.ABORT_SIGNAL) throw new Error(SOCKET_NOT_OPEN_MESSAGE)
+    if (!written && type !== MessageType.ABORT_SIGNAL) throw engineUnreachable(SOCKET_NOT_OPEN_MESSAGE)
   }
 
   const peer = new ClientPeer(async (message) => {
@@ -305,7 +316,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
         'open-socket': (opening) =>
           FiberHandle.run(attempts, connectAttempt(opening.attempt), {startImmediately: true}).pipe(Effect.asVoid),
         'close-socket': () => FiberHandle.clear(attempts),
-        'close-peer': () => Effect.sync(() => peer.close()),
+        'close-peer': () => Effect.sync(() => peer.close({reason: engineUnreachable(CONNECTION_CLOSED_MESSAGE)})),
         'send-trust-frame': (trustFrame) => sendTrustFrame(trustFrame.token),
         'schedule-uptime': (uptime) =>
           FiberHandle.run(uptimeTimer, after(MIN_UPTIME, {type: 'uptime-reached', attempt: uptime.attempt}), {
@@ -363,7 +374,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     call: async (request) => {
       await run(settled(request.signal))
       request.signal?.throwIfAborted()
-      if (current().socket !== 'open') throw new Error(SOCKET_NOT_OPEN_MESSAGE)
+      if (current().socket !== 'open') throw engineUnreachable(SOCKET_NOT_OPEN_MESSAGE)
       const response = await peer.request(request)
       return {...response, body: async () => response.body}
     },

@@ -180,7 +180,7 @@ export function provideSessions(started: () => SessionKeyDeps) {
         }
       }),
       create: Effect.fn('core.sessions.create')(function* (input) {
-        const {chat, search} = started()
+        const {chat, search, pluginHost} = started()
         const supplied = input.id
         const recorded = supplied === undefined ? null : yield* Effect.promise(() => rowById(chat.db, supplied))
         if (recorded !== null && recorded.deletedAt === null) return sessionInfo(chat, recorded)
@@ -189,7 +189,7 @@ export function provideSessions(started: () => SessionKeyDeps) {
         yield* Effect.annotateCurrentSpan({sessionId})
         const choice = yield* createdModel(chat, input, sessionId)
         yield* Effect.promise(() => createChatSession(chat.rows, sessionId))
-        yield* Effect.promise(() => describeCreated({db: chat.db, search}, sessionId, input))
+        yield* Effect.promise(() => describeCreated({db: chat.db, search, pluginHost}, sessionId, input))
         if (choice !== null && !(yield* applyModelChoice(chat, sessionId, choice))) {
           return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
         }
@@ -230,8 +230,8 @@ export function provideSessions(started: () => SessionKeyDeps) {
       rename: (input) =>
         found(input.sessionId).pipe(
           Effect.andThen(() => {
-            const {chat, search} = started()
-            return Effect.promise(() => renameSession({db: chat.db, search}, input.sessionId, input.title))
+            const {chat, search, pluginHost} = started()
+            return Effect.promise(() => renameSession({db: chat.db, search, pluginHost}, input.sessionId, input.title))
           }),
           Effect.flatMap((outcome) =>
             outcome === 'missing'

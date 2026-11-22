@@ -3,10 +3,15 @@ import {e2eConfig} from '@conciv/e2e-utils/config'
 import {PACKED_APP_DIR, PACKED_ROOT} from './test/packed-app-dir.ts'
 
 export default defineConfig(
-  e2eConfig('vite-react-packed', {
+  await e2eConfig('vite-react-packed', {
     dir: import.meta.dirname,
-    command: (port) => `pnpm --dir ${JSON.stringify(PACKED_APP_DIR)} exec vite --port ${port} --strictPort --force`,
+    command: (port, coldStart) =>
+      `pnpm --dir ${JSON.stringify(PACKED_APP_DIR)} exec vite --port ${port} --strictPort ${coldStart}`,
     runFolders: [PACKED_ROOT],
   }),
-  {testDir: '../vite-react/test'},
+  {
+    testDir: '../vite-react/test',
+    testMatch: 'widget.spec.ts',
+    grep: /the user opens a magic link and the widget opens with no error/,
+  },
 )

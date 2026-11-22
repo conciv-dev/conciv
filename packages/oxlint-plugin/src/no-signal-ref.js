@@ -97,15 +97,23 @@ function nearestFunction(ancestors) {
   return undefined
 }
 
-function isTargetIdentifier(node, name, excluded) {
-  return isIdentifier(node) && node.name === name && !excluded.has(node)
+function isPropertyName(node, ancestors) {
+  const parent = readParent(ancestors)
+  if (!isNode(parent) || parent.computed === true) return false
+  if (parent.type === 'MemberExpression') return parent.property === node
+  if (parent.type === 'Property') return parent.key === node && parent.shorthand !== true
+  return false
+}
+
+function isTargetIdentifier(node, ancestors, name, excluded) {
+  return isIdentifier(node) && node.name === name && !excluded.has(node) && !isPropertyName(node, ancestors)
 }
 
 function setterOnlyUsedAsRef(setterName, excluded, program) {
   let sawUsage = false
   let allRef = true
   visitWithAncestors(program, [], (node, ancestors) => {
-    if (!isTargetIdentifier(node, setterName, excluded)) return
+    if (!isTargetIdentifier(node, ancestors, setterName, excluded)) return
     sawUsage = true
     if (!isRefAttributeValue(node, ancestors)) allRef = false
   })
@@ -116,7 +124,7 @@ function analyzeGetterUsage(getterName, excluded, program) {
   const calls = []
   let bareUsage = false
   visitWithAncestors(program, [], (node, ancestors) => {
-    if (!isTargetIdentifier(node, getterName, excluded)) return
+    if (!isTargetIdentifier(node, ancestors, getterName, excluded)) return
     if (isCallCallee(node, ancestors)) {
       calls.push(nearestFunction(ancestors))
       return
@@ -146,15 +154,15 @@ function declaredFunctionNameNode(fn, ancestors) {
   return declaredFunctionDeclarationName(fn) ?? declaredVariableName(fn, ancestors)
 }
 
-function isReferenceToName(node, nameNode) {
-  return isIdentifier(node) && node !== nameNode && node.name === nameNode.name
+function isReferenceToName(node, ancestors, nameNode) {
+  return isIdentifier(node) && node !== nameNode && node.name === nameNode.name && !isPropertyName(node, ancestors)
 }
 
 function isNameOnlyReferencedAsHandler(nameNode, program) {
   let sawReference = false
   let allHandlers = true
   visitWithAncestors(program, [], (node, ancestors) => {
-    if (!isReferenceToName(node, nameNode)) return
+    if (!isReferenceToName(node, ancestors, nameNode)) return
     sawReference = true
     if (!isHandlerAttributeValue(node, ancestors)) allHandlers = false
   })

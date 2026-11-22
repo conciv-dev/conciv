@@ -52,10 +52,9 @@
     "build": "tsdown && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
-    "test:packed": "vitest run test/tanstack.test.ts --mode packed --tags-filter=packed",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {
     "@conciv/plugin-page": "workspace:^",
@@ -65,17 +64,13 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/cli": "workspace:^",
-    "@conciv/embed": "workspace:^",
-    "@conciv/harness-testkit": "workspace:^",
+    "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-internal": "workspace:*",
-    "@conciv/plugin-testkit": "workspace:^",
+    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
-    "@conciv/unplugin": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
-    "@playwright/test": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@types/node": "catalog:",

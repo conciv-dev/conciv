@@ -1,6 +1,7 @@
 import {defineConfig} from 'tsdown'
 
 export default defineConfig({
+  sourcemap: true,
   entry: ['src/serve.ts', 'src/rpc.ts'],
   format: 'esm',
   fixedExtension: false,

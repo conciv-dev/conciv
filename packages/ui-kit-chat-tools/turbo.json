@@ -6,8 +6,13 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}"
+        "!$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{test,spec,stories}.*"
       ]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "^build:types", "@conciv/ai#build", "@conciv/core#build", "@conciv/harness#build"]
     }
   }
 }

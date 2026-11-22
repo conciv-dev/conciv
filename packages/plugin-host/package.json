@@ -40,9 +40,9 @@
     "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {
     "@conciv/db": "workspace:^",
@@ -77,19 +77,17 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/protocol": "workspace:*",
+    "@conciv/harness-testkit": "workspace:*",
+    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/npm-package-arg": "catalog:",
     "@types/npmcli__arborist": "catalog:",
     "@types/pacote": "catalog:",
     "@types/which": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "esbuild": "catalog:",
-    "fast-check": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   },
   "optionalDependencies": {

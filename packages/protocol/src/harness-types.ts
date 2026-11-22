@@ -140,28 +140,6 @@ export type HarnessListScope = {cwd: string} | {everywhere: true}
 
 export type HarnessSessionPage = {sessions: HarnessSessionMeta[]; next: HarnessListCursor | null}
 
-export const TRANSCRIPT_FAILURES = ['missing', 'unreadable', 'corrupt'] as const
-
-export type TranscriptFailureReason = (typeof TRANSCRIPT_FAILURES)[number]
-
-export type TranscriptRevision = {rev: string; changedAt: number}
-
-export type TranscriptFailure = {ok: false; reason: TranscriptFailureReason; detail: string}
-
-export type TranscriptChunk = {
-  ok: true
-  rev: string
-  changedAt: number
-  messages: ChatMessage[]
-  replaced: boolean
-}
-
-export type TranscriptHandle = {
-  revision(): Promise<TranscriptRevision | TranscriptFailure>
-  read(): Promise<TranscriptChunk | TranscriptFailure>
-  close(): void
-}
-
 export type HarnessTranscriptPaths =
   | {transcriptPath?: undefined; transcriptRoot?: undefined}
   | {
@@ -179,7 +157,6 @@ export type TranscriptTailOptions = {limit: number; before: TranscriptCursor | n
 export type HarnessHistory = HarnessTranscriptPaths & {
   messages(cwd: string, sessionId: HarnessSessionId, options?: {signal?: AbortSignal}): Promise<ChatMessage[]>
   tail(cwd: string, sessionId: HarnessSessionId, options: TranscriptTailOptions): Promise<TranscriptPage>
-  observe(cwd: string, sessionId: HarnessSessionId): TranscriptHandle
 
   withinProject?(cwd: string, sessionId: HarnessSessionId): boolean
 

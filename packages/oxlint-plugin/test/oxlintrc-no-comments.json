@@ -1,6 +1,0 @@
-{
-  "plugins": [],
-  "jsPlugins": [{"name": "conciv", "specifier": "../src/plugin.js"}],
-  "categories": {},
-  "rules": {"conciv/no-comments": "error"}
-}

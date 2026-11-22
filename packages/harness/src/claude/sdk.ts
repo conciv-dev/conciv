@@ -1,14 +1,24 @@
-import {
-  query,
-  type ModelInfo,
-  type SDKControlInitializeResponse,
-  type SDKUserMessage,
-  type SlashCommand,
-  type Options,
+import type * as ClaudeAgentSdk from '@anthropic-ai/claude-agent-sdk'
+import type {
+  ModelInfo,
+  SDKControlInitializeResponse,
+  SDKUserMessage,
+  SlashCommand,
+  Options,
 } from '@anthropic-ai/claude-agent-sdk'
 import type {HarnessCommand, HarnessCommandsContext, HarnessModel} from '@conciv/protocol/harness-types'
 import {mcpServerConfig} from './args.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
+
+let claudeAgentSdk: Promise<typeof ClaudeAgentSdk> | undefined
+
+export function loadClaudeAgentSdk(): Promise<typeof ClaudeAgentSdk> {
+  claudeAgentSdk ??= import('@anthropic-ai/claude-agent-sdk').catch((error: unknown) => {
+    claudeAgentSdk = undefined
+    throw error
+  })
+  return claudeAgentSdk
+}
 
 type InputQueue = {end: () => void; stream: AsyncGenerator<SDKUserMessage>}
 
@@ -45,6 +55,7 @@ export function __commandsCacheSet(cwd: string, commands: HarnessCommand[]): voi
 }
 
 async function probe(options: Options): Promise<SDKControlInitializeResponse> {
+  const {query} = await loadClaudeAgentSdk()
   const input = makeInputQueue()
   const session = query({prompt: input.stream, options})
   try {

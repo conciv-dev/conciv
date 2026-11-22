@@ -107,21 +107,18 @@
     "build": "tsdown && tsdown --config tsdown.solid-source.config.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run --passWithNoTests && playwright test",
-    "test:packed": "vitest run --mode packed --project mascot --tags-filter=packed",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {
     "gsap": "catalog:"
   },
   "devDependencies": {
+    "@conciv/harness-testkit": "workspace:*",
+    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
-    "@playwright/test": "catalog:",
-    "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",
-    "@vitest/browser-playwright": "catalog:",
     "solid-js": "catalog:",
     "storybook": "catalog:",
     "storybook-solidjs-vite": "catalog:",

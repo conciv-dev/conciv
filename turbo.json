@@ -29,8 +29,27 @@
         "!LICENSE"
       ]
     },
+    "build:types": {
+      "outputs": ["dist/**/*.d.ts"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE"
+      ]
+    },
     "dev": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@conciv/cli#build"],
       "cache": false,
       "persistent": true
     },
@@ -44,14 +63,32 @@
       "outputs": ["storybook-static/**"]
     },
     "typecheck": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "^build:types"],
       "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
     },
+    "kit-runtime": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE"
+      ]
+    },
     "test": {
-      "dependsOn": ["^build", "build"],
+      "dependsOn": ["^build", "build", "^build:types", "^kit-runtime"],
       "env": ["CI", "GITHUB_ACTIONS"],
       "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"],
-      "outputs": ["test-results.json", "coverage/coverage-summary.json"]
+      "outputs": ["test-results.json", "coverage/coverage-summary.json", "coverage/lcov.info"]
     },
     "lint": {
       "dependsOn": ["^build"],
@@ -68,7 +105,7 @@
       "cache": false
     },
     "test:e2e": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@conciv/cli#build"],
       "cache": false,
       "env": ["CI", "GITHUB_ACTIONS"],
       "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"]

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import {execFileSync} from 'node:child_process'
-import {appendFileSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
-import {join} from 'node:path'
+import {appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
+import {basename, dirname, join} from 'node:path'
 import {
   e2ePackages,
   type E2eShardPlan,
@@ -9,10 +9,18 @@ import {
   planE2eShards,
   planShards,
   plannedPackages,
+  readPackagePart,
   type ShardPlan,
 } from './shards.ts'
 import {
+  findFiles,
   loadSummaries,
+  manifestName,
+  coverageByPackage,
+  coverageOnlySummary,
+  isWorkspaceSource,
+  mergeLcov,
+  rebaseLcov,
   mergeSummaries,
   type PackageSummary,
   parseSummaries,
@@ -20,7 +28,7 @@ import {
   renderSummary,
 } from './summary.ts'
 
-const VALUE_FLAGS = ['--timings', '--task', '--output']
+const VALUE_FLAGS = ['--timings', '--task', '--output', '--coverage', '--coverage-output', '--untested']
 
 type TaskConfig = {
   turboTasks: string[]
@@ -37,7 +45,7 @@ const TASKS: Record<string, TaskConfig> = {
     plan: (rootDir, timings) => planShards(plannedPackages(rootDir), timings),
   },
   e2e: {
-    turboTasks: ['test:e2e', '--continue', '--concurrency=1'],
+    turboTasks: ['typecheck', 'test:e2e', '--continue', '--concurrency=1'],
     reportRoots: ['e2e', 'apps/site'],
     render: {title: 'E2e consumer apps', details: true},
     plan: (rootDir, timings) => planE2eShards(e2ePackages(rootDir), timings),
@@ -80,16 +88,57 @@ function plan(args: string[]): void {
   process.stdout.write(`${matrix}\n`)
 }
 
+function turbo(tasks: string[], filters: string[], passed: string[] = []): void {
+  execFileSync(
+    'pnpm',
+    ['exec', 'turbo', 'run', ...tasks, ...filters, ...(passed.length > 0 ? ['--', ...passed] : [])],
+    {
+      stdio: 'inherit',
+    },
+  )
+}
+
 function run(args: string[]): void {
-  const packages = (process.env.SHARD_PACKAGES ?? '').split(' ').filter((name) => name !== '')
-  if (packages.length === 0) throw new Error('SHARD_PACKAGES is empty; nothing to run')
-  const filters = packages.map((name) => `--filter=${name}`)
-  execFileSync('pnpm', ['exec', 'turbo', 'run', ...taskConfig(args).turboTasks, ...filters], {stdio: 'inherit'})
+  const entries = (process.env.SHARD_PACKAGES ?? '').split(' ').filter((name) => name !== '')
+  if (entries.length === 0) throw new Error('SHARD_PACKAGES is empty; nothing to run')
+  const tasks = taskConfig(args).turboTasks
+  const parts = entries.map(readPackagePart)
+  const whole = parts.flatMap(({name, part}) => (part === null ? [`--filter=${name}`] : []))
+  const failures: unknown[] = []
+  const attempt = (step: () => void) => {
+    try {
+      step()
+    } catch (error) {
+      failures.push(error)
+    }
+  }
+  if (whole.length > 0) attempt(() => turbo(tasks, whole))
+  for (const {name, part} of parts) {
+    if (part === null) continue
+    const checks = tasks.filter((task) => task !== 'test' && !task.startsWith('--'))
+    if (part.index === 1 && checks.length > 0) attempt(() => turbo(checks, [`--filter=${name}`]))
+    attempt(() => turbo(['test'], [`--filter=${name}`], [`--shard=${part.index}/${part.count}`]))
+  }
+  if (failures.length > 0) throw new AggregateError(failures, `${failures.length} turbo run(s) failed in this shard`)
 }
 
 function report(args: string[]): void {
   const outputPath = argValue(args, '--output') ?? 'shard-report.json'
   writeFileSync(outputPath, `${JSON.stringify(loadSummaries(taskConfig(args).reportRoots))}\n`)
+}
+
+const PACKAGE_DIR_SEPARATOR = '__'
+
+function coverage(args: string[]): void {
+  const outputDir = argValue(args, '--output') ?? 'coverage-report'
+  for (const lcov of findFiles(taskConfig(args).reportRoots, 'lcov.info')) {
+    const reportDir = dirname(lcov)
+    if (basename(reportDir) !== 'coverage') continue
+    const packageDir = dirname(reportDir)
+    const target = join(outputDir, manifestName(packageDir).replaceAll('/', PACKAGE_DIR_SEPARATOR))
+    mkdirSync(target, {recursive: true})
+    writeFileSync(join(target, 'lcov.info'), rebaseLcov(readFileSync(lcov, 'utf8'), packageDir, process.cwd()))
+  }
 }
 
 const MAX_REPORT_BYTES = 20_000_000
@@ -108,10 +157,38 @@ function readReports(dir: string): PackageSummary[] {
     })
 }
 
+function untestedRoots(args: string[]): string[] {
+  const untestedDir = argValue(args, '--untested')
+  return untestedDir !== null && existsSync(untestedDir) ? [untestedDir] : []
+}
+
+function withCoverage(summaries: PackageSummary[], args: string[]): PackageSummary[] {
+  const coverageDir = argValue(args, '--coverage')
+  if (coverageDir === null || !existsSync(coverageDir)) return summaries
+  const merged = mergeLcov(
+    findFiles([coverageDir], 'lcov.info').map((path) => readFileSync(path, 'utf8')),
+    isWorkspaceSource,
+    findFiles(untestedRoots(args), 'lcov.info').map((path) => readFileSync(path, 'utf8')),
+  )
+  const outputDir = argValue(args, '--coverage-output')
+  if (outputDir !== null) {
+    mkdirSync(outputDir, {recursive: true})
+    writeFileSync(join(outputDir, 'lcov.info'), merged.lcov)
+  }
+  const byPackage = coverageByPackage(merged.files, process.cwd())
+  const tested = new Set(summaries.map((summary) => summary.name))
+  return [
+    ...summaries.map((summary) => ({...summary, coverage: byPackage.get(summary.name) ?? null})),
+    ...[...byPackage.entries()]
+      .filter(([name]) => !tested.has(name))
+      .map(([name, packageCoverage]) => coverageOnlySummary(name, packageCoverage)),
+  ]
+}
+
 function summarize(args: string[]): void {
   const merged = mergeSummaries(positionals(args).flatMap(readReports))
   const summaryPath = process.env.GITHUB_STEP_SUMMARY
-  const rendered = renderSummary(merged, taskConfig(args).render)
+  const rendered = renderSummary(withCoverage(merged, args), taskConfig(args).render)
   if (summaryPath === undefined) process.stdout.write(rendered)
   if (summaryPath !== undefined) appendFileSync(summaryPath, rendered)
   const timingsPath = argValue(args, '--timings')
@@ -124,12 +201,11 @@ function summarize(args: string[]): void {
   writeFileSync(timingsPath, `${JSON.stringify(measured, null, 2)}\n`)
 }
 
-const [command, ...rest] = process.argv.slice(2)
-if (command === 'plan') plan(rest)
-if (command === 'run') run(rest)
-if (command === 'report') report(rest)
-if (command === 'summarize') summarize(rest)
-if (command !== 'plan' && command !== 'run' && command !== 'report' && command !== 'summarize') {
-  process.stderr.write('usage: conciv-ci-shards <plan|run|report|summarize> [--task test|e2e]\n')
+const COMMANDS: Record<string, (args: string[]) => void> = {plan, run, report, coverage, summarize}
+
+const [command = '', ...rest] = process.argv.slice(2)
+const chosen = COMMANDS[command]
+if (chosen === undefined) {
+  process.stderr.write(`usage: conciv-ci-shards <${Object.keys(COMMANDS).join('|')}> [--task test|e2e]\n`)
   process.exitCode = 2
-}
+} else chosen(rest)

@@ -56,7 +56,19 @@ import {
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
 import {differenceBy, isNotNil, memoize, pickBy} from 'es-toolkit'
-import {Cause, Config, type ConfigProvider, Effect, Exit, Fiber, FiberMap, Option, Schema, Scope} from 'effect'
+import {
+  Cause,
+  Config,
+  type ConfigProvider,
+  Effect,
+  Exit,
+  Fiber,
+  FiberMap,
+  type Layer,
+  Option,
+  Schema,
+  Scope,
+} from 'effect'
 import {Bus, Permission, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
@@ -89,6 +101,7 @@ import {startObservability, type EngineObservability} from './runtime/observabil
 import type {CoreRuntime, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
+import {carryEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute} from '@conciv/serve/rpc'
 import {logError} from './lib/debug.js'
@@ -219,6 +232,12 @@ export type MakeAppOpts = {
 
   firstChunkTimeoutMs?: number
 
+  firstStartTimeoutMs?: number
+
+  uiCallWaitMs?: number
+
+  uiAnswerWaitMs?: number
+
   eventHeartbeatIntervalMs?: number
 
   stopGraceMs?: number
@@ -233,12 +252,15 @@ export type MakeAppOpts = {
 
   plugins?: readonly Plugin.Plugin[]
 
-  staleness?: () => EngineStaleness
+  staleness?: () => EngineStaleness | undefined
+
+  app?: {version?: () => string | undefined}
 
   home?: string
 
   configProvider?: ConfigProvider.ConfigProvider
 
+  clock?: Layer.Layer<never>
   observability?: EngineObservability
 }
 
@@ -286,7 +308,11 @@ async function recordSessionUsage(db: ConcivDb, sessionId: SessionId, usage: Usa
   await Effect.runPromise(db.update(sessions).set({usage, updatedAt: Date.now()}).where(eq(sessions.id, sessionId)))
 }
 
-function sessionPort(db: ConcivDb, rows: RowScope, hooks: Pick<SessionPort, 'onRunEnd' | 'publish'>): SessionPort {
+function sessionPort(
+  db: ConcivDb,
+  rows: RowScope,
+  hooks: Pick<SessionPort, 'onRunStart' | 'onRunEnd' | 'publish'>,
+): SessionPort {
   return {
     row: async (sessionId) => {
       const row = await currentRow(db, sessionId)
@@ -309,7 +335,7 @@ function sessionPort(db: ConcivDb, rows: RowScope, hooks: Pick<SessionPort, 'onR
       if (usage) await recordSessionUsage(db, sessionId, {...usage, contextTokens})
     },
     recordActivity: (sessionId, title, at) => recordActivity(db, sessionId, title, at),
-    onRunStart: async () => undefined,
+    onRunStart: hooks.onRunStart,
     onRunEnd: hooks.onRunEnd,
     publish: hooks.publish,
   }
@@ -344,6 +370,7 @@ function composeRoutes(
   deps: {
     engineId: string
     staleness: () => EngineStaleness
+    version: (() => string | undefined) | undefined
     onShutdown?: () => void
     trust: ConnectionTrust
     tracer: Tracer | undefined
@@ -361,7 +388,7 @@ function composeRoutes(
       c.set('mcp', vars.mcp)
       await next()
     })
-    .use(corsMiddleware())
+    .use(corsMiddleware(deps.version))
   if (deps.tracer !== undefined) app.use('/api/mcp', mcpSpan(deps.tracer))
   return app
     .get('/health', (c) =>
@@ -425,7 +452,7 @@ export type MadeApp = {
   runtime: CoreRuntime
   pluginHost: PluginHost
   awaitActivation: () => Promise<void>
-}
+} & EngineRouterBrand
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
   const history = harness.history
@@ -445,6 +472,12 @@ function publishCreated(born: SessionRecord) {
   const sessionID = SessionSchema.Id.make(born.id)
   return Bus.Service.use((bus) =>
     bus.publish(SessionEvent.Created, born.title === null ? {sessionID} : {sessionID, title: born.title}),
+  ).pipe(Effect.asVoid)
+}
+
+function publishRunStart(sessionId: SessionId) {
+  return Bus.Service.use((bus) =>
+    bus.publish(SessionEvent.Execution.Started, {sessionID: SessionSchema.Id.make(sessionId)}),
   ).pipe(Effect.asVoid)
 }
 
@@ -494,7 +527,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     engineLife.abort(new Error('conciv: the engine stopped'))
     await Promise.all(listings.map(endListing))
   }
-  const staleness = opts.staleness ?? engineStaleness
+  const staleness = (): EngineStaleness => opts.staleness?.() ?? engineStaleness()
   const engineId = opts.engineId ?? randomUUID()
   const givenObservability = opts.observability
   const observability =
@@ -561,6 +594,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       )
     stream.publish(sessionId, idleFailedEvent.create({runId}))
   }
+  const onRunStart = async (sessionId: SessionId): Promise<void> => {
+    await pluginHost
+      .runPromise(publishRunStart(sessionId))
+      .catch((error: unknown) =>
+        logError(`[core] publishing the start of a run in ${sessionId} failed: ${String(error)}`),
+      )
+  }
   const onRunEnd = async (sessionId: SessionId, run: RunLifecycle): Promise<void> => {
     await pluginHost
       .runPromise(
@@ -587,6 +627,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         await idleFailed(sessionId, run.runId, Cause.squash(idled.cause))
     }
     if (run.phase === 'aborted') {
+      if (engineLife.signal.aborted) return
       await holdForNextReply(pagePlugin.delivery, sessionId).catch((error: unknown) =>
         logError(`[core] the page queue results of ${sessionId} could not wait for the next reply: ${String(error)}`),
       )
@@ -611,6 +652,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       cwd: opts.cwd,
       home: appEnv.home,
       configProvider,
+      clock: opts.clock,
       observability: observability.context,
       engineId,
       config: opts.cfg,
@@ -721,6 +763,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       },
       db,
       sessions: sessionPort(db, rows, {
+        onRunStart,
         onRunEnd,
         publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
       }),
@@ -733,6 +776,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       pluginInstructions: (sessionId, reset, inventory) =>
         pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
       firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
+      firstStartTimeoutMs: opts.firstStartTimeoutMs,
+      uiCallWaitMs: opts.uiCallWaitMs,
+      uiAnswerWaitMs: opts.uiAnswerWaitMs,
       groupExitTimeoutMs: opts.stopGraceMs,
       log: logError,
       driver,
@@ -761,7 +807,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const runtime = makeCoreRuntime({
     primitives,
     plane,
-    db,
     model: sessionModel,
     staleness,
     interruptIdle,
@@ -880,6 +925,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       engineId,
       staleness,
+      version: opts.app?.version,
       onShutdown: opts.onShutdown,
       trust,
       tracer,
@@ -917,6 +963,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     fetch: (request, env) => app.fetch(request, env),
     trusts: trust.trusts,
     allowedOrigins: opts.allowedOrigins ?? [],
+    version: opts.app?.version,
     onTrusted: opts.onTrusted,
   })
 
@@ -929,18 +976,21 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       throw error
     })
 
-  return {
-    app,
-    fetch,
-    agentToken,
-    trustBrowser: browsers.grant,
-    chat: chatDeps,
-    plane,
-    dispose,
-    runtime,
-    pluginHost,
-    awaitActivation: plugins.awaitActivation,
-  }
+  return carryEngineRouter(
+    {
+      app,
+      fetch,
+      agentToken,
+      trustBrowser: browsers.grant,
+      chat: chatDeps,
+      plane,
+      dispose,
+      runtime,
+      pluginHost,
+      awaitActivation: plugins.awaitActivation,
+    },
+    rpc,
+  )
 }
 
 async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig): Promise<void> {

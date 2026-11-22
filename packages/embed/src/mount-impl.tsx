@@ -1,7 +1,8 @@
 import {render} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {installReactBridge} from '@conciv/plugin-page/client'
-import {ConcivApp, type Platform} from '@conciv/app'
+import {createMemoryHistory} from '@tanstack/solid-router'
+import {ConcivApp, WIDGET_LAYER, openBrowserDraftStore, type Platform} from '@conciv/app'
 import type {ConcivSettingsInit, ConcivSurface} from '@conciv/protocol/config-types'
 import type {ConcivInit} from './mount.js'
 
@@ -107,7 +108,7 @@ function placeHost(host: HTMLElement, surface: ConcivSurface): void {
   }
   host.style.position = 'fixed'
   host.style.inset = '0'
-  host.style.zIndex = '2147483000'
+  host.style.zIndex = String(WIDGET_LAYER)
 }
 
 function createShadowRoot(host: HTMLElement, surface: ConcivSurface): {root: ShadowRoot; dispose: () => void} {
@@ -145,13 +146,14 @@ export function mountImpl(
   const interactive = Promise.withResolvers<void>()
   const platform: Platform = {
     engine: () => first,
-    navigation: servers ? {memory: connectPath(settings)} : 'engine',
+    navigation: servers ? {history: createMemoryHistory({initialEntries: [connectPath(settings)]})} : 'tab',
     root: shadow.root,
     settings,
     plugins: init.plugins,
     grabProvider: init.grabProvider,
     onInteractive: interactive.resolve,
     timings: init.timings,
+    draftStore: openBrowserDraftStore,
   }
   const container = document.createElement('div')
   shadow.root.appendChild(container)

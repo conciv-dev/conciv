@@ -13,6 +13,7 @@ import {usePluginManager, useReservedPlugins} from './root'
 const NotFoundSchema = z.object({code: z.literal('notFound')})
 
 const STATUS = 'text-chat-xs text-chat-text-2'
+const NOTE = `m-0 ${STATUS}`
 const FAILURE = 'm-0 font-chat-mono text-chat-xs text-chat-danger whitespace-pre-wrap break-words'
 
 type PluginRows = ReturnType<typeof createPluginRows>
@@ -79,10 +80,10 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
     return undefined
   }
 
-  const status = (id: string, kind: 'builtin' | 'config') => {
+  const status = (id: string, part: 'builtin' | 'config') => {
     const value = host.status(id) ?? 'loading'
 
-    if (value === 'failed' || (value === 'active' && props.rows.itemOf(id, kind)?.error)) return 'Failed'
+    if (value === 'failed' || (value === 'active' && props.rows.itemOf(id, part)?.error)) return 'Failed'
 
     if (value === 'active' || value === 'disabled') return undefined
 
@@ -103,10 +104,25 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
     run(plugins()?.reload(id))
   }
 
-  const row = (input: {id: string | undefined; name: string; builtin?: boolean}) => {
+  const row = (input: {id: string | undefined; name: string; builtin?: boolean; plugin?: PluginInfo}) => {
     const state = () => (input.builtin ? 'loaded' : kind(input.id))
     const part = input.builtin ? 'builtin' : 'config'
     const live = () => (state() === 'loaded' ? input.id : undefined)
+    const failure = () => {
+      const listedState = input.plugin?.state
+      return listedState?.status === 'failed' ? listedState : undefined
+    }
+    const label = () => {
+      const id = live()
+      if (failure()) return 'Failed'
+      return id ? status(id, part) : undefined
+    }
+    const error = () => {
+      const id = input.id
+      if (id && live()) return props.rows.errorOf(id, part) ?? failure()?.error
+      if (id && state() === 'unreadable') return props.rows.itemOf(id, part)?.error ?? failure()?.error
+      return failure()?.error
+    }
 
     return (
       <ActionRow
@@ -125,20 +141,15 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
                   <Show when={props.rows.itemOf(id(), part)?.server}>
                     <Badge>Server</Badge>
                   </Show>
-                  <Show when={status(id(), part)}>{(label) => <span class={STATUS}>{label()}</span>}</Show>
                 </>
               )}
             </Show>
+            <Show when={label()}>{(text) => <span class={STATUS}>{text()}</span>}</Show>
           </>
         }
         hint={
           <>
-            <Show when={live()}>
-              {(id) => <Show when={props.rows.errorOf(id(), part)}>{(error) => <PluginError error={error()} />}</Show>}
-            </Show>
-            <Show when={state() === 'unreadable' && input.id && props.rows.itemOf(input.id, part)?.error}>
-              {(error) => <PluginError error={error()} />}
-            </Show>
+            <Show when={error()}>{(text) => <PluginError error={text()} />}</Show>
             <Show when={state() === 'reserved'}>
               <span class="text-chat-danger">Not loaded. A built-in plugin already uses this ID.</span>
             </Show>
@@ -171,11 +182,19 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
   }
 
   return (
-    <Group>
-      <For each={props.rows.listed()}>{(plugin) => row({id: plugin.id, name: pluginLabel(plugin)})}</For>
-      <For each={props.rows.unnamed()}>{(id) => row({id, name: id})}</For>
-      <For each={props.rows.failedBuiltins()}>{(id) => row({id, name: id, builtin: true})}</For>
-    </Group>
+    <>
+      <Group>
+        <For each={props.rows.listed()}>{(plugin) => row({id: plugin.id, name: pluginLabel(plugin), plugin})}</For>
+        <For each={props.rows.unnamed()}>{(id) => row({id, name: id})}</For>
+        <For each={props.rows.failedBuiltins()}>{(id) => row({id, name: id, builtin: true})}</For>
+      </Group>
+      <Show when={host.installed().some((item) => !item.builtin)}>
+        <p class={NOTE}>
+          Switches turn off only a plugin's page UI. Add "-&lt;id&gt;" to the plugins option of conciv() in your build
+          config to turn off its server part.
+        </p>
+      </Show>
+    </>
   )
 }
 

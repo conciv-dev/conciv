@@ -5,8 +5,9 @@ type CiReporterEntry = 'default' | ['github-actions', {jobSummary: {enabled: boo
 type CiCoverage = {
   enabled: boolean
   provider: 'v8'
-  reporter: ['json-summary']
+  reporter: ['json-summary', 'lcovonly']
   reportsDirectory: string
+  reportOnFailure: boolean
 }
 
 export function ciReporters(): CiReporterEntry[] {
@@ -14,12 +15,24 @@ export function ciReporters(): CiReporterEntry[] {
   return ['default', ['github-actions', {jobSummary: {enabled: false}}], ['json', {outputFile: 'test-results.json'}]]
 }
 
-export const TEST_TIMEOUT_MS = 30_000
-export const HOOK_TIMEOUT_MS = 30_000
+export function ciReporting(): {reporters: CiReporterEntry[]; coverage: CiCoverage} {
+  return {
+    reporters: ciReporters(),
+    coverage: {
+      enabled: Boolean(process.env.GITHUB_ACTIONS),
+      provider: 'v8',
+      reporter: ['json-summary', 'lcovonly'],
+      reportsDirectory: 'coverage',
+      reportOnFailure: true,
+    },
+  }
+}
+
+const TEST_TIMEOUT_MS = 30_000
+const HOOK_TIMEOUT_MS = 30_000
 export const POLL_TIMEOUT_MS = 5_000
 const POLL_INTERVAL_MS = 50
 const CONCIV_HOME_SETUP = join(import.meta.dirname, 'setup/conciv-home-setup.ts')
-const NOTHING_LOGGED_SETUP = join(import.meta.dirname, 'setup/nothing-logged-setup.ts')
 
 function forkCap(): number | undefined {
   const cap = Number(process.env.VITEST_MAX_FORKS)
@@ -40,19 +53,13 @@ export function ciTest(): {
 } {
   const maxWorkers = forkCap()
   return {
-    reporters: ciReporters(),
+    ...ciReporting(),
     testTimeout: TEST_TIMEOUT_MS,
     hookTimeout: HOOK_TIMEOUT_MS,
     teardownTimeout: 30_000,
     expect: {poll: {timeout: POLL_TIMEOUT_MS, interval: POLL_INTERVAL_MS}},
-    coverage: {
-      enabled: Boolean(process.env.GITHUB_ACTIONS),
-      provider: 'v8',
-      reporter: ['json-summary'],
-      reportsDirectory: 'coverage',
-    },
     globalSetup: [CONCIV_HOME_SETUP],
-    setupFiles: [NOTHING_LOGGED_SETUP],
+    setupFiles: [],
     ...(maxWorkers === undefined ? {} : {maxWorkers}),
   }
 }

@@ -64,8 +64,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only",
-    "test": "vitest run"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@conciv/embed": "workspace:^",
@@ -73,13 +72,10 @@
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:",
-    "vitest": "catalog:"
+    "vite": "catalog:"
   },
   "peerDependencies": {
     "next": "^15.3.0 || ^16.0.0",

@@ -5,6 +5,7 @@ import {defineConfig, type Plugin} from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import mdx from 'fumadocs-mdx/vite'
 import conciv from '@conciv/it/plugin/vite'
+import {concivTest} from '@conciv/plugin-testkit/vitest'
 import {sourceAnnotations} from './src/lib/source-annotations'
 import {brandAssetsAlias} from './brand-assets-alias'
 
@@ -43,6 +44,7 @@ export default defineConfig({
     }),
     react(),
     conciv({widget: {quickTerminal: {hotkey: ['Alt+k']}}}),
+    concivTest(),
   ],
   ssr: {
     noExternal: ['gsap', '@gsap/react'],

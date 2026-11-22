@@ -3,6 +3,7 @@ import {
   ErrorBoundary,
   For,
   getOwner,
+  onCleanup,
   onMount,
   runWithOwner,
   Show,
@@ -12,6 +13,7 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {render} from 'solid-js/web'
+import {isShadowRoot} from '@conciv/ui-kit-system'
 import {
   MarkdownProvider,
   type MarkdownCodeAction,
@@ -23,6 +25,7 @@ import {
   CodeBlockAction,
   LinkHandler,
   Slot,
+  Style,
   type CodeBlockProps,
   type MountedSession,
   type SlotMap,
@@ -30,6 +33,7 @@ import {
 import {PluginContext} from '@conciv/plugin/experimental/host'
 import {usePluginHost, type Item} from './host'
 import {createLinkCheck} from './link-check'
+import {createStyleSheet} from '../../lib/widget-styles'
 
 export function Contribution(props: {
   plugin: string
@@ -79,6 +83,27 @@ export function PluginSlot<At extends keyof SlotMap>(props: {at: At; input: Slot
       )}
     </For>
   )
+}
+
+export function AdoptedStyle(props: {root: ShadowRoot | Document; css: string}) {
+  const root = untrack(() => props.root)
+  const sheet = createStyleSheet(
+    untrack(() => props.css),
+    isShadowRoot(root) ? root.ownerDocument : root,
+  )
+
+  root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet]
+  onCleanup(() => {
+    root.adoptedStyleSheets = root.adoptedStyleSheets.filter((adopted) => adopted !== sheet)
+  })
+
+  return null
+}
+
+export function PluginStyles(props: {root: ShadowRoot | Document}) {
+  const host = usePluginHost()
+
+  return <For each={host.items(Style)}>{(item) => <AdoptedStyle root={props.root} css={item.value} />}</For>
 }
 
 export function PluginLinks(props: ParentProps<{session: MountedSession | undefined; active?: boolean}>) {

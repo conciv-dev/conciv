@@ -1,4 +1,4 @@
-import {CHAT_SYSTEM_PROMPT} from '@conciv/harness/claude'
+import {CHAT_SYSTEM_PROMPT} from './lib/chat-system-prompt.js'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {
   isHarnessSessionId,

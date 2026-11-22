@@ -16,7 +16,7 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint src test/*.ts",
+    "lint": "oxlint",
     "test": "vitest run"
   },
   "devDependencies": {

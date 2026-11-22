@@ -5,6 +5,7 @@ build/
 .tsbuildinfo.*
 .turbo/
 coverage/
+untested-sources/
 .DS_Store
 *.log
 .idea/

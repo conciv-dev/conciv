@@ -2,12 +2,14 @@ import {fileURLToPath} from 'node:url'
 import {defineConfig, type Plugin} from 'vite'
 import solid from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
+import {concivTest} from '@conciv/plugin-testkit/vitest'
 
 const sourceDir = fileURLToPath(new URL('src/', import.meta.url))
 
 const rpcFromPackage: Plugin = {
   name: 'page-rpc-from-package',
   enforce: 'pre',
+  apply: 'build',
   resolveId(source, importer) {
     if (source === './rpc.js' && importer?.startsWith(sourceDir)) return {id: '@conciv/plugin-page/rpc', external: true}
     return null
@@ -15,7 +17,7 @@ const rpcFromPackage: Plugin = {
 }
 
 export default defineConfig({
-  plugins: [rpcFromPackage, UnoCSS(), solid()],
+  plugins: [rpcFromPackage, UnoCSS(), solid(), concivTest()],
   build: {
     lib: {
       entry: {

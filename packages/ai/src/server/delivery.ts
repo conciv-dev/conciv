@@ -4,6 +4,7 @@ import {
   memoryStream,
   toServerSentEventsResponse,
   type DebugConfig,
+  type RunFinishedEvent,
 } from '@tanstack/ai'
 import {InMemoryLockStore} from '@tanstack/ai/locks'
 import {withEventMeta} from '@orpc/server'
@@ -42,10 +43,14 @@ const FROM_START = '-1'
 
 const IdentifiedMessagesSchema = z.array(z.looseObject({id: z.string().min(1)}))
 
+export function readFinishReason(event: RunFinishedEvent): RunFinishedEvent['finishReason'] {
+  return event.finishReason ?? event.metadata?.tanstack?.finishReason
+}
+
 export function readTerminalPhase(chunk: ChatEvent): RunPhase | null {
   if (chunk.type === EventType.RUN_ERROR) return 'failed'
-  if (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') return 'completed'
-  return null
+  if (chunk.type !== EventType.RUN_FINISHED) return null
+  return readFinishReason(chunk) === 'tool_calls' ? null : 'completed'
 }
 
 export function endsTheRun(chunk: ChatEvent): boolean {
