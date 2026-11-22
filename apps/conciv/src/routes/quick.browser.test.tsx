@@ -193,7 +193,7 @@ describe('quick pane context usage', () => {
 
     const usage = await within(terminal).findByRole('button', {name: 'Model context usage'})
     await user.hover(usage)
-    const card = await within(terminal).findByRole('dialog', {name: 'Model context usage'})
+    const card = await within(terminal).findByRole('group', {name: 'Model context usage'})
     expect(within(card).getByText('Input')).toBeVisible()
     expect(within(card).getByText('Output')).toBeVisible()
     expect(within(usage).getByText(/^\d+(\.\d)?K$/)).toBeVisible()

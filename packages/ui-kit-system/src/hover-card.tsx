@@ -28,7 +28,7 @@ export function HoverCard(props: {
       </Trigger>
       <Ark.Positioner>
         <Ark.Content
-          role={props.label === undefined ? undefined : 'dialog'}
+          role={props.label === undefined ? undefined : 'group'}
           aria-label={props.label}
           class={`${CONTENT}  ${props.class ?? ''}`}
         >
