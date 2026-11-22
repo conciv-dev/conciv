@@ -14,8 +14,8 @@ describe('the composer menus', () => {
 
     await user.type(input, '/dep')
     await user.click(await screen.findByRole('option', {name: '/deploy'}))
-    expect(input).toHaveTextContent('/deploy')
     expect(input).toHaveFocus()
+    await expect.element(input).toHaveTextContent('/deploy')
 
     await user.click(await screen.findByRole('button', {name: 'Model: Opus 5.5'}))
     await user.click(
@@ -111,7 +111,7 @@ describe('queueing while the agent works', () => {
     expect(screen.getByText('Second task')).toBeVisible()
     expect(screen.getByText('Queue another instruction…')).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Remove from queue'}))
-    expect(screen.queryByText('Second task')).not.toBeInTheDocument()
+    await expect.element(page.getByText('Second task', {exact: true})).not.toBeInTheDocument()
     await user.type(input, 'Third task')
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
@@ -199,7 +199,7 @@ describe('stopping with a queue', () => {
 
     expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
     expect(screen.queryByText('4 waiting · runs in order')).not.toBeInTheDocument()
-    expect(input).toHaveTextContent('Second taskThird taskFourth taskFifth task')
+    await expect.element(input).toHaveTextContent('Second taskThird taskFourth taskFifth task')
   })
 })
 
@@ -221,7 +221,7 @@ describe('the slash list', () => {
     expect(within(commands).queryByRole('option', {name: '/deploy'})).not.toBeInTheDocument()
     await user.type(input, 'rev')
     await user.click(await within(commands).findByRole('option', {name: '/review-pr'}))
-    expect(input).toHaveTextContent('/review-pr')
+    await expect.element(input).toHaveTextContent('/review-pr')
     await user.type(input, '{Enter}')
 
     const reply = await screen.findByRole('article', {name: 'Reply to: /review-pr'})
@@ -294,8 +294,8 @@ describe('the mention list', () => {
     expect(within(context).queryByRole('option', {name: 'Deploy the docs'})).not.toBeInTheDocument()
     await user.click(within(context).getByRole('option', {name: 'Fix login bug'}))
 
-    expect(input).toHaveTextContent('@Fix login bug')
-    expect(screen.queryByRole('listbox', {name: 'Context'})).not.toBeInTheDocument()
+    await expect.element(input).toHaveTextContent('@Fix login bug')
+    await expect.element(page.getByRole('listbox', {name: 'Context', exact: true})).not.toBeInTheDocument()
   })
 
   test('with no term, @ ranks a session open in another quick pane above a newer one that is not open', async () => {
@@ -370,7 +370,7 @@ describe('picking a model and an effort', () => {
     await user.click(await screen.findByRole('radio', {name: 'High'}))
     expect(await screen.findByRole('button', {name: 'Model: Sonnet 5.5, effort High'})).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Model: Sonnet 5.5, effort High'}))
-    expect(screen.queryByRole('dialog', {name: 'Model'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('dialog', {name: 'Model', exact: true})).not.toBeInTheDocument()
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'Which model?')
@@ -565,10 +565,10 @@ describe('attaching text files', () => {
 
     expect(input).toHaveFocus()
     await user.keyboard('{Backspace}')
-    expect(screen.queryByRole('button', {name: 'extra.log'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'extra.log', exact: true})).not.toBeInTheDocument()
     expect(screen.getByRole('button', {name: 'plan.md'})).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Remove plan.md'}))
-    expect(screen.queryByRole('button', {name: 'plan.md'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'plan.md', exact: true})).not.toBeInTheDocument()
 
     await user.type(input, 'Read my notes')
     expect(input).toHaveFocus()
@@ -642,6 +642,9 @@ describe('an attachment that cannot be sent', () => {
     expect(screen.getByRole('button', {name: 'big.log exceeds the 1MB text limit'})).toBeVisible()
 
     await user.click(screen.getByRole('button', {name: 'Remove big.log'}))
+    await expect
+      .element(page.getByRole('button', {name: 'big.log exceeds the 1MB text limit', exact: true}))
+      .not.toBeInTheDocument()
     await user.click(input)
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
@@ -663,12 +666,12 @@ describe('notes from a plugin', () => {
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.click(await screen.findByRole('button', {name: 'Review'}))
-    expect(input).toHaveFocus()
+    await expect.element(input).toHaveFocus()
     const notes = await screen.findByRole('list', {name: 'Notes'})
     expect(within(notes).getByText('Review card')).toBeVisible()
     await user.click(within(notes).getByRole('button', {name: 'Remove Make the header sticky'}))
-    expect(screen.queryByRole('list', {name: 'Notes'})).not.toBeInTheDocument()
-    expect(input).toHaveFocus()
+    await expect.element(page.getByRole('list', {name: 'Notes', exact: true})).not.toBeInTheDocument()
+    await expect.element(input).toHaveFocus()
 
     await user.click(screen.getByRole('button', {name: 'Review'}))
     expect(within(await screen.findByRole('list', {name: 'Notes'})).getByText('Review card')).toBeVisible()
@@ -710,7 +713,7 @@ describe('a composer note from a page comment', () => {
     const notes = await screen.findByRole('list', {name: 'Notes'})
     expect(within(notes).getByText('Make this button green')).toBeVisible()
     expect(within(notes).getByText('Page comment')).toBeVisible()
-    expect(input).toHaveFocus()
+    await expect.element(input).toHaveFocus()
 
     await user.keyboard('Do it')
     await user.keyboard('{Enter}')
@@ -748,8 +751,8 @@ describe('plugin pills', () => {
 
     await user.click(screen.getByRole('button', {name: 'Checks'}))
     await user.click(await screen.findByRole('menuitem', {name: 'Lint failed'}))
-    expect(input).toHaveTextContent('Fix lint')
-    expect(screen.queryByRole('button', {name: 'Checks'})).not.toBeInTheDocument()
+    await expect.element(input).toHaveTextContent('Fix lint')
+    await expect.element(page.getByRole('button', {name: 'Checks', exact: true})).not.toBeInTheDocument()
   })
 })
 
