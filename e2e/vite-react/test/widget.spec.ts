@@ -115,3 +115,39 @@ test.describe('attaching files with the Add attachment button', () => {
     await expect(composer).toHaveText('')
   })
 })
+
+test.describe('the harnesses the widget offers on a vite react page', () => {
+  test('the model menu offers a harness for each agent CLI on the PATH and none for a CLI that is missing', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    await page.getByRole('button', {name: /^Model: /}).click()
+
+    const menu = page.getByRole('dialog', {name: 'Model'})
+    await expect(menu.getByRole('group', {name: 'Codex'})).toBeVisible()
+    await expect(menu.getByRole('group', {name: 'Gemini CLI'})).toBeVisible()
+    await expect(menu.getByRole('group', {name: 'OpenCode'})).toHaveCount(0)
+    await expect(menu.getByRole('group', {name: 'Pi'})).toHaveCount(0)
+  })
+})
+
+test.describe('the standalone conciv page on the vite react engine', () => {
+  test('the standalone page takes its engine address from ?core= and opens the panel because ?settings= says so', async ({
+    page,
+  }) => {
+    const hostSocket = page.waitForEvent('websocket', (socket) => new URL(socket.url()).pathname === '/rpc-ws')
+    await page.goto('/', {waitUntil: 'domcontentloaded'})
+    const engine = new URL((await hostSocket).url())
+    engine.protocol = engine.protocol === 'wss:' ? 'https:' : 'http:'
+    const standalone = new URL('http://localhost:4330/')
+    standalone.searchParams.set('core', engine.origin)
+    standalone.searchParams.set('settings', JSON.stringify({defaultOpen: true}))
+
+    await loginWidget(page, standalone.href)
+
+    await expect(page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible()
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+  })
+})
