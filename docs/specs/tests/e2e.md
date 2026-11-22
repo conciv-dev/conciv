@@ -154,15 +154,15 @@ CI has no signed-in CLI, and by the maintainer's ruling (as opencode) no CI test
 
 ## `conciv init` (init app, vitest)
 
-The maintainer moved building these helpers to a follow-up, so the init app has no test yet. Its `test:e2e` script (`vitest run`) is removed so the CI shard planner skips the app; the script comes back with the first test.
+The init app's tests spawn its own `@conciv/cli` bin with node's child_process on a git project each test makes; its `test:e2e` script (`vitest run`) is back with the first test.
 
-| feature                                                                           | journey | status                                                                                                |
-| --------------------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
-| engine:416 `init --dry-run` / `--json` prints the plan, writes nothing            |         | blocked: e2e groundwork: a CLI runner in e2e-utils, and a git project                                 |
-| engine:417 `init --yes` installs and wires the project                            |         | blocked: e2e groundwork: a CLI runner in e2e-utils, and a git project                                 |
-| engine:418 init refuses a dirty tree, a non-interactive terminal, no package.json |         | blocked: e2e groundwork: a CLI runner in e2e-utils, and a git project                                 |
-| engine:419 Ctrl-C puts every file back                                            |         | blocked: e2e groundwork: a CLI runner in e2e-utils that sends a signal                                |
-| engine:420 interactive init                                                       |         | blocked: e2e groundwork: a CLI runner in e2e-utils that answers prompts and reads the terminal's text |
+| feature                                                                           | journey | status                                                                                                                                                                               |
+| --------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| engine:416 `init --dry-run` / `--json` prints the plan, writes nothing            |         | blocked: e2e groundwork: a CLI runner in e2e-utils, and a git project                                                                                                                |
+| engine:417 `init --yes` installs and wires the project                            |         | written: `e2e/init/test/init.e2e.spec.ts` › conciv init on a real project › init --yes installs @conciv/it with npm, wires the vite config and teaches agents the CLI (engine.md C4) |
+| engine:418 init refuses a dirty tree, a non-interactive terminal, no package.json |         | blocked: e2e groundwork: a CLI runner in e2e-utils, and a git project                                                                                                                |
+| engine:419 Ctrl-C puts every file back                                            |         | written: `e2e/init/test/init.e2e.spec.ts` › conciv init on a real project › Ctrl-C while @conciv/it installs puts package.json back and says the config was restored (engine.md C6)  |
+| engine:420 interactive init                                                       |         | blocked: e2e groundwork: a CLI runner in e2e-utils that answers prompts and reads the terminal's text                                                                                |
 
 ## Hosts no e2e app has
 
