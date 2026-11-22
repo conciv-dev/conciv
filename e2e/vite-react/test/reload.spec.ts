@@ -5,8 +5,6 @@ test('after one reload the panel reopens on the settings section the user left, 
   page,
 }) => {
   const failures = collectFailures(page)
-  await loginWidget(page)
-  await expectWidgetBoots(page, failures)
   const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
   await composer.click()
   await expect(composer).toBeFocused()
@@ -41,6 +39,8 @@ test('after one reload the panel reopens on the settings section the user left, 
 })
 
 test.describe('a draft typed in another browser', () => {
+  test.use({signedIn: false})
+
   test('the draft the engine saved from another browser replaces the copy this browser kept, after a reload', async ({
     page,
     secondPage,

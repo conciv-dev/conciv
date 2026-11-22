@@ -1,15 +1,10 @@
 import {stat} from 'node:fs/promises'
-import {expect, test} from '@playwright/test'
-import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
+import {expect, test} from '@conciv/e2e-utils/fixtures'
 
 test.describe('the user types in the page while the Recorder tab replays live', () => {
   test('a click on a page field takes focus out of the panel, and the live replay leaves it there while the user types', async ({
     page,
   }) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
-
     await page.getByRole('tab', {name: 'Recorder'}).click()
     await expect(page.getByText('LIVE')).toBeVisible()
     const search = page.getByRole('textbox', {name: 'Search plants'})
@@ -33,9 +28,6 @@ test.describe('exporting a screen recording of the vite vanilla page', () => {
   test('the user exports the live recording as a video, sends it to the composer, plays it and exports the same video from the replay', async ({
     page,
   }) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
     await page.getByRole('tab', {name: 'Recorder'}).click()
     await expect(page.getByText('LIVE')).toBeVisible()
     const search = page.getByRole('textbox', {name: 'Search plants'})

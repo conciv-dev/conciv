@@ -2,6 +2,8 @@ import {expect, test} from '@conciv/e2e-utils/fixtures'
 import {loginWidget} from '@conciv/e2e-utils/widget'
 
 test.describe('the widget in a browser that refuses site storage', () => {
+  test.use({signedIn: false})
+
   test('the user types a draft that another browser then shows from the engine, adds to it and closes the panel, and after a reload signs in again and gets the longer draft back from the engine', async ({
     page,
     secondPage,

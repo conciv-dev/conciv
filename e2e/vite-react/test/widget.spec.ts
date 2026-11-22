@@ -1,10 +1,12 @@
 import {spawn} from 'node:child_process'
 import {join} from 'node:path'
 import {text} from 'node:stream/consumers'
-import {expect, test} from '@playwright/test'
+import {expect, test} from '@conciv/e2e-utils/fixtures'
 import {collectFailures, expectWidgetBoots, loginWidget, openLoginFromLockedLauncher} from '@conciv/e2e-utils/widget'
 
 test.describe('signing in to the widget on a vite react page', () => {
+  test.use({signedIn: false})
+
   test('the user opens a magic link and the widget opens with no error', async ({page}) => {
     const failures = collectFailures(page)
 
@@ -27,11 +29,8 @@ test.describe('the conciv CLI against the vite react dev server', () => {
   test('the user lists the open tabs with conciv tools tabs, allows the terminal always on the first page read with --tab, reads the page and its react components, and calls the page plugin with conciv plugin call', async ({
     page,
   }) => {
-    const failures = collectFailures(page)
     const project = join(import.meta.dirname, '..')
     const conciv = join(project, '.conciv', 'bin', 'conciv')
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
 
     const listed = await text(
       spawn(process.execPath, [conciv, 'tools', 'tabs'], {
@@ -86,10 +85,6 @@ test.describe('attaching files with the Add attachment button', () => {
   test('the user picks two files in the file chooser, they show as chips, and the sent message in the thread carries both', async ({
     page,
   }) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
-
     const chooser = page.waitForEvent('filechooser')
     await page.getByRole('button', {name: 'Add attachment'}).click()
     await (
@@ -120,9 +115,6 @@ test.describe('the harnesses the widget offers on a vite react page', () => {
   test('the model menu offers a harness for each agent CLI on the PATH and none for a CLI that is missing', async ({
     page,
   }) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
     await page.getByRole('button', {name: /^Model: /}).click()
 
     const menu = page.getByRole('dialog', {name: 'Model'})
@@ -134,6 +126,8 @@ test.describe('the harnesses the widget offers on a vite react page', () => {
 })
 
 test.describe('the standalone conciv page on the vite react engine', () => {
+  test.use({signedIn: false})
+
   test('the standalone page takes its engine address from ?core= and opens the panel because ?settings= says so', async ({
     page,
   }) => {

@@ -1,14 +1,9 @@
-import {expect, test} from '@playwright/test'
-import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
+import {expect, test} from '@conciv/e2e-utils/fixtures'
 
 test.describe('popping the chat out in a browser that refuses new windows', () => {
   test('the user pops the chat out, the browser refuses the window, and the chat stays inline with a notice that offers to pop out again', async ({
     page,
   }) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
-
     await page.getByRole('button', {name: /, session options$/}).click()
     await page.getByRole('button', {name: 'Pop out to a window'}).click()
 

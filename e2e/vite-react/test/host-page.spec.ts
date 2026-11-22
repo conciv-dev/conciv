@@ -1,14 +1,10 @@
-import {expect, test} from '@playwright/test'
+import {expect, test} from '@conciv/e2e-utils/fixtures'
 import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
 
 test.describe('grabbing an element of the vite react host page', () => {
   test('the user picks a heading of the host page, the composer stages it with its source file and line, and the user removes it', async ({
     page,
   }) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
-
     await page.getByRole('button', {name: 'More composer actions'}).click()
     await page.getByRole('menuitem', {name: 'Select an element from the page'}).click()
     // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
@@ -26,9 +22,6 @@ test.describe('the user types into the host page with the panel open', () => {
   test('a click on a host field moves focus out of the terminal and the keys go to the host field, and keys typed in the composer never reach the host page key handler', async ({
     page,
   }) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
     await expect(page.getByText('Keys the page received: 0')).toBeVisible()
 
     await page.getByRole('tab', {name: 'Terminal'}).click()
@@ -56,6 +49,8 @@ test.describe('the user types into the host page with the panel open', () => {
 })
 
 test.describe('the engine address a vite react page gives the widget', () => {
+  test.use({signedIn: false})
+
   test('an address the page sets as a global wins over the meta tag, and the meta tag wins over ?core=', async ({
     page,
   }) => {

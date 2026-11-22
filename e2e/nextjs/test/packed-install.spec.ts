@@ -2,11 +2,13 @@ import {execFile, execFileSync} from 'node:child_process'
 import {mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {promisify} from 'node:util'
-import {expect, test} from '@playwright/test'
+import {expect, test} from '@conciv/e2e-utils/fixtures'
 import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
 import {PACKED_ROOT} from '../packed/packed-app-dir.ts'
 
 test.describe('installing conciv in a next app from its packed tarballs', () => {
+  test.use({signedIn: false})
+
   test('the user signs in and the widget from instrumentation-client opens on the engine register() booted', async ({
     page,
   }) => {

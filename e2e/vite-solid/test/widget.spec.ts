@@ -1,15 +1,11 @@
 import {readFile} from 'node:fs/promises'
 import {expect, test} from '@conciv/e2e-utils/fixtures'
-import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
 
 test.describe('the widget on a vite solid page', () => {
   test('the user types a draft, the project plugin is rebuilt, and the widget shows the new line in place with the draft and focus kept', async ({
     page,
     rebuildPlugin,
   }) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
     await expect(page.getByText('live line first')).toBeVisible()
     const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await composer.click()
@@ -30,10 +26,6 @@ test.describe('a project plugin that saves a file and opens a link on a vite sol
     page,
     context,
   }) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
-
     const download = page.waitForEvent('download')
     await page.getByRole('button', {name: 'Save notes'}).click()
     const notes = await download
