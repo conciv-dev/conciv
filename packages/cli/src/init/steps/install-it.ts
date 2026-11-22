@@ -19,12 +19,27 @@ async function installCard(cwd: string): Promise<ManualCard> {
   return {title: `Install ${itName}`, body: 'The automatic install failed. Run this in your project:', snippet: command}
 }
 
+async function corepackAnswers(spawn: SpawnBin, cwd: string): Promise<boolean> {
+  const outcome = await spawn('corepack', ['--version'], cwd, () => {}).catch(() => ({code: 1, output: ''}))
+  return outcome.code === 0
+}
+
+async function resolveInstallCommand(
+  spawn: SpawnBin,
+  cwd: string,
+  planned: {command: string; args: string[]},
+): Promise<[string, string[]]> {
+  if (planned.command !== 'pnpm' && planned.command !== 'yarn') return [planned.command, planned.args]
+  if (!(await corepackAnswers(spawn, cwd))) return [planned.command, planned.args]
+  return ['corepack', [planned.command, ...planned.args]]
+}
+
 export function addWithNypm(spawn: SpawnBin): AddDep {
   return async (name, opts) => {
     const packageManager = await detectPackageManagerName(opts.cwd)
     const planned = await addDevDependency(name, {cwd: opts.cwd, packageManager, dry: true})
     if (planned.exec === undefined) throw new Error(`nypm planned no command to add ${name}`)
-    const {command, args} = planned.exec
+    const [command, args] = await resolveInstallCommand(spawn, opts.cwd, planned.exec)
     const outcome = await spawn(command, args, opts.cwd, () => {}, {signal: opts.signal})
     if (outcome.code !== 0) throw new Error(`\`${[command, ...args].join(' ')}\` failed.\n${outcome.output}`)
   }

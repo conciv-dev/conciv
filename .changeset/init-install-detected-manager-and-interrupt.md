@@ -2,4 +2,4 @@
 '@conciv/cli': patch
 ---
 
-`conciv init` installs with the detected package manager, falling back to npm in a project with no lockfile instead of failing. Ctrl-C at any point of the run ends the install child's process group before the config is restored, and exits with code 130.
+`conciv init` installs with the detected package manager, falling back to npm in a project with no lockfile instead of failing, and runs pnpm and yarn through corepack when corepack is available, as before. Ctrl-C between steps now restores the config and exits with code 130; before, it ended the process without restoring the config. A SIGINT sent to the `conciv init` process alone during the install now also ends the install's process group before the config is restored; before, the install kept running after the restore.
