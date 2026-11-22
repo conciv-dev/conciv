@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'vitest'
-import {screen, waitFor, within} from '@solidjs/testing-library'
+import {page} from 'vitest/browser'
+import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
@@ -39,9 +40,9 @@ describe('a markdown reply', () => {
     const list = within(reply).getByRole('list')
     const items = within(list).getAllByRole('listitem')
     expect(items).toHaveLength(2)
-    expect(items[0]).toHaveTextContent('Read the page')
-    expect(items[1]).toHaveTextContent('Change the color')
-    expect(within(reply).getByRole('code')).toHaveTextContent('pnpm test')
+    expect(items[0]).toMatchTextContent('Read the page')
+    expect(items[1]).toMatchTextContent('Change the color')
+    expect(within(reply).getByRole('code')).toMatchTextContent('pnpm test')
   })
 })
 
@@ -68,8 +69,8 @@ describe('stopping and sending again', () => {
 
     expect(await screen.findByRole('separator', {name: 'Stopped'})).toBeVisible()
     const kept = screen.getByRole('article', {name: 'Reply to: Take your time'})
-    expect(kept).toHaveTextContent('Halfway there.')
-    expect(kept).not.toHaveTextContent('The very last words')
+    expect(kept).toMatchTextContent('Halfway there.')
+    expect(kept).not.toMatchTextContent('The very last words')
     expect(screen.getByRole('button', {name: 'Send message'})).toBeVisible()
 
     await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Be quick')
@@ -78,7 +79,7 @@ describe('stopping and sending again', () => {
     const reply = await screen.findByRole('article', {name: 'Reply to: Be quick'})
     expect(await within(reply).findByText('Short answer')).toBeVisible()
     expect(screen.getByRole('separator', {name: 'Stopped'})).toBeVisible()
-    expect(screen.getByRole('article', {name: 'Reply to: Take your time'})).toHaveTextContent('Halfway there.')
+    expect(screen.getByRole('article', {name: 'Reply to: Take your time'})).toMatchTextContent('Halfway there.')
   })
 
   test('a reply stopped before its first word leaves no reply in the thread after the next turn', async () => {
@@ -256,7 +257,7 @@ describe('the agent asks for permission', () => {
 
     const list = await screen.findByRole('list', {name: 'Permission requests'})
     const ask = within(list).getByRole('group', {name: 'Permission request'})
-    expect(ask).toHaveTextContent('release_ship main')
+    expect(ask).toMatchTextContent('release_ship main')
     expect(within(ask).getByRole('button', {name: 'Allow always'})).toBeVisible()
     expect(within(ask).getByRole('button', {name: 'Deny'})).toBeVisible()
     expect(await screen.findByText('conciv is asking for permission.')).toBeVisible()
@@ -333,9 +334,7 @@ describe('the agent asks for permission', () => {
     expect(first).toHaveFocus()
     await user.keyboard('{Escape}')
 
-    await waitFor(() =>
-      expect(screen.getByRole('group', {name: 'Permission request'})).toHaveTextContent('release_ship next'),
-    )
+    await expect.element(page.getByRole('group', {name: 'Permission request'})).toMatchTextContent('release_ship next')
     const second = screen.getByRole('group', {name: 'Permission request'})
     await user.click(second)
     expect(second).toHaveFocus()
