@@ -58,6 +58,7 @@ export type ConcivTimings = {
   chatRunReconnect?: ChatConnectionOptions['runReconnect']
   queryRetryDelayMs?: number
   page?: {taskTimeoutMs?: number}
+  picker?: {searchWaitMs?: number; previewWaitMs?: number}
 }
 
 export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}

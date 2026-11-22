@@ -27,6 +27,7 @@ const TIMINGS: NonNullable<Platform['timings']> = {
   engine: {reconnectMinDelayMs: 10, reconnectMaxDelayMs: 50, connectionLossRetryDelayMs: 10, offlineGraceMs: 10},
   chatRunReconnect: {firstDelayMs: 10, maxDelayMs: 50},
   queryRetryDelayMs: 10,
+  picker: {searchWaitMs: 0, previewWaitMs: 0},
 }
 
 function memoryDraftStore(): DraftStore {

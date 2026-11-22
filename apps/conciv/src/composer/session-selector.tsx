@@ -17,9 +17,10 @@ import {
   VirtualList,
 } from '@conciv/ui-kit-system'
 import {Markdown} from '@conciv/ui-kit-chat'
+import type {ConcivTimings} from '../router.js'
 import {createDateNow} from '@solid-primitives/date'
 import {createDebouncer} from '@tanstack/solid-pacer'
-import {useNavigate, useSearch} from '@tanstack/solid-router'
+import {useNavigate, useRouteContext, useSearch} from '@tanstack/solid-router'
 import {keepPreviousData, useInfiniteQuery, useQuery} from '@conciv/client'
 import {groupBy, isEqual, uniqBy} from 'es-toolkit'
 import Check from 'lucide-solid/icons/check'
@@ -121,6 +122,13 @@ function readElsewhere(session: PickerSession | undefined): Elsewhere | null {
   return {cwd: session.cwd, project: formatProject(session.cwd), resume: session.resume}
 }
 
+function readPickerWaits(timings: ConcivTimings | undefined): {searchWaitMs: number; previewWaitMs: number} {
+  return {
+    searchWaitMs: timings?.picker?.searchWaitMs ?? SEARCH_WAIT_MS,
+    previewWaitMs: timings?.picker?.previewWaitMs ?? PREVIEW_WAIT_MS,
+  }
+}
+
 export function SessionSelector(props: {
   activeId: () => string | null
   onActivate: (id: string) => void
@@ -128,6 +136,7 @@ export function SessionSelector(props: {
   triggerId?: string
 }): JSX.Element {
   const appData = useAppData()
+  const waits = useRouteContext({strict: false, select: (context) => readPickerWaits(context.timings)})
   const announce = useAnnounce()
   const routeSearch = useSearch({strict: false})
   const navigate = useNavigate()
@@ -136,7 +145,7 @@ export function SessionSelector(props: {
   const writeSearch = (patch: {sessionSearch?: string; allProjects?: boolean}) =>
     void navigate({to: '.', search: (previous) => ({...previous, ...patch}), replace: true})
   const searchWriter = createDebouncer((sessionSearch: string) => writeSearch({sessionSearch}), {
-    wait: SEARCH_WAIT_MS,
+    wait: waits().searchWaitMs,
   })
   const typed = (details: {inputValue: string; reason?: string}) => {
     if (details.reason !== 'input-change' && details.reason !== 'clear-trigger') return
@@ -262,7 +271,9 @@ export function SessionSelector(props: {
     },
     {term: search(), text: search()},
   )
-  const settle = createDebouncer((value: string) => setPicker({previewed: value, open: true}), {wait: PREVIEW_WAIT_MS})
+  const settle = createDebouncer((value: string) => setPicker({previewed: value, open: true}), {
+    wait: waits().previewWaitMs,
+  })
   const dismissPreview = () => {
     settle.cancel()
     setPicker('open', false)
