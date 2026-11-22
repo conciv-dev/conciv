@@ -46,18 +46,18 @@ export async function runLink(options: LinkOptions): Promise<CliOutcome> {
   return {report: 'json', data: {link: link.href, expiresAt: issued.expiresAt}}
 }
 
-export function runRevoke(options: RevokeOptions): CliOutcome {
+export async function runRevoke(options: RevokeOptions): Promise<CliOutcome> {
   const engine = localEngine(options.cwd)
-  if (options.all) return {report: 'json', data: {revoked: revokeBrowsers(engine.stateDir, 'all'), trusted: []}}
+  if (options.all) return {report: 'json', data: {revoked: await revokeBrowsers(engine.stateDir, 'all'), trusted: []}}
   if (options.id === undefined)
-    return {report: 'json', data: {revoked: [], trusted: readTrustedBrowsers(engine.stateDir)}}
-  const revoked = revokeBrowsers(engine.stateDir, {id: options.id})
+    return {report: 'json', data: {revoked: [], trusted: await readTrustedBrowsers(engine.stateDir)}}
+  const revoked = await revokeBrowsers(engine.stateDir, {id: options.id})
   if (revoked.length === 0) {
     throw userFailure(`no trusted browser has the id "${options.id}"`, {
       hint: 'run `conciv auth revoke` without an id to list the trusted browsers',
     })
   }
-  return {report: 'json', data: {revoked, trusted: readTrustedBrowsers(engine.stateDir)}}
+  return {report: 'json', data: {revoked, trusted: await readTrustedBrowsers(engine.stateDir)}}
 }
 
 const RevokeModelSchema = z.object({id: z.string().optional(), all: z.boolean()})

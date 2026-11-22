@@ -1,5 +1,5 @@
-import {existsSync, readFileSync} from 'node:fs'
-import {readFile} from 'node:fs/promises'
+import {readFileSync} from 'node:fs'
+import {access} from 'node:fs/promises'
 import {
   ChatEventType,
   SESSION_DELETED_CODE,
@@ -15,7 +15,7 @@ import {
   type ModelMessage,
 } from '@conciv/protocol/chat-message-types'
 import type {Turn, TurnHooks} from '@conciv/ai/server'
-import {transcriptPathWithin} from '@conciv/harness'
+import {foldJsonlFile, transcriptPathWithin} from '@conciv/harness'
 import {isEqual, once} from 'es-toolkit'
 import {
   ChatContentPartSchema,
@@ -120,19 +120,34 @@ function ownRow(harness: HarnessAdapter, row: SessionRow | null): SessionRow | n
   return row?.harnessKind === harness.id ? row : null
 }
 
-function resumableToken(deps: TurnDeps, harness: HarnessAdapter, row: SessionRow | null): HarnessSessionId | null {
+async function resumableToken(
+  deps: TurnDeps,
+  harness: HarnessAdapter,
+  row: SessionRow | null,
+): Promise<HarnessSessionId | null> {
   if (row === null || row.harnessKind !== harness.id) return null
   return livingToken(deps, harness, row.nativeId)
 }
 
-function livingToken(deps: TurnDeps, harness: HarnessAdapter, token: HarnessSessionId | null): HarnessSessionId | null {
+function fileExists(path: string): Promise<boolean> {
+  return access(path).then(
+    () => true,
+    () => false,
+  )
+}
+
+async function livingToken(
+  deps: TurnDeps,
+  harness: HarnessAdapter,
+  token: HarnessSessionId | null,
+): Promise<HarnessSessionId | null> {
   if (token === null || !harness.capabilities.resume) return null
   const history = harness.history
   if (history === undefined) return token
-  if (history.withinProject && !history.withinProject(deps.cwd, token)) return null
+  if (history.withinProject && !(await history.withinProject(deps.cwd, token))) return null
   if (history.transcriptPath === undefined) return token
-  const path = transcriptPathWithin(history, deps.cwd, token)
-  return path !== null && existsSync(path) ? token : null
+  const path = await transcriptPathWithin(history, deps.cwd, token)
+  return path !== null && (await fileExists(path)) ? token : null
 }
 
 function mintedSessionId(chunk: ChatEvent): HarnessSessionId | null {
@@ -273,10 +288,12 @@ async function countContextTokens(deps: TurnDeps, sessionId: SessionId): Promise
   const history = harness.history
   const row = await deps.sessions.row(sessionId)
   const nativeId = row?.harnessKind === harness.id ? row.nativeId : null
-  if (!history?.contextTokens || !history.transcriptPath || nativeId === null) return undefined
-  const path = transcriptPathWithin(history, deps.cwd, nativeId)
-  if (path === null || !existsSync(path)) return undefined
-  return history.contextTokens(await readFile(path, 'utf8'))
+  const lineTokens = history?.contextTokens
+  if (history === undefined || lineTokens === undefined || !history.transcriptPath || nativeId === null)
+    return undefined
+  const path = await transcriptPathWithin(history, deps.cwd, nativeId)
+  if (path === null || !(await fileExists(path))) return undefined
+  return foldJsonlFile<number | undefined>(path, undefined, (found, line) => lineTokens(line) ?? found)
 }
 
 async function recordContext(deps: TurnDeps, sessionId: SessionId): Promise<void> {
@@ -313,13 +330,13 @@ export function turnHooks(
       const row = await deps.sessions.row(sessionId)
       const own = ownRow(harness, row)
       const model = own?.model ?? null
-      const resumeSessionId = resumableToken(deps, harness, row)
+      const resumeSessionId = await resumableToken(deps, harness, row)
       const reset: InstructionReset = turn.kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
       const instructions = Promise.withResolvers<PluginInstructions>()
       const normalizer = once(async () => toolNameNormalizer(await deps.toolNames(sessionId)))
       const toolSet = async () =>
         chatToolSet(await deps.capabilities(sessionId), {sessionId, agentId: sessionId, model}, context.codeMode)
-      const config = harness.chatConfig({
+      const config = await harness.chatConfig({
         cwd: deps.cwd,
         sessionId,
         askPermission: (ask) => deps.askPermission(sessionId, ask, runSignal),
@@ -382,7 +399,7 @@ export function turnHooks(
           const asked = askedMessages(turn, messages, harness)
           const prepared = resumeSessionId === null ? asked : fromLastUser(asked)
           const told = withUpdate(prepared, (await instructions.promise).update)
-          return config.prepareMessages?.(told) ?? told
+          return (await config.prepareMessages?.(told)) ?? told
         },
         chunk: async (chunk) => {
           const shaped =
@@ -405,7 +422,9 @@ export function turnHooks(
       const usage = toTokenUsage(reported)
       if (usage === undefined) return
       const modelId =
-        (await deps.sessions.row(sessionId))?.model ?? (await deps.harnessFor(sessionId)).defaultModel ?? null
+        (await deps.sessions.row(sessionId))?.model ??
+        (await (await deps.harnessFor(sessionId)).defaultModel?.()) ??
+        null
       await deps.sessions.recordUsage(sessionId, {
         ...tokenUsageToSnapshot(usage, modelId ?? undefined),
         ...(modelId === null ? {} : {modelId}),

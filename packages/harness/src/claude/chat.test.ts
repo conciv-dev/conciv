@@ -7,7 +7,7 @@ import {FILE_REF_PREFIX, type HarnessChatDeps} from '@conciv/protocol/harness-ty
 import {claudeChatConfig} from './chat.js'
 
 describe('preparing a turn', () => {
-  it('Compact sends /compact, and an image part becomes an @file ref to a file written in the project tmp', () => {
+  it('Compact sends /compact, and an image part becomes an @file ref to a file written in the project tmp', async () => {
     const project = tempDir('claude-chat-')
     const deps: HarnessChatDeps = {
       cwd: project,
@@ -19,12 +19,12 @@ describe('preparing a turn', () => {
     }
     const pixel = Buffer.from('a png pixel')
 
-    const compacted = claudeChatConfig({...deps, kind: 'compact'}).prepareMessages?.([
+    const compacted = await claudeChatConfig({...deps, kind: 'compact'}).prepareMessages?.([
       {role: 'user', content: 'Fix the login button'},
       {role: 'assistant', content: 'The button now submits'},
       {role: 'user', content: 'Summarise'},
     ])
-    const attached = claudeChatConfig(deps).prepareMessages?.([
+    const attached = await claudeChatConfig(deps).prepareMessages?.([
       {
         role: 'user',
         content: [

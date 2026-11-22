@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
-import {accessSync, constants, existsSync, readFileSync} from 'node:fs'
+import {accessSync, constants, readFileSync} from 'node:fs'
+import {access} from 'node:fs/promises'
 import {delimiter, join} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
 import {Hono, type MiddlewareHandler} from 'hono'
@@ -464,10 +465,16 @@ export type MadeApp = {
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
   const history = harness.history
-  const transcriptExists = (token: HarnessSessionId): boolean => {
+  const transcriptExists = async (token: HarnessSessionId): Promise<boolean> => {
     if (history === undefined) return false
-    const path = transcriptPathWithin(history, cwd, token)
-    return path !== null && existsSync(path)
+    const path = await transcriptPathWithin(history, cwd, token)
+    return (
+      path !== null &&
+      (await access(path).then(
+        () => true,
+        () => false,
+      ))
+    )
   }
   return {
     id: harness.id,
@@ -546,7 +553,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = boot.harness
   const agentToken = opts.agentToken ?? randomUUID()
   const basePath = agentPath(agentToken)
-  const browsers = watchTrustedBrowsers(stateDir, earlyLog)
+  const browsers = await watchTrustedBrowsers(stateDir, earlyLog).catch(async (error: unknown) => {
+    await releaseObservability()
+    throw error
+  })
   const trust = makeConnectionTrust(agentToken, browsers)
   const listings = availableHarnesses(boot, opts, registry, stateDir, engineLife.signal, appEnv.path, earlyLog)
   const harnesses = listings.map((listing) => listing.harness)

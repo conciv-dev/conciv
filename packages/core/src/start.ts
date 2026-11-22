@@ -126,7 +126,7 @@ export type StartOpts = {
 export type Engine = {
   port: number
   agentToken: string
-  trustBrowser: (requester: BrowserRequester, grantedAt: number) => string
+  trustBrowser: (requester: BrowserRequester, grantedAt: number) => Promise<string>
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
 } & EngineRouterBrand
@@ -251,7 +251,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const registry = harnessRegistry(configProvider)
   if (!opts.harness) requireHarness(registry, cfg.harness)
   const paths = statePaths(cfg.stateRoot)
-  createConcivStateDir(paths.dir)
+  await createConcivStateDir(paths.dir)
 
   const systemPrompt = cfg.systemPrompt
   if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)

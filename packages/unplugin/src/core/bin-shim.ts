@@ -11,10 +11,10 @@ function linkConcivBin(binDir: string): void {
   symlinkSync(target, shim)
 }
 
-export function installConcivBinShim(stateDir: string): string {
+export async function installConcivBinShim(stateDir: string): Promise<string> {
   const binDir = join(stateDir, 'bin')
   try {
-    createConcivStateDir(stateDir)
+    await createConcivStateDir(stateDir)
     mkdirSync(binDir, {recursive: true})
     linkConcivBin(binDir)
   } catch (error) {

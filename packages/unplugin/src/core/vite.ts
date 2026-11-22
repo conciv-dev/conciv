@@ -214,7 +214,7 @@ type DevToolsContext = {
     }) => void
   }
   rpc: {
-    register: (definition: {name: string; type: 'action'; handler: () => string}) => void
+    register: (definition: {name: string; type: 'action'; handler: () => Promise<string>}) => void
   }
 }
 
@@ -251,7 +251,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         context.rpc.register({
           name: 'conciv:engine-token',
           type: 'action',
-          handler: () => {
+          handler: async () => {
             const engine = engines.at(-1)
             if (!engine || !devServer) throw new Error('the conciv engine has not started yet')
             return engine.trustBrowser(
@@ -329,7 +329,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       const booted = await bootEngine(
         server,
         options,
-        installConcivBinShim(concivStateDir(cfg.stateRoot)),
+        await installConcivBinShim(concivStateDir(cfg.stateRoot)),
         builtins.nativePageDir,
       )
       engines.push(stopWhenHttpServerCloses(server, booted))

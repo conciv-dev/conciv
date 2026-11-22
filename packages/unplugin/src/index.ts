@@ -5,16 +5,29 @@ import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {makeEngineBooter, type Builtins} from './core/boot.js'
 import {CONCIV_DEFAULT_PORT, WIDGET_START_SPECIFIER} from './core/nextjs.js'
 import {makeViteHook} from './core/vite.js'
-import {writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, writeFileSync} from 'node:fs'
 import {findPackageJSON} from 'node:module'
 import {dirname, join} from 'node:path'
-import {concivStateDir, createConcivStateDir} from '@conciv/protocol/state-types'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {isEnginePort} from './core/widget-start.js'
 
 function widgetStarterPath(): string {
   const manifest = findPackageJSON(import.meta.url)
   if (manifest === undefined) throw new Error('conciv: the @conciv/unplugin package.json was not found')
   return join(dirname(manifest), 'dist', 'core', 'widget-start.js')
+}
+
+const STATE_GITIGNORE = ['*', '!.gitignore', '!settings/', '!settings/**', ''].join('\n')
+
+function createStateDirNow(stateDir: string): void {
+  mkdirSync(stateDir, {recursive: true})
+  const ignoreFile = join(stateDir, '.gitignore')
+  if (existsSync(ignoreFile)) return
+  try {
+    writeFileSync(ignoreFile, STATE_GITIGNORE, {flag: 'wx'})
+  } catch (error) {
+    console.error('conciv: could not write', ignoreFile, error)
+  }
 }
 
 function writeWidgetClient(root: string, port: number): string | undefined {
@@ -32,7 +45,7 @@ function writeWidgetClient(root: string, port: number): string | undefined {
     '',
   ].join('\n')
   try {
-    createConcivStateDir(stateDir)
+    createStateDirNow(stateDir)
     writeFileSync(path, source, 'utf8')
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error)
