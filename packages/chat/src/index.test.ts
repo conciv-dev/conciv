@@ -100,6 +100,10 @@ describe('compacting', () => {
       content:
         'Summarize our conversation so far as concisely as you can: the key decisions, the current state, and any open threads, so we can continue with less context.',
     })
+    expect((await rpc.chat.hydrate({sessionId: engine.session.id})).messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      parts: expect.arrayContaining([expect.objectContaining({type: 'text', content: 'We said hello'})]),
+    })
   })
 
   test("a plugin's compaction hook answers the summary and the agent is not asked", async ({connect}) => {
