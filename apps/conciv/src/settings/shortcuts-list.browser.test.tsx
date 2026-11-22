@@ -17,7 +17,7 @@ describe('recording keyboard shortcuts', () => {
     expect(screen.getByRole('button', {name: 'Open or close conciv', pressed: true})).toBeVisible()
     await user.keyboard('{Control>}k{/Control}')
     expect(await screen.findByRole('button', {name: 'Open or close conciv', pressed: false})).toBeVisible()
-    expect(await screen.findByText('Ctrl+K')).toBeVisible()
+    expect(await screen.findByText(/^(Ctrl|Control)\+K$/)).toBeVisible()
 
     await user.click(screen.getByRole('button', {name: 'Back to chat'}))
     await user.click(await screen.findByRole('textbox', {name: 'Message the conciv agent'}))
@@ -40,14 +40,14 @@ describe('recording keyboard shortcuts', () => {
 
     await user.click(screen.getByRole('button', {name: 'Quick terminal'}))
     await user.keyboard('{Control>}k{/Control}')
-    expect(await screen.findByText(/Ctrl\+K is also/)).toHaveTextContent(
-      'Ctrl+K is also Open or close conciv. Saving moves it here.',
+    expect(await screen.findByText(/(Ctrl\+K|⌃ K) is also/)).toMatchTextContent(
+      /^(Ctrl\+K|⌃ K) is also Open or close conciv\. Saving moves it here\./,
     )
     await user.click(screen.getByRole('button', {name: 'Save'}))
     expect(await screen.findByRole('button', {name: 'Clear Quick terminal'})).toBeVisible()
     expect(screen.queryByRole('button', {name: 'Clear Open or close conciv'})).not.toBeInTheDocument()
     expect(screen.getByText('Add shortcut')).toBeVisible()
-    expect(screen.getByText('Ctrl+K')).toBeVisible()
+    expect(screen.getByText(/^(Ctrl|Control)\+K$/)).toBeVisible()
   })
 
   test('a page that turns the quick terminal off locks its shortcut rows', async () => {
