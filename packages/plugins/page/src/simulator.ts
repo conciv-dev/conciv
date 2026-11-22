@@ -277,11 +277,13 @@ function hide(): void {
   disarm()
   run.glow?.fadeOut().catch(warnUnlessCanceled)
   run.glow?.pause()
-  later(HIDE_MS, () => {
+  const unmount = () => {
     if (sim.shown || sim.run !== run) return
     sim.run = null
     unmountRun(run)
-  })
+  }
+  if (cannotAnimate()) unmount()
+  else later(HIDE_MS, unmount)
 }
 
 export function startTask(agent: string): void {
