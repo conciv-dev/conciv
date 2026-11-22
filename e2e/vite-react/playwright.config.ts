@@ -7,6 +7,7 @@ export default defineConfig(
   await e2eConfig('vite-react', {
     dir: import.meta.dirname,
     viteServerPerTest: './node_modules/.bin/vite',
+    pluginCopies: ['live-line', 'host-controls'],
     browserSettings: ['storage-refused', 'pop-out-refused'],
     fakeClis: ['codex', 'gemini'],
   }),

@@ -1827,6 +1827,9 @@ importers:
       '@conciv/it':
         specifier: workspace:*
         version: link:../../packages/it
+      '@conciv/plugin-recorder':
+        specifier: workspace:*
+        version: link:../../packages/plugins/recorder
       react:
         specifier: 'catalog:'
         version: 19.3.1

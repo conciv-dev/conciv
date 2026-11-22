@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@conciv/it": "workspace:*",
+    "@conciv/plugin-recorder": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
