@@ -41,7 +41,7 @@ describe('settings for this project and for all projects', () => {
     expect(screen.getByText('From all projects')).toBeVisible()
 
     await user.click(screen.getByRole('switch', {name: 'All projects'}))
-    expect(await screen.findByRole('switch', {name: 'All projects'})).toBeChecked()
+    expect(await screen.findByRole('switch', {name: 'All projects', checked: true})).toBeChecked()
     expect(screen.getByRole('radio', {name: 'Dark'})).toBeChecked()
     expect(screen.queryByText('From all projects')).not.toBeInTheDocument()
 
@@ -268,7 +268,7 @@ describe('recording keyboard shortcuts', () => {
     await user.click(await screen.findByRole('tab', {name: 'Shortcuts'}))
 
     await user.click(await screen.findByRole('button', {name: 'Open or close conciv'}))
-    expect(screen.getByRole('button', {name: 'Open or close conciv', pressed: true})).toBeVisible()
+    expect(await screen.findByRole('button', {name: 'Open or close conciv', pressed: true})).toBeVisible()
     await user.keyboard('{Control>}k{/Control}')
     expect(await screen.findByRole('button', {name: 'Open or close conciv', pressed: false})).toBeVisible()
     expect(await screen.findByText(/^(Ctrl|Control)\+K$/)).toBeVisible()
@@ -288,6 +288,7 @@ describe('recording keyboard shortcuts', () => {
     expect(screen.queryByRole('button', {name: 'Clear Quick terminal'})).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', {name: 'Quick terminal'}))
+    expect(await screen.findByRole('button', {name: 'Quick terminal', pressed: true})).toBeVisible()
     await user.keyboard('{Escape}')
     expect(await screen.findByRole('button', {name: 'Quick terminal', pressed: false})).toBeVisible()
     expect(screen.getByRole('tab', {name: 'Shortcuts', selected: true})).toBeVisible()
