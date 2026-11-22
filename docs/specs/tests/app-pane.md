@@ -114,20 +114,29 @@ All verify: the ask comes from `createEngine({permission: 'ask'})` (or a `permis
 | Code highlighting and mermaid in replies                                      | a reply with code and mermaid     | kept: duplicate of row 'Code highlighting and mermaid in replies' above, written there                               |
 | Trace rail drawing / joins                                                    | look only                         | kept: a story, by ruling (look is a story)                                                                           |
 
+## Package tests (node, the kits the pane draws with)
+
+| feature                                                                                                                                                                 | where                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An apply_patch call's text is read as the files it touches, lines added and removed, and one unified diff per Add, Update and Delete block                              | planned: `packages/ui-kit-chat-tools/src/primitives/tools/apply-patch.test.ts` (node; `it.each` over patch texts with Begin/End markers, a multi-file patch, an empty patch and a malformed header) for `readPatchText`, `patchInfo`, `parseClaudePatchBlocks`, `claudeBlockToUnifiedDiff` (`apply-patch.tsx:8-88`). The card stays the CLI card row |
+| A Bash result is read as its output, error output and exit code                                                                                                         | planned: `packages/ui-kit-chat-tools/src/primitives/tools/bash.test.ts` (node; `parseBashOutput`, `bash.tsx:29-50`, over the result shapes the CLIs send)                                                                                                                                                                                            |
+| Text in a reply that names a project file (a path, path:line, #L12-L20, a file:// URL) is recognised as a local file link; an outside URL or a control character is not | planned: `packages/solid-streamdown/src/local-file-links.test.ts` (node; `localLinkPath`, `isInlineCodePath`, `local-file-links.ts:118-155`). `localLinkTarget` (:157) needs a DOM and goes with the plugin link-handler journey                                                                                                                     |
+| A streaming reply is split into blocks that keep an HTML element across blank lines, a $$ math block and a footnoted reply whole                                        | planned: `packages/solid-streamdown/src/parse-blocks.test.ts` (node; `parseMarkdownIntoBlocks`, `parse-blocks.ts:72-120`)                                                                                                                                                                                                                            |
+
 ## Counts
 
 | status    | rows |
 | --------- | ---- |
 | tested    | 13   |
 | written   | 44   |
-| planned   | 0    |
+| planned   | 4    |
 | verify    | 0    |
 | blocked   | 13   |
 | browser   | 0    |
 | e2e       | 0    |
 | elsewhere | 0    |
 | kept      | 6    |
-| total     | 76   |
+| total     | 80   |
 
 ## Not in this area
 
