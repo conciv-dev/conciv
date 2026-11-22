@@ -49,6 +49,7 @@ export default defineConfig({
   plugins: [UnoCSS(), solid(), classicScriptLoaders(), concivTest()],
 
   define: {'define.amd': 'false'},
+  server: {warmup: {clientFiles: ['./src/mount-impl.tsx']}},
   build: {cssCodeSplit: false},
   environments: {
     client: {
