@@ -268,7 +268,7 @@ test.describe('switching to another harness when the engine refuses the switch',
       const failures = collectFailures(page)
       await loginWidget(page)
       await expectWidgetBoots(page, failures)
-      await holdEngineCall<['sessions', 'switchHarness']>(page, ['sessions', 'switchHarness'], {fail: code})
+      await holdEngineCall(page, ['sessions', 'switchHarness'], {fail: code})
       await page.reload({waitUntil: 'domcontentloaded'})
 
       await page.getByRole('button', {name: /^Model: /}).click()
