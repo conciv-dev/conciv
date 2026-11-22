@@ -5,6 +5,7 @@ import {
   defineChatMiddleware,
   EventType,
   generateMessageId,
+  isToolResultOutcome,
   requestRunCancel,
   RUN_CANCEL_REASON,
   StreamProcessor,
@@ -17,6 +18,7 @@ import {
   type RunStore,
   type TokenUsage,
   type ToolCall,
+  type ToolResultOutcome,
 } from '@tanstack/ai'
 import {defineLock, InMemoryLockStore, withLocks} from '@tanstack/ai/locks'
 import {getPendingTurn} from '@tanstack/ai/adapter-internals'
@@ -96,7 +98,12 @@ function ranIn(message: ModelMessage, runId: string): boolean {
   return message.role === 'assistant' && tag.success && tag.data.tanstack.run.id === runId
 }
 
-type RecordedCall = {metadata: Record<string, unknown> | undefined; failed: boolean; startedAt?: number}
+type RecordedCall = {
+  metadata: Record<string, unknown> | undefined
+  failed: boolean
+  outcome?: ToolResultOutcome
+  startedAt?: number
+}
 
 type Recorded = Map<string, RecordedCall>
 
@@ -106,6 +113,16 @@ const FailedResultSchema = z.union([
 ])
 
 const MetadataSchema = z.record(z.string(), z.unknown()).catch({})
+
+const OutcomeSchema = z.looseObject({
+  metadata: z.looseObject({
+    tanstack: z.looseObject({toolResultOutcome: z.custom<ToolResultOutcome>(isToolResultOutcome)}),
+  }),
+})
+
+function readOutcome(chunk: unknown): ToolResultOutcome | undefined {
+  return OutcomeSchema.safeParse(chunk).data?.metadata.tanstack.toolResultOutcome
+}
 
 function toolHistory() {
   const recorded: Recorded = new Map()
@@ -132,6 +149,7 @@ function toolHistory() {
       recorded.set(chunk.toolCallId, {
         metadata: {...call?.metadata, time},
         failed: FailedResultSchema.safeParse(chunk).success,
+        outcome: readOutcome(chunk),
         startedAt: call?.startedAt,
       })
       restore(ctx)
@@ -152,9 +170,12 @@ function restored(message: ModelMessage, recorded: Recorded): ModelMessage {
 }
 
 function restoredResult(message: ModelMessage, recorded: Recorded): ModelMessage {
-  if (message.error !== undefined || message.toolCallId === undefined) return message
-  if (recorded.get(message.toolCallId)?.failed !== true || typeof message.content !== 'string') return message
-  return {...message, error: message.content}
+  if (message.toolCallId === undefined) return message
+  const call = recorded.get(message.toolCallId)
+  const outcome = call?.outcome
+  const marked = outcome === undefined ? message : withTanstackMetadata(message, {toolResultOutcome: outcome})
+  if (marked.error !== undefined || call?.failed !== true || typeof marked.content !== 'string') return marked
+  return {...marked, error: marked.content}
 }
 
 function withRecordedMetadata(call: ToolCall, recorded: Recorded): ToolCall {
@@ -830,7 +851,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             view.full = current.messages
           },
         }),
-        childCards(config.codeModeResult, stores.messages),
+        childCards(config.codeModeResult),
         ...(turn.kind === 'compact' ? [compactionStamp(stores.messages)] : []),
         defineChatMiddleware({
           name: 'conciv-run-record',

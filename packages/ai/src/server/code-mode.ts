@@ -22,6 +22,7 @@ import {ChatContentPartSchema, type ChatContentPart} from '@conciv/protocol/chat
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {CODE_MODE_EXTERNAL_PREFIX, CODE_MODE_TIMEOUT_MS} from '@conciv/protocol/chat-types'
 import {quickJSThreadDriver, type CodeDriver} from './quickjs-thread.js'
+import {isApprovalDenied} from './approval-denied.js'
 
 const QUICKJS_MEMORY_LIMIT_MB = 256
 
@@ -200,6 +201,7 @@ function childCall(
         context?.emitCustomEvent(codeModeErrorEvent.name, {
           callId,
           error: error instanceof Error ? error.message : String(error),
+          ...(isApprovalDenied(error) ? {outcome: 'denied'} : {}),
         })
         throw error
       }

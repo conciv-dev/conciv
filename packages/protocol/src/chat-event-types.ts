@@ -152,7 +152,7 @@ export const codeModeResultEvent = defineChatEvent(
 
 export const codeModeErrorEvent = defineChatEvent(
   'conciv.code-mode-error',
-  z.looseObject({callId: z.string().min(1), error: z.string()}),
+  z.looseObject({callId: z.string().min(1), error: z.string(), outcome: z.literal('denied').optional()}),
 )
 
 export const pageQueueEvent = defineChatEvent(
