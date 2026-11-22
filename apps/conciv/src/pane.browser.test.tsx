@@ -43,6 +43,26 @@ describe('a reply with a diagram', () => {
       .element(page.getByRole('article', {name: 'Reply to: Draw the flow'}).getByText('const total = 1 + 1'))
       .toBeVisible()
   })
+
+  test('a diagram that fails to draw shows its source as plain text', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.text(
+        '```mermaid\nthis is not a diagram\n```\n\n```mermaid\ngraph TD\n  A[Start] --> B[Done]\n```\n\nOne of them draws.',
+      ),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Draw both')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    const reply = await screen.findByRole('article', {name: 'Reply to: Draw both'})
+
+    expect(await within(reply).findByRole('graphics-document')).toBeVisible()
+    expect(within(reply).getByText('Start')).toBeVisible()
+    expect(within(reply).getAllByRole('graphics-document')).toHaveLength(1)
+    expect(within(reply).getByText('this is not a diagram')).toBeVisible()
+  })
 })
 
 describe('a long saved session', () => {
