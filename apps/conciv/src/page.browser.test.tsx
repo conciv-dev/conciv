@@ -1,6 +1,6 @@
 import {describe, expect, onTestFinished, test} from 'vitest'
 import {page, userEvent as realInput} from 'vitest/browser'
-import {render, screen, waitFor, within} from '@solidjs/testing-library'
+import {render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {Dynamic} from 'solid-js/web'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
@@ -124,7 +124,7 @@ describe('the agent leaves the page alone for a while', () => {
     const mask = await masked
     await answer.started
 
-    await waitFor(() => expect(mask).not.toBeInTheDocument())
+    await expect.element(mask).not.toBeInTheDocument()
     await answer.release()
     expect(await screen.findByText('Clicked')).toBeVisible()
   })
