@@ -89,8 +89,8 @@ export function EngineUnreachableNotice(): JSX.Element {
     select: (matches) => matches.some((match) => match.status === 'error' && isReachabilityError(match.error)),
   })
   const retry = async (): Promise<void> => {
-    await login()?.requestTrust()
     resetBrowserRpcConnection(apiBase())
+    await login()?.requestTrust()
     await router.invalidate()
   }
   onCleanup(() => notices.remove(ENGINE_UNREACHABLE_KEY))

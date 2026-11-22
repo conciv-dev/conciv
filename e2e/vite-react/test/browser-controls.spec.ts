@@ -71,6 +71,40 @@ test.describe('the widget on a vite react page when its engine socket cannot con
     await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
   })
 
+  test("the user clicks Retry where conciv says it couldn't reach the engine while the socket waits to try again, and the socket connects at once without waiting out the back-off", async ({
+    page,
+  }) => {
+    await loginWidget(page)
+    const engineSocket = await refuseEngineSocket(page)
+    await page.clock.install()
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await engineSocket.arrived
+
+    await page.clock.runFor(defaultEngineConnectionTimings.authTimeoutMs)
+    await page.getByRole('button', {name: /conciv chat$/}).click()
+    await page.clock.runFor(
+      defaultEngineConnectionTimings.callDeadlineMs + defaultEngineConnectionTimings.connectionLossRetryDelayMs,
+    )
+    const unreachable = page
+      .getByRole('alert')
+      .filter({hasText: "conciv couldn't reach the engine. Check that the dev server is still running."})
+    await expect(unreachable).toBeVisible()
+
+    await page.clock.pauseAt(
+      Date.now() +
+        defaultEngineConnectionTimings.authTimeoutMs +
+        defaultEngineConnectionTimings.callDeadlineMs +
+        defaultEngineConnectionTimings.connectionLossRetryDelayMs,
+    )
+    engineSocket.release()
+    const engineSocketOpened = page.waitForEvent('websocket', (socket) => new URL(socket.url()).pathname === '/rpc-ws')
+    await unreachable.getByRole('button', {name: 'Retry'}).click()
+    await expect(engineSocketOpened).resolves.toBeTruthy()
+
+    await page.clock.resume()
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+  })
+
   test("the user sees that conciv couldn't reach the engine, and once the engine trusts the browser again the chat comes back without a click", async ({
     page,
   }) => {

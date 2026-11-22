@@ -35,8 +35,8 @@ function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
     classifyRpcError(props.error, ENGINE_UNREACHABLE_MESSAGE, GENERIC_ERROR_MESSAGE),
   )
   const retry = async (): Promise<void> => {
-    await login()?.requestTrust()
     if (classification().transportFailure) resetBrowserRpcConnection(apiBase()?.() ?? '')
+    await login()?.requestTrust()
     await router.invalidate()
   }
   const onTrustChange: TrustListener = (status, previous) => {

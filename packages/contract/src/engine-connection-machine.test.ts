@@ -111,30 +111,33 @@ describe('the connection machine', () => {
     expect(waiting).toMatchObject({trust: 'unreachable', socket: 'waiting', attempt: 3})
 
     const retried = transitionConnection(waiting, {type: 'reset-requested'})
-    expect(retried.effects).toEqual([])
+    expect(retried.effects).toEqual([{type: 'schedule-retry', attempt: 4, delayMs: 0}])
 
-    const connecting = transitionConnection(retried.state, {type: 'retry-due', attempt: 3})
-    const closed = transitionConnection(connecting.state, {type: 'socket-closed', attempt: 3, code: 1006})
+    const staleTimer = transitionConnection(retried.state, {type: 'retry-due', attempt: 3})
+    expect(staleTimer.effects).toEqual([])
+
+    const connecting = transitionConnection(staleTimer.state, {type: 'retry-due', attempt: 4})
+    const closed = transitionConnection(connecting.state, {type: 'socket-closed', attempt: 4, code: 1006})
     expect(closed.effects).toEqual([
-      {type: 'schedule-retry', attempt: 4, delayMs: 0},
+      {type: 'schedule-retry', attempt: 5, delayMs: 100},
       {type: 'publish', signal: {type: 'reachable', reachable: false}},
       {type: 'close-peer'},
     ])
 
-    const hanging = transitionConnection(closed.state, {type: 'retry-due', attempt: 4})
+    const hanging = transitionConnection(closed.state, {type: 'retry-due', attempt: 5})
     const retriedWhileHanging = transitionConnection(hanging.state, {type: 'reset-requested'})
     expect(retriedWhileHanging.effects).toEqual([
       {type: 'close-socket'},
-      {type: 'schedule-retry', attempt: 5, delayMs: 0},
+      {type: 'schedule-retry', attempt: 6, delayMs: 0},
       {type: 'publish', signal: {type: 'reachable', reachable: false}},
       {type: 'close-peer'},
     ])
 
-    const reconnecting = transitionConnection(retriedWhileHanging.state, {type: 'retry-due', attempt: 5})
-    const reopened = transitionConnection(reconnecting.state, {type: 'socket-opened', attempt: 5})
+    const reconnecting = transitionConnection(retriedWhileHanging.state, {type: 'retry-due', attempt: 6})
+    const reopened = transitionConnection(reconnecting.state, {type: 'socket-opened', attempt: 6})
     expect(reopened.effects).toEqual([
       {type: 'send-trust-frame', token: ''},
-      {type: 'schedule-uptime', attempt: 5},
+      {type: 'schedule-uptime', attempt: 6},
       {type: 'publish', signal: {type: 'reachable', reachable: true}},
       {type: 'ask-trust'},
     ])
