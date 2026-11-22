@@ -37,6 +37,8 @@ import {promisify} from 'node:util'
 
 type CommandOutcome = {code: number; output: string}
 
+const interruptGraceMs = 5000
+
 export function execFileOutcome(
   bin: string,
   args: string[],
@@ -57,13 +59,23 @@ export function execFileOutcome(
       killSignal: 'SIGKILL',
       detached: options.signal !== undefined,
     })
-    const endGroup = (): void => {
-      if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return
-      process.kill(-child.pid, 'SIGKILL')
+    const running = (): boolean => child.exitCode === null && child.signalCode === null
+    const signalGroup = (signal: NodeJS.Signals): void => {
+      if (child.pid !== undefined && running()) process.kill(-child.pid, signal)
     }
-    options.signal?.addEventListener('abort', endGroup, {once: true})
-    child.on('close', () => options.signal?.removeEventListener('abort', endGroup))
-    if (options.signal?.aborted) endGroup()
+    const stopGroup = (): void => {
+      signalGroup('SIGINT')
+      const force = (): void => signalGroup('SIGKILL')
+      const timer = setTimeout(force, interruptGraceMs)
+      const releaseForce = onInterrupt(force)
+      child.on('close', () => {
+        clearTimeout(timer)
+        releaseForce()
+      })
+    }
+    options.signal?.addEventListener('abort', stopGroup, {once: true})
+    child.on('close', () => options.signal?.removeEventListener('abort', stopGroup))
+    if (options.signal?.aborted) stopGroup()
     const refused = child.pid === undefined ? null : (options.started?.(child.pid) ?? null)
     if (refused !== null) {
       child.kill('SIGKILL')
@@ -389,12 +401,7 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
   }
   const backups = guardBackups()
   const interruption = new AbortController()
-  const releaseInterrupt = onInterrupt(() => {
-    interruption.abort()
-    backups.restore()
-    runtime.output.cancelled('Interrupted — your config was restored.')
-    runtime.exit(130)
-  })
+  const releaseInterrupt = onInterrupt(() => interruption.abort())
   const settings: RunSettings = {
     cwd: options.cwd,
     yes: options.yes,
@@ -408,6 +415,12 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
     runtime.output,
   )
   releaseInterrupt()
+  if (interruption.signal.aborted) {
+    backups.restore()
+    runtime.output.cancelled('Interrupted — your config was restored.')
+    runtime.exit(130)
+    return {outcome: 'cancelled', reason: 'interrupted, your config was restored'}
+  }
   backups.release()
   const next = nextSteps(detected.packageManager)
   emitOutro(runtime.output, entries, next)
@@ -423,6 +436,7 @@ function refuse(runtime: InitRuntime, reason: string): InitResult {
 export async function runSteps(steps: InitStep[], settings: RunSettings, output: InitOutput): Promise<LedgerEntry[]> {
   const entries: LedgerEntry[] = []
   for (const current of steps) {
+    if (settings.signal.aborted) break
     entries.push(await runOne(current, settings, output))
   }
   return entries
@@ -443,11 +457,11 @@ async function runOne(step: InitStep, settings: RunSettings, output: InitOutput)
       line.line(text)
     },
   }
-  const interrupted = (): void => {
+  const entry = await settleStep(step, ctx)
+  if (settings.signal.aborted) {
     line.settle({status: 'skipped', summary: `${step.title} — interrupted`})
+    return entry
   }
-  settings.signal.addEventListener('abort', interrupted, {once: true})
-  const entry = await settleStep(step, ctx).finally(() => settings.signal.removeEventListener('abort', interrupted))
   line.settle({status: entry.status, summary: stepSummary(step, entry)})
   for (const emission of emissions) emit(output, emission)
   return entry
