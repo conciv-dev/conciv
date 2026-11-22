@@ -21,7 +21,7 @@ describe('the agent asks a choice', () => {
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByText('Which color?')).toBeVisible()
     expect(screen.getByText('Rendered choices')).toBeVisible()
-    expect(screen.getByRole('status', {name: 'Agent activity'})).toHaveTextContent('conciv_ui')
+    expect(screen.getByRole('status', {name: 'Agent activity'})).toMatchTextContent('conciv_ui')
     expect(screen.getAllByRole('img', {name: 'running'}).at(-1)).toBeVisible()
     expect(screen.queryByRole('img', {name: 'complete'})).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', {name: 'Blue'}))
@@ -238,7 +238,7 @@ describe('the agent asks other kinds of question', () => {
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Make a page')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     await user.type(await screen.findByRole('textbox', {name: 'Path'}), '/pricing')
-    expect(screen.getByRole('combobox', {name: 'Layout'})).toHaveTextContent('Wide')
+    expect(screen.getByRole('combobox', {name: 'Layout'})).toMatchTextContent('Wide')
     await user.click(screen.getByRole('button', {name: 'Submit'}))
 
     expect(await screen.findByText('Page created')).toBeVisible()
