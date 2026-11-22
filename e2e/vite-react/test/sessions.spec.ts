@@ -3,7 +3,7 @@ import {
   collectFailures,
   expectWidgetBoots,
   holdEngineCall,
-  holdEngineSocket,
+  refuseEngineSocket,
   loginWidget,
 } from '@conciv/e2e-utils/widget'
 
@@ -124,7 +124,7 @@ test.describe('the quick terminal on a vite react page when the engine goes away
     const failures = collectFailures(page)
     await loginWidget(page)
     await expectWidgetBoots(page, failures)
-    const engineSocket = await holdEngineSocket(page)
+    const engineSocket = await refuseEngineSocket(page)
     await context.setOffline(true)
     await expect(page.getByRole('button', {name: 'conciv lost connection to the engine'})).toBeVisible()
 
