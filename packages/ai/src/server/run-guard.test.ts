@@ -13,7 +13,7 @@ describe('the run guard', () => {
   it('ends a run that starts and then sends no output with the silence limit', async () => {
     const ended = new AbortController()
     const stopped = new AbortController()
-    const silence: ChatEvent = {type: EventType.RUN_ERROR, message: 'the agent produced no output within 0s'}
+    const fired: string[] = []
     async function* startsThenStaysSilent(): AsyncGenerator<ChatEvent> {
       yield started
       await new Promise((resolve) => stopped.signal.addEventListener('abort', resolve, {once: true}))
@@ -24,16 +24,20 @@ describe('the run guard', () => {
       startMs: 60_000,
       firstOutputMs: 50,
       closeMs: 60_000,
-      onNotStarted: () => ended.abort({type: EventType.RUN_ERROR, message: 'the agent did not start'}),
-      onSilence: () => ended.abort(silence),
+      onNotStarted: () => fired.push('start limit'),
+      onSilence: () => {
+        fired.push('silence limit')
+        ended.abort({type: EventType.RUN_ERROR, message: 'the run was ended'})
+      },
       stop: () => stopped.abort(),
       log: () => undefined,
     })
 
     const events = await runAdapterTurn(adapter, [{role: 'user', content: 'Hello'}])
 
+    expect(fired).toEqual(['silence limit'])
     expect(events.map((event) => event.type)).toEqual([EventType.RUN_STARTED, EventType.RUN_ERROR])
-    expect(events.at(-1)).toMatchObject({message: 'the agent produced no output within 0s'})
+    expect(events.at(-1)).toMatchObject({message: 'the run was ended'})
     expect(stopped.signal.aborted).toBe(true)
   })
 
