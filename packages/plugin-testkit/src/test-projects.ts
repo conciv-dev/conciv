@@ -112,8 +112,12 @@ function kitDefaults(test: AuthorTest = {}): AuthorTest {
 
 const UTILITY_SHEETS = new Set(['virtual:uno.css', '/__uno.css'])
 
+function appDirectory(): string {
+  return dirname(createRequire(import.meta.url).resolve('@conciv/app/package.json'))
+}
+
 function builtWidgetSheet(): string {
-  const assets = join(dirname(createRequire(import.meta.url).resolve('@conciv/app/package.json')), 'dist', 'assets')
+  const assets = join(appDirectory(), 'dist', 'assets')
   const sheets = readdirSync(assets).filter((file) => file.startsWith('index-') && file.endsWith('.css'))
   const [sheet] = sheets
   if (sheet === undefined || sheets.length > 1) {
@@ -124,12 +128,15 @@ function builtWidgetSheet(): string {
 
 function builtStyles(): Plugin {
   let sheet: string | undefined
+  let app: string | undefined
   return {
     name: 'conciv:test-built-styles',
     enforce: 'pre',
-    resolveId(source) {
+    resolveId(source, importer) {
       const [path, query] = source.split('?')
-      if (path === undefined || !UTILITY_SHEETS.has(path)) return null
+      if (path === undefined || !UTILITY_SHEETS.has(path) || importer === undefined) return null
+      app ??= join(appDirectory(), 'src')
+      if (!importer.startsWith(app)) return null
       sheet ??= builtWidgetSheet()
       return query === undefined ? sheet : `${sheet}?${query}`
     },

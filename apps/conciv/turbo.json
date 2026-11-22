@@ -33,7 +33,11 @@
         "$TURBO_ROOT$/packages/plugins/test-runner/src/**/*.{ts,tsx}",
         "!$TURBO_ROOT$/packages/plugins/test-runner/src/**/*.{test,spec,stories}.*",
         "$TURBO_ROOT$/packages/plugins/whiteboard/src/**/*.{ts,tsx}",
-        "!$TURBO_ROOT$/packages/plugins/whiteboard/src/**/*.{test,spec,stories}.*"
+        "!$TURBO_ROOT$/packages/plugins/whiteboard/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/plugins/try-it/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/plugins/try-it/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/core/src/cards.tsx",
+        "$TURBO_ROOT$/packages/plugins/ios/src/client.tsx"
       ]
     }
   }
