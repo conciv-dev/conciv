@@ -504,7 +504,7 @@ describe('the user comments on an element of the page', () => {
     await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
     const compose = await screen.findByRole('dialog', {name: 'New comment'})
     const comment = within(compose).getByRole('textbox', {name: 'Comment'})
-    expect(comment).toHaveFocus()
+    await expect.element(comment).toHaveFocus()
     await user.type(comment, 'Make this button green')
     await user.click(within(compose).getByRole('button', {name: 'Add comment'}))
 
