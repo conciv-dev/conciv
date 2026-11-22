@@ -462,7 +462,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
       browser: {
         enabled: true,
         headless: true,
-        provider: playwright(),
+        provider: playwright({contextOptions: {reducedMotion: 'reduce'}}),
         instances: browsers.map((browser) => ({browser})),
         viewport: VIEWPORT,
         commands: {...engines.commands, ...pageErrorCommands()},
