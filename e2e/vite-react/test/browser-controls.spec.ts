@@ -336,6 +336,30 @@ test.describe('the chat on a vite react page when the engine is slow or fails to
     await expect(page.getByRole('alert').filter({hasText: 'Couldn’t load this conversation'})).toBeHidden()
   })
 
+  test('the user reloads while the engine fails every load of the conversation, Retry reopens it and is told conciv could not load it, and once the engine answers again Retry brings the chat back', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const history = await holdEngineCall(page, ['chat', 'hydrate'], {when: () => true, fail: 'INTERNAL_SERVER_ERROR'})
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await history.arrived
+    const failed = page.getByRole('alert').filter({hasText: 'Couldn’t load this conversation'})
+    await expect(failed).toBeVisible()
+
+    await failed.getByRole('button', {name: 'Retry'}).click()
+    await expect(
+      page.getByRole('status').filter({hasText: 'conciv could not load this conversation. Try again.'}),
+    ).toBeVisible()
+    await expect(failed).toBeVisible()
+
+    history.release()
+    await failed.getByRole('button', {name: 'Retry'}).click()
+    await expect(page.getByText('How can I help you today?')).toBeVisible()
+    await expect(failed).toBeHidden()
+  })
+
   test('the user compresses a session the engine no longer has and is told it no longer exists', async ({page}) => {
     const failures = collectFailures(page)
     await loginWidget(page)

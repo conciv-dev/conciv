@@ -110,6 +110,17 @@ One journey per app: open the page, the launcher shows, sign in by magic link, t
 | app:86 A setting that fails to save: "Could not save this setting. Change it again to retry." | pick Dark while `settings.set` fails; the field asks to change it again; picking Auto saves and the error goes                                | written: `e2e/vite-react/test/settings.spec.ts` › settings on a vite react page when the engine fails to save them › the user picks a color mode the engine fails to save, sees the field ask to change it again, and the next change is saved     |
 | app:87 Reset fails: "Could not reset the settings"                                            | Reset shortcuts while `settings.delete` fails; the button is disabled while it waits, the user hears the failure; the next reset is announced | written: `e2e/vite-react/test/settings.spec.ts` › settings on a vite react page when the engine fails to save them › the user resets the shortcuts while the engine fails it, hears that the settings could not be reset, and the next reset works |
 
+## Loads the engine fails every time (vite-react)
+
+`holdEngineCall(page, path, {when, fail, armed})` (e2e-utils `widget.ts`): `when: () => true` with `fail` answers every call to that procedure with the error until `release()`, so a query that retries three times settles as failed; `armed: false` lets calls through until `arm()`.
+
+| feature                                                                                             | journey                                                                                                                                                                                                                                                                         | status                                                                                                                                                                                                                                                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| app:82 "Couldn't load this session" alert with Retry; title becomes "Session"                       | reload while every `sessions.get` fails; the alert shows and the title reads Session; the engine answers again and Retry brings the title back                                                                                                                                  | tested: `e2e/vite-react/test/browser-controls.spec.ts` › the widget on a vite react page when the engine holds a later call, fails every call, or holds a call only once armed › the user reloads while the engine fails every load of the session, sees that the session couldn't load under the title Session, and once the engine answers again Retry brings the title back |
+| app:85 "Your conciv settings could not be loaded." + Retry                                          | reload while every `settings.changes` fails, open Settings › General; the alert shows; the engine answers again and Retry shows the Color mode field                                                                                                                            | written: `e2e/vite-react/test/settings.spec.ts` › settings on a vite react page when the engine fails to load them › the user opens the settings while the engine fails every load of them, is told they could not be loaded, and once the engine answers again Retry shows them                                                                                               |
+| app:89 Quick terminal pane start failure + Retry; pane re-bootstraps when the engine is back online | reload, arm a failure of every `sessions.resolve` once the chat has loaded, open the quick terminal; it says it could not start a pane; the engine answers again and Retry starts one. The re-bootstrap half is the quick terminal test in the same file (the engine goes away) | written: `e2e/vite-react/test/sessions.spec.ts` › the quick terminal on a vite react page when the engine fails to start a pane › the user opens the quick terminal while the engine fails to resolve a session, is told conciv could not start a pane, and once the engine answers again Retry starts it                                                                      |
+| app:90 "conciv could not load this conversation. Try again." on a reopened chat                     | reload while every `chat.hydrate` fails; the load alert shows; Retry reopens the chat, which fails too and is announced; the engine answers again and Retry brings the chat back                                                                                                | written: `e2e/vite-react/test/browser-controls.spec.ts` › the chat on a vite react page when the engine is slow or fails to load or compact the conversation › the user reloads while the engine fails every load of the conversation, Retry reopens it and is told conciv could not load it, and once the engine answers again Retry brings the chat back                     |
+
 ## Plugin bundles in a host (vite-solid, nextjs)
 
 | feature                                                                                                    | journey                                                               | status                                                                                                                                      |
@@ -170,8 +181,8 @@ The maintainer moved building these helpers to a follow-up, so the init app has 
 
 | status    | rows |
 | --------- | ---- |
-| tested    | 23   |
-| written   | 9    |
+| tested    | 24   |
+| written   | 12   |
 | planned   | 1    |
 | verify    | 0    |
 | blocked   | 41   |
@@ -179,4 +190,4 @@ The maintainer moved building these helpers to a follow-up, so the init app has 
 | e2e       | 0    |
 | elsewhere | 1    |
 | kept      | 5    |
-| total     | 80   |
+| total     | 84   |

@@ -49,3 +49,31 @@ test.describe('settings on a vite react page when the engine fails to save them'
     await expect(page.getByRole('status').filter({hasText: 'Settings reset'})).toBeVisible()
   })
 })
+
+test.describe('settings on a vite react page when the engine fails to load them', () => {
+  test('the user opens the settings while the engine fails every load of them, is told they could not be loaded, and once the engine answers again Retry shows them', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const changes = await holdEngineCall(page, ['settings', 'changes'], {
+      when: () => true,
+      fail: 'INTERNAL_SERVER_ERROR',
+    })
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await changes.arrived
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    await page.getByRole('link', {name: 'Settings'}).click()
+    await page.getByRole('tab', {name: 'General'}).click()
+
+    const failed = page.getByRole('alert').filter({hasText: 'Your conciv settings could not be loaded.'})
+    await expect(failed).toBeVisible()
+    await expect(page.getByRole('radiogroup', {name: 'Color mode'})).toBeHidden()
+
+    changes.release()
+    await failed.getByRole('button', {name: 'Retry'}).click()
+    await expect(failed).toBeHidden()
+    await expect(page.getByRole('radiogroup', {name: 'Color mode'}).getByRole('radio', {name: 'Auto'})).toBeChecked()
+  })
+})

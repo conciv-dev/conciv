@@ -146,6 +146,41 @@ test.describe('the quick terminal on a vite react page when the engine goes away
   })
 })
 
+test.describe('the quick terminal on a vite react page when the engine fails to start a pane', () => {
+  test('the user opens the quick terminal while the engine fails to resolve a session, is told conciv could not start a pane, and once the engine answers again Retry starts it', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const resolve = await holdEngineCall(page, ['sessions', 'resolve'], {
+      when: () => true,
+      fail: 'INTERNAL_SERVER_ERROR',
+      armed: false,
+    })
+    await page.reload({waitUntil: 'domcontentloaded'})
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await expect(composer).toBeVisible()
+
+    resolve.arm()
+    await composer.click()
+    await expect(composer).toBeFocused()
+    await page.keyboard.press('ControlOrMeta+Backquote')
+    await resolve.arrived
+    const terminal = page.getByRole('dialog', {name: 'conciv quick terminal'})
+    const startFailed = terminal.getByText('conciv could not start a pane. Check the engine connection and retry.')
+    await expect(startFailed).toBeVisible()
+
+    resolve.release()
+    await terminal.getByRole('button', {name: 'Retry'}).click()
+    await expect(terminal.getByRole('button', {name: /^Session: /})).toBeVisible()
+    await expect(startFailed).toBeHidden()
+
+    await terminal.getByRole('button', {name: 'Close quick terminal'}).click()
+    await expect(terminal).toBeHidden()
+  })
+})
+
 test.describe('a session deleted in another browser on a vite react page', () => {
   test('the user keeps a draft in a session another browser closes in its quick terminal, sees the session was deleted, and New session carries the draft over', async ({
     page,
