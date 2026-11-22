@@ -537,6 +537,15 @@ export const NoteCard = Registry.define<NoteCard>('note-card')
  */
 export const Slot = Registry.define<Slot>('slot')
 
+/**
+ * The registry of CSS the host adds to its shadow roots (the widget, each PiP window and each overlay), after the app's own sheet, while each item is contributed. Import the file with `?inline`.
+ *
+ * @example
+ * ```ts
+ * import css from "./dialog.css?inline"
+ * ctx.add(Style, css)
+ * ```
+ */
 export const Style = Registry.define<string>('style')
 
 export interface ToolProps {
