@@ -15,17 +15,24 @@ describe('the agent runs its own program', () => {
       inputSchema: z.object({plant: z.string()}),
       outputSchema: z.object({count: z.number()}),
     }).server(async ({plant}) => ({count: stock[plant] ?? 0}))
-    const coded = codeModeTools(driver, [shelfCount], null, (value) => value, {
-      errors: false,
-      provider: false,
-      output: false,
-      middleware: false,
-      tools: false,
-      agentLoop: false,
-      config: false,
-      request: false,
-      sandbox: false,
-    })
+    const coded = codeModeTools(
+      driver,
+      [shelfCount],
+      null,
+      (value) => value,
+      {
+        errors: false,
+        provider: false,
+        output: false,
+        middleware: false,
+        tools: false,
+        agentLoop: false,
+        config: false,
+        request: false,
+        sandbox: false,
+      },
+      undefined,
+    )
 
     const result = await coded?.execute.execute?.({
       typescriptCode: [
@@ -52,17 +59,24 @@ describe('secrets', () => {
       opened.push(apiKey)
       return {open: true}
     })
-    const coded = codeModeTools(driver, [vaultOpen], null, (value) => value, {
-      errors: false,
-      provider: false,
-      output: false,
-      middleware: false,
-      tools: false,
-      agentLoop: false,
-      config: false,
-      request: false,
-      sandbox: false,
-    })
+    const coded = codeModeTools(
+      driver,
+      [vaultOpen],
+      null,
+      (value) => value,
+      {
+        errors: false,
+        provider: false,
+        output: false,
+        middleware: false,
+        tools: false,
+        agentLoop: false,
+        config: false,
+        request: false,
+        sandbox: false,
+      },
+      undefined,
+    )
 
     const result = await coded?.execute.execute?.({typescriptCode: "return await external_vault_open({apiKey: 'k-1'})"})
 
@@ -117,6 +131,7 @@ describe('limits', () => {
           request: false,
           sandbox: false,
         },
+        undefined,
         timeoutMs,
       )
 

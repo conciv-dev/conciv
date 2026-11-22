@@ -1,3 +1,4 @@
+import {once} from 'node:events'
 import {MessageChannel, Worker} from 'node:worker_threads'
 import {Effect} from 'effect'
 import {extname} from 'node:path'
@@ -8,6 +9,7 @@ import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/message-port'
 import {EventPublisher, type RouterClient} from '@orpc/server'
 import {AsyncQueuer} from '@tanstack/pacer'
+import {inSpan, type Tracer} from '@conciv/ai/server'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {
@@ -30,6 +32,7 @@ type SessionSearchDeps = {
   db: ConcivDb
   cwd: string
   harnesses: readonly HarnessAdapter[]
+  tracer: Tracer | undefined
 }
 
 type SessionSearch = {
@@ -237,6 +240,9 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       })
       state.running = running
       state.everywhere = widenEverywhere(running)
+      void inSpan(deps.tracer, 'SessionSearch.startWorker', {}, async () => once(running.worker, 'online')).catch(
+        (error: unknown) => logError(`[core] the session search index worker did not start: ${String(error)}`),
+      )
       setImmediate(refresh)
     },
     async *changes(signal) {

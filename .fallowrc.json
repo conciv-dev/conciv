@@ -542,7 +542,8 @@
         "Location",
         "durable",
         "ephemeral",
-        "versionedType"
+        "versionedType",
+        "loggers"
       ]
     },
     {

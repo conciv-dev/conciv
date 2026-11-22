@@ -24,6 +24,7 @@ import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {CODE_MODE_EXTERNAL_PREFIX, CODE_MODE_TIMEOUT_MS} from '@conciv/protocol/chat-types'
 import {quickJSThreadDriver, type CodeDriver} from './quickjs-thread.js'
 import {isApprovalDenied} from './approval-denied.js'
+import {inSpan, type Tracer} from './spans.js'
 
 const QUICKJS_MEMORY_LIMIT_MB = 256
 
@@ -59,6 +60,22 @@ export function stoppedWith(driver: IsolateDriver, signal: AbortSignal, log: Log
           signal.removeEventListener('abort', stop)
           return context.dispose()
         },
+      }
+    },
+  }
+}
+
+export function tracedDriver(driver: IsolateDriver, tracer: Tracer | undefined): IsolateDriver {
+  if (tracer === undefined) return driver
+  return {
+    createContext: async (config) => {
+      const context = await inSpan(tracer, 'CodeMode.createContext', {}, () => driver.createContext(config))
+      return {
+        execute: (code, options) =>
+          inSpan(tracer, 'CodeMode.isolateRun', {'conciv.code.bindings': Object.keys(config.bindings).length}, () =>
+            context.execute(code, options),
+          ),
+        dispose: () => inSpan(tracer, 'CodeMode.disposeContext', {}, () => context.dispose()),
       }
     },
   }
@@ -176,38 +193,54 @@ function filesContext(parts: CallParts): Pick<NonNullable<ToolContext>, 'getOpti
   return {getOptional: <Value>(capability: Capability<Value>) => capability[0](scope, {optional: true})}
 }
 
-function childCall({tool, converted}: ChildTool, secrets: ReadonlyMap<string, string>, run: CallParts[]): CodeModeTool {
+function childCall(
+  {tool, converted}: ChildTool,
+  secrets: ReadonlyMap<string, string>,
+  run: CallParts[],
+  tracer: Tracer | undefined,
+): CodeModeTool {
   const execute = tool.execute
   if (!execute) return tool
+  const callTool = runChildCall(tool, execute, secrets, run)
   return {
     ...converted,
-    execute: async (args, context) => {
-      const callId = randomUUID()
-      const parts: CallParts = {files: [], text: []}
-      run.push(parts)
-      context?.emitCustomEvent(codeModeCallEvent.name, {callId, function: tool.name, args})
-      try {
-        const parameter = secrets.get(`${CODE_MODE_EXTERNAL_PREFIX}${tool.name}`)
-        if (parameter !== undefined) {
-          throw new Error(`"${tool.name}" takes "${parameter}", which ${SECRET_REFUSAL}`)
-        }
-        const input = validated(tool.inputSchema, args, `Input validation failed for tool ${tool.name}`)
-        const output: unknown = await execute(
-          input,
-          context === undefined ? undefined : {...context, toolCallId: callId, ...filesContext(parts)},
-        )
-        const result = validated(tool.outputSchema, output, `Output validation failed for tool ${tool.name}`)
-        context?.emitCustomEvent(codeModeResultEvent.name, {callId, result: cardResult(result, parts.files)})
-        return result
-      } catch (error) {
-        context?.emitCustomEvent(codeModeErrorEvent.name, {
-          callId,
-          error: error instanceof Error ? error.message : String(error),
-          ...(isApprovalDenied(error) ? {outcome: 'denied'} : {}),
-        })
-        throw error
+    execute: (args, context) =>
+      inSpan(tracer, 'CodeMode.toolCall', {'conciv.tool.name': tool.name}, () => callTool(args, context)),
+  }
+}
+
+function runChildCall(
+  tool: CodeModeTool,
+  execute: NonNullable<CodeModeTool['execute']>,
+  secrets: ReadonlyMap<string, string>,
+  run: CallParts[],
+) {
+  return async (args: unknown, context?: ToolContext): Promise<unknown> => {
+    const callId = randomUUID()
+    const parts: CallParts = {files: [], text: []}
+    run.push(parts)
+    context?.emitCustomEvent(codeModeCallEvent.name, {callId, function: tool.name, args})
+    try {
+      const parameter = secrets.get(`${CODE_MODE_EXTERNAL_PREFIX}${tool.name}`)
+      if (parameter !== undefined) {
+        throw new Error(`"${tool.name}" takes "${parameter}", which ${SECRET_REFUSAL}`)
       }
-    },
+      const input = validated(tool.inputSchema, args, `Input validation failed for tool ${tool.name}`)
+      const output: unknown = await execute(
+        input,
+        context === undefined ? undefined : {...context, toolCallId: callId, ...filesContext(parts)},
+      )
+      const result = validated(tool.outputSchema, output, `Output validation failed for tool ${tool.name}`)
+      context?.emitCustomEvent(codeModeResultEvent.name, {callId, result: cardResult(result, parts.files)})
+      return result
+    } catch (error) {
+      context?.emitCustomEvent(codeModeErrorEvent.name, {
+        callId,
+        error: error instanceof Error ? error.message : String(error),
+        ...(isApprovalDenied(error) ? {outcome: 'denied'} : {}),
+      })
+      throw error
+    }
   }
 }
 
@@ -255,6 +288,7 @@ export function codeModeTools(
   search: ((input: unknown) => Promise<unknown>) | null,
   shapeResult: (value: unknown) => unknown,
   debug: DebugConfig,
+  tracer: Tracer | undefined,
   timeoutMs = CODE_MODE_TIMEOUT_MS,
 ): CodeModeTools | null {
   const serverTools = tools.filter(isServerTool).map(convertedSchemas)
@@ -281,21 +315,25 @@ export function codeModeTools(
   }
   const codeMode = createCodeMode({
     ...config,
-    tools: serverTools.map((tool) => childCall(tool, secrets, [])),
+    tools: serverTools.map((tool) => childCall(tool, secrets, [], tracer)),
     lazyToolsConfig: {includeDescription: 'first-sentence'},
   })
   const program: ChatTool = {
     ...codeMode.tool,
     outputSchema: ExecuteResultSchema,
-    execute: async (args: unknown, context?: ToolContext) => {
-      const run: CallParts[] = []
-      const {execute} = createCodeModeTool({...config, tools: serverTools.map((each) => childCall(each, secrets, run))})
-      if (!execute) throw new Error('the code mode tool has no execute')
-      const result = ExecuteResultSchema.parse(await execute(ProgramInputSchema.parse(args), context))
-      const notes = uniq(run.flatMap((parts) => parts.text)).map((content) => ({type: 'text' as const, content}))
-      const files = [...notes, ...run.flatMap((parts) => parts.files)]
-      return files.length === 0 ? result : {...result, files}
-    },
+    execute: (args: unknown, context?: ToolContext) =>
+      inSpan(tracer, 'CodeMode.execute', {'conciv.tool.call.id': context?.toolCallId ?? ''}, async () => {
+        const run: CallParts[] = []
+        const {execute} = createCodeModeTool({
+          ...config,
+          tools: serverTools.map((each) => childCall(each, secrets, run, tracer)),
+        })
+        if (!execute) throw new Error('the code mode tool has no execute')
+        const result = ExecuteResultSchema.parse(await execute(ProgramInputSchema.parse(args), context))
+        const notes = uniq(run.flatMap((parts) => parts.text)).map((content) => ({type: 'text' as const, content}))
+        const files = [...notes, ...run.flatMap((parts) => parts.files)]
+        return files.length === 0 ? result : {...result, files}
+      }),
   }
   const execute = withResult(endingCalls(program), shapeResult)
   const discover =

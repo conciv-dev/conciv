@@ -9,6 +9,8 @@ import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
 import type {EngineStaleness} from '@conciv/contract'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
+import {inSpan, type Tracer} from '@conciv/ai/server'
+import {startObservability, type EngineObservability} from './runtime/observability.js'
 import {agentPath} from './engine-login.js'
 import {carryEngineRouter, readEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
 import {makeEditorOpener} from './editor/open.js'
@@ -189,8 +191,9 @@ async function servePort(
   fetchHandler: FetchHandler,
   request: PortRequest | undefined,
   state: {file: string; token: string},
+  tracer: Tracer | undefined,
 ): Promise<Served & {restoreRecord: ShutdownStep}> {
-  const serving = await serveRequestedPort(fetchHandler, request, state.file)
+  const serving = await inSpan(tracer, 'Engine.listen', {}, () => serveRequestedPort(fetchHandler, request, state.file))
   try {
     return {...serving, restoreRecord: writePersistedPort(state.file, {port: serving.port, token: state.token})}
   } catch (error) {
@@ -245,19 +248,66 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const systemPrompt = cfg.systemPrompt
   if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)
 
+  const agentToken = opts.accessToken ?? randomUUID()
+  const engineId = randomUUID()
+  const {home, env} = await runWithProvider(
+    configProvider,
+    Effect.all({home: readConcivHome(opts.homeDir), env: readProcessEnv}),
+  )
+  const observability = await startObservability({
+    home,
+    fallbackRoots: join(paths.dir, 'plugin-host'),
+    configProvider,
+    engineId,
+  })
+  return inSpan(
+    observability.tracer,
+    'Engine.start',
+    {'conciv.engine.id': engineId, 'conciv.harness.id': cfg.harness},
+    () =>
+      startEngine({
+        opts,
+        cfg,
+        configProvider,
+        registry,
+        paths,
+        home,
+        env,
+        agentToken,
+        engineId,
+        systemPrompt,
+        observability,
+      }),
+  ).catch(async (error: unknown) => {
+    await observability.dispose()
+    throw error
+  })
+}
+
+type EngineStart = {
+  opts: StartOpts
+  cfg: ResolvedConcivConfig
+  configProvider: ConfigProvider.ConfigProvider
+  registry: ReturnType<typeof harnessRegistry>
+  paths: StatePaths
+  home: string
+  env: NodeJS.ProcessEnv
+  agentToken: string
+  engineId: string
+  systemPrompt: string | undefined
+  observability: EngineObservability
+}
+
+async function startEngine(engine: EngineStart): Promise<Engine> {
+  const {opts, cfg, configProvider, registry, paths, home, env, agentToken, engineId, systemPrompt, observability} =
+    engine
+  const tracer = observability.tracer
   const openInEditor = makeEditorOpener(
     (file, line, column) => opts.launchEditor(file, line, column),
     4000,
     () => Date.now(),
   )
-
-  const agentToken = opts.accessToken ?? randomUUID()
-  const engineId = randomUUID()
   const portRef = {port: 0}
-  const {home, env} = await runWithProvider(
-    configProvider,
-    Effect.all({home: readConcivHome(opts.homeDir), env: readProcessEnv}),
-  )
   const harnessEnv = (sessionId?: SessionId): NodeJS.ProcessEnv => {
     const baseEnv = {...(opts.childEnv ? opts.childEnv(portRef.port) : env), CONCIV_TOKEN: agentToken}
     return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
@@ -300,6 +350,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
     staleness: opts.staleness,
     app: opts.app,
+    observability,
   }
   const madeApp = Promise.withResolvers<MadeApp>()
   madeApp.promise.catch(() => {})
@@ -307,11 +358,12 @@ export async function start(opts: StartOpts): Promise<Engine> {
     (request, env) => madeApp.promise.then((made) => made.fetch(request, env)),
     opts.port,
     {file: paths.server, token: agentToken},
+    tracer,
   )
   portRef.port = port
   const abandonStart = (steps: readonly ShutdownStep[]): Promise<void> =>
     cleanupAfterFailedStart([close, ...steps, restoreRecord])
-  const made = await makeApp(appOpts).catch(async (error: unknown) => {
+  const made = await inSpan(tracer, 'Engine.makeApp', {}, () => makeApp(appOpts)).catch(async (error: unknown) => {
     madeApp.reject(error)
     await abandonStart([])
     throw error
@@ -350,7 +402,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     }
   }
   try {
-    await awaitActivation()
+    await inSpan(tracer, 'Engine.awaitActivation', {}, awaitActivation)
   } catch (error) {
     clearEndpoint()
     retire()
@@ -364,9 +416,15 @@ export async function start(opts: StartOpts): Promise<Engine> {
       cfg,
       trustBrowser,
       stop: async () => {
-        clearEndpoint()
-        retire()
-        await runInOrder([close, dispose], 'conciv: stopping the engine failed')
+        try {
+          await inSpan(tracer, 'Engine.stop', {'conciv.engine.id': engineId}, async () => {
+            clearEndpoint()
+            retire()
+            await runInOrder([close, dispose], 'conciv: stopping the engine failed')
+          })
+        } finally {
+          await observability.dispose()
+        }
       },
     },
     readEngineRouter(made),
