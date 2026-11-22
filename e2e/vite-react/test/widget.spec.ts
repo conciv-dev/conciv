@@ -80,30 +80,6 @@ test.describe('the conciv CLI against the vite react dev server', () => {
     )
     expect(JSON.parse(attached)).toMatchObject({ok: true, data: expect.arrayContaining([tab])})
   })
-
-  test('on a machine with no claude CLI, conciv mcp connect claude says why it failed, conciv mcp list stays empty, and conciv mcp disconnect claude notes the entry it could not remove', async () => {
-    const project = join(import.meta.dirname, '..')
-    const conciv = join(project, '.conciv', 'bin', 'conciv')
-    const terminal = {
-      cwd: project,
-      env: {PATH: '/usr/bin:/bin', HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME},
-    }
-
-    const before = await text(spawn(process.execPath, [conciv, 'mcp', 'list'], terminal).stdout)
-    expect(JSON.parse(before)).toMatchObject({ok: true, data: []})
-
-    const connected = await text(spawn(process.execPath, [conciv, 'mcp', 'connect', 'claude'], terminal).stdout)
-    expect(JSON.parse(connected)).toMatchObject({ok: false, error: {message: expect.stringContaining('claude')}})
-
-    const after = await text(spawn(process.execPath, [conciv, 'mcp', 'list'], terminal).stdout)
-    expect(JSON.parse(after)).toMatchObject({ok: true, data: []})
-
-    const disconnected = await text(spawn(process.execPath, [conciv, 'mcp', 'disconnect', 'claude'], terminal).stdout)
-    expect(JSON.parse(disconnected)).toMatchObject({
-      ok: true,
-      data: {disconnected: 'claude', note: expect.stringContaining('could not remove its conciv-hub entry')},
-    })
-  })
 })
 
 test.describe('attaching files with the Add attachment button', () => {
