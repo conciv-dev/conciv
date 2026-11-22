@@ -62,12 +62,18 @@ function resolveBinary(node, sourceCode, depth) {
   return operate(left, right)
 }
 
+function negate(value) {
+  return value === undefined ? undefined : -value
+}
+
 function resolveNumber(value, sourceCode, depth = 0) {
   const node = unwrap(value)
   if (depth > RESOLVE_DEPTH) return undefined
   if (node?.type === 'Literal' && typeof node.value === 'number') return node.value
   if (isIdentifier(node)) return resolveNumber(readConstInit(node, sourceCode), sourceCode, depth + 1)
   if (node?.type === 'BinaryExpression') return resolveBinary(node, sourceCode, depth + 1)
+  if (node?.type === 'UnaryExpression' && node.operator === '-')
+    return negate(resolveNumber(node.argument, sourceCode, depth + 1))
   return undefined
 }
 
@@ -193,6 +199,9 @@ function reportTimeout(timeout, context) {
   const value = resolveNumber(timeout.node, context.sourceCode)
   const data = {kind: timeout.kind, cap: String(cap)}
   if (value === undefined) return context.report({node: timeout.node, messageId: 'unresolvable', data})
+  if (value <= 0) {
+    return context.report({node: timeout.node, messageId: 'disabled', data: {...data, value: String(value)}})
+  }
   if (value <= cap) return
   context.report({node: timeout.node, messageId: 'overCap', data: {...data, value: String(value)}})
 }
@@ -213,11 +222,13 @@ export default {
     type: 'problem',
     docs: {
       description:
-        'Caps every test-side timeout: an expect timeout (a timeout key under expect, or in the options of expect.poll, expect.element or a retrying matcher) at 10000 ms, and a test timeout (a Playwright config or project timeout, vitest testTimeout and hookTimeout, a test, it or describe timeout option or numeric third argument, test.setTimeout) at 30000 ms. A value must be a number literal, a same-file const holding one, or arithmetic of those; anything else is reported as unresolvable. test.slow() triples the test timeout, so it is reported unless the same file sets every test timeout it holds to a resolvable value whose triple stays within 30000 ms; a file that sets none leaves the timeout to the config, which the rule cannot read, and is reported as unresolvable. A timeout outside expect or test config (webServer, page.goto, launch options) is server or page time and is never reported.',
+        'Caps every test-side timeout: an expect timeout (a timeout key under expect, or in the options of expect.poll, expect.element or a retrying matcher) at 10000 ms, and a test timeout (a Playwright config or project timeout, vitest testTimeout and hookTimeout, a test, it or describe timeout option or numeric third argument, test.setTimeout) at 30000 ms. A value must be a number literal, a same-file const holding one, or arithmetic of those; anything else, Infinity and Number constants included, is reported as unresolvable. A value of 0 or below turns the timeout off, so it is reported too. test.slow() triples the test timeout, so it is reported unless the same file sets every test timeout it holds to a resolvable value whose triple stays within 30000 ms; a file that sets none leaves the timeout to the config, which the rule cannot read, and is reported as unresolvable. A timeout outside expect or test config (webServer, page.goto, launch options) is server or page time and is never reported.',
     },
     messages: {
       overCap:
         'This {{kind}} timeout is {{value}} ms, above the {{cap}} ms cap. A test that needs longer is waiting on something it should await or speed up; lower the value.',
+      disabled:
+        'This {{kind}} timeout is {{value}}, which disables the timeout; the cap is {{cap}} ms. Set a positive number within the cap.',
       unresolvable:
         'This {{kind}} timeout is not a number the rule can check against the {{cap}} ms cap. Write a number literal or a same-file const holding one.',
       slowOverCap:

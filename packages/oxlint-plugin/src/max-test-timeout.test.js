@@ -13,6 +13,7 @@ const overExpect = (value) => ({messageId: 'overCap', data: {kind: 'expect', cap
 const overTest = (value) => ({messageId: 'overCap', data: {kind: 'test', cap: '30000', value}})
 const unresolvable = (kind, cap) => ({messageId: 'unresolvable', data: {kind, cap}})
 const slowOver = (value) => ({messageId: 'slowOverCap', data: {cap: '30000', value}})
+const disabled = (kind, cap, value) => ({messageId: 'disabled', data: {kind, cap, value}})
 const slowUnresolvable = {messageId: 'slowUnresolvable', data: {cap: '30000'}}
 
 tester.run('max-test-timeout', rule, {
@@ -71,6 +72,37 @@ tester.run('max-test-timeout', rule, {
     {name: 'a factory call that is not the config', code: 'await start({timeout: 120_000})', filename: config},
   ],
   invalid: [
+    {
+      name: 'a config test timeout of 0',
+      code: 'export default defineConfig({timeout: 0, expect: {timeout: 0}})',
+      filename: config,
+      errors: [disabled('test', '30000', '0'), disabled('expect', '10000', '0')],
+    },
+    {name: 'test.setTimeout(0)', code: 'test.setTimeout(0)', filename: spec, errors: [disabled('test', '30000', '0')]},
+    {
+      name: 'a matcher timeout of 0',
+      code: 'await expect(x).toBeVisible({timeout: 0})',
+      filename: spec,
+      errors: [disabled('expect', '10000', '0')],
+    },
+    {
+      name: 'vitest timeouts of 0',
+      code: 'defineConfig({test: {testTimeout: 0, hookTimeout: 0}})',
+      filename: vitestConfig,
+      errors: [disabled('test', '30000', '0'), disabled('test', '30000', '0')],
+    },
+    {
+      name: 'a negative test timeout',
+      code: "test('runs', {timeout: -1}, run)",
+      filename: spec,
+      errors: [disabled('test', '30000', '-1')],
+    },
+    {
+      name: 'infinite and maximal values',
+      code: 'test.setTimeout(Infinity)\ntest.setTimeout(Number.POSITIVE_INFINITY)\ntest.setTimeout(Number.MAX_SAFE_INTEGER)',
+      filename: spec,
+      errors: [unresolvable('test', '30000'), unresolvable('test', '30000'), unresolvable('test', '30000')],
+    },
     {
       name: 'a vitest poll timeout over the cap',
       code: 'defineConfig({test: {expect: {poll: {timeout: 10_001}}}})',
