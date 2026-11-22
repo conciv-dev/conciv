@@ -73,8 +73,8 @@ describe('resetting settings', () => {
     await user.click(await screen.findByRole('button', {name: 'Reset shortcuts'}))
     expect(await screen.findByText('Settings reset')).toBeVisible()
     await user.click(screen.getByRole('tab', {name: 'Shortcuts'}))
-    expect(await screen.findByText('Ctrl+Period')).toBeVisible()
-    expect(screen.queryByText('Ctrl+K')).not.toBeInTheDocument()
+    expect(await screen.findByText(/^(Ctrl|Cmd)\+Period$/)).toBeVisible()
+    expect(screen.queryByText(/^(Ctrl|Cmd)\+K$/)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', {name: 'Advanced'}))
     await user.click(await screen.findByRole('link', {name: 'Reset all'}))
