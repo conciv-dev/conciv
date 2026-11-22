@@ -244,6 +244,7 @@ describe('the model command', () => {
     const picked = await screen.findByRole('textbox', {name: 'Search models'})
     expect(picked).toBeVisible()
     await user.type(picked, '{Escape}')
+    await expect.element(page.getByRole('textbox', {name: 'Search models'})).not.toBeInTheDocument()
 
     await user.type(input, '/model ')
     expect(input).toHaveFocus()
