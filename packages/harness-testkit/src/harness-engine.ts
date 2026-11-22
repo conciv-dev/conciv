@@ -193,7 +193,7 @@ async function readTurn(
   failed: (error: Error) => void,
 ): Promise<void> {
   for await (const event of events) {
-    if (event.type === ChatEventType.RUN_ERROR) failed(new Error(event.message))
+    if (event.type === ChatEventType.RUN_ERROR) failed(Object.assign(new Error(event.message), {code: event.code}))
     else if (endsRun(event, runId)) ended()
   }
   ended()

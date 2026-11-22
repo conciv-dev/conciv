@@ -43,8 +43,9 @@ export function toolCall(id: string, name: string, input: unknown): Reply {
   return reply({toolCalls: [{id, name, input}]})
 }
 
-export function failAfter(error: Error): Reply {
-  return reply({error: error.message})
+export function failAfter(error: Error & {code?: string}): Reply {
+  const step = error.code === undefined ? {error: error.message} : {error: error.message, code: error.code}
+  return reply(step)
 }
 
 export function hang(): Reply {

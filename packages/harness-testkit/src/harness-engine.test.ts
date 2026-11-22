@@ -1,4 +1,5 @@
 import {describe, expect} from 'vitest'
+import {CONTEXT_OVERFLOW_CODE} from '@conciv/protocol/chat-event-types'
 import {TestLLM} from './harness-engine.js'
 import {test} from '../test/engine-test.js'
 
@@ -11,6 +12,17 @@ describe('scripted replies', () => {
     await engine.session.send('one')
     await engine.session.send('two')
     await expect(engine.session.send('three')).rejects.toThrow('the scripted harness has no reply for request 3')
+  })
+
+  test('a failed reply carries the code of the error it was made from, so a client sees why the run failed', async ({
+    engine,
+  }) => {
+    await engine.reply(TestLLM.failAfter(Object.assign(new Error('prompt is too long'), {code: CONTEXT_OVERFLOW_CODE})))
+
+    await expect(engine.session.send('one')).rejects.toMatchObject({
+      message: 'prompt is too long',
+      code: CONTEXT_OVERFLOW_CODE,
+    })
   })
 })
 

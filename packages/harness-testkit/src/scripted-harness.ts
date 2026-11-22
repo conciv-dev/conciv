@@ -23,6 +23,8 @@ import type {FakeResponseStep, Gate, ModelRequest, Reply} from './test-llm.js'
 
 const FAKE_HARNESS_ID = 'engine'
 
+const CodedErrorSchema = z.object({error: z.string(), code: z.string()})
+
 const EFFORTS: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
 const MODELS: HarnessModel[] = [
@@ -165,6 +167,7 @@ function recorded(request: StreamOptions, deps: HarnessChatDeps): ModelRequest {
 export function replyScript(tokensPerSecond: number | undefined): ReplyScript {
   const fake = fakeText(tokensPerSecond === undefined ? {} : {tokensPerSecond})
   const state: ScriptState = {requests: [], held: undefined}
+  const codes = new WeakMap<object, string>()
   const gated =
     (reply: Reply): FakeResponseStep =>
     async (call) => {
@@ -173,13 +176,19 @@ export function replyScript(tokensPerSecond: number | undefined): ReplyScript {
         held.started.resolve()
         await held.released.promise
       }
-      return typeof reply === 'function' ? reply(call) : reply
+      const step = typeof reply === 'function' ? await reply(call) : reply
+      const coded = CodedErrorSchema.safeParse(step)
+      if (coded.success) codes.set(call.request, coded.data.code)
+      return step
     }
   async function* scriptedRun(deps: HarnessChatDeps, request: StreamOptions): AsyncGenerator<ChatEvent> {
     const count = state.requests.push(recorded(request, deps))
     if (fake.pendingResponses() === 0) throw new Error(`the scripted harness has no reply for request ${count}`)
     for await (const event of fake.chatStream(request)) {
-      yield event
+      const code = codes.get(request)
+      yield event.type === ChatEventType.RUN_ERROR && code !== undefined
+        ? {...event, code, error: {message: event.message, code}}
+        : event
       if (event.type === ChatEventType.RUN_STARTED) {
         yield {
           type: ChatEventType.CUSTOM,
