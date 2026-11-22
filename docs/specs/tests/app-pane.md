@@ -129,8 +129,8 @@ All verify: the ask comes from `createEngine({permission: 'ask'})` (or a `permis
 | status    | rows |
 | --------- | ---- |
 | tested    | 13   |
-| written   | 49   |
-| planned   | 4    |
+| written   | 53   |
+| planned   | 0    |
 | verify    | 0    |
 | blocked   | 9    |
 | browser   | 0    |
