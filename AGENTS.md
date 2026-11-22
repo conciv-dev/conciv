@@ -132,7 +132,7 @@ README.md; this file is the non-obvious operational rules.
 The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test plan is `docs/specs/test-split/`.
 
 - The file name picks the runner. `src/x.test.ts` beside `src/x.ts` runs in node; `src/x.dom.test.tsx` beside
-  `src/x.tsx` runs in happy-dom; `src/x.browser.test.tsx` beside its source runs in vitest browser mode
+  `src/x.tsx` runs in happy-dom; one `src/<package>.browser.test.tsx` per package runs in vitest browser mode
   (Chromium). Playwright Test exists only under `e2e/` (`conciv/playwright-test-in-e2e`). Never jsdom.
 - One `vite.config.ts` per package and no `vitest*.config` file: `concivTest()` (`@conciv/plugin-testkit/vitest`)
   adds the test projects; `conciv()` (`@conciv/unplugin`) adds nothing under vitest.
@@ -141,9 +141,11 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   app or a plugin) is tested in a real browser on the kit's browser `mount` (`@conciv/plugin-testkit/browser`);
   happy-dom is for tests that mount nothing (functions, models, reducers), as opencode
   (`_ref/opencode/packages/app/happydom.ts`).
-- Budgets (`conciv/test-file-budget`): a package never has more test files (node, happy-dom and browser together)
-  than source files under `src/`; every test file lives beside the source it tests; a test file is at most 1,000
-  lines.
+- Budgets (`conciv/test-file-budget`): never more test files than source files in a package; a node or happy-dom
+  test lives beside the source it tests; one browser-mode file per package (add a `describe`, never a second file);
+  a test file is at most 1,000 lines. The app is the one exception, as opencode's keeper suites
+  (`_ref/opencode/packages/app/e2e/regression/`): `apps/conciv` has one browser-mode file per product area
+  (`src/<area>.browser.test.tsx`), and a new case goes into its area's file.
 - The kits. `@conciv/plugin-testkit`: `createEngine(config, start)`, `TestLLM`. `@conciv/plugin-testkit/browser`:
   `mount` and `createEngineRouterHistory`; `mount({engine, history})` opens the app on a tab's last screen (`createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})`, written to sessionStorage) or on any TanStack `RouterHistory`. `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. `config` is the product's own
   `ConcivConfig`; `start` is only what is not product config (`directory`, `timeouts`, `harnesses`, `env`, `fs`,
