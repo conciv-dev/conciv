@@ -21,7 +21,7 @@ describe('the host page drives the widget through its handle', () => {
     },
   })
 
-  test('the handle mounts the widget, opens, closes and toggles the panel, rebinds it to another engine, and unmounts it', async ({
+  test('the handle mounts the widget, opens, closes and toggles the panel, rebinds it to another engine, unmounts it, and a remount in the same tab reopens its last screen', async ({
     element,
     handles,
   }) => {
@@ -58,7 +58,7 @@ describe('the host page drives the widget through its handle', () => {
     handle.unmount()
     await expect.element(launcher).not.toBeInTheDocument()
     await handle.mount(element)
-    await expect.element(launcher).toBeVisible()
+    await expect.element(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
   })
 })
 
