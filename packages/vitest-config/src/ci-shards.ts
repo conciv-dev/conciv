@@ -149,13 +149,11 @@ function summarize(args: string[]): void {
   writeFileSync(timingsPath, `${JSON.stringify(measured, null, 2)}\n`)
 }
 
-const [command, ...rest] = process.argv.slice(2)
-if (command === 'plan') plan(rest)
-if (command === 'run') run(rest)
-if (command === 'report') report(rest)
-if (command === 'coverage') coverage(rest)
-if (command === 'summarize') summarize(rest)
-if (command !== 'plan' && command !== 'run' && command !== 'report' && command !== 'summarize') {
-  process.stderr.write('usage: conciv-ci-shards <plan|run|report|summarize> [--task test|e2e]\n')
+const COMMANDS: Record<string, (args: string[]) => void> = {plan, run, report, coverage, summarize}
+
+const [command = '', ...rest] = process.argv.slice(2)
+const chosen = COMMANDS[command]
+if (chosen === undefined) {
+  process.stderr.write(`usage: conciv-ci-shards <${Object.keys(COMMANDS).join('|')}> [--task test|e2e]\n`)
   process.exitCode = 2
-}
+} else chosen(rest)
