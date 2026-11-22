@@ -35,7 +35,7 @@ describe('a markdown reply', () => {
 
     expect(await screen.findByRole('article', {name: 'You: Make a plan'})).toBeVisible()
     const reply = await screen.findByRole('article', {name: 'Reply to: Make a plan'})
-    expect(await within(reply).findByText('after.')).toBeVisible()
+    expect(await within(reply).findByText(/after\./)).toBeVisible()
     expect(within(reply).getByRole('heading', {name: 'Plan'})).toBeVisible()
     const list = within(reply).getByRole('list')
     const items = within(list).getAllByRole('listitem')
@@ -451,5 +451,47 @@ describe('the agent asks for permission', () => {
 
     expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
     expect(screen.queryByRole('button', {name: 'Allow once'})).not.toBeInTheDocument()
+  })
+})
+
+describe('the engine goes away for a moment', () => {
+  test('while the engine restarts Refresh waits and a failed reply hides its error, and once it is back the error and its Retry return and Retry gets the new reply', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.text('Here is the page'),
+      TestLLM.failAfter(new Error('The model is unavailable')),
+      TestLLM.text('I am back'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Read the page')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('Here is the page')).toBeVisible()
+    const refresh = page.getByRole('toolbar', {name: 'Message actions'}).getByRole('button', {name: 'Refresh'})
+    await expect.element(refresh).toBeEnabled()
+
+    const firstRestart = engine.restart()
+    expect(await screen.findByText('conciv lost connection to the engine.')).toBeVisible()
+    await expect.element(refresh).toBeDisabled()
+    await firstRestart
+    await expect.element(page.getByText('conciv lost connection to the engine.')).not.toBeInTheDocument()
+    await expect.element(refresh).toBeEnabled()
+
+    await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Read it again')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    const failed = await screen.findByRole('alert', {name: 'The model is unavailable'})
+    expect(within(failed).getByRole('button', {name: 'Retry'})).toBeVisible()
+
+    const secondRestart = engine.restart()
+    expect(await screen.findByText('conciv lost connection to the engine.')).toBeVisible()
+    await expect.element(page.getByRole('alert', {name: 'The model is unavailable'})).not.toBeInTheDocument()
+    await secondRestart
+    const back = await screen.findByRole('alert', {name: 'The model is unavailable'})
+    await user.click(within(back).getByRole('button', {name: 'Retry'}))
+
+    const reply = await screen.findByRole('article', {name: 'Reply to: Read it again'})
+    expect(await within(reply).findByText('I am back')).toBeVisible()
+    expect(screen.queryByRole('alert', {name: 'The model is unavailable'})).not.toBeInTheDocument()
   })
 })
