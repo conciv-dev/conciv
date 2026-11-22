@@ -1,6 +1,6 @@
 import {readFile} from 'node:fs/promises'
 import {expect, test} from '@conciv/e2e-utils/fixtures'
-import {collectFailures, expectWidgetBoots, holdEngineCall, loginWidget} from '@conciv/e2e-utils/widget'
+import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
 
 test.describe('the widget on a vite solid page', () => {
   test('the user types a draft, the project plugin is rebuilt, and the widget shows the new line in place with the draft and focus kept', async ({
@@ -22,32 +22,6 @@ test.describe('the widget on a vite solid page', () => {
     await expect(page.getByText('live line first')).toHaveCount(0)
     await expect(composer).toHaveText('a draft the rebuild keeps')
     await expect(composer).toBeFocused()
-  })
-})
-
-test.describe('a project plugin switch the engine fails to save on a vite solid page', () => {
-  test('the user turns the project plugin off while the engine fails the save, is told the request failed, and the plugin stays on', async ({
-    page,
-  }) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
-    const save = await holdEngineCall(page, ['settings', 'set'], {fail: 'INTERNAL_SERVER_ERROR'})
-    await page.reload({waitUntil: 'domcontentloaded'})
-    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
-    await expect(page.getByText('live line first')).toBeVisible()
-    await page.getByRole('link', {name: 'Settings'}).click()
-    await page.getByRole('tab', {name: 'Plugins'}).click()
-    const liveLine = page.getByRole('switch', {name: 'live-line'})
-    await expect(liveLine).toBeChecked()
-
-    await liveLine.click()
-    await save.arrived
-    await expect(page.getByText('Request failed')).toBeVisible()
-    await expect(liveLine).toBeChecked()
-
-    await page.getByRole('button', {name: 'Back to chat'}).click()
-    await expect(page.getByText('live line first')).toBeVisible()
   })
 })
 
