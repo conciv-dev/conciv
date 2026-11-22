@@ -67,6 +67,26 @@ describe('the Tests tab', () => {
       failures: [{name: 'the pruned rose blooms'}],
     })
   })
+
+  test('after the engine connection drops and comes back, the tab reads the status again', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine(
+      {plugins: ['@conciv/plugin-test-runner']},
+      {directory: 'test/fixtures/greenhouse'},
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.click(await screen.findByRole('tab', {name: 'Tests'}))
+    const panel = await screen.findByRole('tabpanel', {name: 'Tests'})
+    await engine.rpc.call('test-runner', 'run', {patterns: ['beds']})
+    expect(await within(panel).findByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toBeVisible()
+
+    await engine.restart()
+
+    const reconnected = await screen.findByRole('tabpanel', {name: 'Tests'})
+    expect(await within(reconnected).findByText('No test run yet')).toBeVisible()
+    expect(within(reconnected).queryByText(/^Test run finished/)).not.toBeInTheDocument()
+  })
 })
 
 describe('the run in the thread', () => {
