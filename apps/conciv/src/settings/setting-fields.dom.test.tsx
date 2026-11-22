@@ -1,5 +1,5 @@
-import {describe, expect, test} from 'vitest'
-import {screen} from '@solidjs/testing-library'
+import {describe, expect, it, test} from 'vitest'
+import {render, screen} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
@@ -28,7 +28,8 @@ describe('the general settings change the panel', () => {
     await user.click(await screen.findByRole('option', {name: 'Mascot'}))
     expect(await screen.findByRole('button', {name: 'Minimize conciv chat'})).toBeVisible()
 
-    await user.click(document.body)
+    render(() => <p>The host page</p>)
+    await user.click(screen.getByText('The host page'))
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     expect(screen.queryByRole('dialog', {name: 'conciv chat agent'})).not.toBeInTheDocument()
   })
@@ -52,4 +53,31 @@ describe('the general settings change the panel', () => {
     expect(screen.getByText('Set in conciv({launcher}) by this project.')).toBeVisible()
     expect(screen.getByText('Set in conciv({defaultOpen}) by this project.')).toBeVisible()
   })
+})
+
+describe('the host page declares a skin in --conciv-skin', () => {
+  test('a skin conciv ships is taken from the page and the Skin row says the page set it', async () => {
+    const user = userEvent.setup()
+    render(() => <style>{'body { --conciv-skin: terminal; }'}</style>)
+    const engine = await createEngine()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await user.click(await screen.findByRole('link', {name: 'Settings'}))
+
+    expect(await screen.findByText('Set by the page in --conciv-skin')).toBeVisible()
+    expect(screen.getByRole('radio', {name: 'Terminal'})).toBeChecked()
+  })
+
+  it.each(['neon', 'toString', 'constructor'])(
+    'a page skin %s that conciv does not ship is not taken, and the Skin row keeps the user choice',
+    async (skin) => {
+      const user = userEvent.setup()
+      render(() => <style>{`body { --conciv-skin: ${skin}; }`}</style>)
+      const engine = await createEngine()
+      await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+      await user.click(await screen.findByRole('link', {name: 'Settings'}))
+
+      expect(await screen.findByRole('radio', {name: 'Conciv'})).toBeChecked()
+      expect(screen.queryByText('Set by the page in --conciv-skin')).not.toBeInTheDocument()
+    },
+  )
 })
