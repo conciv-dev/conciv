@@ -119,15 +119,18 @@ produced over the committed one, shows the diff in the run summary and uploads b
 3. Before committing, check the diff holds only the expected `name@version` changes, and no tarball or git
    resolution other than the `@conciv/*@file:` entries.
 
-`e2e-utils` holds the shared Playwright config factory, the widget boot assertions, and the fixed
-port registry (`src/config.ts`) so suites can run side by side.
+`e2e-utils` holds the shared Playwright config factory and the widget boot assertions. No dev server has a
+fixed port: the config asks the system for a free port once, in the Playwright runner, and pins it in a
+`CONCIV_E2E_<SERVER>_PORT` environment variable that the workers read back when they load the config again.
+Two apps, or one app in two worktrees, run side by side. A spec reaches its server through `baseURL`, and a
+second server through its pinned variable.
 
 ## Adding an app
 
 1. Scaffold into `e2e/<name>` with the framework's official CLI.
-2. Add the app to `E2E_PORTS` in `e2e-utils/src/config.ts`.
+2. Add the app's name to the `E2EApp` names in `e2e-utils/src/config.ts`.
 3. Add `@conciv/it` (`workspace:*`) and wire the plugin the way the framework's docs say.
 4. Add `@conciv/e2e-utils` + `@playwright/test` dev deps, a `test:e2e` script, a
-   `playwright.config.ts` built from `e2eConfig(...)`, and a `test/widget.spec.ts`.
+   `playwright.config.ts` that exports `await e2eConfig(...)`, and a `test/widget.spec.ts`.
 5. Add `e2e/<name>/**` to `ignorePatterns` in `.fallowrc.json` (scaffold output is not audited,
    same as `apps/examples/**`).
