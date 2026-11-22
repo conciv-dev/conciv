@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest'
-import {page} from 'vitest/browser'
-import {screen, within} from '@solidjs/testing-library'
+import {page, userEvent as realInput} from 'vitest/browser'
+import {render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
@@ -40,6 +40,41 @@ describe('notes from a plugin', () => {
       role: 'user',
       content: 'Polish the page\nThe user made the following comment regarding the page header: Make the header sticky',
     })
+  })
+})
+
+describe('a composer note from a page comment', () => {
+  test('the user picks an element of the page to comment on, the note lands in the composer, and the agent gets the comment on that element', async () => {
+    const user = userEvent.setup({delay: null})
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
+    await engine.reply(TestLLM.text('It is green now'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    render(() => (
+      <button type="button" id="buy">
+        Buy the fern
+      </button>
+    ))
+
+    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    await user.click(await screen.findByRole('button', {name: 'Comment on the page'}))
+    await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
+    const notes = await screen.findByRole('list', {name: 'Notes'})
+    expect(within(notes).getByText('Make this button green')).toBeVisible()
+    expect(within(notes).getByText('Page comment')).toBeVisible()
+    expect(input).toHaveFocus()
+
+    await user.keyboard('Do it')
+    await user.keyboard('{Enter}')
+    const reply = await screen.findByRole('article', {name: 'Reply to: Do it'})
+    expect(await within(reply).findByText('It is green now')).toBeVisible()
+    expect(
+      within(screen.getByRole('list', {name: 'Notes on this message'})).getByText('Make this button green'),
+    ).toBeVisible()
+    const requests = await engine.requests()
+    const sent = JSON.stringify(requests[0]?.messages.at(-1))
+    expect(sent).toContain('The user made the following comment regarding')
+    expect(sent).toContain('Buy the fern')
+    expect(sent).toContain('Make this button green')
   })
 })
 
