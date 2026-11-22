@@ -115,29 +115,33 @@ describe.concurrent('session.synthetic wakes and delivers', () => {
 
   test('preserves durable queued input for a later run after interruption', async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/inbox-notices']})
-    await engine.reply(TestLLM.hang(), TestLLM.text('Resumed'))
+    await engine.reply(TestLLM.hang(), TestLLM.text('Resumed'), TestLLM.text('Went on'))
+    const notice = engine.session.tool('notice')
     const stream = await engine.gate()
     const interrupted = await engine.event('session.execution.interrupted')
     const run = engine.session.send('Interrupt current work')
     await stream.started
 
-    await engine.session.tool('notice').call({text: 'Run after interrupt', delivery: 'queue'})
+    await notice.call({text: 'Run after interrupt', delivery: 'queue'})
     await stream.release()
     await engine.session.stop()
     await run
     await interrupted.arrived
     expect(await engine.requests()).toHaveLength(1)
-    await engine.session.send('Go on')
+    const resumed = await engine.gate()
+    await notice.call({text: 'Go on', delivery: 'queue'})
+    await resumed.started
+    const next = await engine.gate()
+    await resumed.release()
+    await next.started
+    await next.release()
 
     const requests = await engine.requests()
-    expect(requests).toHaveLength(2)
-    expect(requests[0]?.messages.filter((message) => message.role === 'user')).toMatchObject([
-      {content: 'Interrupt current work'},
-    ])
-    expect(requests[1]?.messages.filter((message) => message.role === 'user')).toMatchObject([
-      {content: 'Interrupt current work'},
-      {content: 'Run after interrupt'},
-      {content: 'Go on'},
+    expect(requests).toHaveLength(3)
+    expect(requests.map((request) => request.messages.filter((message) => message.role === 'user'))).toMatchObject([
+      [{content: 'Interrupt current work'}],
+      [{content: 'Interrupt current work'}, {content: 'Run after interrupt'}],
+      [{content: 'Interrupt current work'}, {content: 'Run after interrupt'}, {content: 'Go on'}],
     ])
   })
 
@@ -245,7 +249,7 @@ describe.concurrent('session.synthetic admission', () => {
     expect(await notice.call({sessionId: doomed.id, text: 'Too late'})).toEqual({refused: 'Session.NotFoundError'})
     expect(await notice.call({id: 'msg_waiting_notice', text: 'Reused', resume: false})).toMatchObject({
       id: 'msg_waiting_notice',
-      sessionId: engine.session.id,
+      type: 'synthetic',
       payload: {text: 'Reused'},
     })
   })
