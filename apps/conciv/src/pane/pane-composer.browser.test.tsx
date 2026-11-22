@@ -28,7 +28,8 @@ describe('sending with the keyboard', () => {
 
     await user.type(input, 'Kana')
     fireEvent.keyDown(input, {key: 'Enter', isComposing: true})
-    await user.type(input, 'done')
+    expect(input).toHaveFocus()
+    await user.keyboard('done')
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
     expect(await screen.findByText('Composed')).toBeVisible()
