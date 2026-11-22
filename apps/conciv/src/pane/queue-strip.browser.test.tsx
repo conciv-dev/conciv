@@ -95,7 +95,6 @@ describe('steering the agent', () => {
     await user.click(await screen.findByRole('button', {name: 'Steer'}))
     await steerGate.started
     await expect.element(page.getByText('1 waiting · runs in order')).not.toBeInTheDocument()
-    await gate.release()
     await steerGate.release()
 
     const steered = await screen.findByRole('article', {name: 'Reply to: Do this instead'})

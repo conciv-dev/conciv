@@ -147,7 +147,6 @@ describe('stopping and sending again', () => {
     await gate.started
     await user.click(await screen.findByRole('button', {name: 'Stop generating'}))
     expect(await screen.findByRole('separator', {name: 'Stopped'})).toBeVisible()
-    await gate.release()
 
     await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Try again')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
