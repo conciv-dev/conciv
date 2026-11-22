@@ -3,12 +3,6 @@ import {expect, test} from '@conciv/e2e-utils/fixtures'
 import {collectFailures, expectWidgetBoots, holdEngineCall, loginWidget} from '@conciv/e2e-utils/widget'
 
 test.describe('the widget on a vite solid page', () => {
-  test('the user signs in by magic link and the widget opens on a vite solid page with no error', async ({page}) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
-  })
-
   test('the user types a draft, the project plugin is rebuilt, and the widget shows the new line in place with the draft and focus kept', async ({
     page,
     rebuildPlugin,

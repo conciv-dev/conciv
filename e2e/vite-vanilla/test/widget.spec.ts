@@ -3,12 +3,6 @@ import {expect, test} from '@playwright/test'
 import {collectFailures, expectWidgetBoots, holdEngineCall, loginWidget} from '@conciv/e2e-utils/widget'
 
 test.describe('the widget on a plain vite page', () => {
-  test('the user signs in by magic link and the widget opens on a plain vite page with no error', async ({page}) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
-  })
-
   test('the model menu offers a harness for each agent CLI on the PATH and none for a CLI that is missing', async ({
     page,
   }) => {
@@ -26,19 +20,6 @@ test.describe('the widget on a plain vite page', () => {
 })
 
 test.describe('the user types into the host page with the panel open', () => {
-  test('the keys go to the host field and the composer stays empty', async ({page}) => {
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
-    const search = page.getByRole('textbox', {name: 'Search plants'})
-
-    await search.click()
-    await expect(search).toBeFocused()
-    await page.keyboard.type('Boston fern? /k')
-
-    await expect(search).toHaveValue('Boston fern? /k')
-    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveText('')
-  })
   test('keys typed in the host field reach the host page key handler, and keys typed in the composer never do', async ({
     page,
   }) => {

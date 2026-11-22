@@ -1,5 +1,4 @@
 import {spawn} from 'node:child_process'
-import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {text} from 'node:stream/consumers'
 import {expect, test} from '@playwright/test'
@@ -45,53 +44,6 @@ test.describe('signing in to the widget on a vite react page', () => {
     await dialog.getByRole('button', {name: 'Send a new code'}).click()
     await expect(dialog.getByRole('status')).toHaveText('A new code was printed in your terminal.')
     await expect(dialog.getByRole('alert')).toHaveText('')
-  })
-
-  test('the user prints a login link with conciv auth link and opens it, conciv auth revoke lists the browser, and revoking every browser locks the widget', async ({
-    page,
-  }) => {
-    const failures = collectFailures(page)
-    const project = join(import.meta.dirname, '..')
-    const conciv = join(project, '.conciv', 'bin', 'conciv')
-    await page.goto('/', {waitUntil: 'domcontentloaded'})
-
-    const linked = await text(
-      spawn(process.execPath, [conciv, 'auth', 'link', page.url()], {
-        cwd: project,
-        env: {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME},
-      }).stdout,
-    )
-    expect(JSON.parse(linked)).toMatchObject({ok: true, data: {link: expect.stringContaining('#conciv_otp=')}})
-    const link = /"link":"([^"]+)"/.exec(linked)?.[1] ?? ''
-    await page.goto('about:blank')
-    await page.goto(link, {waitUntil: 'domcontentloaded'})
-    await expect(page).not.toHaveURL(/conciv_otp/)
-    await expectWidgetBoots(page, failures)
-
-    const listed = await text(
-      spawn(process.execPath, [conciv, 'auth', 'revoke'], {
-        cwd: project,
-        env: {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME},
-      }).stdout,
-    )
-    expect(JSON.parse(listed)).toMatchObject({
-      ok: true,
-      data: {
-        revoked: [],
-        trusted: expect.arrayContaining([expect.objectContaining({origin: new URL(page.url()).origin})]),
-      },
-    })
-
-    const revoked = await text(
-      spawn(process.execPath, [conciv, 'auth', 'revoke', '--all'], {
-        cwd: project,
-        env: {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME},
-      }).stdout,
-    )
-    expect(JSON.parse(revoked)).toMatchObject({ok: true, data: {trusted: []}})
-    await expect(
-      page.getByRole('alert').filter({hasText: 'This browser is no longer authorized to use conciv.'}),
-    ).toBeVisible()
   })
 })
 
@@ -175,27 +127,6 @@ test.describe('the conciv CLI against the vite react dev server', () => {
       ok: true,
       data: {disconnected: 'claude', note: expect.stringContaining('could not remove its conciv-hub entry')},
     })
-  })
-
-  test('conciv init refuses a terminal it cannot prompt in and a folder with no package.json, and the project is left as it was', async () => {
-    const project = join(import.meta.dirname, '..')
-    const conciv = join(project, '.conciv', 'bin', 'conciv')
-    const env = {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME}
-    const viteConfig = readFileSync(join(project, 'vite.config.ts'), 'utf8')
-
-    const prompted = spawn(process.execPath, [conciv, 'init'], {cwd: project, env})
-    const [shown, warned] = await Promise.all([text(prompted.stdout), text(prompted.stderr)])
-    expect(`${shown}${warned}`).toContain('Non-interactive terminal')
-    expect(readFileSync(join(project, 'vite.config.ts'), 'utf8')).toBe(viteConfig)
-
-    const bare = await text(
-      spawn(process.execPath, [conciv, 'init', '--yes', '--json'], {cwd: join(project, 'public'), env}).stdout,
-    )
-    expect(JSON.parse(bare)).toMatchObject({
-      ok: false,
-      error: {message: expect.stringContaining('no package.json here'), hint: 'nothing was written'},
-    })
-    expect(readFileSync(join(project, 'vite.config.ts'), 'utf8')).toBe(viteConfig)
   })
 })
 

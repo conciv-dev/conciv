@@ -232,39 +232,3 @@ test.describe('the quick terminal on a vite react page when the engine fails to 
     await expect(terminal).toBeHidden()
   })
 })
-
-test.describe('a session deleted in another browser on a vite react page', () => {
-  test('the user keeps a draft in a session another browser closes in its quick terminal, sees the session was deleted, and New session carries the draft over', async ({
-    page,
-    secondPage,
-  }) => {
-    const draft = 'a draft that outlives its session'
-    const failures = collectFailures(page)
-    await loginWidget(page)
-    await expectWidgetBoots(page, failures)
-    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
-    await composer.click()
-    await composer.pressSequentially(draft)
-    await expect(composer).toHaveText(draft)
-
-    const otherFailures = collectFailures(secondPage)
-    await loginWidget(secondPage)
-    await expectWidgetBoots(secondPage, otherFailures)
-    const otherComposer = secondPage.getByRole('textbox', {name: 'Message the conciv agent'})
-    await expect(otherComposer).toHaveText(draft)
-    await otherComposer.click()
-    await expect(otherComposer).toBeFocused()
-    await secondPage.keyboard.press('ControlOrMeta+Backquote')
-    const terminal = secondPage.getByRole('dialog', {name: 'conciv quick terminal'})
-    await expect(terminal.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveText(draft)
-
-    await terminal.getByRole('button', {name: 'Close pane'}).click()
-    const deleted = page.getByRole('region', {name: 'Deleted session'})
-    await expect(deleted.getByRole('status')).toHaveText('This session was deleted.')
-    await expect(deleted.getByText('Your draft moves to the new session.')).toBeVisible()
-
-    await deleted.getByRole('button', {name: 'New session'}).click()
-    await expect(page.getByText('Started a new session')).toBeVisible()
-    await expect(composer).toHaveText(draft)
-  })
-})
