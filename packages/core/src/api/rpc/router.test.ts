@@ -1,10 +1,10 @@
-import {describe, expect} from 'vitest'
+import {describe} from 'vitest'
 import {makeRpcClient} from '@conciv/contract'
 import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../../../test/engine-test.js'
 
-describe('outside agents', () => {
-  test('an outside agent that is disconnected from conciv is refused', async () => {
+describe.concurrent('outside agents', () => {
+  test('an outside agent that is disconnected from conciv is refused', async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
 
     expect(await engine.outside({client: 'codex'}).call('desk_echo', {text: 'Hello'})).toMatchObject({
@@ -13,7 +13,7 @@ describe('outside agents', () => {
     })
   })
 
-  test('with project access a call into a session waits until the user allows it', async () => {
+  test('with project access a call into a session waits until the user allows it', async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk'], hubAccess: 'project'})
 
     const called = engine.outside({tab: engine.session.id}).call('desk_echo', {text: 'Hello'})
@@ -24,7 +24,7 @@ describe('outside agents', () => {
     })
   })
 
-  test('with open access a call into a session runs without asking', async () => {
+  test('with open access a call into a session runs without asking', async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk'], hubAccess: 'open'})
 
     expect(await engine.outside({tab: engine.session.id}).call('desk_echo', {text: 'Hello'})).toEqual({
@@ -33,8 +33,11 @@ describe('outside agents', () => {
   })
 })
 
-describe('harness listing', () => {
-  test('the harness menu lists every harness of the engine with its models, the default first', async ({connect}) => {
+describe.concurrent('harness listing', () => {
+  test('the harness menu lists every harness of the engine with its models, the default first', async ({
+    connect,
+    expect,
+  }) => {
     const engine = await createEngine(
       {},
       {
@@ -55,8 +58,8 @@ describe('harness listing', () => {
   })
 })
 
-describe('tool registry', () => {
-  test('a call naming no registered tool is refused with UNKNOWN_TOOL', async ({connect}) => {
+describe.concurrent('tool registry', () => {
+  test('a call naming no registered tool is refused with UNKNOWN_TOOL', async ({connect, expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
     const rpc = connect(engine)
 
@@ -67,10 +70,11 @@ describe('tool registry', () => {
   })
 })
 
-describe('outside agent CLIs', () => {
+describe.concurrent('outside agent CLIs', () => {
   test("an agent CLI on the engine's PATH is offered, connects to conciv, and disconnects", async ({
     connect,
     agentPath,
+    expect,
   }) => {
     const engine = await createEngine({}, {env: {PATH: agentPath(['claude'])}})
     const rpc = connect(engine)
@@ -93,8 +97,8 @@ describe('outside agent CLIs', () => {
   })
 })
 
-describe('terminal access', () => {
-  test('a terminal opened from one origin answers that origin and is unknown to another', async () => {
+describe.concurrent('terminal access', () => {
+  test('a terminal opened from one origin answers that origin and is unknown to another', async ({expect}) => {
     const engine = await createEngine()
     const opener = makeRpcClient(engine.address.apiBase, {headers: {origin: 'http://localhost:5173'}})
     const stranger = makeRpcClient(engine.address.apiBase, {headers: {origin: 'http://127.0.0.1:5174'}})
