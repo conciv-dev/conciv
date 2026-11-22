@@ -6,16 +6,17 @@ import {createRequire} from 'node:module'
 import {dirname, join} from 'node:path'
 import {createInterface} from 'node:readline'
 import {pathToFileURL} from 'node:url'
-import {describe, expect} from 'vitest'
+import {describe} from 'vitest'
 import {z} from 'zod'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {adapterFiles, agentStarted, childEnv, fakeClaude, readyLine, running, test} from '../../test/unplugin-test.js'
 
-describe('the vite dev server', () => {
+describe.concurrent('the vite dev server', () => {
   test('stops the engine on Ctrl+C mid-run: no adapter file stays in the project and no agent CLI outlives it', async ({
     started,
     browser: openBrowser,
+    expect,
   }) => {
     const RecordedEngineSchema = z.object({port: z.number().int(), token: z.string().min(1)})
     const viteBin = join(dirname(createRequire(import.meta.url).resolve('vite/package.json')), 'bin', 'vite.js')
@@ -64,6 +65,7 @@ describe('the vite dev server', () => {
 
   test('a second dev server whose engine port is taken still boots, with its engine on another port', async ({
     viteDev,
+    expect,
   }) => {
     const first = await viteDev({})
     const second = await viteDev({port: first.port})

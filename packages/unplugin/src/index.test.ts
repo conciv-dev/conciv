@@ -1,18 +1,18 @@
 import {existsSync, readFileSync, readdirSync, realpathSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {describe, expect} from 'vitest'
+import {describe} from 'vitest'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import conciv from './vite.js'
 import concivWebpack from './webpack.js'
 import {test} from '../test/unplugin-test.js'
 
-describe('a vite server on a fixture project', () => {
+describe.concurrent('a vite server on a fixture project', () => {
   test.for([
     {name: 'under vitest (mode test)', mode: 'test', options: {}},
     {name: 'with enabled false', mode: 'development', options: {enabled: false}},
   ])(
     'conciv() $name boots no engine, adds no conciv tags to the page and stamps no source on a module',
-    async ({mode, options}, {project, serve}) => {
+    async ({mode, options}, {project, serve, expect}) => {
       const root = project('app')
       const server = await serve({
         root,
@@ -36,10 +36,11 @@ describe('a vite server on a fixture project', () => {
   )
 })
 
-describe('bundler builds', () => {
+describe.concurrent('bundler builds', () => {
   test('a webpack production build with conciv() gives the same output as one without, and writes no conciv state', async ({
     project,
     webpackBuild,
+    expect,
   }) => {
     const root = project('app')
     await webpackBuild({
@@ -69,7 +70,7 @@ describe('bundler builds', () => {
     {name: 'a .conciv it cannot write', options: {}, blockState: true},
   ])(
     'a webpack development build gives the same output as one without conciv() when conciv adds no widget: $name',
-    async ({options, blockState}, {project, webpackBuild}) => {
+    async ({options, blockState}, {project, webpackBuild, expect}) => {
       const root = project('app')
       if (blockState) writeFileSync(concivStateDir(root), '')
       const plain = join(root, 'plain')
@@ -93,6 +94,7 @@ describe('bundler builds', () => {
     project,
     webpackWatch,
     freePort,
+    expect,
   }) => {
     const root = project('app')
     const port = await freePort()
