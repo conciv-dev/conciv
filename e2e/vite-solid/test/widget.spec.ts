@@ -1,3 +1,4 @@
+import {readFile} from 'node:fs/promises'
 import {expect, test} from '@conciv/e2e-utils/fixtures'
 import {collectFailures, expectWidgetBoots, holdEngineCall, loginWidget} from '@conciv/e2e-utils/widget'
 
@@ -53,5 +54,31 @@ test.describe('a project plugin switch the engine fails to save on a vite solid 
 
     await page.getByRole('button', {name: 'Back to chat'}).click()
     await expect(page.getByText('live line first')).toBeVisible()
+  })
+})
+
+test.describe('a project plugin that saves a file and opens a link on a vite solid page', () => {
+  test('the user saves the notes as a download, and opening conciv.dev opens it in a new browser tab', async ({
+    page,
+    context,
+  }) => {
+    await context.route('https://conciv.dev/**', (route) =>
+      route.fulfill({contentType: 'text/html', body: 'conciv.dev'}),
+    )
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+
+    const download = page.waitForEvent('download')
+    await page.getByRole('button', {name: 'Save notes'}).click()
+    const notes = await download
+    expect(notes.suggestedFilename()).toBe('notes.txt')
+    expect(await readFile(await notes.path(), 'utf8')).toBe('notes the plugin saved')
+
+    const opened = context.waitForEvent('page')
+    await page.getByRole('button', {name: 'Open conciv.dev'}).click()
+    const tab = await opened
+    await expect(tab).toHaveURL('https://conciv.dev/')
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
   })
 })

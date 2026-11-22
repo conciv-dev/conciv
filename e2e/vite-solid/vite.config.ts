@@ -9,7 +9,10 @@ export default defineConfig({
     solid(),
     conciv({
       devEndpointDir: e2eDevEndpointDir(import.meta.dirname),
-      plugins: [pathToFileURL(e2ePluginCopyDir(import.meta.dirname, 'live-line')).href],
+      plugins: [
+        pathToFileURL(e2ePluginCopyDir(import.meta.dirname, 'live-line')).href,
+        pathToFileURL(e2ePluginCopyDir(import.meta.dirname, 'host-controls')).href,
+      ],
     }),
   ],
 })
