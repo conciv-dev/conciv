@@ -26,6 +26,28 @@ describe('scripted replies', () => {
   })
 })
 
+describe('several tool calls in one reply', () => {
+  test('a reply with two tool calls runs both, and the next request carries both results in call order', async ({
+    engine,
+  }) => {
+    await engine.reply(
+      TestLLM.toolCalls(
+        {id: 'c1', name: 'execute_typescript', input: {typescriptCode: 'return 1'}},
+        {id: 'c2', name: 'execute_typescript', input: {typescriptCode: 'return 2'}},
+      ),
+      TestLLM.text('Both ran'),
+    )
+
+    await engine.session.send('Run both')
+
+    const [, second] = await engine.requests()
+    expect(second?.messages.slice(-2)).toMatchObject([
+      {role: 'tool', toolCallId: 'c1', content: expect.stringContaining('1')},
+      {role: 'tool', toolCallId: 'c2', content: expect.stringContaining('2')},
+    ])
+  })
+})
+
 describe('a second engine on the same home', () => {
   test("an engine started on another engine's home reads the global settings that home saved, and a project setting stays with its own project", async ({
     launch,

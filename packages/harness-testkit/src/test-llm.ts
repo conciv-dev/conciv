@@ -40,7 +40,11 @@ export function text(value: string): Reply {
 }
 
 export function toolCall(id: string, name: string, input: unknown): Reply {
-  return reply({toolCalls: [{id, name, input}]})
+  return toolCalls({id, name, input})
+}
+
+export function toolCalls(...calls: {id: string; name: string; input: unknown}[]): Reply {
+  return reply({toolCalls: calls})
 }
 
 export function failAfter(error: Error & {code?: string}): Reply {
