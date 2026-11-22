@@ -1,4 +1,4 @@
-import {assert, describe, expect, test} from 'vitest'
+import {assert, describe, expect, onTestFinished, test} from 'vitest'
 import {page, userEvent as realInput} from 'vitest/browser'
 import {render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
@@ -460,6 +460,7 @@ describe('the user comments on an element of the page', () => {
   test('with the canvas open a picked element gets its comment straight onto the board with no toast, and with the canvas closed the user is told it was added and finds it on the board', async () => {
     const user = userEvent.setup()
     await page.viewport(1280, 800)
+    onTestFinished(() => page.viewport(414, 896))
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     await mount({
       engine,
@@ -516,6 +517,7 @@ describe('the user draws on the canvas', () => {
   test('the user draws a rectangle with the canvas tools, it is saved to the shared board, the agent reads it, and real clicks still reach the chat composer and Settings', async () => {
     const user = userEvent.setup()
     await page.viewport(1280, 800)
+    onTestFinished(() => page.viewport(414, 896))
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
@@ -567,6 +569,7 @@ describe('the board stays clear while the user draws', () => {
   test('with a shape tool picked the board shows no properties panel, library or help, and keeps its toolbar, menu, comments and zoom', async () => {
     const user = userEvent.setup()
     await page.viewport(1280, 800)
+    onTestFinished(() => page.viewport(414, 896))
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     await mount({
       engine,
