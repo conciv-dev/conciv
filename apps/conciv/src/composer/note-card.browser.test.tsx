@@ -145,6 +145,7 @@ describe('the composer actions menu', () => {
     await user.keyboard('{Enter}')
     await expect.element(input).toHaveTextContent('Second task')
     expect(screen.queryByText('1 waiting · runs in order')).not.toBeInTheDocument()
+    expect(screen.queryByRole('status', {name: (name) => name !== 'Compacting context…'})).not.toBeInTheDocument()
 
     await compaction.release()
     expect(await screen.findByRole('separator', {name: 'Context compacted'})).toBeVisible()
