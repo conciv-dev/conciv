@@ -80,3 +80,35 @@ describe('the send caps', () => {
     expect(await engine.requests()).toHaveLength(0)
   })
 })
+
+describe('an attachment that cannot be sent', () => {
+  test('a text file over the 1MB limit is marked failed, Enter leaves the message in the composer unsent, and it sends once the file is removed', async () => {
+    const user = userEvent.setup({delay: null})
+    const engine = await createEngine()
+    await engine.reply(TestLLM.text('Read it'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(input, 'Read the log')
+    const clipboard = new DataTransfer()
+    clipboard.items.add(new File(['a'.repeat(1_048_577)], 'big.log', {type: 'text/plain'}))
+    expect(input).toHaveFocus()
+    await user.paste(clipboard)
+    expect(await screen.findByRole('button', {name: 'big.log exceeds the 1MB text limit'})).toBeVisible()
+
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(input).toHaveTextContent('Read the log')
+    expect(screen.getByRole('button', {name: 'big.log exceeds the 1MB text limit'})).toBeVisible()
+
+    await user.click(screen.getByRole('button', {name: 'Remove big.log'}))
+    await user.click(input)
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+    const reply = await screen.findByRole('article', {name: /^Reply to: Read the log/})
+    expect(await within(reply).findByText('Read it')).toBeVisible()
+    const requests = await engine.requests()
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.messages.at(-1)).toMatchObject({role: 'user', content: 'Read the log'})
+  })
+})
