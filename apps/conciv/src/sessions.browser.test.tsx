@@ -94,12 +94,26 @@ describe('a run in the list', () => {
 describe('paging the list', () => {
   test('the user moves past the first page of sessions and the next page loads', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    for (let index = 1; index <= 31; index += 1) await engine.newSession(`Session ${index}`)
+    const engine = await createEngine(
+      {},
+      {
+        harnesses: [
+          {
+            id: 'engine',
+            sessions: Array.from({length: 31}, (_, offset) => ({
+              id: `paged-${offset + 1}`,
+              derivedTitle: `Session ${offset + 1}`,
+              updatedAt: Date.now() - (31 - offset) * 1000,
+              messages: [],
+            })),
+          },
+        ],
+      },
+    )
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
-    await user.click(await screen.findByRole('button', {name: 'Session 31, session options'}))
-    await user.click(await screen.findByRole('button', {name: 'Session: Session 31'}))
+    await user.click(await screen.findByRole('button', {name: 'New session, session options'}))
+    await user.click(await screen.findByRole('button', {name: 'Session: New session'}))
     expect(await screen.findByRole('option', {name: /^Session 31, Edited/})).toBeVisible()
 
     await user.click(screen.getByRole('combobox', {name: 'Search sessions'}))
