@@ -34,16 +34,6 @@ describe('skills', () => {
     })
   })
 
-  test("the skill tool loads a skill from the project's conciv/skills folder", async () => {
-    const engine = await createEngine({}, {directory: './test/fixtures/projects/skilled'})
-
-    expect(await engine.session.tool('skill').call({id: 'house-style'})).toEqual({
-      name: 'House style',
-      directory: expect.stringContaining('/test/fixtures/projects/skilled/conciv/skills/house-style'),
-      output: expect.stringContaining('Write every heading in sentence case.'),
-    })
-  })
-
   test('a skill written into the project while the engine runs is found after the rescan', async () => {
     const engine = await createEngine({}, {fs: {filewatcher: true}})
 
@@ -65,7 +55,7 @@ describe('skills', () => {
     })
   })
 
-  test('skills the model may invoke on its own are listed in its system prompt, the others are not', async () => {
+  test("skills the model may invoke on its own are listed in its system prompt, the others are not, and the skill tool loads one from the project's conciv/skills folder", async () => {
     const engine = await createEngine({}, {directory: './test/fixtures/projects/skilled'})
     await engine.reply(TestLLM.text('Hello'))
 
@@ -80,5 +70,10 @@ describe('skills', () => {
       ]),
     )
     expect(system).toEqual(expect.not.arrayContaining([expect.stringContaining('<id>manual-only</id>')]))
+    expect(await engine.session.tool('skill').call({id: 'house-style'})).toEqual({
+      name: 'House style',
+      directory: expect.stringContaining('/test/fixtures/projects/skilled/conciv/skills/house-style'),
+      output: expect.stringContaining('Write every heading in sentence case.'),
+    })
   })
 })
