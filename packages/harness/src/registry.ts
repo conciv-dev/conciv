@@ -11,6 +11,7 @@ import {pi} from './pi/index.js'
 
 export {lastUserModelText, lastUserImages} from './_shared/text-adapter.js'
 export {containedPath, transcriptPathWithin} from './_shared/contained-path.js'
+export {foldJsonlFile} from './_shared/fold-jsonl-file.js'
 
 export type HarnessRegistry = {
   get(id: string): HarnessAdapter | undefined

@@ -19,12 +19,16 @@ describe('preparing a turn', () => {
     }
     const pixel = Buffer.from('a png pixel')
 
-    const compacted = await claudeChatConfig({...deps, kind: 'compact'}).prepareMessages?.([
+    const compacted = await (
+      await claudeChatConfig({...deps, kind: 'compact'})
+    ).prepareMessages?.([
       {role: 'user', content: 'Fix the login button'},
       {role: 'assistant', content: 'The button now submits'},
       {role: 'user', content: 'Summarise'},
     ])
-    const attached = await claudeChatConfig(deps).prepareMessages?.([
+    const attached = await (
+      await claudeChatConfig(deps)
+    ).prepareMessages?.([
       {
         role: 'user',
         content: [

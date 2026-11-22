@@ -8,7 +8,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import type {HarnessCommand, HarnessCommandsContext, HarnessModel} from '@conciv/protocol/harness-types'
 import {mcpServerConfig} from './args.js'
-import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
+import {claudePluginDir} from './plugin-dir.js'
 
 let claudeAgentSdk: Promise<typeof ClaudeAgentSdk> | undefined
 
@@ -69,7 +69,8 @@ async function probe(options: Options): Promise<SDKControlInitializeResponse> {
 async function probeCommands(ctx: HarnessCommandsContext): Promise<SlashCommand[]> {
   const options: Options = {cwd: ctx.cwd, permissionMode: 'acceptEdits'}
   if (ctx.mcpUrl) options.mcpServers = mcpServerConfig(ctx.mcpUrl, ctx.sessionId)
-  if (CONCIV_PLUGIN_DIR) options.plugins = [{type: 'local', path: CONCIV_PLUGIN_DIR}]
+  const pluginDir = await claudePluginDir()
+  if (pluginDir) options.plugins = [{type: 'local', path: pluginDir}]
   const init = await probe(options)
   rememberModels(init.models)
   return init.commands

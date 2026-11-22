@@ -88,7 +88,7 @@ async function loadTranscriptTail(
   const history = chat.harnesses.find((harness) => harness.id === harnessKind)?.history
   if (history === undefined)
     return loadSavedPage(chat, await rowByNativeRef(chat.db, {harnessKind, cwd, nativeId}), options)
-  if (history.withinProject && !history.withinProject(cwd, nativeId)) return null
+  if (history.withinProject && !(await history.withinProject(cwd, nativeId))) return null
   try {
     return await inSpan(chat.tracer, 'Sessions.readTranscriptTail', {'conciv.harness.id': harnessKind}, () =>
       history.tail(cwd, nativeId, options),
@@ -187,12 +187,17 @@ export async function buildHarnessMenuEntry(
     return {
       ...buildHarnessMeta(harness),
       models,
-      defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
+      defaultModel: (await harness.defaultModel?.()) ?? models[0]?.id ?? null,
       modelsFailed: false,
     }
   } catch (error) {
     if (!signal.aborted) log(Effect.logError('[core] listing the models failed', {harness: harness.id, error}))
-    return {...buildHarnessMeta(harness), models: [], defaultModel: harness.defaultModel ?? null, modelsFailed: true}
+    return {
+      ...buildHarnessMeta(harness),
+      models: [],
+      defaultModel: (await harness.defaultModel?.()) ?? null,
+      modelsFailed: true,
+    }
   }
 }
 
@@ -237,7 +242,7 @@ export async function switchSessionEffort(
   if (effort !== null) {
     const harness = await chat.harnessFor(sessionId)
     const models = await resolveHarnessModels(harness, {signal: chat.signal})
-    const modelId = row.model ?? harness.defaultModel ?? models[0]?.id
+    const modelId = row.model ?? (await harness.defaultModel?.()) ?? models[0]?.id
     const current = models.find((model) => model.id === modelId)
     if (!current?.efforts?.includes(effort)) return 'unsupported'
   }

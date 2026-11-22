@@ -1,35 +1,30 @@
-import {realpathSync} from 'node:fs'
+import {realpath} from 'node:fs/promises'
 import {basename, dirname, isAbsolute, join, relative, resolve} from 'node:path'
 import type {HarnessHistory} from '@conciv/protocol/harness-types'
 import type {HarnessSessionId} from '@conciv/protocol/chat-types'
 
-function realOrResolved(path: string): string {
-  try {
-    return realpathSync(path)
-  } catch {
-    return resolve(path)
-  }
+function realOrResolved(path: string): Promise<string> {
+  return realpath(path).catch(() => resolve(path))
 }
 
-function realLeaf(path: string): string {
-  try {
-    return realpathSync(path)
-  } catch {
-    return join(realOrResolved(dirname(path)), basename(path))
-  }
+function realLeaf(path: string): Promise<string> {
+  return realpath(path).catch(async () => join(await realOrResolved(dirname(path)), basename(path)))
 }
 
-export function containedPath(root: string, candidate: string): string | null {
-  const realRoot = realOrResolved(root)
-  const realCandidate = realLeaf(candidate)
+export async function containedPath(root: string, candidate: string): Promise<string | null> {
+  const [realRoot, realCandidate] = await Promise.all([realOrResolved(root), realLeaf(candidate)])
   const step = relative(realRoot, realCandidate)
   if (step === '' || step.startsWith('..') || isAbsolute(step)) return null
   return realCandidate
 }
 
-export function transcriptPathWithin(history: HarnessHistory, cwd: string, sessionId: HarnessSessionId): string | null {
-  const build = history.transcriptPath
-  if (build === undefined) return null
-  if (history.withinProject && !history.withinProject(cwd, sessionId)) return null
-  return containedPath(history.transcriptRoot(cwd), build(cwd, sessionId))
+export async function transcriptPathWithin(
+  history: HarnessHistory,
+  cwd: string,
+  sessionId: HarnessSessionId,
+): Promise<string | null> {
+  if (history.transcriptPath === undefined) return null
+  if (history.withinProject && !(await history.withinProject(cwd, sessionId))) return null
+  const [root, path] = await Promise.all([history.transcriptRoot(cwd), history.transcriptPath(cwd, sessionId)])
+  return containedPath(root, path)
 }

@@ -1,4 +1,4 @@
-import {existsSync} from 'node:fs'
+import {stat} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
@@ -17,6 +17,7 @@ import type {
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {pageAfter} from '../_shared/page.js'
+import {whenMissing} from '../_shared/when-missing.js'
 
 const MAX_TITLE = 80
 
@@ -24,8 +25,8 @@ export function storagePath(dataHome: string | undefined): string {
   return join(dataHome || join(homedir(), '.local', 'share'), 'opencode', 'opencode.db')
 }
 
-function withDatabase<T>(path: string, absent: T, run: (db: DatabaseSync) => T): T {
-  if (!existsSync(path)) return absent
+async function withDatabase<T>(path: string, absent: T, run: (db: DatabaseSync) => T): Promise<T> {
+  if ((await stat(path).catch(whenMissing(null))) === null) return absent
   const db = new DatabaseSync(path, {readOnly: true})
   try {
     return run(db)

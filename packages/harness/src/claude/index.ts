@@ -29,7 +29,7 @@ export function claude(provider: ConfigProvider.ConfigProvider) {
     binName: 'claude',
     displayName: 'Claude',
     models: claudeSdkModels,
-    defaultModel: 'opus',
+    defaultModel: async () => 'opus',
     capabilities: {
       resume: true,
       permissionGate: 'callback',

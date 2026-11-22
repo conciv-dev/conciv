@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs'
+import {readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {codexModels as adapterCodexModels} from '@conciv/ai/server'
@@ -38,13 +38,7 @@ function listedEfforts(levels: readonly {effort: string}[]): ReasoningEffort[] {
 
 const fallbackModels = (): HarnessModel[] => adapterCodexModels.map((id) => ({id, name: id, group: 'Codex'}))
 
-const readText = (path: string): string | null => {
-  try {
-    return readFileSync(path, 'utf8')
-  } catch {
-    return null
-  }
-}
+const readText = (path: string): Promise<string | null> => readFile(path, 'utf8').catch(() => null)
 
 const parseJson = (text: string): unknown => {
   try {
@@ -58,8 +52,8 @@ export function codexHome(env: Record<string, string | undefined>): string {
   return env.CODEX_HOME ?? join(homedir(), '.codex')
 }
 
-export function codexModels(codexDir: string): HarnessModel[] {
-  const text = readText(join(codexDir, 'models_cache.json'))
+export async function codexModels(codexDir: string): Promise<HarnessModel[]> {
+  const text = await readText(join(codexDir, 'models_cache.json'))
   const parsed = ModelsCacheSchema.safeParse(text === null ? null : parseJson(text))
   if (!parsed.success) return fallbackModels()
   return parsed.data.models
@@ -71,11 +65,11 @@ export function codexModels(codexDir: string): HarnessModel[] {
     })
 }
 
-export function codexDefaultModel(codexDir: string): string {
-  const config = readText(join(codexDir, 'config.toml')) ?? ''
+export async function codexDefaultModel(codexDir: string): Promise<string> {
+  const config = (await readText(join(codexDir, 'config.toml'))) ?? ''
   const headerIndex = config.search(TABLE_HEADER)
   const topLevel = headerIndex === -1 ? config : config.slice(0, headerIndex)
   const configured = topLevel.match(CONFIG_MODEL)?.[1]
   if (configured) return configured
-  return codexModels(codexDir)[0]?.id ?? adapterCodexModels[0]
+  return (await codexModels(codexDir))[0]?.id ?? adapterCodexModels[0]
 }

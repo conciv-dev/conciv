@@ -51,7 +51,7 @@ function askPermission(deps: HarnessChatDeps) {
 }
 
 function acpChatConfig(name: string, resolveCommand: (model: string) => string, defaultModel: string) {
-  return (deps: HarnessChatDeps): HarnessChatConfig => ({
+  return async (deps: HarnessChatDeps): Promise<HarnessChatConfig> => ({
     adapter: acp(deps.model ?? defaultModel, {
       name,
       command: ({model}) => resolveCommand(model),
@@ -80,5 +80,5 @@ export const geminiCli = defineHarness({
   },
   chatConfig: acpChatConfig('gemini-cli', (model) => `gemini --acp -m ${model}`, 'gemini-3-pro-preview'),
   models: GEMINI_MODELS.map((id) => ({id, name: id, group: 'Gemini'})),
-  defaultModel: 'gemini-3-pro-preview',
+  defaultModel: async () => 'gemini-3-pro-preview',
 })

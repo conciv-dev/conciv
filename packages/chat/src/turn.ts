@@ -288,9 +288,8 @@ async function countContextTokens(deps: TurnDeps, sessionId: SessionId): Promise
   const history = harness.history
   const row = await deps.sessions.row(sessionId)
   const nativeId = row?.harnessKind === harness.id ? row.nativeId : null
-  const lineTokens = history?.contextTokens
-  if (history === undefined || lineTokens === undefined || !history.transcriptPath || nativeId === null)
-    return undefined
+  if (!history?.contextTokens || !history.transcriptPath || nativeId === null) return undefined
+  const lineTokens = history.contextTokens
   const path = await transcriptPathWithin(history, deps.cwd, nativeId)
   if (path === null || !(await fileExists(path))) return undefined
   return foldJsonlFile<number | undefined>(path, undefined, (found, line) => lineTokens(line) ?? found)

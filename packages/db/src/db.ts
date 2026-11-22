@@ -25,7 +25,7 @@ function whileMigrationLockHeld<A, E, R>(
   run: Effect.Effect<A, E, R>,
 ) {
   return Effect.acquireUseRelease(
-    Effect.tryPromise({
+    Effect.try({
       try: () => takeMigrationLock(lockFile, undefined, busyTimeoutMs),
       catch: (cause) => MigrationLockError.make({lockFile, cause}),
     }),

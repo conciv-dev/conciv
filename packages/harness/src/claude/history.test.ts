@@ -1,6 +1,7 @@
-import {mkdirSync, readFileSync, realpathSync, writeFileSync} from 'node:fs'
+import {mkdirSync, realpathSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {ConfigProvider} from 'effect'
+import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
 import {describe, expect, it} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
@@ -83,6 +84,12 @@ describe('history', () => {
     })
     expect((await history.tail(project, sessionId, {limit: 10, before: null})).messages).toEqual(conversation)
     expect(await history.messages(project, sessionId)).toEqual(conversation)
-    expect(history.contextTokens?.(readFileSync(transcript, 'utf8'))).toBe(2400)
+    expect(
+      await foldJsonlFile(
+        transcript,
+        undefined,
+        (found: number | undefined, line) => history.contextTokens?.(line) ?? found,
+      ),
+    ).toBe(2400)
   })
 })

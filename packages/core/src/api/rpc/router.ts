@@ -634,7 +634,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         const models = await resolveHarnessModels(harness, {signal: chat.signal})
         return {
           models,
-          defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
+          defaultModel: (await harness.defaultModel?.()) ?? models[0]?.id ?? null,
           harness: buildHarnessMeta(harness),
         }
       }),
