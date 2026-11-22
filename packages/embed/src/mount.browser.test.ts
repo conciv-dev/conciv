@@ -17,7 +17,6 @@ describe('the host page drives the widget through its handle', () => {
       const handles: ConcivHandle[] = []
       await use(handles)
       for (const handle of handles) handle.unmount()
-      sessionStorage.clear()
     },
   })
 

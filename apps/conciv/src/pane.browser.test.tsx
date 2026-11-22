@@ -1,4 +1,4 @@
-import {describe, expect, onTestFinished, test} from 'vitest'
+import {describe, expect, test} from 'vitest'
 import {page, userEvent as browserInput} from 'vitest/browser'
 import {render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
@@ -158,7 +158,6 @@ describe('a reply that thinks before it answers', () => {
 describe('a message with no words', () => {
   test('a grabbed element sent alone reads as an attachment, and a note sent alone as a note', async () => {
     await page.viewport(1280, 800)
-    onTestFinished(() => page.viewport(414, 896))
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
     const control = await engine.event('rpc.experimental.page.control')

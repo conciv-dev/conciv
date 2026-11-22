@@ -1,4 +1,4 @@
-import {describe, expect, onTestFinished, test} from 'vitest'
+import {describe, expect, test} from 'vitest'
 import {page, userEvent as realInput} from 'vitest/browser'
 import {render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
@@ -385,7 +385,6 @@ describe('the agent plays a list of actions on the page', () => {
 describe('the element inspector', () => {
   test('the user holds Alt to inspect the page and Esc leaves it', async () => {
     await page.viewport(1280, 800)
-    onTestFinished(() => page.viewport(414, 896))
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
@@ -464,7 +463,6 @@ describe('the page follows the session the user switches to', () => {
 describe('the user grabs an element for the agent', () => {
   test('the picked element is staged in the composer, which takes focus, and is sent with the message to the agent', async () => {
     await page.viewport(1280, 800)
-    onTestFinished(() => page.viewport(414, 896))
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
@@ -524,7 +522,6 @@ describe('the agent reads the address of a tab with secrets in it', () => {
     const engine = await createEngine()
     const address = new URL(location.href)
     history.replaceState(null, '', `${address.pathname}?plant=fern&token=abc123#jwt=xyz789`)
-    onTestFinished(() => history.replaceState(null, '', address.href))
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
