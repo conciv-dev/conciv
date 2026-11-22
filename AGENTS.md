@@ -275,6 +275,7 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
 
 ## Plugin landmines
 
+- Import CSS with `?inline` and contribute it through `ctx.add(Style, css)`.
 - Whiteboard (TanStack DB collections): never write to the db inside a collection subscription,
   effect, or render body: it triggers a re-render storm. Writes go in event handlers only.
 - The widget bundle must externalize the shared Ark/Solid deps; a second bundled copy splits the
