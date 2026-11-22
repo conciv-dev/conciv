@@ -610,7 +610,7 @@ describe('the user types into the host page with the panel open', () => {
 })
 
 describe('the agent reads the address of a tab with secrets in it', () => {
-  test('the tab list hides the token in the query and in the hash and keeps the rest', async () => {
+  test('the tab list and the route read both hide the token in the query and in the hash and keep the rest', async () => {
     const engine = await createEngine()
     const address = new URL(location.href)
     history.replaceState(null, '', `${address.pathname}?plant=fern&token=abc123#jwt=xyz789`)
@@ -621,6 +621,11 @@ describe('the agent reads the address of a tab with secrets in it', () => {
 
     expect(await engine.session.tool('page_tabs_list').call({})).toMatchObject({
       tabs: [{url: `${address.origin}${address.pathname}?plant=fern&token=%5Bredacted%5D#jwt=%5Bredacted%5D`}],
+    })
+    expect(await engine.session.tool('page_route').call({})).toMatchObject({
+      pathname: address.pathname,
+      search: '?plant=fern&token=%5Bredacted%5D',
+      href: `${address.origin}${address.pathname}?plant=fern&token=%5Bredacted%5D#jwt=%5Bredacted%5D`,
     })
   })
 })

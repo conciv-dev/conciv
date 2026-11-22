@@ -42,6 +42,7 @@ import {unwatchLayout} from './cursor.js'
 import {actionable, fill, focusedElement, hover, isDisabled, press, select, setChecked} from './act.js'
 import {Operations, SHORT_MAX, type Action, type File, type Outcome, type PageCommand, type Operation} from './rpc.js'
 import {screenshot} from './screenshot.js'
+import {redactedUrl} from './redacted-url.js'
 import {
   acceptQueue,
   arriveAt,
@@ -333,13 +334,16 @@ function perform(
 ): Answer | Promise<Answer> {
   switch (action.type) {
     case 'route':
-      return touching(() => ({
-        pathname: location.pathname,
-        search: location.search,
-        href: location.href,
-        title: document.title,
-        state: document.visibilityState === 'visible' ? 'visible' : 'hidden',
-      }))
+      return touching(() => {
+        const url = new URL(redactedUrl(location.href))
+        return {
+          pathname: url.pathname,
+          search: url.search,
+          href: url.href,
+          title: document.title,
+          state: document.visibilityState === 'visible' ? 'visible' : 'hidden',
+        }
+      })
     case 'console':
       return touching(() => ({entries: call.consoleEntries(action.since)}))
     case 'dom':

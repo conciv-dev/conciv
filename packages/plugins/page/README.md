@@ -74,6 +74,11 @@ The tab reports its state again on focus, blur, a visibility change, a title cha
 without it (Firefox before 147, Safari before 26.2) `reportRouteChanges` subscribes to nothing, the tab still attaches,
 and a route change reaches the agent with the next report or attach.
 
+Every address the page hands out goes through `redactedUrl` (`redacted-url.ts`): the tab list's `url` and the
+`route` operation's `pathname`, `search` and `href`. It drops user info, and puts `[redacted]` in place of secret
+query and hash values and secret route params. The same answer reaches the model, outside agents through the hub,
+the terminal and the thread's tool card.
+
 The terminal runs the page tools as `conciv tools page <verb>`, as main: core's `registry.call` runs the plugin's
 tool for the session `--tab` or `CONCIV_SESSION_ID` names; `eval` from there asks as the cli README's 'Who is asked'
 says. Inside a chat turn the `eval` tool asks the user first.
