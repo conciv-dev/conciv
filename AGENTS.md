@@ -132,8 +132,9 @@ README.md; this file is the non-obvious operational rules.
 The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test plan is `docs/specs/test-split/`.
 
 - The file name picks the runner. `src/x.test.ts` beside `src/x.ts` runs in node; `src/x.dom.test.tsx` beside
-  `src/x.tsx` runs in happy-dom; one `src/<package>.browser.test.tsx` per package runs in vitest browser mode
-  (Chromium). Playwright Test exists only under `e2e/` (`conciv/playwright-test-in-e2e`). Never jsdom.
+  `src/x.tsx` runs in happy-dom; one browser-mode file per package (`*.browser.test.tsx`; `apps/conciv`: one
+  `src/<area>.browser.test.tsx` per product area) runs in vitest browser mode (Chromium). Playwright Test exists
+  only under `e2e/` (`conciv/playwright-test-in-e2e`). Never jsdom.
 - One `vite.config.ts` per package and no `vitest*.config` file: `concivTest()` (`@conciv/plugin-testkit/vitest`)
   adds the test projects; `conciv()` (`@conciv/unplugin`) adds nothing under vitest.
 - A behaviour lives in the cheapest place that proves it, and only there: node, then happy-dom, then browser mode,
