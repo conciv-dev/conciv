@@ -16,7 +16,7 @@ export default Plugin.define({
         }),
         output: z.unknown(),
         execute: async (notice, context) => ({
-          output: await ctx.session.synthetic({...notice, sessionId: context.sessionId}),
+          output: await ctx.session.synthetic({...notice, sessionID: context.sessionId}),
         }),
       })
     })

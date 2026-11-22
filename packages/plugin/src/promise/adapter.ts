@@ -90,15 +90,18 @@ const SessionListSchemas = passingUnknownKeys({
 const SessionSwitchAgentSchemas = passingUnknownKeys({sessionId: Session.Id, agent: Agent.Id})
 const SessionSwitchModelSchemas = passingUnknownKeys({sessionId: Session.Id, model: Model.Ref})
 const SessionCompactSchemas = passingUnknownKeys({sessionId: Session.Id, id: Schema.optional(SessionMessage.Id)})
-const SessionSyntheticSchemas = passingUnknownKeys({
-  sessionId: Session.Id,
-  id: Schema.optional(Schema.NullOr(SessionMessage.Id)),
-  text: Schema.String,
-  description: Schema.optional(Schema.NullOr(Schema.String)),
-  metadata: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
-  delivery: Schema.optional(Schema.NullOr(SessionInbox.Delivery)),
-  resume: Schema.optional(Schema.NullOr(Schema.Boolean)),
-})
+const SessionSyntheticSchemas = {
+  ...passingUnknownKeys({
+    sessionID: Session.Id,
+    id: Schema.optional(Schema.NullOr(SessionMessage.Id)),
+    text: Schema.String,
+    description: Schema.optional(Schema.NullOr(Schema.String)),
+    metadata: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
+    delivery: Schema.optional(Schema.NullOr(SessionInbox.Delivery)),
+    resume: Schema.optional(Schema.NullOr(Schema.Boolean)),
+  }),
+  output: SessionInbox.Synthetic,
+}
 const SessionInterruptSchemas = passingUnknownKeys({sessionId: Session.Id, resume: Schema.optional(Schema.Boolean)})
 const InstructionEntryPutSchemas = passingUnknownKeys({
   sessionId: Session.Id,

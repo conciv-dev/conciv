@@ -8,7 +8,6 @@ import type {
   SessionCreateInput,
   SessionInboxCompaction,
   SessionInboxDelivery,
-  SessionInboxSynthetic,
   SessionInfo,
   SessionListInput,
 } from '@conciv/plugin'
@@ -19,6 +18,7 @@ import type {
   NotFoundError,
   SyntheticConflictError,
 } from './session/error.js'
+import type {SessionInbox} from '@conciv/plugin/schema/session-inbox'
 import type {SessionSynthetic} from './session/synthetic.js'
 
 type SessionId = SessionInfo['id']
@@ -57,7 +57,7 @@ export interface Interface {
   ) => Effect.Effect<SessionInboxCompaction, NotFoundError | CompactionConflictError>
   readonly synthetic: (
     input: SyntheticInput,
-  ) => Effect.Effect<SessionInboxSynthetic, NotFoundError | SyntheticConflictError>
+  ) => Effect.Effect<SessionInbox.Synthetic, NotFoundError | SyntheticConflictError>
   readonly wait: (id: SessionId) => Effect.Effect<void, NotFoundError>
   readonly interrupt: (sessionId: SessionId, options?: {readonly resume?: boolean}) => Effect.Effect<boolean>
 }

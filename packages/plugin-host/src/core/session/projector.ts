@@ -20,7 +20,7 @@ export const layer = Layer.effectDiscard(
       SessionInbox.projectAdmitted(db, {
         enqueuedSeq: event.durable.seq,
         id: event.data.inboxID,
-        sessionId: event.data.sessionID,
+        sessionID: event.data.sessionID,
         item: event.data.item,
         timeCreated: event.created,
       }),
@@ -28,7 +28,7 @@ export const layer = Layer.effectDiscard(
     yield* bus.project(SessionEvent.InboxDelivered, (event) =>
       SessionInbox.projectDelivered(db, {
         id: event.data.inboxID,
-        sessionId: event.data.sessionID,
+        sessionID: event.data.sessionID,
         timeDelivered: event.created,
       }),
     )

@@ -32,7 +32,7 @@ export default Plugin.define({
       idles.push(event.sessionId)
       if (idleNotice !== undefined && idles.length === 1) {
         await ctx.session.synthetic({
-          sessionId: event.sessionId,
+          sessionID: event.sessionId,
           text: 'Keep going',
           description: 'Continuing',
           metadata: {source: 'test'},
@@ -50,7 +50,7 @@ export default Plugin.define({
         output: z.unknown(),
         execute: async ({sessionId, ...notice}, context) => {
           const target = sessionId === undefined ? context.sessionId : readSessionId(sessionId)
-          return ctx.session.synthetic({...notice, sessionId: target}).then(
+          return ctx.session.synthetic({...notice, sessionID: target}).then(
             (admitted) => ({output: admitted}),
             (error: unknown) => ({
               output: {

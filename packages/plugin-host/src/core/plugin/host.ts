@@ -213,7 +213,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
             ? undefined
             : yield* Schema.decodeUnknownEffect(SessionMessage.Id)(input.id)
         return yield* sessions.synthetic({
-          sessionId: input.sessionId,
+          sessionID: input.sessionID,
           id,
           text: input.text,
           description: input.description ?? undefined,

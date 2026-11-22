@@ -4,7 +4,7 @@ import {Schema} from 'effect'
 import {Location} from './location.js'
 import {ProjectId} from './project-id.js'
 import {Attachment, Prompt} from './prompt.js'
-import {optional, RelativePath} from './schema.js'
+import {DateTimeUtcFromMillis, optional, RelativePath} from './schema.js'
 import {SessionId} from './session-id.js'
 import {SessionMessage} from './session-message.js'
 
@@ -14,7 +14,7 @@ export type Delivery = typeof Delivery.Type
 export interface UserPayload extends Schema.Schema.Type<typeof UserPayload> {}
 export const UserPayload = Schema.Struct({
   ...Prompt.fields,
-  metadata: Schema.Record(Schema.String, Schema.Json).pipe(optional),
+  metadata: Schema.Record(Schema.String, Schema.Unknown).pipe(optional),
 }).annotate({identifier: 'Session.Inbox.UserPayload'})
 
 export interface MediaUserPayload extends Schema.Schema.Type<typeof MediaUserPayload> {}
@@ -27,7 +27,7 @@ export interface SyntheticPayload extends Schema.Schema.Type<typeof SyntheticPay
 export const SyntheticPayload = Schema.Struct({
   text: Schema.String,
   description: Schema.String.pipe(optional),
-  metadata: Schema.Record(Schema.String, Schema.Json).pipe(optional),
+  metadata: Schema.Record(Schema.String, Schema.Unknown).pipe(optional),
 }).annotate({identifier: 'Session.Inbox.SyntheticPayload'})
 
 export interface CompactionPayload extends Schema.Schema.Type<typeof CompactionPayload> {}
@@ -57,8 +57,8 @@ export type Item = typeof Item.Type
 
 const Enqueued = {
   id: SessionMessage.Id,
-  sessionId: SessionId,
-  time: Schema.Struct({created: Schema.Finite}),
+  sessionID: SessionId,
+  time: Schema.Struct({created: DateTimeUtcFromMillis}),
 }
 
 export interface User extends Schema.Schema.Type<typeof User> {}

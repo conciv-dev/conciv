@@ -1,6 +1,6 @@
 export * as SessionSynthetic from './synthetic.js'
 
-import type {Effect as EffectType, Schema} from 'effect'
+import type {Effect as EffectType} from 'effect'
 import {Effect} from 'effect'
 import type {Delivery} from '@conciv/plugin/schema/session-inbox'
 import type {SessionId} from '@conciv/plugin/schema/session-id'
@@ -8,29 +8,29 @@ import {SessionMessage} from '@conciv/plugin/schema/session-message'
 import {makeSyntheticConflictError, type NotFoundError} from './error.js'
 import type {SessionInbox} from './inbox.js'
 
-export type Store = {readonly get: (sessionId: SessionId) => EffectType.Effect<unknown, NotFoundError>}
+export type Store = {readonly get: (sessionID: SessionId) => EffectType.Effect<unknown, NotFoundError>}
 
 export const make = (
   store: Store,
   inbox: SessionInbox.Interface,
-  wake: (sessionId: SessionId) => EffectType.Effect<void>,
+  wake: (sessionID: SessionId) => EffectType.Effect<void>,
 ) =>
   Effect.fn('Session.synthetic')(function* (input: {
-    sessionId: SessionId
+    sessionID: SessionId
     id?: SessionMessage.Id
     text: string
     description?: string
-    metadata?: Record<string, Schema.Json>
+    metadata?: Record<string, unknown>
     delivery?: Delivery
     resume?: boolean
   }) {
-    const sessionId = input.sessionId
-    yield* store.get(sessionId)
+    const sessionID = input.sessionID
+    yield* store.get(sessionID)
     const id = input.id ?? SessionMessage.Id.create()
     const admitted = yield* inbox
       .admit({
         id,
-        sessionId,
+        sessionID,
         item: {
           type: 'synthetic',
           delivery: input.delivery ?? 'steer',
@@ -39,9 +39,9 @@ export const make = (
       })
       .pipe(
         Effect.catchTag('SessionInbox.LifecycleConflict', () =>
-          Effect.fail(makeSyntheticConflictError({sessionId, inputId: id})),
+          Effect.fail(makeSyntheticConflictError({sessionId: sessionID, inputId: id})),
         ),
       )
-    if (input.resume !== false) yield* wake(sessionId)
+    if (input.resume !== false) yield* wake(sessionID)
     return admitted
   }, Effect.uninterruptible)
