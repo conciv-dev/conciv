@@ -211,8 +211,9 @@ export function ThreadPopover(props: {visible: boolean}): JSX.Element {
     missed: false,
   })
   const readInitialFocus = (): HTMLElement | undefined => {
-    if (reply.field === undefined) setReply('missed', true)
-    return reply.field
+    if (reply.field?.isConnected) return reply.field
+    setReply('missed', true)
+    return undefined
   }
   const takeReply = (field: HTMLElement): void => {
     setReply('field', field)
