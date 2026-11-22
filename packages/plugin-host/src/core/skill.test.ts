@@ -1,8 +1,8 @@
-import {describe, expect, test} from 'vitest'
+import {describe, test} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 
-describe('skills', () => {
-  test("the model loads a skill a plugin's skill.transform rewrote and gets the rewritten body", async () => {
+describe.concurrent('skills', () => {
+  test("the model loads a skill a plugin's skill.transform rewrote and gets the rewritten body", async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/skill-shaper']})
     await engine.reply(TestLLM.toolCall('c1', 'skill', {id: 'conciv'}), TestLLM.text('Loaded'))
 
@@ -19,7 +19,7 @@ describe('skills', () => {
     )
   })
 
-  test('the skill tool loads the built-in conciv and report skills', async () => {
+  test('the skill tool loads the built-in conciv and report skills', async ({expect}) => {
     const engine = await createEngine()
 
     expect(await engine.session.tool('skill').call({id: 'conciv'})).toEqual({
@@ -34,7 +34,7 @@ describe('skills', () => {
     })
   })
 
-  test('a skill written into the project while the engine runs is found after the rescan', async () => {
+  test('a skill written into the project while the engine runs is found after the rescan', async ({expect}) => {
     const engine = await createEngine({}, {fs: {filewatcher: true}})
 
     const before = await engine.session.tool('skill').failure({id: 'fresh'})
@@ -55,7 +55,9 @@ describe('skills', () => {
     })
   })
 
-  test("skills the model may invoke on its own are listed in its system prompt, the others are not, and the skill tool loads one from the project's conciv/skills folder", async () => {
+  test("skills the model may invoke on its own are listed in its system prompt, the others are not, and the skill tool loads one from the project's conciv/skills folder", async ({
+    expect,
+  }) => {
     const engine = await createEngine({}, {directory: './test/fixtures/projects/skilled'})
     await engine.reply(TestLLM.text('Hello'))
 

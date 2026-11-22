@@ -1,8 +1,8 @@
-import {describe, expect, test} from 'vitest'
+import {describe, test} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 
-describe('sessions and events', () => {
-  test('the experimental.idle hook runs once a turn has ended', async () => {
+describe.concurrent('sessions and events', () => {
+  test('the experimental.idle hook runs once a turn has ended', async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/session-watcher']})
     await engine.reply(TestLLM.text('Done'))
 
@@ -11,7 +11,9 @@ describe('sessions and events', () => {
     expect(await engine.session.tool('idle_session').call({})).toEqual({sessionId: engine.session.id})
   })
 
-  test('a plugin receives the session-created event of a session the user made, creates a session and lists it beside the sessions the user made, and renames its own session and reads it back', async () => {
+  test('a plugin receives the session-created event of a session the user made, creates a session and lists it beside the sessions the user made, and renames its own session and reads it back', async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/session-watcher']})
     const other = await engine.newSession('Second')
     expect(await engine.session.tool('created_session').call({sessionID: other.id})).toEqual({
@@ -31,7 +33,7 @@ describe('sessions and events', () => {
     })
   })
 
-  test('a plugin hears each run start and end', async () => {
+  test('a plugin hears each run start and end', async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/session-watcher']})
 
     await engine.reply(TestLLM.text('First answer'))

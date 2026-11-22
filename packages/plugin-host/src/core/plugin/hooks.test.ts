@@ -1,8 +1,8 @@
-import {describe, expect, test} from 'vitest'
+import {describe, test} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 
-describe('what the model is given', () => {
-  test('the code-mode preface with the plugin tools reaches the model as a system prompt', async () => {
+describe.concurrent('what the model is given', () => {
+  test('the code-mode preface with the plugin tools reaches the model as a system prompt', async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/greeter-promise']})
     await engine.reply(TestLLM.text('Hello'))
 
@@ -13,7 +13,9 @@ describe('what the model is given', () => {
     )
   })
 
-  test('a session instruction entry reaches the model, a changed value supersedes it and a removed one is dropped', async () => {
+  test('a session instruction entry reaches the model, a changed value supersedes it and a removed one is dropped', async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/instruction-notes']})
     await engine.reply(TestLLM.text('Noted'), TestLLM.text('Noted again'), TestLLM.text('Dropped'))
     const metric = '<context key="units">\nUse metric units\n</context>'
@@ -33,7 +35,9 @@ describe('what the model is given', () => {
     expect(third?.system).toEqual(expect.not.arrayContaining([expect.stringContaining('<context key="units">')]))
   })
 
-  test('on a harness that resumes its own session, the first value stays in the system prompt, a change rides on the next message and a removal is taken back on the one after', async () => {
+  test('on a harness that resumes its own session, the first value stays in the system prompt, a change rides on the next message and a removal is taken back on the one after', async ({
+    expect,
+  }) => {
     const engine = await createEngine(
       {plugins: ['./test/fixtures/plugins/instruction-notes']},
       {harnesses: [{id: 'engine', sessions: []}]},
@@ -71,7 +75,9 @@ describe('what the model is given', () => {
     )
   })
 
-  test("the prompt hook changes the user's message, and the context hook edits the system prompts, messages, model options and tools the model gets", async () => {
+  test("the prompt hook changes the user's message, and the context hook edits the system prompts, messages, model options and tools the model gets", async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/request-shaper']})
     await engine.reply(TestLLM.text('Hello'))
 

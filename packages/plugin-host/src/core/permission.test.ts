@@ -1,9 +1,9 @@
-import {describe, expect, test} from 'vitest'
+import {describe, test} from 'vitest'
 import {z} from 'zod'
 import {createEngine} from '@conciv/plugin-testkit'
 
-describe('asks', () => {
-  test('a permission rule that denies the action fails the call and says it is denied', async () => {
+describe.concurrent('asks', () => {
+  test('a permission rule that denies the action fails the call and says it is denied', async ({expect}) => {
     const engine = await createEngine({
       plugins: ['./test/fixtures/plugins/guarded'],
       permission: {'guarded.write': 'deny'},
@@ -18,7 +18,7 @@ describe('asks', () => {
     )
   })
 
-  test("a tool's fallback ask makes the call wait for approval even when every action is allowed", async () => {
+  test("a tool's fallback ask makes the call wait for approval even when every action is allowed", async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/guarded'], permission: 'allow'})
 
     const call = engine.session.tool('guarded_read').call({file: 'notes.txt'})
@@ -27,7 +27,9 @@ describe('asks', () => {
     expect(await call).toEqual({read: 'notes.txt'})
   })
 
-  test("a plugin lists, reads and answers the session's pending ask: once lets the call finish, always is saved for that file so the next call does not ask, and reject fails the call", async () => {
+  test("a plugin lists, reads and answers the session's pending ask: once lets the call finish, always is saved for that file so the next call does not ask, and reject fails the call", async ({
+    expect,
+  }) => {
     const engine = await createEngine({
       plugins: ['./test/fixtures/plugins/guarded'],
       permission: {'guarded.write': 'ask'},
