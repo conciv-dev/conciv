@@ -268,6 +268,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     scrollToFn,
     onChange: () => update(),
     useAnimationFrameWithResizeObserver: true,
+    useScrollendEvent: true,
   })
 
   const instance = new Virtualizer(resolveOptions())
@@ -293,7 +294,11 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   const liveNearStart = (): boolean => {
     const element = config.scrollElement()
-    return element?.isConnected === true && element.scrollTop <= element.clientHeight * NEAR_START_VIEWPORTS
+    return (
+      element?.isConnected === true &&
+      !instance.isScrolling &&
+      element.scrollTop <= element.clientHeight * NEAR_START_VIEWPORTS
+    )
   }
 
   const syncAtEnd = () => {
