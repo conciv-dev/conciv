@@ -449,6 +449,24 @@ describe('quick terminal', () => {
     await user.click(within(reopened).getByRole('button', {name: 'Close quick terminal'}))
     expect(screen.queryByRole('dialog', {name: 'conciv quick terminal'})).not.toBeInTheDocument()
   })
+  test('the user opens the quick terminal while the engine restarts, sees it starting a pane, and the pane opens once the engine is back', async () => {
+    const mod = resolveModifier('Mod')
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.newSession('Latest work')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    const restart = engine.restart()
+    expect(await screen.findByText('conciv lost connection to the engine.')).toBeVisible()
+    await user.keyboard(`{${mod}>}\`{/${mod}}`)
+    const terminal = await screen.findByRole('dialog', {name: 'conciv quick terminal'})
+    expect(await within(terminal).findByText('Starting a pane…')).toBeVisible()
+
+    await restart
+    expect(await within(terminal).findByRole('button', {name: 'Session: Latest work'})).toBeVisible()
+    expect(within(terminal).queryByText('Starting a pane…')).not.toBeInTheDocument()
+  })
 })
 
 describe('quick terminal height', () => {
