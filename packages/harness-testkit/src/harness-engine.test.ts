@@ -26,6 +26,21 @@ describe('scripted replies', () => {
   })
 })
 
+describe('a reply that thinks first', () => {
+  test("the thread keeps the reply's reasoning ahead of its answer", async ({launch}) => {
+    const {engine, client} = await launch()
+    await engine.reply(TestLLM.thinking('The user wants a greeting', 'Hello there'))
+
+    await engine.session.send('Say hello')
+
+    const {messages} = await client.chat.hydrate({sessionId: engine.session.id})
+    expect(messages.at(-1)?.parts).toMatchObject([
+      {type: 'thinking', content: 'The user wants a greeting'},
+      {type: 'text', content: 'Hello there'},
+    ])
+  })
+})
+
 describe('several tool calls in one reply', () => {
   test('a reply with two tool calls runs both, and the next request carries both results in call order', async ({
     engine,

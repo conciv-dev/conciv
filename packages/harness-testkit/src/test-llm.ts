@@ -39,6 +39,10 @@ export function text(value: string): Reply {
   return reply({text: value})
 }
 
+export function thinking(value: string, answer: string): Reply {
+  return reply({thinking: value, text: answer})
+}
+
 export function toolCall(id: string, name: string, input: unknown): Reply {
   return toolCalls({id, name, input})
 }
