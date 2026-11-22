@@ -265,11 +265,38 @@ const PAGE_SESSION: PageSessionConfig = {
   toolPrefix: PAGE_TOOL_PREFIX,
 }
 
+type SyntheticTag = {description?: string; metadata?: Record<string, unknown>}
+
+function shellResultFailed(metadata: Record<string, unknown>): boolean {
+  return metadata.timeout === true || (typeof metadata.exit === 'number' && metadata.exit !== 0)
+}
+
+function timelineNoticeRequired(synthetic: SyntheticTag): boolean {
+  const metadata = synthetic.metadata
+  return (
+    metadata?.state === 'error' ||
+    (metadata?.source === 'shell' && metadata.state === 'completed' && shellResultFailed(metadata))
+  )
+}
+
+function isNotice(synthetic: SyntheticTag): boolean {
+  return !!synthetic.description?.trim() || timelineNoticeRequired(synthetic)
+}
+
 function SyntheticNotice(): JSX.Element {
   const message = useMessage()
-  const description = () =>
-    SyntheticMetadataSchema.safeParse(message.message().messages[0]?.metadata).data?.conciv.synthetic.description
-  return <Show when={description()}>{(label) => <Notice label={label()} />}</Show>
+  const label = () => {
+    const synthetic = SyntheticMetadataSchema.safeParse(message.message().messages[0]?.metadata).data?.conciv.synthetic
+    if (synthetic === undefined || !isNotice(synthetic)) return undefined
+    return (
+      synthetic.description ??
+      message
+        .message()
+        .parts.flatMap((part) => (part.type === 'text' ? [part.content] : []))
+        .join('\n\n')
+    )
+  }
+  return <Show when={label()}>{(text) => <Notice label={text()} />}</Show>
 }
 
 const THREAD_COMPONENTS = {SystemMessage: SyntheticNotice}
