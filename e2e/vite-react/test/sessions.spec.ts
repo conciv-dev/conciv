@@ -44,15 +44,16 @@ test.describe('sessions on a vite react page when the engine fails a session cha
     await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
 
     await page.getByRole('button', {name: /, session options$/}).click()
-    const sessionOptions = page.getByRole('dialog', {name: 'Session options'})
-    await sessionOptions.getByRole('button', {name: 'New session', exact: true}).click()
+    await page.getByRole('button', {name: /^Session: /}).click()
+    const newSession = page.getByRole('button', {name: 'New session', exact: true})
+    await newSession.click()
     await create.arrived
     create.release('INTERNAL_SERVER_ERROR')
     await expect(
       page.getByText('Could not start a new session. Check that the engine is running, then try again.'),
     ).toBeVisible()
 
-    await sessionOptions.getByRole('button', {name: 'New session', exact: true}).click()
+    await newSession.click()
     await expect(page.getByRole('status').filter({hasText: 'Started a new session'})).toBeVisible()
     await expect(page.getByRole('button', {name: 'New session, session options'})).toBeVisible()
   })
