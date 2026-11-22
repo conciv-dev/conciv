@@ -100,7 +100,7 @@ describe('the agent draws on the open canvas', () => {
 })
 
 describe("the user works the agent's comments on the canvas", () => {
-  test('the user finds, reads and answers a thread, the agent reads the answer, and Escape closes one layer at a time', async () => {
+  test('the user finds, sorts, marks read, answers, resolves and deletes threads, the agent reads the answer and lists what is left, and Escape closes one layer at a time', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const create = engine.session.tool('whiteboard_comment_create')
@@ -123,11 +123,18 @@ describe("the user works the agent's comments on the canvas", () => {
       authorKind: 'ai',
       authorModel: 'Opus 5.5',
     })
+    await engine.session.tool('whiteboard_comment_reply').call({
+      cid: 'hero',
+      parts: [{type: 'text', text: 'A sharper export is ready'}],
+    })
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
         typescriptCode: "return await external_whiteboard_comment_read({cid: 'hero'})",
       }),
-      TestLLM.text('I read your reply on the hero comment'),
+      TestLLM.toolCall('c2', 'execute_typescript', {
+        typescriptCode: 'return await external_whiteboard_comment_list({})',
+      }),
+      TestLLM.text('I read your reply, and only the resolved hero comment is left'),
     )
     await mount({
       engine,
@@ -152,6 +159,26 @@ describe("the user works the agent's comments on the canvas", () => {
     await user.type(search, 'checkout')
     expect(within(inbox).getByText('No comments match “checkout”.')).toBeVisible()
     await user.clear(search)
+
+    await user.click(within(inbox).getByRole('button', {name: /The hero image is blurry/}))
+    await user.click(
+      within(await screen.findByRole('dialog', {name: 'Comment thread'})).getByRole('button', {name: 'Close thread'}),
+    )
+    expect(await screen.findByRole('button', {name: 'AI comment, open, unread'})).toBeVisible()
+    expect(screen.getByRole('button', {name: 'AI comment, open'})).toBeVisible()
+    const byDate = within(inbox).getAllByRole('button', {
+      name: /The hero image is blurry|The price wraps on small screens/,
+    })
+    expect(byDate[0]).toHaveAccessibleName(/The hero image is blurry/)
+    expect(within(inbox).getByText('1 reply')).toBeVisible()
+    await user.click(within(inbox).getByRole('button', {name: 'Filter comments'}))
+    await user.click(await screen.findByRole('menuitemradio', {name: 'Sort by unread'}))
+    const byUnread = within(inbox).getAllByRole('button', {
+      name: /The hero image is blurry|The price wraps on small screens/,
+    })
+    expect(byUnread[0]).toHaveAccessibleName(/The price wraps on small screens/)
+    await user.click(within(inbox).getByRole('button', {name: 'Mark all as read'}))
+    expect(screen.getAllByRole('button', {name: 'AI comment, open'})).toHaveLength(2)
 
     await user.click(within(inbox).getByRole('button', {name: /The hero image is blurry/}))
     const thread = await screen.findByRole('dialog', {name: 'Comment thread'})
@@ -179,21 +206,42 @@ describe("the user works the agent's comments on the canvas", () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', {name: 'Comment thread'})).not.toBeInTheDocument()
     expect(inbox).toBeVisible()
+
+    await user.click(within(inbox).getByRole('button', {name: /The hero image is blurry/}))
+    await user.click(
+      within(await screen.findByRole('dialog', {name: 'Comment thread'})).getByRole('button', {name: 'Resolve thread'}),
+    )
+    expect(within(inbox).queryByRole('button', {name: /The hero image is blurry/})).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', {name: 'AI comment, resolved'})).toBeVisible()
+    await user.click(within(inbox).getByRole('button', {name: 'Filter comments'}))
+    await user.click(await screen.findByRole('menuitemcheckbox', {name: 'Show resolved comments'}))
+    expect(await within(inbox).findByRole('button', {name: /The hero image is blurry/})).toBeVisible()
+
+    await user.click(within(inbox).getByRole('button', {name: /The price wraps on small screens/}))
+    await user.click(
+      within(await screen.findByRole('dialog', {name: 'Comment thread'})).getByRole('button', {name: 'Delete thread'}),
+    )
+    const confirm = await screen.findByRole('dialog', {name: 'Delete this thread?'})
+    await user.click(within(confirm).getByRole('button', {name: 'Delete'}))
+    expect(within(inbox).queryByRole('button', {name: /The price wraps on small screens/})).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', {name: /^AI comment, open/})).not.toBeInTheDocument()
     await user.click(within(inbox).getByRole('button', {name: 'Close inbox'}))
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
-    await user.type(input, 'Did you see my reply?')
+    await user.type(input, 'Did you see my reply, and what is left on the board?')
     expect(input).toHaveFocus()
-    const readTurn = await engine.event('session.execution.succeeded')
+    const turn = await engine.event('session.execution.succeeded')
     await user.keyboard('{Enter}')
-    await readTurn.arrived
-    expect(await screen.findByText('I read your reply on the hero comment')).toBeVisible()
-    const read = (await engine.requests()).at(-1)?.messages.find((message) => message.toolCallId === 'c1')
+    await turn.arrived
+    expect(await screen.findByText('I read your reply, and only the resolved hero comment is left')).toBeVisible()
+    const messages = (await engine.requests()).at(-1)?.messages
+    const read = messages?.find((message) => message.toolCallId === 'c1')
     expect(JSON.parse(String(read?.content))).toMatchObject({
       success: true,
       result: {
         comment: {cid: 'hero'},
         replies: [
+          {parts: [{type: 'text', text: 'A sharper export is ready'}]},
           {
             authorKind: 'human',
             parts: expect.arrayContaining([expect.objectContaining({type: 'mention', label: 'Opus 5.5'})]),
@@ -201,134 +249,17 @@ describe("the user works the agent's comments on the canvas", () => {
         ],
       },
     })
+    const listed = messages?.find((message) => message.toolCallId === 'c2')
+    expect(JSON.parse(String(listed?.content))).toMatchObject({
+      success: true,
+      result: {comments: [{cid: 'hero', status: 'resolved'}]},
+    })
 
     expect(input).toHaveFocus()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('button', {name: /^Comments/})).not.toBeInTheDocument()
     expect(screen.queryByRole('button', {name: /^AI comment/})).not.toBeInTheDocument()
     expect(screen.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
-  })
-
-  test('the inbox sorts by date or by unread, and marks every thread read at once', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
-    const create = engine.session.tool('whiteboard_comment_create')
-    await create.call({
-      cid: 'price',
-      kind: 'floating',
-      parts: [{type: 'text', text: 'The price wraps on small screens'}],
-      x: 120,
-      y: 160,
-      authorKind: 'ai',
-    })
-    await create.call({
-      cid: 'hero',
-      kind: 'floating',
-      parts: [{type: 'text', text: 'The hero image is blurry'}],
-      x: 420,
-      y: 160,
-      authorKind: 'ai',
-    })
-    await engine.session.tool('whiteboard_comment_reply').call({
-      cid: 'hero',
-      parts: [{type: 'text', text: 'A sharper export is ready'}],
-    })
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
-    })
-
-    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
-    await user.click(await screen.findByRole('button', {name: /^Comments/}))
-    const sorted = await screen.findByRole('complementary', {name: 'Comments inbox'})
-    await user.click(within(sorted).getByRole('button', {name: /The hero image is blurry/}))
-    await user.click(
-      within(await screen.findByRole('dialog', {name: 'Comment thread'})).getByRole('button', {name: 'Close thread'}),
-    )
-
-    expect(await screen.findByRole('button', {name: 'AI comment, open, unread'})).toBeVisible()
-    expect(screen.getByRole('button', {name: 'AI comment, open'})).toBeVisible()
-    const byDate = within(sorted).getAllByRole('button', {
-      name: /The hero image is blurry|The price wraps on small screens/,
-    })
-    expect(byDate[0]).toHaveAccessibleName(/The hero image is blurry/)
-    expect(within(sorted).getByText('1 reply')).toBeVisible()
-    await user.click(within(sorted).getByRole('button', {name: 'Filter comments'}))
-    await user.click(await screen.findByRole('menuitemradio', {name: 'Sort by unread'}))
-    const byUnread = within(sorted).getAllByRole('button', {
-      name: /The hero image is blurry|The price wraps on small screens/,
-    })
-    expect(byUnread[0]).toHaveAccessibleName(/The price wraps on small screens/)
-    await user.click(within(sorted).getByRole('button', {name: 'Mark all as read'}))
-    expect(screen.getAllByRole('button', {name: 'AI comment, open'})).toHaveLength(2)
-  })
-
-  test('the user resolves and deletes threads, and the agent lists what is left', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
-    const create = engine.session.tool('whiteboard_comment_create')
-    await create.call({
-      cid: 'price',
-      kind: 'floating',
-      parts: [{type: 'text', text: 'The price wraps on small screens'}],
-      x: 120,
-      y: 160,
-      authorKind: 'ai',
-    })
-    await create.call({
-      cid: 'hero',
-      kind: 'floating',
-      parts: [{type: 'text', text: 'The hero image is blurry'}],
-      x: 420,
-      y: 160,
-      authorKind: 'ai',
-    })
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: 'return await external_whiteboard_comment_list({})',
-      }),
-      TestLLM.text('Only the resolved hero comment is left'),
-    )
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
-    })
-
-    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
-    await user.click(await screen.findByRole('button', {name: /^Comments/}))
-    const sorted = await screen.findByRole('complementary', {name: 'Comments inbox'})
-    await user.click(within(sorted).getByRole('button', {name: /The hero image is blurry/}))
-    await user.click(
-      within(await screen.findByRole('dialog', {name: 'Comment thread'})).getByRole('button', {name: 'Resolve thread'}),
-    )
-    expect(within(sorted).queryByRole('button', {name: /The hero image is blurry/})).not.toBeInTheDocument()
-    expect(await screen.findByRole('button', {name: 'AI comment, resolved'})).toBeVisible()
-    await user.click(within(sorted).getByRole('button', {name: 'Filter comments'}))
-    await user.click(await screen.findByRole('menuitemcheckbox', {name: 'Show resolved comments'}))
-    expect(await within(sorted).findByRole('button', {name: /The hero image is blurry/})).toBeVisible()
-
-    await user.click(within(sorted).getByRole('button', {name: /The price wraps on small screens/}))
-    await user.click(
-      within(await screen.findByRole('dialog', {name: 'Comment thread'})).getByRole('button', {name: 'Delete thread'}),
-    )
-    const confirm = await screen.findByRole('dialog', {name: 'Delete this thread?'})
-    await user.click(within(confirm).getByRole('button', {name: 'Delete'}))
-    expect(within(sorted).queryByRole('button', {name: /The price wraps on small screens/})).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', {name: /^AI comment, open/})).not.toBeInTheDocument()
-    await user.click(within(sorted).getByRole('button', {name: 'Close inbox'}))
-
-    const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
-    await user.type(composer, 'What is left on the board?')
-    expect(composer).toHaveFocus()
-    const listedTurn = await engine.event('session.execution.succeeded')
-    await user.keyboard('{Enter}')
-    await listedTurn.arrived
-    expect(await screen.findByText('Only the resolved hero comment is left')).toBeVisible()
-    const listed = (await engine.requests()).at(-1)?.messages.find((message) => message.toolCallId === 'c1')
-    expect(JSON.parse(String(listed?.content))).toMatchObject({
-      success: true,
-      result: {comments: [{cid: 'hero', status: 'resolved'}]},
-    })
   })
 })
 
