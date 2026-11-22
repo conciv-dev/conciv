@@ -6,41 +6,7 @@ import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('queueing while the agent works', () => {
-  test('a message sent during a reply waits in the queue and runs after it', async () => {
-    const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('First answer'), TestLLM.text('Second answer'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
-    await user.type(input, 'First task')
-    expect(input).toHaveFocus()
-    await user.keyboard('{Enter}')
-    await gate.started
-    await user.type(input, 'Second task')
-    expect(input).toHaveFocus()
-    await user.keyboard('{Enter}')
-
-    expect(await screen.findByText('1 waiting · runs in order')).toBeVisible()
-    expect(screen.getByText('Second task')).toBeVisible()
-    expect(screen.getByText('Queue another instruction…')).toBeVisible()
-    await gate.release()
-
-    const second = await screen.findByRole('article', {name: 'Reply to: Second task'})
-    expect(await within(second).findByText('Second answer')).toBeVisible()
-    expect(within(screen.getByRole('article', {name: 'Reply to: First task'})).getByText('First answer')).toBeVisible()
-    expect(screen.queryByText('1 waiting · runs in order')).not.toBeInTheDocument()
-    const requests = await engine.requests()
-    expect(requests.map((request) => request.messages.at(-1))).toMatchObject([
-      {role: 'user', content: 'First task'},
-      {role: 'user', content: 'Second task'},
-    ])
-  })
-})
-
-describe('removing from the queue', () => {
-  test('a removed message never reaches the agent', async () => {
+  test('a message sent during a reply waits in the queue, a removed one never reaches the agent, and the next runs after the reply', async () => {
     const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('First answer'), TestLLM.text('Third answer'))
@@ -55,7 +21,10 @@ describe('removing from the queue', () => {
     await user.type(input, 'Second task')
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
-    await user.click(await screen.findByRole('button', {name: 'Remove from queue'}))
+    expect(await screen.findByText('1 waiting · runs in order')).toBeVisible()
+    expect(screen.getByText('Second task')).toBeVisible()
+    expect(screen.getByText('Queue another instruction…')).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Remove from queue'}))
     expect(screen.queryByText('Second task')).not.toBeInTheDocument()
     await user.type(input, 'Third task')
     expect(input).toHaveFocus()
@@ -65,6 +34,8 @@ describe('removing from the queue', () => {
 
     const third = await screen.findByRole('article', {name: 'Reply to: Third task'})
     expect(await within(third).findByText('Third answer')).toBeVisible()
+    expect(within(screen.getByRole('article', {name: 'Reply to: First task'})).getByText('First answer')).toBeVisible()
+    expect(screen.queryByText('1 waiting · runs in order')).not.toBeInTheDocument()
     expect(screen.queryByRole('article', {name: 'You: Second task'})).not.toBeInTheDocument()
     const requests = await engine.requests()
     expect(requests.map((request) => request.messages.at(-1))).toMatchObject([
