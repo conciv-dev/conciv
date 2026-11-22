@@ -8,6 +8,9 @@
         "$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{ts,tsx}",
         "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}"
       ]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "^build:types", "@conciv/ai#build", "@conciv/core#build", "@conciv/harness#build"]
     }
   }
 }
