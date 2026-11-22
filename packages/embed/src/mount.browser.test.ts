@@ -39,8 +39,9 @@ describe('the host page drives the widget through its handle', () => {
     await expect.element(launcher).toBeVisible()
 
     handle.open()
-    const panel = await page.getByRole('dialog', {name: 'conciv chat agent'}).findElement()
-    await expect.element(panel).toBeVisible()
+    const openPanel = page.getByRole('dialog', {name: 'conciv chat agent'})
+    await expect.element(openPanel).toBeVisible()
+    const panel = openPanel.element()
     handle.close()
     await expect.element(panel).not.toBeVisible()
     await expect.element(launcher).toBeVisible()
