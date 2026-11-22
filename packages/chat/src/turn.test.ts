@@ -225,3 +225,32 @@ describe('a long tool loop', () => {
     expect(messages.at(-1)?.parts.at(-1)).toMatchObject({type: 'text', content: 'All nine steps are done'})
   })
 })
+
+describe('several tool calls in one step', () => {
+  test('the agent calls two tools in one step and the saved thread shows both calls with their results', async ({
+    connect,
+  }) => {
+    const engine = await createEngine()
+    const rpc = connect(engine)
+    await engine.reply(
+      TestLLM.toolCalls(
+        {id: 'c1', name: 'execute_typescript', input: {typescriptCode: "return 'first'"}},
+        {id: 'c2', name: 'execute_typescript', input: {typescriptCode: "return 'second'"}},
+      ),
+      TestLLM.text('Both steps are done'),
+    )
+
+    await engine.session.send('Do both steps at once')
+
+    const {messages} = await rpc.chat.hydrate({sessionId: engine.session.id})
+    expect(messages.flatMap((message) => message.parts)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({type: 'tool-call', id: 'c1', name: 'execute_typescript'}),
+        expect.objectContaining({type: 'tool-call', id: 'c2', name: 'execute_typescript'}),
+        expect.objectContaining({type: 'tool-result', toolCallId: 'c1', content: expect.stringContaining('first')}),
+        expect.objectContaining({type: 'tool-result', toolCallId: 'c2', content: expect.stringContaining('second')}),
+      ]),
+    )
+    expect(messages.at(-1)?.parts.at(-1)).toMatchObject({type: 'text', content: 'Both steps are done'})
+  })
+})
