@@ -232,6 +232,88 @@ test.describe('the widget on a vite react page when the engine is slow or fails 
   })
 })
 
+test.describe('the widget on a vite react page when the engine holds a later call, fails every call, or holds a call only once armed', () => {
+  test('the user starts a new session, then another while the engine holds the second create, and only the second is told it could not start', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const create = await holdEngineCall(page, ['sessions', 'create'], {when: (count) => count === 2})
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    const sessionOptions = page.getByRole('dialog', {name: 'Session options'})
+    const startFailed = page.getByText(
+      'Could not start a new session. Check that the engine is running, then try again.',
+    )
+
+    await page.getByRole('button', {name: /, session options$/}).click()
+    await sessionOptions.getByRole('button', {name: /^Session: /}).click()
+    await page.getByRole('button', {name: 'New session', exact: true}).click()
+    await expect(page.getByRole('status').filter({hasText: 'Started a new session'})).toBeVisible()
+    await expect(sessionOptions).toBeHidden()
+
+    await page.getByRole('button', {name: /, session options$/}).click()
+    await sessionOptions.getByRole('button', {name: /^Session: /}).click()
+    await page.getByRole('button', {name: 'New session', exact: true}).click()
+    await create.arrived
+    await expect(startFailed).toBeHidden()
+
+    create.release('INTERNAL_SERVER_ERROR')
+    await expect(startFailed).toBeVisible()
+  })
+
+  test("the user reloads while the engine fails every load of the session, sees that the session couldn't load under the title Session, and once the engine answers again Retry brings the title back", async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const session = await holdEngineCall(page, ['sessions', 'get'], {
+      when: () => true,
+      fail: 'INTERNAL_SERVER_ERROR',
+    })
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await session.arrived
+
+    const failed = page.getByRole('alert').filter({hasText: 'Couldn’t load this session'})
+    await expect(failed).toBeVisible()
+    await expect(page.getByRole('button', {name: 'This session could not be loaded, session options'})).toHaveText(
+      'Session',
+    )
+
+    session.release()
+    await failed.getByRole('button', {name: 'Retry'}).click()
+    await expect(failed).toBeHidden()
+    await expect(page.getByRole('button', {name: 'New session, session options'})).toBeVisible()
+  })
+
+  test('the user opens the quick terminal after the chat has loaded, sees it starting a pane while the engine holds the session it asked for, and the pane once the engine answers', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const resolve = await holdEngineCall(page, ['sessions', 'resolve'], {when: () => true, armed: false})
+    await page.reload({waitUntil: 'domcontentloaded'})
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await expect(composer).toBeVisible()
+
+    resolve.arm()
+    await composer.click()
+    await expect(composer).toBeFocused()
+    await page.keyboard.press('ControlOrMeta+Backquote')
+    await resolve.arrived
+    const terminal = page.getByRole('dialog', {name: 'conciv quick terminal'})
+    await expect(terminal.getByText('Starting a pane…')).toBeVisible()
+
+    resolve.release()
+    await expect(terminal.getByRole('button', {name: /^Session: /})).toBeVisible()
+    await terminal.getByRole('button', {name: 'Close quick terminal'}).click()
+    await expect(terminal).toBeHidden()
+  })
+})
+
 test.describe('the chat on a vite react page when the engine is slow or fails to load or compact the conversation', () => {
   test('the user reloads, sees the conversation loading while the engine holds it, the load error when it fails, and Retry brings the chat back', async ({
     page,

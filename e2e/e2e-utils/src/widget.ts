@@ -154,39 +154,86 @@ async function engineErrorFrame(path: readonly string[], id: string, code: strin
   return Buffer.from(encoded instanceof Uint8Array ? encoded : new Uint8Array(encoded))
 }
 
-export async function holdEngineCall<Path extends EnginePath>(
+type EngineFrame = {
+  socket: WebSocketRoute
+  id: string
+  type: MessageType
+  call: boolean
+  forward: () => void
+  fail: (code: string) => Promise<void>
+}
+
+async function routeEngineFrames(
   page: Page,
-  path: Path,
-): Promise<{arrived: Promise<void>; release: (failWith?: EngineErrorCode<Path>) => void}> {
-  const arrived = Promise.withResolvers<void>()
-  const released = Promise.withResolvers<string | undefined>()
+  path: readonly string[],
+  route: (frame: EngineFrame) => void | Promise<void>,
+): Promise<void> {
   const pathname = toHttpPath(path)
-  let held: {socket: WebSocketRoute; id: string} | undefined
   await page.routeWebSocket(
     (url) => url.pathname === RPC_SOCKET_PATH,
     (socket) => {
       const server = socket.connectToServer()
       let decoding = Promise.resolve()
-      const route = async (frame: string | Buffer): Promise<void> => {
+      const decode = async (frame: string | Buffer): Promise<void> => {
         const decoded = await decodeRequestMessage(frame).catch(() => undefined)
         if (decoded === undefined) return server.send(frame)
         const [id, type, payload] = decoded
-        if (held === undefined && type === MessageType.REQUEST && payload.url.pathname === pathname) {
-          held = {socket, id}
-          arrived.resolve()
-        }
-        if (held?.socket !== socket || held.id !== id) return server.send(frame)
-        void released.promise.then(async (code) => {
-          if (code === undefined) return server.send(frame)
-          if (type === MessageType.REQUEST) socket.send(await engineErrorFrame(path, id, code))
+        await route({
+          socket,
+          id,
+          type,
+          call: type === MessageType.REQUEST && payload.url.pathname === pathname,
+          forward: () => server.send(frame),
+          fail: async (code) => socket.send(await engineErrorFrame(path, id, code)),
         })
       }
       socket.onMessage((frame) => {
-        decoding = decoding.then(() => route(frame))
+        decoding = decoding.then(() => decode(frame))
       })
     },
   )
-  return {arrived: arrived.promise, release: (failWith) => released.resolve(failWith)}
+}
+
+export async function holdEngineCall<Path extends EnginePath>(
+  page: Page,
+  path: Path,
+  {
+    when = (count) => count === 1,
+    fail,
+    armed = true,
+  }: {when?: (count: number) => boolean; fail?: EngineErrorCode<Path>; armed?: boolean} = {},
+): Promise<{arrived: Promise<void>; arm: () => void; release: (failWith?: EngineErrorCode<Path>) => void}> {
+  const arrived = Promise.withResolvers<void>()
+  const released = Promise.withResolvers<string | undefined>()
+  let phase: 'unarmed' | 'armed' | 'released' = armed ? 'armed' : 'unarmed'
+  let calls = 0
+  const taken: {socket: WebSocketRoute; id: string}[] = []
+  await routeEngineFrames(page, path, (frame) => {
+    const isTaken = taken.some((call) => call.socket === frame.socket && call.id === frame.id)
+    if (!isTaken) {
+      if (phase !== 'armed' || !frame.call) return frame.forward()
+      calls += 1
+      if (!when(calls)) return frame.forward()
+      taken.push({socket: frame.socket, id: frame.id})
+      arrived.resolve()
+      if (fail !== undefined) return frame.fail(fail)
+    }
+    if (fail !== undefined) return
+    void released.promise.then(async (code) => {
+      if (code === undefined) return frame.forward()
+      if (frame.type === MessageType.REQUEST) await frame.fail(code)
+    })
+  })
+  return {
+    arrived: arrived.promise,
+    arm: () => {
+      if (phase === 'unarmed') phase = 'armed'
+    },
+    release: (failWith) => {
+      phase = 'released'
+      released.resolve(failWith)
+    },
+  }
 }
 
 async function engineOrigin(page: Page, path: string): Promise<string> {
