@@ -168,6 +168,32 @@ describe('preview a session', () => {
   })
 })
 
+describe('preview a session that has no messages', () => {
+  test('the user highlights a session nobody wrote in, the preview says it couldn’t load the session, and Retry asks again', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.newSession('Alpha')
+    await engine.newSession('Beta')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.click(await screen.findByRole('button', {name: 'Beta, session options'}))
+    await user.click(await screen.findByRole('button', {name: 'Session: Beta'}))
+    expect(await screen.findByRole('option', {name: /^Alpha, Edited/})).toBeVisible()
+    const search = screen.getByRole('combobox', {name: 'Search sessions'})
+    await user.click(search)
+    expect(search).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    const preview = await screen.findByRole('dialog', {name: 'Preview of Alpha'})
+    const failed = await within(preview).findByRole('alert')
+    expect(failed).toHaveTextContent('Couldn’t load this session.')
+
+    await user.click(within(failed).getByRole('button', {name: 'Retry'}))
+    expect(await within(preview).findByRole('alert')).toHaveTextContent('Couldn’t load this session.')
+    expect(within(preview).getByRole('button', {name: 'Retry'})).toBeVisible()
+    expect(screen.getByRole('dialog', {name: 'Preview of Alpha'})).toBeVisible()
+  })
+})
+
 describe('preview a session that is still running', () => {
   test('the user starts a new session while the first one still replies and previews the running one', async () => {
     const user = userEvent.setup()
