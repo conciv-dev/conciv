@@ -1,14 +1,14 @@
-import {For, Show, type Component, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
-import Check from 'lucide-solid/icons/check'
+import {For, Show, type JSX} from 'solid-js'
 import X from 'lucide-solid/icons/x'
+import type {IconName} from '@conciv/plugin/experimental'
+import {Icon} from '@conciv/ui-kit-chat'
 import {Button, Loader, Toast, ToastGroup, TooltipIconButton, createToaster} from '@conciv/ui-kit-system'
 
 export type NoticeTone = 'info' | 'success' | 'warn' | 'danger'
 
 export type NoticeAction = {label: string; run: () => void}
 
-export type NoticeIcon = Component<{class?: string}>
+export type NoticeIcon = IconName
 
 export type NoticeOptions = {
   key?: string
@@ -72,15 +72,15 @@ function noticeDuration(options: NoticeOptions, actions: readonly NoticeAction[]
 }
 
 function NoticeIconSlot(props: {type: string | undefined; icon: NoticeIcon | undefined}): JSX.Element {
-  const icon = (): NoticeIcon | undefined => props.icon ?? (props.type === 'success' ? Check : undefined)
+  const icon = (): NoticeIcon | undefined => props.icon ?? (props.type === 'success' ? 'check' : undefined)
   return (
     <Show
       when={props.type === 'loading'}
       fallback={
         <Show when={icon()}>
-          {(Icon) => (
+          {(name) => (
             <span class={ICON_SLOT} aria-hidden="true">
-              <Dynamic component={Icon()} class={ICON} />
+              <Icon name={name()} class={ICON} />
             </span>
           )}
         </Show>

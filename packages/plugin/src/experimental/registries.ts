@@ -1,9 +1,22 @@
 import type {Component, JSX} from 'solid-js'
-import type {IconName} from './icon-name.js'
-import {Registry} from './core.js'
+import type {AppIconName} from './icon-name.js'
+import {Registry, type PluginIconName} from './core.js'
 import type {ComposerNote, SessionRef, MountedSession, SessionScreen} from './host-apis.js'
 
-export type {IconName}
+export type {AppIconName}
+
+/**
+ * The icon an SDK field or `ctx.ui.Icon` shows, by name: one of the app's own icons, or one the plugin declared in
+ * `Plugin.define({ icons })`, from its `ctx.icons`. Any other string fails to compile.
+ * - `AppIconName`: the app's artwork, such as `"folder"`.
+ * - `PluginIconName`: a plugin's artwork, such as `ctx.icons.logo`.
+ *
+ * @example
+ * ```ts
+ * const icon: IconName = connected() ? ctx.icons.logo : "circle-exclamation"
+ * ```
+ */
+export type IconName = AppIconName | PluginIconName
 
 export interface Command {
   readonly id: string
@@ -587,7 +600,7 @@ export interface ToolRegistry {
  * ```tsx
  * ctx.add(ToolRegistry, {
  *   name: "page_click",
- *   render: (props) => <BasicTool {...props} icon="mouse-pointer" trigger={{title: "Click", subtitle: selector(props.input)}} />,
+ *   render: (props) => <BasicTool {...props} icon="mouse-pointer-click" trigger={{title: "Click", subtitle: selector(props.input)}} />,
  * })
  * ```
  */

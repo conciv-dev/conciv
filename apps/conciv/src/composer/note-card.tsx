@@ -1,31 +1,23 @@
 import {createMemo, For, Show, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
-import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
 import {isEqual, isNil} from 'es-toolkit'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {CornerRemoveButton, useComposerContext} from '@conciv/ui-kit-chat'
+import {CornerRemoveButton, Icon, isIconName, isRegisteredIconName, useComposerContext} from '@conciv/ui-kit-chat'
 import {NoteCard, type IconName, type MountedSession, type NoteCardProps} from '@conciv/plugin/experimental'
 import {usePluginHost, type Item} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
-import {icons} from '../runtime/plugin/icons'
 import type {ChatMessage, NoteComment} from '@conciv/protocol/chat-message-types'
 import {decodeNotes} from './note-schema'
 import {readPromptPresentation} from './comment-note'
-
-const FALLBACK_ICON: IconName = 'message-square'
 
 const FRAME =
   'group relative flex flex-1 flex-col gap-0.5 min-w-0 p-3 rounded-chat-surface-sm border border-chat-line bg-chat-fill text-chat-sm text-chat-text-hi'
 const HEADING = 'block truncate text-chat-sm text-chat-text-hi'
 const META = 'flex items-center gap-1 min-w-0 text-chat-xs text-chat-text-3'
 
-function isIconName(name: string): name is IconName {
-  return Object.hasOwn(icons, name)
-}
-
-function noteIcon(name: string): IconName {
-  return isIconName(name) ? name : FALLBACK_ICON
+function isNoteIconName(name: string): name is IconName {
+  return isIconName(name) || isRegisteredIconName(name)
 }
 
 function noteHeading(note: NoteComment): string {
@@ -41,7 +33,7 @@ function NoteChip(props: {note: NoteComment}): JSX.Element {
     <>
       <TruncatedText class={HEADING} text={noteHeading(props.note)} />
       <span class={META}>
-        <Dynamic component={icons[noteIcon(props.note.icon)]} size={12} class="shrink-0" aria-hidden="true" />
+        <Icon name={props.note.icon} class="shrink-0 size-3" />
         <TruncatedText class="block truncate" text={noteSubtitle(props.note)} />
       </span>
     </>
@@ -54,7 +46,10 @@ function DrawnNoteCard(props: {
   session: MountedSession | undefined
 }): JSX.Element {
   const [state, setState] = createStore({failed: false})
-  const pluginNote = createMemo((): NoteCardProps['note'] => ({...props.note(), icon: noteIcon(props.note().icon)}))
+  const pluginNote = createMemo((): NoteCardProps['note'] => {
+    const note = props.note()
+    return {...note, icon: isNoteIconName(note.icon) ? note.icon : 'plus'}
+  })
 
   return (
     <Show when={!state.failed} fallback={<NoteChip note={props.note()} />}>
