@@ -2,6 +2,7 @@ import {isIdentifier} from './ast-walk.js'
 import lucidePerIcon from './lucide-per-icon.js'
 import noAwaitEffectQuery from './no-await-effect-query.js'
 import noComments from './no-comments.js'
+import noForcedClick from './no-forced-click.js'
 import noHandMadeTempDir from './no-hand-made-temp-dir.js'
 import {isDomTestFile} from '@conciv/vitest-config/new-layer'
 import noLocatorPoll from './no-locator-poll.js'
@@ -251,6 +252,7 @@ export default {
     'no-await-effect-query': noAwaitEffectQuery,
     'no-comments': noComments,
     'no-delegated-focus': noDelegatedFocus,
+    'no-forced-click': noForcedClick,
     'no-hand-made-temp-dir': noHandMadeTempDir,
     'no-inline-timeouts': noInlineTimeouts,
     'no-locator-poll': noLocatorPoll,

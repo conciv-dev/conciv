@@ -388,6 +388,7 @@ describe('the terminal', () => {
     const input = await screen.findByRole('textbox', {name: 'Terminal input'})
     expect(await screen.findByText(/^model opus \d+x\d+$/)).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Select an element from the page'}))
+    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
     await browserUserEvent.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
     await browserUserEvent.click(input)
     expect(input).toHaveFocus()

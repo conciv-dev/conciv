@@ -705,6 +705,7 @@ describe('a composer note from a page comment', () => {
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.click(await screen.findByRole('button', {name: 'Comment on the page'}))
+    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
     await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
     const notes = await screen.findByRole('list', {name: 'Notes'})
     expect(within(notes).getByText('Make this button green')).toBeVisible()

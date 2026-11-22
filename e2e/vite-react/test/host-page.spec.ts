@@ -11,6 +11,7 @@ test.describe('grabbing an element of the vite react host page', () => {
 
     await page.getByRole('button', {name: 'More composer actions'}).click()
     await page.getByRole('menuitem', {name: 'Select an element from the page'}).click()
+    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
     await page.getByRole('heading', {name: 'Get started'}).click({force: true})
 
     await expect(page.getByRole('button', {name: 'Open grabbed element'})).toBeVisible()

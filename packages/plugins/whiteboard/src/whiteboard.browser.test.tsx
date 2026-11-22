@@ -484,6 +484,7 @@ describe('the user comments on an element of the page', () => {
     await user.click(whiteboard)
     expect(await screen.findByRole('button', {name: /^Comments/})).toBeVisible()
     await user.click(await screen.findByRole('button', {name: 'Comment on an element'}))
+    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
     await realInput.click(screen.getByRole('heading', {name: 'Plant shop'}), {force: true})
     const tagline = await screen.findByRole('dialog', {name: 'New comment'})
     await user.type(within(tagline).getByRole('textbox', {name: 'Comment'}), 'The title needs a tagline')
@@ -499,6 +500,7 @@ describe('the user comments on an element of the page', () => {
     await user.click(whiteboard)
     expect(screen.queryByRole('button', {name: /^Comments/})).not.toBeInTheDocument()
     await user.click(await screen.findByRole('button', {name: 'Comment on an element'}))
+    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
     await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
     const compose = await screen.findByRole('dialog', {name: 'New comment'})
     const comment = within(compose).getByRole('textbox', {name: 'Comment'})

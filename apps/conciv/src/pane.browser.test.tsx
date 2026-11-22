@@ -173,6 +173,7 @@ describe('a message with no words', () => {
 
     await user.click(await screen.findByRole('button', {name: 'More composer actions'}))
     await user.click(await screen.findByRole('menuitem', {name: 'Select an element from the page'}))
+    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
     await browserInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
     expect(await screen.findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Send message'}))

@@ -27,6 +27,7 @@
     "conciv/banned-vocabulary": "error",
     "conciv/lucide-per-icon": "error",
     "conciv/no-comments": "error",
+    "conciv/no-forced-click": "error",
     "conciv/no-hand-made-temp-dir": "error",
     "conciv/no-inline-timeouts": "error",
     "conciv/no-locator-poll": "error",
