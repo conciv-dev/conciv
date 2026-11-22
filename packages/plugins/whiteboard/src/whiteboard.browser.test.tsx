@@ -556,3 +556,49 @@ describe('the user comments on an element of the page', () => {
     expect(screen.queryByText('Comment added to the whiteboard')).not.toBeInTheDocument()
   })
 })
+
+describe('the user draws on the canvas', () => {
+  test('the user draws a rectangle with the canvas tools, it is saved to the shared board, and the agent reads it', async () => {
+    const user = userEvent.setup()
+    await page.viewport(1280, 800)
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: 'return await external_whiteboard_canvas_read({})',
+      }),
+      TestLLM.text('I see the rectangle you drew'),
+    )
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
+    })
+
+    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
+    const rectangle = page.getByRole('radio', {name: 'Rectangle'})
+    await realInput.click(rectangle, {force: true})
+    await expect.element(rectangle).toBeChecked()
+    const saved = await engine.event('rpc.whiteboard.changed')
+    await realInput.dragAndDrop(document.body, document.body, {
+      sourcePosition: {x: 200, y: 300},
+      targetPosition: {x: 400, y: 440},
+      force: true,
+    })
+    expect((await saved.arrived).data).toMatchObject({table: 'canvasElements', type: 'upsert'})
+
+    const input = screen.getByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(input, 'What did I draw?')
+    expect(input).toHaveFocus()
+    const readTurn = await engine.event('session.execution.succeeded')
+    await user.keyboard('{Enter}')
+    await readTurn.arrived
+
+    expect(await screen.findByText('I see the rectangle you drew')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: What did I draw?'})
+    expect(within(reply).getByRole('button', {name: /whiteboard_canvas_read\s*1 element/})).toBeVisible()
+    const read = (await engine.requests()).at(-1)?.messages.find((message) => message.toolCallId === 'c1')
+    expect(JSON.parse(String(read?.content))).toMatchObject({
+      success: true,
+      result: {scope: 'live', elements: [{type: 'rectangle', isDeleted: false}]},
+    })
+  })
+})
