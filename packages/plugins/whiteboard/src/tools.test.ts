@@ -1,4 +1,6 @@
+import {execFile} from 'node:child_process'
 import {relative} from 'node:path'
+import {promisify} from 'node:util'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, test} from 'vitest'
 import {z} from 'zod'
@@ -300,6 +302,138 @@ describe('a source-linked comment follows its element as the code changes', () =
     expect(await engine.session.tool('whiteboard_anchor_resolve').call({cid: 'loose-note'})).toEqual({
       status: 'orphaned',
     })
+  })
+})
+
+describe('in a git project a source-linked comment records the commit it was made on', () => {
+  test('the anchor records HEAD, and after a committed edit moves the element it reads moved at its new line', async () => {
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']}, {git: true})
+    const cart = [
+      'export function Cart() {',
+      '  return (',
+      '    <section>',
+      '      <h2>Your cart</h2>',
+      '      <button>Checkout</button>',
+      '    </section>',
+      '  )',
+      '}',
+      '',
+    ]
+    await engine.write('src/Cart.tsx', cart.join('\n'))
+    await engine.commit('add the cart')
+    const {stdout: head} = await promisify(execFile)('git', ['rev-parse', 'HEAD'], {cwd: engine.root})
+
+    await engine.session.tool('whiteboard_comment_create').call({
+      cid: 'checkout-note',
+      kind: 'source-linked',
+      parts: [{type: 'text', text: 'Make checkout the primary action'}],
+      anchor: {source: {file: 'src/Cart.tsx', line: 5, column: 7}},
+      x: 10,
+      y: 10,
+      authorKind: 'ai',
+    })
+    expect(await engine.session.tool('whiteboard_anchor_resolve').call({cid: 'checkout-note'})).toMatchObject({
+      status: 'fresh',
+      anchor: {source: {file: 'src/Cart.tsx', line: 5, column: 7, commit: head.trim()}},
+    })
+
+    await engine.write(
+      'src/Cart.tsx',
+      [...cart.slice(0, 3), '      <p>Free shipping</p>', '      <p>Returns within 30 days</p>', ...cart.slice(3)].join(
+        '\n',
+      ),
+    )
+    await engine.commit('add the shipping notes')
+
+    expect(await engine.session.tool('whiteboard_anchor_resolve').call({cid: 'checkout-note'})).toMatchObject({
+      status: 'moved',
+      anchor: {source: {file: 'src/Cart.tsx', line: 7, column: 7, snippet: '<button>Checkout</button>'}},
+    })
+  })
+})
+
+describe('a human comment on a source element gets its source details from the engine', () => {
+  test('a human comment that names only a file and line is given its component, snippet and hash', async () => {
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
+    const room = engine.session.id
+    await engine.write(
+      'src/Cart.tsx',
+      [
+        'export function Cart() {',
+        '  return (',
+        '    <section>',
+        '      <button>Checkout</button>',
+        '    </section>',
+        '  )',
+        '}',
+        '',
+      ].join('\n'),
+    )
+
+    const enriched = await engine.event('rpc.whiteboard.changed', {
+      data: {room, table: 'comments', key: 'button-human-row', cursor: 2},
+    })
+    await engine.rpc.call('whiteboard', 'comments.insert', {
+      room,
+      row: {
+        id: 'button-human-row',
+        cid: 'button-human',
+        threadId: 'button-human',
+        parentId: null,
+        parts: [{type: 'text', text: 'This button looks disabled'}],
+        authorKind: 'human',
+        authorModel: null,
+        authorId: null,
+        authorName: null,
+        authorAvatar: null,
+        status: 'open',
+        kind: 'source-linked',
+        anchor: {source: {file: 'src/Cart.tsx', line: 4, column: 7}, instance: {selector: 'main > section > button'}},
+        anchorFile: null,
+        anchorComponent: null,
+        anchorHash: null,
+        createdAt: 1,
+        updatedAt: 1,
+        resolvedAt: null,
+      },
+    })
+    await enriched.arrived
+
+    expect(await engine.rpc.call('whiteboard', 'comments.get', {room, id: 'button-human-row'})).toMatchObject({
+      anchorFile: 'src/Cart.tsx',
+      anchorComponent: 'Cart',
+      anchorHash: expect.stringMatching(/^[0-9a-f]{8}$/),
+      anchor: {
+        source: {file: 'src/Cart.tsx', line: 4, column: 7, component: 'Cart', snippet: '<button>Checkout</button>'},
+        instance: {selector: 'main > section > button'},
+      },
+    })
+    expect(await engine.session.tool('whiteboard_anchor_resolve').call({cid: 'button-human'})).toMatchObject({
+      status: 'fresh',
+    })
+  })
+})
+
+describe('a draft left when a turn ends is sent to be published', () => {
+  test('the turn ends with a draft on the board and the engine queues one commit for the canvas, never a second', async () => {
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
+    const room = engine.session.id
+    await engine.rpc.call('whiteboard', 'elements.upsert', {
+      room,
+      scope: 'draft',
+      row: {elementId: 'draft-box', data: {type: 'rectangle', x: 0, y: 0, width: 80, height: 40}, version: 1},
+    })
+    await engine.reply(TestLLM.text('I sketched the box'), TestLLM.text('Still sketching'))
+
+    const queued = await engine.event('rpc.whiteboard.changed', {data: {room, table: 'canvasPending', type: 'upsert'}})
+    await engine.session.send('Sketch a box')
+    await queued.arrived
+    expect(await engine.rpc.call('whiteboard', 'canvasPending.list', {room})).toMatchObject([
+      {room, kind: 'commit', stage: 'live', payload: {}},
+    ])
+
+    await engine.session.send('Keep going')
+    expect(await engine.rpc.call('whiteboard', 'canvasPending.list', {room})).toMatchObject([{kind: 'commit'}])
   })
 })
 
