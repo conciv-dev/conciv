@@ -405,11 +405,9 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
     },
     {
       extends: true,
-      plugins: [...uno, ...solid, engineModulesInNode()],
+      plugins: [...solid, engineModulesInNode()],
       test: {
         name: 'happy-dom',
-        isolate: false,
-        css: true,
         include: ['src/**/*.dom.test.ts', 'src/**/*.dom.test.tsx'],
         environment: 'happy-dom',
         environmentOptions: {happyDOM: VIEWPORT},
