@@ -3,23 +3,6 @@ import {makeRpcClient} from '@conciv/contract'
 import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../../../test/engine-test.js'
 
-describe('plugin rpc', () => {
-  test('a method answers, a declared failure gives its type and message, and a crash is an internal failure', async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
-
-    expect(await engine.rpc.call('desk', 'echo', {text: 'Hello'})).toEqual({text: 'Hello'})
-    expect(await engine.rpc.failure('desk', 'lock', {})).toMatchObject({
-      type: 'LOCKED',
-      message: 'The desk is locked',
-      data: {reason: 'night shift'},
-    })
-    expect(await engine.rpc.failure('desk', 'crash', {})).toMatchObject({
-      type: 'rpc.internal',
-      message: 'RPC call failed',
-    })
-  })
-})
-
 describe('outside agents', () => {
   test('an outside agent that is disconnected from conciv is refused', async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})

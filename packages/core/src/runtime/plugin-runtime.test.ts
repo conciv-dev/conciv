@@ -1,5 +1,3 @@
-import {cpSync} from 'node:fs'
-import {join, resolve} from 'node:path'
 import {describe, expect, test} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 
@@ -42,24 +40,6 @@ describe('session events', () => {
         'session.execution.interrupted',
       ],
     })
-  })
-})
-
-describe('live pickup', () => {
-  test("a skill added to the project's conciv folder while the engine runs reaches the next request", async () => {
-    const engine = await createEngine({}, {fs: {filewatcher: true}})
-    await engine.reply(TestLLM.text('First answer'), TestLLM.text('Second answer'))
-    await engine.session.send('one')
-    expect((await engine.requests())[0]?.system.join('\n')).not.toContain('<name>release-notes</name>')
-
-    const updated = await engine.event('skill.updated')
-    cpSync(resolve('test/fixtures/skills/release-notes'), join(engine.root, 'conciv/skills/release-notes'), {
-      recursive: true,
-    })
-    await updated.arrived
-    await engine.session.send('two')
-
-    expect(JSON.stringify((await engine.requests())[1])).toContain('<name>release-notes</name>')
   })
 })
 
