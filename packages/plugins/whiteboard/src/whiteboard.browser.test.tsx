@@ -457,7 +457,7 @@ describe('the whiteboard settings', () => {
 })
 
 describe('the user comments on an element of the page', () => {
-  test('the user picks an element, writes a comment, is told it was added, and finds it on the board', async () => {
+  test('with the canvas open a picked element gets its comment straight onto the board with no toast, and with the canvas closed the user is told it was added and finds it on the board', async () => {
     const user = userEvent.setup()
     await page.viewport(1280, 800)
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
@@ -466,17 +466,29 @@ describe('the user comments on an element of the page', () => {
       history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
     })
     render(() => (
-      <button type="button" id="buy">
-        Buy the fern
-      </button>
+      <>
+        <h1>Plant shop</h1>
+        <button type="button" id="buy">
+          Buy the fern
+        </button>
+      </>
     ))
 
     const whiteboard = await screen.findByRole('button', {name: 'Open the whiteboard canvas'})
     await user.click(whiteboard)
     expect(await screen.findByRole('button', {name: /^Comments/})).toBeVisible()
+    await user.click(await screen.findByRole('button', {name: 'Comment on an element'}))
+    await realInput.click(screen.getByRole('heading', {name: 'Plant shop'}), {force: true})
+    const tagline = await screen.findByRole('dialog', {name: 'New comment'})
+    await user.type(within(tagline).getByRole('textbox', {name: 'Comment'}), 'The title needs a tagline')
+    const added = await engine.event('rpc.whiteboard.changed')
+    await user.click(within(tagline).getByRole('button', {name: 'Add comment'}))
+    expect(await screen.findByRole('button', {name: /^Human comment, open/})).toBeVisible()
+    await added.arrived
+    expect(screen.queryByText('Comment added to the whiteboard')).not.toBeInTheDocument()
+
     await user.click(whiteboard)
     expect(screen.queryByRole('button', {name: /^Comments/})).not.toBeInTheDocument()
-
     await user.click(await screen.findByRole('button', {name: 'Comment on an element'}))
     await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
     const compose = await screen.findByRole('dialog', {name: 'New comment'})
@@ -488,34 +500,15 @@ describe('the user comments on an element of the page', () => {
     expect(await screen.findByText('Comment added to the whiteboard')).toBeVisible()
     expect(screen.queryByRole('dialog', {name: 'New comment'})).not.toBeInTheDocument()
     expect(await engine.session.tool('whiteboard_comment_list').call({})).toMatchObject({
-      comments: [{authorKind: 'human', parts: [{type: 'text', text: 'Make this button green'}]}],
+      comments: expect.arrayContaining([
+        expect.objectContaining({
+          authorKind: 'human',
+          parts: [expect.objectContaining({type: 'text', text: 'Make this button green'})],
+        }),
+      ]),
     })
     await user.click(screen.getByRole('button', {name: 'Open the whiteboard canvas'}))
-    expect(await screen.findByRole('button', {name: /^Human comment, open/})).toBeVisible()
-  })
-
-  test('with the canvas open the new comment goes straight onto the board and no toast is needed', async () => {
-    const user = userEvent.setup()
-    await page.viewport(1280, 800)
-    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
-    })
-    render(() => <h1>Plant shop</h1>)
-
-    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
-    expect(await screen.findByRole('button', {name: /^Comments/})).toBeVisible()
-    await user.click(await screen.findByRole('button', {name: 'Comment on an element'}))
-    await realInput.click(screen.getByRole('heading', {name: 'Plant shop'}), {force: true})
-    const compose = await screen.findByRole('dialog', {name: 'New comment'})
-    await user.type(within(compose).getByRole('textbox', {name: 'Comment'}), 'The title needs a tagline')
-    const added = await engine.event('rpc.whiteboard.changed')
-    await user.click(within(compose).getByRole('button', {name: 'Add comment'}))
-
-    expect(await screen.findByRole('button', {name: /^Human comment, open/})).toBeVisible()
-    await added.arrived
-    expect(screen.queryByText('Comment added to the whiteboard')).not.toBeInTheDocument()
+    expect(await screen.findAllByRole('button', {name: /^Human comment, open/})).toHaveLength(2)
   })
 })
 
