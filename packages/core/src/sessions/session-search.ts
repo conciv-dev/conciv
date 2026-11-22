@@ -69,10 +69,16 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       ? [{harness, history: harness.history}]
       : [],
   )
-  const state: {running: Running | null; version: number; scopes: HarnessListScope[]} = {
+  const state: {
+    running: Running | null
+    version: number
+    scopes: HarnessListScope[]
+    everywhere: Promise<void> | null
+  } = {
     running: null,
     version: Date.now(),
     scopes: [{cwd: deps.cwd}],
+    everywhere: null,
   }
   const publisher = new EventPublisher<{indexed: SessionsChange}>()
 
@@ -158,6 +164,13 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     }
   }
 
+  const widenEverywhere = async (running: Running): Promise<void> => {
+    const scope: HarnessListScope = {everywhere: true}
+    state.scopes.push(scope)
+    const passes = await Promise.all(indexed.map((source) => titlePass(running, source, scope)))
+    if (passes.some((pass) => pass.changed)) indexedChanged()
+  }
+
   const textPass = async (running: Running, unread: Listed[]): Promise<boolean> => {
     const ordered = sortBy(unread, [(entry) => entry.meta.sizeBytes ?? 0])
     return ordered.reduce<Promise<boolean>>(async (previous, entry) => {
@@ -231,11 +244,15 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       yield* later
     },
     async pages(term, page, everywhere) {
-      if (state.running === null)
+      const running = state.running
+      if (running === null)
         return indexed.map(({harness}) => ({harnessKind: harness.id, page: {sessions: [], next: null}}))
-      if (everywhere && !state.scopes.some((scope) => 'everywhere' in scope)) state.scopes.push({everywhere: true})
+      if (everywhere) {
+        state.everywhere ??= widenEverywhere(running)
+        await state.everywhere
+      }
       refresh()
-      const found = await searchHits(state.running, term, page.after, page.limit, everywhere)
+      const found = await searchHits(running, term, page.after, page.limit, everywhere)
       const paged = pageAfter(found, page, (hit) => ({
         updatedAt: hit.meta.updatedAt,
         id: hit.meta.id,
