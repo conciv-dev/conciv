@@ -602,3 +602,31 @@ describe('the user draws on the canvas', () => {
     })
   })
 })
+
+describe('the board stays clear while the user draws', () => {
+  test('with a shape tool picked the board shows no properties panel, library or help, and keeps its toolbar, menu, comments and zoom', async () => {
+    const user = userEvent.setup()
+    await page.viewport(1280, 800)
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
+    })
+
+    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
+    const rectangle = page.getByRole('radio', {name: 'Rectangle'})
+    await realInput.click(rectangle, {force: true})
+    await expect.element(rectangle).toBeChecked()
+
+    await expect.element(page.getByRole('region', {name: 'Selected shape actions', exact: true})).not.toBeInViewport()
+    await expect.element(page.getByRole('checkbox', {name: 'Library', exact: true})).not.toBeInViewport()
+    await expect.element(page.getByRole('button', {name: 'Help', exact: true})).not.toBeInViewport()
+
+    await expect.element(page.getByRole('region', {name: 'Shapes', exact: true})).toBeInViewport()
+    await expect.element(page.getByRole('button', {name: '', exact: true})).toBeInViewport()
+    await expect.element(page.getByRole('button', {name: /^Comments/})).toBeInViewport()
+    await expect.element(page.getByRole('button', {name: 'Zoom in', exact: true})).toBeInViewport()
+    await expect.element(page.getByRole('button', {name: 'Reset zoom', exact: true})).toBeInViewport()
+    await expect.element(page.getByRole('button', {name: 'Zoom out', exact: true})).toBeInViewport()
+  })
+})
