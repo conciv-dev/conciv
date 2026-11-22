@@ -123,9 +123,9 @@ export function MentionField(props: {
           return true
         },
       },
-      onUpdate: ({editor: instance}) => {
-        setEmpty(instance.isEmpty)
-        props.onEmptyChange?.(instance.isEmpty)
+      onUpdate: ({editor: updated}) => {
+        setEmpty(updated.isEmpty)
+        props.onEmptyChange?.(updated.isEmpty)
       },
       extensions: [
         Document,
@@ -141,7 +141,7 @@ export function MentionField(props: {
     editor = instance
     createEffect(() => instance.view.setProps({attributes: editableAttributes()}))
     props.onReady?.({
-      focus: () => instance.commands.focus(),
+      focus: () => instance.view.focus(),
       clear: () => instance.commands.clearContent(),
       submit,
       element: instance.view.dom,

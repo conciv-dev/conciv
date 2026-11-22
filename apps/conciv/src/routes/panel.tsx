@@ -1,6 +1,6 @@
 import {Outlet, createFileRoute, useLocation} from '@tanstack/solid-router'
 import {FocusTrap, createResizable} from '@conciv/ui-kit-system'
-import {Show, createEffect, createMemo, createSignal, type JSX, type ParentProps} from 'solid-js'
+import {Show, createEffect, createMemo, createSignal, on, type JSX, type ParentProps} from 'solid-js'
 import {createActiveElement} from '@solid-primitives/active-element'
 import {panelPlacement} from '../lib/draggable-position.js'
 import {useEnvironment, useFabAnchor, useLayers, usePanelWidthCap, useSettings, useSuppressed} from '../app/context.js'
@@ -122,12 +122,13 @@ function PanelLayout(): JSX.Element {
   const activeElement = createActiveElement()
   const hostHoldsFocus = createMemo(() => activeElement() !== null && hostPageHasFocus(environment.rootNode))
   const restoringFocus = useLocation({select: (location) => location.state.restoreFocus !== undefined})
-  createEffect(() => {
-    if (!open()) return
-    if (restoringFocus()) return
-    if (hostPageHasFocus(environment.rootNode)) return
-    composerFocus.handle()?.focus()
-  })
+  createEffect(
+    on([open, restoringFocus, composerFocus.handle], ([isOpen, restoring, handle]) => {
+      if (!isOpen || restoring) return
+      if (hostPageHasFocus(environment.rootNode)) return
+      handle?.focus()
+    }),
+  )
 
   const resizeY = createResizable({
     initial: defaultPanelHeight(window.innerHeight, rootFontSizePx()),

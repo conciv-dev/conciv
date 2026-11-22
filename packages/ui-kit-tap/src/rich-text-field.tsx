@@ -273,7 +273,8 @@ export function RichTextField(props: {
     props.onReady?.({
       focus: (focusOptions) => {
         if (editor.isDestroyed) return
-        editor.commands.focus(focusOptions?.end ? 'end' : editor.state.selection.from)
+        const position = focusOptions?.end ? Selection.atEnd(editor.state.doc).from : editor.state.selection.from
+        editor.chain().setTextSelection(position).scrollIntoView().run()
         editor.view.focus()
       },
       clear: () => {
@@ -282,7 +283,8 @@ export function RichTextField(props: {
       },
       insertText: (text) => {
         if (editor.isDestroyed) return
-        editor.chain().focus().command(replaceSelectionCommand(text)).run()
+        editor.chain().command(replaceSelectionCommand(text)).scrollIntoView().run()
+        editor.view.focus()
       },
       appendText: (text) => {
         if (editor.isDestroyed) return
