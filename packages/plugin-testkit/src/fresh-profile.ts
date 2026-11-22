@@ -23,9 +23,17 @@ async function clearBrowserProfile(): Promise<void> {
   await Promise.all(stores.map((store) => caches.delete(store)))
 }
 
+function removeAddedNodes(parent: Element, kept: ReadonlySet<Element>): void {
+  for (const child of Array.from(parent.children)) if (!kept.has(child)) child.remove()
+}
+
 export function freshProfileAfter(onTestFinished: (cleanup: () => Promise<void>) => void): void {
   const address = location.href
+  const head = new Set(document.head.children)
+  const body = new Set(document.body.children)
   onTestFinished(async () => {
+    removeAddedNodes(document.head, head)
+    removeAddedNodes(document.body, body)
     history.replaceState(null, '', address)
     await clearBrowserProfile()
   })

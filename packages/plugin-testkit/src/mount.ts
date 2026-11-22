@@ -119,11 +119,7 @@ export type Mount = (options: MountOptions) => Promise<void>
 
 async function mountApp(options: MountOptions): Promise<void> {
   const plugins = await mountedPlugins(options)
-  onTestFinished(() => {
-    cleanup()
-    localStorage.clear()
-    sessionStorage.clear()
-  })
+  onTestFinished(cleanup)
   writeStorage(options.seed?.storage ?? {})
   const interactive = Promise.withResolvers<void>()
   const platform: Platform = {
