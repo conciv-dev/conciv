@@ -18,6 +18,7 @@ describe('offered tools', () => {
     const [request] = await engine.requests()
     const names = request?.tools.map((tool) => tool.name)
     expect(names).toContain('execute_typescript')
+    expect(names).toContain('discover_tools')
     expect(names?.includes('weather_alerts')).toBe(offered)
   })
 })
