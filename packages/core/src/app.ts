@@ -394,17 +394,19 @@ function mcpSpan(tracer: Tracer): MiddlewareHandler {
   return async (c, next) => inSpan(tracer, 'Mcp.request', await mcpAttributes(c.req.raw), next, {root: true})
 }
 
-const McpMessageSchema = z.object({
-  method: z.string().catch('unknown'),
-  params: z.object({name: z.string()}).optional().catch(undefined),
-})
+const McpMessageSchema = z
+  .object({
+    method: z.string().catch('unknown'),
+    params: z.object({name: z.string()}).optional().catch(undefined),
+  })
+  .catch({method: 'unknown'})
 
 async function mcpAttributes(request: Request): Promise<Record<string, string>> {
   const body: unknown = await request
     .clone()
     .json()
     .catch(() => null)
-  const {method, params} = McpMessageSchema.parse(body ?? {})
+  const {method, params} = McpMessageSchema.parse(body)
   return params === undefined ? {'rpc.method': method} : {'rpc.method': method, 'conciv.tool.name': params.name}
 }
 

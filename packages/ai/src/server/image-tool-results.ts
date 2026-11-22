@@ -77,13 +77,15 @@ function withImageBlocks(reply: unknown): unknown {
   return {...tool.data, result: {...tool.data.result, content}}
 }
 
-const ToolServerMessageSchema = z.object({
-  method: z.string().catch('unknown'),
-  params: z.object({name: z.string()}).optional().catch(undefined),
-})
+const ToolServerMessageSchema = z
+  .object({
+    method: z.string().catch('unknown'),
+    params: z.object({name: z.string()}).optional().catch(undefined),
+  })
+  .catch({method: 'unknown'})
 
 function toolServerAttributes(message: unknown): SpanAttributes {
-  const {method, params} = ToolServerMessageSchema.parse(message ?? {})
+  const {method, params} = ToolServerMessageSchema.parse(message)
   return params === undefined ? {'rpc.method': method} : {'rpc.method': method, 'conciv.tool.name': params.name}
 }
 

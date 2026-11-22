@@ -49,6 +49,17 @@ async function* spanned<Value>(
   scope: AsyncResource,
   open: () => AsyncIterable<Value>,
 ): AsyncGenerator<Value> {
+  try {
+    yield* scoped(scope, open)
+  } catch (error) {
+    markFailed(span, error)
+    throw error
+  } finally {
+    span.end()
+  }
+}
+
+async function* scoped<Value>(scope: AsyncResource, open: () => AsyncIterable<Value>): AsyncGenerator<Value> {
   const iterator = scope.runInAsyncScope(() => open()[Symbol.asyncIterator]())
   const state = {done: false}
   try {
@@ -59,10 +70,8 @@ async function* spanned<Value>(
     }
   } catch (error) {
     state.done = true
-    markFailed(span, error)
     throw error
   } finally {
     if (!state.done) await scope.runInAsyncScope(async () => iterator.return?.())
-    span.end()
   }
 }

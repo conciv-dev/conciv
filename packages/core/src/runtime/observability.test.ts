@@ -6,6 +6,7 @@ import {countBy, uniq} from 'es-toolkit'
 import {ConfigProvider, Effect, Scope} from 'effect'
 import {describe, expect, test} from 'vitest'
 import {z} from 'zod'
+import {askingToolProvisioner} from '@conciv/ai/server'
 import {makeRpcClient} from '@conciv/contract'
 import {createFakeHarness} from '@conciv/harness-testkit'
 import {Tool} from '@conciv/plugin-host'
@@ -16,7 +17,7 @@ import {resolveConfig} from '../config.js'
 import {agentPath} from '../engine-login.js'
 import {ensureRow} from '../sessions/session-rows.js'
 import {start} from '../start.js'
-import {startObservability} from './observability.js'
+import {startObservability, type EngineObservability} from './observability.js'
 
 const SpanSchema = z.object({
   spanId: z.string(),
@@ -83,6 +84,54 @@ const withCollector = test.extend<{collector: Collector}>({
     }
   },
 })
+
+const JsonRpcErrorSchema = z.object({error: z.object({code: z.number()})})
+
+function postJson(url: string, body: unknown, headers: Record<string, string>): Promise<Response> {
+  return fetch(url, {
+    method: 'POST',
+    headers: {...headers, 'content-type': 'application/json', accept: 'application/json, text/event-stream'},
+    body: JSON.stringify(body),
+  })
+}
+
+async function turnOnce(root: string, home: string, collector: Collector, observability: EngineObservability) {
+  const harness = createFakeHarness()
+  const made = await makeApp({
+    cfg: resolveConfig({}, root),
+    cwd: root,
+    openInEditor: () => {},
+    harness,
+    home,
+    configProvider: collector.configProvider,
+    observability,
+    print: () => {},
+  })
+  try {
+    await made.awaitActivation()
+    const scope = made.pluginHost.runSync(Scope.make())
+    await made.pluginHost.runPromise(
+      Tool.Service.use((tools) =>
+        tools.transform((editor) => {
+          editor.add({
+            name: 'unit_echo',
+            description: 'Echo the text.',
+            input: z.object({text: z.string()}),
+            execute: (input: {text: string}) => Effect.succeed({content: input.text}),
+          })
+        }),
+      ).pipe(Scope.provide(scope)),
+    )
+    const id = SessionId.parse('conciv_spans_turn')
+    await ensureRow(made.chat.rows, id)
+    harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: "return await external_unit_echo({text: 'hi'})",
+    })
+    expect(await made.plane.followUp(id, 'echo hi')).toEqual({kind: 'delivered'})
+  } finally {
+    await made.dispose()
+  }
+}
 
 function parentNames(spans: readonly Span[], names: readonly string[]): Record<string, string | null> {
   return Object.fromEntries(
@@ -162,8 +211,9 @@ describe('engine spans', () => {
         configProvider: ConfigProvider.fromEnv({env: {}}),
         engineId: 'spans-untraced-engine',
       })
-      expect(untraced.tracer).toBeUndefined()
+      const untracedTracer = untraced.tracer
       await untraced.dispose()
+      expect(untracedTracer).toBeUndefined()
 
       const engine = await start({
         options: {stateRoot: root, systemPrompt: false},
@@ -173,8 +223,13 @@ describe('engine spans', () => {
         homeDir: tempDir('conciv-spans-home-'),
         configProvider: collector.configProvider,
       })
-      await makeRpcClient(`http://127.0.0.1:${engine.port}${agentPath(engine.agentToken)}`).navigation.get()
-      await engine.stop()
+      const base = `http://127.0.0.1:${engine.port}${agentPath(engine.agentToken)}`
+      try {
+        await makeRpcClient(base).navigation.get()
+        expect((await postJson(`${base}/api/mcp`, [], {})).status).toBe(400)
+      } finally {
+        await engine.stop()
+      }
 
       const names = Object.keys(ENGINE_SPANS)
       expect(namesSeen(collector.spans(), names)).toEqual(Object.fromEntries(names.map((name) => [name, 1])))
@@ -183,53 +238,42 @@ describe('engine spans', () => {
     },
   )
 
-  withCollector('one turn with one code mode tool call is one span tree under ChatServer.turn', async ({collector}) => {
-    const root = tempDir('conciv-spans-')
-    const home = tempDir('conciv-spans-home-')
-    const observability = await startObservability({
-      home,
-      fallbackRoots: join(root, 'plugin-host'),
-      configProvider: collector.configProvider,
-      engineId: 'spans-turn-engine',
-    })
-    const harness = createFakeHarness()
-    const made = await makeApp({
-      cfg: resolveConfig({}, root),
-      cwd: root,
-      openInEditor: () => {},
-      harness,
-      home,
-      configProvider: collector.configProvider,
-      observability,
-      print: () => {},
-    })
-    await made.awaitActivation()
-    const scope = made.pluginHost.runSync(Scope.make())
-    await made.pluginHost.runPromise(
-      Tool.Service.use((tools) =>
-        tools.transform((editor) => {
-          editor.add({
-            name: 'unit_echo',
-            description: 'Echo the text.',
-            input: z.object({text: z.string()}),
-            execute: (input: {text: string}) => Effect.succeed({content: input.text}),
-          })
-        }),
-      ).pipe(Scope.provide(scope)),
-    )
-    const id = SessionId.parse('conciv_spans_turn')
-    await ensureRow(made.chat.rows, id)
-    harness.script.scriptToolCall('execute_typescript', {
-      typescriptCode: "return await external_unit_echo({text: 'hi'})",
-    })
+  withCollector(
+    'a traced tool bridge answers a non-object body over JSON-RPC, and one turn with one code mode tool call is one span tree under ChatServer.turn',
+    async ({collector}) => {
+      const root = tempDir('conciv-spans-')
+      const home = tempDir('conciv-spans-home-')
+      const observability = await startObservability({
+        home,
+        fallbackRoots: join(root, 'plugin-host'),
+        configProvider: collector.configProvider,
+        engineId: 'spans-turn-engine',
+      })
+      try {
+        const bridge = await askingToolProvisioner(
+          async () => ({allowed: false, message: 'no asks here'}),
+          observability.tracer,
+        ).provision([], {threadId: 'spans-bridge', provider: 'local-process'})
+        try {
+          const headers = {authorization: `Bearer ${bridge.token}`}
+          expect(JsonRpcErrorSchema.parse(await (await postJson(bridge.url, [], headers)).json()).error.code).toBe(
+            -32601,
+          )
+          expect(JsonRpcErrorSchema.parse(await (await postJson(bridge.url, 42, headers)).json()).error.code).toBe(
+            -32600,
+          )
+        } finally {
+          await bridge.close()
+        }
+        await turnOnce(root, home, collector, observability)
+      } finally {
+        await observability.dispose()
+      }
 
-    expect(await made.plane.followUp(id, 'echo hi')).toEqual({kind: 'delivered'})
-    await made.dispose()
-    await observability.dispose()
-
-    const names = Object.keys(TURN_SPANS)
-    expect(namesSeen(collector.spans(), names)).toEqual(Object.fromEntries(names.map((name) => [name, 1])))
-    expect(parentNames(collector.spans(), names)).toEqual(TURN_SPANS)
-    expect(uniq(collector.spans().map((span) => span.engine))).toEqual(['spans-turn-engine'])
-  })
+      const names = Object.keys(TURN_SPANS)
+      expect(namesSeen(collector.spans(), names)).toEqual(Object.fromEntries(names.map((name) => [name, 1])))
+      expect(parentNames(collector.spans(), names)).toEqual(TURN_SPANS)
+      expect(uniq(collector.spans().map((span) => span.engine))).toEqual(['spans-turn-engine'])
+    },
+  )
 })
