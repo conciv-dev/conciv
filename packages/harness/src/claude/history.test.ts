@@ -4,6 +4,7 @@ import {ConfigProvider} from 'effect'
 import {describe, expect, it} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
+import {listClaudeSessionsInChild} from '../../test/claude-sdk-env.js'
 import {claude} from './index.js'
 
 describe('history', () => {
@@ -38,10 +39,13 @@ describe('history', () => {
     )
     const history = claude(ConfigProvider.fromEnvRecord({CLAUDE_CONFIG_DIR: configDir})).history
 
-    const page = await history.list({cwd: project}, {after: null, limit: 10})
+    const page = await listClaudeSessionsInChild(configDir, project)
     const tail = await history.tail(project, sessionId, {limit: 10, before: null})
 
-    expect(page.sessions).toEqual([expect.objectContaining({id: sessionId, derivedTitle: 'Fix the login button'})])
+    expect(page).toEqual({
+      sessions: [expect.objectContaining({id: sessionId, derivedTitle: 'Fix the login button'})],
+      next: null,
+    })
     expect(tail.messages).toEqual([
       {id: 'u1', role: 'user', parts: [{type: 'text', content: 'Fix the login button'}]},
       {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'The button now submits'}]},
