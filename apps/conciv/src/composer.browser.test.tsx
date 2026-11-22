@@ -269,7 +269,7 @@ describe('the mention list', () => {
   test('@ lists skills, subagents, tools and this project’s other sessions, a term narrows them, and a pick inserts its mention', async () => {
     const user = userEvent.setup()
     const engine = await createEngine(
-      {plugins: ['./test/fixtures/plugins/reviewer-agent']},
+      {plugins: ['../plugins/reviewer-agent']},
       {directory: 'test/fixtures/mention-project'},
     )
     await engine.newSession('Fix login bug')
@@ -424,7 +424,7 @@ describe('switching the harness', () => {
 
     const first = await screen.findByRole('article', {name: 'Reply to: First task'})
     expect(await within(first).findByText('First answer')).toBeVisible()
-    expect(screen.queryByText('engine')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('log')).queryByText('engine')).not.toBeInTheDocument()
 
     await user.click(await screen.findByRole('button', {name: 'Model: Opus 5.5 (engine)'}))
     await user.click(await screen.findByRole('option', {name: 'Fast 1 (second)'}))
@@ -439,8 +439,9 @@ describe('switching the harness', () => {
     await user.keyboard('{Enter}')
     const second = await screen.findByRole('article', {name: 'Reply to: Second task'})
     expect(await within(second).findByText('Second answer')).toBeVisible()
-    expect(screen.getByText('engine')).toBeVisible()
-    expect(screen.getByText('second')).toBeVisible()
+    const thread = screen.getByRole('log')
+    expect(within(thread).getByText('engine')).toBeVisible()
+    expect(within(thread).getByText('second')).toBeVisible()
     expect((await engine.requests()).map((request) => request.model)).toEqual([null, 'second-fast'])
   })
 })
@@ -792,7 +793,9 @@ describe('the composer actions menu', () => {
     await user.keyboard('{Enter}')
     await expect.element(input).toHaveTextContent('Second task')
     expect(screen.queryByText('1 waiting · runs in order')).not.toBeInTheDocument()
-    expect(screen.queryByRole('status', {name: (name) => name !== 'Compacting context…'})).not.toBeInTheDocument()
+    const notifications = screen.getByRole('region', {name: /^Notifications/})
+    expect(within(notifications).queryByRole('status')).not.toBeInTheDocument()
+    expect(within(notifications).queryByRole('alert')).not.toBeInTheDocument()
 
     await compaction.release()
     expect(await screen.findByRole('separator', {name: 'Context compacted'})).toBeVisible()
