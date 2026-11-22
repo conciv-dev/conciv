@@ -146,6 +146,7 @@ describe('bundler builds', () => {
       context: root,
       entry: {first: './src/greeting.js', second: './src/greeting.js'},
       output: {path: join(root, 'dist')},
+      externals: ['@conciv/embed'],
       plugins: [concivWebpack({port, stateRoot: root, homeDir: join(root, 'home')})],
     })
 
