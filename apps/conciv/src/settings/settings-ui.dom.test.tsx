@@ -97,6 +97,11 @@ describe('plugins in settings', () => {
     await user.click(await screen.findByRole('tab', {name: 'Plugins'}))
     expect(await screen.findByRole('switch', {name: 'tanstack', checked: false})).toBeVisible()
     expect(screen.getByText('Server')).toBeVisible()
+    expect(
+      screen.getByText(
+        `Switches turn off only a plugin's page UI. Add "-<id>" to the plugins option of conciv() in your build config to turn off its server part.`,
+      ),
+    ).toBeVisible()
 
     await user.click(screen.getByRole('switch', {name: 'tanstack'}))
     await user.click(screen.getByRole('button', {name: 'Back to chat'}))
