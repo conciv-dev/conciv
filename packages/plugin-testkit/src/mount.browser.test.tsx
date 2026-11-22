@@ -1,6 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {screen} from '@solidjs/testing-library'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {mount} from '@conciv/plugin-testkit/browser'
 
 describe('mounting a plugin by its package name', () => {
@@ -26,5 +27,21 @@ describe('the viewport between tests', () => {
 
   test('the next test starts at the configured 1280x800 again, so a wide-page test never runs at phone width', () => {
     expect([window.innerWidth, window.innerHeight]).toEqual([1280, 800])
+  })
+})
+
+describe('a scripted reply that hangs, in browser mode', () => {
+  test('TestLLM.hang() reaches the engine and holds the run open until the session stops it, then the next reply answers', async () => {
+    const engine = await createEngine()
+    await engine.reply(TestLLM.hang(), TestLLM.text('After the stop'))
+    const gate = await engine.gate()
+
+    const hung = engine.session.send('Wait for it')
+    await gate.started
+    await gate.release()
+    await engine.session.stop()
+    await hung
+
+    await expect(engine.session.send('Go on')).resolves.toBeUndefined()
   })
 })

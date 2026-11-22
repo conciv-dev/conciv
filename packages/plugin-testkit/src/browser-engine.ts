@@ -2,11 +2,18 @@ import {expect, onTestFinished} from 'vitest'
 import {commands} from 'vitest/browser'
 import type {TestLLM} from '@conciv/harness-testkit'
 import {advanceUntil, refuseRealClock} from '@conciv/harness-testkit/clock'
+import {hang} from '@conciv/harness-testkit/test-llm'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {Engine, EngineClock, EngineSession, EngineStart} from './engine.js'
 import type {} from './browser-commands.js'
 
 export * as TestLLM from '@conciv/harness-testkit/test-llm'
+
+function crossing(reply: TestLLM.Reply): TestLLM.Reply | 'hang' {
+  if (reply === hang()) return 'hang'
+  if (typeof reply === 'function') throw new Error('a function reply cannot cross to the engine in browser mode')
+  return reply
+}
 
 function sessionOn(engineId: string, id: string): EngineSession {
   return {
@@ -67,10 +74,7 @@ export async function createEngine(config: ConcivConfig = {}, options: EngineSta
       call: (name, input) => commands.concivOutsideCall(handle.id, agent, name, input),
     }),
     reply: async (...replies) => {
-      if (replies.some((reply) => typeof reply === 'function')) {
-        throw new Error('TestLLM.hang() cannot reach the engine in browser mode: test it in node or happy-dom')
-      }
-      await commands.concivReply(handle.id, replies)
+      await commands.concivReply(handle.id, replies.map(crossing))
     },
     stale: (staleness) => commands.concivStale(handle.id, staleness),
     version: (version) => commands.concivVersion(handle.id, version),

@@ -10,6 +10,7 @@ import UnoCSS from 'unocss/vite'
 import {playwright} from '@vitest/browser-playwright'
 import {z} from 'zod'
 import type {TestLLM} from '@conciv/harness-testkit'
+import {hang} from '@conciv/harness-testkit/test-llm'
 import type {Engine, EngineSession, StartedEngine} from './engine.js'
 import {pluginDirectory} from './plugin-directory.js'
 import {disposeAll} from './dispose.js'
@@ -332,7 +333,8 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
         engineFor(engineId).started.engine.outside(agent).discover(toolNames),
       concivOutsideCall: (_context, engineId, agent, name, input) =>
         engineFor(engineId).started.engine.outside(agent).call(name, input),
-      concivReply: (_context, engineId, replies) => engineFor(engineId).started.engine.reply(...replies),
+      concivReply: (_context, engineId, replies) =>
+        engineFor(engineId).started.engine.reply(...replies.map((reply) => (reply === 'hang' ? hang() : reply))),
       concivStale: (_context, engineId, staleness) => engineFor(engineId).started.engine.stale(staleness),
       concivVersion: (_context, engineId, version) => engineFor(engineId).started.engine.version(version),
       concivWrite: (_context, engineId, path, content) => engineFor(engineId).started.engine.write(path, content),

@@ -48,9 +48,11 @@ export function failAfter(error: Error & {code?: string}): Reply {
   return reply(step)
 }
 
+const HANG: FakeResponseStep = async ({request}) => {
+  await aborted(request.request?.signal)
+  return {}
+}
+
 export function hang(): Reply {
-  return reply(async ({request}) => {
-    await aborted(request.request?.signal)
-    return {}
-  })
+  return reply(HANG)
 }
