@@ -56,7 +56,7 @@ describe('find and switch sessions', () => {
 
 describe('a run in the list', () => {
   test('the picker marks the running session and names each harness, the user starts a new session, previews the running one, and hears the reply finish as the row stops running', async () => {
-    const user = userEvent.setup({delay: null})
+    const user = userEvent.setup()
     const engine = await createEngine({}, {harnesses: [{id: 'alpha'}, {id: 'beta'}]})
     await engine.reply(TestLLM.text('Done'))
     const gate = await engine.gate()
