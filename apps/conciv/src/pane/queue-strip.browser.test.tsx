@@ -1,6 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
+import {page} from 'vitest/browser'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
@@ -77,7 +78,7 @@ describe('steering the agent', () => {
   test('Steer takes a queued message out of the queue and interrupts the reply with it', async () => {
     const user = userEvent.setup({delay: null})
     const engine = await createEngine()
-    await engine.reply(TestLLM.hang(), TestLLM.text('Changed course'))
+    await engine.reply(TestLLM.text('First answer'), TestLLM.text('Changed course'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
@@ -86,16 +87,16 @@ describe('steering the agent', () => {
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
     await gate.started
-    await gate.release()
     expect(await screen.findByRole('button', {name: 'Stop generating'})).toBeVisible()
     await user.type(input, 'Do this instead')
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
     await user.click(await screen.findByRole('button', {name: 'Steer'}))
+    await expect.element(page.getByText('1 waiting · runs in order')).not.toBeInTheDocument()
+    await gate.release()
 
     const steered = await screen.findByRole('article', {name: 'Reply to: Do this instead'})
     expect(await within(steered).findByText('Changed course')).toBeVisible()
-    expect(screen.queryByText('1 waiting · runs in order')).not.toBeInTheDocument()
     const requests = await engine.requests()
     expect(requests.map((request) => request.messages.at(-1))).toMatchObject([
       {role: 'user', content: 'First task'},
