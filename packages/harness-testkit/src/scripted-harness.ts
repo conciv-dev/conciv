@@ -275,7 +275,9 @@ export function replyScript(tokensPerSecond: number | undefined): ReplyScript {
       return defineHarness({
         ...base,
         capabilities: {...CAPABILITIES, resume: true, transcriptHistory: true},
-        history: countedHistory((sessions ?? []).map((session) => storedSession(session, project))),
+        history: (contextTokens === undefined ? scriptedHistory : countedHistory)(
+          (sessions ?? []).map((session) => storedSession(session, project)),
+        ),
         resume: {command: ({nativeId}) => ({bin: id, args: [nativeId]})},
       })
     },
