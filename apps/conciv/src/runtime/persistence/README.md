@@ -6,6 +6,10 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
 
 ## Differences from opencode
 
+- A key missing from `localStorage` reads as missing and drops its entry in the read cache (`storage.ts`
+  `localStorageView.getItem`); only a read that throws falls back to the cache. The source answers from the cache
+  whenever `getItem` gives null, so a key cleared outside the app (site data cleared, another tab's remove) kept its
+  old value in this page.
 - The draft write transaction commits as soon as its document is put (`drafts.ts`, `transaction.commit()` in the
   driver's `set`). The source waits for the auto-commit, which needs a round trip an unloading page never gets: the
   put that the `pagehide` flush issues was lost on a reload in Chromium and in Firefox, and the reloaded page read the
