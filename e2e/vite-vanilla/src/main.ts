@@ -61,8 +61,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 
 setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
 
-const search = document.querySelector<HTMLInputElement>('input[name="search"]')!
-const query = document.querySelector<HTMLOutputElement>('output[name="query"]')!
-search.addEventListener('input', () => {
-  query.textContent = `Searching for ${search.value}`
+document.querySelector<HTMLInputElement>('input[name="search"]')?.addEventListener('input', (event) => {
+  const query = document.querySelector<HTMLOutputElement>('output[name="query"]')
+  if (query && event.target instanceof HTMLInputElement) query.textContent = `Searching for ${event.target.value}`
 })
