@@ -24,21 +24,21 @@ module.exports = {
   default: Plugin.define({
     setup(ctx) {
       ctx.add(Command, {
-        id: 'summary',
-        title: 'Summary',
-        description: 'Sum up the review',
-        slash: {name: 'summary'},
-        run: () => {
-          ctx.toast.show({title: 'Summary ready', persistent: true})
-        },
-      })
-      ctx.add(Command, {
         id: 'review',
         title: 'Review',
         description: 'Review a part of the page',
-        slash: {name: 'review', arguments: true, after: 'model'},
+        slash: {name: 'review', arguments: true},
         run: (input) => {
           ctx.toast.show({title: `Reviewing ${input}`, persistent: true})
+        },
+      })
+      ctx.add(Command, {
+        id: 'summary',
+        title: 'Summary',
+        description: 'Sum up the review',
+        slash: {name: 'summary', after: 'model'},
+        run: () => {
+          ctx.toast.show({title: 'Summary ready', persistent: true})
         },
       })
       ctx.add(ComposerPill, {
