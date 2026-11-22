@@ -379,6 +379,7 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
       name: 'conciv:test-browser-engines',
       configureVitest({vitest}) {
         vitest.onClose(() => stopWhere(() => true))
+        import('./engine.js').catch((error: unknown) => vitest.logger.error(error))
       },
     },
   }
