@@ -185,10 +185,11 @@ describe('preview a session that has no messages', () => {
     await user.keyboard('{ArrowDown}')
     const preview = await screen.findByRole('dialog', {name: 'Preview of Alpha'})
     const failed = await within(preview).findByRole('alert')
-    expect(failed).toHaveTextContent('Couldn’t load this session.')
+    expect(within(failed).getByText('Couldn’t load this session.')).toBeVisible()
 
     await user.click(within(failed).getByRole('button', {name: 'Retry'}))
-    expect(await within(preview).findByRole('alert')).toHaveTextContent('Couldn’t load this session.')
+    const failedAgain = await within(preview).findByRole('alert')
+    expect(within(failedAgain).getByText('Couldn’t load this session.')).toBeVisible()
     expect(within(preview).getByRole('button', {name: 'Retry'})).toBeVisible()
     expect(screen.getByRole('dialog', {name: 'Preview of Alpha'})).toBeVisible()
   })
