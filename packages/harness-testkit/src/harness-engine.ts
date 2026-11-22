@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os'
 import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
 import {ConfigProvider} from 'effect'
 import {rpcStream} from '@conciv/ai/client'
+import {readFinishReason} from '@conciv/ai/server'
 import {makeBrowserRpcClient, makeRpcClient, type EngineStaleness, type RpcClient} from '@conciv/contract'
 import {start, type StartOpts} from '@conciv/core/start'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -180,8 +181,7 @@ async function* streamed(opened: Promise<AsyncIterable<ChatEvent>>): AsyncGenera
 }
 
 function endsRun(event: ChatEvent, runId: string): boolean {
-  if (event.type === ChatEventType.RUN_FINISHED)
-    return (event.finishReason ?? event.metadata?.tanstack?.finishReason) !== 'tool_calls'
+  if (event.type === ChatEventType.RUN_FINISHED) return readFinishReason(event) !== 'tool_calls'
   const lifecycle = runLifecycleEvent.parse(event)
   return lifecycle?.phase === 'aborted' && lifecycle.runId === runId
 }
