@@ -82,20 +82,20 @@ test.describe('the conciv CLI against the vite react dev server', () => {
   })
 })
 
-test.describe('attaching files with the Add attachment button', () => {
+test.describe('attaching files with the Add an attachment button', () => {
   test('the user picks two files in the file chooser, they show as chips, and the sent message in the thread carries both', async ({
     page,
   }) => {
     const chooser = page.waitForEvent('filechooser')
-    await page.getByRole('button', {name: 'Add attachment'}).click()
+    await page.getByRole('button', {name: 'Add an attachment'}).click()
     await (
       await chooser
     ).setFiles([
       {name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('Buy milk')},
       {name: 'plan.md', mimeType: 'text/plain', buffer: Buffer.from('Step one')},
     ])
-    await expect(page.getByRole('button', {name: 'notes.txt'})).toBeVisible()
-    await expect(page.getByRole('button', {name: 'plan.md'})).toBeVisible()
+    await expect(page.getByRole('button', {name: 'notes.txt', exact: true})).toBeVisible()
+    await expect(page.getByRole('button', {name: 'plan.md', exact: true})).toBeVisible()
 
     const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await composer.fill('Read my files')
@@ -107,7 +107,7 @@ test.describe('attaching files with the Add attachment button', () => {
     await expect(sent).toContainText('Buy milk')
     await expect(sent).toContainText('Attachment plan.md:')
     await expect(sent).toContainText('Step one')
-    await expect(page.getByRole('button', {name: 'notes.txt'})).toHaveCount(0)
+    await expect(page.getByRole('button', {name: 'notes.txt', exact: true})).toHaveCount(0)
     await expect(composer).toHaveText('')
   })
 })
