@@ -35,12 +35,10 @@ import {makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
 import {
   isRunPhaseTerminal,
   runLifecycleEvent,
-  timedMessages,
   type ChatEvent,
   type RunLifecycle,
   type RunPhase,
   ChatEventType,
-  toolTimeEvent,
 } from '@conciv/protocol/chat-event-types'
 import {type ChatMessage, type ModelMessage, CompactionMetadataSchema} from '@conciv/protocol/chat-message-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
@@ -153,7 +151,7 @@ function toolHistory() {
         startedAt: call?.startedAt,
       })
       restore(ctx)
-      return [chunk, toolTimeEvent.create({toolCallId: chunk.toolCallId, time})]
+      return [{...chunk, metadata: {...chunk.metadata, time}}]
     },
     onIteration: restore,
   })
@@ -373,18 +371,6 @@ type RunMessages = {full: ModelMessage[]}
 
 function isSubagentChunk(chunk: ChatEvent): boolean {
   return 'subagentRunId' in chunk && chunk.subagentRunId !== undefined
-}
-
-function timedProcessor(): StreamProcessor {
-  const processor: StreamProcessor = new StreamProcessor({
-    events: {
-      onCustomEvent: (name, value) => {
-        const timed = timedMessages(processor.getMessages(), name, value)
-        if (timed !== null) processor.setMessages(timed)
-      },
-    },
-  })
-  return processor
 }
 
 function followRun(processor: StreamProcessor, chunk: ChatEvent): void {
@@ -644,7 +630,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       provider: [],
       system: [],
     }
-    const shown = timedProcessor()
+    const shown = new StreamProcessor()
     const settle = async (): Promise<void> => {
       try {
         const lifecycle = await recordLifecycle(turn.runId)
@@ -916,7 +902,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       return {...thread, lastRun: latest === undefined ? null : buildLifecycle(latest)}
     },
     record: async (threadId, chunks) => {
-      const processor = timedProcessor()
+      const processor = new StreamProcessor()
       for (const chunk of chunks) followRun(processor, chunk)
       await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
       await savingShown(threadId, () =>

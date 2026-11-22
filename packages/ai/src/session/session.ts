@@ -1,10 +1,9 @@
 import {StreamReconnectLimitError, type SubscribeConnectionAdapter} from '@tanstack/ai-client'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
-import {createMemo, createSignal, mergeProps, onCleanup, type Accessor} from 'solid-js'
+import {createMemo, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import {
   isRunPhaseTerminal,
-  timedMessages,
   type ApprovalAsk,
   type RunClockSource,
   type RunLifecycle,
@@ -155,21 +154,8 @@ function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
 }
 
-function applyToolTime(chat: Chat, name: string, value: unknown): void {
-  const timed = timedMessages(chat.messages(), name, value)
-  if (timed !== null) chat.setMessages(timed)
-}
-
 export function createChat(options: CreateChatOptions): Chat {
-  const chat: Chat = useChat(
-    mergeProps(options, {
-      onCustomEvent: (name: string, value: unknown, context: {toolCallId?: string}) => {
-        applyToolTime(chat, name, value)
-        options.onCustomEvent?.(name, value, context)
-      },
-    }),
-  )
-  return chat
+  return useChat(options)
 }
 
 export function createChatSession(options: CreateChatSessionOptions): ChatSession {
@@ -289,7 +275,6 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   }
   const chat: Chat = useChat({
     threadId: options.sessionId,
-    onCustomEvent: (name, value) => applyToolTime(chat, name, value),
     connection,
     persistence: true,
     history: {pageSize: CHAT_HISTORY_PAGE_SIZE},
