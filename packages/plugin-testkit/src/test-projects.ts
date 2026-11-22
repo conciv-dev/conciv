@@ -23,7 +23,6 @@ type EngineCommandHandlers = {
 }
 
 const KIT_DIST = import.meta.dirname
-const BROWSER_ENTRY = /^@conciv\/plugin-testkit\/browser$/
 const ENGINE_ENTRY = /^@conciv\/plugin-testkit$/
 const NODE_ONLY_CONDITIONS = ['browser', 'solid']
 const SOLID_INJECTED_JEST_DOM = '@testing-library/jest-dom/vitest'
@@ -413,9 +412,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
     },
     {
       extends: true,
-      plugins: [...uno, ...solid, engineModulesInNode(), byName],
-      server: {fs: {strict: false}},
-      resolve: {alias: [{find: BROWSER_ENTRY, replacement: join(KIT_DIST, 'happy-dom.js')}]},
+      plugins: [...uno, ...solid, engineModulesInNode()],
       test: {
         name: 'happy-dom',
         isolate: false,
