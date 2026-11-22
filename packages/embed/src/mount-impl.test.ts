@@ -8,7 +8,9 @@ describe('the built mount chunk shares one Solid, one Ark and one copy of each u
   test('the mount chunk imports solid-js, @ark-ui/solid and the ui kits as externals, and no built chunk carries a copy of them', () => {
     const dist = fileURLToPath(new URL('../dist/', import.meta.url))
     const files = readdirSync(dist)
-    const mountChunk = files.find((name) => /^mount-impl-[\w-]+\.js$/.test(name)) ?? 'mount-impl chunk missing'
+    const mountChunk =
+      /import\(\s*["']\.\/(mount-impl-[\w-]+\.js)["']\s*\)/.exec(readFileSync(join(dist, 'mount.js'), 'utf8'))?.[1] ??
+      'mount.js imports no mount-impl chunk'
     const imported = [...readFileSync(join(dist, mountChunk), 'utf8').matchAll(/\bfrom\s*"([^"]+)"/g)].map(
       (match) => match[1],
     )
