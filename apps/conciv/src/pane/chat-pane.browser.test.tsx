@@ -352,28 +352,7 @@ describe('the agent asks for permission', () => {
     expect(screen.queryByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
   })
 
-  test('Deny refuses the ask, the answered card leaves the list, and the tool reads denied', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_release_ship({branch: 'main'})",
-      }),
-      TestLLM.text('Main stays put'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship main')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    const ask = await screen.findByRole('group', {name: 'Permission request'})
-    await user.click(within(ask).getByRole('button', {name: 'Deny'}))
-
-    expect(await screen.findByText('Main stays put')).toBeVisible()
-    expect(screen.queryByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
-    expect(screen.getAllByRole('img', {name: 'denied'}).at(-1)).toBeVisible()
-  })
-
-  test('on the focused card Escape denies one ask and Ctrl+Enter allows the next', async () => {
+  test('Deny refuses an ask and the tool reads denied, then on the focused card Escape denies the next ask and Ctrl+Enter allows the one after', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
     await engine.reply(
@@ -383,24 +362,33 @@ describe('the agent asks for permission', () => {
       TestLLM.toolCall('c2', 'execute_typescript', {
         typescriptCode: "return await external_release_ship({branch: 'next'})",
       }),
-      TestLLM.text('Next is shipped'),
+      TestLLM.toolCall('c3', 'execute_typescript', {
+        typescriptCode: "return await external_release_ship({branch: 'beta'})",
+      }),
+      TestLLM.text('Beta is shipped'),
     )
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship a branch')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
-    const first = await screen.findByRole('group', {name: 'Permission request'})
+    const denied = await screen.findByRole('group', {name: 'Permission request'})
+    expect(denied).toMatchTextContent('release_ship main')
+    await user.click(within(denied).getByRole('button', {name: 'Deny'}))
+
+    await expect.element(page.getByRole('group', {name: 'Permission request'})).toMatchTextContent('release_ship next')
+    expect((await screen.findAllByRole('img', {name: 'denied'})).at(-1)).toBeVisible()
+    const first = screen.getByRole('group', {name: 'Permission request'})
     await user.click(first)
     expect(first).toHaveFocus()
     await user.keyboard('{Escape}')
 
-    await expect.element(page.getByRole('group', {name: 'Permission request'})).toMatchTextContent('release_ship next')
+    await expect.element(page.getByRole('group', {name: 'Permission request'})).toMatchTextContent('release_ship beta')
     const second = screen.getByRole('group', {name: 'Permission request'})
     await user.click(second)
     expect(second).toHaveFocus()
     await user.keyboard('{Control>}{Enter}{/Control}')
 
-    expect(await screen.findByText('Next is shipped')).toBeVisible()
+    expect(await screen.findByText('Beta is shipped')).toBeVisible()
     expect(screen.queryByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
   })
 
