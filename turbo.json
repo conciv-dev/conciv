@@ -67,6 +67,10 @@
     "attw": {
       "dependsOn": ["build"]
     },
+    "test:perf": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
     "test:e2e": {
       "dependsOn": ["^build", "@conciv/cli#build"],
       "cache": false,

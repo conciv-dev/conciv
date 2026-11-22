@@ -33,6 +33,10 @@ const HOOK_TIMEOUT_MS = 30_000
 const POLL_TIMEOUT_MS = 5_000
 const POLL_INTERVAL_MS = 50
 const VIEWPORT = {width: 1280, height: 800}
+const BROWSER_TESTS = ['src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx']
+const PERF_TESTS = ['src/**/*.perf.test.ts', 'src/**/*.perf.test.tsx']
+
+type BrowserName = 'chromium' | 'firefox'
 
 const BROWSER_PREBUNDLED = [
   '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client',
@@ -396,6 +400,34 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
     concivViewport: VIEWPORT,
     concivTestPlugins: testable.map(({name, id, engine}) => ({name, id, kind: engine ? 'engine' : 'host'}) as const),
   }
+  const browserProject = (
+    name: string,
+    include: string[],
+    browsers: BrowserName[],
+  ): TestProjectInlineConfiguration => ({
+    extends: true,
+    plugins: [...uno, ...solid, engines.plugin, byName],
+    server: {fs: {strict: false}},
+    resolve: {alias: [{find: ENGINE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
+    optimizeDeps: {
+      rolldownOptions: {plugins: [byName]},
+      include: [...BROWSER_PREBUNDLED, ...installedTestingLibraries()],
+    },
+    test: {
+      name,
+      include,
+      setupFiles: [join(KIT_DIST, 'browser-setup.js'), join(KIT_DIST, 'browser.js')],
+      provide,
+      browser: {
+        enabled: true,
+        headless: true,
+        provider: playwright(),
+        instances: browsers.map((browser) => ({browser})),
+        viewport: VIEWPORT,
+        commands: {...engines.commands, ...pageErrorCommands()},
+      },
+    },
+  })
   return [
     {
       extends: true,
@@ -405,7 +437,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
         environment: 'node',
         include: ['src/**/*.test.ts'],
         setupFiles: [join(KIT_DIST, 'node-setup.js')],
-        exclude: [...configDefaults.exclude, '**/*.dom.test.*', '**/*.browser.test.*'],
+        exclude: [...configDefaults.exclude, '**/*.dom.test.*', '**/*.browser.test.*', '**/*.perf.test.*'],
       },
     },
     {
@@ -420,40 +452,19 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
         provide,
       },
     },
-    {
-      extends: true,
-      plugins: [...uno, ...solid, engines.plugin, byName],
-      server: {fs: {strict: false}},
-      resolve: {alias: [{find: ENGINE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
-      optimizeDeps: {
-        rolldownOptions: {plugins: [byName]},
-        include: [...BROWSER_PREBUNDLED, ...installedTestingLibraries()],
-      },
-      test: {
-        name: 'browser',
-        include: ['src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx'],
-        setupFiles: [join(KIT_DIST, 'browser-setup.js'), join(KIT_DIST, 'browser.js')],
-        provide,
-        browser: {
-          enabled: true,
-          headless: true,
-          provider: playwright(),
-          instances: [{browser: 'chromium'}],
-          viewport: VIEWPORT,
-          commands: {...engines.commands, ...pageErrorCommands()},
-        },
-      },
-    },
+    browserProject('browser', BROWSER_TESTS, ['chromium']),
+    browserProject('perf', PERF_TESTS, ['chromium', 'firefox']),
   ]
 }
 
-const KIT_PROJECTS = ['node', 'happy-dom', 'browser']
+const KIT_PROJECTS = ['node', 'happy-dom', 'browser', 'perf']
 
 const ProjectFilterSchema = z.object({project: z.union([z.string(), z.array(z.string())]).optional()})
 
 function selectedProjects(projects: TestProjectInlineConfiguration[], test: unknown): TestProjectInlineConfiguration[] {
   const names = [ProjectFilterSchema.safeParse(test).data?.project ?? []].flat()
-  if (names.length === 0 || !names.every((name) => KIT_PROJECTS.includes(name))) return projects
+  if (names.length === 0) return projects.filter((project) => project.test?.name !== 'perf')
+  if (!names.every((name) => KIT_PROJECTS.includes(name))) return projects
   return projects.filter((project) => typeof project.test?.name === 'string' && names.includes(project.test.name))
 }
 
