@@ -30,6 +30,8 @@ const VITE_COLD_START = process.env.CI ? '--force' : ''
 
 const PORT_SLOT = '{port}'
 
+const BOUNDS = {timeout: 30_000, expect: {timeout: 10_000}}
+
 const AppServerSchema = z.object({
   dir: z.string(),
   argv: z.array(z.string()),
@@ -182,7 +184,6 @@ export async function e2eConfig(
   app: E2EApp,
   opts: {
     dir: string
-    timeout?: number
     runFolders?: string[]
     browserSettings?: readonly BrowserSetting[]
     pluginCopies?: readonly string[]
@@ -192,7 +193,6 @@ export async function e2eConfig(
     | {viteServerPerTest: string; command?: never}
   ),
 ): Promise<ReturnType<typeof defineConfig>> {
-  const timeout = opts.timeout ?? 90_000
   const home = runConcivHome(opts.dir)
   const prepare = [
     freshFolder(e2eStateDir(opts.dir)),
@@ -204,8 +204,7 @@ export async function e2eConfig(
     testDir: './test',
     testIgnore: PACKED_SPECS,
     workers: 1,
-    timeout,
-    expect: {timeout},
+    ...BOUNDS,
     reporter: reporters(opts.dir, ['.conciv'], opts.runFolders),
   }
   if (opts.viteServerPerTest !== undefined) {
@@ -266,8 +265,7 @@ export async function packedE2eConfig(opts: {
     testDir: './test',
     testMatch: PACKED_SPECS,
     workers: 1,
-    timeout: 90_000,
-    expect: {timeout: 90_000},
+    ...BOUNDS,
     reporter: reporters(opts.dir, [], opts.runFolders),
     webServer: servers.map((server) => {
       const home = packedHome(stateDir, server.name)
@@ -320,8 +318,7 @@ export async function harnessMatrixConfig(opts: {
   return defineConfig({
     testDir: './test',
     workers: 1,
-    timeout: 150_000,
-    expect: {timeout: 150_000},
+    ...BOUNDS,
     reporter: reporters(
       opts.dir,
       entries.map(({name}) => `.conciv-${name}`),
