@@ -29,11 +29,12 @@ describe('the agent reads the page in code mode', () => {
     const engine = await createEngine()
     const connectionId = 'checkout'
     const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
-    void engine.rpc.call('experimental.page', 'attach', {
-      sessionId: engine.session.id,
-      connectionId,
-      version: 1,
-    })
+    const attachment = engine.rpc
+      .call('experimental.page', 'attach', {sessionId: engine.session.id, connectionId, version: 1})
+      .then(
+        (result) => (result === 'replaced' ? 'replaced' : 'closed'),
+        () => 'closed',
+      )
     expect((await attached.arrived).data).toEqual({type: 'attached', connectionId, version: 1})
     await engine.rpc.call('experimental.page', 'state', {
       sessionId: engine.session.id,
@@ -54,6 +55,8 @@ describe('the agent reads the page in code mode', () => {
     await engine.session.send('Which tabs are open?')
 
     const [, second] = await engine.requests()
+    await engine.restart()
+    expect(await attachment).toBe('closed')
     expect(second?.messages.at(-1)).toMatchObject({
       role: 'tool',
       toolCallId: 'c1',
