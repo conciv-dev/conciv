@@ -5,7 +5,7 @@ import type {AnchorResolver} from './anchor-resolver.js'
 
 export type LoadResolver = Effect.Effect<AnchorResolver, SourceUnreadable>
 
-const PickAnchor = z.object({
+const PickAnchor = z.looseObject({
   source: z.object({file: z.string(), line: z.number(), column: z.number().nullable().optional()}),
 })
 
@@ -42,7 +42,7 @@ export const enrichAnchor = Effect.fn('whiteboard.anchor.enrich')(function* (res
       }),
     ),
     Effect.map((captured): EnrichedAnchor => ({
-      anchor: captured,
+      anchor: {...parsed.data, ...captured},
       file: captured.source.file,
       component: captured.source.component,
       hash: captured.source.hash,

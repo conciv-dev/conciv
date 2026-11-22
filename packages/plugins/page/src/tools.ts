@@ -188,7 +188,7 @@ function located(output: unknown, root: string): Effect.Effect<unknown> {
     return decoded.success ? [decoded.data] : []
   })
   if (frames.length === 0) return Effect.succeed(output)
-  return Effect.promise(() => symbolicateFrames(frames, root)).pipe(Effect.map((source) => ({...parsed.data, source})))
+  return symbolicateFrames(frames, root).pipe(Effect.map((source) => ({...parsed.data, source})))
 }
 
 function exportResult(output: unknown, captured: readonly File[], root: string) {

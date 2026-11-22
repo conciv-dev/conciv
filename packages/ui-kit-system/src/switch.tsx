@@ -264,10 +264,18 @@ function Control(props: ComponentProps<typeof Ark.Control>) {
     event.preventDefault()
   }
 
-  makeEventListener(window, 'keydown', (event) => {
-    const element = motion?.control()
-    if (event.key === 'Escape' && element) cancel(element)
-  })
+  makeEventListener(
+    window,
+    'keydown',
+    (event) => {
+      const element = motion?.control()
+      if (event.key !== 'Escape' || !element || grip.pointerId === undefined) return
+      event.preventDefault()
+      event.stopPropagation()
+      cancel(element)
+    },
+    {capture: true},
+  )
 
   return (
     <Ark.Control

@@ -290,14 +290,13 @@ with different rooting rules.
 ## HarnessHistory: reading the CLI's own transcript
 
 Required whenever `capabilities.transcriptHistory: true`. The contract
-(`packages/protocol/src/harness-types.ts:151-166`) has five required methods, several optional
+(`packages/protocol/src/harness-types.ts:151-166`) has four required methods, several optional
 refinements, and one all-or-nothing pair:
 
 ```ts
 export type HarnessHistory = HarnessTranscriptPaths & {
   messages(cwd: string, sessionId: HarnessSessionId): Promise<ChatMessage[]>
   tail(cwd: string, sessionId: HarnessSessionId, options: TranscriptTailOptions): Promise<TranscriptPage>
-  observe(cwd: string, sessionId: HarnessSessionId): TranscriptHandle
   withinProject?(cwd: string, sessionId: HarnessSessionId): boolean
   nameFromTranscript?(raw: string): string | null
   contextTokens?(raw: string): number | undefined
@@ -306,21 +305,17 @@ export type HarnessHistory = HarnessTranscriptPaths & {
 }
 ```
 
-`messages()`, `tail()`, `observe()`, and `list()` are the required minimum: parse the CLI's own on-disk
+`messages()`, `tail()`, `list()` and `meta()` are the required minimum: parse the CLI's own on-disk
 transcript into `ChatMessage[]`, read one page back from the end (`{limit, before, signal}` to
 `{messages, earlier}`, with an opaque cursor; build it on `tailLines` from
 `packages/harness/src/_shared/tail-lines.ts` for a JSONL transcript, so a page costs its own size
-and its ids match `messages()`), return a live-tailing `TranscriptHandle` (`revision()/read()/close()`)
-for streaming updates into an open chat pane, and enumerate past sessions for a cwd. `HarnessTranscriptPaths`
+and its ids match `messages()`), and enumerate past sessions for a cwd. `HarnessTranscriptPaths`
 (`packages/protocol/src/harness-types.ts:143-149`) is a union, not two loose optionals: declare BOTH
 `transcriptPath` and `transcriptRoot` or neither, because core resolves one against the other and
 rejects a transcript that escapes the root (`transcriptPathWithin`,
 `packages/harness/src/_shared/contained-path.ts:30-35`, reached for resume liveness by
-`resumableToken` in `packages/chat/src/turn.ts:103-117`). Build `observe()` with the shared
-`makeJsonlHandle()` helper if your CLI's transcript is JSONL-per-line (both `claude`
-and `codex` do this: `packages/harness/src/codex/history.ts:347-360`). See
-[transcript-history](references/transcript-history.md) for the full worked walkthrough (event folding, `verifyHead`
-project-scoping, incremental byte-offset reads) — it's the densest part of a real adapter and doesn't
+`resumableToken` in `packages/chat/src/turn.ts:103-117`). See
+[transcript-history](references/transcript-history.md) for the full worked walkthrough (event folding, project-scoping by the recorded cwd) — it's the densest part of a real adapter and doesn't
 fit in this file's budget.
 
 ## Red flags — stop and reconsider
@@ -361,7 +356,6 @@ fit in this file's budget.
 - `packages/harness/src/_shared/text-adapter.ts`
 - `packages/harness/src/_shared/env.ts`
 - `packages/harness/src/gemini-cli/index.ts`
-- `packages/harness/src/_shared/jsonl-handle.ts`
 - `packages/harness/src/_shared/contained-path.ts`
 - `packages/ai/src/server/chat-server.ts`
 - `packages/chat/src/turn.ts`

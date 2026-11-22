@@ -1,5 +1,5 @@
 import {existsSync, readFileSync, readdirSync} from 'node:fs'
-import {dirname, join} from 'node:path'
+import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
 import {stripVTControlCharacters} from 'node:util'
 
 type Failure = {test: string; message: string}
@@ -54,7 +54,7 @@ function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, 'utf8'))
 }
 
-function manifestName(dir: string): string {
+export function manifestName(dir: string): string {
   const manifest = readJson(join(dir, 'package.json'))
   const name = isRecord(manifest) ? asString(manifest.name) : ''
   return name === '' ? dir : name
@@ -75,7 +75,7 @@ function owningPackage(dir: string): string | null {
   return resolved
 }
 
-function findFiles(roots: string[], fileName: string): string[] {
+export function findFiles(roots: string[], fileName: string): string[] {
   const found: string[] = []
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, {withFileTypes: true})) {
@@ -273,36 +273,6 @@ export function parseReport(reportPackage: string, raw: string): PackageSummary[
   return [...byPackage.entries()].map(([name, grouped]) => summaryOfFiles(name, grouped))
 }
 
-function coverageOfEntry(entry: Record<string, unknown>): Coverage {
-  const lines = isRecord(entry.lines) ? entry.lines : {}
-  return {covered: asNumber(lines.covered), total: asNumber(lines.total)}
-}
-
-function parseCoverage(reportPackage: string, raw: string): Map<string, Coverage> {
-  const report: unknown = JSON.parse(raw)
-  const entries = isRecord(report) ? Object.entries(report).filter(([key]) => key !== 'total') : []
-  const byPackage = groupBy(
-    entries.map(([path, entry]): [string, Coverage] => [
-      owningPackage(dirname(path)) ?? reportPackage,
-      isRecord(entry) ? coverageOfEntry(entry) : {covered: 0, total: 0},
-    ]),
-  )
-  return new Map(
-    [...byPackage.entries()].map(([name, coverages]) => [
-      name,
-      coverages.reduce((sum, entry) => ({covered: sum.covered + entry.covered, total: sum.total + entry.total}), {
-        covered: 0,
-        total: 0,
-      }),
-    ]),
-  )
-}
-
-function toCoverage(value: unknown): Coverage | null {
-  if (!isRecord(value)) return null
-  return {covered: asNumber(value.covered), total: asNumber(value.total)}
-}
-
 function toCaseStatus(value: unknown): CaseStatus {
   const status = asString(value)
   if (status === 'passed' || status === 'failed' || status === 'flaky' || status === 'skipped') return status
@@ -329,7 +299,6 @@ export function parseSummaries(raw: string): PackageSummary[] {
       (Array.isArray(entry.cases) ? entry.cases : []).map(toCaseResult),
       asNumber(entry.timeMs),
     ),
-    coverage: toCoverage(entry.coverage),
   }))
 }
 
@@ -337,10 +306,7 @@ export function mergeSummaries(summaries: PackageSummary[]): PackageSummary[] {
   const byName = groupBy(summaries.map((summary): [string, PackageSummary] => [summary.name, summary]))
   return [...byName.entries()].map(([name, grouped]) =>
     grouped.reduce(
-      (merged, entry) => ({
-        ...summaryOfCases(name, [...merged.cases, ...entry.cases], merged.timeMs + entry.timeMs),
-        coverage: mergeCoverage(merged.coverage, entry.coverage),
-      }),
+      (merged, entry) => summaryOfCases(name, [...merged.cases, ...entry.cases], merged.timeMs + entry.timeMs),
       emptySummary(name),
     ),
   )
@@ -352,23 +318,88 @@ function mergeCoverage(left: Coverage | null, right: Coverage | null): Coverage 
   return {covered: left.covered + right.covered, total: left.total + right.total}
 }
 
-function attachCoverage(summaries: PackageSummary[], coverage: Map<string, Coverage>): PackageSummary[] {
-  return summaries.map((summary) => ({
-    ...summary,
-    coverage: mergeCoverage(summary.coverage, coverage.get(summary.name) ?? null),
-  }))
+export function loadSummaries(roots: string[]): PackageSummary[] {
+  const summaries = findFiles(roots, 'test-results.json').flatMap((path) =>
+    parseReport(manifestName(dirname(path)), readFileSync(path, 'utf8')),
+  )
+  return mergeSummaries(summaries)
 }
 
-export function loadSummaries(roots: string[]): PackageSummary[] {
-  const summaries = findFiles(roots, 'test-results.json').flatMap((path) => {
-    const reportDir = dirname(path)
-    const reportPackage = manifestName(reportDir)
-    const parsed = parseReport(reportPackage, readFileSync(path, 'utf8'))
-    const coveragePath = join(reportDir, 'coverage', 'coverage-summary.json')
-    if (!existsSync(coveragePath)) return parsed
-    return attachCoverage(parsed, parseCoverage(reportPackage, readFileSync(coveragePath, 'utf8')))
-  })
-  return mergeSummaries(summaries)
+export type FileCoverage = Coverage & {file: string}
+
+export type MergedLcov = {lcov: string; coverage: Coverage; files: FileCoverage[]}
+
+export function rebaseLcov(report: string, from: string, to: string): string {
+  return report.replaceAll(/^SF:(.*)$/gmu, (_line, file: string) => `SF:${relative(to, resolve(from, file))}`)
+}
+
+function readHits(reports: string[], keep: (file: string) => boolean): Map<string, Map<number, number>> {
+  const hitsByFile = new Map<string, Map<number, number>>()
+  for (const record of reports.flatMap((report) => report.split('end_of_record'))) {
+    const file = /^SF:(.*)$/mu.exec(record)?.[1]
+    if (file === undefined || !keep(file)) continue
+    const hits = hitsByFile.get(file) ?? new Map<number, number>()
+    hitsByFile.set(file, hits)
+    for (const [, line, count] of record.matchAll(/^DA:(\d+),(\d+)/gmu)) {
+      hits.set(Number(line), (hits.get(Number(line)) ?? 0) + Number(count))
+    }
+  }
+  return hitsByFile
+}
+
+function lcovRecord(file: string, hits: Map<number, number>): FileCoverage & {text: string} {
+  const lines = [...hits.entries()].toSorted(([a], [b]) => a - b)
+  const covered = lines.filter(([, count]) => count > 0).length
+  const text = [
+    `SF:${file}`,
+    ...lines.map(([lineNumber, count]) => `DA:${lineNumber},${count}`),
+    `LF:${lines.length}`,
+    `LH:${covered}`,
+    'end_of_record',
+  ].join('\n')
+  return {file, covered, total: lines.length, text}
+}
+
+export function mergeLcov(
+  reports: string[],
+  keep: (file: string) => boolean = () => true,
+  untested: string[] = [],
+): MergedLcov {
+  const hitsByFile = readHits(reports, keep)
+  for (const [file, hits] of readHits(untested, (source) => keep(source) && !hitsByFile.has(source))) {
+    hitsByFile.set(file, hits)
+  }
+  const records = [...hitsByFile.entries()]
+    .toSorted(([a], [b]) => a.localeCompare(b))
+    .map(([file, hits]) => lcovRecord(file, hits))
+  return {
+    lcov: records.map((record) => `${record.text}\n`).join(''),
+    coverage: {
+      covered: records.reduce((sum, record) => sum + record.covered, 0),
+      total: records.reduce((sum, record) => sum + record.total, 0),
+    },
+    files: records.map(({file, covered, total}) => ({file, covered, total})),
+  }
+}
+
+export function isWorkspaceSource(file: string): boolean {
+  const parts = file.split(sep)
+  return !isAbsolute(file) && parts[0] !== '..' && !parts.includes('dist') && !parts.includes('node_modules')
+}
+
+export function coverageByPackage(files: FileCoverage[], root: string): Map<string, Coverage> {
+  const byPackage = new Map<string, Coverage>()
+  for (const {file, covered, total} of files) {
+    const name = owningPackage(dirname(resolve(root, file)))
+    if (name === null) continue
+    const sum = byPackage.get(name) ?? {covered: 0, total: 0}
+    byPackage.set(name, {covered: sum.covered + covered, total: sum.total + total})
+  }
+  return byPackage
+}
+
+export function coverageOnlySummary(name: string, coverage: Coverage): PackageSummary {
+  return {...emptySummary(name), coverage}
 }
 
 function escapeHtml(text: string): string {

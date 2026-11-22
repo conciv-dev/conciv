@@ -6,7 +6,9 @@ import type {createChatPlane} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
 import {existsSync} from 'node:fs'
 import {dirname, join} from 'node:path'
-import {NodeChildProcessSpawner, NodeFileSystem, NodePath} from '@effect/platform-node'
+import * as NodeChildProcessSpawner from '@effect/platform-node/NodeChildProcessSpawner'
+import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
+import * as NodePath from '@effect/platform-node/NodePath'
 import {FetchHttpClient} from 'effect/http'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {SqliteClient} from '@effect/sql-sqlite-node'
@@ -50,7 +52,6 @@ import {
   PluginHost,
 } from '@conciv/plugin-host'
 import {
-  Cause,
   ConfigProvider,
   Effect,
   Exit,
@@ -77,6 +78,7 @@ import {buildHarnessMenuEntry} from '../api/rpc/sessions.js'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import * as Bundler from '@conciv/plugin/schema/bundler'
 import corePackage from '../../package.json' with {type: 'json'}
+import type {EngineObservability} from './observability.js'
 
 export function provideBundlerSource(bundler: Bundler.BundlerBridge | undefined) {
   return Layer.succeed(PluginHost.BundlerSource, bundler)
@@ -133,7 +135,7 @@ const isTransientMkdirError = (error: PlatformError.PlatformError): boolean => i
 const makeRoots = Effect.fn('core.globalRoots.make')(function* (roots: Global.Interface) {
   const files = yield* PlatformFileSystem.FileSystem
   yield* Effect.forEach(
-    [roots.cache, roots.config, roots.state],
+    [roots.cache, roots.config, roots.state, roots.log],
     (directory) =>
       files
         .makeDirectory(directory, {recursive: true})
@@ -143,7 +145,7 @@ const makeRoots = Effect.fn('core.globalRoots.make')(function* (roots: Global.In
 }, Effect.orDie)
 
 export function provideGlobalRoots(home: string) {
-  const roots = {cache: join(home, 'cache'), config: home, state: join(home, 'state')}
+  const roots = {cache: join(home, 'cache'), config: home, state: join(home, 'state'), log: join(home, 'log')}
   return Layer.unwrap(makeRoots(roots).pipe(Effect.as(Global.layerWith(roots))))
 }
 
@@ -198,7 +200,6 @@ export type PluginRuntimeInput = {
   db: ConcivDb
   cwd: string
   home: string
-  fallbackRoots: string
   engineId: string
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies' | 'permissions'>
   plugins: readonly PluginDefinition.Plugin[]
@@ -209,6 +210,8 @@ export type PluginRuntimeInput = {
   openInEditor: (file: string, line?: number, column?: number) => void
   sessions: Parameters<typeof provideSessions>[0]
   configProvider: ConfigProvider.ConfigProvider
+  clock: Layer.Layer<never> | undefined
+  observability: EngineObservability['context']
 }
 
 const VCS_MARKERS = [
@@ -227,20 +230,6 @@ function detectVcs(directory: string): Location.Interface['vcs'] {
 function locationLayer(cwd: string) {
   const info = Schema.decodeSync(Location.Info)({directory: cwd, project: {id: cwd, directory: cwd, canonical: cwd}})
   return Layer.succeed(Location.Service, Location.Service.of({...info, vcs: detectVcs(cwd)}))
-}
-
-function machineRoots(home: string, fallback: string) {
-  return provideGlobalRoots(home).pipe(
-    Layer.catchCause((cause) =>
-      Layer.unwrap(
-        Effect.logError("[core] the plugin host's folders could not be made, using the fallback folder").pipe(
-          Effect.annotateLogs({home, fallback, cause: Cause.pretty(cause)}),
-          Effect.as(provideGlobalRoots(fallback)),
-        ),
-      ),
-    ),
-    Layer.provide(NodeFileSystem.layer),
-  )
 }
 
 function pluginHostLayer(input: PluginRuntimeInput) {
@@ -301,13 +290,13 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     Layer.provideMerge(
       Layer.mergeAll(
         Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, input.db.$client)),
-        machineRoots(input.home, input.fallbackRoots),
         NodeFileSystem.layer,
         NodeChildProcessSpawner.layer.pipe(Layer.provide(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer))),
         FetchHttpClient.layer,
         ConfigProvider.layer(input.configProvider),
       ),
     ),
+    Layer.provideMerge(Layer.succeedContext(input.observability)),
   )
 }
 
@@ -336,7 +325,7 @@ export type PluginRuntime = {
 }
 
 export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
-  const runtime = ManagedRuntime.make(pluginHostLayer(input))
+  const runtime = ManagedRuntime.make(pluginHostLayer(input).pipe(Layer.provideMerge(input.clock ?? Layer.empty)))
   const supervised = Scope.forkUnsafe(runtime.scope, 'sequential')
   return {
     runtime,

@@ -79,7 +79,7 @@ function declaredType(node: z.output<typeof DeclaredNode>): string | undefined {
 function fieldElement(entry: ToolField, positional: string | undefined): Element {
   const text = entry.field.description ?? entry.name
   if (entry.name === positional) return argument(name(entry.name), description(text), schema(entry.schema))
-  if (entry.field.type === 'boolean') return toggle(name(entry.name), description(text))
+  if (entry.field.type === 'boolean') return toggle(name(entry.name), description(text), schema(entry.schema))
   const spellings = cli([...new Set([`--${entry.name}`, `--${kebabCase(entry.name)}`])])
   if (entry.field.type === 'array') {
     return option(
@@ -106,6 +106,7 @@ function fieldScalar(field: Field): z.ZodType {
 
 function scalarSchema(type: string | undefined, format: string | undefined): z.ZodType {
   if (type === 'object') return z.string().transform(jsonObject)
+  if (type === 'boolean') return z.boolean()
   if (type === 'number') return z.number()
   if (type === 'integer') return z.int()
   if (format === 'path') return z.string().transform(existingPath)

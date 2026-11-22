@@ -76,7 +76,11 @@ export function bootCapture(
         Effect.asVoid(
           openCaptureSession({
             config: prepared.config,
-            record: recordPage(prepared.library, prepared.exclude, (event) => runtime.runSync(flusher.push(event))),
+            record: recordPage(
+              prepared.library,
+              prepared.exclude,
+              (event) => void runtime.runSyncExit(flusher.push(event)),
+            ),
             takeSnapshot: takeFreshSnapshot(prepared.library),
             reloadConfig: readConfig((cause) => ConfigReloadFailed.make({cause})),
             flusher,

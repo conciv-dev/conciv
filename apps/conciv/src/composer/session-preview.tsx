@@ -11,7 +11,7 @@ import {
 } from '@conciv/ui-kit-system'
 import {ChatProvider, MarkdownHighlightProvider, Thread, useThreadViewport, type Chat} from '@conciv/ui-kit-chat'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
-import type {HarnessSessionId} from '@conciv/protocol/chat-types'
+import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData} from '../app/context.js'
 import {ConversationSkeleton} from '../pane/indicators.js'
 import {createResumeCopy} from './resume-copy.js'
@@ -19,9 +19,7 @@ import {createResumeCopy} from './resume-copy.js'
 type PreviewTarget = {
   title: string
   project: string
-  harness: string
-  nativeId: HarnessSessionId
-  cwd: string | null
+  read: {harness: string; nativeId: HarnessSessionId; cwd?: string} | {sessionId: SessionId}
   matched: string[]
   resume: string | null
 }
@@ -75,18 +73,12 @@ function PreviewBody(props: {target: PreviewTarget; input: () => HTMLElement | n
   const appData = useAppData()
   const formatHotkey = useFormatHotkey()
   let viewport: HTMLElement | undefined
-  const input = (before: string | null) => ({
-    harness: props.target.harness,
-    nativeId: props.target.nativeId,
-    ...(props.target.cwd === null ? {} : {cwd: props.target.cwd}),
-    before,
-    limit: PAGE_LIMIT,
-  })
+  const input = (before: string | null) => ({...props.target.read, before, limit: PAGE_LIMIT})
   const pages = useInfiniteQuery(() => ({
     ...appData.utils.sessions.preview.infiniteOptions({
       input,
       initialPageParam: null,
-      getNextPageParam: (page: {earlier: string | null}) => page.earlier,
+      getNextPageParam: (page) => page.earlier,
     }),
     retry: false,
   }))
@@ -125,7 +117,7 @@ function PreviewBody(props: {target: PreviewTarget; input: () => HTMLElement | n
                 <PreviewThread
                   windows={data().pages}
                   matched={props.target.matched}
-                  sessionKey={`${props.target.harness}:${props.target.nativeId}`}
+                  sessionKey={Object.values(props.target.read).join(':')}
                   more={pages.hasNextPage}
                   loading={pages.isFetchingNextPage}
                   failed={pages.isFetchNextPageError}

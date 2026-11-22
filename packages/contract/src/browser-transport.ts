@@ -2,6 +2,7 @@ import type {ClientLink} from '@orpc/client'
 import {Effect, Exit, Option, RcMap, Scope} from 'effect'
 import {Socket} from 'effect/socket'
 import {
+  engineUnreachable,
   makeEngineConnection,
   type EngineConnection,
   type EngineTokenSource,
@@ -19,13 +20,16 @@ export {
   type EngineConnectionTimings,
   type TrustStatus,
 } from './engine-connection-machine.js'
-export type {
-  EngineTokenSource,
-  EngineTrust,
-  ReachabilityListener,
-  RpcClientContext,
-  SessionAccessor,
-  TrustListener,
+export {
+  engineUnreachable,
+  isEngineUnreachable,
+  type EngineTokenSource,
+  type EngineTrust,
+  type EngineUnreachable,
+  type ReachabilityListener,
+  type RpcClientContext,
+  type SessionAccessor,
+  type TrustListener,
 } from './engine-connection.js'
 
 const MAGIC_LINK_PARAM = 'conciv_otp'
@@ -180,7 +184,7 @@ export function heldBrowserRpcLink(
     link: {
       call: (path, input, options) => {
         const apiBase = currentApiBase()
-        if (apiBase === null) throw new Error(RPC_UNBOUND_MESSAGE)
+        if (apiBase === null) throw engineUnreachable(RPC_UNBOUND_MESSAGE)
         const sessionId = session?.()
         const context = sessionId ? {...options.context, concivSessionId: sessionId} : options.context
         return hold(apiBase).link.call(path, input, {...options, context})

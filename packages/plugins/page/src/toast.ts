@@ -1,3 +1,5 @@
+import {prefersReducedMotion} from '@conciv/ui-kit-system'
+
 const MAX_Z = '2147483647'
 
 function overlayLayer(el: HTMLElement, z = MAX_Z): void {
@@ -13,7 +15,6 @@ const ENTER_MS = 180
 
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
 const EASE_EXPO = 'cubic-bezier(0.16, 1, 0.3, 1)'
-const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 const TONES: Record<'info' | 'success' | 'error', string> = {
   info: '#26262b',
@@ -39,7 +40,7 @@ export function showToast(msg: string, tone: 'info' | 'success' | 'error' = 'inf
     boxShadow: '0 2px 10px rgba(0,0,0,.45)',
   })
   document.body.appendChild(el)
-  const enter = reduceMotion()
+  const enter = prefersReducedMotion()
     ? [{opacity: 0}, {opacity: 1}]
     : [
         {opacity: 0, transform: 'translateX(-50%) translateY(6px)'},

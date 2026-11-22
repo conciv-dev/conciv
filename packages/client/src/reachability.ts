@@ -1,11 +1,15 @@
 import {createEffect, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {Debouncer} from '@tanstack/pacer'
 import {onlineManager} from '@tanstack/query-core'
-import {ORPCError} from '@orpc/client'
-import {defaultEngineConnectionTimings, subscribeRpcReachability, type EngineConnectionTimings} from '@conciv/contract'
+import {
+  defaultEngineConnectionTimings,
+  isEngineUnreachable,
+  subscribeRpcReachability,
+  type EngineConnectionTimings,
+} from '@conciv/contract'
 
 export function isReachabilityError(error: unknown): boolean {
-  return !(error instanceof ORPCError)
+  return isEngineUnreachable(error)
 }
 
 type OnlineSetup = (setOnline: (online: boolean) => void) => (() => void) | undefined

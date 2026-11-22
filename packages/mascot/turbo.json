@@ -3,7 +3,7 @@
   "extends": ["//"],
   "tasks": {
     "typecheck": {
-      "dependsOn": ["^build", "build"],
+      "dependsOn": ["^build", "^build:types", "build"],
       "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
     }
   }

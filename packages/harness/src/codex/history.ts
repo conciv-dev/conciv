@@ -11,13 +11,11 @@ import type {
   HarnessListScope,
   HarnessSessionMeta,
   HarnessSessionPage,
-  TranscriptHandle,
   TranscriptPage,
   TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
 import {containedPath} from '../_shared/contained-path.js'
-import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {pageAfter} from '../_shared/page.js'
 import {whenMissing} from '../_shared/when-missing.js'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
@@ -278,10 +276,6 @@ function foldLine(spine: CodexSpine, line: string, offset: number): CodexSpine {
   return event ? applyEvent(spine, event, offset) : spine
 }
 
-function spineMessages(spine: CodexSpine): ChatMessage[] {
-  return spine.messages.map((message) => ({...message, parts: [...message.parts]}))
-}
-
 function contextTokensFromTranscript(raw: string): number | undefined {
   let total: number | undefined
   for (const line of raw.split('\n')) {
@@ -395,22 +389,6 @@ async function storedMeta(home: string, cwd: string, sessionId: string): Promise
   return row ? threadMeta(home, row) : null
 }
 
-function observeTranscript(home: string, cwd: string, sessionId: string): TranscriptHandle {
-  return makeJsonlHandle<CodexSpine>({
-    parser: {empty: () => emptySpine(sessionId), foldLine, messages: spineMessages},
-    resolvePath: async () => {
-      const path = rolloutPath(home, sessionId)
-      return path ?? transcriptFailure('missing', `no codex rollout recorded for ${sessionId}`)
-    },
-    verifyHead: (head) => {
-      const found = rolloutCwd(head)
-      if (found === null) return transcriptFailure('corrupt', `no session_meta in the head of the ${sessionId} rollout`)
-      if (sameCwd(found, cwd)) return null
-      return transcriptFailure('missing', `${sessionId} was recorded in ${found}, not ${cwd}`)
-    },
-  })
-}
-
 type EventLine = {event: SpineEvent; offset: number}
 
 function eventScanner(): (line: string, offset: number) => {line: EventLine; boundary: boolean; first: false} | null {
@@ -466,7 +444,6 @@ export function codexHistory(home: string): HarnessHistory {
   return {
     messages: (cwd, sessionId, options) => transcriptMessages(home, cwd, sessionId, options),
     tail: (cwd, sessionId, options) => transcriptTail(home, cwd, sessionId, options),
-    observe: (cwd, sessionId) => observeTranscript(home, cwd, sessionId),
     withinProject: (cwd, sessionId) => rolloutWithinProject(home, cwd, sessionId),
     contextTokens: contextTokensFromTranscript,
     list: (scope, page) => listSessions(home, scope, page),

@@ -10,7 +10,8 @@
     "generate-routes": "tsr generate",
     "build": "vite build",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.e2e.json --noEmit"
   },
   "dependencies": {
     "@conciv/it": "workspace:*",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",
+    "@conciv/tsconfig": "workspace:*",
     "@playwright/test": "catalog:",
     "@tailwindcss/typography": "catalog:",
     "@tanstack/devtools-vite": "catalog:",

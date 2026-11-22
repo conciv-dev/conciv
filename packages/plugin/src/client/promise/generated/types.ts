@@ -376,6 +376,16 @@ type SessionCreated = {
   data: {sessionID: SessionId; title?: string}
 }
 
+type SessionRenamed = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.renamed'
+  durable: {aggregateID: string; seq: number; version: 1}
+  location?: LocationRef
+  data: {sessionID: SessionId; title: string}
+}
+
 export type SessionDeleted = {
   id: string
   created: number
@@ -384,6 +394,46 @@ export type SessionDeleted = {
   durable: {aggregateID: string; seq: number; version: 2}
   location?: LocationRef
   data: {sessionID: SessionId}
+}
+
+type SessionExecutionStarted = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.execution.started'
+  durable: {aggregateID: string; seq: number; version: 1}
+  location?: LocationRef
+  data: {sessionID: SessionId}
+}
+
+type SessionExecutionSucceeded = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.execution.succeeded'
+  durable: {aggregateID: string; seq: number; version: 1}
+  location?: LocationRef
+  data: {sessionID: SessionId}
+}
+
+type SessionExecutionFailed = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.execution.failed'
+  durable: {aggregateID: string; seq: number; version: 1}
+  location?: LocationRef
+  data: {sessionID: SessionId; error: string}
+}
+
+type SessionExecutionInterrupted = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.execution.interrupted'
+  durable: {aggregateID: string; seq: number; version: 1}
+  location?: LocationRef
+  data: {sessionID: SessionId; reason: 'user' | 'shutdown' | 'superseded' | 'inactivity'}
 }
 
 type SessionInstructionsUpdated = {
@@ -422,7 +472,12 @@ export type EventSubscribeOutput =
   | PermissionAsked
   | PermissionReplied
   | SessionCreated
+  | SessionRenamed
   | SessionDeleted
+  | SessionExecutionStarted
+  | SessionExecutionSucceeded
+  | SessionExecutionFailed
+  | SessionExecutionInterrupted
   | SessionInstructionsUpdated
   | V2EventRpc
   | V2EventServerConnected

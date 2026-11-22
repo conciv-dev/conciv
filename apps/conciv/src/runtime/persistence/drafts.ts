@@ -148,7 +148,7 @@ async function detach(blob: Blob) {
   return blob instanceof File ? new Blob([await blob.arrayBuffer()], {type: blob.type}) : blob
 }
 
-function createDraftStore(driver: Driver, options: {grace?: number} = {}): DraftStore {
+export function createDraftStore(driver: Driver, options: {grace?: number} = {}): DraftStore {
   const grace = options.grace ?? retainedBlobGrace
   const storeId = retention.nextStoreId
   dispatch({type: 'store.registered'})
@@ -433,8 +433,16 @@ function split(text: string) {
   return pieces
 }
 
-export function createBrowserDraftStore(options: {writable?: () => boolean} = {}): DraftStore {
-  const writable = options.writable ?? (() => true)
+export function openBrowserDraftStore(writable: () => boolean): DraftStore | undefined {
+  try {
+    return createBrowserDraftStore(writable)
+  } catch (error) {
+    console.error('[conciv] drafts stay engine-only', error)
+    return undefined
+  }
+}
+
+function createBrowserDraftStore(writable: () => boolean): DraftStore {
   const request = indexedDB.open('conciv-drafts', 1)
   request.addEventListener('upgradeneeded', () => {
     request.result.createObjectStore('documents')

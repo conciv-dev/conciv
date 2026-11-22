@@ -44,7 +44,12 @@ function withTimeout<T>(start: (settle: (value: T) => void) => void, ms: number,
   })
 }
 
-export function createUiChannel(): UiChannel {
+export type UiWaits = {callWaitMs?: number; answerWaitMs?: number}
+
+export function createUiChannel({
+  callWaitMs = UI_CALL_WAIT_MS,
+  answerWaitMs = UI_ANSWER_WAIT_MS,
+}: UiWaits = {}): UiChannel {
   const threads = new Map<string, UiThread>()
   const ensureThread = (threadId: string): UiThread => {
     const existing = threads.get(threadId)
@@ -56,7 +61,7 @@ export function createUiChannel(): UiChannel {
   const nextCall = (thread: UiThread): Promise<string | null> => {
     const queued = thread.calls.shift()
     if (queued !== undefined) return Promise.resolve(queued)
-    return withTimeout<string | null>((settle) => thread.waiters.push(settle), UI_CALL_WAIT_MS, null)
+    return withTimeout<string | null>((settle) => thread.waiters.push(settle), callWaitMs, null)
   }
   return {
     noteToolCall: (threadId, toolCallId, toolName) => {
@@ -79,7 +84,7 @@ export function createUiChannel(): UiChannel {
       if (callId === null) return UNANSWERED
       const slot = thread.answers.get(callId)
       if (slot === undefined) return UNANSWERED
-      const value = await withTimeout<unknown>((settle) => void slot.value.then(settle), UI_ANSWER_WAIT_MS, null)
+      const value = await withTimeout<unknown>((settle) => void slot.value.then(settle), answerWaitMs, null)
       thread.answers.delete(callId)
       const parsed = UiAnswerValueSchema.safeParse(value)
       return parsed.success ? {answered: true, value: parsed.data} : UNANSWERED

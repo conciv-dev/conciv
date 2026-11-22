@@ -30,6 +30,7 @@ import {
   resolveRow,
   restoreRow,
   rowById,
+  rowByNativeRef,
   switchRowHarness,
   type NativePage,
 } from '../../sessions/session-rows.js'
@@ -37,6 +38,7 @@ import {logError} from '../../lib/debug.js'
 import {createChatSession, deleteSession, renameSession} from '../../sessions/session-actions.js'
 import type {createSessionSearch} from '../../sessions/session-search.js'
 import {os, type ChatContext, type RpcDeps} from './mount.js'
+import {inSpan} from '@conciv/ai/server'
 
 async function loadNativePage(
   chat: ChatContext,
@@ -46,7 +48,10 @@ async function loadNativePage(
   const history = harness.history
   if (!harness.capabilities.transcriptHistory || history === undefined) return null
   try {
-    return {harnessKind: harness.id, page: await history.list({cwd: chat.cwd}, page)}
+    const listed = await inSpan(chat.tracer, 'Sessions.listNative', {'conciv.harness.id': harness.id}, () =>
+      history.list({cwd: chat.cwd}, page),
+    )
+    return {harnessKind: harness.id, page: listed}
   } catch (error) {
     logError(
       `[core] listing the ${harness.id} native sessions failed, its sessions list from their rows: ${String(error)}`,
@@ -60,7 +65,10 @@ async function loadNativeMeta(chat: ChatContext, row: SessionRecord): Promise<Ha
   const history = chat.harnesses.find((harness) => harness.id === row.harnessKind)?.history
   if (nativeId === null || history === undefined) return undefined
   try {
-    return (await history.meta(chat.cwd, nativeId)) ?? undefined
+    const meta = await inSpan(chat.tracer, 'Sessions.readNativeMeta', {'conciv.harness.id': row.harnessKind}, () =>
+      history.meta(chat.cwd, nativeId),
+    )
+    return meta ?? undefined
   } catch (error) {
     logError(`[core] reading the ${row.harnessKind} native session ${nativeId} failed: ${String(error)}`)
     return undefined
@@ -75,15 +83,31 @@ async function loadTranscriptTail(
   options: TranscriptTailOptions,
 ): Promise<TranscriptPage | null> {
   const history = chat.harnesses.find((harness) => harness.id === harnessKind)?.history
-  if (history === undefined) return null
+  if (history === undefined)
+    return loadSavedPage(chat, await rowByNativeRef(chat.db, {harnessKind, cwd, nativeId}), options)
   if (history.withinProject && !history.withinProject(cwd, nativeId)) return null
   try {
-    return await history.tail(cwd, nativeId, options)
+    return await inSpan(chat.tracer, 'Sessions.readTranscriptTail', {'conciv.harness.id': harnessKind}, () =>
+      history.tail(cwd, nativeId, options),
+    )
   } catch (error) {
     if (options.signal?.aborted) throw error
     logError(`[core] previewing the ${harnessKind} native session ${nativeId} failed: ${String(error)}`)
     return null
   }
+}
+
+async function loadSavedPage(
+  chat: ChatContext,
+  row: SessionRecord | null,
+  options: TranscriptTailOptions,
+): Promise<TranscriptPage | null> {
+  if (row === null) return null
+  const {messages, page} = await chat.plane.hydrate(row.id, {
+    limit: options.limit,
+    ...(options.before === null ? {} : {before: options.before}),
+  })
+  return {messages, earlier: page?.truncated ? page.cursor : null}
 }
 
 async function listedPages(chat: ChatContext, page: HarnessListPage): Promise<NativePage[]> {
@@ -259,15 +283,15 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return meta
     }),
     preview: os.sessions.preview.handler(async ({input, errors, signal}) => {
-      const page = await loadTranscriptTail(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd, {
-        limit: input.limit,
-        before: input.before,
-        signal,
-      })
+      const options = {limit: input.limit, before: input.before, signal}
+      const page =
+        'sessionId' in input
+          ? await loadSavedPage(chat, await rowById(db, input.sessionId), options)
+          : await loadTranscriptTail(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd, options)
       if (page === null || (page.messages.length === 0 && page.earlier === null && input.before === null)) {
         throw errors.NOT_FOUND()
       }
-      if (input.cwd !== undefined) search.cover(input.cwd)
+      if ('cwd' in input && input.cwd !== undefined) search.cover(input.cwd)
       return page
     }),
     create: os.sessions.create.handler(async () => {
@@ -291,7 +315,7 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return {sessionId: input.sessionId}
     }),
     rename: os.sessions.rename.handler(async ({input, errors}) => {
-      const outcome = await renameSession({db, search}, input.sessionId, input.title)
+      const outcome = await renameSession({db, search, pluginHost: deps.pluginHost}, input.sessionId, input.title)
       if (outcome === 'missing') throw errors.NOT_FOUND()
       return outcome
     }),

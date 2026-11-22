@@ -123,9 +123,9 @@ export function MentionField(props: {
           return true
         },
       },
-      onUpdate: ({editor: instance}) => {
-        setEmpty(instance.isEmpty)
-        props.onEmptyChange?.(instance.isEmpty)
+      onUpdate: ({editor: updated}) => {
+        setEmpty(updated.isEmpty)
+        props.onEmptyChange?.(updated.isEmpty)
       },
       extensions: [
         Document,

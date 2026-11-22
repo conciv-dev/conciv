@@ -13,6 +13,7 @@ import {Conciv, type ConcivClient} from '@conciv/plugin'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {dropLeavingCopies} from '../runtime/persistence/leaving-copy.js'
 import {Definition as PageDefinition} from '@conciv/plugin-page/rpc'
+import {forgetDeletedSessions} from './forget-deleted-sessions.js'
 import {
   DraftRowSchema,
   SessionMetaSchema,
@@ -48,6 +49,24 @@ function withoutSessionInPages<Pages extends {pages: readonly {sessions: readonl
 ): Pages | undefined {
   if (!data?.pages.some((page) => page.sessions.some((session) => session.id === sessionId))) return data
   return {...data, pages: data.pages.map((page) => withoutSessionOnPage(page, sessionId))}
+}
+
+function withSessionOnPage<Page extends {sessions: readonly {id: string}[]}>(
+  page: Page,
+  session: Page['sessions'][number],
+): Page {
+  if (page.sessions.some((listed) => listed.id === session.id)) return page
+  return {...page, sessions: [session, ...page.sessions]}
+}
+
+function withSessionInPages<Pages extends {pages: readonly {sessions: readonly {id: string}[]}[]}>(
+  data: Pages | undefined,
+  session: Pages['pages'][number]['sessions'][number],
+): Pages | undefined {
+  const [first, ...rest] = data?.pages ?? []
+  if (!data || !first || data.pages.some((page) => page.sessions.some((listed) => listed.id === session.id)))
+    return data
+  return {...data, pages: [withSessionOnPage(first, session), ...rest]}
 }
 
 const DRAFT_SAVE_RETRIES = 3
@@ -175,15 +194,21 @@ export function makeAppData(
   }
   const invalidateSession = (sessionId: string) =>
     invalidate([...listKeys, utils.sessions.get.key({input: {sessionId}})])
-  const createSession = async (): Promise<{sessionId: string}> => {
-    const {sessionId, session} = await rpc.sessions.create(undefined)
-    seed(session)
-    void invalidateSession(sessionId)
-    return {sessionId}
-  }
   type ListedPages<Procedure extends 'list' | 'search'> = NonNullable<
     ReturnType<typeof queryClient.getQueryData<unknown, ReturnType<(typeof utils.sessions)[Procedure]['infiniteKey']>>>
   >
+  const createSession = async (): Promise<{sessionId: string}> => {
+    const {sessionId, session} = await rpc.sessions.create(undefined)
+    seed(session)
+    queryClient.setQueriesData<SessionPage>({queryKey: utils.sessions.list.key({type: 'query'})}, (data) =>
+      data ? withSessionOnPage(data, session) : data,
+    )
+    queryClient.setQueriesData<ListedPages<'list'>>({queryKey: utils.sessions.list.key({type: 'infinite'})}, (data) =>
+      withSessionInPages(data, session),
+    )
+    void invalidateSession(sessionId)
+    return {sessionId}
+  }
   const endDraftSaves = (sessionId: string): void => {
     queryClient.setQueryData(draftQuery(sessionId).queryKey, null)
     forgetDraftSaves(sessionId, SETTLED)
@@ -222,27 +247,21 @@ export function makeAppData(
       console.error('[conciv] could not empty the local draft store', error)
     })
   }
-  const forgetDeletedSessions = async () => {
-    for await (const event of client.event.subscribe({signal: reading.signal})) {
-      if (event.type !== 'session.deleted') continue
-      const sessionId = event.data.sessionID
-      queryClient.setQueryData(sessionKey(sessionId), (meta) => meta && {...meta, hidden: true})
-      endDraftSaves(sessionId)
-      queryClient.setQueriesData<SessionPage>({queryKey: utils.sessions.list.key({type: 'query'})}, (data) =>
-        data ? withoutSessionOnPage(data, sessionId) : data,
-      )
-      queryClient.setQueriesData<ListedPages<'list'>>({queryKey: utils.sessions.list.key({type: 'infinite'})}, (data) =>
-        withoutSessionInPages(data, sessionId),
-      )
-      queryClient.setQueriesData<ListedPages<'search'>>(
-        {queryKey: utils.sessions.search.key({type: 'infinite'})},
-        (data) => withoutSessionInPages(data, sessionId),
-      )
-    }
+  const forgetDeletedSession = (sessionId: string): void => {
+    queryClient.setQueryData(sessionKey(sessionId), (meta) => meta && {...meta, hidden: true})
+    endDraftSaves(sessionId)
+    queryClient.setQueriesData<SessionPage>({queryKey: utils.sessions.list.key({type: 'query'})}, (data) =>
+      data ? withoutSessionOnPage(data, sessionId) : data,
+    )
+    queryClient.setQueriesData<ListedPages<'list'>>({queryKey: utils.sessions.list.key({type: 'infinite'})}, (data) =>
+      withoutSessionInPages(data, sessionId),
+    )
+    queryClient.setQueriesData<ListedPages<'search'>>(
+      {queryKey: utils.sessions.search.key({type: 'infinite'})},
+      (data) => withoutSessionInPages(data, sessionId),
+    )
   }
-  forgetDeletedSessions().catch((error: unknown) => {
-    if (!reading.signal.aborted) console.error('[conciv] stopped reading session deletions', error)
-  })
+  const stopReadingDeletions = forgetDeletedSessions({client, server, forget: forgetDeletedSession})
   return {
     utils,
     client,
@@ -258,6 +277,9 @@ export function makeAppData(
     forgetLocalDrafts,
     lockedOut,
     sessionDeleted: (sessionId) => queryClient.getQueryData(sessionKey(sessionId))?.hidden === true,
-    dispose: () => reading.abort(),
+    dispose: () => {
+      reading.abort()
+      stopReadingDeletions()
+    },
   }
 }

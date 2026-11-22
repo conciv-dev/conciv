@@ -17,9 +17,10 @@ import {
   VirtualList,
 } from '@conciv/ui-kit-system'
 import {Markdown} from '@conciv/ui-kit-chat'
+import type {ConcivTimings} from '../router.js'
 import {createDateNow} from '@solid-primitives/date'
 import {createDebouncer} from '@tanstack/solid-pacer'
-import {useNavigate, useSearch} from '@tanstack/solid-router'
+import {useNavigate, useRouteContext, useSearch} from '@tanstack/solid-router'
 import {keepPreviousData, useInfiniteQuery, useQuery} from '@conciv/client'
 import {groupBy, isEqual, uniqBy} from 'es-toolkit'
 import Check from 'lucide-solid/icons/check'
@@ -108,16 +109,12 @@ function readMatched(session: PickerSession): string[] {
 function buildPreview(session: PickerSession | undefined) {
   if (session === undefined) return null
   const native = 'preview' in session ? session.preview : session.native
-  if (!native) return null
-  const shared = {
-    title: session.title,
-    harness: native.harnessKind,
-    nativeId: native.nativeId,
-    matched: readMatched(session),
-  }
   const elsewhere = readElsewhere(session)
-  if (elsewhere === null) return {...shared, project: formatProject(native.cwd), cwd: null, resume: null}
-  return {...shared, project: elsewhere.project, cwd: elsewhere.cwd, resume: elsewhere.resume}
+  const shared = {title: session.title, matched: readMatched(session)}
+  if (!native) return {...shared, read: {sessionId: session.id}, project: elsewhere?.project ?? '', resume: null}
+  const read = {harness: native.harnessKind, nativeId: native.nativeId}
+  if (elsewhere === null) return {...shared, read, project: formatProject(native.cwd), resume: null}
+  return {...shared, read: {...read, cwd: elsewhere.cwd}, project: elsewhere.project, resume: elsewhere.resume}
 }
 
 function readElsewhere(session: PickerSession | undefined): Elsewhere | null {
@@ -125,12 +122,21 @@ function readElsewhere(session: PickerSession | undefined): Elsewhere | null {
   return {cwd: session.cwd, project: formatProject(session.cwd), resume: session.resume}
 }
 
+function readPickerWaits(timings: ConcivTimings | undefined): {searchWaitMs: number; previewWaitMs: number} {
+  return {
+    searchWaitMs: timings?.picker?.searchWaitMs ?? SEARCH_WAIT_MS,
+    previewWaitMs: timings?.picker?.previewWaitMs ?? PREVIEW_WAIT_MS,
+  }
+}
+
 export function SessionSelector(props: {
   activeId: () => string | null
   onActivate: (id: string) => void
   onNewSession: () => void
+  triggerId?: string
 }): JSX.Element {
   const appData = useAppData()
+  const waits = useRouteContext({strict: false, select: (context) => readPickerWaits(context.timings)})
   const announce = useAnnounce()
   const routeSearch = useSearch({strict: false})
   const navigate = useNavigate()
@@ -139,7 +145,7 @@ export function SessionSelector(props: {
   const writeSearch = (patch: {sessionSearch?: string; allProjects?: boolean}) =>
     void navigate({to: '.', search: (previous) => ({...previous, ...patch}), replace: true})
   const searchWriter = createDebouncer((sessionSearch: string) => writeSearch({sessionSearch}), {
-    wait: SEARCH_WAIT_MS,
+    wait: waits().searchWaitMs,
   })
   const typed = (details: {inputValue: string; reason?: string}) => {
     if (details.reason !== 'input-change' && details.reason !== 'clear-trigger') return
@@ -265,7 +271,9 @@ export function SessionSelector(props: {
     },
     {term: search(), text: search()},
   )
-  const settle = createDebouncer((value: string) => setPicker({previewed: value, open: true}), {wait: PREVIEW_WAIT_MS})
+  const settle = createDebouncer((value: string) => setPicker({previewed: value, open: true}), {
+    wait: waits().previewWaitMs,
+  })
   const dismissPreview = () => {
     settle.cancel()
     setPicker('open', false)
@@ -280,6 +288,7 @@ export function SessionSelector(props: {
   return (
     <Combobox.Root
       class="flex min-w-0 max-w-full"
+      ids={{trigger: props.triggerId}}
       collection={collection()}
       loading={searching()}
       translations={{loading: SEARCHING_LABEL}}

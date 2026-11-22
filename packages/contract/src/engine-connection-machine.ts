@@ -171,7 +171,7 @@ function close(state: ConnectionState, code: number): ConnectionTransition {
 }
 
 function resetSocket(state: ConnectionState): ConnectionTransition {
-  if (state.socket === 'waiting') return unchanged({...state, retries: -1})
+  if (state.socket === 'waiting') return reconnect(state)
   if (state.socket === 'connecting') return dropAndReconnect(state)
   return unchanged(state)
 }

@@ -188,13 +188,18 @@ or `@conciv` import.
 
 ## Testing
 
-`@conciv/plugin-testkit` boots the real engine with a fake model:
+`@conciv/plugin-testkit` runs the real engine with a scripted model:
 
-- `bootCoreKit({id, plugins, files, stateRoot})` (`/core-kit`): `kit.rpc.plugin.list()`,
-  `kit.callTool('deploy_run', input)` (code mode, name without `external_`),
-  `kit.writeProjectFile`, `kit.cleanup()`.
-- `openPluginWidget(browser, {id, plugins, widgetBundle, stateRoot})` (`/widget-suite`): the real
-  widget in a headless page; returns `{page, kit, close}`.
+- `createEngine({plugins})` (the package root, `@conciv/plugin-testkit`): the engine with your plugins; the first argument is the
+  product's own `ConcivConfig`. `engine.reply(...)` gives the model's answers in order, built with
+  `TestLLM`; `engine.write(path, content)` puts a file in the project. `engine.session.send(text)`,
+  `engine.session.tool(name).call(input)`, `engine.rpc.call(id, method, input)`, `engine.gate()`.
+- `mount({engine, history})` (`/browser`): the whole widget on that engine; `history` is
+  `createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})`, the engine's saved
+  history, or any TanStack `RouterHistory`; the test drives it by role and text.
+- Add `concivTest()` from `@conciv/plugin-testkit/vitest` to the package's `vite.config.ts` and run
+  tests with the `conciv-test` bin: node (`*.test.ts`), happy-dom (`*.dom.test.tsx`) and browser
+  (`*.browser.test.tsx`) projects come from it. Your own `test: {...}` settings win over the kit's.
 
 See [rpc-and-testing](references/rpc-and-testing.md).
 
@@ -225,8 +230,10 @@ dev dependency); `effect` and `zod` are dependencies. Exclude `plugin-experiment
 - `packages/plugin/src/experimental/registries.ts`
 - `packages/plugin/src/experimental/core.ts`
 - `packages/plugin-host/src/core/tool.ts`
-- `packages/plugin-testkit/src/core-kit.ts`
-- `packages/plugin-testkit/src/widget-suite.ts`
+- `packages/plugin-testkit/README.md`
+- `packages/plugin-testkit/src/engine.ts`
+- `packages/plugin-testkit/src/mount.ts`
+- `packages/plugin-testkit/src/test-projects.ts`
 - `packages/plugins/tanstack/package.json`
 - `packages/plugins/tanstack/src/index.ts`
 - `packages/plugins/tanstack/src/plugin-experimental.tsx`

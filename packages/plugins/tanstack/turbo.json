@@ -9,6 +9,9 @@
         "@conciv/protocol#build",
         "@conciv/uno-preset#build"
       ]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "^build:types", "@conciv/core#build", "@conciv/harness#build"]
     }
   }
 }

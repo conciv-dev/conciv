@@ -1,10 +1,11 @@
 import {StreamReconnectLimitError, type SubscribeConnectionAdapter} from '@tanstack/ai-client'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
-import {createMemo, createSignal, mergeProps, onCleanup, type Accessor} from 'solid-js'
+import {createMemo, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
+import {makeEventListener} from '@solid-primitives/event-listener'
+import {createScheduled, throttle} from '@solid-primitives/scheduled'
 import {
   isRunPhaseTerminal,
-  timedMessages,
   type ApprovalAsk,
   type RunClockSource,
   type RunLifecycle,
@@ -14,6 +15,8 @@ import {chatBusy} from '@conciv/protocol/chat-busy'
 import {CHAT_HISTORY_PAGE_SIZE, type PermissionReply} from '@conciv/protocol/chat-types'
 
 export type Chat = UseChatReturn
+
+const MESSAGES_FLUSH_MS = 16
 
 export type CreateChatOptions = Parameters<typeof useChat>[0]
 
@@ -155,21 +158,8 @@ function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
 }
 
-function applyToolTime(chat: Chat, name: string, value: unknown): void {
-  const timed = timedMessages(chat.messages(), name, value)
-  if (timed !== null) chat.setMessages(timed)
-}
-
 export function createChat(options: CreateChatOptions): Chat {
-  const chat: Chat = useChat(
-    mergeProps(options, {
-      onCustomEvent: (name: string, value: unknown, context: {toolCallId?: string}) => {
-        applyToolTime(chat, name, value)
-        options.onCustomEvent?.(name, value, context)
-      },
-    }),
-  )
-  return chat
+  return useChat(options)
 }
 
 export function createChatSession(options: CreateChatSessionOptions): ChatSession {
@@ -270,11 +260,15 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     return [...(await reaching(older)), ...hydration.messages]
   }
   const latestWindow = async (): Promise<ChatMessage[]> => reaching(await connection.refresh())
-  const showWindow = (window: readonly ChatMessage[]): void => {
-    chat.setMessages(stitched(chat.messages(), window))
+  const shownIds = (): Set<string> => new Set(chat.messages().map((message) => message.id))
+  const showWindow = (window: readonly ChatMessage[], shown: Set<string>): void => {
+    const fetched = new Set(window.map((message) => message.id))
+    const sentSince = chat.messages().filter((message) => !shown.has(message.id) && !fetched.has(message.id))
+    chat.setMessages(stitched(chat.messages(), [...window, ...sentSince]))
   }
   const refresh = async (): Promise<void> => {
-    showWindow(await latestWindow())
+    const shown = shownIds()
+    showWindow(await latestWindow(), shown)
   }
   const declinesRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId || loadFailed()
   const declinesKnownRun = (runId: string, known: boolean): boolean =>
@@ -282,14 +276,14 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const joinedRun = async (runId: string): Promise<boolean> => {
     const known = runSource()?.lifecycle.runId === runId
     if (declinesKnownRun(runId, known)) return false
+    const shown = shownIds()
     const window = await latestWindow()
     if (declinesKnownRun(runId, known)) return false
-    showWindow(window)
+    showWindow(window, shown)
     return true
   }
   const chat: Chat = useChat({
     threadId: options.sessionId,
-    onCustomEvent: (name, value) => applyToolTime(chat, name, value),
     connection,
     persistence: true,
     history: {pageSize: CHAT_HISTORY_PAGE_SIZE},
@@ -376,8 +370,22 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   }
   const decide = (approvalId: string, reply: PermissionReply): Promise<void> =>
     options.decide(approvalId, reply).finally(() => withdraw(approvalId))
+  const flushed = createScheduled((flush) => {
+    const throttled = throttle(flush, MESSAGES_FLUSH_MS)
+    makeEventListener(document, 'visibilitychange', () => {
+      if (document.hidden) return
+      throttled.clear()
+      flush()
+    })
+    return throttled
+  })
+  const messages = createMemo<ReturnType<Chat['messages']>>((shown) => {
+    const latest = chat.messages()
+    return !chatBusy(chat) || flushed() ? latest : shown
+  }, chat.messages())
   return {
     ...chat,
+    messages,
     sendMessage,
     error,
     withdrawn,

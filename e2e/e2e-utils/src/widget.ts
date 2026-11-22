@@ -1,6 +1,6 @@
-import {readFileSync, writeFileSync} from 'node:fs'
+import {readFileSync, watch} from 'node:fs'
 import {expect, test, type ConsoleMessage, type Page} from '@playwright/test'
-import {magicLink, recordedEngineBase, trustedBrowserToken} from '@conciv/harness-testkit/login'
+import {magicLink, recordedEngineBase, testProjectDir} from './login.js'
 import {e2eConfigDir, e2eServerLog} from './config.js'
 
 export type PageFailures = {
@@ -75,6 +75,7 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
     throw detail === '' ? error : new Error(`widget did not boot\n${detail}`, {cause: error})
   }
   if ((await launcher.getAttribute('aria-expanded')) !== 'true') await launcher.click()
+  await page.getByRole('tab', {name: 'Chat'}).click()
   await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
   const transientOptimizerReload = /Failed to fetch dynamically imported module|504 \(Outdated Optimize Dep\)/
   const detail = describeFailures(failures)
@@ -104,17 +105,12 @@ async function pageEngine(page: Page, path: string, projectDir: string): Promise
   return {origin, base: recordedEngineBase(projectDir, origin)}
 }
 
-export async function loginWidget(page: Page, path = '/', projectDir = process.cwd()): Promise<void> {
+export async function loginWidget(page: Page, path = '/', projectDir = testProjectDir()): Promise<void> {
   const {base} = await pageEngine(page, path, projectDir)
   const link = await magicLink(base, page.url())
   await page.goto('about:blank')
   await page.goto(link, {waitUntil: 'domcontentloaded', timeout: 60_000})
   await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()
-}
-
-export async function trustedEngineBase(page: Page, path = '/', projectDir = process.cwd()): Promise<string> {
-  const {origin, base} = await pageEngine(page, path, projectDir)
-  return `${origin}/t/${await trustedBrowserToken(base)}`
 }
 
 const PRINTED_CODE = /#conciv_otp=(\d{6})/g
@@ -125,41 +121,24 @@ function printedCodes(logPath: string): string[] {
   )
 }
 
+function nextPrintedCode(logPath: string): Promise<string> {
+  const seen = printedCodes(logPath).length
+  const {promise, resolve, reject} = Promise.withResolvers<string>()
+  const watcher = watch(logPath, {persistent: false}, () => {
+    const code = printedCodes(logPath)[seen]
+    if (code === undefined) return
+    watcher.close()
+    resolve(code)
+  })
+  watcher.on('error', reject)
+  return promise
+}
+
 export async function openLoginFromLockedLauncher(page: Page, path = '/'): Promise<string> {
   await engineOrigin(page, path)
   const logPath = e2eServerLog(e2eConfigDir(test.info().config.configFile), Number(new URL(page.url()).port))
-  const seen = printedCodes(logPath).length
+  const printed = nextPrintedCode(logPath)
   await page.getByRole('button', {name: 'Unauthorized. Authorize conciv'}).click()
   await expect(page.getByRole('dialog', {name: 'Authorize conciv'})).toBeVisible()
-  await expect.poll(() => printedCodes(logPath).length).toBeGreaterThan(seen)
-  return printedCodes(logPath).at(-1) ?? ''
-}
-
-export async function expectPluginBundleReloadsInPlace(
-  page: Page,
-  failures: PageFailures,
-  bundlePath: string,
-): Promise<void> {
-  const launcher = page.getByRole('button', {name: /conciv chat$/})
-  await expect(launcher).toBeVisible()
-  if ((await launcher.getAttribute('aria-expanded')) !== 'true') await launcher.click()
-  await page.getByRole('tab', {name: 'Chat'}).click()
-  await expectWidgetBoots(page, failures)
-  const original = readFileSync(bundlePath, 'utf8')
-  const draft = 'a draft the reload keeps'
-  const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
-  try {
-    await expect(page.getByText('live line first')).toBeVisible()
-    await composer.click()
-    await composer.pressSequentially(draft)
-    await expect(composer).toHaveText(draft)
-    await page.evaluate(() => Reflect.set(globalThis, 'concivLiveEditMarker', 'kept'))
-    writeFileSync(bundlePath, original.replace('live line first', 'live line second'))
-    await expect(page.getByText('live line second')).toBeVisible()
-    await expect(page.getByText('live line first')).toHaveCount(0)
-    await expect(composer).toHaveText(draft)
-    expect(await page.evaluate(() => Reflect.get(globalThis, 'concivLiveEditMarker'))).toBe('kept')
-  } finally {
-    writeFileSync(bundlePath, original)
-  }
+  return printed
 }

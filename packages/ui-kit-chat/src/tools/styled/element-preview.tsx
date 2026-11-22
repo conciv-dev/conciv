@@ -14,6 +14,7 @@ import {createResizeObserver} from '@solid-primitives/resize-observer'
 import type {createCache, createMirror, rebuildIntoSandboxedIframe} from 'rrweb-snapshot'
 import {isDangerousTag, neutralizeSubtree} from '@conciv/protocol/element-capture-sanitize'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
+import {prefersReducedMotion} from '@conciv/ui-kit-system'
 import {Chip, ChipRow} from './chip.js'
 import {SUNKEN_SURFACE} from './code-block.js'
 
@@ -125,10 +126,6 @@ function cropToTarget(frame: HTMLElement, replicaRoot: HTMLElement, target: Elem
   replicaRoot.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`
   frame.style.height = `${targetRect.height * scale + FRAME_PADDING * 2}px`
   return true
-}
-
-function prefersReducedMotion(): boolean {
-  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 function playEntrance(frame: Element): void {

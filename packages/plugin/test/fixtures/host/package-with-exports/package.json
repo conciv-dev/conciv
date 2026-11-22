@@ -1,0 +1,9 @@
+{
+  "name": "fixture-package-with-exports",
+  "type": "module",
+  "exports": {
+    "./server": "./server.js",
+    "./rpc": "./rpc.js",
+    "./plugin-experimental": "./plugin-experimental.js"
+  }
+}

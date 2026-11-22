@@ -1,5 +1,5 @@
 import {LETTER_KEYS, NUMBER_KEYS, PUNCTUATION_CODE_MAP, parseHotkey} from '@tanstack/hotkeys'
-import {isSensitiveField, MASKED_VALUE} from './capture.js'
+import {isSensitiveField, MASKED_VALUE} from './snapshot.js'
 import {frameDocument} from './cursor.js'
 import {
   isHtml,

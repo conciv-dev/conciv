@@ -1,5 +1,0 @@
-export type Attachment = {name: string}
-export const attachments: Attachment[] = []
-export type AdoptionOutcome = {accepted: boolean}
-export const snapshotOfKeys = {key: 'k'}
-export const presentValue = true

@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {readSessionStorage} from './session-storage'
 
 const LEAVING_COPY_PREFIX = 'conciv-draft-leaving:'
 
@@ -15,15 +16,6 @@ const LeavingCopySchema = z
   .pipe(z.object({stamp: z.number(), draft: z.unknown()}))
 
 export type LeavingCopy<T> = {stamp: number; draft: T}
-
-function readSessionStorage(): Storage | undefined {
-  try {
-    return typeof sessionStorage === 'undefined' ? undefined : sessionStorage
-  } catch (error) {
-    console.error('[persistence] this page has no sessionStorage, so no draft leaving copy is kept', error)
-    return undefined
-  }
-}
 
 function leavingKey(name: string): string {
   return `${LEAVING_COPY_PREFIX}${name}`

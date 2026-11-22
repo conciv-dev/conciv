@@ -206,17 +206,31 @@ function ThreadContent(props: {onReplyReady: (field: HTMLElement) => void}): JSX
 export function ThreadPopover(props: {visible: boolean}): JSX.Element {
   const ui = usePlugin().ui
   const model = useComments()
-  const [reply, setReply] = createStore<{field: HTMLElement | undefined}>({field: undefined})
+  const [reply, setReply] = createStore<{field: HTMLElement | undefined; missed: boolean}>({
+    field: undefined,
+    missed: false,
+  })
+  const readInitialFocus = (): HTMLElement | undefined => {
+    if (reply.field?.isConnected) return reply.field
+    setReply('missed', true)
+    return undefined
+  }
+  const takeReply = (field: HTMLElement): void => {
+    setReply('field', field)
+    if (!reply.missed) return
+    setReply('missed', false)
+    field.focus()
+  }
   return (
     <ui.Popover
       anchor={model.openPinButton}
-      initialFocus={() => reply.field}
+      initialFocus={readInitialFocus}
       open={props.visible && model.openRoot() !== undefined}
       onOpenChange={(open) => open || model.closeThread()}
       label="Comment thread"
     >
       <div class="flex flex-col max-h-120 w-85 pointer-events-auto">
-        <ThreadContent onReplyReady={(field) => setReply('field', field)} />
+        <ThreadContent onReplyReady={takeReply} />
       </div>
     </ui.Popover>
   )

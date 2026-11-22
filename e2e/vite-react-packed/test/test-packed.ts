@@ -1,5 +1,5 @@
 import {spawnSync} from 'node:child_process'
-import {cpSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {cpSync, mkdirSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'
 import {WORKSPACE_ROOT, buildAndPack, installPacked, readManifest} from '@conciv/vitest-config/pack'
@@ -7,14 +7,23 @@ import {PACKED_APP_DIR, PACKED_ROOT} from './packed-app-dir.ts'
 
 const SOURCE_APP = join(WORKSPACE_ROOT, 'e2e/vite-react')
 const SCAFFOLD_ENTRIES = ['index.html', 'src', 'public']
+const CONSUMER_PACKAGES = ['@conciv/it', 'react', 'react-dom']
 const VITE_TOOLING = ['vite', '@vitejs/plugin-react']
 const TARBALL_DIR = join(PACKED_ROOT, 'tarballs')
 const LOCK_PATH = join(import.meta.dirname, '..', 'fixture-lock.yaml')
-const DEV_ENDPOINT_IMPORT = `import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'`
 const PACKED_CONFIG_DIR = join(import.meta.dirname, '..')
 const DEV_ENDPOINT_ENV = 'CONCIV_E2E_DEV_ENDPOINT_DIR'
-const DEV_ENDPOINT_FROM_ENV =
-  'const e2eDevEndpointDir = () => { const folder = process.env.CONCIV_E2E_DEV_ENDPOINT_DIR; if (!folder) throw new Error("CONCIV_E2E_DEV_ENDPOINT_DIR is not set; run this app through test-packed.ts"); return folder }'
+const VITE_CONFIG = `import {defineConfig} from 'vite'
+import react from '@vitejs/plugin-react'
+import conciv from '@conciv/it/plugin/vite'
+
+const devEndpointDir = process.env.${DEV_ENDPOINT_ENV}
+if (!devEndpointDir) throw new Error('${DEV_ENDPOINT_ENV} is not set; run this app through test-packed.ts')
+
+export default defineConfig({
+  plugins: [react(), conciv({devEndpointDir})],
+})
+`
 
 async function timed<T>(label: string, step: () => Promise<T>): Promise<T> {
   const started = performance.now()
@@ -29,20 +38,9 @@ function installedVersion(name: string): string {
   return version
 }
 
-function sourceDependencyNames(): string[] {
-  return Object.keys(readManifest(join(SOURCE_APP, 'package.json')).dependencies ?? {})
-}
-
 function consumerDependencies(): Record<string, string> {
-  const names = [...sourceDependencyNames(), ...VITE_TOOLING]
+  const names = [...CONSUMER_PACKAGES, ...VITE_TOOLING]
   return Object.fromEntries(names.map((name) => [name, installedVersion(name)]))
-}
-
-function viteConfigSource(): string {
-  const source = readFileSync(join(SOURCE_APP, 'vite.config.ts'), 'utf8')
-  if (!source.includes(DEV_ENDPOINT_IMPORT))
-    throw new Error(`e2e/vite-react/vite.config.ts no longer imports ${DEV_ENDPOINT_IMPORT}`)
-  return source.replace(DEV_ENDPOINT_IMPORT, DEV_ENDPOINT_FROM_ENV)
 }
 
 function writeConsumer(): void {
@@ -51,13 +49,13 @@ function writeConsumer(): void {
   }
   const manifest = {name: 'vite-react-packed', private: true, type: 'module', dependencies: consumerDependencies()}
   writeFileSync(join(PACKED_APP_DIR, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
-  writeFileSync(join(PACKED_APP_DIR, 'vite.config.ts'), viteConfigSource())
+  writeFileSync(join(PACKED_APP_DIR, 'vite.config.ts'), VITE_CONFIG)
 }
 
 rmSync(PACKED_ROOT, {recursive: true, force: true})
 mkdirSync(TARBALL_DIR, {recursive: true})
 mkdirSync(PACKED_APP_DIR, {recursive: true})
-const {overrides} = await timed('pack', () => buildAndPack(TARBALL_DIR, sourceDependencyNames()))
+const {overrides} = await timed('pack', () => buildAndPack(TARBALL_DIR, CONSUMER_PACKAGES))
 writeConsumer()
 await timed('install', () =>
   installPacked({

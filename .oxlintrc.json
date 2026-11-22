@@ -27,6 +27,7 @@
     "conciv/banned-vocabulary": "error",
     "conciv/lucide-per-icon": "error",
     "conciv/no-comments": "error",
+    "conciv/no-forced-click": "error",
     "conciv/no-hand-made-temp-dir": "error",
     "conciv/no-inline-timeouts": "error",
     "conciv/no-locator-poll": "error",
@@ -34,8 +35,10 @@
     "conciv/no-of-suffix": "error",
     "conciv/no-signal-ref": "error",
     "conciv/no-teardown-hooks": "error",
+    "conciv/playwright-test-in-e2e": "error",
     "conciv/solid-test-render": "error",
     "conciv/test-file-budget": "error",
+    "conciv/test-file-top-level": "error",
     "conciv/tool-card-shell": "error",
     "conciv/user-event-only": "error",
     "unicorn/consistent-function-scoping": "off",
@@ -121,6 +124,10 @@
             "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
           },
           {
+            "name": "@effect/platform-node",
+            "message": "Import @effect/platform-node by subpath (@effect/platform-node/NodeFileSystem and the like), never the bare barrel: it loads about 770 extra modules, a redis client among them, into every engine process."
+          },
+          {
             "name": "@tanstack/solid-query",
             "message": "Import TanStack Query from @conciv/client, never @tanstack/solid-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
           },
@@ -202,6 +209,10 @@
                 "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
               },
               {
+                "name": "@effect/platform-node",
+                "message": "Import @effect/platform-node by subpath (@effect/platform-node/NodeFileSystem and the like), never the bare barrel: it loads about 770 extra modules, a redis client among them, into every engine process."
+              },
+              {
                 "name": "@tanstack/solid-query",
                 "message": "Import TanStack Query from @conciv/client, never @tanstack/solid-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
               },
@@ -236,6 +247,10 @@
                 "name": "@hono/node-server",
                 "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
                 "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+              },
+              {
+                "name": "@effect/platform-node",
+                "message": "Import @effect/platform-node by subpath (@effect/platform-node/NodeFileSystem and the like), never the bare barrel: it loads about 770 extra modules, a redis client among them, into every engine process."
               }
             ],
             "patterns": [
@@ -264,6 +279,10 @@
                 "name": "@hono/node-server",
                 "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
                 "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+              },
+              {
+                "name": "@effect/platform-node",
+                "message": "Import @effect/platform-node by subpath (@effect/platform-node/NodeFileSystem and the like), never the bare barrel: it loads about 770 extra modules, a redis client among them, into every engine process."
               },
               {
                 "name": "@tanstack/solid-query",
@@ -311,8 +330,7 @@
         "packages/react/**",
         "packages/preact/**",
         "packages/brand-react/**",
-        "apps/examples/tanstack-start/src/**",
-        "packages/plugins/page/test/fixtures/**"
+        "apps/examples/tanstack-start/src/**"
       ],
       "rules": {
         "solid/jsx-no-duplicate-props": "off",
@@ -371,8 +389,7 @@
         "packages/plugins/page/src/toast.ts",
         "packages/plugins/page/src/grab.ts",
         "packages/plugins/page/src/grab-preview.ts",
-        "packages/plugins/page/src/client.ts",
-        "packages/plugins/page/test/fixtures/**"
+        "packages/plugins/page/src/client.ts"
       ],
       "rules": {
         "unocss/order": "off"
@@ -385,18 +402,12 @@
       }
     },
     {
-      "files": ["packages/plugins/*/test/**", "packages/plugin-testkit/**/test/**"],
+      "files": ["packages/plugins/*/test/**"],
       "rules": {
         "playwright/no-raw-locators": "error",
         "playwright/no-eval": "error",
         "playwright/no-element-handle": "error",
         "playwright/prefer-native-locators": "error",
-        "playwright/prefer-web-first-assertions": "error"
-      }
-    },
-    {
-      "files": ["packages/embed/test/**", "packages/plugin-testkit/src/**"],
-      "rules": {
         "playwright/prefer-web-first-assertions": "error"
       }
     },
@@ -415,7 +426,8 @@
     {
       "files": ["**/test/**", "**/*.test.ts", "**/*.test.tsx"],
       "rules": {
-        "conciv/banned-vocabulary": "off"
+        "conciv/banned-vocabulary": "off",
+        "conciv/no-query-existence-assert": "error"
       }
     },
     {
@@ -431,36 +443,13 @@
       }
     },
     {
-      "files": [
-        "packages/plugin-host/test/core/config-plugin-source.test.ts",
-        "packages/plugin-host/test/core/database-drizzle.test.ts",
-        "packages/plugin-host/test/core/fixture/tmpdir.ts",
-        "packages/plugin-host/test/core/plugin.test.ts",
-        "packages/plugin-host/test/core/util/effect-flock.test.ts"
-      ],
+      "files": ["e2e/nextjs/packed/harness.ts", "e2e/nextjs/test/packed-trust-policy-install.spec.ts"],
       "rules": {
         "conciv/no-hand-made-temp-dir": "off"
       }
     },
     {
-      "files": [
-        "apps/site/test/helpers.ts",
-        "e2e/nextjs/test/packed-closure.spec.ts",
-        "e2e/nextjs/packed/harness.ts",
-        "e2e/nextjs/test/packed-trust-policy-install.spec.ts"
-      ],
-      "rules": {
-        "conciv/no-hand-made-temp-dir": "off"
-      }
-    },
-    {
-      "files": ["packages/harness-testkit/src/create-testkit.ts"],
-      "rules": {
-        "conciv/no-hand-made-temp-dir": "off"
-      }
-    },
-    {
-      "files": ["packages/harness-testkit/src/node.ts"],
+      "files": ["packages/harness-testkit/src/harness-engine.ts"],
       "rules": {
         "conciv/no-hand-made-temp-dir": "off"
       }
@@ -472,63 +461,15 @@
       }
     },
     {
-      "files": ["packages/ai/test/ai.test.ts"],
-      "rules": {
-        "conciv/no-hand-made-temp-dir": "off"
-      }
-    },
-    {
-      "files": ["packages/cli/test/**"],
-      "rules": {
-        "conciv/no-timers-in-tests": "error"
-      }
-    },
-    {
-      "files": ["packages/mascot/**"],
-      "rules": {
-        "conciv/test-file-budget": ["error", {"max": 4}]
-      }
-    },
-    {
-      "files": ["packages/core/**"],
-      "rules": {
-        "conciv/test-file-budget": ["error", {"max": 4}]
-      }
-    },
-    {
-      "files": ["packages/plugin-host/**"],
-      "rules": {
-        "conciv/test-file-budget": ["error", {"max": 39}]
-      }
-    },
-    {
-      "files": ["packages/plugin/**"],
-      "rules": {
-        "conciv/test-file-budget": ["error", {"max": 3}]
-      }
-    },
-    {
       "files": ["packages/plugin-host/src/core/session/instruction-state.ts"],
       "rules": {
         "conciv/banned-vocabulary": "off"
       }
     },
     {
-      "files": ["packages/plugin-host/src/**", "packages/plugin-host/test/core/instructions/index.test.ts"],
+      "files": ["packages/plugin-host/src/**"],
       "rules": {
         "require-yield": "off"
-      }
-    },
-    {
-      "files": ["packages/ui-kit-chat/**"],
-      "rules": {
-        "conciv/test-file-budget": ["error", {"max": 5}]
-      }
-    },
-    {
-      "files": ["apps/conciv/**"],
-      "rules": {
-        "conciv/test-file-budget": ["error", {"max": 20}]
       }
     },
     {
@@ -578,12 +519,6 @@
       }
     },
     {
-      "files": ["apps/conciv/src/runtime/plugin/composer-write-machine.test.ts"],
-      "rules": {
-        "unicorn/no-thenable": "off"
-      }
-    },
-    {
       "files": [
         "apps/conciv/src/runtime/plugin/host-apis.tsx",
         "apps/conciv/src/runtime/plugin/host.tsx",
@@ -595,18 +530,9 @@
       }
     },
     {
-      "files": [
-        "apps/conciv/src/runtime/plugin/session-store-machine.ts",
-        "apps/conciv/src/runtime/plugin/session-store-machine.test.ts"
-      ],
+      "files": ["apps/conciv/src/runtime/plugin/session-store-machine.ts"],
       "rules": {
         "unicorn/no-array-sort": "off"
-      }
-    },
-    {
-      "files": ["packages/ui-kit-system/test/dialog-harness.tsx"],
-      "rules": {
-        "conciv/solid-test-render": "off"
       }
     }
   ],
@@ -619,10 +545,7 @@
     "**/*.gen.ts",
     "**/*.gen.tsx",
     "**/test-results",
-    "packages/unplugin/test/fixtures/**",
-    "packages/plugins/tanstack/test/fixtures/**",
-    "packages/cli/test/fixtures/**",
-    "packages/oxlint-plugin/test/fixtures/**",
+    "packages/oxlint-plugin/src/fixtures/test-file-budget",
     "e2e/solid-start/src",
     "e2e/svelte/src",
     "e2e/tanstack-start/src",

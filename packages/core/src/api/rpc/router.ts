@@ -314,7 +314,7 @@ async function eventStream(
     Stream.map(() => ({id: Event.Id.create(), type: 'server.heartbeat', data: {}})),
   )
   const stream = output.pipe(Stream.merge(heartbeat, {haltStrategy: 'left'}))
-  return relayEvents(Stream.toAsyncIterable(stream)[Symbol.asyncIterator](), signal)
+  return relayEvents(Stream.toAsyncIterableWith(stream, await host.context())[Symbol.asyncIterator](), signal)
 }
 
 const PtyResumeCursor = z.coerce.number().int().nonnegative()
@@ -358,7 +358,10 @@ function locationResponse<Data, Failure, Services>(data: Effect.Effect<Data, Fai
 }
 
 function pluginList(host: PluginHost, signal: AbortSignal | undefined) {
-  return host.runPromise(locationResponse(Plugin.Service.use((plugins) => plugins.list())), {signal})
+  return host.runPromise(
+    locationResponse(Plugin.awaitActivation.pipe(Effect.andThen(Plugin.Service.use((plugins) => plugins.list())))),
+    {signal},
+  )
 }
 
 function skillList(host: PluginHost, signal: AbortSignal | undefined) {
@@ -469,10 +472,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
             .orderBy(asc(sql`rowid`)),
         ),
       ),
-    },
-    navigation: {
-      get: os.navigation.get.handler(() => engine.navigation.get()),
-      set: os.navigation.set.handler(({input}) => engine.navigation.set(input)),
     },
     registry: {
       catalog: os.registry.catalog.handler(({signal}) => deps.pluginHost.runPromise(pluginSignatures, {signal})),

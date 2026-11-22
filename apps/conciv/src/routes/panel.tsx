@@ -1,6 +1,6 @@
 import {Outlet, createFileRoute, useLocation} from '@tanstack/solid-router'
 import {FocusTrap, createResizable} from '@conciv/ui-kit-system'
-import {Show, createEffect, createMemo, createSignal, type JSX, type ParentProps} from 'solid-js'
+import {Show, createEffect, createMemo, createSignal, on, type JSX, type ParentProps} from 'solid-js'
 import {createActiveElement} from '@solid-primitives/active-element'
 import {panelPlacement} from '../lib/draggable-position.js'
 import {useEnvironment, useFabAnchor, useLayers, usePanelWidthCap, useSettings, useSuppressed} from '../app/context.js'
@@ -8,6 +8,7 @@ import {makePanelComposerFocus, PanelComposerFocusContext} from '../app/panel-fo
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import {hostPageHasFocus} from '../lib/host-focus.js'
+import {PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
 import {NoticeSurface} from '../shell/notice-context.js'
 import {
   EngineLockedNotice,
@@ -119,15 +120,18 @@ function PanelLayout(): JSX.Element {
 
   const composerFocus = makePanelComposerFocus()
   const keepTrapFromFocusing = (): false => false
+  const focusedOverlay = (): Element | null => document.activeElement?.closest(`[${PLUGIN_OVERLAY_ATTR}]`) ?? null
+  const overlaysKeepFocus = [focusedOverlay]
   const activeElement = createActiveElement()
   const hostHoldsFocus = createMemo(() => activeElement() !== null && hostPageHasFocus(environment.rootNode))
   const restoringFocus = useLocation({select: (location) => location.state.restoreFocus !== undefined})
-  createEffect(() => {
-    if (!open()) return
-    if (restoringFocus()) return
-    if (hostPageHasFocus(environment.rootNode)) return
-    composerFocus.handle()?.focus()
-  })
+  createEffect(
+    on([open, restoringFocus, composerFocus.handle], ([isOpen, restoring, handle]) => {
+      if (!isOpen || restoring) return
+      if (hostPageHasFocus(environment.rootNode)) return
+      handle?.focus()
+    }),
+  )
 
   const resizeY = createResizable({
     initial: defaultPanelHeight(window.innerHeight, rootFontSizePx()),
@@ -153,6 +157,7 @@ function PanelLayout(): JSX.Element {
           disabled={docked || !open() || layers.anyOpen() || hostHoldsFocus()}
           initialFocus={keepTrapFromFocusing}
           returnFocusOnDeactivate={false}
+          persistentElements={overlaysKeepFocus}
         >
           <section
             class={`${PANEL_BASE} ${sheet() ? PANEL_SHEET : PANEL_CARD} ${open() ? PANEL_OPEN : PANEL_CLOSING}`}

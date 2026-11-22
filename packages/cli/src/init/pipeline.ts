@@ -37,10 +37,18 @@ import {promisify} from 'node:util'
 
 type CommandOutcome = {code: number; output: string}
 
+const interruptGraceMs = 5000
+
 export function execFileOutcome(
   bin: string,
   args: string[],
-  options: {cwd: string; env?: NodeJS.ProcessEnv; timeout?: number; started?: (pid: number) => string | null},
+  options: {
+    cwd: string
+    env?: NodeJS.ProcessEnv
+    timeout?: number
+    started?: (pid: number) => string | null
+    signal?: AbortSignal
+  },
   onLine: (line: string) => void,
 ): Promise<CommandOutcome> {
   return new Promise((settle, reject) => {
@@ -49,7 +57,25 @@ export function execFileOutcome(
       env: options.env,
       timeout: options.timeout,
       killSignal: 'SIGKILL',
+      detached: options.signal !== undefined,
     })
+    const running = (): boolean => child.exitCode === null && child.signalCode === null
+    const signalGroup = (signal: NodeJS.Signals): void => {
+      if (child.pid !== undefined && running()) process.kill(-child.pid, signal)
+    }
+    const stopGroup = (): void => {
+      signalGroup('SIGINT')
+      const force = (): void => signalGroup('SIGKILL')
+      const timer = setTimeout(force, interruptGraceMs)
+      const releaseForce = onInterrupt(force)
+      child.on('close', () => {
+        clearTimeout(timer)
+        releaseForce()
+      })
+    }
+    options.signal?.addEventListener('abort', stopGroup, {once: true})
+    child.on('close', () => options.signal?.removeEventListener('abort', stopGroup))
+    if (options.signal?.aborted) stopGroup()
     const refused = child.pid === undefined ? null : (options.started?.(child.pid) ?? null)
     if (refused !== null) {
       child.kill('SIGKILL')
@@ -173,10 +199,10 @@ export type RunSettings = {
   yes: boolean
   dryRun: boolean
   backup: (file: FileBackup) => void
-  interrupt: (recover: () => void) => () => void
+  signal: AbortSignal
 }
 
-export type InitContext = Omit<RunSettings, 'interrupt'> & {
+export type InitContext = RunSettings & {
   report: (line: string) => void
   note: (note: StepNote) => void
   feed: (line: string) => void
@@ -202,7 +228,7 @@ export type InitResult =
   | {outcome: 'planned'; plan: string}
   | {outcome: 'completed'; steps: LedgerEntry[]; next: string[]}
 
-type SpawnOptions = {timeout: number; started: (pid: number) => string | null}
+type SpawnOptions = {timeout?: number; started?: (pid: number) => string | null; signal?: AbortSignal}
 
 export type SpawnBin = (
   bin: string,
@@ -232,12 +258,12 @@ function spawnBin(
   onLine: (line: string) => void,
   options?: SpawnOptions,
 ): Promise<CommandOutcome> {
-  return execFileOutcome(bin, args, {cwd, timeout: options?.timeout, started: options?.started}, onLine)
+  return execFileOutcome(bin, args, {cwd, ...options}, onLine)
 }
 
 function defaultRuntime(): InitRuntime {
   return {
-    addDependency: addWithNypm,
+    addDependency: addWithNypm(spawnBin),
     spawn: spawnBin,
     prompts: clackPrompts,
     env: {PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? homedir()},
@@ -322,7 +348,16 @@ async function planRows(steps: InitStep[], ctx: InitContext): Promise<PlanRow[]>
 }
 
 function quietContext(cwd: string, yes: boolean): InitContext {
-  return {cwd, yes, dryRun: true, report: () => {}, note: () => {}, backup: () => {}, feed: () => {}}
+  return {
+    cwd,
+    yes,
+    dryRun: true,
+    signal: new AbortController().signal,
+    report: () => {},
+    note: () => {},
+    backup: () => {},
+    feed: () => {},
+  }
 }
 
 export async function runInit(options: InitOptions, overrides: Partial<InitRuntime> = {}): Promise<InitResult> {
@@ -365,24 +400,27 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
     return {outcome: 'planned', plan: approved.plan}
   }
   const backups = guardBackups()
+  const interruption = new AbortController()
+  const releaseInterrupt = onInterrupt(() => interruption.abort())
   const settings: RunSettings = {
     cwd: options.cwd,
     yes: options.yes,
     dryRun: false,
     backup: backups.remember,
-    interrupt: (recover) =>
-      onInterrupt(() => {
-        recover()
-        backups.restore()
-        runtime.output.cancelled('Interrupted — your config was restored.')
-        runtime.exit(130)
-      }),
+    signal: interruption.signal,
   }
   const entries = await runSteps(
     stepList(detected, approved.selections, runtime, hubAgents(found)),
     settings,
     runtime.output,
   )
+  releaseInterrupt()
+  if (interruption.signal.aborted) {
+    backups.restore()
+    runtime.output.cancelled('Interrupted — your config was restored.')
+    runtime.exit(130)
+    return {outcome: 'cancelled', reason: 'interrupted, your config was restored'}
+  }
   backups.release()
   const next = nextSteps(detected.packageManager)
   emitOutro(runtime.output, entries, next)
@@ -398,6 +436,7 @@ function refuse(runtime: InitRuntime, reason: string): InitResult {
 export async function runSteps(steps: InitStep[], settings: RunSettings, output: InitOutput): Promise<LedgerEntry[]> {
   const entries: LedgerEntry[] = []
   for (const current of steps) {
+    if (settings.signal.aborted) break
     entries.push(await runOne(current, settings, output))
   }
   return entries
@@ -405,10 +444,9 @@ export async function runSteps(steps: InitStep[], settings: RunSettings, output:
 
 async function runOne(step: InitStep, settings: RunSettings, output: InitOutput): Promise<LedgerEntry> {
   const emissions: Emission[] = []
-  const {interrupt, ...base} = settings
   const line = output.step(step.running)
   const ctx: InitContext = {
-    ...base,
+    ...settings,
     report: (text) => {
       emissions.push({kind: 'line', text})
     },
@@ -419,10 +457,11 @@ async function runOne(step: InitStep, settings: RunSettings, output: InitOutput)
       line.line(text)
     },
   }
-  const release = interrupt(() => {
+  const entry = await settleStep(step, ctx)
+  if (settings.signal.aborted) {
     line.settle({status: 'skipped', summary: `${step.title} — interrupted`})
-  })
-  const entry = await settleStep(step, ctx).finally(release)
+    return entry
+  }
   line.settle({status: entry.status, summary: stepSummary(step, entry)})
   for (const emission of emissions) emit(output, emission)
   return entry

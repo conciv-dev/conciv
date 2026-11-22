@@ -46,6 +46,8 @@ function rpcConnectionContext(requestUrl: string, callerOrigin: string | null, h
   return {origin: new URL(requestUrl).origin, callerOrigin, headers}
 }
 
+export type TraceRpcCall = (path: readonly string[], call: () => Promise<unknown>) => Promise<unknown>
+
 type SocketStreams = {revoked: AbortSignal; replies: Set<Promise<boolean>>; unsent: () => number}
 
 function isEventIterator(value: unknown): value is AsyncIteratorObject<unknown, unknown, void> {
@@ -84,12 +86,21 @@ function heldUntilReplied(streams: SocketStreams, replied: Promise<boolean> | un
   void replied.finally(() => streams.replies.delete(replied))
 }
 
-function rpcHandlerOptions(streams?: SocketStreams): StandardRPCHandlerOptions<RpcContext> {
+function endedOnRevoke(signal: AbortSignal | undefined, streams: SocketStreams | undefined): AbortSignal | undefined {
+  if (streams === undefined) return signal
+  return AbortSignal.any(signal === undefined ? [streams.revoked] : [signal, streams.revoked])
+}
+
+function rpcHandlerOptions(
+  traceCall: TraceRpcCall | undefined,
+  streams?: SocketStreams,
+): StandardRPCHandlerOptions<RpcContext> {
   return {
     rootInterceptors: [
       (options) =>
         options.next({
           ...options,
+          request: {...options.request, signal: endedOnRevoke(options.request.signal, streams)},
           context: {
             ...options.context,
             headers: {...options.context.headers, ...options.request.headers},
@@ -98,6 +109,7 @@ function rpcHandlerOptions(streams?: SocketStreams): StandardRPCHandlerOptions<R
         }),
     ],
     clientInterceptors: [
+      ...(traceCall === undefined ? [] : [tracedCall(traceCall)]),
       (options) => {
         if (options.context.socket?.allows(options.path) === false) {
           throw new ORPCError('UNAUTHORIZED', {message: 'this connection is not trusted'})
@@ -114,13 +126,19 @@ function rpcHandlerOptions(streams?: SocketStreams): StandardRPCHandlerOptions<R
   }
 }
 
+function tracedCall(
+  traceCall: TraceRpcCall,
+): NonNullable<StandardRPCHandlerOptions<RpcContext>['clientInterceptors']>[number] {
+  return (options) => traceCall(options.path, () => options.next())
+}
+
 function readClientVersion(headers: RpcHeaders): string | undefined {
   const value = headers[CONCIV_VERSION_HEADER]
   return ClientVersionSchema.parse(Array.isArray(value) ? value[0] : value)
 }
 
-export function rpcFetchMiddleware(router: AnyRouter): MiddlewareHandler {
-  const handler = new RPCHandler<RpcContext>(router, rpcHandlerOptions())
+export function rpcFetchMiddleware(router: AnyRouter, traceCall?: TraceRpcCall): MiddlewareHandler {
+  const handler = new RPCHandler<RpcContext>(router, rpcHandlerOptions(traceCall))
   return async (c, next) => {
     const {matched, response} = await handler.handle(c.req.raw, {
       prefix: RPC_PREFIX,
@@ -188,6 +206,7 @@ export function rpcWebsocketRoute(
     upgrade: UpgradeWebSocket
     onError?: (message: string) => void
     gate?: (c: Context) => RpcSocketGate
+    traceCall?: TraceRpcCall
   },
 ): MiddlewareHandler {
   const route = options.upgrade((c) => {
@@ -198,7 +217,7 @@ export function rpcWebsocketRoute(
       replies: new Set(),
       unsent: () => unsentBytes(held.socket),
     }
-    const handler = new WebsocketRPCHandler<RpcContext>(router, rpcHandlerOptions(streams))
+    const handler = new WebsocketRPCHandler<RpcContext>(router, rpcHandlerOptions(options.traceCall, streams))
     const gate = options.gate?.(c)
     const connection = rpcConnectionContext(c.req.url, c.req.header('origin') ?? null, upgradeHeaders(c))
     const context = gate === undefined ? connection : {...connection, socket: gate.trust}

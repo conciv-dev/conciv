@@ -30,7 +30,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 - `notices.tsx:createNoticeStore`: a success notice with no icon shows the lucide `check`; a loading notice shows the kit `Loader` in the icon slot
 - `notice-context.tsx:useNotices`: throws outside `NoticeContextProvider`
 - `engine-notice.tsx:EngineStaleNotice`: one standing notice per engine `fingerprint`; cleared when the engine reports not stale and when the component unmounts
-- `engine-notice.tsx:EngineUnreachableNotice`: shown only while `sustainedOffline()`, and removed when the component unmounts; Retry re-runs the login check, then calls `resetBrowserRpcConnection` and `router.invalidate()`
+- `engine-notice.tsx:EngineUnreachableNotice`: shown only while `sustainedOffline()`, and removed when the component unmounts; Retry calls `resetBrowserRpcConnection` at once, then re-runs the login check and `router.invalidate()`
 - `router.tsx:defaultErrorComponent`: runs its Retry when it mounts on a refused (`UNAUTHORIZED`) error while the engine already trusts this browser, and on a trust flip from untrusted or revoked to trusted while it is shown
 - `rpc-error-message.ts:classifyRpcError`: reachability errors map to the transport message, otherwise the error message or the generic one
 - `refresh-button.tsx:RefreshButton`: disabled while a run is in progress or a refresh is running

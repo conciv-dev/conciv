@@ -1,14 +1,14 @@
-export {Bash, useBash, parseBashOutput, type BashOutput} from './primitives/tools/bash.js'
+export {Bash, useBash} from './primitives/tools/bash.js'
+export {parseBashOutput, type BashOutput} from './primitives/tools/bash-output.js'
+export {ApplyPatch, useApplyPatch} from './primitives/tools/apply-patch.js'
 export {
-  ApplyPatch,
-  useApplyPatch,
   readPatchText,
   patchInfo,
   parseClaudePatchBlocks,
   claudeBlockToUnifiedDiff,
   type ApplyPatchBlock,
   type ApplyPatchInfo,
-} from './primitives/tools/apply-patch.js'
+} from './primitives/tools/apply-patch-text.js'
 export {FileRead, useFileRead} from './primitives/tools/file-read.js'
 export {FileEdit, useFileEdit, type FileEditDiff} from './primitives/tools/file-edit.js'
 export {Search, useSearch} from './primitives/tools/search.js'

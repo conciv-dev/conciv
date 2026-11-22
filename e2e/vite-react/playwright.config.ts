@@ -1,6 +1,22 @@
-import {e2eConfig} from '@conciv/e2e-utils/config'
+import {defineConfig} from '@playwright/test'
+import {e2eConfig, e2ePort} from '@conciv/e2e-utils/config'
 
-export default e2eConfig('vite-react', {
-  dir: import.meta.dirname,
-  command: (port) => `pnpm exec vite --port ${port} --strictPort --force`,
-})
+const standalonePort = await e2ePort('standalone')
+
+export default defineConfig(
+  await e2eConfig('vite-react', {
+    dir: import.meta.dirname,
+    viteServerPerTest: './node_modules/.bin/vite',
+    pluginCopies: ['live-line', 'host-controls'],
+    browserSettings: ['storage-refused', 'pop-out-refused'],
+    fakeClis: ['codex', 'gemini'],
+  }),
+  {
+    webServer: {
+      command: `pnpm --filter @conciv/app exec vite dev --port ${standalonePort} --strictPort`,
+      url: `http://localhost:${standalonePort}`,
+      reuseExistingServer: false,
+      timeout: 180_000,
+    },
+  },
+)

@@ -25,7 +25,6 @@ catalog:
   '@ff-labs/fff-node': 0.10.5
   npm-package-arg: 13.0.2
   pacote: 21.5.1
-  esbuild: 0.28.2
   '@jridgewell/trace-mapping': 0.3.31
   '@modelcontextprotocol/sdk': ^1.32.2
   '@orpc/client': 1.16.1
@@ -38,13 +37,13 @@ catalog:
 
   # The @tanstack/ai family is single-sourced here so every manifest resolves "catalog:" to the
   # same release and pnpm never installs two copies of @tanstack/ai.
-  '@tanstack/ai': 1.2.0
-  '@tanstack/ai-client': 1.1.0
-  '@tanstack/ai-event-client': 1.0.1
-  '@tanstack/ai-persistence': 1.0.1
+  '@tanstack/ai': 1.7.0
+  '@tanstack/ai-client': 1.2.0
+  '@tanstack/ai-event-client': 1.1.0
+  '@tanstack/ai-persistence': 1.1.0
   '@tanstack/ai-code-mode': 1.1.0
   '@tanstack/ai-isolate-quickjs': 1.1.0
-  '@tanstack/ai-solid': 1.0.1
+  '@tanstack/ai-solid': 1.1.0
   '@tanstack/ai-sandbox': 1.2.0
   '@tanstack/ai-sandbox-local-process': 1.0.0
   '@tanstack/ai-claude-code': 1.0.1
@@ -59,11 +58,20 @@ catalog:
   '@bramus/specificity': ^2.4.3
   '@clack/prompts': '^1.8.1'
   '@effect/platform-node': 4.1.0
+  '@effect/opentelemetry': 4.1.0
+  '@opentelemetry/api': 1.9.1
+  '@opentelemetry/api-logs': 0.219.0
+  '@opentelemetry/context-async-hooks': 2.8.0
+  '@opentelemetry/exporter-trace-otlp-http': 0.219.0
+  '@opentelemetry/resources': 2.8.0
+  '@opentelemetry/sdk-logs': 0.219.0
+  '@opentelemetry/sdk-metrics': 2.8.0
+  '@opentelemetry/sdk-trace-base': 2.8.0
+  '@opentelemetry/sdk-trace-node': 2.8.0
   '@excalidraw/excalidraw': '^0.18.1'
   '@excalidraw/mermaid-to-excalidraw': '3.0.0'
   '@hono/node-server': '^2.1.5'
   '@iconify-json/ph': '^1.2.2'
-  '@jridgewell/gen-mapping': ^0.3.13
   '@lydell/node-pty': ^1.1.0
   '@orama/orama': 3.1.18
   '@oxlint/plugins': 1.90.0
@@ -88,6 +96,7 @@ catalog:
   '@solid-primitives/keyed': '^1.5.3'
   '@solid-primitives/map': '^0.7.4'
   '@solid-primitives/resize-observer': '^2.2.0'
+  '@solid-primitives/scheduled': '^1.5.3'
   '@solid-primitives/storage': '^4.4.0'
   '@solid-primitives/timer': 1.4.4
   '@solidjs/testing-library': '^0.8.10'
@@ -116,6 +125,8 @@ catalog:
   '@tanstack/solid-router': 1.170.43
   '@tanstack/solid-virtual': '^3.13.51'
   '@tanstack/store': 0.11.2
+  '@testing-library/jest-dom': 6.9.1
+  '@testing-library/user-event': 14.6.8
   '@tiptap/core': '^3.32.1'
   '@tiptap/extension-document': '^3.32.1'
   '@tiptap/extension-hard-break': '^3.32.1'
@@ -153,11 +164,11 @@ catalog:
   es-toolkit: '^1.53.0'
   eslint-plugin-playwright: 2.12.1
   eslint-plugin-solid: 0.18.1
-  fast-check: 4.9.0
   fuzzysort: 3.1.0
   get-port: '^7.2.0'
   glob: 13.0.5
   gsap: '^3.15.0'
+  happy-dom: 21.0.4
   hono: '^4.13.14'
   js-yaml: 5.5.0
   lucide-react: '^1.64.0'
@@ -171,7 +182,6 @@ catalog:
   oxc-parser: '^0.156.0'
   oxfmt: 0.75.0
   oxlint: 1.90.0
-  p-timeout: '^8.0.0'
   picomatch: 4.0.7
   piscina: '^5.3.2'
   pixelmatch: ^8.0.0

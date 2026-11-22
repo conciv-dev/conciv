@@ -52,9 +52,9 @@ function hostAllowed(host: string | null): boolean {
 
 export type CorsVars = {cors: {allowedOrigins: string[]}}
 
-export function corsMiddleware(): MiddlewareHandler<{Variables: CorsVars}> {
+export function corsMiddleware(version?: () => string | undefined): MiddlewareHandler<{Variables: CorsVars}> {
   return async (c, next) => {
-    c.header(CONCIV_VERSION_HEADER, coreManifest.version)
+    c.header(CONCIV_VERSION_HEADER, version?.() ?? coreManifest.version)
     const extra = new Set(c.var.cors.allowedOrigins)
     const origin = c.req.header('origin') ?? null
     if (!hostAllowed(c.req.header('host') ?? null)) return c.text('forbidden host', 403)

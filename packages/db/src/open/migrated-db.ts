@@ -21,8 +21,10 @@ export function openMigratedDb(options: {
   return db
 }
 
-function openDatabase(file: string, mode: number | undefined): DatabaseSync {
-  const client = new DatabaseSync(file, {timeout: 5000})
+const BUSY_TIMEOUT_MS = 5000
+
+function openDatabase(file: string, mode: number | undefined, busyTimeoutMs = BUSY_TIMEOUT_MS): DatabaseSync {
+  const client = new DatabaseSync(file, {timeout: busyTimeoutMs})
   if (mode === undefined) return client
   try {
     chmodSync(file, mode)
@@ -33,8 +35,8 @@ function openDatabase(file: string, mode: number | undefined): DatabaseSync {
   return client
 }
 
-export function takeMigrationLock(lockFile: string, mode?: number): DatabaseSync {
-  const lock = openDatabase(lockFile, mode)
+export function takeMigrationLock(lockFile: string, mode?: number, busyTimeoutMs?: number): DatabaseSync {
+  const lock = openDatabase(lockFile, mode, busyTimeoutMs)
   try {
     lock.exec('BEGIN EXCLUSIVE')
   } catch (error) {

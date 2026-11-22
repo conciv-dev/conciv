@@ -1,27 +1,32 @@
-import {Show, createMemo, createRoot, from, getOwner, on, onCleanup, untrack, type Accessor, type JSX} from 'solid-js'
+import {Show, createMemo, createRoot, getOwner, on, onCleanup, untrack, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {RouterProvider, createBrowserHistory, createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
-import {makeBrowserRpcClient, normalizeApiBase, type BrowserRpcClient, type RpcClient} from '@conciv/contract'
-import {createWebStorageHistory, type WebStorage} from '@conciv/storage-history'
+import {makeBrowserRpcClient, normalizeApiBase, type BrowserRpcClient} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
-import {NavigationStateSchema, type NavigationState} from '@conciv/protocol/chat-types'
 import {createConcivRouter, disposeConcivRouter, type ConcivRouterConfig, type ConcivTimings} from './router.js'
 import {parseConcivSettings, type ConcivSettings} from './data/settings.js'
 import {styleRoot} from './lib/shadow.js'
 import {createEngineLogin, engineConnected, startEngineLogin} from './app/engine-login.js'
 import {reserveComposedPlugins, type ComposedPlugin} from './runtime/plugin/root.js'
+import type {DraftStore} from './runtime/persistence/drafts.js'
+import {keepLastScreen, readLastScreen} from './runtime/persistence/last-screen.js'
+
+export {createDraftStore, openBrowserDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
+export {WIDGET_LAYER} from './lib/widget-layer.js'
+export {keepLastScreen} from './runtime/persistence/last-screen.js'
 
 export type Platform = {
   engine: Accessor<{kind: 'bound'; apiBase: string; token?: () => Promise<string>} | {kind: 'servers'}>
-  navigation: 'engine' | 'browser' | {memory: string | readonly string[]}
+  navigation: 'tab' | 'browser' | {history: RouterHistory}
   root: ShadowRoot | Document
   settings?: ConcivSettingsInit
   plugins?: readonly ComposedPlugin[]
   grabProvider?: GrabProvider
   onInteractive?: () => void
   timings?: ConcivTimings
+  draftStore?: (writable: () => boolean) => DraftStore | undefined
 }
 
 declare global {
@@ -31,61 +36,6 @@ declare global {
 }
 
 type ConcivRouter = ReturnType<typeof createConcivRouter>
-
-type NavigationRpc = Pick<RpcClient, 'navigation'>
-
-function parseNavigation(raw: string): NavigationState | null {
-  try {
-    const parsed = NavigationStateSchema.safeParse(JSON.parse(raw))
-    return parsed.success ? parsed.data : null
-  } catch {
-    return null
-  }
-}
-
-type NavigationStorage = WebStorage & {restored: Promise<void>}
-
-type NavigationStorageState = {cache: string | null; lastStamp: number; wroteLocally: boolean}
-
-type NavigationRestore = {current: () => boolean; apply: (href: string) => void}
-
-function makeNavigationStorage(
-  rpc: NavigationRpc,
-  trust: {ready: Promise<boolean>; isTrusted: () => boolean},
-  restore: NavigationRestore,
-): NavigationStorage {
-  const state: NavigationStorageState = {cache: null, lastStamp: 0, wroteLocally: false}
-  const stamp = (): number => {
-    state.lastStamp = Math.max(Date.now(), state.lastStamp + 1)
-    return state.lastStamp
-  }
-  const send = (navigation: NavigationState, updatedAt: number): void => {
-    if (!trust.isTrusted()) return
-    rpc.navigation.set({...navigation, updatedAt}).catch((error: unknown) => {
-      console.warn('[conciv] could not save the navigation', error)
-    })
-  }
-  const restored = trust.ready
-    .then((isTrusted) => (isTrusted ? rpc.navigation.get(undefined) : null))
-    .catch(() => null)
-    .then((initial) => {
-      if (!restore.current() || state.wroteLocally || !initial) return
-      state.lastStamp = initial.updatedAt
-      state.cache = JSON.stringify({entries: initial.entries, index: initial.index})
-      const current = initial.entries[initial.index]
-      if (current) restore.apply(current.href)
-    })
-  return {
-    getItem: () => state.cache,
-    setItem: (_key, value) => {
-      state.wroteLocally = true
-      state.cache = value
-      const parsed = parseNavigation(value)
-      if (parsed) send(parsed, stamp())
-    },
-    restored,
-  }
-}
 
 type AppParts = {platform: Platform; settings: ConcivSettings; plugins: readonly ComposedPlugin[]}
 
@@ -99,10 +49,16 @@ function runDisposers(disposers: ReadonlyArray<() => void>): void {
   }
 }
 
-function navigationHistory(navigation: Platform['navigation'], storage: NavigationStorage | undefined): RouterHistory {
+function tabHistory(): RouterHistory {
+  const history = createMemoryHistory({initialEntries: [readLastScreen()]})
+  history.subscribe(({location}) => keepLastScreen(location.href))
+  return history
+}
+
+function navigationHistory(navigation: Platform['navigation']): RouterHistory {
   if (navigation === 'browser') return createBrowserHistory()
-  if (navigation === 'engine') return storage ? createWebStorageHistory({storage}) : createMemoryHistory()
-  return createMemoryHistory({initialEntries: [navigation.memory].flat()})
+  if (navigation === 'tab') return tabHistory()
+  return navigation.history
 }
 
 function routerConfig(
@@ -120,28 +76,15 @@ function routerConfig(
     grabProvider: parts.platform.grabProvider,
     notifyInteractive: parts.platform.onInteractive,
     timings: parts.platform.timings,
+    draftStore: parts.platform.draftStore,
     bindActiveSession: (read: () => string | null) => {
       session.read = read
     },
   } satisfies Partial<ConcivRouterConfig>
 }
 
-function renderRouter(
-  router: ConcivRouter,
-  ready: Accessor<boolean | undefined>,
-  closeFirst: ReadonlyArray<() => void>,
-): JSX.Element {
-  const tree = createRoot(
-    (disposeTree) => ({
-      disposeTree,
-      view: (
-        <Show when={ready()}>
-          <RouterProvider router={router} />
-        </Show>
-      ),
-    }),
-    getOwner(),
-  )
+function renderRouter(router: ConcivRouter, closeFirst: ReadonlyArray<() => void>): JSX.Element {
+  const tree = createRoot((disposeTree) => ({disposeTree, view: <RouterProvider router={router} />}), getOwner())
   const teardown = [
     ...closeFirst,
     tree.disposeTree,
@@ -150,21 +93,6 @@ function renderRouter(
   ]
   onCleanup(() => runDisposers(teardown))
   return tree.view
-}
-
-function restoreOnBoot(router: ConcivRouter, restore: NavigationRestore): () => void {
-  const boot = {href: router.state.location.href, moved: false}
-  restore.apply = (href) => {
-    if (boot.moved || router.state.location.href !== boot.href || router.state.status !== 'idle') return
-    void router.navigate({href, replace: true})
-  }
-  const stop = router.subscribe('onBeforeNavigate', (event) => {
-    if (event.hrefChanged) boot.moved = true
-  })
-  return () => {
-    boot.moved = true
-    stop()
-  }
 }
 
 function enteredApiBase(apiBase: string): string {
@@ -192,24 +120,17 @@ function BoundApp(props: AppParts): JSX.Element {
     tokenSource: first.kind === 'bound' ? first.token : undefined,
     timings: platform.timings?.engine,
   })
-  const trusted = startEngineLogin(login)
+  startEngineLogin(login)
   const connectionGeneration = createMemo(
     on(apiBase, (_apiBase, _previous, generation: number | undefined) =>
       generation === undefined ? 0 : generation + 1,
     ),
   )
-  const firstApiBase = untrack(apiBase)
-  const onFirstApiBase = createMemo(() => apiBase() === firstApiBase)
-  const restore: NavigationRestore = {current: onFirstApiBase, apply: () => {}}
-  const storage =
-    platform.navigation === 'engine'
-      ? makeNavigationStorage(client.rpc, {ready: trusted, isTrusted: () => login.trust().isTrusted()}, restore)
-      : undefined
   const router = createConcivRouter({
     ...routerConfig(
       {platform, settings: untrack(() => props.settings), plugins: untrack(() => props.plugins)},
       client,
-      navigationHistory(platform.navigation, storage),
+      navigationHistory(platform.navigation),
       session,
     ),
     connected: () => engineConnected(login.status()),
@@ -236,14 +157,7 @@ function BoundApp(props: AppParts): JSX.Element {
         console.error('[conciv] the address did not follow the rebind', error)
       })
   })
-  const stopRestore = storage ? restoreOnBoot(router, restore) : () => {}
-  const restored = storage
-    ? from<boolean>((set) => {
-        void storage.restored.then(() => set(true))
-        return () => {}
-      })
-    : () => true
-  return renderRouter(router, restored, [client.close, stopRestore])
+  return renderRouter(router, [client.close])
 }
 
 function ServersApp(props: AppParts): JSX.Element {
@@ -255,7 +169,7 @@ function ServersApp(props: AppParts): JSX.Element {
     ...routerConfig(
       {platform, settings: untrack(() => props.settings), plugins: untrack(() => props.plugins)},
       client,
-      navigationHistory(platform.navigation, undefined),
+      navigationHistory(platform.navigation),
       session,
     ),
     servers: true,
@@ -266,7 +180,7 @@ function ServersApp(props: AppParts): JSX.Element {
       setBound('apiBase', nextApiBase)
     },
   })
-  return renderRouter(router, () => true, [client.close])
+  return renderRouter(router, [client.close])
 }
 
 export function ConcivApp(props: {platform: Platform}): JSX.Element {

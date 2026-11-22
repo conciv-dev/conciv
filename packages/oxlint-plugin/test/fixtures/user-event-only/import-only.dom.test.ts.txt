@@ -1,4 +1,0 @@
-import {fireEvent} from '@testing-library/dom'
-import {test} from 'vitest'
-
-test('imports', () => {})

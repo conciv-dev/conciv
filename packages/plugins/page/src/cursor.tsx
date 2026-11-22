@@ -1,6 +1,7 @@
 import {createDebouncer, type SolidDebouncer} from '@tanstack/solid-pacer'
 import {For, onCleanup, untrack} from 'solid-js'
 import {ReactiveMap} from '@solid-primitives/map'
+import {prefersReducedMotion} from '@conciv/ui-kit-system'
 
 export type Point = {x: number; y: number}
 
@@ -54,10 +55,6 @@ const layoutWatch: {documents: WeakSet<Document>; stop: AbortController} = {
 }
 
 const aimed = new ReactiveMap<string, CursorLook>()
-
-function reducedMotion(): boolean {
-  return matchMedia('(prefers-reduced-motion: reduce)').matches
-}
 
 function isIframe(element: Element): element is HTMLIFrameElement {
   return element.localName === 'iframe'
@@ -157,7 +154,7 @@ function settleEveryAim(): void {
 }
 
 export function cannotAnimate(): boolean {
-  return document.visibilityState === 'hidden' || reducedMotion()
+  return document.visibilityState === 'hidden' || prefersReducedMotion()
 }
 
 export function dropCursor(id: string): void {
@@ -192,7 +189,7 @@ export function aimCursor(options: {id: string; at: CursorAt; look: CursorLook})
   const {id, at, look} = options
   const arrival = Promise.withResolvers<void>()
   const shown = placed.get(id)?.last
-  const from = shown && !reducedMotion() ? buildSample(windowAt(shown)) : buildSample(at)
+  const from = shown && !prefersReducedMotion() ? buildSample(windowAt(shown)) : buildSample(at)
   settleAim(id)
   aims.set(id, {from, to: buildSample(at), t: from.at === at ? 1 : 0, last: 0, arrived: arrival.resolve})
   aimed.set(id, look)
@@ -204,7 +201,7 @@ export function aimCursor(options: {id: string; at: CursorAt; look: CursorLook})
 }
 
 export function pressCursor(options: {id: string}): void {
-  if (!reducedMotion()) placed.get(options.id)?.press?.()
+  if (!prefersReducedMotion()) placed.get(options.id)?.press?.()
 }
 
 export function cursorElement(id: string): HTMLElement | null {

@@ -10,6 +10,7 @@ export type SessionStatusInput = {
   isStreaming: boolean
   queueLength: number
   stopping: boolean
+  approvalPending: boolean
   runError: string | null
   stopped: boolean
   ran: boolean
@@ -20,9 +21,9 @@ function runningStatus(queueLength: number): SessionStatus {
 }
 
 export function deriveSessionStatus(input: SessionStatusInput): SessionStatus {
-  const {latestRollup, isStreaming, queueLength, stopping, runError, stopped, ran} = input
+  const {latestRollup, isStreaming, queueLength, stopping, approvalPending, runError, stopped, ran} = input
   if (stopping) return {kind: 'stopping', label: 'STOPPING'}
-  if (latestRollup?.awaitingApproval) return {kind: 'waiting', label: 'WAITING'}
+  if (approvalPending || latestRollup?.awaitingApproval) return {kind: 'waiting', label: 'WAITING'}
   if (Boolean(latestRollup?.live) || isStreaming) return runningStatus(queueLength)
   if (runError !== null) return {kind: 'failed', label: 'FAILED', reason: runError}
   if (stopped) return {kind: 'stopped', label: 'STOPPED'}

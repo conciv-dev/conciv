@@ -4,7 +4,7 @@ import {makeEventListener} from '@solid-primitives/event-listener'
 import {createElementSize, createWindowSize} from '@solid-primitives/resize-observer'
 import {Debouncer} from '@tanstack/pacer'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
-import {readStorage, writeStorage} from '@conciv/ui-kit-system'
+import {prefersReducedMotion, readStorage, writeStorage} from '@conciv/ui-kit-system'
 import {
   DRAG_THRESHOLD,
   HOT_CORNER_HOLD_MS,
@@ -123,14 +123,6 @@ function spanCalc(percent: number): string {
 
 function tabCalc(percent: number): string {
   return `calc(${TAB_PAD_REM}rem + (100% - ${TAB_LENGTH_REM + 2 * TAB_PAD_REM}rem) * ${percent / 100})`
-}
-
-function reduceMotion(): boolean {
-  try {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  } catch {
-    return false
-  }
 }
 
 function settleEasing(element: HTMLElement): string {
@@ -302,7 +294,7 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
     commit(placement)
     const final = computePixels(placement, drag.measure)
     const moved = frames.some((frame) => Math.hypot(frame.x - final.x, frame.y - final.y) >= RESTING_EPSILON)
-    if (!moved || reduceMotion()) {
+    if (!moved || prefersReducedMotion()) {
       setGesture({phase: 'released'})
       return
     }
@@ -337,7 +329,7 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
     }
     const resting = clampToBounds(drag.at, measured.bounds)
     const velocity = timeStamp - drag.last.t > STALE_RELEASE_MS ? {x: 0, y: 0} : drag.velocity
-    const path = canThrow && !reduceMotion() ? throwPath(resting, velocity, measured.bounds) : []
+    const path = canThrow && !prefersReducedMotion() ? throwPath(resting, velocity, measured.bounds) : []
     const end = path.at(-1) ?? resting
     const corner = path.length === 0 ? null : thrownCorner(drag, velocity, end)
     settle(drag, [drag.at, ...path], corner ? {kind: 'corner', corner} : freeAt(end, measured))

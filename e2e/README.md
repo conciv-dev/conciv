@@ -8,9 +8,12 @@ suite (`test/` + `playwright.config.ts`). Layout follows TanStack Router's `e2e/
 
 Every host, in-repo or not, consumes `@conciv/*` packages from `dist/`. These apps add what the
 in-repo apps cannot: each is scaffolded by its framework's own CLI and wired the way a user would,
-so they catch what a real consumer setup does with the published `dist/`. Vite apps also run with
-`--force` (or a cleared cache) so every run is a cold dep-optimization start, which is where
-dist-only failures show up.
+so they catch what a real consumer setup does with the published `dist/`. In CI (`CI` set) Vite apps
+run with `--force`, so every run is a cold dep-optimization start, which is where dist-only failures
+show up. Local runs leave it off and reuse the warm Vite cache: measured 2026-11-22, a cold start costs
+1.8 GB and 4.6 s against 0.46 GB and 1.7 s warm. `e2eConfig` and `harnessMatrixConfig` decide this in
+one place and hand each app's `command` the flag as its `coldStart` argument. Astro clears
+`node_modules/.vite` on every start instead (`astro dev` has no dep-optimizer `--force`).
 
 ## Running
 
@@ -21,6 +24,11 @@ pnpm --filter conciv-e2e-vite-vanilla test:e2e   # one app (build @conciv/it fir
 
 `pnpm test` does not run these.
 
+Specs import `test` from `@conciv/e2e-utils/fixtures`: it signs `page` and `secondPage` in before each test
+(`test.use({signedIn: false})` opts out). `vite-react` starts its dev server fresh for every test, on a free
+port with an empty `.conciv` and conciv home folder and a new temp folder as `HOME`, so no test sees another's
+state; the framework apps start theirs once per run.
+
 A `prepare` script here must not load the app's framework config. `prepare` runs during
 `pnpm install`, when no `@conciv/*` package has a `dist/` yet, and every app's config imports
 `@conciv/it`: `vite.config.ts` in the vite and SvelteKit apps, `next.config.ts` in `nextjs` and
@@ -29,6 +37,10 @@ A `prepare` script here must not load the app's framework config. `prepare` runs
 and exits 0. Whatever the config would have generated (SvelteKit's `.svelte-kit`, for example)
 gets generated anyway by `build` and `dev`, which run after `turbo build`. A `prepare` script that
 touches none of this is fine.
+
+`nextjs`, `nextjs-component` and the `nextjs` packed fixture set Next's `experimental.agentUpgrade: false`:
+Next 16 `next dev` exits 1 on its first start in an app folder when it detects a coding agent, to show an
+upgrade reminder. CI is not affected.
 
 ## Apps
 
@@ -65,8 +77,11 @@ Everything that packs runs only in `.github/workflows/packed.yml`, never in `pnp
 CI planner, or on a laptop. Each suite is a `test:packed` script:
 
 - `vite-react-packed`: the whole app (it has no `test:e2e`).
-- `nextjs`: specs named `test/packed-*.spec.ts`, run by `playwright.packed.config.ts`; the shared
-  `e2eConfig` ignores that pattern, so `test:e2e` never picks them up.
+- `nextjs`: `packed/test-packed.ts` packs `@conciv/it`'s closure, installs the committed `packed/app`
+  fixture twice into a temp dir outside the workspace (`packages/turbopack` and `packages/webpack`, only
+  their `package.json` generated), then runs `playwright.packed.config.ts`: one `next dev` web server and
+  one project per bundler, each with its own engine port and `CONCIV_HOME`, running the specs named
+  `test/packed-*.spec.ts`. The shared `e2eConfig` ignores that pattern, so `test:e2e` never picks them up.
 - `mascot`, `mascot-react`, `plugin-tanstack`: describes tagged `packed`; their vitest configs define the
   `packed` tag as skipped unless vitest runs in `packed` mode, and `test:packed` runs
   `vitest run --mode packed --tags-filter=packed` (with `--project <node project>` where the config has
@@ -109,15 +124,18 @@ produced over the committed one, shows the diff in the run summary and uploads b
 3. Before committing, check the diff holds only the expected `name@version` changes, and no tarball or git
    resolution other than the `@conciv/*@file:` entries.
 
-`e2e-utils` holds the shared Playwright config factory, the widget boot assertions, and the fixed
-port registry (`src/config.ts`) so suites can run side by side.
+`e2e-utils` holds the shared Playwright config factory and the widget boot assertions. No dev server has a
+fixed port: the config asks the system for a free port once, in the Playwright runner, and pins it in a
+`CONCIV_E2E_<SERVER>_PORT` environment variable that the workers read back when they load the config again.
+Two apps, or one app in two worktrees, run side by side. A spec reaches its server through `baseURL`, and a
+second server through its pinned variable.
 
 ## Adding an app
 
 1. Scaffold into `e2e/<name>` with the framework's official CLI.
-2. Add the app to `E2E_PORTS` in `e2e-utils/src/config.ts`.
+2. Add the app's name to the `E2EApp` names in `e2e-utils/src/config.ts`.
 3. Add `@conciv/it` (`workspace:*`) and wire the plugin the way the framework's docs say.
 4. Add `@conciv/e2e-utils` + `@playwright/test` dev deps, a `test:e2e` script, a
-   `playwright.config.ts` built from `e2eConfig(...)`, and a `test/widget.spec.ts`.
+   `playwright.config.ts` that exports `await e2eConfig(...)`, and a `test/widget.spec.ts`.
 5. Add `e2e/<name>/**` to `ignorePatterns` in `.fallowrc.json` (scaffold output is not audited,
    same as `apps/examples/**`).

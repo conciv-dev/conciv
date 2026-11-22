@@ -3,7 +3,11 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "inputs": ["$TURBO_EXTENDS$", "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}"]
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{test,spec,stories}.*"
+      ]
     }
   }
 }

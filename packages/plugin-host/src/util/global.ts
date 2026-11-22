@@ -8,6 +8,7 @@ export interface Interface {
   readonly cache: string
   readonly config: string
   readonly state: string
+  readonly log: string
 }
 
 const acquire = (input: Interface) =>
@@ -15,7 +16,7 @@ const acquire = (input: Interface) =>
     const service = Service.of(input)
     yield* Effect.promise(() =>
       Promise.all(
-        [service.cache, service.config, service.state].map((directory) =>
+        [service.cache, service.config, service.state, service.log].map((directory) =>
           fs.promises.mkdir(directory, {recursive: true}),
         ),
       ),

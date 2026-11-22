@@ -265,6 +265,7 @@ const STATUS_TEXTS =
   'flex flex-row flex-wrap items-center min-w-0 py-2 empty:hidden [&>*+*]:before:content-["·"] [&>*+*]:before:px-1 [&>*+*]:before:[color:var(--chat-separator)]'
 const PILL_GROUP = 'flex flex-row flex-wrap items-center gap-1.5 min-w-0 py-2 empty:hidden'
 const NOW_ROW = 'shrink-0 self-stretch min-w-0'
+const HEADER_SLOT = 'flex flex-row flex-wrap items-center gap-x-2 shrink-0 min-w-0 ps-5 pe-5 py-2 empty:hidden'
 const THINKING_TITLE = 'Thinking…'
 const RESPONDING_TITLE = 'Responding…'
 const HARNESS_LABEL =
@@ -449,8 +450,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
 
   const compacting = messaging.compacting
 
-  const focusInput = () => requestAnimationFrame(() => inputHandle()?.focus())
-  const modelMenu = useModelMenu(focusInput)
+  const modelMenu = useModelMenu(() => inputHandle()?.focus())
   const commandSources = useComposerTriggerSources({
     sessionId,
     openModelMenu: () => modelMenu.popover().setOpen(true),
@@ -465,12 +465,12 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   }
   const insert = (text: string) => {
     inputHandle()?.append(text)
-    focusInput()
+    inputHandle()?.focus()
   }
   const insertFirst = (text: string) => {
     inputHandle()?.select({start: 0, end: 0})
     inputHandle()?.insert(`${text}\n`)
-    focusInput()
+    inputHandle()?.focus()
   }
   const attach = (file: File) => {
     const api = composerApi.current
@@ -479,7 +479,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
       return
     }
     void api.addAttachment(file)
-    focusInput()
+    inputHandle()?.focus()
   }
   const imageInput = () => harness()?.imageInput
   const attachments = createMemo(() => paneAttachments(imageInput(), appData.drafts))
@@ -488,7 +488,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   )
   const stageGrab = (grab: Grab) => {
     pane.grabStaging.stage(grab)
-    focusInput()
+    inputHandle()?.focus()
   }
 
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
@@ -548,7 +548,9 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     )
     return (
       <div class="contents">
-        <SessionHeaderSlot pane={pluginSession} />
+        <div class={HEADER_SLOT}>
+          <SessionHeaderSlot pane={pluginSession} />
+        </div>
         <div
           ref={(element) => (paneBody = element)}
           {...viewTabPanelAttributes(props.viewTab)}
@@ -592,7 +594,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <Show when={asks().length > 0}>
                       <PendingApprovals asks={asks()} ctx={toolCtx} />
                     </Show>
-                    <Show when={narrating()}>
+                    <Show when={narrating() && asks().length === 0}>
                       <NarrationRow />
                     </Show>
                     <Show when={messaging.visibleError()}>
@@ -622,7 +624,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   </div>
                   <div class={PILL_GROUP}>
                     <Suspense>
-                      <ConnectedAgents onDisconnected={focusInput} />
+                      <ConnectedAgents onDisconnected={() => inputHandle()?.focus()} />
                     </Suspense>
                     <SessionComposerPills pane={pluginSession} />
                   </div>
@@ -638,7 +640,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     inputLabel="Message the conciv agent"
                     attachmentAdapter={attachments().adapter}
                     AttachmentComponent={PaneAttachment}
-                    notes={<ComposerNotes session={pluginSession.view} onRemoved={focusInput} />}
+                    notes={<ComposerNotes session={pluginSession.view} onRemoved={() => inputHandle()?.focus()} />}
                     onInputReady={setInputHandle}
                     onSelectionChange={draftStorage.noteSelection}
                     busy={compactingIndicator(compacting())}
@@ -649,7 +651,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <SessionComposerBinding
                       pane={pluginSession}
                       input={inputHandle}
-                      focus={focusInput}
+                      focus={() => inputHandle()?.focus()}
                       restored={restored.promise}
                     />
                     <DraftRestore

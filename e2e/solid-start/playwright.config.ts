@@ -1,6 +1,6 @@
 import {e2eConfig} from '@conciv/e2e-utils/config'
 
-export default e2eConfig('solid-start', {
+export default await e2eConfig('solid-start', {
   dir: import.meta.dirname,
-  command: (port) => `pnpm exec vite dev --port ${port} --strictPort --force`,
+  command: (port, coldStart) => `pnpm exec vite dev --port ${port} --strictPort ${coldStart}`,
 })

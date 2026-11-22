@@ -1,5 +1,6 @@
 import {readdirSync, readFileSync} from 'node:fs'
 import {dirname, join, relative} from 'node:path'
+import {chunk} from 'es-toolkit'
 import {load} from 'js-yaml'
 import {minimatch} from 'minimatch'
 import {z} from 'zod'
@@ -113,17 +114,22 @@ export function findOwner(packages: WorkspacePackage[], path: string): Workspace
     .at(0)
 }
 
-function workspaceDependencyNames(manifest: Manifest): string[] {
-  const deps = {...manifest.dependencies, ...manifest.devDependencies}
-  return Object.entries(deps)
+type DependencyField = 'dependencies' | 'devDependencies' | 'optionalDependencies'
+
+function workspaceDependencyNames(manifest: Manifest, fields: DependencyField[]): string[] {
+  const deps = Object.assign({}, ...fields.map((field) => manifest[field]))
+  return Object.entries<string>(deps)
     .filter(([, version]) => version.startsWith('workspace:'))
     .map(([name]) => name)
 }
 
-export function buildDependencyGraph(packages: WorkspacePackage[]): Map<string, string[]> {
+export function buildDependencyGraph(
+  packages: WorkspacePackage[],
+  fields: DependencyField[] = ['dependencies', 'devDependencies'],
+): Map<string, string[]> {
   return packages.reduce((graph, pkg) => {
     if (typeof pkg.manifest.name !== 'string') return graph
-    graph.set(pkg.manifest.name, workspaceDependencyNames(pkg.manifest))
+    graph.set(pkg.manifest.name, workspaceDependencyNames(pkg.manifest, fields))
     return graph
   }, new Map<string, string[]>())
 }
@@ -153,4 +159,17 @@ export function transitiveDependents(graph: Map<string, string[]>, target: strin
     }
   }
   return seen
+}
+
+export const COMPILER_LIMIT = 4
+
+export async function mapInChunks<Item, Result>(
+  items: Item[],
+  size: number,
+  map: (item: Item) => Promise<Result>,
+): Promise<Result[]> {
+  return chunk(items, size).reduce<Promise<Result[]>>(
+    async (done, group) => [...(await done), ...(await Promise.all(group.map(map)))],
+    Promise.resolve([]),
+  )
 }

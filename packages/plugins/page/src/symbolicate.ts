@@ -71,26 +71,16 @@ function locate(frame: RawFrame, root: string, fetchImpl: typeof fetch): Effect.
   )
 }
 
-export function symbolicateFrame(
-  frame: RawFrame,
-  root: string,
-  fetchImpl: typeof fetch = fetch,
-): Promise<SourceLoc | null> {
-  return Effect.runPromise(locate(frame, root, fetchImpl))
-}
-
 export function symbolicateFrames(
   frames: RawFrame[],
   root: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<SourceLoc | null> {
-  return Effect.runPromise(
-    Effect.gen(function* () {
-      for (const frame of frames) {
-        const location = yield* locate(frame, root, fetchImpl)
-        if (location && !location.file.includes('node_modules')) return location
-      }
-      return null
-    }),
-  )
+): Effect.Effect<SourceLoc | null> {
+  return Effect.gen(function* () {
+    for (const frame of frames) {
+      const location = yield* locate(frame, root, fetchImpl)
+      if (location && !location.file.includes('node_modules')) return location
+    }
+    return null
+  })
 }

@@ -36,33 +36,47 @@ user; an operation that must ask is a tool.
 
 ## Testing with `@conciv/plugin-testkit`
 
-The testkit boots the real engine with a fake model; only the model and the agent CLIs are faked.
+The testkit runs the real engine with a scripted model; only the model and the agent CLIs are faked.
 
-- `bootCoreKit({id, plugins, files, stateRoot})` from `@conciv/plugin-testkit/core-kit`. `stateRoot`
-  is the project folder (its `conciv/plugins` load as in an app); `files` writes more files there.
-  The kit has `rpc.plugin.list()` (each plugin's `state` is `{status: 'active'}` or
-  `{status: 'failed', error}`), `callTool(name, input)` (code mode, name without `external_`),
-  `writeProjectFile`, `base`, `origin`, `token`, `home`, `stateRoot` and `cleanup()`.
-- `openPluginWidget(browser, {id, plugins, widgetBundle, files, stateRoot, body})` from
-  `@conciv/plugin-testkit/widget-suite` serves a page with `@conciv/embed`'s
-  `conciv-widget.global.js` and returns `{page, kit, close}`.
-- `rpcObserverFor(page)`, `rpcSocketFor(page)` and the `rpc-fault` helpers (`failRpcCalls`,
-  `abortRpcCalls`, `garbleRpcReplies`, `holdRpcCalls`, `gateRpcCalls`) observe or break the widget's
-  RPC socket without swapping the transport.
+- Set up: `@conciv/plugin-testkit` in devDependencies, `concivTest()` from
+  `@conciv/plugin-testkit/vitest` in the package's one `vite.config.ts`, and `"test": "conciv-test"`.
+  That gives three projects: node (`*.test.ts`), happy-dom (`*.dom.test.ts(x)`) and browser
+  (`*.browser.test.ts(x)`). A setting in your own `test: {...}` (a timeout, `maxWorkers`, a
+  reporter) wins over the kit's.
+- `createEngine(config, start)` from `@conciv/plugin-testkit` starts the engine in a fresh
+  project folder. `config` is the product's own `ConcivConfig` (`{plugins: ['.']}`, `permission`,
+  `hubAccess`, ...); `start` holds what is not product config (`directory`, `timeouts`, `harnesses`,
+  `env`, `fs`, `clock`). `engine.reply(...)` answers the model's requests in order
+  (`TestLLM.text(...)`, `TestLLM.toolCall(...)`); `engine.write(path, content)`,
+  `engine.setting(...)`, `engine.stale(...)` and `engine.version(...)` change the engine after start.
+  The engine has `session.send(text)`,
+  `session.tool(name).call(input)` and `.failure(input)`, `rpc.call(id, method, input)` and
+  `rpc.failure(...)`, `event(type)`, `gate()`, `requests()` and `address`. It stops when the test
+  ends.
+- `mount({engine, history})` from `@conciv/plugin-testkit/browser` shows the whole widget on that
+  engine, in happy-dom or a real browser, and resolves when it is ready. `history` is either
+  `createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})` (from the same import), the
+  engine's own saved history, which the app restores as it does in production, or any TanStack
+  `RouterHistory` such as `createMemoryHistory`, which the test keeps as a handle. It returns nothing: find
+  things with Testing Library and act with `user-event`.
 
 ```ts
-const widget = await openPluginWidget(browser, {
-  id: 'fake',
-  plugins: [PACKAGE_DIR],
-  widgetBundle: WIDGET_BUNDLE,
-  files: {...fixtureFiles(), 'gate.test.ts': GATED_VITEST_TEST},
-  stateRoot: realpathSync(tempDir('conciv-test-runner-panel-')),
+import {expect, test} from 'vitest'
+import {screen} from '@solidjs/testing-library'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+
+test('the deploy tab shows the last deploy', async () => {
+  const engine = await createEngine({plugins: ['.']})
+  await engine.reply(TestLLM.text('done'))
+  await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+  expect(await screen.findByRole('tab', {name: 'Deploy'})).toBeVisible()
 })
 ```
 
-Rules: drive the widget by role and visible text; no `page.evaluate`, test-ids or class selectors;
-`browser.newPage()`, not `newContext()`; wait for `domcontentloaded` or a visible signal, never
-`networkidle`; rebuild the plugin's `dist` before a run.
+Rules: drive the widget by role and visible text; assert with the jest-dom matchers (`toBeVisible`, `toHaveAccessibleName`, ...), never `toBeDefined()` or `toBeTruthy()` on a query, which already throws when nothing matches; no test-ids or class selectors; no polling waits;
+rebuild the plugin's `dist` before a run (tests load the built plugin).
 
 ## Sources
 
@@ -70,7 +84,7 @@ Rules: drive the widget by role and visible text; no `page.evaluate`, test-ids o
 - `packages/plugins/test-runner/src/rpc.ts`
 - `packages/plugins/test-runner/src/index.ts`
 - `packages/plugins/test-runner/src/follow.ts`
-- `packages/plugins/test-runner/test/test-runner.browser.test.ts`
-- `packages/plugin-testkit/src/core-kit.ts`
-- `packages/plugin-testkit/src/widget-suite.ts`
-- `packages/plugin-testkit/src/rpc-fault.ts`
+- `packages/plugin-testkit/README.md`
+- `packages/plugin-testkit/src/engine.ts`
+- `packages/plugin-testkit/src/mount.ts`
+- `packages/plugin-testkit/src/test-projects.ts`

@@ -151,18 +151,6 @@ export const PermissionDecisionSchema = z.object({
 })
 export type PermissionDecision = z.infer<typeof PermissionDecisionSchema>
 
-export const NavigationEntrySchema = z.object({href: z.string(), state: z.unknown().optional()})
-export type NavigationEntry = z.infer<typeof NavigationEntrySchema>
-
-export const NavigationStateSchema = z.object({
-  entries: z.array(NavigationEntrySchema),
-  index: z.number(),
-})
-export type NavigationState = z.infer<typeof NavigationStateSchema>
-
-export const NavigationWriteSchema = NavigationStateSchema.extend({updatedAt: z.number().int()})
-export type NavigationWrite = z.infer<typeof NavigationWriteSchema>
-
 export const HarnessModelSchema = z.object({
   id: z.string(),
   name: z.string(),

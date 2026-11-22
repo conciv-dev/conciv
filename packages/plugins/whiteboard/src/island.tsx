@@ -231,6 +231,8 @@ export function Island(props: {
     <Portal mount={props.mount}>
       <div
         ref={(element) => (container = element)}
+        role="region"
+        aria-label="Whiteboard canvas"
         inert={!props.visible}
         class={props.visible ? CANVAS : `${CANVAS} invisible content-visibility-hidden`}
       />

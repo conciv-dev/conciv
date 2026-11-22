@@ -1,6 +1,6 @@
 {
   "commit": "58b649460",
-  "worktree": "/Users/omrikatz/Public/web/aidx-wt-integration",
+  "worktree": "<workspace>/aidx-wt-integration",
   "env": "GITHUB_ACTIONS=1 TURBO_CONCURRENCY=1 VITEST_MAX_FORKS=1 (coverage on via ciTest; v8, json-summary)",
   "skipped": {
     "conciv-storybook": "vitest.config sets coverage.enabled=false (CI never measures it)",

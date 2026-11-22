@@ -127,7 +127,7 @@ function EdgeTab(props: {tab: LauncherEdgeTab; suppressed: () => '' | undefined;
 }
 
 const UNAUTHORIZED_BADGE = 'Unauthorized'
-const WAITING_BADGE = 'Waiting for your Allow'
+const WAITING_BADGE = 'Waiting for approval'
 
 function fabLabel(open: boolean, badge: string | null): string {
   if (badge === UNAUTHORIZED_BADGE) return 'Unauthorized. Authorize conciv'

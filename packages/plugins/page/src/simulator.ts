@@ -2,6 +2,7 @@ import {Motion, type CSSRgbString} from 'ai-motion'
 import {Effect, type Fiber} from 'effect'
 import {createComponent} from 'solid-js'
 import {render} from 'solid-js/web'
+import {prefersReducedMotion} from '@conciv/ui-kit-system'
 import {
   AGENT_BLUE,
   AGENT_PURPLE,
@@ -77,6 +78,7 @@ type Simulator = {
   queues: Map<string, Fiber.Fiber<void>>
   stoppedQueues: Set<string>
   pacing: boolean
+  taskTimeoutMs: number
 }
 
 const sim: Simulator = {
@@ -94,6 +96,7 @@ const sim: Simulator = {
   queues: new Map(),
   stoppedQueues: new Set(),
   pacing: false,
+  taskTimeoutMs: TASK_TIMEOUT_MS,
 }
 
 function ignore(): void {}
@@ -169,6 +172,7 @@ export function mountSimulator(options: {
   session: () => string | null
   onStop: (sessionId: string) => void
   running?: (sessionId: string) => boolean
+  taskTimeoutMs?: number
 }): () => void {
   unmountSimulator()
   Object.assign(sim, {
@@ -176,6 +180,7 @@ export function mountSimulator(options: {
     session: options.session,
     onStop: options.onStop,
     running: options.running ?? idle,
+    taskTimeoutMs: options.taskTimeoutMs ?? TASK_TIMEOUT_MS,
   })
   return unmountSimulator
 }
@@ -195,6 +200,7 @@ function unmountSimulator(): void {
     session: () => null,
     onStop: ignore,
     running: idle,
+    taskTimeoutMs: TASK_TIMEOUT_MS,
   })
 }
 
@@ -220,6 +226,7 @@ function unmountRun(run: Run): void {
 }
 
 function createGlow(layer: HTMLElement): Motion | null {
+  if (prefersReducedMotion()) return null
   try {
     const glow = new Motion({
       mode: isPageDark() ? 'dark' : 'light',
@@ -255,8 +262,10 @@ function show(agent: string): void {
   }
   sim.shown = true
   sim.run ??= mountRun(sim.root)
-  sim.run.glow?.start()
-  sim.run.glow?.fadeIn().catch(warnUnlessCanceled)
+  if (!prefersReducedMotion()) {
+    sim.run.glow?.start()
+    sim.run.glow?.fadeIn().catch(warnUnlessCanceled)
+  }
   sim.run.layer.classList.add(VISIBLE_CLASS)
   aimAtCenter({run: sim.run, agent})
 }
@@ -268,11 +277,13 @@ function hide(): void {
   disarm()
   run.glow?.fadeOut().catch(warnUnlessCanceled)
   run.glow?.pause()
-  later(HIDE_MS, () => {
+  const unmount = () => {
     if (sim.shown || sim.run !== run) return
     sim.run = null
     unmountRun(run)
-  })
+  }
+  if (cannotAnimate()) unmount()
+  else later(HIDE_MS, unmount)
 }
 
 export function startTask(agent: string): void {
@@ -282,7 +293,7 @@ export function startTask(agent: string): void {
 
 export function touchTask(): void {
   cancel(sim.timeout)
-  if (sim.shown) sim.timeout = later(TASK_TIMEOUT_MS, endTask)
+  if (sim.shown) sim.timeout = later(sim.taskTimeoutMs, endTask)
 }
 
 export function endTask(): void {

@@ -8,8 +8,9 @@ dev runs it against a core dev server: `pnpm dev`, then open
 `http://localhost:3000/?core=http://127.0.0.1:<core-port>`.
 
 Routes are the layout: `/` closed, `/panel/$sessionId/$view` panel, `/quick` quick
-terminal layer, `/pip/$sessionId` picture-in-picture. Embedded runs use
-`@conciv/storage-history` (Web-Storage-persisted); standalone uses browser history.
+terminal layer, `/pip/$sessionId` picture-in-picture. Embedded runs use a memory
+history that starts on this tab's last screen (sessionStorage, as opencode keeps one URL per
+window); standalone uses browser history.
 
 Behavioral coverage lives in `packages/embed`'s real-browser ITs; this package only
 unit-tests pure parsers plus the router-restore path (vitest browser project).
