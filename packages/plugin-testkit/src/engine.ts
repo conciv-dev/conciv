@@ -1,4 +1,3 @@
-import {expect, onTestFinished} from 'vitest'
 import {
   createHarnessEngine,
   type HarnessEngine,
@@ -11,6 +10,7 @@ import {
   type HarnessEngineToolFailure,
 } from '@conciv/harness-testkit'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
+import {engineTests} from './engine-tests.js'
 import {fileEngines} from './file-engines.js'
 import {pluginDirectory} from './plugin-directory.js'
 
@@ -63,7 +63,8 @@ export async function startEngine(config: ConcivConfig = {}, options: EngineStar
 
 export async function createEngine(config: ConcivConfig = {}, options: EngineStart = {}): Promise<Engine> {
   const started = await startEngine(config, options)
-  if (expect.getState().currentTestName !== undefined) onTestFinished(started.stop)
-  else fileEngines.push(started.stop)
+  const test = engineTests.getStore()
+  if (test === undefined) fileEngines.push(started.stop)
+  else test.onTestFinished(started.stop)
   return started.engine
 }
