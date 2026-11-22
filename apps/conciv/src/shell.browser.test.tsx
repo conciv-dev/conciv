@@ -53,40 +53,27 @@ describe('the panel size', () => {
 })
 
 describe('the launcher corner sets where the panel grows', () => {
-  test('a host that puts the launcher top left opens a panel that grows down and right', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({
-      engine,
-      host: {modal: {position: 'top-left'}},
-      history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']}),
-    })
-
-    await user.click(await screen.findByRole('dialog', {name: 'conciv chat agent'}))
-    await user.tab()
-    expect(screen.getByRole('separator', {name: 'Resize chat height', value: {now: 680}})).toHaveFocus()
-    await user.keyboard('{ArrowUp}')
-    expect(await screen.findByRole('separator', {name: 'Resize chat height', value: {now: 656}})).toBeVisible()
-    await user.tab()
-    expect(screen.getByRole('separator', {name: 'Resize chat width', value: {now: 500}})).toHaveFocus()
-    await user.keyboard('{ArrowRight}')
-    expect(await screen.findByRole('separator', {name: 'Resize chat width', value: {now: 524}})).toBeVisible()
-  })
-
-  test('the corner the user left the launcher in wins over the host corner', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({
-      engine,
-      host: {modal: {position: 'top-left'}},
-      history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']}),
+  test.each([
+    {corner: 'the host top left corner', seed: {storage: {}}, grow: '{ArrowUp}'},
+    {
+      corner: 'the bottom left corner the user left it in, over the host top left corner',
       seed: {storage: {'conciv-fab-position': 'bottom-left'}},
+      grow: '{ArrowDown}',
+    },
+  ])('a launcher in $corner opens a panel that grows from that corner', async ({seed, grow}) => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await mount({
+      engine,
+      host: {modal: {position: 'top-left'}},
+      history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']}),
+      seed,
     })
 
     await user.click(await screen.findByRole('dialog', {name: 'conciv chat agent'}))
     await user.tab()
     expect(screen.getByRole('separator', {name: 'Resize chat height', value: {now: 680}})).toHaveFocus()
-    await user.keyboard('{ArrowDown}')
+    await user.keyboard(grow)
     expect(await screen.findByRole('separator', {name: 'Resize chat height', value: {now: 656}})).toBeVisible()
     await user.tab()
     expect(screen.getByRole('separator', {name: 'Resize chat width', value: {now: 500}})).toHaveFocus()
