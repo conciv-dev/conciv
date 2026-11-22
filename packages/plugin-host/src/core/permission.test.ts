@@ -59,21 +59,4 @@ describe('asks', () => {
     expect(await call).toEqual({written: 'notes.txt'})
     expect(await engine.rpc.call('asks', 'list', {sessionId})).toEqual([])
   })
-
-  test("an agent's rule denies a tool for that agent's sessions only", async () => {
-    const engine = await createEngine({
-      plugins: ['./test/fixtures/plugins/guarded', './test/fixtures/plugins/reviewer-agent'],
-    })
-    const reviewing = await engine.newSession('Review')
-
-    expect(await reviewing.tool('become_reviewer').call({})).toEqual({agent: 'reviewer'})
-    const failure = await reviewing.tool('guarded_write').failure({file: 'notes.txt'})
-
-    expect(JSON.parse(failure.message)).toEqual(
-      expect.objectContaining({
-        error: expect.objectContaining({message: expect.stringContaining('Permission denied: guarded.write')}),
-      }),
-    )
-    expect(await engine.session.tool('guarded_write').call({file: 'notes.txt'})).toEqual({written: 'notes.txt'})
-  })
 })

@@ -44,6 +44,9 @@ describe('server tools', () => {
       file: 'README.md',
     })
 
-    expect(await engine.opened()).toEqual([{file: 'src/main.ts', line: 12, column: 4}, {file: 'README.md'}])
+    expect(await engine.opened()).toEqual([
+      {file: 'src/main.ts', line: 12, column: 4},
+      {file: 'README.md', line: 1},
+    ])
   })
 })

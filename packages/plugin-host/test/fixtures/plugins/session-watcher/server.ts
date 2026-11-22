@@ -5,14 +5,25 @@ export default Plugin.define({
   id: 'session-watcher',
   async setup(ctx) {
     const idled = Promise.withResolvers<void>()
-    const created = Promise.withResolvers<unknown>()
+    const created: unknown[] = []
+    const arrived = {next: Promise.withResolvers<void>()}
     const watchCreated = async () => {
       for await (const event of ctx.event.subscribe({types: ['session.created']})) {
-        created.resolve(event.data)
-        return
+        created.push(event.data)
+        arrived.next.resolve()
+        arrived.next = Promise.withResolvers<void>()
       }
     }
-    watchCreated().catch(created.reject)
+    watchCreated().catch((error: unknown) => arrived.next.reject(error))
+    const createdEvent = async (sessionID: string): Promise<unknown> => {
+      const matches = (data: unknown) =>
+        z
+          .object({sessionID: z.literal(sessionID)})
+          .loose()
+          .safeParse(data).success
+      while (!created.some(matches)) await arrived.next.promise
+      return created.find(matches)
+    }
     await ctx.session.hook('experimental.idle', async (event) => {
       await ctx.storage.set('idle', event.sessionId)
       idled.resolve()
@@ -30,10 +41,10 @@ export default Plugin.define({
       })
       tools.add({
         name: 'created_session',
-        description: 'Reports the first created session the event subscription delivered',
-        input: z.object({}),
+        description: 'Reports the session.created event the subscription delivered for a session',
+        input: z.object({sessionID: z.string()}),
         output: z.object({event: z.unknown()}),
-        execute: async () => ({output: {event: await created.promise}}),
+        execute: async ({sessionID}) => ({output: {event: await createdEvent(sessionID)}}),
       })
       tools.add({
         name: 'session_create',

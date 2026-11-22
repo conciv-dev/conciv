@@ -32,8 +32,8 @@ describe('sessions and events', () => {
 
     const watched = await engine.newSession('Watched')
 
-    expect(await engine.session.tool('created_session').call({})).toEqual({
-      event: {sessionID: watched.id, title: 'Watched'},
+    expect(await engine.session.tool('created_session').call({sessionID: watched.id})).toEqual({
+      event: {sessionID: watched.id},
     })
   })
 })

@@ -33,21 +33,29 @@ describe('what the model is given', () => {
     expect(third?.system).toEqual(expect.not.arrayContaining([expect.stringContaining('<context key="units">')]))
   })
 
-  test('on a harness that resumes its own session, an unchanged entry reaches the first request only', async () => {
+  test('on a harness that resumes its own session, the first value stays in the system prompt and a change rides on the next message', async () => {
     const engine = await createEngine(
       {plugins: ['./test/fixtures/plugins/instruction-notes']},
       {harnesses: [{id: 'engine', sessions: []}]},
     )
-    await engine.reply(TestLLM.text('Noted'), TestLLM.text('Still noted'))
-    const metric = '<context key="units">\nUse metric units\n</context>'
+    await engine.reply(TestLLM.text('Noted'), TestLLM.text('Noted again'))
 
     await engine.session.tool('note_put').call({value: 'Use metric units'})
     await engine.session.send('First')
+    await engine.session.tool('note_put').call({value: 'Use imperial units'})
     await engine.session.send('Second')
 
-    const [first, second] = await engine.requests()
-    expect(first?.system).toEqual(expect.arrayContaining([expect.stringContaining(metric)]))
-    expect(second?.system).toEqual(expect.not.arrayContaining([expect.stringContaining(metric)]))
+    const [, second] = await engine.requests()
+    expect(second?.system).toEqual(expect.arrayContaining([expect.stringContaining('Use metric units')]))
+    expect(second?.system).toEqual(expect.not.arrayContaining([expect.stringContaining('Use imperial units')]))
+    expect(second?.messages.at(-1)).toEqual(
+      expect.objectContaining({
+        role: 'user',
+        content: expect.arrayContaining([
+          expect.objectContaining({type: 'text', content: expect.stringContaining('Use imperial units')}),
+        ]),
+      }),
+    )
   })
 
   test("the prompt hook changes the user's message before the model gets it", async () => {
@@ -57,7 +65,9 @@ describe('what the model is given', () => {
     await engine.session.send('Hello')
 
     expect((await engine.requests())[0]?.messages).toEqual(
-      expect.arrayContaining([expect.objectContaining({role: 'user', content: 'Hello, from the prompt hook'})]),
+      expect.arrayContaining([
+        expect.objectContaining({role: 'user', content: [{type: 'text', content: 'Hello, from the prompt hook'}]}),
+      ]),
     )
   })
 
