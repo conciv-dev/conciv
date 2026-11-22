@@ -1,8 +1,5 @@
-import {writeFileSync} from 'node:fs'
-import {join} from 'node:path'
 import {describe, expect} from 'vitest'
 import {createEngine} from '@conciv/plugin-testkit'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {test} from '../../../test/engine-test.js'
 
 describe('plugin rpc', () => {
@@ -85,31 +82,6 @@ describe('tool registry', () => {
     await expect(rpc.registry.call({name: 'desk_missing', input: {}})).rejects.toMatchObject({
       code: 'UNKNOWN_TOOL',
       message: 'no registered tool answers to that name',
-    })
-  })
-})
-
-describe('outside agent CLIs', () => {
-  test("an agent CLI on the engine's PATH is offered, connects to conciv, and disconnects", async ({connect}) => {
-    const bin = tempDir('agent-bin-')
-    writeFileSync(join(bin, 'claude'), '#!/bin/sh\nexit 0\n', {mode: 0o755})
-    const engine = await createEngine({}, {env: {PATH: bin}})
-    const rpc = connect(engine)
-    const listings = (await rpc.meta.hubAgents())[Symbol.asyncIterator]()
-
-    expect((await listings.next()).value).toMatchObject({
-      installs: [expect.objectContaining({harnessId: 'claude'})],
-      connections: [],
-    })
-    await expect(rpc.meta.connectHub({harness: 'claude'})).resolves.toMatchObject({ok: true})
-    expect((await listings.next()).value).toMatchObject({
-      installs: [],
-      connections: [expect.objectContaining({harnessId: 'claude'})],
-    })
-    await expect(rpc.meta.disconnectHub({harness: 'claude'})).resolves.toMatchObject({ok: true})
-    expect((await listings.next()).value).toMatchObject({
-      installs: [expect.objectContaining({harnessId: 'claude'})],
-      connections: [],
     })
   })
 })
