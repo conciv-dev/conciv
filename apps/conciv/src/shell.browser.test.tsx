@@ -186,7 +186,6 @@ describe('a toolbar tooltip', () => {
     await browserUserEvent.unhover(attach)
     await browserUserEvent.click(screen.getByRole('textbox', {name: 'Message the conciv agent'}))
     await browserUserEvent.tab()
-    await browserUserEvent.tab()
     expect(attach).toHaveFocus()
     expect(await screen.findByRole('tooltip', {name: 'Add an attachment'})).toBeVisible()
     await browserUserEvent.keyboard('{Escape}')
