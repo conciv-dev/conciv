@@ -117,6 +117,57 @@ test.describe('searching the sessions on a vite react page when the engine is sl
   })
 })
 
+test.describe('paging the sessions on a vite react page when the engine fails the next page', () => {
+  test("the user names the session, starts 31 more, moves past the first page of sessions while the engine fails the next one, sees that conciv couldn't load more sessions, and once the engine answers again Retry loads the named one", async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const nextPage = await holdEngineCall(page, ['sessions', 'list'], {
+      when: () => true,
+      fail: 'INTERNAL_SERVER_ERROR',
+      armed: false,
+    })
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+
+    await page.getByRole('button', {name: 'Rename session'}).click()
+    const title = page.getByRole('textbox', {name: 'Session title'})
+    await expect(title).toBeFocused()
+    await title.press('ControlOrMeta+A')
+    await title.pressSequentially('The oldest session')
+    await title.press('Enter')
+    await expect(page.getByRole('button', {name: 'The oldest session, session options'})).toBeVisible()
+
+    const sessionOptions = page.getByRole('dialog', {name: 'Session options'})
+    for (let started = 1; started <= 31; started += 1) {
+      await page.getByRole('button', {name: /, session options$/}).click()
+      await sessionOptions.getByRole('button', {name: /^Session: /}).click()
+      await page.getByRole('button', {name: 'New session', exact: true}).click()
+      await expect(sessionOptions).toBeHidden()
+    }
+    await expect(page.getByRole('button', {name: 'New session, session options'})).toBeVisible()
+
+    await page.getByRole('button', {name: 'New session, session options'}).click()
+    await sessionOptions.getByRole('button', {name: 'Session: New session'}).click()
+    await expect(page.getByRole('option', {name: /^New session, /, selected: true})).toBeVisible()
+    await expect(page.getByRole('option', {name: /^The oldest session, /})).toHaveCount(0)
+
+    nextPage.arm()
+    const searchBox = page.getByRole('combobox', {name: 'Search sessions'})
+    for (let row = 1; row <= 29; row += 1) await searchBox.press('ArrowDown')
+    await nextPage.arrived
+    const failed = page.getByRole('status').filter({hasText: "Couldn't load more sessions"})
+    await expect(failed).toBeVisible()
+
+    nextPage.release()
+    await failed.getByRole('button', {name: 'Retry'}).click()
+    await expect(page.getByRole('option', {name: /^The oldest session, /})).toBeVisible()
+    await expect(failed).toBeHidden()
+  })
+})
+
 test.describe('the quick terminal on a vite react page when the engine goes away', () => {
   test('the user opens the quick terminal while the engine is away, sees that conciv could not start a pane, and the pane starts once the engine is back', async ({
     page,
