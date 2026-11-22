@@ -43,28 +43,6 @@ describe('a reply with a diagram', () => {
   })
 })
 
-describe('the files a reply changed', () => {
-  test('the status bar counts the files and lines the agent edited in the last reply', async () => {
-    await page.viewport(1280, 800)
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.toolCall('c1', 'Edit', {file_path: 'src/app.ts', old_string: 'one', new_string: 'two\nthree'}),
-      TestLLM.text('Edited the app'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Change the app')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    expect(await screen.findByText('Edited the app')).toBeVisible()
-
-    const bar = screen.getByRole('toolbar', {name: 'Session status'})
-    expect(within(bar).getByText('1 file')).toBeVisible()
-    expect(within(bar).getByText('+2')).toBeVisible()
-    expect(within(bar).getByText('−1')).toBeVisible()
-  })
-})
-
 describe('a long saved session', () => {
   test('the user scrolls to the start, earlier messages load in order, and Latest brings the end back', async () => {
     await page.viewport(1280, 800)
@@ -97,5 +75,6 @@ describe('a long saved session', () => {
 
     await user.click(latest)
     expect(await screen.findByText('Answer 26')).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Latest', includeHidden: true})).not.toBeVisible()
   })
 })

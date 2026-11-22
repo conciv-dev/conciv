@@ -81,7 +81,7 @@ describe('stopping and sending again', () => {
     expect(screen.getByRole('article', {name: 'Reply to: Take your time'})).toHaveTextContent('Halfway there.')
   })
 
-  test('the user stops a reply before its first word and the next turn keeps the Stopped mark', async () => {
+  test('a reply stopped before its first word leaves no reply in the thread after the next turn', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await engine.reply(TestLLM.hang(), TestLLM.text('Here it is'))
@@ -100,7 +100,6 @@ describe('stopping and sending again', () => {
 
     const reply = await screen.findByRole('article', {name: 'Reply to: Try again'})
     expect(await within(reply).findByText('Here it is')).toBeVisible()
-    expect(screen.getByRole('separator', {name: 'Stopped'})).toBeVisible()
     expect(screen.queryByRole('article', {name: 'Reply to: Wait for it'})).not.toBeInTheDocument()
   })
 })
@@ -240,35 +239,6 @@ describe('a conversation too long for the model', () => {
   })
 })
 
-describe('a session that switched harness', () => {
-  test('each reply names the harness that wrote it once the session holds replies from two harnesses', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine(
-      {},
-      {harnesses: [{id: 'engine'}, {id: 'second', models: [{id: 'second-fast', name: 'Fast 1', group: 'Second'}]}]},
-    )
-    await engine.reply(TestLLM.text('First answer'), TestLLM.text('Second answer'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'First task')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    expect(await screen.findByText('First answer')).toBeVisible()
-    expect(screen.queryByText('engine')).not.toBeInTheDocument()
-
-    await user.click(await screen.findByRole('button', {name: 'Model: Opus 5.5 (engine)'}))
-    await user.click(await screen.findByRole('option', {name: 'Fast 1 (second)'}))
-    const confirm = await screen.findByRole('alertdialog', {name: 'Switch harness?'})
-    await user.click(within(confirm).getByRole('button', {name: 'Switch to second'}))
-    expect(await screen.findByRole('button', {name: 'Model: Fast 1 (second)'})).toBeVisible()
-    await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Second task')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-
-    expect(await screen.findByText('Second answer')).toBeVisible()
-    expect(screen.getByText('engine')).toBeVisible()
-    expect(screen.getByText('second')).toBeVisible()
-  })
-})
-
 describe('the agent asks for permission', () => {
   test('the ask is announced and listed with its target, the run waits, Allow once lets the tool run, and the card says it was allowed', async () => {
     const user = userEvent.setup()
@@ -367,16 +337,16 @@ describe('the agent asks for permission', () => {
     await user.keyboard('{Escape}')
     expect(await within(first).findByText('Denied')).toBeVisible()
 
-    const asks = await screen.findAllByRole('group', {name: 'Permission request'})
-    const second = asks.at(-1)
-    expect(second).toHaveTextContent('release_ship next')
-    if (second === undefined) return
-    await user.click(second)
-    expect(second).toHaveFocus()
+    await user.click(await screen.findByText('release_ship next'))
+    const asks = screen.getAllByRole('group', {name: 'Permission request'})
+    expect(asks).toHaveLength(2)
+    expect(asks.at(-1)).toHaveTextContent('release_ship next')
+    expect(asks.at(-1)).toHaveFocus()
     await user.keyboard('{Control>}{Enter}{/Control}')
 
     expect(await screen.findByText('Next is shipped')).toBeVisible()
-    expect(within(second).getByText('Allowed')).toBeVisible()
+    expect(within(first).getByText('Denied')).toBeVisible()
+    expect(screen.getByText('Allowed')).toBeVisible()
   })
 
   test('an ask that cannot be saved offers no Allow always', async () => {

@@ -21,9 +21,15 @@ describe('the agent asks a choice', () => {
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByText('Which color?')).toBeVisible()
     expect(screen.getByText('Rendered choices')).toBeVisible()
+    expect(screen.getByRole('status', {name: 'Agent activity'})).toHaveTextContent('conciv_ui')
+    expect(screen.getAllByRole('img', {name: 'running'}).at(-1)).toBeVisible()
+    expect(screen.queryByRole('img', {name: 'complete'})).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', {name: 'Blue'}))
 
     expect(await screen.findByText('Blue it is')).toBeVisible()
+    expect(screen.queryByRole('status', {name: 'Agent activity'})).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', {name: 'running'})).not.toBeInTheDocument()
+    expect(screen.getAllByRole('img', {name: 'complete'}).at(-1)).toBeVisible()
     const reply = screen.getByRole('article', {name: 'Reply to: Pick a color with me'})
     expect(within(reply).getByText('Blue')).toBeVisible()
     expect(within(reply).queryByRole('button', {name: 'Red'})).not.toBeInTheDocument()
@@ -105,34 +111,6 @@ describe('a plugin fills the session header and status', () => {
   })
 })
 
-describe('a tool card follows its call to the end', () => {
-  test('the card reads running while the question waits, and complete once the user answers', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode:
-          "return await external_conciv_ui({kind: 'choices', question: 'Which size?', options: ['Small', 'Large']})",
-      }),
-      TestLLM.text('Large it is'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Pick a size with me')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    expect(await screen.findByRole('button', {name: 'Large'})).toBeVisible()
-    expect(screen.getByRole('status', {name: 'Agent activity'})).toHaveTextContent('conciv_ui')
-    expect(screen.getAllByRole('img', {name: 'running'}).at(-1)).toBeVisible()
-    expect(screen.queryByRole('img', {name: 'complete'})).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', {name: 'Large'}))
-    expect(await screen.findByText('Large it is')).toBeVisible()
-    expect(screen.queryByRole('status', {name: 'Agent activity'})).not.toBeInTheDocument()
-    expect(screen.queryByRole('img', {name: 'running'})).not.toBeInTheDocument()
-    expect(screen.getAllByRole('img', {name: 'complete'}).at(-1)).toBeVisible()
-  })
-})
-
 describe('opening a tool card while the turn goes on', () => {
   test('the user opens the card of a tool with no card of its own, its body shows, and it stays open when the answer arrives', async () => {
     const user = userEvent.setup()
@@ -159,27 +137,6 @@ describe('opening a tool card while the turn goes on', () => {
     await answer.release()
     expect(await screen.findByText('The window is set')).toBeVisible()
     expect(within(reply).getByText(/noon to two/)).toBeVisible()
-  })
-})
-
-describe('how long a tool took', () => {
-  test('a finished tool card shows its duration in seconds', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_release_window({branch: 'main'})",
-      }),
-      TestLLM.text('The window is set'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'When can we ship')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-
-    expect(await screen.findByText('The window is set')).toBeVisible()
-    const reply = screen.getByRole('article', {name: 'Reply to: When can we ship'})
-    await user.click(within(reply).getByRole('button', {name: /main/}))
     const durations = await within(reply).findAllByText(/^\d+\.\ds$/)
     expect(durations.at(-1)).toBeVisible()
   })
