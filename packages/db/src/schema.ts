@@ -67,7 +67,7 @@ export const InstructionStateTable = sqliteTable('instruction_state', {
     .$type<Readonly<Record<string, string & Brand.Brand<'Instruction.Hash'>>>>(),
 })
 
-type SessionInboxPayload = {text: string; description?: string; metadata?: Record<string, unknown>}
+type SessionInboxPayload = Readonly<Record<string, unknown>>
 
 export const SessionInboxTable = sqliteTable(
   'session_inbox',
@@ -77,7 +77,7 @@ export const SessionInboxTable = sqliteTable(
       .$type<SessionId>()
       .notNull()
       .references(() => sessions.id, {onDelete: 'cascade'}),
-    type: text().$type<'synthetic'>().notNull(),
+    type: text().$type<'user' | 'synthetic' | 'compaction' | 'move'>().notNull(),
     payload: text({mode: 'json'}).$type<SessionInboxPayload>().notNull(),
     delivery: text().$type<'steer' | 'queue'>().notNull(),
     enqueued_seq: integer().notNull(),

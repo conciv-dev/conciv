@@ -3,7 +3,19 @@ export * as SessionInbox from './inbox.js'
 import {and, asc, eq, inArray, max} from 'drizzle-orm'
 import {Context, Effect, Layer, Option, Schema} from 'effect'
 import {chatMessages} from '@conciv/db'
-import {Info, Synthetic, SyntheticPayload, type Delivery, type Item} from '@conciv/plugin/schema/session-inbox'
+import {
+  Compaction,
+  CompactionPayload,
+  Info,
+  Move,
+  MovePayload,
+  Synthetic,
+  SyntheticPayload,
+  User,
+  UserPayload,
+  type Delivery,
+  type Item,
+} from '@conciv/plugin/schema/session-inbox'
 import {SessionEvent} from '@conciv/plugin/schema/session-event'
 import type {SessionId} from '@conciv/plugin/schema/session-id'
 import {SessionMessage} from '@conciv/plugin/schema/session-message'
@@ -38,18 +50,54 @@ const SyntheticTag = Schema.Struct({
   }),
 })
 
+function matches<Type extends Item['type']>(
+  stored: Info,
+  request: PendingRef & {readonly type: Type},
+): stored is Extract<Info, {readonly type: Type}> {
+  return stored.sessionId === request.sessionId && stored.type === request.type
+}
+
+const decodeUser = Schema.decodeUnknownSync(UserPayload)
+const encodeUser = Schema.encodeSync(UserPayload)
 const decodeSynthetic = Schema.decodeUnknownSync(SyntheticPayload)
+const encodeSynthetic = Schema.encodeSync(SyntheticPayload)
+const decodeCompaction = Schema.decodeUnknownSync(CompactionPayload)
+const encodeCompaction = Schema.encodeSync(CompactionPayload)
+const decodeMove = Schema.decodeUnknownSync(MovePayload)
+const encodeMove = Schema.encodeSync(MovePayload)
 const readSyntheticTag = Schema.decodeUnknownOption(SyntheticTag)
 
-const fromRow = (row: InboxRow): Info =>
-  Synthetic.make({
+const fromRow = (row: InboxRow): Info => {
+  const base = {
     id: SessionMessage.Id.make(row.id),
     sessionId: row.session_id,
     time: {created: row.time_created},
-    type: 'synthetic',
-    payload: decodeSynthetic(row.payload),
-    delivery: row.delivery,
-  })
+  }
+  if (row.type === 'compaction')
+    return Compaction.make({
+      ...base,
+      type: 'compaction',
+      payload: decodeCompaction(row.payload),
+      delivery: row.delivery,
+    })
+  if (row.type === 'move')
+    return Move.make({...base, type: 'move', payload: decodeMove(row.payload), delivery: row.delivery})
+  if (row.type === 'user')
+    return User.make({
+      ...base,
+      type: 'user',
+      payload: decodeUser(row.payload),
+      delivery: row.delivery,
+    })
+  if (row.type === 'synthetic')
+    return Synthetic.make({
+      ...base,
+      type: 'synthetic',
+      payload: decodeSynthetic(row.payload),
+      delivery: row.delivery,
+    })
+  throw makeLifecycleConflict({id: base.id})
+}
 
 const find = Effect.fn('SessionInbox.find')(function* (db: DatabaseService, id: SessionMessage.Id) {
   const row = yield* db.select().from(SessionInboxTable).where(eq(SessionInboxTable.id, id)).get().pipe(Effect.orDie)
@@ -136,17 +184,17 @@ const deliveredMessages = (db: DatabaseService, sessionId: SessionId, rows: read
         )
 
 export interface Interface {
-  readonly reconcile: (request: {
+  readonly reconcile: <Type extends Item['type']>(request: {
     readonly id: SessionMessage.Id
     readonly sessionId: SessionId
-    readonly type: Item['type']
+    readonly type: Type
     readonly delivery: Delivery
-  }) => Effect.Effect<Info | undefined, LifecycleConflict>
-  readonly admit: (request: {
+  }) => Effect.Effect<Extract<Info, {readonly type: Type}> | undefined, LifecycleConflict>
+  readonly admit: <Type extends Item['type']>(request: {
     readonly id: SessionMessage.Id
     readonly sessionId: SessionId
-    readonly item: Item
-  }) => Effect.Effect<Info, LifecycleConflict>
+    readonly item: Item & {readonly type: Type}
+  }) => Effect.Effect<Extract<Info, {readonly type: Type}>, LifecycleConflict>
   readonly has: (sessionId: SessionId, scope: Scope) => Effect.Effect<boolean>
   readonly promote: (sessionId: SessionId, scope: Promotable) => Effect.Effect<StoredMessage[]>
 }
@@ -160,22 +208,27 @@ export const layer = Layer.effect(
     const bus = yield* Bus.Service
     const locks = yield* KeyedMutex.make<SessionId>()
 
-    const reconcile: Interface['reconcile'] = Effect.fn('SessionInbox.reconcile')(function* (request) {
+    const reconcile = Effect.fn('SessionInbox.reconcile')(function* <Type extends Item['type']>(request: {
+      readonly id: SessionMessage.Id
+      readonly sessionId: SessionId
+      readonly type: Type
+      readonly delivery: Delivery
+    }) {
       const existing =
         (yield* find(db, request.id)) ??
         (yield* promotedFromMessage(db, request.sessionId, request.id, request.delivery))
       if (existing === undefined) return undefined
-      if (existing.sessionId !== request.sessionId || existing.type !== request.type)
+      if (existing.type === 'compaction' || !matches(existing, request))
         return yield* Effect.fail(makeLifecycleConflict({id: request.id}))
       return existing
     })
 
-    const admit: Interface['admit'] = Effect.fn('SessionInbox.admit')(function* (request) {
-      const existing = yield* reconcile({
-        ...request,
-        type: request.item.type,
-        delivery: request.item.delivery,
-      })
+    const admit = Effect.fn('SessionInbox.admit')(function* <Type extends Item['type']>(request: {
+      readonly id: SessionMessage.Id
+      readonly sessionId: SessionId
+      readonly item: Item & {readonly type: Type}
+    }) {
+      const existing = yield* reconcile({...request, type: request.item.type, delivery: request.item.delivery})
       if (existing !== undefined) return existing
       const admitted = yield* bus
         .publish(SessionEvent.InboxEnqueued, {
@@ -204,7 +257,7 @@ export const layer = Layer.effect(
               : Effect.die(defect),
           ),
         )
-      if (admitted.sessionId !== request.sessionId || admitted.type !== request.item.type)
+      if (!matches(admitted, {...request, type: request.item.type}))
         return yield* Effect.fail(makeLifecycleConflict({id: request.id}))
       return admitted
     })
@@ -280,7 +333,14 @@ export const projectAdmitted = Effect.fn('SessionInbox.projectAdmitted')(functio
       id: request.id,
       session_id: request.sessionId,
       type: request.item.type,
-      payload: Schema.encodeSync(SyntheticPayload)(request.item.payload),
+      payload:
+        request.item.type === 'user'
+          ? encodeUser(request.item.payload)
+          : request.item.type === 'synthetic'
+            ? encodeSynthetic(request.item.payload)
+            : request.item.type === 'compaction'
+              ? encodeCompaction(request.item.payload)
+              : encodeMove(request.item.payload),
       delivery: request.item.delivery,
       enqueued_seq: request.enqueuedSeq,
       time_created: request.timeCreated,
@@ -292,12 +352,12 @@ export const projectAdmitted = Effect.fn('SessionInbox.projectAdmitted')(functio
   if (!stored) return yield* Effect.die(makeLifecycleConflict({id: request.id}))
 })
 
-const syntheticMessage = (row: InboxRow, delivered: number): StoredMessage => ({
-  id: row.id,
+const syntheticMessage = (id: string, payload: SyntheticPayload, delivered: number): StoredMessage => ({
+  id,
   role: 'user',
-  content: row.payload.text,
+  content: payload.text,
   createdAt: new Date(delivered),
-  metadata: {conciv: {synthetic: {description: row.payload.description, metadata: row.payload.metadata}}},
+  metadata: {conciv: {synthetic: {description: payload.description, metadata: payload.metadata}}},
 })
 
 export const projectDelivered = Effect.fn('SessionInbox.projectDelivered')(function* (
@@ -324,7 +384,7 @@ export const projectDelivered = Effect.fn('SessionInbox.projectDelivered')(funct
       position: (last?.position ?? -1) + 1,
       messageId: deleted.id,
       role: 'user',
-      messageJson: syntheticMessage(deleted, input.timeDelivered),
+      messageJson: syntheticMessage(deleted.id, decodeSynthetic(deleted.payload), input.timeDelivered),
     })
     .run()
     .pipe(Effect.orDie)

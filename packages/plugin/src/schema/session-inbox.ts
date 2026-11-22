@@ -1,12 +1,27 @@
 export * as SessionInbox from './session-inbox.js'
 
 import {Schema} from 'effect'
-import {optional} from './schema.js'
+import {Location} from './location.js'
+import {ProjectId} from './project-id.js'
+import {Attachment, Prompt} from './prompt.js'
+import {optional, RelativePath} from './schema.js'
 import {SessionId} from './session-id.js'
 import {SessionMessage} from './session-message.js'
 
 export const Delivery = Schema.Literals(['steer', 'queue']).annotate({identifier: 'Session.Inbox.Delivery'})
 export type Delivery = typeof Delivery.Type
+
+export interface UserPayload extends Schema.Schema.Type<typeof UserPayload> {}
+export const UserPayload = Schema.Struct({
+  ...Prompt.fields,
+  metadata: Schema.Record(Schema.String, Schema.Json).pipe(optional),
+}).annotate({identifier: 'Session.Inbox.UserPayload'})
+
+export interface MediaUserPayload extends Schema.Schema.Type<typeof MediaUserPayload> {}
+export const MediaUserPayload = Schema.Struct({
+  ...UserPayload.fields,
+  files: Schema.Array(Attachment).pipe(optional),
+}).annotate({identifier: 'Session.Inbox.MediaUserPayload'})
 
 export interface SyntheticPayload extends Schema.Schema.Type<typeof SyntheticPayload> {}
 export const SyntheticPayload = Schema.Struct({
@@ -15,9 +30,26 @@ export const SyntheticPayload = Schema.Struct({
   metadata: Schema.Record(Schema.String, Schema.Json).pipe(optional),
 }).annotate({identifier: 'Session.Inbox.SyntheticPayload'})
 
-const SyntheticItem = Schema.Struct({type: Schema.tag('synthetic'), payload: SyntheticPayload, delivery: Delivery})
+export interface CompactionPayload extends Schema.Schema.Type<typeof CompactionPayload> {}
+export const CompactionPayload = Schema.Struct({}).annotate({identifier: 'Session.Inbox.CompactionPayload'})
 
-export const Item = Schema.Union([SyntheticItem]).pipe(
+export interface MovePayload extends Schema.Schema.Type<typeof MovePayload> {}
+export const MovePayload = Schema.Struct({
+  location: Location.Ref,
+  projectID: ProjectId,
+  subpath: RelativePath.pipe(optional),
+}).annotate({identifier: 'Session.Inbox.MovePayload'})
+
+const UserItem = Schema.Struct({type: Schema.tag('user'), payload: UserPayload, delivery: Delivery})
+const SyntheticItem = Schema.Struct({type: Schema.tag('synthetic'), payload: SyntheticPayload, delivery: Delivery})
+const CompactionItem = Schema.Struct({
+  type: Schema.tag('compaction'),
+  payload: CompactionPayload,
+  delivery: Delivery,
+})
+const MoveItem = Schema.Struct({type: Schema.tag('move'), payload: MovePayload, delivery: Delivery})
+
+export const Item = Schema.Union([UserItem, SyntheticItem, CompactionItem, MoveItem]).pipe(
   Schema.toTaggedUnion('type'),
   Schema.annotate({identifier: 'Session.Inbox.Item'}),
 )
@@ -29,13 +61,35 @@ const Enqueued = {
   time: Schema.Struct({created: Schema.Finite}),
 }
 
+export interface User extends Schema.Schema.Type<typeof User> {}
+export const User = Schema.Struct({...Enqueued, ...UserItem.fields}).annotate({identifier: 'Session.Inbox.User'})
+
+export interface MediaUser extends Schema.Schema.Type<typeof MediaUser> {}
+export const MediaUser = Schema.Struct({...User.fields, payload: MediaUserPayload}).annotate({
+  identifier: 'Session.Inbox.MediaUser',
+})
+
 export interface Synthetic extends Schema.Schema.Type<typeof Synthetic> {}
 export const Synthetic = Schema.Struct({...Enqueued, ...SyntheticItem.fields}).annotate({
   identifier: 'Session.Inbox.Synthetic',
 })
 
-export const Info = Schema.Union([Synthetic]).pipe(
+export interface Compaction extends Schema.Schema.Type<typeof Compaction> {}
+export const Compaction = Schema.Struct({...Enqueued, ...CompactionItem.fields}).annotate({
+  identifier: 'Session.Inbox.Compaction',
+})
+
+export interface Move extends Schema.Schema.Type<typeof Move> {}
+export const Move = Schema.Struct({...Enqueued, ...MoveItem.fields}).annotate({identifier: 'Session.Inbox.Move'})
+
+export const Info = Schema.Union([User, Synthetic, Compaction, Move]).pipe(
   Schema.toTaggedUnion('type'),
   Schema.annotate({identifier: 'Session.Inbox.Info'}),
 )
 export type Info = typeof Info.Type
+
+export const MediaInfo = Schema.Union([MediaUser, Synthetic, Compaction, Move]).pipe(
+  Schema.toTaggedUnion('type'),
+  Schema.annotate({identifier: 'Session.Inbox.MediaInfo'}),
+)
+export type MediaInfo = typeof MediaInfo.Type
