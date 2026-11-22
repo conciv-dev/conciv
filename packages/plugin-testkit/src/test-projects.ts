@@ -82,6 +82,11 @@ function ciReporters(): NonNullable<AuthorTest['reporters']> {
   return ['default', ['github-actions', {jobSummary: {enabled: false}}], ['json', {outputFile: 'test-results.json'}]]
 }
 
+const WORKSPACE_COVERAGE = ['packages', 'packages/plugins', 'packages/extensions', 'apps'].flatMap((group) => [
+  `**/${group}/*/src/**/*.{ts,tsx}`,
+  `**/${group}/*/dist/**/*.js`,
+])
+
 function kitDefaults(test: AuthorTest = {}): AuthorTest {
   return {
     reporters: test.reporters ?? ciReporters(),
@@ -91,8 +96,12 @@ function kitDefaults(test: AuthorTest = {}): AuthorTest {
       reporter: ['json-summary', 'lcovonly'],
       reportsDirectory: 'coverage',
       reportOnFailure: true,
-      include: ['src/**/*.{ts,tsx}', 'dist/**/*.js'],
-      exclude: ['src/**/*.test.*', 'src/**/*.stories.*'],
+      include: ['src/**/*.{ts,tsx}', 'dist/**/*.js', ...WORKSPACE_COVERAGE],
+      exclude: ['**/*.test.*', '**/*.stories.*', '**/node_modules/**'],
+      allowExternal: true,
+      excludeAfterRemap: true,
+      // oxlint-disable-next-line conciv/banned-vocabulary -- vitest's own option name: coverage of the CLI child process
+      autoAttachSubprocess: true,
     },
     testTimeout: test.testTimeout ?? TEST_TIMEOUT_MS,
     hookTimeout: test.hookTimeout ?? HOOK_TIMEOUT_MS,

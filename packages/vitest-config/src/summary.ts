@@ -1,5 +1,5 @@
 import {existsSync, readFileSync, readdirSync} from 'node:fs'
-import {dirname, join} from 'node:path'
+import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
 import {stripVTControlCharacters} from 'node:util'
 
 type Failure = {test: string; message: string}
@@ -325,47 +325,73 @@ export function loadSummaries(roots: string[]): PackageSummary[] {
   return mergeSummaries(summaries)
 }
 
-export type MergedLcov = {lcov: string; coverage: Coverage}
+export type FileCoverage = Coverage & {file: string}
 
-export function mergeLcov(reports: string[]): MergedLcov {
+export type MergedLcov = {lcov: string; coverage: Coverage; files: FileCoverage[]}
+
+export function rebaseLcov(report: string, from: string, to: string): string {
+  return report.replaceAll(/^SF:(.*)$/gmu, (_line, file: string) => `SF:${relative(to, resolve(from, file))}`)
+}
+
+function readHits(reports: string[], keep: (file: string) => boolean): Map<string, Map<number, number>> {
   const hitsByFile = new Map<string, Map<number, number>>()
-  for (const report of reports) {
-    let hits: Map<number, number> | undefined
-    for (const line of report.split('\n')) {
-      if (line.startsWith('SF:')) {
-        const file = line.slice(3)
-        hits = hitsByFile.get(file) ?? new Map<number, number>()
-        hitsByFile.set(file, hits)
-      }
-      const data = /^DA:(\d+),(\d+)/.exec(line)
-      if (data === null || hits === undefined) continue
-      const lineNumber = Number(data[1])
-      hits.set(lineNumber, (hits.get(lineNumber) ?? 0) + Number(data[2]))
+  for (const record of reports.flatMap((report) => report.split('end_of_record'))) {
+    const file = /^SF:(.*)$/mu.exec(record)?.[1]
+    if (file === undefined || !keep(file)) continue
+    const hits = hitsByFile.get(file) ?? new Map<number, number>()
+    hitsByFile.set(file, hits)
+    for (const [, line, count] of record.matchAll(/^DA:(\d+),(\d+)/gmu)) {
+      hits.set(Number(line), (hits.get(Number(line)) ?? 0) + Number(count))
     }
   }
-  const files = [...hitsByFile.entries()].toSorted(([a], [b]) => a.localeCompare(b))
-  const records = files.map(([file, hits]) => {
-    const lines = [...hits.entries()].toSorted(([a], [b]) => a - b)
-    const covered = lines.filter(([, count]) => count > 0).length
-    return {
-      covered,
-      total: lines.length,
-      text: [
-        `SF:${file}`,
-        ...lines.map(([lineNumber, count]) => `DA:${lineNumber},${count}`),
-        `LF:${lines.length}`,
-        `LH:${covered}`,
-        'end_of_record',
-      ].join('\n'),
-    }
-  })
+  return hitsByFile
+}
+
+function lcovRecord(file: string, hits: Map<number, number>): FileCoverage & {text: string} {
+  const lines = [...hits.entries()].toSorted(([a], [b]) => a - b)
+  const covered = lines.filter(([, count]) => count > 0).length
+  const text = [
+    `SF:${file}`,
+    ...lines.map(([lineNumber, count]) => `DA:${lineNumber},${count}`),
+    `LF:${lines.length}`,
+    `LH:${covered}`,
+    'end_of_record',
+  ].join('\n')
+  return {file, covered, total: lines.length, text}
+}
+
+export function mergeLcov(reports: string[], keep: (file: string) => boolean = () => true): MergedLcov {
+  const records = [...readHits(reports, keep).entries()]
+    .toSorted(([a], [b]) => a.localeCompare(b))
+    .map(([file, hits]) => lcovRecord(file, hits))
   return {
     lcov: records.map((record) => `${record.text}\n`).join(''),
     coverage: {
       covered: records.reduce((sum, record) => sum + record.covered, 0),
       total: records.reduce((sum, record) => sum + record.total, 0),
     },
+    files: records.map(({file, covered, total}) => ({file, covered, total})),
   }
+}
+
+export function isWorkspaceSource(file: string): boolean {
+  const parts = file.split(sep)
+  return !isAbsolute(file) && parts[0] !== '..' && !parts.includes('dist') && !parts.includes('node_modules')
+}
+
+export function coverageByPackage(files: FileCoverage[], root: string): Map<string, Coverage> {
+  const byPackage = new Map<string, Coverage>()
+  for (const {file, covered, total} of files) {
+    const name = owningPackage(dirname(resolve(root, file)))
+    if (name === null) continue
+    const sum = byPackage.get(name) ?? {covered: 0, total: 0}
+    byPackage.set(name, {covered: sum.covered + covered, total: sum.total + total})
+  }
+  return byPackage
+}
+
+export function coverageOnlySummary(name: string, coverage: Coverage): PackageSummary {
+  return {...emptySummary(name), coverage}
 }
 
 function escapeHtml(text: string): string {

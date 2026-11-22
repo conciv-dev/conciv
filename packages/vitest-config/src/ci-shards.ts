@@ -1,15 +1,6 @@
 #!/usr/bin/env node
 import {execFileSync} from 'node:child_process'
-import {
-  appendFileSync,
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs'
+import {appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {basename, dirname, join} from 'node:path'
 import {
   e2ePackages,
@@ -25,7 +16,11 @@ import {
   findFiles,
   loadSummaries,
   manifestName,
+  coverageByPackage,
+  coverageOnlySummary,
+  isWorkspaceSource,
   mergeLcov,
+  rebaseLcov,
   mergeSummaries,
   type PackageSummary,
   parseSummaries,
@@ -132,8 +127,6 @@ function report(args: string[]): void {
   writeFileSync(outputPath, `${JSON.stringify(loadSummaries(taskConfig(args).reportRoots))}\n`)
 }
 
-const COVERAGE_FILES = ['coverage-summary.json', 'lcov.info']
-
 const PACKAGE_DIR_SEPARATOR = '__'
 
 function coverage(args: string[]): void {
@@ -141,10 +134,10 @@ function coverage(args: string[]): void {
   for (const lcov of findFiles(taskConfig(args).reportRoots, 'lcov.info')) {
     const reportDir = dirname(lcov)
     if (basename(reportDir) !== 'coverage') continue
-    const target = join(outputDir, manifestName(dirname(reportDir)).replaceAll('/', PACKAGE_DIR_SEPARATOR))
+    const packageDir = dirname(reportDir)
+    const target = join(outputDir, manifestName(packageDir).replaceAll('/', PACKAGE_DIR_SEPARATOR))
     mkdirSync(target, {recursive: true})
-    for (const file of COVERAGE_FILES)
-      if (existsSync(join(reportDir, file))) copyFileSync(join(reportDir, file), join(target, file))
+    writeFileSync(join(target, 'lcov.info'), rebaseLcov(readFileSync(lcov, 'utf8'), packageDir, process.cwd()))
   }
 }
 
@@ -167,28 +160,29 @@ function readReports(dir: string): PackageSummary[] {
 function withCoverage(summaries: PackageSummary[], args: string[]): PackageSummary[] {
   const coverageDir = argValue(args, '--coverage')
   if (coverageDir === null || !existsSync(coverageDir)) return summaries
-  const reportsByPackage = Map.groupBy(findFiles([coverageDir], 'lcov.info'), (path) =>
-    basename(dirname(path)).replaceAll(PACKAGE_DIR_SEPARATOR, '/'),
+  const merged = mergeLcov(
+    findFiles([coverageDir], 'lcov.info').map((path) => readFileSync(path, 'utf8')),
+    isWorkspaceSource,
   )
   const outputDir = argValue(args, '--coverage-output')
-  const coverageByPackage = new Map(
-    [...reportsByPackage.entries()].map(([name, paths]) => {
-      const merged = mergeLcov(paths.map((path) => readFileSync(path, 'utf8')))
-      if (outputDir !== null) {
-        const target = join(outputDir, name.replaceAll('/', PACKAGE_DIR_SEPARATOR))
-        mkdirSync(target, {recursive: true})
-        writeFileSync(join(target, 'lcov.info'), merged.lcov)
-      }
-      return [name, merged.coverage]
-    }),
-  )
-  return summaries.map((summary) => ({...summary, coverage: coverageByPackage.get(summary.name) ?? null}))
+  if (outputDir !== null) {
+    mkdirSync(outputDir, {recursive: true})
+    writeFileSync(join(outputDir, 'lcov.info'), merged.lcov)
+  }
+  const byPackage = coverageByPackage(merged.files, process.cwd())
+  const tested = new Set(summaries.map((summary) => summary.name))
+  return [
+    ...summaries.map((summary) => ({...summary, coverage: byPackage.get(summary.name) ?? null})),
+    ...[...byPackage.entries()]
+      .filter(([name]) => !tested.has(name))
+      .map(([name, packageCoverage]) => coverageOnlySummary(name, packageCoverage)),
+  ]
 }
 
 function summarize(args: string[]): void {
-  const merged = withCoverage(mergeSummaries(positionals(args).flatMap(readReports)), args)
+  const merged = mergeSummaries(positionals(args).flatMap(readReports))
   const summaryPath = process.env.GITHUB_STEP_SUMMARY
-  const rendered = renderSummary(merged, taskConfig(args).render)
+  const rendered = renderSummary(withCoverage(merged, args), taskConfig(args).render)
   if (summaryPath === undefined) process.stdout.write(rendered)
   if (summaryPath !== undefined) appendFileSync(summaryPath, rendered)
   const timingsPath = argValue(args, '--timings')

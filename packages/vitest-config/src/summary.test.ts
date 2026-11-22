@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'vitest'
-import {mergeLcov, mergeSummaries, parseSummaries} from './summary.ts'
+import {resolve} from 'node:path'
+import {coverageByPackage, isWorkspaceSource, mergeLcov, mergeSummaries, parseSummaries, rebaseLcov} from './summary.ts'
 
 describe('the CI summary of a package split into parts', () => {
   test('adds the parts back up under the package name, so the next plan still sees the whole time', () => {
@@ -27,5 +28,20 @@ describe('the CI summary of a package split into parts', () => {
     expect(merged.lcov).toBe(
       'SF:src/a.ts\nDA:1,3\nDA:2,1\nDA:3,0\nLF:3\nLH:2\nend_of_record\nSF:src/b.ts\nDA:1,0\nLF:1\nLH:0\nend_of_record\n',
     )
+  })
+
+  test('credits each source file to the package that owns it, whichever package ran it, and leaves dist out', () => {
+    const root = resolve('../..')
+    const fromChat = rebaseLcov(
+      'SF:../vitest-config/src/shards.ts\nDA:1,1\nDA:2,0\nend_of_record\nSF:dist/index.js\nDA:1,0\nend_of_record\n',
+      resolve('../chat'),
+      root,
+    )
+    const fromOwnRun = rebaseLcov('SF:src/shards.ts\nDA:2,3\nend_of_record\n', resolve('.'), root)
+
+    const merged = mergeLcov([fromChat, fromOwnRun], isWorkspaceSource)
+
+    expect(merged.files).toEqual([{file: 'packages/vitest-config/src/shards.ts', covered: 2, total: 2}])
+    expect(coverageByPackage(merged.files, root)).toEqual(new Map([['@conciv/vitest-config', {covered: 2, total: 2}]]))
   })
 })

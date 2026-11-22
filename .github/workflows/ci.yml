@@ -163,9 +163,9 @@ jobs:
         with:
           name: test-results-${{ matrix.shard }}
           path: shard-report-${{ matrix.shard }}.json
-      # Each package's V8 coverage (json-summary + lcov, written by vitest in CI and
-      # cached by turbo as test outputs), copied by our own walker into one folder
-      # per shard, then uploaded by literal path: same no-glob rule as above.
+      # Each package run's V8 lcov (it holds every workspace source file the run
+      # executed, in any package), with its paths made repo-relative, copied into
+      # one folder per shard and uploaded by literal path: same no-glob rule as above.
       - run: pnpm exec conciv-ci-shards coverage --output "coverage-${SHARD_NAME}"
         if: always()
         env:
@@ -207,8 +207,8 @@ jobs:
           pattern: test-results-*
           merge-multiple: true
           path: shard-reports
-      # One folder per shard: a package split into parts has an lcov in several of
-      # them, and summarize merges those line by line into one set per package.
+      # One folder per shard; summarize merges every lcov by source file, credits each
+      # file to the package that owns it, and writes one repo-wide lcov.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: coverage-*
