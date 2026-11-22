@@ -35,6 +35,7 @@ const POLL_INTERVAL_MS = 50
 const VIEWPORT = {width: 1280, height: 800}
 const BROWSER_TESTS = ['src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx']
 const PERF_TESTS = ['src/**/*.perf.test.ts', 'src/**/*.perf.test.tsx']
+const WORKSPACE_DIST = /^(?!.*\/node_modules\/).*\/dist\/.*\.m?js$/
 
 type BrowserName = 'chromium' | 'firefox'
 
@@ -467,6 +468,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
         environment: 'node',
         include: ['src/**/*.test.ts'],
         setupFiles: [join(KIT_DIST, 'node-setup.js')],
+        server: {deps: {external: [WORKSPACE_DIST]}},
         exclude: [...configDefaults.exclude, '**/*.dom.test.*', '**/*.browser.test.*', '**/*.perf.test.*'],
       },
     },
