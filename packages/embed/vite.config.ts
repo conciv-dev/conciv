@@ -2,6 +2,7 @@ import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
+import {concivTest} from '@conciv/plugin-testkit/vitest'
 
 const EXTERNAL_PREFIXES = ['solid-js/', 'effect/', '@ark-ui/', '@conciv/']
 
@@ -23,7 +24,7 @@ const isExternal = (id: string): boolean => {
 }
 
 export default defineConfig({
-  plugins: [UnoCSS(), solid()],
+  plugins: [UnoCSS(), solid(), concivTest()],
 
   define: {'define.amd': 'false'},
   build: {
