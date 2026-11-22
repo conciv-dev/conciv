@@ -7,6 +7,7 @@ type CiCoverage = {
   provider: 'v8'
   reporter: ['json-summary', 'lcovonly']
   reportsDirectory: string
+  reportOnFailure: boolean
 }
 
 export function ciReporters(): CiReporterEntry[] {
@@ -22,6 +23,7 @@ export function ciReporting(): {reporters: CiReporterEntry[]; coverage: CiCovera
       provider: 'v8',
       reporter: ['json-summary', 'lcovonly'],
       reportsDirectory: 'coverage',
+      reportOnFailure: true,
     },
   }
 }
