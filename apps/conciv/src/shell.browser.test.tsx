@@ -1,13 +1,12 @@
-import {describe, expect, onTestFinished, test} from 'vitest'
+import {describe, expect, test} from 'vitest'
 import {page, userEvent as browserUserEvent} from 'vitest/browser'
-import {cleanup, render, screen, waitFor, within} from '@solidjs/testing-library'
+import {cleanup, render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('focus around the panel', () => {
   test('opening the panel puts focus in the composer, Tab stays inside the panel, and closing gives the launcher its focus back', async () => {
-    await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({engine})
@@ -15,28 +14,26 @@ describe('focus around the panel', () => {
     await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
     const panel = await screen.findByRole('dialog', {name: 'conciv chat agent'})
     const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
-    await waitFor(() => expect(composer).toHaveFocus())
+    await expect.element(composer).toHaveFocus()
 
     await user.click(panel)
     await user.tab()
     const heightHandle = screen.getByRole('separator', {name: 'Resize chat height'})
     expect(heightHandle).toHaveFocus()
     await user.tab({shift: true})
-    expect(heightHandle).not.toHaveFocus()
-    expect(screen.getByRole('button', {name: 'Minimize conciv chat'})).not.toHaveFocus()
+    expect(screen.getByRole('tab', {name: 'Chat', selected: true})).toHaveFocus()
     await user.tab()
     expect(heightHandle).toHaveFocus()
 
     await user.keyboard('{Escape}')
     const launcher = await screen.findByRole('button', {name: 'Open conciv chat'})
-    await waitFor(() => expect(launcher).toHaveFocus())
-    expect(screen.queryByRole('dialog', {name: 'conciv chat agent'})).not.toBeInTheDocument()
+    await expect.element(launcher).toHaveFocus()
+    await expect.element(panel).not.toBeVisible()
   })
 })
 
 describe('the panel size', () => {
   test('the user resizes the panel from the keyboard, and a drag below the floor closes it', async () => {
-    await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -66,11 +63,10 @@ describe('the panel size', () => {
       {keys: '[/MouseLeft]'},
     ])
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
-    expect(screen.queryByRole('dialog', {name: 'conciv chat agent'})).not.toBeInTheDocument()
+    await expect.element(panel).not.toBeVisible()
   })
 
   test('the panel opens at the height and width the user left it', async () => {
-    await page.viewport(1280, 800)
     const engine = await createEngine()
     await mount({
       engine,
@@ -85,7 +81,6 @@ describe('the panel size', () => {
 
 describe('the launcher corner sets where the panel grows', () => {
   test('a host that puts the launcher top left opens a panel that grows down and right', async () => {
-    await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({
@@ -106,7 +101,6 @@ describe('the launcher corner sets where the panel grows', () => {
   })
 
   test('the corner the user left the launcher in wins over the host corner', async () => {
-    await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({
@@ -128,7 +122,6 @@ describe('the launcher corner sets where the panel grows', () => {
   })
 
   test('Shift and an arrow on the launcher send it to that corner', async () => {
-    await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({engine})
@@ -150,14 +143,13 @@ describe('the launcher corner sets where the panel grows', () => {
 
 describe('Escape keeps its place', () => {
   test('Escape in the terminal leaves the panel open, and Escape on settings goes back to the chat with focus on Settings', async () => {
-    await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
     const terminalInput = await screen.findByRole('textbox', {name: 'Terminal input'})
-    await waitFor(() => expect(terminalInput).toHaveFocus())
+    await expect.element(terminalInput).toHaveFocus()
     await user.keyboard('{Escape}')
     await user.click(screen.getByRole('tab', {name: 'Chat'}))
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
@@ -170,14 +162,13 @@ describe('Escape keeps its place', () => {
     await user.keyboard('{Escape}')
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
     const settings = screen.getByRole('link', {name: 'Settings'})
-    await waitFor(() => expect(settings).toHaveFocus())
+    await expect.element(settings).toHaveFocus()
     expect(screen.queryByRole('tablist', {name: 'Settings sections'})).not.toBeInTheDocument()
   })
 })
 
 describe('notices', () => {
   test('at most three notices stand at once, an error reads as an alert, a dismissed one makes room, and an action runs', async () => {
-    await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/shell-board']})
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -189,7 +180,7 @@ describe('notices', () => {
     expect(await screen.findByText('Build started')).toBeVisible()
     expect(screen.getByText('Watching the src folder')).toBeVisible()
     expect(screen.getByText('Lint passed')).toBeVisible()
-    const failure = await screen.findByRole('alert')
+    const failure = await screen.findByRole('alert', {name: 'Deploy failed'})
     expect(within(failure).getByText('Deploy failed')).toBeVisible()
     expect(screen.queryByText('Tests queued')).not.toBeInTheDocument()
 
@@ -204,7 +195,6 @@ describe('notices', () => {
 
 describe('logging in again', () => {
   test('a revoked browser moves focus from the composer to Log in, and back to the composer once it logs in', async () => {
-    await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({
@@ -219,17 +209,17 @@ describe('logging in again', () => {
     await user.keyboard(await engine.loginCode())
     await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
     const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
-    await waitFor(() => expect(composer).toHaveFocus())
+    await expect.element(composer).toHaveFocus()
 
     await engine.revokeBrowsers()
     const logIn = await screen.findByRole('button', {name: 'Log in'})
-    await waitFor(() => expect(logIn).toHaveFocus())
+    expect(logIn).toHaveFocus()
     await user.keyboard('{Enter}')
     const again = await screen.findByRole('dialog', {name: 'Authorize conciv'})
     await user.click(within(again).getByRole('textbox', {name: 'Digit 1 of 6'}))
     await user.keyboard(await engine.loginCode())
 
-    await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus())
+    await expect.element(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
     expect(screen.queryByRole('button', {name: 'Log in'})).not.toBeInTheDocument()
   })
 })
@@ -242,14 +232,15 @@ describe('phone width', () => {
     await mount({engine})
 
     await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
-    expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+    const panel = await screen.findByRole('dialog', {name: 'conciv chat agent'})
+    expect(panel).toBeVisible()
     expect(screen.queryByRole('separator', {name: 'Resize chat height'})).not.toBeInTheDocument()
     expect(screen.queryByRole('separator', {name: 'Resize chat width'})).not.toBeInTheDocument()
     expect(screen.queryByRole('button', {name: 'Minimize conciv chat'})).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', {name: 'Close chat'}))
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
-    expect(screen.queryByRole('dialog', {name: 'conciv chat agent'})).not.toBeInTheDocument()
+    await expect.element(panel).not.toBeVisible()
   })
 
   test('a plugin view is a status bar tab that keeps what the user typed, and its drawer goes back to where it opened', async () => {
@@ -270,14 +261,13 @@ describe('phone width', () => {
     await user.click(details)
     expect(await screen.findByText('The board details')).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Go back'}))
-    await waitFor(() => expect(details).toHaveFocus())
+    expect(details).toHaveFocus()
     expect(screen.queryByText('The board details')).not.toBeInTheDocument()
   })
 })
 
 describe('tucking the launcher away', () => {
   test('the user drags the launcher past the left edge into a tab, and the tab brings it back with focus', async () => {
-    await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({engine})
@@ -294,14 +284,13 @@ describe('tucking the launcher away', () => {
 
     await user.click(tab)
     const restored = await screen.findByRole('button', {name: 'Open conciv chat'})
-    await waitFor(() => expect(restored).toHaveFocus())
+    expect(restored).toHaveFocus()
     expect(screen.queryByRole('button', {name: 'Show conciv launcher'})).not.toBeInTheDocument()
   })
 })
 
 describe('a link to a past harness session', () => {
   test('the address of the harness session id opens that session under its conciv id with its saved thread', async () => {
-    await page.viewport(1280, 800)
     const engine = await createEngine(
       {},
       {
@@ -411,8 +400,6 @@ describe('the terminal', () => {
   })
 
   test('a grab picked from the toolbar is pasted into the CLI on Enter, and Back to chat leaves an ended CLI', async () => {
-    await page.viewport(1280, 800)
-    onTestFinished(() => page.viewport(414, 896))
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
