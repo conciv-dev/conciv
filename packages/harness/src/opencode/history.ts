@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
-import {DatabaseSync, type StatementSync} from 'node:sqlite'
+import {DatabaseSync} from 'node:sqlite'
 import {z} from 'zod'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -11,16 +11,11 @@ import type {
   HarnessListScope,
   HarnessSessionMeta,
   HarnessSessionPage,
-  TranscriptChunk,
-  TranscriptFailure,
-  TranscriptHandle,
   TranscriptPage,
-  TranscriptRevision,
   TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
-import {transcriptFailure} from '../_shared/jsonl-handle.js'
 import {pageAfter} from '../_shared/page.js'
 
 const MAX_TITLE = 80
@@ -55,7 +50,6 @@ const SessionRowSchema = z
 const DataRowSchema = z.object({id: z.string(), data: z.string()}).loose()
 const StampedRowSchema = DataRowSchema.extend({time_created: z.number()})
 const PartRowSchema = z.object({message_id: z.string(), data: z.string()}).loose()
-const StatRowSchema = z.object({latest: z.number().nullish(), parts: z.number().nullish()}).loose()
 
 function parseRows<T extends z.ZodType>(schema: T, rows: unknown[]): z.infer<T>[] {
   return rows.flatMap((row) => {
@@ -118,8 +112,6 @@ const TAIL_MESSAGES =
   'select id, data, time_created from message where session_id = ? and (? is null or (time_created, id) < (?, ?)) order by time_created desc, id desc limit ?'
 const TAIL_PARTS =
   'select message_id, data from part where session_id = ? and message_id in (select value from json_each(?)) order by time_created asc, id asc'
-const STAT_OF =
-  'select (select max(time_updated) from message where session_id = ?) as latest, (select count(*) from part where session_id = ?) as parts'
 
 function sessionRow(db: DatabaseSync, sessionId: string): z.infer<typeof SessionRowSchema> | null {
   return parseRows(SessionRowSchema, db.prepare(SESSION_BY_ID).all(sessionId)).at(0) ?? null
@@ -247,92 +239,10 @@ function sessionMeta(row: z.infer<typeof SessionRowSchema>): HarnessSessionMeta 
   }
 }
 
-type OpencodeSession = {db: DatabaseSync; statements: OpencodeStatements}
-
-type OpencodeStatements = {
-  session: StatementSync
-  stat: StatementSync
-  messages: StatementSync
-  parts: StatementSync
-}
-
-function openSession(path: string, cwd: string, sessionId: string): OpencodeSession | TranscriptFailure {
-  if (!existsSync(path)) return transcriptFailure('missing', `no opencode database at ${path}`)
-  let db: DatabaseSync | null = null
-  try {
-    db = new DatabaseSync(path, {readOnly: true})
-    const statements: OpencodeStatements = {
-      session: db.prepare(SESSION_BY_ID),
-      stat: db.prepare(STAT_OF),
-      messages: db.prepare(MESSAGES_OF),
-      parts: db.prepare(PARTS_OF),
-    }
-    const session = parseRows(SessionRowSchema, statements.session.all(sessionId)).at(0)
-    if (!session || !sameCwd(session.directory, cwd)) {
-      db.close()
-      return transcriptFailure('missing', `opencode session ${sessionId} is not recorded in ${cwd}`)
-    }
-    return {db, statements}
-  } catch (error) {
-    db?.close()
-    return transcriptFailure('unreadable', `${path}: ${String(error)}`)
-  }
-}
-
-function readRevision(statements: OpencodeStatements, sessionId: string): TranscriptRevision | TranscriptFailure {
-  try {
-    const row = parseRows(StatRowSchema, statements.stat.all(sessionId, sessionId)).at(0)
-    const latest = row?.latest ?? 0
-    return {rev: `${latest}:${row?.parts ?? 0}`, changedAt: latest}
-  } catch (error) {
-    return transcriptFailure('unreadable', `opencode stat for ${sessionId}: ${String(error)}`)
-  }
-}
-
-function observeTranscript(dbPath: string, cwd: string, sessionId: string): TranscriptHandle {
-  const state: {open: OpencodeSession | null; closed: boolean} = {open: null, closed: false}
-
-  const connect = (): OpencodeSession | TranscriptFailure => {
-    if (state.closed) return transcriptFailure('unreadable', 'transcript handle closed')
-    if (state.open) return state.open
-    const opened = openSession(dbPath, cwd, sessionId)
-    if ('ok' in opened) return opened
-    state.open = opened
-    return opened
-  }
-
-  return {
-    revision(): Promise<TranscriptRevision | TranscriptFailure> {
-      const session = connect()
-      if ('ok' in session) return Promise.resolve(session)
-      return Promise.resolve(readRevision(session.statements, sessionId))
-    },
-    read(): Promise<TranscriptChunk | TranscriptFailure> {
-      const session = connect()
-      if ('ok' in session) return Promise.resolve(session)
-      const rev = readRevision(session.statements, sessionId)
-      if ('ok' in rev) return Promise.resolve(rev)
-      try {
-        const messageRows = parseRows(DataRowSchema, session.statements.messages.all(sessionId))
-        const partRows = parseRows(PartRowSchema, session.statements.parts.all(sessionId))
-        return Promise.resolve({ok: true, ...rev, messages: buildMessages(messageRows, partRows), replaced: true})
-      } catch (error) {
-        return Promise.resolve(transcriptFailure('unreadable', `opencode rows for ${sessionId}: ${String(error)}`))
-      }
-    },
-    close(): void {
-      state.closed = true
-      state.open?.db.close()
-      state.open = null
-    },
-  }
-}
-
 export function opencodeHistory(dbPath: string): HarnessHistory {
   return {
     messages: (cwd, sessionId, options) => transcriptMessages(dbPath, cwd, sessionId, options),
     tail: (cwd, sessionId, options) => transcriptTail(dbPath, cwd, sessionId, options),
-    observe: (cwd, sessionId) => observeTranscript(dbPath, cwd, sessionId),
     list: (scope, page) => listSessions(dbPath, scope, page),
     meta: (cwd, sessionId) => storedMeta(dbPath, cwd, sessionId),
   }

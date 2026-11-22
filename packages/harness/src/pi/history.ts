@@ -12,13 +12,11 @@ import type {
   HarnessListScope,
   HarnessSessionMeta,
   HarnessSessionPage,
-  TranscriptHandle,
   TranscriptPage,
   TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {containedPath} from '../_shared/contained-path.js'
-import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {whenMissing} from '../_shared/when-missing.js'
 import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
 import {tailLines} from '../_shared/tail-lines.js'
@@ -260,20 +258,6 @@ async function transcriptMessages(
   return folded === null ? [] : collectMessages(folded.entries)
 }
 
-function observeTranscript(root: string, cwd: string, sessionId: string): TranscriptHandle {
-  return makeJsonlHandle<PiFold>({
-    parser: {empty: emptyFold, foldLine, messages: (state) => collectMessages(state.entries)},
-    resolvePath: async () => {
-      const dir = sessionsDir(root, cwd)
-      const names = await readdir(dir).catch(whenMissing([]))
-      const found = names.find((name) => name.endsWith(`_${sessionId}.jsonl`))
-      const contained = found ? containedPath(dir, join(dir, found)) : null
-      if (contained) return contained
-      return transcriptFailure('missing', `no pi transcript for ${sessionId} in ${dir}`)
-    },
-  })
-}
-
 function startedAt(timestamp: string | undefined): number | undefined {
   const parsed = timestamp ? Date.parse(timestamp) : NaN
   return Number.isNaN(parsed) ? undefined : parsed
@@ -444,7 +428,6 @@ export function piHistory(root: string): HarnessHistory {
   return {
     messages: (cwd, sessionId, options) => transcriptMessages(root, cwd, sessionId, options),
     tail: (cwd, sessionId, options) => transcriptTail(root, cwd, sessionId, options),
-    observe: (cwd, sessionId) => observeTranscript(root, cwd, sessionId),
     transcriptPath: (cwd, sessionId) => transcriptPath(root, cwd, sessionId),
     transcriptRoot: (cwd) => sessionsDir(root, cwd),
     list: (scope, page) => listSessions(root, scope, page),

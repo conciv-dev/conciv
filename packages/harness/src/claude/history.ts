@@ -8,13 +8,11 @@ import type {
   HarnessListScope,
   HarnessSessionMeta,
   HarnessSessionPage,
-  TranscriptHandle,
   TranscriptPage,
   TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
 import type {SDKSessionInfo} from '@anthropic-ai/claude-agent-sdk'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
-import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {containedPath} from '../_shared/contained-path.js'
 import {realpathOrSelf} from '../_shared/cwd.js'
 import {pageAfter} from '../_shared/page.js'
@@ -337,10 +335,6 @@ function foldTranscript(jsonl: string): ClaudeFold {
   return folded.state
 }
 
-function foldMessages(state: ClaudeFold): ChatMessage[] {
-  return state.messages.map((message) => ({...message, parts: [...message.parts]}))
-}
-
 export function parseHistory(jsonl: string): ChatMessage[] {
   return foldTranscript(jsonl).messages
 }
@@ -435,18 +429,6 @@ export async function sessionMeta(
   return info === undefined ? null : (metaOfInfo(info, cwd).at(0) ?? null)
 }
 
-function observeTranscript(configDir: string, cwd: string, sessionId: string): TranscriptHandle {
-  return makeJsonlHandle<ClaudeFold>({
-    parser: {empty: emptyFold, foldLine, messages: foldMessages},
-    resolvePath: async () => {
-      if (!withinProject(configDir, cwd, sessionId)) {
-        return transcriptFailure('missing', `${sessionId} is not a transcript of ${cwd}`)
-      }
-      return transcriptPath(configDir, cwd, sessionId)
-    },
-  })
-}
-
 export function withinProject(configDir: string, cwd: string, sessionId: string): boolean {
   return containedPath(transcriptRoot(configDir, cwd), transcriptPath(configDir, cwd, sessionId)) !== null
 }
@@ -514,7 +496,6 @@ export function claudeHistory(configDir: string): HarnessHistory {
   return {
     messages: (cwd, sessionId, options) => transcriptMessages(configDir, cwd, sessionId, options),
     tail: (cwd, sessionId, options) => transcriptTail(configDir, cwd, sessionId, options),
-    observe: (cwd, sessionId) => observeTranscript(configDir, cwd, sessionId),
     transcriptPath: (cwd, sessionId) => transcriptPath(configDir, cwd, sessionId),
     transcriptRoot: (cwd) => transcriptRoot(configDir, cwd),
     withinProject: (cwd, sessionId) => withinProject(configDir, cwd, sessionId),

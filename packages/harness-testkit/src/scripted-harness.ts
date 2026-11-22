@@ -15,8 +15,6 @@ import type {
   HarnessListScope,
   HarnessModel,
   HarnessSessionMeta,
-  TranscriptFailure,
-  TranscriptHandle,
   TranscriptPage,
   TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
@@ -88,8 +86,6 @@ const CAPABILITIES = {
   slashCommands: 'live',
 } satisfies Omit<HarnessCapabilities, 'resume' | 'transcriptHistory'>
 
-const REVISION = 'scripted'
-
 const TailCursorSchema = z.string().regex(/^\d+$/).transform(Number)
 
 function storedSession(session: ScriptedSession, project: string): StoredSession {
@@ -125,22 +121,6 @@ function tailPage(messages: ChatMessage[], options: TranscriptTailOptions): Tran
   return pageBefore(messages, Math.min(before.data, messages.length), options.limit)
 }
 
-function observedSession(session: StoredSession | undefined, cwd: string, sessionId: string): TranscriptHandle {
-  const missing: TranscriptFailure = {
-    ok: false,
-    reason: 'missing',
-    detail: `no scripted session ${sessionId} in ${cwd}`,
-  }
-  return {
-    revision: async () => (session === undefined ? missing : {rev: REVISION, changedAt: session.meta.updatedAt}),
-    read: async () =>
-      session === undefined
-        ? missing
-        : {ok: true, rev: REVISION, changedAt: session.meta.updatedAt, messages: [...session.messages], replaced: true},
-    close: () => {},
-  }
-}
-
 function scriptedHistory(sessions: StoredSession[]): HarnessHistory {
   const found = (cwd: string, sessionId: string): StoredSession | undefined =>
     sessions.find((session) => session.meta.id === sessionId && session.meta.cwd === cwd)
@@ -153,7 +133,6 @@ function scriptedHistory(sessions: StoredSession[]): HarnessHistory {
     meta: async (cwd, sessionId) => found(cwd, sessionId)?.meta ?? null,
     messages: async (cwd, sessionId) => [...(found(cwd, sessionId)?.messages ?? [])],
     tail: async (cwd, sessionId, options) => tailPage(found(cwd, sessionId)?.messages ?? [], options),
-    observe: (cwd, sessionId) => observedSession(found(cwd, sessionId), cwd, sessionId),
   }
 }
 
