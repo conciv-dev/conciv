@@ -36,10 +36,12 @@ export function engineCoverage(): EngineCoverage {
       await mkdir(directory, {recursive: true})
       const file = join(directory, `${randomUUID()}.json`)
       await writeFile(file, JSON.stringify({result: scripts}))
+      const nodeSide =
+        project.vitest.projects.find((each) => !each.isBrowserEnabled()) ?? project.vitest.getRootProject()
       provider.onAfterSuiteRun({
         coverage: file,
         environment: 'conciv-engine',
-        projectName: project.name,
+        projectName: nodeSide.name,
         testFiles: [testPath],
       })
     },
