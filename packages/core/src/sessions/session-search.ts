@@ -166,8 +166,8 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
 
   const widenEverywhere = async (running: Running): Promise<void> => {
     const scope: HarnessListScope = {everywhere: true}
-    state.scopes.push(scope)
     const passes = await Promise.all(indexed.map((source) => titlePass(running, source, scope)))
+    if (!state.scopes.some((listed) => 'everywhere' in listed)) state.scopes.push(scope)
     if (passes.some((pass) => pass.changed)) indexedChanged()
   }
 
@@ -236,6 +236,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
         state.running = null
       })
       state.running = running
+      state.everywhere = widenEverywhere(running)
       setImmediate(refresh)
     },
     async *changes(signal) {
@@ -247,10 +248,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       const running = state.running
       if (running === null)
         return indexed.map(({harness}) => ({harnessKind: harness.id, page: {sessions: [], next: null}}))
-      if (everywhere) {
-        state.everywhere ??= widenEverywhere(running)
-        await state.everywhere
-      }
+      if (everywhere) await state.everywhere
       refresh()
       const found = await searchHits(running, term, page.after, page.limit, everywhere)
       const paged = pageAfter(found, page, (hit) => ({
