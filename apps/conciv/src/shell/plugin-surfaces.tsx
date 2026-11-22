@@ -222,7 +222,7 @@ export function PluginOverlay() {
           return null
         }}
       </For>
-      <FocusTrap disabled={overlays().length === 0}>
+      <FocusTrap class="contents pointer-events-auto" disabled={overlays().length === 0}>
         <PluginSlot at="page.overlay" input={{}} />
       </FocusTrap>
     </Show>
