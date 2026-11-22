@@ -84,7 +84,6 @@ describe('the session status chip', () => {
     expect(await within(bar).findByText('STOPPING')).toBeVisible()
     expect(screen.getByRole('button', {name: 'Stopping the run'})).toBeVisible()
 
-    await gate.release()
     expect(await within(bar).findByText('STOPPED')).toBeVisible()
     expect(screen.queryByRole('button', {name: 'Stopping the run'})).not.toBeInTheDocument()
     expect(screen.getByRole('button', {name: 'Send message'})).toBeVisible()
