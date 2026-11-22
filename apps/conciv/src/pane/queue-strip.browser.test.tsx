@@ -28,7 +28,7 @@ describe('queueing while the agent works', () => {
 
     const second = await screen.findByRole('article', {name: 'Reply to: Second task'})
     expect(await within(second).findByText('Second answer')).toBeVisible()
-    expect(screen.getByRole('article', {name: 'Reply to: First task'})).toHaveTextContent('First answer')
+    expect(within(screen.getByRole('article', {name: 'Reply to: First task'})).getByText('First answer')).toBeVisible()
     expect(screen.queryByText('1 waiting · runs in order')).not.toBeInTheDocument()
     const requests = await engine.requests()
     expect(requests.map((request) => request.messages.at(-1))).toMatchObject([
