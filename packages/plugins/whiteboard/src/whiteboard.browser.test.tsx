@@ -579,8 +579,8 @@ describe('the user draws on the canvas', () => {
     await expect.element(rectangle).toBeChecked()
     const saved = await engine.event('rpc.whiteboard.changed')
     await realInput.dragAndDrop(document.body, document.body, {
-      sourcePosition: {x: 200, y: 300},
-      targetPosition: {x: 400, y: 440},
+      sourcePosition: {x: 300, y: 300},
+      targetPosition: {x: 500, y: 440},
       force: true,
     })
     expect((await saved.arrived).data).toMatchObject({table: 'canvasElements', type: 'upsert'})
