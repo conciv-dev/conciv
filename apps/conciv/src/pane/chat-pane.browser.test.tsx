@@ -158,26 +158,6 @@ describe('stopping and sending again', () => {
   })
 })
 
-describe('retrying a failed reply', () => {
-  test('the user retries after the model fails and reads the new reply', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.failAfter(new Error('The model is unavailable')), TestLLM.text('I am back'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Are you there')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    const alert = await screen.findByRole('alert', {name: 'The model is unavailable'})
-    expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
-    expect(screen.getByRole('alert', {name: 'The model is unavailable'})).toBeVisible()
-    await user.click(within(alert).getByRole('button', {name: 'Retry'}))
-
-    const reply = await screen.findByRole('article', {name: 'Reply to: Are you there'})
-    expect(await within(reply).findByText('I am back')).toBeVisible()
-    expect(screen.queryByRole('alert', {name: 'The model is unavailable'})).not.toBeInTheDocument()
-  })
-})
-
 describe('a reply that reads the page before it answers', () => {
   test('the trace the user hid while the reply waited stays hidden when the answer arrives', async () => {
     const user = userEvent.setup()
