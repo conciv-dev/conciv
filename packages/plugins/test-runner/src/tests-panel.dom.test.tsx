@@ -5,13 +5,13 @@ import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('the Tests tab', () => {
-  test('the tab says no run yet, shows a finished run with its failure, Fix this sends the failure to the agent, and the tab and the card follow the run the agent starts until it is stopped', async () => {
+  test('the tab says no run yet, shows a finished run with its failure, Fix this sends the failure to the agent, and the tab and the card follow the run the agent starts', async () => {
     const user = userEvent.setup()
     const engine = await createEngine(
       {plugins: ['@conciv/plugin-test-runner']},
       {directory: 'test/fixtures/greenhouse'},
     )
-    await engine.reply(TestLLM.toolCall('c1', 'test_runner_run', {}), TestLLM.text('The run stopped'))
+    await engine.reply(TestLLM.toolCall('c1', 'test_runner_run', {}))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     await user.click(await screen.findByRole('tab', {name: 'Tests'}))
@@ -23,11 +23,13 @@ describe('the Tests tab', () => {
 
     await engine.rpc.call('test-runner', 'run', {patterns: ['beds']})
     expect(await within(panel).findByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toBeVisible()
-    expect(within(panel).getByRole('heading', {name: '1 failing test'})).toBeVisible()
-    expect(within(panel).getByText('the pruned rose blooms')).toBeVisible()
-    expect(within(panel).getByText('expected 3 to be 4 // Object.is equality')).toBeVisible()
-    expect(within(panel).getByText('Finished: beds/seeds.test.js')).toBeVisible()
-    expect(within(panel).getByText('Finished: beds/pruning.test.js')).toBeVisible()
+    const failing = within(panel).getByRole('region', {name: '1 failing test'})
+    expect(within(failing).getByRole('heading', {name: '1 failing test'})).toBeVisible()
+    expect(within(failing).getByText('the pruned rose blooms')).toBeVisible()
+    expect(within(failing).getByText('expected 3 to be 4 // Object.is equality')).toBeVisible()
+    const files = within(panel).getByRole('region', {name: 'Files'})
+    expect(within(files).getByText('beds/seeds.test.js')).toHaveTextContent('Finished: beds/seeds.test.js')
+    expect(within(files).getByText('beds/pruning.test.js')).toHaveTextContent('Finished: beds/pruning.test.js')
     expect(within(panel).queryByText('No test run yet')).not.toBeInTheDocument()
 
     await user.click(within(panel).getByRole('button', {name: 'Fix this'}))
@@ -41,14 +43,30 @@ describe('the Tests tab', () => {
     await user.click(screen.getByRole('tab', {name: 'Tests'}))
     const running = await screen.findByRole('tabpanel', {name: 'Tests'})
     expect(await within(running).findByText('Running tests: 1 passed, 1 failed, 0 skipped')).toBeVisible()
+  })
+
+  test('a run stopped from outside ends in the tab with the results it had, and the agent gets those results', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine(
+      {plugins: ['@conciv/plugin-test-runner']},
+      {directory: 'test/fixtures/greenhouse'},
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.click(await screen.findByRole('tab', {name: 'Tests'}))
+    const panel = await screen.findByRole('tabpanel', {name: 'Tests'})
+    const run = engine.rpc.call('test-runner', 'run', {})
+    expect(await within(panel).findByText('Running tests: 1 passed, 1 failed, 0 skipped')).toBeVisible()
 
     expect(await engine.rpc.call('test-runner', 'stop')).toEqual({ok: true})
-    await user.click(screen.getByRole('tab', {name: 'Chat'}))
-    expect(await screen.findByText('The run stopped')).toBeVisible()
-    await user.click(screen.getByRole('tab', {name: 'Tests'}))
-    const stopped = await screen.findByRole('tabpanel', {name: 'Tests'})
-    expect(await within(stopped).findByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toBeVisible()
-    expect(within(stopped).queryByText(/^Running tests/)).not.toBeInTheDocument()
+    expect(await within(panel).findByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toBeVisible()
+    expect(within(panel).queryByText(/^Running tests/)).not.toBeInTheDocument()
+    const failing = within(panel).getByRole('region', {name: '1 failing test'})
+    expect(within(failing).getByText('the pruned rose blooms')).toBeVisible()
+    expect(await run).toMatchObject({
+      summary: {passed: 1, failed: 1, skipped: 0},
+      failures: [{name: 'the pruned rose blooms'}],
+    })
   })
 })
 
@@ -72,11 +90,15 @@ describe('the run in the thread', () => {
     expect(await within(reply).findByText('One test fails')).toBeVisible()
 
     await user.click(within(reply).getByRole('button', {name: /Ran the tests/}))
-    expect(await within(reply).findByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toBeVisible()
+    expect(await within(reply).findByRole('status')).toHaveTextContent(
+      'Test run finished: 1 passed, 1 failed, 0 skipped',
+    )
     expect(within(reply).getByText('plant-shop/cart.test.js')).toBeVisible()
     expect(within(reply).getByText('a fern in the cart costs 12')).toBeVisible()
-    await user.click(within(reply).getByText('the spring discount takes 10 off'))
-    expect(await within(reply).findByText('expected 11 to be 2 // Object.is equality')).toBeVisible()
+    const discount = within(reply).getByRole('group', {name: 'the spring discount takes 10 off'})
+    expect(within(discount).getByText('expected 11 to be 2 // Object.is equality')).not.toBeVisible()
+    await user.click(within(discount).getByText('the spring discount takes 10 off'))
+    expect(await within(discount).findByText('expected 11 to be 2 // Object.is equality')).toBeVisible()
     await user.click(within(reply).getByRole('button', {name: 'Fix this'}))
     const input = screen.getByRole('textbox', {name: 'Message the conciv agent'})
     expect(input).toHaveTextContent('The test "the spring discount takes 10 off" in discount.test.js is failing:')
