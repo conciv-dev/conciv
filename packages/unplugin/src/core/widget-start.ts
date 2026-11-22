@@ -19,7 +19,7 @@ function canMount(port: number): boolean {
 
 export function startConcivWidget(port: number): void {
   if (!canMount(port)) return
-  window.__CONCIV_API_BASE__ = `http://127.0.0.1:${port}`
+  window.__CONCIV_API_BASE__ ??= `http://127.0.0.1:${port}`
   if (document.readyState !== 'loading') return startWhenReady()
   document.addEventListener('DOMContentLoaded', startWhenReady, {once: true})
 }

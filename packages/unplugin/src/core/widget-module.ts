@@ -53,7 +53,7 @@ function widgetModuleSource(surface: 'page' | 'dock', apiBase: string | undefine
   const apiBaseLine =
     apiBase === undefined
       ? []
-      : [`if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ = ${JSON.stringify(apiBase)}`]
+      : [`if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ ??= ${JSON.stringify(apiBase)}`]
   return [
     `import {${surface === 'dock' ? 'createConciv' : 'mountConciv'}} from ${JSON.stringify(embedEntry)}`,
     ...apiBaseLine,
