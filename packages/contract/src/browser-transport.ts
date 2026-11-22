@@ -42,7 +42,11 @@ export type BrowserRpcConnection = {
 
 type HeldConnection = {readonly connection: EngineConnection; readonly release: () => void}
 
-type ConnectionKey = {readonly apiBase: string; readonly timings: EngineConnectionTimings}
+type ConnectionKey = {
+  readonly apiBase: string
+  readonly timings: EngineConnectionTimings
+  readonly token: string | undefined
+}
 
 type ConnectionPool = {
   readonly hold: (key: ConnectionKey) => HeldConnection
@@ -66,7 +70,7 @@ function borrow<A>(lookup: Effect.Effect<A, never, Scope.Scope>): {value: A; rel
 
 function makeConnectionPool(): ConnectionPool {
   const connections = Effect.runSync(
-    RcMap.make({lookup: (key: ConnectionKey) => makeEngineConnection(key.apiBase, key.timings)}).pipe(
+    RcMap.make({lookup: (key: ConnectionKey) => makeEngineConnection(key.apiBase, key.timings, key.token)}).pipe(
       Scope.provide(Scope.makeUnsafe()),
       Effect.provide(Socket.layerWebSocketConstructorGlobal),
     ),
@@ -122,10 +126,15 @@ export function normalizeApiBase(apiBase: string): string {
   return `${url.origin}${path}`
 }
 
-function holdConnection(apiBase: string, timings: Partial<EngineConnectionTimings> = {}): HeldConnection {
+function holdConnection(
+  apiBase: string,
+  timings: Partial<EngineConnectionTimings> = {},
+  token?: string,
+): HeldConnection {
   return connectionPool().hold({
     apiBase: normalizeApiBase(apiBase),
     timings: {...defaultEngineConnectionTimings, ...timings},
+    token,
   })
 }
 
@@ -170,13 +179,14 @@ export function heldBrowserRpcLink(
   currentApiBase: () => string | null,
   session?: SessionAccessor,
   timings?: Partial<EngineConnectionTimings>,
+  token?: string,
 ): HeldBrowserRpcLink {
   const held: {current: HeldBase} = {current: NOT_HELD}
   const hold = (apiBase: string): EngineConnection => {
     const key = normalizeApiBase(apiBase)
     if (held.current.key === key && held.current.held !== undefined) return held.current.held.connection
     held.current.held?.release()
-    const next = holdConnection(key, timings)
+    const next = holdConnection(key, timings, token)
     held.current = {key, held: next}
     return next.connection
   }

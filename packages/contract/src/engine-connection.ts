@@ -37,7 +37,7 @@ import {
 } from 'effect'
 import {Socket} from 'effect/socket'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
+import {CONCIV_AUTH_TOKEN_QUERY_PARAM, RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {contract, SOCKET_TRUST_FRAME, type ExchangeResult} from './contract.js'
 import {
   createConnectionState,
@@ -135,9 +135,10 @@ function forgetToken(key: string, token: string): Effect.Effect<void> {
   )
 }
 
-function rpcSocketUrl(key: string): string {
+function rpcSocketUrl(key: string, token: string | undefined): string {
   const url = new URL(`${key}${RPC_WS_PATH}`)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  if (token !== undefined && token !== '') url.searchParams.set(CONCIV_AUTH_TOKEN_QUERY_PARAM, token)
   return url.toString()
 }
 
@@ -185,6 +186,7 @@ function untilAborted(signal: AbortSignal | undefined): Effect.Effect<void> {
 export const makeEngineConnection = Effect.fn('EngineConnection.make')(function* (
   key: string,
   timings: EngineConnectionTimings = defaultEngineConnectionTimings,
+  engineToken?: string,
 ) {
   const services = yield* Effect.context<never>()
   const run = Effect.runPromiseWith(services)
@@ -195,7 +197,9 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
   const live = yield* Ref.make(Option.none<Socket.WebSocketLike>())
   const socket = yield* Socket.fromWebSocket(
     Effect.acquireRelease(
-      Effect.sync(() => makeWebSocket(rpcSocketUrl(key))).pipe(Effect.tap((ws) => Ref.set(live, Option.some(ws)))),
+      Effect.sync(() => makeWebSocket(rpcSocketUrl(key, engineToken))).pipe(
+        Effect.tap((ws) => Ref.set(live, Option.some(ws))),
+      ),
       (ws) => Effect.sync(() => ws.close(NORMAL_CLOSE_CODE)),
     ),
     {openTimeout: Duration.millis(timings.openTimeoutMs)},

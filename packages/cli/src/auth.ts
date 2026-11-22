@@ -37,8 +37,8 @@ export async function runLink(options: LinkOptions): Promise<CliOutcome> {
       hint: 'restart the conciv dev server so it rewrites .conciv/server.json',
     })
   }
-  const origin = scopedOrigin(engine.port, engine.token)
-  const issued = await engineAnswer(origin, makeRpcClient(origin).auth.issueCode())
+  const {origin, token} = scopedOrigin(engine.port, engine.token)
+  const issued = await engineAnswer(origin, makeRpcClient(origin, {token}).auth.issueCode())
   const link = new URL(options.url)
   const fragment = new URLSearchParams(link.hash.replace(/^#/, ''))
   fragment.set(LOGIN_LINK_PARAM, issued.code)

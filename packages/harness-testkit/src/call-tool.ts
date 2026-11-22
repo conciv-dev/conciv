@@ -2,6 +2,7 @@ import {Client} from '@modelcontextprotocol/sdk/client/index.js'
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import {z} from 'zod'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_AUTH_TOKEN_QUERY_PARAM} from '@conciv/protocol/rpc-types'
 
 const DEADLINE_MS = 60_000
 
@@ -87,10 +88,16 @@ async function listNames(client: Client): Promise<ReadonlySet<string>> {
   return new Set(tools.map((tool) => tool.name))
 }
 
-async function connectSession(apiBase: string, session: string): Promise<SessionClient> {
+function mcpUrl(apiBase: string, token: string): URL {
+  const url = new URL('/api/mcp', apiBase)
+  url.searchParams.set(CONCIV_AUTH_TOKEN_QUERY_PARAM, token)
+  return url
+}
+
+async function connectSession(apiBase: string, token: string, session: string): Promise<SessionClient> {
   const client = new Client({name: 'conciv-test', version: '0.0.0'})
   await client.connect(
-    new StreamableHTTPClientTransport(new URL(`${apiBase}/api/mcp`), {
+    new StreamableHTTPClientTransport(mcpUrl(apiBase, token), {
       requestInit: {headers: {[CONCIV_SESSION_HEADER]: session}},
     }),
   )
@@ -104,12 +111,12 @@ async function isDirect(open: SessionClient, name: string): Promise<boolean> {
   return (await open.names).has(name)
 }
 
-export function toolClients(apiBase: string): ToolClients {
+export function toolClients(apiBase: string, token: string): ToolClients {
   const sessions = new Map<string, Promise<SessionClient>>()
   const opened = (session: string): Promise<SessionClient> => {
     const known = sessions.get(session)
     if (known !== undefined) return known
-    const connecting = connectSession(apiBase, session)
+    const connecting = connectSession(apiBase, token, session)
     sessions.set(session, connecting)
     connecting.catch(() => sessions.delete(session))
     return connecting

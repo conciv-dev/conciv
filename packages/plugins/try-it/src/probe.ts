@@ -16,8 +16,8 @@ export const TryItProbe = Context.Service<{readonly probe: Effect.Effect<string,
   '@conciv/plugin-try-it/Probe',
 )
 
-function probePort(token: string, port: number) {
-  const base = `http://127.0.0.1:${port}/t/${token}`
+function probePort(port: number) {
+  const base = `http://127.0.0.1:${port}`
   return Effect.tryPromise({
     try: (signal) => fetch(`${base}/health`, {signal}),
     catch: (cause) => makeProbeFailed({port, cause}),
@@ -30,12 +30,8 @@ function probePort(token: string, port: number) {
   )
 }
 
-export const probeCore = Effect.fn('try-it.probeCore')(function* (
-  token: string,
-  ports: readonly number[],
-  probeMs: number,
-) {
-  return yield* Effect.raceAll(ports.map((port) => probePort(token, port))).pipe(
+export const probeCore = Effect.fn('try-it.probeCore')(function* (ports: readonly number[], probeMs: number) {
+  return yield* Effect.raceAll(ports.map(probePort)).pipe(
     Effect.timeout(probeMs),
     Effect.mapError(() => makeProbeSilent()),
   )

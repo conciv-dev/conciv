@@ -70,7 +70,7 @@ export type ChatContext = {
   harnesses: readonly HarnessAdapter[]
   harnessFor: (sessionId: SessionId) => Promise<HarnessAdapter>
   cwd: string
-  basePath: string
+  agentToken: string
   db: ConcivDb
   rows: RowScope
   plane: ChatPlane

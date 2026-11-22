@@ -108,7 +108,8 @@ import {GROUP_EXIT_TIMEOUT_MS, inSpan, loadIsolateDriver, type Tracer} from '@co
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
-  agentPath,
+  connectToken,
+  engineMcpUrl,
   makeAuthRouter,
   makeCodeStore,
   makeConnectionTrust,
@@ -253,7 +254,7 @@ export type MakeAppOpts = {
 
   nativePageDir?: string
 
-  tokenScopedBase?: () => string | undefined
+  boundOrigin?: () => string | undefined
 
   plugins?: readonly Plugin.Plugin[]
 
@@ -412,11 +413,14 @@ function composeRoutes(
       rpcWebsocketRoute(rpc, {
         upgrade: upgradeWebSocket,
         onError: (message) => deps.log(Effect.logError(message)),
-        gate: (c) => rpcSocketGate(deps.trust, c.req.header('authorization')),
+        gate: (c) => rpcSocketGate(deps.trust, c.req.url),
         traceCall,
       }),
     )
-    .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc, traceCall))
+    .use(
+      `${RPC_PREFIX}/*`,
+      rpcFetchMiddleware(rpc, {traceCall, engineCaller: (c) => deps.trust.isEngine(connectToken(c.req.url))}),
+    )
     .route('/api/mcp', mcpApp)
 }
 
@@ -545,7 +549,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
   const harness = boot.harness
   const agentToken = opts.agentToken ?? randomUUID()
-  const basePath = agentPath(agentToken)
   const browsers = watchTrustedBrowsers(stateDir, earlyLog)
   const trust = makeConnectionTrust(agentToken, browsers)
   const listings = availableHarnesses(boot, opts, registry, stateDir, engineLife.signal, appEnv.path, earlyLog)
@@ -827,7 +830,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     harnesses,
     harnessFor,
     cwd: opts.cwd,
-    basePath,
+    agentToken,
     db,
     rows,
     plane,
@@ -918,8 +921,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     stateDir,
     env: appEnv.env,
     mcpUrl: () => {
-      const base = opts.tokenScopedBase?.()
-      return base === undefined ? null : `${base}/api/mcp`
+      const origin = opts.boundOrigin?.()
+      return origin === undefined ? null : engineMcpUrl(origin, agentToken)
     },
   })
   const rpcDeps: RpcDeps = {

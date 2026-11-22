@@ -39,9 +39,7 @@ function entry(state: TryItConnectMachine.ConnectState, cover: ServerEntry['cove
 const tryIt: Plugin.Definition = defineInternalPlugin({
   setup(ctx) {
     const options = TryItOptions.parse(ctx.options)
-    const runtime = ManagedRuntime.make(
-      Layer.succeed(TryItProbe, {probe: probeCore(options.token, connectPorts(), options.probeMs)}),
-    )
+    const runtime = ManagedRuntime.make(Layer.succeed(TryItProbe, {probe: probeCore(connectPorts(), options.probeMs)}))
     const scope = runtime.runSync(Scope.make())
     onCleanup(() => void runtime.runPromise(Scope.close(scope, Exit.void)).finally(() => runtime.dispose()))
     const started = runtime.runSync(

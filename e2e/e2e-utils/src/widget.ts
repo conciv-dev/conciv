@@ -1,6 +1,6 @@
 import {readFileSync, watch} from 'node:fs'
 import {expect, test, type ConsoleMessage, type Page} from '@playwright/test'
-import {magicLink, recordedEngineBase, testProjectDir} from './login.js'
+import {magicLink, recordedEngineBase, testProjectDir, type RecordedEngine} from './login.js'
 import {e2eConfigDir, e2eServerLog} from './config.js'
 
 export type PageFailures = {
@@ -100,14 +100,13 @@ async function engineOrigin(page: Page, path: string): Promise<string> {
   return url.origin
 }
 
-async function pageEngine(page: Page, path: string, projectDir: string): Promise<{origin: string; base: string}> {
-  const origin = await engineOrigin(page, path)
-  return {origin, base: recordedEngineBase(projectDir, origin)}
+async function pageEngine(page: Page, path: string, projectDir: string): Promise<RecordedEngine> {
+  return recordedEngineBase(projectDir, await engineOrigin(page, path))
 }
 
 export async function loginWidget(page: Page, path = '/', projectDir = testProjectDir()): Promise<void> {
-  const {base} = await pageEngine(page, path, projectDir)
-  const link = await magicLink(base, page.url())
+  const engine = await pageEngine(page, path, projectDir)
+  const link = await magicLink(engine, page.url())
   await page.goto('about:blank')
   await page.goto(link, {waitUntil: 'domcontentloaded', timeout: 60_000})
   await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()

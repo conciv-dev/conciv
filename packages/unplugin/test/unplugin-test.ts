@@ -120,7 +120,7 @@ type UnpluginFixtures = {
   editor: {next: () => Promise<string>}
   viteDev: (options: ConcivConfig) => Promise<RecordedEngine>
   started: number[]
-  browser: (url: string) => BrowserRpcClient
+  browser: (url: string, token: string) => BrowserRpcClient
   hang: (deadline: number) => Hung
   project: (name: string) => string
   serve: (config: InlineConfig) => Promise<ViteDevServer>
@@ -221,8 +221,8 @@ export const test = base.extend<UnpluginFixtures>({
   },
   browser: async ({task: _task}, use) => {
     const clients: BrowserRpcClient[] = []
-    await use((url) => {
-      const client = makeBrowserRpcClient(url)
+    await use((url, token) => {
+      const client = makeBrowserRpcClient(url, {token})
       clients.push(client)
       return client
     })
