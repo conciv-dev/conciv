@@ -491,6 +491,7 @@ function silentCategories(logger: DebugConfig['logger']): DebugConfig {
 }
 
 async function* endedWithItsRecord(
+  turn: Turn,
   stream: AsyncIterable<ChatEvent>,
   recorded: () => Promise<RunLifecycle | null>,
   interrupted: () => readonly ModelMessage[],
@@ -505,6 +506,14 @@ async function* endedWithItsRecord(
   const lifecycle = await recorded()
   if (lifecycle === null || !isRunPhaseTerminal(lifecycle.phase)) return
   yield runLifecycleEvent.create(lifecycle)
+  if (lifecycle.phase !== 'completed') return
+  yield {
+    type: EventType.RUN_FINISHED,
+    threadId: turn.threadId,
+    runId: turn.runId,
+    finishReason: 'stop',
+    timestamp: Date.now(),
+  }
 }
 
 function throwRejected(outcomes: readonly PromiseSettledResult<unknown>[], message: string): void {
@@ -840,6 +849,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       ],
     })
     return endedWithItsRecord(
+      turn,
       stream,
       () => recordLifecycle(turn.runId),
       () => entry.interrupted,

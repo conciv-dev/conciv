@@ -81,3 +81,25 @@ describe('a long saved session', () => {
     await expect.element(latest).toBeDisabled()
   })
 })
+
+describe('a reply that runs many tools', () => {
+  test('the user sees the answer after nine tool calls and the pane stops saying it is responding', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      ...Array.from({length: 9}, (_, index) =>
+        TestLLM.toolCall(`call-${index + 1}`, 'execute_typescript', {typescriptCode: `return ${index + 1}`}),
+      ),
+      TestLLM.text('All nine steps are done'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Do nine steps')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    const reply = await screen.findByRole('article', {name: 'Reply to: Do nine steps'})
+
+    expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
+    expect(within(reply).getByText('All nine steps are done')).toBeVisible()
+    expect(screen.queryByRole('status', {name: 'Agent activity'})).not.toBeInTheDocument()
+  })
+})

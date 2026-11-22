@@ -44,8 +44,9 @@ const IdentifiedMessagesSchema = z.array(z.looseObject({id: z.string().min(1)}))
 
 export function readTerminalPhase(chunk: ChatEvent): RunPhase | null {
   if (chunk.type === EventType.RUN_ERROR) return 'failed'
-  if (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') return 'completed'
-  return null
+  if (chunk.type !== EventType.RUN_FINISHED) return null
+  const finishReason = chunk.finishReason ?? chunk.metadata?.tanstack?.finishReason
+  return finishReason === 'tool_calls' ? null : 'completed'
 }
 
 export function endsTheRun(chunk: ChatEvent): boolean {
