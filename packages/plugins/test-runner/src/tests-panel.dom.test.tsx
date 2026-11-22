@@ -1,4 +1,4 @@
-import {describe, expect, test} from 'vitest'
+import {assert, describe, expect, test} from 'vitest'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
@@ -38,7 +38,6 @@ describe('the Tests tab', () => {
     expect(input).toHaveTextContent('expected 3 to be 4 // Object.is equality')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
 
-    await user.click(await screen.findByRole('button', {name: /Running the tests/}))
     expect(await screen.findByText('Test run in progress: 1 passed, 1 failed, 0 skipped')).toBeVisible()
     await user.click(screen.getByRole('tab', {name: 'Tests'}))
     const running = await screen.findByRole('tabpanel', {name: 'Tests'})
@@ -89,23 +88,23 @@ describe('the run in the thread', () => {
     const reply = await screen.findByRole('article', {name: 'Reply to: Run the tests'})
     expect(await within(reply).findByText('One test fails')).toBeVisible()
 
-    await user.click(within(reply).getByRole('button', {name: /Ran the tests/}))
-    expect(await within(reply).findByRole('status')).toHaveTextContent(
-      'Test run finished: 1 passed, 1 failed, 0 skipped',
-    )
-    expect(within(reply).getByText('plant-shop/cart.test.js')).toBeVisible()
-    expect(within(reply).getByText('a fern in the cart costs 12')).toBeVisible()
-    const discount = within(reply).getByRole('group', {name: 'the spring discount takes 10 off'})
+    const [ran, read] = within(within(reply).getByRole('list', {name: 'Execution trace'})).getAllByRole('listitem')
+    assert(ran !== undefined && read !== undefined)
+    expect(within(ran).getByRole('button', {name: /Ran the tests/})).toBeVisible()
+    expect(within(ran).getByRole('status')).toHaveTextContent('Test run finished: 1 passed, 1 failed, 0 skipped')
+    expect(within(ran).getByText('plant-shop/cart.test.js')).toBeVisible()
+    expect(within(ran).getByText('a fern in the cart costs 12')).toBeVisible()
+    const discount = within(ran).getByRole('group', {name: 'the spring discount takes 10 off'})
     expect(within(discount).getByText('expected 11 to be 2 // Object.is equality')).not.toBeVisible()
     await user.click(within(discount).getByText('the spring discount takes 10 off'))
     expect(await within(discount).findByText('expected 11 to be 2 // Object.is equality')).toBeVisible()
-    await user.click(within(reply).getByRole('button', {name: 'Fix this'}))
+    await user.click(within(ran).getByRole('button', {name: 'Fix this'}))
     const input = screen.getByRole('textbox', {name: 'Message the conciv agent'})
     expect(input).toHaveTextContent('The test "the spring discount takes 10 off" in discount.test.js is failing:')
     expect(input).toHaveTextContent('expected 11 to be 2 // Object.is equality')
 
-    await user.click(within(reply).getByRole('button', {name: /Read the last test run/}))
-    expect(await within(reply).findAllByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toHaveLength(2)
+    expect(within(read).getByRole('button', {name: /Read the last test run/})).toBeVisible()
+    expect(within(read).getByRole('status')).toHaveTextContent('Test run finished: 1 passed, 1 failed, 0 skipped')
   })
 })
 
