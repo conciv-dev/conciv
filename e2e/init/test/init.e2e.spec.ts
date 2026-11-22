@@ -7,7 +7,15 @@ import {promisify} from 'node:util'
 import {expect, test} from '@playwright/test'
 
 test.describe('conciv init on a real project', () => {
-  const manifest = `${JSON.stringify({name: 'init-e2e', private: true, devDependencies: {vite: '^7.0.0'}}, null, 2)}\n`
+  const seed = {name: 'init-e2e', private: true, devDependencies: {vite: '^7.0.0'}}
+  const manifest = `${JSON.stringify(seed, null, 2)}\n`
+  const lock = {
+    name: seed.name,
+    lockfileVersion: 3,
+    requires: true,
+    packages: {'': {name: seed.name, devDependencies: seed.devDependencies}},
+  }
+  const lockfile = `${JSON.stringify(lock, null, 2)}\n`
 
   function seedProject() {
     const project = test.info().outputPath('project')
@@ -17,6 +25,7 @@ test.describe('conciv init on a real project', () => {
     mkdirSync(tools, {recursive: true})
     mkdirSync(home, {recursive: true})
     writeFileSync(join(project, 'package.json'), manifest)
+    writeFileSync(join(project, 'package-lock.json'), lockfile)
     writeFileSync(
       join(project, 'vite.config.ts'),
       "import {defineConfig} from 'vite'\n\nexport default defineConfig({plugins: []})\n",
