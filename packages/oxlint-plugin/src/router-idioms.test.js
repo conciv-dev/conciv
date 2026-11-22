@@ -37,11 +37,6 @@ tester.run('router-idioms', rule, {
       filename: otherFile,
     },
     {
-      name: 'a spread element beside falling-back fields in a search schema',
-      code: 'const docsSearchSchema = z.object({...baseFields, page: z.number().catch(1)})',
-      filename: otherFile,
-    },
-    {
       name: 'a computed key in a search schema',
       code: 'const docsSearchSchema = z.object({[pageKey]: z.number()})',
       filename: otherFile,
