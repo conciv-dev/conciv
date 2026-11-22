@@ -266,7 +266,7 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
 - Whiteboard (TanStack DB collections): never write to the db inside a collection subscription,
   effect, or render body: it triggers a re-render storm. Writes go in event handlers only.
 - The widget bundle must externalize the shared Ark/Solid deps; a second bundled copy splits the
-  Solid/Ark context and plugin popovers render at 0,0. Guarded by the mount-externals build test;
+  Solid/Ark context and plugin popovers render at 0,0. Guarded by the mount-externals build test (`packages/embed/src/mount-impl.test.ts`);
   don't weaken it.
 
 ## Security & safety
