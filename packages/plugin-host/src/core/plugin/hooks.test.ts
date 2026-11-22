@@ -33,19 +33,21 @@ describe('what the model is given', () => {
     expect(third?.system).toEqual(expect.not.arrayContaining([expect.stringContaining('<context key="units">')]))
   })
 
-  test('on a harness that resumes its own session, the first value stays in the system prompt and a change rides on the next message', async () => {
+  test('on a harness that resumes its own session, the first value stays in the system prompt, a change rides on the next message and a removal is taken back on the one after', async () => {
     const engine = await createEngine(
       {plugins: ['./test/fixtures/plugins/instruction-notes']},
       {harnesses: [{id: 'engine', sessions: []}]},
     )
-    await engine.reply(TestLLM.text('Noted'), TestLLM.text('Noted again'))
+    await engine.reply(TestLLM.text('Noted'), TestLLM.text('Noted again'), TestLLM.text('Dropped'))
 
     await engine.session.tool('note_put').call({value: 'Use metric units'})
     await engine.session.send('First')
     await engine.session.tool('note_put').call({value: 'Use imperial units'})
     await engine.session.send('Second')
+    await engine.session.tool('note_remove').call({})
+    await engine.session.send('Third')
 
-    const [, second] = await engine.requests()
+    const [, second, third] = await engine.requests()
     expect(second?.system).toEqual(expect.arrayContaining([expect.stringContaining('Use metric units')]))
     expect(second?.system).toEqual(expect.not.arrayContaining([expect.stringContaining('Use imperial units')]))
     expect(second?.messages.at(-1)).toEqual(
@@ -53,6 +55,17 @@ describe('what the model is given', () => {
         role: 'user',
         content: expect.arrayContaining([
           expect.objectContaining({type: 'text', content: expect.stringContaining('Use imperial units')}),
+        ]),
+      }),
+    )
+    expect(third?.messages.at(-1)).toEqual(
+      expect.objectContaining({
+        role: 'user',
+        content: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'text',
+            content: expect.stringContaining('The context under "units" no longer applies. Disregard it.'),
+          }),
         ]),
       }),
     )

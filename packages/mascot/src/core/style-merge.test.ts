@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest'
 import {mergeStyle} from '../solid/mascot-props.js'
-import {camelCaseProperty, isGeometryProperty, kebabCaseProperty} from './style-merge.js'
+import {camelCaseProperty, kebabCaseProperty} from './style-merge.js'
 
 describe('merging styles', () => {
   test.each([
@@ -10,19 +10,6 @@ describe('merging styles', () => {
   ])('%s and %s name the same property', (camel, kebab) => {
     expect(kebabCaseProperty(camel)).toBe(kebab)
     expect(camelCaseProperty(kebab)).toBe(camel)
-  })
-
-  test.each([
-    ['top', true],
-    ['background-image', true],
-    ['inset', true],
-    ['inset-inline-start', true],
-    ['background-position-x', true],
-    ['background-color', false],
-    ['opacity', false],
-    ['transform', false],
-  ])('the property %s places a layer: %s', (property, geometry) => {
-    expect(isGeometryProperty(property)).toBe(geometry)
   })
 
   test.each([
@@ -37,9 +24,9 @@ describe('merging styles', () => {
     ],
     [
       'a style string on a layer',
-      'opacity: 0.5; top: 4px; background-image: url("a.png")',
+      'opacity: 0.5; top: 4px; background-image: url("a.png"); inset: 0; inset-inline-start: 2px; background-position-x: 3px; background-color: red; transform: none',
       true,
-      '--tip:1;opacity:0.5',
+      '--tip:1;opacity:0.5;background-color:red;transform:none',
     ],
   ])('%s is merged over the mascot style', (_case, style, layer, merged) => {
     expect(mergeStyle({'--tip': '1'}, style, layer)).toEqual(merged)

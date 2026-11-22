@@ -15,6 +15,27 @@ export default Plugin.define({
       }
     }
     watchCreated().catch((error: unknown) => arrived.next.reject(error))
+    const runs: string[] = []
+    const ran = {next: Promise.withResolvers<void>()}
+    const watchRuns = async () => {
+      for await (const event of ctx.event.subscribe({
+        types: [
+          'session.execution.started',
+          'session.execution.succeeded',
+          'session.execution.failed',
+          'session.execution.interrupted',
+        ],
+      })) {
+        runs.push(event.type)
+        ran.next.resolve()
+        ran.next = Promise.withResolvers<void>()
+      }
+    }
+    watchRuns().catch((error: unknown) => ran.next.reject(error))
+    const heardRuns = async (count: number): Promise<string[]> => {
+      while (runs.length < count) await ran.next.promise
+      return [...runs]
+    }
     const createdEvent = async (sessionID: string): Promise<unknown> => {
       const matches = (data: unknown) =>
         z
@@ -47,13 +68,30 @@ export default Plugin.define({
         execute: async ({sessionID}) => ({output: {event: await createdEvent(sessionID)}}),
       })
       tools.add({
+        name: 'runs_heard',
+        description: 'Lists the run events the subscription delivered, once it has heard the given number',
+        input: z.object({count: z.number()}),
+        output: z.object({heard: z.array(z.string())}),
+        execute: async ({count}) => ({output: {heard: await heardRuns(count)}}),
+      })
+      tools.add({
+        name: 'session_rename',
+        description: 'Renames the session that calls the tool and reads its title back',
+        input: z.object({title: z.string()}),
+        output: z.object({title: z.unknown()}),
+        execute: async ({title}, context) => {
+          await ctx.session.update({sessionId: context.sessionId, title})
+          return {output: {title: (await ctx.session.get({sessionId: context.sessionId})).title ?? null}}
+        },
+      })
+      tools.add({
         name: 'session_create',
         description: 'Create a session from the plugin',
         input: z.object({title: z.string()}),
         output: z.object({id: z.string(), title: z.unknown()}),
         execute: async ({title}) => {
-          const created = await ctx.session.create({title})
-          return {output: {id: created.id, title: created.title ?? null}}
+          const made = await ctx.session.create({title})
+          return {output: {id: made.id, title: made.title ?? null}}
         },
       })
       tools.add({
