@@ -24,20 +24,9 @@
         "!$TURBO_ROOT$/packages/core/src/cards/**/*.{test,spec,stories}.*",
         "$TURBO_ROOT$/packages/plugins/page/src/**/*.{ts,tsx}",
         "!$TURBO_ROOT$/packages/plugins/page/src/**/*.{test,spec,stories}.*",
-        "$TURBO_ROOT$/packages/plugins/recorder/src/**/*.{ts,tsx}",
-        "!$TURBO_ROOT$/packages/plugins/recorder/src/**/*.{test,spec,stories}.*",
-        "$TURBO_ROOT$/packages/plugins/tanstack/src/**/*.{ts,tsx}",
-        "!$TURBO_ROOT$/packages/plugins/tanstack/src/**/*.{test,spec,stories}.*",
         "$TURBO_ROOT$/packages/plugins/terminal/src/**/*.{ts,tsx}",
         "!$TURBO_ROOT$/packages/plugins/terminal/src/**/*.{test,spec,stories}.*",
-        "$TURBO_ROOT$/packages/plugins/test-runner/src/**/*.{ts,tsx}",
-        "!$TURBO_ROOT$/packages/plugins/test-runner/src/**/*.{test,spec,stories}.*",
-        "$TURBO_ROOT$/packages/plugins/whiteboard/src/**/*.{ts,tsx}",
-        "!$TURBO_ROOT$/packages/plugins/whiteboard/src/**/*.{test,spec,stories}.*",
-        "$TURBO_ROOT$/packages/plugins/try-it/src/**/*.{ts,tsx}",
-        "!$TURBO_ROOT$/packages/plugins/try-it/src/**/*.{test,spec,stories}.*",
-        "$TURBO_ROOT$/packages/core/src/cards.tsx",
-        "$TURBO_ROOT$/packages/plugins/ios/src/client.tsx"
+        "$TURBO_ROOT$/packages/core/src/cards.tsx"
       ]
     }
   }

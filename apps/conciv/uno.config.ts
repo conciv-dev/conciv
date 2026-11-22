@@ -15,20 +15,11 @@ export default defineConfig({
       '../../packages/tools/src',
       '../../packages/core/src/cards',
       '../../packages/plugins/page/src',
-      '../../packages/plugins/recorder/src',
-      '../../packages/plugins/test-runner/src',
-      '../../packages/plugins/tanstack/src',
       '../../packages/plugins/terminal/src',
-      '../../packages/plugins/whiteboard/src',
-      '../../packages/plugins/try-it/src',
     ]
       .map((source) => fileURLToPath(new URL(source, import.meta.url)))
       .flatMap((source) => [`${source}/**/*.{ts,tsx}`, `!${source}/**/*.{test,spec,stories}.*`])
-      .concat(
-        ['../../packages/core/src/cards.tsx', '../../packages/plugins/ios/src/client.tsx'].map((source) =>
-          fileURLToPath(new URL(source, import.meta.url)),
-        ),
-      ),
+      .concat(fileURLToPath(new URL('../../packages/core/src/cards.tsx', import.meta.url))),
   },
 
   presets: [presetConciv()],

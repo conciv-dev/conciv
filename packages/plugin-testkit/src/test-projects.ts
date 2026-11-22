@@ -136,13 +136,17 @@ async function scannedFiles(patterns: readonly string[]): Promise<string[]> {
   return [...new Set(files)].filter((file) => !excluded.some((pattern) => matchesGlob(file, pattern)))
 }
 
-async function generateTestSheet(): Promise<string> {
+function sourcePatterns(directory: string): string[] {
+  return PACKAGE_SOURCES.map((pattern) =>
+    pattern.startsWith('!') ? `!${join(directory, pattern.slice(1))}` : join(directory, pattern),
+  )
+}
+
+async function generateTestSheet(directories: readonly string[]): Promise<string> {
   const loaded = UnoConfigModuleSchema.parse(await import(pathToFileURL(join(appDirectory(), 'uno.config.ts')).href))
   const config = loaded.default
   const appSources = config.content?.filesystem ?? []
-  const packageSources = PACKAGE_SOURCES.map((pattern) =>
-    pattern.startsWith('!') ? `!${join(process.cwd(), pattern.slice(1))}` : join(process.cwd(), pattern),
-  )
+  const packageSources = [...new Set(directories)].flatMap((directory) => sourcePatterns(directory))
   const generator = await createGenerator(config)
   const tokens = new Set<string>()
   const files = await scannedFiles([...appSources, ...packageSources])
@@ -151,7 +155,7 @@ async function generateTestSheet(): Promise<string> {
   return css
 }
 
-function generatedStyles(): Plugin {
+function generatedStyles(testable: readonly TestablePlugin[]): Plugin {
   let sheet: Promise<string> | undefined
   let app: string | undefined
   return {
@@ -167,7 +171,7 @@ function generatedStyles(): Plugin {
     },
     load(id) {
       if (id.split('?')[0] !== GENERATED_SHEET) return null
-      sheet ??= generateTestSheet()
+      sheet ??= generateTestSheet([process.cwd(), ...testable.map((plugin) => plugin.directory)])
       return sheet
     },
   }
@@ -459,9 +463,9 @@ function hasServingPlugin(option: unknown, name: string): boolean {
 }
 
 function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineConfiguration[] {
-  const styles = generatedStyles()
-  const solid = hasServingPlugin(authorPlugins, 'solid') ? [] : [solidPlugin()]
   const testable = testablePlugins()
+  const styles = generatedStyles(testable)
+  const solid = hasServingPlugin(authorPlugins, 'solid') ? [] : [solidPlugin()]
   const byName = pluginsByName(testable)
   const engines = browserEngines()
   const provide = {
