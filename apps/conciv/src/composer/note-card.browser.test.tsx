@@ -1,4 +1,5 @@
 import {describe, expect, test} from 'vitest'
+import {page} from 'vitest/browser'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
@@ -59,7 +60,7 @@ describe('plugin pills', () => {
     await user.click(screen.getByRole('button', {name: 'Deploy status'}))
     expect(await screen.findByText('Staging is green')).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Done'}))
-    expect(screen.queryByText('Staging is green')).not.toBeInTheDocument()
+    await expect.element(page.getByText('Staging is green', {exact: true})).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', {name: 'Checks'}))
     await user.click(await screen.findByRole('menuitem', {name: 'Lint failed'}))
