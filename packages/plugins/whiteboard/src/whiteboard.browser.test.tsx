@@ -487,6 +487,9 @@ describe('the user comments on an element of the page', () => {
     expect(await screen.findByRole('button', {name: /^Human comment, open/})).toBeVisible()
     await added.arrived
     expect(screen.queryByText('Comment added to the whiteboard')).not.toBeInTheDocument()
+    const thread = await screen.findByRole('dialog', {name: 'Comment thread'})
+    expect(within(thread).getByText('The title needs a tagline')).toBeVisible()
+    await user.click(within(thread).getByRole('button', {name: 'Close thread'}))
 
     await user.click(whiteboard)
     expect(screen.queryByRole('button', {name: /^Comments/})).not.toBeInTheDocument()
