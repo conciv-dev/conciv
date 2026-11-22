@@ -45,7 +45,7 @@ test.describe('the browser around the widget on a vite react page', () => {
 })
 
 test.describe('the widget on a vite react page when its engine socket cannot connect', () => {
-  test("the user opens the chat while the engine socket cannot connect, sees that conciv couldn't reach the engine, and once the network is back Retry brings the chat back", async ({
+  test("the user opens the chat while the engine socket cannot connect, sees one Retry where conciv says it couldn't reach the engine, clicks it, and the chat comes back once the network is back", async ({
     page,
   }) => {
     await loginWidget(page)
@@ -59,12 +59,15 @@ test.describe('the widget on a vite react page when its engine socket cannot con
     await page.clock.runFor(
       defaultEngineConnectionTimings.callDeadlineMs + defaultEngineConnectionTimings.connectionLossRetryDelayMs,
     )
-    await expect(
-      page.getByText("conciv couldn't reach the engine. Check that the dev server is still running."),
-    ).toBeVisible()
+    const unreachable = page
+      .getByRole('alert')
+      .filter({hasText: "conciv couldn't reach the engine. Check that the dev server is still running."})
+    await expect(unreachable).toBeVisible()
+    await page.clock.runFor(defaultEngineConnectionTimings.offlineGraceMs)
+    await expect(page.getByRole('button', {name: 'Retry'})).toHaveCount(1)
 
+    await unreachable.getByRole('button', {name: 'Retry'}).click()
     engineSocket.release()
-    await page.getByRole('button', {name: 'Retry'}).click()
     await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
   })
 
