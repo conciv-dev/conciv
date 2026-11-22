@@ -89,8 +89,10 @@ describe.concurrent('bundler builds', () => {
       expect(existsSync(concivStateDir(root))).toBe(blockState)
     },
   )
+})
 
-  test('a webpack development watch build boots the engine and adds the widget entry to every entry', async ({
+describe('a webpack development watch build', () => {
+  test('boots the engine and adds the widget entry to every entry', async ({
     project,
     webpackWatch,
     freePort,
