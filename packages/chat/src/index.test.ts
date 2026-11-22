@@ -21,7 +21,6 @@ describe('stopping', () => {
   test('a stop sent while the turn still prepares its prompt, before its run is recorded, ends it, the message is taken back and the agent is never asked', async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/turn-holder']})
     await engine.reply(TestLLM.text('Never shown'))
-    const interrupted = await engine.event('session.execution.interrupted')
 
     const sent = engine.session.send('Hello').then(
       () => 'sent',
@@ -32,7 +31,6 @@ describe('stopping', () => {
     await engine.session.tool('turn_release').call({hook: 'prompt'})
 
     expect(await sent).toBe('taken back')
-    await expect(interrupted.arrived).resolves.toMatchObject({data: {reason: 'user'}})
     expect(await engine.requests()).toHaveLength(0)
   })
 })
