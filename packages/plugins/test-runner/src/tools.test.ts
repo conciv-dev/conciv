@@ -2,7 +2,7 @@ import {describe, expect, test} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 
 describe("the agent runs the project's tests", () => {
-  test('the agent is told about the runner, lists the files and reads an empty status before any run', async () => {
+  test('the agent is told about the runner, lists the files, reads an empty status, runs everything, narrows a run with a pattern, reads the last run, and two runs asked at once each report their own tests', async () => {
     const engine = await createEngine(
       {plugins: ['@conciv/plugin-test-runner']},
       {directory: 'test/fixtures/plant-shop'},
@@ -26,13 +26,6 @@ describe("the agent runs the project's tests", () => {
       failures: [],
       tests: [],
     })
-  })
-
-  test('the agent runs everything, narrows a run with a pattern, and the status then reads the last run', async () => {
-    const engine = await createEngine(
-      {plugins: ['@conciv/plugin-test-runner']},
-      {directory: 'test/fixtures/plant-shop'},
-    )
 
     expect(await engine.session.tool('test_runner_run').call({})).toMatchObject({
       summary: {passed: 1, failed: 1, skipped: 0},
@@ -53,13 +46,6 @@ describe("the agent runs the project's tests", () => {
       summary: {passed: 1, failed: 0, skipped: 0},
       tests: [{name: 'a fern in the cart costs 12', state: 'pass'}],
     })
-  })
-
-  test('two runs asked at once each report their own tests', async () => {
-    const engine = await createEngine(
-      {plugins: ['@conciv/plugin-test-runner']},
-      {directory: 'test/fixtures/plant-shop'},
-    )
 
     const [cart, discount] = await Promise.all([
       engine.session.tool('test_runner_run').call({pattern: 'cart'}),
