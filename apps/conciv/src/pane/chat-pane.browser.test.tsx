@@ -46,6 +46,26 @@ describe('a markdown reply', () => {
   })
 })
 
+describe('a reply that thinks before it answers', () => {
+  test('the user reads the plan row with its first line, the whole plan below it, and the trace summed up as reasoning', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(TestLLM.thinking('Read the cart first\nThen check the price', 'The fern costs ten euros'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'What does the fern cost')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+
+    const reply = await screen.findByRole('article', {name: 'Reply to: What does the fern cost'})
+    expect(await within(reply).findByText('The fern costs ten euros')).toBeVisible()
+    expect(within(reply).getByRole('button', {name: /Hide trace/})).toMatchTextContent('reasoning')
+    const trace = within(reply).getByRole('list', {name: 'Execution trace'})
+    expect(within(trace).getByText('plan')).toBeVisible()
+    expect(within(trace).getByText('Read the cart first')).toBeVisible()
+    expect(within(trace).getByText(/Then check the price/)).toBeVisible()
+  })
+})
+
 describe('a message with no words', () => {
   test('a grabbed element sent alone reads as an attachment, and a note sent alone as a note', async () => {
     await page.viewport(1280, 800)
