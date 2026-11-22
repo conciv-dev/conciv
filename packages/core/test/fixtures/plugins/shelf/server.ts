@@ -25,7 +25,15 @@ export default Plugin.define({
         description: 'Take a photo of the shelf',
         input: z.object({}),
         execute: () =>
-          Effect.succeed({content: [{type: 'file', uri: 'data:image/png;base64,iVBORw0KGgo=', mime: 'image/png'}]}),
+          Effect.succeed({
+            content: [
+              {
+                type: 'file',
+                uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+                mime: 'image/png',
+              },
+            ],
+          }),
       })
       tools.add({
         name: 'shelf_reset',

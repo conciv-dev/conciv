@@ -13,7 +13,11 @@ describe('agent tools', () => {
     expect(dumped.message).toContain('the cap is 50000')
 
     expect(await engine.session.tool('shelf_photo').call({})).toContainEqual(
-      expect.objectContaining({type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png'}),
+      expect.objectContaining({
+        type: 'image',
+        data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+        mimeType: 'image/png',
+      }),
     )
 
     expect(await engine.session.tool('shelf_reset').call({})).toEqual({reset: true})
