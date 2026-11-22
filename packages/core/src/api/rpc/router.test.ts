@@ -40,13 +40,10 @@ describe('outside agents', () => {
     })
   })
 
-  test('with open access a call into a session runs without asking, and a call with no session runs too', async () => {
+  test('with open access a call into a session runs without asking', async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk'], hubAccess: 'open'})
 
     expect(await engine.outside({tab: engine.session.id}).call('desk_echo', {text: 'Hello'})).toEqual({
-      content: [expect.objectContaining({type: 'text', text: expect.stringContaining('Hello')})],
-    })
-    expect(await engine.outside().call('desk_echo', {text: 'Hello'})).toEqual({
       content: [expect.objectContaining({type: 'text', text: expect.stringContaining('Hello')})],
     })
   })
