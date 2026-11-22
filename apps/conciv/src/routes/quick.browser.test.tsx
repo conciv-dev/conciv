@@ -2,10 +2,13 @@ import {describe, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
+import {resolveModifier} from '@tanstack/hotkeys'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('quick terminal', () => {
+  const mod = resolveModifier('Mod')
+
   test('the user opens the quick terminal on the latest session, splits it, and closes it', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
@@ -14,7 +17,7 @@ describe('quick terminal', () => {
 
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     expect(document.body).toHaveFocus()
-    await user.keyboard('{Control>}`{/Control}')
+    await user.keyboard(`{${mod}>}\`{/${mod}}`)
     const terminal = await screen.findByRole('dialog', {name: 'conciv quick terminal'})
     expect(terminal).toBeVisible()
     expect(await within(terminal).findByRole('button', {name: 'Session: Latest work'})).toBeVisible()
@@ -27,7 +30,7 @@ describe('quick terminal', () => {
     expect(screen.queryByRole('dialog', {name: 'conciv quick terminal'})).not.toBeInTheDocument()
 
     expect(document.body).toHaveFocus()
-    await user.keyboard('{Control>}`{/Control}')
+    await user.keyboard(`{${mod}>}\`{/${mod}}`)
     const reopened = await screen.findByRole('dialog', {name: 'conciv quick terminal'})
     expect(await within(reopened).findAllByRole('button', {name: /^Session: /})).toHaveLength(1)
 
@@ -43,17 +46,17 @@ describe('quick terminal', () => {
 
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     expect(document.body).toHaveFocus()
-    await user.keyboard('{Control>}`{/Control}')
+    await user.keyboard(`{${mod}>}\`{/${mod}}`)
     const terminal = await screen.findByRole('dialog', {name: 'conciv quick terminal'})
     expect(await within(terminal).findByRole('button', {name: 'Session: Latest work'})).toBeVisible()
 
     expect(document.body).toHaveFocus()
-    await user.keyboard('{Control>}d{/Control}')
+    await user.keyboard(`{${mod}>}d{/${mod}}`)
     expect(await within(terminal).findByRole('button', {name: 'Session: New session'})).toBeVisible()
     expect(within(terminal).getAllByRole('button', {name: /^Session: /})).toHaveLength(2)
 
     expect(document.body).toHaveFocus()
-    await user.keyboard('{Control>}`{/Control}')
+    await user.keyboard(`{${mod}>}\`{/${mod}}`)
     expect(screen.queryByRole('dialog', {name: 'conciv quick terminal'})).not.toBeInTheDocument()
   })
 })
@@ -110,6 +113,8 @@ describe('quick terminal height', () => {
 })
 
 describe('the host turns the quick terminal off', () => {
+  const mod = resolveModifier('Mod')
+
   test('the quick terminal route and hotkey do nothing', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
@@ -126,7 +131,7 @@ describe('the host turns the quick terminal off', () => {
     expect(screen.queryByRole('dialog', {name: 'conciv quick terminal'})).not.toBeInTheDocument()
 
     expect(document.body).toHaveFocus()
-    await user.keyboard('{Control>}`{/Control}')
+    await user.keyboard(`{${mod}>}\`{/${mod}}`)
     await user.unhover(launcher)
     await expect.element(page.getByRole('tooltip', {name: 'Open conciv chat'})).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog', {name: 'conciv quick terminal'})).not.toBeInTheDocument()
@@ -143,12 +148,12 @@ describe('the host turns the quick terminal off', () => {
 
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     expect(document.body).toHaveFocus()
-    await user.keyboard('{Control>}k{/Control}')
+    await user.keyboard(`{${mod}>}k{/${mod}}`)
     const terminal = await screen.findByRole('dialog', {name: 'conciv quick terminal'})
     expect(terminal).toBeVisible()
 
     expect(document.body).toHaveFocus()
-    await user.keyboard('{Control>}`{/Control}')
+    await user.keyboard(`{${mod}>}\`{/${mod}}`)
     await user.hover(within(terminal).getByRole('button', {name: 'Split pane'}))
     expect(await screen.findByRole('tooltip', {name: /^Split pane/})).toBeVisible()
     expect(screen.getByRole('dialog', {name: 'conciv quick terminal'})).toBeVisible()
