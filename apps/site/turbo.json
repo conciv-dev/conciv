@@ -5,6 +5,9 @@
     "build": {
       "outputs": ["dist/**", ".wrangler/deploy/**"]
     },
+    "typecheck": {
+      "dependsOn": ["^build", "^build:types", "@conciv/harness-testkit#build:types"]
+    },
     "test:e2e": {
       "dependsOn": ["^build", "build", "@conciv/cli#build"]
     }

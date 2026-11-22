@@ -8,21 +8,21 @@ import {describe, expect, test} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {resource} from './otlp.js'
 
-const withResourceAttributes = test.extend<{setResourceAttributes: (value: string) => void}>({
-  setResourceAttributes: async ({task: _task}, use) => {
-    const previous = process.env.OTEL_RESOURCE_ATTRIBUTES
-    try {
-      await use((value) => {
-        process.env.OTEL_RESOURCE_ATTRIBUTES = value
-      })
-    } finally {
-      if (previous === undefined) delete process.env.OTEL_RESOURCE_ATTRIBUTES
-      else process.env.OTEL_RESOURCE_ATTRIBUTES = previous
-    }
-  },
-})
-
 describe('resource', () => {
+  const withResourceAttributes = test.extend<{setResourceAttributes: (value: string) => void}>({
+    setResourceAttributes: async ({task: _task}, use) => {
+      const previous = process.env.OTEL_RESOURCE_ATTRIBUTES
+      try {
+        await use((value) => {
+          process.env.OTEL_RESOURCE_ATTRIBUTES = value
+        })
+      } finally {
+        if (previous === undefined) delete process.env.OTEL_RESOURCE_ATTRIBUTES
+        else process.env.OTEL_RESOURCE_ATTRIBUTES = previous
+      }
+    },
+  })
+
   withResourceAttributes('parses and decodes OTEL resource attributes', ({setResourceAttributes}) => {
     setResourceAttributes(
       'service.namespace=anomalyco,team=platform%2Cobservability,label=hello%3Dworld,key%2Fname=value%20here',
