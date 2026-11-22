@@ -17,6 +17,7 @@ describe('the host page drives the widget through its handle', () => {
       const handles: ConcivHandle[] = []
       await use(handles)
       for (const handle of handles) handle.unmount()
+      sessionStorage.clear()
     },
   })
 
@@ -36,10 +37,10 @@ describe('the host page drives the widget through its handle', () => {
 
     await handle.mount(element)
     const launcher = page.getByRole('button', {name: 'Open conciv chat'})
-    const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
     await expect.element(launcher).toBeVisible()
 
     handle.open()
+    const panel = await page.getByRole('dialog', {name: 'conciv chat agent'}).findElement()
     await expect.element(panel).toBeVisible()
     handle.close()
     await expect.element(panel).not.toBeVisible()
@@ -80,6 +81,6 @@ describe('the script tag mounts one widget', () => {
     await mountConciv()
     await mountConciv()
 
-    await expect.element(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Unauthorized. Authorize conciv'})).toBeVisible()
   })
 })
