@@ -449,12 +449,13 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
     resolve: {alias: [{find: ENGINE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
     optimizeDeps: {
       rolldownOptions: {plugins: [byName]},
+      entries: [join(KIT_DIST, 'browser.js')],
       include: [...BROWSER_PREBUNDLED, ...installedTestingLibraries()],
     },
     test: {
       name,
       include,
-      setupFiles: [join(KIT_DIST, 'browser-setup.js'), join(KIT_DIST, 'browser.js')],
+      setupFiles: [join(KIT_DIST, 'browser-setup.js')],
       provide,
       browser: {
         enabled: true,
