@@ -457,8 +457,19 @@ function RootChrome(props: {
       replace: settings.surface !== 'dock' && Boolean(panelMatch()),
     })
   }
+  let pendingPress: (() => void) | undefined
+  onCleanup(() => pendingPress?.())
   const toggleQuick = () => {
-    if (login?.status() === 'checking') return
+    if (login?.status() === 'checking') {
+      if (pendingPress) return
+      pendingPress = login.trust().subscribe((status) => {
+        if (status === 'checking') return
+        pendingPress?.()
+        pendingPress = undefined
+        toggleQuick()
+      })
+      return
+    }
     if (awaitingLogin()) showPanel()
     else switchQuick()
   }
