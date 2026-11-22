@@ -12,6 +12,6 @@ export default defineConfig(
   {
     testDir: '../vite-react/test',
     testMatch: 'widget.spec.ts',
-    grep: /the user opens a magic link and the widget opens with no error|the code the dev server prints in its log signs the browser in/,
+    grep: /the user opens a magic link and the widget opens with no error/,
   },
 )
