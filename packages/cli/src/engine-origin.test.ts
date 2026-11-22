@@ -1,3 +1,4 @@
+import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {cli, createEngine} from '@conciv/plugin-testkit'
@@ -27,5 +28,13 @@ describe('discovery', () => {
         hint: "Start your app (pnpm dev). conciv reads the engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port, not Vite's).",
       },
     })
+  })
+
+  it('with no environment and no server.json, the engine registered in the home is found', async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
+
+    const fromHome = await cli(['tools', '--help'], {cwd: tmpdir(), env: {CONCIV_HOME: engine.home}})
+    expect(fromHome.exitCode).toBe(0)
+    expect(fromHome.stdout).toMatch(/^ {2}shelf +the shelf tools the running dev server serves/m)
   })
 })
