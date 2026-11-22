@@ -21,6 +21,7 @@ import {NoticeSurface} from '../shell/notice-context.js'
 import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../lib/quick-search.js'
 import {openPipTarget} from '../shell/pip.js'
+import {leaveScreen} from '../lib/leave-screen.js'
 import {PluginSession} from '../shell/plugin-surfaces.js'
 
 const CLOSE =
@@ -181,7 +182,7 @@ function QuickLayer(): JSX.Element {
         .then(() => appData.invalidateSession(closed))
     const remaining = ids.filter((_, i) => i !== index)
     if (remaining.length === 0) {
-      router.history.back()
+      leaveScreen(router, closed)
       return
     }
     setSearch(remaining, Math.min(focusedIndex(), remaining.length - 1))
@@ -204,7 +205,7 @@ function QuickLayer(): JSX.Element {
     collapseAt: 120,
     storageKey: 'conciv-qt-height',
     grow: () => 'down',
-    onCollapse: () => router.history.back(),
+    onCollapse: () => leaveScreen(router, paneIds()[focusedIndex()]),
   })
 
   createHotkeys(() =>
@@ -256,7 +257,7 @@ function QuickLayer(): JSX.Element {
           })
         }}
         onSplit={() => addFreshPane()}
-        onClose={() => router.history.back()}
+        onClose={() => leaveScreen(router, paneIds()[focusedIndex()])}
       />
       <div
         class="flex flex-1 min-h-0 overflow-x-auto"

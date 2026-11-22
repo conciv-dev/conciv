@@ -52,6 +52,7 @@ import {createElementSize} from '@solid-primitives/resize-observer'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {hostFocusTarget} from '../lib/host-focus.js'
 import {quickPaneIds} from '../lib/quick-search.js'
+import {leaveScreen} from '../lib/leave-screen.js'
 import {sessionPickerSearchSchema} from '../lib/session-search-schemas.js'
 import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
@@ -440,14 +441,14 @@ function RootChrome(props: {
     }
     if (closedMatch()) return
     event.preventDefault()
-    router.history.back()
+    leaveScreen(router, props.activeSession())
   }
 
   const switchQuick = () => {
     if (!connected()) return
     const revealed = revealDock()
     if (quickMatch()) {
-      if (!revealed) router.history.back()
+      if (!revealed) leaveScreen(router, props.activeSession())
       return
     }
     void router.navigate({

@@ -30,7 +30,7 @@ The one entry of `@conciv/app` (`ConcivApp` over a `Platform` a host builds), th
 ## Side Effects
 
 - `index.tsx:ConcivApp`: listens for the `conciv:rebind` window event while a bound app is mounted
-- `index.tsx:makeNavigationStorage`: calls `rpc.navigation.get` once and `rpc.navigation.set` on every navigation
+- `index.tsx:tabHistory`: reads this tab's last screen from sessionStorage `conciv-last-screen` at boot and writes the href there on every navigation
 - `entry-standalone.tsx`: reads `window.location.search` and renders into `#app`
 - `router.tsx:watchEngine`: calls `setupEngineReachability(apiBase)` from `@conciv/client` and subscribes to the trust of the connection it holds through `browserRpcConnection(apiBase)` from `@conciv/contract`, releasing it when the watch stops
 - `runtime/plugin/plugin-boundary.tsx:reportCrash`: `console.error` with the crashed plugin's name and the error

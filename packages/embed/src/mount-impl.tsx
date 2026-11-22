@@ -146,7 +146,7 @@ export function mountImpl(
   const interactive = Promise.withResolvers<void>()
   const platform: Platform = {
     engine: () => first,
-    navigation: servers ? {history: createMemoryHistory({initialEntries: [connectPath(settings)]})} : 'engine',
+    navigation: servers ? {history: createMemoryHistory({initialEntries: [connectPath(settings)]})} : 'tab',
     root: shadow.root,
     settings,
     plugins: init.plugins,
