@@ -21,7 +21,7 @@ export type MountOptions = {
   history?: RouterHistory | EngineRouterHistory
   host?: ConcivSettingsInit
   login?: 'none'
-  timings?: Pick<NonNullable<Platform['timings']>, 'page'>
+  timings?: {page?: {taskTimeoutMs?: number}}
 }
 
 const TIMINGS: NonNullable<Platform['timings']> = {
