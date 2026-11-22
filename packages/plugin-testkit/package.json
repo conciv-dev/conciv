@@ -59,8 +59,7 @@
   "devDependencies": {
     "@conciv/app": "workspace:*",
     "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin-ios": "workspace:*",
-    "@conciv/plugin-try-it": "workspace:*",
+    "@conciv/plugin": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
@@ -70,6 +69,8 @@
     "@types/node": "catalog:",
     "@vitest/browser-playwright": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "conciv-engine-tool": "link:./test/fixtures/plugins/engine-tool",
+    "conciv-greeting": "link:./test/fixtures/plugins/greeting",
     "happy-dom": "catalog:",
     "playwright": "catalog:",
     "solid-js": "catalog:",
