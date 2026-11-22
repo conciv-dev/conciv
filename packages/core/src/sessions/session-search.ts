@@ -1,10 +1,11 @@
 import {once} from 'node:events'
 import {MessageChannel, Worker} from 'node:worker_threads'
 import {Effect} from 'effect'
-import {extname} from 'node:path'
+import {realpath} from 'node:fs/promises'
+import {extname, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {and, eq, inArray, isNotNull} from 'drizzle-orm'
-import {difference, keyBy, sortBy, xor} from 'es-toolkit'
+import {difference, keyBy, sortBy, uniq, xor, zipObject} from 'es-toolkit'
 import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/message-port'
 import {EventPublisher, type RouterClient} from '@orpc/server'
@@ -131,15 +132,21 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
   const titlePass = async (running: Running, source: Indexed, scope: HarnessListScope): Promise<TitlePass> => {
     const signal = running.stopped.signal
     const folder = 'cwd' in scope ? scope.cwd : null
-    const owned = (cwd: string): boolean => (folder === null ? !folderScoped(cwd) : cwd === folder)
-    const statesOwned = async () =>
-      (await running.index.states({harness: source.harness.id}, {signal})).filter((row) => owned(row.cwd))
+    const scoped =
+      folder === null
+        ? Promise.all(state.scopes.flatMap((listed) => ('cwd' in listed ? [resolveFolder(listed.cwd)] : [])))
+        : null
+    const statesOwned = async (known: Record<string, string>) => {
+      const rows = await running.index.states({harness: source.harness.id}, {signal})
+      if (scoped === null) return rows.filter((row) => row.cwd === folder)
+      return (await keepUnscoped(rows, scoped, known)).kept
+    }
     try {
-      const metas = (await listedSessions(source.history, scope)).filter(
-        (meta) => folder !== null || !folderScoped(meta.cwd),
-      )
+      const walked = await listedSessions(source.history, scope)
+      const unscoped = scoped === null ? {kept: walked, folders: {}} : await keepUnscoped(walked, scoped, {})
+      const metas = unscoped.kept
       const titles = await rowTitles(deps.db, source.harness.id, metas)
-      const states = keyBy(await statesOwned(), (row) => row.id)
+      const states = keyBy(await statesOwned(unscoped.folders), (row) => row.id)
       const listed = metas.map((meta): Listed => {
         const id = formatDocumentId(source.harness.id, meta.id)
         const cwd = folder ?? meta.cwd
@@ -150,7 +157,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       await running.index.remove({ids: gone}, {signal})
       const retitled = listed.filter((entry) => !sameListing(entry.current, entry))
       await running.index.list({listings: retitled.map(buildListing)}, {signal})
-      const indexedIds = (await statesOwned()).map((row) => row.id)
+      const indexedIds = (await statesOwned(unscoped.folders)).map((row) => row.id)
       const mismatched = xor(indexedIds, listedIds)
       if (mismatched.length > 0) {
         deps.log(
@@ -323,6 +330,21 @@ function unreadNow(entry: Listed): boolean {
   if (current === undefined || !current.read) return true
   if (current.readUpdatedAt === entry.meta.updatedAt) return false
   return Date.now() - current.readAt >= LIVE_REINDEX_MS
+}
+
+async function resolveFolder(cwd: string): Promise<string> {
+  return realpath(resolve(cwd)).catch(() => resolve(cwd))
+}
+
+async function keepUnscoped<Item extends {cwd: string}>(
+  items: Item[],
+  scoped: Promise<string[]>,
+  known: Record<string, string>,
+): Promise<{kept: Item[]; folders: Record<string, string>}> {
+  const missing = difference(uniq(items.map((item) => item.cwd)), Object.keys(known))
+  const folders = {...known, ...zipObject(missing, await Promise.all(missing.map(resolveFolder)))}
+  const excluded = await scoped
+  return {kept: items.filter((item) => !excluded.includes(folders[item.cwd] ?? resolve(item.cwd))), folders}
 }
 
 async function listedSessions(history: HarnessHistory, scope: HarnessListScope): Promise<HarnessSessionMeta[]> {

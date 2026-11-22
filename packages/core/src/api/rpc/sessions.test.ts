@@ -1,7 +1,10 @@
+import {realpathSync, symlinkSync} from 'node:fs'
+import {join} from 'node:path'
 import {describe, vi} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {createEngine} from '@conciv/plugin-testkit'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {test} from '../../../test/engine-test.js'
 
 describe('sessions', () => {
@@ -96,14 +99,31 @@ describe('sessions', () => {
 })
 
 describe.concurrent('native sessions', () => {
-  test('a past CLI session is found by what was said in it, with the command that resumes it', async ({
+  test('a past CLI session is found by what was said in it, with the command that resumes it, and a folder spelled through a symlink or by a gone path is one folder', async ({
     connect,
     expect,
   }) => {
     const otherProject = tempDir('other-project-')
+    const project = realpathSync(tempDir('linked-project-'))
+    const projectLink = join(tempDir('project-link-'), 'project')
+    symlinkSync(project, projectLink)
+    const covered = realpathSync(tempDir('covered-folder-'))
+    const coveredLink = join(tempDir('covered-link-'), 'covered')
+    symlinkSync(covered, coveredLink)
+    const gone = join(tempDir('gone-parent-'), 'gone')
+    const unrelated = tempDir('unrelated-folder-')
+    const said = (id: string, content: string): ChatMessage[] => [{id, role: 'user', parts: [{type: 'text', content}]}]
+    const session = (id: string, cwd: string, derivedTitle: string, content: string) => ({
+      id,
+      cwd,
+      derivedTitle,
+      updatedAt: 1_000,
+      messages: said(`${id}-message`, content),
+    })
     const engine = await createEngine(
       {},
       {
+        directory: project,
         harnesses: [
           {
             id: 'engine',
@@ -118,6 +138,12 @@ describe.concurrent('native sessions', () => {
                   {id: 'm2', role: 'assistant', parts: [{type: 'text', content: 'The token expired'}]},
                 ],
               },
+              session('through-project-link', projectLink, 'Walrus through the project link', 'linked'),
+              session('covered-by-link', coveredLink, 'Opened by its link', 'opened'),
+              session('covered-real-path', covered, 'Walrus at the covered real path', 'real'),
+              session('gone-covered', gone, 'Opened where it is gone', 'opened'),
+              session('gone-trailing-slash', `${gone}/`, 'Walrus where it is gone, with a slash', 'slash'),
+              session('unrelated', unrelated, 'Walrus in an unrelated folder', 'unrelated'),
             ],
           },
         ],
@@ -126,13 +152,20 @@ describe.concurrent('native sessions', () => {
     const client = connect(engine)
     const versions = (await client.sessions.changes())[Symbol.asyncIterator]()
     await versions.next()
+    const page = {before: null, limit: 10}
+    const readFound = async (): Promise<Awaited<ReturnType<typeof client.sessions.search>>> => {
+      await versions.next()
+      const found = await client.sessions.search({term: 'stacktrace', everywhere: true})
+      return found.sessions.length > 0 ? found : readFound()
+    }
 
+    await client.sessions.preview({...page, harness: 'engine', nativeId: 'covered-by-link', cwd: coveredLink})
+    await client.sessions.preview({...page, harness: 'engine', nativeId: 'gone-covered', cwd: gone})
     await client.sessions.list({})
-    await client.sessions.search({term: 'stacktrace', everywhere: true})
-    await versions.next()
-    await versions.next()
-    const found = await client.sessions.search({term: 'stacktrace', everywhere: true})
+    const walrus = await client.sessions.search({term: 'walrus', everywhere: true})
+    expect(walrus.sessions.map((hit) => hit.title)).toEqual(['Walrus in an unrelated folder'])
 
+    const found = await readFound()
     expect(found.sessions).toEqual([
       expect.objectContaining({
         title: 'Fix the login form',
