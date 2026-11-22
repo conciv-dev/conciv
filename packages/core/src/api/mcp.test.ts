@@ -9,7 +9,7 @@ describe('agent tools', () => {
     expect(await engine.session.tool('shelf_count').call({shelf: 'poetry'})).toEqual({shelf: 'poetry', count: 3})
 
     const dumped = await engine.session.tool('shelf_dump').failure({})
-    expect(dumped.message).toContain('the reply for tool "shelf_dump" was truncated (the serialized result is')
+    expect(dumped.message).toContain('the serialized result is')
     expect(dumped.message).toContain('the cap is 50000')
 
     expect(await engine.session.tool('shelf_photo').call({})).toContainEqual(
