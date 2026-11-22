@@ -308,10 +308,6 @@ function withLastUser(messages: ModelMessage[], user: ModelMessage | undefined):
   return [...messages.slice(0, index), user, ...messages.slice(index + 1)]
 }
 
-export function approvalDenied(name: string): Error {
-  return new Error(`The user denied running tool "${name}". Do not retry it; continue without it.`)
-}
-
 type OfferedTools = {tools: ChatTool[]; preface: string | null}
 
 function buildDiscovery(tool: ChatTool | null): CodeDiscovery | null {
@@ -834,7 +830,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             view.full = current.messages
           },
         }),
-        childCards(config.codeModeResult),
+        childCards(config.codeModeResult, stores.messages),
         ...(turn.kind === 'compact' ? [compactionStamp(stores.messages)] : []),
         defineChatMiddleware({
           name: 'conciv-run-record',

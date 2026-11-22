@@ -65,6 +65,7 @@ function isTriggerTitle(value: unknown): value is TriggerTitle {
 function statusMark(status: string | undefined): ToolRowMark {
   if (status === 'error') return 'fail'
   if (status === 'pending') return 'run'
+  if (status === 'denied' || status === 'cancelled') return status
   return 'pass'
 }
 

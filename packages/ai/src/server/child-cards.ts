@@ -1,5 +1,6 @@
 import {z} from 'zod'
-import {defineChatMiddleware, generateMessageId, type ModelMessage} from '@tanstack/ai'
+import {defineChatMiddleware, generateMessageId, withTanstackMetadata, type ModelMessage} from '@tanstack/ai'
+import type {MessageStore} from '@tanstack/ai-persistence'
 import {
   ChatEventType,
   codeModeCallEvent,
@@ -8,6 +9,7 @@ import {
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
 import {CODE_MODE_EXTERNAL_PREFIX} from '@conciv/protocol/chat-types'
+import {isApprovalDeniedMessage} from './approval-denied.js'
 
 type ShapeResult = (value: unknown) => unknown
 
@@ -83,16 +85,33 @@ function childResultChunks(event: ChatEvent, shapeResult: ShapeResult): ChatEven
   ]
 }
 
+const FailedRunSchema = z.looseObject({success: z.literal(false)})
+
+function failedRun(content: unknown): boolean {
+  if (typeof content !== 'string') return false
+  try {
+    return FailedRunSchema.safeParse(JSON.parse(content)).success
+  } catch {
+    return false
+  }
+}
+
+function deniedChild(event: ChatEvent): boolean {
+  const failed = codeModeErrorEvent.parse(event)
+  return failed !== null && isApprovalDeniedMessage(failed.error)
+}
+
 function childErrorChunks(event: ChatEvent): ChatEvent[] | null {
   const failed = codeModeErrorEvent.parse(event)
   if (failed === null) return null
+  const outcome = isApprovalDeniedMessage(failed.error) ? {toolResultOutcome: 'denied'} : {}
   return [
     {
       type: ChatEventType.TOOL_CALL_RESULT,
       messageId: generateMessageId(),
       toolCallId: failed.callId,
       content: serialized({error: failed.error}),
-      metadata: {tanstack: {state: 'output-error'}},
+      metadata: {tanstack: {state: 'output-error', ...outcome}},
     },
   ]
 }
@@ -106,15 +125,38 @@ export function childCardChunks(
   return childCallChunks(event, parentToolCallId) ?? childResultChunks(event, shapeResult) ?? childErrorChunks(event)
 }
 
-export function childCards(shapeResult: ShapeResult) {
+export function childCards(shapeResult: ShapeResult, messages: MessageStore) {
   const execution: {parent: string | null} = {parent: null}
+  const deniedParents = new Set<string>()
+  const deniedRuns = new Set<string>()
   return defineChatMiddleware({
     name: 'conciv-child-cards',
     onChunk: (_ctx, chunk) => {
       if (chunk.type === ChatEventType.TOOL_CALL_START && chunk.toolCallName.endsWith(EXECUTE_TOOL_SUFFIX)) {
         execution.parent = chunk.toolCallId
       }
+      if (execution.parent !== null && deniedChild(chunk)) deniedParents.add(execution.parent)
+      if (
+        chunk.type === ChatEventType.TOOL_CALL_RESULT &&
+        deniedParents.has(chunk.toolCallId) &&
+        failedRun(chunk.content)
+      ) {
+        deniedRuns.add(chunk.toolCallId)
+        return [withTanstackMetadata(chunk, {toolResultOutcome: 'denied'})]
+      }
       return childCardChunks(chunk, execution.parent, shapeResult) ?? undefined
+    },
+    onFinish: async (ctx) => {
+      if (deniedRuns.size === 0) return
+      const stored = await messages.loadThread(ctx.threadId)
+      await messages.saveThread(
+        ctx.threadId,
+        stored.map((message) =>
+          message.role === 'tool' && message.toolCallId !== undefined && deniedRuns.has(message.toolCallId)
+            ? withTanstackMetadata(message, {toolResultOutcome: 'denied'})
+            : message,
+        ),
+      )
     },
   })
 }

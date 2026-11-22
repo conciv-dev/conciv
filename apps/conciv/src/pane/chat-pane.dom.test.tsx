@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {screen, within} from '@solidjs/testing-library'
+import {screen, waitFor, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
@@ -240,7 +240,7 @@ describe('a conversation too long for the model', () => {
 })
 
 describe('the agent asks for permission', () => {
-  test('the ask is announced and listed with its target, the run waits, Allow once lets the tool run, and the card says it was allowed', async () => {
+  test('the ask is announced and listed with its target, the run waits, Allow once lets the tool run, and the answered card leaves the list', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
     await engine.reply(
@@ -266,9 +266,7 @@ describe('the agent asks for permission', () => {
     await user.click(within(ask).getByRole('button', {name: 'Allow once'}))
 
     expect(await screen.findByText('Main is shipped')).toBeVisible()
-    expect(within(ask).getByText('Allowed')).toBeVisible()
-    expect(within(ask).queryByRole('button', {name: 'Allow once'})).not.toBeInTheDocument()
-    expect(screen.getByText('Allowed the request')).toBeVisible()
+    expect(screen.queryByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
   })
 
   test('an ask answered from another window leaves this page without its buttons and the run goes on', async () => {
@@ -293,7 +291,7 @@ describe('the agent asks for permission', () => {
     expect(screen.queryByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
   })
 
-  test('Deny refuses the ask, the card says it was denied, and the tool reads denied', async () => {
+  test('Deny refuses the ask, the answered card leaves the list, and the tool reads denied', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
     await engine.reply(
@@ -310,8 +308,7 @@ describe('the agent asks for permission', () => {
     await user.click(within(ask).getByRole('button', {name: 'Deny'}))
 
     expect(await screen.findByText('Main stays put')).toBeVisible()
-    expect(within(ask).getByText('Denied')).toBeVisible()
-    expect(screen.getByText('Denied the request')).toBeVisible()
+    expect(screen.queryByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
     expect(screen.getAllByRole('img', {name: 'denied'}).at(-1)).toBeVisible()
   })
 
@@ -335,18 +332,17 @@ describe('the agent asks for permission', () => {
     await user.click(first)
     expect(first).toHaveFocus()
     await user.keyboard('{Escape}')
-    expect(await within(first).findByText('Denied')).toBeVisible()
 
-    await user.click(await screen.findByText('release_ship next'))
-    const asks = screen.getAllByRole('group', {name: 'Permission request'})
-    expect(asks).toHaveLength(2)
-    expect(asks.at(-1)).toHaveTextContent('release_ship next')
-    expect(asks.at(-1)).toHaveFocus()
+    await waitFor(() =>
+      expect(screen.getByRole('group', {name: 'Permission request'})).toHaveTextContent('release_ship next'),
+    )
+    const second = screen.getByRole('group', {name: 'Permission request'})
+    await user.click(second)
+    expect(second).toHaveFocus()
     await user.keyboard('{Control>}{Enter}{/Control}')
 
     expect(await screen.findByText('Next is shipped')).toBeVisible()
-    expect(within(first).getByText('Denied')).toBeVisible()
-    expect(screen.getByText('Allowed')).toBeVisible()
+    expect(screen.queryByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
   })
 
   test('an ask that cannot be saved offers no Allow always', async () => {

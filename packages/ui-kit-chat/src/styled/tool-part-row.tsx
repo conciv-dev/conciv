@@ -23,8 +23,8 @@ const STATUS: Record<ToolStatus, string> = {
   approval: 'pending',
   complete: 'completed',
   error: 'error',
-  denied: 'error',
-  cancelled: 'error',
+  denied: 'denied',
+  cancelled: 'cancelled',
 }
 
 const ToolInputSchema = z.record(z.string(), z.unknown())

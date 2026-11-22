@@ -418,6 +418,7 @@ function RootChrome(props: {
     if (event.key !== 'Escape') return
     const dismissableLayerWasOpen = dismissableLayerOpenAtEscapeCapture
     dismissableLayerOpenAtEscapeCapture = false
+    if (event.defaultPrevented) return
     if (dismissableLayerWasOpen) return
     if (escapeInTerminal(rootEl)) return
     const settingsRoute = settingsMatch()
