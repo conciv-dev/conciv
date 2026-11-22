@@ -1,6 +1,6 @@
-import {describe, expect, test} from 'vitest'
+import {describe, expect, onTestFinished, test} from 'vitest'
 import {page, userEvent as browserUserEvent} from 'vitest/browser'
-import {screen, waitFor, within} from '@solidjs/testing-library'
+import {cleanup, render, screen, waitFor, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
@@ -326,5 +326,117 @@ describe('a link to a past harness session', () => {
     expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
     expect(await screen.findByText('why does login fail')).toBeVisible()
     expect(screen.queryByRole('button', {name: 'Plan the release, session options'})).not.toBeInTheDocument()
+  })
+})
+
+describe('the terminal', () => {
+  test('the CLI starts on first open, is locked and interrupted while busy, restarts fresh, and replays after a reload', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
+    const firstInput = await screen.findByRole('textbox', {name: 'Terminal input'})
+    expect(await screen.findByText(/^model opus \d+x\d+$/)).toBeVisible()
+    expect(await screen.findAllByText(/^[^\s$]+\$$/)).not.toHaveLength(0)
+    await expect.element(firstInput).toHaveFocus()
+    await browserUserEvent.keyboard('MARK=one; echo "mark:$MARK."{Enter}')
+    expect(await screen.findByText('mark:one.')).toBeVisible()
+
+    const newTerminal = screen.getByRole('button', {name: 'New terminal'})
+    await browserUserEvent.keyboard("printf '\\e]9;4;1\\a'{Enter}")
+    await expect.element(newTerminal).toBeDisabled()
+    expect(screen.getByRole('button', {name: 'Select model'})).toBeDisabled()
+    await browserUserEvent.keyboard("trap 'echo interrupted' INT; read -rsn1 k{Enter}")
+    await browserUserEvent.keyboard('{Escape}')
+    expect(await screen.findByText('interrupted')).toBeVisible()
+    await browserUserEvent.keyboard('x')
+    expect(await screen.findAllByText(/^[^\s$]+\$$/)).not.toHaveLength(0)
+    expect(screen.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+
+    await browserUserEvent.keyboard("printf '\\e]9;4;0\\a'{Enter}")
+    await expect.element(newTerminal).toBeEnabled()
+    await user.click(newTerminal)
+    await expect.element(firstInput).not.toBeInTheDocument()
+    expect(await screen.findByText(/^model opus \d+x\d+$/)).toBeVisible()
+    expect(await screen.findAllByText(/^[^\s$]+\$$/)).not.toHaveLength(0)
+    const secondInput = screen.getByRole('textbox', {name: 'Terminal input'})
+    await browserUserEvent.click(secondInput)
+    expect(secondInput).toHaveFocus()
+    await browserUserEvent.keyboard('echo "mark:$MARK."; echo replay-me{Enter}')
+    expect(await screen.findByText('mark:.')).toBeVisible()
+    expect(await screen.findByText('replay-me')).toBeVisible()
+
+    cleanup()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
+    expect(await screen.findByText('replay-me')).toBeVisible()
+    expect(screen.getByText('mark:.')).toBeVisible()
+  })
+
+  test('a picked CLI model restarts the pty, is the default for the next session, and stays with the session it was picked in', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const alpha = await engine.newSession('Alpha')
+    await engine.newSession('Beta')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: [`/panel/${alpha.id}?open=true`]})})
+
+    await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
+    expect(await screen.findByText(/^model opus \d+x\d+$/)).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Select model'}))
+    await user.click(await screen.findByRole('option', {name: /^Sonnet 5\.5/}))
+    expect(await screen.findByText(/^model sonnet \d+x\d+$/)).toBeVisible()
+
+    await user.click(screen.getByRole('button', {name: 'Alpha, session options'}))
+    await user.click(await screen.findByRole('button', {name: 'Session: Alpha'}))
+    await user.click(await screen.findByRole('option', {name: /Beta/}))
+    expect(await screen.findByRole('button', {name: 'Beta, session options'})).toBeVisible()
+    await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
+    expect(await screen.findByText(/^model sonnet \d+x\d+$/)).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Select model'}))
+    await user.click(await screen.findByRole('option', {name: /^Opus 5\.5/}))
+    expect(await screen.findByText(/^model opus \d+x\d+$/)).toBeVisible()
+
+    await user.click(screen.getByRole('button', {name: 'Beta, session options'}))
+    await user.click(await screen.findByRole('button', {name: 'Session: Beta'}))
+    await user.click(await screen.findByRole('option', {name: /Alpha/}))
+    expect(await screen.findByRole('button', {name: 'Alpha, session options'})).toBeVisible()
+    await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
+    const input = await screen.findByRole('textbox', {name: 'Terminal input'})
+    expect(await screen.findByText(/^model sonnet \d+x\d+$/)).toBeVisible()
+    await browserUserEvent.click(input)
+    expect(input).toHaveFocus()
+    await browserUserEvent.keyboard('echo "now:$CONCIV_MODEL"{Enter}')
+    expect(await screen.findByText('now:sonnet')).toBeVisible()
+  })
+
+  test('a grab picked from the toolbar is pasted into the CLI on Enter, and Back to chat leaves an ended CLI', async () => {
+    await page.viewport(1280, 800)
+    onTestFinished(() => page.viewport(414, 896))
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <button type="button" id="buy">
+        Buy the fern
+      </button>
+    ))
+
+    await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
+    const input = await screen.findByRole('textbox', {name: 'Terminal input'})
+    expect(await screen.findByText(/^model opus \d+x\d+$/)).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Select an element from the page'}))
+    await browserUserEvent.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
+    await browserUserEvent.click(input)
+    expect(input).toHaveFocus()
+    await browserUserEvent.keyboard('{Enter}')
+    expect(await screen.findByText(/<button id="buy" type="button">Buy the fern/)).toBeVisible()
+
+    await browserUserEvent.keyboard('exit{Enter}')
+    await user.click(await screen.findByRole('button', {name: 'Back to chat'}))
+    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    expect(screen.getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
   })
 })
