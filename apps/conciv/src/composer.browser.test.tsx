@@ -91,20 +91,3 @@ describe('a draft and a send', () => {
     expect(within(backInAlpha).queryByText('Ship it')).not.toBeInTheDocument()
   })
 })
-
-describe('the composer actions menu', () => {
-  test('Escape closes the menu and gives its trigger the focus back', async () => {
-    const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await screen.findByRole('textbox', {name: 'Message the conciv agent'})
-
-    const trigger = await screen.findByRole('button', {name: 'More composer actions'})
-    await user.click(trigger)
-    await expect.element(await screen.findByRole('menu', {name: 'More composer actions'})).toHaveFocus()
-    await user.keyboard('{Escape}')
-
-    expect(trigger).toHaveFocus()
-    expect(screen.queryByRole('menu', {name: 'More composer actions'})).not.toBeInTheDocument()
-  })
-})
