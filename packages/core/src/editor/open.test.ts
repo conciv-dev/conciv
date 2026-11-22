@@ -5,7 +5,7 @@ import {makeEditorOpener} from './open.js'
 describe('editor', () => {
   test('the agent opens a file at a line once, a repeat click is dropped, another line opens', async () => {
     const engine = await createEngine()
-    const open = engine.session.tool('server_open')
+    const open = engine.session.tool('open')
 
     await open.call({file: 'src/app.ts', line: 12, column: 4})
     await open.call({file: 'src/app.ts', line: 12, column: 4})
