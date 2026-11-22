@@ -90,9 +90,17 @@ describe('the runner is stopped from outside', () => {
     const next = await engine.event('rpc.test-runner.event')
     const waiting = engine.rpc.call('test-runner', 'run', {patterns: ['beds']})
     expect(await engine.rpc.call('test-runner', 'stop')).toEqual({ok: true})
+    expect((await next.arrived).data).toEqual({
+      type: 'run-end',
+      runId: 'r1',
+      summary: {passed: 0, failed: 0, skipped: 0, durationMs: 0},
+      failures: [],
+      tests: [],
+    })
+    const following = await engine.event('rpc.test-runner.event')
     await endless
 
-    expect((await next.arrived).data).toMatchObject({
+    expect((await following.arrived).data).toMatchObject({
       type: 'run-start',
       files: expect.arrayContaining([expect.stringContaining('beds/pruning.test.js')]),
     })
