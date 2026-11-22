@@ -254,6 +254,38 @@ describe('the agent asks other kinds of question', () => {
   })
 })
 
+describe('the agent runs a program', () => {
+  test('each run shows as an exec card with its first code line and status, the logs and result of one and the error of the other', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "console.log('counting the items')\nreturn 2 + 3",
+      }),
+      TestLLM.toolCall('c2', 'execute_typescript', {typescriptCode: "throw new Error('The cart is empty')"}),
+      TestLLM.text('Five items'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Count them')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+
+    expect(await screen.findByText('Five items')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: Count them'})
+    expect(within(reply).getByText('2 execs')).toBeVisible()
+    const passed = within(reply).getByRole('button', {name: /console\.log\('counting the items'\)/})
+    expect(within(passed).getByRole('img', {name: 'succeeded'})).toBeVisible()
+    expect(within(passed).getByText('exec')).toBeVisible()
+    expect(within(passed).getByText('ok')).toBeVisible()
+    const failed = within(reply).getByRole('button', {name: /throw new Error\('The cart is empty'\)/})
+    expect(within(failed).getByRole('img', {name: 'failed'})).toBeVisible()
+    expect(within(failed).getByText('error')).toBeVisible()
+    await expect.element(page.getByRole('group', {name: 'Output'}).getByText('counting the items')).toBeVisible()
+    await expect.element(page.getByRole('group', {name: 'result.json'}).getByText('5')).toBeVisible()
+    await expect.element(page.getByRole('group', {name: 'Error output'}).getByText(/The cart is empty/)).toBeVisible()
+  })
+})
+
 describe('an outside agent calls a tool', () => {
   test('the call shows in the open thread tagged with the agent that made it, and the agent gets the result', async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
