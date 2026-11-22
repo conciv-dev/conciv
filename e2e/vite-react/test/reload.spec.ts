@@ -66,11 +66,15 @@ test.describe('the quick terminal height after a reload', () => {
     await page.keyboard.press('ControlOrMeta+Backquote')
     await expect(page.getByRole('dialog', {name: 'conciv quick terminal'})).not.toBeVisible()
 
+    await expect(page.getByRole('button', {name: /conciv chat$/})).toHaveAttribute('aria-expanded', 'false')
+
     await page.reload({waitUntil: 'domcontentloaded'})
-    const composerAfterReload = page.getByRole('textbox', {name: 'Message the conciv agent'})
-    await composerAfterReload.click()
-    await expect(composerAfterReload).toBeFocused()
+    await expectWidgetBoots(page, failures)
+    await composer.click()
+    await expect(composer).toBeFocused()
     await page.keyboard.press('ControlOrMeta+Backquote')
     await expect(separator).toHaveAttribute('aria-valuenow', String(opened - 24))
+    await separator.press('ControlOrMeta+Backquote')
+    await expect(page.getByRole('dialog', {name: 'conciv quick terminal'})).not.toBeVisible()
   })
 })

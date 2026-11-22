@@ -1,10 +1,26 @@
 import {expect, test} from '@playwright/test'
 import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
 
-test('the user signs in by magic link and the widget opens on a plain vite page with no error', async ({page}) => {
-  const failures = collectFailures(page)
-  await loginWidget(page)
-  await expectWidgetBoots(page, failures)
+test.describe('the widget on a plain vite page', () => {
+  test('the user signs in by magic link and the widget opens on a plain vite page with no error', async ({page}) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+  })
+
+  test('the model menu offers a harness for each agent CLI on the PATH and none for a CLI that is missing', async ({
+    page,
+  }) => {
+    await loginWidget(page)
+    await page.getByRole('button', {name: /conciv chat$/}).click()
+    await page.getByRole('button', {name: /^Model: /}).click()
+
+    const menu = page.getByRole('dialog', {name: 'Model'})
+    await expect(menu.getByRole('group', {name: 'Codex'})).toBeVisible()
+    await expect(menu.getByRole('group', {name: 'Gemini CLI'})).toBeVisible()
+    await expect(menu.getByRole('group', {name: 'OpenCode'})).toHaveCount(0)
+    await expect(menu.getByRole('group', {name: 'Pi'})).toHaveCount(0)
+  })
 })
 
 test.describe('the user types into the host page with the panel open', () => {

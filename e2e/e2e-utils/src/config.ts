@@ -1,6 +1,6 @@
-import {dirname, join} from 'node:path'
+import {delimiter, dirname, join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
-import {e2eStateDir} from './dev-endpoint.js'
+import {e2ePluginCopyDir, e2eStateDir} from './dev-endpoint.js'
 
 const E2E_PORTS = {
   'vite-vanilla': 4311,
@@ -108,6 +108,32 @@ function freshFolder(folder: string): string {
   return `rm -rf '${folder}' && mkdir -p '${folder}'`
 }
 
+function copyPlugins(configDir: string, plugins: readonly string[]): string[] {
+  return plugins.map((plugin) => {
+    const copy = e2ePluginCopyDir(configDir, plugin)
+    return `mkdir -p '${dirname(copy)}' && cp -R '${join(configDir, 'plugin-sources', plugin)}' '${copy}'`
+  })
+}
+
+function fakeCliFolder(configDir: string): string {
+  return join(e2eStateDir(configDir), 'fake-clis')
+}
+
+function writeFakeClis(configDir: string, clis: readonly string[]): string[] {
+  if (clis.length === 0) return []
+  const folder = fakeCliFolder(configDir)
+  return [
+    `mkdir -p '${folder}'`,
+    `ln -s '${process.execPath}' '${join(folder, 'node')}'`,
+    ...clis.map((cli) => `printf '#!/bin/sh\\nexit 1\\n' > '${join(folder, cli)}' && chmod +x '${join(folder, cli)}'`),
+  ]
+}
+
+function pathWithOnly(configDir: string, clis: readonly string[]): Record<string, string> {
+  if (clis.length === 0) return {}
+  return {PATH: [fakeCliFolder(configDir), '/usr/bin', '/bin'].join(delimiter)}
+}
+
 function runConcivHome(configDir: string): {CONCIV_HOME: string} {
   const home = join(e2eStateDir(configDir), 'conciv-home')
   process.env.CONCIV_HOME = home
@@ -122,6 +148,8 @@ export function e2eConfig(
     timeout?: number
     runFolders?: string[]
     browserSettings?: readonly BrowserSetting[]
+    pluginCopies?: readonly string[]
+    fakeClis?: readonly string[]
   },
 ): ReturnType<typeof defineConfig> {
   const port = E2E_PORTS[app]
@@ -136,10 +164,14 @@ export function e2eConfig(
     use: {baseURL: `http://localhost:${port}`},
     webServer: serverEntry({
       configDir: opts.dir,
-      prepare: freshFolder(e2eStateDir(opts.dir)),
+      prepare: [
+        freshFolder(e2eStateDir(opts.dir)),
+        ...copyPlugins(opts.dir, opts.pluginCopies ?? []),
+        ...writeFakeClis(opts.dir, opts.fakeClis ?? []),
+      ].join(' && '),
       command: `rm -rf .conciv && ${opts.command(port)}`,
       port,
-      env: runConcivHome(opts.dir),
+      env: {...runConcivHome(opts.dir), ...pathWithOnly(opts.dir, opts.fakeClis ?? [])},
     }),
     projects: appProjects(opts.browserSettings ?? []),
   })
