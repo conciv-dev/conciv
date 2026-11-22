@@ -37,13 +37,13 @@ catalog:
 
   # The @tanstack/ai family is single-sourced here so every manifest resolves "catalog:" to the
   # same release and pnpm never installs two copies of @tanstack/ai.
-  '@tanstack/ai': 1.2.0
-  '@tanstack/ai-client': 1.1.0
-  '@tanstack/ai-event-client': 1.0.1
-  '@tanstack/ai-persistence': 1.0.1
+  '@tanstack/ai': 1.7.0
+  '@tanstack/ai-client': 1.2.0
+  '@tanstack/ai-event-client': 1.1.0
+  '@tanstack/ai-persistence': 1.1.0
   '@tanstack/ai-code-mode': 1.1.0
   '@tanstack/ai-isolate-quickjs': 1.1.0
-  '@tanstack/ai-solid': 1.0.1
+  '@tanstack/ai-solid': 1.1.0
   '@tanstack/ai-sandbox': 1.2.0
   '@tanstack/ai-sandbox-local-process': 1.0.0
   '@tanstack/ai-claude-code': 1.0.1
