@@ -1,7 +1,8 @@
-import {describe, expect, test} from 'vitest'
+import {assert, describe, expect, test} from 'vitest'
 import {page, userEvent as realInput} from 'vitest/browser'
 import {render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
+import {z} from 'zod'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
@@ -464,6 +465,36 @@ describe('each session has its own board', () => {
       scope: 'draft',
       elements: [{id: 'alpha-box', type: 'rectangle'}],
     })
+  })
+})
+
+describe('the open board follows changes made from another tab', () => {
+  test('a comment added and then resolved from another tab shows on the open board as it happens', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
+    const room = engine.session.id
+    await mount({engine, history: createEngineRouterHistory({initialEntries: [`/panel/${room}?open=true`]})})
+    await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
+    expect(await screen.findByRole('button', {name: /^Comments/})).toBeVisible()
+    expect(screen.queryByRole('button', {name: /^AI comment/})).not.toBeInTheDocument()
+
+    await engine.session.tool('whiteboard_comment_create').call({
+      cid: 'shelf',
+      kind: 'floating',
+      parts: [{type: 'text', text: 'The shelf needs more space'}],
+      x: 200,
+      y: 200,
+      authorKind: 'ai',
+    })
+    expect(await screen.findByRole('button', {name: 'AI comment, open, unread'})).toBeVisible()
+    expect(screen.getByRole('button', {name: /^Comments\s*1/})).toBeVisible()
+
+    const [comment] = z
+      .array(z.object({id: z.string()}))
+      .parse(await engine.rpc.call('whiteboard', 'comments.list', {room}))
+    assert(comment !== undefined)
+    await engine.rpc.call('whiteboard', 'comments.update', {room, id: comment.id, patch: {status: 'resolved'}})
+    expect(await screen.findByRole('button', {name: /^AI comment, resolved/})).toBeVisible()
   })
 })
 
