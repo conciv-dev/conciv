@@ -147,6 +147,7 @@ describe('model and harness', () => {
       {role: 'assistant', content: 'Hello Ada'},
       {role: 'user', content: 'What is my name?'},
     ])
+    await expect(rpc.sessions.get({sessionId})).resolves.toMatchObject({harnessKind: 'second', model: 'gpt-6'})
   })
 })
 
