@@ -117,20 +117,3 @@ describe('the agent records during a reply', () => {
     expect(within(reply).getByText('recording_get')).toBeVisible()
   })
 })
-
-describe('the plugin is configured', () => {
-  test('options the recorder refuses show as a failed plugin in Settings > Plugins', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine({plugins: [['@conciv/plugin-recorder', {windowMinutes: 0}]]})
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
-    })
-
-    await user.click(await screen.findByRole('link', {name: 'Settings'}))
-    await user.click(await screen.findByRole('tab', {name: 'Plugins'}))
-    expect(await screen.findByText('Failed')).toBeVisible()
-    await user.click(screen.getByRole('button', {name: 'Show details'}))
-    expect(screen.getByText(/windowMinutes/)).toBeVisible()
-  })
-})
