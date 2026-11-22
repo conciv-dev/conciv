@@ -10,10 +10,10 @@ Status words: every status cell starts with exactly one of `tested` (names the l
 2. `apps/conciv/src/pane/queue-strip.browser.test.tsx`: send while running, the queue strip, Remove, Steer, Stop with a queue.
 3. `apps/conciv/src/pane/trigger-sources.browser.test.tsx`: the `/` and `@` lists, picks, `/model`; its fixture project is `apps/conciv/test/fixtures/mention-project`.
 4. `apps/conciv/src/composer/session-model-prompt.browser.test.tsx`: the model menu and effort.
-5. `apps/conciv/src/pane/draft-storage.browser.test.tsx`: the draft follows the session. Send clears it: file 8.
+5. `apps/conciv/src/pane/draft-storage.browser.test.tsx`: the draft follows the session, and Send clears it.
 6. `apps/conciv/src/pane/pane-attachments.browser.test.tsx`: text attachments, the send caps.
 7. `apps/conciv/src/composer/note-card.browser.test.tsx`: plugin notes and composer pills from a fixture plugin.
-8. `apps/conciv/src/composer.browser.test.tsx`: real focus hand-offs, and the panes opened on a session with saved messages (Send clears the draft). The IME row lives in `pane/pane-composer.browser.test.tsx`.
+8. `apps/conciv/src/composer.browser.test.tsx`: real focus hand-offs. The IME row lives in `pane/pane-composer.browser.test.tsx`.
 
 ## Typing and sending (`pane/pane-composer.browser.test.tsx`)
 
@@ -81,8 +81,8 @@ Status words: every status cell starts with exactly one of `tested` (names the l
 
 | feature                                                                   | flow                                  | test                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The draft follows the session inside one mount                            | type, open another session, come back | tested: `apps/conciv/src/pane/draft-storage.browser.test.tsx` › a draft per session › each session keeps its own typed draft across switches in the session picker                                                                                                                                                                                                                                                                                                        |
-| Send clears the draft                                                     | send, switch, come back               | tested: `apps/conciv/src/composer.browser.test.tsx` › a draft and a send › a sent message clears its session draft, and the session comes back with its messages and an empty composer. Browser, not happy-dom (maintainer ruling: a pane opened on a session with saved messages goes in the area's browser file). user-event `delay: null`: the focus step must hold with no frame in between.                                                                          |
+| The draft follows the session inside one mount                            | type, open another session, come back | written: (merged, not yet run) `apps/conciv/src/pane/draft-storage.browser.test.tsx` › a draft per session › each session keeps its own typed draft across switches in the session picker, and a sent draft does not come back                                                                                                                                                                                                                                            |
+| Send clears the draft                                                     | send, switch, come back               | written: (merged, not yet run) `apps/conciv/src/pane/draft-storage.browser.test.tsx` › a draft per session › each session keeps its own typed draft across switches in the session picker, and a sent draft does not come back (the send in Alpha, then away and back: the messages are there and the composer is empty)                                                                                                                                                  |
 | A typed draft comes back after a reload                                   | none                                  | written: `e2e/vite-react/test/reload.spec.ts` › after a reload the panel reopens on the settings section the user left, and the typed draft is still in the composer (landed before phase 1, not yet run by this lane)                                                                                                                                                                                                                                                    |
 | The engine's draft row written elsewhere replaces this browser's copy     | none                                  | written: `e2e/vite-react/test/reload.spec.ts` › a draft typed in another browser › the draft the engine saved from another browser replaces the copy this browser kept, after a reload; expected red: the reload can beat the batched save; no visible saved signal (the product shows only a failed save, `DraftUnsavedNotice`, and a fresh third page reads the row once on load with no live update)                                                                   |
 | Draft save fails: "draft unsaved" notice with Retry                       | none                                  | written: `e2e/vite-react/test/browser-controls.spec.ts` › the composer on a vite react page when one engine answer fails › the user types while the engine refuses to save the draft, sees it is kept only in this browser, and Retry saves it (`holdEngineCall(page, ['drafts', 'set'])` released with `APPROVAL_DENIED`: an `INTERNAL_SERVER_ERROR` is retried three times and the retry would save, `data/app-data.ts:58-61`)                                          |
@@ -151,8 +151,8 @@ Each of these calls the composer handle's `focus()` at once (no frame wait).
 
 | status    | rows |
 | --------- | ---- |
-| tested    | 45   |
-| written   | 16   |
+| tested    | 43   |
+| written   | 18   |
 | planned   | 0    |
 | verify    | 0    |
 | blocked   | 0    |
