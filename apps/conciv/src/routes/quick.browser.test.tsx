@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'vitest'
-import {screen, waitForElementToBeRemoved, within} from '@solidjs/testing-library'
+import {page} from 'vitest/browser'
+import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
@@ -127,7 +128,7 @@ describe('the host turns the quick terminal off', () => {
     expect(document.body).toHaveFocus()
     await user.keyboard('{Control>}`{/Control}')
     await user.unhover(launcher)
-    await waitForElementToBeRemoved(() => screen.queryByRole('tooltip', {name: 'Open conciv chat'}))
+    await expect.element(page.getByRole('tooltip', {name: 'Open conciv chat'})).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog', {name: 'conciv quick terminal'})).not.toBeInTheDocument()
   })
 
@@ -196,6 +197,6 @@ describe('quick pane context usage', () => {
     expect(screen.getByText('Output')).toBeVisible()
     expect(within(usage).getByText(/^\d+(\.\d)?K$/)).toBeVisible()
     expect(screen.getAllByText(/^\d+(\.\d)?K$/)).toHaveLength(2)
-    expect(screen.getByText('5')).toBeVisible()
+    expect(screen.getByText((_content, element) => element?.textContent === 'Output5')).toBeVisible()
   })
 })
