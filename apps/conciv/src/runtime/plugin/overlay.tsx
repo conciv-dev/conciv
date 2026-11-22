@@ -2,15 +2,14 @@ import {createRoot, type Accessor} from 'solid-js'
 import {PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
 import {themeClasses, type HostTheme} from '../../lib/color-scheme'
 import {createStyleSheet, widgetSheet} from '../../lib/widget-styles'
-
-const OVERLAY_Z_INDEX = '2147482999'
+import {WIDGET_LAYER} from '../../lib/widget-layer'
 
 function placeHost(host: HTMLElement): void {
   host.setAttribute(PLUGIN_OVERLAY_ATTR, '')
   host.style.position = 'fixed'
   host.style.inset = '0'
   host.style.pointerEvents = 'none'
-  host.style.zIndex = OVERLAY_Z_INDEX
+  host.style.zIndex = String(WIDGET_LAYER - 1)
 }
 
 export function mountOverlay(

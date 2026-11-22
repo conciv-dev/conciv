@@ -2,7 +2,7 @@ import {inject, onTestFinished} from 'vitest'
 import {createComponent} from 'solid-js'
 import {cleanup, render} from '@solidjs/testing-library'
 import {createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
-import {ConcivApp, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
+import {ConcivApp, WIDGET_LAYER, createDraftStore, type DraftStore, type Platform} from '@conciv/app'
 import {makeBrowserRpcClient} from '@conciv/contract'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {loaders} from 'virtual:conciv-test-plugins'
@@ -153,6 +153,10 @@ async function mountApp(options: MountOptions): Promise<void> {
   }
   const host = document.createElement('div')
   host.setAttribute('data-conciv-root', '')
+  host.style.pointerEvents = 'none'
+  host.style.position = 'fixed'
+  host.style.inset = '0'
+  host.style.zIndex = String(WIDGET_LAYER)
   document.body.appendChild(host)
   render(() => createComponent(ConcivApp, {platform}), {container: host})
   await interactive.promise
