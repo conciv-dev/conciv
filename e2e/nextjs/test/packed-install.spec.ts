@@ -22,6 +22,8 @@ test.describe('installing conciv in a next app from its packed tarballs', () => 
 
 test.describe('installing the packed @conciv/it into a fresh project under pnpm trustPolicy: no-downgrade', () => {
   test('the install succeeds and every package it resolves comes from the npm registry', async () => {
+    // oxlint-disable-next-line conciv/max-test-timeout -- this packed-only test proves a fresh registry resolution under trustPolicy no-downgrade, and a cold registry fetch can outrun the cap
+    test.setTimeout(60_000)
     const trustPolicyExcludes = ['semver', 'langium', '@pierre/theme', 'solid-js']
     const tarballs = join(PACKED_ROOT, 'tarballs')
     const overrides = readdirSync(tarballs).flatMap((file) => {
