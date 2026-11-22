@@ -2,19 +2,10 @@ import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {PAGE_SESSION_GROUP_KEY, type AttachmentCardSlot, type GroupEntry} from '@conciv/ui-kit-chat'
 import {GRAB_MIME} from '@conciv/grab/grab-attachment'
 import {GrabCard} from './grab-card.js'
-import {useToolCapture} from './captures.js'
 import {PageSessionCard} from './session-card.js'
 import {PAGE_TOOL_PREFIX, pageOperation, pageVerbOfTool} from './rpc.js'
 import {Show, type JSX, For, Match, Switch} from 'solid-js'
-import {
-  ElementPreview,
-  DANGER_TEXT_CLASS,
-  JsonTree,
-  SUNKEN_SURFACE,
-  ResultImage,
-  CodeBlock,
-  Chip,
-} from '@conciv/ui-kit-chat/tools'
+import {DANGER_TEXT_CLASS, JsonTree, SUNKEN_SURFACE, ResultImage, CodeBlock, Chip} from '@conciv/ui-kit-chat/tools'
 import {
   ELEMENT_TARGET_KEYS,
   PageTool,
@@ -85,25 +76,7 @@ export const pageSessionEntry: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render
 export const pageAttachmentCards: AttachmentCardSlot[] = [{mime: GRAB_MIME, render: GrabCard}]
 
 export function ActCard(props: ToolProps): JSX.Element {
-  const capture = useToolCapture()
-  const after = () => capture()?.after
-  return (
-    <PageTool
-      {...props}
-      subtitle={after() === undefined ? elementTarget(props.input) : undefined}
-      skip={ELEMENT_TARGET_KEYS}
-      hasContent={after() !== undefined}
-    >
-      <Show when={after()}>
-        {(value) => (
-          <ElementPreview.Root capture={value()} css={capture()?.css}>
-            <ElementPreview.Frame />
-            <ElementPreview.Descriptor />
-          </ElementPreview.Root>
-        )}
-      </Show>
-    </PageTool>
-  )
+  return <PageTool {...props} subtitle={elementTarget(props.input)} skip={ELEMENT_TARGET_KEYS} hasContent={false} />
 }
 
 const ConsolePayload = pageOperation('console').output
