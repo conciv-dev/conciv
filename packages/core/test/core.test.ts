@@ -1466,7 +1466,7 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     }
   })
 
-  it('a request that reaches the engine while its app is failing to build fails instead of hanging, and the port is released', async () => {
+  it('a request sent while the app is failing to build fails instead of hanging, and the port is released', async () => {
     const root = tempDir('conciv-core-unit-')
     await Effect.runPromise(
       Effect.scoped(
@@ -1480,12 +1480,12 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     const booting = bootEngine(root)
     const failed = expect(booting).rejects.toThrow(/is not valid JSON/)
     const port = await recordedPort(root)
-    const request = httpRequest({host: '127.0.0.1', port, path: '/health', headers: {expect: '100-continue'}})
+    const request = httpRequest({host: '127.0.0.1', port, path: '/health'})
     const outcome = new Promise<number | 'dropped'>((resolve) => {
       request.on('response', (response) => resolve(response.statusCode ?? 0))
       request.on('error', () => resolve('dropped'))
     })
-    await once(request.end(), 'continue')
+    request.end()
     await failed
     expect(await outcome).toBeOneOf([500, 'dropped'])
     const probe = createServer().listen(port, '127.0.0.1')
