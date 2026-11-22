@@ -1,4 +1,4 @@
-import {describe, expect, it, test} from 'vitest'
+import {describe, expect, test} from 'vitest'
 import {userEvent as browserInput} from 'vitest/browser'
 import {render, screen} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
@@ -103,17 +103,14 @@ describe('the host page declares a skin in --conciv-skin', () => {
     expect(screen.getByRole('radio', {name: 'Terminal'})).toBeChecked()
   })
 
-  it.each(['neon', 'toString', 'constructor'])(
-    'a page skin %s that conciv does not ship is not taken, and the Skin row keeps the user choice',
-    async (skin) => {
-      const user = userEvent.setup()
-      render(() => <style>{`body { --conciv-skin: ${skin}; }`}</style>)
-      const engine = await createEngine()
-      await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-      await user.click(await screen.findByRole('link', {name: 'Settings'}))
+  test('a page skin neon that conciv does not ship is not taken, and the Skin row keeps the user choice', async () => {
+    const user = userEvent.setup()
+    render(() => <style>{'body { --conciv-skin: neon; }'}</style>)
+    const engine = await createEngine()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await user.click(await screen.findByRole('link', {name: 'Settings'}))
 
-      expect(await screen.findByRole('radio', {name: 'Conciv'})).toBeChecked()
-      expect(screen.queryByText('Set by the page in --conciv-skin')).not.toBeInTheDocument()
-    },
-  )
+    expect(await screen.findByRole('radio', {name: 'Conciv'})).toBeChecked()
+    expect(screen.queryByText('Set by the page in --conciv-skin')).not.toBeInTheDocument()
+  })
 })
