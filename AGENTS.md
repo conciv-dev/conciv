@@ -128,16 +128,18 @@ README.md; this file is the non-obvious operational rules.
 The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test plan is `docs/specs/test-split/`.
 
 - The file name picks the runner. `src/x.test.ts` beside `src/x.ts` runs in node; `src/x.dom.test.tsx` beside
-  `src/x.tsx` runs in happy-dom; one `src/<package>.browser.test.tsx` per package runs in vitest browser mode
+  `src/x.tsx` runs in happy-dom; `src/x.browser.test.tsx` beside its source runs in vitest browser mode
   (Chromium). Playwright Test exists only under `e2e/` (`conciv/playwright-test-in-e2e`). Never jsdom.
 - One `vite.config.ts` per package and no `vitest*.config` file: `concivTest()` (`@conciv/plugin-testkit/vitest`)
   adds the test projects; `conciv()` (`@conciv/unplugin`) adds nothing under vitest.
-- A behaviour lives in the cheapest place that proves it, and only there: node, then happy-dom, then browser mode
-  (layout, scrolling, canvas, real focus), then `e2e/` (the built bundle in a real host app, real harness CLIs).
-- Budgets (`conciv/test-file-budget`): never more test files than source files in a package; one browser-mode file
-  per package (add a `describe`, never a second file); a test file is at most 1,000 lines. The app is the one
-  exception, as opencode's keeper suites (`_ref/opencode/packages/app/e2e/regression/`): `apps/conciv` has one
-  browser-mode file per product area (`src/<area>.browser.test.tsx`), and a new case goes into its area's file.
+- A behaviour lives in the cheapest place that proves it, and only there: node, then happy-dom, then browser mode,
+  then `e2e/` (the built bundle in a real host app, real harness CLIs). Mounted behaviour (anything that mounts the
+  app or a plugin) is tested in a real browser on the kit's browser `mount` (`@conciv/plugin-testkit/browser`);
+  happy-dom is for tests that mount nothing (functions, models, reducers), as opencode
+  (`_ref/opencode/packages/app/happydom.ts`).
+- Budgets (`conciv/test-file-budget`): a package never has more test files (node, happy-dom and browser together)
+  than source files under `src/`; every test file lives beside the source it tests; a test file is at most 1,000
+  lines.
 - The kits. `@conciv/plugin-testkit`: `createEngine(config, start)`, `TestLLM`. `@conciv/plugin-testkit/browser`:
   `mount` and `createEngineRouterHistory`; `mount({engine, history})` opens the app on the engine's saved history (`createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})`) or on any TanStack `RouterHistory`. `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. `config` is the product's own
   `ConcivConfig`; `start` is only what is not product config (`directory`, `timeouts`, `harnesses`, `env`, `fs`,
@@ -166,15 +168,7 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   `toBeDefined()` or `toBeTruthy()` on a Testing Library query: a `find`/`get` query already throws when nothing
   matches, so those asserts prove nothing. One visible match is `getByRole(...)` (it throws on two) then
   `toBeVisible()`. The kit loads the matchers in happy-dom and their types come with `@conciv/plugin-testkit`;
-  browser mode uses vitest's own. The happy-dom project processes CSS (`css: true`), so the mounted app carries the
-  same UnoCSS utilities and reset as in browser mode and `toBeVisible` sees a class that hides. happy-dom still
-  cannot prove two things, which stay in browser mode: a native `popover` element that was never opened (happy-dom
-  has no popover support, so it reads as visible), and anything that needs layout (size, position, scroll,
-  overflow), because happy-dom lays nothing out.
-- A test that opens a pane on a session that already has saved messages (history, switching back to a session with
-  replies, reopening a past session) goes in the area's browser file (`apps/conciv/src/<area>.browser.test.tsx`),
-  never happy-dom: happy-dom has no canvas, and the thread's text measurement (`@chenglou/pretext`, via
-  `packages/ui-kit-chat/src/styled/text-metrics.ts`) throws for saved turns.
+  browser mode uses vitest's own.
 - No mocks or stubs (`vi.fn`, `vi.mock`, `vi.spyOn`, `vi.stubGlobal`, `vi.stubEnv`, fake modules). A fake is a real
   implementation the product accepts (the scripted harness, an in-memory draft store). Config goes through Effect
   `ConfigProvider`, never env writes.
