@@ -62,19 +62,32 @@ function resolveBinary(node, sourceCode, depth) {
   return operate(left, right)
 }
 
-function negate(value) {
+function resolveUnary(node, sourceCode, depth) {
+  if (node.operator !== '-') return undefined
+  const value = resolveNumber(node.argument, sourceCode, depth)
   return value === undefined ? undefined : -value
+}
+
+function resolveLiteral(node) {
+  return typeof node.value === 'number' ? node.value : undefined
+}
+
+function resolveIdentifier(node, sourceCode, depth) {
+  return resolveNumber(readConstInit(node, sourceCode), sourceCode, depth)
+}
+
+const RESOLVERS = {
+  Literal: resolveLiteral,
+  Identifier: resolveIdentifier,
+  BinaryExpression: resolveBinary,
+  UnaryExpression: resolveUnary,
 }
 
 function resolveNumber(value, sourceCode, depth = 0) {
   const node = unwrap(value)
-  if (depth > RESOLVE_DEPTH) return undefined
-  if (node?.type === 'Literal' && typeof node.value === 'number') return node.value
-  if (isIdentifier(node)) return resolveNumber(readConstInit(node, sourceCode), sourceCode, depth + 1)
-  if (node?.type === 'BinaryExpression') return resolveBinary(node, sourceCode, depth + 1)
-  if (node?.type === 'UnaryExpression' && node.operator === '-')
-    return negate(resolveNumber(node.argument, sourceCode, depth + 1))
-  return undefined
+  const resolve = RESOLVERS[node?.type]
+  if (depth > RESOLVE_DEPTH || !resolve) return undefined
+  return resolve(node, sourceCode, depth + 1)
 }
 
 function isSpreadIntoConfig(reference, sourceCode, depth) {

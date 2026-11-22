@@ -107,8 +107,8 @@ function kitDefaults(test: AuthorTest = {}): AuthorTest {
       // oxlint-disable-next-line conciv/banned-vocabulary -- vitest's own option name: coverage of the CLI child process
       autoAttachSubprocess: true,
     },
-    testTimeout: test.testTimeout ?? TEST_TIMEOUT_MS,
-    hookTimeout: test.hookTimeout ?? HOOK_TIMEOUT_MS,
+    testTimeout: TEST_TIMEOUT_MS,
+    hookTimeout: HOOK_TIMEOUT_MS,
     expect: {poll: pollDefaults(test.expect)},
     maxWorkers: test.maxWorkers ?? workerCap(),
   }
