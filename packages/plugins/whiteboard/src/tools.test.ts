@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url'
 import {describe, expect, test} from 'vitest'
 import {z} from 'zod'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {humanSourceComment} from '../test/human-source-comment.js'
 
 describe('the agent is told about the whiteboard', () => {
   test('the model request lists the whiteboard skill and the whiteboard tool namespace', async () => {
@@ -26,7 +27,7 @@ describe('the agent is told about the whiteboard', () => {
 })
 
 describe('the agent works a comment thread on the board', () => {
-  test('a comment takes a reply, reads back with its thread, lists alone, and its pin moves and floats', async () => {
+  test('a comment takes a reply, reads back with its thread, lists alone, its pin moves and floats, and resolving and deleting ask the user first; deleting a reply keeps the thread, deleting the root takes its pin', async () => {
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const room = engine.session.id
 
@@ -95,34 +96,14 @@ describe('the agent works a comment thread on the board', () => {
     expect(
       await engine.session.tool('whiteboard_comment_move').failure({cid: 'no-such-note', x: 1, y: 1}),
     ).toMatchObject({message: expect.stringContaining('no pin for comment no-such-note')})
-  })
-
-  test('resolving and deleting ask the user first; deleting a reply keeps the thread, deleting the root takes its pin', async () => {
-    const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
-    const room = engine.session.id
-    await engine.session.tool('whiteboard_comment_create').call({
-      cid: 'footer-note',
-      kind: 'floating',
-      parts: [{type: 'text', text: 'The footer links overlap'}],
-      x: 40,
-      y: 600,
-      authorKind: 'ai',
-    })
-    const reply = z
-      .object({cid: z.string()})
-      .parse(
-        await engine.session
-          .tool('whiteboard_comment_reply')
-          .call({cid: 'footer-note', parts: [{type: 'text', text: 'Spaced them out'}]}),
-      )
 
     const [resolved] = await Promise.all([
-      engine.session.tool('whiteboard_comment_resolve').call({cid: 'footer-note'}),
+      engine.session.tool('whiteboard_comment_resolve').call({cid: 'hero-note'}),
       engine.session.approve(),
     ])
-    expect(resolved).toEqual({cid: 'footer-note', status: 'resolved'})
+    expect(resolved).toEqual({cid: 'hero-note', status: 'resolved'})
     expect(await engine.session.tool('whiteboard_comment_list').call({status: 'resolved'})).toMatchObject({
-      comments: [{cid: 'footer-note', status: 'resolved'}],
+      comments: [{cid: 'hero-note', status: 'resolved'}],
     })
 
     const [replyDeleted] = await Promise.all([
@@ -130,16 +111,16 @@ describe('the agent works a comment thread on the board', () => {
       engine.session.approve(),
     ])
     expect(replyDeleted).toEqual({cid: reply.cid, deleted: true})
-    expect(await engine.session.tool('whiteboard_comment_read').call({cid: 'footer-note'})).toMatchObject({
-      comment: {cid: 'footer-note'},
+    expect(await engine.session.tool('whiteboard_comment_read').call({cid: 'hero-note'})).toMatchObject({
+      comment: {cid: 'hero-note'},
       replies: [],
     })
 
     const [rootDeleted] = await Promise.all([
-      engine.session.tool('whiteboard_comment_delete').call({cid: 'footer-note'}),
+      engine.session.tool('whiteboard_comment_delete').call({cid: 'hero-note'}),
       engine.session.approve(),
     ])
-    expect(rootDeleted).toEqual({cid: 'footer-note', deleted: true})
+    expect(rootDeleted).toEqual({cid: 'hero-note', deleted: true})
     expect(await engine.session.tool('whiteboard_comment_list').call({})).toEqual({comments: []})
     expect(await engine.rpc.call('whiteboard', 'pins.list', {room})).toEqual([])
   })
@@ -197,30 +178,15 @@ describe('a source-linked comment follows its element as the code changes', () =
         },
       },
     })
-    const placed = z.object({anchor: z.object({source: z.object({hash: z.string()}).loose()})}).parse(fresh)
+    const placed = z.object({anchor: z.object({source: z.object({hash: z.string()}).catchall(z.json())})}).parse(fresh)
     await engine.rpc.call('whiteboard', 'comments.insert', {
       room,
-      row: {
-        id: 'checkout-human-row',
-        cid: 'checkout-human',
-        threadId: 'checkout-human',
-        parentId: null,
-        parts: [{type: 'text', text: 'This button looks disabled'}],
-        authorKind: 'human',
-        authorModel: null,
-        authorId: null,
-        authorName: null,
-        authorAvatar: null,
-        status: 'open',
-        kind: 'source-linked',
+      row: humanSourceComment('checkout-human', {
         anchor: {source: placed.anchor.source, instance: {selector: 'main > section > button'}},
         anchorFile: 'src/Cart.tsx',
         anchorComponent: 'Cart',
         anchorHash: placed.anchor.source.hash,
-        createdAt: 1,
-        updatedAt: 1,
-        resolvedAt: null,
-      },
+      }),
     })
 
     await engine.write(
@@ -375,27 +341,12 @@ describe('a human comment on a source element gets its source details from the e
     })
     await engine.rpc.call('whiteboard', 'comments.insert', {
       room,
-      row: {
-        id: 'button-human-row',
-        cid: 'button-human',
-        threadId: 'button-human',
-        parentId: null,
-        parts: [{type: 'text', text: 'This button looks disabled'}],
-        authorKind: 'human',
-        authorModel: null,
-        authorId: null,
-        authorName: null,
-        authorAvatar: null,
-        status: 'open',
-        kind: 'source-linked',
+      row: humanSourceComment('button-human', {
         anchor: {source: {file: 'src/Cart.tsx', line: 4, column: 7}, instance: {selector: 'main > section > button'}},
         anchorFile: null,
         anchorComponent: null,
         anchorHash: null,
-        createdAt: 1,
-        updatedAt: 1,
-        resolvedAt: null,
-      },
+      }),
     })
     await enriched.arrived
 
