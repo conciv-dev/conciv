@@ -257,9 +257,9 @@ Recomputed from the status cells (the first word of each).
 
 | status     | rows    |
 | ---------- | ------- |
-| written    | 76      |
+| written    | 77      |
 | planned    | 1       |
-| blocked    | 38      |
+| blocked    | 37      |
 | e2e        | 4       |
 | elsewhere  | 16      |
 | kept       | 4       |
