@@ -1,8 +1,8 @@
-import {describe, expect, test} from 'vitest'
-import {page, userEvent as browserUserEvent} from 'vitest/browser'
+import {describe, expect, test, it} from 'vitest'
+import {page, userEvent as browserUserEvent, userEvent as browserInput} from 'vitest/browser'
 import {cleanup, render, screen, within} from '@solidjs/testing-library'
-import userEvent from '@testing-library/user-event'
-import {createEngine} from '@conciv/plugin-testkit'
+import userEvent, {type UserEvent} from '@testing-library/user-event'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 
 describe('the panel size', () => {
@@ -398,5 +398,316 @@ describe('the terminal', () => {
     await user.click(await screen.findByRole('button', {name: 'Back to chat'}))
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
     expect(screen.getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
+  })
+})
+
+describe('opening and closing the panel', () => {
+  test('the user opens the panel from the launcher, Tab stays inside it, and the user closes it every way the shell offers', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await mount({engine})
+
+    await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
+    const opened = await screen.findByRole('dialog', {name: 'conciv chat agent'})
+    expect(opened).toBeVisible()
+    await user.click(await screen.findByRole('button', {name: 'Minimize conciv chat'}))
+    expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
+    await expect.element(opened).not.toBeVisible()
+
+    await expect.element(screen.getByRole('button', {name: 'Open conciv chat'})).toHaveFocus()
+    await browserUserEvent.keyboard('{ControlOrMeta>}.{/ControlOrMeta}')
+    const toggled = await screen.findByRole('dialog', {name: 'conciv chat agent'})
+    expect(toggled).toBeVisible()
+    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
+    await browserUserEvent.keyboard('{ControlOrMeta>}.{/ControlOrMeta}')
+    expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
+    await expect.element(toggled).not.toBeVisible()
+
+    await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
+    await user.click(await screen.findByRole('button', {name: 'New session, session options'}))
+    expect(await screen.findByRole('dialog', {name: 'Session options'})).toBeVisible()
+    await expect.element(await screen.findByRole('button', {name: 'Session: New session'})).toHaveFocus()
+    await user.keyboard('{Escape}')
+    const layered = await screen.findByRole('dialog', {name: 'conciv chat agent'})
+    expect(layered).toBeVisible()
+    expect(screen.queryByRole('dialog', {name: 'Session options'})).not.toBeInTheDocument()
+    await expect.element(screen.getByRole('button', {name: 'New session, session options'})).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
+    await expect.element(layered).not.toBeVisible()
+
+    await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
+    const closable = await screen.findByRole('dialog', {name: 'conciv chat agent'})
+    await expect.element(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
+    await user.click(closable)
+    await user.tab()
+    const heightHandle = screen.getByRole('separator', {name: 'Resize chat height'})
+    expect(heightHandle).toHaveFocus()
+    await user.tab({shift: true})
+    expect(screen.getByRole('tab', {name: 'Chat', selected: true})).toHaveFocus()
+    await user.tab()
+    expect(heightHandle).toHaveFocus()
+    await user.click(await screen.findByRole('button', {name: 'Close chat'}))
+    expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
+    await expect.element(closable).not.toBeVisible()
+  })
+})
+
+describe('where the app opens', () => {
+  it.each(['/?open=true', '/panel/latest?open=true'])('the address %s opens the newest session', async (address) => {
+    const engine = await createEngine()
+    await engine.newSession('Plan the release')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: [address]})})
+
+    expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+    expect(await screen.findByRole('button', {name: 'Plan the release, session options'})).toBeVisible()
+  })
+
+  test('the address of a session this engine never saw opens that session empty, not the newest one', async () => {
+    const engine = await createEngine()
+    await engine.newSession('Plan the release')
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: ['/panel/conciv_shared-by-a-teammate?open=true']}),
+    })
+
+    expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+    expect(await screen.findByRole('button', {name: 'New session, session options'})).toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Plan the release, session options'})).not.toBeInTheDocument()
+  })
+})
+
+describe('a page that docks the chat', () => {
+  test('the docked chat opens on load with no close control', async () => {
+    const engine = await createEngine()
+    await mount({
+      engine,
+      host: {surface: 'dock'},
+      history: createEngineRouterHistory({initialEntries: ['/panel/latest']}),
+    })
+
+    expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    expect(screen.queryByRole('button', {name: 'Close chat'})).not.toBeInTheDocument()
+  })
+})
+
+describe('the engine asks for a restart or an update', () => {
+  const STALE =
+    'Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.'
+
+  test('an engine running code older than the disk asks the user to restart the dev server', async () => {
+    const engine = await createEngine()
+    await engine.stale({
+      stale: true,
+      changed: ['src/app.ts'],
+      tracked: ['src/app.ts'],
+      bootedAt: 0,
+      fingerprint: 'disk-1',
+    })
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    expect(await screen.findByText(STALE)).toBeVisible()
+    expect(screen.queryByText(/but the conciv engine is older/)).not.toBeInTheDocument()
+  })
+
+  test('an engine older than the widget asks the user to update the conciv packages', async () => {
+    const engine = await createEngine()
+    await engine.version('0.0.1')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    expect(await screen.findByText(/but the conciv engine is older\. Update your @conciv packages/)).toBeVisible()
+    expect(screen.queryByText(STALE)).not.toBeInTheDocument()
+  })
+})
+
+describe('logging in', () => {
+  test('a browser with no token logs in with the code the dev server prints, is told when the engine revokes it with the composer locked and focus on Log in, and logging in again gives the composer its focus back', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await mount({
+      engine,
+      login: 'none',
+      history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']}),
+    })
+
+    await user.click(await screen.findByRole('button', {name: 'Unauthorized. Authorize conciv'}))
+    const dialog = await screen.findByRole('dialog', {name: 'Authorize conciv'})
+    expect(dialog).toBeVisible()
+
+    await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard('000000')
+    expect(await within(dialog).findByText("That code didn't match. Check your terminal and try again.")).toBeVisible()
+    await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard('000000')
+    expect(await within(dialog).findByText("That code didn't match. Check your terminal and try again.")).toBeVisible()
+    await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard('000000')
+    expect(await within(dialog).findByText("That code didn't match. Check your terminal and try again.")).toBeVisible()
+    await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard('000000')
+    expect(await within(dialog).findByText("That code didn't match. Check your terminal and try again.")).toBeVisible()
+    await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard('000000')
+    expect(await within(dialog).findByText("That code didn't match. Check your terminal and try again.")).toBeVisible()
+    await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard('000000')
+    expect(
+      await within(dialog).findByText('That code expired. Send a new code and use the one your terminal prints.'),
+    ).toBeVisible()
+
+    await user.click(within(dialog).getByRole('button', {name: 'Send a new code'}))
+    expect(await within(dialog).findByText('A new code was printed in your terminal.')).toBeVisible()
+    const code = await engine.loginCode()
+    await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard(code)
+
+    expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
+    expect(screen.queryByRole('dialog', {name: 'Authorize conciv'})).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
+    expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+    await expect.element(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
+    await engine.revokeBrowsers()
+    expect(await screen.findByText('This browser is no longer authorized to use conciv.')).toBeVisible()
+    expect(screen.getByRole('button', {name: 'This browser is no longer authorized to use conciv.'})).toBeDisabled()
+    const logIn = screen.getByRole('button', {name: 'Log in'})
+    expect(logIn).toBeVisible()
+    await expect.element(logIn).toHaveFocus()
+
+    await user.keyboard('{Enter}')
+    const again = await screen.findByRole('dialog', {name: 'Authorize conciv'})
+    await user.click(within(again).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard(await engine.loginCode())
+    await expect.element(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
+    expect(screen.queryByRole('button', {name: 'Log in'})).not.toBeInTheDocument()
+  })
+})
+
+describe('view tabs', () => {
+  test('the user switches from the chat to the built-in Terminal tab and back, and hears each switch', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    expect(await screen.findByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
+    await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
+
+    expect(await screen.findByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    expect(await screen.findByRole('tabpanel', {name: 'Terminal'})).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent('Terminal')
+    expect(screen.queryByRole('textbox', {name: 'Message the conciv agent'})).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', {name: 'Chat'}))
+    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    expect(screen.getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent('Chat')
+    expect(screen.queryByRole('tabpanel', {name: 'Terminal'})).not.toBeInTheDocument()
+  })
+})
+
+describe('a plugin tab, its dialogs and its overlay', () => {
+  test('a plugin tab that crashes says so and comes back on Retry', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: [['./test/fixtures/plugins/shell-board', {crash: true}]]})
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.click(await screen.findByRole('tab', {name: 'Desk'}))
+    expect(await screen.findByText('The shell-board plugin crashed')).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Retry'}))
+    const desk = await screen.findByRole('tabpanel', {name: 'Desk'})
+    expect(within(desk).getByRole('button', {name: 'Publish'})).toBeVisible()
+  })
+
+  it.each([
+    {
+      opens: 'Publish',
+      dialog: 'Publish the notes?',
+      answer: async (user: UserEvent, dialog: HTMLElement) => {
+        await user.click(within(dialog).getByRole('button', {name: 'Publish now'}))
+      },
+      shown: 'Publish confirmed: true',
+    },
+    {
+      opens: 'Save',
+      dialog: 'Notes saved',
+      answer: async (user: UserEvent, dialog: HTMLElement) => {
+        await user.click(within(dialog).getByRole('button', {name: 'OK'}))
+      },
+      shown: 'The save notice was closed',
+    },
+    {
+      opens: 'Rename',
+      dialog: 'Name the notes',
+      answer: async (user: UserEvent, dialog: HTMLElement) => {
+        expect(within(dialog).getByRole('button', {name: 'Submit'})).toBeDisabled()
+        await user.type(within(dialog).getByRole('textbox', {name: 'Name the notes'}), 'Launch plan')
+        await user.click(within(dialog).getByRole('button', {name: 'Submit'}))
+      },
+      shown: 'Named Launch plan',
+    },
+    {
+      opens: 'Colour',
+      dialog: 'Pick a colour',
+      answer: async (user: UserEvent, dialog: HTMLElement) => {
+        await user.type(within(dialog).getByRole('textbox', {name: 'Pick a colour'}), 'tl')
+        expect(await within(dialog).findByRole('option', {name: 'Teal'})).toBeVisible()
+        expect(within(dialog).queryByRole('option', {name: 'Crimson'})).not.toBeInTheDocument()
+        await user.click(within(dialog).getByRole('option', {name: 'Teal'}))
+      },
+      shown: 'Picked teal',
+    },
+  ])(
+    'the plugin button $opens opens the $dialog dialog and the tab gets its answer',
+    async ({opens, dialog, answer, shown}) => {
+      const user = userEvent.setup()
+      const engine = await createEngine({plugins: ['./test/fixtures/plugins/shell-board']})
+      await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+      await user.click(await screen.findByRole('tab', {name: 'Desk'}))
+      const desk = await screen.findByRole('tabpanel', {name: 'Desk'})
+
+      await user.click(within(desk).getByRole('button', {name: opens}))
+      await answer(user, await screen.findByRole('dialog', {name: dialog}))
+      expect(await within(desk).findByText(shown)).toBeVisible()
+    },
+  )
+
+  test('a plugin overlay hides the panel until the user closes it', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/shell-board']})
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await user.click(await screen.findByRole('tab', {name: 'Desk'}))
+    const desk = await screen.findByRole('tabpanel', {name: 'Desk'})
+
+    await user.click(within(desk).getByRole('button', {name: 'Cover the page'}))
+    const uncover = await screen.findByRole('button', {name: 'Uncover the page'})
+    expect(screen.queryByRole('dialog', {name: 'conciv chat agent'})).not.toBeInTheDocument()
+    await user.click(uncover)
+    expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+  })
+})
+
+describe('a plugin opens local files from a reply', () => {
+  test('a path the plugin knows is a link that opens on a click and on Enter, and a path it says is missing stays plain', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/shell-board']})
+    await engine.reply(TestLLM.text('Read `src/board.ts`, then `src/desk.ts`. The old `src/gone.ts` is gone.'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Where are the files')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    const reply = await screen.findByRole('article', {name: 'Reply to: Where are the files'})
+    const board = await within(reply).findByRole('link', {name: 'src/board.ts'})
+    expect(within(reply).getByText('src/gone.ts')).toBeVisible()
+    expect(within(reply).queryByRole('link', {name: 'src/gone.ts'})).not.toBeInTheDocument()
+
+    await browserInput.click(board)
+    expect(await screen.findByText('Opened src/board.ts')).toBeVisible()
+
+    const desk = within(reply).getByRole('link', {name: 'src/desk.ts'})
+    await browserInput.tab()
+    expect(desk).toHaveFocus()
+    await browserInput.keyboard('{Enter}')
+    expect(await screen.findByText('Opened src/desk.ts')).toBeVisible()
   })
 })
