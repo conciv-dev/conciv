@@ -143,6 +143,8 @@ export function isInlineCodePath(text: string) {
 
   if (!text || /\s/.test(text) || /^[a-z][a-z0-9+.-]*:\/\//i.test(text)) return false
 
+  if (hasControlCharacter(text)) return false
+
   if (/[{}<>"'`;=|&*,]/.test(text)) return false
 
   if (/^[\\/]{2}/.test(text)) return false
