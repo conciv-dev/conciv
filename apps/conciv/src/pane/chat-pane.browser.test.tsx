@@ -85,16 +85,16 @@ describe('stopping and sending again', () => {
   test('a reply stopped before its first word leaves no reply in the thread after the next turn', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await engine.reply(TestLLM.hang(), TestLLM.text('Here it is'))
+    await engine.reply(TestLLM.text('Never shown'), TestLLM.text('Here it is'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Wait for it')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     await gate.started
-    await gate.release()
     await user.click(await screen.findByRole('button', {name: 'Stop generating'}))
     expect(await screen.findByRole('separator', {name: 'Stopped'})).toBeVisible()
+    await gate.release()
 
     await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Try again')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -102,6 +102,7 @@ describe('stopping and sending again', () => {
     const reply = await screen.findByRole('article', {name: 'Reply to: Try again'})
     expect(await within(reply).findByText('Here it is')).toBeVisible()
     expect(screen.queryByRole('article', {name: 'Reply to: Wait for it'})).not.toBeInTheDocument()
+    expect(screen.queryByText('Never shown')).not.toBeInTheDocument()
   })
 })
 
