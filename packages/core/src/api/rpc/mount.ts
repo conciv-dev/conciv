@@ -35,6 +35,7 @@ import type {
   Plugin,
   PluginHooks,
   Rpc,
+  SessionInbox,
   Skill,
   SkillInstructions,
   Tool,
@@ -61,7 +62,8 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Plugin.Interface
   | Database.Interface
   | EventFeed.Interface
-  | FileSystem.Interface,
+  | FileSystem.Interface
+  | SessionInbox.Interface,
   never
 >
 

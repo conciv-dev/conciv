@@ -69,7 +69,7 @@ import {
   Schema,
   Scope,
 } from 'effect'
-import {Bus, Permission, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
+import {Bus, Permission, PluginHooks, SessionEvent, SessionInbox, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
 import {readModel, openDb, sessions, type ConcivDb} from '@conciv/db'
@@ -637,6 +637,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         log(Effect.logError('[core] publishing how the run ended failed', {sessionId, runId: run.runId, error})),
       )
     if (run.phase === 'completed' && !(await owedFollowUp(sessionId))) {
+      if (await inboxWaiting(sessionId)) {
+        wakeAfterRun(sessionId)
+        return
+      }
       const idled = await pluginHost
         .runPromiseExit(
           FiberMap.run(
@@ -654,6 +658,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         .catch((error: unknown) => Exit.die(error))
       if (Exit.isFailure(idled) && !Cause.hasInterruptsOnly(idled.cause))
         await idleFailed(sessionId, run.runId, Cause.squash(idled.cause))
+      if (await inboxWaiting(sessionId)) wakeAfterRun(sessionId)
     }
     if (run.phase === 'aborted') {
       if (engineLife.signal.aborted) return
@@ -663,6 +668,21 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       return
     }
     followUpOwedQueues(sessionId)
+  }
+  const inboxWaiting = (sessionId: SessionId): Promise<boolean> =>
+    pluginHost
+      .runPromise(SessionInbox.Service.use((inbox) => inbox.has(sessionId, 'input')))
+      .catch((error: unknown) => {
+        log(Effect.logError('[core] the session inbox could not be read', {sessionId, error}))
+        return false
+      })
+  const wakeAfterRun = (sessionId: SessionId): void => {
+    const current = planeRef.current
+    if (current === null) return
+    void current
+      .settled(sessionId)
+      .then(() => current.wake(sessionId))
+      .catch((error: unknown) => log(Effect.logError('[core] the session inbox could not wake', {sessionId, error})))
   }
   const owedFollowUp = (sessionId: SessionId): Promise<boolean> =>
     owesFollowUp(pagePlugin.delivery, sessionId).catch((error: unknown) => {
@@ -816,6 +836,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       askPermission,
       pendingPermissions: (sessionId) => pluginHost.runPromise(pendingPermissionCards(sessionId)),
       tracer,
+      inbox: {
+        promote: (sessionId) =>
+          pluginHost.runPromise(SessionInbox.Service.use((inbox) => inbox.promote(sessionId, 'input'))),
+      },
     }),
   ).catch(startFailed([]))
   planeRef.current = plane
