@@ -1,35 +1,27 @@
 import {delimiter, dirname, join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
+import getPort from 'get-port'
 import {e2ePluginCopyDir, e2eStateDir} from './dev-endpoint.js'
 
-const E2E_PORTS = {
-  'vite-vanilla': 4311,
-  'vite-react': 4312,
-  'vite-solid': 4313,
-  svelte: 4314,
-  'solid-start': 4315,
-  'tanstack-start': 4316,
-  nextjs: 4317,
-  astro: 4318,
-  'vite-react-component': 4319,
-  'nextjs-component': 4320,
-  'vite-preact-component': 4321,
-  'vite-solid-component': 4322,
-  'tanstack-start-redact': 4323,
-  'vite-react-packed': 4324,
-} as const
+export type E2EApp =
+  | 'vite-vanilla'
+  | 'vite-react'
+  | 'vite-solid'
+  | 'svelte'
+  | 'solid-start'
+  | 'tanstack-start'
+  | 'nextjs'
+  | 'astro'
+  | 'vite-react-component'
+  | 'nextjs-component'
+  | 'vite-preact-component'
+  | 'vite-solid-component'
+  | 'tanstack-start-redact'
+  | 'vite-react-packed'
 
-export type E2EApp = keyof typeof E2E_PORTS
+const HARNESSES = ['claude', 'codex', 'gemini-cli', 'opencode', 'pi'] as const
 
-const HARNESS_E2E_PORTS = {
-  claude: 5271,
-  codex: 5272,
-  'gemini-cli': 5273,
-  opencode: 5274,
-  pi: 5275,
-} as const
-
-export type HarnessApp = keyof typeof HARNESS_E2E_PORTS
+export type HarnessApp = (typeof HARNESSES)[number]
 
 const PACKED_SPECS = '**/packed-*.spec.ts'
 
@@ -89,6 +81,15 @@ export function e2eServerLog(configDir: string, port: number): string {
   return join(e2eStateDir(configDir), `server-${port}.log`)
 }
 
+export async function e2ePort(server: string): Promise<number> {
+  const variable = `CONCIV_E2E_${server.toUpperCase().replaceAll('-', '_')}_PORT`
+  const pinned = process.env[variable]
+  if (pinned) return Number(pinned)
+  const port = await getPort()
+  process.env[variable] = String(port)
+  return port
+}
+
 function serverEntry(entry: {
   configDir: string
   prepare: string
@@ -142,7 +143,7 @@ function runConcivHome(configDir: string): {CONCIV_HOME: string} {
   return {CONCIV_HOME: home}
 }
 
-export function e2eConfig(
+export async function e2eConfig(
   app: E2EApp,
   opts: {
     dir: string
@@ -153,8 +154,8 @@ export function e2eConfig(
     pluginCopies?: readonly string[]
     fakeClis?: readonly string[]
   },
-): ReturnType<typeof defineConfig> {
-  const port = E2E_PORTS[app]
+): Promise<ReturnType<typeof defineConfig>> {
+  const port = await e2ePort(app)
   const timeout = opts.timeout ?? 90_000
   return defineConfig({
     testDir: './test',
@@ -181,18 +182,24 @@ export function e2eConfig(
 
 export type PackedServer = {
   name: string
-  port: number
   command: (port: number) => string
   cwd: string
   env: Record<string, string>
 }
 
-export function packedE2eConfig(opts: {
+async function withPorts<T extends {name: string}>(servers: readonly T[]): Promise<(T & {port: number})[]> {
+  const picked: (T & {port: number})[] = []
+  for (const server of servers) picked.push({...server, port: await e2ePort(server.name)})
+  return picked
+}
+
+export async function packedE2eConfig(opts: {
   dir: string
   runFolders: string[]
   servers: PackedServer[]
-}): ReturnType<typeof defineConfig> {
+}): Promise<ReturnType<typeof defineConfig>> {
   const stateDir = e2eStateDir(opts.dir)
+  const servers = await withPorts(opts.servers)
   return defineConfig({
     testDir: './test',
     testMatch: PACKED_SPECS,
@@ -200,7 +207,7 @@ export function packedE2eConfig(opts: {
     timeout: 90_000,
     expect: {timeout: 90_000},
     reporter: reporters(opts.dir, [], opts.runFolders),
-    webServer: opts.servers.map((server) => {
+    webServer: servers.map((server) => {
       const home = join(stateDir, `conciv-home-${server.name}`)
       return {
         ...serverEntry({
@@ -213,7 +220,7 @@ export function packedE2eConfig(opts: {
         cwd: server.cwd,
       }
     }),
-    projects: opts.servers.map((server) => ({
+    projects: servers.map((server) => ({
       name: server.name,
       use: {...devices['Desktop Chrome'], baseURL: `http://localhost:${server.port}`},
       metadata: {projectDir: server.cwd},
@@ -222,19 +229,16 @@ export function packedE2eConfig(opts: {
 }
 
 function isHarnessApp(name: string): name is HarnessApp {
-  return Object.hasOwn(HARNESS_E2E_PORTS, name)
+  return HARNESSES.some((harness) => harness === name)
 }
 
-function selectedHarnesses(): [HarnessApp, number][] {
-  const entries = Object.entries(HARNESS_E2E_PORTS) as [HarnessApp, number][]
+function selectedHarnesses(): readonly HarnessApp[] {
   const filter = process.env.CONCIV_HARNESS
-  if (!filter) return entries
+  if (!filter) return HARNESSES
   if (!isHarnessApp(filter)) {
-    throw new Error(
-      `CONCIV_HARNESS="${filter}" is not a harness; pick one of ${Object.keys(HARNESS_E2E_PORTS).join(', ')}`,
-    )
+    throw new Error(`CONCIV_HARNESS="${filter}" is not a harness; pick one of ${HARNESSES.join(', ')}`)
   }
-  return entries.filter(([harness]) => harness === filter)
+  return [filter]
 }
 
 export function harnessHome(configDir: string, harness: HarnessApp): string {
@@ -246,11 +250,11 @@ function isolatedHome(configDir: string, harness: HarnessApp): {CONCIV_HOME: str
   return {HOME: home, CODEX_HOME: join(home, '.codex'), CONCIV_HOME: join(home, '.conciv-home')}
 }
 
-export function harnessMatrixConfig(opts: {
+export async function harnessMatrixConfig(opts: {
   dir: string
   command: (harness: HarnessApp, port: number, coldStart: string) => string
-}): ReturnType<typeof defineConfig> {
-  const entries = selectedHarnesses()
+}): Promise<ReturnType<typeof defineConfig>> {
+  const entries = await withPorts(selectedHarnesses().map((name) => ({name})))
   return defineConfig({
     testDir: './test',
     workers: 1,
@@ -258,9 +262,9 @@ export function harnessMatrixConfig(opts: {
     expect: {timeout: 150_000},
     reporter: reporters(
       opts.dir,
-      entries.map(([harness]) => `.conciv-${harness}`),
+      entries.map(({name}) => `.conciv-${name}`),
     ),
-    webServer: entries.map(([harness, port]) =>
+    webServer: entries.map(({name: harness, port}) =>
       serverEntry({
         configDir: opts.dir,
         prepare: `rm -rf '${harnessHome(opts.dir, harness)}' && mkdir -p '${join(harnessHome(opts.dir, harness), '.codex')}'`,
@@ -269,7 +273,7 @@ export function harnessMatrixConfig(opts: {
         env: isolatedHome(opts.dir, harness),
       }),
     ),
-    projects: entries.map(([harness, port]) => ({
+    projects: entries.map(({name: harness, port}) => ({
       name: harness,
       use: {...devices['Desktop Chrome'], baseURL: `http://localhost:${port}`},
     })),

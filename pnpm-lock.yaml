@@ -1369,6 +1369,9 @@ importers:
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
+      get-port:
+        specifier: 'catalog:'
+        version: 7.2.0
       zod:
         specifier: 'catalog:'
         version: 4.6.7
