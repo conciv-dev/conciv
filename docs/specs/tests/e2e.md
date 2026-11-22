@@ -123,9 +123,10 @@ One journey per app: open the page, the launcher shows, sign in by magic link, t
 
 ## Plugin bundles in a host (vite-solid, nextjs)
 
-| feature                                                                                                    | journey                                                               | status                                                                                                                                                                                                                                                                                |
-| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| sdk-embed:147, sdk-embed:69 a rebuilt `conciv/plugins/live-line` bundle swaps in place and keeps the draft | type a draft, rewrite the bundle, the new line shows, the draft stays | written: `e2e/vite-solid/test/widget.spec.ts`, `e2e/nextjs/test/widget.spec.ts` (the config copies `plugin-sources/live-line` into the run's state folder, the dev server loads the copy by a `file://` plugins entry, the `rebuildPlugin` fixture rewrites the copy and restores it) |
+| feature                                                                                                    | journey                                                                                                                                 | status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sdk-embed:147, sdk-embed:69 a rebuilt `conciv/plugins/live-line` bundle swaps in place and keeps the draft | type a draft, rewrite the bundle, the new line shows, the draft stays                                                                   | written: `e2e/vite-solid/test/widget.spec.ts`, `e2e/nextjs/test/widget.spec.ts` (the config copies `plugin-sources/live-line` into the run's state folder, the dev server loads the copy by a `file://` plugins entry, the `rebuildPlugin` fixture rewrites the copy and restores it)                                                                                                                                                                                                                                  |
+| app:88 Plugin switch/reload that fails: "Request failed" / "Plugin not found"                              | open Settings › Plugins, turn `live-line` off while every `settings.set` fails; "Request failed" shows, the switch and the line stay on | written: `e2e/vite-solid/test/widget.spec.ts` › a project plugin switch the engine fails to save on a vite solid page › the user turns the project plugin off while the engine fails the save, is told the request failed, and the plugin stays on. "Plugin not found" is never an engine answer: it guards the client-side `known(pluginId)` check (`apps/conciv/src/runtime/plugin/bundle-source.ts:467`, `:520`), a switch is drawn only for a known id, and Reload never calls the engine (`bundle-source.ts:520`) |
 
 ## Real harness CLIs (harnesses app, one dev server per CLI)
 
@@ -182,7 +183,7 @@ The maintainer moved building these helpers to a follow-up, so the init app has 
 | status    | rows |
 | --------- | ---- |
 | tested    | 24   |
-| written   | 14   |
+| written   | 15   |
 | planned   | 1    |
 | verify    | 0    |
 | blocked   | 39   |
@@ -190,4 +191,4 @@ The maintainer moved building these helpers to a follow-up, so the init app has 
 | e2e       | 0    |
 | elsewhere | 1    |
 | kept      | 5    |
-| total     | 84   |
+| total     | 85   |
