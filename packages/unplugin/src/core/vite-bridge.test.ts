@@ -1,4 +1,4 @@
-import {writeFileSync} from 'node:fs'
+import {realpathSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect} from 'vitest'
 import type {Diagnostic} from '@conciv/plugin/schema/bundler'
@@ -10,7 +10,7 @@ describe('the vite bridge', () => {
     project,
     serve,
   }) => {
-    const root = project('app')
+    const root = realpathSync(project('app'))
     const server = await serve({
       root,
       oxc: {jsx: {runtime: 'classic'}},
@@ -55,7 +55,7 @@ describe('the vite bridge', () => {
     project,
     serve,
   }) => {
-    const root = project('app')
+    const root = realpathSync(project('app'))
     writeFileSync(
       join(root, 'src', 'needs-missing.js'),
       "import {price} from './missing.js'\nexport const label = price\n",
