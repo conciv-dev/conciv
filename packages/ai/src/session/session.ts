@@ -2,6 +2,8 @@ import {StreamReconnectLimitError, type SubscribeConnectionAdapter} from '@tanst
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import {createMemo, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
+import {makeEventListener} from '@solid-primitives/event-listener'
+import {createScheduled, throttle} from '@solid-primitives/scheduled'
 import {
   isRunPhaseTerminal,
   type ApprovalAsk,
@@ -13,6 +15,8 @@ import {chatBusy} from '@conciv/protocol/chat-busy'
 import {CHAT_HISTORY_PAGE_SIZE, type PermissionReply} from '@conciv/protocol/chat-types'
 
 export type Chat = UseChatReturn
+
+const MESSAGES_FLUSH_MS = 16
 
 export type CreateChatOptions = Parameters<typeof useChat>[0]
 
@@ -366,8 +370,22 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   }
   const decide = (approvalId: string, reply: PermissionReply): Promise<void> =>
     options.decide(approvalId, reply).finally(() => withdraw(approvalId))
+  const flushed = createScheduled((flush) => {
+    const throttled = throttle(flush, MESSAGES_FLUSH_MS)
+    makeEventListener(document, 'visibilitychange', () => {
+      if (document.hidden) return
+      throttled.clear()
+      flush()
+    })
+    return throttled
+  })
+  const messages = createMemo<ReturnType<Chat['messages']>>((shown) => {
+    const latest = chat.messages()
+    return !chatBusy(chat) || flushed() ? latest : shown
+  }, chat.messages())
   return {
     ...chat,
+    messages,
     sendMessage,
     error,
     withdrawn,

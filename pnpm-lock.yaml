@@ -141,6 +141,9 @@ catalogs:
     '@solid-primitives/resize-observer':
       specifier: ^2.2.0
       version: 2.2.0
+    '@solid-primitives/scheduled':
+      specifier: ^1.5.3
+      version: 1.5.3
     '@solid-primitives/storage':
       specifier: ^4.4.0
       version: 4.4.0
@@ -2061,6 +2064,12 @@ importers:
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
+      '@solid-primitives/event-listener':
+        specifier: 'catalog:'
+        version: 2.4.6(solid-js@1.9.17)
+      '@solid-primitives/scheduled':
+        specifier: 'catalog:'
+        version: 1.5.3(solid-js@1.9.17)
       '@tanstack/ai':
         specifier: 'catalog:'
         version: 1.7.0(@opentelemetry/api@1.9.1)(zod@4.6.7)

@@ -49,6 +49,8 @@
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
+    "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/scheduled": "catalog:",
     "@tanstack/ai": "catalog:",
     "@tanstack/ai-acp": "catalog:",
     "@tanstack/ai-claude-code": "catalog:",
