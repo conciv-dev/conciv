@@ -110,11 +110,11 @@ describe('plugins in settings', () => {
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     await user.click(await screen.findByRole('tab', {name: 'Plugins'}))
     expect(await screen.findByRole('switch', {name: 'tanstack'})).toBeVisible()
-    expect(screen.queryByRole('switch', {name: 'desk-notes'})).not.toBeInTheDocument()
+    expect(screen.queryByText('desk-notes')).not.toBeInTheDocument()
 
     await engine.write('conciv/plugins/desk-notes.js', "export default {id: 'desk-notes', setup: () => undefined}\n")
 
-    expect(await screen.findByRole('switch', {name: 'desk-notes'})).toBeVisible()
+    expect(await screen.findByText('desk-notes')).toBeVisible()
     expect(screen.getByRole('switch', {name: 'tanstack'})).toBeVisible()
   })
 
