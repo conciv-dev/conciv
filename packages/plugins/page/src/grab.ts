@@ -35,11 +35,18 @@ function startPick(mode: 'activate' | 'comment'): Promise<Grab | null> {
     pending?.resolve(null)
     const pick: PendingPick = {resolve, grab: null}
     pending = pick
-    void getReactGrabAdapter().then((adapter) =>
-      adapter[mode]((grab) => {
+    void getReactGrabAdapter().then(
+      (adapter) =>
+        adapter[mode]((grab) => {
+          if (pending !== pick) return
+          pick.grab = grab
+        }),
+      (cause: unknown) => {
+        console.error('[page] the element picker did not start', cause)
         if (pending !== pick) return
-        pick.grab = grab
-      }),
+        pending = null
+        resolve(null)
+      },
     )
   })
 }
@@ -92,6 +99,7 @@ export type ReactGrabAdapter = {
   comment: (onGrab: GrabSink) => void
   deactivate: () => void
   isActive: () => boolean
+  dispose: () => void
 }
 
 let adapterPromise: Promise<ReactGrabAdapter> | null = null
@@ -107,6 +115,17 @@ export function loadReactGrab(): Promise<typeof import('react-grab')> {
 export function getReactGrabAdapter(): Promise<ReactGrabAdapter> {
   if (!adapterPromise) adapterPromise = create()
   return adapterPromise
+}
+
+export function disposeReactGrab(): void {
+  const adapter = adapterPromise
+  adapterPromise = null
+  setCancelPick(null)
+  setPicking(false)
+  void adapter?.then(
+    (current) => current.dispose(),
+    () => undefined,
+  )
 }
 
 async function create(): Promise<ReactGrabAdapter> {
@@ -182,6 +201,7 @@ async function create(): Promise<ReactGrabAdapter> {
     },
     deactivate: () => api.deactivate(),
     isActive: () => api.isActive(),
+    dispose: () => api.dispose(),
   }
 }
 

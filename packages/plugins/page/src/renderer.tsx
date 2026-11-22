@@ -17,7 +17,7 @@ import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 import {addRef, type Refs} from './snapshot.js'
 import {dehydrate} from './dehydrate.js'
 import {describe, locate, reactBridge, rootFibers} from './react.js'
-import {grabApi} from './grab.js'
+import {disposeReactGrab, grabApi} from './grab.js'
 import {showToast} from './toast.js'
 import {capturePlugins} from './screenshot.js'
 
@@ -115,7 +115,10 @@ export default Plugin.define({
     ctx.provide(Page, {...pageMembers, symbolicate: (input) => symbolicate(input.frames)})
     ctx.provide(ReactTree, makeReactTree())
 
-    return () => operations.dispose()
+    return () => {
+      operations.dispose()
+      disposeReactGrab()
+    }
   },
 })
 
