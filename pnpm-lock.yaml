@@ -2005,9 +2005,6 @@ importers:
       '@conciv/it':
         specifier: workspace:*
         version: link:../../packages/it
-      '@conciv/plugin-recorder':
-        specifier: workspace:*
-        version: link:../../packages/plugins/recorder
     devDependencies:
       '@conciv/e2e-utils':
         specifier: workspace:*
