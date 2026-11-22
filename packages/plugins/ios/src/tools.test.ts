@@ -35,7 +35,11 @@ describe('the ios rules in the system prompt', () => {
     await unconfigured.session.send('Where is the pay button?')
 
     const [unconfiguredRequest] = await unconfigured.requests()
-    expect(unconfiguredRequest?.system.join('\n')).not.toContain('native iOS app')
+    const unconfiguredSystem = unconfiguredRequest?.system.join('\n')
+    expect(unconfiguredSystem).not.toContain(
+      'You are running as an overlay inside a native iOS app on the simulator, not on a web page.',
+    )
+    expect(unconfiguredSystem).not.toContain('This session serves exactly one app')
   })
 })
 
@@ -45,7 +49,7 @@ describe('building and running a configured app', () => {
       plugins: [['@conciv/plugin-ios', {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}]],
     })
 
-    await engine.reply(TestLLM.toolCall('c1', 'ios_build', {}), TestLLM.text('Never asked'))
+    await engine.reply(TestLLM.toolCall('c1', 'ios_build', {}))
     const buildAsked = await engine.event('permission.asked')
     const building = engine.session.send('Build the app')
     await expect(buildAsked.arrived).resolves.toMatchObject({data: {action: 'ios_build', resources: ['*']}})
@@ -53,7 +57,7 @@ describe('building and running a configured app', () => {
     await building
     expect(await engine.requests()).toHaveLength(1)
 
-    await engine.reply(TestLLM.toolCall('c2', 'ios_run', {}), TestLLM.text('Never asked'))
+    await engine.reply(TestLLM.toolCall('c2', 'ios_run', {}))
     const runAsked = await engine.event('permission.asked')
     const running = engine.session.send('Run the app')
     await expect(runAsked.arrived).resolves.toMatchObject({data: {action: 'ios_run', resources: ['*']}})
