@@ -71,7 +71,7 @@ test.describe('the Recorder tab recording the vite react host page', () => {
     page,
   }) => {
     await page.getByRole('tab', {name: 'Recorder'}).click()
-    await expect(page.getByText('LIVE')).toBeVisible()
+    await expect(page.getByText('LIVE', {exact: true})).toBeVisible()
     const search = page.getByRole('textbox', {name: 'Search plants'})
     await search.click()
     await expect(search).toBeFocused()
