@@ -39,6 +39,7 @@ import type {
   Tabs,
   ToastOptions,
 } from '@conciv/plugin/experimental'
+import {Style} from '@conciv/plugin/experimental'
 import appManifest from '../../../package.json' with {type: 'json'}
 import {
   useApiBase,
@@ -320,8 +321,8 @@ export function createHostApis() {
       font: () => 'var(--chat-mono)',
       mode: () => current()?.mode() ?? (systemDark() ? 'dark' : 'light'),
     }),
-    overlay: (_plugin, _owner, _context, register) => (options) => {
-      const mounted = mountOverlay(theme, options?.styles)
+    overlay: (_plugin, _owner, context, register) => (options) => {
+      const mounted = mountOverlay(theme, options?.styles, () => context.list(Style))
 
       return {element: mounted.element, dispose: register(mounted.dispose)}
     },
