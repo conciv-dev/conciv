@@ -36,7 +36,7 @@ describe('asking tools', () => {
     })
 
     expect(await engine.session.tool('notes_publish').failure({title: 'Launch plan'})).toMatchObject({
-      message: expect.stringContaining('Permission denied: notes_publish'),
+      message: expect.stringContaining("'external_notes_publish' is not defined"),
     })
   })
 })
