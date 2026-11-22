@@ -638,6 +638,7 @@ function ThreadViewport(props: ParentProps<{ref?: (element: HTMLElement) => void
         ref={props.ref}
         class="px-5 pb-4 pt-3 flex flex-1 flex-col gap-1.5 min-h-0 relative overflow-y-auto [&>[data-thread-list]]:gap-0"
         role="log"
+        tabindex="-1"
         aria-live="off"
         footer={<LatestStrip />}
       >
