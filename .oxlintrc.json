@@ -431,6 +431,21 @@
       }
     },
     {
+      "files": [
+        "**/*.test.*",
+        "**/*.spec.*",
+        "**/test/**",
+        "**/playwright.config.*",
+        "**/vitest.config.*",
+        "**/vite.config.*",
+        "packages/vitest-config/**",
+        "e2e/e2e-utils/**"
+      ],
+      "rules": {
+        "conciv/max-test-timeout": "error"
+      }
+    },
+    {
       "files": ["packages/harness-testkit/src/**", "packages/plugin-testkit/src/**"],
       "rules": {
         "conciv/no-predicate-waits": "error"
