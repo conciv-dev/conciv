@@ -1,8 +1,10 @@
 import {defineConfig} from '@playwright/test'
-import {e2eConfig} from '@conciv/e2e-utils/config'
+import {e2eConfig, e2ePort} from '@conciv/e2e-utils/config'
+
+const standalonePort = await e2ePort('standalone')
 
 export default defineConfig(
-  e2eConfig('vite-react', {
+  await e2eConfig('vite-react', {
     dir: import.meta.dirname,
     command: (port, coldStart) => `./node_modules/.bin/vite --port ${port} --strictPort ${coldStart}`,
     browserSettings: ['storage-refused', 'pop-out-refused'],
@@ -10,8 +12,8 @@ export default defineConfig(
   }),
   {
     webServer: {
-      command: 'pnpm --filter @conciv/app exec vite dev --port 4330 --strictPort',
-      url: 'http://localhost:4330',
+      command: `pnpm --filter @conciv/app exec vite dev --port ${standalonePort} --strictPort`,
+      url: `http://localhost:${standalonePort}`,
       reuseExistingServer: false,
       timeout: 180_000,
     },

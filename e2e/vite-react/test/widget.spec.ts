@@ -141,7 +141,7 @@ test.describe('the standalone conciv page on the vite react engine', () => {
     await page.goto('/', {waitUntil: 'domcontentloaded'})
     const engine = new URL((await hostSocket).url())
     engine.protocol = engine.protocol === 'wss:' ? 'https:' : 'http:'
-    const standalone = new URL('http://localhost:4330/')
+    const standalone = new URL(`http://localhost:${process.env.CONCIV_E2E_STANDALONE_PORT}/`)
     standalone.searchParams.set('core', engine.origin)
     standalone.searchParams.set('settings', JSON.stringify({defaultOpen: true}))
 

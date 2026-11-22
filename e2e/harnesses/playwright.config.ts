@@ -3,7 +3,7 @@ import {harnessMatrixConfig} from '@conciv/e2e-utils/config'
 
 const PI_SPEC = '**/pi.spec.ts'
 
-const matrix = harnessMatrixConfig({
+const matrix = await harnessMatrixConfig({
   dir: import.meta.dirname,
   command: (harness, port, coldStart) =>
     `node_modules/.bin/vite --config vite.${harness}.config.ts --port ${port} --strictPort ${coldStart}`,
