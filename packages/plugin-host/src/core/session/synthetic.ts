@@ -39,7 +39,7 @@ export const make = (
       })
       .pipe(
         Effect.catchTag('SessionInbox.LifecycleConflict', () =>
-          Effect.fail(makeSyntheticConflictError({sessionId: sessionID, inputId: id})),
+          Effect.fail(makeSyntheticConflictError({sessionID, inputID: id})),
         ),
       )
     if (input.resume !== false) yield* wake(sessionID)

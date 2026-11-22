@@ -46,8 +46,8 @@ export const makeAgentNotFoundError = (fields: Omit<typeof AgentNotFoundError.Ty
   })
 
 export const SyntheticConflictError = Schema.TaggedStruct('Session.SyntheticConflictError', {
-  sessionId: Session.Id,
-  inputId: SessionMessage.Id,
+  sessionID: Session.Id,
+  inputID: SessionMessage.Id,
 })
 export type SyntheticConflictError = typeof SyntheticConflictError.Type & globalThis.Error
 

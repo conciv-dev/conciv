@@ -33,13 +33,9 @@ export type Promotable = 'input' | 'steer'
 
 export type Scope = 'input' | Delivery
 
-export const LifecycleConflict = Schema.TaggedStruct('SessionInbox.LifecycleConflict', {id: SessionMessage.Id})
-export type LifecycleConflict = typeof LifecycleConflict.Type & globalThis.Error
-
-export const makeLifecycleConflict = (fields: Omit<typeof LifecycleConflict.Type, '_tag'>): LifecycleConflict =>
-  Object.assign(new globalThis.Error(), LifecycleConflict.make(fields), {name: 'SessionInbox.LifecycleConflict'})
-
-const isLifecycleConflict = Schema.is(LifecycleConflict)
+export class LifecycleConflict extends Schema.TaggedError<LifecycleConflict>()('SessionInbox.LifecycleConflict', {
+  id: SessionMessage.Id,
+}) {}
 
 const SyntheticTag = Schema.Struct({
   conciv: Schema.Struct({
@@ -96,7 +92,7 @@ const fromRow = (row: InboxRow): Info => {
       payload: decodeSynthetic(row.payload),
       delivery: row.delivery,
     })
-  throw makeLifecycleConflict({id: base.id})
+  throw new LifecycleConflict({id: base.id})
 }
 
 const find = Effect.fn('SessionInbox.find')(function* (db: DatabaseService, id: SessionMessage.Id) {
@@ -127,7 +123,7 @@ const promotedFromMessage = Effect.fn('SessionInbox.promotedFromMessage')(functi
   if (row === undefined) return undefined
   const tag = readSyntheticTag(row.message.metadata)
   if (row.threadId !== sessionID || row.message.role !== 'user' || Option.isNone(tag))
-    return yield* Effect.fail(makeLifecycleConflict({id}))
+    return yield* new LifecycleConflict({id})
   return Synthetic.make({
     id,
     sessionID,
@@ -219,7 +215,7 @@ export const layer = Layer.effect(
         (yield* promotedFromMessage(db, request.sessionID, request.id, request.delivery))
       if (existing === undefined) return undefined
       if (existing.type === 'compaction' || !matches(existing, request))
-        return yield* Effect.fail(makeLifecycleConflict({id: request.id}))
+        return yield* new LifecycleConflict({id: request.id})
       return existing
     })
 
@@ -246,19 +242,15 @@ export const layer = Layer.effect(
             }),
           ),
           Effect.catchDefect((defect) =>
-            isLifecycleConflict(defect)
+            defect instanceof LifecycleConflict
               ? find(db, request.id).pipe(
-                  Effect.flatMap((stored) =>
-                    stored === undefined
-                      ? Effect.fail(makeLifecycleConflict({id: request.id}))
-                      : Effect.succeed(stored),
-                  ),
+                  Effect.flatMap((stored) => (stored === undefined ? Effect.fail(defect) : Effect.succeed(stored))),
                 )
               : Effect.die(defect),
           ),
         )
       if (!matches(admitted, {...request, type: request.item.type}))
-        return yield* Effect.fail(makeLifecycleConflict({id: request.id}))
+        return yield* new LifecycleConflict({id: request.id})
       return admitted
     })
 
@@ -270,7 +262,7 @@ export const layer = Layer.effect(
             .publish(SessionEvent.InboxDelivered, {sessionID: sessionID, inboxID: SessionMessage.Id.make(row.id)})
             .pipe(
               Effect.catchDefect((defect) =>
-                isLifecycleConflict(defect)
+                defect instanceof LifecycleConflict
                   ? promotedFromMessage(db, sessionID, SessionMessage.Id.make(row.id), row.delivery).pipe(
                       Effect.flatMap((stored) => (stored !== undefined ? Effect.void : Effect.die(defect))),
                       Effect.orDie,
@@ -326,7 +318,7 @@ export const projectAdmitted = Effect.fn('SessionInbox.projectAdmitted')(functio
   },
 ) {
   if ((yield* storedMessage(db, request.id)) !== undefined)
-    return yield* Effect.die(makeLifecycleConflict({id: request.id}))
+    return yield* Effect.die(new LifecycleConflict({id: request.id}))
   const stored = yield* db
     .insert(SessionInboxTable)
     .values({
@@ -349,7 +341,7 @@ export const projectAdmitted = Effect.fn('SessionInbox.projectAdmitted')(functio
     .returning({id: SessionInboxTable.id})
     .get()
     .pipe(Effect.orDie)
-  if (!stored) return yield* Effect.die(makeLifecycleConflict({id: request.id}))
+  if (!stored) return yield* Effect.die(new LifecycleConflict({id: request.id}))
 })
 
 const syntheticMessage = (id: string, payload: SyntheticPayload, delivered: number): StoredMessage => ({
@@ -370,7 +362,7 @@ export const projectDelivered = Effect.fn('SessionInbox.projectDelivered')(funct
     .returning()
     .get()
     .pipe(Effect.orDie)
-  if (!deleted) return yield* Effect.die(makeLifecycleConflict({id: input.id}))
+  if (!deleted) return yield* Effect.die(new LifecycleConflict({id: input.id}))
   const last = yield* db
     .select({position: max(chatMessages.position)})
     .from(chatMessages)
