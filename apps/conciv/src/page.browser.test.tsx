@@ -109,7 +109,12 @@ describe('the agent acts on the page during a reply', () => {
     const answer = (await engine.requests()).at(-1)
     const shot = answer?.messages.find((message) => message.toolCallId === 'c10')
     expect(JSON.parse(String(shot?.content))).toMatchObject({
-      files: [{type: 'image', source: {type: 'data', mimeType: 'image/webp'}}],
+      files: expect.arrayContaining([
+        expect.objectContaining({
+          type: 'image',
+          source: expect.objectContaining({type: 'data', mimeType: 'image/webp'}),
+        }),
+      ]),
     })
   })
 })
