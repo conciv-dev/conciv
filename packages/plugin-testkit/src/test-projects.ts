@@ -387,7 +387,7 @@ function hasServingPlugin(option: unknown, name: string): boolean {
 }
 
 function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineConfiguration[] {
-  const uno = appUnoConfig()
+  const uno = hasServingPlugin(authorPlugins, 'unocss:config') ? [] : [UnoCSS({configFile: appUnoConfig()})]
   const solid = hasServingPlugin(authorPlugins, 'solid') ? [] : [solidPlugin()]
   const testable = testablePlugins()
   const byName = pluginsByName(testable)
@@ -410,7 +410,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
     },
     {
       extends: true,
-      plugins: [UnoCSS({configFile: uno}), ...solid, engineModulesInNode(), byName],
+      plugins: [...uno, ...solid, engineModulesInNode(), byName],
       server: {fs: {strict: false}},
       resolve: {alias: [{find: BROWSER_ENTRY, replacement: join(KIT_DIST, 'happy-dom.js')}]},
       test: {
@@ -427,7 +427,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
     },
     {
       extends: true,
-      plugins: [UnoCSS({configFile: uno}), ...solid, engines.plugin, byName],
+      plugins: [...uno, ...solid, engines.plugin, byName],
       server: {fs: {strict: false}},
       resolve: {alias: [{find: ENGINE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
       optimizeDeps: {
