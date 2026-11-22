@@ -489,10 +489,10 @@ function RootChrome(props: {
       <Show when={loginOpen() ? login : undefined}>
         {(current) => <EngineLoginDialog trust={current().trust()} onClose={() => void setShutter(router, false)} />}
       </Show>
-      <div class="sr-only" role="status" aria-live="polite">
+      <div class="sr-only" role="status" aria-live="polite" aria-label="conciv announcements">
         {props.politeMessage()}
       </div>
-      <div class="sr-only" role="alert" aria-live="assertive">
+      <div class="sr-only" role="alert" aria-live="assertive" aria-label="conciv alerts">
         {props.assertiveMessage()}
       </div>
     </div>

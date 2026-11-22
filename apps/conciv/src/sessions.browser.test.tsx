@@ -288,6 +288,7 @@ describe('past sessions the CLI started', () => {
     const copy = within(preview).getByRole('button', {name: 'Copy resume command'})
     await user.click(copy)
     expect(await within(preview).findByRole('button', {name: 'Copied'})).toBeVisible()
+    expect(await within(screen.getByRole('status', {name: 'conciv announcements'})).findByText('Copied')).toBeVisible()
     expect(copy).toHaveFocus()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', {name: 'Preview of Ship the checkout page'})).not.toBeInTheDocument()
