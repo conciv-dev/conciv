@@ -28,9 +28,15 @@ describe('find and switch sessions', () => {
     expect(await screen.findByRole('option', {name: /^Alpha, Edited/})).toBeVisible()
     expect(screen.queryByRole('option', {name: /^Beta, Edited/})).not.toBeInTheDocument()
 
+    await user.tripleClick(search)
+    await user.keyboard('x'.repeat(201))
+    expect(await screen.findByText("Couldn't load sessions")).toBeVisible()
+
     await user.click(screen.getByRole('button', {name: 'Clear search'}))
     expect(search).toHaveValue('')
     expect(search).toHaveFocus()
+    expect(await screen.findByRole('option', {name: /^Beta, Edited/})).toBeVisible()
+    expect(screen.queryByText("Couldn't load sessions")).not.toBeInTheDocument()
 
     await user.click(await screen.findByRole('option', {name: /^Alpha, Edited/}))
     expect(await screen.findByText('Switched to Alpha')).toBeVisible()
