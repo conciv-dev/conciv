@@ -309,30 +309,48 @@ async function matching(
 
 const OPENING_EVENT = 'server.connected'
 
+type OpenWait = {pause: () => void; renew: () => Promise<void>; end: () => void}
+
 async function eventWait(
   engine: Engine,
   type: string,
   match: HarnessEngineEventMatch | undefined,
-  waits: Set<AbortController>,
+  waits: Set<OpenWait>,
 ): Promise<HarnessEngineEventWait> {
   if (type === OPENING_EVENT) {
     throw new Error(
       `${OPENING_EVENT} cannot be waited for: the engine sends it once, as the first frame of each event subscription, and event() resolves once that frame has come`,
     )
   }
-  const abort = new AbortController()
-  waits.add(abort)
-  const events = await engine.rpc.event.subscribe({types: [type]}, {signal: abort.signal}).catch((error: unknown) => {
-    waits.delete(abort)
+  const found = Promise.withResolvers<HarnessEngineEvent>()
+  const current = {abort: new AbortController()}
+  const listen = async (): Promise<void> => {
+    const abort = new AbortController()
+    current.abort = abort
+    const events = await engine.rpc.event.subscribe({types: [type]}, {signal: abort.signal})
+    await events.next()
+    matching(events, type, match).then(found.resolve, (error: unknown) => {
+      if (!abort.signal.aborted) found.reject(error)
+    })
+  }
+  const stopped = (): Error => new Error(`the engine stopped before a ${type} event arrived`)
+  const open: OpenWait = {
+    pause: () => current.abort.abort(),
+    renew: () => listen().catch((error: unknown) => found.reject(error)),
+    end: () => {
+      current.abort.abort()
+      found.reject(stopped())
+    },
+  }
+  waits.add(open)
+  await listen().catch((error: unknown) => {
+    waits.delete(open)
     throw error
   })
-  await events.next()
-  const arrived = matching(events, type, match)
-    .catch((error: unknown) => {
-      if (abort.signal.aborted) throw new Error(`the engine stopped before a ${type} event arrived`)
-      throw error
-    })
-    .finally(() => waits.delete(abort))
+  const arrived = found.promise.finally(() => {
+    waits.delete(open)
+    current.abort.abort()
+  })
   arrived.catch(() => {})
   return {arrived}
 }
@@ -586,9 +604,8 @@ export async function createHarnessEngine(
   const browser = makeBrowserRpcClient(apiBase)
   const engine: Engine = {apiBase, rpc: browser.rpc, turns: makeTurns(browser.rpc), tools: toolClients(apiBase)}
   const state: {running: Running | undefined} = {running: {started: first, close: connect(engine, browser)}}
-  const waits = new Set<AbortController>()
+  const waits = new Set<OpenWait>()
   const halt = async (): Promise<unknown[]> => {
-    for (const wait of waits) wait.abort()
     engine.turns.closeAll()
     await engine.tools.close()
     script.releaseGate()
@@ -597,6 +614,7 @@ export async function createHarnessEngine(
     return closeRunning(running)
   }
   const stop = async (): Promise<void> => {
+    for (const wait of waits) wait.end()
     const failures = [...(await halt()), ...(await settleInOrder([removeRoot, closeClock]))]
     if (failures.length > 0) throw new AggregateError(failures, 'the harness engine did not stop cleanly')
   }
@@ -606,9 +624,11 @@ export async function createHarnessEngine(
   const restart = async (): Promise<void> => {
     const running = state.running
     if (running === undefined) throw new Error('the engine is stopped: it cannot restart')
+    for (const wait of waits) wait.pause()
     const failures = await halt()
     if (failures.length > 0) throw new AggregateError(failures, 'the harness engine did not stop cleanly')
     state.running = await bootAgain(boot, engine, started.id, running)
+    await Promise.all([...waits].map((wait) => wait.renew()))
   }
   return {
     session: started,

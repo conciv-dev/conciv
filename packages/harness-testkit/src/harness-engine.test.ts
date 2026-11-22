@@ -28,6 +28,18 @@ describe('scripted replies', () => {
   })
 })
 
+describe('an event wait across a restart', () => {
+  test('a wait opened before restart() resolves with the event the restarted engine sends', async ({engine}) => {
+    const succeeded = await engine.event('session.execution.succeeded')
+    await engine.restart()
+    await engine.reply(TestLLM.text('After the restart'))
+
+    await engine.session.send('one')
+
+    expect(await succeeded.arrived).toMatchObject({type: 'session.execution.succeeded'})
+  })
+})
+
 describe('a held reply', () => {
   test('a Stop while the reply is held ends the turn without a release, and the next turn takes the next reply', async ({
     engine,
