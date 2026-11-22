@@ -88,6 +88,7 @@ describe('sessions', () => {
 
 describe('native sessions', () => {
   test('a past CLI session is found by what was said in it, with the command that resumes it', async ({connect}) => {
+    const otherProject = tempDir('other-project-')
     const engine = await createEngine(
       {},
       {
@@ -97,6 +98,7 @@ describe('native sessions', () => {
             sessions: [
               {
                 id: 'past-login',
+                cwd: otherProject,
                 derivedTitle: 'Fix the login form',
                 updatedAt: 1_000,
                 messages: [
@@ -114,14 +116,16 @@ describe('native sessions', () => {
     await versions.next()
 
     await client.sessions.list({})
+    await client.sessions.search({term: 'stacktrace', everywhere: true})
     await versions.next()
-    const found = await client.sessions.search({term: 'stacktrace'})
+    await versions.next()
+    const found = await client.sessions.search({term: 'stacktrace', everywhere: true})
 
     expect(found.sessions).toEqual([
       expect.objectContaining({
         title: 'Fix the login form',
         excerpt: expect.stringContaining('stacktrace'),
-        resume: expect.stringMatching(/ && 'engine' 'past-login'$/),
+        resume: `cd '${otherProject}' && 'engine' 'past-login'`,
       }),
     ])
   })
