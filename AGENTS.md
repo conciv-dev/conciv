@@ -142,6 +142,11 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   app or a plugin) is tested in a real browser on the kit's browser `mount` (`@conciv/plugin-testkit/browser`);
   happy-dom is for tests that mount nothing (functions, models, reducers), as opencode
   (`_ref/opencode/packages/app/happydom.ts`).
+- A framework app under e2e/ holds ONE test: the user signs in and the widget opens with no error in that framework.
+  It gets a second test only for something that broke in that framework, and the test title or its ledger row names
+  what broke. Behaviour that needs the real built widget in a real browser but is not about a framework (reload, real
+  windows and downloads, the file chooser, focus between the host page and the widget, real CLIs, the CLI binary) is
+  tested once, in one host app, never per framework.
 - Budgets (`conciv/test-file-budget`): never more test files than source files in a package; a node or happy-dom
   test lives beside the source it tests; one browser-mode file per package (add a `describe`, never a second file);
   a test file is at most 1,000 lines. The app is the one exception, as opencode's keeper suites

@@ -40,6 +40,12 @@ The file name picks the runner. `conciv()` (`@conciv/unplugin`) sets the three v
 A behaviour lives in the cheapest place that can prove it, and only there: node before happy-dom, happy-dom before
 browser mode, browser mode before e2e. A more expensive place never proves it again; it proves the wiring.
 
+e2e per framework, ruled 2026-11-22 by the maintainer: "A framework app under e2e/ holds ONE test: the user signs in
+and the widget opens with no error in that framework. It gets a second test only for something that broke in that
+framework, and the test title or its ledger row names what broke. Behaviour that needs the real built widget in a real
+browser but is not about a framework (reload, real windows and downloads, the file chooser, focus between the host
+page and the widget, real CLIs, the CLI binary) is tested once, in one host app, never per framework."
+
 Who may mount the app, ruled 2026-11-20, as opencode (`_ref/opencode/packages/gui-plugins/AGENTS.md`, Tests: "UI
 behavior is proven by the app e2e keeper suites"; its plugin packages hold only machine, tool and rpc tests):
 
