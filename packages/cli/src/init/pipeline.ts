@@ -40,7 +40,13 @@ type CommandOutcome = {code: number; output: string}
 export function execFileOutcome(
   bin: string,
   args: string[],
-  options: {cwd: string; env?: NodeJS.ProcessEnv; timeout?: number; started?: (pid: number) => string | null},
+  options: {
+    cwd: string
+    env?: NodeJS.ProcessEnv
+    timeout?: number
+    started?: (pid: number) => string | null
+    signal?: AbortSignal
+  },
   onLine: (line: string) => void,
 ): Promise<CommandOutcome> {
   return new Promise((settle, reject) => {
@@ -49,7 +55,15 @@ export function execFileOutcome(
       env: options.env,
       timeout: options.timeout,
       killSignal: 'SIGKILL',
+      detached: options.signal !== undefined,
     })
+    const endGroup = (): void => {
+      if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return
+      process.kill(-child.pid, 'SIGKILL')
+    }
+    options.signal?.addEventListener('abort', endGroup, {once: true})
+    child.on('close', () => options.signal?.removeEventListener('abort', endGroup))
+    if (options.signal?.aborted) endGroup()
     const refused = child.pid === undefined ? null : (options.started?.(child.pid) ?? null)
     if (refused !== null) {
       child.kill('SIGKILL')
@@ -173,10 +187,10 @@ export type RunSettings = {
   yes: boolean
   dryRun: boolean
   backup: (file: FileBackup) => void
-  interrupt: (recover: () => void) => () => void
+  signal: AbortSignal
 }
 
-export type InitContext = Omit<RunSettings, 'interrupt'> & {
+export type InitContext = RunSettings & {
   report: (line: string) => void
   note: (note: StepNote) => void
   feed: (line: string) => void
@@ -202,7 +216,7 @@ export type InitResult =
   | {outcome: 'planned'; plan: string}
   | {outcome: 'completed'; steps: LedgerEntry[]; next: string[]}
 
-type SpawnOptions = {timeout: number; started: (pid: number) => string | null}
+type SpawnOptions = {timeout?: number; started?: (pid: number) => string | null; signal?: AbortSignal}
 
 export type SpawnBin = (
   bin: string,
@@ -232,12 +246,12 @@ function spawnBin(
   onLine: (line: string) => void,
   options?: SpawnOptions,
 ): Promise<CommandOutcome> {
-  return execFileOutcome(bin, args, {cwd, timeout: options?.timeout, started: options?.started}, onLine)
+  return execFileOutcome(bin, args, {cwd, ...options}, onLine)
 }
 
 function defaultRuntime(): InitRuntime {
   return {
-    addDependency: addWithNypm,
+    addDependency: addWithNypm(spawnBin),
     spawn: spawnBin,
     prompts: clackPrompts,
     env: {PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? homedir()},
@@ -322,7 +336,16 @@ async function planRows(steps: InitStep[], ctx: InitContext): Promise<PlanRow[]>
 }
 
 function quietContext(cwd: string, yes: boolean): InitContext {
-  return {cwd, yes, dryRun: true, report: () => {}, note: () => {}, backup: () => {}, feed: () => {}}
+  return {
+    cwd,
+    yes,
+    dryRun: true,
+    signal: new AbortController().signal,
+    report: () => {},
+    note: () => {},
+    backup: () => {},
+    feed: () => {},
+  }
 }
 
 export async function runInit(options: InitOptions, overrides: Partial<InitRuntime> = {}): Promise<InitResult> {
@@ -365,24 +388,26 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
     return {outcome: 'planned', plan: approved.plan}
   }
   const backups = guardBackups()
+  const interruption = new AbortController()
+  const releaseInterrupt = onInterrupt(() => {
+    interruption.abort()
+    backups.restore()
+    runtime.output.cancelled('Interrupted — your config was restored.')
+    runtime.exit(130)
+  })
   const settings: RunSettings = {
     cwd: options.cwd,
     yes: options.yes,
     dryRun: false,
     backup: backups.remember,
-    interrupt: (recover) =>
-      onInterrupt(() => {
-        recover()
-        backups.restore()
-        runtime.output.cancelled('Interrupted — your config was restored.')
-        runtime.exit(130)
-      }),
+    signal: interruption.signal,
   }
   const entries = await runSteps(
     stepList(detected, approved.selections, runtime, hubAgents(found)),
     settings,
     runtime.output,
   )
+  releaseInterrupt()
   backups.release()
   const next = nextSteps(detected.packageManager)
   emitOutro(runtime.output, entries, next)
@@ -405,10 +430,9 @@ export async function runSteps(steps: InitStep[], settings: RunSettings, output:
 
 async function runOne(step: InitStep, settings: RunSettings, output: InitOutput): Promise<LedgerEntry> {
   const emissions: Emission[] = []
-  const {interrupt, ...base} = settings
   const line = output.step(step.running)
   const ctx: InitContext = {
-    ...base,
+    ...settings,
     report: (text) => {
       emissions.push({kind: 'line', text})
     },
@@ -419,10 +443,11 @@ async function runOne(step: InitStep, settings: RunSettings, output: InitOutput)
       line.line(text)
     },
   }
-  const release = interrupt(() => {
+  const interrupted = (): void => {
     line.settle({status: 'skipped', summary: `${step.title} — interrupted`})
-  })
-  const entry = await settleStep(step, ctx).finally(release)
+  }
+  settings.signal.addEventListener('abort', interrupted, {once: true})
+  const entry = await settleStep(step, ctx).finally(() => settings.signal.removeEventListener('abort', interrupted))
   line.settle({status: entry.status, summary: stepSummary(step, entry)})
   for (const emission of emissions) emit(output, emission)
   return entry

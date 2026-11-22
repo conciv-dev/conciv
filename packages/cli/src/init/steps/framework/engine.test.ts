@@ -108,6 +108,7 @@ module.exports = {
         cwd: project,
         yes: true,
         dryRun: false,
+        signal: new AbortController().signal,
         backup: () => {},
         report: () => {},
         note: () => {},
