@@ -21,6 +21,7 @@
   "dependencies": {
     "@changesets/parse": "^1.0.0",
     "citty": "catalog:",
+    "es-toolkit": "catalog:",
     "execa": "^10.2.1",
     "js-yaml": "catalog:",
     "minimatch": "10.2.6",

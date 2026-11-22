@@ -1,5 +1,6 @@
 import {readdirSync, readFileSync} from 'node:fs'
 import {dirname, join, relative} from 'node:path'
+import {chunk} from 'es-toolkit'
 import {load} from 'js-yaml'
 import {minimatch} from 'minimatch'
 import {z} from 'zod'
@@ -158,4 +159,17 @@ export function transitiveDependents(graph: Map<string, string[]>, target: strin
     }
   }
   return seen
+}
+
+export const COMPILER_LIMIT = 4
+
+export async function mapInChunks<Item, Result>(
+  items: Item[],
+  size: number,
+  map: (item: Item) => Promise<Result>,
+): Promise<Result[]> {
+  return chunk(items, size).reduce<Promise<Result[]>>(
+    async (done, group) => [...(await done), ...(await Promise.all(group.map(map)))],
+    Promise.resolve([]),
+  )
 }

@@ -3,7 +3,7 @@ import {readFile} from 'node:fs/promises'
 import {join, relative, resolve} from 'node:path'
 import {execa} from 'execa'
 import {z} from 'zod'
-import {findOwner, readWorkspacePackages, type WorkspacePackage} from './workspace.ts'
+import {COMPILER_LIMIT, findOwner, mapInChunks, readWorkspacePackages, type WorkspacePackage} from './workspace.ts'
 
 const TYPESCRIPT_PATHSPECS = ['*.ts', '*.tsx', '*.mts', '*.cts']
 const PRESET_PREFIX = '@conciv/tsconfig/'
@@ -41,12 +41,10 @@ export async function assertTypecheckCoversTrackedFiles(cwd: string): Promise<vo
     }),
     (entry) => entry.owner,
   )
-  const violations = await Promise.all(
-    [...filesByPackage].map(([pkg, entries]) =>
-      packageViolations(
-        pkg,
-        entries.map((entry) => entry.path),
-      ),
+  const violations = await mapInChunks([...filesByPackage], COMPILER_LIMIT, ([pkg, entries]) =>
+    packageViolations(
+      pkg,
+      entries.map((entry) => entry.path),
     ),
   )
   const messages = violations.flat().toSorted()
@@ -97,7 +95,7 @@ async function uncheckedFiles(pkg: WorkspacePackage, files: string[]): Promise<s
   if (script === undefined) return [`${pkg.relativeDir}: has TypeScript files but no "typecheck" script`]
   const projects = typecheckProjects(script)
   if (projects.length === 0) return [`${pkg.relativeDir}: "typecheck" script runs no "tsc -p <tsconfig>"`]
-  const checked = await Promise.all(projects.map((project) => listCheckedFiles(pkg.dir, resolve(pkg.dir, project))))
+  const checked = await mapInChunks(projects, 1, (project) => listCheckedFiles(pkg.dir, resolve(pkg.dir, project)))
   const covered = new Set(checked.flat())
   return files.filter((file) => !covered.has(file)).map((file) => `${pkg.relativeDir}/${file}: not checked`)
 }

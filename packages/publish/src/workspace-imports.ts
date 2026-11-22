@@ -4,7 +4,7 @@ import {isAbsolute, join, relative, resolve} from 'node:path'
 import {execa} from 'execa'
 import {z} from 'zod'
 import {typecheckProjects} from './typecheck-coverage.ts'
-import {findOwner, readWorkspacePackages, type WorkspacePackage} from './workspace.ts'
+import {COMPILER_LIMIT, findOwner, mapInChunks, readWorkspacePackages, type WorkspacePackage} from './workspace.ts'
 
 const SOURCE_EXTENSION = /\.(?:[cm]?[jt]s|[jt]sx)$/
 const BUILD_CONFIG = /^(?:tsdown|vite)\.config\.[cm]?[jt]s$/
@@ -121,27 +121,21 @@ type ProgramFile = {path: string; owner: WorkspacePackage; built: boolean}
 export async function assertTypeTasksDependOnDistReads(cwd: string): Promise<void> {
   const root = await realpath(cwd)
   const packages = await readWorkspacePackages(root)
-  const violations = await Promise.all(
-    TYPE_TASKS.map(async (taskName) => {
-      const ordered = await readTaskOrder(root, taskName)
-      const perPackage = await Promise.all(
-        packages.map(async (pkg) => {
-          const task = `${readName(pkg)}#${taskName}`
-          const before = ordered.get(task) ?? new Set<string>()
-          const reads = await readDistReads(root, packages, pkg, pkg.manifest.scripts?.[taskName])
-          return reads.flatMap((name) => {
-            const read = packages.find(
-              (other) => readName(other) === name && other.manifest.scripts?.build !== undefined,
-            )
-            if (read === undefined) return []
-            const needed = `${name}#${readTypesTask(read)}`
-            return before.has(needed) ? [] : [`${task} reads ${name} dist but does not depend on ${needed}`]
-          })
-        }),
-      )
-      return perPackage.flat()
-    }),
-  )
+  const violations = await mapInChunks(TYPE_TASKS, 1, async (taskName) => {
+    const ordered = await readTaskOrder(root, taskName)
+    const perPackage = await mapInChunks(packages, COMPILER_LIMIT, async (pkg) => {
+      const task = `${readName(pkg)}#${taskName}`
+      const before = ordered.get(task) ?? new Set<string>()
+      const reads = await readDistReads(root, packages, pkg, pkg.manifest.scripts?.[taskName])
+      return reads.flatMap((name) => {
+        const read = packages.find((other) => readName(other) === name && other.manifest.scripts?.build !== undefined)
+        if (read === undefined) return []
+        const needed = `${name}#${readTypesTask(read)}`
+        return before.has(needed) ? [] : [`${task} reads ${name} dist but does not depend on ${needed}`]
+      })
+    })
+    return perPackage.flat()
+  })
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
   throw new Error(
@@ -177,8 +171,8 @@ async function readDistReads(
   script: string | undefined,
 ): Promise<string[]> {
   if (script === undefined) return []
-  const traces = await Promise.all(
-    typecheckProjects(script).map((project) => traceProgram(pkg.dir, resolve(pkg.dir, project))),
+  const traces = await mapInChunks(typecheckProjects(script), 1, (project) =>
+    traceProgram(pkg.dir, resolve(pkg.dir, project)),
   )
   const lines = [...new Set(traces.flat())]
   const resolutions = lines.flatMap((line) => {
