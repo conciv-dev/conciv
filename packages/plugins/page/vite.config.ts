@@ -16,8 +16,8 @@ const rpcFromPackage: Plugin = {
   },
 }
 
-export default defineConfig({
-  plugins: [rpcFromPackage, UnoCSS(), solid(), concivTest()],
+export default defineConfig(({mode}) => ({
+  plugins: [rpcFromPackage, ...(mode === 'test' ? [] : [UnoCSS()]), solid(), concivTest()],
   build: {
     lib: {
       entry: {
@@ -33,4 +33,4 @@ export default defineConfig({
     emptyOutDir: false,
     sourcemap: true,
   },
-})
+}))

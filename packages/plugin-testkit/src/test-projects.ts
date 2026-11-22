@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs'
+import {readFileSync, readdirSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {dirname, join} from 'node:path'
 import type {Plugin, UserConfig} from 'vite'
@@ -6,7 +6,6 @@ import {configDefaults, type TestProjectInlineConfiguration} from 'vitest/config
 import type {BrowserCommandContext} from 'vitest/node'
 import type {Page} from 'playwright'
 import solidPlugin from 'vite-plugin-solid'
-import UnoCSS from 'unocss/vite'
 import {playwright} from '@vitest/browser-playwright'
 import {z} from 'zod'
 import type {TestLLM} from '@conciv/harness-testkit'
@@ -110,8 +109,30 @@ function kitDefaults(test: AuthorTest = {}): AuthorTest {
   }
 }
 
-function appUnoConfig(): string {
-  return join(dirname(createRequire(import.meta.url).resolve('@conciv/app/package.json')), 'uno.config.ts')
+const UTILITY_SHEETS = new Set(['virtual:uno.css', '/__uno.css'])
+
+function builtWidgetSheet(): string {
+  const assets = join(dirname(createRequire(import.meta.url).resolve('@conciv/app/package.json')), 'dist', 'assets')
+  const sheets = readdirSync(assets).filter((file) => file.startsWith('index-') && file.endsWith('.css'))
+  const [sheet] = sheets
+  if (sheet === undefined || sheets.length > 1) {
+    throw new Error(`expected one built stylesheet in ${assets}, found ${sheets.length}: build @conciv/app first`)
+  }
+  return join(assets, sheet)
+}
+
+function builtStyles(): Plugin {
+  let sheet: string | undefined
+  return {
+    name: 'conciv:test-built-styles',
+    enforce: 'pre',
+    resolveId(source) {
+      const [path, query] = source.split('?')
+      if (path === undefined || !UTILITY_SHEETS.has(path)) return null
+      sheet ??= builtWidgetSheet()
+      return query === undefined ? sheet : `${sheet}?${query}`
+    },
+  }
 }
 
 function engineModulesInNode(): Plugin {
@@ -399,7 +420,7 @@ function hasServingPlugin(option: unknown, name: string): boolean {
 }
 
 function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineConfiguration[] {
-  const uno = hasServingPlugin(authorPlugins, 'unocss:config') ? [] : [UnoCSS({configFile: appUnoConfig()})]
+  const styles = builtStyles()
   const solid = hasServingPlugin(authorPlugins, 'solid') ? [] : [solidPlugin()]
   const testable = testablePlugins()
   const byName = pluginsByName(testable)
@@ -415,7 +436,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
     browsers: BrowserName[],
   ): TestProjectInlineConfiguration => ({
     extends: true,
-    plugins: [...uno, ...solid, engines.plugin, byName],
+    plugins: [styles, ...solid, engines.plugin, byName],
     server: {fs: {strict: false}},
     resolve: {alias: [{find: ENGINE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
     optimizeDeps: {

@@ -23,8 +23,8 @@ const isExternal = (id: string): boolean => {
   return id === 'solid-js' || id === 'effect' || EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix))
 }
 
-export default defineConfig({
-  plugins: [UnoCSS(), solid(), concivTest()],
+export default defineConfig(({mode}) => ({
+  plugins: [...(mode === 'test' ? [] : [UnoCSS()]), solid(), concivTest()],
 
   define: {'define.amd': 'false'},
   build: {
@@ -40,4 +40,4 @@ export default defineConfig({
       external: isExternal,
     },
   },
-})
+}))
