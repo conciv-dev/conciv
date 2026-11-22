@@ -259,6 +259,26 @@ describe('refreshing the conversation', () => {
   })
 })
 
+describe('how full the model context is', () => {
+  test('after a reply the session menu shows the share of the context window used and a bar filled to it', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({}, {harnesses: [{id: 'engine', contextTokens: 24_000, contextWindow: 200_000}]})
+    await engine.reply(TestLLM.text('Counted'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Count the tokens')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('Counted')).toBeVisible()
+    expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
+    await user.click(screen.getByRole('button', {name: /, session options$/}))
+
+    const options = await screen.findByRole('dialog', {name: 'Session options'})
+    expect(await within(options).findByText('12%')).toBeVisible()
+    expect(within(options).getByText('24K / 200K')).toBeVisible()
+    expect(within(options).getByRole('progressbar', {name: 'Model context usage', value: {now: 12}})).toBeVisible()
+  })
+})
+
 describe('a conversation too long for the model', () => {
   test('the user compacts from the overflow row, watches it compact, and goes on after the Context compacted mark', async () => {
     const user = userEvent.setup()
