@@ -26,6 +26,22 @@ describe('scripted replies', () => {
   })
 })
 
+describe('a second engine on the same home', () => {
+  test("an engine started on another engine's home reads that home's global settings, and a project setting stays with its own project", async ({
+    launch,
+  }) => {
+    const first = await launch()
+    await first.engine.setting({scope: 'global', namespace: 'kit', key: 'theme', value: 'dark'})
+    await first.engine.setting({scope: 'project', namespace: 'kit', key: 'layout', value: 'wide'})
+
+    const second = await launch({}, {home: first.engine.home})
+
+    expect(second.engine.home).toBe(first.engine.home)
+    expect((await second.client.settings.all({scope: 'global', namespace: 'kit'})).value).toEqual({theme: 'dark'})
+    expect((await second.client.settings.all({scope: 'project', namespace: 'kit'})).value).toEqual({})
+  })
+})
+
 describe('the engine clock', () => {
   test('an engine on the real clock refuses every clock call with a plain message', async ({engine}) => {
     await expect(engine.clock.advance(Promise.resolve())).rejects.toThrow(

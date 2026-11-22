@@ -10,7 +10,7 @@ import {isolatedEnv} from './isolated-env.js'
 
 const CLI_DEADLINE_MS = 60_000
 
-export type CliEngine = {address: {apiBase: string; token: string}}
+export type CliEngine = {address: {apiBase: string; token: string}; home: string}
 
 export type CliOptions = {cwd?: string; env?: Record<string, string>; engine?: CliEngine}
 
@@ -36,7 +36,7 @@ async function closedPort(): Promise<string> {
 async function engineEnv(options: CliOptions): Promise<Record<string, string>> {
   if (options.engine !== undefined) {
     const {apiBase, token} = options.engine.address
-    return {CONCIV_PORT: new URL(apiBase).port, CONCIV_TOKEN: token}
+    return {CONCIV_PORT: new URL(apiBase).port, CONCIV_TOKEN: token, CONCIV_HOME: options.engine.home}
   }
   if (options.cwd !== undefined || options.env?.CONCIV_PORT !== undefined) return {}
   return {CONCIV_PORT: await closedPort()}
@@ -72,6 +72,7 @@ function runChild(args: string[], options: CliOptions, home: string, reach: Reco
 }
 
 export async function cli(args: string[], options: CliOptions = {}): Promise<CliRun> {
+  if (options.engine !== undefined) return runChild(args, options, options.engine.home, await engineEnv(options))
   // oxlint-disable-next-line conciv/no-hand-made-temp-dir -- the CLI call's own home, as opencode's cli test helper: removed in the finally below
   const home = mkdtempSync(join(tmpdir(), 'conciv-cli-'))
   try {

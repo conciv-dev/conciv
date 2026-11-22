@@ -33,6 +33,7 @@ A scripted harness takes `sessions`, plain data named as the product's `HarnessS
 ## Side Effects
 
 - Each engine makes a `conciv-kit-*` temp folder as its project root and binds a port on `127.0.0.1`; `stop` closes both.
+- `engine.home` is the engine's conciv home. `createEngine(config, {home: engine.home})` starts a second engine on it, so both share global settings and the home's engine registry. `cli(args, {engine})` runs the CLI on that home.
 
 ## Verification
 

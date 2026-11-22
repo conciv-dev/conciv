@@ -2,7 +2,7 @@ import type {Outside, OutsideAgent, OutsideReply, TestLLM} from '@conciv/harness
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {Engine, EngineAddress, EngineSetting, EngineStart, ToolFailure} from './engine.js'
 
-export type EngineHandle = {id: string; sessionId: string; address: EngineAddress; root: string}
+export type EngineHandle = {id: string; sessionId: string; address: EngineAddress; root: string; home: string}
 
 export type EngineCommands = {
   concivCreateEngine: (config: ConcivConfig, options: EngineStart, scope: 'test' | 'file') => Promise<EngineHandle>

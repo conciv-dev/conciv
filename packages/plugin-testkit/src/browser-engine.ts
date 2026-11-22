@@ -81,5 +81,6 @@ export async function createEngine(config: ConcivConfig = {}, options: EngineSta
     write: (path, content) => commands.concivWrite(handle.id, path, content),
     address: handle.address,
     root: handle.root,
+    home: handle.home,
   }
 }

@@ -54,6 +54,7 @@ export type EngineStart = {
   port?: 'connect'
   token?: string
   tokensPerSecond?: number
+  home?: string
 }
 
 export type HarnessEngineStart = EngineStart & {harness?: HarnessAdapter}
@@ -104,6 +105,7 @@ export type HarnessEngine = {
   requests: () => Promise<ModelRequest[]>
   address: HarnessEngineAddress
   root: string
+  home: string
   opened: () => Promise<HarnessEngineOpened[]>
   event: (type: string) => Promise<HarnessEngineEventWait>
   rpc: HarnessEngineRpc
@@ -333,8 +335,8 @@ function pluginRpc(engine: Engine): HarnessEngineRpc {
   }
 }
 
-function engineHome(root: string): string {
-  return join(concivStateDir(root), 'home')
+function engineHome(root: string, options: HarnessEngineStart): string {
+  return options.home ?? join(concivStateDir(root), 'home')
 }
 
 function isolatedProvider(root: string, options: HarnessEngineStart): ConfigProvider.ConfigProvider {
@@ -342,7 +344,7 @@ function isolatedProvider(root: string, options: HarnessEngineStart): ConfigProv
   mkdirSync(temporary, {recursive: true})
   return ConfigProvider.fromEnvRecord(
     {
-      ...isolatedEnv(process.env, engineHome(root), temporary),
+      ...isolatedEnv(process.env, engineHome(root, options), temporary),
       ...options.env,
       ...(options.fs?.filewatcher === true ? {} : {CONCIV_DISABLE_FILEWATCHER: 'true'}),
     },
@@ -432,7 +434,7 @@ function bootApp(
   previous: {started: Started; sessionId: string} | undefined,
   connectPort?: number,
 ): Promise<Started> {
-  const home = engineHome(root)
+  const home = engineHome(root, options)
   return start({
     options: {
       ...config,
@@ -590,6 +592,7 @@ export async function createHarnessEngine(
     requests: async () => script.requests(),
     address: {apiBase, token: first.agentToken},
     root: realpathSync(project),
+    home: engineHome(root, options),
     opened: async () => [...opened],
     event: (type) => eventWait(engine, type, waits),
     rpc: pluginRpc(engine),

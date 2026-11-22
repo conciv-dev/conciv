@@ -268,7 +268,13 @@ function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
           testPath: context.testPath,
           scope,
         }
-        return {id, sessionId: started.engine.session.id, address: started.engine.address, root: started.engine.root}
+        return {
+          id,
+          sessionId: started.engine.session.id,
+          address: started.engine.address,
+          root: started.engine.root,
+          home: started.engine.home,
+        }
       },
       concivStopEngine: (_context, engineId) => stop(engineId),
       concivStopFileEngines: async (context) => {
