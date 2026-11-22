@@ -12,6 +12,10 @@ tester.run('no-locator-poll', rule, {
     {name: 'a web-first assertion', code: 'await expect(row).toHaveText("done")'},
     {name: 'a poll over a value that is not a locator read', code: 'await expect.poll(() => runs.length).toBe(2)'},
     {name: 'a locator read outside a poll', code: 'const text = await row.textContent()'},
+    {
+      name: 'a poll over a computed member call named like a locator read',
+      code: 'await expect.poll(async () => await row[textContent]()).toBe("done")',
+    },
   ],
   invalid: [
     {

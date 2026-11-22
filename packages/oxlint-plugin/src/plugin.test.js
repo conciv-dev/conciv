@@ -137,6 +137,12 @@ tester.run('user-event-only', plugin.rules['user-event-only'], {
       errors: [{messageId: 'fireEvent'}],
     },
     {
+      name: 'fireEvent imported under another name',
+      code: "import {fireEvent as fe} from '@solidjs/testing-library'\nfe.click(button)",
+      filename: domTest,
+      errors: [{messageId: 'fireEvent'}],
+    },
+    {
       name: 'fireEvent through a namespace',
       code: "import * as dom from '@testing-library/dom'\ndom.fireEvent.click(button)",
       filename: domTest,

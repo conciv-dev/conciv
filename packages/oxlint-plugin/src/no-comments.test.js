@@ -12,6 +12,7 @@ const taggedDoc = '/** @param id the run */\nexport function load(id) {}'
 tester.run('no-comments', rule, {
   valid: [
     {name: 'a tool directive', code: '// @ts-expect-error\nconst a = 1'},
+    {name: 'a lint directive', code: '/* eslint-disable no-console */\nconst a = 1'},
     {name: 'a tagged doc comment on a declaration, kept', code: taggedDoc, options: keepDocs},
     {
       name: 'a tagged doc comment on an interface member, kept',

@@ -37,6 +37,16 @@ tester.run('router-idioms', rule, {
       filename: otherFile,
     },
     {
+      name: 'a spread element beside falling-back fields in a search schema',
+      code: 'const docsSearchSchema = z.object({...baseFields, page: z.number().catch(1)})',
+      filename: otherFile,
+    },
+    {
+      name: 'a computed key in a search schema',
+      code: 'const docsSearchSchema = z.object({[pageKey]: z.number()})',
+      filename: otherFile,
+    },
+    {
       name: 'a field that is not a zod chain',
       code: 'const docsSearchSchema = z.object({page: pageSchema})',
       filename: otherFile,
@@ -72,6 +82,12 @@ tester.run('router-idioms', rule, {
       code: "const route = {validateSearch: z.object({'tab-id': z.string().optional()})}",
       filename: otherFile,
       errors: [{messageId: 'searchFieldThrows', data: {field: 'tab-id'}}],
+    },
+    {
+      name: 'validateSearch naming a schema whose name does not end in SearchSchema',
+      code: 'const settings = z.object({page: z.number()})\nconst route = {validateSearch: settings}',
+      filename: otherFile,
+      errors: [{messageId: 'searchFieldThrows', data: {field: 'page'}}],
     },
     {
       name: 'validateSearch naming a search schema, reported once',
