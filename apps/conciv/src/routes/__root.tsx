@@ -4,9 +4,8 @@ import {
   retainSearchParams,
   stripSearchParams,
   useMatchRoute,
-  useParams,
+  getRouteApi,
   useRouter,
-  useSearch,
   type AnyRouter,
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@conciv/client'
@@ -102,9 +101,9 @@ function RootComponent() {
 
 function AppRoot() {
   const app = Route.useRouteContext()()
-  const panelParams = useParams({from: '/panel/$sessionId', shouldThrow: false})
-  const pipParams = useParams({from: '/pip/$sessionId', shouldThrow: false})
-  const quickSearch = useSearch({from: '/quick', shouldThrow: false})
+  const panelParams = getRouteApi('/panel/$sessionId').useParams({shouldThrow: false})
+  const pipParams = getRouteApi('/pip/$sessionId').useParams({shouldThrow: false})
+  const quickSearch = getRouteApi('/quick').useSearch({shouldThrow: false})
   const notices = useNotices()
 
   const [politeMessage, setPoliteMessage] = createSignal('')
