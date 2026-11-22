@@ -14,8 +14,6 @@ test.describe('the widget on a vite solid page', () => {
   }) => {
     const failures = collectFailures(page)
     await loginWidget(page)
-    await page.getByRole('button', {name: /conciv chat$/}).click()
-    await page.getByRole('tab', {name: 'Chat'}).click()
     await expectWidgetBoots(page, failures)
     await expect(page.getByText('live line first')).toBeVisible()
     const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
