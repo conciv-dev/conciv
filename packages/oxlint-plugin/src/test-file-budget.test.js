@@ -8,32 +8,25 @@ RuleTester.describe = describe
 RuleTester.it = it
 
 const tester = new RuleTester()
-const fixturePackage = fileURLToPath(new URL('./fixtures/test-file-budget', import.meta.url))
-const packageDirectory = relative(process.cwd(), fixturePackage)
+const within = fileURLToPath(new URL('./fixtures/test-file-budget/within', import.meta.url))
+const over = fileURLToPath(new URL('./fixtures/test-file-budget/over', import.meta.url))
 const code = 'export {}'
 
 tester.run('test-file-budget', rule, {
   valid: [
-    {
-      name: 'a test file that is not the first of an over-budget package',
-      code,
-      filename: `${fixturePackage}/test/b.test.ts`,
-    },
-    {name: 'a package within a raised budget', code, filename: `${fixturePackage}/test/a.test.ts`, options: [{max: 3}]},
-    {name: 'a source file', code, filename: `${fixturePackage}/src/view.ts`},
+    {name: 'a browser test beside its source', code, filename: `${within}/src/view.browser.test.ts`},
+    {name: 'a fourth test file in a package of four sources', code, filename: `${within}/test/a.test.ts`},
+    {name: 'a test file that is not the first of an over-budget package', code, filename: `${over}/test/a.test.ts`},
+    {name: 'a source file', code, filename: `${over}/src/view.ts`},
   ],
   invalid: [
     {
-      name: 'the first test file under test/ past the budget',
+      name: 'browser tests beside their sources that push the test files past the source files',
       code,
-      filename: `${fixturePackage}/test/a.test.ts`,
-      errors: [{messageId: 'overBudget', data: {packageDirectory, count: 3, max: 2}}],
-    },
-    {
-      name: 'a colocated test file with no source beside it',
-      code,
-      filename: `${fixturePackage}/src/view.test.ts`,
-      errors: [{messageId: 'overSources', data: {packageDirectory, count: 1, sources: 0}}],
+      filename: `${over}/src/list.browser.test.ts`,
+      errors: [
+        {messageId: 'overSources', data: {packageDirectory: relative(process.cwd(), over), count: 3, sources: 2}},
+      ],
     },
   ],
 })

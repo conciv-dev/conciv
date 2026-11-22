@@ -460,30 +460,6 @@
       }
     },
     {
-      "files": ["packages/mascot/**"],
-      "rules": {
-        "conciv/test-file-budget": ["error", {"max": 4}]
-      }
-    },
-    {
-      "files": ["packages/core/**"],
-      "rules": {
-        "conciv/test-file-budget": ["error", {"max": 4}]
-      }
-    },
-    {
-      "files": ["packages/plugin-host/**"],
-      "rules": {
-        "conciv/test-file-budget": ["error", {"max": 39}]
-      }
-    },
-    {
-      "files": ["packages/plugin/**"],
-      "rules": {
-        "conciv/test-file-budget": ["error", {"max": 3}]
-      }
-    },
-    {
       "files": ["packages/plugin-host/src/core/session/instruction-state.ts"],
       "rules": {
         "conciv/banned-vocabulary": "off"
@@ -493,18 +469,6 @@
       "files": ["packages/plugin-host/src/**"],
       "rules": {
         "require-yield": "off"
-      }
-    },
-    {
-      "files": ["packages/ui-kit-chat/**"],
-      "rules": {
-        "conciv/test-file-budget": ["error", {"max": 5}]
-      }
-    },
-    {
-      "files": ["apps/conciv/**"],
-      "rules": {
-        "conciv/test-file-budget": ["error", {"max": 20}]
       }
     },
     {

@@ -221,7 +221,7 @@ One file per rule source, beside it, through oxlint's own `RuleTester` (`oxlint/
 | plugin-view-reads-through-query           | written: `packages/oxlint-plugin/src/plugin-view-reads-through-query.test.js` › plugin-view-reads-through-query                                                                                                                                                        |
 | no-teardown-hooks (hook branches)         | written: `packages/oxlint-plugin/src/no-teardown-hooks.test.js` › no-teardown-hooks (hook rows)                                                                                                                                                                        |
 | router-idioms                             | written: `packages/oxlint-plugin/src/router-idioms.test.js` › router-idioms; expected red: the Solid router case, router-idioms.js:3 checks only '@tanstack/react-router', so a bare useSearch from '@tanstack/solid-router' in apps/conciv/src/routes is not reported |
-| test-file-budget                          | written: `packages/oxlint-plugin/src/test-file-budget.test.js` › test-file-budget (rule `test-file-budget.js:84,96`; fixture package kept out of repo lint by `.oxlintrc.json` ignorePatterns)                                                                         |
+| test-file-budget                          | written: `packages/oxlint-plugin/src/test-file-budget.test.js` › test-file-budget (rule `test-file-budget.js:77`; fixture packages kept out of repo lint by `.oxlintrc.json` ignorePatterns)                                                                           |
 
 ## Summary
 
