@@ -138,7 +138,7 @@ describe('remove entries in the config', () => {
     },
     {
       case: 'a remove entry of * ahead of a plugin listed after it',
-      plugins: [greeter, '*', lister],
+      plugins: [greeter, '-*', lister],
       tool: 'greet_promise',
       input: {name: 'Ada'},
     },
