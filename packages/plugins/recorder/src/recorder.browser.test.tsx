@@ -11,10 +11,6 @@ describe('the user records the page and sends it to the agent', () => {
     const user = userEvent.setup()
     const engine = await createEngine({plugins: [['@conciv/plugin-recorder', {masking: 'inputs'}]]})
     await engine.reply(TestLLM.text('You typed a card number and paid'))
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
-    })
     render(() => (
       <form>
         <label>
@@ -24,10 +20,18 @@ describe('the user records the page and sends it to the agent', () => {
         <button type="button">Pay now</button>
       </form>
     ))
+    const cardNumber = screen.getByRole('textbox', {name: 'Card number'})
+    await realInput.click(cardNumber)
+    expect(cardNumber).toHaveFocus()
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}/recorder:recorder?open=true`]}),
+    })
 
-    await user.click(await screen.findByRole('tab', {name: 'Recorder'}))
+    expect(await screen.findByRole('tab', {name: 'Recorder', selected: true})).toBeVisible()
     expect(await screen.findByText('LIVE')).toBeVisible()
-    await realInput.type(screen.getByRole('textbox', {name: 'Card number'}), '4242')
+    expect(cardNumber).toHaveFocus()
+    await realInput.type(cardNumber, '4242')
     await realInput.click(screen.getByRole('button', {name: 'Pay now'}))
     await user.click(screen.getByRole('button', {name: 'Send to agent'}))
 
@@ -55,18 +59,21 @@ describe('the user records the page and sends it to the agent', () => {
     const replay = await screen.findByRole('dialog', {name: 'Screen recording replay'})
     expect(within(replay).getByText(/^\d+ actions? · \d+s$/)).toBeVisible()
     await user.click(within(replay).getByRole('button', {name: 'Close'}))
-    expect(screen.queryByRole('dialog', {name: 'Screen recording replay'})).not.toBeInTheDocument()
 
     await engine.write(`.conciv/recorder/recordings/${recordingId}.json`, '{"events": []}')
     await user.click(screen.getByRole('button', {name: 'Play'}))
+    expect(await screen.findByText('Nothing to replay in this recording.')).toBeVisible()
     const empty = await screen.findByRole('dialog', {name: 'Screen recording replay'})
-    expect(await within(empty).findByText('Nothing to replay in this recording.')).toBeVisible()
+    expect(replay).not.toBeInTheDocument()
+    expect(within(empty).getByText('Nothing to replay in this recording.')).toBeVisible()
     await user.click(within(empty).getByRole('button', {name: 'Close'}))
 
     await engine.write(`.conciv/recorder/recordings/${recordingId}.json`, 'not a recording')
     await user.click(screen.getByRole('button', {name: 'Play'}))
+    expect(await screen.findByText('Recording not found: it is no longer saved in this project.')).toBeVisible()
     const gone = await screen.findByRole('dialog', {name: 'Screen recording replay'})
-    expect(await within(gone).findByText('Recording not found: it is no longer saved in this project.')).toBeVisible()
+    expect(empty).not.toBeInTheDocument()
+    expect(within(gone).getByText('Recording not found: it is no longer saved in this project.')).toBeVisible()
   })
 })
 
