@@ -3,6 +3,7 @@ import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-t
 import type {ToolCaptureView} from '@conciv/protocol/element-capture-types'
 import type {ToolProps} from '@conciv/plugin/experimental'
 import {ToolDisplay, Trace, type TraceItem} from '@conciv/ui-kit-chat/tools'
+import {CaptureContext} from './captures.js'
 import {pageToolCards} from './cards.js'
 
 export type StoryCall = ToolProps & {id: string}
@@ -15,8 +16,13 @@ function pageCard(name: string) {
   return {render: pageToolCards.find((entry) => entry.tools.includes(name))?.card}
 }
 
-export function StoryTool(props: {call: StoryCall}): JSX.Element {
-  return <ToolDisplay {...props.call} render={pageCard} />
+export function StoryTool(props: {call: StoryCall; captures?: Record<string, ToolCaptureView>}): JSX.Element {
+  const lookup = (toolCallId: string) => props.captures?.[toolCallId]
+  return (
+    <CaptureContext.Provider value={lookup}>
+      <ToolDisplay {...props.call} render={pageCard} />
+    </CaptureContext.Provider>
+  )
 }
 
 export function storyCaptures(

@@ -1,6 +1,7 @@
-import {createContext, createMemo, type Accessor, type JSX} from 'solid-js'
+import {createContext, createMemo, useContext, type Accessor, type JSX} from 'solid-js'
 import {createTanstackQueryUtils, useQuery} from '@conciv/client'
 import {usePlugin} from '@conciv/plugin/experimental'
+import {useToolCallId} from '@conciv/ui-kit-chat/tools'
 import {Definition} from './rpc.js'
 import {SessionCapturesSchema, toolCaptureViews, type ToolCaptureView} from '@conciv/protocol/element-capture-types'
 
@@ -41,4 +42,13 @@ export const CaptureContext = createContext<CaptureLookup>(() => undefined)
 export function SessionCaptures(props: {sessionID?: string; children: JSX.Element}): JSX.Element {
   const lookup = useSessionCaptures(() => props.sessionID)
   return <CaptureContext.Provider value={lookup}>{props.children}</CaptureContext.Provider>
+}
+
+export function useToolCapture(): Accessor<ToolCaptureView | undefined> {
+  const lookup = useContext(CaptureContext)
+  const callId = useToolCallId()
+  return () => {
+    const id = callId()
+    return id === undefined ? undefined : lookup(id)
+  }
 }
