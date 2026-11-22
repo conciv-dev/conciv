@@ -358,7 +358,10 @@ function locationResponse<Data, Failure, Services>(data: Effect.Effect<Data, Fai
 }
 
 function pluginList(host: PluginHost, signal: AbortSignal | undefined) {
-  return host.runPromise(locationResponse(Plugin.Service.use((plugins) => plugins.list())), {signal})
+  return host.runPromise(
+    locationResponse(Plugin.awaitActivation.pipe(Effect.andThen(Plugin.Service.use((plugins) => plugins.list())))),
+    {signal},
+  )
 }
 
 function skillList(host: PluginHost, signal: AbortSignal | undefined) {
