@@ -168,7 +168,7 @@ describe('Escape keeps its place', () => {
 })
 
 describe('a toolbar tooltip', () => {
-  test('hovering a composer toolbar button shows its tooltip, and Escape closes it while the docked chat stays', async () => {
+  test('a composer toolbar tooltip shown by hover or by Tab focus closes on Escape while the docked chat stays', async () => {
     const engine = await createEngine()
     await mount({
       engine,
@@ -176,11 +176,22 @@ describe('a toolbar tooltip', () => {
       history: createEngineRouterHistory({initialEntries: ['/panel/latest']}),
     })
 
-    await browserUserEvent.hover(await screen.findByRole('button', {name: 'Add an attachment'}))
+    const attach = await screen.findByRole('button', {name: 'Add an attachment'})
+    await browserUserEvent.hover(attach)
     expect(await screen.findByRole('tooltip', {name: 'Add an attachment'})).toBeVisible()
     await browserUserEvent.keyboard('{Escape}')
     await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
     expect(screen.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+
+    await browserUserEvent.unhover(attach)
+    await browserUserEvent.click(screen.getByRole('textbox', {name: 'Message the conciv agent'}))
+    await browserUserEvent.tab()
+    await browserUserEvent.tab()
+    expect(attach).toHaveFocus()
+    expect(await screen.findByRole('tooltip', {name: 'Add an attachment'})).toBeVisible()
+    await browserUserEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+    expect(attach).toHaveFocus()
   })
 })
 
