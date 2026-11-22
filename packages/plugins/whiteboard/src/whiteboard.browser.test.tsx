@@ -589,7 +589,7 @@ describe('the user comments on an element of the page', () => {
 })
 
 describe('the user draws on the canvas', () => {
-  test('the user draws a rectangle with the canvas tools, it is saved to the shared board, and the agent reads it', async () => {
+  test('the user draws a rectangle with the canvas tools, it is saved to the shared board, the agent reads it, and real clicks still reach the chat composer and Settings', async () => {
     const user = userEvent.setup()
     await page.viewport(1280, 800)
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
@@ -616,11 +616,13 @@ describe('the user draws on the canvas', () => {
     })
     expect((await saved.arrived).data).toMatchObject({table: 'canvasElements', type: 'upsert'})
 
-    const input = screen.getByRole('textbox', {name: 'Message the conciv agent'})
-    await user.type(input, 'What did I draw?')
-    expect(input).toHaveFocus()
+    const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await realInput.click(input)
+    await expect.element(input).toHaveFocus()
+    await realInput.keyboard('What did I draw?')
+    await expect.element(input).toHaveFocus()
     const readTurn = await engine.event('session.execution.succeeded')
-    await user.keyboard('{Enter}')
+    await realInput.keyboard('{Enter}')
     await readTurn.arrived
 
     expect(await screen.findByText('I see the rectangle you drew')).toBeVisible()
@@ -631,6 +633,9 @@ describe('the user draws on the canvas', () => {
       success: true,
       result: {scope: 'live', elements: [{type: 'rectangle', isDeleted: false}]},
     })
+
+    await realInput.click(page.getByRole('link', {name: 'Settings'}))
+    await expect.element(page.getByRole('heading', {name: 'Settings'})).toBeVisible()
   })
 })
 
