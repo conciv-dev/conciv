@@ -50,6 +50,8 @@ function resetPaneFlex(row: HTMLDivElement | undefined): void {
   for (const el of row?.querySelectorAll<HTMLElement>('[data-conciv-qt-pane]') ?? []) el.style.flex = ''
 }
 
+const PANE_SESSIONS_SCOPE = {id: 'quick-pane-sessions'}
+
 type GutterDrag = {prev: HTMLElement; next: HTMLElement; startX: number; prevW: number; total: number}
 
 function createGutterDrag(): (e: PointerEvent) => void {
@@ -140,6 +142,7 @@ function QuickLayer(): JSX.Element {
   }
 
   const paneStartOptions = (startSession: StartSession) => ({
+    scope: PANE_SESSIONS_SCOPE,
     mutationFn: startSession,
     onSuccess: ({sessionId}: {sessionId: string}) => openPane(sessionId),
   })
@@ -176,14 +179,16 @@ function QuickLayer(): JSX.Element {
     }),
   )
 
+  const deletePaneSession = useMutation(() => ({
+    scope: PANE_SESSIONS_SCOPE,
+    mutationFn: (sessionId: string) => rpc.sessions.delete({sessionId}),
+    onSettled: (_outcome: unknown, _error: unknown, sessionId: string) => appData.invalidateSession(sessionId),
+  }))
+
   const closePane = (index: number) => {
     const ids = paneIds()
     const closed = ids[index]
-    if (closed)
-      void rpc.sessions
-        .delete({sessionId: closed})
-        .catch(() => {})
-        .then(() => appData.invalidateSession(closed))
+    if (closed) deletePaneSession.mutate(closed)
     const remaining = ids.filter((_, i) => i !== index)
     if (remaining.length === 0) {
       leaveScreen(router, closed)
