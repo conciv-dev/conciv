@@ -9,7 +9,7 @@ import {pastSessions} from '../test/fixtures/past-sessions.js'
 
 describe('find and switch sessions', () => {
   test('the user searches the sessions, switches to one and starts a new one', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.newSession('Alpha')
     await engine.newSession('Beta')
@@ -56,7 +56,7 @@ describe('find and switch sessions', () => {
 
 describe('a run in the list', () => {
   test('the picker marks the running session and names each harness, the user starts a new session, previews the running one, and hears the reply finish as the row stops running', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine({}, {harnesses: [{id: 'alpha'}, {id: 'beta'}]})
     await engine.reply(TestLLM.text('Done'))
     const gate = await engine.gate()
@@ -93,7 +93,7 @@ describe('a run in the list', () => {
 
 describe('paging the list', () => {
   test('the user moves past the first page of sessions and the next page loads', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     for (let index = 1; index <= 31; index += 1) await engine.newSession(`Session ${index}`)
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
