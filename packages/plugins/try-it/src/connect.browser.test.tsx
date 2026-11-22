@@ -6,7 +6,7 @@ import {createEngine} from '@conciv/plugin-testkit'
 import {mount} from '@conciv/plugin-testkit/browser'
 
 describe('connecting the widget to a local engine', () => {
-  test('a visitor copies the command and the agent prompt, starts the engine, sees Agent connected, and the widget binds', async () => {
+  test('a visitor copies the command and the agent prompt, starts the engine, sees Agent connected, and the widget binds to a session that greets them as connected', async () => {
     const user = userEvent.setup({delay: null})
     const token = crypto.randomUUID()
     await mount({plugins: [['@conciv/plugin-try-it', {token, probeMs: 100, holdMs: 1_000}]]})
@@ -41,9 +41,11 @@ describe('connecting the widget to a local engine', () => {
 
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
     expect(screen.queryByRole('heading', {name: 'Drive this page with your agent.'})).not.toBeInTheDocument()
+    expect(await screen.findByText('Agent connected. It’s driving this page from your machine.')).toBeVisible()
+    expect(screen.queryByText('How can I help you today?')).not.toBeInTheDocument()
   })
 
-  test('an engine already running on a connect port binds the widget at once, with no connect steps on screen', async () => {
+  test('an engine already running on a connect port binds the widget at once, with no connect steps on screen, and the session greets the user as connected', async () => {
     const token = crypto.randomUUID()
     await createEngine({}, {port: 'connect', token})
     await mount({plugins: [['@conciv/plugin-try-it', {token}]]})
@@ -51,6 +53,8 @@ describe('connecting the widget to a local engine', () => {
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
     expect(screen.queryByRole('heading', {name: 'Drive this page with your agent.'})).not.toBeInTheDocument()
     expect(screen.queryByText('Agent connected')).not.toBeInTheDocument()
+    expect(await screen.findByText('Agent connected. It’s driving this page from your machine.')).toBeVisible()
+    expect(screen.queryByText('How can I help you today?')).not.toBeInTheDocument()
   })
 
   test('with no engine starting, the cover points to the quickstart once the slow wait has passed', async () => {
