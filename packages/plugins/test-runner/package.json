@@ -67,6 +67,7 @@
     "@conciv/uno-preset": "workspace:*",
     "@conciv/unplugin": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@playwright/test": "catalog:",
     "@solidjs/testing-library": "catalog:",
     "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
