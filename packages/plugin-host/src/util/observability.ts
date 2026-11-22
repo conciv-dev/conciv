@@ -1,5 +1,6 @@
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
-import {Effect, Layer, Logger, References, Schema} from 'effect'
+import * as OtelTracer from '@effect/opentelemetry/OtelTracer'
+import {Effect, Layer, Logger, Option, References, Schema} from 'effect'
 import {FetchHttpClient} from 'effect/http'
 import {OtlpExporter, OtlpSerialization} from 'effect/observability'
 import * as Logging from './observability/logging.js'
@@ -11,6 +12,7 @@ export const Options = Schema.Struct({
   client: Schema.optional(Schema.String),
   version: Schema.optional(Schema.String),
   channel: Schema.optional(Schema.String),
+  instance: Schema.optional(Schema.String),
 })
 export type Options = typeof Options.Type
 
@@ -19,6 +21,7 @@ export function layer(options: Options) {
     client: options.client ?? 'conciv',
     version: options.version ?? 'unknown',
     channel: options.channel ?? 'local',
+    instance: options.instance,
   }
   const local = Logger.layer(Logging.loggers(app.channel === 'local', app.channel), {mergeWithExisting: false}).pipe(
     Layer.provide(NodeFileSystem.layer),
@@ -42,3 +45,5 @@ export function layer(options: Options) {
     }),
   ).pipe(Layer.catchCause(() => local))
 }
+
+export const tracer = Effect.serviceOption(OtelTracer.OtelTracer).pipe(Effect.map(Option.getOrUndefined))

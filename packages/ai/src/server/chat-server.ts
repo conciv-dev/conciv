@@ -9,6 +9,7 @@ import {
   StreamProcessor,
   uiMessageToModelMessages,
   withTanstackMetadata,
+  type ChatMiddleware,
   type DebugConfig,
   type MetadataStore,
   type RunRecord,
@@ -17,6 +18,7 @@ import {
   type ToolCall,
 } from '@tanstack/ai'
 import {defineLock, InMemoryLockStore, withLocks} from '@tanstack/ai/locks'
+import {otelMiddleware, type OtelSpanInfo} from '@tanstack/ai/middlewares/otel'
 import {getPendingTurn} from '@tanstack/ai/adapter-internals'
 import {defineAIPersistence, reconstructChat, withPersistence, type MessageStore} from '@tanstack/ai-persistence'
 import {
@@ -42,13 +44,14 @@ import {type ChatMessage, type ModelMessage, CompactionMetadataSchema} from '@co
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {askingToolProvisioner, type AskPermission} from './image-tool-results.js'
 import {childCards, withoutChildCalls} from './child-cards.js'
-import {codeModeTools, readSecretRefusal, stoppedWith} from './code-mode.js'
+import {codeModeTools, readSecretRefusal, stoppedWith, tracedDriver} from './code-mode.js'
 import type {CodeDriver} from './quickjs-thread.js'
 import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
 import {localSandbox} from './local-sandbox.js'
 import {answeredAdapter, answeredMetadata, hookedRequest, type RequestHook} from './model-request.js'
 import {cloneDeepWith, isPlainObject} from 'es-toolkit'
+import {inSpan, streamInSpan, type SpanAttributes, type Tracer} from './spans.js'
 
 const COMPACTION: z.infer<typeof CompactionMetadataSchema> = {conciv: {compaction: true}}
 
@@ -211,6 +214,7 @@ export type ChatServerConfig = {
   log: (message: string) => void
   driver: CodeDriver | null
   askPermission: AskPermission
+  tracer: Tracer | undefined
 }
 
 const ThreadPageSchema = z.discriminatedUnion('truncated', [
@@ -288,6 +292,19 @@ function failedPlan(error: unknown): TurnPlan {
     expand: async (messages) => messages,
     providerMessages: async (messages) => messages,
     chunk: async (chunk) => [chunk],
+  }
+}
+
+function turnAttributes(turn: Turn): SpanAttributes {
+  return {'conciv.session.id': turn.threadId, 'conciv.run.id': turn.runId, 'conciv.turn.kind': turn.kind}
+}
+
+function chatAttributes(info: OtelSpanInfo): SpanAttributes {
+  if (info.kind === 'generation') return {}
+  return {
+    'conciv.session.id': info.ctx.threadId ?? '',
+    'conciv.run.id': info.ctx.runId ?? '',
+    'conciv.harness.id': info.ctx.provider,
   }
 }
 
@@ -481,7 +498,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     lifecycle: {reuse: 'thread', destroyOnComplete: false},
   })
   const driver = config.driver
-  await sweepAbandonedRuns(stores.runs, hooks)
+  const tracer = config.tracer
+  await inSpan(tracer, 'ChatServer.sweepAbandonedRuns', {}, () => sweepAbandonedRuns(stores.runs, hooks))
 
   const lifecycleChunk = (lifecycle: RunLifecycle): ChatEvent => runLifecycleEvent.create(lifecycle)
 
@@ -558,8 +576,10 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const shown = timedProcessor()
     const settle = async (): Promise<void> => {
       try {
-        const lifecycle = await recordLifecycle(turn.runId)
-        if (lifecycle !== null) await hooks.end(turn, lifecycle)
+        await inSpan(tracer, 'ChatServer.settle', turnAttributes(turn), async () => {
+          const lifecycle = await recordLifecycle(turn.runId)
+          if (lifecycle !== null) await hooks.end(turn, lifecycle)
+        })
       } catch (error) {
         config.log(`[ai] ending run ${turn.runId} failed: ${String(error)}`)
       } finally {
@@ -572,15 +592,17 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       onConfig: async (ctx, current) => {
         if (ctx.phase === 'beforeModel') {
           const next = await offered()
-          const request = await hookedRequest(
-            (draft, signal) => untilAborted(plan.context(draft, signal), signal),
-            {
-              system: [...prepared.system, ...(next.preface === null ? [] : [next.preface])],
-              messages: [...prepared.provider, ...withoutChildCalls(current.messages).slice(prepared.sent)],
-              options: requestOptions(plan.modelOptions),
-              tools: next.tools,
-            },
-            entry.controller.signal,
+          const request = await inSpan(tracer, 'ChatServer.requestContext', turnAttributes(turn), () =>
+            hookedRequest(
+              (draft, signal) => untilAborted(plan.context(draft, signal), signal),
+              {
+                system: [...prepared.system, ...(next.preface === null ? [] : [next.preface])],
+                messages: [...prepared.provider, ...withoutChildCalls(current.messages).slice(prepared.sent)],
+                options: requestOptions(plan.modelOptions),
+                tools: next.tools,
+              },
+              entry.controller.signal,
+            ),
           )
           return {
             messages: [...ctx.messages],
@@ -592,26 +614,28 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           }
         }
         if (ctx.phase !== 'init') return
-        await plan.setup()
-        const next = await offered()
-        prepared.system = await plan.systemPrompts()
-        const systemPrompts = [
-          ...prepared.system,
-          ...(next.preface === null ? [] : [next.preface]),
-          ...current.systemPrompts,
-        ]
-        const expanded = await plan.expand(withoutChildCalls(current.messages))
-        prepared.sent = expanded.length
-        prepared.provider = await plan.providerMessages(expanded)
-        return {
-          messages: withLastUser(
-            view.full,
-            expanded.findLast((message) => message.role === 'user'),
-          ),
-          providerMessages: prepared.provider,
-          systemPrompts,
-          tools: next.tools,
-        }
+        return inSpan(tracer, 'ChatServer.prepareContext', turnAttributes(turn), async () => {
+          await plan.setup()
+          const next = await offered()
+          prepared.system = await plan.systemPrompts()
+          const systemPrompts = [
+            ...prepared.system,
+            ...(next.preface === null ? [] : [next.preface]),
+            ...current.systemPrompts,
+          ]
+          const expanded = await plan.expand(withoutChildCalls(current.messages))
+          prepared.sent = expanded.length
+          prepared.provider = await plan.providerMessages(expanded)
+          return {
+            messages: withLastUser(
+              view.full,
+              expanded.findLast((message) => message.role === 'user'),
+            ),
+            providerMessages: prepared.provider,
+            systemPrompts,
+            tools: next.tools,
+          }
+        })
       },
       onChunk: async (_ctx, chunk) => {
         followRun(shown, chunk)
@@ -634,8 +658,10 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       onFinish: () => settle(),
       onError: () => settle(),
       onAbort: async () => {
-        await savingShown(turn.threadId, () => saveStoppedTurn(stores.messages, turn.threadId, shown)).catch(
-          (error: unknown) => config.log(`[ai] saving the stopped turn of run ${turn.runId} failed: ${String(error)}`),
+        await inSpan(tracer, 'ChatServer.saveStoppedTurn', turnAttributes(turn), () =>
+          savingShown(turn.threadId, () => saveStoppedTurn(stores.messages, turn.threadId, shown)),
+        ).catch((error: unknown) =>
+          config.log(`[ai] saving the stopped turn of run ${turn.runId} failed: ${String(error)}`),
         )
         if (failure.message !== null) {
           await stores.runs.update(turn.runId, {
@@ -677,7 +703,9 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       stopping: false,
     }
     live.set(turn.runId, entry)
-    return admitted(turn, messages, controller, entry)
+    return streamInSpan(tracer, 'ChatServer.turn', turnAttributes(turn), () =>
+      admitted(turn, messages, controller, entry),
+    )
   }
 
   async function* admitted(
@@ -686,10 +714,15 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     controller: AbortController,
     entry: LiveRun,
   ): AsyncGenerator<ChatEvent> {
-    const plan = await planned(hooks, turn, controller.signal)
-    const prompted = await hooks
-      .admit(turn)
-      .then(() => promptedMessages(turn.threadId, messages, plan, controller.signal))
+    const plan = await inSpan(tracer, 'ChatServer.plan', turnAttributes(turn), () =>
+      planned(hooks, turn, controller.signal),
+    )
+    const prompted = await inSpan(tracer, 'ChatServer.admit', turnAttributes(turn), () => hooks.admit(turn))
+      .then(() =>
+        inSpan(tracer, 'ChatServer.prompt', turnAttributes(turn), () =>
+          promptedMessages(turn.threadId, messages, plan, controller.signal),
+        ),
+      )
       .catch((error: unknown) => {
         live.delete(turn.runId)
         entry.settled.resolve()
@@ -705,11 +738,13 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     entry: LiveRun,
     plan: TurnPlan,
   ) {
-    const coding = driver === null ? null : stoppedWith(driver, controller.signal, config.log)
+    const coding = driver === null ? null : stoppedWith(tracedDriver(driver, tracer), controller.signal, config.log)
     const offered = async (): Promise<OfferedTools> => {
       const tools = await plan.tools()
       const coded =
-        coding === null ? null : codeModeTools(coding, tools.codeMode, tools.search, config.codeModeResult, debug)
+        coding === null
+          ? null
+          : codeModeTools(coding, tools.codeMode, tools.search, config.codeModeResult, debug, tracer)
       return {
         tools: [...(coded?.tools ?? []), ...tools.direct],
         preface: coded?.preface ?? null,
@@ -718,6 +753,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const seconds = (ms: number) => Math.round(ms / 1000)
     const failed = (message: string) => entry.ending.abort({type: EventType.RUN_ERROR, message, timestamp: Date.now()})
     const view: RunMessages = {full: []}
+    const tracing: ChatMiddleware[] =
+      tracer === undefined ? [] : [otelMiddleware({tracer, attributeEnricher: chatAttributes})]
     const stream = chat({
       adapter: guardedAdapter(answeredAdapter(plan.adapter), {
         ended: entry.ending.signal,
@@ -746,7 +783,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         defineChatMiddleware({
           name: 'conciv-image-tools',
           provides: [ToolBridgeProvisionerCapability],
-          setup: (ctx) => provideToolBridgeProvisioner(ctx, askingToolProvisioner(config.askPermission)),
+          setup: (ctx) => provideToolBridgeProvisioner(ctx, askingToolProvisioner(config.askPermission, tracer)),
         }),
         withPersistence(persistence, {snapshotStreaming: true}),
         withLocks(locks),
@@ -760,14 +797,16 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         ...(turn.kind === 'compact' ? [compactionStamp(stores.messages)] : []),
         defineChatMiddleware({
           name: 'conciv-run-record',
-          setup: async (ctx) => {
-            await stores.runs.createOrResume({runId: turn.runId, threadId: turn.threadId, startedAt: Date.now()})
-            await getPendingTurn(ctx, {optional: true})?.snapshot()
-          },
+          setup: (ctx) =>
+            inSpan(tracer, 'ChatServer.recordRun', turnAttributes(turn), async () => {
+              await stores.runs.createOrResume({runId: turn.runId, threadId: turn.threadId, startedAt: Date.now()})
+              await getPendingTurn(ctx, {optional: true})?.snapshot()
+            }),
         }),
         withSandbox(sandbox, {locks}),
         toolHistory(),
         concivTurn(turn, plan, view, entry, offered),
+        ...tracing,
       ],
     })
     return endedWithItsRecord(stream, () => recordLifecycle(turn.runId))
@@ -780,50 +819,24 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       debug,
       log: config.log,
     }),
-    stop: async (threadId, runIds) => {
-      const active = await stores.runs.findActiveRun(threadId)
-      if (active === null) return stopPreparing(threadId, runIds)
-      if (runIds !== undefined && !runIds.includes(active.runId)) return false
-      if (active.cancelRequested === true) return false
-      const entry = live.get(active.runId)
-      if (entry?.stopping === true) return false
-      if (entry !== undefined) entry.stopping = true
-      try {
-        await requestRunCancel(stores.runs, active.runId)
-      } finally {
-        entry?.controller.abort(RUN_CANCEL_REASON)
-      }
-      return true
-    },
-    endRuns: endThreadRuns,
-    endAllRuns: async () => {
-      const threadIds = new Set([...live.values()].map((entry) => entry.threadId))
-      const ended = await Promise.allSettled([...threadIds].map(endThreadRuns))
-      const disposed = await Promise.allSettled([driver?.dispose()])
-      throwRejected([...ended, ...disposed], 'conciv: ending the live runs failed')
-    },
+    stop: (threadId, runIds) =>
+      inSpan(tracer, 'ChatServer.stop', {'conciv.session.id': threadId}, () => stopRuns(threadId, runIds)),
+    endRuns: (threadId) =>
+      inSpan(tracer, 'ChatServer.endRuns', {'conciv.session.id': threadId}, () => endThreadRuns(threadId)),
+    endAllRuns: () => inSpan(tracer, 'ChatServer.endAllRuns', {}, endAllRuns),
     driving: (threadId) => filterLiveRuns(threadId).length > 0,
     settled: async (threadId) => {
       await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
     },
-    hydrate: async (threadId, window = {}) => {
-      const stopping = filterLiveRuns(threadId).filter(([, entry]) => entry.controller.signal.aborted)
-      await Promise.all(stopping.map(([, entry]) => entry.settled.promise))
-      await savingShown(threadId, async () => undefined)
-      const response = await reconstructChat(persistence, new Request(threadUrl(threadId, window)))
-      const thread = ReconstructedSchema.parse(await response.json())
-      const latest = (await stores.runs.listByThread(threadId)).at(-1)
-      return {...thread, lastRun: latest === undefined ? null : buildLifecycle(latest)}
-    },
-    record: async (threadId, chunks) => {
-      const processor = timedProcessor()
-      for (const chunk of chunks) followRun(processor, chunk)
-      await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
-      await savingShown(threadId, () => saveShown(stores.messages, threadId, processor, (message) => message))
-    },
+    hydrate: (threadId, window = {}) =>
+      inSpan(tracer, 'ChatServer.hydrate', {'conciv.session.id': threadId}, () => hydrateThread(threadId, window)),
+    record: (threadId, chunks) =>
+      inSpan(tracer, 'ChatServer.record', {'conciv.session.id': threadId, 'conciv.chunk.count': chunks.length}, () =>
+        recordChunks(threadId, chunks),
+      ),
     codeRunner: (codeMode, search) => {
       if (driver === null) return null
-      const coded = codeModeTools(driver, codeMode, search, (value) => value, debug)
+      const coded = codeModeTools(tracedDriver(driver, tracer), codeMode, search, (value) => value, debug, tracer)
       if (coded === null) return null
       const execute = coded.execute.execute
       if (!execute) return null
@@ -837,5 +850,47 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         discover: buildDiscovery(coded.discover),
       }
     },
+  }
+
+  async function stopRuns(threadId: string, runIds: readonly string[] | undefined): Promise<boolean> {
+    const active = await stores.runs.findActiveRun(threadId)
+    if (active === null) return stopPreparing(threadId, runIds)
+    if (runIds !== undefined && !runIds.includes(active.runId)) return false
+    if (active.cancelRequested === true) return false
+    const entry = live.get(active.runId)
+    if (entry?.stopping === true) return false
+    if (entry !== undefined) entry.stopping = true
+    try {
+      await requestRunCancel(stores.runs, active.runId)
+    } finally {
+      entry?.controller.abort(RUN_CANCEL_REASON)
+    }
+    return true
+  }
+
+  async function endAllRuns(): Promise<void> {
+    const threadIds = new Set([...live.values()].map((entry) => entry.threadId))
+    const ended = await Promise.allSettled([...threadIds].map(endThreadRuns))
+    const disposed = await Promise.allSettled([
+      driver === null ? undefined : inSpan(tracer, 'CodeMode.closePool', {}, () => driver.dispose()),
+    ])
+    throwRejected([...ended, ...disposed], 'conciv: ending the live runs failed')
+  }
+
+  async function hydrateThread(threadId: string, window: ChatThreadWindow): Promise<ChatThread> {
+    const stopping = filterLiveRuns(threadId).filter(([, entry]) => entry.controller.signal.aborted)
+    await Promise.all(stopping.map(([, entry]) => entry.settled.promise))
+    await savingShown(threadId, async () => undefined)
+    const response = await reconstructChat(persistence, new Request(threadUrl(threadId, window)))
+    const thread = ReconstructedSchema.parse(await response.json())
+    const latest = (await stores.runs.listByThread(threadId)).at(-1)
+    return {...thread, lastRun: latest === undefined ? null : buildLifecycle(latest)}
+  }
+
+  async function recordChunks(threadId: string, chunks: readonly ChatEvent[]): Promise<void> {
+    const processor = timedProcessor()
+    for (const chunk of chunks) followRun(processor, chunk)
+    await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
+    await savingShown(threadId, () => saveShown(stores.messages, threadId, processor, (message) => message))
   }
 }

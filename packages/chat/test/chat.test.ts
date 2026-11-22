@@ -104,6 +104,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
     driver,
     askPermission: async () => ({allowed: false, message: 'nobody answers an ask in this test'}),
     pendingPermissions: async () => [],
+    tracer: undefined,
     ...overrides,
   })
 }

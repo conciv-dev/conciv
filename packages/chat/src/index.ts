@@ -7,6 +7,8 @@ import {
   childCardChunks,
   createChatServer,
   drizzleChatStores,
+  inSpan,
+  type Tracer,
   type ChatJoin,
   type ChatSend,
   type CodeDriver,
@@ -35,6 +37,7 @@ type ChatPlaneDeps = TurnDeps & {
   groupExitTimeoutMs?: number
   driver: CodeDriver | null
   pendingPermissions: (sessionId: SessionId) => Promise<ChatPendingApproval[]>
+  tracer: Tracer | undefined
 }
 
 export type CodeTool = {
@@ -106,6 +109,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     stores,
     toolNames: deps.toolNames,
     log: deps.log,
+    tracer: deps.tracer,
     native: async (sessionId) => {
       const row = await deps.sessions.row(sessionId)
       return row === null || row.nativeId === null
@@ -123,9 +127,13 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     log: deps.log,
     driver: deps.driver,
     askPermission: (threadId, ask, signal) => deps.askPermission(SessionId.parse(threadId), ask, signal),
+    tracer: deps.tracer,
   })
 
-  const hydrate = async (sessionId: SessionId, window?: ChatHistoryWindow): Promise<ChatHydration> => {
+  const hydrate = (sessionId: SessionId, window?: ChatHistoryWindow): Promise<ChatHydration> =>
+    inSpan(deps.tracer, 'ChatPlane.hydrate', {'conciv.session.id': sessionId}, () => hydrateSession(sessionId, window))
+
+  const hydrateSession = async (sessionId: SessionId, window?: ChatHistoryWindow): Promise<ChatHydration> => {
     if ((await stores.runs.findActiveRun(sessionId)) === null) {
       await server.settled(sessionId)
       if (window?.before === undefined && !(await sessionDeleted(deps.sessions, sessionId)))
@@ -171,6 +179,62 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     await Promise.allSettled([following?.answered])
   }
 
+  const compactSession = async (sessionId: SessionId): Promise<void> => {
+    if (await sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
+    await server.stop(sessionId)
+    const {messages} = await hydrate(sessionId)
+    const afterMessageId = messages.at(-1)?.id ?? null
+    const marked = await Effect.runPromise(
+      deps.db.transaction((tx) =>
+        Effect.gen(function* () {
+          const tombstone = yield* tx
+            .select({id: sessions.id})
+            .from(sessions)
+            .where(and(eq(sessions.id, sessionId), isNotNull(sessions.deletedAt)))
+          if (tombstone.length > 0) return false
+          yield* tx.insert(markers).values({id: randomUUID(), sessionId, afterMessageId, kind: 'compact'})
+          return true
+        }),
+      ),
+    )
+    if (!marked) throw deletedSessionError(sessionId)
+    await server.drive({threadId: sessionId, runId: randomUUID(), kind: 'compact'}, [])
+  }
+
+  const buildCodeRunner = async (
+    sessionId: SessionId,
+    publish: (chunk: ChatEvent) => void,
+    given: readonly CodeCapability[] | undefined,
+  ): Promise<CodeRunner | null> => {
+    const model = (await deps.sessions.row(sessionId))?.model ?? null
+    const capabilities = given ?? (await deps.capabilities(sessionId))
+    const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model}, deps.driver !== null)
+    const runner = server.codeRunner(toolSet.codeMode, toolSet.search)
+    if (runner === null && toolSet.direct.length === 0) return null
+    const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
+      const chunk: ChatEvent = {type: ChatEventType.CUSTOM, name, value, timestamp: Date.now()}
+      for (const card of childCardChunks(chunk, parentToolCallId, cappedValue) ?? [chunk]) {
+        if (card.type === ChatEventType.TOOL_CALL_START) {
+          ui.noteToolCall(sessionId, card.toolCallId, card.toolCallName)
+        }
+        publish(card)
+      }
+    }
+    const direct = codeTools(toolSet.direct, toolSet.directed, emitter)
+    const inventory = toolSet.inventory
+    if (runner === null || inventory === undefined) return {code: null, direct}
+    return {
+      code: {
+        capabilities: toolSet.codeMode.map((tool) => ({name: tool.name, description: tool.description})),
+        inventory,
+        run: (code, parentToolCallId, signal) => runner.run(code, emitter(parentToolCallId), signal),
+        discover: runner.discover,
+        declaredCodes: new Set(capabilities.flatMap((capability) => capability.errors.map(({code}) => code))),
+      },
+      direct,
+    }
+  }
+
   return {
     send: (request, signal) => server.send(request, signal),
     join: (request, signal) => server.join(request, signal),
@@ -180,27 +244,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       const stopped = await server.stop(sessionId, runIds)
       return {ok: true, stopped}
     },
-    compact: async (sessionId) => {
-      if (await sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
-      await server.stop(sessionId)
-      const {messages} = await hydrate(sessionId)
-      const afterMessageId = messages.at(-1)?.id ?? null
-      const marked = await Effect.runPromise(
-        deps.db.transaction((tx) =>
-          Effect.gen(function* () {
-            const tombstone = yield* tx
-              .select({id: sessions.id})
-              .from(sessions)
-              .where(and(eq(sessions.id, sessionId), isNotNull(sessions.deletedAt)))
-            if (tombstone.length > 0) return false
-            yield* tx.insert(markers).values({id: randomUUID(), sessionId, afterMessageId, kind: 'compact'})
-            return true
-          }),
-        ),
-      )
-      if (!marked) throw deletedSessionError(sessionId)
-      await server.drive({threadId: sessionId, runId: randomUUID(), kind: 'compact'}, [])
-    },
+    compact: (sessionId) =>
+      inSpan(deps.tracer, 'ChatPlane.compact', {'conciv.session.id': sessionId}, () => compactSession(sessionId)),
     clear: async (sessionId) => {
       await endRuns(sessionId)
       await clearThread(deps.db, sessionId)
@@ -237,35 +282,10 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       followingUp.set(sessionId, {answered, ending})
       return answered
     },
-    codeRunner: async (sessionId, publish, given) => {
-      const model = (await deps.sessions.row(sessionId))?.model ?? null
-      const capabilities = given ?? (await deps.capabilities(sessionId))
-      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model}, deps.driver !== null)
-      const runner = server.codeRunner(toolSet.codeMode, toolSet.search)
-      if (runner === null && toolSet.direct.length === 0) return null
-      const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
-        const chunk: ChatEvent = {type: ChatEventType.CUSTOM, name, value, timestamp: Date.now()}
-        for (const card of childCardChunks(chunk, parentToolCallId, cappedValue) ?? [chunk]) {
-          if (card.type === ChatEventType.TOOL_CALL_START) {
-            ui.noteToolCall(sessionId, card.toolCallId, card.toolCallName)
-          }
-          publish(card)
-        }
-      }
-      const direct = codeTools(toolSet.direct, toolSet.directed, emitter)
-      const inventory = toolSet.inventory
-      if (runner === null || inventory === undefined) return {code: null, direct}
-      return {
-        code: {
-          capabilities: toolSet.codeMode.map((tool) => ({name: tool.name, description: tool.description})),
-          inventory,
-          run: (code, parentToolCallId, signal) => runner.run(code, emitter(parentToolCallId), signal),
-          discover: runner.discover,
-          declaredCodes: new Set(capabilities.flatMap((capability) => capability.errors.map(({code}) => code))),
-        },
-        direct,
-      }
-    },
+    codeRunner: (sessionId, publish, given) =>
+      inSpan(deps.tracer, 'ChatPlane.codeRunner', {'conciv.session.id': sessionId}, () =>
+        buildCodeRunner(sessionId, publish, given),
+      ),
   }
 }
 

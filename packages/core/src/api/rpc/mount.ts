@@ -1,3 +1,4 @@
+import type {Tracer} from '@conciv/ai/server'
 import {implement, ORPCError, os as plainOs, type Implementer} from '@orpc/server'
 import {contract} from '@conciv/contract'
 import {z} from 'zod'
@@ -73,6 +74,7 @@ export type ChatContext = {
   rows: RowScope
   plane: ChatPlane
   signal: AbortSignal
+  tracer: Tracer | undefined
 }
 
 export type RpcDeps = {
