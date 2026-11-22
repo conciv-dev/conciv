@@ -1,4 +1,4 @@
-import {Show, onMount, type JSX} from 'solid-js'
+import {Show, createMemo, onMount, type JSX} from 'solid-js'
 import {Key} from '@solid-primitives/keyed'
 import {createVirtualizer} from '@tanstack/solid-virtual'
 
@@ -45,6 +45,7 @@ export function VirtualList<Row>(props: VirtualListProps<Row>): JSX.Element {
     if (!props.more || last === undefined || last.index < moreIndex()) return
     void props.onReachMore?.()?.then(reachMore)
   }
+  const items = createMemo(() => virtualizer.getVirtualItems().map(({key, index, start}) => ({key, index, start})))
   onMount(() => props.onScroller?.((index) => virtualizer.scrollToIndex(index, {align: 'auto'})))
   return (
     <div
@@ -54,25 +55,28 @@ export function VirtualList<Row>(props: VirtualListProps<Row>): JSX.Element {
       class={props.class}
     >
       <div role="presentation" style={{position: 'relative', 'block-size': `${virtualizer.getTotalSize()}px`}}>
-        <Key each={virtualizer.getVirtualItems()} by={(item) => item.key}>
-          {(item) => (
-            <div
-              role="presentation"
-              data-index={item().index}
-              ref={(element) => queueMicrotask(() => virtualizer.measureElement(element))}
-              style={{
-                position: 'absolute',
-                'inset-block-start': '0',
-                'inset-inline-start': '0',
-                'inline-size': '100%',
-                transform: `translateY(${item().start}px)`,
-              }}
-            >
-              <Show when={props.rows.find((row) => props.readKey(row) === item().key)} fallback={props.moreRow} keyed>
-                {(row) => props.children(row)}
-              </Show>
-            </div>
-          )}
+        <Key each={items()} by={(item) => item.key}>
+          {(item) => {
+            const key = item().key
+            return (
+              <div
+                role="presentation"
+                data-index={item().index}
+                ref={(element) => queueMicrotask(() => virtualizer.measureElement(element))}
+                style={{
+                  position: 'absolute',
+                  'inset-block-start': '0',
+                  'inset-inline-start': '0',
+                  'inline-size': '100%',
+                  transform: `translateY(${item().start}px)`,
+                }}
+              >
+                <Show when={props.rows.find((row) => props.readKey(row) === key)} fallback={props.moreRow} keyed>
+                  {(row) => props.children(row)}
+                </Show>
+              </div>
+            )
+          }}
         </Key>
       </div>
     </div>
