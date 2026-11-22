@@ -525,11 +525,7 @@ describe('logging in', () => {
   test('a browser with no token logs in with the code the dev server prints, is told when the engine revokes it with the composer locked and focus on Log in, and logging in again gives the composer its focus back', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await mount({
-      engine,
-      login: 'none',
-      history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']}),
-    })
+    await mount({engine, login: 'none'})
 
     await user.click(await screen.findByRole('button', {name: 'Unauthorized. Authorize conciv'}))
     const dialog = await screen.findByRole('dialog', {name: 'Authorize conciv'})
