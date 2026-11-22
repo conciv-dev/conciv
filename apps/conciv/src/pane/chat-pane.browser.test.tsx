@@ -379,15 +379,19 @@ describe('the agent asks for permission', () => {
   })
 
   test('an ask that cannot be saved offers no Allow always', async () => {
+    const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
 
-    void engine.session.tool('page_eval').call({code: 'return 1 + 1'})
+    const call = engine.session.tool('page_eval').call({code: 'return 1 + 1'})
     const ask = await screen.findByRole('group', {name: 'Permission request'})
     expect(within(ask).getByRole('button', {name: 'Allow once'})).toBeVisible()
     expect(within(ask).queryByRole('button', {name: 'Allow always'})).not.toBeInTheDocument()
+
+    await user.click(within(ask).getByRole('button', {name: 'Allow once'}))
+    await expect(call).resolves.toEqual({result: 2})
   })
 
   test('Stop while the card is open takes the ask away', async () => {
