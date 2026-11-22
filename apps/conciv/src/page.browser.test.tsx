@@ -662,3 +662,19 @@ describe('a plugin adds its own page operation', () => {
     ).toMatchObject({message: expect.stringContaining('This page does not support the requested page operation')})
   })
 })
+
+describe('the agent finds the tab through the TanStack plugin', () => {
+  test('the TanStack tab list names the focused tab and a TanStack page operation with wrong input is refused', async () => {
+    const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']})
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    expect(await engine.session.tool('tanstack_tabs_list').call({})).toMatchObject({
+      tabs: [{focused: true, visible: true}],
+    })
+    expect(await engine.session.tool('tanstack_navigate').failure({to: 7})).toMatchObject({
+      message: expect.stringContaining('Invalid input for tanstack.navigate.'),
+    })
+  })
+})
