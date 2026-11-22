@@ -10,6 +10,7 @@ import {
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {
   PromptPresentationSchema,
+  SyntheticMetadataSchema,
   type AttachmentDocumentPart,
   type ContentPart,
   type ModelMessage,
@@ -237,13 +238,16 @@ function withUpdate(messages: ModelMessage[], update: string): ModelMessage[] {
   })
 }
 
-function fromLastUser(messages: ModelMessage[]): ModelMessage[] {
-  return messages.slice(
-    Math.max(
-      messages.findLastIndex((message) => message.role === 'user'),
-      0,
-    ),
+function newToRun(turn: Turn, messages: ModelMessage[]): ModelMessage[] {
+  const lastUser = Math.max(
+    messages.findLastIndex((message) => message.role === 'user'),
+    0,
   )
+  const delivered = turn.kind === 'chat' ? turn.delivered : []
+  const promoted = messages
+    .slice(0, lastUser)
+    .filter((message) => message.id !== undefined && delivered.includes(message.id))
+  return [...promoted, ...messages.slice(lastUser)]
 }
 
 function readText(message: ModelMessage | undefined): string {
@@ -264,8 +268,12 @@ function titleText(message: ModelMessage | undefined): string {
   return display.data.displayText.trim() || display.data.comments[0]?.label.trim() || ''
 }
 
+function typedByUser(message: ModelMessage): boolean {
+  return message.role === 'user' && !SyntheticMetadataSchema.safeParse(message.metadata).success
+}
+
 export function firstUserTitle(messages: readonly ModelMessage[]): string {
-  return titleText(messages.find((message) => message.role === 'user')).slice(0, TITLE_MAX_CHARS)
+  return titleText(messages.find(typedByUser)).slice(0, TITLE_MAX_CHARS)
 }
 
 async function countContextTokens(deps: TurnDeps, sessionId: SessionId): Promise<number | undefined> {
@@ -380,7 +388,7 @@ export function turnHooks(
         },
         providerMessages: async (messages) => {
           const asked = askedMessages(turn, messages, harness)
-          const prepared = resumeSessionId === null ? asked : fromLastUser(asked)
+          const prepared = resumeSessionId === null ? asked : newToRun(turn, asked)
           const told = withUpdate(prepared, (await instructions.promise).update)
           return config.prepareMessages?.(told) ?? told
         },

@@ -184,17 +184,22 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     }
     const delivered = await deps.inbox.promote(request.threadId)
     yield* server.send(
-      {...request, messages: [...request.messages.slice(0, -1), ...delivered, ...request.messages.slice(-1)]},
+      {
+        ...request,
+        messages: [...request.messages.slice(0, -1), ...delivered, ...request.messages.slice(-1)],
+        delivered: deliveredIds(delivered),
+      },
       signal,
     )
   }
 
   const wake = async (sessionId: SessionId): Promise<void> => {
     if (server.driving(sessionId) || (await stores.runs.findActiveRun(sessionId)) !== null) return
-    if ((await deps.inbox.promote(sessionId)).length === 0) return
+    const delivered = await deps.inbox.promote(sessionId)
+    if (delivered.length === 0) return
     const runId = randomUUID()
     server
-      .drive({threadId: sessionId, runId, kind: 'chat'}, [])
+      .drive({threadId: sessionId, runId, kind: 'chat', delivered: deliveredIds(delivered)}, [])
       .catch((error: unknown) =>
         deps.log(`[chat] the run ${runId} that delivers the session inbox failed: ${String(error)}`),
       )
@@ -319,6 +324,10 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         buildCodeRunner(sessionId, publish, given),
       ),
   }
+}
+
+function deliveredIds(messages: readonly ModelMessage[]): string[] {
+  return messages.flatMap((message) => (message.id === undefined ? [] : [message.id]))
 }
 
 type Emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => void

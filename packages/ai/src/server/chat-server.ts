@@ -370,7 +370,7 @@ async function sweepAbandonedRuns(runs: ChatStores['runs'], hooks: TurnHooks): P
   const now = Date.now()
   for (const record of await runs.listRunning()) {
     await runs.update(record.runId, {status: 'aborted', finishedAt: now})
-    const turn: Turn = {threadId: record.threadId, runId: record.runId, kind: 'chat'}
+    const turn: Turn = {threadId: record.threadId, runId: record.runId, kind: 'chat', delivered: []}
     await hooks.end(turn, buildLifecycle({...record, status: 'aborted', finishedAt: now}))
   }
 }

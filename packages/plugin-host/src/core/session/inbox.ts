@@ -94,15 +94,6 @@ const promotedFromMessage = Effect.fn('SessionInbox.promotedFromMessage')(functi
   })
 })
 
-const listRows = (db: DatabaseService, sessionId: SessionId) =>
-  db
-    .select()
-    .from(SessionInboxTable)
-    .where(eq(SessionInboxTable.session_id, sessionId))
-    .orderBy(asc(SessionInboxTable.enqueued_seq))
-    .all()
-    .pipe(Effect.orDie)
-
 const firstQueued = (db: DatabaseService, sessionId: SessionId) =>
   db
     .select()
@@ -145,7 +136,6 @@ const deliveredMessages = (db: DatabaseService, sessionId: SessionId, rows: read
         )
 
 export interface Interface {
-  readonly list: (sessionId: SessionId) => Effect.Effect<Info[]>
   readonly reconcile: (request: {
     readonly id: SessionMessage.Id
     readonly sessionId: SessionId
@@ -158,12 +148,6 @@ export interface Interface {
     readonly item: Item
   }) => Effect.Effect<Info, LifecycleConflict>
   readonly has: (sessionId: SessionId, scope: Scope) => Effect.Effect<boolean>
-  readonly nextPromotable: (
-    sessionId: SessionId,
-    promotable: Promotable,
-  ) => Effect.Effect<
-    {readonly id: SessionMessage.Id; readonly type: Item['type']; readonly delivery: Delivery} | undefined
-  >
   readonly promote: (sessionId: SessionId, scope: Promotable) => Effect.Effect<StoredMessage[]>
 }
 
@@ -245,9 +229,6 @@ export const layer = Layer.effect(
       ).pipe(Effect.andThen(deliveredMessages(db, sessionId, rows)))
 
     return Service.of({
-      list: Effect.fn('SessionInbox.list')(function* (sessionId) {
-        return (yield* listRows(db, sessionId)).map(fromRow)
-      }),
       reconcile,
       admit,
       has: Effect.fn('SessionInbox.has')(function* (sessionId, scope) {
@@ -264,13 +245,6 @@ export const layer = Layer.effect(
           .get()
           .pipe(Effect.orDie)
         return row !== undefined
-      }),
-      nextPromotable: Effect.fn('SessionInbox.nextPromotable')(function* (sessionId, promotable) {
-        const steer = (yield* pendingSteers(db, sessionId))[0]
-        const next = steer ?? (promotable === 'input' ? yield* firstQueued(db, sessionId) : undefined)
-        return next === undefined
-          ? undefined
-          : {id: SessionMessage.Id.make(next.id), type: next.type, delivery: next.delivery}
       }),
       promote: Effect.fn('SessionInbox.promote')(function* (sessionId, scope) {
         return yield* locks.withLock(sessionId)(
