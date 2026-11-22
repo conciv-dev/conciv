@@ -184,7 +184,7 @@ describe("the user works the agent's comments on the canvas", () => {
     const thread = await screen.findByRole('dialog', {name: 'Comment thread'})
     expect(within(thread).getByText('The hero image is blurry')).toBeVisible()
     const reply = within(thread).getByRole('textbox', {name: 'Reply'})
-    expect(reply).toHaveFocus()
+    await expect.element(reply).toHaveFocus()
     await user.type(reply, 'On it @Opus')
     expect(await screen.findByRole('option', {name: 'Opus 5.5'})).toBeVisible()
     expect(reply).toHaveFocus()
