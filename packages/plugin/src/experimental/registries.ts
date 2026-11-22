@@ -537,6 +537,8 @@ export const NoteCard = Registry.define<NoteCard>('note-card')
  */
 export const Slot = Registry.define<Slot>('slot')
 
+export const Style = Registry.define<string>('style')
+
 export interface ToolProps {
   input: Record<string, unknown>
   error?: string
