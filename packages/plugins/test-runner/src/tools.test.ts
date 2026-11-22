@@ -62,7 +62,7 @@ describe('the runner is stopped from outside', () => {
       {plugins: ['@conciv/plugin-test-runner']},
       {directory: 'test/fixtures/greenhouse'},
     )
-    const started = await engine.event('rpc.test-runner.event')
+    const started = await engine.event('rpc.test-runner.event', {data: {type: 'run-start', runId: 'r1'}})
 
     const endless = engine.rpc.call('test-runner', 'run', {patterns: ['watering']})
     expect((await started.arrived).data).toMatchObject({
