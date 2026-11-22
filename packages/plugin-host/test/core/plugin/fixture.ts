@@ -57,6 +57,7 @@ export const temporaryGlobalLayer = Layer.unwrap(
         cache: path.join(temporary.path, 'cache'),
         config: path.join(temporary.path, 'config'),
         state: path.join(temporary.path, 'state'),
+        log: path.join(temporary.path, 'log'),
       }),
     ),
   ),

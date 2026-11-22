@@ -13,6 +13,7 @@ describe('global', () => {
       cache: path.join(root, 'cache'),
       config: path.join(root, 'config'),
       state: path.join(root, 'state'),
+      log: path.join(root, 'log'),
     }
 
     const context = await Effect.runPromise(Effect.scoped(Layer.build(Global.layerWith(directories))))
@@ -21,6 +22,7 @@ describe('global', () => {
     expect(Context.get(context, Global.Service).state).toBe(directories.state)
     expect(Context.get(context, Global.Service).cache).toBe(directories.cache)
     expect(Context.get(context, Global.Service).config).toBe(directories.config)
+    expect(Context.get(context, Global.Service).log).toBe(directories.log)
   })
 
   test('building layerWith points Flock locks without a directory at the state root', async () => {
@@ -29,6 +31,7 @@ describe('global', () => {
       cache: path.join(root, 'cache'),
       config: path.join(root, 'config'),
       state: path.join(root, 'state'),
+      log: path.join(root, 'log'),
     }
 
     await Effect.runPromise(Effect.scoped(Layer.build(Global.layerWith(directories))))

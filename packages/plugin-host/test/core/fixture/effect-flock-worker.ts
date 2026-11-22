@@ -25,6 +25,7 @@ const testGlobal = Global.layerWith({
   cache: os.tmpdir(),
   config: os.tmpdir(),
   state: os.tmpdir(),
+  log: os.tmpdir(),
 })
 
 const testLayer = EffectFlock.layer.pipe(

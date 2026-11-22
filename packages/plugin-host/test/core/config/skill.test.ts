@@ -59,7 +59,7 @@ const start = Effect.fnUntraced(function* (directory: string, home: string) {
       },
     }),
   ).pipe(
-    Effect.provideService(Global.Service, Global.Service.of({cache: home, config: home, state: home})),
+    Effect.provideService(Global.Service, Global.Service.of({cache: home, config: home, state: home, log: home})),
     Effect.provideService(Location.Service, location(directory)),
   )
   return service

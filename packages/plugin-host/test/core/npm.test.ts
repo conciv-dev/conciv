@@ -28,7 +28,14 @@ const writePackage = (dir: string, pkg: Record<string, unknown>) =>
 const npmLayer = (cache: string) =>
   Npm.layer.pipe(
     Layer.provide(EffectFlock.layer),
-    Layer.provide(Global.layerWith({cache, config: path.join(cache, 'config'), state: path.join(cache, 'state')})),
+    Layer.provide(
+      Global.layerWith({
+        cache,
+        config: path.join(cache, 'config'),
+        state: path.join(cache, 'state'),
+        log: path.join(cache, 'log'),
+      }),
+    ),
     Layer.provide(FSUtil.layer),
     Layer.provide(NodeFileSystem.layer),
   )

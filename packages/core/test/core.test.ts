@@ -1116,6 +1116,68 @@ describe('engine config provider', () => {
   })
 })
 
+describe('engine traces', () => {
+  it('sends the plugin host spans to the OTLP endpoint the provider names', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const received: {path: string; body: string}[] = []
+    const receiver = createHttpServer(async (request, response) => {
+      received.push({path: request.url ?? '', body: await bodyText(request)})
+      response.writeHead(200, JSON_TYPE).end('{}')
+    })
+    receiver.listen(0, '127.0.0.1')
+    await once(receiver, 'listening')
+    onTestFinished(() => new Promise<void>((resolve) => receiver.close(() => resolve())))
+    const address = receiver.address()
+    if (address === null || typeof address === 'string') throw new Error('the OTLP receiver has no port')
+    const engine = await start({
+      options: {systemPrompt: false},
+      root,
+      launchEditor: () => {},
+      configProvider: ConfigProvider.fromUnknown({
+        CONCIV_STATE_ROOT: root,
+        OTEL_EXPORTER_OTLP_ENDPOINT: `http://127.0.0.1:${address.port}`,
+      }),
+    })
+    await engine.stop()
+    const traces = received.filter((entry) => entry.path === '/v1/traces')
+    expect(traces.length).toBeGreaterThan(0)
+    expect(traces.map((entry) => entry.body).join('\n')).toContain('PluginSupervisor.activate')
+  })
+})
+
+describe('engine logs', () => {
+  it('a started engine writes its Effect logs to the log file in its home and prints none of them', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const home = tempDir('conciv-core-home-')
+    const child = spawn(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        `
+          import {start} from '@conciv/core'
+          const engine = await start({options: {systemPrompt: false}, root: process.env.ENGINE_ROOT, homeDir: process.env.ENGINE_HOME, launchEditor: () => {}})
+          await engine.stop()
+        `,
+      ],
+      {
+        cwd: fileURLToPath(new URL('..', import.meta.url)),
+        env: {...process.env, ENGINE_ROOT: root, ENGINE_HOME: home, CONCIV_STATE_ROOT: root, CONCIV_PRINT_LOGS: ''},
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    )
+    const [stdout, stderr, [exitCode]] = await Promise.all([
+      bodyText(child.stdout),
+      bodyText(child.stderr),
+      once(child, 'exit'),
+    ])
+    expect(exitCode).toBe(0)
+    const logged = readFileSync(join(home, 'log', 'conciv-local.log'), 'utf8')
+    expect(logged).toMatch(/^timestamp=\S+ level=INFO run=\S+ message="watcher started"/m)
+    expect(`${stdout}${stderr}`).not.toContain('watcher started')
+  })
+})
+
 describe('local state files', () => {
   it('the dev endpoint file is owner-only, reads null when missing or malformed, and only its owner pid removes it', () => {
     const dir = tempDir('conciv-core-unit-')
@@ -4838,8 +4900,13 @@ describe('plugin context keys provided by core', () => {
     )
 
     const roots = await host.runPromise(Global.Service)
-    expect(roots).toEqual({cache: join(home, 'cache'), config: home, state: join(home, 'state')})
-    expect(existsSync(roots.cache) && existsSync(roots.config) && existsSync(roots.state)).toBe(true)
+    expect(roots).toEqual({
+      cache: join(home, 'cache'),
+      config: home,
+      state: join(home, 'state'),
+      log: join(home, 'log'),
+    })
+    expect([roots.cache, roots.config, roots.state, roots.log].every((folder) => existsSync(folder))).toBe(true)
   })
   it('the session key creates, reads, pages, renames, re-describes, switches and removes conciv sessions on their own rows', async () => {
     const stateRoot = tempDir('conciv-core-unit-')
@@ -5065,6 +5132,7 @@ describe('plugin host folders', () => {
       cache: join(home, 'cache'),
       config: home,
       state: join(home, 'state'),
+      log: join(home, 'log'),
     })
   })
 })

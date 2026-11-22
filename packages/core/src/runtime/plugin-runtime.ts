@@ -47,16 +47,19 @@ import {
   ConfigPolicy,
   Global,
   ManagedPolicy,
+  Observability,
   PluginHost,
 } from '@conciv/plugin-host'
 import {
   Cause,
+  Config,
   ConfigProvider,
   Effect,
   Exit,
   FileSystem as PlatformFileSystem,
   Layer,
   ManagedRuntime,
+  Option,
   PlatformError,
   Schedule,
   Schema,
@@ -115,6 +118,25 @@ export function provideApp() {
   return Layer.succeed(App.Service, App.make({version: corePackage.version}))
 }
 
+const OtlpExporterConfig = Config.all({
+  endpoint: Config.option(Config.String('OTEL_EXPORTER_OTLP_ENDPOINT')),
+  headers: Config.option(Config.String('OTEL_EXPORTER_OTLP_HEADERS')),
+})
+
+function provideObservability(configProvider: ConfigProvider.ConfigProvider) {
+  return Layer.unwrap(
+    OtlpExporterConfig.pipe(
+      Effect.map(({endpoint, headers}) =>
+        Observability.layer({
+          endpoint: Option.getOrUndefined(endpoint),
+          headers: Option.getOrUndefined(headers),
+          version: corePackage.version,
+        }),
+      ),
+    ),
+  ).pipe(Layer.provide(ConfigProvider.layer(configProvider)), Layer.orDie)
+}
+
 export function provideConfiguredPolicies(policies: ConcivConfig['policies']) {
   return Layer.effect(
     ManagedPolicy.ConfiguredPolicies,
@@ -133,7 +155,7 @@ const isTransientMkdirError = (error: PlatformError.PlatformError): boolean => i
 const makeRoots = Effect.fn('core.globalRoots.make')(function* (roots: Global.Interface) {
   const files = yield* PlatformFileSystem.FileSystem
   yield* Effect.forEach(
-    [roots.cache, roots.config, roots.state],
+    [roots.cache, roots.config, roots.state, roots.log],
     (directory) =>
       files
         .makeDirectory(directory, {recursive: true})
@@ -143,7 +165,7 @@ const makeRoots = Effect.fn('core.globalRoots.make')(function* (roots: Global.In
 }, Effect.orDie)
 
 export function provideGlobalRoots(home: string) {
-  const roots = {cache: join(home, 'cache'), config: home, state: join(home, 'state')}
+  const roots = {cache: join(home, 'cache'), config: home, state: join(home, 'state'), log: join(home, 'log')}
   return Layer.unwrap(makeRoots(roots).pipe(Effect.as(Global.layerWith(roots))))
 }
 
@@ -244,6 +266,7 @@ function machineRoots(home: string, fallback: string) {
 }
 
 function pluginHostLayer(input: PluginRuntimeInput) {
+  const roots = machineRoots(input.home, input.fallbackRoots)
   return Layer.mergeAll(
     Plugin.layer,
     SdkPlugins.layer,
@@ -301,13 +324,14 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     Layer.provideMerge(
       Layer.mergeAll(
         Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, input.db.$client)),
-        machineRoots(input.home, input.fallbackRoots),
+        roots,
         NodeFileSystem.layer,
         NodeChildProcessSpawner.layer.pipe(Layer.provide(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer))),
         FetchHttpClient.layer,
         ConfigProvider.layer(input.configProvider),
       ),
     ),
+    Layer.provideMerge(provideObservability(input.configProvider).pipe(Layer.provide(roots))),
   )
 }
 
