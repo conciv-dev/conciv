@@ -88,7 +88,7 @@ export {VirtualJsonTree, type VirtualJsonTreeProps} from './virtual-json-tree.js
 export {VirtualList, type VirtualListProps} from './virtual-list.js'
 export {createResizable, type Grow} from './resize.js'
 export {readStorage, writeStorage} from './storage.js'
-export {observeReducedMotion, prefersReducedMotion} from './motion.js'
+export {prefersReducedMotion} from './motion.js'
 export {TOKENS, type TokenDefinition} from './tokens.js'
 export {DERIVED_TOKENS} from './derived-tokens.js'
 export {

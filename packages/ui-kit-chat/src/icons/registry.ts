@@ -1,4 +1,6 @@
-import {isDocument, observeReducedMotion, prefersReducedMotion} from '@conciv/ui-kit-system'
+import {createRoot} from 'solid-js'
+import {makeMediaQueryListener} from '@solid-primitives/media'
+import {isDocument, prefersReducedMotion} from '@conciv/ui-kit-system'
 
 export type RegisteredIconName = `${string}:${string}`
 
@@ -128,15 +130,15 @@ function sprite(root: IconRoot) {
   const parent = isDocument(root) ? root.body : root
   parent.insertBefore(svg, parent.firstChild)
 
-  const settle = () => {
-    if (!prefersReducedMotion()) return svg.unpauseAnimations()
+  const settle = (reduced: boolean) => {
+    if (!reduced) return svg.unpauseAnimations()
 
     svg.pauseAnimations()
     svg.setCurrentTime(0)
   }
 
-  observeReducedMotion(settle)
-  settle()
+  createRoot(() => makeMediaQueryListener('(prefers-reduced-motion: reduce)', (event) => settle(event.matches)))
+  settle(prefersReducedMotion())
 
   return svg
 }

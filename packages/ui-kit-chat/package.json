@@ -72,6 +72,7 @@
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/keyed": "catalog:",
     "@solid-primitives/map": "catalog:",
+    "@solid-primitives/media": "^2.3.6",
     "@solid-primitives/resize-observer": "catalog:",
     "@solid-primitives/timer": "catalog:",
     "@tanstack/pacer": "catalog:",
