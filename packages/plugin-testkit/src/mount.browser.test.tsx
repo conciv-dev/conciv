@@ -1,4 +1,5 @@
 import {describe, expect, test} from 'vitest'
+import {page} from 'vitest/browser'
 import {screen} from '@solidjs/testing-library'
 import {mount} from '@conciv/plugin-testkit/browser'
 
@@ -13,5 +14,17 @@ describe('mounting a plugin by its package name', () => {
     await expect(mount({plugins: ['@conciv/plugin-ios']})).rejects.toThrow(
       'the plugin @conciv/plugin-ios runs in the engine: give it to createEngine({plugins})',
     )
+  })
+})
+
+describe('the viewport between tests', () => {
+  test('a test that shrinks the viewport to phone width gets it', async () => {
+    await page.viewport(375, 800)
+
+    expect([window.innerWidth, window.innerHeight]).toEqual([375, 800])
+  })
+
+  test('the next test starts at the configured 1280x800 again, so a wide-page test never runs at phone width', () => {
+    expect([window.innerWidth, window.innerHeight]).toEqual([1280, 800])
   })
 })

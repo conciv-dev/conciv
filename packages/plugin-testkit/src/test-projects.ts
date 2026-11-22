@@ -39,6 +39,8 @@ const TEST_TIMEOUT_MS = 30_000
 const HOOK_TIMEOUT_MS = 30_000
 const POLL_TIMEOUT_MS = 5_000
 const POLL_INTERVAL_MS = 50
+const VIEWPORT = {width: 1280, height: 800}
+
 const BROWSER_PREBUNDLED = [
   '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client',
   '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client/byok',
@@ -394,6 +396,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
   const engines = browserEngines()
   const provide = {
     concivPollTimeoutMs: POLL_TIMEOUT_MS,
+    concivViewport: VIEWPORT,
     concivTestPlugins: testable.map(({name, id, engine}) => ({name, id, kind: engine ? 'engine' : 'host'}) as const),
   }
   return [
@@ -419,7 +422,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
         css: true,
         include: ['src/**/*.dom.test.ts', 'src/**/*.dom.test.tsx'],
         environment: join(KIT_DIST, 'dom-environment.js'),
-        environmentOptions: {happyDOM: {width: 1280, height: 800}},
+        environmentOptions: {happyDOM: VIEWPORT},
         setupFiles: [join(KIT_DIST, 'node-setup.js'), join(KIT_DIST, 'happy-dom-setup.js')],
         provide,
         server: {deps: {inline: PAGE_DEPENDENCIES_TO_INLINE, external: ENGINE_IN_NODE}},
@@ -444,7 +447,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
           headless: true,
           provider: playwright(),
           instances: [{browser: 'chromium'}],
-          viewport: {width: 1280, height: 800},
+          viewport: VIEWPORT,
           commands: {...engines.commands, ...pageErrorCommands()},
         },
       },
