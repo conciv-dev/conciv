@@ -13,6 +13,7 @@ export type ShardSizing = {
   minShards: number
   maxShards: number
   bootstrapShards: number
+  splitHeavy: boolean
 }
 
 export const PACKAGE_GROUPS = ['packages', 'packages/extensions', 'packages/plugins', 'apps']
@@ -34,6 +35,7 @@ const PACKAGE_SHARD_SIZING: ShardSizing = {
   minShards: 2,
   maxShards: 8,
   bootstrapShards: 4,
+  splitHeavy: true,
 }
 
 export const E2E_SHARD_SIZING: ShardSizing = {
@@ -42,6 +44,7 @@ export const E2E_SHARD_SIZING: ShardSizing = {
   minShards: 2,
   maxShards: 5,
   bootstrapShards: 3,
+  splitHeavy: false,
 }
 
 const VALID_PACKAGE_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/
@@ -95,6 +98,29 @@ export function planE2eShards(packages: WorkspacePackage[], timings: Record<stri
   }))
 }
 
+const PART_SEPARATOR = '#'
+
+export type PackagePart = {name: string; part: {index: number; count: number} | null}
+
+export function readPackagePart(entry: string): PackagePart {
+  const [name = entry, part] = entry.split(PART_SEPARATOR)
+  const match = part === undefined ? null : /^(\d+)\/(\d+)$/.exec(part)
+  if (match === null) return {name, part: null}
+  return {name, part: {index: Number(match[1]), count: Number(match[2])}}
+}
+
+type WeightedEntry = WorkspacePackage & {weightMs: number}
+
+function splitHeavy(entry: WeightedEntry, sizing: ShardSizing): WeightedEntry[] {
+  const count = Math.min(Math.ceil(entry.weightMs / sizing.targetMs), sizing.maxShards)
+  if (!sizing.splitHeavy || count < 2) return [entry]
+  return Array.from({length: count}, (_, index) => ({
+    ...entry,
+    name: `${entry.name}${PART_SEPARATOR}${index + 1}/${count}`,
+    weightMs: entry.weightMs / count,
+  }))
+}
+
 export function planShards(
   packages: WorkspacePackage[],
   timings: Record<string, number>,
@@ -103,6 +129,7 @@ export function planShards(
   if (packages.length === 0) return []
   const weighted = packages
     .map((entry) => ({...entry, weightMs: (timings[entry.name] ?? DEFAULT_PACKAGE_MS) + sizing.overheadMs}))
+    .flatMap((entry) => splitHeavy(entry, sizing))
     .toSorted((a, b) => b.weightMs - a.weightMs || a.name.localeCompare(b.name))
   const totalMs = weighted.reduce((sum, entry) => sum + entry.weightMs, 0)
   const measuredCount = Math.max(Math.ceil(totalMs / sizing.targetMs), sizing.minShards, 1)

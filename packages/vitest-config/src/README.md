@@ -14,7 +14,7 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 - `browserOptimizeDeps(alsoInclude = [])`, `TANSTACK_AI_SOLID_DEPS` (`reporters.ts`).
 - `solid-cleanup-setup.ts` (export `./solid-cleanup`): registers `afterEach(cleanup)` from `@solidjs/testing-library`.
 - `solidLibConfig({entry, external})`, `SolidLibBuild` (`vite-lib.ts`, export `./vite-lib`): solid plugin, ES lib output `index.js`, sourcemaps, `emptyOutDir`.
-- CLI `conciv-ci-shards <plan|run|report|summarize> [--task test|e2e] [--timings F] [--output F]` (`ci-shards.ts`). `TASKS.test` runs turbo `typecheck lint test --continue=dependencies-successful` over `packages/` and `apps/`; `TASKS.e2e` runs `typecheck test:e2e --continue --concurrency=1` over `e2e/` and `apps/site`.
+- CLI `conciv-ci-shards <plan|run|report|coverage|summarize> [--task test|e2e] [--timings F] [--output F]` (`ci-shards.ts`). `TASKS.test` runs turbo `typecheck lint test --continue=dependencies-successful` over `packages/` and `apps/`; `TASKS.e2e` runs `typecheck test:e2e --continue --concurrency=1` over `e2e/` and `apps/site`.
 - `planShards(packages, timings, sizing?)`, `planE2eShards`, `discoverPackages(rootDir, groupDirs)`, `plannedPackages`, `e2ePackages`, `parseTimings`; constants `PACKAGE_GROUPS`, `PACKAGES_WITH_DEDICATED_JOBS` (`['conciv-storybook']`), `E2E_HARNESS_PACKAGE`, `TARGET_SHARD_MS` (150_000), `DEFAULT_PACKAGE_MS` (5_000), `E2E_SHARD_SIZING`; types `WorkspacePackage`, `ShardPlan`, `E2eShardPlan`, `ShardSizing` (`shards.ts`).
 - `parseReport`, `parseSummaries`, `mergeSummaries`, `loadSummaries(roots)`, `renderSummary(packages, options?)`; types `PackageSummary`, `CaseResult`, `CaseStatus`, `CaseAnnotation`, `Coverage`, `RenderOptions` (`summary.ts`).
 - Subdirectories:
@@ -22,6 +22,7 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 
 ## Invariants
 
+- A package heavier than one shard's target (`ShardSizing.splitHeavy`, on for the test plan, off for e2e) is planned as parts `name#i/N`, each a separate shard entry: `run` gives a part its own turbo `test` with vitest `--shard=i/N`, and runs the package's other tasks (typecheck, lint) in part 1 only. Timings stay per package, so the next plan splits it again. `coverage` copies each package's `coverage/` json-summary and lcov into one folder; an empty set writes nothing and exits 0 (`shards.ts`, `ci-shards.ts`).
 - Unknown `--task` throws `unknown --task X; expected test or e2e` (`taskConfig`); `run` throws when `SHARD_PACKAGES` is empty; an unknown subcommand prints usage and sets `process.exitCode = 2` (`ci-shards.ts`).
 - Timings files over `MAX_TIMINGS_BYTES` (1,000,000) are ignored; report files over `MAX_REPORT_BYTES` (20,000,000) are skipped with a stderr warning (`ci-shards.ts`).
 - `readPackage` throws when package.json lacks a string name or the name fails `VALID_PACKAGE_NAME`; `parseTimings` keeps only finite non-negative numbers (`shards.ts`).

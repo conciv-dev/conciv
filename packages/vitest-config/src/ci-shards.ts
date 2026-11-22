@@ -18,6 +18,7 @@ import {
   planE2eShards,
   planShards,
   plannedPackages,
+  readPackagePart,
   type ShardPlan,
 } from './shards.ts'
 import {
@@ -91,11 +92,38 @@ function plan(args: string[]): void {
   process.stdout.write(`${matrix}\n`)
 }
 
+function turbo(tasks: string[], filters: string[], passed: string[] = []): void {
+  execFileSync(
+    'pnpm',
+    ['exec', 'turbo', 'run', ...tasks, ...filters, ...(passed.length > 0 ? ['--', ...passed] : [])],
+    {
+      stdio: 'inherit',
+    },
+  )
+}
+
 function run(args: string[]): void {
-  const packages = (process.env.SHARD_PACKAGES ?? '').split(' ').filter((name) => name !== '')
-  if (packages.length === 0) throw new Error('SHARD_PACKAGES is empty; nothing to run')
-  const filters = packages.map((name) => `--filter=${name}`)
-  execFileSync('pnpm', ['exec', 'turbo', 'run', ...taskConfig(args).turboTasks, ...filters], {stdio: 'inherit'})
+  const entries = (process.env.SHARD_PACKAGES ?? '').split(' ').filter((name) => name !== '')
+  if (entries.length === 0) throw new Error('SHARD_PACKAGES is empty; nothing to run')
+  const tasks = taskConfig(args).turboTasks
+  const parts = entries.map(readPackagePart)
+  const whole = parts.flatMap(({name, part}) => (part === null ? [`--filter=${name}`] : []))
+  const failures: unknown[] = []
+  const attempt = (step: () => void) => {
+    try {
+      step()
+    } catch (error) {
+      failures.push(error)
+    }
+  }
+  if (whole.length > 0) attempt(() => turbo(tasks, whole))
+  for (const {name, part} of parts) {
+    if (part === null) continue
+    const checks = tasks.filter((task) => task !== 'test' && !task.startsWith('--'))
+    if (part.index === 1 && checks.length > 0) attempt(() => turbo(checks, [`--filter=${name}`]))
+    attempt(() => turbo(['test'], [`--filter=${name}`], [`--shard=${part.index}/${part.count}`]))
+  }
+  if (failures.length > 0) throw new AggregateError(failures, `${failures.length} turbo run(s) failed in this shard`)
 }
 
 function report(args: string[]): void {
