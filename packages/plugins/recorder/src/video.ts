@@ -15,13 +15,21 @@ export const renderVideoFile = Effect.fn('recorder.video.render')(function* (fil
   const existing = yield* fs.stat(file).pipe(Effect.option)
   if (Option.isSome(existing) && existing.value.type === 'File') return
   const renderers = yield* RendererCache
-  const video = yield* renderers.use((renderer) => renderer.renderVideo(events)).pipe(Effect.mapError(unrendered))
-  if (Option.isNone(video) || Option.isNone(video.value)) return yield* Effect.fail(unrendered('no video was recorded'))
   const temporary = `${file}.${crypto.randomUUID()}.tmp`
-  yield* fs.writeFile(temporary, video.value.value).pipe(
-    Effect.andThen(fs.rename(temporary, file)),
+  const removeTemporary = fs.remove(temporary, {force: true}).pipe(Effect.ignore)
+  const recorded = yield* renderers
+    .use((renderer) => renderer.renderVideo(events, temporary))
+    .pipe(
+      Effect.mapError(unrendered),
+      Effect.onError(() => removeTemporary),
+    )
+  if (!Option.getOrElse(recorded, () => false)) {
+    yield* removeTemporary
+    return yield* Effect.fail(unrendered('no video was recorded'))
+  }
+  yield* fs.rename(temporary, file).pipe(
     Effect.mapError(unrendered),
-    Effect.onError(() => fs.remove(temporary, {force: true}).pipe(Effect.ignore)),
+    Effect.onError(() => removeTemporary),
   )
 })
 
