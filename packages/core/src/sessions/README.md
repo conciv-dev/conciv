@@ -13,7 +13,7 @@ Session persistence and plumbing: an in-memory per-session pub/sub bus for chat 
 - `rowById` / `currentRow` / `isDeletedRow` (whether the row is tombstoned) / `rowByNativeRef` (`session-rows.ts`)
 - `createRow` / `ensureRow` / `nativeIdFor` / `recordNativeId` (`session-rows.ts`)
 - `resolveRow` / `openNativeRow` / `ensureAgentRow` / `mintExternalRow` / `anonymousExternalRow` (`session-rows.ts`)
-- `tombstoneRow` / `restoreRow` / `setPermissions` (the session's own permission rules, merged after the agent's) / `setMetadata` (replaces the session's whole metadata record) / `recordActivity` (moves a live row's `updatedAt` and fills its missing title; a deleted row is left as it was deleted) / `sweepEmptyRows` / `switchRowHarness` (`session-rows.ts`)
+- `tombstoneRow` / `restoreRow` / `setPermissions` (the session's own permission rules, merged after the agent's) / `setMetadata` (replaces the session's whole metadata record) / `recordActivity` (moves a live row's `updatedAt` and fills a missing title on a row the conciv chat made, never on an adopted `agent` or `external` row; a deleted row is left as it was deleted) / `sweepEmptyRows` / `switchRowHarness` (`session-rows.ts`)
 - `listSessionMetas` / `SessionListInput` / `NativeList` / `RowScope` / `NativePage` / `Found` (`session-rows.ts`): `SessionHit[]` sorted by updatedAt descending, each carrying its `harnessKind`, the `excerpt` / `matched` its native page found and the `preview` reference of the transcript that page listed (an earlier transcript's own harness, id and cwd after a harness switch) (`sessions.list` drops both through its output schema)
 
 ## Invariants

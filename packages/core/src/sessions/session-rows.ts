@@ -333,7 +333,7 @@ export async function recordActivity(db: ConcivDb, sessionId: SessionId, title: 
       .update(sessions)
       .set({
         updatedAt: sql`max(${sessions.updatedAt}, ${at})`,
-        title: sql`coalesce(${sessions.title}, iif(${sessions.harnessSessionId} is null, ${title === '' ? null : title}, null))`,
+        title: sql`coalesce(${sessions.title}, iif(${sessions.origin} = 'chat', ${title === '' ? null : title}, null))`,
       })
       .where(and(eq(sessions.id, sessionId), isNull(sessions.deletedAt))),
   )
