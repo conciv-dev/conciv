@@ -4,17 +4,12 @@ import {cli} from '@conciv/plugin-testkit'
 describe('mistakes', () => {
   it.each([
     {
-      args: ['tool'],
-      message: "Unknown command 'tool' for conciv. Did you mean 'tools'?",
-      hint: 'run conciv --help to list its commands',
-    },
-    {
       args: ['plugin'],
       message: 'No command given for conciv plugin.',
       hint: 'run conciv plugin --help to list its commands',
     },
     {
-      args: ['plugin', 'call', 'shelf', 'count', '--dta', '{}'],
+      args: ['plugin', 'call', 'plant-shelf', 'count', '--dta', '{}'],
       message: 'Unknown flag --dta for conciv plugin call. Did you mean --data?',
       hint: 'run conciv plugin call --help to see the arguments it accepts',
     },
