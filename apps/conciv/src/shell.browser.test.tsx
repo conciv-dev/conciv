@@ -128,7 +128,7 @@ describe('Escape keeps its place', () => {
 })
 
 describe('a toolbar tooltip', () => {
-  test('a composer toolbar tooltip shown by hover or by Tab focus closes on Escape while the docked chat stays', async () => {
+  test('a composer toolbar button shows its TooltipGroup label on hover and on Tab focus, and the label goes away when the member closes while the docked chat stays', async () => {
     const engine = await createEngine()
     await mount({
       engine,
