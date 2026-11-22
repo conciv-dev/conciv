@@ -59,7 +59,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/embed": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-internal": "workspace:*",
     "@conciv/plugin-testkit": "workspace:^",

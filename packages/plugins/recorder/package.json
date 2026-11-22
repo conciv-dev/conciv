@@ -61,7 +61,6 @@
   },
   "devDependencies": {
     "@conciv/client": "workspace:^",
-    "@conciv/embed": "workspace:*",
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-internal": "workspace:*",

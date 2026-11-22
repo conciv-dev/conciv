@@ -3713,9 +3713,6 @@ importers:
       '@conciv/client':
         specifier: workspace:^
         version: link:../../client
-      '@conciv/embed':
-        specifier: workspace:*
-        version: link:../../embed
       '@conciv/harness-testkit':
         specifier: workspace:*
         version: link:../../harness-testkit
@@ -3935,9 +3932,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/embed':
-        specifier: workspace:^
-        version: link:../../embed
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../../plugin
@@ -4014,9 +4008,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/embed':
-        specifier: workspace:^
-        version: link:../../embed
       '@conciv/harness-testkit':
         specifier: workspace:*
         version: link:../../harness-testkit
@@ -4090,9 +4081,6 @@ importers:
       '@conciv/client':
         specifier: workspace:^
         version: link:../../client
-      '@conciv/embed':
-        specifier: workspace:*
-        version: link:../../embed
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../../plugin
