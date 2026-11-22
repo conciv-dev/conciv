@@ -2,6 +2,7 @@ import {Motion, type CSSRgbString} from 'ai-motion'
 import {Effect, type Fiber} from 'effect'
 import {createComponent} from 'solid-js'
 import {render} from 'solid-js/web'
+import {prefersReducedMotion} from '@conciv/ui-kit-system'
 import {
   AGENT_BLUE,
   AGENT_PURPLE,
@@ -19,7 +20,6 @@ import {
   dropCursor,
   pageAt,
   pressCursor,
-  reducedMotion,
   windowAt,
   type Point,
 } from './cursor.js'
@@ -226,7 +226,7 @@ function unmountRun(run: Run): void {
 }
 
 function createGlow(layer: HTMLElement): Motion | null {
-  if (reducedMotion()) return null
+  if (prefersReducedMotion()) return null
   try {
     const glow = new Motion({
       mode: isPageDark() ? 'dark' : 'light',
@@ -262,7 +262,7 @@ function show(agent: string): void {
   }
   sim.shown = true
   sim.run ??= mountRun(sim.root)
-  if (!reducedMotion()) {
+  if (!prefersReducedMotion()) {
     sim.run.glow?.start()
     sim.run.glow?.fadeIn().catch(warnUnlessCanceled)
   }

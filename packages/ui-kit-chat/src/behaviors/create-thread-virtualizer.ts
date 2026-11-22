@@ -11,7 +11,7 @@ import {
 import {createStore, reconcile} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import {makeEventListener} from '@solid-primitives/event-listener'
-import {createMediaQuery} from '@solid-primitives/media'
+import {prefersReducedMotion} from '@conciv/ui-kit-system'
 import {
   Virtualizer,
   elementScroll,
@@ -24,7 +24,6 @@ import {
 export const SCROLL_END_THRESHOLD_PX = 1
 const NEAR_START_VIEWPORTS = 3
 const GLIDE_VIEWPORTS = 2
-const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
 const SCROLLABLE_OVERFLOW = new Set(['auto', 'scroll'])
 
 type ViewportAnchor = {mode: 'resume-following'} | {mode: 'preserve-reader-anchor'; offset: number}
@@ -94,7 +93,6 @@ export type ThreadVirtualizer = {
 
 export function createThreadVirtualizer(config: ThreadVirtualizerConfig): ThreadVirtualizer {
   let landedOffset: number | undefined
-  const reducedMotion = createMediaQuery(REDUCED_MOTION)
 
   const writeScroll = (offset: number, behavior: ScrollBehavior | undefined): void => {
     elementScroll(offset, {adjustments: undefined, behavior}, instance)
@@ -125,7 +123,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   }
 
   const glideToEnd = (): void => {
-    if (reducedMotion()) {
+    if (prefersReducedMotion()) {
       returnToEnd()
       return
     }

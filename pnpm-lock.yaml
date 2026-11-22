@@ -4646,9 +4646,6 @@ importers:
       '@solid-primitives/map':
         specifier: 'catalog:'
         version: 0.7.4(solid-js@1.9.17)
-      '@solid-primitives/media':
-        specifier: ^2.3.6
-        version: 2.3.6(solid-js@1.9.17)
       '@solid-primitives/resize-observer':
         specifier: 'catalog:'
         version: 2.2.0(solid-js@1.9.17)
@@ -4813,6 +4810,9 @@ importers:
       '@solid-primitives/map':
         specifier: 'catalog:'
         version: 0.7.4(solid-js@1.9.17)
+      '@solid-primitives/media':
+        specifier: ^2.3.6
+        version: 2.3.6(solid-js@1.9.17)
       '@solid-primitives/resize-observer':
         specifier: 'catalog:'
         version: 2.2.0(solid-js@1.9.17)

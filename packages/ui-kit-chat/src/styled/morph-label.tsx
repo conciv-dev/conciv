@@ -1,8 +1,5 @@
 import {createEffect, createSignal, For, on, splitProps, untrack, type JSX} from 'solid-js'
-import {createMediaQuery} from '@solid-primitives/media'
-import {Presence} from '@conciv/ui-kit-system'
-
-const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
+import {Presence, prefersReducedMotion} from '@conciv/ui-kit-system'
 
 const BOX = 'relative grid overflow-hidden'
 const CELL = '[grid-area:1/1] block min-w-0 truncate tabular-nums'
@@ -12,7 +9,6 @@ type Line = {id: number; text: string}
 
 export function MorphLabel(props: {text: string; class?: string; boxClass?: string}): JSX.Element {
   const [local] = splitProps(props, ['text', 'class', 'boxClass'])
-  const reducedMotion = createMediaQuery(REDUCED_MOTION)
   const [lines, setLines] = createSignal<Line[]>([{id: 0, text: untrack(() => local.text)}])
   const current = () => lines().at(-1)
   createEffect(
@@ -23,7 +19,7 @@ export function MorphLabel(props: {text: string; class?: string; boxClass?: stri
         const latest = entries.at(-1)
         if (!latest || latest.text === next) return
         const entry = {id: latest.id + 1, text: next}
-        setLines(entries.length === 1 && !reducedMotion() ? [latest, entry] : [entry])
+        setLines(entries.length === 1 && !prefersReducedMotion() ? [latest, entry] : [entry])
       },
       {defer: true},
     ),

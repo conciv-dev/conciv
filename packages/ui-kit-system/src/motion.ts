@@ -1,4 +1,5 @@
-import {onCleanup} from 'solid-js'
+import {createMediaQuery} from '@solid-primitives/media'
+import {createRoot, onCleanup, type Accessor} from 'solid-js'
 
 export type Spring = {value: number; velocity: number}
 
@@ -9,8 +10,11 @@ const MAX_FRAME_SECONDS = 1 / 20
 const MIN_FRAME_SECONDS = 1 / 240
 const SUBSTEP_SECONDS = 1 / 240
 
+const reducedMotionQuery: {accessor?: Accessor<boolean>} = {}
+
 export function prefersReducedMotion(): boolean {
-  return window.matchMedia(REDUCED_MOTION).matches
+  reducedMotionQuery.accessor ??= createRoot(() => createMediaQuery(REDUCED_MOTION))
+  return reducedMotionQuery.accessor()
 }
 
 export function clamp(options: {value: number; min: number; max: number}): number {

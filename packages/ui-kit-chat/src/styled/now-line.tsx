@@ -1,13 +1,12 @@
 import {createMemo, createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {createTimer} from '@solid-primitives/timer'
-import {createMediaQuery} from '@solid-primitives/media'
+import {prefersReducedMotion} from '@conciv/ui-kit-system'
 import {MorphLabel} from './morph-label.js'
 import {FOCUS} from './classes.js'
 
 const FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 const FROZEN_FRAME = '⠿'
 const FRAME_MS = 90
-const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
 
 const STOP_LABEL = 'Stop generating'
 
@@ -18,14 +17,13 @@ const STOP = `flex-none self-stretch inline-flex items-center px-1.5 rounded-cha
 
 export function NowLine(props: {title: string; onStop?: () => void}): JSX.Element {
   const [local] = splitProps(props, ['title', 'onStop'])
-  const reducedMotion = createMediaQuery(REDUCED_MOTION)
   const [frameIndex, setFrameIndex] = createSignal(0)
   createTimer(
     () => setFrameIndex((index) => (index + 1) % FRAMES.length),
-    () => (reducedMotion() ? false : FRAME_MS),
+    () => (prefersReducedMotion() ? false : FRAME_MS),
     setInterval,
   )
-  const glyph = createMemo(() => (reducedMotion() ? FROZEN_FRAME : (FRAMES[frameIndex()] ?? FROZEN_FRAME)))
+  const glyph = createMemo(() => (prefersReducedMotion() ? FROZEN_FRAME : (FRAMES[frameIndex()] ?? FROZEN_FRAME)))
   return (
     <div class={ROOT} role="status" aria-label="Agent activity">
       <span class={GLYPH} aria-hidden="true">
