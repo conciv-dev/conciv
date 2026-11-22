@@ -1,6 +1,6 @@
 import {isIdentifier, isNode, walk} from './ast-walk.js'
 
-const ROUTER_MODULE = '@tanstack/react-router'
+const ROUTER_MODULES = new Set(['@tanstack/react-router', '@tanstack/solid-router'])
 const ROUTE_SCOPED_HOOKS = new Set(['useSearch', 'useNavigate', 'useParams', 'useLoaderData'])
 const ROUTE_FILE = /(^|[\\/])src[\\/]routes[\\/]/
 const SEARCH_SCHEMA_NAME = /SearchSchema$/
@@ -101,17 +101,17 @@ function importedName(specifier) {
   return specifier.imported.name
 }
 
-function reportBareHook(specifier, context) {
+function reportBareHook(specifier, module, context) {
   if (specifier.type !== 'ImportSpecifier') return
   const name = importedName(specifier)
   if (!ROUTE_SCOPED_HOOKS.has(name)) return
-  context.report({node: specifier, messageId: 'bareRouterHook', data: {name}})
+  context.report({node: specifier, messageId: 'bareRouterHook', data: {name, module}})
 }
 
 function reportRouterImport(node, context) {
   if (node.type !== 'ImportDeclaration') return
-  if (node.source.value !== ROUTER_MODULE) return
-  for (const specifier of node.specifiers) reportBareHook(specifier, context)
+  if (!ROUTER_MODULES.has(node.source.value)) return
+  for (const specifier of node.specifiers) reportBareHook(specifier, node.source.value, context)
 }
 
 function checkBareRouterHooks(program, context) {
@@ -185,7 +185,7 @@ export default {
     type: 'problem',
     messages: {
       bareRouterHook:
-        "Route files must use route-scoped router APIs: replace the bare `{{name}}` import from '@tanstack/react-router' with `Route.{{name}}()`, or `getRouteApi('/path').{{name}}()` in a split component.",
+        "Route files must use route-scoped router APIs: replace the bare `{{name}}` import from '{{module}}' with `Route.{{name}}()`, or `getRouteApi('/path').{{name}}()` in a split component.",
       matchesMining:
         'Mining `useRouterState().matches` reimplements route matching. Read the param where it is declared with `useSearch({strict: false})`, or ask the router with `router.matchRoutes`.',
       searchFieldThrows:

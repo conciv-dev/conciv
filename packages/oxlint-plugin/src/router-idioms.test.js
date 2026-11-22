@@ -52,13 +52,13 @@ tester.run('router-idioms', rule, {
       name: 'a bare scoped hook in a route file',
       code: "import {useNavigate} from '@tanstack/react-router'",
       filename: routeFile,
-      errors: [{messageId: 'bareRouterHook', data: {name: 'useNavigate'}}],
+      errors: [{messageId: 'bareRouterHook', data: {name: 'useNavigate', module: '@tanstack/react-router'}}],
     },
     {
       name: 'a bare scoped hook from the Solid router in a route file',
       code: "import {useSearch} from '@tanstack/solid-router'",
       filename: '/repo/apps/conciv/src/routes/panel.tsx',
-      errors: [{messageId: 'bareRouterHook', data: {name: 'useSearch'}}],
+      errors: [{messageId: 'bareRouterHook', data: {name: 'useSearch', module: '@tanstack/solid-router'}}],
     },
     {
       name: 'router state mined for matches',
