@@ -48,6 +48,26 @@ describe('the session status chip', () => {
     expect(failed).toHaveAccessibleDescription('The model is unavailable')
   })
 
+  test('an edit that failed changed no file, so the status bar counts no files or lines', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine()
+    await engine.reply(
+      TestLLM.toolCall('c1', 'Edit', {file_path: 'src/app.ts', old_string: 'one', new_string: 'two\nthree'}),
+      TestLLM.text('The edit did not go through'),
+    )
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    const bar = await screen.findByRole('toolbar', {name: 'Session status'})
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Change the app')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('The edit did not go through')).toBeVisible()
+    expect(await within(bar).findByText('DONE')).toBeVisible()
+
+    expect(within(bar).queryByText('1 file')).not.toBeInTheDocument()
+    expect(within(bar).queryByText('+2')).not.toBeInTheDocument()
+    expect(within(bar).queryByText('−1')).not.toBeInTheDocument()
+  })
+
   test('a Stop while the reply is held shows STOPPING and Stopping… until the run ends, then STOPPED', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
