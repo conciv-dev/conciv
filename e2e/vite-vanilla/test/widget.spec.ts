@@ -225,3 +225,82 @@ test.describe('the terminal when its code fails to load', () => {
     await expect(notice).toHaveCount(0)
   })
 })
+
+test.describe('switching to another harness when the engine refuses the switch', () => {
+  const refusals: {
+    code: 'SESSION_RUNNING' | 'UNKNOWN_HARNESS' | 'UNKNOWN_MODEL' | 'INTERNAL_SERVER_ERROR'
+    notice: string
+  }[] = [
+    {code: 'SESSION_RUNNING', notice: 'Wait for the reply to finish, then switch to Gemini CLI.'},
+    {code: 'UNKNOWN_HARNESS', notice: 'Gemini CLI is no longer available.'},
+    {code: 'UNKNOWN_MODEL', notice: 'gemini-2.5-flash (Gemini CLI) is no longer available.'},
+    {code: 'INTERNAL_SERVER_ERROR', notice: 'Couldn’t switch to gemini-2.5-flash (Gemini CLI).'},
+  ]
+  for (const {code, notice} of refusals) {
+    test(`the user picks a Gemini CLI model, the engine refuses the switch with ${code}, a notice says "${notice}", and the session keeps its model`, async ({
+      page,
+    }) => {
+      const failures = collectFailures(page)
+      await loginWidget(page)
+      await expectWidgetBoots(page, failures)
+      await holdEngineCall<['sessions', 'switchHarness']>(page, ['sessions', 'switchHarness'], {fail: code})
+      await page.reload({waitUntil: 'domcontentloaded'})
+
+      await page.getByRole('button', {name: /^Model: /}).click()
+      const search = page.getByRole('textbox', {name: 'Search models'})
+      await expect(search).toBeFocused()
+      await search.pressSequentially('gemini-2.5-flash')
+      await page.getByRole('option', {name: 'gemini-2.5-flash (Gemini CLI)'}).click()
+
+      await expect(page.getByRole('status').filter({hasText: notice})).toBeVisible()
+      await expect(page.getByRole('button', {name: /^Model: /})).toBeVisible()
+      await expect(page.getByRole('button', {name: /^Model: gemini-2\.5-flash/})).toHaveCount(0)
+    })
+  }
+})
+
+test.describe('the model menu when the engine fails to list models', () => {
+  test('the engine fails every read of the session’s models, the prompt says conciv couldn’t load models, and once the engine answers Retry shows the session model', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const models = await holdEngineCall(page, ['meta', 'models'], {when: () => true, fail: 'INTERNAL_SERVER_ERROR'})
+    await page.reload({waitUntil: 'domcontentloaded'})
+
+    await page.getByRole('button', {name: 'Couldn’t load models'}).click()
+    const retry = page.getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
+    await expect(retry).toBeVisible()
+
+    models.release()
+    await retry.click()
+    await expect(page.getByRole('button', {name: /^Model: /})).toBeVisible()
+    await expect(page.getByRole('button', {name: 'Couldn’t load models'})).toHaveCount(0)
+  })
+
+  test('the engine fails every read of the other harnesses, the menu says conciv couldn’t load them, and once the engine answers Retry lists Codex and Gemini CLI', async ({
+    page,
+  }) => {
+    const failures = collectFailures(page)
+    await loginWidget(page)
+    await expectWidgetBoots(page, failures)
+    const harnesses = await holdEngineCall(page, ['meta', 'harnesses'], {
+      when: () => true,
+      fail: 'INTERNAL_SERVER_ERROR',
+    })
+    await page.reload({waitUntil: 'domcontentloaded'})
+
+    await page.getByRole('button', {name: /^Model: /}).click()
+    const menu = page.getByRole('dialog', {name: 'Model'})
+    const retry = menu.getByRole('button', {name: 'Couldn’t load the other harnesses: Retry loading models'})
+    await expect(retry).toBeVisible()
+    await expect(menu.getByRole('group', {name: 'Gemini CLI'})).toHaveCount(0)
+
+    harnesses.release()
+    await retry.click()
+    await expect(menu.getByRole('group', {name: 'Codex'})).toBeVisible()
+    await expect(menu.getByRole('group', {name: 'Gemini CLI'})).toBeVisible()
+    await expect(retry).toHaveCount(0)
+  })
+})
