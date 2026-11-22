@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'vitest'
-import {screen, waitForElementToBeRemoved} from '@solidjs/testing-library'
+import {page} from 'vitest/browser'
+import {screen} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine} from '@conciv/plugin-testkit'
 import {mount} from '@conciv/plugin-testkit/browser'
@@ -23,7 +24,7 @@ describe('connecting the widget to a local engine', () => {
 
     await user.click(screen.getByRole('button', {name: 'Copy connect command'}))
     expect(await navigator.clipboard.readText()).toBe(`npx @conciv/try --token ${token}`)
-    await waitForElementToBeRemoved(() => screen.queryByText('1'))
+    await expect.element(page.getByText('1', {exact: true})).not.toBeInTheDocument()
     expect(screen.getByText('2')).toBeVisible()
 
     await user.click(screen.getByRole('button', {name: 'or hand it to your coding agent'}))
