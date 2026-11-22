@@ -132,11 +132,11 @@ describe('opening a tool card while the turn goes on', () => {
     await answer.started
     const reply = await screen.findByRole('article', {name: 'Reply to: When can we ship'})
     await user.click(await within(reply).findByRole('button', {name: /main/}))
-    expect(await within(reply).findByText(/noon to two/)).toBeVisible()
+    expect(await within(reply).findByText('"noon to two"')).toBeVisible()
 
     await answer.release()
     expect(await screen.findByText('The window is set')).toBeVisible()
-    expect(within(reply).getByText(/noon to two/)).toBeVisible()
+    expect(within(reply).getByText('"noon to two"')).toBeVisible()
     const durations = await within(reply).findAllByText(/^\d+\.\ds$/)
     expect(durations.at(-1)).toBeVisible()
   })
