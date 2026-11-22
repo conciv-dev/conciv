@@ -540,7 +540,7 @@ function AddAttachment(props: AddAttachmentProps): JSX.Element {
           input = node
         }}
         type="file"
-        class="sr-only"
+        class="hidden"
         multiple={attachmentMultiple(local.multiple)}
         accept={attachmentAccept(local.accept, context.attachmentAdapter())}
         onChange={(event) => void onPick(event)}
