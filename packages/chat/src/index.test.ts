@@ -31,6 +31,21 @@ describe('stopping', () => {
     await expect(sent).resolves.toBeUndefined()
     await expect(interrupted.arrived).resolves.toMatchObject({data: {reason: 'user'}})
   })
+
+  test('a stop sent while the turn still prepares its prompt, before its run is recorded, ends it and the agent is never asked', async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/turn-holder']})
+    await engine.reply(TestLLM.text('Never shown'))
+    const interrupted = await engine.event('session.execution.interrupted')
+
+    const sent = engine.session.send('Hello')
+    await engine.session.tool('turn_held').call({hook: 'prompt'})
+    await engine.session.stop()
+    await engine.session.tool('turn_release').call({hook: 'prompt'})
+
+    await expect(sent).resolves.toBeUndefined()
+    await expect(interrupted.arrived).resolves.toMatchObject({data: {reason: 'user'}})
+    expect(await engine.requests()).toHaveLength(0)
+  })
 })
 
 describe('two turns', () => {
