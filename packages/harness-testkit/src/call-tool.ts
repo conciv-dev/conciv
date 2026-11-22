@@ -37,7 +37,9 @@ function decodeExecuteReply(raw: string): unknown {
   return reply.success && 'result' in reply.data ? reply.data.result : parsed
 }
 
-const directReply: Decode = {value: parseReply, holdsValue: () => true}
+const QUEUE_NOTICE = /^queue \S+ \S+: \d+ played, \d+ failed\n/
+
+const directReply: Decode = {value: parseReply, holdsValue: (raw) => !QUEUE_NOTICE.test(raw)}
 
 const executeReply: Decode = {value: decodeExecuteReply, holdsValue: isExecuteReply}
 
