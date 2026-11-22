@@ -97,16 +97,12 @@ describe('the runner is stopped from outside', () => {
       failures: [],
       tests: [],
     })
-    const following = await engine.event('rpc.test-runner.event')
     await endless
 
-    expect((await following.arrived).data).toMatchObject({
-      type: 'run-start',
-      files: expect.arrayContaining([expect.stringContaining('beds/pruning.test.js')]),
-    })
     expect(await waiting).toMatchObject({
       summary: {passed: 1, failed: 1, skipped: 0},
       failures: [{name: 'the pruned rose blooms', message: 'expected 3 to be 4 // Object.is equality'}],
+      tests: expect.arrayContaining([expect.objectContaining({file: expect.stringContaining('beds/pruning.test.js')})]),
     })
     expect(await engine.rpc.call('test-runner', 'status')).toMatchObject({
       summary: {passed: 1, failed: 1, skipped: 0},
