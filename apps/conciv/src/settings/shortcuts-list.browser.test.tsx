@@ -9,6 +9,7 @@ describe('recording keyboard shortcuts', () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const panel = await screen.findByRole('dialog', {name: 'conciv chat agent'})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     await user.click(await screen.findByRole('tab', {name: 'Shortcuts'}))
 
@@ -24,7 +25,7 @@ describe('recording keyboard shortcuts', () => {
     await user.keyboard('{Control>}.{/Control}')
     await user.keyboard('{Control>}k{/Control}')
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
-    expect(screen.queryByRole('dialog', {name: 'conciv chat agent'})).not.toBeInTheDocument()
+    await expect.element(panel).not.toBeVisible()
 
     await user.click(screen.getByRole('button', {name: 'Open conciv chat'}))
     await user.click(await screen.findByRole('link', {name: 'Settings'}))

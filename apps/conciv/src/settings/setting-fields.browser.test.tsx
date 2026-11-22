@@ -9,6 +9,7 @@ describe('the general settings change the panel', () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const panel = await screen.findByRole('dialog', {name: 'conciv chat agent'})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
 
     await user.click(await screen.findByRole('radio', {name: 'Dark'}))
@@ -31,7 +32,7 @@ describe('the general settings change the panel', () => {
     render(() => <p>The host page</p>)
     await user.click(screen.getByText('The host page'))
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
-    expect(screen.queryByRole('dialog', {name: 'conciv chat agent'})).not.toBeInTheDocument()
+    await expect.element(panel).not.toBeVisible()
   })
 
   test('a project that chose to open on page load shows the panel when the page loads', async () => {
