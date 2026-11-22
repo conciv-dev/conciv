@@ -2,13 +2,13 @@ import {execFile} from 'node:child_process'
 import {relative} from 'node:path'
 import {promisify} from 'node:util'
 import {fileURLToPath} from 'node:url'
-import {describe, expect, test} from 'vitest'
+import {describe, test} from 'vitest'
 import {z} from 'zod'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {humanSourceComment} from '../test/human-source-comment.js'
 
-describe('the agent is told about the whiteboard', () => {
-  test('the model request lists the whiteboard skill and the whiteboard tool namespace', async () => {
+describe.concurrent('the agent is told about the whiteboard', () => {
+  test('the model request lists the whiteboard skill and the whiteboard tool namespace', async ({expect}) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     await engine.reply(TestLLM.text('I can draw that on the whiteboard'))
     await engine.session.send('Sketch the login flow')
@@ -26,8 +26,10 @@ describe('the agent is told about the whiteboard', () => {
   })
 })
 
-describe('the agent works a comment thread on the board', () => {
-  test('a comment takes a reply, reads back with its thread, lists alone, its pin moves and floats, and resolving and deleting ask the user first; deleting a reply keeps the thread, deleting the root takes its pin', async () => {
+describe.concurrent('the agent works a comment thread on the board', () => {
+  test('a comment takes a reply, reads back with its thread, lists alone, its pin moves and floats, and resolving and deleting ask the user first; deleting a reply keeps the thread, deleting the root takes its pin', async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const room = engine.session.id
 
@@ -126,8 +128,10 @@ describe('the agent works a comment thread on the board', () => {
   })
 })
 
-describe('a source-linked comment follows its element as the code changes', () => {
-  test('the agent finds a component, anchors a comment to it, and the anchor reads fresh, moved, ambiguous, then orphaned or drifted', async () => {
+describe.concurrent('a source-linked comment follows its element as the code changes', () => {
+  test('the agent finds a component, anchors a comment to it, and the anchor reads fresh, moved, ambiguous, then orphaned or drifted', async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const room = engine.session.id
     await engine.write(
@@ -271,8 +275,10 @@ describe('a source-linked comment follows its element as the code changes', () =
   })
 })
 
-describe('in a git project a source-linked comment records the commit it was made on', () => {
-  test('the anchor records HEAD, and after a committed edit moves the element it reads moved at its new line', async () => {
+describe.concurrent('in a git project a source-linked comment records the commit it was made on', () => {
+  test('the anchor records HEAD, and after a committed edit moves the element it reads moved at its new line', async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']}, {git: true})
     const cart = [
       'export function Cart() {',
@@ -318,8 +324,8 @@ describe('in a git project a source-linked comment records the commit it was mad
   })
 })
 
-describe('a human comment on a source element gets its source details from the engine', () => {
-  test('a human comment that names only a file and line is given its component, snippet and hash', async () => {
+describe.concurrent('a human comment on a source element gets its source details from the engine', () => {
+  test('a human comment that names only a file and line is given its component, snippet and hash', async ({expect}) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const room = engine.session.id
     await engine.write(
@@ -365,8 +371,10 @@ describe('a human comment on a source element gets its source details from the e
   })
 })
 
-describe('a draft left when a turn ends is sent to be published', () => {
-  test('the turn ends with a draft on the board and the engine queues one commit for the canvas, never a second', async () => {
+describe.concurrent('a draft left when a turn ends is sent to be published', () => {
+  test('the turn ends with a draft on the board and the engine queues one commit for the canvas, never a second', async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const room = engine.session.id
     await engine.rpc.call('whiteboard', 'elements.upsert', {
@@ -388,8 +396,10 @@ describe('a draft left when a turn ends is sent to be published', () => {
   })
 })
 
-describe('anchors never leak secrets or reach outside the project', () => {
-  test('a snippet has its secrets redacted, a secret file keeps no snippet, and a file outside the project is not read', async () => {
+describe.concurrent('anchors never leak secrets or reach outside the project', () => {
+  test('a snippet has its secrets redacted, a secret file keeps no snippet, and a file outside the project is not read', async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     await engine.write(
       'src/Billing.tsx',
@@ -448,8 +458,10 @@ describe('anchors never leak secrets or reach outside the project', () => {
   })
 })
 
-describe('with no canvas open, the canvas tools answer without waiting on one', () => {
-  test('preview and commit have nothing to work on, drawing and png export fail, bad svg and oversized diagrams are refused', async () => {
+describe.concurrent('with no canvas open, the canvas tools answer without waiting on one', () => {
+  test('preview and commit have nothing to work on, drawing and png export fail, bad svg and oversized diagrams are refused', async ({
+    expect,
+  }) => {
     const engine = await createEngine({
       plugins: [['@conciv/plugin-whiteboard', {drawDeadlineMs: 50, exportDeadlineMs: 50, commitDeadlineMs: 50}]],
     })
@@ -497,8 +509,8 @@ describe('with no canvas open, the canvas tools answer without waiting on one', 
   })
 })
 
-describe('the board lives in the engine state', () => {
-  test('comments and canvas elements are still there after the engine restarts', async () => {
+describe.concurrent('the board lives in the engine state', () => {
+  test('comments and canvas elements are still there after the engine restarts', async ({expect}) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const room = engine.session.id
     await engine.session.tool('whiteboard_comment_create').call({
@@ -527,8 +539,10 @@ describe('the board lives in the engine state', () => {
   })
 })
 
-describe("a canvas tab keeps the board through the plugin's rpc", () => {
-  test('rows are written, read, conflicted, claimed and removed, each change is announced and since replays them', async () => {
+describe.concurrent("a canvas tab keeps the board through the plugin's rpc", () => {
+  test('rows are written, read, conflicted, claimed and removed, each change is announced and since replays them', async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-whiteboard']})
     const room = engine.session.id
     const pin = {
