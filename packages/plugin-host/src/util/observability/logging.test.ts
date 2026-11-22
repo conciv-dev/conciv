@@ -7,14 +7,14 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {Global} from '../global.js'
 import {file, fileLogger} from './logging.js'
 
-function logFile(local: boolean, channel: string, log: string) {
-  return file(local, channel).pipe(
-    Effect.provideService(Global.Service, Global.Service.of({cache: log, config: log, state: log, log})),
-    Effect.runPromise,
-  )
-}
-
 describe('Logging', () => {
+  function logFile(local: boolean, channel: string, log: string) {
+    return file(local, channel).pipe(
+      Effect.provideService(Global.Service, Global.Service.of({cache: log, config: log, state: log, log})),
+      Effect.runPromise,
+    )
+  }
+
   test('uses a local-specific log file for local installs', async () => {
     const log = tempDir('conciv-log-test-')
     expect(await logFile(true, 'local', log)).toBe(path.join(log, 'conciv-local.log'))
