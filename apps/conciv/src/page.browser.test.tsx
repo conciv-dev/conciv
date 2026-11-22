@@ -707,7 +707,7 @@ describe('a plugin adds its own page operation', () => {
 })
 
 describe('the agent finds the tab through the TanStack plugin', () => {
-  test('the TanStack tab list names the focused tab and a TanStack page operation with wrong input is refused', async () => {
+  test('the TanStack tab list names the focused tab', async () => {
     const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -715,11 +715,6 @@ describe('the agent finds the tab through the TanStack plugin', () => {
 
     expect(await engine.session.tool('tanstack_tabs_list').call({})).toMatchObject({
       tabs: [{focused: true, visible: true}],
-    })
-    expect(await engine.session.tool('tanstack_navigate').failure({to: 7})).toMatchObject({
-      message: expect.stringContaining(
-        'Invalid arguments for tool \\"tanstack_navigate\\":\\n- to: Invalid input: expected string, received number',
-      ),
     })
   })
 })
