@@ -15,7 +15,7 @@ import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-po
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {z} from 'zod'
-import {callTool} from './call-tool.js'
+import {toolClients, type ToolClients} from './call-tool.js'
 import {holdTestClock, realClock, type HarnessEngineClock, type HeldClock} from './clock.js'
 import {outsideAgent, type Outside, type OutsideAgent} from './outside.js'
 import {replyScript, type ReplyScript, type ScriptedHarness} from './scripted-harness.js'
@@ -130,7 +130,7 @@ type Turns = {
   closeAll: () => void
 }
 
-type Engine = {rpc: RpcClient; apiBase: string; turns: Turns}
+type Engine = {rpc: RpcClient; apiBase: string; turns: Turns; tools: ToolClients}
 
 type Started = Awaited<ReturnType<typeof start>>
 
@@ -263,8 +263,8 @@ function sessionOn(engine: Engine, id: string): HarnessEngineSession {
     approve: () => approvePending(engine, id),
     stop: () => stopRun(engine, id),
     tool: (name) => ({
-      call: (input) => callTool(engine.apiBase, id, name, input),
-      failure: (input) => failedTool(name, callTool(engine.apiBase, id, name, input)),
+      call: (input) => engine.tools.call(id, name, input),
+      failure: (input) => failedTool(name, engine.tools.call(id, name, input)),
     }),
   }
 }
@@ -553,12 +553,13 @@ export async function createHarnessEngine(
   const first = await bootFirst(boot).catch((error: unknown) => abandonStart(error, [removeRoot, closeClock]))
   const apiBase = `http://127.0.0.1:${first.port}/t/${first.agentToken}`
   const browser = makeBrowserRpcClient(apiBase)
-  const engine: Engine = {apiBase, rpc: browser.rpc, turns: makeTurns(browser.rpc)}
+  const engine: Engine = {apiBase, rpc: browser.rpc, turns: makeTurns(browser.rpc), tools: toolClients(apiBase)}
   const state: {running: Running | undefined} = {running: {started: first, close: connect(engine, browser)}}
   const waits = new Set<AbortController>()
   const halt = async (): Promise<unknown[]> => {
     for (const wait of waits) wait.abort()
     engine.turns.closeAll()
+    await engine.tools.close()
     script.releaseGate()
     const running = state.running
     state.running = undefined
