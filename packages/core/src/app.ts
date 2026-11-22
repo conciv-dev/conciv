@@ -757,7 +757,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const runtime = makeCoreRuntime({
     primitives,
     plane,
-    db,
     model: sessionModel,
     staleness,
     interruptIdle,

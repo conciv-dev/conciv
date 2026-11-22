@@ -2,7 +2,7 @@
 
 ## Overview
 
-oRPC router that implements the `@conciv/contract` procedures for sessions, chat, drafts, markers, navigation, registry, page, editor, meta, skill, agent, fs and plugin. `mount.ts` defines the base `os` builder and a session-scoped middleware that resolves the caller's session from a header.
+oRPC router that implements the `@conciv/contract` procedures for sessions, chat, drafts, markers, registry, page, editor, meta, skill, agent, fs and plugin. `mount.ts` defines the base `os` builder and a session-scoped middleware that resolves the caller's session from a header.
 
 ## Interface
 
@@ -10,7 +10,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - RPC `sessions.list`, `.preview`, `.create`, `.resolve`, `.open`, `.restore`, `.rename`, `.delete`, `.model`, `.effort`, `.compact`, `.switchHarness` (`sessions.ts`, `sessionsRouter`)
 - RPC `chat.events` (streaming), `chat.hydrate`, `chat.stop`, `chat.permissionDecision`, `chat.uiReply` (`router.ts`, `chatRouter`); `chat.stop` awaits the session runtime's `run.stop` and answers `{ok: true}`, as the contract declares: the `stopped` that `run.stop` computes is read in-process only, by a plugin's `ctx.session.interrupt`
 - RPC `settings.all`, `settings.set`, `settings.delete`, `settings.changes` (streaming) (`router.ts`): one `{scope: 'global' | 'project', namespace}` settings file each, every answer the full `{generation, version, value}` snapshot
-- RPC `drafts.get`, `drafts.set`, `markers.list`, `navigation.get`, `navigation.set` (`router.ts`)
+- RPC `drafts.get`, `drafts.set`, `markers.list` (`router.ts`)
 - RPC `registry.catalog`, `registry.call` (`router.ts`); `registry.catalog` answers the registry's signatures and then the page plugin's tools as CLI signatures (`pluginSignatures`, `runtime/plugin-signatures.ts`): read session-free from the host's `Tool.Service.list()` after `Plugin.awaitActivation`, matched to `@conciv/plugin-page/rpc`'s `CliTools` (keyed by operation name) through the host's own `ToolRuntime.effectiveName`, binding `client`, positional, category and `approval: 'ask'` from that table, the tools it marks not for the terminal left out, and its `CLI_HIDDEN_FIELDS` (`tabId`) dropped from the input schema
 - RPC `page.symbolicate`, `page.changes`, `page.clearChanges` (`router.ts`)
 - RPC `page.queue.wait({sessionId, queueId, waitMs})` (`router.ts`): the queue store's `wait`, a queue result (marked delivered) or `{status: 'playing', done, of}`; NO_QUEUE for a queue this tab does not have

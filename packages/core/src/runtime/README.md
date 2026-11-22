@@ -9,7 +9,7 @@ Builds the per-session and engine-wide scope objects that join the session event
 - `makeCoreRuntime(deps)` / `CoreRuntimeDeps` (`core-runtime.ts`): `CoreRuntime` with `forSession(id)` and `engine`; a session's `run.stop(runIds?)` stops the plane's live run and then interrupts that session's in-flight `experimental.idle` trigger (`deps.interruptIdle`, `app.ts`), answering `{ok: true, stopped}` with `stopped` true when it stopped a live run or interrupted an idle trigger (as opencode, whose interrupt answers true while the execution's idle hook still runs); when it stopped or interrupted something, the idle slot stays taken until the plane's run of that session has settled, so a run stopped while its turn ends starts no idle hook after the stop; the `runIds` filter applies to the live run only; a session's `run.compact()` interrupts that session's in-flight `experimental.idle` trigger the same way first, then runs the plane's `compact` (which stops the live run and waits for it in `hydrate`), so a compact sent while an idle hook waits on its own session does not hang
 - `makeSessionPrimitives` / `SessionPrimitives` (`primitives.ts`): {stream}
 - `SessionScope` (`scope-types.ts`): {id, stream, asks, history, run}
-- `EngineScope` (`scope-types.ts`): {staleness, symbolicate, navigation: {get, set}}
+- `EngineScope` (`scope-types.ts`): {staleness, symbolicate}
 - `CoreRuntime` (`scope-types.ts`)
 - `provideInstructionEntries` / `loadInstructionEntries` (`instruction-entries.ts`): the plugin `InstructionEntry` key on the plugin host's `KV` store, one row per session and key under the reserved prefix `conciv.instruction-entry:<sessionId>:`, a removed entry kept as `{value: null, removed: true}`; `loadInstructionEntries` turns a session's rows into one instruction source each (`api/<key>`), which `pluginInstructions` (`permission-cards.ts`) combines with code mode and skills
 - `provideBundlerSource` / `provideEditorSource` / `provideApp` / `provideConfiguredPolicies` / `provideGlobalRoots` (`plugin-runtime.ts`): the plugin host's `BundlerSource`, `EditorSource` (the engine's editor opener, which only the engine's internal plugins get), `App` (core's package version) and `ManagedPolicy.ConfiguredPolicies` (the config's `policies` decoded with `ConfigPolicy.Info`) and `Global` (`cache` and `state` under conciv's home and `config` conciv's home itself, where the `skill/` and `skills/` folders are scanned, made when the layer is built) as layers
@@ -20,8 +20,6 @@ Builds the per-session and engine-wide scope objects that join the session event
 
 ## Invariants
 
-- `navigation.set` (`core-runtime.ts`): a write dated more than 24h ahead is not applied; the upsert is last-writer-wins on `updatedAt` in a single row with id 'navigation'
-
 ## Side Effects
 
 - `makePluginRuntime` (`plugin-runtime.ts`): building the runtime watches the project root for a `conciv` entry (and `conciv/` itself when it exists) through `ConfigPluginSource`; `supervise` loads the built-in `conciv.skill` (the `conciv` and `report` skills), `conciv.tool.skill` and `conciv.tool.server` plugins first, then the embedder's plugins, `conciv/plugin*/` files and the configured plugins, then the built-in `conciv.config.skill` plugin last (it offers the skills in `skill/` and `skills/` under conciv's home and the project's `conciv/` folder, rescanned when they change), installing configured packages that are not installed; the latest registration of a tool name wins, so a project plugin's tool named `open` or `server_*` replaces the engine's, as opencode
@@ -30,7 +28,6 @@ Builds the per-session and engine-wide scope objects that join the session event
 - `provideGlobalRoots` (`plugin-runtime.ts`): makes the `cache` and `state` directories and sets the host's `Flock` state root when the layer is built
 - `provideServersSource` (`servers-source.ts`): nothing runs until a plugin first reads `servers`; then, inside the layer's scope, a watch of the home folder (`homeDbReads`, `lib/home-db-watch.ts`) re-checks on every change of the engine rows, and a health re-check runs every 10 s (opencode's `SERVER_HEALTH_POLL_MS`); checks run one at a time; closing the scope aborts the watch and stops the poll; a failed check is logged and keeps the last snapshot
 - `provideHarnessModels` (`plugin-runtime.ts`): each call lists the harness's models (a failed listing is logged and answers no models)
-- `navigation` get/set (`core-runtime.ts`): SQLite select and upsert on the `navigation` table
 
 ## Verification
 

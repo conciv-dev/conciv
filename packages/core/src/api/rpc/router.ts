@@ -473,10 +473,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         ),
       ),
     },
-    navigation: {
-      get: os.navigation.get.handler(() => engine.navigation.get()),
-      set: os.navigation.set.handler(({input}) => engine.navigation.set(input)),
-    },
     registry: {
       catalog: os.registry.catalog.handler(({signal}) => deps.pluginHost.runPromise(pluginSignatures, {signal})),
       call: toolCallOs.registry.call.handler(async ({input, context, errors, signal, path}) => {
