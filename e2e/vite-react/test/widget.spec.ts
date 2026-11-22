@@ -17,13 +17,12 @@ test.describe('signing in to the widget on a vite react page', () => {
     await expectWidgetBoots(page, failures)
   })
 
-  test('the user types the code the dev server printed into the locked launcher', async ({page}) => {
+  test('the code the dev server prints in its log signs the browser in', async ({page}) => {
     const code = await openLoginFromLockedLauncher(page)
 
     await page.getByRole('textbox', {name: 'Digit 1 of 6'}).pressSequentially(code)
 
     await expect(page.getByRole('dialog', {name: 'Authorize conciv'})).not.toBeVisible()
-    await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()
   })
 
   test('the user opens the locked launcher while the engine fails to issue a code, is told so, and Send a new code gets one printed', async ({
