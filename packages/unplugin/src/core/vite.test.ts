@@ -9,13 +9,13 @@ import {pathToFileURL} from 'node:url'
 import {describe, expect} from 'vitest'
 import {z} from 'zod'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {makeBrowserRpcClient} from '@conciv/contract'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {adapterFiles, agentStarted, childEnv, fakeClaude, readyLine, running, test} from '../../test/unplugin-test.js'
 
-describe.skipIf(process.platform === 'win32')('the vite dev server', () => {
+describe('the vite dev server', () => {
   test('stops the engine on Ctrl+C mid-run: no adapter file stays in the project and no agent CLI outlives it', async ({
     started,
+    browser: openBrowser,
   }) => {
     const RecordedEngineSchema = z.object({port: z.number().int(), token: z.string().min(1)})
     const viteBin = join(dirname(createRequire(import.meta.url).resolve('vite/package.json')), 'bin', 'vite.js')
@@ -42,7 +42,7 @@ describe.skipIf(process.platform === 'win32')('the vite dev server', () => {
     const engine = RecordedEngineSchema.parse(
       JSON.parse(readFileSync(join(concivStateDir(project), 'server.json'), 'utf8')),
     )
-    const browser = makeBrowserRpcClient(`http://127.0.0.1:${engine.port}/t/${engine.token}`)
+    const browser = openBrowser(`http://127.0.0.1:${engine.port}/t/${engine.token}`)
     const {sessionId} = await browser.rpc.sessions.create()
     const runId = randomUUID()
     const events = await browser.rpc.chat.send({
@@ -57,7 +57,6 @@ describe.skipIf(process.platform === 'win32')('the vite dev server', () => {
 
     server.kill('SIGINT')
     await exited
-    browser.close()
 
     expect(adapterFiles(project)).toEqual([])
     expect(running(agent)).toBe(false)

@@ -14,6 +14,7 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
+import {makeBrowserRpcClient, type BrowserRpcClient} from '@conciv/contract'
 
 type Engine = ChildProcessByStdio<null, Readable, Readable>
 type Hung = {engine: Engine; lines: AsyncIterator<string>}
@@ -87,6 +88,7 @@ type UnpluginFixtures = {
   editor: {next: () => Promise<string>}
   viteDev: (options: ConcivConfig) => Promise<RecordedEngine>
   started: number[]
+  browser: (url: string) => BrowserRpcClient
   hang: (deadline: number) => Hung
   project: (name: string) => string
   serve: (config: InlineConfig) => Promise<ViteDevServer>
@@ -168,6 +170,15 @@ export const test = base.extend<UnpluginFixtures>({
       return runCompiler(compiler)
     })
     await Promise.all(compilers.map(closeCompiler))
+  },
+  browser: async ({task: _task}, use) => {
+    const clients: BrowserRpcClient[] = []
+    await use((url) => {
+      const client = makeBrowserRpcClient(url)
+      clients.push(client)
+      return client
+    })
+    for (const client of clients) client.close()
   },
   started: async ({task: _task}, use) => {
     const started: number[] = []

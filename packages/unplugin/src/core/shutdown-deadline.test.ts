@@ -3,7 +3,7 @@ import {text} from 'node:stream/consumers'
 import {describe, expect} from 'vitest'
 import {readLine, test} from '../../test/unplugin-test.js'
 
-describe.skipIf(process.platform === 'win32')('the shutdown deadline', () => {
+describe('the shutdown deadline', () => {
   test('exits 1 when the close outlives the deadline after Ctrl+C, and names what is still pending', async ({hang}) => {
     const {engine, lines} = hang(200)
     await readLine(lines, 'SHUTDOWN_READY')
