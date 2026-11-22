@@ -47,21 +47,23 @@ describe('logging in', () => {
     const dialog = await screen.findByRole('dialog', {name: 'Authorize conciv'})
     expect(dialog).toBeVisible()
 
-    const enterWrongCode = async (): Promise<void> => {
-      await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
-      await user.keyboard('000000')
-    }
-    await enterWrongCode()
+    await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard('000000')
     expect(await within(dialog).findByText("That code didn't match. Check your terminal and try again.")).toBeVisible()
-    await enterWrongCode()
+    await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard('000000')
     expect(await within(dialog).findByText("That code didn't match. Check your terminal and try again.")).toBeVisible()
-    await enterWrongCode()
+    await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard('000000')
     expect(await within(dialog).findByText("That code didn't match. Check your terminal and try again.")).toBeVisible()
-    await enterWrongCode()
+    await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard('000000')
     expect(await within(dialog).findByText("That code didn't match. Check your terminal and try again.")).toBeVisible()
-    await enterWrongCode()
+    await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard('000000')
     expect(await within(dialog).findByText("That code didn't match. Check your terminal and try again.")).toBeVisible()
-    await enterWrongCode()
+    await user.click(within(dialog).getByRole('textbox', {name: 'Digit 1 of 6'}))
+    await user.keyboard('000000')
     expect(
       await within(dialog).findByText('That code expired. Send a new code and use the one your terminal prints.'),
     ).toBeVisible()
