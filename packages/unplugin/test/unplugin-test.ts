@@ -6,6 +6,7 @@ import {delimiter, dirname, join} from 'node:path'
 import {createInterface} from 'node:readline'
 import type {Readable} from 'node:stream'
 import {fileURLToPath, pathToFileURL} from 'node:url'
+import {stripVTControlCharacters} from 'node:util'
 import {test as base} from 'vitest'
 import {createServer, type InlineConfig, type ViteDevServer} from 'vite'
 import {createServer as createNetServer} from 'node:net'
@@ -298,7 +299,7 @@ export async function readLine(lines: AsyncIterator<string>, expected: string): 
 
 export async function readyLine(lines: AsyncIterator<string>): Promise<void> {
   let next = await lines.next()
-  while (next.done !== true && !next.value.includes('Local:')) next = await lines.next()
+  while (next.done !== true && !stripVTControlCharacters(next.value).includes('Local:')) next = await lines.next()
 }
 
 export async function agentStarted(events: AsyncIterator<ChatEvent>): Promise<void> {
