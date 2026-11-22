@@ -87,16 +87,20 @@ describe('steering the agent', () => {
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
     await gate.started
+    const steerGate = await engine.gate()
     expect(await screen.findByRole('button', {name: 'Stop generating'})).toBeVisible()
     await user.type(input, 'Do this instead')
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
     await user.click(await screen.findByRole('button', {name: 'Steer'}))
+    await steerGate.started
     await expect.element(page.getByText('1 waiting · runs in order')).not.toBeInTheDocument()
     await gate.release()
+    await steerGate.release()
 
     const steered = await screen.findByRole('article', {name: 'Reply to: Do this instead'})
     expect(await within(steered).findByText('Changed course')).toBeVisible()
+    expect(screen.queryByText('First answer')).not.toBeInTheDocument()
     const requests = await engine.requests()
     expect(requests.map((request) => request.messages.at(-1))).toMatchObject([
       {role: 'user', content: 'First task'},
