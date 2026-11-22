@@ -192,133 +192,7 @@ describe('the agent leaves the page alone for a while', () => {
 })
 
 describe('the agent fills in a form on the page', () => {
-  test('the agent types, picks, ticks and submits an order, and the host page takes it', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    const control = await engine.event('rpc.experimental.page.control')
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_page_fill({selector: '#name', value: 'Ada'})",
-      }),
-      TestLLM.toolCall('c2', 'execute_typescript', {
-        typescriptCode: "return await external_page_select({selector: '#size', value: 'Large'})",
-      }),
-      TestLLM.toolCall('c3', 'execute_typescript', {
-        typescriptCode: "return await external_page_check({selector: '#gift'})",
-      }),
-      TestLLM.toolCall('c4', 'execute_typescript', {
-        typescriptCode: "return await external_page_uncheck({selector: '#news'})",
-      }),
-      TestLLM.toolCall('c5', 'execute_typescript', {
-        typescriptCode: "return await external_page_submit({selector: '#name'})",
-      }),
-      TestLLM.text('The order is placed'),
-    )
-    const finished = await engine.event('session.execution.succeeded')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-    render(() => (
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          const order = new FormData(event.currentTarget)
-          event.currentTarget.append(
-            `Order placed for ${String(order.get('name'))}, ${String(order.get('size'))} pot, ${order.get('gift') ? 'gift wrapped' : 'no wrap'}, ${order.get('news') ? 'with news' : 'no news'}`,
-          )
-        }}
-      >
-        <label>
-          Your name
-          <input id="name" name="name" />
-        </label>
-        <label>
-          Pot size
-          <select id="size" name="size">
-            <option value="small">Small</option>
-            <option value="large">Large</option>
-          </select>
-        </label>
-        <label>
-          <input id="gift" name="gift" type="checkbox" />
-          Gift wrap
-        </label>
-        <label>
-          <input id="news" name="news" type="checkbox" checked />
-          Send me news
-        </label>
-      </form>
-    ))
-
-    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
-    await finished.arrived
-
-    expect(await screen.findByText('The order is placed')).toBeVisible()
-    expect(screen.getByRole('textbox', {name: 'Your name'})).toHaveValue('Ada')
-    expect(screen.getByRole('combobox', {name: 'Pot size'})).toHaveValue('large')
-    expect(screen.getByRole('checkbox', {name: 'Gift wrap'})).toBeChecked()
-    expect(screen.getByRole('checkbox', {name: 'Send me news'})).not.toBeChecked()
-    expect(screen.getByText('Order placed for Ada, large pot, gift wrapped, no news')).toBeVisible()
-    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
-    expect(within(within(reply).getByRole('list')).getAllByRole('listitem')).toHaveLength(5)
-    expect(within(reply).getByText('Typed')).toBeVisible()
-    expect(within(reply).getByText('Selected')).toBeVisible()
-    expect(within(reply).getByText('Checked a box')).toBeVisible()
-    expect(within(reply).getByText('Unchecked a box')).toBeVisible()
-    expect(within(reply).getByText('Submitted the form')).toBeVisible()
-  })
-
-  test('the agent fills a whole form in one call and writes into an editable note', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    const control = await engine.event('rpc.experimental.page.control')
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode:
-          "return await external_page_fill_form({fields: [{type: 'text', selector: '#street', value: '12 Fern Lane'}, {type: 'select', selector: '#day', value: 'Tuesday'}, {type: 'check', selector: '#door', checked: true}]})",
-      }),
-      TestLLM.toolCall('c2', 'execute_typescript', {
-        typescriptCode: "return await external_page_fill({selector: '#note', value: 'Happy birthday'})",
-      }),
-      TestLLM.text('The delivery is filled in'),
-    )
-    const finished = await engine.event('session.execution.succeeded')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-    render(() => (
-      <form>
-        <label>
-          Street
-          <input id="street" />
-        </label>
-        <label>
-          Delivery day
-          <select id="day">
-            <option value="monday">Monday</option>
-            <option value="tuesday">Tuesday</option>
-          </select>
-        </label>
-        <label>
-          <input id="door" type="checkbox" />
-          Leave at the door
-        </label>
-        <div id="note" role="textbox" aria-label="Gift note" contentEditable />
-      </form>
-    ))
-
-    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
-    await finished.arrived
-
-    expect(await screen.findByText('The delivery is filled in')).toBeVisible()
-    expect(screen.getByRole('textbox', {name: 'Street'})).toHaveValue('12 Fern Lane')
-    expect(screen.getByRole('combobox', {name: 'Delivery day'})).toHaveValue('tuesday')
-    expect(screen.getByRole('checkbox', {name: 'Leave at the door'})).toBeChecked()
-    expect(screen.getByRole('textbox', {name: 'Gift note'})).toHaveTextContent('Happy birthday')
-    const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
-    expect(within(reply).getByText('Filled the form')).toBeVisible()
-    expect(within(reply).getByText('Typed')).toBeVisible()
-  })
-
-  test('the agent reads the controls, then types and clicks by the refs the snapshot gave', async () => {
+  test('the agent reads the controls, types, picks, ticks, fills a whole form and a note, and submits by selector and by ref', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
@@ -332,32 +206,119 @@ describe('the agent fills in a form on the page', () => {
       TestLLM.toolCall('c3', 'execute_typescript', {
         typescriptCode: "return await external_page_click({ref: 'v2'})",
       }),
-      TestLLM.text('You are signed up'),
+      TestLLM.toolCall('c4', 'execute_typescript', {
+        typescriptCode: "return await external_page_fill({selector: '#name', value: 'Ada'})",
+      }),
+      TestLLM.toolCall('c5', 'execute_typescript', {
+        typescriptCode: "return await external_page_select({selector: '#size', value: 'Large'})",
+      }),
+      TestLLM.toolCall('c6', 'execute_typescript', {
+        typescriptCode: "return await external_page_check({selector: '#gift'})",
+      }),
+      TestLLM.toolCall('c7', 'execute_typescript', {
+        typescriptCode: "return await external_page_uncheck({selector: '#news'})",
+      }),
+      TestLLM.toolCall('c8', 'execute_typescript', {
+        typescriptCode: "return await external_page_submit({selector: '#name'})",
+      }),
+      TestLLM.toolCall('c9', 'execute_typescript', {
+        typescriptCode:
+          "return await external_page_fill_form({fields: [{type: 'text', selector: '#street', value: '12 Fern Lane'}, {type: 'select', selector: '#day', value: 'Tuesday'}, {type: 'check', selector: '#door', checked: true}]})",
+      }),
+      TestLLM.toolCall('c10', 'execute_typescript', {
+        typescriptCode: "return await external_page_fill({selector: '#note', value: 'Happy birthday'})",
+      }),
+      TestLLM.text('The order is placed'),
     )
     const finished = await engine.event('session.execution.succeeded')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
     render(() => (
-      <form
-        id="signup"
-        onSubmit={(event) => {
-          event.preventDefault()
-          event.currentTarget.append(`Thanks for joining, ${String(new FormData(event.currentTarget).get('email'))}`)
-        }}
-      >
-        <input name="email" aria-label="Email" />
-        <button type="submit">Join</button>
-      </form>
+      <main>
+        <form
+          id="signup"
+          onSubmit={(event) => {
+            event.preventDefault()
+            event.currentTarget.append(`Thanks for joining, ${String(new FormData(event.currentTarget).get('email'))}`)
+          }}
+        >
+          <input name="email" aria-label="Email" />
+          <button type="submit">Join</button>
+        </form>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            const order = new FormData(event.currentTarget)
+            event.currentTarget.append(
+              `Order placed for ${String(order.get('name'))}, ${String(order.get('size'))} pot, ${order.get('gift') ? 'gift wrapped' : 'no wrap'}, ${order.get('news') ? 'with news' : 'no news'}`,
+            )
+          }}
+        >
+          <label>
+            Your name
+            <input id="name" name="name" />
+          </label>
+          <label>
+            Pot size
+            <select id="size" name="size">
+              <option value="small">Small</option>
+              <option value="large">Large</option>
+            </select>
+          </label>
+          <label>
+            <input id="gift" name="gift" type="checkbox" />
+            Gift wrap
+          </label>
+          <label>
+            <input id="news" name="news" type="checkbox" checked />
+            Send me news
+          </label>
+        </form>
+        <form>
+          <label>
+            Street
+            <input id="street" />
+          </label>
+          <label>
+            Delivery day
+            <select id="day">
+              <option value="monday">Monday</option>
+              <option value="tuesday">Tuesday</option>
+            </select>
+          </label>
+          <label>
+            <input id="door" type="checkbox" />
+            Leave at the door
+          </label>
+          <div id="note" role="textbox" aria-label="Gift note" contentEditable />
+        </form>
+      </main>
     ))
 
     await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
     await finished.arrived
 
-    expect(await screen.findByText('You are signed up')).toBeVisible()
+    expect(await screen.findByText('The order is placed')).toBeVisible()
     expect(screen.getByText('Thanks for joining, ada@example.com')).toBeVisible()
+    expect(screen.getByRole('textbox', {name: 'Your name'})).toHaveValue('Ada')
+    expect(screen.getByRole('combobox', {name: 'Pot size'})).toHaveValue('large')
+    expect(screen.getByRole('checkbox', {name: 'Gift wrap'})).toBeChecked()
+    expect(screen.getByRole('checkbox', {name: 'Send me news'})).not.toBeChecked()
+    expect(screen.getByText('Order placed for Ada, large pot, gift wrapped, no news')).toBeVisible()
+    expect(screen.getByRole('textbox', {name: 'Street'})).toHaveValue('12 Fern Lane')
+    expect(screen.getByRole('combobox', {name: 'Delivery day'})).toHaveValue('tuesday')
+    expect(screen.getByRole('checkbox', {name: 'Leave at the door'})).toBeChecked()
+    expect(screen.getByRole('textbox', {name: 'Gift note'})).toHaveTextContent('Happy birthday')
     const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
     expect(within(reply).getByText('Captured a snapshot')).toBeVisible()
+    expect(within(reply).getByText('9 actions')).toBeVisible()
+    expect(within(reply).getAllByText('Typed')).toHaveLength(3)
     expect(within(reply).getByText('Clicked')).toBeVisible()
+    expect(within(reply).getByText('Selected')).toBeVisible()
+    expect(within(reply).getByText('Checked a box')).toBeVisible()
+    expect(within(reply).getByText('Unchecked a box')).toBeVisible()
+    expect(within(reply).getByText('Submitted the form')).toBeVisible()
+    expect(within(reply).getByText('Filled the form')).toBeVisible()
   })
 })
 
