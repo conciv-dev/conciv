@@ -8,10 +8,9 @@ import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {opencode} from './index.js'
 
 describe('history', () => {
-  it('a session in opencode.db lists for its project with its title, and its tail reads back', async () => {
+  function openStore() {
     const dataHome = tempDir('opencode-data-')
     const project = realpathSync(tempDir('opencode-project-'))
-    const sessionId = HarnessSessionId.parse('ses_1')
     mkdirSync(join(dataHome, 'opencode'))
     const db = new DatabaseSync(join(dataHome, 'opencode', 'opencode.db'))
     db.exec(
@@ -19,6 +18,12 @@ describe('history', () => {
     )
     db.exec('create table message (id text, session_id text, data text, time_created integer, time_updated integer)')
     db.exec('create table part (id text, message_id text, session_id text, data text, time_created integer)')
+    return {dataHome, project, db}
+  }
+
+  it('a session in opencode.db lists for its project with its title, and its tail reads back', async () => {
+    const {dataHome, project, db} = openStore()
+    const sessionId = HarnessSessionId.parse('ses_1')
     const session = db.prepare('insert into session values (?, ?, ?, ?, ?, ?, ?, ?, ?)')
     session.run('ses_1', project, 'Fix the login button', 1000, 2000, null, 'anthropic/claude-sonnet-4-5', 300, 200)
     session.run('ses_2', project, 'Old work', 500, 900, 950, null, 0, 0)
@@ -54,5 +59,57 @@ describe('history', () => {
       ],
       earlier: null,
     })
+  })
+  it('opening the session reads back the whole conversation, tool calls and results included, with its token total', async () => {
+    const {dataHome, project, db} = openStore()
+    const sessionId = HarnessSessionId.parse('ses_1')
+    db.prepare('insert into session values (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+      'ses_1',
+      project,
+      'Fix the login button',
+      1000,
+      2000,
+      null,
+      'anthropic/claude-sonnet-4-5',
+      300,
+      200,
+    )
+    const message = db.prepare('insert into message values (?, ?, ?, ?, ?)')
+    message.run('msg_1', 'ses_1', JSON.stringify({role: 'user'}), 1000, 1000)
+    message.run('msg_2', 'ses_1', JSON.stringify({role: 'assistant'}), 1500, 2000)
+    const part = db.prepare('insert into part values (?, ?, ?, ?, ?)')
+    part.run('prt_1', 'msg_1', 'ses_1', JSON.stringify({type: 'text', text: 'Fix the login button'}), 1000)
+    part.run(
+      'prt_2',
+      'msg_2',
+      'ses_1',
+      JSON.stringify({
+        type: 'tool',
+        callID: 'call_1',
+        tool: 'bash',
+        state: {status: 'completed', input: {command: 'ls'}, output: 'src'},
+      }),
+      1500,
+    )
+    part.run('prt_3', 'msg_2', 'ses_1', JSON.stringify({type: 'text', text: 'The button now submits'}), 1600)
+    db.close()
+    const history = opencode(ConfigProvider.fromEnvRecord({XDG_DATA_HOME: dataHome})).history
+
+    const messages = await history.messages(project, sessionId)
+    const meta = await history.meta(project, sessionId)
+
+    expect(messages).toEqual([
+      {id: 'msg_1', role: 'user', parts: [{type: 'text', content: 'Fix the login button'}]},
+      {
+        id: 'msg_2',
+        role: 'assistant',
+        parts: [
+          {type: 'tool-call', id: 'call_1', name: 'bash', arguments: '{"command":"ls"}', state: 'input-complete'},
+          {type: 'tool-result', toolCallId: 'call_1', content: 'src', state: 'complete'},
+          {type: 'text', content: 'The button now submits'},
+        ],
+      },
+    ])
+    expect(meta?.totalTokens).toBe(500)
   })
 })
