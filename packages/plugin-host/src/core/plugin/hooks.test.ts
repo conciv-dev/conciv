@@ -71,26 +71,18 @@ describe('what the model is given', () => {
     )
   })
 
-  test("the prompt hook changes the user's message before the model gets it", async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/request-shaper']})
-    await engine.reply(TestLLM.text('Hello'))
-
-    await engine.session.send('Hello')
-
-    expect((await engine.requests())[0]?.messages).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({role: 'user', content: [{type: 'text', content: 'Hello, from the prompt hook'}]}),
-      ]),
-    )
-  })
-
-  test('the context hook edits the system prompts, messages, model options and tools the model gets', async () => {
+  test("the prompt hook changes the user's message, and the context hook edits the system prompts, messages, model options and tools the model gets", async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/request-shaper']})
     await engine.reply(TestLLM.text('Hello'))
 
     await engine.session.send('Hello')
 
     const [request] = await engine.requests()
+    expect(request?.messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({role: 'user', content: [{type: 'text', content: 'Hello, from the prompt hook'}]}),
+      ]),
+    )
     expect(request?.system).toEqual(expect.arrayContaining(['Answer in one short sentence.']))
     expect(request?.messages.at(-1)).toEqual(
       expect.objectContaining({role: 'user', content: 'Reminder from the context hook.'}),
