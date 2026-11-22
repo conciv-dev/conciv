@@ -1,6 +1,6 @@
-import {describe, expect, test} from 'vitest'
-import {page} from 'vitest/browser'
-import {screen, within} from '@solidjs/testing-library'
+import {describe, expect, onTestFinished, test} from 'vitest'
+import {page, userEvent as realInput} from 'vitest/browser'
+import {render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
@@ -43,6 +43,39 @@ describe('a markdown reply', () => {
     expect(items[0]).toMatchTextContent('Read the page')
     expect(items[1]).toMatchTextContent('Change the color')
     expect(within(reply).getByRole('code')).toMatchTextContent('pnpm test')
+  })
+})
+
+describe('a message with no words', () => {
+  test('a grabbed element sent alone reads as an attachment, and a note sent alone as a note', async () => {
+    await page.viewport(1280, 800)
+    onTestFinished(() => page.viewport(414, 896))
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(TestLLM.text('That button buys the fern'), TestLLM.text('The header is sticky now'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <button type="button" id="buy">
+        Buy the fern
+      </button>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'More composer actions'}))
+    await user.click(await screen.findByRole('menuitem', {name: 'Select an element from the page'}))
+    await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
+    expect(await screen.findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('That button buys the fern')).toBeVisible()
+    expect(screen.getByRole('article', {name: 'You: 1 attachment'})).toBeVisible()
+
+    await user.click(screen.getByRole('button', {name: 'Review'}))
+    expect(await screen.findByRole('list', {name: 'Notes'})).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('The header is sticky now')).toBeVisible()
+    const sent = screen.getByRole('article', {name: 'You: 1 note'})
+    expect(within(sent).getByRole('list', {name: 'Notes on this message'})).toBeVisible()
   })
 })
 
