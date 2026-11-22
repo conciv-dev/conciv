@@ -9,7 +9,16 @@ describe('settings', () => {
   test.each(['shortcuts/keys', 'shortcuts:keys'])('the engine refuses the namespace %s', async (namespace) => {
     const engine = await createEngine()
 
-    await expect(engine.setting({scope: 'project', namespace, key: 'send', value: 'Enter'})).rejects.toThrow()
+    await expect(engine.setting({scope: 'project', namespace, key: 'send', value: 'Enter'})).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      data: {
+        issues: [
+          expect.objectContaining({
+            message: 'a settings namespace is one file name inside the settings folder, without / \\ : or ?',
+          }),
+        ],
+      },
+    })
   })
 
   test('a value set in each scope is read back after the storage opens again', async ({settingsStorage}) => {
