@@ -16,7 +16,7 @@ export type Flusher = {
 
 type FlusherDriver = MachineDriver<RecorderFlusherMachine.FlusherState, RecorderFlusherMachine.FlusherEvent>
 
-const FLUSH_BACKOFF = Schedule.min([Schedule.exponential('1 second'), Schedule.spaced('30 seconds')])
+const FLUSH_RETRY = Schedule.max([Schedule.exponential('1 second'), Schedule.recurs(3)])
 
 function isSettled(state: RecorderFlusherMachine.FlusherState): boolean {
   return state.status === 'waiting' || state.status === 'disposed'
@@ -39,7 +39,7 @@ export const makeFlusher = Effect.fn('recorder.flusher')(function* (options: {
     options.send(command.events).pipe(
       Effect.tapError((error) => Effect.logWarning('recorder: a flush failed', error.cause)),
       Effect.retry({
-        schedule: FLUSH_BACKOFF,
+        schedule: FLUSH_RETRY,
         while: () =>
           Effect.map(
             SubscriptionRef.get(driver.state),
