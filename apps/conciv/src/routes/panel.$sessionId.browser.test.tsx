@@ -14,6 +14,7 @@ describe('rename a session', () => {
     await user.click(screen.getByRole('button', {name: 'Rename session'}))
     const titleField = await screen.findByRole('textbox', {name: 'Session title'})
     expect(titleField).toHaveValue('New session')
+    await expect.element(titleField).toHaveFocus()
     await user.clear(titleField)
     await user.type(titleField, `${'a'.repeat(121)}{Enter}`)
 
@@ -23,6 +24,7 @@ describe('rename a session', () => {
     await user.click(await screen.findByRole('button', {name: 'Rename session'}))
     const retryField = await screen.findByRole('textbox', {name: 'Session title'})
     expect(retryField).toHaveValue('New session')
+    await expect.element(retryField).toHaveFocus()
     await user.clear(retryField)
     await user.type(retryField, 'Release notes{Enter}')
 
