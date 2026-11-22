@@ -39,11 +39,9 @@ describe('codex', () => {
       bin: 'codex',
       args: ['resume', 'thread-1'],
     })
-    expect(harness).toMatchObject({
-      tty: undefined,
-      commands: undefined,
-      capabilities: {slashCommands: 'none', imageInput: false},
-    })
+    expect(harness).not.toHaveProperty('tty')
+    expect(harness).not.toHaveProperty('commands')
+    expect(harness.capabilities).toMatchObject({slashCommands: 'none', imageInput: false})
   })
 
   it('an empty CODEX_HOME lists the built-in models and defaults to the first', async () => {
