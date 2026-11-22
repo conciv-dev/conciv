@@ -43,7 +43,7 @@ describe('the model menu while a reply runs', () => {
       {},
       {harnesses: [{id: 'engine'}, {id: 'second', models: [{id: 'second-fast', name: 'Fast 1', group: 'Second'}]}]},
     )
-    await engine.reply(TestLLM.hang())
+    await engine.reply(TestLLM.text('Done with it'))
     const gate = await engine.gate()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
@@ -52,12 +52,12 @@ describe('the model menu while a reply runs', () => {
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
     await gate.started
-    await gate.release()
     expect(await screen.findByRole('button', {name: 'Stop generating'})).toBeVisible()
 
     await user.click(screen.getByRole('button', {name: 'Model: Opus 5.5 (engine)'}))
     await expect.element(page.getByRole('option', {name: 'Fast 1 (second)', disabled: true})).toBeVisible()
     await expect.element(page.getByRole('option', {name: /^Sonnet 5\.5/, disabled: false})).toBeVisible()
+    await gate.release()
   })
 })
 
