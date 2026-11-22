@@ -480,7 +480,7 @@ describe('the user grabs an element for the agent', () => {
     // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
     await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
     expect(await screen.findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
-    expect(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
+    await expect.element(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
     await user.keyboard('What does this do?')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
 
