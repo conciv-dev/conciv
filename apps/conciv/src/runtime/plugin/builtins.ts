@@ -14,7 +14,7 @@ function terminalEntry({setup, ...declarations}: typeof terminal): Omit<Entry, '
 
 export const builtins = compose({
   terminal: terminalEntry(terminal),
-  page: {
+  'conciv.page': {
     windowEntry: () =>
       import('@conciv/plugin-page/renderer').then(({default: page}) => {
         const setup: Plugin.Setup<typeof page> = (ctx) => page.setup?.(ctx)

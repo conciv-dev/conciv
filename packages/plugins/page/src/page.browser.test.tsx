@@ -161,7 +161,7 @@ describe('the user stops the agent from the page', () => {
 describe('the agent leaves the page alone for a while', () => {
   test("with a short page task timeout the agent's mask goes away on its own while the reply still waits", async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: [['conciv.page', {taskTimeoutMs: 50}]]})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
@@ -173,7 +173,6 @@ describe('the agent leaves the page alone for a while', () => {
     await mount({
       engine,
       history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']}),
-      timings: {page: {taskTimeoutMs: 50}},
     })
     await control.arrived
     render(() => (

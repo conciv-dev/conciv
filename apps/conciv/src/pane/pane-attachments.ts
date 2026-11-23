@@ -37,7 +37,7 @@ function keptInDraftStore(drafts: DraftStore | null): AttachmentAdapter {
 }
 
 function attachmentCards(fallback: 'card' | 'chip'): AttachmentCardSlot[] {
-  return pageAttachmentCards.map((card) => guardPluginAttachmentCard('page', fallback, card))
+  return pageAttachmentCards.map((card) => guardPluginAttachmentCard('conciv.page', fallback, card))
 }
 
 export function paneAttachments(

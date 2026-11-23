@@ -21,7 +21,7 @@ export const Route = createFileRoute('/panel/$sessionId/$view')({
   component: PanelView,
 })
 
-const STAGED_GRAB_CARDS = pageAttachmentCards.map((card) => guardPluginAttachmentCard('page', 'chip', card))
+const STAGED_GRAB_CARDS = pageAttachmentCards.map((card) => guardPluginAttachmentCard('conciv.page', 'chip', card))
 
 function stagedGrabAttachment(grab: Grab): AttachmentState {
   const file = grabToFile(grab)

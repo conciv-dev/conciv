@@ -257,7 +257,7 @@ const PAGE_SESSION_ENTRIES: readonly GroupEntry[] = [
   {
     key: pageSessionEntry.key,
     render: (props) => (
-      <Contribution plugin="page" fallback={() => props.children}>
+      <Contribution plugin="conciv.page" fallback={() => props.children}>
         {() => pageSessionEntry.render(props)}
       </Contribution>
     ),
