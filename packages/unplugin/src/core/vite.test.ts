@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto'
 import {once} from 'node:events'
 import {mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
-import {dirname, join} from 'node:path'
+import {dirname, join, relative} from 'node:path'
 import {createInterface} from 'node:readline'
 import {text} from 'node:stream/consumers'
 import {pathToFileURL} from 'node:url'
@@ -120,11 +120,16 @@ describe.concurrent('the vite dev server', () => {
       expect(Object.keys(metadata.optimized)).toContain('widget-dependency')
     },
   )
-  test.for<{name: string; config: InlineConfig}>([
-    {name: "the client environment's input, with no html page", config: {input: 'src/main.js'}},
+  test.for<{name: string; config: InlineConfig; relativeRoot: boolean}>([
+    {name: "the client environment's input, with no html page", config: {input: 'src/main.js'}, relativeRoot: false},
+    {
+      name: 'a build input under a root given relative to the working folder',
+      config: {build: {rolldownOptions: {input: 'src/main.js'}}},
+      relativeRoot: true,
+    },
   ])(
     "the dependency scan keeps the app's own entry next to the widget when vite would scan $name",
-    async ({config: appConfig}, {project, expect}) => {
+    async ({config: appConfig, relativeRoot}, {project, expect}) => {
       const root = project('app')
       rmSync(join(root, 'index.html'))
       for (const name of ['app-dependency', 'widget-dependency']) {
@@ -145,7 +150,7 @@ describe.concurrent('the vite dev server', () => {
 
       const config = await resolveConfig(
         {
-          root,
+          root: relativeRoot ? relative(process.cwd(), root) : root,
           configFile: false,
           logLevel: 'silent',
           ...appConfig,

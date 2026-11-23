@@ -1,4 +1,4 @@
-import {dirname, isAbsolute, join} from 'node:path'
+import {dirname, isAbsolute, join, resolve} from 'node:path'
 import {readFileSync, existsSync} from 'node:fs'
 import type {Plugin, ViteDevServer} from 'vite'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -301,7 +301,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       if (env.mode === 'test') return {}
       const embedFiles =
         builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...readMountChunk(builtins.embedEntry)]
-      projectRoot = userConfig.root ?? process.cwd()
+      projectRoot = resolve(userConfig.root ?? process.cwd())
       widgetFiles = embedFiles
       const base = concivSolidConfig({
         root: projectRoot,
