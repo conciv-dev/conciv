@@ -41,7 +41,7 @@ Contracts:
 
 - protocol: [protocol/README.md](./protocol/README.md) - Zod schemas and types for the wire protocol; zero-runtime apart from small helpers.
 - contract: [contract/README.md](./contract/README.md) - The oRPC contract between core and its clients, with fetch and browser RPC clients.
-- grab: [grab/README.md](./grab/README.md) - Element-grab types, `GrabApi` and the size-bounded attachment serializer.
+- grab: [grab/README.md](./grab/README.md) - Element-grab types and label helpers.
 - plugin: [plugin/README.md](./plugin/README.md) - `@conciv/plugin`, the plugin SDK: `Plugin.define` for a plugin's engine and browser parts, RPC contracts, registries and stores.
 - plugin-internal: [plugin-internal/README.md](./plugin-internal/README.md) - Private stamp (`defineInternalPlugin`) that marks a first-party plugin, so the app hands its setup more of its own components on `ctx.ui`.
 - extensions: [extensions/README.md](./extensions/README.md) - `@conciv/extension-design`, the one package left from the old extension system, out of the release.

@@ -1,14 +1,7 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {
-  NoteCard,
-  Panel,
-  ToolRegistry,
-  type PanelTab,
-  type Plugin,
-  type ToolComponent,
-} from '@conciv/plugin/experimental'
-import {defineInternalPlugin, type InternalUi} from '@conciv/plugin-internal'
+import {Panel, ToolRegistry, type PanelTab, type Plugin, type ToolComponent} from '@conciv/plugin/experimental'
+import {defineInternalPlugin, NoteCard, type InternalUi} from '@conciv/plugin-internal'
 import {bootCapture} from './page-capture.js'
 import {RecorderPanel} from './panel-view.js'
 import {RecordingCard} from './recording-card.js'

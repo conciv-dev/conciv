@@ -3,6 +3,7 @@ import {createStore} from 'solid-js/store'
 import {ORPCError} from '@orpc/client'
 import {createTanstackQueryUtils, useQuery} from '@conciv/client'
 import {createKeyed, type MountedSession, type SetupContext} from '@conciv/plugin/experimental'
+import type {Grab} from '@conciv/plugin/experimental/grab'
 import type {terminalDeclarations} from './stores.js'
 
 export const PANEL_KEY = 'terminal:terminal'
@@ -71,6 +72,7 @@ export function createTerminalState(ctx: TerminalContext) {
     refetchOnWindowFocus: false,
   }))
   const [run, setRun] = createStore<TerminalRun>({generation: 0, restarting: false, live: null, failure: null})
+  const [held, setHeld] = createStore<{grabs: Grab[]}>({grabs: []})
 
   const meta = (sessionId: string) => (readSessionId() === sessionId && !read.isPending ? read.data : undefined)
   const models = (sessionId: string) => meta(sessionId)?.models ?? []
@@ -152,6 +154,14 @@ export function createTerminalState(ctx: TerminalContext) {
     fail: (terminalKey: string, message: string) => setRun('failure', {key: terminalKey, message}),
     retry: () => setRun({generation: run.generation + 1, failure: null}),
     restart,
+    held: () => held.grabs,
+    hold: (grab: Grab) => setHeld('grabs', (grabs) => [...grabs, grab]),
+    release: (index: number) => setHeld('grabs', (grabs) => grabs.toSpliced(index, 1)),
+    takeHeld: () => {
+      const taken = [...held.grabs]
+      setHeld('grabs', [])
+      return taken
+    },
     pick: (session: MountedSession, model: string) => {
       if (locked(session.id) || model === shownModel(session.id)) return
       ctx.stores.prefs.update((prefs) => {

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The engine's side of the page plugin: in-process calls to the plugin's RPC methods, the follow-up turns owed for finished page action queues, and the grab attachment expander.
+The engine's side of the page plugin: in-process calls to the plugin's RPC methods, and the follow-up turns owed for finished page action queues.
 
 ## Interface
 

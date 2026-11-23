@@ -32,16 +32,12 @@ import {
   useAnnounce,
   useAppData,
   useAppQueryClient,
-  useGrabProvider,
   useLiveSessions,
   usePaneChat,
   useRpc,
   useSettings,
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
-import {useGrabStaging} from '../app/use-grab-staging.js'
-import {makePaneGrabApi} from '../pane/pane-grab.js'
-import {PaneGrabBinding} from '../pane/plugin-session-parts.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {ContextSummary} from '../pane/context-tracker.js'
@@ -259,7 +255,6 @@ function PanelSession(): JSX.Element {
   const appData = useAppData()
   const queryClient = useAppQueryClient()
   const announce = useAnnounce()
-  const grabProvider = useGrabProvider()
   const router = useRouter()
   const navigate = Route.useNavigate()
   const sessionMenu = useSessionMenu(() => params().sessionId)
@@ -321,10 +316,6 @@ function PanelSession(): JSX.Element {
       })
       .catch(() => undefined)
 
-  const grabStaging = useGrabStaging()
-
-  const paneGrab = makePaneGrabApi(grabStaging, grabProvider)
-
   const coordinator = makeRefreshCoordinator({
     chat,
     liveSessions: useLiveSessions(),
@@ -370,8 +361,6 @@ function PanelSession(): JSX.Element {
   const paneValue: PaneContextValue = {
     slideClass,
     resetSlide: () => setSlideDir(null),
-    grabStaging,
-    grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => void newSession(),
     replaceSession: (sessionId) => void navigate({to: '/panel/$sessionId', params: {sessionId}}),
@@ -382,7 +371,6 @@ function PanelSession(): JSX.Element {
 
   return (
     <PaneContext.Provider value={paneValue}>
-      <PaneGrabBinding sessionId={params().sessionId} grab={paneGrab} />
       <header class={RAIL}>
         <Popover.Root
           positioning={{placement: 'bottom-start'}}

@@ -1,7 +1,7 @@
 import type {Component, JSX} from 'solid-js'
 import type {IconName} from './icon-name.js'
 import {Registry} from './core.js'
-import type {ComposerNote, SessionRef, MountedSession, SessionScreen} from './host-apis.js'
+import type {SessionRef, MountedSession, SessionScreen} from './host-apis.js'
 
 export type {IconName}
 
@@ -342,30 +342,6 @@ export interface CodeBlockAction {
   run(input: CodeBlockProps): void | Promise<void>
 }
 
-export interface NoteCardProps {
-  /**
-   * The note, staged in the composer or sent in a message.
-   *
-   * @remarks A sent note has no `commentId`.
-   */
-  readonly note: Omit<ComposerNote, 'commentId'> & {readonly commentId?: string}
-  readonly session?: MountedSession
-}
-
-export interface NoteCard {
-  readonly origins: readonly string[]
-  /**
-   * Renders one note once, under your plugin's context; its own reactivity updates it, also when another session is
-   * routed. Return `undefined` or `null` to keep the host's note chip, e.g. for a note you cannot show. A render that
-   * throws records the error under your plugin and the note shows its chip; the plugin keeps running. The host
-   * renders it again only when the note or the set of contributions changes.
-   *
-   * @param props - The note and its session. Do not destructure.
-   * @returns Your UI for the note, or `undefined` or `null` to keep the chip.
-   */
-  render(props: NoteCardProps): JSX.Element | undefined
-}
-
 export interface SlotMap {
   readonly 'window.bottom': Record<string, never>
   readonly 'session.header': {
@@ -509,23 +485,6 @@ export const CodeBlock = Registry.define<CodeBlock>('code-block')
  * ```
  */
 export const CodeBlockAction = Registry.define<CodeBlockAction>('code-block-action')
-
-/**
- * The registry of renderers for the inside of composer notes, by origin.
- *
- * @example
- * ```tsx
- * ctx.add(NoteCard, {
- *   origins: ["recorder"],
- *   render: (props) => {
- *     const recording = findRecording(props.note.href)
- *
- *     return recording ? <Player recording={recording} /> : undefined
- *   },
- * })
- * ```
- */
-export const NoteCard = Registry.define<NoteCard>('note-card')
 
 /**
  * The registry of content for the host's slots (`SlotMap`).

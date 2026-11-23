@@ -5,6 +5,8 @@ import {Dynamic} from 'solid-js/web'
 import utilities from 'virtual:uno.css?inline'
 import {createKeyed, Plugin, Slot, ToolRegistry} from '@conciv/plugin/experimental'
 import {Page, PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
+import {GrabPicker} from '@conciv/plugin/experimental/grab'
+import {NoteCard} from '@conciv/plugin-internal'
 import {keepAttached, readTab, reportChanges} from './attachment.js'
 import {makeHighlight} from './highlight.js'
 import {symbolicateInSession} from './open-source.js'
@@ -18,6 +20,9 @@ import {addRef, type Refs} from './snapshot.js'
 import {dehydrate} from './dehydrate.js'
 import {describe, locate, reactBridge, rootFibers} from './react.js'
 import {disposeReactGrab, grabApi} from './grab.js'
+import {makeGrabNotePicker} from './grab-note.js'
+import {GrabNoteCard} from './grab-card.js'
+import {GRAB_NOTE_ORIGIN} from './rpc.js'
 import {showToast} from './toast.js'
 import {capturePlugins} from './screenshot.js'
 
@@ -112,6 +117,15 @@ export default Plugin.define({
         }),
       ),
     )
+    ctx.add(
+      GrabPicker,
+      makeGrabNotePicker(grabApi, {
+        session: routed,
+        screen: ctx.screen,
+        symbolicate: (input) => symbolicate(input.frames),
+      }),
+    )
+    ctx.add(NoteCard, {origins: [GRAB_NOTE_ORIGIN], render: (props) => <GrabNoteCard {...props} />})
     ctx.provide(Page, {...pageMembers, symbolicate: (input) => symbolicate(input.frames)})
     ctx.provide(ReactTree, makeReactTree())
 
@@ -125,11 +139,7 @@ export default Plugin.define({
 export const pageMembers: Omit<Page, 'symbolicate'> = {
   toast: showToast,
   capture: {exclude: CONCIV_UI_SELECTOR, plugins: capturePlugins},
-  pick: async () => {
-    const grab = await grabApi.comment()
-    if (!grab) return null
-    return {source: grab.source, rect: grab.rect}
-  },
+  pick: () => grabApi.comment(),
 }
 
 export function makeReactTree(): ReactTree {

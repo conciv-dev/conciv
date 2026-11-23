@@ -1,6 +1,14 @@
 import type {ComponentProps, JSX} from 'solid-js'
 import {z} from 'zod'
-import type {Plugin, SetupContext, ToolProps, Ui} from '@conciv/plugin/experimental'
+import {
+  Registry,
+  type ComposerNote,
+  type MountedSession,
+  type Plugin,
+  type SetupContext,
+  type ToolProps,
+  type Ui,
+} from '@conciv/plugin/experimental'
 import type {MentionField} from '@conciv/ui-kit-tap'
 
 export type {MentionFieldApi, MentionItem, MentionSegment} from '@conciv/ui-kit-tap'
@@ -100,3 +108,15 @@ export function readInternalPlugin(value: unknown): typeof VERSION {
 
   return VERSION
 }
+
+export interface NoteCardProps {
+  readonly note: Omit<ComposerNote, 'commentId'> & {readonly commentId?: string}
+  readonly session?: MountedSession
+}
+
+export interface NoteCard {
+  readonly origins: readonly string[]
+  render(props: NoteCardProps): JSX.Element | undefined
+}
+
+export const NoteCard = Registry.define<NoteCard>('note-card')

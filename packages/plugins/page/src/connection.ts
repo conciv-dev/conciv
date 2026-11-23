@@ -49,6 +49,7 @@ import {
 import {PageQueue} from './queue.js'
 import {Definition, type Action, type Command, type Outcome, type Result, type Work} from './rpc.js'
 import {symbolicateFrames} from './symbolicate.js'
+import type {GrabStore} from './grabs.js'
 import {
   PageCaptureBundleSchema,
   type PageCaptureBundle,
@@ -180,6 +181,7 @@ const SessionNotFound = Predicate.isTagged('Session.NotFoundError')
 
 export const make = Effect.fn('PageConnection.make')(function* (
   ctx: Pick<Context, 'agent' | 'rpc' | 'session' | 'location' | 'event' | 'storage' | 'options'>,
+  grabs: GrabStore,
 ) {
   const {pageReplyTimeoutMs, queuedActionTimeoutMs, permissionSyncTimeoutMs} = Windows.parse(ctx.options)
   yield* ctx.agent.transform((editor) =>
@@ -572,6 +574,16 @@ export const make = Effect.fn('PageConnection.make')(function* (
       changes: (input) => records.changes(input.sessionId),
       clearChanges: (input) => records.clear(input.sessionId).pipe(Effect.as({ok: true as const})),
       'captures.list': (input) => records.captures(input.sessionId),
+      'grabs.save': (input, call) =>
+        grabs.save(input.grab).pipe(
+          Effect.map((id) => ({id})),
+          Effect.catch((error) =>
+            Effect.logWarning('Saving a grabbed element failed', error).pipe(
+              Effect.andThen(Effect.fail(call.error('unavailable', 'The grabbed element could not be saved.', {}))),
+            ),
+          ),
+        ),
+      'grabs.get': (input) => grabs.get(input.id),
       'sessions.attached': () => Effect.sync(() => selectAttachedSessions(machine.state)),
       'tabs.list': (input) => Effect.sync(() => selectTabs(machine.state, input.sessionId)),
       symbolicate: (input) => symbolicateFrames(input.frames, ctx.location.directory),

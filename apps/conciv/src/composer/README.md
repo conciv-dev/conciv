@@ -17,7 +17,7 @@ Composer toolbar: element grab, new session, compact and the Connect agents menu
 
 ## Invariants
 
-- `actions.tsx:ComposerActions`: the grab button is disabled when `grab.grabbable()` is false
+- `actions.tsx:ComposerActions`: the grab button runs the first registered `GrabPicker`, which attaches the note itself; it is disabled when there is none or its `grabbable()` is false
 - `session-selector.tsx:SessionSelector`: rows name their harness only when more than one harness is available
 - `session-selector.tsx:SessionSelector`: the preview opens 600 ms after (Ark HoverCard's default `openDelay`) a row is highlighted (`@tanstack/solid-pacer` `createDebouncer`), then follows the highlight at once; a highlight cleared by the pointer leaving only cancels a pending open; typing or clearing the search closes the preview (zag clears the highlight on every input change), so the next highlight waits again; closing the picker closes the preview
 - `session-preview.tsx:SessionPreview`: Escape closes the preview first and the picker second through zag's layer stack (the picker content and input are `persistentElements`, focus returns to the input); `Alt+ArrowRight` focuses the thread scroller and `Alt+ArrowLeft` returns to the input (Ark `useHotkeys`, only while the preview is mounted), the footer names both keys and Escape through `useFormatHotkey` in ui-kit-system `Kbd`; the search's `matched` words reach every message through ui-kit-chat `MarkdownHighlightProvider`; the thread lands on the newest message and loads earlier pages when scrolled near the top; loading shows `ConversationSkeleton`, a failed load shows a `role=alert` row with Retry

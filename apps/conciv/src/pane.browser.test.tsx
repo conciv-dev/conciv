@@ -156,7 +156,7 @@ describe('a reply that thinks before it answers', () => {
 })
 
 describe('a message with no words', () => {
-  test('a grabbed element sent alone reads as an attachment, and a note sent alone as a note', async () => {
+  test('a grabbed element sent alone reads as a note, as a plugin note sent alone does', async () => {
     await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
@@ -177,13 +177,14 @@ describe('a message with no words', () => {
     expect(await screen.findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByText('That button buys the fern')).toBeVisible()
-    expect(screen.getByRole('article', {name: 'You: 1 attachment'})).toBeVisible()
+    expect(screen.getByRole('article', {name: 'You: 1 note'})).toBeVisible()
 
     await user.click(screen.getByRole('button', {name: 'Review'}))
     expect(await screen.findByRole('list', {name: 'Notes'})).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByText('The header is sticky now')).toBeVisible()
-    const sent = screen.getByRole('article', {name: 'You: 1 note'})
+    const sent = screen.getAllByRole('article', {name: 'You: 1 note'}).at(-1)
+    if (!sent) throw new Error('the second message is not shown')
     expect(within(sent).getByRole('list', {name: 'Notes on this message'})).toBeVisible()
   })
 })

@@ -6,7 +6,7 @@ import {z} from 'zod'
 import {useQuery} from '@conciv/client'
 import {ComposerPill, SettingsPage, Slot, ToolRegistry, usePlugin, type Plugin} from '@conciv/plugin/experimental'
 import {defineInternalPlugin} from '@conciv/plugin-internal'
-import {GrabApi} from '@conciv/plugin/experimental/grab'
+import {Page} from '@conciv/plugin/experimental/page'
 import {whiteboardToolCards} from './cards.js'
 import {makeCommentCompose, type ComposePhase} from './comment-compose.js'
 import {ComposePopover} from './compose-popover.js'
@@ -71,7 +71,7 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
       return current.status === 'composing' ? current : undefined
     }
     const visible = (): boolean => canvas.open && phase().status === 'idle'
-    const grab = ctx.use(GrabApi)
+    const page = ctx.use(Page)
     const surface = useQuery(() => ({
       queryKey: ['plugin', 'whiteboard', 'canvas-surface'],
       queryFn: () => import('./canvas-surface.js').then((module) => module.default),
@@ -112,8 +112,8 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
       id: 'whiteboard-comment',
       order: 19,
       show: () => {
-        const live = grab()
-        if (live.status !== 'active' || comments() === undefined || !live.value.grabbable()) return undefined
+        const live = page()
+        if (live.status !== 'active' || comments() === undefined) return undefined
         return {
           label: 'Comment',
           icon: 'message-square-plus',
@@ -121,7 +121,7 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
           run: () => {
             Effect.runFork(
               compose.start({
-                pick: () => live.value.comment(),
+                pick: () => live.value.pick(),
                 canvasOpen: () => canvas.open,
                 added: () => void ctx.toast.show({title: 'Comment added to the whiteboard', variant: 'success'}),
                 unbound: () =>
