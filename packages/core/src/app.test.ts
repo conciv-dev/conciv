@@ -74,4 +74,25 @@ describe('the saved model list', () => {
     await expect(resolveHarnessModels(afterFailure.harness, {signal})).resolves.toEqual(listed)
     await afterFailure.settled()
   })
+
+  test('the engine starts listing the models before anyone asks, and the first ask reuses that listing', async () => {
+    const signal = new AbortController().signal
+    const adapter = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')}))
+    const listed = [{id: 'gpt-5.6-sol', name: 'GPT 5.6 Sol'}]
+    const listing = Promise.withResolvers<typeof listed>()
+    const started: string[] = []
+    const models = () => {
+      started.push('listing')
+      return listing.promise
+    }
+
+    const warmed = withSavedModels({...adapter, models}, tempDir('saved-models-'), signal, () => {})
+    expect(started).toEqual(['listing'])
+
+    const asked = resolveHarnessModels(warmed.harness, {signal})
+    listing.resolve(listed)
+    await expect(asked).resolves.toEqual(listed)
+    expect(started).toEqual(['listing'])
+    await warmed.settled()
+  })
 })

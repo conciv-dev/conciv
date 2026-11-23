@@ -188,18 +188,21 @@ export function withSavedModels(
       })
     return state.refreshing
   }
-  function models(): Promise<HarnessModel[]> {
-    const fresh = refresh()
-    if (state.saved === null) return fresh
-    fresh.catch((error: unknown) => {
+  function refreshInBackground(): void {
+    refresh().catch((error: unknown) => {
       if (!signal.aborted)
         log(Effect.logError('[core] the model list could not be refreshed', {harness: adapter.id, error}))
     })
+  }
+  function models(): Promise<HarnessModel[]> {
+    if (state.saved === null) return refresh()
+    refreshInBackground()
     return Promise.resolve(state.saved)
   }
   async function settled(): Promise<void> {
     await Promise.allSettled([state.refreshing])
   }
+  refreshInBackground()
   return {harness: {...adapter, models}, settled}
 }
 
