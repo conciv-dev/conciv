@@ -66,6 +66,9 @@ function describeFailures(failures: PageFailures): string {
   ].join('\n')
 }
 
+const TRACE_SNAPSHOT_OF_SANDBOXED_PREVIEW =
+  "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set. [about:]"
+
 export async function expectWidgetBoots(page: Page, failures: PageFailures): Promise<void> {
   const launcher = page.getByRole('button', {name: /conciv chat$/})
   try {
@@ -85,31 +88,43 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
     detail,
   ).toEqual([])
   expect(
-    failures.consoleErrors.filter((entry) => !transientOptimizerReload.test(entry)),
+    failures.consoleErrors.filter(
+      (entry) => !transientOptimizerReload.test(entry) && entry !== TRACE_SNAPSHOT_OF_SANDBOXED_PREVIEW,
+    ),
     detail,
   ).toEqual([])
 }
 
 const RPC_SOCKET_PATH = '/rpc-ws'
 
-async function engineOrigin(page: Page, path: string): Promise<string> {
-  const rpcSocket = page.waitForEvent('websocket', (socket) => new URL(socket.url()).pathname === RPC_SOCKET_PATH)
-  await page.goto(path, {waitUntil: 'domcontentloaded', timeout: 60_000})
-  const url = new URL((await rpcSocket).url())
-  url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:'
-  return url.origin
+function rpcSocketOrigin(page: Page): Promise<string> {
+  return page
+    .waitForEvent('websocket', (socket) => new URL(socket.url()).pathname === RPC_SOCKET_PATH)
+    .then((socket) => {
+      const url = new URL(socket.url())
+      url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:'
+      return url.origin
+    })
 }
 
-async function pageEngine(page: Page, path: string, projectDir: string): Promise<{origin: string; base: string}> {
-  const origin = await engineOrigin(page, path)
-  return {origin, base: recordedEngineBase(projectDir, origin)}
+async function engineOrigin(page: Page, path: string): Promise<string> {
+  const origin = rpcSocketOrigin(page)
+  await page.goto(path, {waitUntil: 'domcontentloaded', timeout: 60_000})
+  return origin
+}
+
+function pageUrl(path: string): string {
+  const baseURL = test.info().project.use.baseURL
+  return baseURL === undefined ? path : new URL(path, baseURL).href
 }
 
 export async function loginWidget(page: Page, path = '/', projectDir = testProjectDir()): Promise<void> {
-  const {base} = await pageEngine(page, path, projectDir)
-  const link = await magicLink(base, page.url())
+  const link = await magicLink(recordedEngineBase(projectDir), pageUrl(path))
   await page.goto('about:blank')
+  const origin = rpcSocketOrigin(page)
   await page.goto(link, {waitUntil: 'domcontentloaded', timeout: 60_000})
+  recordedEngineBase(projectDir, await origin)
+  await expect(page).not.toHaveURL(/conciv_otp=/)
   await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()
 }
 

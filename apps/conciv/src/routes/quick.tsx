@@ -131,8 +131,9 @@ function QuickLayer(): JSX.Element {
 
   const reachability = useEngineReachability()
 
-  const setSearch = (ids: string[], focus: number) =>
-    void router.navigate({to: '/quick', search: quickSearchFor(ids, focus), replace: true})
+  const navigateSearch = (ids: string[], focus: number) =>
+    router.navigate({to: '/quick', search: quickSearchFor(ids, focus), replace: true})
+  const setSearch = (ids: string[], focus: number) => void navigateSearch(ids, focus)
 
   const openPane = (sessionId: string): void => {
     const ids = [...paneIds(), sessionId]
@@ -144,8 +145,8 @@ function QuickLayer(): JSX.Element {
   const paneStartOptions = (startSession: StartSession) => ({
     scope: PANE_SESSIONS_SCOPE,
     mutationFn: startSession,
-    onSuccess: ({sessionId}: {sessionId: string}) => openPane(sessionId),
   })
+  const openStartedPane = {onSuccess: ({sessionId}: {sessionId: string}) => openPane(sessionId)}
 
   const startSession = useStartSession()
   const resumeLatestPane = useMutation(() => paneStartOptions(() => rpc.sessions.resolve({})))
@@ -160,17 +161,17 @@ function QuickLayer(): JSX.Element {
 
   const bootstrapPane = (): void => {
     if (paneStartPending() || paneIds().length > 0) return
-    resumeLatestPane.mutate()
+    resumeLatestPane.mutate(undefined, openStartedPane)
   }
 
   const addFreshPane = (): void => {
     if (paneStartPending()) return
-    createFreshPane.mutate()
+    createFreshPane.mutate(undefined, openStartedPane)
   }
 
   const retryPaneStart = (): void => {
     if (paneStartPending()) return
-    lastPaneStart().mutate()
+    lastPaneStart().mutate(undefined, openStartedPane)
   }
 
   createEffect(
@@ -205,7 +206,7 @@ function QuickLayer(): JSX.Element {
   const activatePane = (index: number, id: string) => {
     const ids = [...paneIds()]
     ids[index] = id
-    setSearch(ids, index)
+    return navigateSearch(ids, index)
   }
 
   const resize = createResizable({

@@ -781,9 +781,7 @@
     "packages/plugin-host/src/core/database/**",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/embed/src/native-entry.ts",
-    "e2e/harnesses/vite.*.config.ts",
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",
-    "e2e/e2e-utils/src/prepare-run.ts",
     "packages/db/drizzle-home.config.ts"
   ],
   "framework": [

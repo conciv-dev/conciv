@@ -8,6 +8,7 @@ import {FILE_REF_PREFIX, type HarnessChatDeps, type HarnessImage} from '@conciv/
 import {type HarnessChatConfig} from '../_shared/contract.js'
 import {definedEntries} from '../_shared/env.js'
 import {lastUserImages} from '../_shared/text-adapter.js'
+import {CLAUDE_BIN} from './args.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 import {tmpdir} from 'node:os'
 
@@ -84,7 +85,7 @@ function spaceFreePath(flag: string, path: string): string {
 }
 
 export function claudeExecutable(pluginDir: string | null, settingsFile: string | null = null): string {
-  const flags = ['claude', '--strict-mcp-config']
+  const flags = [CLAUDE_BIN, '--strict-mcp-config']
   if (pluginDir) flags.push('--plugin-dir', spaceFreePath('--plugin-dir', pluginDir))
   if (settingsFile) flags.push('--settings', spaceFreePath('--settings', settingsFile))
   return flags.join(' ')
