@@ -60,6 +60,7 @@ import {applySchemeClass, applySkinClass, createHostTheme, themeClasses} from '.
 import {createPreferences} from '../settings/create-preferences.js'
 import {DialogProvider} from '../runtime/plugin/dialog-stack.js'
 import {PluginAttachment, PluginRoot} from '../runtime/plugin/root.js'
+import type {ServerBinding} from '../runtime/plugin/servers.js'
 import {PluginOverlay, PluginPanelKeys} from '../shell/plugin-surfaces.js'
 import '../styles.css'
 import 'virtual:uno.css'
@@ -111,8 +112,8 @@ function AppRoot() {
   const fab = createDraggablePosition({initial: app.settings.modal.position, storageKey: 'conciv-fab-position'})
 
   const [arrivedFromConnect, setArrivedFromConnect] = createSignal(false)
-  const connectBind = async (apiBase: string): Promise<string> => {
-    if (app.apiBase() !== apiBase) app.bindApiBase?.(apiBase)
+  const connectBind = async (server: ServerBinding): Promise<string> => {
+    if (app.apiBase() !== server.apiBase) app.bindApiBase?.(server.apiBase, server.token)
     const {sessionId} = await app.rpc.sessions.resolve({})
     setArrivedFromConnect(true)
     return sessionId

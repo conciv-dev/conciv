@@ -8,7 +8,10 @@ export const test = base.extend<{
   connect: async ({task: _task}, use) => {
     const clients: BrowserRpcClient[] = []
     await use((engine) => {
-      const client = makeBrowserRpcClient(engine.address.apiBase, {session: () => engine.session.id})
+      const client = makeBrowserRpcClient(engine.address.apiBase, {
+        token: engine.address.token,
+        session: () => engine.session.id,
+      })
       clients.push(client)
       return client.rpc
     })

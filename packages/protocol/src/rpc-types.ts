@@ -6,6 +6,8 @@ export const CONCIV_VERSION_HEADER = 'x-conciv-version'
 
 export const RPC_WS_PATH = '/rpc-ws'
 
+export const CONCIV_AUTH_TOKEN_QUERY_PARAM = 'conciv_auth_token'
+
 export type RpcHeaders = Readonly<Record<string, string | string[] | undefined>>
 
 export type RpcSocketTrust = {
@@ -16,6 +18,7 @@ export type RpcSocketTrust = {
 export type RpcContext = {
   origin: string
   callerOrigin: string | null
+  engineCaller: boolean
   headers: RpcHeaders
   clientVersion?: string
   socket?: RpcSocketTrust

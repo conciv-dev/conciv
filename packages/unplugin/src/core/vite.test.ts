@@ -48,7 +48,7 @@ describe.concurrent('the vite dev server', () => {
     const engine = RecordedEngineSchema.parse(
       JSON.parse(readFileSync(join(concivStateDir(project), 'server.json'), 'utf8')),
     )
-    const browser = openBrowser(`http://127.0.0.1:${engine.port}/t/${engine.token}`)
+    const browser = openBrowser(`http://127.0.0.1:${engine.port}`, engine.token)
     const {sessionId} = await browser.rpc.sessions.create()
     const runId = randomUUID()
     const events = await browser.rpc.chat.send({
