@@ -5,7 +5,7 @@ import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {createInterface} from 'node:readline'
 import {stripVTControlCharacters} from 'node:util'
-import {test as base, type Page} from '@playwright/test'
+import {test as base, expect, type Page} from '@playwright/test'
 import getPort from 'get-port'
 import {e2eConfigDir, e2eServerLog, readAppServer, type AppServer} from './config.js'
 import {e2ePluginCopyDir, e2eStateDir} from './dev-endpoint.js'
@@ -16,10 +16,25 @@ type RebuildPlugin = (plugin: string, from: string, to: string) => Promise<void>
 const VITE_LISTENING = 'Local:'
 const REMOVE = {recursive: true, force: true, maxRetries: 5}
 
-async function signIn(page: Page, signedIn: boolean): Promise<void> {
+async function signIn(page: Page): Promise<void> {
   const failures = collectFailures(page)
-  if (!signedIn) return
   await loginWidget(page)
+  await expectWidgetBoots(page, failures)
+}
+
+async function startNewSession(page: Page): Promise<void> {
+  const launcher = page.getByRole('button', {name: /conciv chat$/})
+  if ((await launcher.getAttribute('aria-expanded')) !== 'true') await launcher.click()
+  await page.getByRole('button', {name: /, session options$/}).click()
+  await page.getByRole('button', {name: /^Session: /}).click()
+  await page.getByRole('button', {name: 'New session', exact: true}).click()
+  await expect(page.getByText('Started a new session')).toBeVisible()
+}
+
+async function signInToNewSession(page: Page): Promise<void> {
+  const failures = collectFailures(page)
+  await loginWidget(page)
+  await startNewSession(page)
   await expectWidgetBoots(page, failures)
 }
 
@@ -112,12 +127,12 @@ export const test = base.extend<{
     await use(appServer ?? baseURL)
   },
   page: async ({page, signedIn}, use) => {
-    await signIn(page, signedIn)
+    if (signedIn) await signInToNewSession(page)
     await use(page)
   },
   secondPage: async ({browser, signedIn}, use) => {
     const page = await browser.newPage()
-    await signIn(page, signedIn)
+    if (signedIn) await signIn(page)
     await use(page)
     await page.close()
   },
