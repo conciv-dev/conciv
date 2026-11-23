@@ -27,7 +27,8 @@ import {
   useModelMenu,
   useThread,
   type ComposerDraft,
-  type PageSessionConfig,
+  type GroupEntry,
+  type Grouping,
   type TurnItem,
   type TurnPrefixSource,
   useThreadViewport,
@@ -35,7 +36,7 @@ import {
 } from '@conciv/ui-kit-chat'
 import type {DraftItem, PermissionReply} from '@conciv/protocol/chat-types'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
-import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageSessionEntry, pageToolMeta} from '@conciv/plugin-page/client'
+import {createPageSessionGrouper, pageSessionEntry, pageToolMeta} from '@conciv/plugin-page/client'
 import {tanstackToolMeta} from '@conciv/plugin-tanstack/client'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
@@ -246,8 +247,8 @@ function DraftUnsavedNotice(props: {
   )
 }
 
-const PAGE_SESSION: PageSessionConfig = {
-  entry: {
+const PAGE_SESSION_ENTRIES: readonly GroupEntry[] = [
+  {
     key: pageSessionEntry.key,
     render: (props) => (
       <Contribution plugin="page" fallback={() => props.children}>
@@ -255,9 +256,7 @@ const PAGE_SESSION: PageSessionConfig = {
       </Contribution>
     ),
   },
-  actNames: PAGE_ACT_TOOL_NAMES,
-  toolPrefix: PAGE_TOOL_PREFIX,
-}
+]
 
 const ABOVE_COMPOSER =
   'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto pe-5 ps-5 gap-x-2 [background:var(--chat-queue-bg)] [box-shadow:inset_0_1px_0_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-chat-xs leading-snug'
@@ -447,6 +446,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
 
   const toolRender = createToolRender(catalog)
   const tools = (): ToolCardEntry[] => [...concivToolCards, ...coreToolCards, ...builtinToolCards]
+  const pageSessionGrouper = createPageSessionGrouper()
+  const grouping = (): Grouping => ({grouper: pageSessionGrouper, context: {toolEntries: tools()}})
 
   const compacting = messaging.compacting
 
@@ -579,7 +580,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       renderPending={toolRender.pending()}
                       turnPrefix={renderTurnPrefix}
                       promptSuffix={renderPromptSuffix}
-                      pageSession={PAGE_SESSION}
+                      grouping={grouping()}
+                      groupEntries={PAGE_SESSION_ENTRIES}
                       refreshDisabled={!messaging.resendAllowed()}
                     />
                     <Show when={lastTurnStopped()}>

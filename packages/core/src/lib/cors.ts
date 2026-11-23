@@ -63,7 +63,7 @@ export function corsMiddleware(version?: () => string | undefined): MiddlewareHa
       origin: (candidate) => (originAllowed(candidate, extra) ? candidate : ''),
       credentials: true,
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['content-type', 'authorization', CONCIV_SESSION_HEADER, CONCIV_VERSION_HEADER],
+      allowHeaders: ['content-type', CONCIV_SESSION_HEADER, CONCIV_VERSION_HEADER],
       exposeHeaders: [CONCIV_VERSION_HEADER],
     })
     return corsHandler(c, next)

@@ -1,5 +1,4 @@
 import {children, createUniqueId, For, onCleanup, Show, splitProps, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
 import type {
   Ui,
   UiIconProps,
@@ -14,7 +13,7 @@ import {
   type InternalStatusDotProps,
   type InternalUi,
 } from '@conciv/plugin-internal'
-import {Markdown} from '@conciv/ui-kit-chat'
+import {Icon as KitIcon, Markdown} from '@conciv/ui-kit-chat'
 import {BasicTool, Chip, CodeBlock, ErrorBlock, JsonTree, ResultImage, StatusVisual} from '@conciv/ui-kit-chat/tools'
 import {MentionField} from '@conciv/ui-kit-tap'
 import {isPlainObject} from 'es-toolkit'
@@ -44,7 +43,6 @@ import {
 } from '@conciv/ui-kit-system'
 import {ActionRow, Group, SettingsHeader} from '../../settings/settings-ui'
 import {useLayers} from '../../app/context'
-import {icons} from './icons'
 
 const iconSize = {small: 'size-3.5', normal: 'size-4', large: 'size-5'}
 
@@ -497,13 +495,7 @@ function treeable(value: unknown): object | undefined {
 }
 
 function Icon(props: UiIconProps): JSX.Element {
-  return (
-    <Dynamic
-      component={icons[props.name]}
-      class={`shrink-0 ${iconSize[props.size ?? 'normal']} ${props.class ?? ''}`}
-      aria-hidden="true"
-    />
-  )
+  return <KitIcon name={props.name} size={props.size} class={`shrink-0 ${props.class ?? ''}`} />
 }
 
 function initials(name: string): string {

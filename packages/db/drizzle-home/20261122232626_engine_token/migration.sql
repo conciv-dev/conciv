@@ -1,0 +1,1 @@
+ALTER TABLE `engines` ADD `token` text DEFAULT '' NOT NULL;

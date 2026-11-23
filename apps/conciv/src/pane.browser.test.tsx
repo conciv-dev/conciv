@@ -694,7 +694,7 @@ describe('the user stops while the agent asks', () => {
 })
 
 describe('a plugin draws its own tool cards', () => {
-  test('a plugin card shows open, a failed call draws the plugin error card, and a card that throws falls back to the generic card', async () => {
+  test('a plugin card shows open with the icon the plugin declares, a failed call draws the plugin error card, a card that throws falls back to the generic card, and the icon draws on its settings tab and leaves with the plugin', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
     await engine.reply(
@@ -719,6 +719,19 @@ describe('a plugin draws its own tool cards', () => {
     expect(within(reply).getByText('Release card for main')).toBeVisible()
     expect(within(reply).getByText(/^Release held: .*The release train is frozen/)).toBeVisible()
     expect(within(reply).getByRole('button', {name: /Called release_notes/})).toBeVisible()
+
+    const href = reply.querySelector('use')?.getAttribute('href') ?? ''
+    expect(href).toMatch(/^#/)
+    expect(document.querySelector(`symbol${href}`)).toHaveAttribute('viewBox', '0 0 16 16')
+
+    await user.click(screen.getByRole('link', {name: 'Settings'}))
+    const schedule = await screen.findByRole('tab', {name: 'Release schedule'})
+    expect(schedule.querySelector('use')).toHaveAttribute('href', href)
+    await user.click(screen.getByRole('tab', {name: 'Plugins'}))
+    await user.click(await screen.findByRole('switch', {name: 'release-train'}))
+
+    await expect.element(page.getByRole('tab', {name: 'Release schedule'})).not.toBeInTheDocument()
+    expect(document.querySelector(`symbol${href}`)).not.toBeInTheDocument()
   })
 })
 

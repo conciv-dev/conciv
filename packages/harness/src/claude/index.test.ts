@@ -120,5 +120,16 @@ describe('the claude login check', () => {
     const commands = emptyEntry.commands({cwd: claudeInCwd.bin, sessionId: SessionId.parse('conciv_one')})
     await expect(commands).resolves.toEqual(expect.any(Array))
     expect(claudeInCwd.started()).toBe(true)
+
+    const claudeInRelativeEntry = recordedClaudeOnPath()
+    const relativeEntry = claude(
+      ConfigProvider.fromEnvRecord({PATH: `.${delimiter}/usr/bin${delimiter}/bin`, CLAUDE_CONFIG_DIR: configDir}),
+    )
+    const relativeCommands = relativeEntry.commands({
+      cwd: claudeInRelativeEntry.bin,
+      sessionId: SessionId.parse('conciv_one'),
+    })
+    await expect(relativeCommands).resolves.toEqual(expect.any(Array))
+    expect(claudeInRelativeEntry.started()).toBe(true)
   })
 })

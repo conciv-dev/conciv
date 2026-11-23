@@ -8,7 +8,7 @@ Source of the `conciv-try` CLI. `cli.ts` parses arguments with citty and reports
 
 - `runCli()` (`cli.ts`): `runMain` for command `conciv-try`, called by `bin.ts` (shebang `node --disable-warning=ExperimentalWarning`).
 - CLI flags (`cli.ts`): `--token` (required pairing token), `--harness` (`claude` default, `codex`, `gemini-cli`, `opencode`, `pi`), `--workspace` (`.` = cwd; default is a temp dir), `--origin` (override the allowed browser origin, for testing).
-- `attachCommand(port, token)` (`cli.ts`): the `claude --continue --mcp-config '...'` command pointing at `http://127.0.0.1:<port>/t/<token>/api/mcp`.
+- `attachCommand(port, token)` (`cli.ts`): the `claude --continue --mcp-config '...'` command pointing at `http://127.0.0.1:<port>/api/mcp?conciv_auth_token=<token>`.
 - `plainLines(event, token)` (`cli.ts`): non-TTY output lines per `ConnectEvent`.
 - `runConnect(opts: ConnectOpts)` -> `Engine` (`connect.ts`): package entry (`exports["."]`).
 - `ConnectOpts` `{token, harness?, workspace?, origin?, harnessAdapter?, onEvent?, onShutdown?}`; `ConnectEvent` = `seeded` | `started` (port, harness) | `client-connected` (`connect.ts`).

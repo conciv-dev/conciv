@@ -1,4 +1,4 @@
-import {mkdirSync, readFileSync, realpathSync, writeFileSync} from 'node:fs'
+import {mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {ConfigProvider} from 'effect'
@@ -8,8 +8,10 @@ import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {codex} from './index.js'
 
 describe('history', () => {
-  it('a session in the CLI store lists for its project with its title and preview, archived ones and one whose rollout lies outside the CLI home left out, and opening it reads back the whole conversation, tool calls and results included, with its context size', async () => {
-    const home = tempDir('codex-home-')
+  it('a session in the CLI store lists for its project with its title and preview through a symlinked home, archived ones and rollouts outside the home left out, and opening it reads back the whole conversation, tool calls and results included, with its context size', async () => {
+    const home = join(tempDir('codex-home-link-'), 'home')
+    symlinkSync(tempDir('codex-home-'), home)
+    const outside = join(tempDir('codex-outside-'), 'rollout-thread-3.jsonl')
     const project = realpathSync(tempDir('codex-project-'))
     const sessionId = HarnessSessionId.parse('thread-1')
     const rollout = join(home, 'sessions', '2026', '11', '21', 'rollout-2026-11-21T10-00-00-thread-1.jsonl')
@@ -26,6 +28,7 @@ describe('history', () => {
       {type: 'event_msg', payload: {type: 'token_count', info: {total_token_usage: {total_tokens: 4321}}}},
     ].map((line) => JSON.stringify(line))
     writeFileSync(rollout, `${lines.join('\n')}\n`)
+    writeFileSync(outside, `${lines.join('\n')}\n`)
     const offsets = lines.map((_, index) => lines.slice(0, index).reduce((sum, line) => sum + line.length + 1, 0))
     const db = new DatabaseSync(join(home, 'state_5.sqlite'))
     db.exec(
@@ -48,9 +51,7 @@ describe('history', () => {
       0,
     )
     insert.run('thread-2', rollout, project, 'Old work', null, null, 'gpt-5.5', 0, 0, 0, 500, 900, 1)
-    const outsideRollout = join(tempDir('codex-elsewhere-'), 'rollout-2026-11-21T11-00-00-thread-3.jsonl')
-    writeFileSync(outsideRollout, `${lines.join('\n')}\n`)
-    insert.run('thread-3', outsideRollout, project, 'Planted', null, null, 'gpt-5.5', 0, 0, 0, 3000, 3000, 0)
+    insert.run('thread-3', outside, project, 'Outside the home', null, null, 'gpt-5.5', 0, 0, 0, 500, 900, 0)
     db.close()
     const history = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: home})).history
 

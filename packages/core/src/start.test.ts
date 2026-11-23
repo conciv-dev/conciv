@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, test} from 'vitest'
+import {makeBrowserRpcClient, makeRpcClient} from '@conciv/contract'
 import {createEngine} from '@conciv/plugin-testkit'
 
 describe('start', () => {
@@ -8,6 +9,30 @@ describe('start', () => {
     await expect(createEngine({}, {port: 'connect', token: 'not-a-uuid'})).rejects.toThrow(
       'conciv: accessToken must be a UUID pairing token',
     )
+
+    const engine = await createEngine()
+    const {apiBase, token} = engine.address
+    await expect(makeRpcClient(apiBase, {token}).meta.harnesses()).resolves.toMatchObject({
+      harnesses: expect.any(Array),
+    })
+    expect(await makeRpcClient(apiBase, {token}).auth.issueCode()).toEqual({
+      code: expect.any(String),
+      expiresAt: expect.any(Number),
+    })
+    const socket = makeBrowserRpcClient(apiBase, {token})
+    try {
+      await expect(socket.rpc.meta.harnesses()).resolves.toMatchObject({harnesses: expect.any(Array)})
+      expect(await socket.rpc.auth.issueCode()).toEqual({code: expect.any(String), expiresAt: expect.any(Number)})
+    } finally {
+      socket.close()
+    }
+    const legacyPath = await fetch(new URL(`/t/${token}/rpc/meta/harnesses`, apiBase), {method: 'POST'})
+    expect(legacyPath.status).toBe(401)
+    const bearer = await fetch(new URL('/rpc/meta/harnesses', apiBase), {
+      method: 'POST',
+      headers: {authorization: `Bearer ${token}`},
+    })
+    expect(bearer.status).toBe(401)
   })
 })
 

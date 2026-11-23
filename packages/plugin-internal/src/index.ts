@@ -1,6 +1,6 @@
 import type {ComponentProps, JSX} from 'solid-js'
 import {z} from 'zod'
-import type {Plugin, SetupContext, ToolProps, Ui} from '@conciv/plugin/experimental'
+import type {IconName, Plugin, SetupContext, ToolProps, Ui} from '@conciv/plugin/experimental'
 import type {MentionField} from '@conciv/ui-kit-tap'
 
 export type {MentionFieldApi, MentionItem, MentionSegment} from '@conciv/ui-kit-tap'
@@ -12,6 +12,7 @@ const Tagged = z.object({$$type: z.literal(INTERNAL_PLUGIN)})
 const Stamped = z.object({$$type: z.literal(INTERNAL_PLUGIN), version: z.unknown()})
 
 export interface InternalBasicToolProps extends ToolProps {
+  readonly icon?: IconName
   readonly title: string
   readonly subtitle?: string
   readonly subtitleTone?: 'default' | 'muted' | 'warning' | 'danger'
@@ -72,16 +73,18 @@ export interface InternalUi extends Ui {
 
 type Stores = NonNullable<Plugin.Declarations['stores']>
 
+type Icons = NonNullable<Plugin.Declarations['icons']>
+
 export type InternalSetupContext<D> = SetupContext<D> & {readonly ui: InternalUi}
 
-export type InternalPluginInput<S extends Stores> = Plugin.Declarations<S> & {
-  readonly setup: (ctx: InternalSetupContext<NoInfer<Plugin.Declarations<S>>>) => Plugin.Cleanup | void
+export type InternalPluginInput<S extends Stores, I extends Icons = {}> = Plugin.Declarations<S, I> & {
+  readonly setup: (ctx: InternalSetupContext<NoInfer<Plugin.Declarations<S, I>>>) => Plugin.Cleanup | void
 }
 
-export function defineInternalPlugin<const S extends Stores = {}>(
-  plugin: InternalPluginInput<S>,
-): Plugin.Definition<S> {
-  const setup = plugin.setup as Plugin.Setup<NoInfer<Plugin.Declarations<S>>>
+export function defineInternalPlugin<const S extends Stores = {}, const I extends Icons = {}>(
+  plugin: InternalPluginInput<S, I>,
+): Plugin.Definition<S, I> {
+  const setup = plugin.setup as Plugin.Setup<NoInfer<Plugin.Declarations<S, I>>>
   const stamped = {...plugin, setup, $$type: INTERNAL_PLUGIN, version: VERSION}
   return stamped
 }

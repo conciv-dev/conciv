@@ -129,7 +129,6 @@ export const PartsGrouped: Story = {
     const c = within(canvasElement)
 
     await waitFor(() => expect(c.getByText('group-chain')).toBeVisible())
-    await expect(c.queryByText('group-page-session')).toBeNull()
     await expect(c.getByText('weighing the options')).toBeVisible()
     await expect(c.getByText('Here is the fix.')).toBeVisible()
   },

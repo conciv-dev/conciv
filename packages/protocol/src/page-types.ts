@@ -65,8 +65,6 @@ export const SymbolicateFrameSchema = z.object({
   column: z.number().int().min(0).optional(),
 })
 export const SymbolicateSchema = z.object({frames: z.array(SymbolicateFrameSchema).min(1).max(32)})
-export const OpenSourceResultSchema = z.object({status: z.enum(['opened', 'no-source', 'failed'])})
-export type OpenSourceResult = z.infer<typeof OpenSourceResultSchema>['status']
 
 export const PageQueueOutcomeSchema = z.discriminatedUnion('ok', [
   z.object({index: z.number().int(), tool: z.string(), ok: z.literal(true), result: z.record(z.string(), z.unknown())}),

@@ -11,6 +11,7 @@ import type {WarmSession} from './warm-session.js'
 import type {HostTheme} from '../lib/color-scheme.js'
 import type {LauncherAnchor} from '../lib/draggable-position.js'
 import type {PreferencesApi} from '../settings/preferences-schema.js'
+import type {ServerBinding} from '../runtime/plugin/servers.js'
 
 export type AppContextValue = {
   rpc: RpcClient
@@ -27,7 +28,7 @@ export type AppContextValue = {
   panelWidthCap: Accessor<number>
   connected: () => boolean
   arrivedFromConnect: () => boolean
-  connectBind: (apiBase: string) => Promise<string>
+  connectBind: (server: ServerBinding) => Promise<string>
   grabProvider?: GrabProvider
   connectionGeneration: () => number
   apiBase: () => string
@@ -104,7 +105,7 @@ export function useArrivedFromConnect(): () => boolean {
   return useAppScope('useArrivedFromConnect', (app) => app.arrivedFromConnect)
 }
 
-export function useConnectBinding(): {bind: (apiBase: string) => Promise<string>} {
+export function useConnectBinding(): {bind: (server: ServerBinding) => Promise<string>} {
   return useAppScope('useConnectBinding', (app) => ({bind: app.connectBind}))
 }
 
