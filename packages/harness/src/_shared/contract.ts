@@ -7,6 +7,7 @@ import type {
   HarnessConnectContext,
   HarnessHistory,
   HarnessInit,
+  HarnessLogin,
   HarnessModels,
   HarnessResume,
 } from '@conciv/protocol/harness-types'
@@ -44,6 +45,10 @@ export type HarnessAdapter = HarnessAdapterBase &
   (
     | {capabilities: HarnessCapabilities & {init: 'files'}; init: HarnessInit}
     | {capabilities: HarnessCapabilities & {init: 'none'}; init?: undefined}
+  ) &
+  (
+    | {capabilities: HarnessCapabilities & {login: 'probe'}; login: HarnessLogin}
+    | {capabilities: HarnessCapabilities & {login: 'none'}; login?: undefined}
   )
 
 export function defineHarness<T extends HarnessAdapter>(adapter: T): T {

@@ -20,7 +20,7 @@ function createSessionBus(): SessionBus {
       if (held.size === 0) listeners.delete(sessionId)
     }
   }
-  async function* events(sessionId: SessionId, signal: AbortSignal): AsyncGenerator<ChatEvent> {
+  const events = (sessionId: SessionId, signal: AbortSignal): AsyncGenerator<ChatEvent> => {
     const release = {unlisten: (): void => undefined}
     const stream = new ReadableStream<ChatEvent>({
       start: (controller) => {
@@ -36,11 +36,7 @@ function createSessionBus(): SessionBus {
       },
       cancel: () => release.unlisten(),
     })
-    try {
-      yield* stream
-    } finally {
-      release.unlisten()
-    }
+    return liveUntilClosed(stream, () => release.unlisten())
   }
   return {
     publish: (sessionId, chunk) => {
@@ -48,6 +44,14 @@ function createSessionBus(): SessionBus {
     },
     listen,
     events,
+  }
+}
+
+async function* liveUntilClosed(live: ReadableStream<ChatEvent>, unlisten: () => void): AsyncGenerator<ChatEvent> {
+  try {
+    yield* live
+  } finally {
+    unlisten()
   }
 }
 

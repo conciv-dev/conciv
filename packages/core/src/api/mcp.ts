@@ -144,7 +144,7 @@ function executeError(result: ExecuteResult, declaredCodes: ReadonlySet<string>)
   }
 }
 
-type PublishChunks = (chunks: readonly ChatEvent[]) => void
+type PublishChunks = (chunks: readonly ChatEvent[]) => Promise<void>
 
 type CallTrace = ReturnType<typeof callTrace>
 
@@ -161,7 +161,7 @@ function replyText(reply: CodeReply): string {
 }
 
 async function publishResult(calls: CallPublisher, reply: CodeReply): Promise<void> {
-  calls.publish(calls.trace.result(calls.run, replyText(reply), reply.isError === true))
+  await calls.publish(calls.trace.result(calls.run, replyText(reply), reply.isError === true))
   await calls.settle()
 }
 
@@ -170,7 +170,7 @@ async function runExecute(
   typescriptCode: string,
   calls: CallPublisher,
 ): Promise<CodeExecuteResult> {
-  calls.publish(calls.trace.start(calls.run, EXECUTE_TOOL_NAME, {typescriptCode}))
+  await calls.publish(calls.trace.start(calls.run, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
     .run(typescriptCode, calls.trace.callId, calls.signal)
     .catch((error: unknown) => ({success: false, error: {message: String(error)}}))
@@ -184,7 +184,7 @@ async function runExecute(
 }
 
 async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): Promise<CodeReply> {
-  calls.publish(calls.trace.start(calls.run, tool.name, input))
+  await calls.publish(calls.trace.start(calls.run, tool.name, input))
   const reply: CodeReply = await tool.run(input, calls.trace.callId, calls.signal).then(
     (value) => toolValueReply(value),
     (error: unknown) => ({
@@ -276,7 +276,7 @@ export async function openCodeSession(
   }
   const publish = (chunk: ChatEvent): void => {
     if (hub && chunk.type === ChatEventType.TOOL_CALL_START) deps.hubCall(scope.id, chunk.toolCallId)
-    mirror.publish(timed(chunk).map(caller.trace.mark))
+    void mirror.publish(timed(chunk).map(caller.trace.mark))
   }
   const runner = await deps.codeRunner(
     scope.id,

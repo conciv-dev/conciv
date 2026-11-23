@@ -31,6 +31,7 @@ export function pi(provider: ConfigProvider.ConfigProvider) {
       slashCommands: 'none',
       imageInput: false,
       init: 'none',
+      login: 'none',
     },
     chatConfig: unsupportedChatConfig('pi', 'pi'),
     history: piHistory(root),

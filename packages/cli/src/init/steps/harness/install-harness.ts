@@ -14,6 +14,7 @@ export type HarnessInitIo = {
     args: string[],
     cwd: string,
     onLine: (line: string) => void,
+    options: {signal: AbortSignal},
   ) => Promise<{code: number; output: string}>
 }
 
@@ -31,10 +32,12 @@ async function writePlanFiles(ctx: InitContext, plan: HarnessInitPlan): Promise<
 
 async function runCommand(ctx: InitContext, io: HarnessInitIo, command: HarnessInitCommand): Promise<string | null> {
   const rendered = `${command.bin} ${command.args.join(' ')}`
-  const outcome = await io.run(command.bin, command.args, ctx.cwd, ctx.feed).catch((error: unknown) => {
-    const reason = error instanceof Error ? error.message : String(error)
-    return {code: -1, output: reason}
-  })
+  const outcome = await io
+    .run(command.bin, command.args, ctx.cwd, ctx.feed, {signal: ctx.signal})
+    .catch((error: unknown) => {
+      const reason = error instanceof Error ? error.message : String(error)
+      return {code: -1, output: reason}
+    })
   if (outcome.code === 0) return null
   const reason = outcome.output.trim()
   return reason.length === 0 ? `${rendered} failed` : `${rendered} failed: ${reason}`

@@ -4,7 +4,8 @@ import {resolveHarnessModels} from '@conciv/harness'
 import {codex} from '@conciv/harness/codex'
 import {createEngine} from '@conciv/plugin-testkit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {withSavedModels} from './app.js'
+import {makeApp, withSavedModels} from './app.js'
+import {resolveConfig} from './config.js'
 
 describe('http surface', () => {
   test('health answers, an untokened route is refused, a foreign origin is refused, and every reply carries the version', async () => {
@@ -73,5 +74,48 @@ describe('the saved model list', () => {
     const afterFailure = await withSavedModels({...adapter, models: signedOut}, stateDir, signal, unlogged)
     await expect(resolveHarnessModels(afterFailure.harness, {signal})).resolves.toEqual(listed)
     await afterFailure.settled()
+  })
+
+  test('the engine starts listing the models before anyone asks, and the first ask reuses that listing', async () => {
+    const signal = new AbortController().signal
+    const adapter = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')}))
+    const listed = [{id: 'gpt-5.6-sol', name: 'GPT 5.6 Sol'}]
+    const listing = Promise.withResolvers<typeof listed>()
+    const started: string[] = []
+    const models = () => {
+      started.push('listing')
+      return listing.promise
+    }
+
+    const warmed = await withSavedModels({...adapter, models}, tempDir('saved-models-'), signal, () => {})
+    expect(started).toEqual(['listing'])
+
+    const asked = resolveHarnessModels(warmed.harness, {signal})
+    listing.resolve(listed)
+    await expect(asked).resolves.toEqual(listed)
+    expect(started).toEqual(['listing'])
+    await warmed.settled()
+
+    const engineStarted: string[] = []
+    const recorded = {
+      ...adapter,
+      models: () => {
+        engineStarted.push('listing')
+        return Promise.resolve(listed)
+      },
+    }
+    const root = tempDir('app-root-')
+    const configProvider = ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')})
+    const made = await makeApp({
+      cfg: resolveConfig({stateRoot: root}, root, configProvider),
+      cwd: root,
+      home: tempDir('app-home-'),
+      configProvider,
+      openInEditor: () => {},
+      harness: recorded,
+      harnesses: [recorded],
+    })
+    expect(engineStarted).toEqual(['listing'])
+    await made.dispose()
   })
 })

@@ -1,6 +1,7 @@
 export {defineHarness} from './_shared/contract.js'
 export type {HarnessAdapter, HarnessChatConfig} from './_shared/contract.js'
 import type {ConfigProvider} from 'effect'
+import type {HarnessLoginStatus} from '@conciv/protocol/chat-types'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
 import type {HarnessAdapter} from './_shared/contract.js'
 import {claude} from './claude/index.js'
@@ -12,6 +13,7 @@ import {pi} from './pi/index.js'
 export {lastUserModelText, lastUserImages} from './_shared/text-adapter.js'
 export {containedPath, transcriptPathWithin} from './_shared/contained-path.js'
 export {foldJsonlFile} from './_shared/fold-jsonl-file.js'
+export {onPath} from './_shared/on-path.js'
 
 export type HarnessRegistry = {
   get(id: string): HarnessAdapter | undefined
@@ -33,4 +35,17 @@ export async function resolveHarnessModels(
   const models = adapter.models
   if (!models) return []
   return typeof models === 'function' ? models(options) : models
+}
+
+export async function resolveHarnessLogin(
+  adapter: HarnessAdapter,
+  options: {signal: AbortSignal; refresh: boolean; onError: (error: unknown) => void},
+): Promise<HarnessLoginStatus> {
+  if (!adapter.login) return {loggedIn: true}
+  try {
+    return await adapter.login({signal: options.signal, refresh: options.refresh})
+  } catch (error) {
+    options.onError(error)
+    return {loggedIn: true}
+  }
 }

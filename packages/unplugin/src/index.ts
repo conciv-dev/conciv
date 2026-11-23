@@ -1,9 +1,8 @@
 import {createUnplugin, type UnpluginInstance, type UnpluginOptions} from 'unplugin'
-import {z} from 'zod'
 import type {Engine} from '@conciv/core/start'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {makeEngineBooter, type Builtins} from './core/boot.js'
-import {CONCIV_DEFAULT_PORT, WIDGET_START_SPECIFIER} from './core/nextjs.js'
+import {CONCIV_DEFAULT_PORT, WIDGET_START_SPECIFIER, chooseEnginePort} from './core/nextjs.js'
 import {makeViteHook} from './core/vite.js'
 import {existsSync, mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
@@ -28,7 +27,8 @@ function createStateDirNow(stateDir: string): void {
   }
 }
 
-function writeWidgetClient(root: string, port: number): string | undefined {
+function writeWidgetClient(root: string, client: {askedPort: number; port: number}): string | undefined {
+  const {askedPort, port} = client
   if (!isEnginePort(port)) {
     console.error(
       `conciv: the engine port must be an integer from 1 to 65535, got ${String(port)}, so the page gets no widget`,
@@ -36,7 +36,7 @@ function writeWidgetClient(root: string, port: number): string | undefined {
     return undefined
   }
   const stateDir = concivStateDir(root)
-  const path = join(stateDir, `widget-client.${String(port)}.gen.js`)
+  const path = join(stateDir, `widget-client.${String(askedPort)}.gen.js`)
   const source = [
     `import {startConcivWidget} from '${WIDGET_START_SPECIFIER}'`,
     `startConcivWidget(${String(port)})`,
@@ -79,43 +79,35 @@ type BundlerCompiler = WatchingCompiler & {
 
 type EngineSlot =
   | {stage: 'idle'}
-  | {stage: 'running'; engine: Promise<Engine | undefined>}
+  | {stage: 'running'; engine: Promise<Engine>}
   | {stage: 'stopping'; stopped: Promise<void>}
-
-const AddressInUse = z.object({code: z.literal('EADDRINUSE')})
 
 function withAlias(alias: ResolveAlias, specifier: string, path: string): ResolveAlias {
   if (Array.isArray(alias)) return [...alias, {name: specifier, alias: path}]
   return {...alias, [specifier]: path}
 }
 
-function reportStartFailure(port: number): (error: unknown) => undefined {
-  return (error) => {
-    if (AddressInUse.safeParse(error).success) {
-      console.error(
-        `conciv: port ${port} is already in use, the engine did not start. Free the port or pass another port to conciv()`,
-      )
-      return undefined
-    }
-    console.error('conciv: the engine failed to start', error)
-    return undefined
-  }
+function reportStartFailure(error: unknown): never {
+  throw new Error('conciv: the engine failed to start', {cause: error})
 }
 
 export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<ConcivConfig | undefined> {
   return createUnplugin<ConcivConfig | undefined>((options = {}) => {
-    const bundlerOptions = {...options, port: options.port ?? CONCIV_DEFAULT_PORT}
+    const askedPort = options.port ?? CONCIV_DEFAULT_PORT
     const state: {slot: EngineSlot} = {slot: {stage: 'idle'}}
-    const startEngine = async (): Promise<Engine | undefined> => {
+    const startEngine = async (onPort: (port: number) => void): Promise<Engine> => {
       const slot = state.slot
       if (slot.stage === 'running') return slot.engine
       if (slot.stage === 'stopping') {
         await slot.stopped
-        return startEngine()
+        return startEngine(onPort)
       }
-      const engine = makeEngineBooter(bundlerOptions, process.cwd(), builtins)().catch(
-        reportStartFailure(bundlerOptions.port),
-      )
+      const engine = chooseEnginePort(options.port, options.stateRoot ?? process.cwd())
+        .then((port) => {
+          onPort(port)
+          return makeEngineBooter({...options, port}, process.cwd(), builtins)()
+        })
+        .catch(reportStartFailure)
       state.slot = {stage: 'running', engine}
       return engine
     }
@@ -124,7 +116,10 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
       if (slot.stage === 'idle') return
       if (slot.stage === 'stopping') return slot.stopped
       const stopped = slot.engine
-        .then((engine) => engine?.stop())
+        .then(
+          (engine) => engine.stop(),
+          () => undefined,
+        )
         .catch((error: unknown) => console.error('conciv: stopping the engine failed', error))
         .then(() => {
           state.slot = {stage: 'idle'}
@@ -134,13 +129,16 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
     }
     const serveWidgetInDevelopment = (compiler: BundlerCompiler) => {
       if (options.enabled === false || (compiler.options.mode ?? 'production') === 'production') return
+      const client =
+        options.widget === false ? undefined : writeWidgetClient(compiler.context, {askedPort, port: askedPort})
       compiler.hooks.watchRun.tapPromise('conciv', async () => {
-        await startEngine()
+        await startEngine((port) => {
+          if (client === undefined || writeWidgetClient(compiler.context, {askedPort, port}) !== undefined) return
+          throw new Error(`conciv: could not rewrite the widget client for port ${String(port)}`)
+        })
       })
       compiler.hooks.watchClose.tap('conciv', stopEngine)
       compiler.hooks.shutdown.tapPromise('conciv', stopEngine)
-      if (options.widget === false) return
-      const client = writeWidgetClient(compiler.context, bundlerOptions.port)
       if (client === undefined) return
       compiler.options.resolve.alias = withAlias(
         compiler.options.resolve.alias,

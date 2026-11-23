@@ -1,7 +1,13 @@
 import type {ConfigProvider} from 'effect'
 import type {z} from 'zod'
 import type {ChatMessage} from './chat-message-types.js'
-import type {HarnessListCursorSchema, HarnessSessionId, ReasoningEffort, SessionId} from './chat-types.js'
+import type {
+  HarnessListCursorSchema,
+  HarnessLoginStatus,
+  HarnessSessionId,
+  ReasoningEffort,
+  SessionId,
+} from './chat-types.js'
 import type {TtyCommand} from './terminal-types.js'
 
 export type HarnessCapabilities = {
@@ -18,7 +24,11 @@ export type HarnessCapabilities = {
   imageInput: 'native' | 'fileRef' | false
 
   init: 'files' | 'none'
+
+  login: 'probe' | 'none'
 }
+
+export type HarnessLogin = (options: {signal: AbortSignal; refresh?: boolean}) => Promise<HarnessLoginStatus>
 
 export type HarnessImage = {mediaType: string; dataBase64: string}
 

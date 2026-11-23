@@ -1,5 +1,6 @@
 import {rmSync, writeFileSync} from 'node:fs'
 import {access, readFile} from 'node:fs/promises'
+import {constants} from 'node:os'
 
 export type FileBackup = {path: string; content: string | null}
 
@@ -48,9 +49,16 @@ export function guardBackups(): BackupGuard {
   }
 }
 
-export function onInterrupt(handler: () => void): () => void {
-  process.on('SIGINT', handler)
+const stopSignals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP']
+
+export function interruptExitCode(reason: unknown): number {
+  const signal = stopSignals.find((name) => name === reason) ?? 'SIGINT'
+  return 128 + constants.signals[signal]
+}
+
+export function onInterrupt(handler: (signal: NodeJS.Signals) => void): () => void {
+  for (const signal of stopSignals) process.on(signal, handler)
   return () => {
-    process.off('SIGINT', handler)
+    for (const signal of stopSignals) process.off(signal, handler)
   }
 }

@@ -1,7 +1,6 @@
 import {randomUUID} from 'node:crypto'
-import {constants} from 'node:fs'
 import {access, readFile} from 'node:fs/promises'
-import {delimiter, join} from 'node:path'
+import {join} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
 import {Hono, type MiddlewareHandler} from 'hono'
 import {z} from 'zod'
@@ -22,7 +21,7 @@ import type {
 } from '@conciv/protocol/harness-types'
 import {assertToolName, toolError} from '@conciv/protocol/tool-call-types'
 import type {ResolvedConcivConfig} from './config.js'
-import {harnessRegistry, type HarnessRegistry, transcriptPathWithin} from '@conciv/harness'
+import {harnessRegistry, type HarnessRegistry, onPath, transcriptPathWithin} from '@conciv/harness'
 import {requireHarness} from './lib/require-harness.js'
 import {defaultConfigProvider} from './lib/default-config-provider.js'
 import {createSessionSearch} from './sessions/session-search.js'
@@ -189,18 +188,21 @@ export async function withSavedModels(
       })
     return state.refreshing
   }
-  function models(): Promise<HarnessModel[]> {
-    const fresh = refresh()
-    if (state.saved === null) return fresh
-    fresh.catch((error: unknown) => {
+  function refreshInBackground(): void {
+    refresh().catch((error: unknown) => {
       if (!signal.aborted)
         log(Effect.logError('[core] the model list could not be refreshed', {harness: adapter.id, error}))
     })
+  }
+  function models(): Promise<HarnessModel[]> {
+    if (state.saved === null) return refresh()
+    refreshInBackground()
     return Promise.resolve(state.saved)
   }
   async function settled(): Promise<void> {
     await Promise.allSettled([state.refreshing])
   }
+  refreshInBackground()
   return {harness: {...adapter, models}, settled}
 }
 
@@ -271,15 +273,6 @@ export type MakeAppOpts = {
   observability?: EngineObservability
 }
 
-async function executable(file: string): Promise<boolean> {
-  try {
-    await access(file, constants.X_OK)
-    return true
-  } catch {
-    return false
-  }
-}
-
 const PathConfig = Config.String('PATH').pipe(Config.withDefault(''))
 
 const readAppEnv = Effect.fn('core.app.readEnv')(function* (homeDir: string | undefined, log: Log) {
@@ -288,15 +281,9 @@ const readAppEnv = Effect.fn('core.app.readEnv')(function* (homeDir: string | un
   return {home, path: yield* PathConfig, env, hub: yield* makeHubInstaller(home, env, log)}
 })
 
-async function onPath(path: string, bin: string): Promise<boolean> {
-  const directories = path.split(delimiter).filter((entry) => entry.length > 0)
-  const found = await Promise.all(directories.map((directory) => executable(join(directory, bin))))
-  return found.includes(true)
-}
-
-async function detectedHarnesses(registry: HarnessRegistry, path: string): Promise<HarnessAdapter[]> {
+async function detectedHarnesses(registry: HarnessRegistry, path: string, cwd: string): Promise<HarnessAdapter[]> {
   const adapters = registry.list()
-  const found = await Promise.all(adapters.map((adapter) => onPath(path, adapter.binName)))
+  const found = await Promise.all(adapters.map((adapter) => onPath(path, adapter.binName, cwd)))
   return adapters.filter((adapter, index) => found[index] === true)
 }
 
@@ -309,9 +296,11 @@ async function availableHarnesses(
   path: string,
   log: Log,
 ): Promise<SavedModelsHarness[]> {
-  const adapters = opts.harnesses ?? (opts.harness ? [] : await detectedHarnesses(registry, path))
+  const adapters = (opts.harnesses ?? (opts.harness ? [] : await detectedHarnesses(registry, path, opts.cwd))).filter(
+    (adapter) => adapter.id !== boot.harness.id,
+  )
   const others = await Promise.all(adapters.map((adapter) => withSavedModels(adapter, stateDir, signal, log)))
-  return [boot, ...others.filter((other) => other.harness.id !== boot.harness.id)]
+  return [boot, ...others]
 }
 
 async function recordSessionUsage(db: ConcivDb, sessionId: SessionId, usage: UsageSnapshot): Promise<void> {

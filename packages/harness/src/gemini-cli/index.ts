@@ -77,6 +77,7 @@ export const geminiCli = defineHarness({
     slashCommands: 'none',
     imageInput: false,
     init: 'none',
+    login: 'none',
   },
   chatConfig: acpChatConfig('gemini-cli', (model) => `gemini --acp -m ${model}`, 'gemini-3-pro-preview'),
   models: GEMINI_MODELS.map((id) => ({id, name: id, group: 'Gemini'})),
