@@ -23,7 +23,7 @@ import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {CodeModeCatalog} from '@conciv/plugin-host'
 import {clearThread, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
-import {deletedSessionError, firstUserTitle, missingSession, sessionDeleted, turnHooks, type TurnDeps} from './turn.js'
+import {deletedSessionError, firstUserTitle, sessionDeleted, turnHooks, type TurnDeps} from './turn.js'
 
 export {assistCapabilities, toolDomainCapabilities, type CodeCapability, type ToolDomain} from './code-mode.js'
 export type {SessionPort} from './turn.js'
@@ -64,8 +64,6 @@ export type CodeRunner = {
   direct: CodeTool[]
 }
 
-export type FollowUpOutcome = {kind: 'delivered'} | {kind: 'busy'} | {kind: 'stopped'} | {kind: 'failed'; error: string}
-
 export type ChatPlane = {
   send: (request: ChatSend, signal?: AbortSignal) => AsyncGenerator<ChatEvent>
   join: (request: ChatJoin, signal?: AbortSignal) => AsyncGenerator<ChatEvent>
@@ -89,13 +87,11 @@ export type ChatPlane = {
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
   ) => Promise<CodeRunner | null>
-  followUp: (sessionId: SessionId, input: string) => Promise<FollowUpOutcome>
   wake: (sessionId: SessionId) => Promise<void>
   catchUp: (sessionId: SessionId) => Promise<ChatEvent[]>
 }
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
-  const followingUp = new Map<SessionId, {answered: Promise<FollowUpOutcome>; ending: AbortController}>()
   const stores = drizzleChatStores(deps.db, {
     readHarness: async (threadId) => (await deps.harnessFor(SessionId.parse(threadId))).id,
     saved: async (threadId, messages, at) => {
@@ -163,20 +159,6 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     }
   }
 
-  const driveFollowUp = async (sessionId: SessionId, input: string, ended: AbortSignal): Promise<FollowUpOutcome> => {
-    if (await sessionDeleted(deps.sessions, sessionId)) return {kind: 'failed', error: missingSession(sessionId)}
-    if ((await stores.runs.findActiveRun(sessionId)) !== null) return {kind: 'busy'}
-    if (ended.aborted) return {kind: 'stopped'}
-    const runId = randomUUID()
-    return server.drive({threadId: sessionId, runId, kind: 'page-queue', input}, []).then(
-      async () => resolveFollowUpOutcome(await stores.runs.get(runId)),
-      (error: unknown): FollowUpOutcome => {
-        deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`)
-        return {kind: 'failed', error: String(error)}
-      },
-    )
-  }
-
   const deliveredMessages = async (sessionId: SessionId, promoted: number | undefined): Promise<ModelMessage[]> =>
     promoted === undefined || promoted === 0 ? [] : (await stores.messages.loadThread(sessionId)).slice(-promoted)
 
@@ -208,12 +190,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       )
   }
 
-  const endRuns = async (sessionId: SessionId): Promise<void> => {
-    const following = followingUp.get(sessionId)
-    following?.ending.abort()
-    await server.endRuns(sessionId)
-    await Promise.allSettled([following?.answered])
-  }
+  const endRuns = (sessionId: SessionId): Promise<void> => server.endRuns(sessionId)
 
   const compactSession = async (sessionId: SessionId): Promise<void> => {
     if (await sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
@@ -311,13 +288,6 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       })
       return active === null ? asks : [...asks, sessionRunEvent.create({runId: active.runId})]
     },
-    followUp: async (sessionId, input) => {
-      if (followingUp.has(sessionId) || server.driving(sessionId)) return {kind: 'busy'}
-      const ending = new AbortController()
-      const answered = driveFollowUp(sessionId, input, ending.signal).finally(() => followingUp.delete(sessionId))
-      followingUp.set(sessionId, {answered, ending})
-      return answered
-    },
     wake: (sessionId) =>
       wake(sessionId).catch((error: unknown) =>
         deps.log(`[chat] waking session ${sessionId} for its inbox failed: ${String(error)}`),
@@ -354,14 +324,4 @@ function codeTools(tools: readonly ChatTool[], capabilities: readonly CodeCapabi
       },
     ]
   })
-}
-
-type EndedRun = Awaited<ReturnType<ReturnType<typeof drizzleChatStores>['runs']['get']>>
-
-function resolveFollowUpOutcome(ended: EndedRun): FollowUpOutcome {
-  if (ended === null) return {kind: 'failed', error: 'the follow-up run left no record'}
-  if (ended.status === 'completed') return {kind: 'delivered'}
-  if (ended.status === 'aborted' || ended.cancelRequested === true) return {kind: 'stopped'}
-  if (ended.status === 'interrupted') return {kind: 'delivered'}
-  return {kind: 'failed', error: ended.error?.message ?? `the run ended ${ended.status}`}
 }

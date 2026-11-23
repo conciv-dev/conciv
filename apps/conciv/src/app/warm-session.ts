@@ -12,8 +12,8 @@ export function createWarmSession(data: AppData, connected: () => boolean, query
     () => ({...data.utils.sessions.list.queryOptions({input: {limit: 1}}), enabled: connected()}),
     client,
   )
-  const warmId = createMemo<string | undefined>(
-    (settled) => settled ?? (newest.isSuccess ? newest.data.sessions[0]?.id : undefined),
+  const warmId = createMemo<string | undefined>((settled) =>
+    newest.isSuccess ? (settled ?? newest.data.sessions[0]?.id) : undefined,
   )
   const resolved = useQuery(
     () => ({

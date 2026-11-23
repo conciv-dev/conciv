@@ -192,7 +192,6 @@ function promptedMessage(message: ModelMessage, event: SessionPrompt): ModelMess
 
 function askedMessages(turn: Turn, messages: ModelMessage[], harness: HarnessAdapter): ModelMessage[] {
   if (turn.kind === 'compact') return [...messages, compactPrompt(harness)]
-  if (turn.kind === 'page-queue') return [...messages, {role: 'user', content: turn.input}]
   return messages
 }
 
@@ -275,7 +274,7 @@ export async function sessionDeleted(sessions: SessionPort, sessionId: SessionId
   return row !== null && row.deletedAt !== null
 }
 
-export function missingSession(sessionId: SessionId): string {
+function missingSession(sessionId: SessionId): string {
   return `session "${sessionId}" does not exist`
 }
 

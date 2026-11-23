@@ -37,7 +37,6 @@ import {
 import {
   anonymousExternalRow,
   currentRow,
-  isDeletedRow,
   ensureAgentRow,
   ensureRow,
   nativeIdFor,
@@ -81,8 +80,7 @@ import {readConcivHome, readProcessEnv, runWithProvider} from './lib/engine-env.
 import {createTabs} from './api/tabs.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
-import {makePagePlugin, type QueueFinished} from './page/page-plugin.js'
-import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
+import {makePagePlugin} from './page/page-plugin.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {createPersistentPtys} from './pty/persistent-ptys.js'
 import concivPage from '@conciv/plugin-page'
@@ -631,15 +629,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       .catch((error: unknown) =>
         log(Effect.logError('[core] publishing how the run ended failed', {sessionId, runId: run.runId, error})),
       )
-    if (run.phase === 'completed' && !(await owedFollowUp(sessionId))) await idleOrWake(sessionId, run.runId)
-    if (run.phase === 'aborted') {
-      if (engineLife.signal.aborted) return
-      await holdForNextReply(pagePlugin.delivery, sessionId).catch((error: unknown) =>
-        log(Effect.logError('[core] the page queue results could not wait for the next reply', {sessionId, error})),
-      )
-      return
-    }
-    followUpOwedQueues(sessionId)
+    if (run.phase === 'completed') await idleOrWake(sessionId, run.runId)
   }
   const runIdle = async (sessionId: SessionId, runId: string): Promise<void> => {
     const idled = await pluginHost
@@ -679,11 +669,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       .then(() => current.wake(sessionId))
       .catch((error: unknown) => log(Effect.logError('[core] the session inbox could not wake', {sessionId, error})))
   }
-  const owedFollowUp = (sessionId: SessionId): Promise<boolean> =>
-    owesFollowUp(pagePlugin.delivery, sessionId).catch((error: unknown) => {
-      log(Effect.logError('[core] the page queue results owed could not be read', {sessionId, error}))
-      return false
-    })
   const sessionModel = (sessionId: SessionId): Promise<string | null> => readModel(db, sessionId)
   const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({
     askUi: () => runtime.forSession(sessionId).asks.ui(),
@@ -870,38 +855,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     log,
   })
 
-  function followUpOwedQueues(sessionId: SessionId): void {
-    if (planeRef.current === null) return
-    void startQueueFollowUp(pagePlugin.delivery, planeRef.current, sessionId, (id) => isDeletedRow(db, id), log).catch(
-      (error: unknown) =>
-        log(Effect.logError('[core] the page queue follow-up turn could not start', {sessionId, error})),
-    )
-  }
-
-  const publishFinished = async (finished: QueueFinished): Promise<void> => {
-    const {result, sessionId} = finished
-    if (await isDeletedRow(db, sessionId)) return
-    const scope = runtime.forSession(sessionId)
-    const chunks = pageQueueChunks({result, record: finished, live: plane.driving(sessionId)})
-    chunks.forEach((chunk) => scope.stream.publish(chunk))
-    void scope.run
-      .record(chunks)
-      .catch((error: unknown) =>
-        log(Effect.logError('[core] recording a queue failed', {sessionId, queueId: result.queueId, error})),
-      )
-    if (!pagePlugin.fromHub(sessionId, finished.toolCallId)) followUpOwedQueues(sessionId)
-  }
-  await pagePlugin.followFinished((finished) => {
-    publishFinished(finished).catch((error: unknown) =>
-      log(
-        Effect.logError('[core] publishing a finished queue failed', {
-          sessionId: finished.sessionId,
-          queueId: finished.result.queueId,
-          error,
-        }),
-      ),
-    )
-  })
+  await pagePlugin.deliverFinished()
 
   const admitOutside = async (
     scope: SessionScope,
@@ -924,7 +878,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
     hubCall: pagePlugin.hubCall,
     hubReplied: pagePlugin.hubReplied,
-    finishedQueues: pagePlugin.undelivered,
+    finishedQueues: pagePlugin.hubFinished,
     startedQueues: pagePlugin.startedBy,
     driving: (sessionId) => plane.driving(sessionId),
     outsideCapabilities: async (sessionId) =>

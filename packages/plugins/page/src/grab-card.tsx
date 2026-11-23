@@ -1,12 +1,11 @@
 import {Show, type JSX, createSignal, onMount} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import CornerDownRight from 'lucide-solid/icons/corner-down-right'
-import {createTanstackQueryUtils, useQuery} from '@conciv/client'
-import type {NoteCardProps} from '@conciv/plugin/experimental'
+import {useQuery} from '@conciv/client'
+import type {MountedSession, NoteCardProps} from '@conciv/plugin/experimental'
 import {Button, Dialog, Loader} from '@conciv/ui-kit-system'
 import {sourceLabel} from '@conciv/grab'
 import {Definition, readGrabId, type GrabId, type StoredGrab} from './rpc.js'
-import {readGrab} from './grab-note.js'
 
 type GrabPreview = NonNullable<StoredGrab['preview']>
 
@@ -116,22 +115,32 @@ function GrabBody(props: {payload: StoredGrab; staged: boolean}): JSX.Element {
   )
 }
 
-type GrabCall = {rpcId: typeof Definition.id; method: 'grabs.get'; input: {id: GrabId}}
+function Unreadable(): JSX.Element {
+  return (
+    <span class={AGENT_TEXT} role="status">
+      Grabbed element could not be read
+    </span>
+  )
+}
 
 export function GrabNoteCard(props: NoteCardProps): JSX.Element {
   const id = () => readGrabId(props.note.href).at(0)
-  const pluginCall = createTanstackQueryUtils(
-    (call: GrabCall, options?: {signal?: AbortSignal}) => readGrab(props.session, call.input.id, options?.signal),
-    {path: ['plugin', 'call', 'grab']},
+  return (
+    <Show when={props.session} fallback={<Unreadable />}>
+      {(session) => (
+        <Show when={id()} fallback={<Unreadable />}>
+          {(grabId) => <StoredGrabCard session={session()} id={grabId()} staged={props.note.commentId !== undefined} />}
+        </Show>
+      )}
+    </Show>
   )
-  const grab = useQuery(() => {
-    const grabId = id()
-    return {
-      ...pluginCall.queryOptions({input: {rpcId: Definition.id, method: 'grabs.get', input: {id: grabId ?? ''}}}),
-      enabled: grabId !== undefined,
-      retry: false,
-    }
-  })
+}
+
+function StoredGrabCard(props: {session: MountedSession; id: GrabId; staged: boolean}): JSX.Element {
+  const grab = useQuery(() => ({
+    ...props.session.server.client.rpc(Definition)['grabs.get'].queryOptions({input: {id: props.id}}),
+    retry: false,
+  }))
   return (
     <Show
       when={!grab.isPending}
@@ -144,15 +153,8 @@ export function GrabNoteCard(props: NoteCardProps): JSX.Element {
         </div>
       }
     >
-      <Show
-        when={grab.data}
-        fallback={
-          <span class={AGENT_TEXT} role="status">
-            Grabbed element could not be read
-          </span>
-        }
-      >
-        {(value) => <GrabBody payload={value()} staged={props.note.commentId !== undefined} />}
+      <Show when={grab.data} fallback={<Unreadable />}>
+        {(value) => <GrabBody payload={value()} staged={props.staged} />}
       </Show>
     </Show>
   )

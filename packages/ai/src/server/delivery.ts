@@ -15,7 +15,6 @@ import {z} from 'zod'
 export type Turn =
   | {threadId: string; runId: string; kind: 'chat'; delivered: readonly string[]}
   | {threadId: string; runId: string; kind: 'compact'}
-  | {threadId: string; runId: string; kind: 'page-queue'; input: string}
 
 export type ChatJoin = {runId: string; lastEventId?: string}
 

@@ -161,13 +161,16 @@ function generatedStyles(testable: readonly TestablePlugin[]): Plugin {
   return {
     name: 'conciv:test-generated-styles',
     enforce: 'pre',
-    resolveId(source, importer) {
-      const [path, query] = source.split('?')
-      if (path === GENERATED_SHEET) return source
-      if (path === undefined || !UTILITY_SHEETS.has(path) || importer === undefined) return null
-      app ??= join(appDirectory(), 'src')
-      if (!importer.startsWith(app)) return null
-      return query === undefined ? GENERATED_SHEET : `${GENERATED_SHEET}?${query}`
+    resolveId: {
+      order: 'pre',
+      handler(source, importer) {
+        const [path, query] = source.split('?')
+        if (path === GENERATED_SHEET) return source
+        if (path === undefined || !UTILITY_SHEETS.has(path) || importer === undefined) return null
+        app ??= join(appDirectory(), 'src')
+        if (!importer.startsWith(app)) return null
+        return query === undefined ? GENERATED_SHEET : `${GENERATED_SHEET}?${query}`
+      },
     },
     load(id) {
       if (id.split('?')[0] !== GENERATED_SHEET) return null

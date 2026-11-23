@@ -64,7 +64,10 @@ describe('the host page drives the widget through its handle', () => {
     secondToken.resolve(second.address.token)
     await rebinding
     handle.open()
-    await expect.element(page.getByRole('button', {name: 'Work on the second engine, session options'})).toBeVisible()
+    await page.getByRole('button', {name: 'Work on the second engine, session options'}).click()
+    await page.getByRole('button', {name: 'Session: Work on the second engine'}).click()
+    await expect.element(page.getByRole('option', {name: /^Work on the second engine, /})).toBeVisible()
+    expect(page.getByRole('option', {name: /^New session, /}).elements()).toHaveLength(1)
 
     handle.unmount()
     await expect.element(launcher).not.toBeInTheDocument()

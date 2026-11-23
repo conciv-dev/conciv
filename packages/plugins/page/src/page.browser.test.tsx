@@ -359,7 +359,7 @@ describe('the agent fills in a form on the page', () => {
 })
 
 describe('the agent plays a list of actions on the page', () => {
-  test('a played list answers each action in the reply, and a queued list answers at once and the page plays it after', async () => {
+  test('a played list answers each action in the reply, and a queued list answers at once and its result wakes the agent after the page plays it', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
@@ -373,6 +373,7 @@ describe('the agent plays a list of actions on the page', () => {
           "return await external_page_queue_async({actions: [{tool: 'page_fill', selector: '#name', value: 'Grace'}, {tool: 'page_click', selector: '#save'}]})",
       }),
       TestLLM.text('Saving your names'),
+      TestLLM.text('Grace is saved too'),
     )
     const finished = await engine.event('session.execution.succeeded')
     const played = await engine.event('rpc.experimental.page.queue.finished')
@@ -403,13 +404,9 @@ describe('the agent plays a list of actions on the page', () => {
     expect(within(reply).getByText('Played page actions')).toBeVisible()
     await played.arrived
     expect(screen.getByText('Saved Grace')).toBeVisible()
-    await expect
-      .element(
-        page
-          .getByRole('article', {name: 'Reply to: Explain this page'})
-          .getByText('Queued page actions', {exact: true}),
-      )
-      .toHaveLength(2)
+    await expect.element(page.getByText('Queued page actions finished', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Grace is saved too', {exact: true})).toBeVisible()
+    expect(within(reply).getAllByText('Queued page actions', {exact: true})).toHaveLength(1)
   })
 })
 

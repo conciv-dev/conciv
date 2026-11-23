@@ -1,6 +1,4 @@
 import {Effect} from 'effect'
-import type {Context} from '@conciv/plugin/experimental'
-import {Recorder} from './rpc.js'
 import {ExportFailed, type VideoPiece} from './panel.js'
 
 export function saveFileToDisk(file: File): void {
@@ -13,11 +11,11 @@ export function saveFileToDisk(file: File): void {
 }
 
 export function videoPieceReader(
-  ctx: Context,
+  exportVideo: (input: {id: string; offset: number}) => Promise<VideoPiece>,
 ): (id: string, offset: number) => Effect.Effect<VideoPiece, ExportFailed> {
   return (id, offset) =>
     Effect.tryPromise({
-      try: () => ctx.client.rpc(Recorder)['recordings.exportVideo']({id, offset}),
+      try: () => exportVideo({id, offset}),
       catch: (cause) => ExportFailed.make({cause}),
     })
 }

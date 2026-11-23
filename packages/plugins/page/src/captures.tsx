@@ -17,7 +17,7 @@ function SessionCaptureProvider(props: {
     ...props.client.rpc(Definition)['captures.list'].queryOptions({input: {sessionId: props.sessionId}}),
     select: toolCaptureViews,
   }))
-  const lookup: CaptureLookup = (toolCallId) => captures.data?.[toolCallId]
+  const lookup: CaptureLookup = (toolCallId) => (captures.isSuccess ? captures.data[toolCallId] : undefined)
   return <CaptureContext.Provider value={lookup}>{props.children}</CaptureContext.Provider>
 }
 
