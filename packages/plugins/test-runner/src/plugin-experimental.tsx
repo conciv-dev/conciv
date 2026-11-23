@@ -1,4 +1,5 @@
-import {createMemo, createUniqueId, For, Match, Show, Switch, type JSX} from 'solid-js'
+import {Effect, Exit, Layer, ManagedRuntime, Scope} from 'effect'
+import {createMemo, createUniqueId, For, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
 import {
   Panel,
   ToolRegistry,
@@ -11,7 +12,7 @@ import {
 } from '@conciv/plugin/experimental'
 import {defineInternalPlugin, type InternalUi} from '@conciv/plugin-internal'
 import type {Summary, TestError, TestRow} from './events.js'
-import {followRunView} from './follow.js'
+import {followRunView, type TestRunnerRuntime} from './follow.js'
 import {initialRunView, selectSummary, selectTests, type RunView} from './run-state.js'
 import {TestsPanel} from './tests-panel.js'
 import {
@@ -272,23 +273,30 @@ function parseOutput(output: string | undefined): unknown {
   }
 }
 
-function openFailure(ctx: Context, error: TestError): void {
+function openFailure(ctx: Context, runtime: TestRunnerRuntime, error: TestError): void {
   const desktop = ctx.desktop
   if (!desktop) return
   const position = error.line === undefined ? undefined : {line: error.line}
-  desktop.launch(error.file, position).catch((cause: unknown) => {
-    console.error('[test-runner] the failing test did not open', cause)
-    ctx.toast.show({title: 'The test file could not open in your editor', variant: 'error'})
-  })
+  runtime.runFork(
+    Effect.tryPromise(() => desktop.launch(error.file, position)).pipe(
+      Effect.catch((cause) =>
+        Effect.logError('[test-runner] the failing test did not open', cause).pipe(
+          Effect.andThen(
+            Effect.sync(() => ctx.toast.show({title: 'The test file could not open in your editor', variant: 'error'})),
+          ),
+        ),
+      ),
+    ),
+  )
 }
 
-function testRunCard(ctx: Context, ui: InternalUi): ToolComponent {
+function testRunCard(ctx: Context, runtime: TestRunnerRuntime, ui: InternalUi): ToolComponent {
   const session = () => ctx.sessions.current()
   const client = () => session()?.server.client
   const actions: Actions = {
     ui,
     canOpen: ctx.desktop !== undefined,
-    onOpen: (error) => openFailure(ctx, error),
+    onOpen: (error) => openFailure(ctx, runtime, error),
     onFix: (error) =>
       ctx.screen.current()?.composer.insert(fixPrompt(error, relativePath(error.file, session()?.directory ?? ''))),
   }
@@ -322,6 +330,9 @@ function testRunCard(ctx: Context, ui: InternalUi): ToolComponent {
 
 const runner: Plugin.Definition = defineInternalPlugin({
   setup(ctx) {
+    const runtime = ManagedRuntime.make(Layer.empty)
+    const scope = runtime.runSync(Scope.make())
+    onCleanup(() => void runtime.runPromise(Scope.close(scope, Exit.void)).finally(() => runtime.dispose()))
     const tab: PanelTab = {
       id: 'tests',
       title: 'Tests',
@@ -344,21 +355,21 @@ const runner: Plugin.Definition = defineInternalPlugin({
       region: 'pane',
       list: () => [tab],
       render: (props) => {
-        const run = followRunView(ctx.client)
+        const run = followRunView(runtime, ctx.client)
         return (
           <TestsPanel
             ui={ctx.ui}
             run={run()}
             directory={props.session.directory}
             canOpen={ctx.desktop !== undefined}
-            onOpen={(error) => openFailure(ctx, error)}
+            onOpen={(error) => openFailure(ctx, runtime, error)}
             onFix={(error) => fixFailure(error, props.screen, props.session, props.session.directory)}
           />
         )
       },
     })
 
-    const render = testRunCard(ctx, ctx.ui)
+    const render = testRunCard(ctx, runtime, ctx.ui)
     ctx.add(ToolRegistry, {name: 'test_runner_run', render})
     ctx.add(ToolRegistry, {name: 'test_runner_status', render})
   },
