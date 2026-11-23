@@ -1,3 +1,4 @@
+import {sortBy} from 'es-toolkit'
 import type {Cleanup} from '@conciv/plugin/experimental'
 import type {Entry} from '@conciv/plugin/experimental/host'
 
@@ -32,6 +33,7 @@ type Running<I> = Extract<PluginEntry<I>, {status: 'loading' | 'preparing' | 'ac
 export type PluginHostState<I> = {
   readonly status: 'configuring' | 'running' | 'disposed'
   readonly issued: number
+  readonly registered: readonly string[]
   readonly plugins: Readonly<Record<string, PluginEntry<I>>>
 }
 
@@ -64,6 +66,7 @@ export type PluginHostEvent<I> =
   | {readonly type: 'disposed'}
 
 export type PluginHostEffect<I> =
+  | {readonly type: 'register'; readonly id: string; readonly definition: Entry}
   | {
       readonly type: 'load'
       readonly id: string
@@ -98,7 +101,7 @@ export type PluginHostTransition<I> = {
 }
 
 export function createPluginHostState<I>(): PluginHostState<I> {
-  return {status: 'configuring', issued: 0, plugins: {}}
+  return {status: 'configuring', issued: 0, registered: [], plugins: {}}
 }
 
 export function transitionPluginHost<I>(state: PluginHostState<I>, event: PluginHostEvent<I>): PluginHostTransition<I> {
@@ -110,7 +113,7 @@ export function transitionPluginHost<I>(state: PluginHostState<I>, event: Plugin
 
   if (event.type === 'disposed')
     return step(
-      {status: 'disposed', issued: state.issued, plugins: {}},
+      {status: 'disposed', issued: state.issued, registered: state.registered, plugins: {}},
       Object.entries(state.plugins).flatMap(([id, entry]) => teardown(id, entry)),
     )
 
@@ -280,7 +283,7 @@ function reconcile<I>(
   )
 
   const status: PluginHostState<I>['status'] = disabled ? 'running' : state.status
-  const initial = {state: {status, issued: state.issued, plugins: {}}, effects: removed}
+  const initial = {state: {status, issued: state.issued, registered: state.registered, plugins: {}}, effects: removed}
 
   const next = definitions.reduce<PluginHostTransition<I>>((current, definition) => {
     const id = definition.id
@@ -316,7 +319,20 @@ function reconcile<I>(
     Object.keys(state.plugins).length === definitions.length &&
     definitions.every((definition) => next.state.plugins[definition.id] === state.plugins[definition.id])
 
-  return same ? step(state) : next
+  if (same) return step(state)
+
+  const entered = sortBy(
+    definitions.filter((definition) => !state.registered.includes(definition.id)),
+    [(definition) => (definition.enforce === 'pre' ? 0 : definition.enforce === 'post' ? 2 : 1)],
+  )
+
+  return {
+    state: {...next.state, registered: [...state.registered, ...entered.map((definition) => definition.id)]},
+    effects: [
+      ...entered.map((definition) => ({type: 'register', id: definition.id, definition}) as const),
+      ...next.effects,
+    ],
+  }
 }
 
 function start<I>(state: PluginHostState<I>, id: string, listed: Entry, override: Entry | undefined) {

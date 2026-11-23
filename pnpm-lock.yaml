@@ -2748,9 +2748,6 @@ importers:
       '@conciv/plugin-ios':
         specifier: workspace:^
         version: link:../plugins/ios
-      '@conciv/plugin-page':
-        specifier: workspace:^
-        version: link:../plugins/page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

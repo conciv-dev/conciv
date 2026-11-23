@@ -1,4 +1,3 @@
-import {sortBy} from 'es-toolkit'
 import {abort} from './abort'
 import {
   batch,
@@ -173,23 +172,6 @@ function createHost(input: HostInput) {
   const providers = new Map<string, string | undefined>()
 
   const all = input.definitions
-
-  const registered = new Set<string>()
-
-  const register = (entries: readonly Entry[]) =>
-    sortBy(
-      entries.filter((entry) => !registered.has(entry.id)),
-      [(entry) => (entry.enforce === 'pre' ? 0 : entry.enforce === 'post' ? 2 : 1)],
-    ).forEach((entry) => {
-      registered.add(entry.id)
-      try {
-        entry.beforeRegister?.(input.plugin?.(entry.id)?.options ?? input.options?.(entry.id) ?? {})
-      } catch (cause) {
-        console.error(`[plugin] ${entry.id} beforeRegister`, cause)
-      }
-    })
-
-  register(untrack(all))
 
   const startup = createStartupGate({
     installed: input.installed,
@@ -469,8 +451,10 @@ function createHost(input: HostInput) {
         (cause: unknown) => dispatch({type: 'failed', id: effect.id, attempt: effect.attempt, cause}),
       )
 
-    if (effect.type === 'create') {
-      register([effect.definition])
+    if (effect.type === 'register')
+      return effect.definition.beforeRegister?.(input.plugin?.(effect.id)?.options ?? input.options?.(effect.id) ?? {})
+
+    if (effect.type === 'create')
       return void runWithOwner(owner, () =>
         createRoot((dispose) => {
           const root = getOwner()
@@ -487,7 +471,6 @@ function createHost(input: HostInput) {
           }
         }),
       )
-    }
 
     if (effect.type === 'prepare')
       return void Promise.try(effect.instance.prepare).then(
