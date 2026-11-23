@@ -1,4 +1,4 @@
-import {describe, expect, test} from 'vitest'
+import {describe, expect, onTestFinished, test, vi} from 'vitest'
 import {page, userEvent as browserInput} from 'vitest/browser'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
@@ -209,7 +209,13 @@ describe('preview a session that has no messages', () => {
 describe('past sessions the CLI started', () => {
   test('the picker opens on the search and All projects from the address, copies another project’s resume command, and with All projects off and the search cleared files the sessions under Yesterday and Earlier and finds one by a word of its transcript', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({}, pastSessions)
+    const dayBefore = new Date()
+    dayBefore.setDate(dayBefore.getDate() - 1)
+    vi.setSystemTime(dayBefore)
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const engine = await createEngine({}, pastSessions())
     await engine.newSession('Alpha')
     await mount({
       engine,

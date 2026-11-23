@@ -26,7 +26,7 @@ Init steps that connect agent harnesses. They add a marked conciv section to AGE
 
 - `agentsMdStep.apply` (`agents-md.ts`): backs up and writes AGENTS.md and CLAUDE.md
 - `writePlanFiles` (`install-harness.ts`): writes harness plan files, possibly outside cwd (for example under home)
-- `runCommand` (`install-harness.ts`): spawns the harness command through io.run and streams its lines to ctx.feed
+- `runCommand` (`install-harness.ts`): spawns the harness command through io.run with the init abort signal (so Ctrl-C, SIGTERM or SIGHUP stops it and init restores and exits) and streams its lines to ctx.feed
 - `applyConnect` (`connect-agent.ts`): edits the agent CLI's user MCP config and records the connection in the conciv home db
 
 ## Verification

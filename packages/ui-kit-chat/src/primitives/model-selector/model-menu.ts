@@ -89,8 +89,18 @@ export function searchedSection(section: HarnessSection, matches: (row: ModelMen
   return {...section, rows: rows.filter(matches), more: [], older: []}
 }
 
+export function loginMessage(harness: HarnessMenuEntry): string | null {
+  return harness.login.loggedIn ? null : harness.login.message
+}
+
 export function menuEntry(models: ChatModels): HarnessMenuEntry {
-  return {...models.harness, models: models.models, defaultModel: models.defaultModel, modelsFailed: false}
+  return {
+    ...models.harness,
+    models: models.models,
+    defaultModel: models.defaultModel,
+    modelsFailed: models.modelsFailed,
+    login: models.login,
+  }
 }
 
 export function withOwnEntry(
