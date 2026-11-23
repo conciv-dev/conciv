@@ -123,12 +123,28 @@ describe.concurrent('outside agents', () => {
     })
   })
 
-  test('with open access a call into a session runs without asking', async ({expect}) => {
+  test('with open access a call into a session runs without asking, as the outside agent, while the panel calls as the session agent', async ({
+    connect,
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk'], hubAccess: 'open'})
+    const hub = makeRpcClient(engine.address.apiBase, {
+      token: engine.address.token,
+      headers: {
+        [CONCIV_ORIGIN_HEADER]: 'hub',
+        [CONCIV_CLIENT_HEADER]: 'terminal',
+        [CONCIV_SESSION_HEADER]: engine.session.id,
+      },
+    })
 
     expect(await engine.outside({tab: engine.session.id}).call('desk_echo', {text: 'Hello'})).toEqual({
       content: [expect.objectContaining({type: 'text', text: expect.stringContaining('Hello')})],
     })
+    expect(await engine.outside({tab: engine.session.id}).call('desk_agent', {})).toEqual({
+      content: [expect.objectContaining({type: 'text', text: expect.stringContaining('"agent":"outside"')})],
+    })
+    expect(await hub.registry.call({name: 'desk_agent', input: {}})).toEqual({agent: 'outside'})
+    expect(await connect(engine).registry.call({name: 'desk_agent', input: {}})).toEqual({agent: 'build'})
   })
 })
 

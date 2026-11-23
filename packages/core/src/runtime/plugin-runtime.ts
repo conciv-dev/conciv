@@ -69,7 +69,7 @@ import type {PluginHost as PluginHostRuntime} from '../api/rpc/mount.js'
 import type {ResolvedConcivConfig} from '../config.js'
 import * as EventFeed from '../event-feed.js'
 import {provideInstructionEntries} from './instruction-entries.js'
-import {permissionSessions} from './permission-cards.js'
+import {outsideAgent, permissionSessions} from './permission-cards.js'
 import {provideSessions} from './plugin-sessions.js'
 import {provideServersSource} from './servers-source.js'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
@@ -252,7 +252,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     SdkPlugins.layer,
     InstancePlugins.bound(
       input.plugins.map((plugin) => PluginPromise.fromPromise(plugin)),
-      {post: input.builtins},
+      {post: [...input.builtins, outsideAgent]},
     ),
     PluginUpdate.layer,
     ConfigPluginSource.layer,

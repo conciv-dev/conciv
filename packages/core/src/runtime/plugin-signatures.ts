@@ -52,13 +52,13 @@ export function callPluginTool(
   sessionId: SessionId,
   name: string,
   input: unknown,
-  call: {id: string; widget: boolean},
+  call: {id: string; widget: boolean; outside: boolean},
 ): Effect.Effect<
   Tool.NormalizedResult,
   Tool.Error,
   Plugin.Interface | Tool.Interface | Agent.Interface | Permission.SessionsInterface
 > {
-  const run = currentToolDomain(sessionId).pipe(
+  const run = currentToolDomain(sessionId, {outside: call.outside}).pipe(
     Effect.flatMap(({snapshot, agent}) => {
       const context: Tool.Context = {
         sessionId: SessionSchema.Id.make(sessionId),

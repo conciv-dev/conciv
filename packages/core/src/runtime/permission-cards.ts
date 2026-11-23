@@ -20,6 +20,8 @@ import {
   SkillInstructions,
   Tool,
 } from '@conciv/plugin-host'
+import {Agent as AgentSchema} from '@conciv/plugin/schema/agent'
+import {define} from '@conciv/plugin/effect/plugin'
 import {Effect, Layer, Option, Ref, Schema} from 'effect'
 import {once} from 'es-toolkit'
 import {storedSessionRules, type StoredRules} from '../sessions/session-rows.js'
@@ -81,26 +83,44 @@ export function permissionSessions(db: ConcivDb) {
   )
 }
 
+export type CallOrigin = {outside: boolean}
+
+export const outsideAgent = define({
+  id: 'conciv.outside-agent',
+  effect: Effect.fn(function* (ctx) {
+    yield* ctx.agent.transform((editor) => {
+      const permissions = editor.get(Agent.defaultId)?.permissions ?? []
+      editor.update(AgentSchema.outsideId, (agent) => {
+        agent.hidden = true
+        agent.permissions = permissions.map((rule) => ({...rule}))
+      })
+    })
+  }),
+})
+
 function sessionRules(
   sessionId: SessionId,
+  origin: CallOrigin,
 ): Effect.Effect<{agent: Agent.Id; rules: Permission.Ruleset}, never, Agent.Interface | Permission.SessionsInterface> {
   return Effect.gen(function* () {
     const session = yield* (yield* Permission.PermissionSessions).get(SessionSchema.Id.make(sessionId))
-    const agent = yield* (yield* Agent.Service).select(session?.agent)
+    const agent = yield* (yield* Agent.Service).select(origin.outside ? AgentSchema.outsideId : session?.agent)
     return {agent: agent.id, rules: Permission.merge(agent.info?.permissions ?? [], session?.permissions ?? [])}
   })
 }
 
 export const sessionToolDomain = Effect.fn('core.permissions.toolDomain')(function* (
   sessionId: SessionId,
+  origin: CallOrigin,
 ): Effect.fn.Return<ToolDomain, never, Tool.Interface | Agent.Interface | Permission.SessionsInterface> {
   yield* Effect.annotateCurrentSpan({sessionId})
-  const {agent, rules} = yield* sessionRules(sessionId)
+  const {agent, rules} = yield* sessionRules(sessionId, origin)
   return {snapshot: yield* (yield* Tool.Service).snapshot(rules), agent}
 })
 
 export const currentToolDomain = Effect.fn('core.permissions.currentToolDomain')(function* (
   sessionId: SessionId,
+  origin: CallOrigin,
 ): Effect.fn.Return<
   ToolDomain,
   never,
@@ -108,7 +128,7 @@ export const currentToolDomain = Effect.fn('core.permissions.currentToolDomain')
 > {
   yield* Effect.annotateCurrentSpan({sessionId})
   yield* Plugin.awaitActivation
-  return yield* sessionToolDomain(sessionId)
+  return yield* sessionToolDomain(sessionId, origin)
 })
 
 function isMarker(value: unknown): value is Instructions.Unavailable | Instructions.Removed {
@@ -129,7 +149,9 @@ export const pluginInstructions = Effect.fn('core.instructions.load')(function* 
   const bus = yield* Bus.Service
   const context = yield* Effect.context()
   const id = SessionSchema.Id.make(sessionId)
-  const skills = yield* (yield* SkillInstructions.Service).load((yield* sessionRules(sessionId)).rules)
+  const skills = yield* (yield* SkillInstructions.Service).load(
+    (yield* sessionRules(sessionId, {outside: false})).rules,
+  )
   const entries = yield* loadInstructionEntries(yield* KV.Service, id)
   const instructions = Instructions.combine([CodeModeInstructions.make(inventory), skills, entries])
   const read = yield* Instructions.read(instructions)

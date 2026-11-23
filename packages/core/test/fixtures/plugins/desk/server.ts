@@ -14,6 +14,13 @@ export default Plugin.define({
           output: z.object({text: z.string()}),
           execute: ({text}) => Effect.succeed({output: {text}}),
         })
+        tools.add({
+          name: 'desk_agent',
+          description: 'Say which agent called this tool',
+          input: z.object({}),
+          output: z.object({agent: z.string()}),
+          execute: (_input, context) => Effect.succeed({output: {agent: context.agent}}),
+        })
       })
     }),
 })

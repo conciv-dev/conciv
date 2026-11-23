@@ -180,7 +180,15 @@ async function requireLiveSession(deps: RpcDeps, sessionId: SessionId | undefine
 
 async function runPluginTool(
   deps: RpcDeps,
-  call: {sessionId: SessionId; name: string; input: unknown; callId: string; widget: boolean; signal?: AbortSignal},
+  call: {
+    sessionId: SessionId
+    name: string
+    input: unknown
+    callId: string
+    widget: boolean
+    outside: boolean
+    signal?: AbortSignal
+  },
   errors: RegistryErrors & ApprovalErrors,
 ): Promise<unknown> {
   if (!call.widget) {
@@ -191,7 +199,11 @@ async function runPluginTool(
   const exit = await deps.pluginHost.runPromiseExit(
     settlingAsks(
       call.sessionId,
-      callPluginTool(call.sessionId, call.name, call.input, {id: call.callId, widget: call.widget}),
+      callPluginTool(call.sessionId, call.name, call.input, {
+        id: call.callId,
+        widget: call.widget,
+        outside: call.outside,
+      }),
       (sessionId, chunk) => deps.runtime.forSession(sessionId).stream.publish(chunk),
     ),
     {signal: call.signal},
@@ -471,6 +483,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
               input: input.input,
               callId: trace.callId,
               widget: widgetCaller(context.callerOrigin, deps.allowedOrigins),
+              outside: trace.hub !== null,
               signal,
             },
             errors,

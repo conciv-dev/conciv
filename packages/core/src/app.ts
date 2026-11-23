@@ -94,6 +94,7 @@ import {
   pluginInstructions,
   settlingAsks,
   currentToolDomain,
+  type CallOrigin,
 } from './runtime/permission-cards.js'
 import {makePluginRuntime, type PluginRuntime} from './runtime/plugin-runtime.js'
 import {startObservability, type EngineObservability} from './runtime/observability.js'
@@ -741,11 +742,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const reportToolCollision = memoize((name: string) =>
     log(Effect.logError('[core] a plugin tool is left out: a built-in capability already has that name', {name})),
   )
-  const withPluginTools = async (sessionId: SessionId, capabilities: CodeCapability[]): Promise<CodeCapability[]> =>
+  const withPluginTools = async (
+    sessionId: SessionId,
+    capabilities: CodeCapability[],
+    origin: CallOrigin,
+  ): Promise<CodeCapability[]> =>
     toolDomainCapabilities(
       capabilities,
-      await pluginHost.runPromise(currentToolDomain(sessionId)),
-      currentToolDomain(sessionId),
+      await pluginHost.runPromise(currentToolDomain(sessionId, origin)),
+      currentToolDomain(sessionId, origin),
       (effect, signal) => pluginHost.runPromiseExit(settlingAsks(sessionId, effect, publishCard), {signal}),
       reportToolCollision,
     )
@@ -753,10 +758,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const offeredCapabilities = (sessionId: SessionId): CodeCapability[] =>
     assistCapabilities(concivSandboxTools(makeToolCtx(sessionId)))
   const codeModeCapabilities = (sessionId: SessionId): Promise<CodeCapability[]> =>
-    withPluginTools(sessionId, offeredCapabilities(sessionId))
+    withPluginTools(sessionId, offeredCapabilities(sessionId), {outside: false})
   const sessionTools = async (sessionId: SessionId): Promise<ChatTool[]> => {
     const offered = offeredCapabilities(sessionId)
-    const given = await withPluginTools(sessionId, offered)
+    const given = await withPluginTools(sessionId, offered, {outside: false})
     return differenceBy(given, offered, (capability) => capability.name).map(({name, description}) => ({
       name,
       description,
@@ -878,8 +883,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     startedQueues: pagePlugin.startedBy,
     driving: (sessionId) => plane.driving(sessionId),
     turnMessage: (sessionId) => plane.turnMessage(sessionId),
-    outsideCapabilities: async (sessionId) =>
-      outsideRunCapabilities(await withPluginTools(sessionId, offeredCapabilities(sessionId))),
+    outsideCapabilities: async (sessionId, run) => {
+      const capabilities = await withPluginTools(sessionId, offeredCapabilities(sessionId), {outside: true})
+      return run.tab ? capabilities : outsideRunCapabilities(capabilities)
+    },
     resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
     admitOutside,
     hubRefusal: hub.refusal,
