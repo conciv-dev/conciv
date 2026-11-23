@@ -185,21 +185,11 @@ async function requireAttachedPage(
   throw errors.NO_PAGE_CLIENT({message: `${call.name}: ${reason}`, cause: undefined})
 }
 
-async function requireKnownSession(
-  deps: RpcDeps,
-  sessionId: SessionId | undefined,
-  errors: {NOT_FOUND: (options: {message: string}) => Error},
-): Promise<void> {
+async function requireLiveSession(deps: RpcDeps, sessionId: SessionId | undefined, refuse: () => Error): Promise<void> {
   if (sessionId === undefined) return
   const row = await rowById(deps.chat.db, sessionId)
   if (row !== null && row.deletedAt === null) return
-  throw errors.NOT_FOUND({message: `session ${sessionId} not found`})
-}
-
-async function requireLiveSession(deps: RpcDeps, sessionId: SessionId, errors: ApprovalErrors): Promise<void> {
-  const row = await rowById(deps.chat.db, sessionId)
-  if (row !== null && row.deletedAt === null) return
-  throw errors.APPROVAL_DENIED({message: `session "${sessionId}" does not exist`})
+  throw refuse()
 }
 
 async function runPluginTool(
@@ -207,7 +197,11 @@ async function runPluginTool(
   call: {sessionId: SessionId; name: string; input: unknown; callId: string; widget: boolean; signal?: AbortSignal},
   errors: RegistryErrors & ApprovalErrors,
 ): Promise<unknown> {
-  if (!call.widget) await requireLiveSession(deps, call.sessionId, errors)
+  if (!call.widget) {
+    await requireLiveSession(deps, call.sessionId, () =>
+      errors.APPROVAL_DENIED({message: `session "${call.sessionId}" does not exist`}),
+    )
+  }
   if (isPageTool(call.name)) await requireAttachedPage(deps, call, errors)
   const exit = await deps.pluginHost.runPromiseExit(
     settlingAsks(
@@ -585,12 +579,16 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     code: {
       describe: os.code.describe.handler(async (call) => (await resolveCodeSession(deps, undefined, call)).describe()),
       execute: os.code.execute.handler(async ({input, ...call}) => {
-        await requireKnownSession(deps, input.sessionId, call.errors)
+        await requireLiveSession(deps, input.sessionId, () =>
+          call.errors.NOT_FOUND({message: `session ${input.sessionId} not found`}),
+        )
         const code = await resolveCodeSession(deps, input.sessionId, call)
         return (await code.execute(input.typescriptCode)).result
       }),
       discover: os.code.discover.handler(async ({input, ...call}) => {
-        await requireKnownSession(deps, input.sessionId, call.errors)
+        await requireLiveSession(deps, input.sessionId, () =>
+          call.errors.NOT_FOUND({message: `session ${input.sessionId} not found`}),
+        )
         const code = await resolveCodeSession(deps, input.sessionId, call)
         if (code.sandbox.discover === null) throw call.errors.NO_CODE_MODE({message: 'no tools to discover'})
         return code.discover(input.toolNames)
