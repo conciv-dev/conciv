@@ -19,7 +19,7 @@ export {ToolCard} from './tools/styled/tool-card.js'
 export {CardHeadline, CARD_HEADLINE_TEXT} from './tools/styled/card-headline.js'
 export {CardShell, cardHeader, detailChips, type CardChip} from './tools/styled/card-shell.js'
 export {InlineRow, InlineShell} from './tools/styled/inline-row.js'
-export {GENERIC_TOOL_ICON, toolIconRender} from './tools/styled/tool-icon.js'
+export {GENERIC_TOOL_ICON} from './tools/styled/tool-icon.js'
 export {schemaFields, schemaParams, type SchemaField} from './tools/primitives/schema-params.js'
 export {humanToolName, nowTitle} from './tools/primitives/now-title.js'
 export {
@@ -30,7 +30,6 @@ export {
   displayValue,
   clip,
   cardPhase,
-  cardTitle,
   type CardPhase,
 } from './tools/primitives/tool-presentation.js'
 export {MetaToolCard, metaToolHasEmbeddedBody} from './tools/styled/meta-tool-card.js'

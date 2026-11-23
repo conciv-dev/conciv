@@ -103,7 +103,6 @@ function ResultView(props: {outputSchema: unknown; payload: unknown; raw: string
 function summaryLine(part: ToolCallPart, meta: ToolViewMeta | undefined): string | undefined {
   const summary = meta?.summary
   if (summary === undefined || summary.length === 0) return undefined
-  if (meta?.label !== undefined) return summary
   return namedArgument(part) === undefined ? undefined : summary
 }
 

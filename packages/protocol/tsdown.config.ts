@@ -19,7 +19,6 @@ export default defineConfig({
     'src/element-capture-types.ts',
     'src/element-capture-sanitize.ts',
     'src/page-introspect-types.ts',
-    'src/tool-icon-types.ts',
     'src/tool-view-types.ts',
     'src/connect-ports.ts',
     'src/state-types.ts',

@@ -21,7 +21,6 @@
         "@conciv/mascot#build",
         "@conciv/plugin#build",
         "@conciv/plugin-internal#build",
-        "@conciv/plugin-tanstack#build",
         "@conciv/plugin-terminal#build",
         "@conciv/protocol#build",
         "@conciv/solid-streamdown#build",

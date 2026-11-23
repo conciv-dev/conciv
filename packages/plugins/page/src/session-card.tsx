@@ -4,7 +4,6 @@ import {Dynamic} from 'solid-js/web'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {MorphLabel, ReasoningText, type GroupRenderProps} from '@conciv/ui-kit-chat'
 import {pageSessionCallParts, pageSessionThinkingParts} from './page-session.js'
-import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {StatusDot, TruncatedText} from '@conciv/ui-kit-system'
 import {
   CARD_HEADLINE_TEXT,
@@ -19,19 +18,12 @@ import {
   SUNKEN_SURFACE,
   StatusVisual,
   ToolCard,
-  toolIconRender,
   type ToolStatus,
   clip,
+  GENERIC_TOOL_ICON,
 } from '@conciv/ui-kit-chat/tools'
-import {
-  PAGE_ACT_TOOL_NAMES,
-  PAGE_TOOL_PREFIX,
-  pageOperation,
-  pageToolMeta,
-  pageVerbGerund,
-  pageVerbOfTool,
-} from './rpc.js'
-import {cardErrorMessage, countLabel, mutatingBadge, toolInput} from './shared.js'
+import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageOperation, pageVerbOfTool} from './rpc.js'
+import {cardErrorMessage, countLabel, mutatingBadge, pageStepView, pageVerbGerund, toolInput} from './shared.js'
 import {CaptureContext, SessionCaptures} from './captures.js'
 import type {ToolCaptureView} from '@conciv/protocol/element-capture-types'
 
@@ -40,13 +32,7 @@ const SESSION_LABEL = {
   script: {running: 'Running script on the page', done: 'Ran script on the page'},
 }
 
-const SESSION_META: ToolViewMeta = {
-  summary: 'the AI drove the live page',
-  category: 'act',
-  icon: 'pointer',
-  label: SESSION_LABEL.edit,
-  mutating: true,
-}
+const SESSION_SUMMARY = 'the AI drove the live page'
 
 const HEAD = 'flex flex-1 items-center gap-2 min-w-0 ps-4 h-9'
 const HEAD_DOTS = 'flex gap-2 flex-none'
@@ -203,19 +189,19 @@ function rowTargetClass(state: PageSessionStep['state']): string {
   return ROW_TARGET
 }
 
-function stepLabel(step: PageSessionStep, view: ToolViewMeta | undefined): string {
-  if (view?.label === undefined) return step.verb
+function stepLabel(step: PageSessionStep, view: ReturnType<typeof pageStepView>): string {
+  if (view === undefined) return step.verb
   return step.state === 'complete' ? view.label.done : view.label.running
 }
 
 function StepRow(props: {step: PageSessionStep; index: number; streaming: boolean}): JSX.Element {
-  const view = () => pageToolMeta(`${PAGE_TOOL_PREFIX}${props.step.verb}`)
+  const view = () => pageStepView(props.step.verb)
   return (
     <li class={rowClass(props.index)}>
       <StepGlyph step={props.step} ordinal={props.index + 1} streaming={props.streaming} />
       <span class={rowVerbClass(props.step.state, props.streaming)}>
         <span class="inline-flex shrink-0" aria-hidden="true">
-          <Dynamic component={toolIconRender(view()?.icon)} size={12} />
+          <Dynamic component={view()?.icon ?? GENERIC_TOOL_ICON} size={12} />
         </span>
         <span class={ROW_VERB_LABEL}>{stepLabel(props.step, view())}</span>
       </span>
@@ -252,7 +238,7 @@ function SessionHeader(props: {
         <Show when={props.url}>{(url) => <Chip kind="pill" value={url()} class={HEAD_URL} />}</Show>
       </span>
       <MorphLabel
-        text={props.streaming ? ACTING_LABEL : (mutatingBadge(SESSION_META) ?? '')}
+        text={props.streaming ? ACTING_LABEL : (mutatingBadge(true) ?? '')}
         boxClass={HEAD_STATE}
         class={props.streaming ? HEAD_STATE_LIVE : HEAD_STATE_SETTLED}
       />
@@ -288,7 +274,7 @@ export function SessionCard(props: GroupRenderProps): JSX.Element {
       {(anchor) => (
         <ToolCard
           title={title()}
-          titleTooltip={SESSION_META.summary}
+          titleTooltip={SESSION_SUMMARY}
           part={anchor()}
           result={props.resultFor(anchor().id)}
           status={status()}

@@ -22,7 +22,7 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 - Event bus (`event-bus.ts`): `createEventBus`, `createEventBusClient`, DISPATCH_EVENT, CONNECT_EVENT, GLOBAL_EVENT, PANEL_PLUGIN_ID
 - Sanitizer (`element-capture-sanitize.ts`): `neutralizeSubtree`, `isDangerousTag`, `isDroppableAttribute`, `decodeEntities`
 - Config (`config-types.ts`): ConcivConfig, ConcivSettingsInit, ExtensionRegistry, `defineConfig`
-- Tool views (`tool-view-types.ts`): ToolCardProps, ToolCardEntry, ToolUIComponent; TOOL_ICON_KEYS (`tool-icon-types.ts`)
+- Tool views (`tool-view-types.ts`): ToolCardProps, ToolCardEntry, ToolUIComponent
 - Ports and state (`connect-ports.ts`, `state-types.ts`): CONNECT_FIRST_PORT 4732 to CONNECT_LAST_PORT 4741, CONCIV_STATE_DIR '.conciv', `concivStateDir`
 
 ## Invariants

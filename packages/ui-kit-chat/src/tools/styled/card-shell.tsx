@@ -3,19 +3,11 @@ import {For, Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {z} from 'zod'
 import type {ToolCardProps, ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
-import {
-  cardPhase,
-  cardTitle,
-  clip,
-  displayValue,
-  QUIET_TEXT_CLASS,
-  type CardPhase,
-} from '../primitives/tool-presentation.js'
+import {cardPhase, clip, displayValue, QUIET_TEXT_CLASS, type CardPhase} from '../primitives/tool-presentation.js'
 import {toolStatus, type ToolStatus} from '../primitives/tool-status.js'
 import {parseInput} from '../primitives/tool-util.js'
 import {schemaFields} from '../primitives/schema-params.js'
-import {toolIconRender} from './tool-icon.js'
+import {GENERIC_TOOL_ICON} from './tool-icon.js'
 import {ToolCard} from './tool-card.js'
 import {useEmbeddedCard} from './card-chrome.js'
 import {Chip, ChipRow} from './chip.js'
@@ -29,7 +21,7 @@ export function cardHeader(props: ToolCardProps): {
 } {
   const meta = () => props.ctx.catalog.meta(props.part.name)
   const phase = () => cardPhase(toolStatus(props.part, props.result))
-  const title = () => cardTitle(meta(), phase(), props.part.name)
+  const title = () => props.part.name
   return {meta, phase, title}
 }
 
@@ -47,8 +39,8 @@ export function detailChips(
     .map((name) => ({name, value: clip(displayValue(input[name]))}))
 }
 
-function cardIcon(icon: ToolIconKey | undefined, iconClass: string | undefined): JSX.Element {
-  const rendered = <Dynamic component={toolIconRender(icon)} size={14} />
+function cardIcon(iconClass: string | undefined): JSX.Element {
+  const rendered = <Dynamic component={GENERIC_TOOL_ICON} size={14} />
   return iconClass === undefined ? rendered : <span class={iconClass}>{rendered}</span>
 }
 
@@ -105,7 +97,7 @@ export function CardShell(props: {
   const embedded = useEmbeddedCard()
   return (
     <ToolCard
-      Icon={() => cardIcon(props.meta?.icon, props.iconClass)}
+      Icon={() => cardIcon(props.iconClass)}
       title={props.title}
       subtitle={props.subtitle}
       titleTooltip={props.meta?.summary}

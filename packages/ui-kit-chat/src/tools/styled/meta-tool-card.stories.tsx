@@ -14,8 +14,6 @@ const textMeta: ToolViewMeta = {
   summary: 'read the visible text of an element',
   hint: 'prefer this over dom when you only need the words',
   category: 'read',
-  icon: 'read',
-  label: {running: 'Reading the text', done: 'Read the text'},
   positional: 'selector',
   mutating: false,
   inputSchema: {
@@ -29,8 +27,6 @@ const textMeta: ToolViewMeta = {
 const fillMeta: ToolViewMeta = {
   summary: 'type a value into a form field',
   category: 'act',
-  icon: 'keyboard',
-  label: {running: 'Filling the field', done: 'Filled the field'},
   positional: 'selector',
   mutating: true,
   inputSchema: {
@@ -45,8 +41,6 @@ const fillMeta: ToolViewMeta = {
 const diagnosticsMeta: ToolViewMeta = {
   summary: 'run environment diagnostics and report the results',
   category: 'read',
-  icon: 'read',
-  label: {running: 'Running diagnostics', done: 'Ran diagnostics'},
   positional: 'target',
   mutating: false,
   inputSchema: {type: 'object', properties: {target: {type: 'string'}}, required: ['target']},

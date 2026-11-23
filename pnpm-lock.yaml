@@ -738,9 +738,6 @@ importers:
       '@conciv/plugin-internal':
         specifier: workspace:*
         version: link:../../packages/plugin-internal
-      '@conciv/plugin-tanstack':
-        specifier: workspace:^
-        version: link:../../packages/plugins/tanstack
       '@conciv/plugin-terminal':
         specifier: workspace:*
         version: link:../../packages/plugins/terminal
