@@ -20,7 +20,7 @@ import {
 } from './shared.js'
 import {z} from 'zod'
 import {StatusDot, type StatusDotTone, TruncatedText} from '@conciv/ui-kit-system'
-import type {report as trackReport} from './react.js'
+import type {TrackReport} from './react.js'
 import {RawFrameSchema} from '@conciv/contract'
 import type {buildSnapshot} from './snapshot.js'
 import {html} from 'js-beautify'
@@ -189,8 +189,6 @@ export function EffectCard(props: ToolProps): JSX.Element {
 }
 
 const SourcePayload = pageOperation('locate').output.extend({frames: z.array(RawFrameSchema).optional()})
-
-type TrackReport = ReturnType<typeof trackReport>
 
 const TrackPayload: z.ZodType<Pick<TrackReport, 'components' | 'note'>> = z.looseObject({
   components: z.array(z.object({component: z.string(), renders: z.number(), lastReason: z.string()})),

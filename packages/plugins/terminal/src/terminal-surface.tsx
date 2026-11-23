@@ -3,7 +3,7 @@ import {makeEventListener} from '@solid-primitives/event-listener'
 import {createTerminalModel, Terminal, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {createKeyed, usePlugin, type MountedSession, type ServerRef} from '@conciv/plugin/experimental'
 import {OPEN_FAILED, PANEL_KEY, type TerminalState} from './terminal-state.js'
-import {rpcTerminalTransport, type HeldPty} from './terminal-transport.js'
+import type {HeldPty} from './terminal-transport.js'
 
 const ESCAPE_KEY = String.fromCharCode(27)
 
@@ -84,7 +84,7 @@ export default function TerminalSurface(props: {
   const terminalKey = untrack(() => props.terminalKey)
   const held: HeldPty = {ptyId: '', cursor: undefined}
   const model = createTerminalModel({
-    transport: rpcTerminalTransport(server.client.experimental.persistentPty, held),
+    transport: untrack(() => props.terminal.transport(server.client.experimental.persistentPty, held)),
     beforeConnect: async (size) => {
       const request = {sessionId, size, model: untrack(() => props.terminal.spawnModel(sessionId))}
       const ptyId = await openPty(server, request).catch((cause: unknown) => {

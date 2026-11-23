@@ -191,7 +191,7 @@ Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTo
 - `symbolicate.ts`: reads files and fetches source maps over loopback HTTP
 - `react.ts:installTracker` - instruments React through `bippy` `instrument({onCommitFiberRoot})`.
 - `toast.ts:showToast` - appends overlay elements to the page.
-- `capture.ts:loadSnapshotLibrary` - dynamically imports `rrweb-snapshot` and shows an error toast once if it fails.
+- `capture.ts:makeSnapshotLoader` - imports `rrweb-snapshot` through `cacheImport` (`Effect.cachedWithTTL`: a success is kept, a failure is retried on the next call) and shows an error toast through the host `ctx.toast` once if it fails. `operations.ts` makes one per page operations instance and loads `@zumer/snapdom` the same way.
 
 - `grab.ts:create` - sets `window.__REACT_GRAB_DISABLED__ = true`, dynamically imports `react-grab` and registers the `conciv` react-grab plugin.
 - `grab-preview.ts` - appends a temporary `<iframe>` and a holder element to `document.body` to measure fonts.
