@@ -372,7 +372,7 @@ function PanelSession(): JSX.Element {
     grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => void newSession(),
-    replaceSession: (sessionId) => void navigate({to: '/panel/$sessionId', params: {sessionId}}),
+    replaceSession: (sessionId) => navigate({to: '/panel/$sessionId', params: {sessionId}}),
     chat,
     refresh: coordinator.refresh,
     isRefreshing: coordinator.isRefreshing,

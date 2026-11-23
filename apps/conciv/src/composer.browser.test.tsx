@@ -520,7 +520,7 @@ describe('a draft per session', () => {
 })
 
 describe('a deleted session with a draft', () => {
-  test('closing the quick pane of a session deletes it, and New session on its panel carries the typed draft over', async () => {
+  test('closing the quick pane of a session deletes it, and New session on its panel carries the typed draft over, announced once the new session shows', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     const doomed = await engine.newSession('Doomed work')
@@ -538,9 +538,10 @@ describe('a deleted session with a draft', () => {
     expect(await screen.findByText('This session was deleted.')).toBeVisible()
     expect(await screen.findByText('Your draft moves to the new session.')).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'New session'}))
+    expect(await screen.findByText('Started a new session')).toBeVisible()
+    expect(screen.queryByText('This session was deleted.')).not.toBeInTheDocument()
     const moved = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     expect(await within(moved).findByText('Keep this thought')).toBeVisible()
-    expect(screen.queryByText('This session was deleted.')).not.toBeInTheDocument()
   })
 })
 
