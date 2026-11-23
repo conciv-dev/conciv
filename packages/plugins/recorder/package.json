@@ -66,7 +66,6 @@
     "@conciv/plugin-internal": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@rrweb/rrweb-plugin-console-record": "catalog:",
     "@rrweb/types": "catalog:",
@@ -78,7 +77,6 @@
     "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "unocss": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"

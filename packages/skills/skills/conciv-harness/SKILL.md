@@ -192,7 +192,7 @@ const stream = chat({
       provides: [ToolBridgeProvisionerCapability],
       setup: (ctx) => provideToolBridgeProvisioner(ctx, askingToolProvisioner(config.askPermission)),
     }),
-    withPersistence(persistence, {snapshotStreaming: true}),
+    withPersistence(persistence),
     withLocks(locks),
     defineChatMiddleware({
       name: 'conciv-thread-view',

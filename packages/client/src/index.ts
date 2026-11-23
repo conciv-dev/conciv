@@ -16,7 +16,6 @@ export {
   type QueryKey,
   type UseQueryResult,
 } from '@tanstack/solid-query'
-export {createTanstackQueryUtils} from '@orpc/tanstack-query'
 import {safe} from '@orpc/client'
 import {createChatSession, type ChatSession} from '@conciv/ai/client'
 import type {RpcClient} from '@conciv/contract'
@@ -57,9 +56,9 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
           options.connection?.onRunError?.()
           session.onRunError()
         },
-        onLive: () => {
-          options.connection?.onLive?.()
-          session.onLive()
+        onLiveAgain: () => {
+          options.connection?.onLiveAgain?.()
+          session.onLiveAgain()
         },
         onApprovalAsk: (ask) => {
           options.connection?.onApprovalAsk?.(ask)
