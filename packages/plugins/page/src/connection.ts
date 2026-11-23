@@ -24,13 +24,7 @@ import type {Context} from '@conciv/plugin/effect/plugin'
 import type {RpcRegistration} from '@conciv/plugin/effect/rpc'
 import {Tool} from '@conciv/plugin/schema/tool'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import {
-  PAGE_QUEUE_REFUSED,
-  PAGE_QUEUE_STOPPED,
-  PageRaisedErrorSchema,
-  PageChangeEntrySchema,
-  type PageChangeEntry,
-} from '@conciv/protocol/page-types'
+import {PAGE_QUEUE_REFUSED, PAGE_QUEUE_STOPPED, PageRaisedErrorSchema} from '@conciv/protocol/page-types'
 import {
   ACCESS,
   createConnectionState,
@@ -47,7 +41,16 @@ import {
   type ConnectionEvent,
 } from './machine.js'
 import {PageQueue} from './queue.js'
-import {Definition, type Action, type Command, type Outcome, type Result, type Work} from './rpc.js'
+import {
+  Definition,
+  PageChangeEntrySchema,
+  type Action,
+  type Command,
+  type Outcome,
+  type PageChangeEntry,
+  type Result,
+  type Work,
+} from './rpc.js'
 import type {Symbolicator} from './symbolicate.js'
 import {
   PageCaptureBundleSchema,
@@ -554,8 +557,6 @@ export const make = Effect.fn('PageConnection.make')(function* (
           ),
           Effect.mapError((error) => call.error('unavailable', toolFailure(error).message, {})),
         ),
-      changes: (input) => records.changes(input.sessionId),
-      clearChanges: (input) => records.clear(input.sessionId).pipe(Effect.as({ok: true as const})),
       'captures.list': (input) => records.captures(input.sessionId),
       'sessions.attached': () => Effect.sync(() => selectAttachedSessions(machine.state)),
       'tabs.list': (input) => Effect.sync(() => selectTabs(machine.state, input.sessionId)),
@@ -630,6 +631,10 @@ export function fromStorage(storage: Context['storage']) {
           `changes/${sessionId}/${String(change.ts).padStart(16, '0')}-${crypto.randomUUID()}`,
           Stored.parse(change),
         ),
+      ).pipe(
+        Effect.withSpan('PageConnection.change', {
+          attributes: {verb: change.verb, element: change.ref ?? change.selector, args: change.args},
+        }),
       ),
     changes: (sessionId: SessionId): Effect.Effect<PageChangeEntry[]> =>
       every(`changes/${sessionId}/`).pipe(

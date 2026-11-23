@@ -615,12 +615,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         ),
       },
       symbolicate: os.page.symbolicate.handler(({input}) => engine.symbolicate(input.frames)),
-      changes: sessionOs.page.changes.handler(({context}) =>
-        hubTraced(deps, context, 'page_changes', {}, () => deps.queues.changes(context.session.id)),
-      ),
-      clearChanges: sessionOs.page.clearChanges.handler(({context}) =>
-        hubTraced(deps, context, 'page_clear_changes', {}, () => deps.queues.clearChanges(context.session.id)),
-      ),
     },
     meta: {
       models: os.meta.models.handler(async ({input, signal = new AbortController().signal}) => {

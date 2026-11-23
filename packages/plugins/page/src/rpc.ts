@@ -11,7 +11,6 @@ import {
 } from '@conciv/protocol/element-capture-types'
 import {
   PAGE_QUEUE_MAX_ACTIONS,
-  PageChangeEntrySchema,
   PageQueueHandleSchema,
   PageQueueProgressSchema,
   PageQueueResultSchema,
@@ -64,6 +63,15 @@ const PagePositionSchema = z.enum(['before', 'after', 'prepend', 'append'])
 const PageWaitStateSchema = z.enum(['visible', 'hidden'])
 const AnyRecord = z.record(z.string(), z.unknown())
 const OkResult = z.object({ok: z.literal(true)})
+export const PageChangeEntrySchema = z.object({
+  seq: z.number(),
+  ts: z.number(),
+  verb: z.string(),
+  ref: z.string().optional(),
+  selector: z.string().optional(),
+  args: AnyRecord,
+})
+export type PageChangeEntry = z.infer<typeof PageChangeEntrySchema>
 const ElementTarget = {
   selector: z.string().optional().describe('CSS selector for the target element'),
   ref: z.string().optional().describe('element ref from the latest snapshot'),
@@ -568,8 +576,6 @@ export const Definition = Rpc.define({
       output: z.object({applied: z.boolean(), waitedMs: z.number()}),
       errors,
     },
-    changes: {input: z.object({sessionId: SessionId}), output: z.array(PageChangeEntrySchema), errors},
-    clearChanges: {input: z.object({sessionId: SessionId}), output: OkResult, errors},
     'captures.list': {input: z.object({sessionId: SessionId}), output: SessionCapturesSchema, errors},
     'sessions.attached': {input: z.object({}), output: z.array(SessionId), errors},
     'tabs.list': {input: z.object({sessionId: SessionId}), output: State, errors},
