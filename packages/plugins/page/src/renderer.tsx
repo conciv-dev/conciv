@@ -2,6 +2,7 @@ import {Effect, Exit, Fiber, Layer, ManagedRuntime, Scope} from 'effect'
 import {z} from 'zod'
 import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {useQueryClient} from '@conciv/client'
 import utilities from 'virtual:uno.css?inline'
 import {createKeyed, Plugin, Slot, ToolRegistry} from '@conciv/plugin/experimental'
 import {Page, PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
@@ -11,9 +12,10 @@ import {symbolicateInSession} from './open-source.js'
 import {makePageOperations} from './operations.js'
 import {pageToolCards} from './cards.js'
 import {SessionCaptures} from './captures.js'
+import {Definition} from './rpc.js'
 import {PageFailedTool} from './shared.js'
 import {makeSimulator} from './simulator.js'
-import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
+import {CONCIV_UI_SELECTOR} from './conciv-ui.js'
 import {addRef, type Refs} from './snapshot.js'
 import {dehydrate} from './dehydrate.js'
 import {describe, locate, makeTracker, reactBridge, rootFibers} from './react.js'
@@ -97,6 +99,19 @@ export default Plugin.define({
         return session?.run.status() === 'running' ? session : undefined
       },
       (session) => onCleanup(() => simulator.endRun(session.id)),
+    )
+
+    const queryClient = useQueryClient()
+    createKeyed(
+      () => routed()?.server.client,
+      (client) => {
+        const page = client.rpc(Definition)
+        onCleanup(
+          page.events.on('captures.saved', (event) =>
+            queryClient.invalidateQueries({queryKey: page['captures.list'].key({input: event.data})}),
+          ),
+        )
+      },
     )
 
     onCleanup(highlight.mount(ctx.overlay({styles: [utilities]}).element))

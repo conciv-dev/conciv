@@ -255,9 +255,6 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
   '@conciv/solid-diffs > @tanstack/solid-pacer',
   '@conciv/mascot > gsap',
   '@conciv/mascot > gsap/MotionPathPlugin',
-  'bippy',
-  'bippy/source',
-  'react-grab',
 ].map((chain) => `@conciv/it > @conciv/embed > ${chain}`)
 
 const EMBED_SOLID_RUNTIME = ['solid-js', 'solid-js/web', 'solid-js/store']

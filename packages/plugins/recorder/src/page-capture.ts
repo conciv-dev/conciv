@@ -9,7 +9,7 @@ import {loadCaptureLibrary, recordPage, takeFreshSnapshot} from './capture.js'
 import {ConfigReloadFailed, openCaptureSession} from './capture-session.js'
 import {FlushFailed, makeFlusher} from './flusher.js'
 import {FollowFailed, followRecording, type ReplaySource} from './player-follow.js'
-import {accessorStream, type PluginRuntime} from './subscription-ref-signal.js'
+import {accessorStream, type RecorderRuntime} from './solid-runtime.js'
 
 const FLUSH_CUES: readonly [Window | Document, string][] = [
   [window, 'error'],
@@ -25,7 +25,7 @@ type PageCapture = {
 
 export function bootCapture(
   ctx: Context,
-  runtime: PluginRuntime,
+  runtime: RecorderRuntime,
   clientId: string,
 ): Effect.Effect<PageCapture, never, Scope.Scope> {
   const recorder = ctx.client.rpc(Recorder)

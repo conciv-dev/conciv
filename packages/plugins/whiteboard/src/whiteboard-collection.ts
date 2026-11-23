@@ -5,7 +5,8 @@ import type {
   SyncConfig,
   UpdateMutationFnParams,
 } from '@tanstack/solid-db'
-import {Effect, Fiber, Schema, Stream} from 'effect'
+import {Effect, Fiber, Option, Ref, Schema, Stream} from 'effect'
+import type {WhiteboardRuntime} from './solid-runtime.js'
 import {z} from 'zod'
 import {elementRow, type ElementRow} from './rows.js'
 import type {ChangeFeed, ChangeMessage} from './change-feed.js'
@@ -20,6 +21,33 @@ const RowsUnreadable = Schema.TaggedStruct('RowsUnreadable', {message: Schema.St
 
 type SyncParams<Row extends object> = Parameters<SyncConfig<Row, string>['sync']>[0]
 
+type Confirmed<Row extends object> =
+  | {readonly type: 'write'; readonly row: Row}
+  | {readonly type: 'delete'; readonly key: string}
+
+const written = {refetch: false} as const
+
+const callRpc = <A>(call: () => Promise<A>) => Effect.tryPromise({try: call, catch: (cause) => cause})
+
+function confirmRows<Row extends object>(
+  params: Ref.Ref<Option.Option<SyncParams<Row>>>,
+  readKey: (row: Row) => string,
+  confirmed: readonly Confirmed<Row>[],
+): Effect.Effect<void> {
+  return Ref.get(params).pipe(
+    Effect.map(
+      Option.map((sync) => {
+        sync.begin({immediate: true})
+        for (const entry of confirmed) {
+          if (entry.type === 'delete') sync.write({type: 'delete', key: entry.key})
+          else sync.write({type: sync.collection.has(readKey(entry.row)) ? 'update' : 'insert', value: entry.row})
+        }
+        sync.commit()
+      }),
+    ),
+  )
+}
+
 const readRows = <Row>(read: () => Promise<Row>) =>
   Effect.tryPromise({
     try: read,
@@ -30,13 +58,14 @@ const readRows = <Row>(read: () => Promise<Row>) =>
   })
 
 const buildSync = <Row extends object>(deps: {
+  runtime: WhiteboardRuntime
   feed: ChangeFeed
   table: string
   loadRows: () => Promise<Row[]>
   readRow: (key: string) => Promise<Row>
   onReady: (params: SyncParams<Row>) => void
 }): SyncConfig<Row, string> => {
-  const {feed, table, loadRows, readRow, onReady} = deps
+  const {runtime, feed, table, loadRows, readRow, onReady} = deps
   return {
     rowUpdateMode: 'full',
     sync: (params) => {
@@ -77,8 +106,8 @@ const buildSync = <Row extends object>(deps: {
           ),
         )
       }).pipe(Effect.scoped)
-      const consumer = Effect.runFork(consume)
-      return () => void Effect.runFork(Fiber.interrupt(consumer))
+      const consumer = runtime.runFork(consume)
+      return () => void runtime.runFork(Fiber.interrupt(consumer))
     },
   }
 }
@@ -92,6 +121,7 @@ type TableClient<Row extends {id: string}, Insert> = {
 }
 
 export function whiteboardCollectionOptions<Row extends {id: string}, Insert>(deps: {
+  runtime: WhiteboardRuntime
   feed: ChangeFeed
   room: string
   table: string
@@ -99,61 +129,49 @@ export function whiteboardCollectionOptions<Row extends {id: string}, Insert>(de
   toInsert: (row: Row) => Insert
   onWriteFailed: (error: unknown) => void
 }) {
-  const {feed, room, table, ops, toInsert, onWriteFailed} = deps
-  const sync: {params?: SyncParams<Row>} = {}
-
-  const confirm = (row: Row): void => {
-    const params = sync.params
-    if (!params) return
-    params.begin({immediate: true})
-    params.write({type: params.collection.has(row.id) ? 'update' : 'insert', value: row})
-    params.commit()
-  }
-  const reported = (write: () => Promise<void>): Promise<{refetch: false}> =>
-    write().then(
-      () => ({refetch: false}),
-      (error: unknown) => {
-        onWriteFailed(error)
-        throw error
-      },
+  const {runtime, feed, room, table, ops, toInsert, onWriteFailed} = deps
+  const params = Ref.makeUnsafe<Option.Option<SyncParams<Row>>>(Option.none())
+  const confirm = (entry: Confirmed<Row>) => confirmRows(params, (row: Row) => row.id, [entry])
+  const reported = <Mutation>(
+    mutations: readonly Mutation[],
+    save: (mutation: Mutation) => Effect.Effect<Confirmed<Row>, unknown>,
+  ) =>
+    runtime.runPromise(
+      Effect.forEach(mutations, (mutation) => Effect.flatMap(save(mutation), confirm), {discard: true}).pipe(
+        Effect.tapError((error) => Effect.sync(() => onWriteFailed(error))),
+        Effect.as(written),
+      ),
     )
-  const confirmDelete = (key: string): void => {
-    const params = sync.params
-    if (!params) return
-    params.begin({immediate: true})
-    params.write({type: 'delete', key})
-    params.commit()
-  }
 
   return {
     id: `${table}:${room}`,
     getKey: (row: Row) => row.id,
     sync: buildSync<Row>({
+      runtime,
       feed,
       table,
       loadRows: ops.list,
       readRow: ops.get,
-      onReady: (params) => void (sync.params = params),
+      onReady: (ready) => runtime.runSync(Ref.set(params, Option.some(ready))),
     }),
     onInsert: ({transaction}: InsertMutationFnParams<Row, string>) =>
-      reported(async () => {
-        for (const mutation of transaction.mutations) {
-          confirm(await ops.insert(toInsert(mutation.modified)))
-        }
-      }),
+      reported(transaction.mutations, (mutation) =>
+        callRpc(() => ops.insert(toInsert(mutation.modified))).pipe(
+          Effect.map((row) => ({type: 'write', row}) as const),
+        ),
+      ),
     onUpdate: ({transaction}: UpdateMutationFnParams<Row, string>) =>
-      reported(async () => {
-        for (const mutation of transaction.mutations) {
-          confirm(await ops.update(String(mutation.key), mutation.changes))
-        }
-      }),
+      reported(transaction.mutations, (mutation) =>
+        callRpc(() => ops.update(String(mutation.key), mutation.changes)).pipe(
+          Effect.map((row) => ({type: 'write', row}) as const),
+        ),
+      ),
     onDelete: ({transaction}: DeleteMutationFnParams<Row, string>) =>
-      reported(async () => {
-        for (const mutation of transaction.mutations) {
-          await ops.remove(String(mutation.key))
-          confirmDelete(String(mutation.key))
-        }
-      }),
+      reported(transaction.mutations, (mutation) =>
+        callRpc(() => ops.remove(String(mutation.key))).pipe(
+          Effect.as({type: 'delete', key: String(mutation.key)} as const),
+        ),
+      ),
   }
 }
 
@@ -166,50 +184,51 @@ type ElementClient = {
 }
 
 export function whiteboardElementOptions(deps: {
+  runtime: WhiteboardRuntime
   feed: ChangeFeed
   room: string
   scope: 'live' | 'draft'
   ops: ElementClient
 }) {
-  const {feed, room, scope, ops} = deps
+  const {runtime, feed, room, scope, ops} = deps
   const table = scope === 'draft' ? 'canvasDraftElements' : 'canvasElements'
-  const sync: {params?: SyncParams<ElementRow>} = {}
-
-  const confirm = (row: ElementRow): void => {
-    const params = sync.params
-    if (!params) return
-    params.begin({immediate: true})
-    params.write({type: params.collection.has(row.elementId) ? 'update' : 'insert', value: row})
-    params.commit()
-  }
-  const putElement = async (row: ElementRow): Promise<void> => {
-    const stored = await ops.upsert(row).catch((error: unknown) => {
-      const conflict = Conflict.safeParse(error)
-      if (conflict.success) return conflict.data.data.current
-      throw error
-    })
-    confirm(stored)
-  }
+  const params = Ref.makeUnsafe<Option.Option<SyncParams<ElementRow>>>(Option.none())
+  const confirm = (rows: readonly ElementRow[]) =>
+    confirmRows(
+      params,
+      (row: ElementRow) => row.elementId,
+      rows.map((row) => ({type: 'write', row}) as const),
+    )
+  const putElement = (row: ElementRow) =>
+    callRpc(() => ops.upsert(row)).pipe(
+      Effect.catch((error) => {
+        const conflict = Conflict.safeParse(error)
+        return conflict.success ? Effect.succeed(conflict.data.data.current) : Effect.fail(error)
+      }),
+      Effect.flatMap((stored) => confirm([stored])),
+    )
 
   const strategy = throttleStrategy({wait: ELEMENT_WRITE_THROTTLE_MS, leading: true, trailing: true})
   const pacedWrite = createPacedMutations<ElementRow, ElementRow>({
     strategy,
     onMutate: (row) => {
-      const params = sync.params
-      if (!params) return
-      if (params.collection.has(row.elementId))
-        return void params.collection.update(row.elementId, (draft) => {
+      const sync = Option.getOrUndefined(Ref.getUnsafe(params))
+      if (!sync) return
+      if (sync.collection.has(row.elementId))
+        return void sync.collection.update(row.elementId, (draft) => {
           draft.data = row.data
           draft.version = row.version
         })
-      params.collection.insert(row)
+      sync.collection.insert(row)
     },
-    mutationFn: async ({transaction}) => {
+    mutationFn: ({transaction}) => {
       const modified = transaction.mutations.map((mutation) => mutation.modified)
       const [first] = modified
-      if (modified.length === 1 && first) return void (await putElement(first))
-      const {rows} = await ops.bulkUpsert(modified)
-      rows.forEach(confirm)
+      return runtime.runPromise(
+        modified.length === 1 && first
+          ? putElement(first)
+          : callRpc(() => ops.bulkUpsert(modified)).pipe(Effect.flatMap(({rows}) => confirm(rows))),
+      )
     },
   })
 
@@ -217,16 +236,19 @@ export function whiteboardElementOptions(deps: {
     id: `${table}:${room}`,
     getKey: (row: ElementRow) => row.elementId,
     sync: buildSync<ElementRow>({
+      runtime,
       feed,
       table,
       loadRows: ops.list,
       readRow: ops.get,
-      onReady: (params) => void (sync.params = params),
+      onReady: (ready) => runtime.runSync(Ref.set(params, Option.some(ready))),
     }),
-    onDelete: async ({transaction}: DeleteMutationFnParams<ElementRow, string>) => {
-      await ops.bulkDelete(transaction.mutations.map((mutation) => String(mutation.key)))
-      return {refetch: false}
-    },
+    onDelete: ({transaction}: DeleteMutationFnParams<ElementRow, string>) =>
+      runtime.runPromise(
+        callRpc(() => ops.bulkDelete(transaction.mutations.map((mutation) => String(mutation.key)))).pipe(
+          Effect.as(written),
+        ),
+      ),
     utils: {
       write: (row: ElementRow) => pacedWrite(row),
       cleanupStrategy: strategy.cleanup,
