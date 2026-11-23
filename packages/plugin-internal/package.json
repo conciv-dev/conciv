@@ -2,7 +2,7 @@
   "name": "@internal/plugin",
   "version": "0.0.22",
   "private": true,
-  "description": "Private to conciv, as Backstage's @internal/frontend: the opaque definitions conciv's SDK, app and own plugins share. Inlined into its users' builds, never published.",
+  "description": "Private to conciv: the opaque definitions conciv's SDK, app and own plugins share. Inlined into its users' builds, never published.",
   "homepage": "https://conciv.dev",
   "license": "MIT",
   "repository": {
