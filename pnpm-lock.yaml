@@ -2787,15 +2787,9 @@ importers:
       '@tanstack/solid-router':
         specifier: 'catalog:'
         version: 1.170.43(solid-js@1.9.17)
-      bippy:
-        specifier: 'catalog:'
-        version: 0.6.1(react@19.3.1)
       effect:
         specifier: 'catalog:'
         version: 4.1.0
-      react-grab:
-        specifier: 'catalog:'
-        version: 0.2.0(patch_hash=e0153f2086f0d5b49d6b4f9c136b305de38b4544ec7db4e3748a2d0db72f8d57)(react@19.3.1)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
