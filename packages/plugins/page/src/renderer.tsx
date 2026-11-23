@@ -3,7 +3,6 @@ import {z} from 'zod'
 import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {useQueryClient} from '@conciv/client'
-import utilities from 'virtual:uno.css?inline'
 import {createKeyed, Plugin, Slot, ToolRegistry} from '@conciv/plugin/experimental'
 import {Page, PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
 import {keepAttached, readTab, reportChanges} from './attachment.js'
@@ -116,7 +115,7 @@ export default Plugin.define({
       },
     )
 
-    onCleanup(highlight.mount(ctx.overlay({styles: [utilities]}).element))
+    onCleanup(highlight.mount(ctx.overlay().element))
 
     pageToolCards.forEach(({card, tools}) =>
       tools.forEach((name) =>
