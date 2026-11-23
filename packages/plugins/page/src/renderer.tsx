@@ -18,7 +18,6 @@ import {addRef, type Refs} from './snapshot.js'
 import {dehydrate} from './dehydrate.js'
 import {describe, locate, makeTracker, reactBridge, rootFibers} from './react.js'
 import {disposeReactGrab, grabApi} from './grab.js'
-import {showToast} from './toast.js'
 import {capturePlugins} from './screenshot.js'
 
 const PageOptionsSchema = z.object({taskTimeoutMs: z.number().int().positive().optional()}).catch({})
@@ -53,7 +52,12 @@ export default Plugin.define({
     )
     const tracker = makeTracker()
     onCleanup(tracker.dispose)
-    const operations = makePageOperations([highlight.effect], simulator, tracker)
+    const operations = makePageOperations(
+      [highlight.effect],
+      simulator,
+      tracker,
+      (title) => void ctx.toast.show({title, variant: 'error'}),
+    )
 
     const tab = () => readTab(tabId)
 
@@ -110,7 +114,17 @@ export default Plugin.define({
         }),
       ),
     )
-    ctx.provide(Page, {...pageMembers, symbolicate: (input) => symbolicate(input.frames)})
+    ctx.provide(Page, {
+      toast: (message, tone) =>
+        void ctx.toast.show({title: message, variant: tone === 'error' || tone === 'success' ? tone : 'default'}),
+      capture: {exclude: CONCIV_UI_SELECTOR, plugins: capturePlugins},
+      pick: async () => {
+        const grab = await grabApi.comment()
+        if (!grab) return null
+        return {source: grab.source, rect: grab.rect}
+      },
+      symbolicate: (input) => symbolicate(input.frames),
+    })
     ctx.provide(ReactTree, makeReactTree())
 
     return () => {
@@ -119,16 +133,6 @@ export default Plugin.define({
     }
   },
 })
-
-export const pageMembers: Omit<Page, 'symbolicate'> = {
-  toast: showToast,
-  capture: {exclude: CONCIV_UI_SELECTOR, plugins: capturePlugins},
-  pick: async () => {
-    const grab = await grabApi.comment()
-    if (!grab) return null
-    return {source: grab.source, rect: grab.rect}
-  },
-}
 
 export function makeReactTree(): ReactTree {
   const refs: Refs = {map: new Map(), n: 0}

@@ -1,28 +1,28 @@
 import {range, uniqBy} from 'es-toolkit'
 import type {ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
-import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {
   defaultGrouper,
   isReplyText,
   readParentToolCallId,
-  PAGE_SESSION_GROUP_KEY,
-  PAGE_SESSION_PATH,
   stickyGrouper,
-  type GroupEntry,
+  type GroupKey,
   type GroupPath,
   type Grouper,
-  type Grouping,
-} from './grouping.js'
+} from '@conciv/ui-kit-chat'
+import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from './rpc.js'
 
-export type PageSessionThinkingPart = Extract<ChatPart, {type: 'thinking'}>
+type PageSessionThinkingPart = Extract<ChatPart, {type: 'thinking'}>
 
-export type PageSessionConfig = {
-  entry: GroupEntry
-  actNames: ReadonlySet<string>
-  toolPrefix: string
+type PageSessionGrouperConfig = {actNames: ReadonlySet<string>; toolPrefix: string}
+
+export const PAGE_SESSION_GROUP_KEY: GroupKey = 'group-page-session'
+
+const PAGE_SESSION_PATH: GroupPath = [PAGE_SESSION_GROUP_KEY]
+
+const PAGE_SESSION_GROUPER_CONFIG: PageSessionGrouperConfig = {
+  actNames: PAGE_ACT_TOOL_NAMES,
+  toolPrefix: PAGE_TOOL_PREFIX,
 }
-
-export type PageSessionGrouperConfig = {actNames: ReadonlySet<string>; toolPrefix: string}
 
 type SessionState = {openCallIds: Set<string>; open: boolean}
 
@@ -163,7 +163,8 @@ function dropActlessSessions(
   return paths.map((path, index) => (demoted.has(index) ? (basePaths[index] ?? null) : path))
 }
 
-export function createPageSessionGrouper(config: PageSessionGrouperConfig): Grouper {
+export function createPageSessionGrouper(): Grouper {
+  const config = PAGE_SESSION_GROUPER_CONFIG
   const classify: Grouper = (parts, context) => {
     const basePaths = defaultGrouper(parts, context)
     const actParentIds = foldableParentIds(parts, config.actNames)
@@ -173,16 +174,6 @@ export function createPageSessionGrouper(config: PageSessionGrouperConfig): Grou
   }
   const sticky = stickyGrouper(classify)
   return (parts, context) => (context.live === true ? sticky(parts, context) : classify(parts, context))
-}
-
-export function createGrouping(
-  config: PageSessionConfig | undefined,
-  toolEntries: ReadonlyArray<ToolCardEntry>,
-): Grouping {
-  const grouper = config
-    ? createPageSessionGrouper({actNames: config.actNames, toolPrefix: config.toolPrefix})
-    : defaultGrouper
-  return {grouper, context: {toolEntries}}
 }
 
 export function pageSessionCallParts(parts: ReadonlyArray<ChatPart>, indices: ReadonlyArray<number>): ToolCallPart[] {

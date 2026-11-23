@@ -31,11 +31,12 @@ import {
 } from './snapshot.js'
 import {dehydrate, navigatePath} from './dehydrate.js'
 import {
-  loadedSnapshotLibrary,
-  loadSnapshotLibrary,
+  cacheImport,
+  makeSnapshotLoader,
   takeElementCapture,
   toCssBundle,
   type PendingCssText,
+  type SnapshotLibrary,
 } from './capture.js'
 import {reactBridge, type Tracker} from './react.js'
 import {actionable, fill, focusedElement, hover, isDisabled, press, select, setChecked} from './act.js'
@@ -52,6 +53,7 @@ type Call = {
   simulator: Simulator
   tracker: Tracker
   agentId: string
+  snapdom: () => Promise<typeof import('@zumer/snapdom')>
   queued?: Queued
   signal?: AbortSignal
   document: Document
@@ -313,9 +315,9 @@ function evaluate(code: string): unknown {
   }
 }
 
-async function shot(call: Call, input: {exclude?: string[]}): Promise<Answer> {
+async function shot(input: {exclude?: string[]}, call: Call): Promise<Answer> {
   call.simulator.touchTask()
-  const {data, ...value} = await screenshot(input)
+  const {data, ...value} = await screenshot(input, await call.snapdom())
   const file: File = {id: `file_${crypto.randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data}
   return result(value, [file])
 }
@@ -363,7 +365,7 @@ function perform(
         return {nodes: buildSnapshot(root, call.addRef)}
       })
     case 'screenshot':
-      return shot(call, action)
+      return shot(action, call)
     case 'hmr':
       return touchingAsync(call, () => waitForHotUpdate(action.timeout))
     case 'locate':
@@ -625,6 +627,7 @@ function callCtx(
   slot: TargetSlot,
   queued: Queued | undefined,
   signal: AbortSignal | undefined,
+  snapdom: Call['snapdom'],
 ): Call {
   const remember = (el: Element | null): Element | null => {
     if (el !== null) slot.el = el
@@ -635,6 +638,7 @@ function callCtx(
     simulator,
     tracker,
     agentId,
+    snapdom,
     ...(queued === undefined ? {} : {queued}),
     ...(signal === undefined ? {} : {signal}),
     document,
@@ -664,14 +668,14 @@ type CaptureCollector = {
   entries: () => readonly PendingBundleEntry[]
 }
 
-function makeCaptureCollector(operation: string): CaptureCollector {
+function makeCaptureCollector(operation: string, snapshot: () => SnapshotLibrary | null): CaptureCollector {
   const entries: PendingBundleEntry[] = []
   const seen = new Set<ElementCaptureKind>()
   return {
     take: (kind, el) => {
       if (el === null || seen.has(kind)) return
       try {
-        const taken = takeElementCapture(el, kind, {document, snapshot: loadedSnapshotLibrary()})
+        const taken = takeElementCapture(el, kind, {document, snapshot: snapshot()})
         if (taken === null) return
         seen.add(kind)
         entries.push({kind, capture: taken.capture, pendingCss: taken.pendingCss})
@@ -743,20 +747,25 @@ export function makePageOperations(
   effects: readonly PageEffect[],
   simulator: Simulator,
   tracker: Tracker,
+  notify: (message: string) => void,
 ): PageOperations {
   const refs: Refs = {map: new Map(), n: 0}
   const scope = Scope.makeUnsafe()
   const consoleBuf = Effect.runSync(consoleBuffer.pipe(Scope.provide(scope)))
-  void loadSnapshotLibrary()
+  const snapshots = makeSnapshotLoader(notify)
+  const snapdom = cacheImport(() => import('@zumer/snapdom'))
+  void snapshots.warm()
 
   const dispatch = Effect.fnUntraced(function* (command: PageCommand, signal: AbortSignal | undefined) {
     yield* Effect.try({try: () => signal?.throwIfAborted(), catch: toPageFailure})
-    void loadSnapshotLibrary()
+    void snapshots.warm()
     const {action} = command
     const mode = captureMode(action)
     const slot: TargetSlot = {el: null}
-    const captures = makeCaptureCollector(action.type)
-    const call = callCtx(simulator, tracker, command.agentId, refs, consoleBuf, slot, command.queued, signal)
+    const captures = makeCaptureCollector(action.type, snapshots.loaded)
+    const call = callCtx(simulator, tracker, command.agentId, refs, consoleBuf, slot, command.queued, signal, () =>
+      Effect.runPromise(snapdom),
+    )
     const answer = yield* Effect.tryPromise({
       try: async () => perform(action, capturingCall(call, mode, captures), effects, signal),
       catch: toPageFailure,

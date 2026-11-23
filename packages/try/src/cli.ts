@@ -1,11 +1,12 @@
 import {intro, log, note, outro, spinner} from '@clack/prompts'
 import {defineCommand, runMain} from 'citty'
+import {CONCIV_AUTH_TOKEN_QUERY_PARAM} from '@conciv/protocol/rpc-types'
 import {runConnect, type ConnectEvent} from './connect.js'
 
 export function attachCommand(port: number, token: string): string {
-  const config = JSON.stringify({
-    mcpServers: {conciv: {type: 'http', url: `http://127.0.0.1:${port}/t/${token}/api/mcp`, alwaysLoad: true}},
-  })
+  const url = new URL(`http://127.0.0.1:${port}/api/mcp`)
+  url.searchParams.set(CONCIV_AUTH_TOKEN_QUERY_PARAM, token)
+  const config = JSON.stringify({mcpServers: {conciv: {type: 'http', url: url.href, alwaysLoad: true}}})
   return `claude --continue --mcp-config '${config}'`
 }
 

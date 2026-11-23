@@ -1,9 +1,10 @@
-export type IconName =
+export type AppIconName =
   | 'app-window'
   | 'arrow-down'
   | 'arrow-up'
   | 'ban'
   | 'blocks'
+  | 'box'
   | 'check'
   | 'chevron-down'
   | 'chevron-left'

@@ -300,6 +300,30 @@ export type DeclaredStores<D> = D extends {readonly stores?: infer M}
     : {}
   : {}
 
+declare const pluginIcon: unique symbol
+
+/**
+ * The name of an icon a plugin declared in `Plugin.define({ icons })`, from that plugin's `ctx.icons`. Every SDK icon
+ * field and `ctx.ui.Icon` takes it, as they take the name of one of the app's own icons. It is a string,
+ * `<plugin id>:<name>`, so the host stores and sends it like any name: a composer note keeps it with the draft and the
+ * sent message. Read it from `ctx.icons` where you use it; do not write it by hand. While the plugin that declared the
+ * icon is not active, the icon draws nothing and keeps its size.
+ *
+ * @example
+ * ```ts
+ * const icon: PluginIconName = ctx.icons.logo
+ * ```
+ */
+export type PluginIconName = string & {
+  readonly [pluginIcon]: true
+}
+
+export type DeclaredIcons<D> = D extends {readonly icons?: infer M}
+  ? M extends Readonly<Record<string, string>>
+    ? M
+    : {}
+  : {}
+
 /**
  * Defines registries.
  *
