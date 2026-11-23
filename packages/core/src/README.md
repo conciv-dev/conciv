@@ -19,7 +19,6 @@ Top-level engine modules. `start` resolves config, binds a port (persisted, pref
   - cards: [./cards/README.md](./cards/README.md) - execute_typescript tool card
   - editor: [./editor/README.md](./editor/README.md) - open source locations
   - lib: [./lib/README.md](./lib/README.md) - CORS, dev endpoint, staleness, state paths
-  - page: [./page/README.md](./page/README.md) - page plugin and grab expander
   - runtime: [./runtime/README.md](./runtime/README.md) - session and engine scopes
   - sessions: [./sessions/README.md](./sessions/README.md) - session rows and event bus
 

@@ -469,7 +469,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
           assist === undefined ? await deps.pluginHost.runPromise(pluginSignature(input.name), {signal}) : undefined
         if (assist === undefined && plugin === undefined) throw errors.UNKNOWN_TOOL()
         const trace = callTrace((header) => rpcHeader(context, header))
-        if (trace.hub !== null) deps.code.hubCall(context.session.id, trace.callId)
         const gate: RegistryCallGate = async (run) => {
           await admitOutsideCall(deps, context, context.session, signal, path.join('.'))
           return hubTraced(deps, context, input.name, input.input, run, trace)
@@ -490,13 +489,9 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
           )
         const call = (): Promise<unknown> =>
           assist === undefined ? gate(pluginRun) : gate(() => assist.execute(input.input))
-        return call()
-          .catch((error: unknown) => {
-            throw registryCallError(error, errors)
-          })
-          .finally(async () => {
-            if (trace.hub !== null) await deps.code.hubReplied(context.session.id, new Set([trace.callId]))
-          })
+        return call().catch((error: unknown) => {
+          throw registryCallError(error, errors)
+        })
       }),
     },
     skill: {
@@ -607,12 +602,9 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     page: {
       queue: {
-        wait: os.page.queue.wait.handler(({input, errors, signal}) =>
-          deps.queueWait(input, signal).catch((error: unknown) => {
-            if (signal?.aborted === true) throw error
-            throw errors.NO_QUEUE({message: error instanceof Error ? error.message : String(error)})
-          }),
-        ),
+        wait: os.page.queue.wait.handler(({input, errors}) => {
+          throw errors.NO_QUEUE({message: `no queue ${input.queueId} on this tab`})
+        }),
       },
     },
     meta: {

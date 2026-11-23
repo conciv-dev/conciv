@@ -41,6 +41,7 @@ import {
   type ConnectionEvent,
 } from './machine.js'
 import {PageQueue} from './queue.js'
+import {queueNotice} from './queue-notice.js'
 import {PageSkill} from './skill.js'
 import {
   Definition,
@@ -435,12 +436,25 @@ export const make = Effect.fn('PageConnection.make')(function* (
     finished: (entry) => {
       if (entry.result === null) return Effect.void
       const {sessionId, queueId, toolCallId, result} = entry
-      return Effect.forkIn(
+      const announced = Effect.forkIn(
         registration.events
           .emit('queue.finished', {sessionId, queueId, toolCallId, result})
           .pipe(Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause))),
         work,
       ).pipe(Effect.asVoid)
+      if (entry.outside) return announced
+      return ctx.session
+        .synthetic({
+          sessionID: sessionId,
+          text: queueNotice(result),
+          description: `Queued page actions ${result.status}`,
+          metadata: {source: 'page-queue', queueId, state: result.status},
+        })
+        .pipe(
+          Effect.catchIf(SessionNotFound, () => Effect.void),
+          Effect.asVoid,
+          Effect.ensuring(announced),
+        )
     },
   }).pipe(Scope.provide(work))
 
@@ -570,9 +584,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
         queues
           .wait(input.sessionId, input.queueId, input.waitMs)
           .pipe(Effect.mapError((error) => call.error('unavailable', error.message, {}))),
-      'queue.startedBy': (input) => queues.startedBy(input.sessionId, input.toolCallIds),
-      'queue.undelivered': (input) => queues.undelivered(input.sessionId, input.toolCallIds),
-      'queue.owed': (input) => queues.owed(input.sessionId),
+      'queue.outside': (input) => queues.outside(input.sessionId, input.toolCallIds),
     })
     .pipe(Effect.orDie)
 

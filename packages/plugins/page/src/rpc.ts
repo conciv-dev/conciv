@@ -581,22 +581,12 @@ export const Definition = Rpc.define({
       output: z.union([PageQueueResultSchema, PageQueueProgressSchema]),
       errors,
     },
-    'queue.startedBy': {
-      input: z.object({sessionId: SessionId, toolCallIds: z.array(z.string())}),
-      output: z.array(PageQueueHandleSchema),
-      errors,
-    },
-    'queue.undelivered': {
-      input: z.object({
-        sessionId: SessionId,
-        toolCallIds: z.array(z.string()),
+    'queue.outside': {
+      input: z.object({sessionId: SessionId, toolCallIds: z.array(z.string()).optional()}),
+      output: z.object({
+        queued: z.array(PageQueueHandleSchema),
+        finished: z.array(z.object({result: PageQueueResultSchema, notice: z.string()})),
       }),
-      output: z.array(PageQueueResultSchema),
-      errors,
-    },
-    'queue.owed': {
-      input: z.object({sessionId: SessionId}),
-      output: z.array(z.object({queueId: z.string(), toolCallId: z.string(), result: PageQueueResultSchema})),
       errors,
     },
   },

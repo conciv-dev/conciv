@@ -3,9 +3,11 @@ import {dirname, join, resolve} from 'node:path'
 import {z} from 'zod'
 import type {SessionMeta} from '@conciv/contract'
 import type {SessionId, TabOpen, Tabs} from '@conciv/protocol/chat-types'
-import type {State} from '@conciv/plugin-page/rpc'
+import {Definition, type State} from '@conciv/plugin-page/rpc'
 import {Effect} from 'effect'
-import type {Log} from '../lib/logging.js'
+import {Plugin, Rpc} from '@conciv/plugin-host'
+import {logOnRuntime, type Log} from '../lib/logging.js'
+import type {PluginHost} from './rpc/mount.js'
 
 type TabsDeps = {
   attachedSessions: () => Promise<SessionId[]>
@@ -37,6 +39,51 @@ const GitdirSchema = z
   .trim()
   .startsWith(GITDIR)
   .transform((line) => line.slice(GITDIR.length))
+
+const NO_TABS: State = {tabs: [], focusedTabId: null}
+
+const Unavailable = z.object({type: z.literal('rpc.unavailable')})
+
+function unlisted(error: unknown): boolean {
+  return error instanceof Error && Unavailable.safeParse(error.cause).success
+}
+
+export function makePageReader(host: () => PluginHost) {
+  const log: Log = (entry) => logOnRuntime(host())(entry)
+
+  const call = (method: keyof typeof Definition.methods, input: unknown) =>
+    host().runPromise(
+      Plugin.awaitActivation.pipe(
+        Effect.andThen(Rpc.Service.use((rpc) => rpc.call(Definition.id, method, input))),
+        Effect.mapError((failure) => new Error(failure.message, {cause: failure})),
+      ),
+    )
+
+  return {
+    tabs: async (sessionId: SessionId): Promise<State> => {
+      try {
+        return Definition.methods['tabs.list'].output.parse(await call('tabs.list', {sessionId}))
+      } catch (error) {
+        if (!unlisted(error)) log(Effect.logError('[core] the page tabs could not be read', {sessionId, error}))
+        return NO_TABS
+      }
+    },
+    attachedSessions: async (): Promise<SessionId[]> => {
+      try {
+        return Definition.methods['sessions.attached'].output.parse(await call('sessions.attached', {}))
+      } catch (error) {
+        if (!unlisted(error))
+          log(
+            Effect.logError('[core] the page plugin could not be read', {
+              what: 'the sessions with a page attached',
+              error,
+            }),
+          )
+        return []
+      }
+    },
+  }
+}
 
 export function createTabs(deps: TabsDeps) {
   return {

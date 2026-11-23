@@ -3,6 +3,7 @@ import {Buffer} from 'node:buffer'
 import {Effect} from 'effect'
 import {z} from 'zod'
 import type {Context} from '@conciv/plugin/effect/plugin'
+import {Agent} from '@conciv/plugin/schema/agent'
 import {Tool} from '@conciv/plugin/schema/tool'
 import {PageRaisedErrorSchema} from '@conciv/protocol/page-types'
 import {RawFrameSchema, SourceLocSchema} from '@conciv/contract'
@@ -59,7 +60,7 @@ export const register = Effect.fn('PageTools.register')(function* (
   const root = ctx.location.directory
   const execute = Effect.fn('PageTools.execute')(function* (operation: Operation, action: Action, tool: Tool.Context) {
     if (action.type === 'tabs.list') return yield* exportResult(connection.tabs(tool.sessionId), [], root)
-    const queueing = {agentId: tool.agent, toolCallId: tool.id}
+    const queueing = {agentId: tool.agent, toolCallId: tool.id, outside: tool.agent === Agent.outsideId}
     if (action.type === 'queue') {
       const played = yield* connection.queues
         .play(tool.sessionId, {...queueing, action})

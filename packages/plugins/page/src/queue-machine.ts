@@ -13,6 +13,7 @@ export type QueueEntry = {
   readonly queueId: string
   readonly sessionId: SessionId
   readonly toolCallId: string
+  readonly outside: boolean
   readonly tools: readonly string[]
   readonly settled: readonly (Settled | undefined)[]
   readonly result: PageQueueResult | null
@@ -35,12 +36,6 @@ export type QueueEffect =
   | {readonly type: 'announce'; readonly entry: QueueEntry}
 
 export type QueueTransition = {readonly state: QueueState; readonly effects: readonly QueueEffect[]}
-
-export type Owed = {
-  readonly queueId: string
-  readonly toolCallId: string
-  readonly result: PageQueueResult
-}
 
 export const KEPT_QUEUES = 200
 
@@ -92,35 +87,23 @@ export function readProgress(entry: QueueEntry): PageQueueProgress {
   }
 }
 
-export function awaitsDelivery(entry: QueueEntry): boolean {
-  return entry.delivery === 'owed' && entry.result !== null
-}
-
-export function selectStartedBy(
-  state: QueueState,
-  sessionId: SessionId,
-  toolCallIds: readonly string[],
-): PageQueueHandle[] {
-  return state.entries.flatMap((entry) =>
-    entry.sessionId === sessionId && entry.result === null && toolCallIds.includes(entry.toolCallId)
-      ? [{queueId: entry.queueId, actions: entry.tools.length}]
-      : [],
-  )
-}
-
-export function selectUndelivered(
+export function selectOutside(
   state: QueueState,
   sessionId: SessionId,
   toolCallIds: readonly string[] | undefined,
-): Owed[] {
-  return state.entries.flatMap((entry) =>
-    entry.sessionId === sessionId &&
-    (toolCallIds === undefined || toolCallIds.includes(entry.toolCallId)) &&
-    entry.result !== null &&
-    awaitsDelivery(entry)
-      ? [{queueId: entry.queueId, toolCallId: entry.toolCallId, result: entry.result}]
-      : [],
+): {queued: PageQueueHandle[]; finished: PageQueueResult[]} {
+  const picked = state.entries.filter(
+    (entry) =>
+      entry.outside &&
+      entry.sessionId === sessionId &&
+      (toolCallIds === undefined || toolCallIds.includes(entry.toolCallId)),
   )
+  return {
+    queued: picked.flatMap((entry) =>
+      entry.result === null ? [{queueId: entry.queueId, actions: entry.tools.length}] : [],
+    ),
+    finished: picked.flatMap((entry) => (entry.result !== null && entry.delivery === 'owed' ? [entry.result] : [])),
+  }
 }
 
 function updated(state: QueueState, queueId: string, change: (entry: QueueEntry) => QueueEntry): QueueTransition {

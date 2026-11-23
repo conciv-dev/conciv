@@ -90,8 +90,9 @@ the source's `jobs.cancelSession` does on delete: a result that lands later is n
 finishes may not see that result in their terminal; it stays in the queue's journal and card and can be read again with
 `conciv plugin call experimental.page queue.wait --data '{"sessionId":"<sessionId>","queueId":"<queueId>","waitMs":0}'`,
 which answers the kept result again (`src/queue.ts` `wait` returns the result whatever its delivery; the
-newest 200 delivered queues are kept). The delivered-once guarantee belongs to the hub and the dedicated
-`page.queue.wait` forwarder.
+newest 200 delivered queues are kept). The delivered-once guarantee belongs to the session notice and `queue.outside`: a queue the session
+started reaches it once as a `Session.synthetic` message (`Queued page actions <status>`, `src/connection.ts`), and a
+queue an outside agent started (`ctx.agent` is `Agent.outsideId`) is handed over once by `queue.outside`.
 Deleting a session stops what its tabs are still playing: each request in flight gets the same `cancel` control a
 dropped request gets (`src/machine.ts` `cancelPending`), and the queue's next actions are never sent (the
 attachment is closed, so they settle `disconnected before dispatch`). The source only fails the request on delete

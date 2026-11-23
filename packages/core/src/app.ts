@@ -78,11 +78,9 @@ import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {makeHubInstaller} from './api/rpc/hub.js'
 import {readConcivHome, readProcessEnv, runWithProvider} from './lib/engine-env.js'
-import {createTabs} from './api/tabs.js'
+import {createTabs, makePageReader} from './api/tabs.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
-import {makePagePlugin} from './page/page-plugin.js'
-import {makePageReader} from './page/page-rpc.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {createPersistentPtys} from './pty/persistent-ptys.js'
 import {
@@ -586,7 +584,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
   const pageReader = makePageReader(() => pluginHost)
-  const pagePlugin = makePagePlugin(() => pluginHost, pageReader)
   const settings = createSettingsStorage(settingsOnDisk({global: appEnv.home, project: stateDir}), earlyLog)
   const primitives = makeSessionPrimitives()
   const {stream} = primitives
@@ -855,8 +852,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     log,
   })
 
-  await pagePlugin.deliverFinished()
-
   const admitOutside = async (
     scope: SessionScope,
     client: string | null,
@@ -877,10 +872,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const mcp: McpVars['mcp'] = {
     codeRunner: (sessionId, publish, capabilities, messageId) =>
       plane.codeRunner(sessionId, publish, capabilities, messageId),
-    hubCall: pagePlugin.hubCall,
-    hubReplied: pagePlugin.hubReplied,
-    finishedQueues: pagePlugin.hubFinished,
-    startedQueues: pagePlugin.startedBy,
     driving: (sessionId) => plane.driving(sessionId),
     turnMessage: (sessionId) => plane.turnMessage(sessionId),
     outsideCapabilities: async (sessionId, run) => {
@@ -915,7 +906,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       instructions: systemPromptText,
       log,
     }),
-    queueWait: pagePlugin.queueWait,
     pluginHost,
     eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
     chat: chatDeps,

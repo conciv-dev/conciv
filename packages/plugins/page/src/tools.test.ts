@@ -73,6 +73,118 @@ describe('the agent reads the page in code mode', () => {
   })
 })
 
+describe('a queue that finishes tells whoever started it', () => {
+  it('an outside agent reads its finished queue once through queue.outside and the session hears nothing of it, while a queue the session started reaches the session as one message', async () => {
+    const engine = await createEngine({plugins: ['@conciv/plugin-page'], hubAccess: 'open'})
+    const sessionId = engine.session.id
+    const connectionId = 'checkout'
+    const told = await engine.event('session.inbox.enqueued', {data: {item: {type: 'synthetic'}}})
+    const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
+    const attachment = engine.rpc.call('experimental.page', 'attach', {sessionId, connectionId, version: 1}).then(
+      (result) => (result === 'replaced' ? 'replaced' : 'closed'),
+      () => 'closed',
+    )
+    await attached.arrived
+    await engine.rpc.call('experimental.page', 'state', {
+      sessionId,
+      connectionId,
+      state: {
+        id: 'tab_11111111-1111-4111-8111-111111111111',
+        url: 'http://localhost:3000/checkout',
+        title: 'Checkout',
+        focused: true,
+        visible: true,
+      },
+    })
+    const commanded = () => engine.event('rpc.experimental.page.control', {data: {type: 'command', connectionId}})
+    const played = async (accepted: Awaited<ReturnType<typeof commanded>>) => {
+      const acceptance = z.object({requestId: z.string()}).parse((await accepted.arrived).data)
+      const clicked = await commanded()
+      await engine.rpc.call('experimental.page', 'result', {
+        sessionId,
+        connectionId,
+        requestId: acceptance.requestId,
+        outcome: {type: 'success', result: {value: null, files: []}},
+      })
+      const click = z.object({requestId: z.string()}).parse((await clicked.arrived).data)
+      return () =>
+        engine.rpc.call('experimental.page', 'result', {
+          sessionId,
+          connectionId,
+          requestId: click.requestId,
+          outcome: {type: 'success', result: {value: true, files: []}},
+        })
+    }
+    const Outside = z.object({
+      queued: z.array(z.object({queueId: z.string(), actions: z.number()})),
+      finished: z.array(z.object({result: z.object({queueId: z.string(), status: z.string()}), notice: z.string()})),
+    })
+    const readOutside = async () =>
+      Outside.parse(await engine.rpc.call('experimental.page', 'queue.outside', {sessionId}))
+
+    const outsideAccepted = await commanded()
+    const outsideReply = await engine
+      .outside({tab: sessionId})
+      .call('page_queue_async', {actions: [{tool: 'page_click', selector: '#buy'}]})
+    const outsideText = z
+      .array(z.object({text: z.string()}))
+      .parse(outsideReply.content)
+      .map((part) => part.text)
+      .join('\n')
+    const outsideQueueId = /"queueId":"(q_[^"]+)"/.exec(outsideText)?.[1]
+    expect(outsideQueueId).toMatch(/^q_/)
+    const outsideFinished = await engine.event('rpc.experimental.page.queue.finished', {
+      data: {queueId: outsideQueueId},
+    })
+    const answerOutsideClick = await played(outsideAccepted)
+    expect(await readOutside()).toEqual({queued: [{queueId: outsideQueueId, actions: 1}], finished: []})
+    await answerOutsideClick()
+    await outsideFinished.arrived
+
+    expect(await readOutside()).toEqual({
+      queued: [],
+      finished: [
+        {
+          result: expect.objectContaining({queueId: outsideQueueId, status: 'finished'}),
+          notice: expect.stringMatching(new RegExp(`^queue ${outsideQueueId} finished: 1 played, 0 failed\n`)),
+        },
+      ],
+    })
+    expect(await readOutside()).toEqual({queued: [], finished: []})
+
+    await engine.reply(TestLLM.text('The checkout click went through'))
+    const woke = await engine.event('session.execution.succeeded')
+    const sessionAccepted = await commanded()
+    const started = z
+      .object({queueId: z.string()})
+      .parse(
+        await engine.session.tool('page_queue_async').call({actions: [{tool: 'page_click', selector: '#confirm'}]}),
+      )
+    await (
+      await played(sessionAccepted)
+    )()
+
+    expect((await told.arrived).data).toMatchObject({
+      sessionID: sessionId,
+      item: {
+        type: 'synthetic',
+        payload: {
+          description: 'Queued page actions finished',
+          metadata: {source: 'page-queue', queueId: started.queueId, state: 'finished'},
+        },
+      },
+    })
+    await woke.arrived
+    const requests = await engine.requests()
+    expect(requests).toHaveLength(1)
+    expect(JSON.stringify(requests[0]?.messages)).toContain(`queue ${started.queueId} finished: 1 played, 0 failed`)
+    expect(JSON.stringify(requests[0]?.messages)).not.toContain(`queue ${outsideQueueId} finished`)
+    expect(await readOutside()).toEqual({queued: [], finished: []})
+    await engine.restart()
+    expect(await attachment).toBe('closed')
+  })
+})
+
 describe('the page never answers what the agent asked', () => {
   it('a queued action the page does not confirm in time comes back lost, as it may already have run', async () => {
     const engine = await createEngine({plugins: [['@conciv/plugin-page', {queuedActionTimeoutMs: 1}]]})

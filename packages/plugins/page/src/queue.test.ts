@@ -21,6 +21,7 @@ describe('waiting on a queue', () => {
           const {queueId} = yield* queues.start(sessionId, {
             agentId: 'agent',
             toolCallId: 'c1',
+            outside: false,
             action: {
               type: 'queue_async',
               actions: [{tool: 'page_click', selector: '#buy'}],
