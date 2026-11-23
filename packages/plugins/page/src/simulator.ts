@@ -13,16 +13,8 @@ import {
   SIMULATOR_CSS,
   VISIBLE_CLASS,
   AimedCursors,
-  CursorLook,
-  aimCursor,
-  cannotAnimate,
-  cursorElement,
-  dropCursor,
-  pageAt,
-  pressCursor,
-  windowAt,
-  type Point,
 } from './cursor.js'
+import {CursorLook, cannotAnimate, makeCursors, pageAt, windowAt, type Cursors, type Point} from './cursors.js'
 import {
   initialSimulatorState,
   isQueueStopped,
@@ -131,12 +123,12 @@ function block(event: Event): void {
   event.preventDefault()
 }
 
-function hint(cursor: string): Element | null {
-  return cursorElement(cursor)?.querySelector(`.${HINT_CLASS}`) ?? null
+function hint(options: {cursors: Cursors; cursor: string}): Element | null {
+  return options.cursors.element(options.cursor)?.querySelector(`.${HINT_CLASS}`) ?? null
 }
 
-function shake(cursor: string): void {
-  const element = cursorElement(cursor)
+function shake(options: {cursors: Cursors; cursor: string}): void {
+  const element = options.cursors.element(options.cursor)
   if (!element) return
   element.classList.remove(SHAKE_CLASS)
   element.getBoundingClientRect()
@@ -147,7 +139,7 @@ function interrupt<Key>(fibers: FiberMap.FiberMap<Key>, key: Key): void {
   Option.getOrUndefined(FiberMap.getUnsafe(fibers, key))?.interruptUnsafe()
 }
 
-function mountRun(options: {root: ParentNode; onClick: () => void}): Run {
+function mountRun(options: {root: ParentNode; cursors: Cursors; onClick: () => void}): Run {
   const style = document.createElement('style')
   style.textContent = SIMULATOR_CSS
   const layer = div(MASK_CLASS)
@@ -156,12 +148,13 @@ function mountRun(options: {root: ParentNode; onClick: () => void}): Run {
   for (const type of BLOCKED_EVENTS) layer.addEventListener(type, block)
   layer.addEventListener('click', options.onClick)
   options.root.prepend(style, layer)
-  const dispose = render(() => createComponent(AimedCursors, {look: CursorLook.AGENT}), layer)
+  const dispose = render(() => createComponent(AimedCursors, {look: CursorLook.AGENT, cursors: options.cursors}), layer)
   return {style, layer, glow: createGlow(layer), dispose, cursors: new Set()}
 }
 
-function unmountRun(run: Run): void {
-  for (const cursor of run.cursors) dropCursor(cursor)
+function unmountRun(options: {run: Run; cursors: Cursors}): void {
+  const {run, cursors} = options
+  for (const cursor of run.cursors) cursors.drop(cursor)
   run.dispose()
   run.glow?.dispose()
   run.layer.remove()
@@ -186,10 +179,10 @@ function createGlow(layer: HTMLElement): Motion | null {
   }
 }
 
-function aimAtCenter(options: {run: Run; agent: string}): void {
-  const {run, agent} = options
+function aimAtCenter(options: {run: Run; cursors: Cursors; agent: string}): void {
+  const {run, cursors, agent} = options
   run.cursors.add(agent)
-  void aimCursor({
+  void cursors.aim({
     id: agent,
     at: windowAt({x: window.innerWidth / 2, y: window.innerHeight / 2}),
     look: CursorLook.AGENT,
@@ -216,6 +209,8 @@ export function makeSimulator(options: SimulatorOptions): Effect.Effect<Simulato
     const taskTimeoutMs = options.taskTimeoutMs ?? TASK_TIMEOUT_MS
     const machine = {state: initialSimulatorState}
     const handles: Handles = {root: null, run: null, cursor: '', lastClicked: null, pacing: false}
+    const cursors = makeCursors()
+    yield* Effect.addFinalizer(() => Effect.sync(cursors.dispose))
 
     const dispatch = (event: SimulatorEvent): void => {
       const next = transitionSimulator(machine.state, event)
@@ -232,19 +227,19 @@ export function makeSimulator(options: SimulatorOptions): Effect.Effect<Simulato
       if (!root) return
       handles.cursor = agent
       interrupt(timers, 'hide')
-      const run = handles.run ?? mountRun({root, onClick: () => dispatch({type: 'mask.clicked'})})
+      const run = handles.run ?? mountRun({root, cursors, onClick: () => dispatch({type: 'mask.clicked'})})
       handles.run = run
       if (!prefersReducedMotion()) {
         run.glow?.start()
         run.glow?.fadeIn().catch(warnUnlessCanceled)
       }
       run.layer.classList.add(VISIBLE_CLASS)
-      aimAtCenter({run, agent})
+      aimAtCenter({run, cursors, agent})
     }
 
     const aim = (agent: string): void => {
       handles.cursor = agent
-      if (handles.run && !handles.run.cursors.has(agent)) aimAtCenter({run: handles.run, agent})
+      if (handles.run && !handles.run.cursors.has(agent)) aimAtCenter({run: handles.run, cursors, agent})
     }
 
     const hide = (): void => {
@@ -258,7 +253,7 @@ export function makeSimulator(options: SimulatorOptions): Effect.Effect<Simulato
 
     const unmount = (): void => {
       interrupt(timers, 'hide')
-      if (handles.run) unmountRun(handles.run)
+      if (handles.run) unmountRun({run: handles.run, cursors})
       handles.run = null
     }
 
@@ -267,12 +262,12 @@ export function makeSimulator(options: SimulatorOptions): Effect.Effect<Simulato
       'unmount-run': unmount,
       'arm-confirm': () => {
         later('confirm', STOP_CONFIRM_MS, {type: 'confirm.expired'})
-        hint(handles.cursor)?.classList.add(HINT_SHOWN_CLASS)
-        shake(handles.cursor)
+        hint({cursors, cursor: handles.cursor})?.classList.add(HINT_SHOWN_CLASS)
+        shake({cursors, cursor: handles.cursor})
       },
       disarm: () => {
         interrupt(timers, 'confirm')
-        hint(handles.cursor)?.classList.remove(HINT_SHOWN_CLASS)
+        hint({cursors, cursor: handles.cursor})?.classList.remove(HINT_SHOWN_CLASS)
       },
       'start-timeout': () => later('timeout', taskTimeoutMs, {type: 'task.ended'}),
       'cancel-timeout': () => interrupt(timers, 'timeout'),
@@ -298,9 +293,9 @@ export function makeSimulator(options: SimulatorOptions): Effect.Effect<Simulato
       dispatch({type: 'queue.finished', queueId, running: session !== null && options.running(session)})
     }
 
-    const moveTo = (aimed: Aimed) => moveCursor({...aimed, layer: handles.run?.layer})
+    const moveTo = (aimed: Aimed) => moveCursor({...aimed, cursors, layer: handles.run?.layer})
 
-    const ripple = (agent: string): void => pressCursor({id: agent})
+    const ripple = (agent: string): void => cursors.press(agent)
 
     const simulateClick = (aimed: Aimed): void => {
       const {element, agent} = aimed
@@ -390,13 +385,13 @@ function scrollIntoViewIfNeeded(options: {element: Element} & Layered): void {
   if (!isReachable(options)) options.element.scrollIntoView({behavior: 'instant', block: 'center', inline: 'nearest'})
 }
 
-function moveCursor(options: Aimed & Layered): {point: Point; arrived: Promise<void>} {
-  const {element, agent, layer} = options
+function moveCursor(options: Aimed & Layered & {cursors: Cursors}): {point: Point; arrived: Promise<void>} {
+  const {element, agent, layer, cursors} = options
   scrollIntoViewIfNeeded({element, layer})
   const frame = element.ownerDocument.defaultView?.frameElement
   if (frame) scrollIntoViewIfNeeded({element: frame, layer})
   const point = measureCenter(element)
-  return {point, arrived: aimCursor({id: agent, at: pageAt({target: element, point}), look: CursorLook.AGENT})}
+  return {point, arrived: cursors.aim({id: agent, at: pageAt({target: element, point}), look: CursorLook.AGENT})}
 }
 
 function hitTarget(options: {element: Element; point: Point} & Layered): Element {

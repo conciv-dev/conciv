@@ -38,7 +38,6 @@ import {
   type PendingCssText,
 } from './capture.js'
 import {reactBridge, startTracking, stopTracking, report as trackReport} from './react.js'
-import {unwatchLayout} from './cursor.js'
 import {actionable, fill, focusedElement, hover, isDisabled, press, select, setChecked} from './act.js'
 import {Operations, SHORT_MAX, type Action, type File, type Outcome, type PageCommand, type Operation} from './rpc.js'
 import {screenshot} from './screenshot.js'
@@ -781,7 +780,6 @@ export function makePageOperations(effects: readonly PageEffect[], simulator: Si
   function dispose(): void {
     for (const effect of effects) if (effect.enabled()) effect.set(false)
     Effect.runSync(Scope.close(scope, Exit.void))
-    unwatchLayout()
   }
 
   return {execute, dispose}
