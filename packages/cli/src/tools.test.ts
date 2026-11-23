@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {cli, createEngine} from '@conciv/plugin-testkit'
 
 describe('tools', () => {
-  it("the plugin's group is listed beside the page group, which holds every page tool, its verb runs with flags spelled from its schema, a mistyped verb gets a fix, and a page tool with no page answers NO_PAGE_CLIENT", async () => {
+  it("the plugin's group is listed beside the page group, which holds every page tool, its verb runs with flags spelled from its schema, a mistyped verb gets a fix, and a page tool with no page is not available", async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
 
     const help = await cli(['tools', '--help'], {engine})
@@ -46,7 +46,11 @@ describe('tools', () => {
     expect(noPage.exitCode).toBe(1)
     expect(JSON.parse(noPage.stdout)).toEqual({
       ok: false,
-      error: {kind: 'user', message: 'page_route: no widget connected to session', code: 'NO_PAGE_CLIENT'},
+      error: {
+        kind: 'user',
+        message: 'No tool named "page_route" is currently available. Please use a tool from the available tool list.',
+        code: 'HANDLER_ERROR',
+      },
     })
   })
 })

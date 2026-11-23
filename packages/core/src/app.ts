@@ -904,7 +904,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       instructions: systemPromptText,
       log,
     }),
-    page: pageReader,
     queueWait: pagePlugin.queueWait,
     pluginHost,
     eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,

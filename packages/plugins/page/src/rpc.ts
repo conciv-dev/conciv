@@ -614,8 +614,6 @@ export const Definition = Rpc.define({
   },
 })
 
-const TERMINAL_LEFT_OUT: readonly string[] = ['tabs.list', 'fill_form']
-
 export type ToolView = {readonly icon: ToolIconKey; readonly label: ToolLabel}
 
 const TOOL_VIEWS: Readonly<Record<Method, ToolView>> = {
@@ -667,7 +665,6 @@ const TOOL_VIEWS: Readonly<Record<Method, ToolView>> = {
 
 export type CliEntry = {
   readonly asks: ((input: unknown) => AskedPermission) | undefined
-  readonly terminal: boolean
   readonly view: ToolView
 }
 
@@ -680,7 +677,6 @@ export const CliTools: Readonly<Record<string, CliEntry>> = mapValues(
       entry.name === 'eval'
         ? (input: unknown): AskedPermission => ({action: 'page_eval', resources: [entry.input.parse(input).code]})
         : undefined,
-    terminal: !TERMINAL_LEFT_OUT.includes(entry.name),
     view: TOOL_VIEWS[entry.name],
   }),
 )

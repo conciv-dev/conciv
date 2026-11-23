@@ -142,7 +142,6 @@ const HubOutcome = z
   .object({ok: z.literal(true), note: z.string().optional()})
   .or(z.object({ok: z.literal(false), message: z.string()}))
 const registryCallErrors = {
-  NO_PAGE_CLIENT: {message: 'no widget connected'},
   UNKNOWN_TOOL: {message: 'no registered tool answers to that name'},
   INVALID_ARGS: {message: 'the tool rejected the arguments'},
   HANDLER_ERROR: {message: 'the tool failed to run'},

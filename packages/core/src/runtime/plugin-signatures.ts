@@ -1,24 +1,14 @@
 import {Effect} from 'effect'
 import {z} from 'zod'
-import {keyBy} from 'es-toolkit'
 import type {ToolCommandSignature} from '@conciv/contract'
 import {Agent, Permission, Plugin, SessionSchema, Tool, ToolRuntime} from '@conciv/plugin-host'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {currentToolDomain} from './permission-cards.js'
-import {CliTools, Operations, PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
 
 const ObjectSchema = z.looseObject({
   properties: z.record(z.string(), z.unknown()).default({}),
   required: z.array(z.string()).default([]),
 })
-
-const pageOperations = keyBy(Operations, (operation) =>
-  ToolRuntime.effectiveName({name: operation.name, options: {namespace: PAGE_NAMESPACE}}),
-)
-
-export function isPageTool(name: string): boolean {
-  return CliTools[pageOperations[name]?.name ?? '']?.terminal === true
-}
 
 const StringProperty = z.object({type: z.literal('string')})
 

@@ -35,7 +35,7 @@ import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {callTrace} from '../call-trace.js'
 import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
-import {callPluginTool, isPageTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
+import {callPluginTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
 import {settlingAsks, decidePermissionCard} from '../../runtime/permission-cards.js'
 import type {SessionId, ChatCommand, ChatCommands} from '@conciv/protocol/chat-types'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
@@ -171,20 +171,6 @@ function pluginToolError(name: string, cause: Cause.Cause<Tool.Error>, errors: R
   return registryCallError(failure.value, errors)
 }
 
-async function requireAttachedPage(
-  deps: RpcDeps,
-  call: {sessionId: SessionId; name: string},
-  errors: RegistryErrors,
-): Promise<void> {
-  const attached = await deps.page.attachedSessions()
-  if (attached.includes(call.sessionId)) return
-  const reason =
-    attached.length > 0
-      ? 'the page is showing another session; switch back to this session to use page tools'
-      : 'no widget connected to session'
-  throw errors.NO_PAGE_CLIENT({message: `${call.name}: ${reason}`, cause: undefined})
-}
-
 async function requireLiveSession(deps: RpcDeps, sessionId: SessionId | undefined, refuse: () => Error): Promise<void> {
   if (sessionId === undefined) return
   const row = await rowById(deps.chat.db, sessionId)
@@ -202,7 +188,6 @@ async function runPluginTool(
       errors.APPROVAL_DENIED({message: `session "${call.sessionId}" does not exist`}),
     )
   }
-  if (isPageTool(call.name)) await requireAttachedPage(deps, call, errors)
   const exit = await deps.pluginHost.runPromiseExit(
     settlingAsks(
       call.sessionId,
