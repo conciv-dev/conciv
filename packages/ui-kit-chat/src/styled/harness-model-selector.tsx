@@ -28,6 +28,7 @@ import {
   harnessSection,
   historyTokensLabel,
   listedEffort,
+  loginMessage,
   menuEntry,
   modelLabel,
   moreModelsLabel,
@@ -262,6 +263,7 @@ function HarnessGroup(props: {
       <Listbox.ItemGroupLabel class={local.named ? LIST_PANEL_GROUP_LABEL : 'sr-only'}>
         {local.section.harness.name}
       </Listbox.ItemGroupLabel>
+      <Show when={loginMessage(local.section.harness)}>{(message) => <p class={MESSAGE}>{message()}</p>}</Show>
       <For each={local.section.rows}>{(row) => <ModelRow row={row} />}</For>
       <Show when={local.section.harness.models.length === 0}>
         <p class={MESSAGE}>{`${local.section.harness.name} has no usable models`}</p>
