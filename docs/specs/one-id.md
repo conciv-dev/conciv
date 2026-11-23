@@ -27,14 +27,12 @@ Make ids (move to the maker):
 
 - Sessions: `packages/core/src/sessions/session-rows.ts:56` `conciv_<uuid>`: becomes `ses_` + descending (check what
   opencode's SessionV2.ID uses and match it).
-- Messages: `packages/ai/src/server/model-request.ts:113`; TanStack turn messages: stamp `SessionMessage.Id.create()` in
-  `DelegatingTextAdapter.chatStream` (`packages/ai/src/adapters/adapters.ts:28`) on TEXT_MESSAGE_START `messageId`
-  and TOOL_CALL_START `parentMessageId`; TanStack adopts the stream's id (`captureStreamMessageIdentity`,
-  `@tanstack/ai` 1.2.0 `activities/chat/index.js:905-906`); a middleware is too late (`:822`).
-  Before building this one: check whether anything matches messages by the CLI's own id (transcript history, native
-  sessions, resume). If yes, stop and inbox where.
+- Messages: only the messages conciv's own code makes (`packages/ai/src/server/model-request.ts:113`, the chat
+  server's stopped and synthetic messages) take `SessionMessage.Id.create()`. Assistant messages a CLI streams keep the
+  id TanStack AI or the CLI gives them (maintainer ruling 2026-11-23 on #1185: ids made by others keep their format);
+  nothing restamps them.
 - Runs and markers: `packages/chat/src/index.ts:170,203,231,237`, `packages/core/src/sessions/session-actions.ts:44`,
-  `packages/harness/src/codex/index.ts:51`, `packages/harness-testkit/src/harness-engine.ts:217`.
+  `packages/harness/src/codex/index.ts:51` (Codex's per-run id prefix stays as it is), `packages/harness-testkit/src/harness-engine.ts:217`.
 - Calls and tasks: `packages/ai/src/server/code-mode.ts:219`, `packages/chat/src/code-mode.ts:85` (fallback only;
   a provider's tool call id stays as given), `packages/core/src/api/call-trace.ts:35`, `packages/cli/src/hub.ts:277`.
 - Engine, pty, settings: `packages/core/src/app.ts:520`, `start.ts:275`, `pty/pty-sessions.ts:298` (`pty_<uuid>`),
@@ -56,6 +54,7 @@ Make ids (move to the maker):
   `page/src/files.ts:39`, `plugin-testkit/src/engine-coverage.ts:37`.
 - Library formats: `storage-history/src/index.ts:54` (TanStack Router history key).
 - Ids made by others keep their format, typed as their own branded schema: CLI session ids (HarnessSessionId),
+  assistant message ids from TanStack AI or the CLI,
   provider tool call ids.
 - `packages/extensions/design`: extensions are dead, do not touch.
 

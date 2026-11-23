@@ -33,7 +33,7 @@ import {
   isSandboxToolCall,
 } from '@tanstack/ai-sandbox'
 import {SessionMessage} from '@conciv/plugin/schema/session-message'
-import {isSubagentChunk, makeTextAdapter, stampMessageIds, type TextAdapter} from '../adapters/adapters.js'
+import {isSubagentChunk, makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
 import {
   isRunPhaseTerminal,
   runLifecycleEvent,
@@ -869,7 +869,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const tracing: ChatMiddleware[] =
       tracer === undefined ? [] : [otelMiddleware({tracer, attributeEnricher: chatAttributes})]
     const stream = chat({
-      adapter: guardedAdapter(answeredAdapter(stampMessageIds(plan.adapter)), {
+      adapter: guardedAdapter(answeredAdapter(plan.adapter), {
         ended: entry.ending.signal,
         stopped: controller.signal,
         startMs: config.startTimeoutMs,
