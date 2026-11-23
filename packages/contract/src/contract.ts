@@ -386,7 +386,7 @@ export const PluginExperimentalChunksSchema = z.object({
   chunks: z.array(PluginChunkSchema).min(1),
 })
 
-const PtyIdSchema = z.string().regex(/^pty_[0-9a-f-]{36}$/)
+const PtyIdSchema = z.string().regex(/^pty_[0-9A-Za-z]{26}$/)
 const PtySizeSchema = z.object({cols: z.number().int().min(2).max(500), rows: z.number().int().min(2).max(500)})
 const PersistentPtyInfoSchema = z.object({
   id: PtyIdSchema,
