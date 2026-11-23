@@ -33,7 +33,6 @@ type PanelWork = Effect.Effect<void, ExportFailed | SendFailed | SaveRefused | R
 
 export type Panel = {
   readonly state: SubscriptionRef.SubscriptionRef<RecorderPanelMachine.PanelState>
-  readonly renewPresence: Effect.Effect<void>
   readonly requestExport: Effect.Effect<void>
   readonly requestSend: Effect.Effect<void>
   readonly requestReset: Effect.Effect<void>
@@ -98,7 +97,6 @@ export const openPanel = Effect.fn('recorder.panel')(function* (options: {
 
   return {
     state: driver.state,
-    renewPresence: presence(true),
     requestExport: driver.dispatch({type: 'export.requested'}),
     requestSend: driver.dispatch({type: 'send.requested'}),
     requestReset: driver.dispatch({type: 'reset.requested'}),
@@ -157,6 +155,8 @@ export function exportRecording<Failure>(options: {
 
 export function recorderPanelCalls(options: {
   readonly client: () => Context['client']
+  readonly save: (input: {clientId: string}) => Promise<SaveOutput>
+  readonly reset: () => Promise<unknown>
   readonly clientId: string
   readonly viewerId: string
   readonly refresh: () => Promise<void>
@@ -170,7 +170,7 @@ export function recorderPanelCalls(options: {
     saveRecording({
       flush: options.flush,
       save: Effect.tryPromise({
-        try: () => recorder()['recordings.save']({clientId: options.clientId}),
+        try: () => options.save({clientId: options.clientId}),
         catch: failure,
       }),
     })
@@ -197,7 +197,7 @@ export function recorderPanelCalls(options: {
     ),
     reset: Effect.tryPromise({
       try: async () => {
-        await recorder().reset(undefined)
+        await options.reset()
         await options.refresh()
       },
       catch: (cause) => ResetFailed.make({cause}),

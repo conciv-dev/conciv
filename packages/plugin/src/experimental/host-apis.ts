@@ -1,12 +1,34 @@
-import type {JSX} from 'solid-js'
+import type {Accessor, JSX} from 'solid-js'
+import type {UseQueryResult} from '@conciv/client'
 import type {Store} from 'solid-js/store'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import type {Ref as LocationRef} from '../schema/location.js'
-import type {ServerRef} from '../promise/servers.js'
+import type {ConcivClient} from '../client/promise/index.js'
+import type {ServerRef as EngineServerRef, Servers as EngineServers} from '../promise/servers.js'
 import type {Persisted, StoreFrom, StoreType} from './core.js'
 import type {IconName, Link} from './registries.js'
 
-export type {ServerRef, Servers} from '../promise/servers.js'
+export type SessionModels = Awaited<ReturnType<ConcivClient['meta']['models']>>
+
+export interface ServerData {
+  readonly meta: {
+    models(sessionId: Accessor<string | undefined>): UseQueryResult<SessionModels>
+  }
+}
+
+export interface ServerRef extends EngineServerRef {
+  readonly data: ServerData
+}
+
+export interface Servers extends Omit<EngineServers, 'get'> {
+  /**
+   * A listed server's ref. The same ref for the same id.
+   *
+   * @param id - The server's id, as `list()` returns it.
+   * @returns Undefined while the app does not list the server.
+   */
+  get(id: string): ServerRef | undefined
+}
 
 export interface SessionRef {
   readonly key: string

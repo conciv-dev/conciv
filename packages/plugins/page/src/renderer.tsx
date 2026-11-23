@@ -32,7 +32,8 @@ export default Plugin.define({
     const tabId = `tab_${crypto.randomUUID()}`
     const routed = () => ctx.sessions.current()
 
-    const symbolicate = symbolicateInSession(routed)
+    const queryClient = useQueryClient()
+    const symbolicate = symbolicateInSession(routed, queryClient)
 
     const highlight = makeHighlight({
       opener: {symbolicate, desktop: ctx.desktop},
@@ -102,7 +103,6 @@ export default Plugin.define({
       (session) => onCleanup(() => simulator.endRun(session.id)),
     )
 
-    const queryClient = useQueryClient()
     createKeyed(
       () => routed()?.server.client,
       (client) => {
