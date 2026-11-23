@@ -193,7 +193,7 @@ const PTY_PROCEDURES = new Set([
   'experimental.persistentPty.inject',
 ])
 
-const OUTSIDE_PTY_REFUSAL = "outside agents can't use the session terminal; use it in the tab"
+const OUTSIDE_PTY_REFUSAL = "outside agents can't use the session terminal; open it in the conciv panel"
 
 export function makeHubAdmission(deps: RpcDeps) {
   return plainOs.$context<RpcContext>().middleware(async ({context, next, signal, path}, input: unknown) => {

@@ -108,7 +108,7 @@ describe.concurrent('outside agents', () => {
       refused("outside agents can't use plugin routes; use the plugin in the tab"),
     )
     await expect(outside.experimental.persistentPty.create({sessionId: engine.session.id})).rejects.toMatchObject(
-      refused("outside agents can't use the session terminal; use it in the tab"),
+      refused("outside agents can't use the session terminal; open it in the conciv panel"),
     )
   })
 
