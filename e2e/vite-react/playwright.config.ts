@@ -13,7 +13,7 @@ export default defineConfig(
   }),
   {
     webServer: {
-      command: `pnpm --filter @conciv/app exec vite dev --port ${standalonePort} --strictPort`,
+      command: `pnpm --filter @conciv/app exec vite preview --port ${standalonePort} --strictPort`,
       url: `http://localhost:${standalonePort}`,
       reuseExistingServer: false,
       timeout: 180_000,
