@@ -5,13 +5,7 @@
       "dependsOn": ["^build", "build", "^build:types", "^kit-runtime", "@conciv/harness-testkit#build"]
     },
     "typecheck": {
-      "dependsOn": [
-        "^build",
-        "^build:types",
-        "@conciv/harness-testkit#build:types",
-        "@conciv/core#build",
-        "@conciv/harness#build"
-      ]
+      "dependsOn": ["^build", "^build:types", "@conciv/harness-testkit#build:types"]
     }
   }
 }

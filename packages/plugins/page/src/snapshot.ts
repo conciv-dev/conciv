@@ -1,4 +1,4 @@
-import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
+import {CONCIV_UI_SELECTOR} from './conciv-ui.js'
 
 export type Refs = {map: Map<string, WeakRef<Element>>; n: number}
 export type RefAdder = (el: Element) => string

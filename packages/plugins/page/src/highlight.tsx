@@ -8,7 +8,7 @@ import {Kbd, prefersReducedMotion} from '@conciv/ui-kit-system'
 import {addRef, type Refs} from './snapshot.js'
 import {describe, locate} from './react.js'
 import type {PageEffect} from './operations.js'
-import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
+import {CONCIV_UI_SELECTOR} from './conciv-ui.js'
 import {openSource, type OpenedSource, type SourceOpener} from './open-source.js'
 
 export type HighlightOptions = {

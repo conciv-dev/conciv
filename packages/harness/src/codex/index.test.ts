@@ -64,27 +64,25 @@ describe('codex', () => {
     const bin = tempDir('codex-bin-')
     writeFileSync(join(bin, 'codex'), "#!/bin/sh\necho 'Not logged in' >&2\nexit 1\n")
     chmodSync(join(bin, 'codex'), 0o755)
-    const harnessFor = (header: string, auth: readonly string[]) => {
+    const harnessWith = (config: readonly string[]) => {
       const home = tempDir('codex-home-')
-      writeFileSync(
-        join(home, 'config.toml'),
-        [
-          'model = "kimi-k3"',
-          'model_provider = "gateway"',
-          '',
-          header,
-          'name = "Gateway"',
-          'base_url = "https://gateway.example/v1"',
-          'env_key = "GATEWAY_API_KEY"',
-          'wire_api = "responses"',
-          ...auth,
-          '',
-        ].join('\n'),
-      )
+      writeFileSync(join(home, 'config.toml'), [...config, ''].join('\n'))
       return codex(
         ConfigProvider.fromEnvRecord({CODEX_HOME: home, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}`}),
       )
     }
+    const harnessFor = (header: string, auth: readonly string[]) =>
+      harnessWith([
+        'model = "kimi-k3"',
+        'model_provider = "gateway"',
+        '',
+        header,
+        'name = "Gateway"',
+        'base_url = "https://gateway.example/v1"',
+        'env_key = "GATEWAY_API_KEY"',
+        'wire_api = "responses"',
+        ...auth,
+      ])
     const notLoggedIn = {loggedIn: false, message: 'Codex is not logged in. Run `codex login` in a terminal.'}
 
     expect(await harnessFor('[model_providers.gateway]', []).login({signal})).toEqual({loggedIn: true})
@@ -94,6 +92,27 @@ describe('codex', () => {
     expect(
       await harnessFor('  [model_providers.gateway]   # gateway', ['requires_openai_auth = true']).login({signal}),
     ).toEqual(notLoggedIn)
+    expect(
+      await harnessWith([
+        'model_provider = "gateway"',
+        'model_providers = { gateway = { name = "Gateway", requires_openai_auth = true } }',
+      ]).login({signal}),
+    ).toEqual(notLoggedIn)
+    expect(
+      await harnessWith(['model_provider = "gateway"', 'model_providers.gateway.requires_openai_auth = true']).login({
+        signal,
+      }),
+    ).toEqual(notLoggedIn)
+    expect(
+      await harnessWith(["model_provider = 'gateway'", '[model_providers.gateway]', 'name = "Gateway"']).login({
+        signal,
+      }),
+    ).toEqual({loggedIn: true})
+
+    const unparsable = harnessWith(['model = "kimi-k3', 'model_provider = = "gateway"'])
+    expect(await unparsable.login({signal})).toEqual(notLoggedIn)
+    expect((await unparsable.models()).map((model) => model.id)).toEqual([...codexModels])
+    expect(await unparsable.defaultModel()).toBe(codexModels[0])
   })
 
   it('a refresh re-runs codex login status after a logged-in answer, and a plain read keeps the held answer', async () => {

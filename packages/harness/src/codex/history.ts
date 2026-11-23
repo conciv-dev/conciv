@@ -35,7 +35,7 @@ export function sessionsRoot(home: string): string {
   return join(home, 'sessions')
 }
 
-function queryRows(dbPath: string, sql: string, params: SQLInputValue[]): unknown[] {
+function queryRows(dbPath: string, sql: string, params: SQLInputValue[]): Promise<unknown[]> {
   return withDatabase<unknown[]>(dbPath, [], (db) => db.prepare(sql).all(...params))
 }
 
@@ -69,7 +69,7 @@ const THREAD_BY_ID = `select ${THREAD_COLUMNS} from threads where id = ? limit 1
 const PROJECT_THREAD = `select ${THREAD_COLUMNS} from threads where id = ? and cwd = ? limit 1`
 
 async function threadRows(dbPath: string, sql: string, params: SQLInputValue[]): Promise<ThreadRow[]> {
-  return queryRows(dbPath, sql, params).flatMap((row) => {
+  return (await queryRows(dbPath, sql, params)).flatMap((row) => {
     const parsed = ThreadRowSchema.safeParse(row)
     return parsed.success ? [parsed.data] : []
   })

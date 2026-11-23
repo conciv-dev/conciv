@@ -6,6 +6,7 @@ import {usePlugin} from '@conciv/plugin/experimental'
 import {OpaqueUi, type MentionFieldApi, type MentionItem} from '@internal/plugin'
 import type {CommentRow} from './rows.js'
 import {useComments} from './comments.js'
+import {useWhiteboardRuntime} from './solid-runtime.js'
 
 const TextPart = z.object({type: z.literal('text'), text: z.string()})
 const MentionPart = z.object({type: z.literal('mention'), id: z.string(), label: z.string()})
@@ -102,9 +103,10 @@ function ThreadHeader(props: {root: CommentRow}): JSX.Element {
   const ctx = usePlugin()
   const ui = ctx.ui
   const model = useComments()
+  const runtime = useWhiteboardRuntime()
   const confirmDelete = (): void => {
     const root = props.root
-    Effect.runFork(
+    runtime.runFork(
       Effect.tryPromise(() =>
         ctx.dialogs.confirm({
           title: 'Delete this thread?',

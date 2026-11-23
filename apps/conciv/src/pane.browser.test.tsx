@@ -723,6 +723,7 @@ describe('a plugin draws its own tool cards', () => {
     const href = reply.querySelector('use')?.getAttribute('href') ?? ''
     expect(href).toMatch(/^#/)
     expect(document.querySelector(`symbol${href}`)).toHaveAttribute('viewBox', '0 0 16 16')
+    const sprite = document.querySelector(`symbol${href}`)?.parentElement
 
     await user.click(screen.getByRole('link', {name: 'Settings'}))
     const schedule = await screen.findByRole('tab', {name: 'Release schedule'})
@@ -732,6 +733,7 @@ describe('a plugin draws its own tool cards', () => {
 
     await expect.element(page.getByRole('tab', {name: 'Release schedule'})).not.toBeInTheDocument()
     expect(document.querySelector(`symbol${href}`)).not.toBeInTheDocument()
+    expect(sprite?.isConnected).toBe(false)
   })
 })
 
@@ -958,10 +960,10 @@ describe('the agent opens a file in the editor', () => {
 })
 
 describe('a notice from a plugin', () => {
-  test('a notice with a description shows as its own row under that label and its turn answers, not as a message from the user, and a notice with none shows no row', async () => {
+  test('a notice shows in the thread: one with a description is its own row under that label and its turn answers, not a message from the user; one with no description, or only spaces, shows no row; and a failed one with no description shows its text as its row', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/build-notices']})
-    await engine.reply(TestLLM.text('The build is green'), TestLLM.text('Shipping it'))
+    await engine.reply(TestLLM.text('The build is green'), TestLLM.text('Shipping it'), TestLLM.text('Looking into it'))
     await mount({
       engine,
       history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
@@ -984,23 +986,14 @@ describe('a notice from a plugin', () => {
     expect(screen.getAllByRole('article', {name: /^You:/})).toHaveLength(1)
     expect(screen.queryByText('Quiet note')).not.toBeInTheDocument()
     expect(screen.getByRole('note', {name: 'Build finished'})).toBeVisible()
-  })
-
-  test('a notice whose description is only spaces shows no row, and a failed notice with no description shows its text as its row', async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/build-notices']})
-    await engine.reply(TestLLM.text('Looking into it'))
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
-    })
-    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
 
     await engine.session.tool('notice').call({text: 'Blank label', description: '   ', resume: false})
     await engine.session.tool('notice').call({text: 'The deploy failed', metadata: {state: 'error'}})
 
     expect(await screen.findByText('Looking into it')).toBeVisible()
     expect(screen.getByRole('note', {name: 'The deploy failed'})).toBeVisible()
-    expect(screen.getAllByRole('note')).toHaveLength(1)
+    expect(screen.getByRole('note', {name: 'Build finished'})).toBeVisible()
+    expect(screen.getAllByRole('note')).toHaveLength(2)
     expect(screen.queryByText('Blank label')).not.toBeInTheDocument()
   })
 })

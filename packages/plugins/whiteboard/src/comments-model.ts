@@ -1,5 +1,5 @@
 import {createMemo, type Accessor} from 'solid-js'
-import {createStore} from 'solid-js/store'
+import {createStore, reconcile} from 'solid-js/store'
 import {useLiveQuery} from '@tanstack/solid-db'
 import {maxBy, uniq, uniqBy} from 'es-toolkit'
 import type {MentionItem, MentionSegment} from '@internal/plugin'
@@ -17,12 +17,11 @@ import {
   type PinPatch,
 } from './comment-writes.js'
 import {createPinDrag} from './pin-drag.js'
+import {WhiteboardCommentsViewMachine, type InboxSort} from './comments-view-machine.js'
 
 export type CommentsModel = ReturnType<typeof createCommentsModel>
 
 export type ComposeTarget = {source: {file: string; line: number | null} | null; screen: {x: number; y: number}}
-
-type InboxSort = 'date' | 'unread'
 
 export type ChatCover = {
   room: string
@@ -44,18 +43,22 @@ export function createCommentsModel(room: Accessor<string>) {
   const reads = (): ReadRow[] => readRows() ?? []
 
   const [state, setState] = createStore<{
-    openCid: string | null
     viewport: Viewport | undefined
     pinButtons: Partial<Record<string, HTMLButtonElement>>
-    inbox: {open: boolean; sort: InboxSort; showResolved: boolean}
     pan: ((sceneX: number, sceneY: number) => void) | undefined
   }>({
-    openCid: null,
     viewport: undefined,
     pinButtons: {},
-    inbox: {open: false, sort: 'date', showResolved: false},
     pan: undefined,
   })
+  const [view, setView] = createStore<WhiteboardCommentsViewMachine.CommentsViewState>(
+    structuredClone(WhiteboardCommentsViewMachine.initialCommentsView),
+  )
+  const dispatch = (event: Parameters<typeof WhiteboardCommentsViewMachine.transitionCommentsView>[1]): void => {
+    const next = WhiteboardCommentsViewMachine.transitionCommentsView(view, event)
+    setView(reconcile(next.state))
+    next.effects.forEach((effect) => markRead(effect.cid))
+  }
 
   const findRoot = (cid: string): CommentRow | undefined => comments().find((comment) => comment.cid === cid)
 
@@ -73,9 +76,9 @@ export function createCommentsModel(room: Accessor<string>) {
   )
   const inboxThreads = createMemo(() => {
     const byDate = comments()
-      .filter((comment) => !comment.parentId && (state.inbox.showResolved || comment.status !== 'resolved'))
+      .filter((comment) => !comment.parentId && (view.inbox.showResolved || comment.status !== 'resolved'))
       .toSorted((left, right) => right.createdAt - left.createdAt)
-    if (state.inbox.sort === 'date') return byDate
+    if (view.inbox.sort === 'date') return byDate
     return byDate.toSorted((left, right) => Number(isUnread(right.cid)) - Number(isUnread(left.cid)))
   })
   const aiLabel = (comment: CommentRow): string => comment.authorName ?? comment.authorModel ?? 'AI'
@@ -127,28 +130,18 @@ export function createCommentsModel(room: Accessor<string>) {
     if (pin) state.pan?.(pin.x, pin.y)
   }
 
-  const openThread = (cid: string): void => {
-    setState('openCid', cid)
-    markRead(cid)
-  }
-  const closeThread = (): void => {
-    setState('openCid', null)
-  }
-  const toggleThread = (cid: string): void => (state.openCid === cid ? closeThread() : openThread(cid))
+  const openThread = (cid: string): void => dispatch({type: 'open', cid})
+  const closeThread = (): void => dispatch({type: 'close'})
+  const toggleThread = (cid: string): void => dispatch({type: 'toggle', cid})
   const registerPin = (cid: string, button: HTMLButtonElement | undefined): void =>
     void setState('pinButtons', cid, button)
   const pinButton = (cid: string): HTMLButtonElement | undefined => state.pinButtons[cid]
   const openPinButton = (): HTMLButtonElement | undefined =>
-    state.openCid === null ? undefined : pinButton(state.openCid)
+    view.openCid === null ? undefined : pinButton(view.openCid)
 
-  const stepIndex = (): number => orderedThreads().findIndex((thread) => thread.cid === state.openCid)
-  const stepThread = (delta: number): void => {
-    const threads = orderedThreads()
-    if (stepIndex() < 0) return
-    const target = threads[(stepIndex() + delta + threads.length) % threads.length]
-    if (target) openThread(target.cid)
-  }
-  const openRoot = (): CommentRow | undefined => (state.openCid === null ? undefined : findRoot(state.openCid))
+  const stepThread = (delta: number): void =>
+    dispatch({type: 'step', delta, threads: orderedThreads().map((thread) => thread.cid)})
+  const openRoot = (): CommentRow | undefined => (view.openCid === null ? undefined : findRoot(view.openCid))
   const threadOpen = createMemo(() => openRoot() !== undefined)
 
   const reply = (segments: MentionSegment[]): void => {
@@ -163,7 +156,7 @@ export function createCommentsModel(room: Accessor<string>) {
   }
   const deleteThread = (parent: CommentRow): void => {
     deleteThreadRows(db, {parent, comments: comments(), pins: pins()})
-    if (state.openCid === parent.cid) closeThread()
+    dispatch({type: 'thread-gone', cid: parent.cid})
   }
   const removeComment = (comment: CommentRow): void => {
     if (comment.cid === comment.threadId) return deleteThread(comment)
@@ -212,11 +205,11 @@ export function createCommentsModel(room: Accessor<string>) {
     lastActivityAt,
     threadParticipants,
     panToThread,
-    inbox: () => state.inbox,
-    inboxOpen: () => state.inbox.open,
-    setInboxOpen: (open: boolean) => void setState('inbox', 'open', open),
-    setInboxSort: (sort: InboxSort) => void setState('inbox', 'sort', sort),
-    setShowResolved: (showResolved: boolean) => void setState('inbox', 'showResolved', showResolved),
+    inbox: () => view.inbox,
+    inboxOpen: () => view.inbox.open,
+    setInboxOpen: (open: boolean) => dispatch({type: 'inbox-open', open}),
+    setInboxSort: (sort: InboxSort) => dispatch({type: 'inbox-sort', sort}),
+    setShowResolved: (showResolved: boolean) => dispatch({type: 'show-resolved', showResolved}),
     registerPan: (pan: (sceneX: number, sceneY: number) => void) => void setState('pan', () => pan),
     addComment,
     drag,
