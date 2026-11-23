@@ -14,12 +14,14 @@ function readable(selector: string): boolean {
   }
 }
 
-export async function screenshot(input: {exclude?: string[]}): Promise<PageScreenshot> {
+export async function screenshot(
+  input: {exclude?: string[]},
+  {snapdom}: typeof import('@zumer/snapdom'),
+): Promise<PageScreenshot> {
   const requested = input.exclude ?? []
   const warnings = requested
     .filter((selector) => !readable(selector))
     .map((selector) => `ignored invalid selector: ${selector}`)
-  const {snapdom} = await import('@zumer/snapdom')
   const capture = await snapdom(document.documentElement, {
     clip: 'viewport',
     dpr: 1,

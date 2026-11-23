@@ -23,12 +23,6 @@ export {
   selectDeep,
   type Refs,
 } from './snapshot.js'
-export {
-  loadedSnapshotLibrary,
-  loadSnapshotLibrary,
-  takeElementCapture,
-  toCssBundle,
-  type PendingCssText,
-} from './capture.js'
+export {takeElementCapture, toCssBundle, type PendingCssText} from './capture.js'
 export {pageAttachmentCards, pageSessionEntry} from './cards.js'
 export {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageToolMeta} from './rpc.js'
