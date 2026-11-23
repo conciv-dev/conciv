@@ -1,9 +1,50 @@
 import {describe} from 'vitest'
 import {makeRpcClient} from '@conciv/contract'
+import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../../../test/engine-test.js'
 
 describe.concurrent('outside agents', () => {
+  const readThrough = async (
+    events: AsyncIterator<ChatEvent>,
+    last: (chunk: ChatEvent) => boolean,
+    read: ChatEvent[] = [],
+  ): Promise<ChatEvent[]> => {
+    const next = await events.next()
+    if (next.done === true) return read
+    if (last(next.value)) return [...read, next.value]
+    return readThrough(events, last, [...read, next.value])
+  }
+
+  test('a panel that opens while an outside call runs finds the call so far in history and the rest live', async ({
+    connect,
+    expect,
+  }) => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/asking-notes'], hubAccess: 'open'})
+    const rpc = connect(engine)
+    const early = (await rpc.chat.events({sessionId: engine.session.id}))[Symbol.asyncIterator]()
+
+    const called = engine.outside({tab: engine.session.id}).call('notes_publish', {title: 'Launch plan'})
+    await readThrough(early, (chunk) => approvalRequestedEvent.parse(chunk) !== null)
+    const late = (await rpc.chat.events({sessionId: engine.session.id}))[Symbol.asyncIterator]()
+    const during = await rpc.chat.hydrate({sessionId: engine.session.id})
+    await engine.session.approve()
+    await called
+    const seen = await readThrough(late, (chunk) => chunk.type === ChatEventType.RUN_FINISHED)
+    const after = await rpc.chat.hydrate({sessionId: engine.session.id})
+
+    expect(during.messages).toEqual([
+      expect.objectContaining({
+        id: after.messages[0]?.id,
+        parts: expect.arrayContaining([expect.objectContaining({type: 'tool-call', name: 'execute_typescript'})]),
+      }),
+    ])
+    expect(after.messages).toEqual([expect.objectContaining({role: 'assistant'})])
+    expect(seen).toContainEqual(
+      expect.objectContaining({type: ChatEventType.TOOL_CALL_RESULT, content: expect.stringContaining('Launch plan')}),
+    )
+  })
+
   test('an outside agent that is disconnected from conciv is refused', async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
 

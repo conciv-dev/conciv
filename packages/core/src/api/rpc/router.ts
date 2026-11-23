@@ -258,7 +258,7 @@ async function hubTraced<Result>(
     driving: () => deps.code.driving(scope.id),
     log: deps.code.log,
   })
-  mirror.publish(trace.start(mirrored, name, input))
+  await mirror.publish(trace.start(mirrored, name, input))
   try {
     const value = await run()
     mirror.publish(trace.result(mirrored, cappedText(safeStringify(value)), false))

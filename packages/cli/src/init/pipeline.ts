@@ -7,7 +7,7 @@ import {CONCIV_BIN} from '@conciv/harness-init/agent-guide'
 import {detectProject, type Detected} from './detect.js'
 import {detectHarnesses, type FoundHarness} from '@conciv/harness-init/detect'
 import {harnessFileInits, harnessIds, type HarnessId} from './harness-detect.js'
-import {guardBackups, onInterrupt, type FileBackup} from './interrupt.js'
+import {guardBackups, interruptExitCode, onInterrupt, type FileBackup} from './interrupt.js'
 import type {LedgerEntry, ManualCard, StepNote, StepOutcome, StepPlan, StepStatus} from './ledger.js'
 import {docsPackStep} from './steps/docs-pack.js'
 import {fallbackStep} from './steps/framework/fallback.js'
@@ -63,18 +63,22 @@ export function execFileOutcome(
     const signalGroup = (signal: NodeJS.Signals): void => {
       if (child.pid !== undefined && running()) process.kill(-child.pid, signal)
     }
+    const killGroup = (): void => signalGroup('SIGKILL')
     const stopGroup = (): void => {
       signalGroup('SIGINT')
-      const force = (): void => signalGroup('SIGKILL')
-      const timer = setTimeout(force, interruptGraceMs)
-      const releaseForce = onInterrupt(force)
+      const timer = setTimeout(killGroup, interruptGraceMs)
+      const releaseForce = onInterrupt(killGroup)
       child.on('close', () => {
         clearTimeout(timer)
         releaseForce()
       })
     }
     options.signal?.addEventListener('abort', stopGroup, {once: true})
-    child.on('close', () => options.signal?.removeEventListener('abort', stopGroup))
+    if (options.signal !== undefined) process.on('exit', killGroup)
+    child.on('close', () => {
+      options.signal?.removeEventListener('abort', stopGroup)
+      process.off('exit', killGroup)
+    })
     if (options.signal?.aborted) stopGroup()
     const refused = child.pid === undefined ? null : (options.started?.(child.pid) ?? null)
     if (refused !== null) {
@@ -401,7 +405,7 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
   }
   const backups = guardBackups()
   const interruption = new AbortController()
-  const releaseInterrupt = onInterrupt(() => interruption.abort())
+  const releaseInterrupt = onInterrupt((signal) => interruption.abort(signal))
   const settings: RunSettings = {
     cwd: options.cwd,
     yes: options.yes,
@@ -418,7 +422,7 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
   if (interruption.signal.aborted) {
     backups.restore()
     runtime.output.cancelled('Interrupted — your config was restored.')
-    runtime.exit(130)
+    runtime.exit(interruptExitCode(interruption.signal.reason))
     return {outcome: 'cancelled', reason: 'interrupted, your config was restored'}
   }
   backups.release()

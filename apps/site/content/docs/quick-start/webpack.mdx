@@ -61,6 +61,7 @@ module.exports = {
   approvals work in the widget your dev build serves.
 </Callout>
 
-The engine listens on port 24170 unless you pass `port`. The widget is built with that port, so the
-port must be free: when it is taken, the engine does not start and the plugin says so. Pass another
-port to `conciv({port})` to move both.
+The engine listens on the `port` you pass when it is free. With no `port`, it prefers the port it
+used last time in this project, else a port picked for the project (from 24170 up), so two projects
+started together never ask for the same one. When the port is taken, the plugin picks a free port before the first watch build and builds the widget with it, so
+two projects can run side by side. If the engine still cannot start, the build fails with the reason.

@@ -1,6 +1,6 @@
 import {readFileSync, watch} from 'node:fs'
 import {expect, test, type ConsoleMessage, type Page} from '@playwright/test'
-import {magicLink, recordedEngineBase, testProjectDir, type RecordedEngine} from './login.js'
+import {magicLink, recordedEngineBase, testProjectDir} from './login.js'
 import {e2eConfigDir, e2eServerLog} from './config.js'
 
 export type PageFailures = {
@@ -92,23 +92,33 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
 
 const RPC_SOCKET_PATH = '/rpc-ws'
 
-async function engineOrigin(page: Page, path: string): Promise<string> {
-  const rpcSocket = page.waitForEvent('websocket', (socket) => new URL(socket.url()).pathname === RPC_SOCKET_PATH)
-  await page.goto(path, {waitUntil: 'domcontentloaded', timeout: 60_000})
-  const url = new URL((await rpcSocket).url())
-  url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:'
-  return url.origin
+function rpcSocketOrigin(page: Page): Promise<string> {
+  return page
+    .waitForEvent('websocket', (socket) => new URL(socket.url()).pathname === RPC_SOCKET_PATH)
+    .then((socket) => {
+      const url = new URL(socket.url())
+      url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:'
+      return url.origin
+    })
 }
 
-async function pageEngine(page: Page, path: string, projectDir: string): Promise<RecordedEngine> {
-  return recordedEngineBase(projectDir, await engineOrigin(page, path))
+async function engineOrigin(page: Page, path: string): Promise<string> {
+  const origin = rpcSocketOrigin(page)
+  await page.goto(path, {waitUntil: 'domcontentloaded', timeout: 60_000})
+  return origin
+}
+
+function pageUrl(path: string): string {
+  const baseURL = test.info().project.use.baseURL
+  return baseURL === undefined ? path : new URL(path, baseURL).href
 }
 
 export async function loginWidget(page: Page, path = '/', projectDir = testProjectDir()): Promise<void> {
-  const engine = await pageEngine(page, path, projectDir)
-  const link = await magicLink(engine, page.url())
+  const link = await magicLink(recordedEngineBase(projectDir), pageUrl(path))
   await page.goto('about:blank')
+  const origin = rpcSocketOrigin(page)
   await page.goto(link, {waitUntil: 'domcontentloaded', timeout: 60_000})
+  recordedEngineBase(projectDir, await origin)
   await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()
 }
 

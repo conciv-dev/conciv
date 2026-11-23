@@ -317,7 +317,7 @@ function Root(props: FormProps): JSX.Element {
     chat.setView('draft', restored.draft)
     setState({attachments: restored.attachments, quote: restored.quote, items: restored.items})
   })
-  useComposerDraftPersistence({
+  const flushDraft = useComposerDraftPersistence({
     storage: () => local.draftStorage,
     writer: () => local.draftWriter,
     key: draftKey,
@@ -390,7 +390,7 @@ function Root(props: FormProps): JSX.Element {
         setDictating: (value) => setState('dictating', value),
       }}
     >
-      <Primitive.form onSubmit={(event) => void submit(event)} {...rest} />
+      <Primitive.form onSubmit={(event) => void submit(event)} {...rest} on:focusout={flushDraft} />
     </ComposerProvider>
   )
 }
