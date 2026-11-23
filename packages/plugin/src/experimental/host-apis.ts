@@ -4,8 +4,7 @@ import type {StandardSchemaV1} from '@standard-schema/spec'
 import type {Ref as LocationRef} from '../schema/location.js'
 import type {ServerRef} from '../promise/servers.js'
 import type {Persisted, StoreFrom, StoreType} from './core.js'
-import type {IconName} from './icon-name.js'
-import type {Link} from './registries.js'
+import type {IconName, Link} from './registries.js'
 
 export type {ServerRef, Servers} from '../promise/servers.js'
 

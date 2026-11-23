@@ -40,12 +40,12 @@ export function homeRead(home: string, reading: Promise<Checked>): Promise<Check
   })
 }
 
-export function askTab<Row extends {apiBase: string}>(
+export function askTab<Row extends {apiBase: string; token: string}>(
   row: Row,
   tab: SessionId,
   timeoutMs: number,
 ): Promise<TabAsk<Row>> {
-  return makeRpcClient(row.apiBase)
+  return makeRpcClient(row.apiBase, {token: row.token})
     .tabs.get({sessionId: tab}, {signal: AbortSignal.timeout(timeoutMs)})
     .then(
       (answer): TabAsk<Row> => ({row, answer, failure: null}),
@@ -68,7 +68,7 @@ export async function listTabs(home: string): Promise<TabsListing> {
 
 async function engineTabs(row: EngineRow): Promise<TabsListing> {
   try {
-    const listed = await makeRpcClient(row.apiBase).tabs.list(undefined, {
+    const listed = await makeRpcClient(row.apiBase, {token: row.token}).tabs.list(undefined, {
       signal: AbortSignal.timeout(ENGINE_READ_MS),
     })
     return {tabs: listed.tabs.map(tabRow(listed)), unreachable: []}

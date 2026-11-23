@@ -2,7 +2,15 @@ import {For, onCleanup, Show, splitProps, type JSX} from 'solid-js'
 import {ManagedRuntime} from 'effect'
 import {isPlainObject, keyBy, mapKeys, sumBy} from 'es-toolkit'
 import {z} from 'zod'
-import {Slot, ToolRegistry, type Plugin, type ToolComponent, type ToolProps, type Ui} from '@conciv/plugin/experimental'
+import {
+  Slot,
+  ToolRegistry,
+  type IconName,
+  type Plugin,
+  type ToolComponent,
+  type ToolProps,
+  type Ui,
+} from '@conciv/plugin/experimental'
 import {PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
 import {defineInternalPlugin, type InternalUi} from '@conciv/plugin-internal'
 import {tanstackToolMeta, tanstackToolName, type TanstackToolName} from './client.js'
@@ -20,22 +28,22 @@ import {
   type Method,
   type Operation,
 } from './rpc.js'
-import {TanStackLogo} from './tanstack-logo.js'
+import {tanstackLogo} from './tanstack-logo.js'
 
 const LABEL = 'TanStack inspector active'
 
-function InspectorChip(props: {readonly ui: Ui}): JSX.Element {
+function InspectorChip(props: {readonly ui: Ui; readonly logo: IconName}): JSX.Element {
   return (
     <props.ui.Tooltip value={LABEL}>
       <span role="status" aria-label={LABEL} class="inline-flex gap-1.25 whitespace-nowrap items-center">
-        <TanStackLogo class="shrink-0 size-3.5 block" aria-hidden="true" />
+        <props.ui.Icon name={props.logo} size="small" class="block" />
         {LABEL}
       </span>
     </props.ui.Tooltip>
   )
 }
 
-type Card = (ui: InternalUi) => ToolComponent
+type Card = (ui: InternalUi, logo: IconName) => ToolComponent
 
 const COUNT_FORMAT = new Intl.NumberFormat()
 const COUNT_PLURAL = new Intl.PluralRules('en')
@@ -91,13 +99,21 @@ function tanstackTitle(tool: string, status: ToolProps['status']): string {
 }
 
 function InspectionCard(
-  props: ToolProps & {ui: InternalUi; summary: string; failed?: boolean; hasContent?: boolean; children?: JSX.Element},
+  props: ToolProps & {
+    ui: InternalUi
+    logo: IconName
+    summary: string
+    failed?: boolean
+    hasContent?: boolean
+    children?: JSX.Element
+  },
 ): JSX.Element {
-  const [local, tool] = splitProps(props, ['ui', 'summary', 'failed', 'hasContent', 'children'])
+  const [local, tool] = splitProps(props, ['ui', 'logo', 'summary', 'failed', 'hasContent', 'children'])
   const running = () => isRunning(tool.status)
   return (
     <local.ui.BasicTool
       {...tool}
+      icon={local.logo}
       title={tanstackTitle(tool.tool, tool.status)}
       subtitle={running() ? undefined : local.summary}
       failed={local.failed}
@@ -109,7 +125,7 @@ function InspectionCard(
 }
 
 function summaryOnlyCard(summary: (props: ToolProps) => string): Card {
-  return (ui) => (props) => <InspectionCard {...props} ui={ui} summary={summary(props)} />
+  return (ui, logo) => (props) => <InspectionCard {...props} ui={ui} logo={logo} summary={summary(props)} />
 }
 
 const NavigateResultSchema = z.object({to: z.string()}).loose()
@@ -137,14 +153,14 @@ const LocationSchema = RouterCurrent.shape.location
 
 const RouterStateSchema = RouterCurrent.extend({location: LocationSchema, matches: z.array(MatchSchema)}).loose()
 
-const routerStateCard: Card = (ui) => (props) => {
+const routerStateCard: Card = (ui, logo) => (props) => {
   const state = () => readOutput(RouterStateSchema, props.output)
   const summary = () => {
     const value = state()
     return value ? `${value.location.pathname} · ${countLabel(value.matches.length, 'match', 'matches')}` : ''
   }
   return (
-    <InspectionCard {...props} ui={ui} summary={summary()} hasContent={state() !== null}>
+    <InspectionCard {...props} ui={ui} logo={logo} summary={summary()} hasContent={state() !== null}>
       <Show when={state()}>
         {(value) => (
           <CardRows>
@@ -212,14 +228,14 @@ function RouteBranch(props: {ui: InternalUi; node: RouteBranchNode; root: boolea
   )
 }
 
-const routeTreeCard: Card = (ui) => (props) => {
+const routeTreeCard: Card = (ui, logo) => (props) => {
   const tree = () => readOutput(RouteBranchSchema, props.output)
   const summary = () => {
     const root = tree()
     return root ? countLabel(countRoutes(root), 'route', 'routes') : ''
   }
   return (
-    <InspectionCard {...props} ui={ui} summary={summary()} hasContent={tree() !== null}>
+    <InspectionCard {...props} ui={ui} logo={logo} summary={summary()} hasContent={tree() !== null}>
       <Show when={tree()}>
         {(root) => (
           <CardRows>
@@ -276,7 +292,7 @@ function emptyLoaderSummary(payload: z.infer<typeof LoaderDataPayload> | null): 
   return payload?.data === null ? 'no loader data' : ''
 }
 
-const loaderDataCard: Card = (ui) => (props) => {
+const loaderDataCard: Card = (ui, logo) => (props) => {
   const payload = () => readOutput(LoaderDataPayload, props.output)
   const entries = () => {
     const value = payload()
@@ -288,7 +304,7 @@ const loaderDataCard: Card = (ui) => (props) => {
     return list ? loaderKeysSummary(list.length, payload()?.routeId) : emptyLoaderSummary(payload())
   }
   return (
-    <InspectionCard {...props} ui={ui} summary={summary()} hasContent={entries() !== null}>
+    <InspectionCard {...props} ui={ui} logo={logo} summary={summary()} hasContent={entries() !== null}>
       <Show when={entries()}>
         {(list) => (
           <CardRows>
@@ -352,7 +368,7 @@ function CacheEntryRow(props: {ui: InternalUi; entry: z.infer<typeof CacheEntryS
   )
 }
 
-const queryCacheCard: Card = (ui) => (props) => {
+const queryCacheCard: Card = (ui, logo) => (props) => {
   const cache = () => readOutput(QueryCacheSchema, props.output)
   const summary = () => {
     const value = cache()
@@ -362,7 +378,7 @@ const queryCacheCard: Card = (ui) => (props) => {
     return `${queries} · ${countLabel(value.mutations.length, 'mutation', 'mutations')}`
   }
   return (
-    <InspectionCard {...props} ui={ui} summary={summary()} hasContent={cache() !== null}>
+    <InspectionCard {...props} ui={ui} logo={logo} summary={summary()} hasContent={cache() !== null}>
       <Show when={cache()}>
         {(value) => (
           <CardRows>
@@ -389,7 +405,7 @@ const LOCATION_CLASS =
 
 const AppErrorsSchema = z.array(AppError.pick({message: true, source: true}).partial({source: true}).loose())
 
-const buildErrorsCard: Card = (ui) => (props) => {
+const buildErrorsCard: Card = (ui, logo) => (props) => {
   const errors = () =>
     readOutput(AppErrorsSchema, props.output)?.map((error) => ({
       message: error.message,
@@ -402,7 +418,14 @@ const buildErrorsCard: Card = (ui) => (props) => {
     return countLabel(list.length, 'error', 'errors')
   }
   return (
-    <InspectionCard {...props} ui={ui} summary={summary()} hasContent={true} failed={(errors()?.length ?? 0) > 0}>
+    <InspectionCard
+      {...props}
+      ui={ui}
+      logo={logo}
+      summary={summary()}
+      hasContent={true}
+      failed={(errors()?.length ?? 0) > 0}
+    >
       <Show when={errors()?.length} fallback={<CardNote>No build errors</CardNote>}>
         <div class="flex flex-col gap-1.5">
           <For each={errors()}>
@@ -421,14 +444,14 @@ const buildErrorsCard: Card = (ui) => (props) => {
 
 const RouteManifestSchema = z.array(RouteInfo.pick({path: true, kind: true, dynamic: true}).loose())
 
-const routeManifestCard: Card = (ui) => (props) => {
+const routeManifestCard: Card = (ui, logo) => (props) => {
   const routes = () => readOutput(RouteManifestSchema, props.output)
   const summary = () => {
     const list = routes()
     return list ? countLabel(list.length, 'route', 'routes') : ''
   }
   return (
-    <InspectionCard {...props} ui={ui} summary={summary()} hasContent={routes() !== null}>
+    <InspectionCard {...props} ui={ui} logo={logo} summary={summary()} hasContent={routes() !== null}>
       <Show when={routes()}>
         {(list) => (
           <CardRows>
@@ -457,7 +480,7 @@ const TracePayloadSchema = ServerFnTraces.extend({
   functions: z.array(ServerFnTraces.shape.functions.element.pick({id: true, file: true}).partial({file: true}).loose()),
 })
 
-const serverFnTraceCard: Card = (ui) => (props) => {
+const serverFnTraceCard: Card = (ui, logo) => (props) => {
   const traces = () => {
     const payload = readOutput(TracePayloadSchema, props.output)
     if (!payload) return null
@@ -476,7 +499,7 @@ const serverFnTraceCard: Card = (ui) => (props) => {
     return countLabel(list.length, 'call', 'calls')
   }
   return (
-    <InspectionCard {...props} ui={ui} summary={summary()} hasContent={true}>
+    <InspectionCard {...props} ui={ui} logo={logo} summary={summary()} hasContent={true}>
       <Show when={traces()?.length} fallback={<CardNote>No server-fn calls</CardNote>}>
         <CardRows>
           <For each={traces()}>
@@ -520,6 +543,7 @@ const tanstackCards = {
 } satisfies Record<TanstackToolName, Card>
 
 const tanstack: Plugin.Definition = defineInternalPlugin({
+  icons: {logo: tanstackLogo},
   setup(ctx) {
     const tree = ctx.use(ReactTree)
     const runtime = ManagedRuntime.make(errorRingLayer)
@@ -533,9 +557,11 @@ const tanstack: Plugin.Definition = defineInternalPlugin({
       }),
     )
 
-    ctx.add(Slot, {at: 'session.status', render: () => <InspectorChip ui={ctx.ui} />})
+    ctx.add(Slot, {at: 'session.status', render: () => <InspectorChip ui={ctx.ui} logo={ctx.icons.logo} />})
 
-    Object.entries(tanstackCards).forEach(([name, card]) => ctx.add(ToolRegistry, {name, render: card(ctx.ui)}))
+    Object.entries(tanstackCards).forEach(([name, card]) =>
+      ctx.add(ToolRegistry, {name, render: card(ctx.ui, ctx.icons.logo)}),
+    )
   },
 })
 

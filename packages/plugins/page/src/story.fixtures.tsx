@@ -1,6 +1,6 @@
 import type {JSX} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import type {ToolCaptureView} from '@conciv/protocol/element-capture-types'
+import type {ElementCapture, ToolCaptureView} from '@conciv/protocol/element-capture-types'
 import type {ToolProps} from '@conciv/plugin/experimental'
 import {ToolDisplay, Trace, type TraceItem} from '@conciv/ui-kit-chat/tools'
 import {pageToolCards} from './cards.js'
@@ -65,4 +65,60 @@ export function traceGallery(summary: string, items: TraceItem[]): JSX.Element {
       <Trace summary={summary} compactLine={summary} items={items} defaultOpen />
     </div>
   )
+}
+
+export const ELEMENT_CAPTURE_FIXTURE_CSS =
+  'html { padding: 0px; margin: 0px; }body { padding: 0px; margin: 0px; min-height: 100vh; }\n.capture-form { font-family: sans-serif; padding: 12px; background: rgb(245, 245, 247); }.capture-form .cta { background: rgb(37, 99, 235); color: white; border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; border-radius: 6px; padding: 8px 16px; font-weight: 600; }.capture-form input { border: 1px solid rgb(209, 213, 219); border-radius: 4px; padding: 6px 10px; }'
+
+export const ELEMENT_CAPTURE_FIXTURE_FULL: ElementCapture = {
+  kind: 'after',
+  ts: 1786232403193,
+  descriptor: {
+    tagName: 'input',
+    role: 'textbox',
+    accessibleName: 'Email',
+    value: 'ada@example.com',
+    rect: {x: 175.875, y: 13, width: 167, height: 29},
+    selectorPath: 'input#email',
+  },
+  node: {
+    type: 2,
+    tagName: 'html',
+    attributes: {lang: 'en'},
+    childNodes: [
+      {
+        type: 2,
+        tagName: 'body',
+        attributes: {},
+        childNodes: [
+          {
+            type: 2,
+            tagName: 'div',
+            attributes: {class: 'capture-form'},
+            childNodes: [
+              {
+                type: 2,
+                tagName: 'section',
+                attributes: {id: 'panel'},
+                childNodes: [
+                  {
+                    type: 2,
+                    tagName: 'input',
+                    attributes: {id: 'email', type: 'text', value: 'ada@example.com', 'data-rr-target': 'true'},
+                    childNodes: [],
+                    id: 1,
+                  },
+                ],
+                id: 2,
+              },
+            ],
+            id: 3,
+          },
+        ],
+        id: 4,
+      },
+    ],
+    id: 5,
+  },
+  cssBundleId: 'css18rhxa7dr',
 }

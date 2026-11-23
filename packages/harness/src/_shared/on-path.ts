@@ -1,5 +1,5 @@
 import {accessSync, constants} from 'node:fs'
-import {delimiter, join} from 'node:path'
+import {delimiter, join, resolve} from 'node:path'
 
 function executable(file: string): boolean {
   try {
@@ -11,6 +11,6 @@ function executable(file: string): boolean {
 }
 
 export function onPath(path: string, bin: string, cwd: string): boolean {
-  const directories = path.split(delimiter).map((entry) => (entry.length > 0 ? entry : cwd))
+  const directories = path.split(delimiter).map((entry) => resolve(cwd, entry))
   return directories.some((directory) => executable(join(directory, bin)))
 }

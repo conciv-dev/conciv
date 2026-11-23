@@ -37,7 +37,7 @@ import {
 } from 'effect'
 import {Socket} from 'effect/socket'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
+import {CONCIV_AUTH_TOKEN_QUERY_PARAM, RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {contract, SOCKET_TRUST_FRAME, type ExchangeResult} from './contract.js'
 import {
   createConnectionState,
@@ -135,9 +135,10 @@ function forgetToken(key: string, token: string): Effect.Effect<void> {
   )
 }
 
-function rpcSocketUrl(key: string): string {
+function rpcSocketUrl(key: string, token: string | undefined): string {
   const url = new URL(`${key}${RPC_WS_PATH}`)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  if (token !== undefined && token !== '') url.searchParams.set(CONCIV_AUTH_TOKEN_QUERY_PARAM, token)
   return url.toString()
 }
 
@@ -182,9 +183,18 @@ function untilAborted(signal: AbortSignal | undefined): Effect.Effect<void> {
   })
 }
 
+function sourcedToken(source: EngineTokenSource): Effect.Effect<string | undefined> {
+  return Effect.tryPromise({try: source, catch: (error) => error}).pipe(
+    Effect.catch((error) =>
+      Effect.logError('[conciv] the host could not provide an engine token', error).pipe(Effect.as(undefined)),
+    ),
+  )
+}
+
 export const makeEngineConnection = Effect.fn('EngineConnection.make')(function* (
   key: string,
   timings: EngineConnectionTimings = defaultEngineConnectionTimings,
+  engineToken?: string,
 ) {
   const services = yield* Effect.context<never>()
   const run = Effect.runPromiseWith(services)
@@ -193,9 +203,18 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
   const lifetime = yield* Effect.scope
   const makeWebSocket = yield* Socket.WebSocketConstructor
   const live = yield* Ref.make(Option.none<Socket.WebSocketLike>())
+  const tokenSource = yield* Ref.make<EngineTokenSource | undefined>(undefined)
+  const connectToken = Effect.gen(function* () {
+    if (engineToken !== undefined) return engineToken
+    const source = yield* Ref.get(tokenSource)
+    return source === undefined ? undefined : yield* sourcedToken(source)
+  })
   const socket = yield* Socket.fromWebSocket(
     Effect.acquireRelease(
-      Effect.sync(() => makeWebSocket(rpcSocketUrl(key))).pipe(Effect.tap((ws) => Ref.set(live, Option.some(ws)))),
+      connectToken.pipe(
+        Effect.map((token) => makeWebSocket(rpcSocketUrl(key, token))),
+        Effect.tap((ws) => Ref.set(live, Option.some(ws))),
+      ),
       (ws) => Effect.sync(() => ws.close(NORMAL_CLOSE_CODE)),
     ),
     {openTimeout: Duration.millis(timings.openTimeoutMs)},
@@ -207,7 +226,6 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
   const retryTimer = yield* FiberHandle.make<void, never>()
   const uptimeTimer = yield* FiberHandle.make<void, never>()
   const asking = yield* Ref.make(Option.none<Deferred.Deferred<boolean, unknown>>())
-  const tokenSource = yield* Ref.make<EngineTokenSource | undefined>(undefined)
   const transitions = yield* Semaphore.make(1)
 
   const current = (): ConnectionState => SubscriptionRef.getUnsafe(state)
@@ -448,13 +466,6 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
 
   const askWithToken = (token: string): Effect.Effect<boolean, unknown> =>
     trustAnswer(token).pipe(Effect.flatMap((trusted) => settle(token, trusted)))
-
-  const sourcedToken = (source: EngineTokenSource): Effect.Effect<string | undefined> =>
-    Effect.tryPromise({try: source, catch: (error) => error}).pipe(
-      Effect.catch((error) =>
-        Effect.logError('[conciv] the host could not provide an engine token', error).pipe(Effect.as(undefined)),
-      ),
-    )
 
   const askHeldThenSource = (held: string, source: EngineTokenSource, storedOnly: boolean) =>
     Effect.gen(function* () {

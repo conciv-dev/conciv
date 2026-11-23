@@ -1,8 +1,9 @@
 import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
-import {PAGE_SESSION_GROUP_KEY, type AttachmentCardSlot, type GroupEntry} from '@conciv/ui-kit-chat'
+import type {AttachmentCardSlot, GroupEntry} from '@conciv/ui-kit-chat'
 import {GRAB_MIME} from '@conciv/grab/grab-attachment'
 import {GrabCard} from './grab-card.js'
 import {PageSessionCard} from './session-card.js'
+import {PAGE_SESSION_GROUP_KEY} from './page-session.js'
 import {PAGE_TOOL_PREFIX, pageOperation, pageVerbOfTool} from './rpc.js'
 import {Show, type JSX, For, Match, Switch} from 'solid-js'
 import {DANGER_TEXT_CLASS, JsonTree, SUNKEN_SURFACE, ResultImage, CodeBlock, Chip} from '@conciv/ui-kit-chat/tools'
@@ -29,47 +30,6 @@ import {html} from 'js-beautify'
 function pageNames(verbs: string[]): string[] {
   return verbs.map((verb) => `${PAGE_TOOL_PREFIX}${verb}`)
 }
-
-export const pageToolCards: ReadonlyArray<{card: ToolComponent; tools: string[]}> = [
-  {card: ReadValueCard, tools: pageNames(['route', 'exists', 'screenshot', 'hmr', 'text', 'value', 'attr'])},
-  {card: ConsoleCard, tools: pageNames(['console'])},
-  {card: ReadBulkCard, tools: pageNames(['dom', 'query', 'snapshot'])},
-  {card: ReactCard, tools: pageNames(['locate', 'inspect', 'override', 'tree', 'find', 'track'])},
-  {card: EffectCard, tools: pageNames(['effect'])},
-  {
-    card: ActCard,
-    tools: pageNames([
-      'wait',
-      'reload',
-      'click',
-      'hover',
-      'scroll',
-      'submit',
-      'fill',
-      'select',
-      'check',
-      'uncheck',
-      'press',
-      'queue',
-    ]),
-  },
-  {
-    card: EditLiveCard,
-    tools: pageNames([
-      'setattr',
-      'removeattr',
-      'addclass',
-      'removeclass',
-      'setstyle',
-      'settext',
-      'sethtml',
-      'remove',
-      'insert',
-      'css',
-      'eval',
-    ]),
-  },
-]
 
 export const pageSessionEntry: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render: PageSessionCard}
 
@@ -529,3 +489,44 @@ export function formatHtml(src: string): string {
     return src
   }
 }
+
+export const pageToolCards: ReadonlyArray<{card: ToolComponent; tools: string[]}> = [
+  {card: ReadValueCard, tools: pageNames(['route', 'exists', 'screenshot', 'hmr', 'text', 'value', 'attr'])},
+  {card: ConsoleCard, tools: pageNames(['console'])},
+  {card: ReadBulkCard, tools: pageNames(['dom', 'query', 'snapshot'])},
+  {card: ReactCard, tools: pageNames(['locate', 'inspect', 'override', 'tree', 'find', 'track'])},
+  {card: EffectCard, tools: pageNames(['effect'])},
+  {
+    card: ActCard,
+    tools: pageNames([
+      'wait',
+      'reload',
+      'click',
+      'hover',
+      'scroll',
+      'submit',
+      'fill',
+      'select',
+      'check',
+      'uncheck',
+      'press',
+      'queue',
+    ]),
+  },
+  {
+    card: EditLiveCard,
+    tools: pageNames([
+      'setattr',
+      'removeattr',
+      'addclass',
+      'removeclass',
+      'setstyle',
+      'settext',
+      'sethtml',
+      'remove',
+      'insert',
+      'css',
+      'eval',
+    ]),
+  },
+]

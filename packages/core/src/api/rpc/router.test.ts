@@ -173,8 +173,14 @@ describe.concurrent('outside agent CLIs', () => {
 describe.concurrent('terminal access', () => {
   test('a terminal opened from one origin answers that origin and is unknown to another', async ({expect}) => {
     const engine = await createEngine()
-    const opener = makeRpcClient(engine.address.apiBase, {headers: {origin: 'http://localhost:5173'}})
-    const stranger = makeRpcClient(engine.address.apiBase, {headers: {origin: 'http://127.0.0.1:5174'}})
+    const opener = makeRpcClient(engine.address.apiBase, {
+      token: engine.address.token,
+      headers: {origin: 'http://localhost:5173'},
+    })
+    const stranger = makeRpcClient(engine.address.apiBase, {
+      token: engine.address.token,
+      headers: {origin: 'http://127.0.0.1:5174'},
+    })
 
     const pty = await opener.experimental.persistentPty.create({sessionId: engine.session.id})
 

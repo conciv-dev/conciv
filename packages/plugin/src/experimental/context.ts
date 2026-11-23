@@ -4,9 +4,11 @@ import type {
   App,
   Cleanup,
   Contract,
+  DeclaredIcons,
   DeclaredStores,
   Live,
   Persisted,
+  PluginIconName,
   StoreDeclaration,
   StoreType,
   Token,
@@ -255,6 +257,17 @@ export interface SetupContext<D> extends Context {
    * ```
    */
   readonly stores: {readonly [K in keyof DeclaredStores<D>]: Handle<DeclaredStores<D>[K]>}
+  /**
+   * The name of each declared icon, by its name in `icons`, for every SDK icon field and for `ctx.ui.Icon`. A name the
+   * definition does not declare fails to compile. See `PluginIconName`.
+   *
+   * @example
+   * ```tsx
+   * ctx.add(TitlebarItem, () => ({ id: "sync", label: ctx.t("sync"), icon: ctx.icons.logo, run: sync }))
+   * const mark = <ctx.ui.Icon name={ctx.icons.logo} size="small" />
+   * ```
+   */
+  readonly icons: {readonly [K in keyof DeclaredIcons<D>]: PluginIconName}
   /**
    * The app's own components, as `Context.ui`, typed from the definition's setup: what that setup receives as
    * `ctx.ui` is what `usePlugin<typeof definition>().ui` sees.

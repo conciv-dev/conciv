@@ -31,8 +31,10 @@ function follow<A>(
   }, SubscriptionRef.getUnsafe(ref))
 }
 
-function entry(state: TryItConnectMachine.ConnectState, cover: ServerEntry['cover']): ServerEntry {
-  if (state.status === 'connected') return {id: 'core', name: 'conciv', state: 'ready', http: {url: state.base}, cover}
+function entry(state: TryItConnectMachine.ConnectState, token: string, cover: ServerEntry['cover']): ServerEntry {
+  if (state.status === 'connected') {
+    return {id: 'core', name: 'conciv', state: 'ready', http: {url: state.base, password: token}, cover}
+  }
   return {id: 'core', name: 'conciv', state: 'starting', cover}
 }
 
@@ -60,7 +62,7 @@ const tryIt: Plugin.Definition = defineInternalPlugin({
     ctx.add(Server, () => ({
       ready: !TryItConnectMachine.awaitingFirstSweep(state()),
       order: 0,
-      entries: [entry(state(), cover)],
+      entries: [entry(state(), options.token, cover)],
     }))
   },
 })

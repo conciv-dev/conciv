@@ -20,7 +20,14 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {createStore} from 'solid-js/store'
-import {LifetimeContext, liveAccessor, PluginContext, type Entry} from '@conciv/plugin/experimental/host'
+import {
+  LifetimeContext,
+  liveAccessor,
+  PluginContext,
+  pluginIconName,
+  type Entry,
+} from '@conciv/plugin/experimental/host'
+import {registerIcons} from '@conciv/ui-kit-chat'
 import {useDialog} from './dialog-stack'
 import {
   LinkHandler,
@@ -578,6 +585,16 @@ function createHost(input: HostInput) {
 
     const stores: Stores = {}
 
+    const declared = Object.entries(definition.icons ?? {}).map(([name, source]) => ({
+      name,
+      id: pluginIconName(plugin, name),
+      source,
+    }))
+
+    const icons = Object.fromEntries(declared.map((icon) => [icon.name, icon.id]))
+
+    own(registerIcons(Object.fromEntries(declared.map((icon) => [icon.id, icon.source]))))
+
     const experimental = input.plugin?.(plugin)
 
     const context = {
@@ -630,6 +647,7 @@ function createHost(input: HostInput) {
       },
       use: liveOf,
       stores,
+      icons,
     }
 
     const created = new Map<string, HostApis[keyof HostApis]>()

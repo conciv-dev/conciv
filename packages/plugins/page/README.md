@@ -4,16 +4,16 @@
 
 conciv's built-in page plugin, both halves in one package (as opencode's `plugin-browser` and `gui-plugins/browser`):
 the engine part (`.`: the plugin `conciv.page`, its connection, tools, skill and queue), the RPC contract (`./rpc`),
-the browser part the widget runs eagerly (`./client`: the DOM helpers, the cards and the page tool names), the window
+the browser part the widget runs eagerly (`./client`: what the widget calls directly), the window
 setup loaded lazily by the built-ins (`./renderer`).
 
 The engine part, the plugin `conciv.page` (`.`), registers the RPC `experimental.page` (`./rpc`) and answers it: each
 tab's attachment and the commands it runs, page operations, live changes, captures, action queues and `symbolicate`.
 Core passes it to the plugin host as a post built-in and asks it over that RPC.
 
-The DOM helpers (`./client`), inlined into the widget by `@conciv/embed`: plain functions the page plugin and the
-widget call: the React bridge, accessibility snapshots and element refs, element captures with their CSS, dehydrate,
-the element picker and a toast. They hold no connection to the engine themselves.
+The widget's entry (`./client`), inlined into the widget by `@conciv/embed`: the React bridge install, the element
+picker, the grab preview fit, a toast, the attachment and session cards and the page tool names. They hold no
+connection to the engine themselves.
 
 A built-in: it draws with the UI kits directly, like opencode's gui plugins, and is one of the two plugin packages
 `conciv-publish check-plugin-ui-kit` lets import `@conciv/ui-kit*`. The app composes its `./renderer` in
@@ -83,8 +83,7 @@ The terminal runs the page tools as `conciv tools page <verb>`, as main: core's 
 tool for the session `--tab` or `CONCIV_SESSION_ID` names; `eval` from there asks as the cli README's 'Who is asked'
 says. Inside a chat turn the `eval` tool asks the user first.
 
-The engine's session delete calls `queue.cancelSession {sessionId}` before it tombstones the row, and the page plugin
-also runs it when it hears `session.deleted`: it drops that session's queue records (`queue.ts` `cancelSession`), as
+When the page plugin hears `session.deleted` it drops that session's queue records (`queue.ts` `cancelSession`), as
 the source's `jobs.cancelSession` does on delete: a result that lands later is never announced or owed, and
 `queue.wait` on it answers `no queue <id> on this tab`.
 `conciv plugin call experimental.page queue.wait` from a terminal is a peek: a caller who leaves (Ctrl-C) as the queue

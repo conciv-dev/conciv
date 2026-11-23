@@ -167,11 +167,9 @@ export type GroupRenderProps = {
 export type GroupEntry = {key: GroupKey; render: (props: GroupRenderProps) => JSX.Element}
 
 export const CHAIN_GROUP_KEY: GroupKey = 'group-chain'
-export const PAGE_SESSION_GROUP_KEY: GroupKey = 'group-page-session'
 
 export const ROOT_PATH: GroupPath = []
 export const CHAIN_PATH: GroupPath = [CHAIN_GROUP_KEY]
-export const PAGE_SESSION_PATH: GroupPath = [PAGE_SESSION_GROUP_KEY]
 
 type GroupPartType = ChatPart['type'] | 'standalone-tool-call'
 
@@ -216,6 +214,10 @@ export const defaultGrouper: Grouper = groupPartByType({
   'tool-call': CHAIN_PATH,
   'standalone-tool-call': ROOT_PATH,
 })
+
+export function defaultGrouping(toolEntries: ReadonlyArray<ToolCardEntry>): Grouping {
+  return {grouper: defaultGrouper, context: {toolEntries}}
+}
 
 type BuildFrame = {
   key: GroupKey

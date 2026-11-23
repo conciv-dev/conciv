@@ -6,15 +6,9 @@ import {
   useMatchRoute,
   useRouter,
 } from '@tanstack/solid-router'
-import {For, Show, createMemo, type Component, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
+import {For, Show, createMemo, type JSX} from 'solid-js'
 import {Switch, TabsPrimitive as Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
-import SlidersHorizontal from 'lucide-solid/icons/sliders-horizontal'
-import Keyboard from 'lucide-solid/icons/keyboard'
-import Shield from 'lucide-solid/icons/shield'
 import ChevronLeft from 'lucide-solid/icons/chevron-left'
-import Puzzle from 'lucide-solid/icons/puzzle'
-import Box from 'lucide-solid/icons/box'
 import {MICRO, SettingsHeader} from '../settings/settings-ui.js'
 import type {SettingsTabId} from '../settings/last-tab.js'
 import type {SettingsScope} from '@conciv/contract'
@@ -23,7 +17,8 @@ import {useAppData, useAppQueryClient} from '../app/context.js'
 import {usePluginListChange} from '../runtime/plugin/root.js'
 import {createSettingsPages} from '../runtime/plugin/settings-pages.js'
 import {panelKey} from '../runtime/plugin/panel-keys.js'
-import {icons} from '../runtime/plugin/icons.js'
+import type {IconName} from '@conciv/plugin/experimental'
+import {Icon} from '@conciv/ui-kit-chat'
 
 const PAGE = 'flex flex-1 flex-col min-h-0'
 const BACK = 'size-8 shrink-0'
@@ -46,7 +41,7 @@ const ROUTE = `${MICRO} min-w-0 ps-3 truncate`
 
 type TabFace = {
   label: string
-  icon: Component<{class?: string}>
+  icon: IconName
 }
 
 type BuiltinTab = TabFace & {id: SettingsTabId}
@@ -54,11 +49,11 @@ type BuiltinTab = TabFace & {id: SettingsTabId}
 type SettingsTab = TabFace & {id: string; selected: () => unknown; open: () => void}
 
 const MAIN_TABS: BuiltinTab[] = [
-  {id: 'general', label: 'General', icon: SlidersHorizontal},
-  {id: 'shortcuts', label: 'Shortcuts', icon: Keyboard},
-  {id: 'plugins', label: 'Plugins', icon: Box},
+  {id: 'general', label: 'General', icon: 'sliders-horizontal'},
+  {id: 'shortcuts', label: 'Shortcuts', icon: 'keyboard'},
+  {id: 'plugins', label: 'Plugins', icon: 'box'},
 ]
-const ADVANCED_TAB: BuiltinTab = {id: 'advanced', label: 'Advanced', icon: Shield}
+const ADVANCED_TAB: BuiltinTab = {id: 'advanced', label: 'Advanced', icon: 'shield'}
 
 export const Route = createFileRoute('/panel/$sessionId_/settings')({
   validateSearch: settingsSearchSchema,
@@ -69,7 +64,7 @@ export const Route = createFileRoute('/panel/$sessionId_/settings')({
 function TabTrigger(props: {tab: SettingsTab}): JSX.Element {
   return (
     <Tabs.Trigger class={TAB} value={props.tab.id}>
-      <Dynamic component={props.tab.icon} class={TAB_ICON} aria-hidden="true" />
+      <Icon name={props.tab.icon} class={TAB_ICON} />
       {props.tab.label}
     </Tabs.Trigger>
   )
@@ -98,7 +93,7 @@ function SettingsLayout(): JSX.Element {
       return {
         id: `plugins/${page}`,
         label: item.value.title,
-        icon: item.value.icon ? icons[item.value.icon] : Puzzle,
+        icon: item.value.icon ?? 'puzzle',
         selected: matchRoute({
           to: '/panel/$sessionId/settings/plugins/$page',
           params: {page},

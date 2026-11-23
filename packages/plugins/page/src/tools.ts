@@ -10,7 +10,7 @@ import {toolFailure, type Connection} from './connection.js'
 import {PageFiles} from './files.js'
 import {CliTools, Operations, PAGE_NAMESPACE, type Action, type File, type Operation, type Result} from './rpc.js'
 import {PageSkill} from './skill.js'
-import {symbolicateFrames} from './symbolicate.js'
+import type {Symbolicator} from './symbolicate.js'
 
 const PINNED: readonly string[] = [
   'click',
@@ -45,6 +45,7 @@ function asToolError(message: string) {
 export const register = Effect.fn('PageTools.register')(function* (
   ctx: Pick<Context, 'tool' | 'skill' | 'location' | 'permission'>,
   connection: Connection,
+  symbolicator: Symbolicator,
 ) {
   const root = ctx.location.directory
   const execute = Effect.fn('PageTools.execute')(function* (operation: Operation, action: Action, tool: Tool.Context) {
@@ -85,7 +86,7 @@ export const register = Effect.fn('PageTools.register')(function* (
         `Journaling page.${operation.name} failed`,
       )
     }
-    if (action.type === 'locate') return yield* exportResult(yield* located(output, root), response.files, root)
+    if (action.type === 'locate') return yield* exportResult(yield* located(output, symbolicator), response.files, root)
     return yield* exportResult(output, response.files, root)
   })
   const asked = Effect.fn('PageTools.asked')(function* (operation: Operation, input: unknown, tool: Tool.Context) {
@@ -178,7 +179,7 @@ function fileInfo(file: File) {
   return {id: file.id, name: file.name, mime: file.mime, bytes: file.data.byteLength, path: ''}
 }
 
-function located(output: unknown, root: string): Effect.Effect<unknown> {
+function located(output: unknown, symbolicator: Symbolicator): Effect.Effect<unknown> {
   const parsed = Located.safeParse(output)
   if (!parsed.success || parsed.data.source) return Effect.succeed(output)
   const frames = (parsed.data.frames ?? []).flatMap((frame) => {
@@ -186,7 +187,7 @@ function located(output: unknown, root: string): Effect.Effect<unknown> {
     return decoded.success ? [decoded.data] : []
   })
   if (frames.length === 0) return Effect.succeed(output)
-  return symbolicateFrames(frames, root).pipe(Effect.map((source) => ({...parsed.data, source})))
+  return symbolicator.frames(frames).pipe(Effect.map((source) => ({...parsed.data, source})))
 }
 
 function exportResult(output: unknown, captured: readonly File[], root: string) {
