@@ -6,8 +6,8 @@ Source root of `@conciv/ui-kit-chat`. `index.tsx` is the main entry (store, prim
 
 ## Interface
 
-- `index.tsx` - re-exports `ChatProvider`, `useChatContext`, `useThread`, `useComposer`, grouping helpers, every primitive (renamed `*Primitive` where a styled twin exists, for example `ThreadPrimitive`, `ComposerPrimitive`), draft behaviors, and styled `Thread`, `Composer`, `Markdown`, `Group`, `HarnessModelSelector`, `Activity`, `NowLine`, `MorphLabel`, `VirtualLines`.
-- `tools.tsx` - re-exports `toolStatus`, `defineToolkit`, `ToolCard`, `CardShell`, `ToolFallback`, `MetaToolCard`, `ToolCallCard`, `Permission`, `PermissionCard`, `Trace*` components, `Chip`, `CodeBlock` and tool utilities. `CollapsibleCard` is not exported.
+- `index.tsx` - re-exports `ChatProvider`, `useChatContext`, `useThread`, `useComposer`, grouping and page-session helpers, every primitive (renamed `*Primitive` where a styled twin exists, for example `ThreadPrimitive`, `ComposerPrimitive`), draft behaviors, and styled `Thread`, `Composer`, `Markdown`, `Group`, `HarnessModelSelector`, `Activity`, `NowLine`, `MorphLabel`, `VirtualLines`.
+- `tools.tsx` - re-exports `toolStatus`, `defineToolkit`, `ToolCard`, `CardShell`, `ToolFallback`, `MetaToolCard`, `ToolCallCard`, `Permission`, `PermissionCard`, `Trace*` components, `Chip`, `CodeBlock`, `ElementPreview`, tool utilities and the `ELEMENT_CAPTURE_FIXTURE_*` samples. `CollapsibleCard` is not exported.
 - Subdirectories: [store](./store/README.md), [behaviors](./behaviors/README.md), [primitives](./primitives/README.md), [styled](./styled/README.md), [tools](./tools/README.md), [theme](./theme/README.md).
 
 ## Invariants
