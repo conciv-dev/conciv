@@ -1,4 +1,4 @@
-import {dirname, isAbsolute, join, resolve} from 'node:path'
+import {dirname, isAbsolute, join, posix, resolve, sep} from 'node:path'
 import {readFileSync, existsSync} from 'node:fs'
 import type {Plugin, ViteDevServer} from 'vite'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -68,7 +68,7 @@ const GLOB_SPECIAL = /[\\()[\]{}*?!]/g
 const DEFAULT_SCAN_ENTRIES = ['**/*.html', '!**/__tests__/**', '!**/coverage/**']
 
 function escapeGlob(file: string): string {
-  return file.replaceAll(GLOB_SPECIAL, '\\$&')
+  return file.split(sep).join(posix.sep).replaceAll(GLOB_SPECIAL, '\\$&')
 }
 
 function readInputFiles(input: unknown, root: string): string[] | undefined {
