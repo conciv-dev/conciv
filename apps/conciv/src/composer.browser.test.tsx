@@ -658,7 +658,7 @@ describe('an attachment that cannot be sent', () => {
 })
 
 describe('notes from a plugin', () => {
-  test('a pill attaches a note drawn by its plugin card and hands the composer focus, Remove takes it off, and a sent note reaches the agent and stays on the message', async () => {
+  test('a pill attaches a note drawn as the host chip, since only a built-in plugin draws note cards, and hands the composer focus, Remove takes it off, and a sent note reaches the agent and stays on the message', async () => {
     const user = userEvent.setup({delay: null})
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
     await engine.reply(TestLLM.text('Header is sticky now'))
@@ -669,13 +669,13 @@ describe('notes from a plugin', () => {
     await user.click(await screen.findByRole('button', {name: 'Review'}))
     await expect.element(input).toHaveFocus()
     const notes = await screen.findByRole('list', {name: 'Notes'})
-    expect(within(notes).getByText('Review card')).toBeVisible()
+    expect(within(notes).getByText('Make the header sticky')).toBeVisible()
     await user.click(within(notes).getByRole('button', {name: 'Remove Make the header sticky'}))
     await expect.element(page.getByRole('list', {name: 'Notes', exact: true})).not.toBeInTheDocument()
     await expect.element(input).toHaveFocus()
 
     await user.click(screen.getByRole('button', {name: 'Review'}))
-    expect(within(await screen.findByRole('list', {name: 'Notes'})).getByText('Review card')).toBeVisible()
+    expect(within(await screen.findByRole('list', {name: 'Notes'})).getByText('Make the header sticky')).toBeVisible()
     await user.type(input, 'Polish the page')
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
@@ -685,7 +685,7 @@ describe('notes from a plugin', () => {
     const reply = await screen.findByRole('article', {name: 'Reply to: Polish the page'})
     expect(await within(reply).findByText('Header is sticky now')).toBeVisible()
     const sent = screen.getByRole('list', {name: 'Notes on this message'})
-    expect(within(sent).getByText('Review card')).toBeVisible()
+    expect(within(sent).getByText('Make the header sticky')).toBeVisible()
     expect(screen.queryByRole('list', {name: 'Notes'})).not.toBeInTheDocument()
     const requests = await engine.requests()
     expect(requests[0]?.messages.at(-1)).toMatchObject({

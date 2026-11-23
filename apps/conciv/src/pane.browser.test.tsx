@@ -903,6 +903,8 @@ describe('an outside agent calls a tool', () => {
 
     expect(windowReply).toMatchObject({content: [{type: 'text', text: expect.stringContaining('noon to two')}]})
     expect(await screen.findByRole('button', {name: /Called release_window/})).toBeVisible()
+    const windowCall = screen.getByRole('button', {name: /external_release_window/})
+    expect(await within(windowCall).findByText('ok')).toBeVisible()
     expect(screen.getAllByText('ok')).toHaveLength(2)
     expect(screen.getAllByText('from conciv-test')).toHaveLength(4)
     expect(screen.queryByRole('article', {name: /^You:/})).not.toBeInTheDocument()

@@ -78,6 +78,7 @@
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
+    "@internal/plugin": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@testing-library/user-event": "catalog:",

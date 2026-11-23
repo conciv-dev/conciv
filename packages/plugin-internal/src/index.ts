@@ -1,6 +1,6 @@
 import type {JSX} from 'solid-js'
 import {createOpaqueType, type OpaqueType} from '@internal/opaque'
-import type {IconName, ToolProps, Ui} from '@conciv/plugin/experimental'
+import type {IconName, NoteCard, NoteCardProps, Registry, ToolProps, Ui} from '@conciv/plugin/experimental'
 
 export interface InternalBasicToolProps extends ToolProps {
   readonly icon?: IconName
@@ -85,5 +85,20 @@ export type InternalUi = OpaqueUiShape['public'] & OpaqueUiShape['versions']
 
 export const OpaqueUi: OpaqueType<OpaqueUiShape> = createOpaqueType<OpaqueUiShape>({
   type: '@conciv/Ui',
+  versions: ['v1'],
+})
+
+export interface InternalNoteCard {
+  readonly origins: readonly string[]
+  render(props: NoteCardProps): JSX.Element | undefined
+}
+
+type OpaqueNoteCardShape = {
+  public: NoteCard
+  versions: Registry<InternalNoteCard> & {readonly version: 'v1'}
+}
+
+export const OpaqueNoteCard: OpaqueType<OpaqueNoteCardShape> = createOpaqueType<OpaqueNoteCardShape>({
+  type: '@conciv/NoteCard',
   versions: ['v1'],
 })

@@ -200,7 +200,8 @@ describe('the agent leaves the page alone for a while', () => {
 
     await expect.element(mask).not.toBeInTheDocument()
     await answer.release()
-    expect(await screen.findByText('The fern is in the cart')).toBeVisible()
+    const reply = await screen.findByRole('article', {name: /^Reply to:/})
+    expect(await within(reply).findByText('The fern is in the cart')).toBeVisible()
   })
 })
 
@@ -487,7 +488,7 @@ describe('the page follows the session the user switches to', () => {
 })
 
 describe('the user grabs an element for the agent', () => {
-  test('the picked element is staged in the composer, which takes focus, and is sent with the message to the agent, and one sent alone reads as an attachment', async () => {
+  test('the picked element is a note drawn with its picture in the composer, which takes focus, the agent gets its sentence and its picture with the message, and one sent alone reads as a note', async () => {
     await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine()
@@ -505,24 +506,38 @@ describe('the user grabs an element for the agent', () => {
     await user.click(await screen.findByRole('menuitem', {name: 'Select an element from the page'}))
     // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
     await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
-    expect(await screen.findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
+    const notes = await screen.findByRole('list', {name: 'Notes'})
+    expect(await within(notes).findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
     await expect.element(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
     await user.keyboard('What does this do?')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
 
     expect(await screen.findByText('That button buys the fern')).toBeVisible()
-    expect(screen.getByRole('button', {name: 'Open grabbed element'})).toBeVisible()
+    const sent = screen.getByRole('list', {name: 'Notes on this message'})
+    expect(await within(sent).findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
     const [request] = await engine.requests()
-    expect(JSON.stringify(request?.messages)).toContain('Buy the fern')
+    expect(request?.messages.at(-1)).toMatchObject({
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          content: expect.stringMatching(
+            /^What does this do\?\n+The user referenced the grabbed element \[<button id="buy" type="button">Buy the fern<\/button>/,
+          ),
+        },
+        {type: 'image', source: {type: 'data', mimeType: 'image/webp'}},
+      ],
+    })
 
     await user.click(screen.getByRole('button', {name: 'More composer actions'}))
     await user.click(await screen.findByRole('menuitem', {name: 'Select an element from the page'}))
     // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
     await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
-    await expect.element(page.getByRole('button', {name: 'Open grabbed element'}).nth(1)).toBeVisible()
+    const staged = await screen.findByRole('list', {name: 'Notes'})
+    expect(await within(staged).findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByText('That is the same button')).toBeVisible()
-    expect(screen.getByRole('article', {name: 'You: 1 attachment'})).toBeVisible()
+    expect(screen.getByRole('article', {name: 'You: 1 note'})).toBeVisible()
   })
 })
 

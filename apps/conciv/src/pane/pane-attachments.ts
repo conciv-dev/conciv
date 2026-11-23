@@ -3,15 +3,11 @@ import type {ContentPart, NoteComment} from '@conciv/protocol/chat-message-types
 import type {DraftItem} from '@conciv/protocol/chat-types'
 import {
   composeAttachmentAdapters,
-  createDocumentAttachmentAdapter,
   createSimpleImageAttachmentAdapter,
   createTextAttachmentAdapter,
   partIsModelOnly,
   type AttachmentAdapter,
-  type AttachmentCardSlot,
 } from '@conciv/ui-kit-chat'
-import {pageAttachmentCards} from '@conciv/plugin-page/client'
-import {guardPluginAttachmentCard} from '../runtime/plugin/plugin-boundary.js'
 import {commentContextItem, formatNoteComment, readPromptPresentation} from '../composer/comment-note.js'
 import {noteItem} from '../composer/note-schema.js'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
@@ -36,22 +32,9 @@ function keptInDraftStore(drafts: DraftStore | null): AttachmentAdapter {
   }
 }
 
-function attachmentCards(fallback: 'card' | 'chip'): AttachmentCardSlot[] {
-  return pageAttachmentCards.map((card) => guardPluginAttachmentCard('conciv.page', fallback, card))
-}
-
-export function paneAttachments(
-  imageInput: unknown,
-  drafts: DraftStore | null,
-): {cards: AttachmentCardSlot[]; chips: AttachmentCardSlot[]; adapter: AttachmentAdapter} {
-  const cards = attachmentCards('card')
+export function paneAttachments(imageInput: unknown, drafts: DraftStore | null): AttachmentAdapter {
   const image = imageInput === 'native' || imageInput === 'fileRef' ? keptInDraftStore(drafts) : undefined
-  const adapter = composeAttachmentAdapters([
-    ...(image ? [image] : []),
-    TEXT_ATTACHMENT_ADAPTER,
-    ...cards.map((entry) => createDocumentAttachmentAdapter(entry.mime)),
-  ])
-  return {cards, chips: attachmentCards('chip'), adapter}
+  return composeAttachmentAdapters([...(image ? [image] : []), TEXT_ATTACHMENT_ADAPTER])
 }
 
 export type ReturnedDraft = {text: string; files: File[]; items: DraftItem[]}

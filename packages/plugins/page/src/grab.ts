@@ -1,7 +1,7 @@
 import {createEffect, createResource, createRoot, type Accessor, createSignal} from 'solid-js'
-import {type Grab, type GrabApi, type ElementSource, type GrabFrame, composeGrabText} from '@conciv/grab'
+import {type Grab, type GrabActions, type ElementSource, type GrabFrame, composeGrabText} from '@conciv/grab'
 import type {SourceInfo} from 'react-grab'
-import {captureElement} from './grab-preview.js'
+import {capturePreview} from './grab-preview.js'
 import {framesForElement, sourceFromAttr} from './react.js'
 import type {SourceLoc} from '@conciv/plugin/experimental/page'
 
@@ -16,7 +16,7 @@ export function cancelPick(): void {
   cancelFn?.()
 }
 
-type PendingPick = {resolve: (grab: Grab | null) => void; grab: Grab | null}
+type PendingPick = {resolve: (grab: Grab | null | Promise<Grab>) => void; grab: Promise<Grab> | null}
 
 let pending: PendingPick | null = null
 
@@ -61,7 +61,7 @@ function pickerReady(): boolean {
   return pickerLoaded()
 }
 
-export const grabApi: Omit<GrabApi, 'stage' | 'staged' | 'clear'> = {
+export const grabApi: GrabActions = {
   pick: () => startPick('activate'),
   comment: () => startPick('comment'),
   cancel: cancelPick,
@@ -69,7 +69,7 @@ export const grabApi: Omit<GrabApi, 'stage' | 'staged' | 'clear'> = {
   grabbable: pickerReady,
 }
 
-type GrabSink = (grab: Grab) => void
+type GrabSink = (grab: Promise<Grab>) => void
 
 function toElementSource(info: SourceInfo | null): ElementSource | null {
   if (!info) return null
@@ -135,19 +135,24 @@ async function create(): Promise<ReactGrabAdapter> {
   let sink: GrabSink | null = null
 
   let intercept = false
-  const deliver = async (element: Element, fallback: string): Promise<void> => {
+  const capture = async (element: Element, fallback: string): Promise<Grab> => {
     const box = element.getBoundingClientRect()
-    const [preview, info] = await Promise.all([captureElement(element), api.getSource(element)])
+    const [preview, info] = await Promise.all([capturePreview(element), api.getSource(element)])
     const {snippet, source, text} = groundGrabText(element, fallback)
     const unresolved = await unresolvedFrames(element, source)
-    sink?.({
+    return {
       text,
       preview,
       source: source ? fromSourceLoc(source) : toElementSource(info),
       rect: {x: box.x, y: box.y, width: box.width, height: box.height},
       snippet,
       ...unresolved,
-    })
+    }
+  }
+  const deliver = (element: Element, fallback: string): Promise<Grab> => {
+    const delivery = capture(element, fallback)
+    sink?.(delivery)
+    return delivery
   }
   const hooks = {
     onActivate: () => {
@@ -159,7 +164,7 @@ async function create(): Promise<ReactGrabAdapter> {
 
     onElementSelect: (element: Element) => {
       if (!intercept) return
-      void deliver(element, element.textContent ?? '')
+      void deliver(element, elementSnippet(element))
       return true
     },
 

@@ -1,4 +1,4 @@
-import {Contract, Registry} from './core.js'
+import {Registry} from './core.js'
 
 export type ElementSource = {
   componentName: string | null
@@ -43,17 +43,6 @@ export type Grab = {
   frames?: GrabFrame[]
   text: string
 }
-
-export interface GrabApi {
-  pick(): Promise<Grab | null>
-  comment(): Promise<Grab | null>
-  grabbable(): boolean
-  stage(grab: Grab): void
-  staged(): readonly Grab[]
-  clear(): void
-}
-
-export const GrabApi = Contract.define<GrabApi, 'grab'>('grab')
 
 export interface GrabPicker {
   pick(): Promise<Grab | null>

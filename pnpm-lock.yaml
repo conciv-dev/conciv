@@ -2548,9 +2548,6 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
-      '@conciv/grab':
-        specifier: workspace:^
-        version: link:../grab
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
@@ -2951,9 +2948,6 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../plugin
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
     devDependencies:
       '@conciv/harness-testkit':
         specifier: workspace:*
@@ -3298,6 +3292,9 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@internal/plugin':
+        specifier: workspace:*
+        version: link:../plugin-internal
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -3715,6 +3712,9 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@internal/plugin':
+        specifier: workspace:*
+        version: link:../../plugin-internal
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
