@@ -16,7 +16,9 @@ export type ComposerDraftPersistenceOptions = {
   draft: () => ComposerDraft
 }
 
-type DraftDebouncer = AsyncDebouncer<typeof writeComposerDraft>
+type DraftWrite = (storage: WebStorage, key: string, draft: ComposerDraft) => Promise<void>
+
+type DraftDebouncer = AsyncDebouncer<DraftWrite>
 
 function isCleared(draft: ComposerDraft): boolean {
   return draft.draft === '' && draft.attachments.length === 0 && draft.quote === null && draft.items.length === 0
@@ -38,6 +40,7 @@ function writeToDocument(
 
 function writeToStorage(
   debouncer: DraftDebouncer,
+  write: DraftWrite,
   storage: WebStorage,
   key: string,
   draft: ComposerDraft,
@@ -48,19 +51,24 @@ function writeToStorage(
     return draft
   }
   debouncer.cancel()
-  if (wasTyped(previous)) void writeComposerDraft(storage, key, draft)
+  if (wasTyped(previous)) void write(storage, key, draft)
   return draft
 }
 
 export function useComposerDraftPersistence(options: ComposerDraftPersistenceOptions): () => void {
-  const debouncer = new AsyncDebouncer(writeComposerDraft, {wait: DRAFT_WRITE_DELAY_MS})
+  let latestWrite = 0
+  const write: DraftWrite = (storage, key, draft) => {
+    const turn = ++latestWrite
+    return writeComposerDraft(storage, key, draft, () => turn === latestWrite)
+  }
+  const debouncer = new AsyncDebouncer(write, {wait: DRAFT_WRITE_DELAY_MS})
   createEffect<ComposerDraft | undefined>((previous) => {
     const draft = options.draft()
     const documentWriter = options.writer?.()
     if (documentWriter) return writeToDocument(documentWriter, options.key(), draft, previous)
     const storage = options.storage()
     if (!storage) return previous
-    return writeToStorage(debouncer, storage, options.key(), draft, previous)
+    return writeToStorage(debouncer, write, storage, options.key(), draft, previous)
   })
   const flush = () => void debouncer.flush()
   makeEventListener(window, 'pagehide', flush)
