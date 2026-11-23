@@ -200,7 +200,8 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 ### Evaluating a bundle (`experimental/host.ts`, `experimental/modules.ts`)
 
-- `PluginBundle` has `definition` and `setup` (no `main`); `definition` carries `stores` only (no `os`, no `i18n`).
+- `PluginBundle` has `definition` and `setup` (no `main`); `definition` carries `stores`, `beforeRegister` and `enforce` (no `os`, no `i18n`).
+- Added: `Declarations.beforeRegister(options)` and `enforce` (`pre` | `post`), Vite-style and not in the source. The host calls every known plugin's `beforeRegister` once, synchronously, in enforce order (every `pre`, then those without, then every `post`) when it starts, before any setup; a plugin it learns of later (an engine bundle) has its `beforeRegister` called before its own setup. A built-in's runs at the top of the app's mount, so a page-wide hook (the page plugin's React bridge) exists as early as the app can run. A throw is logged and the plugin still loads.
 - `PluginBundle` also has `exports`, the bundle's `module.exports`: conciv loads a plugin's lazy chunks on demand and a chunk may require the entry (Vite writes `require("./plugin-experimental.cjs")` when the lazy part imports a value the entry exports), so the app hands a chunk the entry's exports; the source ships one file and never needs them.
 - `BridgePluginExperimental` also has `file`, the entry's file name (`plugin.experimental` answers it), for the same reason: the app maps a chunk's `require("./<file>")` to the entry's exports; the source ships one file.
 - `PluginBundleHost` has `require` only: `process` (`'window' | 'main'`) is absent, since it only tells the two processes apart and nothing reads it in the evaluator.

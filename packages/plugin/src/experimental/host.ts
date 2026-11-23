@@ -2,7 +2,7 @@ import {z} from 'zod'
 import type {PluginInfo} from '../client/promise/generated/types.js'
 import type {PluginOptions} from '../options.js'
 import type {Cleanup} from './core.js'
-import type {Declarations, Stores} from './declarations.js'
+import type {Declarations} from './declarations.js'
 
 export {Scope} from './scope.js'
 
@@ -229,8 +229,7 @@ export function evaluatePluginChunk(code: string, host: PluginBundleHost): objec
 
 type BundleModule = {exports: object}
 
-type BundlePlugin = {
-  readonly stores?: Stores
+type BundlePlugin = Declarations & {
   readonly setup?: (ctx: never) => Cleanup | void
 }
 
@@ -246,6 +245,8 @@ const BundleDefinition = z.object({
     )
     .optional(),
   setup: z.custom((value) => typeof value === 'function').optional(),
+  beforeRegister: z.custom((value) => typeof value === 'function').optional(),
+  enforce: z.enum(['pre', 'post']).optional(),
 })
 
 function matchesPlugin(plugin: unknown): plugin is BundlePlugin {

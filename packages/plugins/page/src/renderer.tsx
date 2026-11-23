@@ -16,7 +16,7 @@ import {endRun, endTask, mountSimulator} from './simulator.js'
 import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 import {addRef, type Refs} from './snapshot.js'
 import {dehydrate} from './dehydrate.js'
-import {describe, locate, reactBridge, rootFibers} from './react.js'
+import {describe, installReactBridge, locate, reactBridge, rootFibers} from './react.js'
 import {disposeReactGrab, grabApi} from './grab.js'
 import {showToast} from './toast.js'
 import {capturePlugins} from './screenshot.js'
@@ -24,6 +24,8 @@ import {capturePlugins} from './screenshot.js'
 const PageOptionsSchema = z.object({taskTimeoutMs: z.number().int().positive().optional()}).catch({})
 
 export default Plugin.define({
+  enforce: 'pre',
+  beforeRegister: installReactBridge,
   setup(ctx) {
     const {taskTimeoutMs} = PageOptionsSchema.parse(ctx.options)
     const connectionId = crypto.randomUUID()
