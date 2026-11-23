@@ -125,7 +125,7 @@ export type HarnessChatDeps = {
   model?: string
   effort?: ReasoningEffort
   env: Record<string, string | undefined>
-  kind: 'chat' | 'compact' | 'page-queue'
+  kind: 'chat' | 'compact'
 }
 
 export type HarnessSessionMeta = {

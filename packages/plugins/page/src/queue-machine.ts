@@ -7,7 +7,7 @@ export type Landed = 'played' | 'stopped' | 'lost'
 
 export type Settled = {readonly outcome: PageQueueOutcome; readonly landed: Landed}
 
-export type Delivery = 'owed' | 'claimed' | 'nextReply' | 'delivered'
+export type Delivery = 'owed' | 'claimed' | 'delivered'
 
 export type QueueEntry = {
   readonly queueId: string
@@ -21,8 +21,6 @@ export type QueueEntry = {
 }
 
 export type QueueState = {readonly entries: readonly QueueEntry[]}
-
-export type Origin = {readonly toolCallIds?: readonly string[]; readonly excludeToolCallIds?: readonly string[]}
 
 export type QueueEvent =
   | {readonly type: 'started'; readonly entry: QueueEntry}
@@ -49,7 +47,6 @@ export type Owed = {
   readonly queueId: string
   readonly toolCallId: string
   readonly result: PageQueueResult
-  readonly before: 'owed' | 'nextReply'
 }
 
 export const KEPT_QUEUES = 200
@@ -111,7 +108,7 @@ export function readProgress(entry: QueueEntry): PageQueueProgress {
 }
 
 export function awaitsDelivery(entry: QueueEntry): boolean {
-  return (entry.delivery === 'owed' || entry.delivery === 'nextReply') && entry.result !== null
+  return entry.delivery === 'owed' && entry.result !== null
 }
 
 export function selectStartedBy(
@@ -126,26 +123,19 @@ export function selectStartedBy(
   )
 }
 
-export function selectUndelivered(state: QueueState, sessionId: SessionId, origin: Origin): Owed[] {
+export function selectUndelivered(
+  state: QueueState,
+  sessionId: SessionId,
+  toolCallIds: readonly string[] | undefined,
+): Owed[] {
   return state.entries.flatMap((entry) =>
-    entry.sessionId === sessionId && fromOrigin(entry, origin) && entry.result !== null && awaitsDelivery(entry)
-      ? [readOwed(entry, entry.result)]
+    entry.sessionId === sessionId &&
+    (toolCallIds === undefined || toolCallIds.includes(entry.toolCallId)) &&
+    entry.result !== null &&
+    awaitsDelivery(entry)
+      ? [{queueId: entry.queueId, toolCallId: entry.toolCallId, result: entry.result}]
       : [],
   )
-}
-
-function readOwed(entry: QueueEntry, result: PageQueueResult): Owed {
-  return {
-    queueId: entry.queueId,
-    toolCallId: entry.toolCallId,
-    result,
-    before: entry.delivery === 'owed' ? 'owed' : 'nextReply',
-  }
-}
-
-function fromOrigin(entry: QueueEntry, origin: Origin): boolean {
-  const included = origin.toolCallIds === undefined || origin.toolCallIds.includes(entry.toolCallId)
-  return included && origin.excludeToolCallIds?.includes(entry.toolCallId) !== true
 }
 
 function updated(state: QueueState, queueId: string, change: (entry: QueueEntry) => QueueEntry): QueueTransition {
