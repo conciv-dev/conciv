@@ -194,7 +194,7 @@ async function requireAttachedPage(
   call: {sessionId: SessionId; name: string},
   errors: RegistryErrors,
 ): Promise<void> {
-  const attached = await deps.queues.attachedSessions()
+  const attached = await deps.page.attachedSessions()
   if (attached.includes(call.sessionId)) return
   const reason =
     attached.length > 0

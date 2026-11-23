@@ -1,12 +1,12 @@
-import {z} from 'zod'
+import type {z} from 'zod'
 import {Effect} from 'effect'
-import {Bus, Plugin, Rpc, Session, SessionSchema} from '@conciv/plugin-host'
-import {Definition, State} from '@conciv/plugin-page/rpc'
+import {Bus, Rpc, Session, SessionSchema} from '@conciv/plugin-host'
+import {Definition} from '@conciv/plugin-page/rpc'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import {queueNotice, type RawFrame, type SourceLoc} from '@conciv/contract'
+import {queueNotice} from '@conciv/contract'
 import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
 import type {PluginHost} from '../api/rpc/mount.js'
-import {logOnRuntime, type Log} from '../lib/logging.js'
+import {orNone, type PageReader} from './page-rpc.js'
 
 type Methods = typeof Definition.methods
 
@@ -16,34 +16,10 @@ export type PagePlugin = ReturnType<typeof makePagePlugin>
 
 const QUEUE_FINISHED = `rpc.${Definition.id}.queue.finished`
 
-const NO_TABS: State = {tabs: [], focusedTabId: null}
-
-const Unavailable = z.object({type: z.literal('rpc.unavailable')})
-
-function unlisted(error: unknown): boolean {
-  return error instanceof Error && Unavailable.safeParse(error.cause).success
-}
-
-async function orNone<Value>(work: Promise<Value[]>, what: string, log: Log): Promise<Value[]> {
-  return work.catch((error: unknown) => {
-    if (!unlisted(error)) log(Effect.logError('[core] the page plugin could not be read', {what, error}))
-    return []
-  })
-}
-
-export function makePagePlugin(host: () => PluginHost) {
+export function makePagePlugin(host: () => PluginHost, reader: PageReader) {
   const inFlightHubCalls = new Map<SessionId, Set<string>>()
   const heldHubCalls = new Map<SessionId, Set<string>>()
-  const log: Log = (entry) => logOnRuntime(host())(entry)
-
-  const call = (method: keyof Methods, input: unknown, signal?: AbortSignal) =>
-    host().runPromise(
-      Plugin.awaitActivation.pipe(
-        Effect.andThen(Rpc.Service.use((rpc) => rpc.call(Definition.id, method, input))),
-        Effect.mapError((failure) => new Error(failure.message, {cause: failure})),
-      ),
-      signal === undefined ? {} : {signal},
-    )
+  const {call, log} = reader
 
   const hubCalls = (sessionId: SessionId): string[] => [
     ...(inFlightHubCalls.get(sessionId) ?? []),
@@ -68,15 +44,7 @@ export function makePagePlugin(host: () => PluginHost) {
     return new Set([...playing.flat(), ...callIds.filter((callId) => owedBy.has(callId))])
   }
 
-  const symbolicate = async (frames: RawFrame[]): Promise<SourceLoc | null> =>
-    Definition.methods.symbolicate.output.parse(await call('symbolicate', {frames}))
-
   return {
-    symbolicateOrNone: (frames: RawFrame[]): Promise<SourceLoc | null> =>
-      symbolicate(frames).catch((error: unknown) => {
-        if (!unlisted(error)) log(Effect.logError('[core] the page plugin could not symbolicate', {error}))
-        return null
-      }),
     queueWait: async (
       input: Input<'queue.wait'>,
       signal?: AbortSignal,
@@ -108,20 +76,6 @@ export function makePagePlugin(host: () => PluginHost) {
           )
       return handed.result
     },
-    tabs: async (sessionId: SessionId): Promise<State> => {
-      try {
-        return Definition.methods['tabs.list'].output.parse(await call('tabs.list', {sessionId}))
-      } catch (error) {
-        if (!unlisted(error)) log(Effect.logError('[core] the page tabs could not be read', {sessionId, error}))
-        return NO_TABS
-      }
-    },
-    attachedSessions: async (): Promise<SessionId[]> =>
-      orNone(
-        call('sessions.attached', {}).then((listed) => Definition.methods['sessions.attached'].output.parse(listed)),
-        'the sessions with a page attached',
-        log,
-      ),
     startedBy,
     hubFinished: async (sessionId: SessionId): Promise<PageQueueResult[]> =>
       orNone(

@@ -81,6 +81,7 @@ import {createTabs} from './api/tabs.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makePagePlugin} from './page/page-plugin.js'
+import {makePageReader} from './page/page-rpc.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {createPersistentPtys} from './pty/persistent-ptys.js'
 import concivPage from '@conciv/plugin-page'
@@ -585,7 +586,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
-  const pagePlugin = makePagePlugin(() => pluginHost)
+  const pageReader = makePageReader(() => pluginHost)
+  const pagePlugin = makePagePlugin(() => pluginHost, pageReader)
   const settings = createSettingsStorage(settingsOnDisk({global: appEnv.home, project: stateDir}), earlyLog)
   const primitives = makeSessionPrimitives()
   const {stream} = primitives
@@ -862,7 +864,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     model: sessionModel,
     staleness,
     interruptIdle,
-    symbolicate: pagePlugin.symbolicateOrNone,
+    symbolicate: pageReader.symbolicateOrNone,
     log,
   })
 
@@ -917,14 +919,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ptys,
     code: mcp,
     tabs: createTabs({
-      attachedSessions: pagePlugin.attachedSessions,
-      pageTabs: pagePlugin.tabs,
+      attachedSessions: pageReader.attachedSessions,
+      pageTabs: pageReader.tabs,
       session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
       root: opts.cwd,
       instructions: systemPromptText,
       log,
     }),
-    queues: pagePlugin,
+    page: pageReader,
     queueWait: pagePlugin.queueWait,
     pluginHost,
     eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
