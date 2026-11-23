@@ -45,37 +45,8 @@ export function makePagePlugin(host: () => PluginHost, reader: PageReader) {
   }
 
   return {
-    queueWait: async (
-      input: Input<'queue.wait'>,
-      signal?: AbortSignal,
-      replied?: Promise<boolean>,
-    ): Promise<PageQueueResult | PageQueueProgress> => {
-      if (replied === undefined)
-        return Definition.methods['queue.wait'].output.parse(await call('queue.wait', input, signal))
-      const handed = Definition.methods['queue.claim'].output.parse(await call('queue.claim', input, signal))
-      if (!('result' in handed)) return handed
-      const {before} = handed
-      if (before !== null)
-        void replied
-          .catch(() => false)
-          .then((sent) =>
-            call('queue.settle', {
-              sessionId: input.sessionId,
-              queueIds: [input.queueId],
-              delivery: sent ? 'delivered' : before,
-            }),
-          )
-          .catch((error: unknown) =>
-            log(
-              Effect.logError('[core] a queue handed to a waiter could not be settled', {
-                sessionId: input.sessionId,
-                queueId: input.queueId,
-                error,
-              }),
-            ),
-          )
-      return handed.result
-    },
+    queueWait: async (input: Input<'queue.wait'>, signal?: AbortSignal): Promise<PageQueueResult | PageQueueProgress> =>
+      Definition.methods['queue.wait'].output.parse(await call('queue.wait', input, signal)),
     startedBy,
     hubFinished: async (sessionId: SessionId): Promise<PageQueueResult[]> =>
       orNone(

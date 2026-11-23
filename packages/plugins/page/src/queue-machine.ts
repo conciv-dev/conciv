@@ -7,7 +7,7 @@ export type Landed = 'played' | 'stopped' | 'lost'
 
 export type Settled = {readonly outcome: PageQueueOutcome; readonly landed: Landed}
 
-export type Delivery = 'owed' | 'claimed' | 'delivered'
+export type Delivery = 'owed' | 'delivered'
 
 export type QueueEntry = {
   readonly queueId: string
@@ -28,13 +28,6 @@ export type QueueEvent =
   | {readonly type: 'finished'; readonly queueId: string}
   | {readonly type: 'announce'; readonly queueId: string}
   | {readonly type: 'delivered'; readonly queueIds: readonly string[]}
-  | {readonly type: 'claimed'; readonly queueIds: readonly string[]}
-  | {
-      readonly type: 'settled'
-      readonly sessionId: SessionId
-      readonly queueIds: readonly string[]
-      readonly delivery: Exclude<Delivery, 'claimed'>
-    }
   | {readonly type: 'session.cancelled'; readonly sessionId: SessionId}
 
 export type QueueEffect =
@@ -78,15 +71,7 @@ export function transitionQueue(state: QueueState, event: QueueEvent): QueueTran
     if (entry === undefined || entry.result === null || entry.delivery !== 'owed') return {state, effects: []}
     return {state, effects: [{type: 'announce', entry}]}
   }
-  if (event.type === 'delivered') return redelivered(state, event.queueIds, () => true, 'delivered')
-  if (event.type === 'claimed') return redelivered(state, event.queueIds, () => true, 'claimed')
-  if (event.type === 'settled')
-    return redelivered(
-      state,
-      event.queueIds,
-      (entry) => entry.sessionId === event.sessionId && entry.delivery === 'claimed',
-      event.delivery,
-    )
+  if (event.type === 'delivered') return delivered(state, event.queueIds)
   return {state: {entries: state.entries.filter((entry) => entry.sessionId !== event.sessionId)}, effects: []}
 }
 
@@ -145,16 +130,11 @@ function updated(state: QueueState, queueId: string, change: (entry: QueueEntry)
   }
 }
 
-function redelivered(
-  state: QueueState,
-  queueIds: readonly string[],
-  allowed: (entry: QueueEntry) => boolean,
-  delivery: Delivery,
-): QueueTransition {
+function delivered(state: QueueState, queueIds: readonly string[]): QueueTransition {
   return {
     state: {
       entries: state.entries.map((entry) =>
-        queueIds.includes(entry.queueId) && allowed(entry) ? {...entry, delivery} : entry,
+        queueIds.includes(entry.queueId) ? {...entry, delivery: 'delivered' as const} : entry,
       ),
     },
     effects: [],

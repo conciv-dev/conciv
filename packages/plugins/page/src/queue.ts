@@ -7,13 +7,11 @@ import {
   PAGE_QUEUE_STOPPED,
   PAGE_QUEUE_SYNC_MS,
   type PageQueueHandle,
-  type PageQueueProgress,
   type PageQueueResult,
   PageRaisedErrorSchema as Raised,
 } from '@conciv/protocol/page-types'
 import type {Tool} from '@conciv/plugin/schema/tool'
 import {
-  awaitsDelivery,
   createQueueState,
   findQueue,
   OWED_QUEUES,
@@ -188,18 +186,6 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
     return entry.result
   })
 
-  const claim = Effect.fn('PageQueue.claim')(function* (
-    sessionId: SessionId,
-    queueId: string,
-    waitMs: number,
-  ): Effect.fn.Return<{result: PageQueueResult; before: 'owed' | null} | PageQueueProgress, Error> {
-    const entry = yield* reached(sessionId, queueId, waitMs)
-    if (entry.result === null) return readProgress(entry)
-    if (!awaitsDelivery(entry)) return {result: entry.result, before: null}
-    yield* dispatch({type: 'claimed', queueIds: [queueId]})
-    return {result: entry.result, before: 'owed'}
-  })
-
   const play = (sessionId: SessionId, given: QueueStart) =>
     start(sessionId, given).pipe(
       Effect.flatMap(({queueId}) => wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS)),
@@ -218,10 +204,7 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
   const startedBy = (sessionId: SessionId, toolCallIds: readonly string[]) =>
     Effect.sync(() => selectStartedBy(machine.state, sessionId, toolCallIds))
 
-  const settle = (sessionId: SessionId, queueIds: readonly string[], delivery: 'owed' | 'delivered') =>
-    dispatch({type: 'settled', sessionId, queueIds, delivery})
-
   const cancelSession = (sessionId: SessionId) => dispatch({type: 'session.cancelled', sessionId})
 
-  return {start, play, wait, claim, undelivered, startedBy, owed, settle, cancelSession}
+  return {start, play, wait, undelivered, startedBy, owed, cancelSession}
 })

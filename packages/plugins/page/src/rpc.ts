@@ -581,14 +581,6 @@ export const Definition = Rpc.define({
       output: z.union([PageQueueResultSchema, PageQueueProgressSchema]),
       errors,
     },
-    'queue.claim': {
-      input: z.object({sessionId: SessionId, queueId: z.string().min(1), waitMs: z.number().int().min(0)}),
-      output: z.union([
-        z.object({result: PageQueueResultSchema, before: z.literal('owed').nullable()}),
-        PageQueueProgressSchema,
-      ]),
-      errors,
-    },
     'queue.startedBy': {
       input: z.object({sessionId: SessionId, toolCallIds: z.array(z.string())}),
       output: z.array(PageQueueHandleSchema),
@@ -605,15 +597,6 @@ export const Definition = Rpc.define({
     'queue.owed': {
       input: z.object({sessionId: SessionId}),
       output: z.array(z.object({queueId: z.string(), toolCallId: z.string(), result: PageQueueResultSchema})),
-      errors,
-    },
-    'queue.settle': {
-      input: z.object({
-        sessionId: SessionId,
-        queueIds: z.array(z.string()),
-        delivery: z.enum(['owed', 'delivered']),
-      }),
-      output: OkResult,
       errors,
     },
   },

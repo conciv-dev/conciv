@@ -275,10 +275,6 @@ type CodeErrors = {NO_CODE_MODE: (options?: {message: string}) => Error}
 
 type CodeCall = {context: RpcContext; errors: CodeErrors; signal?: AbortSignal}
 
-function replyWentOut(context: RpcContext, signal: AbortSignal | undefined): Promise<boolean> | undefined {
-  return context.replied?.then((sent) => sent && signal?.aborted !== true)
-}
-
 async function resolveCodeSession(
   deps: RpcDeps,
   sessionId: SessionId | undefined,
@@ -607,8 +603,8 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     page: {
       queue: {
-        wait: os.page.queue.wait.handler(({input, context, errors, signal}) =>
-          deps.queueWait(input, signal, replyWentOut(context, signal)).catch((error: unknown) => {
+        wait: os.page.queue.wait.handler(({input, errors, signal}) =>
+          deps.queueWait(input, signal).catch((error: unknown) => {
             if (signal?.aborted === true) throw error
             throw errors.NO_QUEUE({message: error instanceof Error ? error.message : String(error)})
           }),
