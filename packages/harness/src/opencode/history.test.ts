@@ -27,14 +27,14 @@ db.close()
     const state = new Int32Array(new SharedArrayBuffer(4))
     const holder = new Worker(LOCK_HOLDER, {eval: true, workerData: {path, state}})
     const exited = once(holder, 'exit')
-    Atomics.wait(state, 0, 0, 5000)
+    expect(Atomics.wait(state, 0, 0, 5000)).toBe('ok')
     Atomics.store(state, 0, 2)
     Atomics.notify(state, 0)
     const [result] = await Promise.all([read(), exited])
     return result
   }
 
-  it('a session in opencode.db lists for its project with its title, its tail reads back, and opening it reads back the whole conversation, tool calls and results included, with its token total', async () => {
+  it('a session in opencode.db lists for its project with its title, its tail reads back, and opening it reads back the whole conversation, tool calls and results included, with its token total, and the list still reads while another connection briefly holds a lock', async () => {
     const dataHome = tempDir('opencode-data-')
     const project = realpathSync(tempDir('opencode-project-'))
     const sessionId = HarnessSessionId.parse('ses_1')
