@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {Cause, Effect, Exit, Option, Result, Schema} from 'effect'
 import {partition} from 'es-toolkit'
-import {approvalDenied, CodeFilesCapability, describeSchemas} from '@conciv/ai/server'
+import {approvalDenied, CodeFilesCapability, describeSchemas, TurnMessageCapability} from '@conciv/ai/server'
 import {cappedValue, safeStringify} from '@conciv/contract'
 import {
   Agent,
@@ -10,6 +10,7 @@ import {
   CodeModeCatalog,
   CodeModeToolRuntime,
   Permission,
+  SessionMessage,
   SessionSchema,
   Tool,
   ToolRuntime,
@@ -81,12 +82,14 @@ function toolContext(request: ToolRequest, agent: Agent.Id): Tool.Context {
   return {
     sessionId: SessionSchema.Id.make(request.sessionId),
     agent,
-    messageId: undefined,
+    messageId: isMessageId(request.messageId) ? request.messageId : undefined,
     id: Tool.CallId.make(request.toolCallId ?? randomUUID()),
     progress: () => Effect.void,
     ...(request.signal === undefined ? {} : {cancel: waitForCancel(request.signal)}),
   }
 }
+
+const isMessageId = Schema.is(SessionMessage.Id)
 
 const isDeclined = Schema.is(Permission.DeclinedError)
 const isBlocked = Schema.is(Permission.BlockedError)
@@ -397,7 +400,7 @@ function chatTool(capability: CodeCapability, request: ToolRequest, lazy: boolea
       const toolCallId = context?.toolCallId
       const signal = context?.abortSignal
       const {value, files, text} = await capability.execute(args, {
-        ...request,
+        ...withTurnMessage(request, context),
         ...(toolCallId === undefined ? {} : {toolCallId}),
         ...(signal === undefined ? {} : {signal}),
       })
@@ -408,6 +411,12 @@ function chatTool(capability: CodeCapability, request: ToolRequest, lazy: boolea
       throw withDeclaredCode(error)
     }
   })
+}
+
+function withTurnMessage(request: ToolRequest, context: Parameters<NonNullable<ChatTool['execute']>>[1]): ToolRequest {
+  if (request.messageId !== undefined) return request
+  const messageId = context?.getOptional?.(TurnMessageCapability)?.()
+  return messageId === undefined || messageId === null ? request : {...request, messageId}
 }
 
 function directValue(value: unknown, files: ChatContentPart[], text: string[]): unknown {

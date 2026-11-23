@@ -886,12 +886,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses, log, tracer})
   const mcp: McpVars['mcp'] = {
-    codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
+    codeRunner: (sessionId, publish, capabilities, messageId) =>
+      plane.codeRunner(sessionId, publish, capabilities, messageId),
     hubCall: pagePlugin.hubCall,
     hubReplied: pagePlugin.hubReplied,
     finishedQueues: pagePlugin.hubFinished,
     startedQueues: pagePlugin.startedBy,
     driving: (sessionId) => plane.driving(sessionId),
+    turnMessage: (sessionId) => plane.turnMessage(sessionId),
     outsideCapabilities: async (sessionId) =>
       outsideRunCapabilities(await withPluginTools(sessionId, offeredCapabilities(sessionId))),
     resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),

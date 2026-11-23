@@ -86,7 +86,9 @@ export type ChatPlane = {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
+    messageId?: string,
   ) => Promise<CodeRunner | null>
+  turnMessage: (sessionId: SessionId) => string | null
   wake: (sessionId: SessionId) => Promise<void>
   catchUp: (sessionId: SessionId) => Promise<ChatEvent[]>
 }
@@ -218,10 +220,12 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     given: readonly CodeCapability[] | undefined,
+    messageId: string | undefined,
   ): Promise<CodeRunner | null> => {
     const model = (await deps.sessions.row(sessionId))?.model ?? null
     const capabilities = given ?? (await deps.capabilities(sessionId))
-    const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model}, deps.driver !== null)
+    const request = {sessionId, agentId: sessionId, model, ...(messageId === undefined ? {} : {messageId})}
+    const toolSet = chatToolSet(capabilities, request, deps.driver !== null)
     const runner = server.codeRunner(toolSet.codeMode, toolSet.search)
     if (runner === null && toolSet.direct.length === 0) return null
     const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
@@ -292,10 +296,11 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       wake(sessionId).catch((error: unknown) =>
         deps.log(`[chat] waking session ${sessionId} for its inbox failed: ${String(error)}`),
       ),
-    codeRunner: (sessionId, publish, given) =>
+    codeRunner: (sessionId, publish, given, messageId) =>
       inSpan(deps.tracer, 'ChatPlane.codeRunner', {'conciv.session.id': sessionId}, () =>
-        buildCodeRunner(sessionId, publish, given),
+        buildCodeRunner(sessionId, publish, given, messageId),
       ),
+    turnMessage: (sessionId) => server.turnMessage(sessionId),
   }
 }
 

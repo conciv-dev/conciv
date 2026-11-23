@@ -200,6 +200,7 @@ type McpDeps = {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
+    messageId?: string,
   ) => Promise<CodeRunner | null>
   hubCall: (sessionId: SessionId, callId: string) => void
   hubReplied: (sessionId: SessionId, callIds: ReadonlySet<string>) => Promise<void>
@@ -207,6 +208,7 @@ type McpDeps = {
   startedQueues: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => Promise<PageQueueHandle[]>
   outsideCapabilities: (sessionId: SessionId) => Promise<CodeCapability[]>
   driving: ChatPlane['driving']
+  turnMessage: ChatPlane['turnMessage']
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   hubRefusal: (client: string | null) => Promise<string | null>
@@ -280,6 +282,7 @@ export async function openCodeSession(
     scope.id,
     publish,
     hub && caller.outside ? await deps.outsideCapabilities(scope.id) : undefined,
+    hub || !run.live ? undefined : (deps.turnMessage(scope.id) ?? undefined),
   )
   if (runner === null) return null
   const calls: CallPublisher = {

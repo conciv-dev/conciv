@@ -2,6 +2,7 @@ import {z} from 'zod'
 import {
   chat,
   convertMessagesToModelMessages,
+  createCapability,
   defineChatMiddleware,
   EventType,
   generateMessageId,
@@ -268,6 +269,7 @@ export type ChatServer = ChatDelivery & {
   endAllRuns: () => Promise<void>
   settled: (threadId: string) => Promise<void>
   driving: (threadId: string) => boolean
+  turnMessage: (threadId: string) => string | null
   hydrate: (threadId: string, window?: ChatThreadWindow) => Promise<ChatThread>
   record: (threadId: string, chunks: readonly ChatEvent[]) => Promise<void>
   codeRunner: (
@@ -382,7 +384,12 @@ type LiveRun = {
   settled: PromiseWithResolvers<void>
   stopping: boolean
   interrupted: ModelMessage[]
+  message: () => string | null
 }
+
+export const TurnMessageCapability = createCapability<() => string | null>()('conciv.turn-message')
+
+const [, provideTurnMessage] = TurnMessageCapability
 
 type RunMessages = {full: ModelMessage[]}
 
@@ -787,6 +794,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       settled: Promise.withResolvers(),
       stopping: false,
       interrupted: [],
+      message: () => null,
     }
     live.set(turn.runId, entry)
     return streamInSpan(tracer, 'ChatServer.turn', turnAttributes(turn), () =>
@@ -869,6 +877,14 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           setup: () => endOlderRuns(turn, entry),
         }),
         defineChatMiddleware({
+          name: 'conciv-turn-message',
+          provides: [TurnMessageCapability],
+          setup: (ctx) => {
+            entry.message = () => ctx.currentMessageId
+            provideTurnMessage(ctx, entry.message)
+          },
+        }),
+        defineChatMiddleware({
           name: 'conciv-image-tools',
           provides: [ToolBridgeProvisionerCapability],
           setup: (ctx) => provideToolBridgeProvisioner(ctx, askingToolProvisioner(config.askPermission, tracer)),
@@ -918,6 +934,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       inSpan(tracer, 'ChatServer.endRuns', {'conciv.session.id': threadId}, () => endThreadRuns(threadId)),
     endAllRuns: () => inSpan(tracer, 'ChatServer.endAllRuns', {}, endAllRuns),
     driving: (threadId) => filterLiveRuns(threadId).length > 0,
+    turnMessage: (threadId) => filterLiveRuns(threadId).at(-1)?.[1].message() ?? null,
     settled: async (threadId) => {
       await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
     },

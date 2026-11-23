@@ -1,4 +1,4 @@
-export {createChatServer} from './server/chat-server.js'
+export {createChatServer, TurnMessageCapability} from './server/chat-server.js'
 export {approvalDenied} from './server/approval-denied.js'
 export {quickJSThreadDriver} from './server/quickjs-thread.js'
 export type {CodeDriver} from './server/quickjs-thread.js'

@@ -184,13 +184,16 @@ function convertedSchemas(tool: CodeModeTool): ChildTool {
   }
 }
 
-function filesContext(parts: CallParts): Pick<NonNullable<ToolContext>, 'getOptional'> {
+function filesContext(parts: CallParts, parent: ToolContext): Pick<NonNullable<ToolContext>, 'getOptional'> {
   const scope = {capabilities: new CapabilityRegistry()}
   provideCodeFiles(scope, (files, text) => {
     parts.files.push(...files)
     parts.text.push(...text)
   })
-  return {getOptional: <Value>(capability: Capability<Value>) => capability[0](scope, {optional: true})}
+  return {
+    getOptional: <Value>(capability: Capability<Value>) =>
+      capability[0](scope, {optional: true}) ?? parent?.getOptional?.(capability),
+  }
 }
 
 function childCall(
@@ -228,7 +231,7 @@ function runChildCall(
       const input = validated(tool.inputSchema, args, `Input validation failed for tool ${tool.name}`)
       const output: unknown = await execute(
         input,
-        context === undefined ? undefined : {...context, toolCallId: callId, ...filesContext(parts)},
+        context === undefined ? undefined : {...context, toolCallId: callId, ...filesContext(parts, context)},
       )
       const result = validated(tool.outputSchema, output, `Output validation failed for tool ${tool.name}`)
       context?.emitCustomEvent(codeModeResultEvent.name, {callId, result: cardResult(result, parts.files)})
