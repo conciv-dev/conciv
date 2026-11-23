@@ -18,6 +18,7 @@ import {
   ReasoningEffortSchema,
   SessionId,
   TabOpenSchema,
+  TabsSchema,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
 import {PageQueueHandleSchema, PageQueueProgressSchema, PageQueueResultSchema} from '@conciv/protocol/page-types'
@@ -261,11 +262,6 @@ function locationResponse<Data extends z.ZodType>(data: Data) {
 
 const LocationPublicInfoSchema = LocationPublicRefSchema.extend({
   project: z.object({id: z.string(), directory: z.string(), canonical: z.string()}),
-})
-
-const VcsInfoSchema = z.object({
-  provider: z.string().optional(),
-  branch: z.object({current: z.string().optional(), default: z.string().optional()}),
 })
 
 export const EventEnvelopeSchema = z.object({
@@ -517,13 +513,11 @@ export const contract = {
       .output(z.unknown()),
   },
   tabs: {
+    list: oc.output(TabsSchema),
     get: oc.input(SessionIdInput).output(TabOpenSchema),
   },
   location: {
     get: oc.output(LocationPublicInfoSchema),
-  },
-  vcs: {
-    get: oc.output(locationResponse(VcsInfoSchema)),
   },
   code: {
     describe: oc.errors({...noCodeMode, ...approvalDenied}).output(CodeDescriptionsSchema),

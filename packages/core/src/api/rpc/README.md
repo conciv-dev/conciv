@@ -14,7 +14,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - RPC `registry.catalog`, `registry.call` (`router.ts`); `registry.catalog` answers every plugin tool as a CLI signature (`pluginSignatures`, `runtime/plugin-signatures.ts`), read session-free from the host's `Tool.Service.list()` after `Plugin.awaitActivation`, all derived the same way: positional = the single required string field, category = the plugin id, `mutating: false` and no `approval` (a tool's ask shows as the approval card when it runs)
 - RPC `page.changes`, `page.clearChanges` (`router.ts`)
 - RPC `page.queue.wait({sessionId, queueId, waitMs})` (`router.ts`): the queue store's `wait`, a queue result (marked delivered) or `{status: 'playing', done, of}`; NO_QUEUE for a queue this tab does not have
-- RPC `tabs.get({sessionId})` (`router.ts`): `createTabs` (`../tabs.ts`); `location.get` (opencode's: the engine's folder and project, from the plugin host's `Location.Service`) and `vcs.get` (`readVcs`, `../vcs.ts`, in a location response)
+- RPC `tabs.list`, `tabs.get({sessionId})` (`router.ts`): `createTabs` (`../tabs.ts`); `location.get` (opencode's: the engine's folder and project, from the plugin host's `Location.Service`)
 - RPC `code.describe`, `code.execute({sessionId?, typescriptCode})`, `code.discover({sessionId?, toolNames})` (`router.ts`): `openCodeSession` (`../mcp.ts`), the same function `/api/mcp` runs; without `sessionId` a hub-origin call is the outside run; NO_CODE_MODE when the engine has no code runner (or, for `code.discover`, no discover tool)
 - The dev-server methods and `open` are the server plugin's, reached through `plugin.call` with rpc id `server`
 - RPC `editor.openFromFrames` (`router.ts`)

@@ -108,11 +108,11 @@ started after the reload waits for activation (opencode `core/src/session/prompt
 `core/src/runtime/plugin-runtime.ts` `Plugin.awaitActivation`), a call already in flight does not.
 
 The engine half's `sessions.attached` answers the session ids with at least one tab attached
-(`src/machine.ts` `selectAttachedSessions`, beside `selectTabs`); the hub's `list_tabs` (`packages/cli/src/engine-read.ts`) walks it over `plugin.call` and reads each
-session's tabs through the engine half's own non-asking `tabs.list` method (`selectTabs`), and core's `tabs.get` answers open when that read has a tab. This is a
+(`src/machine.ts` `selectAttachedSessions`, beside `selectTabs`); core's `tabs.list` walks it and reads each
+session's tabs through the engine half's own non-asking `tabs.list` method (`selectTabs`), and `tabs.get` answers open when that read has a tab. This is a
 conciv addition: the source has no cross-session listing because it has no tabs listing. Only callers that may call
-`plugin.call` reach it: the RPC mount refuses `plugin.call` to an outside agent (`core/src/api/rpc/mount.ts`
-`PLUGIN_PROCEDURES`), and the hub's listing is sent without hub headers, as its `tabs.get` probe is.
+`plugin.call` reach it, and the RPC mount refuses `plugin.call` to an outside agent (`core/src/api/rpc/mount.ts`
+`PLUGIN_PROCEDURES`), so it is no wider than `tabs.list`.
 
 Page tools are offered while a tab is attached. They carry `permission: 'page'`; the engine half denies `page` on
 every agent and grants it to the session while one of its tabs is attached, so with no tab neither the chat nor an

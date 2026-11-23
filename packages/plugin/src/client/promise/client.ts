@@ -53,7 +53,6 @@ export function make(
     registry: raw.registry,
     tabs: raw.tabs,
     location: raw.location,
-    vcs: raw.vcs,
     code: raw.code,
     page: raw.page,
     meta: raw.meta,

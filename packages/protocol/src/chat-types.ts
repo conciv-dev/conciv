@@ -226,6 +226,22 @@ export const ChatSessionMetaSchema = z.object({
 })
 export type ChatSessionMeta = z.infer<typeof ChatSessionMetaSchema>
 
+const TabPageSchema = z.object({href: z.string(), title: z.string(), state: z.enum(['visible', 'hidden'])}).nullable()
+
+export const TabsSchema = z.object({
+  project: z.object({name: z.string().nullable(), root: z.string(), branch: z.string().nullable()}),
+  tabs: z.array(
+    z.object({
+      sessionId: SessionId,
+      harness: z.string(),
+      browserTabs: z.array(z.object({id: z.string(), page: TabPageSchema})),
+      session: z.object({title: z.string(), updatedAt: z.number(), running: z.boolean()}),
+      page: TabPageSchema,
+    }),
+  ),
+})
+export type Tabs = z.infer<typeof TabsSchema>
+
 export const TabOpenSchema = z.object({
   open: z.boolean(),
   instructions: z.string().nullable(),

@@ -99,6 +99,7 @@ import {startObservability, type EngineObservability} from './runtime/observabil
 import type {CoreRuntime, SessionScope} from './runtime/scope-types.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {carryEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
+import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute} from '@conciv/serve/rpc'
 import {GROUP_EXIT_TIMEOUT_MS, inSpan, loadIsolateDriver, type Tracer} from '@conciv/ai/server'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
@@ -895,7 +896,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const rpcDeps: RpcDeps = {
     ptys,
     code: mcp,
-    tabs: createTabs({pageTabs: pageReader.tabs, instructions: systemPromptText}),
+    tabs: createTabs({
+      attachedSessions: pageReader.attachedSessions,
+      pageTabs: pageReader.tabs,
+      session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
+      root: opts.cwd,
+      instructions: systemPromptText,
+      log,
+    }),
     queueWait: pagePlugin.queueWait,
     pluginHost,
     eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,

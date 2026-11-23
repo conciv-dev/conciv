@@ -34,8 +34,6 @@ import {
 import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {callTrace} from '../call-trace.js'
-import {readVcs} from '../vcs.js'
-import {logOnRuntime} from '../../lib/logging.js'
 import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
 import {callPluginTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
 import {settlingAsks, decidePermissionCard} from '../../runtime/permission-cards.js'
@@ -335,17 +333,6 @@ function locationGet(host: PluginHost, signal: AbortSignal | undefined) {
   )
 }
 
-function vcsGet(deps: RpcDeps, signal: AbortSignal | undefined) {
-  return deps.pluginHost.runPromise(
-    locationResponse(
-      Location.Service.pipe(
-        Effect.andThen((location) => Effect.promise(() => readVcs(location.vcs, logOnRuntime(deps.pluginHost)))),
-      ),
-    ),
-    {signal},
-  )
-}
-
 function pluginList(host: PluginHost, signal: AbortSignal | undefined) {
   return host.runPromise(
     locationResponse(Plugin.awaitActivation.pipe(Effect.andThen(Plugin.Service.use((plugins) => plugins.list())))),
@@ -581,13 +568,11 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       ),
     },
     tabs: {
+      list: os.tabs.list.handler(() => deps.tabs.list()),
       get: os.tabs.get.handler(({input}) => deps.tabs.get(input.sessionId)),
     },
     location: {
       get: os.location.get.handler(({signal}) => locationGet(deps.pluginHost, signal)),
-    },
-    vcs: {
-      get: os.vcs.get.handler(({signal}) => vcsGet(deps, signal)),
     },
     code: {
       describe: os.code.describe.handler(async (call) => (await resolveCodeSession(deps, undefined, call)).describe()),
