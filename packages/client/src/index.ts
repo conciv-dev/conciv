@@ -16,7 +16,6 @@ export {
   type QueryKey,
   type UseQueryResult,
 } from '@tanstack/solid-query'
-export {createTanstackQueryUtils} from '@orpc/tanstack-query'
 import {safe} from '@orpc/client'
 import {createChatSession, type ChatSession} from '@conciv/ai/client'
 import type {RpcClient} from '@conciv/contract'

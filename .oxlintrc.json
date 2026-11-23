@@ -103,6 +103,7 @@
           "makeEventListener",
           "makeEventListenerStack",
           "makeTimer",
+          "models",
           "publishCardHeader",
           "registerLayer"
         ]

@@ -1,12 +1,20 @@
 import {Match, Switch, type JSX} from 'solid-js'
 import {useQuery, type UseQueryResult} from '@conciv/client'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
+import {Style, usePlugin} from '@conciv/plugin/experimental'
 import {loadPlayerKit, type PlayerKit} from './player.js'
 
 export function usePlayerKit(): UseQueryResult<PlayerKit> {
+  const ctx = usePlugin()
   return useQuery(() => ({
     queryKey: ['plugin', 'recorder', 'player-kit'],
-    queryFn: loadPlayerKit,
+    queryFn: () =>
+      loadPlayerKit().then((kit) => {
+        ctx.add(Style, kit.css)
+        return kit
+      }),
+    staleTime: Infinity,
+    gcTime: Infinity,
     retry: false,
     refetchOnWindowFocus: false,
   }))
