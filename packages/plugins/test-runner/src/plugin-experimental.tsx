@@ -1,15 +1,16 @@
 import {createMemo, createUniqueId, For, Match, Show, Switch, type JSX} from 'solid-js'
 import {
+  OpaqueUi,
   Panel,
+  Plugin,
   ToolRegistry,
   type Context,
+  type InternalUi,
   type PanelTab,
-  type Plugin,
   type SessionRef,
   type SessionScreen,
   type ToolComponent,
 } from '@conciv/plugin/experimental'
-import {defineInternalPlugin, type InternalUi} from '@conciv/plugin-internal'
 import type {Summary, TestError, TestRow} from './events.js'
 import {followRunView} from './follow.js'
 import {initialRunView, selectSummary, selectTests, type RunView} from './run-state.js'
@@ -320,7 +321,7 @@ function testRunCard(ctx: Context, ui: InternalUi): ToolComponent {
   }
 }
 
-const runner: Plugin.Definition = defineInternalPlugin({
+const runner: Plugin.Definition = Plugin.define({
   setup(ctx) {
     const tab: PanelTab = {
       id: 'tests',
@@ -358,7 +359,7 @@ const runner: Plugin.Definition = defineInternalPlugin({
       },
     })
 
-    const render = testRunCard(ctx, ctx.ui)
+    const render = testRunCard(ctx, OpaqueUi.toInternal(ctx.ui))
     ctx.add(ToolRegistry, {name: 'test_runner_run', render})
     ctx.add(ToolRegistry, {name: 'test_runner_status', render})
   },

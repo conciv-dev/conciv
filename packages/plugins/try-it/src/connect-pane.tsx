@@ -1,4 +1,4 @@
-import type {InternalUi} from '@conciv/plugin-internal'
+import type {InternalUi} from '@conciv/plugin/experimental'
 import {autofocus} from '@solid-primitives/autofocus'
 import {Show, type Accessor, type JSX} from 'solid-js'
 import type {TryItConnectMachine} from './connect-machine.js'

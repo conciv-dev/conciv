@@ -1,14 +1,14 @@
 {
-  "name": "@conciv/plugin-internal",
+  "name": "@conciv/opaque",
   "version": "0.0.22",
   "private": true,
-  "description": "Private to conciv's first-party plugins: the stamp that marks a plugin definition as first-party and the app components its setup gets for that.",
+  "description": "Private to conciv: opaque types as Backstage has them, one object with a public shape and versioned fields only conciv's own packages read.",
   "homepage": "https://conciv.dev",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/conciv-dev/conciv.git",
-    "directory": "packages/plugin-internal"
+    "directory": "packages/opaque"
   },
   "files": [
     "dist"
@@ -23,20 +23,16 @@
   "scripts": {
     "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint"
-  },
-  "dependencies": {
-    "@conciv/plugin": "workspace:^",
-    "@conciv/ui-kit-tap": "workspace:^",
-    "zod": "catalog:"
+    "lint": "oxlint",
+    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "devDependencies": {
+    "@conciv/harness-testkit": "workspace:*",
+    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "solid-js": "catalog:",
     "tsdown": "catalog:",
-    "typescript": "catalog:"
-  },
-  "peerDependencies": {
-    "solid-js": "^1.9.13"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

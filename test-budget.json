@@ -11,6 +11,7 @@
   "@conciv/harness": 12,
   "@conciv/harness-testkit": 13,
   "@conciv/mascot": 9,
+  "@conciv/opaque": 1,
   "@conciv/plugin": 7,
   "@conciv/plugin-host": 48,
   "@conciv/plugin-ios": 5,
