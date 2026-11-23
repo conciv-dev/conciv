@@ -123,7 +123,7 @@ describe('the hub', () => {
     expect(await attachment).toBe('closed')
   })
 
-  test('an engine without the page plugin lists no tabs and says a tab is not open; an engine whose page plugin answers outside the expected shape is named too old', async ({
+  test('an engine without the page plugin lists no tabs and says a tab is not open; an engine whose page plugin answers outside the expected shape is named too old, and a session whose tabs cannot be read is listed with none', async ({
     hub,
   }) => {
     const bare = await createEngine({plugins: ['-conciv.page', './test/fixtures/plugins/plant-shelf']})
@@ -159,5 +159,30 @@ describe('the hub', () => {
         text: `cannot tell whether tab ${tab} is open: no engine that answered has it, and ${tooOld?.root} (engine too old; upgrade its @conciv packages); nothing ran`,
       },
     ])
+
+    const broken = await createEngine(
+      {plugins: ['-conciv.page', './test/fixtures/plugins/broken-page']},
+      {home: bare.home},
+    )
+    await broken.rpc.call('experimental.page', 'attach', {sessionId: broken.session.id})
+    const withBroken = await agent.callTool('list_tabs', {})
+    const brokenListing = z
+      .object({tabs: z.array(z.object({root: z.string()}).loose()), unreachable: z.array(z.unknown())})
+      .parse(JSON.parse(z.tuple([z.object({text: z.string()})]).parse(withBroken.content)[0].text))
+    expect(brokenListing.tabs.map((row) => realpathSync(row.root))).toEqual([realpathSync(broken.root)])
+    expect(brokenListing).toEqual({
+      tabs: [
+        {
+          tab: broken.session.id,
+          root: expect.any(String),
+          sessionTitle: expect.any(String),
+          lastActive: expect.any(String),
+          running: false,
+          harness: expect.any(String),
+          browserTabs: [],
+        },
+      ],
+      unreachable: [{root: tooOld?.root, error: 'engine too old; upgrade its @conciv packages'}],
+    })
   })
 })

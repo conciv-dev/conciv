@@ -104,7 +104,13 @@ async function tabRow(rpc: RpcClient, sessionId: SessionId, place: Place, signal
       if (error instanceof ORPCError && error.code === 'NOT_FOUND') return null
       throw error
     }),
-    pageCall(rpc, 'tabs.list', {sessionId}, signal),
+    pageCall(rpc, 'tabs.list', {sessionId}, signal).catch((error: unknown) => {
+      if (engineOutdated(error)) throw error
+      process.stderr.write(
+        `conciv: reading the browser tabs of session ${sessionId} on ${place.root} failed; it is listed with none: ${errorText(error)}\n`,
+      )
+      return null
+    }),
   ])
   if (meta === null || meta.hidden) return null
   const browserTabs = focusedFirst(state)
