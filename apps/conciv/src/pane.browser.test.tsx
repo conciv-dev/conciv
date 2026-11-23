@@ -931,6 +931,24 @@ describe('an outside agent calls a tool', () => {
     expect(screen.getAllByText('from conciv-test')).toHaveLength(2)
     expect(screen.queryByRole('article', {name: /^You:/})).not.toBeInTheDocument()
   })
+
+  test('a panel opened while the call waits on an ask shows the running call, and its result once allowed', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    const asked = await engine.event('permission.asked')
+    const reply = engine.outside({client: 'conciv-test', tab: engine.session.id}).call('release_ship', {branch: 'main'})
+    await asked.arrived
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
+    expect((await screen.findAllByText('from conciv-test')).at(0)).toBeVisible()
+    expect(screen.getByRole('img', {name: 'running'})).toBeVisible()
+    expect(screen.queryByText('ok')).not.toBeInTheDocument()
+    await user.click(await screen.findByRole('button', {name: 'Allow once'}))
+
+    expect(await reply).toMatchObject({content: [{type: 'text', text: expect.stringContaining('shipped')}]})
+    expect(await screen.findByText('ok')).toBeVisible()
+    expect(screen.getAllByText('from conciv-test')).toHaveLength(2)
+  })
 })
 
 describe('the agent opens a file in the editor', () => {
