@@ -1,7 +1,7 @@
 import {describe, test} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 
-describe.concurrent("the agent runs the project's tests", () => {
+describe("the agent runs the project's tests", () => {
   test('the agent is told about the runner, lists the files, reads an empty status, runs everything, narrows a run with a pattern, reads the last run, and two runs asked at once each report their own tests', async ({
     expect,
   }) => {
@@ -58,7 +58,7 @@ describe.concurrent("the agent runs the project's tests", () => {
   })
 })
 
-describe.concurrent('the runner is stopped from outside', () => {
+describe('the runner is stopped from outside', () => {
   test('a client joining mid-run reads the run so far, a second run waits, stop ends the run that never finishes, and the waiting run then runs and is read back', async ({
     expect,
   }) => {
@@ -125,7 +125,7 @@ describe.concurrent('a runner the plugin does not implement', () => {
   )
 })
 
-describe.concurrent('a playwright project', () => {
+describe('a playwright project', () => {
   test('the agent lists the spec files, runs them all and narrows a run to one file', async ({expect}) => {
     const engine = await createEngine(
       {plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]},
