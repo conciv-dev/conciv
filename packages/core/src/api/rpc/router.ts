@@ -1,7 +1,6 @@
 import {z} from 'zod'
 import {ORPCError, withEventMeta, type Router} from '@orpc/server'
 import {asc, eq, sql} from 'drizzle-orm'
-import {isPageFailure, PAGE_ERROR_CODES, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isToolError, type RegistryCallGate} from '@conciv/protocol/tool-call-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import {drafts, markers} from '@conciv/db'
@@ -146,28 +145,15 @@ export function ptyOutput<Failure>(
   )
 }
 
-export const PAGE_ERROR_NAME = {
-  'no-widget': 'NO_PAGE_CLIENT',
-  timeout: 'PAGE_TIMEOUT',
-  'unknown-verb': 'UNKNOWN_TOOL',
-  'invalid-args': 'INVALID_ARGS',
-  'handler-error': 'HANDLER_ERROR',
-} as const satisfies Record<PageErrorCode, RegistryCallErrorName>
-
 type RegistryErrors = Record<RegistryCallErrorName, (options: {message: string; cause: unknown}) => Error>
 type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
 type SessionContext = RpcContext & {session: SessionScope}
 
 function registryCallError(error: unknown, errors: RegistryErrors): Error {
-  if (isPageFailure(error)) {
-    return errors[PAGE_ERROR_NAME[error.error.code]]({message: error.error.message, cause: error})
-  }
   if (isToolError(error)) return new ORPCError(error.code, {message: error.message, data: error.data, cause: error})
   if (error instanceof ORPCError) return error
   return errors.HANDLER_ERROR({message: error instanceof Error ? error.message : String(error), cause: error})
 }
-
-const PluginPageFailure = z.object({code: z.enum(PAGE_ERROR_CODES), message: z.string()})
 
 const isDeclined = Schema.is(Permission.DeclinedError)
 const isBlocked = Schema.is(Permission.BlockedError)
@@ -182,10 +168,6 @@ function pluginToolError(name: string, cause: Cause.Cause<Tool.Error>, errors: R
   if (Option.isNone(failure)) return registryCallError(Cause.squash(cause), errors)
   const refused = failure.value.error
   if (isBlocked(refused) || isCorrected(refused)) return errors.APPROVAL_DENIED({message: failure.value.message})
-  const page = PluginPageFailure.safeParse(z.object({metadata: z.unknown()}).safeParse(failure.value).data?.metadata)
-  if (page.success) {
-    return errors[PAGE_ERROR_NAME[page.data.code]]({message: `${name}: ${page.data.message}`, cause: failure.value})
-  }
   return registryCallError(failure.value, errors)
 }
 
