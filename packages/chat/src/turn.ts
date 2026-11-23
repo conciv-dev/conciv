@@ -25,7 +25,6 @@ import {
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
-import type {HarnessLoginStatus} from '@conciv/protocol/chat-types'
 import type {HarnessPermissionAsk, HarnessPermissionVerdict} from '@conciv/protocol/harness-types'
 import type {CodeModeCatalog, PluginHooks} from '@conciv/plugin-host'
 import type {UiChannel} from './approvals.js'
@@ -298,12 +297,10 @@ export function deletedSessionError(sessionId: SessionId): Error {
   return Object.assign(new Error(missingSession(sessionId)), {code: SESSION_DELETED_CODE})
 }
 
-const LOGIN_UNKNOWN: HarnessLoginStatus = {loggedIn: true}
-
 async function refuseLoggedOut(harness: HarnessAdapter, signal: AbortSignal, log: TurnDeps['log']): Promise<void> {
-  const login = await resolveHarnessLogin(harness, {signal}).catch((error: unknown) => {
-    log(`[chat] checking the ${harness.id} login failed, the turn runs: ${String(error)}`)
-    return LOGIN_UNKNOWN
+  const login = await resolveHarnessLogin(harness, {
+    signal,
+    onError: (error) => log(`[chat] checking the ${harness.id} login failed, the turn runs: ${String(error)}`),
   })
   if (!login.loggedIn) throw new Error(login.message)
 }

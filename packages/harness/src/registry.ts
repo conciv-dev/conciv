@@ -37,7 +37,13 @@ export async function resolveHarnessModels(
 
 export async function resolveHarnessLogin(
   adapter: HarnessAdapter,
-  options: {signal: AbortSignal},
+  options: {signal: AbortSignal; onError: (error: unknown) => void},
 ): Promise<HarnessLoginStatus> {
-  return adapter.login ? adapter.login(options) : {loggedIn: true}
+  if (!adapter.login) return {loggedIn: true}
+  try {
+    return await adapter.login({signal: options.signal})
+  } catch (error) {
+    options.onError(error)
+    return {loggedIn: true}
+  }
 }

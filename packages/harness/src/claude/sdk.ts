@@ -142,15 +142,6 @@ function probed(signal: AbortSignal): Promise<SDKControlInitializeResponse> {
   return probeCache.pending
 }
 
-function reprobe(signal: AbortSignal, stale: Promise<SDKControlInitializeResponse>): void {
-  probeListed(signal).then(
-    (init) => {
-      if (probeCache.pending === stale) probeCache.pending = Promise.resolve(init)
-    },
-    () => undefined,
-  )
-}
-
 export function claudeSdkModels({signal}: {signal: AbortSignal}): Promise<HarnessModel[]> {
   return probed(signal).then((init) => listedModels(init.models))
 }
@@ -161,12 +152,16 @@ function isLoggedIn(account: AccountInfo): boolean {
   return account.tokenSource !== 'none' || account.apiKeySource !== undefined
 }
 
+function readLogin(init: SDKControlInitializeResponse): HarnessLoginStatus {
+  return isLoggedIn(init.account) ? {loggedIn: true} : {loggedIn: false, message: NOT_LOGGED_IN}
+}
+
 export async function claudeSdkLogin({signal}: {signal: AbortSignal}): Promise<HarnessLoginStatus> {
-  const pending = probed(signal)
-  const init = await pending
-  if (isLoggedIn(init.account)) return {loggedIn: true}
-  reprobe(signal, pending)
-  return {loggedIn: false, message: NOT_LOGGED_IN}
+  const cached = probeCache.pending
+  const login = readLogin(await probed(signal))
+  if (login.loggedIn || cached === undefined) return login
+  if (probeCache.pending === cached) delete probeCache.pending
+  return readLogin(await probed(signal))
 }
 
 export async function claudeSdkCommands(ctx: HarnessCommandsContext): Promise<HarnessCommand[]> {

@@ -62,20 +62,23 @@ const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
 
 const NOT_LOGGED_IN = 'Codex is not logged in. Run `codex login` in a terminal.'
 
+function readLoginStatus(home: string, signal: AbortSignal): Promise<HarnessLoginStatus> {
+  const {promise, resolve, reject} = Promise.withResolvers<HarnessLoginStatus>()
+  execFile('codex', ['login', 'status'], {env: {...process.env, CODEX_HOME: home}, signal}, (error, stdout, stderr) => {
+    if (error === null) return resolve({loggedIn: true})
+    if (`${stdout}${stderr}`.includes('Not logged in')) return resolve({loggedIn: false, message: NOT_LOGGED_IN})
+    reject(error)
+  })
+  return promise
+}
+
 function codexLogin(home: string): HarnessLogin {
-  return ({signal}) => {
-    const {promise, resolve, reject} = Promise.withResolvers<HarnessLoginStatus>()
-    execFile(
-      'codex',
-      ['login', 'status'],
-      {env: {...process.env, CODEX_HOME: home}, signal},
-      (error, _stdout, stderr) => {
-        if (error === null) return resolve({loggedIn: true})
-        if (stderr.includes('Not logged in')) return resolve({loggedIn: false, message: NOT_LOGGED_IN})
-        reject(error)
-      },
-    )
-    return promise
+  const seen = {loggedIn: false}
+  return async ({signal}) => {
+    if (seen.loggedIn) return {loggedIn: true}
+    const status = await readLoginStatus(home, signal)
+    seen.loggedIn = status.loggedIn
+    return status
   }
 }
 

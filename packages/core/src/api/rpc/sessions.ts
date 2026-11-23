@@ -178,12 +178,12 @@ export function buildHarnessMeta(harness: HarnessAdapter): HarnessMeta {
   }
 }
 
-const LOGIN_UNKNOWN: HarnessLoginStatus = {loggedIn: true}
-
 export function readHarnessLogin(harness: HarnessAdapter, signal: AbortSignal, log: Log): Promise<HarnessLoginStatus> {
-  return resolveHarnessLogin(harness, {signal}).catch((error: unknown) => {
-    if (!signal.aborted) log(Effect.logError('[core] checking the login failed', {harness: harness.id, error}))
-    return LOGIN_UNKNOWN
+  return resolveHarnessLogin(harness, {
+    signal,
+    onError: (error) => {
+      if (!signal.aborted) log(Effect.logError('[core] checking the login failed', {harness: harness.id, error}))
+    },
   })
 }
 
