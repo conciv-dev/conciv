@@ -3,7 +3,8 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Splitter} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ElementCapture, ToolCaptureView} from '@conciv/protocol/element-capture-types'
-import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup} from '@conciv/ui-kit-chat'
+import type {GroupNodeGroup} from '@conciv/ui-kit-chat'
+import {PAGE_SESSION_GROUP_KEY} from './page-session.js'
 import {SessionCard} from './session-card.js'
 import {
   ELEMENT_CAPTURE_FIXTURE_CSS,
