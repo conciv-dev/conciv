@@ -467,7 +467,7 @@ export function createPluginAttachment(apis: HostApis) {
   const [grab, setGrab] = createSignal<PaneGrab>()
   const refs = new Map<string, SessionRef>()
 
-  const project = useQuery(() => ({...appData.utils.tabs.list.queryOptions(), enabled: connection()}))
+  const engineLocation = useQuery(() => ({...appData.utils.location.get.queryOptions(), enabled: connection()}))
 
   const sessionKey = (id: string) => `${engine.id}\n${id}`
 
@@ -487,7 +487,7 @@ export function createPluginAttachment(apis: HostApis) {
         server: engine,
         pending: false,
         get location() {
-          const root = project.isSuccess ? project.data?.project.root : undefined
+          const root = engineLocation.isSuccess ? engineLocation.data?.directory : undefined
 
           return root === undefined ? undefined : {directory: AbsolutePath.make(root)}
         },
@@ -585,11 +585,11 @@ export function createPluginAttachment(apis: HostApis) {
 
   const draft = (plugin: string, input: Parameters<Layout['draft']>[0]) =>
     void queryClient
-      .ensureQueryData(appData.utils.tabs.list.queryOptions())
-      .then(async ({project: listed}) => {
-        if (input.server !== engine.id || input.directory !== listed.root)
+      .ensureQueryData(appData.utils.location.get.queryOptions())
+      .then(async ({directory}) => {
+        if (input.server !== engine.id || input.directory !== directory)
           return console.error(
-            `[plugin] ${plugin}: a draft runs in ${listed.root} on the server "${engine.id}", not in ${input.directory} on "${input.server}"`,
+            `[plugin] ${plugin}: a draft runs in ${directory} on the server "${engine.id}", not in ${input.directory} on "${input.server}"`,
           )
         const {sessionId} = await rpc.sessions.create(undefined)
         settleKeptSave(appData, keepDraft, sessionId, await appendDraft(appData, keepDraft, sessionId, input.prompt))
@@ -652,7 +652,7 @@ export function createPluginAttachment(apis: HostApis) {
 
   return {
     engine,
-    root: () => (project.isSuccess ? project.data?.project.root : undefined),
+    root: () => (engineLocation.isSuccess ? engineLocation.data?.directory : undefined),
     attach: (directory: string) => {
       const detach = apis.attach({...mounted, directory})
 

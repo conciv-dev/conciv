@@ -1,3 +1,6 @@
+import {realpathSync} from 'node:fs'
+import {writeFile} from 'node:fs/promises'
+import {join} from 'node:path'
 import {describe, expect} from 'vitest'
 import {z} from 'zod'
 import {prepareHome, recordHubConnection, withHomeDb} from '@conciv/db'
@@ -5,10 +8,11 @@ import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../test/hub-test.js'
 
 describe('the hub', () => {
-  test('an outside agent lists the open tabs, discovers and runs code with no tab on the engine registered in the home, is told to pass a tab for a tool that needs a session, then queues page actions on a tab and reads the result of the queue on its next call', async ({
+  test('an outside agent lists the open tabs (none, then a tab with its project, branch and page), discovers and runs code with no tab on the engine registered in the home, is told to pass a tab for a tool that needs a session, then queues page actions on a tab and reads the result of the queue on its next call', async ({
     hub,
   }) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']}, {git: true})
+    await writeFile(join(engine.root, 'package.json'), JSON.stringify({name: 'plant-shop'}))
     withHomeDb(await prepareHome(engine.home), (db) => recordHubConnection(db, 'claude', Date.now()))
     const agent = await hub(engine.home)
 
@@ -53,6 +57,38 @@ describe('the hub', () => {
         visible: true,
       },
     })
+    const listed = await agent.callTool('list_tabs', {})
+    const listing = z
+      .object({tabs: z.array(z.object({root: z.string()}).loose()), unreachable: z.array(z.unknown())})
+      .parse(JSON.parse(z.tuple([z.object({text: z.string()})]).parse(listed.content)[0].text))
+    expect(listing.tabs.map((row) => realpathSync(row.root))).toEqual([engine.root])
+    expect(listing).toEqual({
+      tabs: [
+        {
+          tab: sessionId,
+          project: 'plant-shop',
+          branch: 'main',
+          root: expect.any(String),
+          href: 'http://localhost:3000/shelf',
+          pageTitle: 'Shelf',
+          state: 'visible',
+          sessionTitle: expect.any(String),
+          lastActive: expect.any(String),
+          running: false,
+          harness: expect.any(String),
+          browserTabs: [
+            {
+              id: 'tab_22222222-2222-4222-8222-222222222222',
+              href: 'http://localhost:3000/shelf',
+              pageTitle: 'Shelf',
+              state: 'visible',
+            },
+          ],
+        },
+      ],
+      unreachable: [],
+    })
+
     const command = await engine.event('rpc.experimental.page.control', {data: {type: 'command', connectionId}})
     const played = await engine.event('rpc.experimental.page.queue.finished')
     const queued = await agent.callTool('execute_typescript', {

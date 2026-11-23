@@ -1,6 +1,10 @@
+import {readFile} from 'node:fs/promises'
+import {join} from 'node:path'
+import {z} from 'zod'
 import {checkEngines, type EngineRow} from '@conciv/db'
-import {engineTooOld, makeRpcClient} from '@conciv/contract'
-import type {SessionId, TabOpen, Tabs, TabsListing} from '@conciv/protocol/chat-types'
+import {engineTooOld, makeRpcClient, type RpcClient} from '@conciv/contract'
+import {Definition as PageRpc, type State} from '@conciv/plugin-page/rpc'
+import type {SessionId, TabOpen, TabsListing} from '@conciv/protocol/chat-types'
 
 export const ENGINE_READ_MS = 2_000
 
@@ -66,35 +70,95 @@ export async function listTabs(home: string): Promise<TabsListing> {
   }
 }
 
+const PageUnlistedSchema = z.object({
+  code: z.literal('PLUGIN_RPC'),
+  data: z.object({type: z.literal('rpc.unavailable')}),
+})
+
+const SessionGoneSchema = z.object({code: z.literal('NOT_FOUND')})
+
+const PackageNameSchema = z.object({name: z.string()})
+
 async function engineTabs(row: EngineRow): Promise<TabsListing> {
+  const rpc = makeRpcClient(row.apiBase, {token: row.token})
+  const signal = AbortSignal.timeout(ENGINE_READ_MS)
   try {
-    const listed = await makeRpcClient(row.apiBase, {token: row.token}).tabs.list(undefined, {
-      signal: AbortSignal.timeout(ENGINE_READ_MS),
-    })
-    return {tabs: listed.tabs.map(tabRow(listed)), unreachable: []}
+    const [location, vcs, attached] = await Promise.all([
+      rpc.location.get(undefined, {signal}),
+      rpc.vcs.get(undefined, {signal}),
+      attachedSessions(rpc, signal),
+    ])
+    const project = await projectName(location.directory)
+    const branch = vcs.data.branch.current
+    const engine = {
+      ...(project === null ? {} : {project}),
+      ...(branch === undefined ? {} : {branch}),
+      root: location.directory,
+    }
+    const rows = await Promise.all(attached.map((sessionId) => sessionRow(rpc, sessionId, engine, signal)))
+    return {tabs: rows.flatMap((tab) => (tab === null ? [] : [tab])), unreachable: []}
   } catch (error) {
     return {tabs: [], unreachable: [{root: row.root, error: engineTooOld(error) ? TOO_OLD : errorText(error)}]}
   }
 }
 
-function tabRow(listing: Tabs) {
-  return (tab: Tabs['tabs'][number]): TabRow => ({
-    tab: tab.sessionId,
-    ...(listing.project.name === null ? {} : {project: listing.project.name}),
-    ...(listing.project.branch === null ? {} : {branch: listing.project.branch}),
-    root: listing.project.root,
-    ...(tab.page === null ? {} : {href: tab.page.href, pageTitle: tab.page.title, state: tab.page.state}),
-    sessionTitle: tab.session.title,
-    lastActive: new Date(tab.session.updatedAt).toISOString(),
-    running: tab.session.running,
-    harness: tab.harness,
-    browserTabs: tab.browserTabs.map((browserTab) => ({
-      id: browserTab.id,
-      ...(browserTab.page === null
-        ? {}
-        : {href: browserTab.page.href, pageTitle: browserTab.page.title, state: browserTab.page.state}),
-    })),
-  })
+function attachedSessions(rpc: RpcClient, signal: AbortSignal): Promise<SessionId[]> {
+  return rpc.plugin.call({rpcId: PageRpc.id, method: 'sessions.attached', input: {}}, {signal}).then(
+    (answer) => PageRpc.methods['sessions.attached'].output.parse(answer),
+    (error: unknown) => {
+      if (PageUnlistedSchema.safeParse(error).success) return []
+      throw error
+    },
+  )
+}
+
+async function sessionRow(
+  rpc: RpcClient,
+  sessionId: SessionId,
+  engine: {project?: string; branch?: string; root: string},
+  signal: AbortSignal,
+): Promise<TabRow | null> {
+  const [meta, state] = await Promise.all([
+    rpc.sessions.get({sessionId}, {signal}).catch((error: unknown) => {
+      if (SessionGoneSchema.safeParse(error).success) return null
+      throw error
+    }),
+    rpc.plugin
+      .call({rpcId: PageRpc.id, method: 'tabs.list', input: {sessionId}}, {signal})
+      .then((answer) => PageRpc.methods['tabs.list'].output.parse(answer)),
+  ])
+  if (meta === null || meta.hidden) return null
+  const browserTabs = focusedFirst(state).map((tab) => ({
+    id: tab.id,
+    href: tab.url,
+    pageTitle: tab.title,
+    state: tab.visible ? ('visible' as const) : ('hidden' as const),
+  }))
+  const page = browserTabs[0]
+  return {
+    tab: sessionId,
+    ...engine,
+    ...(page === undefined ? {} : {href: page.href, pageTitle: page.pageTitle, state: page.state}),
+    sessionTitle: meta.title,
+    lastActive: new Date(meta.updatedAt).toISOString(),
+    running: meta.running,
+    harness: meta.harnessKind,
+    browserTabs,
+  }
+}
+
+function focusedFirst({tabs, focusedTabId}: State): State['tabs'] {
+  return [...tabs.filter((tab) => tab.id === focusedTabId), ...tabs.filter((tab) => tab.id !== focusedTabId)]
+}
+
+async function projectName(root: string): Promise<string | null> {
+  try {
+    return (
+      PackageNameSchema.safeParse(JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))).data?.name ?? null
+    )
+  } catch {
+    return null
+  }
 }
 
 export function errorText(error: unknown): string {
