@@ -50,7 +50,7 @@ Paste this section into AGENTS.md (and CLAUDE.md if you keep one):
 
 ## conciv
 
-This project has conciv installed. For everything in the running browser, use the conciv CLI through Bash (`conciv tools page ...`, `conciv tools react ...`). Use browser MCP tools only when a conciv command cannot do what you need.
+This project has conciv installed. For everything in the running browser, use the conciv CLI through Bash (`conciv tools page ...`). Use browser MCP tools only when a conciv command cannot do what you need.
 
 ### When to use conciv instead of the browser MCP
 
@@ -58,13 +58,13 @@ Use the browser MCP for plain navigation, clicks and screenshots. For anything a
 looks or behaves the way it does, use conciv first. Every command prints JSON. Start with
 `conciv tools page snapshot` to get a ref or a selector for the element you care about.
 
-- Which component rendered an element, and the source file and line: `conciv tools react locate <selector>`
-- Props, state, hooks and context of a live component: `conciv tools react inspect <selector>`
-- Every mounted instance of a component by name: `conciv tools react find --name <ComponentName>`
-- A value that stays stale, a list that does not refresh, cached data: `conciv tools react inspect --name <ComponentName>`, then `conciv tools page eval --code <expression>` to read the store or query cache on `window`
-- An element that cannot be clicked or is not visible: `conciv tools page query <selector>` for its box and styles, `conciv tools page eval --code <expression>` with `getComputedStyle` and `elementFromPoint`
+- Which component rendered an element, and the source file and line: `conciv tools page locate --selector <selector>`
+- Props, state, hooks and context of a live component: `conciv tools page inspect --selector <selector>`
+- Every mounted instance of a component by name: `conciv tools page find <ComponentName>`
+- A value that stays stale, a list that does not refresh, cached data: `conciv tools page inspect --name <ComponentName>`, then `conciv tools page eval <expression>` to read the store or query cache on `window`
+- An element that cannot be clicked or is not visible: `conciv tools page query --selector <selector>` for its box and styles, `conciv tools page eval <expression>` with `getComputedStyle` and `elementFromPoint`
 - Browser console errors and warnings: `conciv tools page console`
-- Unexpected re-renders or a memo that never updates: `conciv tools react track --action start`, reproduce, then `conciv tools react track --action report [--name <ComponentName>]`, then `conciv tools react track --action stop`
+- Unexpected re-renders or a memo that never updates: `conciv tools page track --action start`, reproduce, then `conciv tools page track --action report [--name <ComponentName>]`, then `conciv tools page track --action stop`
 - Module graph and transformed source: `conciv plugin call server graph --data '{"file":"<file>"}'`, `conciv plugin call server transform --data '{"url":"<url>"}'`
 
 Run `conciv tools --help` for every command. Every command needs the project's conciv dev server running.

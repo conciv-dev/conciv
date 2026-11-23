@@ -34,10 +34,6 @@ function verbCommand(group: ToolGroup, signature: ToolCommandSignature) {
   })
 }
 
-const PAGE_GROUP = 'page'
-
-const REACT_CATEGORY = 'react'
-
 const tabsCommand = command(
   name('tabs'),
   description('list the open conciv tabs of every running conciv dev server on this machine'),
@@ -48,7 +44,7 @@ const tabsCommand = command(
 
 export const toolsRoute = route(
   name('tools'),
-  description('inspect & drive the live dev server: every tool group it serves (page, react, ...)'),
+  description('inspect & drive the live dev server: every tool group it serves (page, design, ...)'),
   envelopeFlag,
   tabFlag,
   tabsCommand,
@@ -65,22 +61,7 @@ function catalogRoutes(catalog: readonly ToolCommandSignature[]): AnyRoute[] {
       call: callRegistry,
     }),
   )
-  return [...groups, ...reactView(grouped), ...single.map(singleCommand)]
-}
-
-function reactView(grouped: readonly ToolCommandSignature[]): AnyRoute[] {
-  const signatures = grouped.filter(
-    (signature) => readGroup(signature) === PAGE_GROUP && signature.category === REACT_CATEGORY,
-  )
-  if (signatures.length === 0) return []
-  return [
-    toolGroupRoute({
-      name: REACT_CATEGORY,
-      description: 'inspect & edit live React components; run --help for every capability',
-      signatures,
-      call: callRegistry,
-    }),
-  ]
+  return [...groups, ...single.map(singleCommand)]
 }
 
 function singleCommand(signature: ToolCommandSignature): AnyRoute {
