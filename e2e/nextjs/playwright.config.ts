@@ -1,6 +1,4 @@
-import {e2eConfig, e2ePort} from '@conciv/e2e-utils/config'
-
-process.env.CONCIV_E2E_ENGINE_PORT = String(await e2ePort('nextjs-engine'))
+import {e2eConfig} from '@conciv/e2e-utils/config'
 
 export default await e2eConfig('nextjs', {
   dir: import.meta.dirname,
