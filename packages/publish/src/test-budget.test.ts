@@ -41,7 +41,7 @@ describe('cases', () => {
   }
 
   await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 7}))).rejects.toThrow(
-    '@conciv/a: 8 tests, budget 7',
+    '@conciv/a: 8 tests, budget 7\n\nThe budget is a review gate, not a counter to bump.',
   )
   await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 8}))).resolves.toEqual([])
   await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 9}))).resolves.toEqual([

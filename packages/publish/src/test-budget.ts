@@ -43,7 +43,7 @@ function readTestChain(callee: Expression | Super): TestChain | undefined {
   return node.type === 'Identifier' ? {name: node.name, members} : undefined
 }
 
-export function countTestCases(filename: string, source: string): number {
+function countTestCases(filename: string, source: string): number {
   const parsed = parseSync(filename, source)
   const [error] = parsed.errors
   if (error) throw new Error(`${filename}: cannot parse - ${error.message}`)
@@ -72,7 +72,7 @@ async function trackedTestFiles(cwd: string): Promise<string[]> {
   return stdout.split('\0').filter((path) => TEST_FILE.test(path) && !FIXTURE_SEGMENT.test(path))
 }
 
-export async function countTestCasesByPackage(cwd: string): Promise<Map<string, number>> {
+async function countTestCasesByPackage(cwd: string): Promise<Map<string, number>> {
   const [packages, files] = await Promise.all([readWorkspacePackages(cwd), trackedTestFiles(cwd)])
   const counts = new Map<string, number>()
   for (const path of files) {
@@ -102,7 +102,16 @@ export async function assertTestsWithinBudget(cwd: string): Promise<string[]> {
   })
   if (over.length > 0) {
     throw new Error(
-      `a package has more tests than ${BUDGET_FILE} allows; extend an existing test, or raise the number in the PR for the maintainer to approve:\n${over.join('\n')}`,
+      [
+        `a package has more tests than ${BUDGET_FILE} allows:`,
+        ...over,
+        '',
+        'The budget is a review gate, not a counter to bump. Before you raise any number:',
+        '1. List every new test case in the package over its budget: file and test name.',
+        '2. For each one, name the existing test or suite you checked and say why it does not already cover this.',
+        '3. Fold it into an existing journey test when one fits: one journey, not one test per behaviour.',
+        `4. Only a test that survives this gets a raised number in ${BUDGET_FILE}, and the PR body carries this account, test by test, for the maintainer to approve.`,
+      ].join('\n'),
     )
   }
   return names.flatMap((name) => {

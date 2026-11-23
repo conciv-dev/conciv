@@ -57,6 +57,7 @@ describe.concurrent('outside agents', () => {
   }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
     const outside = makeRpcClient(engine.address.apiBase, {
+      token: engine.address.token,
       headers: {
         [CONCIV_ORIGIN_HEADER]: 'hub',
         [CONCIV_CLIENT_HEADER]: 'terminal',
