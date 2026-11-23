@@ -87,34 +87,58 @@ describe.concurrent('the vite dev server', () => {
     expect((await fetch(`http://127.0.0.1:${first.port}/health`)).status).toBe(200)
     expect((await fetch(`http://127.0.0.1:${second.port}/health`)).status).toBe(200)
   })
-  test("the dependency scan reads the widget the plugin injects, so the first optimizer pass already bundles the widget's dependencies", async ({
+  test.for([
+    {name: 'a plain folder', folder: 'widget'},
+    {name: 'a folder whose name holds parens and brackets', folder: 'widget (copy) [1]'},
+  ])(
+    "the dependency scan reads the widget the plugin injects from $name, so the first optimizer pass already bundles the widget's dependencies",
+    async ({folder}, {project, expect}) => {
+      const root = project('app')
+      const dependency = join(root, 'node_modules', 'widget-dependency')
+      mkdirSync(dependency, {recursive: true})
+      writeFileSync(
+        join(dependency, 'package.json'),
+        JSON.stringify({name: 'widget-dependency', type: 'module', main: 'index.js'}),
+      )
+      writeFileSync(join(dependency, 'index.js'), 'export const ready = true\n')
+      const embedEntry = join(root, folder, 'mount.js')
+      mkdirSync(dirname(embedEntry))
+      writeFileSync(embedEntry, "import {ready} from 'widget-dependency'\nexport const mountConciv = () => ready\n")
+
+      const config = await resolveConfig(
+        {
+          root,
+          configFile: false,
+          logLevel: 'silent',
+          optimizeDeps: {rolldownOptions: {transform: {jsx: {runtime: 'classic'}}}},
+          plugins: [makeViteHook({homeDir: join(root, 'home')}, {embedEntry})],
+        },
+        'serve',
+      )
+      const metadata = await optimizeDeps(config, true)
+
+      expect(Object.keys(metadata.optimized)).toContain('widget-dependency')
+    },
+  )
+  test('a widget path holding a backslash and a paren reaches the scan entries with both escaped', async ({
     project,
     expect,
   }) => {
     const root = project('app')
-    const dependency = join(root, 'node_modules', 'widget-dependency')
-    mkdirSync(dependency, {recursive: true})
-    writeFileSync(
-      join(dependency, 'package.json'),
-      JSON.stringify({name: 'widget-dependency', type: 'module', main: 'index.js'}),
-    )
-    writeFileSync(join(dependency, 'index.js'), 'export const ready = true\n')
-    const embedEntry = join(root, 'widget', 'mount.js')
+    const embedEntry = join(root, 'wid\\get (copy)', 'mount.js')
     mkdirSync(dirname(embedEntry))
-    writeFileSync(embedEntry, "import {ready} from 'widget-dependency'\nexport const mountConciv = () => ready\n")
+    writeFileSync(embedEntry, 'export const mountConciv = () => true\n')
 
     const config = await resolveConfig(
       {
         root,
         configFile: false,
         logLevel: 'silent',
-        optimizeDeps: {rolldownOptions: {transform: {jsx: {runtime: 'classic'}}}},
         plugins: [makeViteHook({homeDir: join(root, 'home')}, {embedEntry})],
       },
       'serve',
     )
-    const metadata = await optimizeDeps(config, true)
 
-    expect(Object.keys(metadata.optimized)).toContain('widget-dependency')
+    expect(config.optimizeDeps.entries).toContain(`${root}/wid\\\\get \\(copy\\)/mount.js`)
   })
 })

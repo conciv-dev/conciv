@@ -64,7 +64,7 @@ function dropIncludedFromExcludes(
   optimizeDeps.exclude = optimizeDeps.exclude.filter((id) => !(managed.has(id) && included.has(id)))
 }
 
-const GLOB_SPECIAL = /[()[\]{}*?!]/g
+const GLOB_SPECIAL = /[\\()[\]{}*?!]/g
 const DEFAULT_SCAN_ENTRIES = ['**/*.html', '!**/__tests__/**', '!**/coverage/**']
 
 function escapeGlob(file: string): string {
