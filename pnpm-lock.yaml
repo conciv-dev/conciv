@@ -3591,9 +3591,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
-      '@conciv/uno-preset':
-        specifier: workspace:*
-        version: link:../../uno-preset
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -3609,9 +3606,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      unocss:
-        specifier: 'catalog:'
-        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -3703,9 +3697,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
-      '@conciv/uno-preset':
-        specifier: workspace:*
-        version: link:../../uno-preset
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
@@ -3766,9 +3757,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      unocss:
-        specifier: 'catalog:'
-        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -3815,9 +3803,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
-      '@conciv/uno-preset':
-        specifier: workspace:*
-        version: link:../../uno-preset
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -3851,9 +3836,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      unocss:
-        specifier: 'catalog:'
-        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -3897,9 +3879,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
-      '@conciv/uno-preset':
-        specifier: workspace:*
-        version: link:../../uno-preset
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -3942,9 +3921,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      unocss:
-        specifier: 'catalog:'
-        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -3997,9 +3973,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
-      '@conciv/uno-preset':
-        specifier: workspace:*
-        version: link:../../uno-preset
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
@@ -4018,9 +3991,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      unocss:
-        specifier: 'catalog:'
-        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -4058,9 +4028,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
-      '@conciv/uno-preset':
-        specifier: workspace:*
-        version: link:../../uno-preset
       '@conciv/unplugin':
         specifier: workspace:*
         version: link:../../unplugin
@@ -4094,9 +4061,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      unocss:
-        specifier: 'catalog:'
-        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -4137,9 +4101,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
-      '@conciv/uno-preset':
-        specifier: workspace:*
-        version: link:../../uno-preset
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -4158,9 +4119,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      unocss:
-        specifier: 'catalog:'
-        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -4207,9 +4165,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
-      '@conciv/uno-preset':
-        specifier: workspace:*
-        version: link:../../uno-preset
       '@conciv/unplugin':
         specifier: workspace:*
         version: link:../../unplugin
@@ -4261,9 +4216,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      unocss:
-        specifier: 'catalog:'
-        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
