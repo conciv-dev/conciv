@@ -1,7 +1,8 @@
-import {dirname, isAbsolute, join, resolve} from 'node:path'
+import {dirname, isAbsolute, join, posix, relative, resolve, sep} from 'node:path'
 import {readFileSync, existsSync} from 'node:fs'
+import {access, writeFile} from 'node:fs/promises'
 import type {Plugin, ViteDevServer} from 'vite'
-import {concivStateDir} from '@conciv/protocol/state-types'
+import {concivStateDir, createConcivStateDir} from '@conciv/protocol/state-types'
 import type {Engine, LogEntry} from '@conciv/core/start'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
@@ -68,32 +69,69 @@ const GLOB_SPECIAL = /[\\()[\]{}*?!]/g
 const DEFAULT_SCAN_ENTRIES = ['**/*.html', '!**/__tests__/**', '!**/coverage/**']
 
 function escapeGlob(file: string): string {
-  return file.replaceAll(GLOB_SPECIAL, '\\$&')
+  return file.split(sep).join(posix.sep).replaceAll(GLOB_SPECIAL, '\\$&')
 }
 
-function readInputFiles(input: unknown, root: string): string[] | undefined {
+function readImportPath(from: string, file: string): string {
+  const path = relative(from, file).split(sep).join(posix.sep)
+  return path.startsWith('../') ? path : `./${path}`
+}
+
+async function writeScanEntry(root: string, files: readonly string[]): Promise<readonly string[]> {
+  const stateDir = concivStateDir(root)
+  const path = join(stateDir, 'widget-scan-entry.gen.js')
+  const source = files.map((file) => `import ${JSON.stringify(readImportPath(stateDir, file))}\n`).join('')
+  try {
+    await createConcivStateDir(stateDir)
+    await writeFile(path, source, 'utf8')
+    return [path]
+  } catch (error) {
+    const cause = error instanceof Error ? error.message : String(error)
+    console.warn(
+      `conciv: could not write ${path}, so vite's dependency scan may miss a widget file in an ignored folder: ${cause}`,
+    )
+    return files
+  }
+}
+
+async function readInputFiles(input: unknown, root: string): Promise<string[] | undefined> {
   const values = typeof input === 'string' ? [input] : Array.isArray(input) ? input : Object.values(input ?? {})
   const files = values.map((value) =>
     typeof value === 'string' && isAbsolute(value) ? value : join(root, String(value)),
   )
-  return files.every((file) => existsSync(file)) ? files : undefined
+  const found = await Promise.all(
+    files.map((file) =>
+      access(file).then(
+        () => true,
+        () => false,
+      ),
+    ),
+  )
+  return found.every(Boolean) ? files : undefined
 }
 
-function addScanEntries(
-  config: {
-    optimizeDeps?: {entries?: string | string[]}
-    input?: unknown
-    build?: {rolldownOptions?: {input?: unknown}}
-  },
+type ScanConfig = {
+  optimizeDeps?: {entries?: string | string[]}
+  input?: unknown
+  build?: {rolldownOptions?: {input?: unknown}; rollupOptions?: {input?: unknown}}
+}
+
+function readAppInput(config: ScanConfig): unknown {
+  const build = config.build ?? {}
+  return config.input ?? build.rolldownOptions?.input ?? build.rollupOptions?.input
+}
+
+async function addScanEntries(
+  config: ScanConfig,
   root: string,
   files: readonly string[],
-): string[] | undefined {
+): Promise<string[] | undefined> {
   if (files.length === 0) return undefined
-  const patterns = files.map(escapeGlob)
+  const patterns = (await writeScanEntry(root, files)).map(escapeGlob)
   if (config.optimizeDeps?.entries !== undefined) return patterns
-  const input = config.input ?? config.build?.rolldownOptions?.input
+  const input = readAppInput(config)
   if (input === undefined) return [...DEFAULT_SCAN_ENTRIES, ...patterns]
-  const inputFiles = readInputFiles(input, root)
+  const inputFiles = await readInputFiles(input, root)
   return inputFiles === undefined ? undefined : [...inputFiles.map(escapeGlob), ...patterns]
 }
 
@@ -301,7 +339,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       const embedFiles =
         builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...readMountChunk(builtins.embedEntry)]
       projectRoot = resolve(userConfig.root ?? process.cwd())
-      widgetFiles = embedFiles
+      widgetFiles = env.command === 'serve' ? embedFiles : []
       const base = concivSolidConfig({
         root: projectRoot,
         warmupFiles: embedFiles,
@@ -322,10 +360,10 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         },
       }
     },
-    configEnvironment(name, environmentConfig) {
+    async configEnvironment(name, environmentConfig) {
       dropIncludedFromExcludes(environmentConfig.optimizeDeps, managedExcludes)
       if (name !== 'client') return
-      const entries = addScanEntries(environmentConfig, projectRoot, widgetFiles)
+      const entries = await addScanEntries(environmentConfig, projectRoot, widgetFiles)
       return entries === undefined ? undefined : {optimizeDeps: {entries}}
     },
     async configResolved(config) {
