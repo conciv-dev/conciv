@@ -62,10 +62,10 @@
   "devDependencies": {
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin": "workspace:^",
-    "@conciv/plugin-internal": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@internal/plugin": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",

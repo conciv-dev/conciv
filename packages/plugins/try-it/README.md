@@ -19,9 +19,8 @@ const plugins = compose({'try-it': {...tryIt, windowEntry: async () => ({default
 mountConciv(plugins)
 ```
 
-The definition is first-party (`defineInternalPlugin`): the host spreads it into the composed entry so the app sees the
-stamp and hands the setup the internal `ctx.ui` members (`TruncatedText`, `CopyButton`, `Collapsible`) the connect pane
-draws through; the bundle inlines `@conciv/plugin-internal` and imports no kit.
+The connect pane draws through conciv's own `ctx.ui` members (`TruncatedText`, `CopyButton`, `Collapsible`), read with
+`OpaqueUi.toInternal(ctx.ui)`; the bundle imports no kit.
 
 Options: `token` (a UUID, required), and `probeMs`, `holdMs`, `slowMs` (the sweep interval, the "Agent connected" hold
 and the wait before the setup-help hint, in milliseconds).

@@ -23,7 +23,6 @@ import {
   selectUndelivered,
   transitionQueue,
   type Landed,
-  type Origin,
   type QueueEntry,
   type QueueEvent,
   type Settled,
@@ -193,12 +192,12 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
     sessionId: SessionId,
     queueId: string,
     waitMs: number,
-  ): Effect.fn.Return<{result: PageQueueResult; before: 'owed' | 'nextReply' | null} | PageQueueProgress, Error> {
+  ): Effect.fn.Return<{result: PageQueueResult; before: 'owed' | null} | PageQueueProgress, Error> {
     const entry = yield* reached(sessionId, queueId, waitMs)
     if (entry.result === null) return readProgress(entry)
     if (!awaitsDelivery(entry)) return {result: entry.result, before: null}
     yield* dispatch({type: 'claimed', queueIds: [queueId]})
-    return {result: entry.result, before: entry.delivery === 'owed' ? 'owed' : 'nextReply'}
+    return {result: entry.result, before: 'owed'}
   })
 
   const play = (sessionId: SessionId, given: QueueStart) =>
@@ -206,25 +205,20 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
       Effect.flatMap(({queueId}) => wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS)),
     )
 
-  const undelivered = (sessionId: SessionId, origin: Origin) =>
+  const undelivered = (sessionId: SessionId, toolCallIds: readonly string[]) =>
     Effect.suspend(() => {
-      const owed = selectUndelivered(machine.state, sessionId, origin)
+      const owed = selectUndelivered(machine.state, sessionId, toolCallIds)
       return dispatch({type: 'delivered', queueIds: owed.map((each) => each.queueId)}).pipe(
         Effect.as(owed.map((each) => each.result)),
       )
     })
 
-  const owed = (sessionId: SessionId, excludeToolCallIds: readonly string[], claimed: boolean) =>
-    Effect.suspend(() => {
-      const found = selectUndelivered(machine.state, sessionId, {excludeToolCallIds})
-      if (!claimed) return Effect.succeed(found)
-      return dispatch({type: 'claimed', queueIds: found.map((each) => each.queueId)}).pipe(Effect.as(found))
-    })
+  const owed = (sessionId: SessionId) => Effect.sync(() => selectUndelivered(machine.state, sessionId, undefined))
 
   const startedBy = (sessionId: SessionId, toolCallIds: readonly string[]) =>
     Effect.sync(() => selectStartedBy(machine.state, sessionId, toolCallIds))
 
-  const settle = (sessionId: SessionId, queueIds: readonly string[], delivery: 'owed' | 'nextReply' | 'delivered') =>
+  const settle = (sessionId: SessionId, queueIds: readonly string[], delivery: 'owed' | 'delivered') =>
     dispatch({type: 'settled', sessionId, queueIds, delivery})
 
   const cancelSession = (sessionId: SessionId) => dispatch({type: 'session.cancelled', sessionId})

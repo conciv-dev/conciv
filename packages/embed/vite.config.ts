@@ -10,7 +10,6 @@ const INLINED_PREFIXES = [
   '@conciv/plugin-page/client',
   '@conciv/plugin-page/renderer',
   '@conciv/app',
-  '@conciv/plugin-internal',
   '@conciv/plugin-terminal',
   '@conciv/tools',
   '@conciv/core',

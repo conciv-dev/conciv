@@ -3,16 +3,16 @@ import {ManagedRuntime} from 'effect'
 import {isPlainObject, keyBy, mapKeys, sumBy} from 'es-toolkit'
 import {z} from 'zod'
 import {
+  Plugin,
   Slot,
   ToolRegistry,
   type IconName,
-  type Plugin,
   type ToolComponent,
   type ToolProps,
   type Ui,
 } from '@conciv/plugin/experimental'
+import {OpaqueUi, type InternalUi} from '@internal/plugin'
 import {PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
-import {defineInternalPlugin, type InternalUi} from '@conciv/plugin-internal'
 import {tanstackToolLabel, tanstackToolName, type TanstackToolName} from './tool-labels.js'
 import {errorRingLayer} from './error-ring.js'
 import {execute} from './operations.js'
@@ -542,7 +542,7 @@ const tanstackCards = {
   tanstack_server_fn_trace: serverFnTraceCard,
 } satisfies Record<TanstackToolName, Card>
 
-const tanstack: Plugin.Definition = defineInternalPlugin({
+const tanstack: Plugin.Definition = Plugin.define({
   icons: {logo: tanstackLogo},
   setup(ctx) {
     const tree = ctx.use(ReactTree)
@@ -560,7 +560,7 @@ const tanstack: Plugin.Definition = defineInternalPlugin({
     ctx.add(Slot, {at: 'session.status', render: () => <InspectorChip ui={ctx.ui} logo={ctx.icons.logo} />})
 
     Object.entries(tanstackCards).forEach(([name, card]) =>
-      ctx.add(ToolRegistry, {name, render: card(ctx.ui, ctx.icons.logo)}),
+      ctx.add(ToolRegistry, {name, render: card(OpaqueUi.toInternal(ctx.ui), ctx.icons.logo)}),
     )
   },
 })
