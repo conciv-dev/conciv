@@ -1,5 +1,6 @@
 import {Show, Suspense, createMemo, createSignal, type JSX} from 'solid-js'
 import {createElementSize} from '@solid-primitives/resize-observer'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import ChevronRight from 'lucide-solid/icons/chevron-right'
 import {Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
@@ -100,6 +101,19 @@ function tooltipPlacement(position: TriggerCorner): 'left' | 'right' {
   return position.endsWith('-left') ? 'right' : 'left'
 }
 
+function activateOnClick(button: HTMLElement, activate: () => void): void {
+  const view = button.ownerDocument.defaultView
+  if (view === null) return
+  makeEventListener(
+    view,
+    'click',
+    (event) => {
+      if (event.composedPath().includes(button)) activate()
+    },
+    {capture: true},
+  )
+}
+
 function edgeTabStyle(tab: LauncherEdgeTab): JSX.CSSProperties {
   return tab.edge === 'left' || tab.edge === 'right' ? {top: tab.along} : {left: tab.along}
 }
@@ -117,9 +131,11 @@ function EdgeTab(props: {tab: LauncherEdgeTab; suppressed: () => '' | undefined;
       data-conciv-fab
       data-conciv-suppressed={props.suppressed()}
       inert={props.suppressed() !== undefined}
-      onClick={() => {
-        if (!props.tab.preview) props.onRestore()
-      }}
+      ref={(element: HTMLButtonElement) =>
+        activateOnClick(element, () => {
+          if (!props.tab.preview) props.onRestore()
+        })
+      }
     >
       <ChevronRight class={EDGE_CHEVRON[props.tab.edge]} aria-hidden="true" />
     </TooltipIconButton>
@@ -177,6 +193,9 @@ export function ShellFab(props: {
           ref={(element) => {
             launcher = element
             props.ref(element)
+            activateOnClick(element, () => {
+              if (!props.fab.consumeClick()) props.onToggle()
+            })
           }}
           class={fabClass(props.fab, towardStart())}
           data-conciv-fab
@@ -191,9 +210,6 @@ export function ShellFab(props: {
           aria-controls={props.locked() ? undefined : 'conciv-chat-panel'}
           onPointerDown={(event) => props.fab.onPointerDown(event)}
           onKeyDown={(event) => props.fab.onKeyDown(event)}
-          onClick={() => {
-            if (!props.fab.consumeClick()) props.onToggle()
-          }}
         >
           <Suspense>
             <Show when={props.working()}>
