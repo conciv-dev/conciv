@@ -28,7 +28,7 @@ export type HarnessCapabilities = {
   login: 'probe' | 'none'
 }
 
-export type HarnessLogin = (options: {signal: AbortSignal}) => Promise<HarnessLoginStatus>
+export type HarnessLogin = (options: {signal: AbortSignal; refresh?: boolean}) => Promise<HarnessLoginStatus>
 
 export type HarnessImage = {mediaType: string; dataBase64: string}
 

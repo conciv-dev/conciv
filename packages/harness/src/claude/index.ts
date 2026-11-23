@@ -53,7 +53,7 @@ export function claude(provider: ConfigProvider.ConfigProvider) {
     init: claudeInit,
     chatConfig: claudeChatConfig,
     commands: (ctx) => claudeSdkCommands(ctx, readProbeEnv(provider)),
-    login: ({signal}) => claudeSdkLogin({signal, env: readProbeEnv(provider)}),
+    login: ({signal, refresh}) => claudeSdkLogin({signal, refresh: refresh ?? false, env: readProbeEnv(provider)}),
     history: claudeHistory(configDir),
     tty: {command: claudeTtyCommand},
     resume: {command: ({nativeId}) => ({bin: 'claude', args: claudeSessionArgs(nativeId, true)})},

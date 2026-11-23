@@ -1,5 +1,6 @@
 import {ConfigProvider} from 'effect'
 import {describe, expect, it} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {hungClaudeOnPath, recordedClaudeOnPath} from '../../test/claude-sdk-env.js'
 import {claude, claudeTtyCommand} from './index.js'
@@ -63,27 +64,42 @@ describe('claude', () => {
 })
 
 describe('the claude login check', () => {
-  it('runs the claude on PATH, answers a check from the held login at once even while its CLI hangs, and a re-check started by a logged-out check replaces the held answer', async () => {
+  it('runs the claude on PATH, answers a check from the held login at once even while its CLI hangs, and a re-check started by a logged-out check or a refresh replaces the held answer', async () => {
     const signal = new AbortController().signal
     const notLoggedIn = {
       loggedIn: false,
       message: 'Claude Code is not logged in. Run `claude auth login` in a terminal.',
     }
     const claudeOnPath = recordedClaudeOnPath()
-    expect(await claude(ConfigProvider.fromEnvRecord({PATH: claudeOnPath.path})).login({signal})).toEqual(notLoggedIn)
+    const configDir = tempDir('claude-config-')
+    expect(
+      await claude(ConfigProvider.fromEnvRecord({PATH: claudeOnPath.path, CLAUDE_CONFIG_DIR: configDir})).login({
+        signal,
+      }),
+    ).toEqual(notLoggedIn)
     expect(claudeOnPath.started()).toBe(true)
 
     const hungClaude = hungClaudeOnPath()
-    const hung = claude(ConfigProvider.fromEnvRecord({PATH: hungClaude.path}))
+    const hung = claude(ConfigProvider.fromEnvRecord({PATH: hungClaude.path, CLAUDE_CONFIG_DIR: configDir}))
     expect(await hung.login({signal})).toEqual(notLoggedIn)
     hungClaude.release()
     await expect(hung.models({signal})).rejects.toThrow()
 
     const loggedIn = claude(
-      ConfigProvider.fromEnvRecord({PATH: claudeOnPath.path, ANTHROPIC_API_KEY: 'sk-ant-test-not-a-real-key'}),
+      ConfigProvider.fromEnvRecord({
+        PATH: claudeOnPath.path,
+        CLAUDE_CONFIG_DIR: configDir,
+        ANTHROPIC_API_KEY: 'sk-ant-test-not-a-real-key',
+      }),
     )
     expect(await loggedIn.login({signal})).toEqual(notLoggedIn)
     await loggedIn.models({signal})
     expect(await loggedIn.login({signal})).toEqual({loggedIn: true})
+
+    const loggedOut = claude(ConfigProvider.fromEnvRecord({PATH: claudeOnPath.path, CLAUDE_CONFIG_DIR: configDir}))
+    expect(await loggedOut.login({signal})).toEqual({loggedIn: true})
+    expect(await loggedOut.login({signal, refresh: true})).toEqual({loggedIn: true})
+    await loggedOut.models({signal})
+    expect(await loggedOut.login({signal})).toEqual(notLoggedIn)
   })
 })

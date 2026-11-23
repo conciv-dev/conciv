@@ -300,6 +300,7 @@ export function deletedSessionError(sessionId: SessionId): Error {
 async function refuseLoggedOut(harness: HarnessAdapter, signal: AbortSignal, log: TurnDeps['log']): Promise<void> {
   const login = await resolveHarnessLogin(harness, {
     signal,
+    refresh: false,
     onError: (error) => log(`[chat] checking the ${harness.id} login failed, the turn runs: ${String(error)}`),
   })
   if (!login.loggedIn) throw new Error(login.message)

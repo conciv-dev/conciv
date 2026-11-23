@@ -197,11 +197,14 @@ function readLogin(init: SDKControlInitializeResponse): HarnessLoginStatus {
   return isLoggedIn(init.account) ? {loggedIn: true} : {loggedIn: false, message: NOT_LOGGED_IN}
 }
 
-export async function claudeSdkLogin(context: ProbeContext): Promise<HarnessLoginStatus> {
+export async function claudeSdkLogin({
+  refresh,
+  ...context
+}: ProbeContext & {refresh: boolean}): Promise<HarnessLoginStatus> {
   const current = probeState.current
   if (current.type !== 'held') return readLogin(await probed(context))
   const login = readLogin(current.init)
-  if (!login.loggedIn && current.refresh === undefined) refreshHeld(current.init, context.env)
+  if ((refresh || !login.loggedIn) && current.refresh === undefined) refreshHeld(current.init, context.env)
   return login
 }
 
