@@ -1,6 +1,7 @@
 import {describe} from 'vitest'
 import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../../test/engine-test.js'
+import {engineMcpUrl} from '../engine-login.js'
 
 describe.concurrent('agent tools', () => {
   test('a capability answers, an oversized answer is truncated, a photo comes back as an image, and a direct tool is called by name', async ({
@@ -63,7 +64,7 @@ describe.concurrent('agent tools', () => {
   test('a malformed session header is refused', async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/shelf']})
 
-    const refused = await fetch(`${engine.address.apiBase}/api/mcp`, {
+    const refused = await fetch(engineMcpUrl(engine.address.apiBase, engine.address.token), {
       method: 'POST',
       headers: {'conciv-session-id': 'bad', 'content-type': 'application/json'},
       body: JSON.stringify({jsonrpc: '2.0', id: 1, method: 'tools/list'}),

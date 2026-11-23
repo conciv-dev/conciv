@@ -1,5 +1,5 @@
 import {createRequire} from 'node:module'
-import {Effect, FileSystem, Option, Path, Schema} from 'effect'
+import {Effect, FileSystem, Path, Schema, Stream} from 'effect'
 import {z} from 'zod'
 import type {Browser, BrowserContext, Page} from 'playwright-core'
 import type {Keyframe} from './format.js'
@@ -15,7 +15,8 @@ export type KeyframeRenderer = {
   readonly render: (events: RrwebEvent[], timestamps: number[]) => Effect.Effect<Keyframe[], RenderFailed>
   readonly renderVideo: (
     events: RrwebEvent[],
-  ) => Effect.Effect<Option.Option<Uint8Array>, RenderFailed, FileSystem.FileSystem>
+    destination: string,
+  ) => Effect.Effect<boolean, RenderFailed, FileSystem.FileSystem>
 }
 
 const VIDEO_DURATION_CAP_MS = 5 * 60 * 1000
@@ -77,8 +78,8 @@ function renderFrames(browser: Browser, assets: {script: string; style: string})
 }
 
 function recordVideo(browser: Browser, assets: {script: string; style: string}) {
-  return Effect.fn('recorder.render.video')(function* (events: RrwebEvent[]) {
-    if (!events.some((event) => event.type === 2)) return Option.none()
+  return Effect.fn('recorder.render.video')(function* (events: RrwebEvent[], destination: string) {
+    if (!events.some((event) => event.type === 2)) return false
     const fs = yield* FileSystem.FileSystem
     const viewport = readViewport(events)
     const videoDir = yield* fs
@@ -101,8 +102,12 @@ function recordVideo(browser: Browser, assets: {script: string; style: string}) 
       await page.close()
       return video?.path()
     })
-    if (!videoPath) return Option.none()
-    return Option.some(yield* fs.readFile(videoPath).pipe(Effect.mapError((cause) => RenderFailed.make({cause}))))
+    if (!videoPath) return false
+    yield* fs.stream(videoPath).pipe(
+      Stream.run(fs.sink(destination)),
+      Effect.mapError((cause) => RenderFailed.make({cause})),
+    )
+    return true
   }, Effect.scoped)
 }
 

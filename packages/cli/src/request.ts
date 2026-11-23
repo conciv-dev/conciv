@@ -54,12 +54,12 @@ function declaredSessionId(): SessionId | null {
 
 const processSession: {id: SessionId | null} = {id: null}
 
-async function sessionId(origin: string): Promise<SessionId> {
+async function sessionId(origin: string, token: string | undefined): Promise<SessionId> {
   const declared = declaredSessionId()
   if (declared !== null) return declared
   const held = processSession.id
   if (held !== null) return held
-  const resolved = await makeRpcClient(origin).sessions.resolve({})
+  const resolved = await makeRpcClient(origin, {token}).sessions.resolve({})
   processSession.id = resolved.sessionId
   return resolved.sessionId
 }
@@ -71,11 +71,14 @@ type RpcCall = (rpc: RpcClient, sessionId: SessionId) => Promise<unknown>
 type EngineOrigin = Awaited<ReturnType<typeof engineOrigin>>
 
 async function withSession(engine: EngineOrigin, target: CliTarget, call: RpcCall): Promise<unknown> {
-  const id = target.tab ?? (await sessionId(engine.origin))
+  const id = target.tab ?? (await sessionId(engine.origin, engine.token))
   const session = {[CONCIV_SESSION_HEADER]: id}
   const named = target.tab === null ? {} : {[CONCIV_NAMED_TAB_HEADER]: '1'}
   const hub = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: callingAgent(process.env), ...named}
-  return call(makeRpcClient(engine.origin, {headers: engine.outside ? {...session, ...hub} : session}), id)
+  return call(
+    makeRpcClient(engine.origin, {token: engine.token, headers: engine.outside ? {...session, ...hub} : session}),
+    id,
+  )
 }
 
 export async function engineAnswer<Answer>(origin: string, pending: Promise<Answer>): Promise<Answer> {

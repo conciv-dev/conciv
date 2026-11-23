@@ -6,8 +6,8 @@ import {makeTextAdapter} from '@conciv/ai/server'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 
-function unsupportedChatConfig(id: string, binName: string): (deps: HarnessChatDeps) => HarnessChatConfig {
-  return () => ({
+function unsupportedChatConfig(id: string, binName: string): (deps: HarnessChatDeps) => Promise<HarnessChatConfig> {
+  return async () => ({
     adapter: makeTextAdapter(id, async function* (): AsyncGenerator<ChatEvent> {
       yield {type: ChatEventType.RUN_STARTED, threadId: id, runId: id}
       yield {type: ChatEventType.RUN_ERROR, message: `${binName} is not installed or not yet supported`}
@@ -31,6 +31,7 @@ export function pi(provider: ConfigProvider.ConfigProvider) {
       slashCommands: 'none',
       imageInput: false,
       init: 'none',
+      login: 'none',
     },
     chatConfig: unsupportedChatConfig('pi', 'pi'),
     history: piHistory(root),

@@ -1,6 +1,14 @@
 import {randomUUID} from 'node:crypto'
 import {serveHono, type ServeFetch} from '@conciv/serve'
-import {checkEngines, registerEngine, retireEngine, withHomeDb, type EngineRow} from '@conciv/db'
+import {
+  checkEngines,
+  prepareHome,
+  registerEngine,
+  retireEngine,
+  withHomeDb,
+  type EngineRow,
+  type PreparedHome,
+} from '@conciv/db'
 import {type ConfigProvider, Effect, type Layer} from 'effect'
 import {z} from 'zod'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
@@ -11,7 +19,7 @@ import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {logOnContext, logOnRuntime, type Log, type LogEntry, type LogOptions} from './lib/logging.js'
 import {inSpan, type Tracer} from '@conciv/ai/server'
 import {startObservability, type EngineObservability} from './runtime/observability.js'
-import {agentPath} from './engine-login.js'
+import {engineMcpUrl} from './engine-login.js'
 import {carryEngineRouter, readEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
@@ -24,14 +32,14 @@ import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint, writePrivate
 import {claudeConnectEndpointFile} from '@conciv/harness-init/claude/endpoint'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {BrowserRequester} from '@conciv/protocol/engine-trust'
-import {mkdirSync, writeFileSync, readFileSync, rmSync} from 'node:fs'
+import {mkdir, readFile, rm, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 
 const serverStateSchema = z.object({port: z.number().int().min(1).max(65535)})
 
-function readPersistedPort(file: string): number | undefined {
+async function readPersistedPort(file: string): Promise<number | undefined> {
   try {
-    const parsed = serverStateSchema.safeParse(JSON.parse(readFileSync(file, 'utf8')))
+    const parsed = serverStateSchema.safeParse(JSON.parse(await readFile(file, 'utf8')))
     return parsed.success ? parsed.data.port : undefined
   } catch {
     return undefined
@@ -42,23 +50,23 @@ function hasErrorCode(error: unknown, code: string): boolean {
   return z.object({code: z.literal(code)}).safeParse(error).success
 }
 
-function readOptionalText(file: string): string | undefined {
+async function readOptionalText(file: string): Promise<string | undefined> {
   try {
-    return readFileSync(file, 'utf8')
+    return await readFile(file, 'utf8')
   } catch (error) {
     if (hasErrorCode(error, 'ENOENT')) return undefined
     throw error
   }
 }
 
-function writePersistedPort(file: string, state: {port: number; token: string}): () => void {
-  const previous = readOptionalText(file)
+async function writePersistedPort(file: string, state: {port: number; token: string}): Promise<ShutdownStep> {
+  const previous = await readOptionalText(file)
   const written = `${JSON.stringify(state, null, 2)}\n`
-  writePrivateFile(file, written)
-  return () => {
-    if (readOptionalText(file) !== written) return
-    if (previous === undefined) rmSync(file, {force: true})
-    else writePrivateFile(file, previous)
+  await writePrivateFile(file, written)
+  return async () => {
+    if ((await readOptionalText(file)) !== written) return
+    if (previous === undefined) await rm(file, {force: true})
+    else await writePrivateFile(file, previous)
   }
 }
 
@@ -81,9 +89,9 @@ export function statePaths(stateRoot: string): StatePaths {
   }
 }
 
-function writeText(path: string, text: string): void {
-  mkdirSync(dirname(path), {recursive: true})
-  writeFileSync(path, text)
+async function writeText(path: string, text: string): Promise<void> {
+  await mkdir(dirname(path), {recursive: true})
+  await writeFile(path, text)
 }
 
 export type PortRequest = {exact: number} | {preferred: number}
@@ -126,7 +134,7 @@ export type StartOpts = {
 export type Engine = {
   port: number
   agentToken: string
-  trustBrowser: (requester: BrowserRequester, grantedAt: number) => string
+  trustBrowser: (requester: BrowserRequester, grantedAt: number) => Promise<string>
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
 } & EngineRouterBrand
@@ -163,7 +171,7 @@ async function reservePort(fetchHandler: FetchHandler, port: number): Promise<Se
 }
 
 async function servePersistedPort(fetchHandler: FetchHandler, stateFile: string): Promise<Served> {
-  const persisted = readPersistedPort(stateFile)
+  const persisted = await readPersistedPort(stateFile)
   const reused = persisted === undefined ? undefined : await reservePort(fetchHandler, persisted)
   if (reused) return reused
   return serveHono({fetch: fetchHandler, port: 0})
@@ -203,7 +211,7 @@ async function servePort(
     serveRequestedPort(fetchHandler, request, state.file, log),
   )
   try {
-    return {...serving, restoreRecord: writePersistedPort(state.file, {port: serving.port, token: state.token})}
+    return {...serving, restoreRecord: await writePersistedPort(state.file, {port: serving.port, token: state.token})}
   } catch (error) {
     await cleanupAfterFailedStart([serving.close], log)
     throw error
@@ -225,19 +233,26 @@ function onceNotifier(callback?: () => void): () => void {
   }
 }
 
-function registerForOutsideAgents(home: string, row: EngineRow, log: Log): () => void {
+async function registeredHome(home: string, row: EngineRow, log: Log): Promise<PreparedHome | null> {
   try {
-    withHomeDb(home, (db) => registerEngine(db, row))
+    const prepared = await prepareHome(home)
+    withHomeDb(prepared, (db) => registerEngine(db, row))
+    return prepared
   } catch (error) {
     log(Effect.logError('conciv: engine not registered for outside agents', {engineId: row.id, error}))
-    return () => {}
+    return null
   }
+}
+
+async function registerForOutsideAgents(home: string, row: EngineRow, log: Log): Promise<() => void> {
+  const registered = await registeredHome(home, row, log)
+  if (registered === null) return () => {}
   checkEngines(home, {timeoutMs: 300}).catch((error: unknown) =>
     log(Effect.logError('conciv: checking registered engines failed', {error})),
   )
   return () => {
     try {
-      withHomeDb(home, (db) => retireEngine(db, row.id, Date.now()))
+      withHomeDb(registered, (db) => retireEngine(db, row.id, Date.now()))
     } catch (error) {
       log(Effect.logError('conciv: engine row not retired', {engineId: row.id, error}))
     }
@@ -251,10 +266,10 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const registry = harnessRegistry(configProvider)
   if (!opts.harness) requireHarness(registry, cfg.harness)
   const paths = statePaths(cfg.stateRoot)
-  createConcivStateDir(paths.dir)
+  await createConcivStateDir(paths.dir)
 
   const systemPrompt = cfg.systemPrompt
-  if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)
+  if (systemPrompt) await writeText(paths.systemPrompt, systemPrompt)
 
   const agentToken = opts.accessToken ?? randomUUID()
   const engineId = randomUUID()
@@ -322,9 +337,9 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     const baseEnv = {...(opts.childEnv ? opts.childEnv(portRef.port) : env), CONCIV_TOKEN: agentToken}
     return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
   }
-  const tokenScopedBase = (): string | undefined => {
+  const boundOrigin = (): string | undefined => {
     if (portRef.port === 0) return undefined
-    return `http://127.0.0.1:${portRef.port}${agentPath(agentToken)}`
+    return `http://127.0.0.1:${portRef.port}`
   }
 
   const appOpts: MakeAppOpts = {
@@ -346,7 +361,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     allowedOrigins: opts.allowedOrigins,
     onShutdown: opts.onShutdown,
     nativePageDir: opts.nativePageDir,
-    tokenScopedBase,
+    boundOrigin,
     plugins: opts.plugins,
     harnesses: opts.harnesses,
     firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
@@ -383,35 +398,36 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
   const log = logOnRuntime(made.pluginHost)
 
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
-  const base = tokenScopedBase()
+  const origin = boundOrigin()
   try {
-    if (base) {
-      const endpoint = claudeConnectEndpointFile({stateDir: paths.dir, mcpUrl: `${base}/api/mcp`})
-      writePrivateFile(endpoint.path, endpoint.contents)
+    if (origin) {
+      const endpoint = claudeConnectEndpointFile({stateDir: paths.dir, mcpUrl: engineMcpUrl(origin, agentToken)})
+      await writePrivateFile(endpoint.path, endpoint.contents)
     }
-    if (opts.nativePageDir && base) {
-      writeDevEndpoint(endpointDir, {apiBase: base, token: agentToken, pid: process.pid})
+    if (opts.nativePageDir && origin) {
+      await writeDevEndpoint(endpointDir, {apiBase: origin, token: agentToken, pid: process.pid})
     }
   } catch (error) {
     await abandonStart([dispose])
     throw error
   }
-  const retire = base
-    ? registerForOutsideAgents(
+  const retire = origin
+    ? await registerForOutsideAgents(
         home,
         {
           id: engineId,
           pid: process.pid,
           root: opts.root,
-          apiBase: base,
+          apiBase: origin,
+          token: agentToken,
         },
         log,
       )
     : () => {}
-  const clearEndpoint = (): void => {
+  const clearEndpoint = async (): Promise<void> => {
     if (!opts.nativePageDir) return
     try {
-      removeDevEndpoint(endpointDir, process.pid)
+      await removeDevEndpoint(endpointDir, process.pid)
     } catch (error) {
       log(Effect.logError('conciv: failed to remove the dev endpoint file', {endpointDir, error}))
     }
@@ -419,7 +435,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
   try {
     await inSpan(tracer, 'Engine.awaitActivation', {}, awaitActivation)
   } catch (error) {
-    clearEndpoint()
+    await clearEndpoint()
     retire()
     await abandonStart([dispose])
     throw error
@@ -433,7 +449,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
       stop: async () => {
         try {
           await inSpan(tracer, 'Engine.stop', {'conciv.engine.id': engineId}, async () => {
-            clearEndpoint()
+            await clearEndpoint()
             retire()
             await runInOrder([close, dispose], 'conciv: stopping the engine failed')
           })

@@ -1,13 +1,18 @@
+import {once} from 'node:events'
+import {IncomingMessage, request as httpRequest} from 'node:http'
+import {text} from 'node:stream/consumers'
 import {ConfigProvider} from 'effect'
+import {z} from 'zod'
 import {describe, expect, test} from 'vitest'
 import {resolveHarnessModels} from '@conciv/harness'
 import {codex} from '@conciv/harness/codex'
 import {createEngine} from '@conciv/plugin-testkit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {withSavedModels} from './app.js'
+import {makeApp, withSavedModels} from './app.js'
+import {resolveConfig} from './config.js'
 
 describe('http surface', () => {
-  test('health answers, an untokened route is refused, a foreign origin is refused, and every reply carries the version', async () => {
+  test('health answers, an untokened route is refused, a foreign origin or a Host that is not loopback is refused, and every reply carries the version', async () => {
     const engine = await createEngine({}, {harnesses: [{id: 'reviewer'}]})
     await engine.version('9.9.9')
     const origin = new URL(engine.address.apiBase).origin
@@ -31,6 +36,21 @@ describe('http surface', () => {
     expect(foreign.status).toBe(403)
     expect(foreign.headers.get('x-conciv-version')).toBe('9.9.9')
     expect(await foreign.text()).toBe('forbidden origin')
+
+    for (const path of ['/health', '/api/mcp']) {
+      const rebound = httpRequest({
+        hostname: '127.0.0.1',
+        port: new URL(origin).port,
+        path,
+        method: 'POST',
+        setHost: false,
+        headers: {host: `evil.example.com:${new URL(origin).port}`},
+      })
+      rebound.end()
+      const [response] = await once(rebound, 'response')
+      const reply = z.instanceof(IncomingMessage).parse(response)
+      expect({status: reply.statusCode, body: await text(reply)}).toEqual({status: 403, body: 'forbidden host'})
+    }
   })
 })
 
@@ -62,16 +82,59 @@ describe('the saved model list', () => {
     const signedOut = () => Promise.reject(new Error('the CLI is signed out'))
     const unlogged = () => {}
 
-    const first = withSavedModels({...adapter, models: () => Promise.resolve(listed)}, stateDir, signal, unlogged)
+    const first = await withSavedModels({...adapter, models: () => Promise.resolve(listed)}, stateDir, signal, unlogged)
     await expect(resolveHarnessModels(first.harness, {signal})).resolves.toEqual(listed)
     await first.settled()
 
-    const failing = withSavedModels({...adapter, models: signedOut}, stateDir, signal, unlogged)
+    const failing = await withSavedModels({...adapter, models: signedOut}, stateDir, signal, unlogged)
     await expect(resolveHarnessModels(failing.harness, {signal})).resolves.toEqual(listed)
     await failing.settled()
 
-    const afterFailure = withSavedModels({...adapter, models: signedOut}, stateDir, signal, unlogged)
+    const afterFailure = await withSavedModels({...adapter, models: signedOut}, stateDir, signal, unlogged)
     await expect(resolveHarnessModels(afterFailure.harness, {signal})).resolves.toEqual(listed)
     await afterFailure.settled()
+  })
+
+  test('the engine starts listing the models before anyone asks, and the first ask reuses that listing', async () => {
+    const signal = new AbortController().signal
+    const adapter = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')}))
+    const listed = [{id: 'gpt-5.6-sol', name: 'GPT 5.6 Sol'}]
+    const listing = Promise.withResolvers<typeof listed>()
+    const started: string[] = []
+    const models = () => {
+      started.push('listing')
+      return listing.promise
+    }
+
+    const warmed = await withSavedModels({...adapter, models}, tempDir('saved-models-'), signal, () => {})
+    expect(started).toEqual(['listing'])
+
+    const asked = resolveHarnessModels(warmed.harness, {signal})
+    listing.resolve(listed)
+    await expect(asked).resolves.toEqual(listed)
+    expect(started).toEqual(['listing'])
+    await warmed.settled()
+
+    const engineStarted: string[] = []
+    const recorded = {
+      ...adapter,
+      models: () => {
+        engineStarted.push('listing')
+        return Promise.resolve(listed)
+      },
+    }
+    const root = tempDir('app-root-')
+    const configProvider = ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')})
+    const made = await makeApp({
+      cfg: resolveConfig({stateRoot: root}, root, configProvider),
+      cwd: root,
+      home: tempDir('app-home-'),
+      configProvider,
+      openInEditor: () => {},
+      harness: recorded,
+      harnesses: [recorded],
+    })
+    expect(engineStarted).toEqual(['listing'])
+    await made.dispose()
   })
 })

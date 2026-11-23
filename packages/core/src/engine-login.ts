@@ -6,7 +6,7 @@ import {Hono} from 'hono'
 import type {WSContext} from 'hono/ws'
 import {REVOKED_SOCKET_CLOSE_CODE, type ExchangeRefusal} from '@conciv/contract'
 import {RPC_PREFIX, type RpcSocketGate} from '@conciv/serve/rpc'
-import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
+import {CONCIV_AUTH_TOKEN_QUERY_PARAM, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {createConcivStateDir} from '@conciv/protocol/state-types'
 import {
   TRUSTED_BROWSERS_FILE,
@@ -36,15 +36,19 @@ export const OPEN_PATHS: readonly string[] = [
 export const CODE_LIFETIME_MS = 5 * 60 * 1000
 export const MAX_CODE_FAILURES = 5
 const CODE_LENGTH = 6
-const TOKEN_PATH = /^\/t\/([^/]+)(\/.*)?$/
-const BEARER = /^Bearer\s+(\S+)$/i
 
 export function isOpenPath(pathname: string): boolean {
   return OPEN_PATHS.some((open) => (open.endsWith('/*') ? pathname.startsWith(open.slice(0, -1)) : pathname === open))
 }
 
-export function agentPath(token: string): string {
-  return `/t/${token}`
+export function connectToken(requestUrl: string): string {
+  return new URL(requestUrl).searchParams.get(CONCIV_AUTH_TOKEN_QUERY_PARAM) ?? ''
+}
+
+export function engineMcpUrl(origin: string, token: string): string {
+  const url = new URL('/api/mcp', origin)
+  url.searchParams.set(CONCIV_AUTH_TOKEN_QUERY_PARAM, token)
+  return url.href
 }
 
 export type ExchangeOutcome = 'trusted' | ExchangeRefusal
@@ -156,39 +160,57 @@ export type EngineSocket = Pick<WSContext, 'close'>
 
 export type TrustedBrowsers = {
   has: (token: string) => boolean
-  grant: (requester: BrowserRequester, grantedAt: number) => string
+  grant: (requester: BrowserRequester, grantedAt: number) => Promise<string>
   hold: (socket: EngineSocket, token: string) => () => void
   close: () => void
 }
 
 const TRUST_FILE_POLL_MS = 250
 
-function trustedHashes(stateDir: string, log: Log): Set<string> {
+async function trustedHashes(stateDir: string, log: Log): Promise<Set<string>> {
   try {
-    return new Set(readTrustedBrowsers(stateDir).map((entry) => entry.hash))
+    return new Set((await readTrustedBrowsers(stateDir)).map((entry) => entry.hash))
   } catch (error) {
     log(Effect.logError('[core] the trusted browsers file could not be read', {stateDir, error}))
     return new Set()
   }
 }
 
-export function watchTrustedBrowsers(stateDir: string, log: Log): TrustedBrowsers {
-  createConcivStateDir(stateDir)
+export async function watchTrustedBrowsers(stateDir: string, log: Log): Promise<TrustedBrowsers> {
+  await createConcivStateDir(stateDir)
   const sockets = new Map<EngineSocket, string>()
+  const trusted = {hashes: await trustedHashes(stateDir, log), turns: Promise.resolve()}
+  const inTurn = <T>(run: () => Promise<T>): Promise<T> => {
+    const turn = trusted.turns.then(run)
+    trusted.turns = turn.then(
+      () => undefined,
+      () => undefined,
+    )
+    return turn
+  }
+  const reread = async (): Promise<void> => {
+    trusted.hashes = await trustedHashes(stateDir, log)
+  }
   const closeRevoked = (): void => {
-    const hashes = trustedHashes(stateDir, log)
-    for (const [socket, hash] of sockets) {
-      if (!hashes.has(hash)) socket.close(REVOKED_SOCKET_CLOSE_CODE, 'this browser is no longer trusted')
-    }
+    void inTurn(reread).then(() => {
+      for (const [socket, hash] of sockets) {
+        if (!trusted.hashes.has(hash)) socket.close(REVOKED_SOCKET_CLOSE_CODE, 'this browser is no longer trusted')
+      }
+    })
   }
   const file = join(stateDir, TRUSTED_BROWSERS_FILE)
   watchFile(file, {interval: TRUST_FILE_POLL_MS, persistent: false}, closeRevoked)
   return {
-    has: (token) => trustedHashes(stateDir, log).has(tokenHash(token)),
-    grant: (requester, grantedAt) => grantBrowser(stateDir, requester, grantedAt),
+    has: (token) => trusted.hashes.has(tokenHash(token)),
+    grant: (requester, grantedAt) =>
+      inTurn(async () => {
+        const token = await grantBrowser(stateDir, requester, grantedAt)
+        await reread()
+        return token
+      }),
     hold: (socket, token) => {
       const hash = tokenHash(token)
-      if (!trustedHashes(stateDir, log).has(hash)) return () => {}
+      if (!trusted.hashes.has(hash)) return () => {}
       sockets.set(socket, hash)
       return () => {
         sockets.delete(socket)
@@ -223,7 +245,8 @@ type GatedConnection =
   | {phase: 'open'; socket: EngineSocket; release: (() => void) | null}
   | {phase: 'closed'}
 
-export function rpcSocketGate(trust: ConnectionTrust, authorization: string | undefined): RpcSocketGate {
+export function rpcSocketGate(trust: ConnectionTrust, connectUrl: string): RpcSocketGate {
+  const presented = connectToken(connectUrl)
   const connection: {current: GatedConnection} = {current: {phase: 'connecting'}}
   const admit = (token: string): boolean => {
     const current = connection.current
@@ -241,11 +264,11 @@ export function rpcSocketGate(trust: ConnectionTrust, authorization: string | un
   }
   return {
     trust: {allows, admit},
+    engineCaller: trust.isEngine(presented),
     open: (socket) => {
       if (connection.current.phase !== 'connecting') return
       connection.current = {phase: 'open', socket, release: null}
-      const presented = BEARER.exec(authorization ?? '')?.[1]
-      if (presented !== undefined) admit(presented)
+      if (presented !== '') admit(presented)
     },
     present: (token) => {
       admit(token)
@@ -277,10 +300,10 @@ export function makeAuthRouter(deps: {
       if (trusted) context.socket?.admit(input.token)
       return {trusted}
     }),
-    exchange: os.auth.exchange.handler(({input, context}) => {
+    exchange: os.auth.exchange.handler(async ({input, context}) => {
       const outcome = deps.codes.exchange(input.code)
       if (outcome !== 'trusted') return {refused: outcome}
-      const token = deps.browsers.grant(describeRequester(context), deps.now())
+      const token = await deps.browsers.grant(describeRequester(context), deps.now())
       context.socket?.admit(token)
       return {token}
     }),
@@ -288,8 +311,7 @@ export function makeAuthRouter(deps: {
       deps.codes.request(describeRequester(context), input.reissue ?? false),
     ),
     issueCode: os.auth.issueCode.handler(({context, errors}) => {
-      const presented = BEARER.exec(rpcHeader(context, 'authorization') ?? '')?.[1]
-      if (presented === undefined || !deps.trust.isEngine(presented)) throw errors.FORBIDDEN()
+      if (!context.engineCaller) throw errors.FORBIDDEN()
       return deps.codes.issue()
     }),
   }
@@ -312,30 +334,8 @@ function refusal(
     .all('*', (c) => c.json({message: 'unauthorized'}, 401))
 }
 
-function presentedToken(
-  pathname: string,
-  authorization: string | null,
-): {token: string | undefined; path: string | undefined} {
-  const match = TOKEN_PATH.exec(pathname)
-  if (match) return {token: match[1], path: match[2] ?? '/'}
-  return {token: BEARER.exec(authorization ?? '')?.[1], path: undefined}
-}
-
 function isSocketUpgrade(request: Request): boolean {
   return request.headers.get('upgrade')?.toLowerCase() === 'websocket'
-}
-
-function withBearer(request: Request, url: URL, token: string): Request {
-  const headers = new Headers(request.headers)
-  headers.set('authorization', `Bearer ${token}`)
-  const init: RequestInit & {duplex: 'half'} = {
-    method: request.method,
-    headers,
-    body: request.body,
-    signal: request.signal,
-    duplex: 'half',
-  }
-  return new Request(url, init)
 }
 
 export function makeEngineGate<Env>(opts: {
@@ -347,15 +347,12 @@ export function makeEngineGate<Env>(opts: {
 }): GatedFetch<Env> {
   const refuse = refusal(opts.allowedOrigins, opts.version)
   return (request, env) => {
-    const url = new URL(request.url)
-    if (isOpenPath(url.pathname)) return opts.fetch(request, env)
+    if (isOpenPath(new URL(request.url).pathname)) return opts.fetch(request, env)
     if (request.method === 'OPTIONS') return refuse.fetch(request)
-    const presented = presentedToken(url.pathname, request.headers.get('authorization'))
-    if (presented.token === undefined && isSocketUpgrade(request)) return opts.fetch(request, env)
-    if (presented.token === undefined || !opts.trusts(presented.token)) return refuse.fetch(request)
+    const presented = connectToken(request.url)
+    if (presented === '' && isSocketUpgrade(request)) return opts.fetch(request, env)
+    if (!opts.trusts(presented)) return refuse.fetch(request)
     opts.onTrusted?.()
-    if (presented.path === undefined) return opts.fetch(request, env)
-    url.pathname = presented.path
-    return opts.fetch(withBearer(request, url, presented.token), env)
+    return opts.fetch(request, env)
   }
 }

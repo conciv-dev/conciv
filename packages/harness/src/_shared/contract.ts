@@ -7,6 +7,7 @@ import type {
   HarnessConnectContext,
   HarnessHistory,
   HarnessInit,
+  HarnessLogin,
   HarnessModels,
   HarnessResume,
 } from '@conciv/protocol/harness-types'
@@ -15,7 +16,7 @@ import type {TtyCommand} from '@conciv/protocol/terminal-types'
 export type HarnessChatConfig = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
-  prepareMessages?: (messages: ModelMessage[]) => ModelMessage[]
+  prepareMessages?: (messages: ModelMessage[]) => Promise<ModelMessage[]>
 }
 
 type HarnessAdapterBase = {
@@ -24,10 +25,10 @@ type HarnessAdapterBase = {
 
   displayName?: string
 
-  chatConfig: (deps: HarnessChatDeps) => HarnessChatConfig
+  chatConfig: (deps: HarnessChatDeps) => Promise<HarnessChatConfig>
 
   models?: HarnessModels
-  defaultModel?: string
+  defaultModel?: () => Promise<string>
 
   tty?: {command(ctx: HarnessConnectContext): TtyCommand}
 }
@@ -44,6 +45,10 @@ export type HarnessAdapter = HarnessAdapterBase &
   (
     | {capabilities: HarnessCapabilities & {init: 'files'}; init: HarnessInit}
     | {capabilities: HarnessCapabilities & {init: 'none'}; init?: undefined}
+  ) &
+  (
+    | {capabilities: HarnessCapabilities & {login: 'probe'}; login: HarnessLogin}
+    | {capabilities: HarnessCapabilities & {login: 'none'}; login?: undefined}
   )
 
 export function defineHarness<T extends HarnessAdapter>(adapter: T): T {

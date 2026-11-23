@@ -20,7 +20,6 @@ import {
   type TurnRollup,
 } from '@conciv/ui-kit-chat'
 import X from 'lucide-solid/icons/x'
-import MessageSquare from 'lucide-solid/icons/message-square'
 import Settings from 'lucide-solid/icons/settings'
 import Pencil from 'lucide-solid/icons/pencil'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
@@ -315,10 +314,8 @@ function PanelSession(): JSX.Element {
   const startSession = useStartSession()
   const newSession = () =>
     startSession()
-      .then(({sessionId}) => {
-        activate(sessionId)
-        announce('Started a new session')
-      })
+      .then(({sessionId}) => activate(sessionId))
+      .then(() => announce('Started a new session'))
       .catch(() => undefined)
 
   const grabStaging = useGrabStaging()
@@ -363,7 +360,7 @@ function PanelSession(): JSX.Element {
     return kind === 'done' || kind === 'stopped' ? 'LAST' : 'ACTIVE'
   }
   const statusBarViews = createMemo<StatusBarView[]>(() => [
-    {id: 'chat', label: 'Chat', icon: MessageSquare},
+    {id: 'chat', label: 'Chat', icon: 'message-square'},
     ...pluginTabs.views(),
   ])
 
@@ -374,7 +371,7 @@ function PanelSession(): JSX.Element {
     grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => void newSession(),
-    replaceSession: (sessionId) => void navigate({to: '/panel/$sessionId', params: {sessionId}}),
+    replaceSession: (sessionId) => navigate({to: '/panel/$sessionId', params: {sessionId}}),
     chat,
     refresh: coordinator.refresh,
     isRefreshing: coordinator.isRefreshing,
@@ -483,7 +480,7 @@ function useSessionMenu(sessionId: () => string): {
   view: () => string | undefined
   open: () => boolean
   setOpen: (open: boolean) => void
-  activate: (id: string) => void
+  activate: (id: string) => Promise<void>
 } {
   const router = useRouter()
   const matchRoute = useMatchRoute()
@@ -530,9 +527,9 @@ function useSessionMenu(sessionId: () => string): {
     if (next) return show()
     hide()
   }
-  const activate = (id: string) => {
+  const activate = async (id: string) => {
     if (id === sessionId() && open()) return hide()
-    void router.navigate({to: '/panel/$sessionId', params: {sessionId: id}, replace: open()})
+    await router.navigate({to: '/panel/$sessionId', params: {sessionId: id}, replace: open()})
   }
   return {view, open, setOpen, activate}
 }

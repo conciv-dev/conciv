@@ -11,7 +11,7 @@ export type CoreRuntimeDeps = {
   primitives: SessionPrimitives
   plane: ChatPlane
   model: (sessionId: SessionId) => Promise<string | null>
-  staleness: () => EngineStaleness
+  staleness: () => Promise<EngineStaleness>
   interruptIdle: (sessionId: SessionId, stopped: boolean) => Promise<boolean>
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
   log: Log

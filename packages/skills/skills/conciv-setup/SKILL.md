@@ -87,7 +87,9 @@ module.exports = {mode: 'development', plugins: [conciv.default()]}
 In any `mode` except production (`mode: 'development'` or `mode: 'none'`; `mode: 'production'` and an unset `mode` count as production) the plugin adds a generated client entry,
 `.conciv/widget-client.<port>.gen.js`, to every chunk entry and starts the engine on the first watch run. A
 production build gets no entry and no engine (`packages/unplugin/src/index.ts`). The engine port is
-exact and defaults to 24170, because the client entry is built with it; pass `port` to move both.
+the `port` you pass, else the port the project's engine last bound (`.conciv/server.json`), else a
+port picked per project (from 24170 up, from a hash of the project folder); when that one is taken,
+a free one. It is chosen before the client entry is built so both always agree.
 
 Rspack is the same shape, swap `@conciv/it/plugin/rspack`
 (`apps/site/content/docs/quick-start/rspack.mdx`). Rollup and esbuild plugin entries exist in
@@ -146,8 +148,8 @@ agent CLI behind the chat. `claude` and `codex` are fully supported (`claude` is
 the `claude` CLI on `PATH`). `gemini-cli` and `opencode` are also real, implemented adapters: ACP and
 opencode's own text adapter respectively (`packages/harness/src/gemini-cli/index.ts`,
 `packages/harness/src/opencode/index.ts`). Only `pi` is a stub: its `chatConfig` always returns a
-"not yet supported" error (`unsupportedChatConfig`, `packages/harness/src/pi/index.ts:7-14`,
-wired at `packages/harness/src/pi/index.ts:31`) even though its `history` sidecar is real
+"not yet supported" error (`unsupportedChatConfig`, `packages/harness/src/pi/index.ts:9-16`,
+wired at `packages/harness/src/pi/index.ts:35`) even though its `history` sidecar is real
 (`packages/protocol/src/config-types.ts` for the `harness` field):
 
 ```ts
@@ -211,7 +213,7 @@ conciv({widget: {quickTerminal: false}}) // corner modal only
 - `mountConciv` called expecting a return value/handle to unmount later: it is fire-and-forget by
   design; use `createConciv` if you need lifecycle control.
 - `harness: 'pi'` picked for real use: its `chatConfig` is a stub that always errors
-  (`packages/harness/src/pi/index.ts:31`); `claude`, `codex`, `gemini-cli`, and `opencode` all have a
+  (`packages/harness/src/pi/index.ts:35`); `claude`, `codex`, `gemini-cli`, and `opencode` all have a
   real `chatConfig`.
 - Hand-rolling a `<script src=...>` injection for Vite, Next.js, webpack or Rspack: the plugin
   already puts the widget on the page; a second manual mount double-mounts.

@@ -7,6 +7,7 @@ import type {contract, SessionHit, SessionMeta} from '@conciv/contract'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {
   SessionId,
+  type HarnessLoginStatus,
   type HarnessMenuEntry,
   type HarnessSessionId,
   type HarnessMeta,
@@ -20,7 +21,7 @@ import type {
   TranscriptPage,
   TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
-import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
+import {resolveHarnessLogin, resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {sessions} from '@conciv/db'
 import {
   ensureRow,
@@ -88,7 +89,7 @@ async function loadTranscriptTail(
   const history = chat.harnesses.find((harness) => harness.id === harnessKind)?.history
   if (history === undefined)
     return loadSavedPage(chat, await rowByNativeRef(chat.db, {harnessKind, cwd, nativeId}), options)
-  if (history.withinProject && !history.withinProject(cwd, nativeId)) return null
+  if (history.withinProject && !(await history.withinProject(cwd, nativeId))) return null
   try {
     return await inSpan(chat.tracer, 'Sessions.readTranscriptTail', {'conciv.harness.id': harnessKind}, () =>
       history.tail(cwd, nativeId, options),
@@ -177,23 +178,40 @@ export function buildHarnessMeta(harness: HarnessAdapter): HarnessMeta {
   }
 }
 
+function readHarnessLogin(harness: HarnessAdapter, signal: AbortSignal, log: Log): Promise<HarnessLoginStatus> {
+  return resolveHarnessLogin(harness, {
+    signal,
+    refresh: true,
+    onError: (error) => {
+      if (!signal.aborted) log(Effect.logError('[core] checking the login failed', {harness: harness.id, error}))
+    },
+  })
+}
+
+async function listMenuModels(
+  harness: HarnessAdapter,
+  signal: AbortSignal,
+  log: Log,
+): Promise<Pick<HarnessMenuEntry, 'models' | 'defaultModel' | 'modelsFailed'>> {
+  try {
+    const models = await resolveHarnessModels(harness, {signal})
+    return {models, defaultModel: (await harness.defaultModel?.()) ?? models[0]?.id ?? null, modelsFailed: false}
+  } catch (error) {
+    if (!signal.aborted) log(Effect.logError('[core] listing the models failed', {harness: harness.id, error}))
+    return {models: [], defaultModel: (await harness.defaultModel?.()) ?? null, modelsFailed: true}
+  }
+}
+
 export async function buildHarnessMenuEntry(
   harness: HarnessAdapter,
   signal: AbortSignal,
   log: Log,
 ): Promise<HarnessMenuEntry> {
-  try {
-    const models = await resolveHarnessModels(harness, {signal})
-    return {
-      ...buildHarnessMeta(harness),
-      models,
-      defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
-      modelsFailed: false,
-    }
-  } catch (error) {
-    if (!signal.aborted) log(Effect.logError('[core] listing the models failed', {harness: harness.id, error}))
-    return {...buildHarnessMeta(harness), models: [], defaultModel: harness.defaultModel ?? null, modelsFailed: true}
-  }
+  const [listed, login] = await Promise.all([
+    listMenuModels(harness, signal, log),
+    readHarnessLogin(harness, signal, log),
+  ])
+  return {...buildHarnessMeta(harness), ...listed, login}
 }
 
 const sameModel = (model: string | null) => (model === null ? isNull(sessions.model) : eq(sessions.model, model))
@@ -237,7 +255,7 @@ export async function switchSessionEffort(
   if (effort !== null) {
     const harness = await chat.harnessFor(sessionId)
     const models = await resolveHarnessModels(harness, {signal: chat.signal})
-    const modelId = row.model ?? harness.defaultModel ?? models[0]?.id
+    const modelId = row.model ?? (await harness.defaultModel?.()) ?? models[0]?.id
     const current = models.find((model) => model.id === modelId)
     if (!current?.efforts?.includes(effort)) return 'unsupported'
   }
@@ -328,10 +346,7 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return outcome
     }),
     delete: os.sessions.delete.handler(async ({input}) => {
-      await deleteSession(
-        {db, plane: chat.plane, runtime: deps.runtime, pluginHost: deps.pluginHost, queues: deps.queues},
-        input.sessionId,
-      )
+      await deleteSession({db, plane: chat.plane, runtime: deps.runtime, pluginHost: deps.pluginHost}, input.sessionId)
       return {ok: true as const}
     }),
     model: os.sessions.model.handler(async ({input, errors}) => {

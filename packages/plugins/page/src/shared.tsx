@@ -122,6 +122,7 @@ export function PageTool(
   return (
     <BasicTool
       {...tool}
+      icon="app-window"
       status={local.failed === true ? 'error' : tool.status}
       trigger={{title: pageTitle(tool.tool, running()), subtitle: local.subtitle, args: args()}}
       hasContent={!running() && local.hasContent}

@@ -1,42 +1,39 @@
 export * as PageQueue from './queue.js'
-import {delay} from 'es-toolkit'
+import {Clock, Deferred, Effect} from 'effect'
 import {z} from 'zod'
-import {RESULT_CAP_CHARS} from '@conciv/contract'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {
   PAGE_QUEUE_REFUSED,
   PAGE_QUEUE_STOPPED,
   PAGE_QUEUE_SYNC_MS,
   type PageQueueHandle,
-  type PageQueueOutcome,
   type PageQueueProgress,
   type PageQueueResult,
   type PageChangeEntry,
   PageRaisedErrorSchema as Raised,
 } from '@conciv/protocol/page-types'
 import type {Tool} from '@conciv/plugin/schema/tool'
+import {
+  awaitsDelivery,
+  createQueueState,
+  findQueue,
+  OWED_QUEUES,
+  readOwing,
+  readProgress,
+  selectStartedBy,
+  selectUndelivered,
+  transitionQueue,
+  type Landed,
+  type Origin,
+  type QueueEntry,
+  type QueueEvent,
+  type Settled,
+} from './queue-machine.js'
 import {Action, type Result} from './rpc.js'
 
 export type RequestSettlement =
   | {readonly ok: true; readonly result: Result}
   | {readonly ok: false; readonly error: Tool.Error; readonly tabClosed?: true}
-
-type Landed = 'played' | 'stopped' | 'lost'
-
-type Settled = {outcome: PageQueueOutcome; landed: Landed}
-
-export type Delivery = 'owed' | 'claimed' | 'nextReply' | 'delivered'
-
-export type QueueRecord = {
-  queueId: string
-  sessionId: SessionId
-  toolCallId: string
-  tools: string[]
-  settled: (Settled | undefined)[]
-  result: PageQueueResult | null
-  delivery: Delivery
-  done: Promise<PageQueueResult>
-}
 
 type Queueing = Extract<Action, {readonly type: 'queue' | 'queue_async'}>
 
@@ -45,21 +42,15 @@ export type QueueStart = {agentId: string; action: Queueing; toolCallId: string}
 type Play = (
   sessionId: SessionId,
   play: {action: Action; agentId: string; queueId: string; actions: readonly Action[]},
-) => Promise<RequestSettlement>[]
-
-type Origin = {readonly toolCallIds?: readonly string[]; readonly excludeToolCallIds?: readonly string[]}
-
-const KEPT_QUEUES = 200
-
-const OWED_QUEUES = 1000
-
-const QUEUE_RESULT_CHARS = RESULT_CAP_CHARS - 5000
+) => Effect.Effect<readonly Deferred.Deferred<RequestSettlement>[], unknown>
 
 const Unconfirmed = /^\[page\.(timeout|disconnected|tab_unavailable)\]/
 
 const NotDispatched = /^\[page\.not_dispatched\]/
 
 const Values = z.record(z.string(), z.unknown())
+
+const Journaled = z.looseObject({tool: z.string(), ref: z.string().optional(), selector: z.string().optional()})
 
 function playedOutcome(index: number, tool: string, settlement: RequestSettlement): Settled {
   if (settlement.ok) {
@@ -88,111 +79,78 @@ function unplayedAs(code: string): Landed {
   return 'played'
 }
 
-function buildResult(record: QueueRecord): PageQueueResult {
-  const settled = record.settled.flatMap((entry) => (entry === undefined ? [] : [entry]))
-  const ran = settled.filter((entry) => entry.landed === 'played')
-  const status = settled.some((entry) => entry.landed === 'lost')
-    ? 'lost'
-    : settled.some((entry) => entry.landed === 'stopped')
-      ? 'stopped'
-      : 'finished'
-  return fitted({
-    queueId: record.queueId,
-    status,
-    outcomes: settled.map((entry) => entry.outcome),
-    failed: ran.filter((entry) => !entry.outcome.ok).length,
-    played: ran.length,
-  })
-}
-
-function fitted(
-  result: PageQueueResult,
-  share = Math.floor(QUEUE_RESULT_CHARS / Math.max(result.outcomes.length, 1)),
-): PageQueueResult {
-  const capped = {...result, outcomes: result.outcomes.map((outcome) => cappedOutcome(outcome, share))}
-  if (JSON.stringify(capped).length <= QUEUE_RESULT_CHARS || share === 0) return capped
-  return fitted(result, Math.floor(share / 2))
-}
-
-function cappedOutcome(outcome: PageQueueOutcome, share: number): PageQueueOutcome {
-  if (!outcome.ok) return outcome.error.length <= share ? outcome : {...outcome, error: takeHead(outcome.error, share)}
-  const body = JSON.stringify(outcome.result)
-  if (body.length <= share) return outcome
-  return {...outcome, result: {truncated: true, length: body.length, head: takeHead(body, share)}}
-}
-
-function takeHead(text: string, length: number): string {
-  return Array.from(text).slice(0, length).join('')
-}
-
-function awaitsDelivery(record: QueueRecord): boolean {
-  return (record.delivery === 'owed' || record.delivery === 'nextReply') && record.result !== null
-}
-
-function fromOrigin(record: QueueRecord, origin: Origin): boolean {
-  const included = origin.toolCallIds === undefined || origin.toolCallIds.includes(record.toolCallId)
-  return included && origin.excludeToolCallIds?.includes(record.toolCallId) !== true
-}
-
 function toAction(queued: {tool: string}): Action {
   const {tool, ...input} = queued
   return Action.parse({...input, type: tool.replace(/^page_/, '')})
 }
 
-export function fromPlay(deps: {
+export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
   play: Play
-  journal: (sessionId: SessionId, change: Omit<PageChangeEntry, 'seq'>) => Promise<void>
-  finished: (record: QueueRecord) => void
+  journal: (sessionId: SessionId, change: Omit<PageChangeEntry, 'seq'>) => Effect.Effect<void, unknown>
+  finished: (entry: QueueEntry) => Effect.Effect<void>
   syncMs?: number
 }) {
-  const records = new Map<string, QueueRecord>()
+  const scope = yield* Effect.scope
+  const machine = {state: createQueueState()}
 
-  const journaled = async (record: QueueRecord, index: number, queued: {tool: string}): Promise<void> => {
-    const {tool, ref, selector, ...args} = z
-      .looseObject({tool: z.string(), ref: z.string().optional(), selector: z.string().optional()})
-      .parse(queued)
-    await deps
-      .journal(record.sessionId, {
-        ts: Date.now(),
+  const dispatch = (event: QueueEvent): Effect.Effect<void> =>
+    Effect.suspend(() => {
+      const next = transitionQueue(machine.state, event)
+      machine.state = next.state
+      return Effect.forEach(
+        next.effects,
+        (effect) =>
+          effect.type === 'resolve'
+            ? Deferred.succeed(effect.entry.done, effect.result)
+            : deps
+                .finished(effect.entry)
+                .pipe(
+                  Effect.catchCause((cause) =>
+                    Effect.logWarning(`Delivering queue ${effect.entry.queueId} failed`, cause),
+                  ),
+                ),
+        {discard: true},
+      )
+    })
+
+  const journaled = (entry: QueueEntry, index: number, queued: {tool: string}) =>
+    Effect.gen(function* () {
+      const {tool, ref, selector, ...args} = Journaled.parse(queued)
+      const ts = yield* Clock.currentTimeMillis
+      yield* deps.journal(entry.sessionId, {
+        ts,
         verb: tool,
         ...(ref === undefined ? {} : {ref}),
         ...(selector === undefined ? {} : {selector}),
         args,
       })
-      .catch((error: unknown) => console.warn(`Journaling queued action ${index} of ${record.queueId} failed`, error))
-  }
+    }).pipe(
+      Effect.catchCause((cause) =>
+        Effect.logWarning(`Journaling queued action ${index} of ${entry.queueId} failed`, cause),
+      ),
+    )
 
-  const holds = (record: QueueRecord): boolean => records.get(record.queueId) === record
+  const land = (entry: QueueEntry, index: number, queued: {tool: string} | undefined, settlement: RequestSettlement) =>
+    dispatch({
+      type: 'landed',
+      queueId: entry.queueId,
+      index,
+      settled: playedOutcome(index, queued?.tool ?? '', settlement),
+    }).pipe(Effect.andThen(settlement.ok && queued !== undefined ? journaled(entry, index, queued) : Effect.void))
 
-  const announce = (record: QueueRecord): void => {
-    if (record.delivery !== 'owed' || !holds(record)) return
-    try {
-      deps.finished(record)
-    } catch (error) {
-      console.warn(`Delivering queue ${record.queueId} failed`, error)
-    }
-  }
-
-  const keep = (record: QueueRecord): void => {
-    records.set(record.queueId, record)
-    const delivered = [...records.values()].filter((each) => each.result !== null && each.delivery === 'delivered')
-    for (const old of delivered.slice(0, Math.max(0, delivered.length - KEPT_QUEUES))) records.delete(old.queueId)
-  }
-
-  function start(sessionId: SessionId, given: QueueStart): PageQueueHandle {
+  const start = Effect.fn('PageQueue.start')(function* (sessionId: SessionId, given: QueueStart) {
     const actions = given.action.actions
-    if ([...records.values()].filter((each) => each.delivery !== 'delivered').length >= OWED_QUEUES) {
-      throw new Error(`${OWED_QUEUES} queue results are still undelivered; collect them before queueing more`)
-    }
+    if (readOwing(machine.state) >= OWED_QUEUES)
+      return yield* Effect.fail(
+        new Error(`${OWED_QUEUES} queue results are still undelivered; collect them before queueing more`),
+      )
     const queueId = `q_${crypto.randomUUID()}`
-    const played = deps.play(sessionId, {
-      action: Action.parse({...given.action, type: 'queue'}),
-      agentId: given.agentId,
-      queueId,
-      actions: actions.map(toAction),
+    const parsed = yield* Effect.try({
+      try: () => ({action: Action.parse({...given.action, type: 'queue'}), actions: actions.map(toAction)}),
+      catch: (error) => error,
     })
-    const settledAll = Promise.withResolvers<PageQueueResult>()
-    const record: QueueRecord = {
+    const played = yield* deps.play(sessionId, {...parsed, agentId: given.agentId, queueId})
+    const entry: QueueEntry = {
       queueId,
       sessionId,
       toolCallId: given.toolCallId,
@@ -200,133 +158,77 @@ export function fromPlay(deps: {
       settled: actions.map(() => undefined),
       result: null,
       delivery: 'owed',
-      done: settledAll.promise,
+      done: yield* Deferred.make<PageQueueResult>(),
     }
-    const landed = played.map(async (reply, index) => {
-      const queued = actions[index]
-      const settlement = await reply
-      record.settled[index] = playedOutcome(index, queued?.tool ?? '', settlement)
-      if (settlement.ok && queued !== undefined) await journaled(record, index, queued)
-    })
-    keep(record)
-    void Promise.all(landed).then(async () => {
-      record.result = buildResult(record)
-      settledAll.resolve(record.result)
-      await delay(0)
-      announce(record)
-    })
-    return {queueId, actions: actions.length}
-  }
-
-  async function reached(
-    sessionId: SessionId,
-    queueId: string,
-    waitMs: number,
-    signal?: AbortSignal,
-  ): Promise<QueueRecord> {
-    const record = records.get(queueId)
-    if (record === undefined || record.sessionId !== sessionId) {
-      throw new Error(`no queue ${queueId} on this tab`)
-    }
-    if (record.result === null && waitMs > 0) {
-      const settled = new AbortController()
-      const stop = signal === undefined ? settled.signal : AbortSignal.any([signal, settled.signal])
-      await Promise.race([record.done, delay(waitMs, {signal: stop})])
-        .catch(() => undefined)
-        .finally(() => settled.abort())
-    }
-    signal?.throwIfAborted()
-    return record
-  }
-
-  function progress(record: QueueRecord): PageQueueProgress {
-    return {
-      queueId: record.queueId,
-      status: 'playing',
-      done: record.settled.filter((entry) => entry !== undefined).length,
-      of: record.tools.length,
-    }
-  }
-
-  async function wait(
-    sessionId: SessionId,
-    queueId: string,
-    waitMs: number,
-    signal?: AbortSignal,
-  ): Promise<PageQueueResult | PageQueueProgress> {
-    const record = await reached(sessionId, queueId, waitMs, signal)
-    if (record.result === null) return progress(record)
-    record.delivery = 'delivered'
-    return record.result
-  }
-
-  async function claim(
-    sessionId: SessionId,
-    queueId: string,
-    waitMs: number,
-    signal?: AbortSignal,
-  ): Promise<{result: PageQueueResult; before: 'owed' | 'nextReply' | null} | PageQueueProgress> {
-    const record = await reached(sessionId, queueId, waitMs, signal)
-    if (record.result === null) return progress(record)
-    if (!awaitsDelivery(record)) return {result: record.result, before: null}
-    const before = record.delivery === 'owed' ? 'owed' : 'nextReply'
-    record.delivery = 'claimed'
-    return {result: record.result, before}
-  }
-
-  async function play(
-    sessionId: SessionId,
-    given: QueueStart,
-    signal?: AbortSignal,
-  ): Promise<PageQueueResult | PageQueueProgress> {
-    const {queueId} = start(sessionId, given)
-    return wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS, signal)
-  }
-
-  function undelivered(sessionId: SessionId, origin: Origin): PageQueueResult[] {
-    return [...records.values()].flatMap((record) => {
-      if (record.sessionId !== sessionId || !fromOrigin(record, origin) || record.result === null) return []
-      return deliver(record) ? [record.result] : []
-    })
-  }
-
-  function startedBy(sessionId: SessionId, toolCallIds: readonly string[]): PageQueueHandle[] {
-    return [...records.values()].flatMap((record) =>
-      record.sessionId === sessionId && record.result === null && toolCallIds.includes(record.toolCallId)
-        ? [{queueId: record.queueId, actions: record.tools.length}]
-        : [],
+    yield* dispatch({type: 'started', entry})
+    yield* Effect.forEach(
+      played,
+      (reply, index) =>
+        Deferred.await(reply).pipe(Effect.flatMap((settlement) => land(entry, index, actions[index], settlement))),
+      {concurrency: 'unbounded', discard: true},
+    ).pipe(
+      Effect.andThen(dispatch({type: 'finished', queueId})),
+      Effect.andThen(Effect.sleep(0)),
+      Effect.andThen(dispatch({type: 'announce', queueId})),
+      Effect.forkIn(scope),
     )
-  }
+    const handle: PageQueueHandle = {queueId, actions: actions.length}
+    return handle
+  })
 
-  function deliver(record: QueueRecord): boolean {
-    if (!awaitsDelivery(record)) return false
-    record.delivery = 'delivered'
-    return true
-  }
+  const reached = Effect.fn('PageQueue.reached')(function* (sessionId: SessionId, queueId: string, waitMs: number) {
+    const entry = findQueue(machine.state, sessionId, queueId)
+    if (entry === undefined) return yield* Effect.fail(new Error(`no queue ${queueId} on this tab`))
+    if (entry.result === null && waitMs > 0) yield* Deferred.await(entry.done).pipe(Effect.timeoutOption(waitMs))
+    return findQueue(machine.state, sessionId, queueId) ?? entry
+  })
 
-  function owed(sessionId: SessionId, excludeToolCallIds: readonly string[], claim: boolean) {
-    return [...records.values()].flatMap((record) => {
-      if (record.sessionId !== sessionId || !fromOrigin(record, {excludeToolCallIds})) return []
-      if (!awaitsDelivery(record) || record.result === null) return []
-      const before: 'owed' | 'nextReply' = record.delivery === 'owed' ? 'owed' : 'nextReply'
-      if (claim) record.delivery = 'claimed'
-      return [{queueId: record.queueId, toolCallId: record.toolCallId, result: record.result, before}]
+  const wait = Effect.fn('PageQueue.wait')(function* (sessionId: SessionId, queueId: string, waitMs: number) {
+    const entry = yield* reached(sessionId, queueId, waitMs)
+    if (entry.result === null) return readProgress(entry)
+    yield* dispatch({type: 'delivered', queueIds: [queueId]})
+    return entry.result
+  })
+
+  const claim = Effect.fn('PageQueue.claim')(function* (
+    sessionId: SessionId,
+    queueId: string,
+    waitMs: number,
+  ): Effect.fn.Return<{result: PageQueueResult; before: 'owed' | 'nextReply' | null} | PageQueueProgress, Error> {
+    const entry = yield* reached(sessionId, queueId, waitMs)
+    if (entry.result === null) return readProgress(entry)
+    if (!awaitsDelivery(entry)) return {result: entry.result, before: null}
+    yield* dispatch({type: 'claimed', queueIds: [queueId]})
+    return {result: entry.result, before: entry.delivery === 'owed' ? 'owed' : 'nextReply'}
+  })
+
+  const play = (sessionId: SessionId, given: QueueStart) =>
+    start(sessionId, given).pipe(
+      Effect.flatMap(({queueId}) => wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS)),
+    )
+
+  const undelivered = (sessionId: SessionId, origin: Origin) =>
+    Effect.suspend(() => {
+      const owed = selectUndelivered(machine.state, sessionId, origin)
+      return dispatch({type: 'delivered', queueIds: owed.map((each) => each.queueId)}).pipe(
+        Effect.as(owed.map((each) => each.result)),
+      )
     })
-  }
 
-  function settle(sessionId: SessionId, queueIds: readonly string[], delivery: Exclude<Delivery, 'claimed'>): void {
-    queueIds.forEach((queueId) => {
-      const record = records.get(queueId)
-      if (record === undefined || record.sessionId !== sessionId || record.delivery !== 'claimed') return
-      record.delivery = delivery
+  const owed = (sessionId: SessionId, excludeToolCallIds: readonly string[], claimed: boolean) =>
+    Effect.suspend(() => {
+      const found = selectUndelivered(machine.state, sessionId, {excludeToolCallIds})
+      if (!claimed) return Effect.succeed(found)
+      return dispatch({type: 'claimed', queueIds: found.map((each) => each.queueId)}).pipe(Effect.as(found))
     })
-  }
 
-  function cancelSession(sessionId: SessionId): void {
-    for (const record of records.values()) {
-      if (record.sessionId === sessionId) records.delete(record.queueId)
-    }
-  }
+  const startedBy = (sessionId: SessionId, toolCallIds: readonly string[]) =>
+    Effect.sync(() => selectStartedBy(machine.state, sessionId, toolCallIds))
+
+  const settle = (sessionId: SessionId, queueIds: readonly string[], delivery: 'owed' | 'nextReply' | 'delivered') =>
+    dispatch({type: 'settled', sessionId, queueIds, delivery})
+
+  const cancelSession = (sessionId: SessionId) => dispatch({type: 'session.cancelled', sessionId})
 
   return {start, play, wait, claim, undelivered, startedBy, owed, settle, cancelSession}
-}
+})

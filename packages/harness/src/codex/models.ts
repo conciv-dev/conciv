@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs'
+import {readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {codexModels as adapterCodexModels} from '@conciv/ai/server'
@@ -8,7 +8,15 @@ import type {HarnessModel} from '@conciv/protocol/harness-types'
 
 const CONFIG_MODEL = /^model\s*=\s*"([^"]+)"/m
 
+const CONFIG_PROVIDER = /^model_provider\s*=\s*"([^"]+)"/m
+
+const REQUIRES_OPENAI_AUTH = /^\s*requires_openai_auth\s*=\s*true\b/m
+
+const OPENAI_PROVIDER = 'openai'
+
 const TABLE_HEADER = /^\s*\[/m
+
+const HEADER_LINE = /^\s*(\[.*?\])\s*(?:#.*)?$/
 
 const ModelsCacheSchema = z
   .object({
@@ -38,13 +46,7 @@ function listedEfforts(levels: readonly {effort: string}[]): ReasoningEffort[] {
 
 const fallbackModels = (): HarnessModel[] => adapterCodexModels.map((id) => ({id, name: id, group: 'Codex'}))
 
-const readText = (path: string): string | null => {
-  try {
-    return readFileSync(path, 'utf8')
-  } catch {
-    return null
-  }
-}
+const readText = (path: string): Promise<string | null> => readFile(path, 'utf8').catch(() => null)
 
 const parseJson = (text: string): unknown => {
   try {
@@ -58,8 +60,8 @@ export function codexHome(env: Record<string, string | undefined>): string {
   return env.CODEX_HOME ?? join(homedir(), '.codex')
 }
 
-export function codexModels(codexDir: string): HarnessModel[] {
-  const text = readText(join(codexDir, 'models_cache.json'))
+export async function codexModels(codexDir: string): Promise<HarnessModel[]> {
+  const text = await readText(join(codexDir, 'models_cache.json'))
   const parsed = ModelsCacheSchema.safeParse(text === null ? null : parseJson(text))
   if (!parsed.success) return fallbackModels()
   return parsed.data.models
@@ -71,11 +73,32 @@ export function codexModels(codexDir: string): HarnessModel[] {
     })
 }
 
-export function codexDefaultModel(codexDir: string): string {
-  const config = readText(join(codexDir, 'config.toml')) ?? ''
+const readConfig = async (codexDir: string): Promise<string> => (await readText(join(codexDir, 'config.toml'))) ?? ''
+
+function readTopLevel(config: string): string {
   const headerIndex = config.search(TABLE_HEADER)
-  const topLevel = headerIndex === -1 ? config : config.slice(0, headerIndex)
-  const configured = topLevel.match(CONFIG_MODEL)?.[1]
+  return headerIndex === -1 ? config : config.slice(0, headerIndex)
+}
+
+function readProviderTable(config: string, provider: string): string {
+  const lines = config.split('\n')
+  const headers = [`[model_providers.${provider}]`, `[model_providers."${provider}"]`]
+  const start = lines.findIndex((line) => headers.includes(line.match(HEADER_LINE)?.[1] ?? ''))
+  if (start === -1) return ''
+  const rest = lines.slice(start + 1)
+  const end = rest.findIndex((line) => TABLE_HEADER.test(line))
+  return (end === -1 ? rest : rest.slice(0, end)).join('\n')
+}
+
+export async function codexUsesOpenaiLogin(codexDir: string): Promise<boolean> {
+  const config = await readConfig(codexDir)
+  const provider = readTopLevel(config).match(CONFIG_PROVIDER)?.[1] ?? OPENAI_PROVIDER
+  if (provider === OPENAI_PROVIDER) return true
+  return REQUIRES_OPENAI_AUTH.test(readProviderTable(config, provider))
+}
+
+export async function codexDefaultModel(codexDir: string): Promise<string> {
+  const configured = readTopLevel(await readConfig(codexDir)).match(CONFIG_MODEL)?.[1]
   if (configured) return configured
-  return codexModels(codexDir)[0]?.id ?? adapterCodexModels[0]
+  return (await codexModels(codexDir))[0]?.id ?? adapterCodexModels[0]
 }

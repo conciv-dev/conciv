@@ -1,7 +1,13 @@
 import type {ConfigProvider} from 'effect'
 import type {z} from 'zod'
 import type {ChatMessage} from './chat-message-types.js'
-import type {HarnessListCursorSchema, HarnessSessionId, ReasoningEffort, SessionId} from './chat-types.js'
+import type {
+  HarnessListCursorSchema,
+  HarnessLoginStatus,
+  HarnessSessionId,
+  ReasoningEffort,
+  SessionId,
+} from './chat-types.js'
 import type {TtyCommand} from './terminal-types.js'
 
 export type HarnessCapabilities = {
@@ -18,7 +24,11 @@ export type HarnessCapabilities = {
   imageInput: 'native' | 'fileRef' | false
 
   init: 'files' | 'none'
+
+  login: 'probe' | 'none'
 }
+
+export type HarnessLogin = (options: {signal: AbortSignal; refresh?: boolean}) => Promise<HarnessLoginStatus>
 
 export type HarnessImage = {mediaType: string; dataBase64: string}
 
@@ -89,7 +99,9 @@ export type HarnessInit<Id extends string = string> = HarnessInitBase<Id> & {
   completed: string
   planSummary: string
   plan(project: HarnessInitProject): HarnessInitPlan
-  installed(project: HarnessInitProject & {home: string; configProvider?: ConfigProvider.ConfigProvider}): boolean
+  installed(
+    project: HarnessInitProject & {home: string; configProvider?: ConfigProvider.ConfigProvider},
+  ): Promise<boolean>
   manualCard(root: string): HarnessInitCard
 }
 
@@ -143,9 +155,9 @@ export type HarnessSessionPage = {sessions: HarnessSessionMeta[]; next: HarnessL
 export type HarnessTranscriptPaths =
   | {transcriptPath?: undefined; transcriptRoot?: undefined}
   | {
-      transcriptPath(cwd: string, sessionId: HarnessSessionId): string
+      transcriptPath(cwd: string, sessionId: HarnessSessionId): Promise<string>
 
-      transcriptRoot(cwd: string): string
+      transcriptRoot(cwd: string): Promise<string>
     }
 
 export type TranscriptCursor = string
@@ -158,9 +170,9 @@ export type HarnessHistory = HarnessTranscriptPaths & {
   messages(cwd: string, sessionId: HarnessSessionId, options?: {signal?: AbortSignal}): Promise<ChatMessage[]>
   tail(cwd: string, sessionId: HarnessSessionId, options: TranscriptTailOptions): Promise<TranscriptPage>
 
-  withinProject?(cwd: string, sessionId: HarnessSessionId): boolean
+  withinProject?(cwd: string, sessionId: HarnessSessionId): Promise<boolean>
 
-  contextTokens?(raw: string): number | undefined
+  contextTokens?(line: string): number | undefined
 
   list(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage>
 
@@ -176,5 +188,5 @@ export type ServerSessions = {
 export type ServerHarness = {
   id: string
   ttyCommand?: (ctx: HarnessConnectContext) => TtyCommand
-  transcriptExists?: (token: HarnessSessionId) => boolean
+  transcriptExists?: (token: HarnessSessionId) => Promise<boolean>
 }

@@ -20,7 +20,7 @@ Pi harness, published as `./pi`. Chat is unsupported (`unsupportedChatConfig`). 
 
 ## Side Effects
 
-- Reads `$PI_CODING_AGENT_DIR/sessions/<encoded cwd>/` and its JSONL files (`readdir`, `readdirSync`, `readFile`, `stat` in `history.ts`).
+- Reads `$PI_CODING_AGENT_DIR/sessions/<encoded cwd>/` and its JSONL files (`readdir`, `stat`, `open` and `createReadStream` in `history.ts`, none blocking).
 - `chatConfig` yields a `RUN_ERROR` "pi is not installed or not yet supported" (`index.ts`).
 
 ## Verification

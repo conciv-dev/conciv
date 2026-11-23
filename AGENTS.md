@@ -152,6 +152,12 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   a test file is at most 1,000 lines. The app is the one exception, as opencode's keeper suites
   (`_ref/opencode/packages/app/e2e/regression/`): `apps/conciv` has one browser-mode file per product area
   (`src/<area>.browser.test.tsx`), and a new case goes into its area's file.
+- Test budget (`test-budget.json`, `conciv-publish check-test-budget`, CI repo checks): it counts test cases in every
+  test file, beside the source or not. The budget is a review gate, not a counter to bump. Before you raise any
+  number: (1) list every new test case in the package over its budget, by file and test name; (2) for each one, name
+  the existing test or suite you checked and say why it does not already cover this; (3) fold it into an existing
+  journey test when one fits (one journey, not one test per behaviour); (4) only a test that survives this gets a
+  raised number, and the PR body carries this account, test by test, for the maintainer to approve.
 - The kits. `@conciv/plugin-testkit`: `createEngine(config, start)`, `TestLLM`. `@conciv/plugin-testkit/browser`:
   `mount` and `createEngineRouterHistory`; `mount({engine, history})` opens the app on a tab's last screen (`createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})`, written to sessionStorage) or on any TanStack `RouterHistory`. `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. `config` is the product's own
   `ConcivConfig`; `start` is only what is not product config (`directory`, `timeouts`, `harnesses`, `env`, `fs`,

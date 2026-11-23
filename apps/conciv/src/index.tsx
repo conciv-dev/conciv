@@ -31,7 +31,7 @@ export type Platform = {
 
 declare global {
   interface WindowEventMap {
-    'conciv:rebind': CustomEvent<{apiBase?: string} | undefined>
+    'conciv:rebind': CustomEvent<{apiBase?: string; waitUntil?: (work: Promise<unknown>) => void} | undefined>
   }
 }
 
@@ -147,15 +147,20 @@ function BoundApp(props: AppParts): JSX.Element {
     router.options.context.queryClient.resetQueries().catch((error: unknown) => {
       console.error('[conciv] the queries did not reset after a rebind', error)
     })
-    login.requestTrust().catch((error: unknown) => {
+    const trusted = login.requestTrust().catch((error: unknown) => {
       console.error('[conciv] the trust check after a rebind failed', error)
     })
-    if (router.state.location.search.core === undefined) return
-    router
-      .navigate({to: '.', search: (previous) => ({...previous, core: nextApiBase}), replace: true})
-      .catch((error: unknown) => {
-        console.error('[conciv] the address did not follow the rebind', error)
+    event.detail?.waitUntil?.(trusted)
+    const followed = router
+      .navigate({
+        to: '/',
+        search: (previous) => (previous.core === undefined ? previous : {...previous, core: nextApiBase}),
+        replace: true,
       })
+      .catch((error: unknown) => {
+        console.error('[conciv] the widget did not leave the other engine’s session after a rebind', error)
+      })
+    event.detail?.waitUntil?.(followed)
   })
   return renderRouter(router, [client.close])
 }
@@ -175,8 +180,8 @@ function ServersApp(props: AppParts): JSX.Element {
     servers: true,
     connected: client.bound,
     apiBase: () => bound.apiBase,
-    bindApiBase: (nextApiBase) => {
-      client.bind(nextApiBase)
+    bindApiBase: (nextApiBase, token) => {
+      client.bind(nextApiBase, token)
       setBound('apiBase', nextApiBase)
     },
   })

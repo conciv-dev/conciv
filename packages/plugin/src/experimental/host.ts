@@ -31,6 +31,19 @@ export function compose(entries: Readonly<Record<string, Omit<Entry, 'id'>>>): E
   return Object.entries(entries).map(([id, entry]) => ({...entry, id}))
 }
 
+/**
+ * The app-wide name of an icon a plugin declared, `<plugin id>:<name>`, which `ctx.icons` gives the plugin as a
+ * `PluginIconName`. Drafts, sent messages and stored layouts keep the name, so the format never changes. No name in
+ * the app's icon catalog holds a colon.
+ *
+ * @param plugin - The plugin's id.
+ * @param name - The icon's name in the plugin's `icons`.
+ * @returns The name the app's icon component draws the artwork under.
+ */
+export function pluginIconName(plugin: string, name: string) {
+  return `${plugin}:${name}` as const
+}
+
 export interface EnableState {
   readonly id: string
   readonly enabled: boolean
@@ -244,6 +257,7 @@ const BundleDefinition = z.object({
       }),
     )
     .optional(),
+  icons: z.record(z.string(), z.string()).optional(),
   setup: z.custom((value) => typeof value === 'function').optional(),
   beforeRegister: z.custom((value) => typeof value === 'function').optional(),
   enforce: z.enum(['pre', 'post']).optional(),

@@ -1,14 +1,14 @@
-import {Show, untrack, type Component, type JSX} from 'solid-js'
+import {Show, untrack, type JSX} from 'solid-js'
 import {Key} from '@solid-primitives/keyed'
-import {Dynamic} from 'solid-js/web'
 import {TabsPrimitive as Tabs, TruncatedText} from '@conciv/ui-kit-system'
-import type {SessionStatus, SessionStatusKind} from '@conciv/ui-kit-chat'
+import type {IconName} from '@conciv/plugin/experimental'
+import {Icon, type SessionStatus, type SessionStatusKind} from '@conciv/ui-kit-chat'
 import {viewTabId, viewTabPanelId} from './view-tab-ids.js'
 
 export type StatusBarView = {
   id: string
   label: string
-  icon?: Component<{class?: string}>
+  icon?: IconName
   content?: () => JSX.Element
   missing?: boolean
 }
@@ -104,9 +104,7 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
                   aria-label={content ? (view().missing ? view().label : undefined) : view().label}
                 >
                   <span class={VIEW_LINE}>
-                    <Show when={view().icon}>
-                      {(icon) => <Dynamic component={icon()} class={VIEW_ICON} aria-hidden="true" />}
-                    </Show>
+                    <Show when={view().icon}>{(icon) => <Icon name={icon()} class={VIEW_ICON} />}</Show>
                     {content ? (
                       <span class={PLUGIN_LABEL}>{content()}</span>
                     ) : (

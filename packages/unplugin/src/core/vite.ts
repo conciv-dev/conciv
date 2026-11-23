@@ -1,7 +1,7 @@
-import {dirname, join} from 'node:path'
-import {readFileSync, existsSync} from 'node:fs'
+import {dirname, isAbsolute, join, posix, relative, resolve, sep} from 'node:path'
+import {access, readFile, writeFile} from 'node:fs/promises'
 import type {Plugin, ViteDevServer} from 'vite'
-import {concivStateDir} from '@conciv/protocol/state-types'
+import {concivStateDir, createConcivStateDir} from '@conciv/protocol/state-types'
 import type {Engine, LogEntry} from '@conciv/core/start'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
@@ -30,20 +30,23 @@ function readPackageName(id: string): string {
   return id.startsWith('@') ? segments.slice(0, 2).join('/') : (segments[0] ?? id)
 }
 
-function resolvableFrom(id: string, root: string): boolean {
-  let dir = root
-  while (true) {
-    if (existsSync(join(dir, 'node_modules', readPackageName(id), 'package.json'))) return true
-    const parent = dirname(dir)
-    if (parent === dir) return false
-    dir = parent
-  }
+async function resolvableFrom(id: string, dir: string): Promise<boolean> {
+  const found = await access(join(dir, 'node_modules', readPackageName(id), 'package.json')).then(
+    () => true,
+    () => false,
+  )
+  if (found) return true
+  const parent = dirname(dir)
+  if (parent === dir) return false
+  return resolvableFrom(id, parent)
 }
 
-function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly string[]} = {}) {
+async function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly string[]} = {}) {
   const root = opts.root
-  const singletons =
-    root === undefined ? [...SOLID_SINGLETONS] : SOLID_SINGLETONS.filter((id) => resolvableFrom(id, root))
+  const resolvable = await Promise.all(
+    SOLID_SINGLETONS.map(async (id) => (root === undefined || (await resolvableFrom(id, root)) ? id : null)),
+  )
+  const singletons = resolvable.filter((id) => id !== null)
   return {
     resolve: {dedupe: singletons},
     optimizeDeps: {
@@ -62,6 +65,76 @@ function dropIncludedFromExcludes(
   const included = new Set(optimizeDeps.include ?? [])
   const managed = new Set(managedIds)
   optimizeDeps.exclude = optimizeDeps.exclude.filter((id) => !(managed.has(id) && included.has(id)))
+}
+
+const GLOB_SPECIAL = /[\\()[\]{}*?!]/g
+const DEFAULT_SCAN_ENTRIES = ['**/*.html', '!**/__tests__/**', '!**/coverage/**']
+
+function escapeGlob(file: string): string {
+  return file.split(sep).join(posix.sep).replaceAll(GLOB_SPECIAL, '\\$&')
+}
+
+function readImportPath(from: string, file: string): string {
+  const path = relative(from, file).split(sep).join(posix.sep)
+  return path.startsWith('../') ? path : `./${path}`
+}
+
+async function writeScanEntry(root: string, files: readonly string[]): Promise<readonly string[]> {
+  const stateDir = concivStateDir(root)
+  const path = join(stateDir, 'widget-scan-entry.gen.js')
+  const source = files.map((file) => `import ${JSON.stringify(readImportPath(stateDir, file))}\n`).join('')
+  try {
+    await createConcivStateDir(stateDir)
+    await writeFile(path, source, 'utf8')
+    return [path]
+  } catch (error) {
+    const cause = error instanceof Error ? error.message : String(error)
+    console.warn(
+      `conciv: could not write ${path}, so vite's dependency scan may miss a widget file in an ignored folder: ${cause}`,
+    )
+    return files
+  }
+}
+
+async function readInputFiles(input: unknown, root: string): Promise<string[] | undefined> {
+  const values = typeof input === 'string' ? [input] : Array.isArray(input) ? input : Object.values(input ?? {})
+  const files = values.map((value) =>
+    typeof value === 'string' && isAbsolute(value) ? value : join(root, String(value)),
+  )
+  const found = await Promise.all(
+    files.map((file) =>
+      access(file).then(
+        () => true,
+        () => false,
+      ),
+    ),
+  )
+  return found.every(Boolean) ? files : undefined
+}
+
+type ScanConfig = {
+  optimizeDeps?: {entries?: string | string[]}
+  input?: unknown
+  build?: {rolldownOptions?: {input?: unknown}; rollupOptions?: {input?: unknown}}
+}
+
+function readAppInput(config: ScanConfig): unknown {
+  const build = config.build ?? {}
+  return config.input ?? build.rolldownOptions?.input ?? build.rollupOptions?.input
+}
+
+async function addScanEntries(
+  config: ScanConfig,
+  root: string,
+  files: readonly string[],
+): Promise<string[] | undefined> {
+  if (files.length === 0) return undefined
+  const patterns = (await writeScanEntry(root, files)).map(escapeGlob)
+  if (config.optimizeDeps?.entries !== undefined) return patterns
+  const input = readAppInput(config)
+  if (input === undefined) return [...DEFAULT_SCAN_ENTRIES, ...patterns]
+  const inputFiles = await readInputFiles(input, root)
+  return inputFiles === undefined ? undefined : [...inputFiles.map(escapeGlob), ...patterns]
 }
 
 function stampJsxSource(code: string, id: string): ReturnType<typeof addSourceToJsx> | null {
@@ -164,7 +237,6 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
   '@conciv/ui-kit-chat > @shikijs/langs-precompiled/typescript',
   '@conciv/ui-kit-chat > shiki/engine/javascript',
   '@conciv/ui-kit-chat > shiki/langs/bash.mjs',
-  '@conciv/ui-kit-chat > rrweb-snapshot',
   '@conciv/ui-kit-chat > shiki/core',
   '@conciv/ui-kit-chat > @chenglou/pretext',
   '@conciv/ui-kit-tap > @tiptap/suggestion',
@@ -191,9 +263,9 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
 
 const EMBED_SOLID_RUNTIME = ['solid-js', 'solid-js/web', 'solid-js/store']
 
-function readMountChunk(embedEntry: string): string[] {
+async function readMountChunk(embedEntry: string): Promise<string[]> {
   try {
-    const chunk = /import\(\s*["']\.\/(mount-impl-[\w-]+\.js)["']\s*\)/.exec(readFileSync(embedEntry, 'utf8'))?.[1]
+    const chunk = /import\(\s*["']\.\/(mount-impl-[\w-]+\.js)["']\s*\)/.exec(await readFile(embedEntry, 'utf8'))?.[1]
     return chunk === undefined ? [] : [join(dirname(embedEntry), chunk)]
   } catch {
     return []
@@ -214,7 +286,7 @@ type DevToolsContext = {
     }) => void
   }
   rpc: {
-    register: (definition: {name: string; type: 'action'; handler: () => string}) => void
+    register: (definition: {name: string; type: 'action'; handler: () => Promise<string>}) => void
   }
 }
 
@@ -231,6 +303,8 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
   let apiBase: string | undefined
 
   let managedExcludes: string[] = []
+  let widgetFiles: string[] = []
+  let projectRoot = process.cwd()
   let docked = false
   let devServer: ViteDevServer | undefined
   let testing = false
@@ -251,7 +325,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         context.rpc.register({
           name: 'conciv:engine-token',
           type: 'action',
-          handler: () => {
+          handler: async () => {
             const engine = engines.at(-1)
             if (!engine || !devServer) throw new Error('the conciv engine has not started yet')
             return engine.trustBrowser(
@@ -262,12 +336,14 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         })
       },
     },
-    config(userConfig, env) {
+    async config(userConfig, env) {
       if (env.mode === 'test') return {}
       const embedFiles =
-        builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...readMountChunk(builtins.embedEntry)]
-      const base = concivSolidConfig({
-        root: userConfig.root ?? process.cwd(),
+        builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...(await readMountChunk(builtins.embedEntry))]
+      projectRoot = resolve(userConfig.root ?? process.cwd())
+      widgetFiles = env.command === 'serve' ? embedFiles : []
+      const base = await concivSolidConfig({
+        root: projectRoot,
         warmupFiles: embedFiles,
       })
       base.optimizeDeps.exclude.push('@conciv/embed')
@@ -286,8 +362,11 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         },
       }
     },
-    configEnvironment(_name, environmentConfig) {
+    async configEnvironment(name, environmentConfig) {
       dropIncludedFromExcludes(environmentConfig.optimizeDeps, managedExcludes)
+      if (name !== 'client') return
+      const entries = await addScanEntries(environmentConfig, projectRoot, widgetFiles)
+      return entries === undefined ? undefined : {optimizeDeps: {entries}}
     },
     async configResolved(config) {
       testing = config.mode === 'test'
@@ -329,7 +408,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       const booted = await bootEngine(
         server,
         options,
-        installConcivBinShim(concivStateDir(cfg.stateRoot)),
+        await installConcivBinShim(concivStateDir(cfg.stateRoot)),
         builtins.nativePageDir,
       )
       engines.push(stopWhenHttpServerCloses(server, booted))

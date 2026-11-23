@@ -54,7 +54,6 @@ export function make(
     tabs: raw.tabs,
     code: raw.code,
     page: raw.page,
-    editor: raw.editor,
     meta: raw.meta,
     skill: raw.skill,
     agent: raw.agent,

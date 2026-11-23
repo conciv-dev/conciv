@@ -7,7 +7,7 @@ import {CONCIV_BIN} from '@conciv/harness-init/agent-guide'
 import {detectProject, type Detected} from './detect.js'
 import {detectHarnesses, type FoundHarness} from '@conciv/harness-init/detect'
 import {harnessFileInits, harnessIds, type HarnessId} from './harness-detect.js'
-import {guardBackups, onInterrupt, type FileBackup} from './interrupt.js'
+import {guardBackups, interruptExitCode, onInterrupt, pathExists, type FileBackup} from './interrupt.js'
 import type {LedgerEntry, ManualCard, StepNote, StepOutcome, StepPlan, StepStatus} from './ledger.js'
 import {docsPackStep} from './steps/docs-pack.js'
 import {fallbackStep} from './steps/framework/fallback.js'
@@ -31,7 +31,6 @@ import {
   type PlanRow,
 } from './wizard.js'
 import {execFile, spawn} from 'node:child_process'
-import {existsSync} from 'node:fs'
 import {join} from 'node:path'
 import {promisify} from 'node:util'
 
@@ -63,18 +62,22 @@ export function execFileOutcome(
     const signalGroup = (signal: NodeJS.Signals): void => {
       if (child.pid !== undefined && running()) process.kill(-child.pid, signal)
     }
+    const killGroup = (): void => signalGroup('SIGKILL')
     const stopGroup = (): void => {
       signalGroup('SIGINT')
-      const force = (): void => signalGroup('SIGKILL')
-      const timer = setTimeout(force, interruptGraceMs)
-      const releaseForce = onInterrupt(force)
+      const timer = setTimeout(killGroup, interruptGraceMs)
+      const releaseForce = onInterrupt(killGroup)
       child.on('close', () => {
         clearTimeout(timer)
         releaseForce()
       })
     }
     options.signal?.addEventListener('abort', stopGroup, {once: true})
-    child.on('close', () => options.signal?.removeEventListener('abort', stopGroup))
+    if (options.signal !== undefined) process.on('exit', killGroup)
+    child.on('close', () => {
+      options.signal?.removeEventListener('abort', stopGroup)
+      process.off('exit', killGroup)
+    })
     if (options.signal?.aborted) stopGroup()
     const refused = child.pid === undefined ? null : (options.started?.(child.pid) ?? null)
     if (refused !== null) {
@@ -158,7 +161,7 @@ type TreeState = {kind: 'clean'} | {kind: 'dirty'} | {kind: 'no-repository'} | {
 const NO_REPOSITORY = 'not a git repository'
 
 export async function preflight(cwd: string, force: boolean): Promise<PreflightResult> {
-  if (!existsSync(join(cwd, 'package.json'))) {
+  if (!(await pathExists(join(cwd, 'package.json')))) {
     return {ok: false, reason: 'no package.json here — run init from your app directory'}
   }
   if (force) return {ok: true}
@@ -309,15 +312,13 @@ function hubAgents(found: FoundHarness[]): HarnessId[] {
   return found.flatMap(({id}) => (initContributions[id].hub === undefined ? [] : [id]))
 }
 
-function connectableAgents(found: FoundHarness[], home: string): HarnessId[] {
-  return difference(hubAgents(found), connectedAgents(home))
+async function connectableAgents(found: FoundHarness[], home: string): Promise<HarnessId[]> {
+  return difference(hubAgents(found), await connectedAgents(home))
 }
 
-function connectedAgents(home: string): HarnessId[] {
+async function connectedAgents(home: string): Promise<HarnessId[]> {
   try {
-    return createHubConnections(home)
-      .list()
-      .map((connection) => connection.harness)
+    return (await createHubConnections(home).list()).map((connection) => connection.harness)
   } catch {
     return []
   }
@@ -373,8 +374,8 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
     return refuse(runtime, checked.reason)
   }
   const detected = await detectProject(options.cwd)
-  const found = detectHarnesses(runtime.env)
-  const agents = connectableAgents(found, runtime.concivHome)
+  const found = await detectHarnesses(runtime.env)
+  const agents = await connectableAgents(found, runtime.concivHome)
   detecting.stop(detectionSummary(detected, found))
   const approved = await approvePlan({
     yes: options.yes,
@@ -401,7 +402,7 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
   }
   const backups = guardBackups()
   const interruption = new AbortController()
-  const releaseInterrupt = onInterrupt(() => interruption.abort())
+  const releaseInterrupt = onInterrupt((signal) => interruption.abort(signal))
   const settings: RunSettings = {
     cwd: options.cwd,
     yes: options.yes,
@@ -418,7 +419,7 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
   if (interruption.signal.aborted) {
     backups.restore()
     runtime.output.cancelled('Interrupted — your config was restored.')
-    runtime.exit(130)
+    runtime.exit(interruptExitCode(interruption.signal.reason))
     return {outcome: 'cancelled', reason: 'interrupted, your config was restored'}
   }
   backups.release()

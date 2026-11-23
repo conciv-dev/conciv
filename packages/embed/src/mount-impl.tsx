@@ -161,7 +161,13 @@ export function mountImpl(
   const rebind = async (apiBase: string): Promise<void> => {
     await interactive.promise
     if (state.disposed || servers) return
-    window.dispatchEvent(new CustomEvent('conciv:rebind', {detail: {apiBase}}))
+    const work: Promise<unknown>[] = []
+    window.dispatchEvent(
+      new CustomEvent('conciv:rebind', {
+        detail: {apiBase, waitUntil: (promise: Promise<unknown>) => work.push(promise)},
+      }),
+    )
+    await Promise.all(work)
   }
   const teardown = (): void => {
     state.disposed = true

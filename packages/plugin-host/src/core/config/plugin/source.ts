@@ -229,7 +229,7 @@ const scan = Effect.fn('ConfigPluginSource.scan')(function* (
       if (!(yield* fs.existsSafe(operation.target))) return [operation]
       const directory = yield* fs.isDir(operation.target)
       const entrypoints: Host.Entrypoints = directory
-        ? yield* Effect.sync(() => Host.resolve({directory: operation.target}))
+        ? yield* Effect.promise(() => Host.resolve({directory: operation.target}))
         : {server: pathToFileURL(operation.target).href}
       const entrypoint = entrypoints.server ?? entrypoints.experimental
       if (!entrypoint) return []

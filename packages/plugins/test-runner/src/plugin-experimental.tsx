@@ -305,7 +305,13 @@ function testRunCard(ctx: Context, ui: InternalUi): ToolComponent {
       return unfinished() ? titles.running : titles.done
     }
     return (
-      <ui.BasicTool {...props} title={title()} expandable={streams() || finished() !== undefined} openWhileRunning>
+      <ui.BasicTool
+        {...props}
+        icon="flask-conical"
+        title={title()}
+        expandable={streams() || finished() !== undefined}
+        openWhileRunning
+      >
         <Show when={finished()} fallback={<LiveRunCard {...actions} client={client} />}>
           {(result) => <RunCard {...actions} summary={result().summary} tests={result().tests} running={false} />}
         </Show>

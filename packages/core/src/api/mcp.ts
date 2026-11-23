@@ -144,7 +144,7 @@ function executeError(result: ExecuteResult, declaredCodes: ReadonlySet<string>)
   }
 }
 
-type PublishChunks = (chunks: readonly ChatEvent[]) => void
+type PublishChunks = (chunks: readonly ChatEvent[]) => Promise<void>
 
 type CallTrace = ReturnType<typeof callTrace>
 
@@ -161,7 +161,7 @@ function replyText(reply: CodeReply): string {
 }
 
 async function publishResult(calls: CallPublisher, reply: CodeReply): Promise<void> {
-  calls.publish(calls.trace.result(calls.run, replyText(reply), reply.isError === true))
+  await calls.publish(calls.trace.result(calls.run, replyText(reply), reply.isError === true))
   await calls.settle()
 }
 
@@ -170,7 +170,7 @@ async function runExecute(
   typescriptCode: string,
   calls: CallPublisher,
 ): Promise<CodeExecuteResult> {
-  calls.publish(calls.trace.start(calls.run, EXECUTE_TOOL_NAME, {typescriptCode}))
+  await calls.publish(calls.trace.start(calls.run, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
     .run(typescriptCode, calls.trace.callId, calls.signal)
     .catch((error: unknown) => ({success: false, error: {message: String(error)}}))
@@ -184,7 +184,7 @@ async function runExecute(
 }
 
 async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): Promise<CodeReply> {
-  calls.publish(calls.trace.start(calls.run, tool.name, input))
+  await calls.publish(calls.trace.start(calls.run, tool.name, input))
   const reply: CodeReply = await tool.run(input, calls.trace.callId, calls.signal).then(
     (value) => toolValueReply(value),
     (error: unknown) => ({
@@ -210,8 +210,8 @@ type McpDeps = {
   driving: ChatPlane['driving']
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
-  hubRefusal: (client: string | null) => string | null
-  staleness: () => EngineStaleness
+  hubRefusal: (client: string | null) => Promise<string | null>
+  staleness: () => Promise<EngineStaleness>
   log: Log
 }
 
@@ -237,7 +237,7 @@ type CodeRun = {result: CodeExecuteResult; reply: CodeReply}
 
 export type CodeSandboxSession = {
   sandbox: CodeSandbox
-  describe: () => CodeDescriptions
+  describe: () => Promise<CodeDescriptions>
   execute: (typescriptCode: string) => Promise<CodeRun>
   discover: (toolNames: string[]) => Promise<CodeDiscoverResult>
 }
@@ -276,7 +276,7 @@ export async function openCodeSession(
   }
   const publish = (chunk: ChatEvent): void => {
     if (hub && chunk.type === ChatEventType.TOOL_CALL_START) deps.hubCall(scope.id, chunk.toolCallId)
-    mirror.publish(timed(chunk).map(caller.trace.mark))
+    void mirror.publish(timed(chunk).map(caller.trace.mark))
   }
   const runner = await deps.codeRunner(
     scope.id,
@@ -300,8 +300,8 @@ export async function openCodeSession(
   }
   const sandbox = (code: CodeSandbox): CodeSandboxSession => ({
     sandbox: code,
-    describe: () => ({
-      execute: executeDescription(code, deps.staleness()),
+    describe: async () => ({
+      execute: executeDescription(code, await deps.staleness()),
       discover: code.discover?.description ?? null,
     }),
     execute: (typescriptCode) =>
@@ -351,9 +351,9 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: CodeCall
   const origin = caller.trace.hub
   const admit = async (): Promise<string | null> => {
     if (origin === null) return null
-    const refusal = deps.hubRefusal(origin.client)
+    const refusal = await deps.hubRefusal(origin.client)
     if (refusal !== null || caller.outside) return refusal
-    return (await deps.admitOutside(scope, origin.client, caller.signal)) ?? deps.hubRefusal(origin.client)
+    return (await deps.admitOutside(scope, origin.client, caller.signal)) ?? (await deps.hubRefusal(origin.client))
   }
   const code = await openCodeSession(deps, scope, caller)
   if (code === null) {
@@ -387,7 +387,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: CodeCall
       : [
           defineTool({
             name: EXECUTE_TOOL_NAME,
-            description: sandbox.describe().execute,
+            description: (await sandbox.describe()).execute,
             inputSchema: ExecuteInputSchema,
           }).server(
             gated(admit, async (args) => {

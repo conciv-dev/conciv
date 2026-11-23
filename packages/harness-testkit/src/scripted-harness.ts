@@ -91,6 +91,7 @@ const CAPABILITIES = {
   systemPrompt: 'flag',
   mcp: 'none',
   init: 'none',
+  login: 'none',
   imageInput: false,
   slashCommands: 'live',
 } satisfies Omit<HarnessCapabilities, 'resume' | 'transcriptHistory'>
@@ -143,9 +144,9 @@ const ContextTokensSchema = z.coerce.number().int().nonnegative()
 function countedHistory(sessions: StoredSession[]): HarnessHistory {
   return {
     ...scriptedHistory(sessions),
-    transcriptRoot,
-    transcriptPath,
-    contextTokens: (raw) => ContextTokensSchema.safeParse(raw.trim()).data,
+    transcriptRoot: async (cwd) => transcriptRoot(cwd),
+    transcriptPath: async (cwd, sessionId) => transcriptPath(cwd, sessionId),
+    contextTokens: (line) => (line.trim() === '' ? undefined : ContextTokensSchema.safeParse(line.trim()).data),
   }
 }
 
@@ -260,7 +261,7 @@ export function replyScript(tokensPerSecond: number | undefined): ReplyScript {
   }
   const chatConfig =
     (name: string, usage: ScriptedUsage = {}): HarnessAdapter['chatConfig'] =>
-    (deps) => ({adapter: makeTextAdapter(name, (request) => scriptedRun(deps, request, usage))})
+    async (deps) => ({adapter: makeTextAdapter(name, (request) => scriptedRun(deps, request, usage))})
   const releaseGate = (): void => {
     const held = state.held
     state.held = undefined

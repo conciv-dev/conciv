@@ -62,7 +62,7 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
     stateDir: deps.stateDir,
     concivSessionId: input.sessionId,
     harnessSessionId: token,
-    resume: !minted && (harness.transcriptExists?.(token) ?? true),
+    resume: !minted && ((await harness.transcriptExists?.(token)) ?? true),
     model: input.model ?? (await deps.sessions.model(input.sessionId)),
     mcpUrl: deps.mcpUrl(),
   })

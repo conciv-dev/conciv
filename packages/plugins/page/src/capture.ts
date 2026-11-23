@@ -1,3 +1,4 @@
+import {Duration, Effect, Exit} from 'effect'
 import type {createMirror, Mirror, serializeNodeWithId, stringifyStylesheet} from 'rrweb-snapshot'
 import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 import {isDangerousTag, neutralizeSubtree} from '@conciv/protocol/element-capture-sanitize'
@@ -7,7 +8,6 @@ import type {
   CssBundle,
   ElementDescriptor,
 } from '@conciv/protocol/element-capture-types'
-import {showToast} from './toast.js'
 import {MASKED_VALUE, readAccessibleName, readCheckedState, readRole, readValue} from './snapshot.js'
 import {componentHostAt, describe, sourceFromAttr} from './react.js'
 
@@ -31,35 +31,38 @@ type SerializedNode = NonNullable<ReturnType<typeof serializeNodeWithId>>
 
 type SerializedElement = Extract<SerializedNode, {tagName: string}>
 
-type SnapshotLibrary = {
+export type SnapshotLibrary = {
   createMirror: typeof createMirror
   serializeNodeWithId: typeof serializeNodeWithId
   stringifyStylesheet: typeof stringifyStylesheet
 }
 
-const snapshotState: {load?: Promise<SnapshotLibrary | null>; loaded: SnapshotLibrary | null; noticeShown: boolean} = {
-  loaded: null,
-  noticeShown: false,
-}
-
-export function loadSnapshotLibrary(): Promise<SnapshotLibrary | null> {
-  snapshotState.load ??= import('rrweb-snapshot').then(
-    (library) => {
-      snapshotState.loaded = library
-      return library
-    },
-    () => {
-      snapshotState.load = undefined
-      if (!snapshotState.noticeShown) showToast(SNAPSHOT_BLOCKED_MESSAGE, 'error')
-      snapshotState.noticeShown = true
-      return null
-    },
+export function cacheImport<A>(load: () => Promise<A>): Effect.Effect<A> {
+  return Effect.runSync(
+    Effect.cachedWithTTL(Effect.promise(load), (exit) => (Exit.isSuccess(exit) ? Duration.infinity : Duration.zero)),
   )
-  return snapshotState.load
 }
 
-export function loadedSnapshotLibrary(): SnapshotLibrary | null {
-  return snapshotState.loaded
+export function makeSnapshotLoader(notify: (message: string) => void) {
+  const load = cacheImport(() => import('rrweb-snapshot'))
+  const state: {loaded: SnapshotLibrary | null; noticeShown: boolean} = {loaded: null, noticeShown: false}
+  const warm = (): Promise<SnapshotLibrary | null> =>
+    Effect.runPromise(
+      load.pipe(
+        Effect.map((library) => {
+          state.loaded = library
+          return library
+        }),
+        Effect.catchCause(() =>
+          Effect.sync(() => {
+            if (!state.noticeShown) notify(SNAPSHOT_BLOCKED_MESSAGE)
+            state.noticeShown = true
+            return null
+          }),
+        ),
+      ),
+    )
+  return {warm, loaded: (): SnapshotLibrary | null => state.loaded}
 }
 
 function serializeOptions(

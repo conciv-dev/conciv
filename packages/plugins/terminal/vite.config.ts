@@ -1,9 +1,10 @@
 import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
+import {concivTest} from '@conciv/plugin-testkit/vitest'
 
 export default defineConfig({
-  plugins: [solid()],
+  plugins: [solid(), concivTest()],
   build: {
     lib: {
       entry: fileURLToPath(new URL('src/client.tsx', import.meta.url)),
@@ -11,7 +12,7 @@ export default defineConfig({
       fileName: () => 'client.js',
     },
     rollupOptions: {
-      external: [/^solid-js/, /^zod/, /^@conciv\//, /^@orpc\//, /^@solid-primitives\//, /^lucide-solid/],
+      external: [/^solid-js/, /^zod/, /^effect/, /^@conciv\//, /^@orpc\//, /^@solid-primitives\//, /^lucide-solid/],
     },
     emptyOutDir: true,
     sourcemap: true,

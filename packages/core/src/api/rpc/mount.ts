@@ -10,7 +10,6 @@ import type {ChatPlane} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
 import type {ConcivServerTool} from '@conciv/tools'
 import type {HarnessAdapter} from '@conciv/harness'
-import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
 import type {RowScope} from '../../sessions/session-rows.js'
 import {callTrace} from '../call-trace.js'
@@ -35,6 +34,7 @@ import type {
   Plugin,
   PluginHooks,
   Rpc,
+  SessionInbox,
   Skill,
   SkillInstructions,
   Tool,
@@ -61,7 +61,8 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Plugin.Interface
   | Database.Interface
   | EventFeed.Interface
-  | FileSystem.Interface,
+  | FileSystem.Interface
+  | SessionInbox.Interface,
   never
 >
 
@@ -70,7 +71,7 @@ export type ChatContext = {
   harnesses: readonly HarnessAdapter[]
   harnessFor: (sessionId: SessionId) => Promise<HarnessAdapter>
   cwd: string
-  basePath: string
+  agentToken: string
   db: ConcivDb
   rows: RowScope
   plane: ChatPlane
@@ -82,10 +83,9 @@ export type ChatContext = {
 export type RpcDeps = {
   chat: ChatContext
   tools: (sessionId: SessionId) => Promise<ChatTool[]>
-  openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   runtime: CoreRuntime
   allowedOrigins: ReadonlySet<string>
-  staleness: () => EngineStaleness
+  staleness: () => Promise<EngineStaleness>
   auth: AuthRouter
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   search: ReturnType<typeof createSessionSearch>
@@ -94,7 +94,7 @@ export type RpcDeps = {
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
   code: McpVars['mcp']
   tabs: ReturnType<typeof createTabs>
-  queues: Pick<PagePlugin, 'cancelSession' | 'changes' | 'clearChanges' | 'attachedSessions'>
+  queues: Pick<PagePlugin, 'changes' | 'clearChanges' | 'attachedSessions'>
   queueWait: PagePlugin['queueWait']
   pluginHost: PluginHost
   eventHeartbeatIntervalMs?: number
@@ -153,7 +153,7 @@ export async function admitOutsideCall(
 ): Promise<void> {
   const hub = callTrace((header) => rpcHeader(context, header)).hub
   if (hub === null) return
-  refuseOutside(deps, hub.client, procedure)
+  await refuseOutside(deps, hub.client, procedure)
   await admitHubCaller(deps, context, scope, signal)
 }
 
@@ -196,15 +196,15 @@ export function makeHubAdmission(deps: RpcDeps) {
   return plainOs.$context<RpcContext>().middleware(async ({context, next, signal, path}, input: unknown) => {
     const hub = callTrace((header) => rpcHeader(context, header)).hub
     const procedure = path.join('.')
-    if (hub !== null && !ADMITTED_INSIDE_THE_TOOL.has(procedure)) refuseOutside(deps, hub.client, procedure)
+    if (hub !== null && !ADMITTED_INSIDE_THE_TOOL.has(procedure)) await refuseOutside(deps, hub.client, procedure)
     const named = NamedSessionSchema.safeParse(input)
     if (named.success) await admitHubCaller(deps, context, deps.runtime.forSession(named.data.sessionId), signal)
     return next()
   })
 }
 
-function refuseOutside(deps: RpcDeps, client: string | null, procedure: string): void {
-  const disconnected = deps.hub.refusal(client)
+async function refuseOutside(deps: RpcDeps, client: string | null, procedure: string): Promise<void> {
+  const disconnected = await deps.hub.refusal(client)
   if (disconnected !== null) throw new ORPCError('APPROVAL_DENIED', {message: disconnected})
   if (DECIDING_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_DECISION_REFUSAL})
   if (HUB_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_HUB_REFUSAL})
@@ -222,7 +222,8 @@ async function admitHubCaller(
   const hub = callTrace((header) => rpcHeader(context, header)).hub
   if (hub === null) return
   const refusal =
-    (await deps.admitOutside(scope, hub.client, signal ?? new AbortController().signal)) ?? deps.hub.refusal(hub.client)
+    (await deps.admitOutside(scope, hub.client, signal ?? new AbortController().signal)) ??
+    (await deps.hub.refusal(hub.client))
   if (refusal !== null) throw new ORPCError('APPROVAL_DENIED', {message: refusal})
 }
 

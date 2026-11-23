@@ -15,13 +15,13 @@ export const Default: Story = {
         <Tabs.Indicator />
       </Tabs.List>
       <Tabs.Content value="chat">The conversation thread.</Tabs.Content>
-      <Tabs.Content value="canvas">The whiteboard surface.</Tabs.Content>
+      <Tabs.Content value="canvas">The canvas surface.</Tabs.Content>
     </Tabs.Root>
   ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('The conversation thread.')).toBeVisible()
     await userEvent.click(c.getByRole('tab', {name: 'Canvas'}))
-    await waitFor(() => expect(c.getByText('The whiteboard surface.')).toBeVisible())
+    await waitFor(() => expect(c.getByText('The canvas surface.')).toBeVisible())
   },
 }

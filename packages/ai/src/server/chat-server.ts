@@ -45,7 +45,7 @@ import {
 import {type ChatMessage, type ModelMessage, CompactionMetadataSchema} from '@conciv/protocol/chat-message-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {askingToolProvisioner, type AskPermission} from './image-tool-results.js'
-import {childCards, withoutChildCalls} from './child-cards.js'
+import {childCards, withoutHiddenCalls} from './child-cards.js'
 import {codeModeTools, readSecretRefusal, stoppedWith, tracedDriver} from './code-mode.js'
 import type {CodeDriver} from './quickjs-thread.js'
 import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type Turn} from './delivery.js'
@@ -370,7 +370,7 @@ async function sweepAbandonedRuns(runs: ChatStores['runs'], hooks: TurnHooks): P
   const now = Date.now()
   for (const record of await runs.listRunning()) {
     await runs.update(record.runId, {status: 'aborted', finishedAt: now})
-    const turn: Turn = {threadId: record.threadId, runId: record.runId, kind: 'chat'}
+    const turn: Turn = {threadId: record.threadId, runId: record.runId, kind: 'chat', delivered: []}
     await hooks.end(turn, buildLifecycle({...record, status: 'aborted', finishedAt: now}))
   }
 }
@@ -463,6 +463,14 @@ function interruptedResults(thread: readonly ModelMessage[]): ModelMessage[] {
   )
 }
 
+function lastToolResults(thread: ModelMessage[]): ModelMessage[] {
+  return thread.filter(
+    (message, index) =>
+      message.role !== 'tool' ||
+      thread.findLastIndex((later) => later.role === 'tool' && later.toolCallId === message.toolCallId) === index,
+  )
+}
+
 async function saveShown(
   messages: MessageStore,
   threadId: string,
@@ -470,9 +478,10 @@ async function saveShown(
   finish: (message: ModelMessage) => ModelMessage,
   unshown: readonly ModelMessage[],
   seal: (thread: ModelMessage[]) => ModelMessage[],
+  alreadySaved: (stored: readonly ModelMessage[]) => ReadonlySet<string> = storedToolCallIds,
 ): Promise<void> {
   const stored = await messages.loadThread(threadId)
-  const saved = storedToolCallIds(stored)
+  const saved = alreadySaved(stored)
   const shown = processor
     .getMessages()
     .filter((message) => message.role === 'assistant')
@@ -672,7 +681,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
               (draft, signal) => untilAborted(plan.context(draft, signal), signal),
               {
                 system: [...prepared.system, ...(next.preface === null ? [] : [next.preface])],
-                messages: [...prepared.provider, ...withoutChildCalls(current.messages).slice(prepared.sent)],
+                messages: [...prepared.provider, ...withoutHiddenCalls(current.messages).slice(prepared.sent)],
                 options: requestOptions(plan.modelOptions),
                 tools: next.tools,
               },
@@ -698,7 +707,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             ...(next.preface === null ? [] : [next.preface]),
             ...current.systemPrompts,
           ]
-          const expanded = await plan.expand(withoutChildCalls(current.messages))
+          const expanded = await plan.expand(withoutHiddenCalls(current.messages))
           prepared.sent = expanded.length
           prepared.provider = await plan.providerMessages(expanded)
           return {
@@ -982,7 +991,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         processor,
         (message) => message,
         [],
-        (thread) => thread,
+        lastToolResults,
+        () => new Set<string>(),
       ),
     )
   }
