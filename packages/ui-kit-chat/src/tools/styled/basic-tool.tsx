@@ -17,6 +17,7 @@ import {formatDuration} from '../primitives/tool-util.js'
 import type {ToolRowMark} from '../primitives/tool-row.js'
 import {useToolCallDuration, useToolCallTag} from './card-chrome.js'
 import {Chip} from './chip.js'
+import {Icon, type IconProps} from '../../icons/icon.js'
 import {ShapedText} from './shaped-content.js'
 
 export type TriggerTitle = {
@@ -30,6 +31,7 @@ export type TriggerTitle = {
 }
 
 export interface BasicToolProps {
+  icon?: IconProps['name']
   trigger: TriggerTitle | JSX.Element | ((open: Accessor<boolean>) => JSX.Element)
   children?: JSX.Element
   hasContent?: boolean
@@ -57,6 +59,7 @@ const ARG =
   'flex-none min-w-0 max-w-1/3 truncate text-chat-xs leading-none [font-family:var(--chat-mono)] text-chat-dim'
 const DURATION = 'flex-none ms-auto text-chat-xs leading-none [font-family:var(--chat-mono)] text-chat-dim'
 const ACTION = 'flex-none inline-flex items-center'
+const ICON = 'flex-none text-chat-dim'
 
 function isTriggerTitle(value: unknown): value is TriggerTitle {
   return !(value instanceof Node) && z.object({title: z.string()}).safeParse(value).success
@@ -114,6 +117,7 @@ export function BasicTool(props: BasicToolProps): JSX.Element {
         <Show when={pending()} fallback={<TraceMark mark={statusMark(props.status)} />}>
           <TraceRing />
         </Show>
+        <Icon name={props.icon ?? 'plug'} size="small" class={ICON} />
         <Switch>
           <Match when={triggerTitle()}>
             {(title) => (

@@ -1,5 +1,4 @@
 import {createMemo, For, Match, Show, Switch, untrack, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
 import {
   ComposerPill,
   type ComposerPillMenuProps,
@@ -9,8 +8,8 @@ import {
   type IconName,
 } from '@conciv/plugin/experimental'
 import {Button, LIST_PANEL_GROUP_LABEL, Menu, Popover, usePopover} from '@conciv/ui-kit-system'
+import {Icon} from '@conciv/ui-kit-chat'
 import {usePluginHost} from '../runtime/plugin/host'
-import {icons} from '../runtime/plugin/icons'
 import {Contribution} from '../runtime/plugin/render'
 import {Badge} from '../settings/settings-ui'
 
@@ -184,11 +183,7 @@ function PillIcon(props: {name?: IconName; tone?: ComposerPillTone}): JSX.Elemen
   return (
     <Show when={props.name}>
       {(name) => (
-        <Dynamic
-          component={icons[name()]}
-          class={`shrink-0 size-3.5 ${props.tone ? TONE[props.tone] : 'text-chat-text-3'}`}
-          aria-hidden="true"
-        />
+        <Icon name={name()} class={`shrink-0 size-3.5 ${props.tone ? TONE[props.tone] : 'text-chat-text-3'}`} />
       )}
     </Show>
   )
