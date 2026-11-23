@@ -1,19 +1,16 @@
 import {z} from 'zod'
 import {Effect} from 'effect'
-import {Bus, Plugin, Rpc} from '@conciv/plugin-host'
+import {Bus, Plugin, Rpc, Session, SessionSchema} from '@conciv/plugin-host'
 import {Definition, State} from '@conciv/plugin-page/rpc'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {RawFrame, SourceLoc} from '@conciv/contract'
+import {queueNotice, type RawFrame, type SourceLoc} from '@conciv/contract'
 import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
 import type {PluginHost} from '../api/rpc/mount.js'
 import {logOnRuntime, type Log} from '../lib/logging.js'
-import type {OwedQueue, QueueDelivery} from './page-queue.js'
 
 type Methods = typeof Definition.methods
 
 type Input<Name extends keyof Methods> = z.input<Methods[Name]['input']>
-
-export type QueueFinished = z.infer<(typeof Definition.events)['queue.finished']['schema']>
 
 export type PagePlugin = ReturnType<typeof makePagePlugin>
 
@@ -62,33 +59,13 @@ export function makePagePlugin(host: () => PluginHost) {
       log,
     )
 
-  const owed = async (sessionId: SessionId, claim: boolean): Promise<OwedQueue[]> =>
-    orNone(
-      call('queue.owed', {sessionId, excludeToolCallIds: hubCalls(sessionId), claim}).then((listed) =>
-        Definition.methods['queue.owed'].output
-          .parse(listed)
-          .map(({queueId, result, before}) => ({queueId, result, before})),
-      ),
-      `the queue results owed to ${sessionId}`,
-      log,
-    )
-
   const holding = async (sessionId: SessionId, callIds: readonly string[]): Promise<Set<string>> => {
-    const finished = Definition.methods['queue.owed'].output.parse(
-      await call('queue.owed', {sessionId, excludeToolCallIds: [], claim: false}),
-    )
+    const finished = Definition.methods['queue.owed'].output.parse(await call('queue.owed', {sessionId}))
     const playing = await Promise.all(
       callIds.map(async (callId) => ((await startedBy(sessionId, [callId])).length > 0 ? [callId] : [])),
     )
     const owedBy = new Set(finished.map((queue) => queue.toolCallId))
     return new Set([...playing.flat(), ...callIds.filter((callId) => owedBy.has(callId))])
-  }
-
-  const delivery: QueueDelivery = {
-    owed,
-    settle: async (sessionId, queueIds, settled) => {
-      await call('queue.settle', {sessionId, queueIds, delivery: settled})
-    },
   }
 
   const symbolicate = async (frames: RawFrame[]): Promise<SourceLoc | null> =>
@@ -149,18 +126,15 @@ export function makePagePlugin(host: () => PluginHost) {
         'the sessions with a page attached',
         log,
       ),
-    delivery,
     startedBy,
-    undelivered: async (sessionId: SessionId, hub: boolean): Promise<PageQueueResult[]> =>
+    hubFinished: async (sessionId: SessionId): Promise<PageQueueResult[]> =>
       orNone(
-        call(
-          'queue.undelivered',
-          hub ? {sessionId, toolCallIds: hubCalls(sessionId)} : {sessionId, excludeToolCallIds: hubCalls(sessionId)},
-        ).then((finished) => Definition.methods['queue.undelivered'].output.parse(finished)),
-        `the finished queues of ${sessionId}`,
+        call('queue.undelivered', {sessionId, toolCallIds: hubCalls(sessionId)}).then((finished) =>
+          Definition.methods['queue.undelivered'].output.parse(finished),
+        ),
+        `the finished hub queues of ${sessionId}`,
         log,
       ),
-    fromHub: (sessionId: SessionId, toolCallId: string): boolean => hubCalls(sessionId).includes(toolCallId),
     hubCall: (sessionId: SessionId, callId: string): void => {
       const known = inFlightHubCalls.get(sessionId) ?? new Set<string>()
       inFlightHubCalls.set(sessionId, known.add(callId))
@@ -177,15 +151,38 @@ export function makePagePlugin(host: () => PluginHost) {
       callIds.forEach((callId) => inFlight?.delete(callId))
       if (inFlight?.size === 0) inFlightHubCalls.delete(sessionId)
     },
-    followFinished: (listener: (finished: QueueFinished) => void) =>
+    deliverFinished: () =>
       host().runPromise(
         Effect.gen(function* () {
           const bus = yield* Bus.Service
+          const rpc = yield* Rpc.Service
+          const sessions = yield* Session.Service
+          const delivered = (sessionId: SessionId, result: PageQueueResult) =>
+            sessions
+              .synthetic({
+                sessionID: SessionSchema.Id.make(sessionId),
+                text: queueNotice(result),
+                description: `Queued page actions ${result.status}`,
+                metadata: {source: 'page-queue', queueId: result.queueId, state: result.status},
+              })
+              .pipe(Effect.catchTag('Session.NotFoundError', () => Effect.void))
+          const deliver = ({sessionId, toolCallId}: {sessionId: SessionId; toolCallId: string}) =>
+            rpc.call(Definition.id, 'queue.undelivered', {sessionId, toolCallIds: [toolCallId]}).pipe(
+              Effect.map((listed) => Definition.methods['queue.undelivered'].output.parse(listed)),
+              Effect.flatMap((results) =>
+                Effect.forEach(results, (result) => delivered(sessionId, result), {discard: true}),
+              ),
+              Effect.catchCause((cause) =>
+                Effect.logError('[core] a finished page queue could not reach its session', {sessionId, cause}),
+              ),
+            )
           return yield* bus.listen((event) => {
             if (event.type !== QUEUE_FINISHED) return Effect.void
             const finished = Definition.events['queue.finished'].schema.safeParse(event.data)
-            if (finished.success) return Effect.sync(() => listener(finished.data))
-            return Effect.logError('[core] a page queue.finished event could not be read', {error: finished.error})
+            if (!finished.success)
+              return Effect.logError('[core] a page queue.finished event could not be read', {error: finished.error})
+            if (hubCalls(finished.data.sessionId).includes(finished.data.toolCallId)) return Effect.void
+            return deliver(finished.data)
           })
         }),
       ),

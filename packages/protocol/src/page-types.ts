@@ -5,7 +5,6 @@ export const PLUGIN_OVERLAY_ATTR = 'data-conciv-overlay'
 
 export const CONCIV_UI_SELECTOR = `[data-conciv-root], [${PLUGIN_OVERLAY_ATTR}], [data-conciv-fonts], [data-conciv-properties], [data-conciv-toast]`
 
-export const PAGE_QUEUE_ASYNC_TOOL = 'page_queue_async'
 export const PAGE_QUEUE_SYNC_MS = CODE_MODE_TIMEOUT_MS - 30_000
 export const PAGE_QUEUE_MAX_ACTIONS = 50
 export const PAGE_QUEUE_STOPPED = 'QUEUE_STOPPED'

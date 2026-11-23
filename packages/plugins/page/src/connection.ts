@@ -569,8 +569,8 @@ export const make = Effect.fn('PageConnection.make')(function* (
           .claim(input.sessionId, input.queueId, input.waitMs)
           .pipe(Effect.mapError((error) => call.error('unavailable', error.message, {}))),
       'queue.startedBy': (input) => queues.startedBy(input.sessionId, input.toolCallIds),
-      'queue.undelivered': (input) => queues.undelivered(input.sessionId, input),
-      'queue.owed': (input) => queues.owed(input.sessionId, input.excludeToolCallIds, input.claim),
+      'queue.undelivered': (input) => queues.undelivered(input.sessionId, input.toolCallIds),
+      'queue.owed': (input) => queues.owed(input.sessionId),
       'queue.settle': (input) =>
         queues.settle(input.sessionId, input.queueIds, input.delivery).pipe(Effect.as({ok: true as const})),
     })
