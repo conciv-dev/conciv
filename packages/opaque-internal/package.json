@@ -2,7 +2,7 @@
   "name": "@internal/opaque",
   "version": "0.0.22",
   "private": true,
-  "description": "Private to conciv: opaque types as Backstage has them, one object with a public shape and versioned fields only conciv's own packages read.",
+  "description": "Private to conciv: opaque types, one object with a public shape and versioned fields only conciv's own packages read.",
   "homepage": "https://conciv.dev",
   "license": "MIT",
   "repository": {
