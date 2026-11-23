@@ -22,7 +22,7 @@ DOM-level behaviors used by primitives: the thread virtualizer with end-followin
 
 ## Side Effects
 
-- `use-composer-draft.ts` writes to the provided `WebStorage` and flushes on `window` `pagehide` and when the composer unmounts; with a `writer` set it only calls the writer.
+- `use-composer-draft.ts` writes to the provided `WebStorage` and flushes on `window` `pagehide`, whenever an element in the composer form loses focus, its own buttons included (a native `focusout` listener on the form, since a focus move inside a shadow root never reaches a document-level or delegated listener), and when the composer unmounts; with a `writer` set it only calls the writer.
 - `create-thread-virtualizer.ts` adds passive `scroll`, `pointerdown`, `wheel`, `touchmove`, `keydown` listeners on the scroll element and `pointerup`/`pointercancel` on its document, a resize observer that lands the thread on its end again when the reader was resting on the end (a strip above the composer, such as the queue or the unsaved draft notice, or a taller composer, shrinks the viewport without a scroll, so the last row would slide under its bottom edge; the end offset is read from the element's live `scrollHeight - clientHeight`, so the virtualizer's frame-deferred rect is never stale for it), and otherwise only re-reads the at-end and near-start edges (row rendering follows the virtualizer's own frame-deferred rect observer, so a resize callback never mounts or unmounts rows), and a `MutationObserver` on the element ancestry.
 - `use-scroll-lock.ts:useScrollLock` sets `scrollbarWidth: none` and padding on the nearest scrollable ancestor for `animationDuration` ms, then restores them.
 - `use-size-handle.ts:useSizeHandle` observes the element with a `ResizeObserver`.
