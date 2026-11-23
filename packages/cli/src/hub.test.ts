@@ -9,7 +9,7 @@ import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../test/hub-test.js'
 
 describe('the hub', () => {
-  test('an outside agent lists the open tabs (none, then a tab with its project, branch and page), discovers and runs code with no tab on the engine registered in the home, is told to pass a tab for a tool that needs a session, then queues page actions on a tab and reads the finished queue first thing in its next discover_tools reply, while a queue it started that finishes reaches a second hub on the same home with the next call that hub makes on the tab and never the first hub again; a tasks client running two queueing calls at once gets a task per call holding only its own queue, and a task whose engine restarted ends failed naming the lost queue', async ({
+  test('an outside agent lists the open tabs (none, then a tab with its project, branch and page), discovers and runs code with no tab on the engine registered in the home, is told to pass a tab for a tool that needs a session, then queues page actions on a tab and reads the finished queue first thing in its next discover_tools reply, while a queue it started that finishes reaches a second hub on the same home with the next call that hub makes on the tab and never the first hub again; a tasks client running two queueing calls at once gets a task per call holding only its own queue, and a task whose engine restarted ends failed naming the lost queue; an engine without the page plugin lists no tabs and says a tab is not open, an engine whose page plugin answers outside the expected shape is named too old, and a session whose tabs cannot be read is listed with none', async ({
     hub,
     tasksHub,
   }) => {
@@ -221,37 +221,33 @@ describe('the hub', () => {
       ),
     })
     expect(await pollTask(stranded.taskId)).toEqual(lost)
-  })
 
-  test('an engine without the page plugin lists no tabs and says a tab is not open; an engine whose page plugin answers outside the expected shape is named too old, and a session whose tabs cannot be read is listed with none', async ({
-    hub,
-  }) => {
     const bare = await createEngine({plugins: ['-conciv.page', './test/fixtures/plugins/plant-shelf']})
     withHomeDb(await prepareHome(bare.home), (db) => recordHubConnection(db, 'claude', Date.now()))
-    const agent = await hub(bare.home)
+    const bareAgent = await hub(bare.home)
     const tab = bare.session.id
 
-    const none = await agent.callTool('list_tabs', {})
+    const none = await bareAgent.callTool('list_tabs', {})
     expect(none.isError).toBeUndefined()
     expect(none.content).toEqual([{type: 'text', text: JSON.stringify({tabs: [], unreachable: []})}])
 
-    const notOpen = await agent.callTool('execute_typescript', {tab, typescriptCode: "return 'fern'"})
+    const notOpen = await bareAgent.callTool('execute_typescript', {tab, typescriptCode: "return 'fern'"})
     expect(notOpen.isError).toBe(true)
     expect(notOpen.content).toEqual([{type: 'text', text: `TAB_NOT_OPEN: tab ${tab} is not open; call list_tabs`}])
 
     const old = await createEngine({plugins: ['-conciv.page', './test/fixtures/plugins/old-page']}, {home: bare.home})
-    const listed = await agent.callTool('list_tabs', {})
-    const listing = z
+    const oldListed = await bareAgent.callTool('list_tabs', {})
+    const oldListing = z
       .object({tabs: z.array(z.unknown()), unreachable: z.array(z.object({root: z.string(), error: z.string()}))})
-      .parse(JSON.parse(z.tuple([z.object({text: z.string()})]).parse(listed.content)[0].text))
-    expect(listing.unreachable.map((entry) => realpathSync(entry.root))).toEqual([realpathSync(old.root)])
-    const [tooOld] = listing.unreachable
-    expect(listing).toEqual({
+      .parse(JSON.parse(z.tuple([z.object({text: z.string()})]).parse(oldListed.content)[0].text))
+    expect(oldListing.unreachable.map((entry) => realpathSync(entry.root))).toEqual([realpathSync(old.root)])
+    const [tooOld] = oldListing.unreachable
+    expect(oldListing).toEqual({
       tabs: [],
       unreachable: [{root: tooOld?.root, error: 'engine too old; upgrade its @conciv packages'}],
     })
 
-    const unknown = await agent.callTool('execute_typescript', {tab, typescriptCode: "return 'fern'"})
+    const unknown = await bareAgent.callTool('execute_typescript', {tab, typescriptCode: "return 'fern'"})
     expect(unknown.isError).toBe(true)
     expect(unknown.content).toEqual([
       {
@@ -265,7 +261,7 @@ describe('the hub', () => {
       {home: bare.home},
     )
     await broken.rpc.call('experimental.page', 'attach', {sessionId: broken.session.id})
-    const withBroken = await agent.callTool('list_tabs', {})
+    const withBroken = await bareAgent.callTool('list_tabs', {})
     const brokenListing = z
       .object({tabs: z.array(z.object({root: z.string()}).loose()), unreachable: z.array(z.unknown())})
       .parse(JSON.parse(z.tuple([z.object({text: z.string()})]).parse(withBroken.content)[0].text))

@@ -210,27 +210,20 @@ describe('a harness whose CLI fails its model list', () => {
 })
 
 describe.concurrent('tool registry', () => {
-  test('a call naming no registered tool is refused with UNKNOWN_TOOL', async ({connect, expect}) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
-    const rpc = connect(engine)
-
-    await expect(rpc.registry.call({name: 'desk_missing', input: {}})).rejects.toMatchObject({
-      code: 'UNKNOWN_TOOL',
-      message: 'no registered tool answers to that name',
-    })
-  })
-})
-
-describe.concurrent('session instructions', () => {
-  test("a session answers the system text its next turn sends: the base prompt, a plugin's instruction entry, the code-mode preface, and what the context hooks leave seeing the offered tools, until it is deleted", async ({
+  test("a call naming no registered tool is refused with UNKNOWN_TOOL, and a session answers the system text its next turn sends: the base prompt, a plugin's instruction entry, the code-mode preface, and what the context hooks leave seeing the offered tools, until it is deleted", async ({
     connect,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
     const rpc = connect(engine)
     const sessionId = engine.session.id
-    await engine.rpc.call('desk', 'pin', {sessionId})
 
+    await expect(rpc.registry.call({name: 'desk_missing', input: {}})).rejects.toMatchObject({
+      code: 'UNKNOWN_TOOL',
+      message: 'no registered tool answers to that name',
+    })
+
+    await engine.rpc.call('desk', 'pin', {sessionId})
     const {text} = await rpc.sessions.instructions({sessionId})
     expect(text).toContain(CHAT_SYSTEM_PROMPT.split('\n')[0])
     expect(text).toContain('<context key="desk">\nThe desk keeps the notes of this session.')
