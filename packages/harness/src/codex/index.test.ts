@@ -1,5 +1,5 @@
-import {writeFileSync} from 'node:fs'
-import {join} from 'node:path'
+import {chmodSync, rmSync, writeFileSync} from 'node:fs'
+import {delimiter, join} from 'node:path'
 import {ConfigProvider} from 'effect'
 import {describe, expect, it} from 'vitest'
 import {codexModels} from '@conciv/ai/server'
@@ -70,5 +70,31 @@ describe('codex', () => {
     const harness = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: home}))
 
     expect(await harness.login({signal: new AbortController().signal})).toEqual({loggedIn: true})
+  })
+
+  it('a refresh re-runs codex login status after a logged-in answer, and a plain read keeps the held answer', async () => {
+    const signal = new AbortController().signal
+    const bin = tempDir('codex-bin-')
+    const loggedInFile = join(bin, 'logged-in')
+    writeFileSync(
+      join(bin, 'codex'),
+      `#!/bin/sh\nif [ -e '${loggedInFile}' ]; then echo 'Logged in using an API key'; exit 0; fi\necho 'Not logged in' >&2\nexit 1\n`,
+    )
+    chmodSync(join(bin, 'codex'), 0o755)
+    const notLoggedIn = {loggedIn: false, message: 'Codex is not logged in. Run `codex login` in a terminal.'}
+    const harness = codex(
+      ConfigProvider.fromEnvRecord({
+        CODEX_HOME: tempDir('codex-home-'),
+        PATH: `${bin}${delimiter}${process.env.PATH ?? ''}`,
+      }),
+    )
+
+    expect(await harness.login({signal})).toEqual(notLoggedIn)
+    writeFileSync(loggedInFile, '')
+    expect(await harness.login({signal})).toEqual({loggedIn: true})
+    rmSync(loggedInFile)
+    expect(await harness.login({signal})).toEqual({loggedIn: true})
+    expect(await harness.login({signal, refresh: true})).toEqual(notLoggedIn)
+    expect(await harness.login({signal})).toEqual(notLoggedIn)
   })
 })

@@ -64,26 +64,25 @@ const NOT_LOGGED_IN = 'Codex is not logged in. Run `codex login` in a terminal.'
 
 const LOGIN_STATUS_TIMEOUT_MS = 30_000
 
-function readLoginStatus(home: string, signal: AbortSignal): Promise<HarnessLoginStatus> {
+type LoginStatusEnv = Record<string, string | undefined>
+
+function readLoginStatus(env: LoginStatusEnv, signal: AbortSignal): Promise<HarnessLoginStatus> {
   const {promise, resolve, reject} = Promise.withResolvers<HarnessLoginStatus>()
-  execFile(
-    'codex',
-    ['login', 'status'],
-    {env: {...process.env, CODEX_HOME: home}, signal, timeout: LOGIN_STATUS_TIMEOUT_MS},
-    (error, stdout, stderr) => {
-      if (error === null) return resolve({loggedIn: true})
-      if (`${stdout}${stderr}`.includes('Not logged in')) return resolve({loggedIn: false, message: NOT_LOGGED_IN})
-      reject(error)
-    },
-  )
+  execFile('codex', ['login', 'status'], {env, signal, timeout: LOGIN_STATUS_TIMEOUT_MS}, (error, stdout, stderr) => {
+    if (error === null) return resolve({loggedIn: true})
+    if (`${stdout}${stderr}`.includes('Not logged in')) return resolve({loggedIn: false, message: NOT_LOGGED_IN})
+    reject(error)
+  })
   return promise
 }
 
-function codexLogin(home: string): HarnessLogin {
+function codexLogin(home: string, path: string | undefined): HarnessLogin {
   const seen = {loggedIn: false}
-  return async ({signal}) => {
-    if (seen.loggedIn || !codexUsesOpenaiLogin(home)) return {loggedIn: true}
-    const status = await readLoginStatus(home, signal)
+  const env = {...process.env, ...definedEntries({PATH: path}), CODEX_HOME: home}
+  return async ({signal, refresh}) => {
+    if (!codexUsesOpenaiLogin(home)) return {loggedIn: true}
+    if (seen.loggedIn && refresh !== true) return {loggedIn: true}
+    const status = await readLoginStatus(env, signal)
     seen.loggedIn = status.loggedIn
     return status
   }
@@ -108,7 +107,7 @@ export function codex(provider: ConfigProvider.ConfigProvider) {
       login: 'probe',
     },
     chatConfig: codexChatConfig,
-    login: codexLogin(home),
+    login: codexLogin(home, readOptionalConfig(provider, 'PATH')),
     models: () => codexModels(home),
     defaultModel: codexDefaultModel(home),
     history: codexHistory(home),
