@@ -8,14 +8,13 @@ import {
   cappedValue,
   codeDiscoverReply,
   codeExecuteReply,
-  queueNotice,
+  queueNoticePart,
   safeStringify,
   toolValueReply,
   type CodeDescriptions,
   type CodeDiscoverResult,
   type CodeExecuteResult,
   type CodeReply,
-  type CodeReplyContent,
   type EngineStaleness,
 } from '@conciv/contract'
 import {HTTPException} from 'hono/http-exception'
@@ -229,8 +228,7 @@ type CodeCaller = {trace: CallTrace; outside: boolean; signal: AbortSignal}
 
 function withFinishedQueues(reply: CodeReply, finished: readonly PageQueueResult[]): CodeReply {
   if (finished.length === 0) return reply
-  const notices = finished.map((result): CodeReplyContent => ({type: 'text', text: cappedText(queueNotice(result))}))
-  return {...reply, content: [...notices, ...reply.content]}
+  return {...reply, content: [...finished.map(queueNoticePart), ...reply.content]}
 }
 
 type CodeRun = {result: CodeExecuteResult; reply: CodeReply}

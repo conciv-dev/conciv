@@ -7,12 +7,11 @@ import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
 import {concivHome, type EngineRow} from '@conciv/db'
 import {
-  cappedText,
   codeDiscoverReply,
   codeExecuteReply,
   engineTooOld,
   makeRpcClient,
-  queueNotice,
+  queueNoticePart,
   type CodeDescriptions,
   type CodeDiscoverResult,
   type CodeReply,
@@ -536,10 +535,6 @@ function greeted(entry: TabEntry, owner: TabOwner, reply: Reply): Reply {
 
 function buildSessionInput(tab: SessionId | undefined): {sessionId?: SessionId} {
   return tab === undefined ? {} : {sessionId: tab}
-}
-
-function queueNoticePart(result: PageQueueResult): {type: 'text'; text: string} {
-  return {type: 'text', text: cappedText(queueNotice(result))}
 }
 
 async function pollQueue(

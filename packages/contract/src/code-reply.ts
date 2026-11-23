@@ -71,7 +71,7 @@ export function cappedValue(value: unknown): unknown {
   return {...truncationPayload(oversizeReason(body.length), body), ...(images.length === 0 ? {} : {images})}
 }
 
-function queueNoticePart(result: PageQueueResult): CodeReplyContent {
+export function queueNoticePart(result: PageQueueResult): {type: 'text'; text: string} {
   return {type: 'text', text: cappedText(queueNotice(result))}
 }
 
