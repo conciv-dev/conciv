@@ -11,7 +11,7 @@ import {openPanel, recorderPanelCalls} from './panel.js'
 import type {ReplaySource} from './player-follow.js'
 import {streamPlayer, type PlayerKit} from './player.js'
 import {PlayerKitSwitch, usePlayerKit} from './player-kit.js'
-import {runInOwnerScope, subscriptionRefSignal, type PluginRuntime} from './subscription-ref-signal.js'
+import {runInOwnerScope, follow, type RecorderRuntime} from './solid-runtime.js'
 
 function recordingWithEnoughEvents(recording: ReplaySource | undefined): ReplaySource | undefined {
   if (!recording || recording.events.length < REPLAY_MIN_EVENTS) return undefined
@@ -20,7 +20,7 @@ function recordingWithEnoughEvents(recording: ReplaySource | undefined): ReplayS
 
 export function RecorderPanel(props: {
   clientId: string
-  runtime: PluginRuntime
+  runtime: RecorderRuntime
   captureFailed: () => boolean
   flushNow: Effect.Effect<void>
   host: PanelProps
@@ -70,8 +70,8 @@ export function RecorderPanel(props: {
       report: (title) => Effect.sync(() => void ctx.toast.show({title, variant: 'error'})),
     }),
   )
-  const panelState = subscriptionRefSignal(runtime, panel.state)
-  const live = subscriptionRefSignal(runtime, panel.live)
+  const panelState = follow(runtime, panel.state)
+  const live = follow(runtime, panel.live)
   const run = (effect: Effect.Effect<void>): void => void runtime.runFork(effect)
 
   const recording = useQuery(() => ({
@@ -95,14 +95,14 @@ export function RecorderPanel(props: {
 
   const playerKit = usePlayerKit()
 
-  const follow = followClient(ctx, followedClientId)
+  const followFrom = followClient(ctx, followedClientId)
 
   const replayRef = (kit: PlayerKit, source: ReplaySource) => (container: HTMLDivElement) => {
     if (source.events.length < 2) return
     runInOwnerScope(
       runtime,
       streamPlayer(kit, container, source, {
-        follow,
+        follow: followFrom,
         goLiveRequests: panel.goLiveRequests,
         onLive: (current) => runtime.runSync(SubscriptionRef.set(panel.live, current)),
       }),

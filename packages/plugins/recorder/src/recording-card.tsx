@@ -1,4 +1,4 @@
-import {Match, Show, Switch, createMemo, onCleanup, type JSX} from 'solid-js'
+import {Match, Show, Switch, createMemo, type JSX} from 'solid-js'
 import {useMutation, useQuery} from '@conciv/client'
 import {usePlugin, type NoteCardProps} from '@conciv/plugin/experimental'
 import {REPLAY_MIN_EVENTS, Recorder, type RrwebEvent} from './rpc.js'
@@ -9,9 +9,9 @@ import {createStore} from 'solid-js/store'
 import {Effect} from 'effect'
 import {saveFileToDisk, videoPieceReader} from './download.js'
 import {exportRecording} from './panel.js'
-import type {PluginRuntime} from './subscription-ref-signal.js'
+import {runInOwnerScope, type RecorderRuntime} from './solid-runtime.js'
 
-function ExportVideoButton(props: {recordingId: string; runtime: PluginRuntime; disabled?: boolean}): JSX.Element {
+function ExportVideoButton(props: {recordingId: string; runtime: RecorderRuntime; disabled?: boolean}): JSX.Element {
   const ctx = usePlugin()
   const exportPiece = useMutation(() => ctx.client.rpc(Recorder)['recordings.exportVideo'].mutationOptions())
   const [state, setState] = createStore({exporting: false})
@@ -52,7 +52,7 @@ function ExportVideoButton(props: {recordingId: string; runtime: PluginRuntime; 
 
 type RecordingNote = {readonly recordingId: string; readonly summary?: string}
 
-export function RecordingCard(props: NoteCardProps & {runtime: PluginRuntime}): JSX.Element {
+export function RecordingCard(props: NoteCardProps & {runtime: RecorderRuntime}): JSX.Element {
   const ctx = usePlugin()
   const play = (recordingId: string): void =>
     void ctx.dialogs.open(() => (
@@ -79,7 +79,7 @@ export function RecordingCard(props: NoteCardProps & {runtime: PluginRuntime}): 
   )
 }
 
-function RecordingReplay(props: {recording: RecordingNote; runtime: PluginRuntime}): JSX.Element {
+function RecordingReplay(props: {recording: RecordingNote; runtime: RecorderRuntime}): JSX.Element {
   const ctx = usePlugin()
   const saved = useQuery(() => ({
     ...ctx.client.rpc(Recorder)['recordings.get'].queryOptions({input: {recordingId: props.recording.recordingId}}),
@@ -94,7 +94,7 @@ function RecordingReplay(props: {recording: RecordingNote; runtime: PluginRuntim
   })
   const playerKit = usePlayerKit()
   const replayRef = (kit: PlayerKit, playable: RrwebEvent[]) => (container: HTMLDivElement) => {
-    onCleanup(mountPlayer(kit, container, playable))
+    runInOwnerScope(props.runtime, mountPlayer(kit, container, playable))
   }
 
   return (
