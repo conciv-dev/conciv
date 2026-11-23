@@ -744,9 +744,6 @@ importers:
       '@conciv/plugin-tanstack':
         specifier: workspace:^
         version: link:../../packages/plugins/tanstack
-      '@conciv/plugin-terminal':
-        specifier: workspace:*
-        version: link:../../packages/plugins/terminal
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../packages/protocol
@@ -771,6 +768,9 @@ importers:
       '@conciv/ui-kit-tap':
         specifier: workspace:^
         version: link:../../packages/ui-kit-tap
+      '@internal/builtin-plugins':
+        specifier: workspace:*
+        version: link:../../packages/builtin-plugins-internal
       '@internal/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin-internal
@@ -2290,6 +2290,28 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
 
+  packages/builtin-plugins-internal:
+    dependencies:
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
+      '@conciv/plugin-page':
+        specifier: workspace:^
+        version: link:../plugins/page
+      '@conciv/plugin-terminal':
+        specifier: workspace:*
+        version: link:../plugins/terminal
+    devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      solid-js:
+        specifier: 'catalog:'
+        version: 1.9.17
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
   packages/bundle-size:
     devDependencies:
       '@conciv/tsconfig':
@@ -2809,6 +2831,9 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
+      '@internal/builtin-plugins':
+        specifier: workspace:*
+        version: link:../builtin-plugins-internal
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6

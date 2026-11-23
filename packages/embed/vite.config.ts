@@ -1,3 +1,4 @@
+import {dirname} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {defineConfig, type Plugin} from 'vite'
 import solid from 'vite-plugin-solid'
@@ -8,16 +9,17 @@ const EXTERNAL_PREFIXES = ['solid-js/', 'effect/', '@ark-ui/', '@conciv/']
 
 const INLINED_PREFIXES = [
   '@conciv/plugin-page/client',
-  '@conciv/plugin-page/renderer',
   '@conciv/app',
   '@conciv/plugin-tanstack',
-  '@conciv/plugin-terminal',
   '@conciv/tools',
   '@conciv/core',
 ]
 
-const isExternal = (id: string): boolean => {
+const BUILTIN_PLUGINS = dirname(fileURLToPath(import.meta.resolve('@internal/builtin-plugins')))
+
+const isExternal = (id: string, importer: string | undefined): boolean => {
   if (id.endsWith('?inline')) return false
+  if (importer?.startsWith(BUILTIN_PLUGINS)) return false
   if (INLINED_PREFIXES.some((prefix) => id.startsWith(prefix))) return false
   return id === 'solid-js' || id === 'effect' || EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix))
 }

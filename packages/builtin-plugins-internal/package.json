@@ -1,0 +1,36 @@
+{
+  "name": "@internal/builtin-plugins",
+  "version": "0.0.22",
+  "private": true,
+  "description": "Private to conciv: the composed list of the app's built-in plugins (page, terminal). The only place the app's build names a built-in. Inlined into its users' builds, never published.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/builtin-plugins-internal"
+  },
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint"
+  },
+  "dependencies": {
+    "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-page": "workspace:^",
+    "@conciv/plugin-terminal": "workspace:*"
+  },
+  "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
+    "solid-js": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
+  }
+}
