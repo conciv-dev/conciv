@@ -192,7 +192,8 @@ describe('the agent leaves the page alone for a while', () => {
 
     await expect.element(mask).not.toBeInTheDocument()
     await answer.release()
-    expect(await screen.findByText('Clicked')).toBeVisible()
+    const reply = await screen.findByRole('article', {name: /^Reply to:/})
+    expect(await within(reply).findByText('Clicked')).toBeVisible()
   })
 })
 
