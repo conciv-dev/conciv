@@ -12,7 +12,6 @@ import {
 import {Conciv, type ConcivClient} from '@conciv/plugin'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {dropLeavingCopies} from '../runtime/persistence/leaving-copy.js'
-import {Definition as PageDefinition} from '@conciv/plugin-page/rpc'
 import {forgetDeletedSessions} from './forget-deleted-sessions.js'
 import {
   DraftRowSchema,
@@ -80,10 +79,6 @@ function retriableDraftSave(failureCount: number, error: unknown): boolean {
 
 function refusedByEngine(error: unknown): boolean {
   return error instanceof ORPCError && error.code === 'UNAUTHORIZED'
-}
-
-export function sessionCapturesCall(sessionId: string) {
-  return {rpcId: PageDefinition.id, method: 'captures.list', input: {sessionId}}
 }
 
 export type AppData = {

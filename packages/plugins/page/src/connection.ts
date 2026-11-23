@@ -52,11 +52,7 @@ import {
   type Work,
 } from './rpc.js'
 import type {Symbolicator} from './symbolicate.js'
-import {
-  PageCaptureBundleSchema,
-  type PageCaptureBundle,
-  type SessionCaptures,
-} from '@conciv/protocol/element-capture-types'
+import {PageCaptureBundleSchema, type PageCaptureBundle, type SessionCaptures} from './element-capture-types.js'
 import type {StorageEntry} from '@conciv/plugin/effect'
 
 const TAB_RETURN_MS = 5000
@@ -603,7 +599,13 @@ export const make = Effect.fn('PageConnection.make')(function* (
   return {
     run,
     queues,
-    records,
+    records: {
+      ...records,
+      capture: (sessionId: SessionId, toolCallId: string, bundle: PageCaptureBundle) =>
+        records
+          .capture(sessionId, toolCallId, bundle)
+          .pipe(Effect.andThen(registration.events.emit('captures.saved', {sessionId}))),
+    },
     tabs: (sessionId: SessionId) => selectTabs(machine.state, sessionId),
   }
 })

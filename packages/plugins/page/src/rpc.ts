@@ -4,11 +4,7 @@ import {keyBy, mapValues} from 'es-toolkit'
 import {Rpc} from '@conciv/plugin/rpc'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
-import {
-  PageCaptureBundleSchema,
-  SessionCapturesSchema,
-  type ToolCaptureMode,
-} from '@conciv/protocol/element-capture-types'
+import {PageCaptureBundleSchema, SessionCapturesSchema, type ToolCaptureMode} from './element-capture-types.js'
 import {
   PAGE_QUEUE_MAX_ACTIONS,
   PageQueueHandleSchema,
@@ -631,6 +627,7 @@ export const Definition = Rpc.define({
   },
   events: {
     control: {schema: Control},
+    'captures.saved': {schema: z.object({sessionId: SessionId})},
     'queue.finished': {
       schema: z.object({
         sessionId: SessionId,
