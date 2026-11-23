@@ -395,13 +395,31 @@ function followRun(processor: StreamProcessor, chunk: ChatEvent): void {
   processor.processChunk(chunk)
 }
 
-function storedToolCallIds(stored: readonly ModelMessage[]): Set<string> {
-  return new Set(
-    stored.flatMap((message) => [
-      ...(message.toolCalls ?? []).map((call) => call.id),
-      ...(message.toolCallId === undefined ? [] : [message.toolCallId]),
-    ]),
-  )
+const PART_ENDS: readonly string[] = [
+  EventType.TEXT_MESSAGE_END,
+  EventType.TOOL_CALL_END,
+  EventType.TOOL_CALL_RESULT,
+  EventType.REASONING_MESSAGE_END,
+]
+
+function countParts(processor: StreamProcessor): number {
+  return processor.getMessages().reduce((count, message) => count + message.parts.length, 0)
+}
+
+function withParentMessage(chunk: ChatEvent, messageId: string | null): ChatEvent {
+  if (chunk.type !== EventType.TOOL_CALL_START || isSubagentChunk(chunk)) return chunk
+  if (chunk.parentMessageId || messageId === null) return chunk
+  return {...chunk, parentMessageId: messageId}
+}
+
+function savedBefore(processor: StreamProcessor): (stored: readonly ModelMessage[]) => ReadonlySet<string> {
+  const own = new Set(processor.getMessages().map((message) => message.id))
+  return (stored) =>
+    new Set(
+      stored
+        .filter((message) => message.role === 'assistant' && (message.id === undefined || !own.has(message.id)))
+        .flatMap((message) => (message.toolCalls ?? []).map((call) => call.id)),
+    )
 }
 
 function unsavedParts(message: ChatMessage, saved: ReadonlySet<string>): ChatMessage {
@@ -431,8 +449,9 @@ async function saveStoppedTurn(
     stopped,
     [stopped({role: 'assistant', content: null, id: generateMessageId()})],
     (thread) => {
-      written.results = interruptedResults(thread)
-      return [...thread, ...written.results]
+      const latest = lastToolResults(thread)
+      written.results = interruptedResults(latest)
+      return [...latest, ...written.results]
     },
   )
   return written.results
@@ -478,7 +497,7 @@ async function saveShown(
   finish: (message: ModelMessage) => ModelMessage,
   unshown: readonly ModelMessage[],
   seal: (thread: ModelMessage[]) => ModelMessage[],
-  alreadySaved: (stored: readonly ModelMessage[]) => ReadonlySet<string> = storedToolCallIds,
+  alreadySaved: (stored: readonly ModelMessage[]) => ReadonlySet<string> = savedBefore(processor),
 ): Promise<void> {
   const stored = await messages.loadThread(threadId)
   const saved = alreadySaved(stored)
@@ -658,6 +677,12 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       system: [],
     }
     const shown = new StreamProcessor()
+    const saveSoFar = (finish: (message: ModelMessage) => ModelMessage = (message) => message): Promise<void> =>
+      savingShown(turn.threadId, () =>
+        saveShown(stores.messages, turn.threadId, shown, finish, [], lastToolResults),
+      ).catch((error: unknown) => {
+        config.log(`[ai] saving the reply so far of run ${turn.runId} failed: ${String(error)}`)
+      })
     const settle = async (): Promise<void> => {
       try {
         await inSpan(tracer, 'ChatServer.settle', turnAttributes(turn), async () => {
@@ -721,8 +746,11 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           }
         })
       },
-      onChunk: async (_ctx, chunk) => {
+      onChunk: async (ctx, raw) => {
+        const chunk = withParentMessage(raw, ctx.currentMessageId)
+        const parts = countParts(shown)
         followRun(shown, chunk)
+        if (PART_ENDS.includes(chunk.type) || countParts(shown) !== parts) await saveSoFar()
         const shaped = await plan.chunk(chunk)
         if (chunk.type === EventType.RUN_STARTED) {
           const lifecycle = await recordLifecycle(turn.runId)
@@ -740,7 +768,10 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       },
       onUsage: (_ctx, usage) => hooks.usage(turn, usage),
       onFinish: () => settle(),
-      onError: () => settle(),
+      onError: async () => {
+        await saveSoFar((message) => withTanstackMetadata(message, {stopReason: 'error'}))
+        await settle()
+      },
       onAbort: async () => {
         entry.interrupted = await inSpan(tracer, 'ChatServer.saveStoppedTurn', turnAttributes(turn), () =>
           savingShown(turn.threadId, () => saveStoppedTurn(stores.messages, turn.threadId, shown)),
@@ -873,7 +904,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           provides: [ToolBridgeProvisionerCapability],
           setup: (ctx) => provideToolBridgeProvisioner(ctx, askingToolProvisioner(config.askPermission, tracer)),
         }),
-        withPersistence(persistence, {snapshotStreaming: true}),
+        withPersistence(persistence),
         withLocks(locks),
         defineChatMiddleware({
           name: 'conciv-thread-view',
