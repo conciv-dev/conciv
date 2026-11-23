@@ -89,7 +89,9 @@ export type HarnessInit<Id extends string = string> = HarnessInitBase<Id> & {
   completed: string
   planSummary: string
   plan(project: HarnessInitProject): HarnessInitPlan
-  installed(project: HarnessInitProject & {home: string; configProvider?: ConfigProvider.ConfigProvider}): boolean
+  installed(
+    project: HarnessInitProject & {home: string; configProvider?: ConfigProvider.ConfigProvider},
+  ): Promise<boolean>
   manualCard(root: string): HarnessInitCard
 }
 

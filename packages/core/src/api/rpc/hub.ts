@@ -42,7 +42,7 @@ export function createHubInstaller(
   }
   const agents = async (): Promise<HubAgents> => {
     const present = await connected()
-    const installs = detectHarnesses(detectionEnv).flatMap(({id}) => {
+    const installs = (await detectHarnesses(detectionEnv)).flatMap(({id}) => {
       const hub = initContributions[id].hub
       if (hub === undefined || present.some((connection) => connection.harness === id)) return []
       return [{harnessId: id, name: hub.name}]

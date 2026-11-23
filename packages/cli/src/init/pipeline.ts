@@ -371,7 +371,7 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
     return refuse(runtime, checked.reason)
   }
   const detected = await detectProject(options.cwd)
-  const found = detectHarnesses(runtime.env)
+  const found = await detectHarnesses(runtime.env)
   const agents = await connectableAgents(found, runtime.concivHome)
   detecting.stop(detectionSummary(detected, found))
   const approved = await approvePlan({

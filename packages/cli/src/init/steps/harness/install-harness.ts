@@ -56,7 +56,12 @@ async function applyInit(
   return {status: 'done'}
 }
 
-function serves(init: HarnessInit<HarnessId>, cwd: string, consented: () => HarnessId[], io: HarnessInitIo): boolean {
+async function serves(
+  init: HarnessInit<HarnessId>,
+  cwd: string,
+  consented: () => HarnessId[],
+  io: HarnessInitIo,
+): Promise<boolean> {
   if (!consented().includes(init.harnessId)) return false
   return init.installed({...buildProject(cwd), home: io.home})
 }
@@ -71,7 +76,7 @@ export function harnessInitStep(
     title: init.title,
     running: init.running,
     completed: init.completed,
-    detect: async (ctx) => (serves(init, ctx.cwd, consented, io) ? 'present' : 'missing'),
+    detect: async (ctx) => ((await serves(init, ctx.cwd, consented, io)) ? 'present' : 'missing'),
     plan: async (ctx) => ({
       summary: init.planSummary,
       wouldEdit: [relative(ctx.cwd, init.plan(buildProject(ctx.cwd)).root)],
