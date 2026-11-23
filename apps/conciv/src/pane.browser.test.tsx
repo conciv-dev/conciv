@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest'
 import {page, userEvent as browserInput} from 'vitest/browser'
-import {render, screen, within} from '@solidjs/testing-library'
+import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
@@ -156,35 +156,17 @@ describe('a reply that thinks before it answers', () => {
 })
 
 describe('a message with no words', () => {
-  test('a grabbed element sent alone reads as a note, as a plugin note sent alone does', async () => {
-    await page.viewport(1280, 800)
+  test('a note sent alone reads as a note', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
-    const control = await engine.event('rpc.experimental.page.control')
-    await engine.reply(TestLLM.text('That button buys the fern'), TestLLM.text('The header is sticky now'))
+    await engine.reply(TestLLM.text('The header is sticky now'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-    render(() => (
-      <button type="button" id="buy">
-        Buy the fern
-      </button>
-    ))
 
-    await user.click(await screen.findByRole('button', {name: 'More composer actions'}))
-    await user.click(await screen.findByRole('menuitem', {name: 'Select an element from the page'}))
-    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
-    await browserInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
-    expect(await screen.findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    expect(await screen.findByText('That button buys the fern')).toBeVisible()
-    expect(screen.getByRole('article', {name: 'You: 1 note'})).toBeVisible()
-
-    await user.click(screen.getByRole('button', {name: 'Review'}))
+    await user.click(await screen.findByRole('button', {name: 'Review'}))
     expect(await screen.findByRole('list', {name: 'Notes'})).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByText('The header is sticky now')).toBeVisible()
-    const sent = screen.getAllByRole('article', {name: 'You: 1 note'}).at(-1)
-    if (!sent) throw new Error('the second message is not shown')
+    const sent = screen.getByRole('article', {name: 'You: 1 note'})
     expect(within(sent).getByRole('list', {name: 'Notes on this message'})).toBeVisible()
   })
 })
@@ -252,36 +234,6 @@ describe('stopping and sending again', () => {
     expect(await within(reply).findByText('Here it is')).toBeVisible()
     expect(screen.queryByRole('article', {name: 'Reply to: Wait for it'})).not.toBeInTheDocument()
     expect(screen.queryByText('Never shown')).not.toBeInTheDocument()
-  })
-})
-
-describe('a reply that reads the page before it answers', () => {
-  test('the trace the user hid while the reply waited stays hidden when the answer arrives', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine()
-    const control = await engine.event('rpc.experimental.page.control')
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {typescriptCode: 'return await external_page_route({})'}),
-      TestLLM.text('You are on the home page'),
-    )
-    const toolCall = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Where am I')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    await toolCall.started
-    const answer = await engine.gate()
-    await toolCall.release()
-    await answer.started
-    const reply = await screen.findByRole('article', {name: 'Reply to: Where am I'})
-    expect(await within(reply).findByText('Read the route')).toBeVisible()
-    await user.click(within(reply).getByRole('button', {name: /Hide trace/}))
-    await answer.release()
-
-    expect(await screen.findByText('You are on the home page')).toBeVisible()
-    expect(screen.getByRole('button', {name: /Show trace/})).toHaveFocus()
-    await expect.element(page.getByRole('list', {name: 'Execution trace'})).not.toBeInTheDocument()
   })
 })
 
@@ -490,18 +442,16 @@ describe('the agent asks for permission', () => {
 
   test('an ask that cannot be saved offers no Allow always', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    const control = await engine.event('rpc.experimental.page.control')
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
 
-    const call = engine.session.tool('page_eval').call({code: 'return 1 + 1'})
+    const call = engine.session.tool('release_rollback').call({branch: 'main'})
     const ask = await screen.findByRole('group', {name: 'Permission request'})
     expect(within(ask).getByRole('button', {name: 'Allow once'})).toBeVisible()
     expect(within(ask).queryByRole('button', {name: 'Allow always'})).not.toBeInTheDocument()
 
     await user.click(within(ask).getByRole('button', {name: 'Allow once'}))
-    await expect(call).resolves.toEqual({result: 2})
+    await expect(call).resolves.toEqual({rolledBack: true})
   })
 
   test('Stop while the card is open takes the ask away', async () => {
@@ -754,7 +704,7 @@ describe('a plugin fills the session header and status', () => {
 })
 
 describe('opening a tool card while the turn goes on', () => {
-  test('the user opens the card of a tool with no card of its own, its body shows, and it stays open when the answer arrives', async () => {
+  test('the user opens the card of a tool with no card of its own and hides the trace while the reply waits; the trace stays hidden when the answer arrives, and shown again the card is still open', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
     await engine.reply(
@@ -779,8 +729,13 @@ describe('opening a tool card while the turn goes on', () => {
     await expect.element(opened).toHaveLength(2)
     await expect.element(opened.last()).toBeVisible()
 
+    await user.click(within(reply).getByRole('button', {name: /Hide trace/}))
     await answer.release()
+
     expect(await screen.findByText('The window is set')).toBeVisible()
+    expect(within(reply).getByRole('button', {name: /Show trace/})).toHaveFocus()
+    await expect.element(page.getByRole('list', {name: 'Execution trace'})).not.toBeInTheDocument()
+    await user.click(within(reply).getByRole('button', {name: /Show trace/}))
     expect(within(reply).getAllByText('"noon to two"')).toHaveLength(2)
     expect(within(reply).getAllByText('"noon to two"').at(-1)).toBeVisible()
     const durations = await within(reply).findAllByText(/^\d+\.\ds$/)

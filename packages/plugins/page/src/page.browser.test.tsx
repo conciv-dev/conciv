@@ -489,12 +489,12 @@ describe('the page follows the session the user switches to', () => {
 })
 
 describe('the user grabs an element for the agent', () => {
-  test('the picked element is a note drawn with its picture in the composer, which takes focus, and the agent gets its sentence and its picture with the message', async () => {
+  test('the picked element is a note drawn with its picture in the composer, which takes focus, the agent gets its sentence and its picture with the message, and one sent alone reads as a note', async () => {
     await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
-    await engine.reply(TestLLM.text('That button buys the fern'))
+    await engine.reply(TestLLM.text('That button buys the fern'), TestLLM.text('That is the same button'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
     render(() => (
@@ -529,6 +529,16 @@ describe('the user grabs an element for the agent', () => {
         {type: 'image', source: {type: 'data', mimeType: 'image/webp'}},
       ],
     })
+
+    await user.click(screen.getByRole('button', {name: 'More composer actions'}))
+    await user.click(await screen.findByRole('menuitem', {name: 'Select an element from the page'}))
+    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
+    await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
+    const staged = await screen.findByRole('list', {name: 'Notes'})
+    expect(await within(staged).findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('That is the same button')).toBeVisible()
+    expect(screen.getByRole('article', {name: 'You: 1 note'})).toBeVisible()
   })
 })
 

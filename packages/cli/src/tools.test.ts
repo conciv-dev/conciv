@@ -2,13 +2,12 @@ import {describe, expect, it} from 'vitest'
 import {cli, createEngine} from '@conciv/plugin-testkit'
 
 describe('tools', () => {
-  it("the plugin's group is listed beside the page group, its verb runs with flags spelled from its schema, a mistyped verb gets a fix, and a page tool with no page answers NO_PAGE_CLIENT", async () => {
+  it("the plugin's group is listed, its verb runs with flags spelled from its schema, and a mistyped verb gets a fix", async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
 
     const help = await cli(['tools', '--help'], {engine})
     expect(help.exitCode).toBe(0)
     expect(help.stdout).toMatch(/^ {2}shelf +the shelf tools the running dev server serves/m)
-    expect(help.stdout).toMatch(/^ {2}page +the page tools the running dev server serves/m)
 
     const groupHelp = await cli(['tools', 'shelf', '--help'], {engine})
     expect(groupHelp.stdout).toMatch(/^ {2}label +Print a label for a plant on the shelf/m)
@@ -35,13 +34,6 @@ describe('tools', () => {
         message: "Unknown command 'lable' for conciv tools shelf. Did you mean 'label'?",
         hint: 'run conciv tools shelf --help to list its commands',
       },
-    })
-
-    const noPage = await cli(['tools', 'page', 'route'], {engine})
-    expect(noPage.exitCode).toBe(1)
-    expect(JSON.parse(noPage.stdout)).toEqual({
-      ok: false,
-      error: {kind: 'user', message: 'page_route: no widget connected to session', code: 'NO_PAGE_CLIENT'},
     })
   })
 })
