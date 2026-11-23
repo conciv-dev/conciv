@@ -567,10 +567,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         eventStream(deps.pluginHost, deps.eventHeartbeatIntervalMs, input?.types, signal),
       ),
     },
-    tabs: {
-      list: os.tabs.list.handler(() => deps.tabs.list()),
-      get: os.tabs.get.handler(({input}) => deps.tabs.get(input.sessionId)),
-    },
     location: {
       get: os.location.get.handler(({signal}) => locationGet(deps.pluginHost, signal)),
     },

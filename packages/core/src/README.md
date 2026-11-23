@@ -15,7 +15,7 @@ Top-level engine modules. `start` resolves config, binds a port (persisted, pref
 - `CodeRunCard`, `codeRunTool`, `EXECUTE_TOOL_NAME`, `coreToolCards` (`cards.tsx`)
 - `EventFeed` (`event-feed.ts`): opencode's `server/src/event-feed.ts` copied on `Bus.listen`: `layer`, `make(observe, {capacity?, encode?})`, `Service`, `subscribe(types?)` (a scoped stream of encoded events), `encode`, `SubscriberCapacity` (4096), `SubscriberOverflowError`, `EncodingError`. One edit from the source: it yields each encoded event object (the contract's `EventEnvelopeSchema`), not an SSE text frame, since the transport is oRPC; `encode` uses the host's own Effect definitions (`EventManifest.ServerDefinitions`, `Rpc.eventDefinition` for `rpc.*`)
 - Subdirectories:
-  - api: [./api/README.md](./api/README.md) - MCP, tabs and native-page routes
+  - api: [./api/README.md](./api/README.md) - MCP and native-page routes
   - cards: [./cards/README.md](./cards/README.md) - execute_typescript tool card
   - editor: [./editor/README.md](./editor/README.md) - open source locations
   - lib: [./lib/README.md](./lib/README.md) - CORS, dev endpoint, staleness, state paths

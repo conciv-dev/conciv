@@ -21,10 +21,8 @@ import {
   CONCIV_CLIENT_HEADER,
   CONCIV_ORIGIN_HEADER,
   SessionId,
-  type TabOpen,
 } from '@conciv/protocol/chat-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
-import {PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
 import cliManifest from '../package.json' with {type: 'json'}
 import type {CliOutcome} from './envelope.js'
 import {
@@ -43,6 +41,7 @@ import {
   type Silent,
   type TabAsk,
 } from './engine-read.js'
+import {engineOutdated, PAGE_NAMESPACE} from './hub/page.js'
 
 const EXECUTE_TOOL_NAME = 'execute_typescript'
 
@@ -90,7 +89,7 @@ type Reply = CodeReply
 
 type Runner = {root: string; rpc: RpcClient; described: CodeDescriptions | null}
 
-type TabOwner = {root: string; apiBase: string; token: string; instructions: string | null; rpc: RpcClient}
+type TabOwner = {root: string; apiBase: string; token: string; rpc: RpcClient}
 
 type TabEntry = {owner: Promise<TabOwner> | null; greeted: boolean}
 
@@ -178,7 +177,7 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
     })
     try {
       const value = await call(owner.rpc, signal)
-      return {reply: greeted(entry, owner, format(value)), value}
+      return {reply: await greeted(entry, owner, tab, format(value)), value}
     } catch (error) {
       if (!resent && unrun(error)) {
         forget(entry, kept)
@@ -186,7 +185,7 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
       }
       if (answered(error)) {
         if (!(await holdsTab(owner, tab))) forget(entry, kept)
-        return {reply: greeted(entry, owner, failed(answerText(owner.root, error))), value: null}
+        return {reply: await greeted(entry, owner, tab, failed(answerText(owner.root, error))), value: null}
       }
       forget(entry, kept)
       throw new Error(
@@ -317,7 +316,7 @@ async function findOwner(home: string, tab: SessionId, headers: Record<string, s
   const first = await liveEngines(home)
   const probes = await askTabs(first.live, tab, PROBE_MS)
   const [settled, unsettled] = partition(probes, (probe) => probe.answer !== null)
-  if (openAnswers(probes).length > 0 || (first.unreachable.length === 0 && unsettled.length === 0)) {
+  if (openRows(probes).length > 0 || (first.unreachable.length === 0 && unsettled.length === 0)) {
     return ownerAmong(tab, probes, first.unreachable, headers)
   }
   const [second, retried] = await Promise.all([
@@ -336,14 +335,12 @@ async function findOwner(home: string, tab: SessionId, headers: Record<string, s
   return ownerAmong(tab, [...settled, ...retried, ...later], second.unreachable, headers)
 }
 
-function openAnswers(probes: TabAsk[]): Array<{row: EngineRow; answer: TabOpen}> {
-  return probes.flatMap((probe) =>
-    probe.answer !== null && probe.answer.open ? [{row: probe.row, answer: probe.answer}] : [],
-  )
+function openRows(probes: TabAsk[]): EngineRow[] {
+  return probes.flatMap((probe) => (probe.answer?.open === true ? [probe.row] : []))
 }
 
 function ownerAmong(tab: SessionId, probes: TabAsk[], silent: Silent, headers: Record<string, string>): TabOwner {
-  const [only, second] = openAnswers(probes)
+  const [only, second] = openRows(probes)
   const failures = [
     ...probes.flatMap((probe) => (probe.answer === null ? [failedProbe(probe.row.root, probe.failure)] : [])),
     ...silent.map((entry) => new Error(silence([entry]))),
@@ -351,15 +348,14 @@ function ownerAmong(tab: SessionId, probes: TabAsk[], silent: Silent, headers: R
   if (only === undefined) throw notOpen(tab, failures)
   if (second !== undefined) {
     throw new Error(
-      `tab ${tab} is open on two conciv engines (${only.row.root} and ${second.row.root}); ask the user to close one of the browser tabs`,
+      `tab ${tab} is open on two conciv engines (${only.root} and ${second.root}); ask the user to close one of the browser tabs`,
     )
   }
   return {
-    root: only.row.root,
-    apiBase: only.row.apiBase,
-    token: only.row.token,
-    instructions: only.answer.instructions,
-    rpc: makeRpcClient(only.row.apiBase, {token: only.row.token, headers}),
+    root: only.root,
+    apiBase: only.apiBase,
+    token: only.token,
+    rpc: makeRpcClient(only.apiBase, {token: only.token, headers}),
   }
 }
 
@@ -379,7 +375,7 @@ async function listTabsCall(home: string): Promise<Reply> {
 }
 
 function failedProbe(root: string, failure: unknown): Error {
-  if (engineTooOld(failure)) return new Error(`${root} (${TOO_OLD})`, {cause: failure})
+  if (engineOutdated(failure)) return new Error(`${root} (${TOO_OLD})`, {cause: failure})
   return new Error(silence([{root, error: errorText(failure)}]), {cause: failure})
 }
 
@@ -393,11 +389,20 @@ async function holdsTab(owner: TabOwner, tab: SessionId): Promise<boolean> {
   return false
 }
 
-function greeted(entry: TabEntry, owner: TabOwner, reply: Reply): Reply {
+async function greeted(entry: TabEntry, owner: TabOwner, tab: SessionId, reply: Reply): Promise<Reply> {
   if (entry.greeted) return reply
   entry.greeted = true
-  if (owner.instructions === null) return reply
-  return {...reply, content: [{type: 'text', text: owner.instructions}, ...reply.content]}
+  const instructions = await makeRpcClient(owner.apiBase, {token: owner.token})
+    .sessions.instructions({sessionId: tab}, {signal: AbortSignal.timeout(ENGINE_READ_MS)})
+    .then(
+      (answer) => answer.text,
+      (error: unknown) => {
+        logHub(`reading the instructions of tab ${tab} failed; the reply goes without them`, error)
+        return ''
+      },
+    )
+  if (instructions === '') return reply
+  return {...reply, content: [{type: 'text', text: instructions}, ...reply.content]}
 }
 
 function buildSessionInput(tab: SessionId | undefined): {sessionId?: SessionId} {

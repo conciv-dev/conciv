@@ -78,7 +78,6 @@ import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {makeHubInstaller} from './api/rpc/hub.js'
 import {readConcivHome, readProcessEnv, runWithProvider} from './lib/engine-env.js'
-import {createTabs, makePageReader} from './api/tabs.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
@@ -99,7 +98,6 @@ import {startObservability, type EngineObservability} from './runtime/observabil
 import type {CoreRuntime, SessionScope} from './runtime/scope-types.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {carryEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
-import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute} from '@conciv/serve/rpc'
 import {GROUP_EXIT_TIMEOUT_MS, inSpan, loadIsolateDriver, type Tracer} from '@conciv/ai/server'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
@@ -583,7 +581,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
-  const pageReader = makePageReader(() => pluginHost)
   const settings = createSettingsStorage(settingsOnDisk({global: appEnv.home, project: stateDir}), earlyLog)
   const primitives = makeSessionPrimitives()
   const {stream} = primitives
@@ -898,14 +895,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const rpcDeps: RpcDeps = {
     ptys,
     code: mcp,
-    tabs: createTabs({
-      attachedSessions: pageReader.attachedSessions,
-      pageTabs: pageReader.tabs,
-      session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
-      root: opts.cwd,
-      instructions: systemPromptText,
-      log,
-    }),
     pluginHost,
     eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
     chat: chatDeps,

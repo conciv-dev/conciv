@@ -1,6 +1,16 @@
 import {Effect} from 'effect'
 import {z} from 'zod'
 import {Plugin} from '@conciv/plugin/effect'
+import {Rpc} from '@conciv/plugin/rpc'
+import {SessionId} from '@conciv/protocol/chat-types'
+
+const Desk = Rpc.define({
+  id: 'desk',
+  methods: {
+    pin: {input: z.object({sessionId: SessionId}), output: z.object({})},
+  },
+  events: {},
+})
 
 export default Plugin.define({
   id: 'desk',
@@ -27,5 +37,13 @@ export default Plugin.define({
           input.system.push({type: 'text', text: 'HOOKED'})
         }),
       )
+      yield* ctx.rpc
+        .register(Desk, {
+          pin: ({sessionId}) =>
+            ctx.session.instructions.entry
+              .put({sessionId, key: 'desk', value: 'The desk keeps the notes of this session.'})
+              .pipe(Effect.orDie, Effect.as({})),
+        })
+        .pipe(Effect.orDie)
     }),
 })

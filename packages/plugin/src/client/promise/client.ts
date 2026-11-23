@@ -51,7 +51,6 @@ export function make(
     markers: raw.markers,
     chat: raw.chat,
     registry: raw.registry,
-    tabs: raw.tabs,
     location: raw.location,
     code: raw.code,
     meta: raw.meta,

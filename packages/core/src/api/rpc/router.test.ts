@@ -222,40 +222,22 @@ describe.concurrent('tool registry', () => {
 })
 
 describe.concurrent('session instructions', () => {
-  test("a session answers the system text its next turn sends: the base prompt, the attached page's entry, and what the context hooks leave, until it is deleted", async ({
+  test("a session answers the system text its next turn sends: the base prompt, a plugin's instruction entry, and what the context hooks leave, until it is deleted", async ({
     connect,
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['@conciv/plugin-page', './test/fixtures/plugins/desk']})
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
     const rpc = connect(engine)
     const sessionId = engine.session.id
-    const connectionId = 'desk'
-    const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
-    const attachment = engine.rpc
-      .call('experimental.page', 'attach', {sessionId, connectionId, version: 1})
-      .catch(() => 'closed')
-    await attached.arrived
-    await engine.rpc.call('experimental.page', 'state', {
-      sessionId,
-      connectionId,
-      state: {
-        id: 'tab_33333333-3333-4333-8333-333333333333',
-        url: 'http://localhost:3000/desk',
-        title: 'Desk',
-        focused: true,
-        visible: true,
-      },
-    })
+    await engine.rpc.call('desk', 'pin', {sessionId})
 
     const {text} = await rpc.sessions.instructions({sessionId})
     expect(text).toContain(CHAT_SYSTEM_PROMPT.split('\n')[0])
-    expect(text).toContain('<context key="page">\nThe page capabilities read and drive the live page')
+    expect(text).toContain('<context key="desk">\nThe desk keeps the notes of this session.')
     expect(text.endsWith('HOOKED')).toBe(true)
 
     await rpc.sessions.delete({sessionId})
     await expect(rpc.sessions.instructions({sessionId})).rejects.toMatchObject({code: 'NOT_FOUND'})
-    await engine.restart()
-    expect(await attachment).toBe('closed')
   })
 })
 

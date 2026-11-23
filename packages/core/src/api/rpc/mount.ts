@@ -18,7 +18,6 @@ import type {createSessionSearch} from '../../sessions/session-search.js'
 import type {createHubInstaller} from './hub.js'
 import type {createSettingsStorage} from '../../settings/settings-storage.js'
 import type {McpVars} from '../mcp.js'
-import type {createTabs} from '../tabs.js'
 import type {ManagedRuntime} from 'effect'
 import type {
   Agent,
@@ -94,7 +93,6 @@ export type RpcDeps = {
   hub: ReturnType<typeof createHubInstaller>
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
   code: McpVars['mcp']
-  tabs: ReturnType<typeof createTabs>
   pluginHost: PluginHost
   eventHeartbeatIntervalMs?: number
   answerPermission: PermissionAnswer

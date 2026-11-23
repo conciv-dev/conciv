@@ -2566,9 +2566,6 @@ importers:
       '@conciv/plugin-host':
         specifier: workspace:^
         version: link:../plugin-host
-      '@conciv/plugin-page':
-        specifier: workspace:^
-        version: link:../plugins/page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

@@ -17,8 +17,6 @@ import {
   PermissionRuleSchema,
   ReasoningEffortSchema,
   SessionId,
-  TabOpenSchema,
-  TabsSchema,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
@@ -511,10 +509,6 @@ export const contract = {
       .errors(registryCallErrors)
       .input(z.object({name: z.string().min(1), input: z.record(z.string(), z.unknown())}))
       .output(z.unknown()),
-  },
-  tabs: {
-    list: oc.output(TabsSchema),
-    get: oc.input(SessionIdInput).output(TabOpenSchema),
   },
   location: {
     get: oc.output(LocationPublicInfoSchema),

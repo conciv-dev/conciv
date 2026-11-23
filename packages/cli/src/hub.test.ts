@@ -122,4 +122,42 @@ describe('the hub', () => {
     await engine.restart()
     expect(await attachment).toBe('closed')
   })
+
+  test('an engine without the page plugin lists no tabs and says a tab is not open; an engine whose page plugin answers outside the expected shape is named too old', async ({
+    hub,
+  }) => {
+    const bare = await createEngine({plugins: ['-conciv.page', './test/fixtures/plugins/plant-shelf']})
+    withHomeDb(await prepareHome(bare.home), (db) => recordHubConnection(db, 'claude', Date.now()))
+    const agent = await hub(bare.home)
+    const tab = bare.session.id
+
+    const none = await agent.callTool('list_tabs', {})
+    expect(none.isError).toBeUndefined()
+    expect(none.content).toEqual([{type: 'text', text: JSON.stringify({tabs: [], unreachable: []})}])
+
+    const notOpen = await agent.callTool('execute_typescript', {tab, typescriptCode: "return 'fern'"})
+    expect(notOpen.isError).toBe(true)
+    expect(notOpen.content).toEqual([{type: 'text', text: `TAB_NOT_OPEN: tab ${tab} is not open; call list_tabs`}])
+
+    const old = await createEngine({plugins: ['-conciv.page', './test/fixtures/plugins/old-page']}, {home: bare.home})
+    const listed = await agent.callTool('list_tabs', {})
+    const listing = z
+      .object({tabs: z.array(z.unknown()), unreachable: z.array(z.object({root: z.string(), error: z.string()}))})
+      .parse(JSON.parse(z.tuple([z.object({text: z.string()})]).parse(listed.content)[0].text))
+    expect(listing.unreachable.map((entry) => realpathSync(entry.root))).toEqual([realpathSync(old.root)])
+    const [tooOld] = listing.unreachable
+    expect(listing).toEqual({
+      tabs: [],
+      unreachable: [{root: tooOld?.root, error: 'engine too old; upgrade its @conciv packages'}],
+    })
+
+    const unknown = await agent.callTool('execute_typescript', {tab, typescriptCode: "return 'fern'"})
+    expect(unknown.isError).toBe(true)
+    expect(unknown.content).toEqual([
+      {
+        type: 'text',
+        text: `cannot tell whether tab ${tab} is open: no engine that answered has it, and ${tooOld?.root} (engine too old; upgrade its @conciv packages); nothing ran`,
+      },
+    ])
+  })
 })
