@@ -1,7 +1,7 @@
 import {spawn} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
 import {once} from 'node:events'
-import {mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync} from 'node:fs'
+import {mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {dirname, join, relative} from 'node:path'
 import {createInterface} from 'node:readline'
@@ -90,10 +90,11 @@ describe.concurrent('the vite dev server', () => {
   test.for([
     {name: 'a plain folder', folder: 'widget'},
     {name: 'a folder whose name holds parens and brackets', folder: 'widget (copy) [1]'},
+    {name: "an installed package's dist folder", folder: 'node_modules/@conciv/embed/dist'},
   ])(
     "the dependency scan reads the widget the plugin injects from $name, so the first optimizer pass already bundles the widget's dependencies",
     async ({folder}, {project, expect}) => {
-      const root = project('app')
+      const root = realpathSync(project('app'))
       const dependency = join(root, 'node_modules', 'widget-dependency')
       mkdirSync(dependency, {recursive: true})
       writeFileSync(
@@ -102,7 +103,7 @@ describe.concurrent('the vite dev server', () => {
       )
       writeFileSync(join(dependency, 'index.js'), 'export const ready = true\n')
       const embedEntry = join(root, folder, 'mount.js')
-      mkdirSync(dirname(embedEntry))
+      mkdirSync(dirname(embedEntry), {recursive: true})
       writeFileSync(embedEntry, "import {ready} from 'widget-dependency'\nexport const mountConciv = () => ready\n")
 
       const config = await resolveConfig(
@@ -163,12 +164,13 @@ describe.concurrent('the vite dev server', () => {
       expect(Object.keys(metadata.optimized)).toEqual(expect.arrayContaining(['app-dependency', 'widget-dependency']))
     },
   )
-  test('a widget path holding a backslash and a paren reaches the scan entries with both escaped', async ({
+  test('a project path holding a backslash and a paren reaches the scan entries with both escaped', async ({
     project,
     expect,
   }) => {
-    const root = project('app')
-    const embedEntry = join(root, 'wid\\get (copy)', 'mount.js')
+    const root = join(project('app'), 'wid\\get (copy)')
+    mkdirSync(root)
+    const embedEntry = join(root, 'widget', 'mount.js')
     mkdirSync(dirname(embedEntry))
     writeFileSync(embedEntry, 'export const mountConciv = () => true\n')
 
@@ -182,6 +184,8 @@ describe.concurrent('the vite dev server', () => {
       'serve',
     )
 
-    expect(config.optimizeDeps.entries).toContain(`${root}/wid\\\\get \\(copy\\)/mount.js`)
+    expect(config.optimizeDeps.entries).toContain(
+      `${dirname(root)}/wid\\\\get \\(copy\\)/.conciv/widget-scan-entry.gen.js`,
+    )
   })
 })

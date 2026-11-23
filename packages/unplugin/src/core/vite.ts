@@ -1,7 +1,7 @@
-import {dirname, isAbsolute, join, posix, resolve, sep} from 'node:path'
-import {readFileSync, existsSync} from 'node:fs'
+import {dirname, isAbsolute, join, posix, relative, resolve, sep} from 'node:path'
+import {readFileSync, existsSync, writeFileSync} from 'node:fs'
 import type {Plugin, ViteDevServer} from 'vite'
-import {concivStateDir} from '@conciv/protocol/state-types'
+import {concivStateDir, createConcivStateDir} from '@conciv/protocol/state-types'
 import type {Engine, LogEntry} from '@conciv/core/start'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
@@ -71,6 +71,28 @@ function escapeGlob(file: string): string {
   return file.split(sep).join(posix.sep).replaceAll(GLOB_SPECIAL, '\\$&')
 }
 
+function readImportPath(from: string, file: string): string {
+  const path = relative(from, file).split(sep).join(posix.sep)
+  return path.startsWith('../') ? path : `./${path}`
+}
+
+function writeScanEntry(root: string, files: readonly string[]): readonly string[] {
+  const stateDir = concivStateDir(root)
+  const path = join(stateDir, 'widget-scan-entry.gen.js')
+  const source = files.map((file) => `import ${JSON.stringify(readImportPath(stateDir, file))}\n`).join('')
+  try {
+    createConcivStateDir(stateDir)
+    writeFileSync(path, source, 'utf8')
+    return [path]
+  } catch (error) {
+    const cause = error instanceof Error ? error.message : String(error)
+    console.warn(
+      `conciv: could not write ${path}, so vite's dependency scan may miss a widget file in an ignored folder: ${cause}`,
+    )
+    return files
+  }
+}
+
 function readInputFiles(input: unknown, root: string): string[] | undefined {
   const values = typeof input === 'string' ? [input] : Array.isArray(input) ? input : Object.values(input ?? {})
   const files = values.map((value) =>
@@ -89,7 +111,7 @@ function addScanEntries(
   files: readonly string[],
 ): string[] | undefined {
   if (files.length === 0) return undefined
-  const patterns = files.map(escapeGlob)
+  const patterns = writeScanEntry(root, files).map(escapeGlob)
   if (config.optimizeDeps?.entries !== undefined) return patterns
   const input = config.input ?? config.build?.rolldownOptions?.input
   if (input === undefined) return [...DEFAULT_SCAN_ENTRIES, ...patterns]
@@ -302,7 +324,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       const embedFiles =
         builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...readMountChunk(builtins.embedEntry)]
       projectRoot = resolve(userConfig.root ?? process.cwd())
-      widgetFiles = embedFiles
+      widgetFiles = env.command === 'serve' ? embedFiles : []
       const base = concivSolidConfig({
         root: projectRoot,
         warmupFiles: embedFiles,
