@@ -957,7 +957,7 @@ describe('a notice from a plugin', () => {
 
     await engine.session.tool('notice').call({text: 'The build finished in 42 s', description: 'Build finished'})
 
-    expect(await screen.findByText('Build finished')).toBeVisible()
+    expect(await screen.findByRole('note', {name: 'Build finished'})).toBeVisible()
     expect(await screen.findByText('The build is green')).toBeVisible()
     expect(screen.queryByText('The build finished in 42 s')).not.toBeInTheDocument()
     expect(screen.queryByRole('article', {name: /^You:/})).not.toBeInTheDocument()
@@ -970,23 +970,20 @@ describe('a notice from a plugin', () => {
     expect(screen.getByRole('article', {name: 'You: Ship it'})).toBeVisible()
     expect(screen.getAllByRole('article', {name: /^You:/})).toHaveLength(1)
     expect(screen.queryByText('Quiet note')).not.toBeInTheDocument()
-    expect(screen.getByText('Build finished')).toBeVisible()
+    expect(screen.getByRole('note', {name: 'Build finished'})).toBeVisible()
   })
 
   test('a notice whose description is only spaces shows no row, and a failed notice with no description shows its text as its row', async () => {
-    const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/build-notices']})
     await engine.reply(TestLLM.text('Looking into it'))
     await mount({
       engine,
       history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
     })
-    const composer = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
 
     await engine.session.tool('notice').call({text: 'Blank label', description: '   ', resume: false})
-    await engine.session.tool('notice').call({text: 'The deploy failed', metadata: {state: 'error'}, resume: false})
-    await user.type(composer, 'What happened')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    await engine.session.tool('notice').call({text: 'The deploy failed', metadata: {state: 'error'}})
 
     expect(await screen.findByText('Looking into it')).toBeVisible()
     expect(screen.getByRole('note', {name: 'The deploy failed'})).toBeVisible()
