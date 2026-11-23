@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {access, readFile} from 'node:fs/promises'
 import {
   ChatEventType,
@@ -221,7 +220,7 @@ function promptedMessage(message: ModelMessage, event: SessionPrompt): ModelMess
   return {...message, content: [...text, ...(event.prompt.files ?? []).map(attachmentPart)], metadata: event.metadata}
 }
 
-function askedMessages(turn: Turn, messages: ModelMessage[], harness: HarnessAdapter): ModelMessage[] {
+function askedMessages(turn: PlannedTurn, messages: ModelMessage[], harness: HarnessAdapter): ModelMessage[] {
   if (turn.kind === 'compact') return [...messages, compactPrompt(harness)]
   return messages
 }
@@ -252,7 +251,7 @@ function withUpdate(messages: ModelMessage[], update: string): ModelMessage[] {
   })
 }
 
-function newToRun(turn: Turn, messages: ModelMessage[]): ModelMessage[] {
+function newToRun(turn: PlannedTurn, messages: ModelMessage[]): ModelMessage[] {
   const lastUser = Math.max(
     messages.findLastIndex((message) => message.role === 'user'),
     0,
@@ -394,6 +393,10 @@ type TurnContext = {ui: UiChannel; transcripts: TranscriptImporter; codeMode: bo
 
 type TurnPlan = Awaited<ReturnType<TurnHooks['plan']>>
 
+type PlannedTurn =
+  | Pick<Extract<Turn, {kind: 'chat'}>, 'kind' | 'delivered'>
+  | Pick<Extract<Turn, {kind: 'compact'}>, 'kind'>
+
 type RequestContext = Awaited<ReturnType<typeof createChatServer>>['requestContext']
 
 export async function sessionInstructions(
@@ -403,19 +406,25 @@ export async function sessionInstructions(
   requestContext: RequestContext,
   signal: AbortSignal,
 ): Promise<string> {
-  const turn: Turn = {threadId: sessionId, runId: randomUUID(), kind: 'chat', delivered: []}
-  const plan = await turnPlan(deps, context, turn, await deps.harnessFor(sessionId), signal)
+  const plan = await turnPlan(
+    deps,
+    context,
+    sessionId,
+    {kind: 'chat', delivered: []},
+    await deps.harnessFor(sessionId),
+    signal,
+  )
   return (await requestContext(sessionId, plan, signal)).system.join('\n\n')
 }
 
 async function turnPlan(
   deps: TurnDeps,
   context: TurnContext,
-  turn: Turn,
+  sessionId: SessionId,
+  turn: PlannedTurn,
   harness: HarnessAdapter,
   runSignal: AbortSignal,
 ): Promise<TurnPlan> {
-  const sessionId = SessionId.parse(turn.threadId)
   const {systemText, own, resumeSessionId, reset, toolSet, config} = await turnBasis(
     deps,
     sessionId,
@@ -495,9 +504,10 @@ export function turnHooks(deps: TurnDeps, context: TurnContext): TurnHooks {
       if (await sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
     },
     plan: async (turn, runSignal) => {
-      const harness = await deps.harnessFor(SessionId.parse(turn.threadId))
+      const sessionId = SessionId.parse(turn.threadId)
+      const harness = await deps.harnessFor(sessionId)
       await refuseLoggedOut(harness, runSignal, deps.log)
-      return turnPlan(deps, context, turn, harness, runSignal)
+      return turnPlan(deps, context, sessionId, turn, harness, runSignal)
     },
     usage: async (turn, reported) => {
       const sessionId = SessionId.parse(turn.threadId)
