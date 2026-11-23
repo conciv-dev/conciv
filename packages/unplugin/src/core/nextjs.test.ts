@@ -4,6 +4,7 @@ import {describe, expect} from 'vitest'
 import {z} from 'zod'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {withConciv} from './nextjs.js'
 import {test} from '../../test/unplugin-test.js'
 
@@ -34,6 +35,30 @@ describe('withConciv', () => {
     expect(otherPort).not.toBe(asked)
     expect(otherPort).not.toBe(firstPort)
     expect(otherProject.env['NEXT_PUBLIC_CONCIV_PORT']).toBe(String(otherPort))
+  })
+
+  test('with no port asked, each project prefers its own port, the same on every load, a recorded engine port first, and an asked port over both', async ({
+    nextConfigPort,
+    nextEnv,
+  }) => {
+    const firstProject = {stateRoot: '/conciv-unplugin-test/first-project'}
+    const secondProject = {stateRoot: '/conciv-unplugin-test/second-project'}
+
+    const first = await nextConfigPort(firstProject)
+    expect(await nextConfigPort(firstProject)).toBe(first)
+    const second = await nextConfigPort(secondProject)
+    expect(second).not.toBe(first)
+
+    const recordedProject = tempDir('next-recorded-')
+    mkdirSync(concivStateDir(recordedProject))
+    writeFileSync(
+      join(concivStateDir(recordedProject), 'server.json'),
+      JSON.stringify({port: first, token: 'recorded'}),
+    )
+    expect(enginePort(await withConciv({}, {stateRoot: recordedProject}))).toBe(first)
+
+    nextEnv.forget()
+    expect(enginePort(await withConciv({}, {stateRoot: recordedProject, port: second}))).toBe(second)
   })
 
   test.each([

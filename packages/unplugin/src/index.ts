@@ -91,7 +91,7 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
         await slot.stopped
         return startEngine(onPort)
       }
-      const engine = chooseEnginePort(askedPort)
+      const engine = chooseEnginePort(options.port, options.stateRoot ?? process.cwd())
         .then((port) => {
           onPort(port)
           return makeEngineBooter({...options, port}, process.cwd(), builtins)()

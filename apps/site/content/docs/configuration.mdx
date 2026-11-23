@@ -26,9 +26,9 @@ conciv({
     sessionId: {type: 'string', default: 'none', description: 'Resume an existing thread.'},
     port: {
       type: 'number',
-      default: 'auto; 24170 when free on Next.js, webpack and Rspack',
+      default: 'auto; on Next.js, webpack and Rspack, a port picked per project, from 24170 up',
       description:
-        'Preferred engine port. When it is taken, the engine falls back to a free port, so a second dev server still boots. The Vite dev server falls back when the engine starts; the Next.js integration and the webpack/Rspack plugin pick the free port before they build the widget, so the widget and the engine always use the same port.',
+        'Preferred engine port. With no port, Next.js, webpack and Rspack prefer the port the project last used, else one picked from the project folder (from 24170 up), so two projects never ask for the same port. When it is taken, the engine falls back to a free port, so a second dev server still boots. The Vite dev server falls back when the engine starts; the Next.js integration and the webpack/Rspack plugin pick the free port before they build the widget, so the widget and the engine always use the same port.',
     },
     stateRoot: {type: 'string', default: 'process.cwd()', description: 'Root holding the .conciv state directory.'},
     devEndpointDir: {

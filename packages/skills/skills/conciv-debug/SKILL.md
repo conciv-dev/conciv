@@ -41,8 +41,9 @@ running engine, or the engine rejects the origin.
   is listening on http://127.0.0.1:${serving.port} instead` (`packages/core/src/start.ts:84-92`), and
   the page picks up the port it actually bound. On Next.js and the generic webpack/Rspack plugin
   the free port is picked before the client is built (Next inlines it into `next.config`'s env;
-  webpack/Rspack build it into the widget entry they add), 24170 or the `port` you pass when it is
-  free. A later Next config load in the same dev server reuses the first port through
+  webpack/Rspack build it into the widget entry they add): the `port` you pass, else the port in the
+  project's `.conciv/server.json`, else a port picked per project (from 24170 up, from a hash of the
+  project folder), each only when free. A later Next config load in the same dev server reuses the first port through
   `CONCIV_OPTIONS`. If the engine still fails to start, webpack/Rspack fail the build with the reason.
 - **CORS / wrong origin.** The engine only allows loopback origins (`localhost`, `127.0.0.1`, `[::1]`)
   plus anything in `allowedOrigins` by default (`packages/core/src/lib/cors.ts`:

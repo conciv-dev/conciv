@@ -1,7 +1,11 @@
+import {createHash} from 'node:crypto'
 import {existsSync} from 'node:fs'
-import {join} from 'node:path'
+import {readFile} from 'node:fs/promises'
+import {join, resolve} from 'node:path'
 import getPort from 'get-port'
+import {z} from 'zod'
 import {ConcivConfigSchema, type ConcivConfig} from '@conciv/protocol/config-types'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import type * as Boot from './boot.js'
 
 export const CONCIV_DEFAULT_PORT = 24170
@@ -51,8 +55,30 @@ function compileInstrumentationFirst(config: WebpackConfig, context: WebpackCont
   })
 }
 
-export function chooseEnginePort(preferred: number | undefined): Promise<number> {
-  return getPort({port: preferred ?? CONCIV_DEFAULT_PORT})
+const PROJECT_PORT_SPREAD = 1000
+const ServerStateSchema = z.object({port: z.number().int().min(1).max(65535)})
+
+async function readServerState(file: string): Promise<unknown> {
+  try {
+    return JSON.parse(await readFile(file, 'utf8'))
+  } catch {
+    return undefined
+  }
+}
+
+async function readRecordedPort(stateRoot: string): Promise<number | undefined> {
+  const parsed = ServerStateSchema.safeParse(await readServerState(join(concivStateDir(stateRoot), 'server.json')))
+  return parsed.success ? parsed.data.port : undefined
+}
+
+function projectPort(stateRoot: string): number {
+  const digest = createHash('sha256').update(resolve(stateRoot)).digest()
+  return CONCIV_DEFAULT_PORT + (digest.readUInt32BE(0) % PROJECT_PORT_SPREAD)
+}
+
+export async function chooseEnginePort(asked: number | undefined, stateRoot: string): Promise<number> {
+  const preferred = asked ?? (await readRecordedPort(stateRoot)) ?? projectPort(stateRoot)
+  return getPort({port: preferred})
 }
 
 function loadedEnginePort(): number | undefined {
@@ -70,7 +96,7 @@ export async function withConciv<T extends object>(
   const baseExternals = base.serverExternalPackages ?? []
   const serverExternalPackages = [...new Set([...baseExternals, ...ENGINE_EXTERNALS])]
   if (options.enabled === false) return {...nextConfig, env: baseEnv, serverExternalPackages}
-  const port = loadedEnginePort() ?? (await chooseEnginePort(options.port))
+  const port = loadedEnginePort() ?? (await chooseEnginePort(options.port, options.stateRoot ?? process.cwd()))
   const resolved: ConcivConfig = {...options, port}
   const widgetOff = options.widget === false
   const widgetEnv = widgetOff ? {} : {[WIDGET_PORT_KEY]: String(port)}

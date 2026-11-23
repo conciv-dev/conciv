@@ -87,8 +87,9 @@ module.exports = {mode: 'development', plugins: [conciv.default()]}
 In any `mode` except production (`mode: 'development'` or `mode: 'none'`; `mode: 'production'` and an unset `mode` count as production) the plugin adds a generated client entry,
 `.conciv/widget-client.<port>.gen.js`, to every chunk entry and starts the engine on the first watch run. A
 production build gets no entry and no engine (`packages/unplugin/src/index.ts`). The engine port is
-24170 or the `port` you pass when it is free, else a free one, chosen before the client entry is built
-so both always agree.
+the `port` you pass, else the port the project's engine last bound (`.conciv/server.json`), else a
+port picked per project (from 24170 up, from a hash of the project folder); when that one is taken,
+a free one. It is chosen before the client entry is built so both always agree.
 
 Rspack is the same shape, swap `@conciv/it/plugin/rspack`
 (`apps/site/content/docs/quick-start/rspack.mdx`). Rollup and esbuild plugin entries exist in
