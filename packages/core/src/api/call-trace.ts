@@ -39,38 +39,49 @@ export function callTrace(header: (name: string) => string | null) {
       clock.startedAt = Date.now()
       return [
         ...(run.live ? [] : [runStarted(run.threadId, callId)]),
-        ...startChunks(callId, toolName, input, marker, clock.startedAt),
+        ...startChunks(callId, toolName, input, marker, clock.startedAt, run.live ? undefined : callMessageId(callId)),
       ]
     },
     result: (run: CallRun, text: string, failed: boolean): ChatEvent[] => [
       resultChunk(callId, text, failed, marker, {start: clock.startedAt, end: Date.now()}),
       ...(run.live ? [] : [runFinished(run.threadId, callId)]),
     ],
-    mirror: (run: CallRun, sink: MirrorSink) => mirrorRun(run, marker !== null, sink),
+    mirror: (run: CallRun, sink: MirrorSink) => mirrorRun(run, kept(run, marker), sink),
   }
 }
 
-function mirrorRun(run: CallRun, outside: boolean, sink: MirrorSink) {
+function kept(run: CallRun, marker: CallMarker): boolean {
+  return !run.live || marker !== null
+}
+
+function mirrorRun(run: CallRun, saved: boolean, sink: MirrorSink) {
   const recorded: ChatEvent[] = []
-  const kept = !run.live || outside
+  const order = {published: Promise.resolve(), deferred: false}
   const save = (): Promise<void> =>
     sink
-      .record(recorded.splice(0))
+      .record([...recorded])
       .catch((error: unknown) =>
         sink.log(Effect.logError('[hub] saving an outside call to the chat failed', {threadId: run.threadId, error})),
       )
+  const send = (chunks: readonly ChatEvent[]): void => chunks.forEach((chunk) => sink.publish(chunk))
+  const savedThenSent = async (chunks: readonly ChatEvent[]): Promise<void> => {
+    if (sink.driving()) order.deferred = true
+    else await save()
+    send(chunks)
+  }
   return {
-    publish: (chunks: readonly ChatEvent[]): void => {
-      if (kept) recorded.push(...chunks)
-      chunks.forEach((chunk) => sink.publish(chunk))
+    publish: (chunks: readonly ChatEvent[]): Promise<void> => {
+      if (!saved) {
+        send(chunks)
+        return Promise.resolve()
+      }
+      recorded.push(...chunks)
+      order.published = order.published.then(() => savedThenSent(chunks))
+      return order.published
     },
     settle: async (): Promise<void> => {
-      if (!kept) return
-      if (run.live || sink.driving()) {
-        void save()
-        return
-      }
-      await save()
+      await order.published
+      if (order.deferred) void save()
     },
   }
 }
@@ -106,12 +117,17 @@ function mirrorRunId(callId: string): string {
   return `mirror-${callId}`
 }
 
+function callMessageId(callId: string): string {
+  return `call-${callId}`
+}
+
 function startChunks(
   callId: string,
   toolName: string,
   input: unknown,
   marker: CallMarker,
   startedAt: number,
+  parentMessageId: string | undefined,
 ): ChatEvent[] {
   const metadata = marker === null ? {} : {metadata: marker}
   return [
@@ -119,6 +135,7 @@ function startChunks(
       type: ChatEventType.TOOL_CALL_START,
       toolCallId: callId,
       toolCallName: toolName,
+      ...(parentMessageId === undefined ? {} : {parentMessageId}),
       metadata: {...marker, time: {start: startedAt}},
     },
     {type: ChatEventType.TOOL_CALL_ARGS, toolCallId: callId, delta: safeStringify(input)},
