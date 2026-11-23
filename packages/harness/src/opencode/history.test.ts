@@ -1,6 +1,8 @@
+import {once} from 'node:events'
 import {mkdirSync, realpathSync} from 'node:fs'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
+import {Worker} from 'node:worker_threads'
 import {ConfigProvider} from 'effect'
 import {describe, expect, it} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
@@ -8,6 +10,30 @@ import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {opencode} from './index.js'
 
 describe('history', () => {
+  const LOCK_HOLDER = `
+const {workerData} = require('node:worker_threads')
+const {DatabaseSync} = require('node:sqlite')
+const db = new DatabaseSync(workerData.path)
+db.exec('begin exclusive')
+Atomics.store(workerData.state, 0, 1)
+Atomics.notify(workerData.state, 0)
+Atomics.wait(workerData.state, 0, 1)
+Atomics.wait(workerData.state, 0, 2, 100)
+db.exec('commit')
+db.close()
+`
+
+  async function readWhileLockedBriefly<T>(path: string, read: () => Promise<T>): Promise<T> {
+    const state = new Int32Array(new SharedArrayBuffer(4))
+    const holder = new Worker(LOCK_HOLDER, {eval: true, workerData: {path, state}})
+    const exited = once(holder, 'exit')
+    Atomics.wait(state, 0, 0, 5000)
+    Atomics.store(state, 0, 2)
+    Atomics.notify(state, 0)
+    const [result] = await Promise.all([read(), exited])
+    return result
+  }
+
   it('a session in opencode.db lists for its project with its title, its tail reads back, and opening it reads back the whole conversation, tool calls and results included, with its token total', async () => {
     const dataHome = tempDir('opencode-data-')
     const project = realpathSync(tempDir('opencode-project-'))
@@ -74,5 +100,9 @@ describe('history', () => {
     })
     expect(await history.messages(project, sessionId)).toEqual(conversation)
     expect((await history.meta(project, sessionId))?.totalTokens).toBe(500)
+    const listedWhileLocked = await readWhileLockedBriefly(join(dataHome, 'opencode', 'opencode.db'), () =>
+      history.list({cwd: project}, {after: null, limit: 10}),
+    )
+    expect(listedWhileLocked.sessions.map((listed) => listed.id)).toEqual(['ses_1'])
   })
 })
