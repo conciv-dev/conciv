@@ -6,11 +6,12 @@ import {Effect} from 'effect'
 import {z} from 'zod'
 import type {ChatCover} from './comments-model.js'
 import type {CanvasBackground} from './stores.js'
+import type {WhiteboardRuntime} from './solid-runtime.js'
 
 type CanvasSurface = UseQueryResult<(typeof import('./canvas-surface.js'))['default']>
 
-function reportFailure(toast: Context['toast'], error: unknown): void {
-  Effect.runFork(
+function reportFailure(runtime: WhiteboardRuntime, toast: Context['toast'], error: unknown): void {
+  runtime.runFork(
     Effect.logError('the canvas failed to open', error).pipe(
       Effect.annotateLogs({plugin: 'whiteboard', surface: 'canvas'}),
     ),
@@ -18,8 +19,8 @@ function reportFailure(toast: Context['toast'], error: unknown): void {
   toast.show({title: 'The whiteboard needs a running conciv server', variant: 'error'})
 }
 
-function CanvasFailed(props: {toast: Context['toast']; error: unknown}): JSX.Element {
-  onMount(() => reportFailure(props.toast, props.error))
+function CanvasFailed(props: {runtime: WhiteboardRuntime; toast: Context['toast']; error: unknown}): JSX.Element {
+  onMount(() => reportFailure(props.runtime, props.toast, props.error))
   return undefined
 }
 
@@ -41,7 +42,12 @@ function readRoom(ctx: Context): string | undefined {
   return session && !session.pending ? session.id : undefined
 }
 
-export function WhiteboardNotices(props: {ctx: Context; surface: CanvasSurface; layer: HTMLElement}): JSX.Element {
+export function WhiteboardNotices(props: {
+  ctx: Context
+  runtime: WhiteboardRuntime
+  surface: CanvasSurface
+  layer: HTMLElement
+}): JSX.Element {
   return (
     <div class="text-chat-text font-chat pointer-events-none inset-0 fixed -z-1">
       <Switch>
@@ -49,7 +55,7 @@ export function WhiteboardNotices(props: {ctx: Context; surface: CanvasSurface; 
           <Notice toast={props.ctx.toast} title="Loading the whiteboard…" variant="loading" />
         </Match>
         <Match when={props.surface.error} keyed>
-          {(error) => <CanvasFailed toast={props.ctx.toast} error={error} />}
+          {(error) => <CanvasFailed runtime={props.runtime} toast={props.ctx.toast} error={error} />}
         </Match>
         <Match when={readRoom(props.ctx) === undefined}>
           <Notice toast={props.ctx.toast} title="Start a chat session to open the whiteboard." />
@@ -62,6 +68,7 @@ export function WhiteboardNotices(props: {ctx: Context; surface: CanvasSurface; 
 
 export function WhiteboardCanvas(props: {
   ctx: Context
+  runtime: WhiteboardRuntime
   surface: CanvasSurface
   background: CanvasBackground
   visible: boolean
@@ -70,13 +77,14 @@ export function WhiteboardCanvas(props: {
   bindComments: (comments: ChatCover | undefined) => void
 }): JSX.Element {
   return (
-    <ErrorBoundary fallback={(error) => <CanvasFailed toast={props.ctx.toast} error={error} />}>
+    <ErrorBoundary fallback={(error) => <CanvasFailed runtime={props.runtime} toast={props.ctx.toast} error={error} />}>
       <Show when={props.surface.isSuccess && props.surface.data}>
         {(loaded) => (
           <Show when={readRoom(props.ctx)} keyed>
             {(current) => (
               <Dynamic
                 component={loaded()}
+                runtime={props.runtime}
                 client={props.ctx.client}
                 room={current}
                 catchUpRetryMs={CanvasOptions.parse(props.ctx.options).catchUpRetryMs}

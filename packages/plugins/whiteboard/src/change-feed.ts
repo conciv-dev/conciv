@@ -1,8 +1,9 @@
 import type {Context} from '@conciv/plugin/experimental'
-import {Deferred, Effect, FiberHandle, PubSub, Queue, Schedule, Schema, Stream, SubscriptionRef} from 'effect'
+import {Deferred, Effect, FiberHandle, PubSub, Queue, Schedule, Schema, Stream} from 'effect'
 import {z} from 'zod'
 import {Whiteboard} from './rpc.js'
 import {WhiteboardChangeFeedMachine} from './change-feed-machine.js'
+import {makeMachineDriver} from './machine-driver.js'
 
 export type ChangeMessage = {type: 'upsert' | 'delete'; key: string} | {type: 'reload'}
 export type FeedEvent =
@@ -69,7 +70,6 @@ export const makeChangeFeed = Effect.fn('whiteboard.changeFeed')(function* (
   options: {retryMs: number},
 ) {
   const start = WhiteboardChangeFeedMachine.startChangeFeed()
-  const state = yield* SubscriptionRef.make<WhiteboardChangeFeedMachine.ChangeFeedState>(start.state)
   const inbox = yield* Queue.unbounded<WhiteboardChangeFeedMachine.ChangeFeedEvent>()
   const routed = yield* PubSub.unbounded<Routed>()
   const opened = yield* Deferred.make<void>()
@@ -120,18 +120,18 @@ export const makeChangeFeed = Effect.fn('whiteboard.changeFeed')(function* (
     )
   }
 
-  const step = (event: WhiteboardChangeFeedMachine.ChangeFeedEvent) =>
-    SubscriptionRef.modify(state, (current) => {
-      const next = WhiteboardChangeFeedMachine.transitionChangeFeed(current, event)
-      return [next.effects, next.state]
-    }).pipe(Effect.flatMap((effects) => Effect.forEach(effects, run, {discard: true})))
+  const driver = yield* makeMachineDriver({
+    initial: start.state,
+    transition: WhiteboardChangeFeedMachine.transitionChangeFeed,
+    run: (command: WhiteboardChangeFeedMachine.ChangeFeedEffect) => Effect.asVoid(run(command)),
+  })
 
   yield* Effect.forEach(start.effects, run, {discard: true})
-  yield* Queue.take(inbox).pipe(Effect.flatMap(step), Effect.forever, Effect.forkScoped)
-  yield* Effect.addFinalizer(() => step({type: 'disposed'}))
+  yield* Queue.take(inbox).pipe(Effect.flatMap(driver.dispatch), Effect.forever, Effect.forkScoped)
+  yield* Effect.addFinalizer(() => driver.dispatch({type: 'disposed'}))
 
   return {
-    state,
+    state: driver.state,
     opened: Deferred.await(opened),
     follow: (table: string) =>
       PubSub.subscribe(routed).pipe(

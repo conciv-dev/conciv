@@ -1,16 +1,7 @@
 import {Deferred, Duration, Effect, FiberHandle, Schema, Stream, SubscriptionRef} from 'effect'
 import type {ElementRect, Grab} from '@conciv/plugin/experimental/grab'
 import type {ChatCover, ComposeTarget} from './comments-model.js'
-
-export type ComposePhase =
-  | {readonly status: 'idle'}
-  | {readonly status: 'picking'}
-  | {
-      readonly status: 'composing'
-      readonly target: ComposeTarget
-      readonly anchor: ElementRect
-      readonly reply: Deferred.Deferred<string>
-    }
+import {WhiteboardComposeMachine} from './comment-compose-machine.js'
 
 const CommentsUnbound = Schema.TaggedStruct('Whiteboard.CommentsUnbound', {})
 type CommentsUnbound = typeof CommentsUnbound.Type
@@ -22,7 +13,6 @@ type ComposeSteps = {
   readonly unbound: () => void
 }
 
-const IDLE: ComposePhase = {status: 'idle'}
 const FALLBACK_ANCHOR: ElementRect = {x: 80, y: 80, width: 0, height: 0}
 
 function readComposeTarget(anchor: ElementRect, grab: Grab): ComposeTarget {
@@ -36,7 +26,9 @@ const commentsUnbound = (): CommentsUnbound => CommentsUnbound.make({})
 
 export const makeCommentCompose = (bindDeadlineMs: number) =>
   Effect.gen(function* () {
-    const phase = yield* SubscriptionRef.make<ComposePhase>(IDLE)
+    const phase = yield* SubscriptionRef.make(WhiteboardComposeMachine.initialCompose)
+    const step = (event: Parameters<typeof WhiteboardComposeMachine.transitionCompose>[1]) =>
+      SubscriptionRef.update(phase, (current) => WhiteboardComposeMachine.transitionCompose(current, event))
     const cover = yield* SubscriptionRef.make<ChatCover | undefined>(undefined)
     const running = yield* FiberHandle.make<void>()
 
@@ -59,7 +51,7 @@ export const makeCommentCompose = (bindDeadlineMs: number) =>
     const compose = (steps: ComposeSteps) =>
       Effect.gen(function* () {
         const room = (yield* SubscriptionRef.get(cover))?.room
-        yield* SubscriptionRef.set(phase, {status: 'picking'})
+        yield* step({type: 'started'})
         const grab = yield* Effect.tryPromise(steps.pick).pipe(
           Effect.tapError((error) => Effect.logWarning('[whiteboard] the element pick failed', error)),
           Effect.orElseSucceed(() => null),
@@ -68,7 +60,7 @@ export const makeCommentCompose = (bindDeadlineMs: number) =>
         const anchor = grab.rect ?? FALLBACK_ANCHOR
         const target = readComposeTarget(anchor, grab)
         const reply = yield* Deferred.make<string>()
-        yield* SubscriptionRef.set(phase, {status: 'composing', target, anchor, reply})
+        yield* step({type: 'picked', target, anchor, reply})
         const text = (yield* Effect.race(Deferred.await(reply), roomLeft(room))).trim()
         if (!text) return
         const bound = yield* boundCover(room)
@@ -81,14 +73,15 @@ export const makeCommentCompose = (bindDeadlineMs: number) =>
             Effect.andThen(Effect.sync(steps.unbound)),
           ),
         ),
-        Effect.ensuring(SubscriptionRef.set(phase, IDLE)),
+        Effect.ensuring(step({type: 'finished'})),
       )
 
     const answer = (text: string) =>
       SubscriptionRef.get(phase).pipe(
-        Effect.flatMap((current) =>
-          current.status === 'composing' ? Deferred.succeed(current.reply, text) : Effect.succeed(false),
-        ),
+        Effect.flatMap((current) => {
+          const reply = WhiteboardComposeMachine.selectReply(current)
+          return reply ? Deferred.succeed(reply, text) : Effect.succeed(false)
+        }),
       )
 
     return {

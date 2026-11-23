@@ -22,7 +22,6 @@
   "@conciv/plugin-testkit": 6,
   "@conciv/plugin-try-it": 3,
   "@conciv/plugin-whiteboard": 19,
-  "@conciv/protocol": 1,
   "@conciv/publish": 1,
   "@conciv/solid-streamdown": 4,
   "@conciv/try": 1,

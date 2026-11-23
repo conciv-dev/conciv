@@ -1,5 +1,5 @@
 import {createRoot, For, type Accessor} from 'solid-js'
-import {PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
+import {PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/ui-types'
 import {themeClasses, type HostTheme} from '../../lib/color-scheme'
 import {createStyleSheet, widgetSheet} from '../../lib/widget-styles'
 import {WIDGET_LAYER} from '../../lib/widget-layer'

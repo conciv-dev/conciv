@@ -1,6 +1,6 @@
 import {createSignal, type Accessor} from 'solid-js'
 import type {QueryClient, QueryKey, ChatSession} from '@conciv/client'
-import {sessionCapturesCall, type AppData} from '../data/app-data.js'
+import type {AppData} from '../data/app-data.js'
 import type {LiveSessions} from '../app/live-sessions.js'
 
 export type RefreshCoordinator = {
@@ -27,7 +27,6 @@ export function makeRefreshCoordinator(deps: RefreshCoordinatorDeps): RefreshCoo
     deps.appData.utils.sessions.search.key(),
     deps.appData.utils.sessions.get.key({input: {sessionId: deps.sessionId()}}),
     deps.appData.utils.markers.list.key({input: {sessionId: deps.sessionId()}}),
-    deps.appData.utils.plugin.call.key({input: sessionCapturesCall(deps.sessionId())}),
   ]
 
   const run = async (): Promise<void> => {

@@ -73,18 +73,6 @@
       "types": "./dist/page-types.d.ts",
       "import": "./dist/page-types.js"
     },
-    "./element-capture-sanitize": {
-      "types": "./dist/element-capture-sanitize.d.ts",
-      "import": "./dist/element-capture-sanitize.js"
-    },
-    "./element-capture-types": {
-      "types": "./dist/element-capture-types.d.ts",
-      "import": "./dist/element-capture-types.js"
-    },
-    "./page-introspect-types": {
-      "types": "./dist/page-introspect-types.d.ts",
-      "import": "./dist/page-introspect-types.js"
-    },
     "./tool-view-types": {
       "types": "./dist/tool-view-types.d.ts",
       "import": "./dist/tool-view-types.js"
@@ -118,8 +106,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@tanstack/ai": "catalog:",
@@ -127,16 +114,11 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",
-    "typescript": "catalog:",
-    "vite": "catalog:",
-    "vitest": "catalog:"
+    "typescript": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

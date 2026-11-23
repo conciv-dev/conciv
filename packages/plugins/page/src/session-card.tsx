@@ -25,7 +25,7 @@ import {
 import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageOperation, pageVerbOfTool} from './rpc.js'
 import {cardErrorMessage, countLabel, mutatingBadge, pageStepView, pageVerbGerund, toolInput} from './shared.js'
 import {CaptureContext, SessionCaptures} from './captures.js'
-import type {ToolCaptureView} from '@conciv/protocol/element-capture-types'
+import type {ToolCaptureView} from './element-capture-types.js'
 
 const SESSION_LABEL = {
   edit: {running: 'Editing the page', done: 'Edited the page'},

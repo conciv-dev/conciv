@@ -1,4 +1,4 @@
-import {Effect, Fiber, FiberHandle, Ref, Schema, Semaphore, Stream, SubscriptionRef} from 'effect'
+import {Effect, Fiber, FiberHandle, Ref, Schema, Semaphore, Stream, SubscriptionRef, type ManagedRuntime} from 'effect'
 import {onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import type {Context} from '@conciv/plugin/experimental'
@@ -8,6 +8,8 @@ import {TestRunnerFollowMachine} from './follow-machine.js'
 import {initialRunView, transitionRunView, type RunView} from './run-state.js'
 
 type Client = Context['client']
+
+export type TestRunnerRuntime = ManagedRuntime.ManagedRuntime<never, never>
 
 const ReadFailed = Schema.TaggedStruct('TestRunner.ReadFailed', {cause: Schema.Defect()})
 type ReadFailed = typeof ReadFailed.Type & globalThis.Error
@@ -84,20 +86,20 @@ const followTestRun = Effect.fn('TestRunner.follow')(function* (
   )
 })
 
-function fromRef(ref: SubscriptionRef.SubscriptionRef<RunView>): Accessor<RunView> {
+function fromRef(runtime: TestRunnerRuntime, ref: SubscriptionRef.SubscriptionRef<RunView>): Accessor<RunView> {
   const [store, setStore] = createStore<{view: RunView}>({view: structuredClone(initialRunView)})
-  const fiber = Effect.runFork(
+  const fiber = runtime.runFork(
     Stream.runForEach(SubscriptionRef.changes(ref), (value) =>
       Effect.sync(() => setStore('view', reconcile(structuredClone(value), {key: 'id'}))),
     ),
   )
-  onCleanup(() => void Effect.runFork(Fiber.interrupt(fiber)))
+  onCleanup(() => void runtime.runFork(Fiber.interrupt(fiber)))
   return () => store.view
 }
 
-export function followRunView(client: Client): Accessor<RunView> {
-  const view = Effect.runSync(SubscriptionRef.make(initialRunView))
-  const fiber = Effect.runFork(Effect.scoped(followTestRun(client, view)))
-  onCleanup(() => void Effect.runFork(Fiber.interrupt(fiber)))
-  return fromRef(view)
+export function followRunView(runtime: TestRunnerRuntime, client: Client): Accessor<RunView> {
+  const view = runtime.runSync(SubscriptionRef.make(initialRunView))
+  const fiber = runtime.runFork(Effect.scoped(followTestRun(client, view)))
+  onCleanup(() => void runtime.runFork(Fiber.interrupt(fiber)))
+  return fromRef(runtime, view)
 }

@@ -1,6 +1,6 @@
 import {createCollection} from '@tanstack/solid-db'
 import {usePlugin, type Context} from '@conciv/plugin/experimental'
-import {Effect, Exit, Scope} from 'effect'
+import {Effect} from 'effect'
 import {Whiteboard} from './rpc.js'
 import {
   elementRowToInsert,
@@ -14,21 +14,24 @@ import {
 import {makeChangeFeed, rpcChangeSource} from './change-feed.js'
 import {whiteboardStores} from './stores.js'
 import {whiteboardCollectionOptions, whiteboardElementOptions} from './whiteboard-collection.js'
+import {runInOwnerScope, type WhiteboardRuntime} from './solid-runtime.js'
 
 const withoutRoom = <Row extends {room: string}>({room: _room, ...row}: Row): Omit<Row, 'room'> => row
 const withoutSession = <Row extends {sessionId: string}>({sessionId: _session, ...row}: Row): Omit<Row, 'sessionId'> =>
   row
 
-export function createWhiteboardDb(client: Context['client'], room: string, catchUpRetryMs: number) {
+export function createWhiteboardDb(
+  runtime: WhiteboardRuntime,
+  client: Context['client'],
+  room: string,
+  catchUpRetryMs: number,
+) {
   const whiteboard = client.rpc(Whiteboard)
-  const feedScope = Effect.runSync(Scope.make())
-  const feed = Effect.runSync(
-    makeChangeFeed(rpcChangeSource(client, room), {retryMs: catchUpRetryMs}).pipe(Scope.provide(feedScope)),
-  )
+  const feed = runInOwnerScope(runtime, makeChangeFeed(rpcChangeSource(client, room), {retryMs: catchUpRetryMs}))
   const plugin = usePlugin<{stores: typeof whiteboardStores}>()
   const account = plugin.stores.account
   const onWriteFailed = (error: unknown): void => {
-    Effect.runFork(
+    runtime.runFork(
       Effect.logError('a change could not be saved', error).pipe(Effect.annotateLogs({plugin: 'whiteboard', room})),
     )
     void plugin.toast.show({title: 'Could not save your whiteboard change. Try again.', variant: 'error'})
@@ -38,6 +41,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
 
   const comments = createCollection(
     whiteboardCollectionOptions<CommentRow, Omit<CommentRow, 'sessionId'>>({
+      runtime,
       feed,
       room,
       table: 'comments',
@@ -54,6 +58,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
   )
   const pins = createCollection(
     whiteboardCollectionOptions<PinRow, Omit<PinRow, 'room'>>({
+      runtime,
       feed,
       room,
       table: 'pins',
@@ -70,6 +75,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
   )
   const reads = createCollection(
     whiteboardCollectionOptions<ReadRow, Omit<ReadRow, 'sessionId'>>({
+      runtime,
       feed,
       room,
       table: 'reads',
@@ -86,6 +92,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
   )
   const canvasPending = createCollection(
     whiteboardCollectionOptions<PendingRow, Omit<PendingRow, 'room'>>({
+      runtime,
       feed,
       room,
       table: 'canvasPending',
@@ -102,6 +109,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
   )
   const canvasReplies = createCollection(
     whiteboardCollectionOptions<ReplyRow, Omit<ReplyRow, 'room'>>({
+      runtime,
       feed,
       room,
       table: 'canvasReplies',
@@ -125,10 +133,10 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
     bulkDelete: (elementIds: string[]) => whiteboard['elements.bulkDelete']({room, scope, elementIds}),
   })
   const canvasElements = createCollection(
-    whiteboardElementOptions({feed, room, scope: 'live', ops: elementOps('live')}),
+    whiteboardElementOptions({runtime, feed, room, scope: 'live', ops: elementOps('live')}),
   )
   const canvasDraftElements = createCollection(
-    whiteboardElementOptions({feed, room, scope: 'draft', ops: elementOps('draft')}),
+    whiteboardElementOptions({runtime, feed, room, scope: 'draft', ops: elementOps('draft')}),
   )
 
   return {
@@ -148,7 +156,6 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
     dispose: () => {
       canvasElements.utils.cleanupStrategy()
       canvasDraftElements.utils.cleanupStrategy()
-      void Effect.runFork(Scope.close(feedScope, Exit.void))
     },
   }
 }

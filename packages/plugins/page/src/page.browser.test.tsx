@@ -93,6 +93,7 @@ describe('the agent acts on the page during a reply', () => {
     expect(within(reply).getByText('Edited the page')).toBeVisible()
     expect(within(reply).getByText('9 actions')).toBeVisible()
     expect(within(reply).getByText('Clicked')).toBeVisible()
+    expect(await within(reply).findAllByText('Buy the fern')).toHaveLength(2)
     expect(within(reply).getByText('Styled an element')).toBeVisible()
     expect(within(reply).getByText('Hovered')).toBeVisible()
     expect(within(reply).getByText('Pressed')).toBeVisible()
@@ -116,6 +117,14 @@ describe('the agent acts on the page during a reply', () => {
         }),
       ]),
     })
+    const changes = engine.session.tool('page_changes')
+    expect(await changes.call({clear: true})).toMatchObject({
+      changes: expect.arrayContaining([
+        expect.objectContaining({verb: 'page_click', selector: '#buy'}),
+        expect.objectContaining({verb: 'page_settext', selector: '#title', args: {text: 'Fern shop'}}),
+      ]),
+    })
+    expect(await changes.call({})).toEqual({changes: []})
   })
 })
 

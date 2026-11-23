@@ -2,6 +2,8 @@ import {z} from 'zod'
 import {ChatEventType, type ChatEvent} from './chat-event-types.js'
 import type {ChatHistory} from './chat-types.js'
 
+export const PLUGIN_OVERLAY_ATTR = 'data-conciv-overlay'
+
 export const UiFormFieldSchema = z.object({
   name: z.string(),
   label: z.string(),

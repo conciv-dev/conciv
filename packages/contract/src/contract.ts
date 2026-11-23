@@ -22,7 +22,6 @@ import {
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
 import {
-  PageChangeEntrySchema,
   PageQueueHandleSchema,
   PageQueueProgressSchema,
   PageQueueResultSchema,
@@ -536,8 +535,6 @@ export const contract = {
         .output(z.discriminatedUnion('status', [PageQueueResultSchema, PageQueueProgressSchema])),
     },
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
-    changes: oc.errors(approvalDenied).output(z.array(PageChangeEntrySchema)),
-    clearChanges: oc.errors(approvalDenied).output(Ok),
   },
   meta: {
     models: oc.errors(approvalDenied).input(SessionIdInput).output(ChatModelsSchema),
