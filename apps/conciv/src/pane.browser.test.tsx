@@ -723,6 +723,7 @@ describe('a plugin draws its own tool cards', () => {
     const href = reply.querySelector('use')?.getAttribute('href') ?? ''
     expect(href).toMatch(/^#/)
     expect(document.querySelector(`symbol${href}`)).toHaveAttribute('viewBox', '0 0 16 16')
+    const sprite = document.querySelector(`symbol${href}`)?.parentElement
 
     await user.click(screen.getByRole('link', {name: 'Settings'}))
     const schedule = await screen.findByRole('tab', {name: 'Release schedule'})
@@ -732,6 +733,7 @@ describe('a plugin draws its own tool cards', () => {
 
     await expect.element(page.getByRole('tab', {name: 'Release schedule'})).not.toBeInTheDocument()
     expect(document.querySelector(`symbol${href}`)).not.toBeInTheDocument()
+    expect(sprite?.isConnected).toBe(false)
   })
 })
 
