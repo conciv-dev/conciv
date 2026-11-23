@@ -1,19 +1,10 @@
 import {from, observable, onCleanup, type Accessor} from 'solid-js'
-import {Effect, Exit, Fiber, Layer, ManagedRuntime, Queue, Scope, Stream, SubscriptionRef} from 'effect'
+import {Effect, Exit, Fiber, Queue, Scope, Stream, SubscriptionRef, type ManagedRuntime} from 'effect'
 
-export type PluginRuntime = ManagedRuntime.ManagedRuntime<never, never>
+export type RecorderRuntime = ManagedRuntime.ManagedRuntime<never, never>
 
-export function makePluginRuntime(): PluginRuntime {
-  const runtime = ManagedRuntime.make(Layer.empty)
-  onCleanup(() => void Effect.runPromise(Scope.close(runtime.scope, Exit.void)).then(() => runtime.dispose()))
-  return runtime
-}
-
-export function subscriptionRefSignal<Value>(
-  runtime: PluginRuntime,
-  ref: SubscriptionRef.SubscriptionRef<Value>,
-): Accessor<Value> {
-  return from<Value>((set) => {
+export function follow<A>(runtime: RecorderRuntime, ref: SubscriptionRef.SubscriptionRef<A>): Accessor<A> {
+  return from<A>((set) => {
     const fiber = runtime.runFork(
       Stream.runForEach(SubscriptionRef.changes(ref), (value) => Effect.sync(() => set(() => value))),
     )
@@ -32,7 +23,7 @@ export function accessorStream<Value>(accessor: Accessor<Value>): Stream.Stream<
 }
 
 export function runInOwnerScope<Value>(
-  runtime: PluginRuntime,
+  runtime: RecorderRuntime,
   effect: Effect.Effect<Value, never, Scope.Scope>,
 ): Value {
   const scope = Scope.forkUnsafe(runtime.scope)

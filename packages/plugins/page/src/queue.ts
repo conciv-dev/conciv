@@ -9,7 +9,6 @@ import {
   type PageQueueHandle,
   type PageQueueProgress,
   type PageQueueResult,
-  type PageChangeEntry,
   PageRaisedErrorSchema as Raised,
 } from '@conciv/protocol/page-types'
 import type {Tool} from '@conciv/plugin/schema/tool'
@@ -28,7 +27,7 @@ import {
   type QueueEvent,
   type Settled,
 } from './queue-machine.js'
-import {Action, type Result} from './rpc.js'
+import {Action, type PageChangeEntry, type Result} from './rpc.js'
 
 export type RequestSettlement =
   | {readonly ok: true; readonly result: Result}

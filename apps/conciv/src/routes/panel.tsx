@@ -8,7 +8,7 @@ import {makePanelComposerFocus, PanelComposerFocusContext} from '../app/panel-fo
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import {hostPageHasFocus} from '../lib/host-focus.js'
-import {PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
+import {PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/ui-types'
 import {NoticeSurface} from '../shell/notice-context.js'
 import {
   EngineLockedNotice,

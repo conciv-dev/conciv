@@ -8,7 +8,16 @@ import {PageRaisedErrorSchema} from '@conciv/protocol/page-types'
 import {RawFrameSchema, SourceLocSchema} from '@conciv/contract'
 import {toolFailure, type Connection} from './connection.js'
 import {PageFiles} from './files.js'
-import {CliTools, Operations, PAGE_NAMESPACE, type Action, type File, type Operation, type Result} from './rpc.js'
+import {
+  CliTools,
+  Operations,
+  PAGE_NAMESPACE,
+  PageChangeEntrySchema,
+  type Action,
+  type File,
+  type Operation,
+  type Result,
+} from './rpc.js'
 import {PageSkill} from './skill.js'
 import type {Symbolicator} from './symbolicate.js'
 
@@ -131,10 +140,23 @@ export const register = Effect.fn('PageTools.register')(function* (
         execute: (input, tool) => asked(operation, input, tool),
       })
     })
+    editor.add({
+      name: 'changes',
+      description:
+        'list the page edits made in this session (newest last); clear: true empties the list after returning it',
+      input: z.object({clear: z.boolean().optional().describe('empty the list after returning it')}),
+      output: z.object({changes: z.array(PageChangeEntrySchema)}),
+      options: {namespace: PAGE_NAMESPACE, permission: PAGE_NAMESPACE, codemode: true},
+      execute: ({clear}, tool) =>
+        connection.records.changes(tool.sessionId).pipe(
+          Effect.tap(() => (clear === true ? connection.records.clear(tool.sessionId) : Effect.void)),
+          Effect.map((changes) => ({output: {changes}})),
+        ),
+    })
   })
 })
 
-function warned(write: Effect.Effect<void>, message: string) {
+function warned<E>(write: Effect.Effect<void, E>, message: string) {
   return write.pipe(Effect.catchCause((cause) => Effect.logWarning(message, cause)))
 }
 

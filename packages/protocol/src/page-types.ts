@@ -1,10 +1,6 @@
 import {z} from 'zod'
 import {CODE_MODE_TIMEOUT_MS} from './chat-types.js'
 
-export const PLUGIN_OVERLAY_ATTR = 'data-conciv-overlay'
-
-export const CONCIV_UI_SELECTOR = `[data-conciv-root], [${PLUGIN_OVERLAY_ATTR}], [data-conciv-fonts], [data-conciv-properties], [data-conciv-toast]`
-
 export const PAGE_QUEUE_SYNC_MS = CODE_MODE_TIMEOUT_MS - 30_000
 export const PAGE_QUEUE_MAX_ACTIONS = 50
 export const PAGE_QUEUE_STOPPED = 'QUEUE_STOPPED'
@@ -41,16 +37,6 @@ export function pageFailure(code: PageErrorCode, message: string, raised?: PageR
 export function isPageFailure(value: unknown): value is PageFailure {
   return value instanceof Error && 'isPageFailure' in value && value.isPageFailure === true
 }
-
-export const PageChangeEntrySchema = z.object({
-  seq: z.number(),
-  ts: z.number(),
-  verb: z.string(),
-  ref: z.string().optional(),
-  selector: z.string().optional(),
-  args: z.record(z.string(), z.unknown()),
-})
-export type PageChangeEntry = z.infer<typeof PageChangeEntrySchema>
 
 export type PageResult = Record<string, unknown>
 

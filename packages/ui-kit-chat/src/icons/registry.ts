@@ -23,6 +23,7 @@ const state = {
   mounted: new Map<IconRoot, Map<string, number>>(),
   drawn: new Map<IconRoot, Map<string, Artwork>>(),
   symbols: new Map<string, string>(),
+  sprites: new Map<IconRoot, () => void>(),
 }
 
 export function isRegisteredIconName(name: string): name is RegisteredIconName {
@@ -62,8 +63,18 @@ export function mountRegisteredIcon(name: RegisteredIconName, root: IconRoot): (
 
     names.delete(name)
     if (names.size === 0 && state.mounted.get(root) === names) state.mounted.delete(root)
-    queueMicrotask(() => draw(name))
+    queueMicrotask(() => {
+      draw(name)
+      if (!state.mounted.has(root)) release(root)
+    })
   }
+}
+
+function release(root: IconRoot) {
+  state.drawn.delete(root)
+  state.sprites.get(root)?.()
+  state.sprites.delete(root)
+  root.getElementById(spriteID)?.remove()
 }
 
 export function registeredIconSymbol(name: string): string {
@@ -137,7 +148,14 @@ function sprite(root: IconRoot) {
     svg.setCurrentTime(0)
   }
 
-  createRoot(() => makeMediaQueryListener('(prefers-reduced-motion: reduce)', (event) => settle(event.matches)))
+  state.sprites.set(
+    root,
+    createRoot((dispose) => {
+      makeMediaQueryListener('(prefers-reduced-motion: reduce)', (event) => settle(event.matches))
+
+      return dispose
+    }),
+  )
   settle(prefersReducedMotion())
 
   return svg
