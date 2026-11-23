@@ -757,7 +757,7 @@ describe('plugin pills', () => {
 })
 
 describe('the composer actions menu', () => {
-  test('Start a new session opens an empty session', async () => {
+  test('Start a new session opens an empty session, announced once it shows, and its model menu stays open while its models load', async () => {
     const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Done with it'))
@@ -771,8 +771,13 @@ describe('the composer actions menu', () => {
 
     await user.click(screen.getByRole('button', {name: 'More composer actions'}))
     await user.click(await screen.findByRole('menuitem', {name: 'Start a new session'}))
-    expect(await screen.findByText('Ask a question…')).toBeVisible()
+    expect(await screen.findByText('Started a new session')).toBeVisible()
     expect(screen.queryByRole('article', {name: 'You: First task'})).not.toBeInTheDocument()
+    expect(screen.getByText('Ask a question…')).toBeVisible()
+
+    await user.click(screen.getByRole('button', {name: /^Model: /}))
+    expect(await screen.findByRole('option', {name: /^Sonnet 5\.5/})).toBeVisible()
+    expect(screen.getByRole('dialog', {name: 'Model'})).toBeVisible()
   })
 
   test('Compress the conversation compacts it, and a message sent while it compacts stays in the composer unsent', async () => {

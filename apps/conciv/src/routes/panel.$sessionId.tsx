@@ -315,10 +315,8 @@ function PanelSession(): JSX.Element {
   const startSession = useStartSession()
   const newSession = () =>
     startSession()
-      .then(({sessionId}) => {
-        activate(sessionId)
-        announce('Started a new session')
-      })
+      .then(({sessionId}) => activate(sessionId))
+      .then(() => announce('Started a new session'))
       .catch(() => undefined)
 
   const grabStaging = useGrabStaging()
@@ -483,7 +481,7 @@ function useSessionMenu(sessionId: () => string): {
   view: () => string | undefined
   open: () => boolean
   setOpen: (open: boolean) => void
-  activate: (id: string) => void
+  activate: (id: string) => Promise<void>
 } {
   const router = useRouter()
   const matchRoute = useMatchRoute()
@@ -530,9 +528,9 @@ function useSessionMenu(sessionId: () => string): {
     if (next) return show()
     hide()
   }
-  const activate = (id: string) => {
+  const activate = async (id: string) => {
     if (id === sessionId() && open()) return hide()
-    void router.navigate({to: '/panel/$sessionId', params: {sessionId: id}, replace: open()})
+    await router.navigate({to: '/panel/$sessionId', params: {sessionId: id}, replace: open()})
   }
   return {view, open, setOpen, activate}
 }
