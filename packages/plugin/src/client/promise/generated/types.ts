@@ -258,6 +258,7 @@ export interface PluginFeatures {
 export type PluginState =
   | {readonly status: 'active'}
   | {readonly status: 'failed'; readonly error: string; readonly ref?: string}
+  | {readonly status: 'disabled'}
 
 export interface PluginInfo {
   readonly id?: string

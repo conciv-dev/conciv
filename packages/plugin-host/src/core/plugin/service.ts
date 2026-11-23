@@ -5,7 +5,7 @@ import type {Plugin as PluginDefinition, Services, TaggedError} from '@conciv/pl
 import {Context, type Effect, type Exit} from 'effect'
 
 export interface Interface {
-  readonly activate: (plugins: readonly Generation[], failures?: readonly Failure[]) => Effect.Effect<void>
+  readonly activate: (plugins: readonly Generation[], unloaded?: readonly Plugin.Info[]) => Effect.Effect<void>
   readonly list: () => Effect.Effect<Plugin.Info[]>
   readonly experimental: (id: Plugin.Id) => Effect.Effect<Plugin.ExperimentalBundle | undefined, Plugin.ChunkNotFound>
   readonly experimentalChunk: (

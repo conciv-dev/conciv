@@ -319,6 +319,7 @@ const PluginFeaturesSchema = z.object({
 const PluginStateSchema = z.discriminatedUnion('status', [
   z.object({status: z.literal('active')}),
   z.object({status: z.literal('failed'), error: z.string(), ref: z.string().optional()}),
+  z.object({status: z.literal('disabled')}),
 ])
 
 const PluginInfoSchema = z.object({

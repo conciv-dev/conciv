@@ -294,6 +294,7 @@ export interface Installed {
   readonly id: string
   readonly builtin: boolean
   readonly enabled: boolean
+  readonly configOff?: true
   readonly error?: string
   readonly server?: boolean
 }

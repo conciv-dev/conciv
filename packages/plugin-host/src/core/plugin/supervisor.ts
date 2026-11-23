@@ -119,6 +119,14 @@ const resolve = Effect.fn('PluginSupervisor.resolve')(function* (
         features: plugin.features ?? {server: true as const},
       })),
     ],
+    disabled: definitions
+      .filter((plugin) => !enabled.has(plugin.id))
+      .map((plugin): Plugin.Info => ({
+        id: Plugin.Id.make(plugin.id),
+        source: plugin.source ?? {type: 'builtin'},
+        state: {status: 'disabled'},
+        features: plugin.features ?? {server: true},
+      })),
     pending: [...pending],
   }
 })
@@ -160,7 +168,7 @@ export const layer = Layer.effectDiscard(
       const apply = (resolved: typeof immediate) =>
         registry.activate(
           resolved.plugins.map((plugin) => (plugin.source ? {...plugin, source: source(plugin.source)} : plugin)),
-          resolved.failures.map((failure) => ({...failure, source: source(failure.source)})),
+          [...resolved.failures.map((failure) => ({...failure, source: source(failure.source)})), ...resolved.disabled],
         )
       yield* apply(immediate)
       const resolved = immediate.pending.length
