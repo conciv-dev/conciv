@@ -1,5 +1,4 @@
 import {execFile} from 'node:child_process'
-import {randomUUID} from 'node:crypto'
 import type {ConfigProvider} from 'effect'
 import {readOptionalConfig} from '../_shared/optional-config.js'
 import {type TextAdapter, codex as codexAdapter} from '@conciv/ai/server'
@@ -45,11 +44,10 @@ async function* runScopedStream(stream: AsyncIterable<ChatEvent>, runId: string)
 }
 
 function codexTurnAdapter(deps: HarnessChatDeps, model: string): TextAdapter {
-  const chatStream: TextAdapter['chatStream'] = (options) =>
-    runScopedStream(
-      codexRunAdapter(deps, model, options.tools?.length ?? 0).chatStream(options),
-      options.runId ?? randomUUID(),
-    )
+  const chatStream: TextAdapter['chatStream'] = (options) => {
+    const stream = codexRunAdapter(deps, model, options.tools?.length ?? 0).chatStream(options)
+    return options.runId === undefined ? stream : runScopedStream(stream, options.runId)
+  }
   return new Proxy(codexRunAdapter(deps, model, 0), {
     get: (target, key, receiver) => (key === 'chatStream' ? chatStream : Reflect.get(target, key, receiver)),
   })

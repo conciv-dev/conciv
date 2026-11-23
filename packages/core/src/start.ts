@@ -16,6 +16,7 @@ import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
 import type {EngineStaleness} from '@conciv/contract'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
+import {EngineId} from './lib/engine-id.js'
 import {logOnContext, logOnRuntime, type Log, type LogEntry, type LogOptions} from './lib/logging.js'
 import {inSpan, type Tracer} from '@conciv/ai/server'
 import {startObservability, type EngineObservability} from './runtime/observability.js'
@@ -125,8 +126,6 @@ export type StartOpts = {
   uiAnswerWaitMs?: number
   eventHeartbeatIntervalMs?: number
   stopGraceMs?: number
-  pageReplyTimeoutMs?: number
-  queuedActionTimeoutMs?: number
   staleness?: () => EngineStaleness | undefined
   app?: {version?: () => string | undefined}
 }
@@ -272,7 +271,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   if (systemPrompt) await writeText(paths.systemPrompt, systemPrompt)
 
   const agentToken = opts.accessToken ?? randomUUID()
-  const engineId = randomUUID()
+  const engineId = EngineId.create()
   const {home, env} = await runWithProvider(
     configProvider,
     Effect.all({home: readConcivHome(opts.homeDir), env: readProcessEnv}),
@@ -317,7 +316,7 @@ type EngineStart = {
   home: string
   env: NodeJS.ProcessEnv
   agentToken: string
-  engineId: string
+  engineId: EngineId
   systemPrompt: string | undefined
   observability: EngineObservability
 }
@@ -370,8 +369,6 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     uiAnswerWaitMs: opts.uiAnswerWaitMs,
     eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
     stopGraceMs: opts.stopGraceMs,
-    pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
-    queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
     staleness: opts.staleness,
     app: opts.app,
     observability,

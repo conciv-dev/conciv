@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {and, eq, isNotNull} from 'drizzle-orm'
 import {Effect} from 'effect'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
@@ -18,6 +17,8 @@ import {chatRuns, markers, sessions, type ConcivDb} from '@conciv/db'
 import {isSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 import {createUiChannel} from './approvals.js'
+import {MarkerId} from './marker-id.js'
+import {RunId} from './run-id.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {CodeModeCatalog} from '@conciv/plugin-host'
@@ -27,6 +28,7 @@ import {deletedSessionError, firstUserTitle, sessionDeleted, turnHooks, type Tur
 
 export {assistCapabilities, toolDomainCapabilities, type CodeCapability, type ToolDomain} from './code-mode.js'
 export type {SessionPort} from './turn.js'
+export {MarkerId} from './marker-id.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
 const FIRST_START_TIMEOUT_MS = 30_000
@@ -182,7 +184,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     if (server.driving(sessionId) || (await stores.runs.findActiveRun(sessionId)) !== null) return
     const delivered = await deliveredMessages(sessionId, await deps.inbox.promote(sessionId))
     if (delivered.length === 0) return
-    const runId = randomUUID()
+    const runId = RunId.create()
     server
       .drive({threadId: sessionId, runId, kind: 'chat', delivered: deliveredIds(delivered)}, [])
       .catch((error: unknown) =>
@@ -205,13 +207,13 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
             .from(sessions)
             .where(and(eq(sessions.id, sessionId), isNotNull(sessions.deletedAt)))
           if (tombstone.length > 0) return false
-          yield* tx.insert(markers).values({id: randomUUID(), sessionId, afterMessageId, kind: 'compact'})
+          yield* tx.insert(markers).values({id: MarkerId.create(), sessionId, afterMessageId, kind: 'compact'})
           return true
         }),
       ),
     )
     if (!marked) throw deletedSessionError(sessionId)
-    await server.drive({threadId: sessionId, runId: randomUUID(), kind: 'compact'}, [])
+    await server.drive({threadId: sessionId, runId: RunId.create(), kind: 'compact'}, [])
   }
 
   const buildCodeRunner = async (

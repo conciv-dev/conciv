@@ -130,10 +130,12 @@
           },
           {
             "name": "@tanstack/solid-query",
+            "allowTypeImports": true,
             "message": "Import TanStack Query from @conciv/client, never @tanstack/solid-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
           },
           {
             "name": "@tanstack/query-core",
+            "allowTypeImports": true,
             "message": "Import TanStack Query from @conciv/client, never @tanstack/query-core directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
           },
           {
@@ -215,10 +217,12 @@
               },
               {
                 "name": "@tanstack/solid-query",
+                "allowTypeImports": true,
                 "message": "Import TanStack Query from @conciv/client, never @tanstack/solid-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
               },
               {
                 "name": "@tanstack/query-core",
+                "allowTypeImports": true,
                 "message": "Import TanStack Query from @conciv/client, never @tanstack/query-core directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
               },
               {
@@ -287,10 +291,12 @@
               },
               {
                 "name": "@tanstack/solid-query",
+                "allowTypeImports": true,
                 "message": "A plugin imports useQuery, useMutation and useQueryClient from @conciv/client, never @tanstack/solid-query. The widget provides @conciv/client to every plugin bundle with its one patched Query copy (TanStack/query#11230) and query cache; no plugin imports a @tanstack/* Query package."
               },
               {
                 "name": "@tanstack/query-core",
+                "allowTypeImports": true,
                 "message": "A plugin imports useQuery, useMutation and useQueryClient from @conciv/client, never @tanstack/query-core. The widget provides @conciv/client to every plugin bundle with its one patched Query copy (TanStack/query#11230) and query cache; no plugin imports a @tanstack/* Query package."
               },
               {

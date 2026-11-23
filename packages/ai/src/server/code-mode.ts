@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {uniq} from 'es-toolkit'
 import {
@@ -18,6 +17,8 @@ import {
   type CodeModeTool,
   type IsolateDriver,
 } from '@tanstack/ai-code-mode'
+import {ascending} from '@conciv/plugin/schema/identifier'
+import {CallId} from '@conciv/plugin/schema/tool'
 import {codeModeCallEvent, codeModeErrorEvent, codeModeResultEvent} from '@conciv/protocol/chat-event-types'
 import {ChatContentPartSchema, type ChatContentPart} from '@conciv/protocol/chat-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
@@ -216,7 +217,7 @@ function runChildCall(
   run: CallParts[],
 ) {
   return async (args: unknown, context?: ToolContext): Promise<unknown> => {
-    const callId = randomUUID()
+    const callId = CallId.make('call_' + ascending())
     const parts: CallParts = {files: [], text: []}
     run.push(parts)
     context?.emitCustomEvent(codeModeCallEvent.name, {callId, function: tool.name, args})

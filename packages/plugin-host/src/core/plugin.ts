@@ -375,6 +375,7 @@ function slotInfo(slot: Slot): Plugin.Info {
     source: slot.plugin.source ?? {type: 'builtin'},
     state: failure === undefined ? {status: 'active'} : {status: 'failed', ...failure},
     features: slot.plugin.features ?? {server: true},
+    ...(slot.plugin.options === undefined ? {} : {options: slot.plugin.options}),
   }
 }
 

@@ -24,7 +24,5 @@ value that is not a positive integer fails the plugin's activation with `Tanstac
     every server function seen; `--data '{"count":5}'` keeps the latest five calls.
 - `./rpc`: the schemas `FrameworkInfo`, `RouterCurrent`, `RouteNode`, `CacheEntry` and `AppError`, and `Definition`,
   the RPC `experimental.tanstack` other plugins call.
-- `./client`: `tanstackToolMeta(name)`, the label, icon and summary the thread shows for each TanStack tool; data only,
-  no Solid.
 - `plugin-experimental.tsx`: besides the page operations and the inspector chip, it adds the thread card for each
   TanStack tool, drawn only through `ctx.ui` (conciv's own members read with `OpaqueUi.toInternal`); it imports no kit.

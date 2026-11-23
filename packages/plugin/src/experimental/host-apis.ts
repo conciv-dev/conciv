@@ -1,5 +1,5 @@
 import type {Accessor, JSX} from 'solid-js'
-import type {UseQueryResult} from '@conciv/client'
+import type {UseQueryResult} from '@tanstack/solid-query'
 import type {Store} from 'solid-js/store'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import type {Ref as LocationRef} from '../schema/location.js'

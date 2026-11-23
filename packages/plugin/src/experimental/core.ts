@@ -84,8 +84,8 @@ export type Live<T> =
 
 export interface BaseContext {
   /**
-   * The plugin's options from the conciv config, as `ctx.options` in its engine part. A built-in gets what the app sets
-   * for it (the page plugin's `taskTimeoutMs`, from the app's `timings.page`), else nothing.
+   * The plugin's options from the conciv config, as `ctx.options` in its engine part. A built-in gets the options of
+   * the config entry naming its id, else nothing.
    *
    * @example
    * ```ts

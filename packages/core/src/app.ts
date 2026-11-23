@@ -22,6 +22,7 @@ import type {
 import {assertToolName, toolError} from '@conciv/protocol/tool-call-types'
 import type {ResolvedConcivConfig} from './config.js'
 import {harnessRegistry, type HarnessRegistry, onPath, transcriptPathWithin} from '@conciv/harness'
+import {EngineId} from './lib/engine-id.js'
 import {requireHarness} from './lib/require-harness.js'
 import {defaultConfigProvider} from './lib/default-config-provider.js'
 import {createSessionSearch} from './sessions/session-search.js'
@@ -54,7 +55,7 @@ import {
   type SessionPort,
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
-import {differenceBy, isNotNil, memoize, pickBy} from 'es-toolkit'
+import {differenceBy, memoize} from 'es-toolkit'
 import {
   Cause,
   Config,
@@ -206,7 +207,7 @@ export type MakeAppOpts = {
   cfg: ResolvedConcivConfig
   cwd: string
   agentToken?: string
-  engineId?: string
+  engineId?: EngineId
   onTrusted?: () => void
   bridge?: Bundler.BundlerBridge
   openInEditor: OpenInEditor
@@ -237,10 +238,6 @@ export type MakeAppOpts = {
   eventHeartbeatIntervalMs?: number
 
   stopGraceMs?: number
-
-  pageReplyTimeoutMs?: number
-
-  queuedActionTimeoutMs?: number
 
   nativePageDir?: string
 
@@ -505,7 +502,7 @@ async function mcpSessionId(
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const configProvider = opts.configProvider ?? defaultConfigProvider()
   const stateDir = concivStateDir(opts.cfg.stateRoot)
-  const engineId = opts.engineId ?? randomUUID()
+  const engineId = opts.engineId ?? EngineId.create()
   const givenObservability = opts.observability
   const observability =
     givenObservability ??
@@ -686,22 +683,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       engineId,
       config: opts.cfg,
       plugins: opts.plugins ?? [],
-      post: [
-        {
-          ...concivPage,
-          effect: (context) =>
-            concivPage.effect({
-              ...context,
-              options: pickBy(
-                {
-                  pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
-                  queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
-                },
-                isNotNil,
-              ),
-            }),
-        },
-      ],
+      post: [concivPage],
       harness,
       signal: engineLife.signal,
       bundler: opts.bridge,

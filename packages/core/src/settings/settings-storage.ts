@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {EventEmitter, on} from 'node:events'
 import {mkdir, rename, rm, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
@@ -7,7 +6,9 @@ import fsDriver from 'unstorage/drivers/fs'
 import {debounce} from 'devframe/utils/debounce'
 import {createSharedState} from 'devframe/utils/shared-state'
 import {z} from 'zod'
-import {Effect} from 'effect'
+import {Effect, Schema} from 'effect'
+import {ascending} from '@conciv/plugin/schema/identifier'
+import {statics} from '@conciv/plugin/schema/schema'
 import {SettingsNamespaceSchema, type SettingsScope, type SettingsSnapshot, type SettingsState} from '@conciv/contract'
 import type {Log} from '../lib/logging.js'
 
@@ -44,8 +45,14 @@ function atomicFsDriver(base: string): Driver {
   }
 }
 
+const SettingsGeneration = Schema.String.check(Schema.isStartingWith('gen_')).pipe(
+  Schema.brand('Settings.Generation'),
+  Schema.annotate({identifier: 'Settings.Generation'}),
+  statics((schema) => ({create: () => schema.make('gen_' + ascending())})),
+)
+
 export function createSettingsStorage(storages: SettingsStorages, log: Log) {
-  const generation = randomUUID()
+  const generation = SettingsGeneration.create()
   const files = new Map<string, Promise<SettingsFile>>()
   const file = (scope: SettingsScope, namespace: string): Promise<SettingsFile> => {
     const key = settingsKey(namespace)

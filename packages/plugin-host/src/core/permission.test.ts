@@ -41,7 +41,7 @@ describe.concurrent('asks', () => {
     const once = engine.session.tool('guarded_write').call({file: 'notes.txt'})
     const {id: onceId} = asked.parse((await onceAsk.arrived).data)
     const pending = {id: onceId, action: 'guarded.write', resources: ['notes.txt']}
-    const otherSession = {sessionId: 'conciv_another_session', requestId: onceId}
+    const otherSession = {sessionId: 'ses_another_session', requestId: onceId}
     await expect(engine.rpc.call('asks', 'get', otherSession)).rejects.toThrow('RPC call failed')
     await expect(engine.rpc.call('asks', 'reply', {...otherSession, decision: 'once'})).rejects.toThrow(
       'RPC call failed',

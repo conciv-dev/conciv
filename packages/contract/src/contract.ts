@@ -27,7 +27,6 @@ import {
   PageQueueResultSchema,
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
-import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
 import {TtyServerControlSchema} from '@conciv/protocol/terminal-types'
 import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
@@ -166,11 +165,6 @@ export const ToolCommandSignatureSchema = z.object({
   category: z.string().optional(),
   hint: z.string().optional(),
   positional: z.string().optional(),
-  icon: z.enum(TOOL_ICON_KEYS).optional().catch(undefined),
-  label: z
-    .object({running: z.string().min(1), done: z.string().min(1)})
-    .optional()
-    .catch(undefined),
   mutating: z.boolean(),
   reachable: z.boolean(),
   approval: z.literal('ask').optional(),
@@ -325,6 +319,7 @@ const PluginInfoSchema = z.object({
   source: PluginSourceSchema,
   features: PluginFeaturesSchema,
   state: PluginStateSchema,
+  options: z.record(z.string(), z.unknown()).optional(),
 })
 
 const SkillInfoSchema = z.object({
@@ -386,7 +381,7 @@ export const PluginExperimentalChunksSchema = z.object({
   chunks: z.array(PluginChunkSchema).min(1),
 })
 
-const PtyIdSchema = z.string().regex(/^pty_[0-9a-f-]{36}$/)
+const PtyIdSchema = z.string().regex(/^pty_[0-9A-Za-z]{26}$/)
 const PtySizeSchema = z.object({cols: z.number().int().min(2).max(500), rows: z.number().int().min(2).max(500)})
 const PersistentPtyInfoSchema = z.object({
   id: PtyIdSchema,

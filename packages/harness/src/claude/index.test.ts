@@ -24,7 +24,7 @@ describe('claude', () => {
             conciv: {
               type: 'http',
               url: 'http://127.0.0.1:4100/api/mcp',
-              headers: {'conciv-session-id': 'conciv_one'},
+              headers: {'conciv-session-id': 'ses_one'},
             },
           },
         }),
@@ -49,7 +49,7 @@ describe('claude', () => {
       claudeTtyCommand({
         cwd: '/workspace',
         stateDir: '/workspace/.conciv',
-        concivSessionId: SessionId.parse('conciv_one'),
+        concivSessionId: SessionId.parse('ses_one'),
         harnessSessionId: nativeId,
         resume,
         model,
@@ -117,7 +117,7 @@ describe('the claude login check', () => {
     const emptyEntry = claude(
       ConfigProvider.fromEnvRecord({PATH: `${delimiter}/usr/bin${delimiter}/bin`, CLAUDE_CONFIG_DIR: configDir}),
     )
-    const commands = emptyEntry.commands({cwd: claudeInCwd.bin, sessionId: SessionId.parse('conciv_one')})
+    const commands = emptyEntry.commands({cwd: claudeInCwd.bin, sessionId: SessionId.parse('ses_one')})
     await expect(commands).resolves.toEqual(expect.any(Array))
     expect(claudeInCwd.started()).toBe(true)
 
@@ -127,7 +127,7 @@ describe('the claude login check', () => {
     )
     const relativeCommands = relativeEntry.commands({
       cwd: claudeInRelativeEntry.bin,
-      sessionId: SessionId.parse('conciv_one'),
+      sessionId: SessionId.parse('ses_one'),
     })
     await expect(relativeCommands).resolves.toEqual(expect.any(Array))
     expect(claudeInRelativeEntry.started()).toBe(true)

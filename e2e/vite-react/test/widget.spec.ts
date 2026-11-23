@@ -54,7 +54,7 @@ test.describe('the conciv CLI against the vite react dev server', () => {
     expect(JSON.parse(route)).toMatchObject({ok: true, data: {pathname: '/', title: 'vite-react'}})
 
     const heading = await text(
-      spawn(process.execPath, [conciv, 'tools', 'page', 'text', 'h1', '--tab', tab], {
+      spawn(process.execPath, [conciv, 'tools', 'page', 'text', '--selector', 'h1', '--tab', tab], {
         cwd: project,
         env: {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME},
       }).stdout,
@@ -62,7 +62,7 @@ test.describe('the conciv CLI against the vite react dev server', () => {
     expect(JSON.parse(heading)).toMatchObject({ok: true, data: {text: 'Get started'}})
 
     const found = await text(
-      spawn(process.execPath, [conciv, 'tools', 'react', 'find', '--name', 'App', '--tab', tab], {
+      spawn(process.execPath, [conciv, 'tools', 'page', 'find', 'App', '--tab', tab], {
         cwd: project,
         env: {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME},
       }).stdout,
