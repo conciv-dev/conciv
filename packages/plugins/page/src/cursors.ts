@@ -358,6 +358,7 @@ export function makeCursors(): Cursors {
       delete entry.element.dataset.moving
     },
     dispose: () => {
+      settleEveryAim()
       stop.abort()
       if (frameLoop.frame !== null) cancelAnimationFrame(frameLoop.frame)
       frameLoop.frame = null

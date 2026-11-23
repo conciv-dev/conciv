@@ -180,7 +180,7 @@ function connectOnce(input: Attaching): Effect.Effect<AttachmentEnd> {
 
       const read = Stream.fromAsyncIterable(
         client.event.subscribe({types: [CONTROL, 'session.created'], signal: ended}),
-        (): AttachmentOutcome => 'closed',
+        caught,
       ).pipe(
         Stream.map((event): AttachmentOutcome | undefined => {
           if (event.type === 'server.connected') {
@@ -200,7 +200,11 @@ function connectOnce(input: Attaching): Effect.Effect<AttachmentEnd> {
         Stream.filter((outcome) => outcome !== undefined),
         Stream.runHead,
         Effect.map(Option.getOrElse((): AttachmentOutcome => 'closed')),
-        Effect.catch(Effect.succeed),
+        Effect.catch((cause) =>
+          ended.aborted
+            ? Effect.succeed<AttachmentOutcome>('closed')
+            : Effect.logWarning('Page event subscription failed', cause).pipe(Effect.as<AttachmentOutcome>('closed')),
+        ),
       )
 
       input.changed(report, ended)

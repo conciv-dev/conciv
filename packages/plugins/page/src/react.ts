@@ -466,16 +466,16 @@ function buildReport(stats: Map<number, Stat>, tracking: boolean, opts: {name?: 
 
 export function makeTracker(): Tracker {
   const tracker = {tracking: false, stats: new Map<number, Stat>()}
-  const unsubscribe = instrument({
-    onCommitFiberRoot: (_rendererID: number, root: Fiber) => {
-      if (!tracker.tracking) return
-      traverseRenderedFibers(root, (fiber: Fiber) => {
-        if (isCompositeFiber(fiber)) recordRender(tracker.stats, fiber)
-      })
-    },
+  const subscribed = subscribeCommits((root) => {
+    if (!tracker.tracking) return
+    traverseRenderedFibers(root, (fiber: Fiber) => {
+      if (isCompositeFiber(fiber)) recordRender(tracker.stats, fiber)
+    })
   })
   const report = (opts: {name?: string; limit?: number} = {}): TrackReport =>
-    buildReport(tracker.stats, tracker.tracking, opts)
+    subscribed.ok
+      ? buildReport(tracker.stats, tracker.tracking, opts)
+      : {tracking: false, tracked: 0, timingsAvailable: false, components: [], note: TRACKING_UNAVAILABLE}
   return {
     start: () => {
       tracker.stats.clear()
@@ -487,7 +487,21 @@ export function makeTracker(): Tracker {
       tracker.tracking = false
       return {...r, tracking: false}
     },
-    dispose: unsubscribe,
+    dispose: subscribed.unsubscribe,
+  }
+}
+
+const TRACKING_UNAVAILABLE = 'render tracking is unavailable: this page does not let conciv hook into React'
+
+function subscribeCommits(onCommit: (root: Fiber) => void): {ok: boolean; unsubscribe: () => void} {
+  try {
+    return {
+      ok: true,
+      unsubscribe: instrument({onCommitFiberRoot: (_rendererID: number, root: Fiber) => onCommit(root)}),
+    }
+  } catch (error) {
+    console.warn('[conciv] react render tracking unavailable', error)
+    return {ok: false, unsubscribe: () => {}}
   }
 }
 
