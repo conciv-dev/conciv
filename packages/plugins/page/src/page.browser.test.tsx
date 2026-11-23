@@ -93,6 +93,7 @@ describe('the agent acts on the page during a reply', () => {
     expect(within(reply).getByText('Edited the page')).toBeVisible()
     expect(within(reply).getByText('9 actions')).toBeVisible()
     expect(within(reply).getByText('Clicked')).toBeVisible()
+    expect(await within(reply).findByText('Buy the fern')).toBeVisible()
     expect(within(reply).getByText('Styled an element')).toBeVisible()
     expect(within(reply).getByText('Hovered')).toBeVisible()
     expect(within(reply).getByText('Pressed')).toBeVisible()

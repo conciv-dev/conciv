@@ -134,7 +134,7 @@ export const register = Effect.fn('PageTools.register')(function* (
   })
 })
 
-function warned(write: Effect.Effect<void>, message: string) {
+function warned<E>(write: Effect.Effect<void, E>, message: string) {
   return write.pipe(Effect.catchCause((cause) => Effect.logWarning(message, cause)))
 }
 

@@ -1,16 +1,10 @@
 import {createContext, createMemo, type Accessor, type JSX} from 'solid-js'
-import {createTanstackQueryUtils, useQuery} from '@conciv/client'
+import {useQuery} from '@conciv/client'
 import {usePlugin} from '@conciv/plugin/experimental'
 import {Definition} from './rpc.js'
 import {SessionCapturesSchema, toolCaptureViews, type ToolCaptureView} from '@conciv/protocol/element-capture-types'
 
-type CapturesCall = {rpcId: typeof Definition.id; method: 'captures.list'; input: {sessionId: string}}
-
 export type CaptureLookup = (toolCallId: string) => ToolCaptureView | undefined
-
-function capturesCall(sessionId: string): CapturesCall {
-  return {rpcId: Definition.id, method: 'captures.list', input: {sessionId}}
-}
 
 function useSessionCaptures(sessionID: Accessor<string | undefined>): CaptureLookup {
   const sessions = usePlugin().sessions
@@ -18,21 +12,20 @@ function useSessionCaptures(sessionID: Accessor<string | undefined>): CaptureLoo
     const id = sessionID()
     return sessions.list().find((session) => session.id === id)?.server.client
   })
-  const pluginCall = createTanstackQueryUtils(
-    async (call: CapturesCall, options?: {signal?: AbortSignal}): Promise<Record<string, ToolCaptureView>> => {
-      const current = client()
-      if (current === undefined) throw new Error(`no open session ${call.input.sessionId}`)
-      const parsed = SessionCapturesSchema.safeParse(
-        await current.rpc(Definition)['captures.list'](call.input, options),
-      )
-      return parsed.success ? toolCaptureViews(parsed.data) : {}
-    },
-    {path: ['plugin', 'call', 'captures']},
-  )
-  const captures = useQuery(() => ({
-    ...pluginCall.queryOptions({input: capturesCall(sessionID() ?? '')}),
-    enabled: sessionID() !== undefined && client() !== undefined,
-  }))
+  const captures = useQuery(() => {
+    const current = client()
+    const sessionId = sessionID() ?? ''
+    const list = current?.rpc(Definition)['captures.list']
+    return {
+      queryKey: list?.key({input: {sessionId}}) ?? ['page', 'captures', sessionId],
+      queryFn: async ({signal}: {signal: AbortSignal}): Promise<Record<string, ToolCaptureView>> => {
+        if (list === undefined) throw new Error(`no open session ${sessionId}`)
+        const parsed = SessionCapturesSchema.safeParse(await list({sessionId}, {signal}))
+        return parsed.success ? toolCaptureViews(parsed.data) : {}
+      },
+      enabled: sessionID() !== undefined && list !== undefined,
+    }
+  })
   return (toolCallId) => (captures.isPending ? undefined : captures.data?.[toolCallId])
 }
 

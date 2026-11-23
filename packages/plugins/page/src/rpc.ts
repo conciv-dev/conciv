@@ -625,6 +625,7 @@ export const Definition = Rpc.define({
   },
   events: {
     control: {schema: Control},
+    'captures.saved': {schema: z.object({sessionId: SessionId})},
     'queue.finished': {
       schema: z.object({
         sessionId: SessionId,

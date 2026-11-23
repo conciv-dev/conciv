@@ -602,7 +602,13 @@ export const make = Effect.fn('PageConnection.make')(function* (
   return {
     run,
     queues,
-    records,
+    records: {
+      ...records,
+      capture: (sessionId: SessionId, toolCallId: string, bundle: PageCaptureBundle) =>
+        records
+          .capture(sessionId, toolCallId, bundle)
+          .pipe(Effect.andThen(registration.events.emit('captures.saved', {sessionId}))),
+    },
     tabs: (sessionId: SessionId) => selectTabs(machine.state, sessionId),
   }
 })
