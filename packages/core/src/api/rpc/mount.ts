@@ -85,7 +85,7 @@ export type RpcDeps = {
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   runtime: CoreRuntime
   allowedOrigins: ReadonlySet<string>
-  staleness: () => EngineStaleness
+  staleness: () => Promise<EngineStaleness>
   auth: AuthRouter
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   search: ReturnType<typeof createSessionSearch>

@@ -4,7 +4,6 @@ import type {Plugin as EffectPlugin} from '@conciv/plugin/effect/plugin'
 import {Model} from '@conciv/plugin/schema/model'
 import type {createChatPlane} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
-import {existsSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import * as NodeChildProcessSpawner from '@effect/platform-node/NodeChildProcessSpawner'
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
@@ -224,17 +223,26 @@ const VCS_MARKERS = [
   {type: 'hg', marker: '.hg'},
 ]
 
-function detectVcs(directory: string): Location.Interface['vcs'] {
-  const found = VCS_MARKERS.find((candidate) => existsSync(join(directory, candidate.marker)))
-  if (found) return {type: found.type, store: AbsolutePath.make(join(directory, found.marker))}
+function ancestors(directory: string): string[] {
   const parent = dirname(directory)
-  if (parent === directory) return undefined
-  return detectVcs(parent)
+  return parent === directory ? [directory] : [directory, ...ancestors(parent)]
 }
+
+const detectVcs = Effect.fn('core.location.detectVcs')(function* (directory: string) {
+  const files = yield* PlatformFileSystem.FileSystem
+  const candidates = ancestors(directory).flatMap((folder) =>
+    VCS_MARKERS.map((candidate) => ({type: candidate.type, store: join(folder, candidate.marker)})),
+  )
+  for (const candidate of candidates) {
+    if (yield* files.exists(candidate.store).pipe(Effect.orElseSucceed(() => false)))
+      return {type: candidate.type, store: AbsolutePath.make(candidate.store)}
+  }
+  return undefined
+})
 
 function locationLayer(cwd: string) {
   const info = Schema.decodeSync(Location.Info)({directory: cwd, project: {id: cwd, directory: cwd, canonical: cwd}})
-  return Layer.succeed(Location.Service, Location.Service.of({...info, vcs: detectVcs(cwd)}))
+  return Layer.effect(Location.Service, detectVcs(cwd).pipe(Effect.map((vcs) => Location.Service.of({...info, vcs}))))
 }
 
 function pluginHostLayer(input: PluginRuntimeInput) {
