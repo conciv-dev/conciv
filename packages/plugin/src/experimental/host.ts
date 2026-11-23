@@ -10,7 +10,6 @@ export {DrawerContext, LifetimeContext, liveAccessor, PanelContext, PluginContex
 
 export interface Entry extends Declarations {
   readonly id: string
-  readonly server?: true
   readonly windowEntry?: () => Promise<{
     readonly default: (ctx: never) => Cleanup | void
   }>

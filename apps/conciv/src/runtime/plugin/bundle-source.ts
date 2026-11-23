@@ -43,6 +43,7 @@ import {
   type HostEndpoint,
   type HostEvent,
 } from './host-machine'
+import {BUILTINS_WITH_ENGINE_HALF} from './builtins'
 import {pluginError} from './error'
 import {createManager} from './manager'
 import type {PluginExperimentalSource} from './plugins'
@@ -469,11 +470,13 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
   const known = (pluginId: string) => local.includes(pluginId) || plugins.has(pluginId)
 
   const installed = (): readonly Installed[] => [
-    ...input.builtins.map((definition) => ({
-      id: definition.id,
+    ...local.map((pluginId) => ({
+      id: pluginId,
       builtin: true,
-      enabled: enabled(definition.id),
-      ...(definition.server && inventory.builtinsListed ? {server: inventory.builtinsListed.has(definition.id)} : {}),
+      enabled: enabled(pluginId),
+      ...(BUILTINS_WITH_ENGINE_HALF.has(pluginId) && inventory.builtinsListed
+        ? {server: inventory.builtinsListed.has(pluginId)}
+        : {}),
     })),
     ...[...plugins.keys()].map((pluginId) => ({
       id: pluginId,
