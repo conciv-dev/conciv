@@ -112,9 +112,8 @@ describe('a harness whose CLI fails its model list', () => {
   }) => {
     const bin = tempDir('failing-claude-')
     writeFileSync(join(bin, 'claude'), '#!/bin/sh\nexit 1\n', {mode: 0o755})
-    const inheritedPath = process.env.PATH
-    process.env.PATH = [bin, '/usr/bin', '/bin'].join(delimiter)
-    const engine = await createHarnessEngine({}, {harness: claude(ConfigProvider.fromEnvRecord({}))})
+    const path = [bin, '/usr/bin', '/bin'].join(delimiter)
+    const engine = await createHarnessEngine({}, {harness: claude(ConfigProvider.fromEnvRecord({PATH: path}))})
     try {
       const rpc = connect(engine)
 
@@ -127,7 +126,6 @@ describe('a harness whose CLI fails its model list', () => {
         harnesses: [{id: 'claude', models: [], modelsFailed: true}],
       })
     } finally {
-      process.env.PATH = inheritedPath
       await engine.stop()
     }
   })
