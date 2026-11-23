@@ -157,10 +157,7 @@ export interface SessionDomain {
     },
     requestOptions?: RequestOptions,
   ) => Promise<SessionInboxCompaction>
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly synthetic:
-    | ((input: SessionSyntheticInput, requestOptions?: RequestOptions) => Promise<SessionInboxSynthetic>)
-    | undefined
+  readonly synthetic: (input: SessionSyntheticInput, requestOptions?: RequestOptions) => Promise<SessionInboxSynthetic>
   readonly interrupt: (
     input: {
       readonly sessionId: SessionId

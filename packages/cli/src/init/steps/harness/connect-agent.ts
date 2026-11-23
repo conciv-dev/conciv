@@ -20,7 +20,7 @@ export function connectAgentStep(agent: InitHarnessId, consented: () => InitHarn
     title: `Connect ${name} to conciv`,
     running: `Connecting ${name} to conciv…`,
     completed: `Connected ${name} to conciv`,
-    detect: async () => (connected(io, agent) ? 'present' : 'missing'),
+    detect: async () => ((await connected(io, agent)) ? 'present' : 'missing'),
     plan: async () => ({summary: `add conciv-hub to the ${name} MCP config`, wouldEdit: [`${name} MCP config`]}),
     apply: (ctx) => applyConnect(ctx, agent, consented, io, card),
     verify: async () => connected(io, agent),
@@ -50,8 +50,6 @@ function connections(io: ConnectAgentIo, ctx: InitContext) {
   })
 }
 
-function connected(io: ConnectAgentIo, agent: InitHarnessId): boolean {
-  return createHubConnections(io.concivHome)
-    .list()
-    .some((connection) => connection.harness === agent)
+async function connected(io: ConnectAgentIo, agent: InitHarnessId): Promise<boolean> {
+  return (await createHubConnections(io.concivHome).list()).some((connection) => connection.harness === agent)
 }

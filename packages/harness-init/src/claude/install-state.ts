@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs'
+import {readFile} from 'node:fs/promises'
 import {join, relative} from 'node:path'
 import {z} from 'zod'
 import type {HarnessConnectFile} from '@conciv/protocol/harness-types'
@@ -43,26 +43,25 @@ export function claudePluginCacheDir(configDir: string): string {
   )
 }
 
-export function claudeInstallRecords(configDir: string): ClaudeInstallRecord[] {
-  const parsed = InstalledPluginsSchema.safeParse(readJsonFile(join(configDir, 'plugins', 'installed_plugins.json')))
+export async function claudeInstallRecords(configDir: string): Promise<ClaudeInstallRecord[]> {
+  const parsed = InstalledPluginsSchema.safeParse(
+    await readJsonFile(join(configDir, 'plugins', 'installed_plugins.json')),
+  )
   if (!parsed.success) return []
   return parsed.data.plugins[CLAUDE_CONNECT_INSTALL_TARGET] ?? []
 }
 
-export function claudeConnectServesProject(state: ClaudeConnectInstallState): boolean {
-  return marketplaceRegistered(state) && installRecorded(state) && cachedCopyMatches(state)
+export async function claudeConnectServesProject(state: ClaudeConnectInstallState): Promise<boolean> {
+  const checks = await Promise.all([marketplaceRegistered(state), installRecorded(state), cachedCopyMatches(state)])
+  return checks.every(Boolean)
 }
 
-function readTextOrNull(path: string): string | null {
-  try {
-    return readFileSync(path, 'utf8')
-  } catch {
-    return null
-  }
+function readTextOrNull(path: string): Promise<string | null> {
+  return readFile(path, 'utf8').catch(() => null)
 }
 
-function readJsonFile(path: string): unknown {
-  const raw = readTextOrNull(path)
+async function readJsonFile(path: string): Promise<unknown> {
+  const raw = await readTextOrNull(path)
   return raw === null ? null : parseJsonOrNull(raw)
 }
 
@@ -72,13 +71,13 @@ function recordCoversProject(record: ClaudeInstallRecord, state: ClaudeConnectIn
   return sameCwd(record.projectPath, state.root) && sameCwd(record.installPath, claudePluginCacheDir(state.configDir))
 }
 
-function installRecorded(state: ClaudeConnectInstallState): boolean {
-  return claudeInstallRecords(state.configDir).some((record) => recordCoversProject(record, state))
+async function installRecorded(state: ClaudeConnectInstallState): Promise<boolean> {
+  return (await claudeInstallRecords(state.configDir)).some((record) => recordCoversProject(record, state))
 }
 
-function marketplaceRegistered(state: ClaudeConnectInstallState): boolean {
+async function marketplaceRegistered(state: ClaudeConnectInstallState): Promise<boolean> {
   const listed = KnownMarketplacesSchema.safeParse(
-    readJsonFile(join(state.configDir, 'plugins', 'known_marketplaces.json')),
+    await readJsonFile(join(state.configDir, 'plugins', 'known_marketplaces.json')),
   )
   if (!listed.success) return false
   const entry = MarketplaceEntrySchema.safeParse(listed.data[CLAUDE_CONNECT_MARKETPLACE])
@@ -86,13 +85,14 @@ function marketplaceRegistered(state: ClaudeConnectInstallState): boolean {
   return copyMatches(state, claudeConnectDir(state.stateDir), entry.data.installLocation)
 }
 
-function cachedCopyMatches(state: ClaudeConnectInstallState): boolean {
+function cachedCopyMatches(state: ClaudeConnectInstallState): Promise<boolean> {
   const pluginRoot = join(claudeConnectDir(state.stateDir), CLAUDE_CONNECT_PLUGIN)
   return copyMatches(state, pluginRoot, claudePluginCacheDir(state.configDir))
 }
 
-function copyMatches(state: ClaudeConnectInstallState, sourceRoot: string, copyRoot: string): boolean {
+async function copyMatches(state: ClaudeConnectInstallState, sourceRoot: string, copyRoot: string): Promise<boolean> {
   const owned = state.files.filter((file) => inside(sourceRoot, file.path))
   if (owned.length === 0) return false
-  return owned.every((file) => readTextOrNull(join(copyRoot, relative(sourceRoot, file.path))) === file.contents)
+  const copies = await Promise.all(owned.map((file) => readTextOrNull(join(copyRoot, relative(sourceRoot, file.path)))))
+  return copies.every((copy, index) => copy === owned[index]?.contents)
 }

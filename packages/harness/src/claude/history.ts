@@ -359,18 +359,10 @@ const AssistantUsageRecordSchema = z
   })
   .loose()
 
-type AssistantUsage = NonNullable<NonNullable<z.infer<typeof AssistantUsageRecordSchema>['message']>['usage']>
-
-function lastAssistantUsage(jsonl: string): AssistantUsage | undefined {
-  return jsonl.split('\n').reduceRight<AssistantUsage | undefined>((found, line) => {
-    if (found) return found
-    const rec = AssistantUsageRecordSchema.safeParse(parseJsonOrNull(line))
-    return rec.success && !rec.data.isSidechain && rec.data.message?.usage ? rec.data.message.usage : found
-  }, undefined)
-}
-
-export function contextTokensFromTranscript(jsonl: string): number | undefined {
-  const usage = lastAssistantUsage(jsonl)
+function contextTokensFromLine(line: string): number | undefined {
+  const record = AssistantUsageRecordSchema.safeParse(parseJsonOrNull(line))
+  if (!record.success || record.data.isSidechain) return undefined
+  const usage = record.data.message?.usage
   if (!usage) return undefined
   return (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)
 }
@@ -423,14 +415,14 @@ export async function sessionMeta(
   cwd: string,
   sessionId: string,
 ): Promise<HarnessSessionMeta | null> {
-  if (!withinProject(configDir, cwd, sessionId)) return null
+  if (!(await withinProject(configDir, cwd, sessionId))) return null
   const {getSessionInfo} = await loadClaudeAgentSdk()
   const info = await getSessionInfo(sessionId, {dir: cwd})
   return info === undefined ? null : (metaOfInfo(info, cwd).at(0) ?? null)
 }
 
-export function withinProject(configDir: string, cwd: string, sessionId: string): boolean {
-  return containedPath(transcriptRoot(configDir, cwd), transcriptPath(configDir, cwd, sessionId)) !== null
+export async function withinProject(configDir: string, cwd: string, sessionId: string): Promise<boolean> {
+  return (await containedPath(transcriptRoot(configDir, cwd), transcriptPath(configDir, cwd, sessionId))) !== null
 }
 
 async function transcriptMessages(
@@ -439,7 +431,7 @@ async function transcriptMessages(
   sessionId: string,
   options: {signal?: AbortSignal} = {},
 ): Promise<ChatMessage[]> {
-  if (!withinProject(configDir, cwd, sessionId)) return []
+  if (!(await withinProject(configDir, cwd, sessionId))) return []
   const folded = await foldJsonlFile(transcriptPath(configDir, cwd, sessionId), emptyFold(), foldLine, options).catch(
     whenMissing(null),
   )
@@ -479,7 +471,7 @@ async function transcriptTail(
   options: TranscriptTailOptions,
 ): Promise<TranscriptPage> {
   const end = options.before === null ? null : ByteCursorSchema.safeParse(options.before)
-  if (!withinProject(configDir, cwd, sessionId) || end?.success === false) return {messages: [], earlier: null}
+  if (end?.success === false || !(await withinProject(configDir, cwd, sessionId))) return {messages: [], earlier: null}
   const page = tailLines({
     path: transcriptPath(configDir, cwd, sessionId),
     end: end?.data ?? null,
@@ -496,10 +488,10 @@ export function claudeHistory(configDir: string): HarnessHistory {
   return {
     messages: (cwd, sessionId, options) => transcriptMessages(configDir, cwd, sessionId, options),
     tail: (cwd, sessionId, options) => transcriptTail(configDir, cwd, sessionId, options),
-    transcriptPath: (cwd, sessionId) => transcriptPath(configDir, cwd, sessionId),
-    transcriptRoot: (cwd) => transcriptRoot(configDir, cwd),
+    transcriptPath: async (cwd, sessionId) => transcriptPath(configDir, cwd, sessionId),
+    transcriptRoot: async (cwd) => transcriptRoot(configDir, cwd),
     withinProject: (cwd, sessionId) => withinProject(configDir, cwd, sessionId),
-    contextTokens: contextTokensFromTranscript,
+    contextTokens: contextTokensFromLine,
     list: listSessions,
     meta: (cwd, sessionId) => sessionMeta(configDir, cwd, sessionId),
   }

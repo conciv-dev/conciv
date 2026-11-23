@@ -35,6 +35,7 @@ export default defineConfig({
     'schema/session': 'src/schema/session.ts',
     'schema/session-event': 'src/schema/session-event.ts',
     'schema/session-id': 'src/schema/session-id.ts',
+    'schema/session-inbox': 'src/schema/session-inbox.ts',
     'schema/session-message': 'src/schema/session-message.ts',
     'schema/skill': 'src/schema/skill.ts',
     'schema/tool': 'src/schema/tool.ts',

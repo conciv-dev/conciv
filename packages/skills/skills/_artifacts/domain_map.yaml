@@ -134,9 +134,9 @@ skills:
       - mistake: 'spawning or decoding the CLI directly instead of returning a text adapter from chatConfig()'
         mechanism: 'chat() (with the conciv sandbox middleware) owns process lifecycle; a harness that bypasses it duplicates process management and loses abort handling.'
         wrong_pattern: |
-          chatConfig: () => ({adapter: makeCustomProcessAdapter(spawnCli())})
+          chatConfig: async () => ({adapter: makeCustomProcessAdapter(spawnCli())})
         correct_pattern: |
-          chatConfig: (deps) => ({adapter: yourTextAdapter(deps)})
+          chatConfig: async (deps) => ({adapter: yourTextAdapter(deps)})
         source: 'packages/chat/src/turn.ts'
         priority: 'CRITICAL'
         status: 'active'

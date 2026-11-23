@@ -11,7 +11,7 @@ const CLAUDE_SESSION_VAR = 'CLAUDE_CODE_SESSION_ID'
 const BRIDGE_TIMEOUT_MS = 180_000
 
 export function claudeConnectBridgeSource(): string {
-  return `import {existsSync, readFileSync} from 'node:fs'
+  return `import {access, readFile} from 'node:fs/promises'
 import {dirname, join, resolve} from 'node:path'
 import {createInterface} from 'node:readline'
 
@@ -20,11 +20,14 @@ const endpointFileName = '${CLAUDE_CONNECT_ENDPOINT_FILE}'
 const claudeSessionId = process.env.${CLAUDE_SESSION_VAR} ?? ''
 
 function readTextOrNull(path) {
-  try {
-    return readFileSync(path, 'utf8')
-  } catch {
-    return null
-  }
+  return readFile(path, 'utf8').catch(() => null)
+}
+
+function exists(path) {
+  return access(path).then(
+    () => true,
+    () => false,
+  )
 }
 
 function urlIn(text) {
@@ -45,13 +48,13 @@ function noProjectFound(startDir) {
   return {url: null, reason: \`no \${stateDirName} project directory found from \${startDir} upward\`}
 }
 
-function endpoint() {
+async function endpoint() {
   const startDir = resolve(process.cwd())
   let dir = startDir
   for (;;) {
-    if (existsSync(join(dir, stateDirName))) {
+    if (await exists(join(dir, stateDirName))) {
       const path = join(dir, stateDirName, endpointFileName)
-      const text = readTextOrNull(path)
+      const text = await readTextOrNull(path)
       if (text === null) return noEndpointFileAt(dir)
       const url = urlIn(text)
       if (url === null) return {url: null, reason: \`\${path} names no running conciv dev server\`}
@@ -116,7 +119,7 @@ function parsed(text) {
 }
 
 async function send(line) {
-  const resolved = endpoint()
+  const resolved = await endpoint()
   if (resolved.url === null) return failed(line, resolved.reason)
   const response = await fetch(resolved.url, {
     method: 'POST',

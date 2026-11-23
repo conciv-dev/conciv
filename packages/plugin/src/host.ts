@@ -1,4 +1,4 @@
-import {existsSync, readFileSync} from 'node:fs'
+import {readFile} from 'node:fs/promises'
 import path from 'node:path'
 import {z} from 'zod'
 import {importModule, resolveModule} from './util/runtime-import.js'
@@ -14,17 +14,17 @@ export interface Entrypoints {
   readonly experimental?: string
 }
 
-export function resolve(input: Target): Entrypoints {
-  const manifest = input.name ? undefined : packageManifest(input.directory)
+export async function resolve(input: Target): Promise<Entrypoints> {
+  const manifest = input.name ? undefined : await packageManifest(input.directory)
   const target =
     typeof manifest?.name === 'string' && manifest.exports !== undefined ? {...input, name: manifest.name} : input
-  const entry = (subpaths: readonly string[]) => {
+  const entry = async (subpaths: readonly string[]) => {
     for (const subpath of subpaths) {
       const specifier = target.name
         ? [target.name, subpath].filter(Boolean).join('/')
         : path.resolve(target.directory, subpath || 'index')
       try {
-        const resolved = resolveModule(specifier, target.directory)
+        const resolved = await resolveModule(specifier, target.directory)
         if (resolved) return resolved
       } catch (error) {
         if (!hasCode(error, resolutionMisses)) throw error
@@ -32,12 +32,13 @@ export function resolve(input: Target): Entrypoints {
     }
     return undefined
   }
+  const experimental = await (target.name
+    ? entry(['plugin-experimental'])
+    : entry(['plugin-experimental.cjs', 'plugin-experimental.js']))
   return {
-    server: entry(['server', '']),
-    rpc: entry(['rpc']),
-    experimental: [
-      target.name ? entry(['plugin-experimental']) : entry(['plugin-experimental.cjs', 'plugin-experimental.js']),
-    ].find((file) => file && /\.c?js$/.test(file)),
+    server: await entry(['server', '']),
+    rpc: await entry(['rpc']),
+    experimental: experimental && /\.c?js$/.test(experimental) ? experimental : undefined,
   }
 }
 
@@ -45,9 +46,9 @@ export function load(entrypoint: string): Promise<unknown> {
   return importModule(entrypoint)
 }
 
-export function packageId(target: Target) {
+export async function packageId(target: Target) {
   if (target.name) return target.name
-  const name = packageManifest(target.directory)?.name
+  const name = (await packageManifest(target.directory))?.name
   return typeof name === 'string' && name ? name : path.basename(target.directory)
 }
 
@@ -69,10 +70,13 @@ function hasCode(error: unknown, codes: readonly string[]) {
 
 const Manifest = z.object({name: z.unknown().optional(), exports: z.unknown().optional()})
 
-function packageManifest(directory: string) {
-  const file = path.join(directory, 'package.json')
-  if (!existsSync(file)) return undefined
-  const parsed = Manifest.safeParse(parseJson(readFileSync(file, 'utf8')))
+async function packageManifest(directory: string) {
+  const text = await readFile(path.join(directory, 'package.json'), 'utf8').catch((error: unknown) => {
+    if (hasCode(error, ['ENOENT'])) return undefined
+    throw error
+  })
+  if (text === undefined) return undefined
+  const parsed = Manifest.safeParse(parseJson(text))
   return parsed.success ? parsed.data : undefined
 }
 

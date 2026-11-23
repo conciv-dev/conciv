@@ -32,17 +32,17 @@ export function createHubInstaller(
   log: Log,
 ) {
   const connections = (): HubConnections => createHubConnections(home, makeChildRun(childEnv))
-  const connected = (): ReturnType<HubConnections['list']> => {
+  const connected = async (): ReturnType<HubConnections['list']> => {
     try {
-      return connections().list()
+      return await connections().list()
     } catch (error) {
       log(Effect.logError('[core] the conciv home db could not be read', {home, error}))
       return []
     }
   }
-  const agents = (): HubAgents => {
-    const present = connected()
-    const installs = detectHarnesses(detectionEnv).flatMap(({id}) => {
+  const agents = async (): Promise<HubAgents> => {
+    const present = await connected()
+    const installs = (await detectHarnesses(detectionEnv)).flatMap(({id}) => {
       const hub = initContributions[id].hub
       if (hub === undefined || present.some((connection) => connection.harness === id)) return []
       return [{harnessId: id, name: hub.name}]
@@ -57,7 +57,7 @@ export function createHubInstaller(
       homeDbReads(home, signal, agents),
     connect: (harness: InitHarnessId) => connections().connect(harness, hubCommand(harness)),
     disconnect: (harness: InitHarnessId) => connections().disconnect(harness),
-    refusal: (client: string | null): string | null => connections().refusal(client),
+    refusal: (client: string | null): Promise<string | null> => connections().refusal(client),
   }
 }
 

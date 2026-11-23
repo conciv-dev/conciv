@@ -160,39 +160,57 @@ export type EngineSocket = Pick<WSContext, 'close'>
 
 export type TrustedBrowsers = {
   has: (token: string) => boolean
-  grant: (requester: BrowserRequester, grantedAt: number) => string
+  grant: (requester: BrowserRequester, grantedAt: number) => Promise<string>
   hold: (socket: EngineSocket, token: string) => () => void
   close: () => void
 }
 
 const TRUST_FILE_POLL_MS = 250
 
-function trustedHashes(stateDir: string, log: Log): Set<string> {
+async function trustedHashes(stateDir: string, log: Log): Promise<Set<string>> {
   try {
-    return new Set(readTrustedBrowsers(stateDir).map((entry) => entry.hash))
+    return new Set((await readTrustedBrowsers(stateDir)).map((entry) => entry.hash))
   } catch (error) {
     log(Effect.logError('[core] the trusted browsers file could not be read', {stateDir, error}))
     return new Set()
   }
 }
 
-export function watchTrustedBrowsers(stateDir: string, log: Log): TrustedBrowsers {
-  createConcivStateDir(stateDir)
+export async function watchTrustedBrowsers(stateDir: string, log: Log): Promise<TrustedBrowsers> {
+  await createConcivStateDir(stateDir)
   const sockets = new Map<EngineSocket, string>()
+  const trusted = {hashes: await trustedHashes(stateDir, log), turns: Promise.resolve()}
+  const inTurn = <T>(run: () => Promise<T>): Promise<T> => {
+    const turn = trusted.turns.then(run)
+    trusted.turns = turn.then(
+      () => undefined,
+      () => undefined,
+    )
+    return turn
+  }
+  const reread = async (): Promise<void> => {
+    trusted.hashes = await trustedHashes(stateDir, log)
+  }
   const closeRevoked = (): void => {
-    const hashes = trustedHashes(stateDir, log)
-    for (const [socket, hash] of sockets) {
-      if (!hashes.has(hash)) socket.close(REVOKED_SOCKET_CLOSE_CODE, 'this browser is no longer trusted')
-    }
+    void inTurn(reread).then(() => {
+      for (const [socket, hash] of sockets) {
+        if (!trusted.hashes.has(hash)) socket.close(REVOKED_SOCKET_CLOSE_CODE, 'this browser is no longer trusted')
+      }
+    })
   }
   const file = join(stateDir, TRUSTED_BROWSERS_FILE)
   watchFile(file, {interval: TRUST_FILE_POLL_MS, persistent: false}, closeRevoked)
   return {
-    has: (token) => trustedHashes(stateDir, log).has(tokenHash(token)),
-    grant: (requester, grantedAt) => grantBrowser(stateDir, requester, grantedAt),
+    has: (token) => trusted.hashes.has(tokenHash(token)),
+    grant: (requester, grantedAt) =>
+      inTurn(async () => {
+        const token = await grantBrowser(stateDir, requester, grantedAt)
+        await reread()
+        return token
+      }),
     hold: (socket, token) => {
       const hash = tokenHash(token)
-      if (!trustedHashes(stateDir, log).has(hash)) return () => {}
+      if (!trusted.hashes.has(hash)) return () => {}
       sockets.set(socket, hash)
       return () => {
         sockets.delete(socket)
@@ -282,10 +300,10 @@ export function makeAuthRouter(deps: {
       if (trusted) context.socket?.admit(input.token)
       return {trusted}
     }),
-    exchange: os.auth.exchange.handler(({input, context}) => {
+    exchange: os.auth.exchange.handler(async ({input, context}) => {
       const outcome = deps.codes.exchange(input.code)
       if (outcome !== 'trusted') return {refused: outcome}
-      const token = deps.browsers.grant(describeRequester(context), deps.now())
+      const token = await deps.browsers.grant(describeRequester(context), deps.now())
       context.socket?.admit(token)
       return {token}
     }),

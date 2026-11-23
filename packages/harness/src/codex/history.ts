@@ -1,5 +1,5 @@
-import {readdirSync, type Dirent} from 'node:fs'
-import {stat} from 'node:fs/promises'
+import type {Dirent} from 'node:fs'
+import {readdir, stat} from 'node:fs/promises'
 import {join} from 'node:path'
 import type {SQLInputValue} from 'node:sqlite'
 import {z} from 'zod'
@@ -68,7 +68,7 @@ const LIST_THREADS = `select ${THREAD_COLUMNS} from threads where (? is null or 
 const THREAD_BY_ID = `select ${THREAD_COLUMNS} from threads where id = ? limit 1`
 const PROJECT_THREAD = `select ${THREAD_COLUMNS} from threads where id = ? and cwd = ? limit 1`
 
-function threadRows(dbPath: string, sql: string, params: SQLInputValue[]): ThreadRow[] {
+async function threadRows(dbPath: string, sql: string, params: SQLInputValue[]): Promise<ThreadRow[]> {
   return queryRows(dbPath, sql, params).flatMap((row) => {
     const parsed = ThreadRowSchema.safeParse(row)
     return parsed.success ? [parsed.data] : []
@@ -271,55 +271,47 @@ function foldLine(spine: CodexSpine, line: string, offset: number): CodexSpine {
   return event ? applyEvent(spine, event, offset) : spine
 }
 
-function contextTokensFromTranscript(raw: string): number | undefined {
-  let total: number | undefined
-  for (const line of raw.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed) continue
-    const parsed = TokenCountPayloadSchema.safeParse(parsePayload(trimmed))
-    if (parsed.success && parsed.data.info) total = parsed.data.info.total_token_usage.total_tokens
-  }
-  return total
+function contextTokensFromLine(line: string): number | undefined {
+  const trimmed = line.trim()
+  if (!trimmed) return undefined
+  const parsed = TokenCountPayloadSchema.safeParse(parsePayload(trimmed))
+  return parsed.success ? parsed.data.info?.total_token_usage.total_tokens : undefined
 }
 
-function rolloutEntries(home: string): Dirent[] {
-  try {
-    return readdirSync(sessionsRoot(home), {withFileTypes: true, recursive: true})
-  } catch (error) {
-    return whenMissing([])(error)
-  }
+function rolloutEntries(home: string): Promise<Dirent[]> {
+  return readdir(sessionsRoot(home), {withFileTypes: true, recursive: true}).catch(whenMissing([]))
 }
 
-function scanForRollout(home: string, sessionId: string): string | null {
+async function scanForRollout(home: string, sessionId: string): Promise<string | null> {
   const suffix = `-${sessionId}.jsonl`
-  const hit = rolloutEntries(home).find((entry) => entry.isFile() && entry.name.endsWith(suffix))
+  const hit = (await rolloutEntries(home)).find((entry) => entry.isFile() && entry.name.endsWith(suffix))
   return hit ? containedPath(home, join(hit.parentPath, hit.name)) : null
 }
 
-function persistedRollout(home: string, sessionId: string): string | null {
+async function persistedRollout(home: string, sessionId: string): Promise<string | null> {
   try {
-    const row = threadRows(stateDbPath(home), THREAD_BY_ID, [sessionId]).at(0)
-    return row ? containedPath(home, row.rollout_path) : null
+    const row = (await threadRows(stateDbPath(home), THREAD_BY_ID, [sessionId])).at(0)
+    return row ? await containedPath(home, row.rollout_path) : null
   } catch {
     return null
   }
 }
 
-export function rolloutPath(home: string, sessionId: string): string | null {
-  return persistedRollout(home, sessionId) ?? scanForRollout(home, sessionId)
+export async function rolloutPath(home: string, sessionId: string): Promise<string | null> {
+  return (await persistedRollout(home, sessionId)) ?? scanForRollout(home, sessionId)
 }
 
-function recordedCwd(path: string): string | null {
+async function recordedCwd(path: string): Promise<string | null> {
   try {
-    return rolloutCwd(readHead(path))
+    return rolloutCwd(await readHead(path))
   } catch (error) {
     return whenMissing(null)(error)
   }
 }
 
-function rolloutWithinProject(home: string, cwd: string, sessionId: string): boolean {
-  const path = rolloutPath(home, sessionId)
-  const found = path === null ? null : recordedCwd(path)
+async function rolloutWithinProject(home: string, cwd: string, sessionId: string): Promise<boolean> {
+  const path = await rolloutPath(home, sessionId)
+  const found = path === null ? null : await recordedCwd(path)
   return found !== null && sameCwd(found, cwd)
 }
 
@@ -337,7 +329,7 @@ async function transcriptMessages(
   sessionId: string,
   options: {signal?: AbortSignal} = {},
 ): Promise<ChatMessage[]> {
-  const path = rolloutPath(home, sessionId)
+  const path = await rolloutPath(home, sessionId)
   if (!path) return []
   const empty: RolloutFold = {spine: emptySpine(sessionId), cwd: undefined}
   const folded = await foldJsonlFile(path, empty, foldRolloutLine, options).catch(whenMissing(null))
@@ -351,7 +343,7 @@ async function listSessions(home: string, scope: HarnessListScope, page: Harness
     resolveRealPath(home),
     'cwd' in scope ? resolveRealPath(scope.cwd) : null,
   ])
-  const rows = threadRows(stateDbPath(home), LIST_THREADS, [
+  const rows = await threadRows(stateDbPath(home), LIST_THREADS, [
     projectCwd,
     projectCwd,
     after?.updatedAt ?? null,
@@ -384,7 +376,7 @@ async function threadMeta(realHome: string, row: ThreadRow): Promise<HarnessSess
 
 async function storedMeta(home: string, cwd: string, sessionId: string): Promise<HarnessSessionMeta | null> {
   const [realHome, realCwd] = await Promise.all([resolveRealPath(home), resolveRealPath(cwd)])
-  const row = threadRows(stateDbPath(home), PROJECT_THREAD, [sessionId, realCwd]).at(0)
+  const row = (await threadRows(stateDbPath(home), PROJECT_THREAD, [sessionId, realCwd])).at(0)
   return row ? threadMeta(realHome, row) : null
 }
 
@@ -413,7 +405,7 @@ async function rolloutTail(
   options: TranscriptTailOptions,
   end: number | null,
 ) {
-  const found = recordedCwd(path)
+  const found = await recordedCwd(path)
   if (found === null || !sameCwd(found, cwd)) return NO_PAGE
   return tailLines({
     path,
@@ -434,8 +426,9 @@ async function transcriptTail(
   options: TranscriptTailOptions,
 ): Promise<TranscriptPage> {
   const end = options.before === null ? null : ByteCursorSchema.safeParse(options.before)
-  const path = rolloutPath(home, sessionId)
-  if (path === null || end?.success === false) return NO_PAGE
+  if (end?.success === false) return NO_PAGE
+  const path = await rolloutPath(home, sessionId)
+  if (path === null) return NO_PAGE
   return rolloutTail(path, cwd, sessionId, options, end?.data ?? null).catch(whenMissing(NO_PAGE))
 }
 
@@ -444,7 +437,7 @@ export function codexHistory(home: string): HarnessHistory {
     messages: (cwd, sessionId, options) => transcriptMessages(home, cwd, sessionId, options),
     tail: (cwd, sessionId, options) => transcriptTail(home, cwd, sessionId, options),
     withinProject: (cwd, sessionId) => rolloutWithinProject(home, cwd, sessionId),
-    contextTokens: contextTokensFromTranscript,
+    contextTokens: contextTokensFromLine,
     list: (scope, page) => listSessions(home, scope, page),
     meta: (cwd, sessionId) => storedMeta(home, cwd, sessionId),
   }
