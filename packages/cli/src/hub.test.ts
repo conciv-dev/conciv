@@ -3,6 +3,7 @@ import {writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {describe, expect} from 'vitest'
 import {z} from 'zod'
+import {makeRpcClient} from '@conciv/contract'
 import {prepareHome, recordHubConnection, withHomeDb} from '@conciv/db'
 import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../test/hub-test.js'
@@ -104,6 +105,10 @@ describe('the hub', () => {
       .parse(queued.content)
       .map((part) => part.text)
       .join('\n')
+    const instructions = await makeRpcClient(engine.address.apiBase, {
+      token: engine.address.token,
+    }).sessions.instructions({sessionId})
+    expect(z.array(z.unknown()).parse(queued.content)[0]).toEqual({type: 'text', text: instructions.text})
     const queueId = /"queueId":"(q_[^"]+)","actions":1/.exec(queuedText)?.[1]
     expect(queueId).toBeDefined()
     const {requestId} = z.object({requestId: z.string()}).parse((await command.arrived).data)
