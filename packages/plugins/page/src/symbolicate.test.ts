@@ -23,12 +23,18 @@ describe('locate names the source file and line that rendered an element', () =>
     expect(await Effect.runPromise(located)).toEqual(source)
   })
 
-  const withAssets = it.extend<{assets: {origin: string; fetched: string[]}}>({
+  const withAssets = it.extend<{assets: {origin: string; fetched: string[]; missingOnce: string[]}}>({
     assets: async ({task: _task}, use) => {
       const fetched: string[] = []
+      const missingOnce: string[] = []
       const server = createServer((request, response) => {
         const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
         fetched.push(path)
+        const missing = missingOnce.indexOf(path)
+        if (missing !== -1) {
+          missingOnce.splice(missing, 1)
+          return void response.writeHead(404).end('Not Found')
+        }
         readFile(`${project}${path}`, 'utf8').then(
           (body) => response.end(body),
           () => response.writeHead(404).end(),
@@ -38,7 +44,7 @@ describe('locate names the source file and line that rendered an element', () =>
       const address = server.address()
       const port = typeof address === 'object' && address !== null ? address.port : 0
       try {
-        await use({origin: `http://127.0.0.1:${port}`, fetched})
+        await use({origin: `http://127.0.0.1:${port}`, fetched, missingOnce})
       } finally {
         await new Promise((resolve) => server.close(resolve))
       }
@@ -52,5 +58,14 @@ describe('locate names the source file and line that rendered an element', () =>
     )
     expect(await Effect.runPromise(located)).toEqual([app, app])
     expect(assets.fetched).toEqual(['/assets/checkout.js', '/assets/checkout.js.map'])
+  })
+
+  withAssets('a map the dev server could not serve yet is fetched again on the next locate', async ({assets}) => {
+    assets.missingOnce.push('/assets/checkout.js.map')
+    const frame = {fileName: `${assets.origin}/assets/checkout.js?t=1`, line: 1, column: 1}
+    const located = Effect.flatMap(makeSymbolicator({root: project}), (symbolicator) =>
+      Effect.all([symbolicator.frames([frame]), symbolicator.frames([frame])]),
+    )
+    expect(await Effect.runPromise(located)).toEqual([null, app])
   })
 })

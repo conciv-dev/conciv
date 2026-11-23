@@ -61,10 +61,8 @@ function firstPosition(traced: TraceMap, frame: RawFrame, line: number): SourceL
   return {file: position.source, line: position.line ?? line, column: position.column ?? 0}
 }
 
-function parseSourceMap(chunkUrl: string, root: string): Effect.Effect<TraceMap | null, unknown> {
-  return loadSourceMap(chunkUrl, root).pipe(
-    Effect.flatMap((map) => Effect.try((): TraceMap | null => new AnyMap(map)).pipe(Effect.orElseSucceed(() => null))),
-  )
+function parseSourceMap(chunkUrl: string, root: string): Effect.Effect<TraceMap, unknown> {
+  return loadSourceMap(chunkUrl, root).pipe(Effect.flatMap((map) => Effect.try((): TraceMap => new AnyMap(map))))
 }
 
 export const makeSymbolicator = Effect.fn('makeSymbolicator')(function* (options: {root: string}) {
@@ -79,7 +77,7 @@ export const makeSymbolicator = Effect.fn('makeSymbolicator')(function* (options
           const {fileName, line} = frame
           if (fileName === undefined || line === undefined) continue
           const location = yield* Cache.get(maps, fileName).pipe(
-            Effect.flatMap((traced) => Effect.try(() => (traced ? firstPosition(traced, frame, line) : null))),
+            Effect.flatMap((traced) => Effect.try(() => firstPosition(traced, frame, line))),
             Effect.orElseSucceed(() => null),
           )
           if (location && !location.file.includes('node_modules')) return location
