@@ -1,4 +1,8 @@
+import {once} from 'node:events'
+import {IncomingMessage, request as httpRequest} from 'node:http'
+import {text} from 'node:stream/consumers'
 import {ConfigProvider} from 'effect'
+import {z} from 'zod'
 import {describe, expect, test} from 'vitest'
 import {resolveHarnessModels} from '@conciv/harness'
 import {codex} from '@conciv/harness/codex'
@@ -8,7 +12,7 @@ import {makeApp, withSavedModels} from './app.js'
 import {resolveConfig} from './config.js'
 
 describe('http surface', () => {
-  test('health answers, an untokened route is refused, a foreign origin is refused, and every reply carries the version', async () => {
+  test('health answers, an untokened route is refused, a foreign origin or a Host that is not loopback is refused, and every reply carries the version', async () => {
     const engine = await createEngine({}, {harnesses: [{id: 'reviewer'}]})
     await engine.version('9.9.9')
     const origin = new URL(engine.address.apiBase).origin
@@ -32,6 +36,21 @@ describe('http surface', () => {
     expect(foreign.status).toBe(403)
     expect(foreign.headers.get('x-conciv-version')).toBe('9.9.9')
     expect(await foreign.text()).toBe('forbidden origin')
+
+    for (const path of ['/health', '/api/mcp']) {
+      const rebound = httpRequest({
+        hostname: '127.0.0.1',
+        port: new URL(origin).port,
+        path,
+        method: 'POST',
+        setHost: false,
+        headers: {host: `evil.example.com:${new URL(origin).port}`},
+      })
+      rebound.end()
+      const [response] = await once(rebound, 'response')
+      const reply = z.instanceof(IncomingMessage).parse(response)
+      expect({status: reply.statusCode, body: await text(reply)}).toEqual({status: 403, body: 'forbidden host'})
+    }
   })
 })
 
