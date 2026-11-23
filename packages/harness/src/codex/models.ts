@@ -16,6 +16,8 @@ const OPENAI_PROVIDER = 'openai'
 
 const TABLE_HEADER = /^\s*\[/m
 
+const HEADER_LINE = /^\s*(\[.*?\])\s*(?:#.*)?$/
+
 const ModelsCacheSchema = z
   .object({
     models: z.array(
@@ -87,7 +89,7 @@ function readTopLevel(config: string): string {
 function readProviderTable(config: string, provider: string): string {
   const lines = config.split('\n')
   const headers = [`[model_providers.${provider}]`, `[model_providers."${provider}"]`]
-  const start = lines.findIndex((line) => headers.includes(line.trim()))
+  const start = lines.findIndex((line) => headers.includes(line.match(HEADER_LINE)?.[1] ?? ''))
   if (start === -1) return ''
   const rest = lines.slice(start + 1)
   const end = rest.findIndex((line) => TABLE_HEADER.test(line))
