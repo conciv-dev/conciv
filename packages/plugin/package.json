@@ -173,7 +173,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "tsdown && tsc -p tsconfig.build.json && tsdown -c tsdown.types.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
@@ -190,6 +190,7 @@
   },
   "devDependencies": {
     "@conciv/harness-testkit": "workspace:*",
+    "@conciv/opaque": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@types/node": "catalog:",

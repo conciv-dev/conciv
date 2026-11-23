@@ -1,7 +1,8 @@
 import type {Component, JSX} from 'solid-js'
 import type {AppIconName} from './icon-name.js'
 import {Registry, type PluginIconName} from './core.js'
-import type {SessionRef, MountedSession, SessionScreen} from './host-apis.js'
+import type {ComposerNote, SessionRef, MountedSession, SessionScreen} from './host-apis.js'
+import {createOpaqueType, type OpaqueType} from './opaque.js'
 
 export type {AppIconName}
 
@@ -354,6 +355,26 @@ export interface CodeBlockAction {
   run(input: CodeBlockProps): void | Promise<void>
 }
 
+export interface NoteCardProps {
+  readonly note: Omit<ComposerNote, 'commentId'> & {readonly commentId?: string}
+  readonly session?: MountedSession
+}
+
+export interface NoteCard {
+  readonly origins: readonly string[]
+  render(props: NoteCardProps): JSX.Element | undefined
+}
+
+type OpaqueNoteCardShape = {
+  public: {readonly $$type: '@conciv/NoteCard'}
+  versions: Registry<NoteCard> & {readonly version: 'v1'}
+}
+
+export const OpaqueNoteCard: OpaqueType<OpaqueNoteCardShape> = createOpaqueType<OpaqueNoteCardShape>({
+  type: '@conciv/NoteCard',
+  versions: ['v1'],
+})
+
 export interface SlotMap {
   readonly 'window.bottom': Record<string, never>
   readonly 'session.header': {
@@ -497,6 +518,11 @@ export const CodeBlock = Registry.define<CodeBlock>('code-block')
  * ```
  */
 export const CodeBlockAction = Registry.define<CodeBlockAction>('code-block-action')
+
+export const NoteCard: OpaqueNoteCardShape['public'] = OpaqueNoteCard.createInstance(
+  'v1',
+  Registry.define<NoteCard>('note-card'),
+)
 
 /**
  * The registry of content for the host's slots (`SlotMap`).

@@ -1,18 +1,14 @@
 import {children, createUniqueId, For, onCleanup, Show, splitProps, type JSX} from 'solid-js'
-import type {
-  Ui,
-  UiIconProps,
-  UiMenuCheckbox,
-  UiMenuItem,
-  UiMenuRadioGroup,
-  UiMenuSubProps,
-} from '@conciv/plugin/experimental'
 import {
-  isInternalPlugin,
-  readInternalPlugin,
+  OpaqueUi,
   type InternalStatusDotProps,
-  type InternalUi,
-} from '@conciv/plugin-internal'
+  type Ui,
+  type UiIconProps,
+  type UiMenuCheckbox,
+  type UiMenuItem,
+  type UiMenuRadioGroup,
+  type UiMenuSubProps,
+} from '@conciv/plugin/experimental'
 import {Icon as KitIcon, Markdown} from '@conciv/ui-kit-chat'
 import {BasicTool, Chip, CodeBlock, ErrorBlock, JsonTree, ResultImage, StatusVisual} from '@conciv/ui-kit-chat/tools'
 import {MentionField} from '@conciv/ui-kit-tap'
@@ -95,7 +91,7 @@ const stillDot: Record<InternalStatusDotProps['tone'], StatusDotTone | undefined
   running: undefined,
 }
 
-export const ui: Ui = {
+const publicUi: Ui = {
   Icon,
   Button: (props) => (
     <Button
@@ -420,8 +416,8 @@ export const ui: Ui = {
   ),
 }
 
-const internalUi: InternalUi = {
-  ...ui,
+export const ui = OpaqueUi.createInstance('v1', {
+  ...publicUi,
   BasicTool: (props) => {
     const [local, tool] = splitProps(props, [
       'title',
@@ -480,15 +476,7 @@ const internalUi: InternalUi = {
       <Collapsible.Content>{props.children}</Collapsible.Content>
     </Collapsible.Root>
   ),
-}
-
-export function pluginUi(definition: object): Ui {
-  if (!isInternalPlugin(definition)) return ui
-
-  readInternalPlugin(definition)
-
-  return internalUi
-}
+})
 
 function treeable(value: unknown): object | undefined {
   return Array.isArray(value) || isPlainObject(value) ? value : undefined

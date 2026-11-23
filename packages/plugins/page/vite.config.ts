@@ -28,7 +28,7 @@ export default defineConfig({
     },
     rollupOptions: {
       external:
-        /^(@conciv\/(?!plugin-internal)|solid-js|effect|zod|es-toolkit|bippy|react-grab|rrweb-snapshot|@zumer\/snapdom|ai-motion|js-beautify|lucide-solid|@tanstack\/|@solid-primitives\/|@jridgewell\/)/,
+        /^(@conciv\/|solid-js|effect|zod|es-toolkit|bippy|react-grab|rrweb-snapshot|@zumer\/snapdom|ai-motion|js-beautify|lucide-solid|@tanstack\/|@solid-primitives\/|@jridgewell\/)/,
     },
     emptyOutDir: false,
     sourcemap: true,

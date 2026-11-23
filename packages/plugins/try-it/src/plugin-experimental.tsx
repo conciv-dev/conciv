@@ -1,7 +1,6 @@
 import {Effect, Exit, Fiber, Layer, ManagedRuntime, Scope, Stream, SubscriptionRef} from 'effect'
 import {from, onCleanup, type Accessor} from 'solid-js'
-import {Server, type Plugin, type ServerEntry} from '@conciv/plugin/experimental'
-import {defineInternalPlugin} from '@conciv/plugin-internal'
+import {OpaqueUi, Plugin, Server, type ServerEntry} from '@conciv/plugin/experimental'
 import {connectPorts} from '@conciv/protocol/connect-ports'
 import {connect} from './connect.js'
 import {TryItConnectMachine} from './connect-machine.js'
@@ -38,7 +37,7 @@ function entry(state: TryItConnectMachine.ConnectState, token: string, cover: Se
   return {id: 'core', name: 'conciv', state: 'starting', cover}
 }
 
-const tryIt: Plugin.Definition = defineInternalPlugin({
+const tryIt: Plugin.Definition = Plugin.define({
   setup(ctx) {
     const options = TryItOptions.parse(ctx.options)
     const runtime = ManagedRuntime.make(
@@ -56,7 +55,13 @@ const tryIt: Plugin.Definition = defineInternalPlugin({
     const access = follow(runtime, started.access)
     const copied = () => void runtime.runFork(started.connection.dispatch({type: 'copied'}))
     const cover = () => (
-      <ConnectPane ui={ctx.ui} token={options.token} state={state} localNetworkAccess={access} onCopied={copied} />
+      <ConnectPane
+        ui={OpaqueUi.toInternal(ctx.ui)}
+        token={options.token}
+        state={state}
+        localNetworkAccess={access}
+        onCopied={copied}
+      />
     )
 
     ctx.add(Server, () => ({

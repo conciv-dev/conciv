@@ -47,7 +47,6 @@
   "devDependencies": {
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin": "workspace:^",
-    "@conciv/plugin-internal": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",

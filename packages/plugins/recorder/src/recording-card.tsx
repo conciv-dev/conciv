@@ -1,7 +1,6 @@
 import {Match, Show, Switch, createMemo, onCleanup, type JSX} from 'solid-js'
 import {useQuery} from '@conciv/client'
-import {usePlugin} from '@conciv/plugin/experimental'
-import type {NoteCardProps} from '@conciv/plugin-internal'
+import {usePlugin, type NoteCardProps} from '@conciv/plugin/experimental'
 import {REPLAY_MIN_EVENTS, Recorder, type RrwebEvent} from './rpc.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {mountPlayer, type PlayerKit} from './player.js'

@@ -3,10 +3,9 @@ import {z} from 'zod'
 import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import utilities from 'virtual:uno.css?inline'
-import {createKeyed, Plugin, Slot, ToolRegistry} from '@conciv/plugin/experimental'
+import {createKeyed, NoteCard, OpaqueNoteCard, Plugin, Slot, ToolRegistry} from '@conciv/plugin/experimental'
 import {Page, PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
 import {GrabPicker} from '@conciv/plugin/experimental/grab'
-import {NoteCard} from '@conciv/plugin-internal'
 import {keepAttached, readTab, reportChanges} from './attachment.js'
 import {makeHighlight} from './highlight.js'
 import {symbolicateInSession} from './open-source.js'
@@ -127,7 +126,10 @@ export default Plugin.define({
         symbolicate: (input) => symbolicate(input.frames),
       }),
     )
-    ctx.add(NoteCard, {origins: [GRAB_NOTE_ORIGIN], render: (props) => <GrabNoteCard {...props} />})
+    ctx.add(OpaqueNoteCard.toInternal(NoteCard), {
+      origins: [GRAB_NOTE_ORIGIN],
+      render: (props) => <GrabNoteCard {...props} />,
+    })
     ctx.provide(Page, {
       toast: (message, tone) =>
         void ctx.toast.show({title: message, variant: tone === 'error' || tone === 'success' ? tone : 'default'}),
