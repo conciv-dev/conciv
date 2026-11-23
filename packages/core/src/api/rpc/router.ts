@@ -625,9 +625,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         hubTraced(deps, context, 'page_clear_changes', {}, () => deps.queues.clearChanges(context.session.id)),
       ),
     },
-    editor: {
-      openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
-    },
     meta: {
       models: os.meta.models.handler(async ({input}) => {
         const harness = await chat.harnessFor(input.sessionId)

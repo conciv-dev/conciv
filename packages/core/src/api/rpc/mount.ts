@@ -10,7 +10,6 @@ import type {ChatPlane} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
 import type {ConcivServerTool} from '@conciv/tools'
 import type {HarnessAdapter} from '@conciv/harness'
-import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
 import type {RowScope} from '../../sessions/session-rows.js'
 import {callTrace} from '../call-trace.js'
@@ -82,7 +81,6 @@ export type ChatContext = {
 export type RpcDeps = {
   chat: ChatContext
   tools: (sessionId: SessionId) => Promise<ChatTool[]>
-  openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   runtime: CoreRuntime
   allowedOrigins: ReadonlySet<string>
   staleness: () => EngineStaleness

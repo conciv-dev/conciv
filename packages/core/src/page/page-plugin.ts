@@ -95,7 +95,6 @@ export function makePagePlugin(host: () => PluginHost) {
     Definition.methods.symbolicate.output.parse(await call('symbolicate', {frames}))
 
   return {
-    symbolicate,
     symbolicateOrNone: (frames: RawFrame[]): Promise<SourceLoc | null> =>
       symbolicate(frames).catch((error: unknown) => {
         if (!unlisted(error)) log(Effect.logError('[core] the page plugin could not symbolicate', {error}))
