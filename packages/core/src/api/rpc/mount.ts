@@ -94,7 +94,7 @@ export type RpcDeps = {
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
   code: McpVars['mcp']
   tabs: ReturnType<typeof createTabs>
-  queues: Pick<PagePlugin, 'changes' | 'clearChanges' | 'attachedSessions'>
+  queues: Pick<PagePlugin, 'attachedSessions'>
   queueWait: PagePlugin['queueWait']
   pluginHost: PluginHost
   eventHeartbeatIntervalMs?: number

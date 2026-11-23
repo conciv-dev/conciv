@@ -33,7 +33,7 @@ import {
 } from './rpc.js'
 import {cardErrorMessage, countLabel, mutatingBadge, toolInput} from './shared.js'
 import {CaptureContext, SessionCaptures} from './captures.js'
-import type {ToolCaptureView} from '@conciv/protocol/element-capture-types'
+import type {ToolCaptureView} from './element-capture-types.js'
 
 const SESSION_LABEL = {
   edit: {running: 'Editing the page', done: 'Edited the page'},

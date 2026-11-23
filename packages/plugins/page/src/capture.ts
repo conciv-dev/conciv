@@ -1,13 +1,8 @@
 import {Duration, Effect, Exit} from 'effect'
 import type {createMirror, Mirror, serializeNodeWithId, stringifyStylesheet} from 'rrweb-snapshot'
-import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
-import {isDangerousTag, neutralizeSubtree} from '@conciv/protocol/element-capture-sanitize'
-import type {
-  ElementCapture,
-  ElementCaptureKind,
-  CssBundle,
-  ElementDescriptor,
-} from '@conciv/protocol/element-capture-types'
+import {CONCIV_UI_SELECTOR} from './conciv-ui.js'
+import {isDangerousTag, neutralizeSubtree} from './element-capture-sanitize.js'
+import type {ElementCapture, ElementCaptureKind, CssBundle, ElementDescriptor} from './element-capture-types.js'
 import {MASKED_VALUE, readAccessibleName, readCheckedState, readRole, readValue} from './snapshot.js'
 import {componentHostAt, describe, sourceFromAttr} from './react.js'
 

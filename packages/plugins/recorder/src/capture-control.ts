@@ -1,5 +1,6 @@
 export * as CaptureControlModel from './capture-control.js'
 import {Clock, Context, Effect, Layer, Option, PubSub, Schedule, Stream, SubscriptionRef, Schema} from 'effect'
+import {makeMachineDriver} from './machine-driver.js'
 import {RecorderCaptureControlMachine} from './capture-control-machine.js'
 import {ClientRings} from './rings.js'
 import type {RecorderControl} from './rpc.js'
@@ -32,18 +33,17 @@ function readStop(
   return effects.flatMap((effect) => (effect.type === 'answer-stop' && effect.range ? [effect.range] : []))[0]
 }
 
-function readControls(
-  effects: readonly RecorderCaptureControlMachine.CaptureControlEffect[],
-): readonly RecorderControl[] {
-  return effects.flatMap((effect) => (effect.type === 'emit' ? [effect.control] : []))
-}
-
 export const captureControlLayer = Layer.effect(
   CaptureControl,
   Effect.gen(function* () {
     const rings = yield* ClientRings
-    const state = yield* SubscriptionRef.make(RecorderCaptureControlMachine.initialCaptureControl)
     const controls = yield* PubSub.unbounded<RecorderControl>()
+    const driver = yield* makeMachineDriver({
+      initial: RecorderCaptureControlMachine.initialCaptureControl,
+      transition: RecorderCaptureControlMachine.transitionCaptureControl,
+      run: (command: RecorderCaptureControlMachine.CaptureControlEffect) =>
+        command.type === 'emit' ? Effect.asVoid(PubSub.publish(controls, command.control)) : Effect.void,
+    })
     const appendCursor = SubscriptionRef.get(rings.appendCursor)
 
     const emit = (control: RecorderControl) =>
@@ -53,11 +53,7 @@ export const captureControlLayer = Layer.effect(
       event: (now: number) => RecorderCaptureControlMachine.CaptureControlEvent,
     ) {
       const now = yield* Clock.currentTimeMillis
-      const effects = yield* SubscriptionRef.modify(state, (current) => {
-        const next = RecorderCaptureControlMachine.transitionCaptureControl(current, event(now))
-        return [next.effects, next.state]
-      })
-      yield* PubSub.publishAll(controls, readControls(effects))
+      const effects = yield* driver.dispatch(event(now))
       return {effects, now}
     })
 
@@ -78,7 +74,10 @@ export const captureControlLayer = Layer.effect(
     return CaptureControl.of({
       controls: Stream.fromPubSub(controls),
       emit,
-      isLive: Effect.map(Effect.andThen(tick, SubscriptionRef.get(state)), RecorderCaptureControlMachine.isCaptureLive),
+      isLive: Effect.map(
+        Effect.andThen(tick, SubscriptionRef.get(driver.state)),
+        RecorderCaptureControlMachine.isCaptureLive,
+      ),
       startCapture: Effect.gen(function* () {
         const captureId = yield* Effect.sync(() => crypto.randomUUID())
         const cursor = yield* appendCursor

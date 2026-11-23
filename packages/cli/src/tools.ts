@@ -5,7 +5,6 @@ import {ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/con
 import {concivHome} from '@conciv/db'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {listTabs} from './engine-read.js'
-import {pageChangesCommand} from './page.js'
 import {handler} from './router/handler.js'
 import {runRpc, type CliTarget} from './request.js'
 import {tabFlag} from './tab-flag.js'
@@ -16,7 +15,6 @@ type ToolGroup = {
   description: string
   signatures: readonly ToolCommandSignature[]
   call: (signature: ToolCommandSignature, input: Record<string, unknown>, target: CliTarget) => Promise<CliOutcome>
-  extra: readonly AnyRoute[]
 }
 
 function toolGroupRoute(group: ToolGroup) {
@@ -25,7 +23,7 @@ function toolGroupRoute(group: ToolGroup) {
     description(group.description),
     envelopeFlag,
     tabFlag,
-    extend(...group.signatures.map((signature) => verbCommand(group, signature)), ...group.extra),
+    extend(...group.signatures.map((signature) => verbCommand(group, signature))),
   )
 }
 
@@ -65,7 +63,6 @@ function catalogRoutes(catalog: readonly ToolCommandSignature[]): AnyRoute[] {
       description: `the ${group} tools the running dev server serves; run --help for every capability`,
       signatures,
       call: callRegistry,
-      extra: group === PAGE_GROUP ? [pageChangesCommand] : [],
     }),
   )
   return [...groups, ...reactView(grouped), ...single.map(singleCommand)]
@@ -82,7 +79,6 @@ function reactView(grouped: readonly ToolCommandSignature[]): AnyRoute[] {
       description: 'inspect & edit live React components; run --help for every capability',
       signatures,
       call: callRegistry,
-      extra: [],
     }),
   ]
 }
