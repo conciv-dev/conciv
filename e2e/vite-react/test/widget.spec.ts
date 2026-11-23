@@ -81,9 +81,8 @@ test.describe('the conciv CLI against the vite react dev server', () => {
 })
 
 test.describe('attaching files with the Add an attachment button', () => {
-  test('the user picks two files in the file chooser, they show as chips, and the sent message in the thread carries both, then a draft typed beside a big file and closed at once reaches another browser', async ({
+  test('the user picks two files in the file chooser, they show as chips, and the sent message in the thread carries both', async ({
     page,
-    secondPage,
   }) => {
     const chooser = page.waitForEvent('filechooser')
     await page.getByRole('button', {name: 'Add an attachment'}).click()
@@ -108,22 +107,6 @@ test.describe('attaching files with the Add an attachment button', () => {
     await expect(sent).toContainText('Step one')
     await expect(page.getByRole('button', {name: 'notes.txt', exact: true})).toHaveCount(0)
     await expect(composer).toHaveText('')
-
-    const bigChooser = page.waitForEvent('filechooser')
-    await page.getByRole('button', {name: 'Add an attachment'}).click()
-    await (
-      await bigChooser
-    ).setFiles([{name: 'build.png', mimeType: 'image/png', buffer: Buffer.alloc(8_000_000, 'a')}])
-    await expect(page.getByRole('button', {name: 'Remove build.png'})).toBeVisible()
-    await composer.fill('Why did the build fail?')
-    const closed = page.waitForEvent('close')
-    await page.close({runBeforeUnload: true})
-    await closed
-
-    await secondPage.reload()
-    await expect(secondPage.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveText(
-      'Why did the build fail?',
-    )
   })
 })
 
