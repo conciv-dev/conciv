@@ -56,7 +56,7 @@ ConcivWidget.attach(launcher: .native)
 With `CONCIV_URL` unset, `attach()` resolves the api base in this order:
 
 1. The pairing file at `~/.conciv/dev-endpoint.json`, accepted only when its `apiBase` answers
-   `GET /health` as a conciv core. A dev core that serves the native page writes the file on startup and
+   `GET /health` as a conciv core. The ios plugin writes the file on startup and
    removes it on shutdown. The simulator reads the host home directory, so this is the zero-config path.
 2. A probe of `http://127.0.0.1` on ports 4599, 8787, and 3000, taking the first one whose `/health`
    answers as a conciv core. The probe runs whenever step 1 does not yield a live core: no file, an

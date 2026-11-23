@@ -2,15 +2,15 @@
 
 ## Overview
 
-The ConcivWidget iOS SDK: overlays a transparent WKWebView that loads the dev core's native page above the host app, finds the core by env, pairing file or port probe, and exchanges versioned JSON bridge messages for open, close and element picks.
+The ConcivWidget iOS SDK: overlays a transparent WKWebView that loads the dev core's `/widget` page above the host app, finds the core by env, pairing file or port probe, and exchanges versioned JSON bridge messages for open, close and element picks.
 
 ## Interface
 
 - `ConcivWidget.attach(launcher:)` (`ConcivWidget.swift`): zero-config attach; resolves the key window, reads `CONCIV_URL`, else runs discovery
-- `ConcivWidget.attach(apiBase:token:launcher:)` and windowed `attach(to:...)` overloads (`ConcivWidget.swift`): explicit endpoint or window
+- `ConcivWidget.attach(apiBase:launcher:)` and windowed `attach(to:...)` overloads (`ConcivWidget.swift`): explicit endpoint or window
 - `ConcivWidget.detach()` (`ConcivWidget.swift`)
 - `ConcivLauncher` (`LiveRegion.swift`): `.native` FAB or `.mascot`
-- `ConcivEndpoint` (`Discovery.swift`): `apiBase`, `token`, `pid`
+- `ConcivEndpoint` (`Discovery.swift`): `apiBase`, `pid`
 - `ConcivDiscovery` (`Discovery.swift`): `defaultPort` 4599, `candidatePorts` [4599, 8787, 3000], `parsePairingFile`, `pageURL`, `healthURL`, `isHealthyResponse`, `envApiBase`, `shouldAutoShow`, `defaultPairingFileURL`, `isStaleToken`, `isSameCore`
 - `ConcivDiscoverer.discover()` (`Discovery.swift`): pure discovery over injected file reader and probe; `ConcivDiscoveryRuntime` (`DiscoveryRuntime.swift`) supplies the FileManager reader and URLSession `/health` probe
 - `ConcivAnchorRegistry.shared` and `View.concivGrab(id:label:)` (`ConcivGrabAnchor.swift`): register SwiftUI frames as pickable anchors
@@ -36,7 +36,7 @@ The ConcivWidget iOS SDK: overlays a transparent WKWebView that loads the dev co
 
 ## Side Effects
 
-- `OverlayController.swift`: adds a container with a `WKWebView` to the host window and loads `<apiBase>/native`
+- `OverlayController.swift`: adds a container with a `WKWebView` to the host window and loads `<apiBase>/widget?launcher=<native or mascot>`
 - `DiscoveryRuntime.swift`: reads the pairing file `~/.conciv/dev-endpoint.json` (or under `SIMULATOR_HOST_HOME`) and probes `/health` with `URLSession`
 - `Discovery.swift`: reads `CONCIV_URL`, `CONCIV_AUTOSHOW` and `SIMULATOR_HOST_HOME` from the process environment
 - `BridgeHandler.swift`: `evaluateJavaScript` to deliver messages and `webView.reload()` on recovery

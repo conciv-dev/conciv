@@ -8,6 +8,7 @@ export default defineConfig({
     conciv({
       port: 4599,
       plugins: [
+        '-conciv.page',
         [
           '@conciv/plugin-ios',
           {
