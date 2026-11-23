@@ -1,5 +1,6 @@
 import {dirname, isAbsolute, join, posix, relative, resolve, sep} from 'node:path'
-import {readFileSync, existsSync, writeFileSync} from 'node:fs'
+import {readFileSync, existsSync} from 'node:fs'
+import {access, writeFile} from 'node:fs/promises'
 import type {Plugin, ViteDevServer} from 'vite'
 import {concivStateDir, createConcivStateDir} from '@conciv/protocol/state-types'
 import type {Engine, LogEntry} from '@conciv/core/start'
@@ -76,13 +77,13 @@ function readImportPath(from: string, file: string): string {
   return path.startsWith('../') ? path : `./${path}`
 }
 
-function writeScanEntry(root: string, files: readonly string[]): readonly string[] {
+async function writeScanEntry(root: string, files: readonly string[]): Promise<readonly string[]> {
   const stateDir = concivStateDir(root)
   const path = join(stateDir, 'widget-scan-entry.gen.js')
   const source = files.map((file) => `import ${JSON.stringify(readImportPath(stateDir, file))}\n`).join('')
   try {
-    createConcivStateDir(stateDir)
-    writeFileSync(path, source, 'utf8')
+    await createConcivStateDir(stateDir)
+    await writeFile(path, source, 'utf8')
     return [path]
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error)
@@ -93,12 +94,20 @@ function writeScanEntry(root: string, files: readonly string[]): readonly string
   }
 }
 
-function readInputFiles(input: unknown, root: string): string[] | undefined {
+async function readInputFiles(input: unknown, root: string): Promise<string[] | undefined> {
   const values = typeof input === 'string' ? [input] : Array.isArray(input) ? input : Object.values(input ?? {})
   const files = values.map((value) =>
     typeof value === 'string' && isAbsolute(value) ? value : join(root, String(value)),
   )
-  return files.every((file) => existsSync(file)) ? files : undefined
+  const found = await Promise.all(
+    files.map((file) =>
+      access(file).then(
+        () => true,
+        () => false,
+      ),
+    ),
+  )
+  return found.every(Boolean) ? files : undefined
 }
 
 type ScanConfig = {
@@ -112,13 +121,17 @@ function readAppInput(config: ScanConfig): unknown {
   return config.input ?? build.rolldownOptions?.input ?? build.rollupOptions?.input
 }
 
-function addScanEntries(config: ScanConfig, root: string, files: readonly string[]): string[] | undefined {
+async function addScanEntries(
+  config: ScanConfig,
+  root: string,
+  files: readonly string[],
+): Promise<string[] | undefined> {
   if (files.length === 0) return undefined
-  const patterns = writeScanEntry(root, files).map(escapeGlob)
+  const patterns = (await writeScanEntry(root, files)).map(escapeGlob)
   if (config.optimizeDeps?.entries !== undefined) return patterns
   const input = readAppInput(config)
   if (input === undefined) return [...DEFAULT_SCAN_ENTRIES, ...patterns]
-  const inputFiles = readInputFiles(input, root)
+  const inputFiles = await readInputFiles(input, root)
   return inputFiles === undefined ? undefined : [...inputFiles.map(escapeGlob), ...patterns]
 }
 
@@ -348,10 +361,10 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         },
       }
     },
-    configEnvironment(name, environmentConfig) {
+    async configEnvironment(name, environmentConfig) {
       dropIncludedFromExcludes(environmentConfig.optimizeDeps, managedExcludes)
       if (name !== 'client') return
-      const entries = addScanEntries(environmentConfig, projectRoot, widgetFiles)
+      const entries = await addScanEntries(environmentConfig, projectRoot, widgetFiles)
       return entries === undefined ? undefined : {optimizeDeps: {entries}}
     },
     async configResolved(config) {
