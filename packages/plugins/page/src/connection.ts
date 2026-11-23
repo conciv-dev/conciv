@@ -41,6 +41,7 @@ import {
   type ConnectionEvent,
 } from './machine.js'
 import {PageQueue} from './queue.js'
+import {PageSkill} from './skill.js'
 import {
   Definition,
   PageChangeEntrySchema,
@@ -236,7 +237,15 @@ export const make = Effect.fn('PageConnection.make')(function* (
     return Deferred.done(drained, Exit.void).pipe(Effect.asVoid)
   }
   const syncPermissions = (effect: SyncEffect) =>
-    ctx.session.get({sessionId: effect.sessionId}).pipe(
+    (effect.allow
+      ? ctx.session.instructions.entry.put({
+          sessionId: effect.sessionId,
+          key: PageSkill.id,
+          value: PageSkill.instructions,
+        })
+      : ctx.session.instructions.entry.remove({sessionId: effect.sessionId, key: PageSkill.id})
+    ).pipe(
+      Effect.andThen(ctx.session.get({sessionId: effect.sessionId})),
       Effect.flatMap((session) => {
         const permissions = reconcilePagePermissions(session.permissions, effect.allow)
         return permissions ? ctx.session.update({sessionId: effect.sessionId, permissions}) : Effect.void

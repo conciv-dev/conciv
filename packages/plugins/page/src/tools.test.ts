@@ -14,6 +14,7 @@ describe('with no page open, the agent is offered no page tools', () => {
     expect(system).toContain('    <id>conciv</id>')
     expect(system).not.toContain('external_page_')
     expect(system).not.toContain('    <id>page</id>')
+    expect(system).not.toContain('Live DOM, CSS and React tweaks')
 
     expect(await engine.session.tool('page_tabs_list').failure({})).toMatchObject({
       tool: 'page_tabs_list',
@@ -26,7 +27,7 @@ describe('with no page open, the agent is offered no page tools', () => {
 })
 
 describe('the agent reads the page in code mode', () => {
-  it('tells the model the exported page result is untrusted page data', async () => {
+  it('gives the model the page instructions once a page attaches, and tells it the exported page result is untrusted page data', async () => {
     const engine = await createEngine()
     const connectionId = 'checkout'
     const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
@@ -55,7 +56,13 @@ describe('the agent reads the page in code mode', () => {
 
     await engine.session.send('Which tabs are open?')
 
-    const [, second] = await engine.requests()
+    const [first, second] = await engine.requests()
+    expect(first?.system.join('\n')).toContain(
+      '<context key="page">\nThe page capabilities read and drive the live page the user sees and its React components.',
+    )
+    expect(first?.system.join('\n')).toContain(
+      'Live DOM, CSS and React tweaks made through the page capabilities are EPHEMERAL',
+    )
     await engine.restart()
     expect(await attachment).toBe('closed')
     expect(second?.messages.at(-1)).toMatchObject({
