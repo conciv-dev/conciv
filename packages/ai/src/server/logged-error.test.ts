@@ -5,8 +5,8 @@ describe('a TanStack AI error line in the engine log', () => {
   it.each([
     {
       message: 'code-mode execute_typescript failed',
-      error: {name: 'ReferenceError', message: "'external_page_tabs_list' is not defined", stack: 'at <eval>'},
-      line: "[ai] code-mode execute_typescript failed: ReferenceError: 'external_page_tabs_list' is not defined",
+      error: {name: 'ReferenceError', message: "'external_weather_forecast' is not defined", stack: 'at <eval>'},
+      line: "[ai] code-mode execute_typescript failed: ReferenceError: 'external_weather_forecast' is not defined",
     },
     {
       message: 'WebSocket errored; aborting its turns',
