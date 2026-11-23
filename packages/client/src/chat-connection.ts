@@ -172,7 +172,17 @@ const RUN_RECONNECT_ATTEMPTS = 5
 const RUN_RECONNECT_FIRST_DELAY_MS = 250
 const RUN_RECONNECT_MAX_DELAY_MS = 5000
 
-function runReconnects(engine: Engine, {attempts, firstDelayMs, maxDelayMs}: RunReconnect): RpcClientContext {
+function reconnectDelayMs({firstDelayMs, maxDelayMs}: RunReconnect, attempt: number): number {
+  return Math.min(maxDelayMs, firstDelayMs * 2 ** attempt)
+}
+
+function waited(delayMs: number, signal: AbortSignal): Promise<void> {
+  const done = AbortSignal.any([signal, AbortSignal.timeout(delayMs)])
+  if (done.aborted) return Promise.resolve()
+  return new Promise((resolve) => done.addEventListener('abort', () => resolve(), {once: true}))
+}
+
+function runReconnects(engine: Engine, reconnect: RunReconnect): RpcClientContext {
   let progressed: {attemptIndex: number; lastEventId: string | undefined} = {attemptIndex: 0, lastEventId: undefined}
   const attemptsSinceProgress = (attemptIndex: number, lastEventId: string | undefined): number => {
     if (lastEventId !== progressed.lastEventId) progressed = {attemptIndex, lastEventId}
@@ -186,10 +196,10 @@ function runReconnects(engine: Engine, {attempts, firstDelayMs, maxDelayMs}: Run
         await trustedAgain(engine, signal)
         return !signal.aborted
       }
-      return !(error instanceof ORPCError) && attemptsSinceProgress(attemptIndex, lastEventId) < attempts
+      return !(error instanceof ORPCError) && attemptsSinceProgress(attemptIndex, lastEventId) < reconnect.attempts
     },
     retryDelay: ({attemptIndex, lastEventId}) =>
-      Math.min(maxDelayMs, firstDelayMs * 2 ** attemptsSinceProgress(attemptIndex, lastEventId)),
+      reconnectDelayMs(reconnect, attemptsSinceProgress(attemptIndex, lastEventId)),
   }
 }
 
@@ -395,22 +405,30 @@ async function* sessionEvents(
   engine: Engine,
   sessionId: string,
   signal: AbortSignal,
+  reconnect: RunReconnect,
   link: EventsLink | undefined,
 ): AsyncGenerator<ChatEvent> {
   link?.watching()
   try {
-    while (!signal.aborted) {
+    for (let failures = 0; !signal.aborted;) {
       try {
         const live = await rpc.chat.events({sessionId}, {signal, context: watchedContext(link)})
         link?.live()
+        failures = 0
         yield* live
-        if (!signal.aborted) link?.dropped()
       } catch (error) {
         if (signal.aborted) return
-        if (!refused(error)) throw error
-        link?.dropped()
-        await trustedAgain(engine, signal)
+        if (refused(error)) {
+          link?.dropped()
+          await trustedAgain(engine, signal)
+          continue
+        }
       }
+      if (signal.aborted) return
+      link?.dropped()
+      if (failures >= reconnect.attempts) throw new StreamReconnectLimitError(reconnect.attempts)
+      await waited(reconnectDelayMs(reconnect, failures), signal)
+      failures += 1
     }
   } finally {
     link?.dropped()
@@ -451,14 +469,15 @@ export function chatConnection(
 ): ChatConnection {
   const lifetime = new AbortController()
   const engine: Engine = {apiBase, timings: options.engineTimings}
-  const turns = overRpc(rpc, engine, sessionId, lifetime.signal, {
+  const reconnect: RunReconnect = {
     attempts: options.runReconnect?.attempts ?? RUN_RECONNECT_ATTEMPTS,
     firstDelayMs: options.runReconnect?.firstDelayMs ?? RUN_RECONNECT_FIRST_DELAY_MS,
     maxDelayMs: options.runReconnect?.maxDelayMs ?? RUN_RECONNECT_MAX_DELAY_MS,
-  })
+  }
+  const turns = overRpc(rpc, engine, sessionId, lifetime.signal, reconnect)
   const link = eventsLink(options.onLiveAgain)
   const events: SessionEvents = (abortSignal, watched) =>
-    sessionEvents(rpc, engine, sessionId, within(lifetime.signal, abortSignal), watched)
+    sessionEvents(rpc, engine, sessionId, within(lifetime.signal, abortSignal), reconnect, watched)
   const fetched = async (threadId: string, window: ChatHistoryWindow): Promise<ChatHydration> => {
     const hydration = await rpc.chat.hydrate({...window, sessionId: threadId})
     options.onHydrated?.(hydration)
