@@ -8,8 +8,9 @@ import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../test/hub-test.js'
 
 describe('the hub', () => {
-  test('an outside agent lists the open tabs (none, then a tab with its project, branch and page), discovers and runs code with no tab on the engine registered in the home, is told to pass a tab for a tool that needs a session, then queues page actions on a tab and reads the result of the queue on its next call', async ({
+  test('an outside agent lists the open tabs (none, then a tab with its project, branch and page), discovers and runs code with no tab on the engine registered in the home, is told to pass a tab for a tool that needs a session, then queues page actions on a tab and reads the result of the queue on its next call; a tasks client running two queueing calls at once gets a task per call holding only its own queue, and a task whose engine restarted ends failed naming the lost queue', async ({
     hub,
+    tasksHub,
   }) => {
     const engine = await createEngine(
       {plugins: ['@conciv/plugin-page', './test/fixtures/plugins/plant-shelf']},
@@ -119,8 +120,74 @@ describe('the hub', () => {
       {type: 'text', text: expect.stringMatching(new RegExp(`^queue ${queueId} lost: 0 played, 0 failed\n`))},
       {type: 'text', text: JSON.stringify({result: 'watered', logs: []})},
     ])
+    const tasks = tasksHub(engine.home)
+    const TaskSchema = z.object({resultType: z.literal('task'), taskId: z.string(), status: z.literal('working')})
+    const CompletedSchema = z.object({
+      status: z.literal('completed'),
+      result: z.object({content: z.array(z.object({text: z.string()}))}),
+    })
+    const queueTask = async (selector: string) =>
+      TaskSchema.parse(
+        await tasks.request('tools/call', {
+          name: 'execute_typescript',
+          arguments: {
+            tab: sessionId,
+            typescriptCode: `return await external_page_queue_async({actions: [{tool: 'page_click', selector: '${selector}'}]})`,
+          },
+        }),
+      )
+    const pollTask = (taskId: string) => tasks.request('tasks/get', {taskId})
+    const refuse = async (waited: Promise<{data: unknown}>) => {
+      const refused = z.object({requestId: z.string()}).parse((await waited).data)
+      await engine.rpc.call('experimental.page', 'result', {
+        sessionId,
+        connectionId,
+        requestId: refused.requestId,
+        outcome: {type: 'failure', code: 'closed', message: 'the shelf is closed'},
+      })
+    }
+    const ownQueues = (completed: unknown) => {
+      const texts = CompletedSchema.parse(completed).result.content.map((part) => part.text)
+      const handed = texts.flatMap((text) => /"queueId":"(q_[^"]+)","actions":1/.exec(text)?.[1] ?? [])
+      const noticed = texts.flatMap((text) => /^queue (q_\S+) lost: 0 played, 0 failed\n/.exec(text)?.[1] ?? [])
+      return {handed, noticed}
+    }
+
+    const firstCommand = await engine.event('rpc.experimental.page.control', {data: {type: 'command', connectionId}})
+    const [feed, prune] = await Promise.all([queueTask('#feed'), queueTask('#prune')])
+    const firstFinished = await engine.event('rpc.experimental.page.queue.finished')
+    const secondCommand = await engine.event('rpc.experimental.page.control', {data: {type: 'command', connectionId}})
+    await refuse(firstCommand.arrived)
+    await firstFinished.arrived
+    const secondFinished = await engine.event('rpc.experimental.page.queue.finished')
+    await refuse(secondCommand.arrived)
+    await secondFinished.arrived
+    const fed = ownQueues(await pollTask(feed.taskId))
+    const pruned = ownQueues(await pollTask(prune.taskId))
+    expect(fed.handed).toHaveLength(1)
+    expect(pruned.handed).toHaveLength(1)
+    expect(fed.noticed).toEqual(fed.handed)
+    expect(pruned.noticed).toEqual(pruned.handed)
+    expect(fed.handed).not.toEqual(pruned.handed)
+
+    const stranded = await queueTask('#water')
+    expect(await pollTask(stranded.taskId)).toMatchObject({taskId: stranded.taskId, status: 'working'})
     await engine.restart()
     expect(await attachment).toBe('closed')
+    const lost = await pollTask(stranded.taskId)
+    expect(lost).toEqual({
+      _meta: {'io.modelcontextprotocol/serverInfo': {name: 'conciv-hub', version: expect.any(String)}},
+      resultType: 'complete',
+      taskId: stranded.taskId,
+      createdAt: expect.any(String),
+      ttlMs: 3_600_000,
+      status: 'failed',
+      lastUpdatedAt: expect.any(String),
+      statusMessage: expect.stringMatching(
+        /^queue q_\S+ was lost: the engine holding the tab no longer has it \(it restarted\), so its actions may have partly run$/,
+      ),
+    })
+    expect(await pollTask(stranded.taskId)).toEqual(lost)
   })
 
   test('an engine without the page plugin lists no tabs and says a tab is not open; an engine whose page plugin answers outside the expected shape is named too old, and a session whose tabs cannot be read is listed with none', async ({

@@ -1,20 +1,17 @@
 import {once} from 'node:events'
 import {z} from 'zod'
-import {differenceBy, partition} from 'es-toolkit'
-import {ORPCError} from '@orpc/client'
+import {Effect, Exit, Scope} from 'effect'
 import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
-import {concivHome, type EngineRow} from '@conciv/db'
+import {concivHome} from '@conciv/db'
 import {
+  cappedText,
   codeDiscoverReply,
   codeExecuteReply,
-  engineTooOld,
-  makeRpcClient,
   type CodeDescriptions,
   type CodeDiscoverResult,
   type CodeExecuteResult,
   type CodeReply,
-  type RpcClient,
 } from '@conciv/contract'
 import {
   CODE_MODE_EXTERNAL_PREFIX,
@@ -25,29 +22,22 @@ import {
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
 import cliManifest from '../package.json' with {type: 'json'}
 import type {CliOutcome} from './envelope.js'
-import {
-  askAgain,
-  askTab,
-  askTabs,
-  ENGINE_READ_MS,
-  errorText,
-  homeRead,
-  listTabs,
-  liveEngines,
-  PROBE_MS,
-  runningEngines,
-  silence,
-  TOO_OLD,
-  type Silent,
-  type TabAsk,
-} from './engine-read.js'
-import {engineOutdated, PAGE_NAMESPACE} from './hub/page.js'
+import {errorText, listTabs, logHub} from './engine-read.js'
+import {failed, sendCall, type Route} from './hub/call.js'
+import {makeEngines, type Engines, type Runner} from './hub/engines.js'
+import {pageCall, PAGE_NAMESPACE, pollQueue, type OutsideQueues} from './hub/page.js'
+import {makeTabs, type TabOwner, type Tabs} from './hub/tabs.js'
+import {makeQueues, TASK_POLL_MS, type Queues, type TaskReply} from './hub/tasks.js'
 
 const EXECUTE_TOOL_NAME = 'execute_typescript'
 
 const DISCOVER_TOOL_NAME = 'discover_tools'
 
 const LIST_TABS_TOOL_NAME = 'list_tabs'
+
+const TASKS_EXTENSION = 'io.modelcontextprotocol/tasks'
+
+const CLIENT_CAPABILITIES = 'io.modelcontextprotocol/clientCapabilities'
 
 const TabInputSchema = SessionId.optional().describe(
   "The conciv tab this call acts on. List the open tabs with list_tabs, match the user's words against project, branch, root, href, pageTitle and sessionTitle, then pass that tab's id as tab on every execute_typescript and discover_tools call.",
@@ -69,7 +59,13 @@ const ListTabsInputSchema = z.object({})
 const LIST_TABS_DESCRIPTION =
   'List the open conciv tabs of every running conciv dev server on this machine. conciv tabs are live web pages running the conciv widget. When the user refers to a conciv tab, session or page in words, call list_tabs and match their words against project, branch, root, href, pageTitle and sessionTitle. If exactly one tab matches, use it and tell the user which one you picked (project, branch, URL). If more than one matches, do not guess: ask the user which one, naming the field that differs. Prefer a tab whose state is visible only when the user says "this one" or "the one I have open". If none match, say so and list what is open. Then pass the id of that tab as tab on every execute_typescript and discover_tools call; the first reply for a tab starts with its instructions, follow them. When a session has more than one browser tab (browserTabs lists each with its href), calls go to the one focused last, which is the first listed; tell the user which one (href). A call into a tab waits until the user approves it in that tab; if it says the user denied you access, stop and tell the user, do not retry. If a call says the tab is not open, call list_tabs again. Dev servers that did not answer are listed under unreachable.'
 
-const RefusedSchema = z.object({cause: z.object({code: z.literal('ECONNREFUSED')})})
+const TasksCapableSchema = z.object({
+  [CLIENT_CAPABILITIES]: z.object({extensions: z.object({[TASKS_EXTENSION]: z.unknown()})}),
+})
+
+const TaskIdParamsSchema = z.object({taskId: z.string().min(1)})
+
+const TaskRequestSchema = z.object({params: TaskIdParamsSchema})
 
 const PAGE_TOOL_PREFIX = `${PAGE_NAMESPACE}_`
 
@@ -87,169 +83,47 @@ type ToolName = keyof typeof FALLBACK_DESCRIPTIONS
 
 type Reply = CodeReply
 
-type Runner = {root: string; rpc: RpcClient; described: CodeDescriptions | null}
+type TextPart = {type: 'text'; text: string}
 
-type TabOwner = {root: string; apiBase: string; token: string; rpc: RpcClient}
+type Machines = {engines: Engines; tabs: Tabs; queues: Queues}
 
-type TabEntry = {owner: Promise<TabOwner> | null; greeted: boolean}
-
-type EngineCall<Value> = (rpc: RpcClient, signal: AbortSignal | undefined) => Promise<Value>
-
-type Routed<Value> = {reply: Reply; value: Value | null}
-
-type Candidate = {runner: Runner; unusable: null} | {runner: null; unusable: string}
-
-type Picked = {runner: Runner | null; unusable: string[]}
+const NOTHING_QUEUED: OutsideQueues = {queued: [], finished: []}
 
 export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<CliOutcome> {
   const home = concivHome({env})
-  const held: {runner: Promise<Runner> | null} = {runner: null}
-  const tabs = new Map<SessionId, TabEntry>()
   const headers = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: agent}
-
-  function currentRunner(): Promise<Runner> {
-    if (held.runner !== null) return held.runner
-    const picking: Promise<Runner> = pickRunner(home, headers).catch((error: unknown) => {
-      if (held.runner === picking) held.runner = null
-      throw error
-    })
-    held.runner = picking
-    return picking
-  }
-
-  function dropRunner(picked: Promise<Runner>): void {
-    if (held.runner === picked) held.runner = null
-  }
-
-  async function forward<Value>(
-    call: EngineCall<Value>,
-    format: (value: Value) => Reply,
-    signal: AbortSignal | undefined,
-    resent = false,
-  ): Promise<Routed<Value>> {
-    const picked = currentRunner()
-    const runner = await picked
-    try {
-      const value = await call(runner.rpc, signal)
-      return {reply: format(value), value}
-    } catch (error) {
-      if (!resent && unrun(error)) {
-        dropRunner(picked)
-        return forward(call, format, signal, true)
-      }
-      if (answered(error)) return {reply: failed(answerText(runner.root, error)), value: null}
-      dropRunner(picked)
-      const after = await currentRunner().then(
-        (next) => `the next call runs on ${next.root}`,
-        () => 'no other conciv dev server is running',
-      )
-      throw new Error(
-        `the call failed on the conciv engine at ${runner.root} (${errorText(error)}); it was not retried, since the block may already have acted on a page; ${after}`,
-        {cause: error},
-      )
-    }
-  }
-
-  function ensureEntry(tab: SessionId): TabEntry {
-    const existing = tabs.get(tab)
-    if (existing !== undefined) return existing
-    const created: TabEntry = {owner: null, greeted: false}
-    tabs.set(tab, created)
-    return created
-  }
-
-  function forget(entry: TabEntry, kept: Promise<TabOwner>): void {
-    if (entry.owner === kept) entry.owner = null
-  }
-
-  async function onTab<Value>(
-    tab: SessionId,
-    call: EngineCall<Value>,
-    format: (value: Value) => Reply,
-    signal: AbortSignal | undefined,
-    resent = false,
-  ): Promise<Routed<Value>> {
-    const entry = ensureEntry(tab)
-    const kept = (entry.owner ??= findOwner(home, tab, headers))
-    const owner = await kept.catch((error: unknown) => {
-      forget(entry, kept)
-      throw error
-    })
-    try {
-      const value = await call(owner.rpc, signal)
-      return {reply: await greeted(entry, owner, tab, format(value)), value}
-    } catch (error) {
-      if (!resent && unrun(error)) {
-        forget(entry, kept)
-        return onTab(tab, call, format, signal, true)
-      }
-      if (answered(error)) {
-        if (!(await holdsTab(owner, tab))) forget(entry, kept)
-        return {reply: await greeted(entry, owner, tab, failed(answerText(owner.root, error))), value: null}
-      }
-      forget(entry, kept)
-      throw new Error(
-        `the call on tab ${tab} failed on the conciv engine at ${owner.root} (${errorText(error)}); it was not retried, since the block may already have acted on a page; the next call looks up the engine holding the tab again`,
-        {cause: error},
-      )
-    }
-  }
-
-  async function routed<Value>(
-    tab: SessionId | undefined,
-    call: EngineCall<Value>,
-    format: (value: Value) => Reply,
-    signal: AbortSignal | undefined,
-  ): Promise<Routed<Value>> {
-    const sent = tab === undefined ? forward(call, format, signal) : onTab(tab, call, format, signal)
-    return sent.catch((error: unknown) => ({reply: failed(errorText(error)), value: null}))
-  }
-
-  async function executeCall(input: z.infer<typeof ExecuteInputSchema>, signal: AbortSignal): Promise<Reply> {
-    const tab = TabInputSchema.parse(input.tab)
-    const typescriptCode = input.typescriptCode
-    const executed = await routed(
-      tab,
-      (rpc, aborted) => rpc.code.execute({...buildSessionInput(tab), typescriptCode}, {signal: aborted}),
-      tab === undefined ? outsideExecuteReply : codeExecuteReply,
-      signal,
-    )
-    return executed.reply
-  }
-
-  async function discoverCall(input: z.infer<typeof DiscoverInputSchema>, signal: AbortSignal): Promise<Reply> {
-    const tab = TabInputSchema.parse(input.tab)
-    const toolNames = input.toolNames
-    const discovered = await routed(
-      tab,
-      (rpc, aborted) => rpc.code.discover({...buildSessionInput(tab), toolNames}, {signal: aborted}),
-      (value) => codeDiscoverReply(notePageTools(value, toolNames)),
-      signal,
-    )
-    return discovered.reply
-  }
+  const scope = Effect.runSync(Scope.make())
+  const machines = await Effect.runPromise(makeMachines(home, headers).pipe(Scope.provide(scope)))
 
   function serveTools(server: McpServer): void {
     server.registerTool(
       EXECUTE_TOOL_NAME,
       {description: descriptions[EXECUTE_TOOL_NAME], inputSchema: ExecuteInputSchema},
-      async (input, ctx) => executeCall(input, ctx.mcpReq.signal),
+      async (input, ctx) =>
+        Effect.runPromise(executeCall(machines, input, TasksCapableSchema.safeParse(ctx.mcpReq.envelope).success), {
+          signal: ctx.mcpReq.signal,
+        }),
     )
     server.registerTool(
       DISCOVER_TOOL_NAME,
       {description: descriptions[DISCOVER_TOOL_NAME], inputSchema: DiscoverInputSchema},
-      async (input, ctx) => discoverCall(input, ctx.mcpReq.signal),
+      async (input, ctx) => Effect.runPromise(discoverCall(machines, input), {signal: ctx.mcpReq.signal}),
     )
     server.registerTool(
       LIST_TABS_TOOL_NAME,
       {description: LIST_TABS_DESCRIPTION, inputSchema: ListTabsInputSchema},
       async () => listTabsCall(home),
     )
+    server.server.setRequestHandler('tasks/get', {params: TaskIdParamsSchema}, async (params) =>
+      Effect.runPromise(machines.queues.get(TaskIdParamsSchema.parse(params).taskId)),
+    )
   }
 
-  const descriptions = await currentRunner().then(
-    (runner) => toolDescriptions(runner.described),
-    () => FALLBACK_DESCRIPTIONS,
+  const descriptions = await Effect.runPromise(
+    machines.engines.runner.pipe(
+      Effect.map((runner) => toolDescriptions(runner.described)),
+      Effect.orElseSucceed(() => FALLBACK_DESCRIPTIONS),
+    ),
   )
   const server = createMCPServer({
     name: 'conciv-hub',
@@ -257,50 +131,131 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
     sessions: 'memory',
     setup: serveTools,
   })
-  const served = serveMCPStdio(server)
+  const served = serveMCPStdio({...server, fetch: async (request) => server.fetch(await withTaskName(request))})
   await once(process.stdin, 'end')
   await served.close()
+  await Effect.runPromise(Scope.close(scope, Exit.void))
   return {report: 'none', code: 0}
 }
 
-async function pickRunner(home: string, headers: Record<string, string>): Promise<Runner> {
-  const first = await runningEngines(home)
-  const picked = await firstUsable(first.live, headers, [])
-  if (picked.runner !== null) return picked.runner
-  const second = await homeRead(home, askAgain(home, first.unreachable))
-  const later = await firstUsable(
-    differenceBy(second.live, first.live, (row) => row.id),
-    headers,
-    picked.unusable,
+const makeMachines = Effect.fn('Hub.machines')(function* (home: string, headers: Record<string, string>) {
+  const engines = yield* makeEngines(home, headers)
+  const tabs = yield* makeTabs(home, headers)
+  const queues = yield* makeQueues((tab, queueId) =>
+    sendCall(tabRoute(tabs, tab), (owner, signal) =>
+      pollQueue(owner.lookup, tab, queueId, AbortSignal.any([signal, AbortSignal.timeout(TASK_POLL_MS)])),
+    ).pipe(
+      Effect.map((sent) => sent.value),
+      Effect.orElseSucceed(() => null),
+    ),
   )
-  if (later.runner !== null) return later.runner
-  throw noRunner(later.unusable, second.unreachable)
+  const machines: Machines = {engines, tabs, queues}
+  return machines
+})
+
+function runnerRoute(engines: Engines): Route<Runner> {
+  return {
+    path: 'runner',
+    target: engines.runner,
+    drop: engines.drop,
+    failure: (runner, error) =>
+      engines.runner.pipe(
+        Effect.map((next) => `the next call runs on ${next.root}`),
+        Effect.orElseSucceed(() => 'no other conciv dev server is running'),
+        Effect.map(
+          (after) =>
+            new Error(
+              `the call failed on the conciv engine at ${runner.root} (${errorText(error)}); it was not retried, since the block may already have acted on a page; ${after}`,
+              {cause: error},
+            ),
+        ),
+      ),
+  }
 }
 
-function noRunner(unusable: string[], silent: Silent): Error {
-  if (unusable.length === 0) return new Error(`no conciv dev server answered: ${silence(silent)}`)
-  const named = silent.length === 0 ? unusable : [...unusable, silence(silent)]
-  return new Error(`no conciv dev server this hub can use is running: ${named.join('; ')}`)
+function tabRoute(tabs: Tabs, tab: SessionId): Route<TabOwner> {
+  return {
+    path: 'tab',
+    target: tabs.owner(tab),
+    drop: (owner) => tabs.forget(tab, owner),
+    holds: (owner) => tabs.holds(tab, owner),
+    failure: (owner, error) =>
+      Effect.succeed(
+        new Error(
+          `the call on tab ${tab} failed on the conciv engine at ${owner.root} (${errorText(error)}); it was not retried, since the block may already have acted on a page; the next call looks up the engine holding the tab again`,
+          {cause: error},
+        ),
+      ),
+  }
 }
 
-async function firstUsable(rows: EngineRow[], headers: Record<string, string>, unusable: string[]): Promise<Picked> {
-  const [row, ...rest] = rows
-  if (row === undefined) return {runner: null, unusable}
-  const candidate = await runnerAt(row, headers)
-  if (candidate.runner !== null) return {runner: candidate.runner, unusable}
-  return firstUsable(rest, headers, [...unusable, `${row.root} (${candidate.unusable})`])
+function executeCall(
+  machines: Machines,
+  input: z.infer<typeof ExecuteInputSchema>,
+  tasksCapable: boolean,
+): Effect.Effect<Reply | TaskReply> {
+  const tab = TabInputSchema.parse(input.tab)
+  const typescriptCode = input.typescriptCode
+  if (tab === undefined) {
+    return sendCall(runnerRoute(machines.engines), (runner, signal) =>
+      runner.rpc.code.execute({typescriptCode}, {signal}),
+    ).pipe(
+      Effect.map((sent) => (sent.value === null ? sent.reply : outsideExecuteReply(sent.value))),
+      Effect.catch((error) => Effect.succeed(failed(errorText(error)))),
+    )
+  }
+  return Effect.gen(function* () {
+    const sent = yield* sendCall(tabRoute(machines.tabs, tab), (owner, signal) =>
+      owner.rpc.code.execute({sessionId: tab, typescriptCode}, {signal}),
+    )
+    if (sent.value === null) return yield* machines.tabs.greet(tab, sent.target, sent.reply)
+    const toolCallIds = [...(yield* machines.queues.owedToolCalls(tab)), ...sent.value.toolCalls]
+    const outside = yield* outsideQueues(sent.target, tab, toolCallIds)
+    const own = yield* machines.queues.replied(tab, toolCallIds, outside)
+    const executed = codeExecuteReply(sent.value)
+    const notices = outside.finished.map((finished): TextPart => ({type: 'text', text: cappedText(finished.notice)}))
+    const reply = yield* machines.tabs.greet(tab, sent.target, {
+      ...executed,
+      content: [...notices, ...executed.content],
+    })
+    if (own.length === 0 || !tasksCapable) return reply
+    return yield* machines.queues.create(tab, own, reply)
+  }).pipe(Effect.catch((error) => Effect.succeed(failed(errorText(error)))))
 }
 
-async function runnerAt(row: EngineRow, headers: Record<string, string>): Promise<Candidate> {
-  const rpc = makeRpcClient(row.apiBase, {token: row.token, headers})
-  return rpc.code.describe(undefined, {signal: AbortSignal.timeout(ENGINE_READ_MS)}).then(
-    (described): Candidate => ({runner: {root: row.root, rpc, described}, unusable: null}),
-    (error: unknown): Candidate => {
-      if (engineTooOld(error)) return {runner: null, unusable: TOO_OLD}
-      if (error instanceof ORPCError && error.code === 'NO_CODE_MODE') return {runner: null, unusable: errorText(error)}
-      logHub(`reading the tool descriptions of the conciv engine at ${row.root} failed; using the built-in text`, error)
-      return {runner: {root: row.root, rpc, described: null}, unusable: null}
-    },
+function outsideQueues(owner: TabOwner, tab: SessionId, toolCallIds: string[]): Effect.Effect<OutsideQueues> {
+  if (toolCallIds.length === 0) return Effect.succeed(NOTHING_QUEUED)
+  return Effect.tryPromise({
+    try: (signal) => pageCall(owner.lookup, 'queue.outside', {sessionId: tab, toolCallIds}, signal),
+    catch: (error) => error,
+  }).pipe(
+    Effect.map((outside) => outside ?? NOTHING_QUEUED),
+    Effect.catch((error) => {
+      logHub(`reading the queues of tab ${tab} failed; the reply goes without them`, error)
+      return Effect.succeed(NOTHING_QUEUED)
+    }),
+  )
+}
+
+function discoverCall(machines: Machines, input: z.infer<typeof DiscoverInputSchema>): Effect.Effect<Reply> {
+  const tab = TabInputSchema.parse(input.tab)
+  const toolNames = input.toolNames
+  const discovered = (value: CodeDiscoverResult) => codeDiscoverReply(notePageTools(value, toolNames))
+  if (tab === undefined) {
+    return sendCall(runnerRoute(machines.engines), (runner, signal) =>
+      runner.rpc.code.discover({toolNames}, {signal}),
+    ).pipe(
+      Effect.map((sent) => (sent.value === null ? sent.reply : discovered(sent.value))),
+      Effect.catch((error) => Effect.succeed(failed(errorText(error)))),
+    )
+  }
+  return sendCall(tabRoute(machines.tabs, tab), (owner, signal) =>
+    owner.rpc.code.discover({sessionId: tab, toolNames}, {signal}),
+  ).pipe(
+    Effect.flatMap((sent) =>
+      machines.tabs.greet(tab, sent.target, sent.value === null ? sent.reply : discovered(sent.value)),
+    ),
+    Effect.catch((error) => Effect.succeed(failed(errorText(error)))),
   )
 }
 
@@ -312,113 +267,11 @@ function toolDescriptions(described: CodeDescriptions | null): Record<ToolName, 
   }
 }
 
-async function findOwner(home: string, tab: SessionId, headers: Record<string, string>): Promise<TabOwner> {
-  const first = await liveEngines(home)
-  const probes = await askTabs(first.live, tab, PROBE_MS)
-  const [settled, unsettled] = partition(probes, (probe) => probe.answer !== null)
-  if (openRows(probes).length > 0 || (first.unreachable.length === 0 && unsettled.length === 0)) {
-    return ownerAmong(tab, probes, first.unreachable, headers)
-  }
-  const [second, retried] = await Promise.all([
-    homeRead(home, askAgain(home, first.unreachable)),
-    askTabs(
-      unsettled.map((probe) => probe.row),
-      tab,
-      ENGINE_READ_MS,
-    ),
-  ])
-  const later = await askTabs(
-    differenceBy(second.live, first.live, (row) => row.id),
-    tab,
-    ENGINE_READ_MS,
-  )
-  return ownerAmong(tab, [...settled, ...retried, ...later], second.unreachable, headers)
-}
-
-function openRows(probes: TabAsk[]): EngineRow[] {
-  return probes.flatMap((probe) => (probe.answer?.open === true ? [probe.row] : []))
-}
-
-function ownerAmong(tab: SessionId, probes: TabAsk[], silent: Silent, headers: Record<string, string>): TabOwner {
-  const [only, second] = openRows(probes)
-  const failures = [
-    ...probes.flatMap((probe) => (probe.answer === null ? [failedProbe(probe.row.root, probe.failure)] : [])),
-    ...silent.map((entry) => new Error(silence([entry]))),
-  ]
-  if (only === undefined) throw notOpen(tab, failures)
-  if (second !== undefined) {
-    throw new Error(
-      `tab ${tab} is open on two conciv engines (${only.root} and ${second.root}); ask the user to close one of the browser tabs`,
-    )
-  }
-  return {
-    root: only.root,
-    apiBase: only.apiBase,
-    token: only.token,
-    rpc: makeRpcClient(only.apiBase, {token: only.token, headers}),
-  }
-}
-
-function notOpen(tab: SessionId, failures: unknown[]): Error {
-  if (failures.length === 0) return new Error(`TAB_NOT_OPEN: tab ${tab} is not open; call list_tabs`)
-  return new Error(
-    `cannot tell whether tab ${tab} is open: no engine that answered has it, and ${failures.map(errorText).join('; ')}; nothing ran`,
-    {cause: new AggregateError(failures, 'the tab probes failed')},
-  )
-}
-
 async function listTabsCall(home: string): Promise<Reply> {
   return listTabs(home).then(
     (listing): Reply => ({content: [{type: 'text', text: JSON.stringify(listing)}]}),
     (error: unknown) => failed(errorText(error)),
   )
-}
-
-function failedProbe(root: string, failure: unknown): Error {
-  if (engineOutdated(failure)) return new Error(`${root} (${TOO_OLD})`, {cause: failure})
-  return new Error(silence([{root, error: errorText(failure)}]), {cause: failure})
-}
-
-async function holdsTab(owner: TabOwner, tab: SessionId): Promise<boolean> {
-  const asked = await askTab(owner, tab, PROBE_MS)
-  if (asked.answer !== null) return asked.answer.open
-  logHub(
-    `checking whether tab ${tab} is still open failed; the next call looks up its engine again`,
-    failedProbe(owner.root, asked.failure),
-  )
-  return false
-}
-
-async function greeted(entry: TabEntry, owner: TabOwner, tab: SessionId, reply: Reply): Promise<Reply> {
-  if (entry.greeted) return reply
-  entry.greeted = true
-  const instructions = await makeRpcClient(owner.apiBase, {token: owner.token})
-    .sessions.instructions({sessionId: tab}, {signal: AbortSignal.timeout(ENGINE_READ_MS)})
-    .then(
-      (answer) => answer.text,
-      (error: unknown) => {
-        logHub(`reading the instructions of tab ${tab} failed; the reply goes without them`, error)
-        return ''
-      },
-    )
-  if (instructions === '') return reply
-  return {...reply, content: [{type: 'text', text: instructions}, ...reply.content]}
-}
-
-function buildSessionInput(tab: SessionId | undefined): {sessionId?: SessionId} {
-  return tab === undefined ? {} : {sessionId: tab}
-}
-
-function unrun(error: unknown): boolean {
-  return RefusedSchema.safeParse(error).success || (error instanceof ORPCError && error.code === 'UNAUTHORIZED')
-}
-
-function answered(error: unknown): boolean {
-  return error instanceof ORPCError || engineTooOld(error)
-}
-
-function answerText(root: string, error: unknown): string {
-  return engineTooOld(error) ? `${root} (${TOO_OLD})` : errorText(error)
 }
 
 const NO_SESSION_HINT = 'pass tab to execute_typescript; list_tabs lists the open tabs'
@@ -429,12 +282,14 @@ function outsideExecuteReply(executed: CodeExecuteResult): Reply {
   return {...reply, content: [...reply.content, {type: 'text', text: NO_SESSION_HINT}]}
 }
 
-function failed(text: string): Reply {
-  return {content: [{type: 'text', text}], isError: true}
-}
-
-function logHub(message: string, error: unknown): void {
-  process.stderr.write(`conciv mcp: ${message}: ${errorText(error)}\n`)
+async function withTaskName(request: Request): Promise<Request> {
+  if (!request.headers.get('mcp-method')?.startsWith('tasks/') || request.headers.has('mcp-name')) return request
+  const body = await request.text()
+  const message: unknown = JSON.parse(body)
+  const taskId = TaskRequestSchema.safeParse(message).data?.params.taskId
+  const headers = new Headers(request.headers)
+  if (taskId !== undefined) headers.set('mcp-name', taskId)
+  return new Request(request.url, {method: request.method, headers, body, signal: request.signal})
 }
 
 function notePageTools(discovered: CodeDiscoverResult, toolNames: string[]): CodeDiscoverResult {

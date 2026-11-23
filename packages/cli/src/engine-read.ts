@@ -141,3 +141,7 @@ function focusedFirst(state: PageState | null): TabRow['browserTabs'] {
 export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
+
+export function logHub(message: string, error: unknown): void {
+  process.stderr.write(`conciv mcp: ${message}: ${errorText(error)}\n`)
+}
