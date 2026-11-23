@@ -34,17 +34,12 @@ export function composeGrabText(snippet: string, source: GrabSourceLoc | null, f
   return `${snippet} at ${source.file}:${source.line}:${source.column}`
 }
 
-export type GrabApi = {
+export type GrabActions = {
   pick: () => Promise<Grab | null>
   comment: () => Promise<Grab | null>
   cancel: () => void
   isActive: () => boolean
   grabbable?: () => boolean
-  stage: (grab: Grab) => void
-  staged: () => readonly Grab[]
-  clear: () => void
 }
-
-export type GrabActions = Pick<GrabApi, 'pick' | 'comment' | 'cancel' | 'isActive' | 'grabbable'>
 
 export type GrabProvider = () => GrabActions

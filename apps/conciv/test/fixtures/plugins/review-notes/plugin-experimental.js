@@ -1,5 +1,5 @@
-const {Command, ComposerPill, NoteCard, Plugin} = require('@conciv/plugin/experimental')
-const {GrabApi} = require('@conciv/plugin/experimental/grab')
+const {Command, ComposerPill, Plugin} = require('@conciv/plugin/experimental')
+const {Page} = require('@conciv/plugin/experimental/page')
 
 const headerNote = {
   type: 'note',
@@ -53,17 +53,17 @@ module.exports = {
           },
         }),
       })
-      const grab = ctx.use(GrabApi)
+      const page = ctx.use(Page)
       ctx.add(ComposerPill, {
         id: 'page-comment',
         order: 4,
         show: (input) => {
-          const live = grab()
-          if (live.status !== 'active' || !live.value.grabbable()) return undefined
+          const live = page()
+          if (live.status !== 'active') return undefined
           return {
             label: 'Comment on the page',
             run: async () => {
-              const picked = await live.value.comment()
+              const picked = await live.value.pick()
               if (!picked) return
               input.screen.composer.attach({
                 type: 'note',
@@ -106,10 +106,6 @@ module.exports = {
           content.append(paragraph('Staging is green'), closeButton(input.close))
           return content
         },
-      })
-      ctx.add(NoteCard, {
-        origins: ['review'],
-        render: () => paragraph('Review card'),
       })
     },
   }),

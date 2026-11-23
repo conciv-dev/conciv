@@ -2,7 +2,7 @@ import {Layer, ManagedRuntime} from 'effect'
 import {For, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {NoteCard, Panel, Plugin, ToolRegistry, type PanelTab, type ToolComponent} from '@conciv/plugin/experimental'
-import {OpaqueUi, type InternalUi} from '@internal/plugin'
+import {OpaqueNoteCard, OpaqueUi, type InternalUi} from '@internal/plugin'
 import {bootCapture} from './page-capture.js'
 import {RecorderPanel} from './panel-view.js'
 import {RecordingCard} from './recording-card.js'
@@ -171,7 +171,7 @@ const recorder: Plugin.Definition = Plugin.define({
         />
       ),
     })
-    ctx.add(NoteCard, {
+    ctx.add(OpaqueNoteCard.toInternal(NoteCard), {
       origins: [ctx.id],
       render: (props) => <RecordingCard note={props.note} session={props.session} runtime={runtime} />,
     })

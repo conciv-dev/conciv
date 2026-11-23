@@ -1,4 +1,5 @@
 import type {ImagePreview, DomPreview} from '@conciv/grab'
+import {capturePlugins} from './screenshot.js'
 
 const FIT_MIME = 'image/webp'
 
@@ -65,7 +66,35 @@ function nextFrame(): Promise<void> {
   })
 }
 
-export async function captureElement(el: Element): Promise<DomPreview> {
+function readDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener(
+      'load',
+      () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('unreadable'))),
+      {once: true},
+    )
+    reader.addEventListener('error', () => reject(reader.error ?? new Error('unreadable')), {once: true})
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function elementImage(el: Element): Promise<ImagePreview> {
+  const {snapdom} = await import('@zumer/snapdom')
+  const capture = await snapdom(el, {dpr: 1, embedFonts: true, plugins: capturePlugins})
+  const blob = await capture.toBlob({format: 'webp', quality: FIT_QUALITY})
+  const bitmap = await createImageBitmap(blob)
+  const {width, height} = bitmap
+  bitmap.close()
+  return {kind: 'image', dataUrl: await readDataUrl(blob), width, height}
+}
+
+export async function capturePreview(el: Element): Promise<ImagePreview | DomPreview> {
+  await nextFrame()
+  return elementImage(el).catch(() => captureElement(el))
+}
+
+async function captureElement(el: Element): Promise<DomPreview> {
   await nextFrame()
   const rect = el.getBoundingClientRect()
   const clone = el.cloneNode(true)

@@ -1,7 +1,6 @@
 import {createMemo, onCleanup, Show, type Accessor, type JSX, type ParentProps} from 'solid-js'
 import {useComposer, useComposerContext} from '@conciv/ui-kit-chat'
 import type {MountedSession, SessionScreen} from '@conciv/plugin/experimental'
-import type {GrabApi} from '@conciv/grab'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query'
 import {usePluginAttachment} from '../runtime/plugin/attachment'
 import {usePluginHost} from '../runtime/plugin/host'
@@ -134,20 +133,6 @@ export function SessionComposerBinding(props: {
           }),
         )
         binder.bindDraft(props.restored)
-
-        return null
-      }}
-    </Show>
-  )
-}
-
-export function PaneGrabBinding(props: {sessionId: string; grab: GrabApi}) {
-  const attachment = usePluginAttachment()
-
-  return (
-    <Show when={attachment.composer()?.sessionId() === props.sessionId ? props.grab : undefined} keyed>
-      {(grab) => {
-        onCleanup(attachment.bindGrab(grab))
 
         return null
       }}

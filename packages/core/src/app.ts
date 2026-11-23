@@ -118,8 +118,6 @@ import {
   type TrustedBrowsers,
 } from './engine-login.js'
 import type {OpenInEditor} from './editor/open.js'
-import type {AttachmentDocumentPart, ContentPart} from '@conciv/protocol/chat-message-types'
-import {GRAB_MIME, parseGrabPayload} from '@conciv/grab/grab-attachment'
 import {writePrivateFile} from './lib/dev-endpoint.js'
 import {logOnContext, logOnRuntime, type Log, type LogOptions} from './lib/logging.js'
 
@@ -203,14 +201,6 @@ export async function withSavedModels(
   refreshInBackground()
   return {harness: {...adapter, models}, settled}
 }
-
-async function expandGrab(part: AttachmentDocumentPart): Promise<readonly ContentPart[]> {
-  const payload = parseGrabPayload(Buffer.from(part.source.value, 'base64').toString('utf8'))
-  if (!payload || payload.text === '') return []
-  return [{type: 'text', content: payload.text}]
-}
-
-const grabExpander = {[GRAB_MIME]: expandGrab}
 
 export type MakeAppOpts = {
   cfg: ResolvedConcivConfig
@@ -810,7 +800,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       }),
       toolNames: sessionToolNames,
       capabilities: codeModeCapabilities,
-      attachmentExpanders: grabExpander,
       prompt: plugins.prompt,
       promptHooked: plugins.promptHooked,
       context: plugins.context,

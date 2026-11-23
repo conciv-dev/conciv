@@ -1,7 +1,5 @@
 import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
-import type {AttachmentCardSlot, GroupEntry} from '@conciv/ui-kit-chat'
-import {GRAB_MIME} from '@conciv/grab/grab-attachment'
-import {GrabCard} from './grab-card.js'
+import type {GroupEntry} from '@conciv/ui-kit-chat'
 import {PageSessionCard} from './session-card.js'
 import {PAGE_SESSION_GROUP_KEY} from './page-session.js'
 import {PAGE_TOOL_PREFIX, pageOperation, pageVerbOfTool} from './rpc.js'
@@ -32,8 +30,6 @@ function pageNames(verbs: string[]): string[] {
 }
 
 export const pageSessionEntry: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render: PageSessionCard}
-
-export const pageAttachmentCards: AttachmentCardSlot[] = [{mime: GRAB_MIME, render: GrabCard}]
 
 export function ActCard(props: ToolProps): JSX.Element {
   return <PageTool {...props} subtitle={elementTarget(props.input)} skip={ELEMENT_TARGET_KEYS} hasContent={false} />
