@@ -7,10 +7,12 @@ import {dirname, join} from 'node:path'
 import {createInterface} from 'node:readline'
 import {text} from 'node:stream/consumers'
 import {pathToFileURL} from 'node:url'
+import {optimizeDeps, resolveConfig} from 'vite'
 import {describe} from 'vitest'
 import {z} from 'zod'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {concivStateDir} from '@conciv/protocol/state-types'
+import {makeViteHook} from './vite.js'
 import {adapterFiles, agentStarted, childEnv, fakeClaude, readyLine, running, test} from '../../test/unplugin-test.js'
 
 describe.concurrent('the vite dev server', () => {
@@ -84,5 +86,35 @@ describe.concurrent('the vite dev server', () => {
     expect(second.port).not.toBe(first.port)
     expect((await fetch(`http://127.0.0.1:${first.port}/health`)).status).toBe(200)
     expect((await fetch(`http://127.0.0.1:${second.port}/health`)).status).toBe(200)
+  })
+  test("the dependency scan reads the widget the plugin injects, so the first optimizer pass already bundles the widget's dependencies", async ({
+    project,
+    expect,
+  }) => {
+    const root = project('app')
+    const dependency = join(root, 'node_modules', 'widget-dependency')
+    mkdirSync(dependency, {recursive: true})
+    writeFileSync(
+      join(dependency, 'package.json'),
+      JSON.stringify({name: 'widget-dependency', type: 'module', main: 'index.js'}),
+    )
+    writeFileSync(join(dependency, 'index.js'), 'export const ready = true\n')
+    const embedEntry = join(root, 'widget', 'mount.js')
+    mkdirSync(dirname(embedEntry))
+    writeFileSync(embedEntry, "import {ready} from 'widget-dependency'\nexport const mountConciv = () => ready\n")
+
+    const config = await resolveConfig(
+      {
+        root,
+        configFile: false,
+        logLevel: 'silent',
+        optimizeDeps: {rolldownOptions: {transform: {jsx: {runtime: 'classic'}}}},
+        plugins: [makeViteHook({homeDir: join(root, 'home')}, {embedEntry})],
+      },
+      'serve',
+    )
+    const metadata = await optimizeDeps(config, true)
+
+    expect(Object.keys(metadata.optimized)).toContain('widget-dependency')
   })
 })
