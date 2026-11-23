@@ -279,8 +279,11 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const shownIds = (): Set<string> => new Set(chat.messages().map((message) => message.id))
   const showWindow = (window: readonly ChatMessage[], shown: Set<string>): void => {
     const fetched = new Set(window.map((message) => message.id))
-    const sentSince = chat.messages().filter((message) => !shown.has(message.id) && !fetched.has(message.id))
-    chat.setMessages(stitched(chat.messages(), [...window, ...sentSince]))
+    const sending = chat.isLoading() ? chat.messages().findLast((message) => message.role === 'user')?.id : undefined
+    const local = chat
+      .messages()
+      .filter((message) => !fetched.has(message.id) && (!shown.has(message.id) || message.id === sending))
+    chat.setMessages(stitched(chat.messages(), [...window, ...local]))
   }
   const refresh = async (): Promise<void> => {
     const shown = shownIds()
