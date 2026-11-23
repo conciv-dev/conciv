@@ -27,19 +27,13 @@ import {
   type SceneElement,
 } from './island-model.js'
 import type {CanvasBackground} from './stores.js'
+import {useWhiteboardRuntime} from './solid-runtime.js'
 
 const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
 const PENDING_REMOVE_RETRY_MS = 100
 const EXPORT_BACKGROUND = '#ffffff'
 
 const CANVAS = 'fixed inset-0 pointer-events-auto'
-
-const reportMountError = (error: unknown): void =>
-  void Effect.runFork(
-    Effect.logError('the excalidraw canvas failed to mount', error).pipe(
-      Effect.annotateLogs({plugin: 'whiteboard', surface: 'canvas'}),
-    ),
-  )
 
 const mountFailedFallback = createElement('div', null, 'canvas failed')
 
@@ -78,29 +72,36 @@ export function Island(props: {
   cursors: LiveCursors
 }): JSX.Element {
   const db = useWhiteboardDb()
+  const runtime = useWhiteboardRuntime()
+  const reportMountError = (error: unknown): void =>
+    void runtime.runFork(
+      Effect.logError('the excalidraw canvas failed to mount', error).pipe(
+        Effect.annotateLogs({plugin: 'whiteboard', surface: 'canvas'}),
+      ),
+    )
   let container: HTMLDivElement | undefined
-  const islandScope = Effect.runSync(Scope.make())
-  const scene = Effect.runSync(makeSceneVersions())
+  const islandScope = runtime.runSync(Scope.make())
+  const scene = runtime.runSync(makeSceneVersions())
   const attached = Ref.makeUnsafe<ExcalidrawImperativeAPI | undefined>(undefined)
 
   const applyRemote = (): void => {
     const instance = Ref.getUnsafe(attached)
     const rows = [...db.canvasElements.state.values()]
-    if (!instance || !Effect.runSync(scene.acceptRemote(rows, instance.getSceneElementsIncludingDeleted()))) return
+    if (!instance || !runtime.runSync(scene.acceptRemote(rows, instance.getSceneElementsIncludingDeleted()))) return
     instance.updateScene({elements: rowsToScene(rows), captureUpdate: CAPTURE_NEVER})
   }
 
   const writeLocal = (next: readonly SceneElement[]): void =>
-    elementsToRows(db.room, Effect.runSync(scene.takeLocal(next))).forEach((row) => db.canvasElements.utils.write(row))
+    elementsToRows(db.room, runtime.runSync(scene.takeLocal(next))).forEach((row) => db.canvasElements.utils.write(row))
 
   const initialScene = () => {
     const rows = [...db.canvasElements.state.values()]
-    Effect.runSync(scene.seed(rows))
+    runtime.runSync(scene.seed(rows))
     return {elements: rowsToScene(rows), appState: {viewBackgroundColor: props.background}}
   }
 
   const skipOnPointer = (skipped: Deferred.Deferred<void>) => {
-    const skip = (): void => void Effect.runSync(Deferred.succeed(skipped, undefined))
+    const skip = (): void => void runtime.runSync(Deferred.succeed(skipped, undefined))
     return Effect.acquireRelease(
       Effect.sync(() => container?.addEventListener('pointerdown', skip, {once: true})),
       () => Effect.sync(() => container?.removeEventListener('pointerdown', skip)),
@@ -117,22 +118,22 @@ export function Island(props: {
         appState: {exportBackground: true, viewBackgroundColor: EXPORT_BACKGROUND},
       }),
     skipOnPointer,
-    drawAt: (point) => void Effect.runFork(props.cursors.drawAt(point)),
+    drawAt: (point) => void runtime.runFork(props.cursors.drawAt(point)),
   }
 
   const sceneSubscription = db.canvasElements.subscribeChanges(applyRemote, {includeInitialState: true})
-  const pending = Effect.runSync(
+  const pending = runtime.runSync(
     makeCanvasPending(db, canvas, {removeRetryMs: PENDING_REMOVE_RETRY_MS}).pipe(Scope.provide(islandScope)),
   )
   const pendingSubscription = db.canvasPending.subscribeChanges(
-    () => Effect.runFork(pending.see([...db.canvasPending.state.values()])),
+    () => runtime.runFork(pending.see([...db.canvasPending.state.values()])),
     {includeInitialState: true},
   )
 
   onCleanup(() => {
     sceneSubscription.unsubscribe()
     pendingSubscription.unsubscribe()
-    Effect.runFork(Scope.close(islandScope, Exit.void))
+    runtime.runFork(Scope.close(islandScope, Exit.void))
   })
 
   const themes = observable(() => props.theme)
@@ -161,7 +162,7 @@ export function Island(props: {
       return reportMountError(new Error('the canvas container never attached to the document'))
     }
     const root = createRoot(container)
-    Effect.runSync(
+    runtime.runSync(
       Scope.addFinalizer(
         islandScope,
         Effect.sync(() => root.unmount()),
@@ -177,11 +178,11 @@ export function Island(props: {
           viewModeEnabled: false,
           isCollaborating: true,
           excalidrawAPI: (instance: ExcalidrawImperativeAPI) => {
-            Effect.runSync(Ref.set(attached, instance))
+            runtime.runSync(Ref.set(attached, instance))
             const background = backgrounds.subscribe((viewBackgroundColor) =>
               instance.updateScene({appState: {viewBackgroundColor}, captureUpdate: CAPTURE_NEVER}),
             )
-            Effect.runSync(
+            runtime.runSync(
               Scope.addFinalizer(
                 islandScope,
                 Effect.sync(() => background.unsubscribe()),
@@ -199,8 +200,8 @@ export function Island(props: {
             }
             pushViewport()
             const unsubscribeScroll = instance.onScrollChange(pushViewport)
-            Effect.runSync(Scope.addFinalizer(islandScope, Effect.sync(unsubscribeScroll)))
-            Effect.runFork(
+            runtime.runSync(Scope.addFinalizer(islandScope, Effect.sync(unsubscribeScroll)))
+            runtime.runFork(
               Stream.runForEach(SubscriptionRef.changes(props.cursors.cursors), (cursors) =>
                 Effect.sync(() =>
                   instance.updateScene({collaborators: collaboratorsFrom(cursors), captureUpdate: CAPTURE_NEVER}),

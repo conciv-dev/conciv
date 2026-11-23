@@ -5,7 +5,7 @@ import {createStore, unwrap} from 'solid-js/store'
 import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import type {QueuedMessage} from '@conciv/protocol/chat-message-types'
-import {sessionCapturesCall, type AppData} from '../data/app-data.js'
+import type {AppData} from '../data/app-data.js'
 import {putBackInDraft, returnQueueToDraft, type DraftSink, type QueueOwner} from '../pane/pane-attachments.js'
 import {
   appendDraft,
@@ -99,9 +99,6 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     setState('runs', sessionId, {live: null, settled: lifecycle.runId})
     void deps.appData.invalidateSession(sessionId)
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.markers.list.key({input: {sessionId}})})
-    void deps.queryClient.invalidateQueries({
-      queryKey: deps.appData.utils.plugin.call.key({input: sessionCapturesCall(sessionId)}),
-    })
     if (lifecycle.phase === 'completed') deps.announce('conciv replied.')
   }
 

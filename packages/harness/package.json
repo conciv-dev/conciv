@@ -70,6 +70,7 @@
     "@conciv/harness-init": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "effect": "catalog:",
+    "smol-toml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
