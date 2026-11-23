@@ -125,8 +125,6 @@ export type StartOpts = {
   uiAnswerWaitMs?: number
   eventHeartbeatIntervalMs?: number
   stopGraceMs?: number
-  pageReplyTimeoutMs?: number
-  queuedActionTimeoutMs?: number
   staleness?: () => EngineStaleness | undefined
   app?: {version?: () => string | undefined}
 }
@@ -370,8 +368,6 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     uiAnswerWaitMs: opts.uiAnswerWaitMs,
     eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
     stopGraceMs: opts.stopGraceMs,
-    pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
-    queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
     staleness: opts.staleness,
     app: opts.app,
     observability,

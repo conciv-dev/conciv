@@ -3,7 +3,9 @@ import {mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync} f
 import {rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {ConfigProvider} from 'effect'
+import {isNotNil, pickBy} from 'es-toolkit'
 import {isMatch} from 'es-toolkit/compat'
 import {rpcStream} from '@conciv/ai/client'
 import {readFinishReason} from '@conciv/ai/server'
@@ -34,6 +36,10 @@ export type {ScriptedHarness, ScriptedSession} from './scripted-harness.js'
 
 export type HarnessEngineSetting = {scope: 'project' | 'global'; namespace: string; key: string; value: unknown}
 
+type PageTimeouts = {pageReplyTimeoutMs: number; queuedActionTimeoutMs: number}
+
+const PAGE_PLUGIN = dirname(fileURLToPath(import.meta.resolve('@conciv/plugin-page/package.json')))
+
 export type EngineStart = {
   directory?: string
   timeouts?: Partial<
@@ -45,9 +51,8 @@ export type EngineStart = {
       | 'uiAnswerWaitMs'
       | 'eventHeartbeatIntervalMs'
       | 'stopGraceMs'
-      | 'pageReplyTimeoutMs'
-      | 'queuedActionTimeoutMs'
-    >
+    > &
+      PageTimeouts
   >
   harnesses?: ScriptedHarness[]
   env?: Record<string, string>
@@ -478,9 +483,12 @@ function bootApp(
   connectPort?: number,
 ): Promise<Started> {
   const home = engineHome(root, options)
+  const {pageReplyTimeoutMs, queuedActionTimeoutMs, ...timeouts} = options.timeouts ?? {}
+  const page = pickBy({pageReplyTimeoutMs, queuedActionTimeoutMs}, isNotNil)
   return start({
     options: {
       ...config,
+      plugins: [...(config.plugins ?? []), [PAGE_PLUGIN, page]],
       stateRoot: root,
       harness: harness.id,
       ...(previous === undefined ? {} : {sessionId: previous.sessionId}),
@@ -488,7 +496,7 @@ function bootApp(
     root: project,
     harness,
     harnesses: others,
-    ...options.timeouts,
+    ...timeouts,
     staleness: () => live.staleness,
     app: {version: () => live.version},
     homeDir: home,

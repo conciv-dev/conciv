@@ -1,6 +1,7 @@
 import {mkdtemp, realpath} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {inspect} from 'node:util'
 import {start, type Engine, type LogEntry} from '@conciv/core/start'
 import {ConfigProvider} from 'effect'
@@ -9,6 +10,8 @@ import type {HarnessAdapter} from '@conciv/harness'
 import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-ports'
 import {seedWorkspace} from './seed-workspace.js'
 import {CONNECT_SYSTEM_PROMPT} from './system-prompt.js'
+
+const PAGE_PLUGIN = dirname(fileURLToPath(import.meta.resolve('@conciv/plugin-page/package.json')))
 
 const DEFAULT_ORIGIN = 'https://conciv.dev'
 
@@ -85,7 +88,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
   for (let port = CONNECT_FIRST_PORT; port <= CONNECT_LAST_PORT; port += 1) {
     try {
       const engine = await start({
-        options: {harness: adapter.id, stateRoot: root, systemPrompt: CONNECT_SYSTEM_PROMPT},
+        options: {harness: adapter.id, stateRoot: root, systemPrompt: CONNECT_SYSTEM_PROMPT, plugins: [PAGE_PLUGIN]},
         root,
         port: {exact: port},
         launchEditor: () => {},

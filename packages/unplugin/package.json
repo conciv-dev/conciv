@@ -80,6 +80,7 @@
     "@conciv/core": "workspace:^",
     "@conciv/embed": "workspace:^",
     "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@orpc/server": "catalog:",
     "@tanstack/devtools-bundler-core": "catalog:",

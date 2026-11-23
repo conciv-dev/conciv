@@ -51,6 +51,7 @@
     "build:types": "tsdown -c tsdown.types.config.ts"
   },
   "dependencies": {
+    "@conciv/plugin-page": "workspace:^",
     "@modelcontextprotocol/sdk": "catalog:",
     "effect": "catalog:",
     "es-toolkit": "catalog:",

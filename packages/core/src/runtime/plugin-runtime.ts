@@ -1,6 +1,5 @@
 import type {HarnessAdapter} from '@conciv/harness'
 import type {Plugin as PluginDefinition} from '@conciv/plugin'
-import type {Plugin as EffectPlugin} from '@conciv/plugin/effect/plugin'
 import {Model} from '@conciv/plugin/schema/model'
 import type {createChatPlane} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
@@ -208,7 +207,6 @@ export type PluginRuntimeInput = {
   engineId: string
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies' | 'permissions'>
   plugins: readonly PluginDefinition.Plugin[]
-  post: readonly EffectPlugin[]
   harness: HarnessAdapter
   signal: AbortSignal
   bundler: Bundler.BundlerBridge | undefined
@@ -250,12 +248,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
   return Layer.mergeAll(
     Plugin.layer,
     SdkPlugins.layer,
-    InstancePlugins.bound(
-      input.plugins.map((plugin) => PluginPromise.fromPromise(plugin)),
-      {
-        post: input.post,
-      },
-    ),
+    InstancePlugins.bound(input.plugins.map((plugin) => PluginPromise.fromPromise(plugin))),
     PluginUpdate.layer,
     ConfigPluginSource.layer,
   ).pipe(
