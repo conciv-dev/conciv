@@ -113,13 +113,19 @@ export async function encodeAttachments(
   return encoded
 }
 
-export async function writeComposerDraft(storage: WebStorage, key: string, draft: ComposerDraft): Promise<void> {
+export async function writeComposerDraft(
+  storage: WebStorage,
+  key: string,
+  draft: ComposerDraft,
+  isLatest: () => boolean = () => true,
+): Promise<void> {
   const payload: PersistedComposerDraft = {
     text: draft.draft,
     quote: draft.quote,
     attachments: await encodeAttachments(draft.attachments),
     items: draft.items,
   }
+  if (!isLatest()) return
   try {
     storage.setItem(key, JSON.stringify(payload))
   } catch {

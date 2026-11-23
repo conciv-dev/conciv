@@ -265,34 +265,26 @@ function makeLocalDraftWriter(
   const send = (recorded: LocalDraft, attachments: DraftRow['attachments'], kind: DraftSendKind) => {
     const current = document.draft
     if (!current || !sameContent(current, recorded) || appData.sessionDeleted(sessionId)) return
+    if (kind === 'feed' && sameAsRow({...recorded, attachments}, appData.cachedDraft(sessionId))) return
     const updatedAt = Date.now()
     persisted.setStore('draft', 'sent', (sent) => [...sent, updatedAt])
+    const saving = appData.saveDraft({
+      sessionId,
+      text: recorded.text,
+      selectionStart: recorded.selectionStart,
+      selectionEnd: recorded.selectionEnd,
+      attachments,
+      items: recorded.items,
+      updatedAt,
+    })
     void keep(() =>
-      writeDocument()
-        .catch((error: unknown) => {
-          console.error('[conciv] could not keep the draft stamp in the local draft', error)
-        })
-        .then(() => {
-          const latest = document.draft
-          if (!latest || !sameContent(latest, recorded)) return {saving: UNSENT}
-          if (kind === 'feed' && sameAsRow({...recorded, attachments}, appData.cachedDraft(sessionId)))
-            return {saving: UNSENT}
-          const saving = appData.saveDraft({
-            sessionId,
-            text: recorded.text,
-            selectionStart: recorded.selectionStart,
-            selectionEnd: recorded.selectionEnd,
-            attachments,
-            items: recorded.items,
-            updatedAt,
-          })
-          return {saving}
-        }),
+      writeDocument().catch((error: unknown) => {
+        console.error('[conciv] could not keep the draft stamp in the local draft', error)
+      }),
     )
-      .then(({saving}) => saving)
-      .then((saved) => {
-        persisted.setStore('draft', (latest) => latest && settledDraft(latest, updatedAt, saved))
-      })
+    void saving.then((saved) => {
+      persisted.setStore('draft', (latest) => latest && settledDraft(latest, updatedAt, saved))
+    })
   }
   const sendChanged = (
     recorded: LocalDraft,
@@ -328,8 +320,14 @@ function makeLocalDraftWriter(
     delay: 0,
     serialize: (value) => JSON.stringify(value.draft),
     deserialize: () => ({draft: null, files: []}),
-    write: () => keep(writeDocument).finally(feed),
-    writeLeaving: () => writeLeaving().finally(feed),
+    write: () => {
+      feed()
+      return keep(writeDocument)
+    },
+    writeLeaving: () => {
+      feed()
+      return writeLeaving()
+    },
   })
   const writer: ComposerDraftWriter = (_key, draft: ComposerDraft) => {
     const offsets = clampSelection(selection(), draft.draft)

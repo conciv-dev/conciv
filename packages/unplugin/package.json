@@ -83,6 +83,7 @@
     "@conciv/protocol": "workspace:^",
     "@orpc/server": "catalog:",
     "@tanstack/devtools-bundler-core": "catalog:",
+    "get-port": "catalog:",
     "launch-editor": "^2.14.2",
     "unplugin": "^3.6.0",
     "zod": "catalog:"

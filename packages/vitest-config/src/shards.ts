@@ -167,9 +167,18 @@ export function planShards(
 export function parseTimings(raw: string): Record<string, number> {
   const parsed: unknown = JSON.parse(raw)
   if (!isRecord(parsed)) return {}
-  return Object.fromEntries(
-    Object.entries(parsed).filter(
-      (entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]) && entry[1] >= 0,
-    ),
+  const measured = Object.entries(parsed).filter(
+    (entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]) && entry[1] >= 0,
   )
+  const byPackage = Object.groupBy(measured, ([name]) => readTimedPackage(name))
+  return Object.fromEntries(
+    Object.entries(byPackage).map(([name, entries = []]) => [
+      name,
+      entries.reduce((sum, [, timeMs]) => sum + timeMs, 0),
+    ]),
+  )
+}
+
+function readTimedPackage(timedName: string): string {
+  return timedName.split(' ', 1)[0] ?? timedName
 }

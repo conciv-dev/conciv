@@ -7,7 +7,8 @@ import {defineHarness} from '../_shared/contract.js'
 import {claudeSessionArgs, claudeConnectArgs} from './args.js'
 import {claudeChatConfig} from './chat.js'
 import {claudeHistory} from './history.js'
-import {claudeSdkCommands, claudeSdkModels} from './sdk.js'
+import {claudeSdkCommands, claudeSdkLogin, claudeSdkModels, type ClaudeProbeEnv} from './sdk.js'
+import {definedEntries} from '../_shared/env.js'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 
@@ -22,13 +23,20 @@ export function claudeTtyCommand(ctx: HarnessConnectContext): TtyCommand {
   }
 }
 
+const PROBE_ENV_NAMES = ['PATH', 'CLAUDE_CONFIG_DIR', 'ANTHROPIC_API_KEY']
+
+function readProbeEnv(provider: ConfigProvider.ConfigProvider): ClaudeProbeEnv {
+  const configured = Object.fromEntries(PROBE_ENV_NAMES.map((name) => [name, readOptionalConfig(provider, name)]))
+  return {...process.env, ...definedEntries(configured)}
+}
+
 export function claude(provider: ConfigProvider.ConfigProvider) {
   const configDir = claudeConfigDir({home: homedir(), override: readOptionalConfig(provider, 'CLAUDE_CONFIG_DIR')})
   return defineHarness({
     id: 'claude',
     binName: 'claude',
     displayName: 'Claude',
-    models: claudeSdkModels,
+    models: () => claudeSdkModels({env: readProbeEnv(provider)}),
     defaultModel: 'opus',
     capabilities: {
       resume: true,
@@ -40,10 +48,12 @@ export function claude(provider: ConfigProvider.ConfigProvider) {
       slashCommands: 'live',
       imageInput: 'fileRef',
       init: 'files',
+      login: 'probe',
     },
     init: claudeInit,
     chatConfig: claudeChatConfig,
-    commands: claudeSdkCommands,
+    commands: (ctx) => claudeSdkCommands(ctx, readProbeEnv(provider)),
+    login: ({refresh}) => claudeSdkLogin({refresh: refresh ?? false, env: readProbeEnv(provider)}),
     history: claudeHistory(configDir),
     tty: {command: claudeTtyCommand},
     resume: {command: ({nativeId}) => ({bin: 'claude', args: claudeSessionArgs(nativeId, true)})},

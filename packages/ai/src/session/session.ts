@@ -37,6 +37,7 @@ export type ChatSessionCallbacks = {
   onLifecycle: (lifecycle: RunLifecycle) => void
   onHydrated: (hydration: ChatSessionHydration) => void
   onRunError: () => void
+  onLive: () => void
   onApprovalAsk: (ask: ApprovalAsk) => void
   onApprovalSettled: (approvalId: string) => void
   joinsRun: (runId: string) => Promise<boolean>
@@ -229,6 +230,10 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       setServed('harnesses', hydration.messageHarness)
     },
     onRunError: () => {
+      void refresh().catch((error: unknown) => options.onError?.(asError(error)))
+    },
+    onLive: () => {
+      if (chat.isLoading()) return
       void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
     onApprovalAsk: (ask) => arrive({kind: 'ask', ask}),
