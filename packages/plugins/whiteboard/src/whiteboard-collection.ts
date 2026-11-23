@@ -6,6 +6,7 @@ import type {
   UpdateMutationFnParams,
 } from '@tanstack/solid-db'
 import {Effect, Fiber, Schema, Stream} from 'effect'
+import type {WhiteboardRuntime} from './solid-runtime.js'
 import {z} from 'zod'
 import {elementRow, type ElementRow} from './rows.js'
 import type {ChangeFeed, ChangeMessage} from './change-feed.js'
@@ -30,13 +31,14 @@ const readRows = <Row>(read: () => Promise<Row>) =>
   })
 
 const buildSync = <Row extends object>(deps: {
+  runtime: WhiteboardRuntime
   feed: ChangeFeed
   table: string
   loadRows: () => Promise<Row[]>
   readRow: (key: string) => Promise<Row>
   onReady: (params: SyncParams<Row>) => void
 }): SyncConfig<Row, string> => {
-  const {feed, table, loadRows, readRow, onReady} = deps
+  const {runtime, feed, table, loadRows, readRow, onReady} = deps
   return {
     rowUpdateMode: 'full',
     sync: (params) => {
@@ -77,8 +79,8 @@ const buildSync = <Row extends object>(deps: {
           ),
         )
       }).pipe(Effect.scoped)
-      const consumer = Effect.runFork(consume)
-      return () => void Effect.runFork(Fiber.interrupt(consumer))
+      const consumer = runtime.runFork(consume)
+      return () => void runtime.runFork(Fiber.interrupt(consumer))
     },
   }
 }
@@ -92,6 +94,7 @@ type TableClient<Row extends {id: string}, Insert> = {
 }
 
 export function whiteboardCollectionOptions<Row extends {id: string}, Insert>(deps: {
+  runtime: WhiteboardRuntime
   feed: ChangeFeed
   room: string
   table: string
@@ -99,7 +102,7 @@ export function whiteboardCollectionOptions<Row extends {id: string}, Insert>(de
   toInsert: (row: Row) => Insert
   onWriteFailed: (error: unknown) => void
 }) {
-  const {feed, room, table, ops, toInsert, onWriteFailed} = deps
+  const {runtime, feed, room, table, ops, toInsert, onWriteFailed} = deps
   const sync: {params?: SyncParams<Row>} = {}
 
   const confirm = (row: Row): void => {
@@ -129,6 +132,7 @@ export function whiteboardCollectionOptions<Row extends {id: string}, Insert>(de
     id: `${table}:${room}`,
     getKey: (row: Row) => row.id,
     sync: buildSync<Row>({
+      runtime,
       feed,
       table,
       loadRows: ops.list,
@@ -166,12 +170,13 @@ type ElementClient = {
 }
 
 export function whiteboardElementOptions(deps: {
+  runtime: WhiteboardRuntime
   feed: ChangeFeed
   room: string
   scope: 'live' | 'draft'
   ops: ElementClient
 }) {
-  const {feed, room, scope, ops} = deps
+  const {runtime, feed, room, scope, ops} = deps
   const table = scope === 'draft' ? 'canvasDraftElements' : 'canvasElements'
   const sync: {params?: SyncParams<ElementRow>} = {}
 
@@ -217,6 +222,7 @@ export function whiteboardElementOptions(deps: {
     id: `${table}:${room}`,
     getKey: (row: ElementRow) => row.elementId,
     sync: buildSync<ElementRow>({
+      runtime,
       feed,
       table,
       loadRows: ops.list,

@@ -1,9 +1,8 @@
-import {onCleanup, onMount, Show, untrack, type JSX} from 'solid-js'
+import {onMount, Show, untrack, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import excalidrawCss from '@excalidraw/excalidraw/index.css?inline'
 import {usePlugin, type Context} from '@conciv/plugin/experimental'
-import {Effect, Exit, Scope} from 'effect'
 import {Island} from './island.js'
 import {makeLiveCursors, type LiveCursors} from './live-cursors.js'
 import {WhiteboardDbProvider} from './db.js'
@@ -13,6 +12,7 @@ import {Inbox, InboxToggle} from './inbox.js'
 import type {ChatCover} from './comments-model.js'
 import {ThreadPopover} from './thread.js'
 import type {CanvasBackground} from './stores.js'
+import {runInOwnerScope, WhiteboardRuntimeProvider, type WhiteboardRuntime} from './solid-runtime.js'
 
 const CANVAS_STYLES = excalidrawCss
   .replaceAll(/:root\[dir=(ltr|rtl)\]/g, ':host(:dir($1))')
@@ -37,6 +37,7 @@ const escapeLeftToOthers = (event: KeyboardEvent, layers: readonly HTMLElement[]
 }
 
 type SurfaceProps = {
+  runtime: WhiteboardRuntime
   client: Context['client']
   room: string
   catchUpRetryMs: number
@@ -79,9 +80,8 @@ function CanvasView(
 export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   const ctx = usePlugin()
   const canvas = ctx.overlay({styles: [CANVAS_STYLES]})
-  const scope = Effect.runSync(Scope.make())
-  onCleanup(() => void Effect.runFork(Scope.close(scope, Exit.void)))
-  const cursors = untrack(() => Effect.runSync(makeLiveCursors(props.client, props.room).pipe(Scope.provide(scope))))
+  const runtime = untrack(() => props.runtime)
+  const cursors = untrack(() => runInOwnerScope(runtime, makeLiveCursors(props.client, props.room)))
   const overlayRoot = canvas.element.getRootNode()
   if (overlayRoot instanceof ShadowRoot) overlayRoot.host.setAttribute(EXCALIDRAW_INSIDE_MARKER, '')
   onMount(() =>
@@ -98,17 +98,19 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
     ),
   )
   return (
-    <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
-      <CommentsProvider room={() => props.room} bindComments={props.bindComments}>
-        <CanvasView
-          room={props.room}
-          background={props.background}
-          visible={props.visible}
-          layer={props.layer}
-          canvas={canvas.element}
-          cursors={cursors}
-        />
-      </CommentsProvider>
-    </WhiteboardDbProvider>
+    <WhiteboardRuntimeProvider runtime={runtime}>
+      <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
+        <CommentsProvider room={() => props.room} bindComments={props.bindComments}>
+          <CanvasView
+            room={props.room}
+            background={props.background}
+            visible={props.visible}
+            layer={props.layer}
+            canvas={canvas.element}
+            cursors={cursors}
+          />
+        </CommentsProvider>
+      </WhiteboardDbProvider>
+    </WhiteboardRuntimeProvider>
   )
 }

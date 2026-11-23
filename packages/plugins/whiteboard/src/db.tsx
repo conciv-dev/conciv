@@ -1,6 +1,7 @@
 import {createContext, onCleanup, untrack, useContext, type JSX} from 'solid-js'
 import type {Context} from '@conciv/plugin/experimental'
 import {createWhiteboardDb, type WhiteboardDb} from './whiteboard-db.js'
+import {useWhiteboardRuntime} from './solid-runtime.js'
 
 const WhiteboardDbContext = createContext<WhiteboardDb>()
 
@@ -10,7 +11,8 @@ export function WhiteboardDbProvider(props: {
   catchUpRetryMs: number
   children: JSX.Element
 }): JSX.Element {
-  const db = untrack(() => createWhiteboardDb(props.client, props.room, props.catchUpRetryMs))
+  const runtime = useWhiteboardRuntime()
+  const db = untrack(() => createWhiteboardDb(runtime, props.client, props.room, props.catchUpRetryMs))
   onCleanup(() => db.dispose())
   return <WhiteboardDbContext.Provider value={db}>{props.children}</WhiteboardDbContext.Provider>
 }

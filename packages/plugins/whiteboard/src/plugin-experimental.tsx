@@ -1,7 +1,7 @@
-import {from, getOwner, onCleanup, type Accessor, type JSX} from 'solid-js'
+import {getOwner, onCleanup, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
-import {Effect, Exit, Fiber, Scope, Stream, SubscriptionRef} from 'effect'
+import {Layer, ManagedRuntime, SubscriptionRef} from 'effect'
 import {z} from 'zod'
 import {useQuery} from '@conciv/client'
 import {ComposerPill, SettingsPage, Slot, ToolRegistry, usePlugin, type Plugin} from '@conciv/plugin/experimental'
@@ -13,6 +13,7 @@ import {ComposePopover} from './compose-popover.js'
 import {WhiteboardCanvas, WhiteboardNotices} from './overlay.js'
 import {readCanvasBackground, whiteboardStores, type CanvasBackground} from './stores.js'
 import type {ChatCover} from './comments-model.js'
+import {follow, runInOwnerScope} from './solid-runtime.js'
 
 const COMMENT_BIND_DEADLINE_MS = 5_000
 const ComposeOptions = z.object({
@@ -46,26 +47,18 @@ function CanvasBackgroundRow(): JSX.Element {
   )
 }
 
-function refAccessor<A>(ref: SubscriptionRef.SubscriptionRef<A>, initial: A): Accessor<A> {
-  return from<A>((set) => {
-    const fiber = Effect.runFork(
-      Stream.runForEach(SubscriptionRef.changes(ref), (value) => Effect.sync(() => void set(() => value))),
-    )
-    return () => void Effect.runFork(Fiber.interrupt(fiber))
-  }, initial)
-}
-
 const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlugin({
   stores: whiteboardStores,
   setup(ctx) {
     const [canvas, setCanvas] = createStore({open: false, engaged: false})
-    const scope = Effect.runSync(Scope.make())
-    onCleanup(() => void Effect.runFork(Scope.close(scope, Exit.void)))
-    const compose = Effect.runSync(
-      makeCommentCompose(ComposeOptions.parse(ctx.options).commentBindDeadlineMs).pipe(Scope.provide(scope)),
+    const runtime = ManagedRuntime.make(Layer.empty)
+    onCleanup(() => void runtime.dispose())
+    const compose = runInOwnerScope(
+      runtime,
+      makeCommentCompose(ComposeOptions.parse(ctx.options).commentBindDeadlineMs),
     )
-    const phase = refAccessor(compose.phase, {status: 'idle'})
-    const comments = refAccessor<ChatCover | undefined>(compose.cover, undefined)
+    const phase = follow(runtime, compose.phase)
+    const comments = follow(runtime, compose.cover)
     const composing = (): Extract<ComposePhase, {status: 'composing'}> | undefined => {
       const current = phase()
       return current.status === 'composing' ? current : undefined
@@ -87,10 +80,10 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
       get hides() {
         return visible() && Boolean(comments()?.threadOpen() || comments()?.inboxOpen() || comments()?.prompting())
       },
-      render: () => <WhiteboardNotices ctx={ctx} surface={surface} layer={layer} />,
+      render: () => <WhiteboardNotices ctx={ctx} runtime={runtime} surface={surface} layer={layer} />,
     }
     const bindComments = (cover: ChatCover | undefined): void =>
-      void Effect.runSync(SubscriptionRef.set(compose.cover, cover))
+      void runtime.runSync(SubscriptionRef.set(compose.cover, cover))
     const pill: ComposerPill = {
       id: 'whiteboard-open',
       order: 20,
@@ -119,7 +112,7 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
           icon: 'message-square-plus',
           title: 'Comment on an element',
           run: () => {
-            Effect.runFork(
+            runtime.runFork(
               compose.start({
                 pick: () => live.value.comment(),
                 canvasOpen: () => canvas.open,
@@ -140,6 +133,7 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
         () => (
           <WhiteboardCanvas
             ctx={ctx}
+            runtime={runtime}
             surface={surface}
             background={background()}
             visible={visible()}
@@ -182,7 +176,7 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
           <ComposePopover
             ui={ctx.ui}
             anchor={current.anchor}
-            answer={(text) => void Effect.runFork(compose.answer(text))}
+            answer={(text) => void runtime.runFork(compose.answer(text))}
           />
         ),
       }
