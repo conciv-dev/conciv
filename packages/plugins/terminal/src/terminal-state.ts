@@ -27,12 +27,8 @@ function follow<A>(runtime: TerminalRuntime, ref: SubscriptionRef.SubscriptionRe
 
 export function createTerminalState(ctx: TerminalContext, runtime: TerminalRuntime, scope: Scope.Scope) {
   const readSession = createMemo((previous: MountedSession | undefined) => ctx.sessions.current() ?? previous)
-  const models = () => readSession()?.server.data.meta.models
-  const syncModels = (session: MountedSession) =>
-    void session.server.data.meta.models.sync(session.id).catch((cause: unknown) => {
-      console.error('[terminal] reading the session models failed', cause)
-    })
-  createKeyed(readSession, syncModels, {equals: (previous, next) => previous.key === next.key})
+  const readServer = createMemo(() => readSession()?.server)
+  const readModels = createMemo(() => readServer()?.data.meta.models(() => readSession()?.id))
   const driver = runtime.runSync(
     runTerminal({
       toast: (message) => void ctx.toast.show({title: message, variant: 'error'}),
@@ -46,8 +42,8 @@ export function createTerminalState(ctx: TerminalContext, runtime: TerminalRunti
   const run = follow(runtime, driver.state)
   const send = (event: TerminalEvent) => void runtime.runFork(driver.dispatch(event))
 
-  const meta = (sessionId: string) => (readSession()?.id === sessionId ? models()?.get(sessionId) : undefined)
-  const failed = (sessionId: string) => readSession()?.id === sessionId && models()?.failed(sessionId) === true
+  const meta = (sessionId: string) => (readSession()?.id === sessionId ? readModels()?.data : undefined)
+  const failed = (sessionId: string) => readSession()?.id === sessionId && readModels()?.isError === true
   const listedModels = (sessionId: string) => meta(sessionId)?.models ?? []
   const key = (sessionId: string) => `${sessionId}:${run().generation}`
   const busy = (sessionId: string) => {
@@ -105,12 +101,7 @@ export function createTerminalState(ctx: TerminalContext, runtime: TerminalRunti
     meta,
     modelsFailed: (sessionId: string) => meta(sessionId) === undefined && failed(sessionId),
     modelsLoading: (sessionId: string) => meta(sessionId) === undefined && !failed(sessionId),
-    reloadModels: () => {
-      const session = readSession()
-      if (!session) return
-      session.server.data.meta.models.invalidate(session.id)
-      syncModels(session)
-    },
+    reloadModels: () => void readModels()?.refetch(),
     spawnModel,
     shownModel,
     key,

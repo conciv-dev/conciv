@@ -141,7 +141,7 @@ export function createHostApis() {
   const located = createLocatedWrites()
   const appData = useAppData()
   const client = appData.client
-  const data = createServerData(appData.utils, useAppQueryClient())
+  const data = createServerData(appData.utils)
   const unavailable = Conciv.make(createORPCClient<RpcClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}), {
     server: () => UNAVAILABLE,
   })

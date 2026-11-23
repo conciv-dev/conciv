@@ -1,4 +1,5 @@
-import type {JSX} from 'solid-js'
+import type {Accessor, JSX} from 'solid-js'
+import type {UseQueryResult} from '@conciv/client'
 import type {Store} from 'solid-js/store'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import type {Ref as LocationRef} from '../schema/location.js'
@@ -9,16 +10,9 @@ import type {IconName, Link} from './registries.js'
 
 export type SessionModels = Awaited<ReturnType<ConcivClient['meta']['models']>>
 
-export interface ServerRead<Value> {
-  get(sessionId: string): Value | undefined
-  failed(sessionId: string): boolean
-  sync(sessionId: string): Promise<void>
-  invalidate(sessionId: string): void
-}
-
 export interface ServerData {
   readonly meta: {
-    readonly models: ServerRead<SessionModels>
+    models(sessionId: Accessor<string | undefined>): UseQueryResult<SessionModels>
   }
 }
 
