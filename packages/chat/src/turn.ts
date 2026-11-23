@@ -1,5 +1,4 @@
-import {readFileSync} from 'node:fs'
-import {access} from 'node:fs/promises'
+import {access, readFile} from 'node:fs/promises'
 import {
   ChatEventType,
   SESSION_DELETED_CODE,
@@ -101,15 +100,15 @@ export const COMPACT_FALLBACK_PROMPT =
 
 const TITLE_MAX_CHARS = 120
 
-export function buildSystemText(
+export async function buildSystemText(
   sources: SystemPromptSources,
   mode: HarnessAdapter['capabilities']['systemPrompt'],
   log: TurnDeps['log'],
-): string {
+): Promise<string> {
   if (mode === 'none') return ''
   if (mode !== 'file' || sources.systemPromptFile === undefined) return sources.systemPromptText ?? ''
   try {
-    return readFileSync(sources.systemPromptFile, 'utf8')
+    return await readFile(sources.systemPromptFile, 'utf8')
   } catch (error) {
     log(`[chat] system prompt file unreadable (${sources.systemPromptFile}), using inline text: ${String(error)}`)
     return sources.systemPromptText ?? ''
@@ -325,7 +324,7 @@ export function turnHooks(
     plan: async (turn, runSignal) => {
       const sessionId = SessionId.parse(turn.threadId)
       const harness = await deps.harnessFor(sessionId)
-      const systemText = buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
+      const systemText = await buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
       const row = await deps.sessions.row(sessionId)
       const own = ownRow(harness, row)
       const model = own?.model ?? null
