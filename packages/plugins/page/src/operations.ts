@@ -37,7 +37,7 @@ import {
   toCssBundle,
   type PendingCssText,
 } from './capture.js'
-import {reactBridge, startTracking, stopTracking, report as trackReport} from './react.js'
+import {reactBridge, type Tracker} from './react.js'
 import {actionable, fill, focusedElement, hover, isDisabled, press, select, setChecked} from './act.js'
 import {Operations, SHORT_MAX, type Action, type File, type Outcome, type PageCommand, type Operation} from './rpc.js'
 import {screenshot} from './screenshot.js'
@@ -50,6 +50,7 @@ type Queued = NonNullable<PageCommand['queued']>
 
 type Call = {
   simulator: Simulator
+  tracker: Tracker
   agentId: string
   queued?: Queued
   signal?: AbortSignal
@@ -414,11 +415,11 @@ function perform(
       return touching(call, () => {
         const tracked = action.action ?? 'report'
         if (tracked === 'start') {
-          startTracking()
+          call.tracker.start()
           return ok({tracking: true})
         }
-        if (tracked === 'stop') return stopTracking()
-        return trackReport({name: action.name})
+        if (tracked === 'stop') return call.tracker.stop()
+        return call.tracker.report({name: action.name})
       })
     case 'effect':
       return touching(call, () => {
@@ -617,6 +618,7 @@ function accepted(call: Call, of: number, signal: AbortSignal | undefined): Answ
 
 function callCtx(
   simulator: Simulator,
+  tracker: Tracker,
   agentId: string,
   refs: Refs,
   consoleBuf: ConsoleEntry[],
@@ -631,6 +633,7 @@ function callCtx(
   const resolve = (locator: Locator): Element | null => remember(locatorTarget(locator, refs))
   return {
     simulator,
+    tracker,
     agentId,
     ...(queued === undefined ? {} : {queued}),
     ...(signal === undefined ? {} : {signal}),
@@ -736,7 +739,11 @@ function failure(error: PageFailure): Outcome {
   return {type: 'failure', code: 'handler-error', message: error.error.message.slice(0, SHORT_MAX)}
 }
 
-export function makePageOperations(effects: readonly PageEffect[], simulator: Simulator): PageOperations {
+export function makePageOperations(
+  effects: readonly PageEffect[],
+  simulator: Simulator,
+  tracker: Tracker,
+): PageOperations {
   const refs: Refs = {map: new Map(), n: 0}
   const scope = Scope.makeUnsafe()
   const consoleBuf = Effect.runSync(consoleBuffer.pipe(Scope.provide(scope)))
@@ -749,7 +756,7 @@ export function makePageOperations(effects: readonly PageEffect[], simulator: Si
     const mode = captureMode(action)
     const slot: TargetSlot = {el: null}
     const captures = makeCaptureCollector(action.type)
-    const call = callCtx(simulator, command.agentId, refs, consoleBuf, slot, command.queued, signal)
+    const call = callCtx(simulator, tracker, command.agentId, refs, consoleBuf, slot, command.queued, signal)
     const answer = yield* Effect.tryPromise({
       try: async () => perform(action, capturingCall(call, mode, captures), effects, signal),
       catch: toPageFailure,

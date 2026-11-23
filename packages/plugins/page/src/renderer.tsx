@@ -16,7 +16,7 @@ import {makeSimulator} from './simulator.js'
 import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 import {addRef, type Refs} from './snapshot.js'
 import {dehydrate} from './dehydrate.js'
-import {describe, locate, reactBridge, rootFibers} from './react.js'
+import {describe, locate, makeTracker, reactBridge, rootFibers} from './react.js'
 import {disposeReactGrab, grabApi} from './grab.js'
 import {showToast} from './toast.js'
 import {capturePlugins} from './screenshot.js'
@@ -51,7 +51,9 @@ export default Plugin.define({
         },
       }).pipe(Scope.provide(scope)),
     )
-    const operations = makePageOperations([highlight.effect], simulator)
+    const tracker = makeTracker()
+    onCleanup(tracker.dispose)
+    const operations = makePageOperations([highlight.effect], simulator, tracker)
 
     const tab = () => readTab(tabId)
 
