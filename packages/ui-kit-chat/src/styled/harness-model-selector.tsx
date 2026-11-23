@@ -28,6 +28,7 @@ import {
   harnessSection,
   historyTokensLabel,
   listedEffort,
+  loginMessage,
   menuEntry,
   modelLabel,
   moreModelsLabel,
@@ -262,6 +263,7 @@ function HarnessGroup(props: {
       <Listbox.ItemGroupLabel class={local.named ? LIST_PANEL_GROUP_LABEL : 'sr-only'}>
         {local.section.harness.name}
       </Listbox.ItemGroupLabel>
+      <Show when={loginMessage(local.section.harness)}>{(message) => <p class={MESSAGE}>{message()}</p>}</Show>
       <For each={local.section.rows}>{(row) => <ModelRow row={row} />}</For>
       <Show when={local.section.harness.models.length === 0}>
         <p class={MESSAGE}>{`${local.section.harness.name} has no usable models`}</p>
@@ -426,7 +428,7 @@ export function HarnessModelSelector(props: HarnessModelSelectorProps): JSX.Elem
       isItemDisabled: (item) => item.model.disabled === true || foreignDisabled(item),
     }),
   )
-  const unavailable = () => entries().filter((entry) => entry.modelsFailed && entry.id !== harness()?.id)
+  const unavailable = () => entries().filter((entry) => entry.modelsFailed)
   const close = () => props.menu.popover().setOpen(false)
   let content: HTMLDivElement | undefined
   const retry = () => {
@@ -568,7 +570,10 @@ export function HarnessModelSelector(props: HarnessModelSelectorProps): JSX.Elem
                 </Show>
                 <For each={unavailable()}>
                   {(entry) => (
-                    <RetryRow reason={`Couldn’t load ${entry.name} models`} onRetry={() => props.others?.retry()} />
+                    <RetryRow
+                      reason={`Couldn’t load ${entry.name} models`}
+                      onRetry={() => (entry.id === harness()?.id ? retry() : props.others?.retry())}
+                    />
                   )}
                 </For>
                 <Show when={props.others?.failed}>

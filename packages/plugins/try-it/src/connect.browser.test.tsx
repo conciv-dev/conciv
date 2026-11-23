@@ -6,7 +6,7 @@ import {createEngine} from '@conciv/plugin-testkit'
 import {mount} from '@conciv/plugin-testkit/browser'
 
 describe('connecting the widget to a local engine', () => {
-  test('a visitor copies the command and the agent prompt, starts the engine, sees Agent connected, and the widget binds to a session that greets them as connected', async () => {
+  test('a visitor copies the command and the agent prompt, starts the engine beside one paired to another visitor, sees Agent connected, and the widget binds, trusted, to a session that greets them as connected', async () => {
     const user = userEvent.setup({delay: null})
     const token = crypto.randomUUID()
     await mount({plugins: [['@conciv/plugin-try-it', {token, probeMs: 100, holdMs: 1_000}]]})
@@ -33,6 +33,7 @@ describe('connecting the widget to a local engine', () => {
       `Run \`npx @conciv/try --token ${token}\` and keep it running`,
     )
 
+    await createEngine({}, {port: 'connect', token: crypto.randomUUID()})
     await createEngine({}, {port: 'connect', token})
     expect(await screen.findByText('Agent connected')).toBeVisible()
     expect(screen.queryByText('2')).not.toBeInTheDocument()
@@ -43,6 +44,8 @@ describe('connecting the widget to a local engine', () => {
     expect(screen.queryByRole('heading', {name: 'Drive this page with your agent.'})).not.toBeInTheDocument()
     expect(await screen.findByText('Agent connected. It’s driving this page from your machine.')).toBeVisible()
     expect(screen.queryByText('How can I help you today?')).not.toBeInTheDocument()
+    expect(screen.queryByText(/conciv couldn't connect to that workspace/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', {name: 'Authorize conciv'})).not.toBeInTheDocument()
   })
 
   test('an engine already running on a connect port binds the widget at once, with no connect steps on screen, and the session greets the user as connected', async () => {

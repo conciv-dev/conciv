@@ -2,7 +2,7 @@
 
 ## Overview
 
-Themed tool-call cards and building blocks: the generic tool card and fallback, card shell and chrome, meta-tool card, permission card, chips, code and diff blocks, JSON tree, element preview and inline rows.
+Themed tool-call cards and building blocks: the generic tool card and fallback, card shell and chrome, meta-tool card, permission card, chips, code and diff blocks, JSON tree and inline rows.
 
 ## Interface
 
@@ -15,12 +15,10 @@ Themed tool-call cards and building blocks: the generic tool card and fallback, 
 ## Invariants
 
 - `collapsible-card.tsx:CollapsibleCard` is internal to the kit: the `conciv/tool-card-shell` lint rule in `packages/oxlint-plugin` forbids importing it from `@conciv/ui-kit-chat` outside this package; compose `CardShell` or `ToolCard` instead.
-- `element-preview.tsx` throws when its parts render outside `ElementPreview.Root`.
 - `tool-call-card.tsx:ToolTraceRow` tags a row "from <client>" ("from outside agent" without a client) when its call's metadata carries the hub marker `{conciv: {origin: 'hub', client, run}}` (`OutsideCallMetadataSchema` from `@conciv/protocol/chat-message-types`); in-page calls carry no tag.
 
 ## Side Effects
 
-- `element-preview.tsx` lazily imports `rrweb-snapshot` and rebuilds the captured DOM into a sandboxed iframe, then crops it with a resize observer.
 - `collapsible-card.tsx` applies `useScrollLock` during open/close animations.
 
 ## Verification

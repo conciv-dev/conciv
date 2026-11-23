@@ -1,7 +1,9 @@
+import {readFile} from 'node:fs/promises'
+import {createServer} from 'node:http'
 import {fileURLToPath} from 'node:url'
 import {Effect} from 'effect'
 import {describe, expect, it} from 'vitest'
-import {symbolicateFrames} from './symbolicate.js'
+import {makeSymbolicator} from './symbolicate.js'
 
 describe('locate names the source file and line that rendered an element', () => {
   const project = fileURLToPath(new URL('../test/fixtures/locate', import.meta.url))
@@ -15,10 +17,55 @@ describe('locate names the source file and line that rendered an element', () =>
     {name: 'only a library frame', frames: [vendor], root: project, source: null},
     {name: 'a chunk outside the project', frames: [checkout], root: otherProject, source: null},
   ])('$name', async ({frames, root, source}) => {
-    const located = symbolicateFrames(
-      frames.map((fileName) => ({fileName, line: 1, column: 1})),
-      root,
+    const located = Effect.flatMap(makeSymbolicator({root}), (symbolicator) =>
+      symbolicator.frames(frames.map((fileName) => ({fileName, line: 1, column: 1}))),
     )
     expect(await Effect.runPromise(located)).toEqual(source)
+  })
+
+  const withAssets = it.extend<{assets: {origin: string; fetched: string[]; missingOnce: string[]}}>({
+    assets: async ({task: _task}, use) => {
+      const fetched: string[] = []
+      const missingOnce: string[] = []
+      const server = createServer((request, response) => {
+        const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
+        fetched.push(path)
+        const missing = missingOnce.indexOf(path)
+        if (missing !== -1) {
+          missingOnce.splice(missing, 1)
+          return void response.writeHead(404).end('Not Found')
+        }
+        readFile(`${project}${path}`, 'utf8').then(
+          (body) => response.end(body),
+          () => response.writeHead(404).end(),
+        )
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const address = server.address()
+      const port = typeof address === 'object' && address !== null ? address.port : 0
+      try {
+        await use({origin: `http://127.0.0.1:${port}`, fetched, missingOnce})
+      } finally {
+        await new Promise((resolve) => server.close(resolve))
+      }
+    },
+  })
+
+  withAssets('a chunk located twice is fetched and its map parsed once', async ({assets}) => {
+    const frame = {fileName: `${assets.origin}/assets/checkout.js?t=1`, line: 1, column: 1}
+    const located = Effect.flatMap(makeSymbolicator({root: project}), (symbolicator) =>
+      Effect.all([symbolicator.frames([frame]), symbolicator.frames([frame, frame])]),
+    )
+    expect(await Effect.runPromise(located)).toEqual([app, app])
+    expect(assets.fetched).toEqual(['/assets/checkout.js', '/assets/checkout.js.map'])
+  })
+
+  withAssets('a map the dev server could not serve yet is fetched again on the next locate', async ({assets}) => {
+    assets.missingOnce.push('/assets/checkout.js.map')
+    const frame = {fileName: `${assets.origin}/assets/checkout.js?t=1`, line: 1, column: 1}
+    const located = Effect.flatMap(makeSymbolicator({root: project}), (symbolicator) =>
+      Effect.all([symbolicator.frames([frame]), symbolicator.frames([frame])]),
+    )
+    expect(await Effect.runPromise(located)).toEqual([null, app])
   })
 })

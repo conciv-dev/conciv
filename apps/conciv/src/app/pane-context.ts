@@ -11,7 +11,7 @@ export type PaneContextValue = {
   resetSlide: () => void
   attachments: PendingAttachmentQueue
   newSession: () => void
-  replaceSession: (sessionId: string) => void
+  replaceSession: (sessionId: string) => Promise<void>
   chat: Accessor<ChatSession>
   refresh: () => void
   isRefreshing: Accessor<boolean>

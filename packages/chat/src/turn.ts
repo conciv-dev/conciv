@@ -10,7 +10,7 @@ import {
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {PromptPresentationSchema, type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {Turn, TurnHooks} from '@conciv/ai/server'
-import {transcriptPathWithin} from '@conciv/harness'
+import {resolveHarnessLogin, transcriptPathWithin} from '@conciv/harness'
 import {isEqual, once} from 'es-toolkit'
 import {
   ChatContentPartSchema,
@@ -256,6 +256,15 @@ export function deletedSessionError(sessionId: SessionId): Error {
   return Object.assign(new Error(missingSession(sessionId)), {code: SESSION_DELETED_CODE})
 }
 
+async function refuseLoggedOut(harness: HarnessAdapter, signal: AbortSignal, log: TurnDeps['log']): Promise<void> {
+  const login = await resolveHarnessLogin(harness, {
+    signal,
+    refresh: false,
+    onError: (error) => log(`[chat] checking the ${harness.id} login failed, the turn runs: ${String(error)}`),
+  })
+  if (!login.loggedIn) throw new Error(login.message)
+}
+
 export function turnHooks(
   deps: TurnDeps,
   context: {ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean},
@@ -268,6 +277,7 @@ export function turnHooks(
     plan: async (turn, runSignal) => {
       const sessionId = SessionId.parse(turn.threadId)
       const harness = await deps.harnessFor(sessionId)
+      await refuseLoggedOut(harness, runSignal, deps.log)
       const systemText = buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
       const row = await deps.sessions.row(sessionId)
       const own = ownRow(harness, row)

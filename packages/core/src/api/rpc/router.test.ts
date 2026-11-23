@@ -1,9 +1,56 @@
+import {writeFileSync} from 'node:fs'
+import {delimiter, join} from 'node:path'
+import {ConfigProvider} from 'effect'
 import {describe} from 'vitest'
 import {makeRpcClient} from '@conciv/contract'
+import {claude} from '@conciv/harness/claude'
+import {createHarnessEngine} from '@conciv/harness-testkit'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../../../test/engine-test.js'
 
 describe.concurrent('outside agents', () => {
+  const readThrough = async (
+    events: AsyncIterator<ChatEvent>,
+    last: (chunk: ChatEvent) => boolean,
+    read: ChatEvent[] = [],
+  ): Promise<ChatEvent[]> => {
+    const next = await events.next()
+    if (next.done === true) return read
+    if (last(next.value)) return [...read, next.value]
+    return readThrough(events, last, [...read, next.value])
+  }
+
+  test('a panel that opens while an outside call runs finds the call so far in history and the rest live', async ({
+    connect,
+    expect,
+  }) => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/asking-notes'], hubAccess: 'open'})
+    const rpc = connect(engine)
+    const early = (await rpc.chat.events({sessionId: engine.session.id}))[Symbol.asyncIterator]()
+
+    const called = engine.outside({tab: engine.session.id}).call('notes_publish', {title: 'Launch plan'})
+    await readThrough(early, (chunk) => approvalRequestedEvent.parse(chunk) !== null)
+    const late = (await rpc.chat.events({sessionId: engine.session.id}))[Symbol.asyncIterator]()
+    const during = await rpc.chat.hydrate({sessionId: engine.session.id})
+    await engine.session.approve()
+    await called
+    const seen = await readThrough(late, (chunk) => chunk.type === ChatEventType.RUN_FINISHED)
+    const after = await rpc.chat.hydrate({sessionId: engine.session.id})
+
+    expect(during.messages).toEqual([
+      expect.objectContaining({
+        id: after.messages[0]?.id,
+        parts: expect.arrayContaining([expect.objectContaining({type: 'tool-call', name: 'execute_typescript'})]),
+      }),
+    ])
+    expect(after.messages).toEqual([expect.objectContaining({role: 'assistant'})])
+    expect(seen).toContainEqual(
+      expect.objectContaining({type: ChatEventType.TOOL_CALL_RESULT, content: expect.stringContaining('Launch plan')}),
+    )
+  })
+
   test('an outside agent that is disconnected from conciv is refused', async ({expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
 
@@ -58,6 +105,32 @@ describe.concurrent('harness listing', () => {
   })
 })
 
+describe('a harness whose CLI fails its model list', () => {
+  test('the session models answer with the harness and say the models failed, and the menu keeps the harness with its models failed', async ({
+    connect,
+    expect,
+  }) => {
+    const bin = tempDir('failing-claude-')
+    writeFileSync(join(bin, 'claude'), '#!/bin/sh\nexit 1\n', {mode: 0o755})
+    const path = [bin, '/usr/bin', '/bin'].join(delimiter)
+    const engine = await createHarnessEngine({}, {harness: claude(ConfigProvider.fromEnvRecord({PATH: path}))})
+    try {
+      const rpc = connect(engine)
+
+      await expect(rpc.meta.models({sessionId: engine.session.id})).resolves.toMatchObject({
+        models: [],
+        modelsFailed: true,
+        harness: {id: 'claude', persistentPty: true},
+      })
+      await expect(rpc.meta.harnesses()).resolves.toMatchObject({
+        harnesses: [{id: 'claude', models: [], modelsFailed: true}],
+      })
+    } finally {
+      await engine.stop()
+    }
+  })
+})
+
 describe.concurrent('tool registry', () => {
   test('a call naming no registered tool is refused with UNKNOWN_TOOL', async ({connect, expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
@@ -100,8 +173,14 @@ describe.concurrent('outside agent CLIs', () => {
 describe.concurrent('terminal access', () => {
   test('a terminal opened from one origin answers that origin and is unknown to another', async ({expect}) => {
     const engine = await createEngine()
-    const opener = makeRpcClient(engine.address.apiBase, {headers: {origin: 'http://localhost:5173'}})
-    const stranger = makeRpcClient(engine.address.apiBase, {headers: {origin: 'http://127.0.0.1:5174'}})
+    const opener = makeRpcClient(engine.address.apiBase, {
+      token: engine.address.token,
+      headers: {origin: 'http://localhost:5173'},
+    })
+    const stranger = makeRpcClient(engine.address.apiBase, {
+      token: engine.address.token,
+      headers: {origin: 'http://127.0.0.1:5174'},
+    })
 
     const pty = await opener.experimental.persistentPty.create({sessionId: engine.session.id})
 

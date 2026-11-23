@@ -520,7 +520,7 @@ describe('a draft per session', () => {
 })
 
 describe('a deleted session with a draft', () => {
-  test('closing the quick pane of a session deletes it, and New session on its panel carries the typed draft over', async () => {
+  test('closing the quick pane of a session deletes it, and New session on its panel carries the typed draft over, announced once the new session shows', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     const doomed = await engine.newSession('Doomed work')
@@ -538,9 +538,10 @@ describe('a deleted session with a draft', () => {
     expect(await screen.findByText('This session was deleted.')).toBeVisible()
     expect(await screen.findByText('Your draft moves to the new session.')).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'New session'}))
+    expect(await screen.findByText('Started a new session')).toBeVisible()
+    expect(screen.queryByText('This session was deleted.')).not.toBeInTheDocument()
     const moved = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     expect(await within(moved).findByText('Keep this thought')).toBeVisible()
-    expect(screen.queryByText('This session was deleted.')).not.toBeInTheDocument()
   })
 })
 
@@ -757,7 +758,7 @@ describe('plugin pills', () => {
 })
 
 describe('the composer actions menu', () => {
-  test('Start a new session opens an empty session', async () => {
+  test('Start a new session opens an empty session, announced once it shows, and its model menu stays open while its models load', async () => {
     const user = userEvent.setup({delay: null})
     const engine = await createEngine()
     await engine.reply(TestLLM.text('Done with it'))
@@ -771,8 +772,13 @@ describe('the composer actions menu', () => {
 
     await user.click(screen.getByRole('button', {name: 'More composer actions'}))
     await user.click(await screen.findByRole('menuitem', {name: 'Start a new session'}))
-    expect(await screen.findByText('Ask a question…')).toBeVisible()
+    expect(await screen.findByText('Started a new session')).toBeVisible()
     expect(screen.queryByRole('article', {name: 'You: First task'})).not.toBeInTheDocument()
+    expect(screen.getByText('Ask a question…')).toBeVisible()
+
+    await user.click(screen.getByRole('button', {name: /^Model: /}))
+    expect(await screen.findByRole('option', {name: /^Sonnet 5\.5/})).toBeVisible()
+    expect(screen.getByRole('dialog', {name: 'Model'})).toBeVisible()
   })
 
   test('Compress the conversation compacts it, and a message sent while it compacts stays in the composer unsent', async () => {

@@ -34,6 +34,7 @@ import {useMessage} from '../primitives/message/message-context.js'
 import {
   CHAIN_GROUP_KEY,
   groupNodeIdentity,
+  defaultGrouping,
   groupParts,
   isOutsideTurn,
   shareGroupNodes,
@@ -51,7 +52,6 @@ import {summaryLine, turnRollup, type TurnRollup} from '../store/turn-rollup.js'
 import {resolveRowMark} from '../tools/primitives/tool-row.js'
 import {activeCallInParts} from '../store/active-call.js'
 import {nowTitle} from '../tools/primitives/now-title.js'
-import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {useViewportInternal} from '../primitives/thread/viewport-internal.js'
 import {useThreadViewport} from '../primitives/thread/viewport-context.js'
 import {TurnEstimateProvider} from '../primitives/thread/turn-estimate.js'
@@ -101,7 +101,6 @@ export type ThreadMessagesProps = {
   turnPrefix?: (turn: TurnPrefixSource) => JSX.Element
   promptSuffix?: (turn: TurnPrefixSource) => JSX.Element
   attachmentCards?: readonly AttachmentCardSlot[]
-  pageSession?: PageSessionConfig
   grouping?: Grouping
   groupEntries?: readonly GroupEntry[]
   readOnly?: boolean
@@ -208,7 +207,6 @@ function TurnFrame(props: ParentProps): JSX.Element {
 function AssistantTurn(props: {
   entries: ToolCardEntry[]
   render: ToolRender | undefined
-  pageSession?: PageSessionConfig
   grouping?: Grouping
   groupEntries?: readonly GroupEntry[]
 }): JSX.Element {
@@ -223,7 +221,7 @@ function AssistantTurn(props: {
     open: (partId) => opened[partId],
     setOpen: (partId, open) => setOpened(partId, open),
   }
-  const grouping = createMemo(() => props.grouping ?? createGrouping(props.pageSession, props.entries))
+  const grouping = createMemo(() => props.grouping ?? defaultGrouping(props.entries))
   const lastPartIndex = createMemo(() => turnParts.items().length - 1)
   const runActive = () => thread.isRunning && message.isLast()
   const nodes = createMemo<readonly GroupNode[]>(
@@ -331,8 +329,7 @@ function AssistantTurn(props: {
   }
   const groupEntries = createMemo<GroupEntry[]>(() => {
     const chain: GroupEntry = {key: CHAIN_GROUP_KEY, render: ChainGroup}
-    const config = props.pageSession
-    return [chain, ...(config ? [config.entry] : []), ...(props.groupEntries ?? [])]
+    return [chain, ...(props.groupEntries ?? [])]
   })
   const entryFor = (key: GroupKey) => groupEntries().find((entry) => entry.key === key)
   const PartLeaf = (leafProps: {node: GroupNodePart}): JSX.Element => {
@@ -509,7 +506,6 @@ type ThreadConfig = {
   turnPrefix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
   promptSuffix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
   attachmentCards: () => readonly AttachmentCardSlot[]
-  pageSession: () => PageSessionConfig | undefined
   grouping: () => Grouping | undefined
   groupEntries: () => readonly GroupEntry[]
   readOnly: () => boolean
@@ -525,7 +521,6 @@ const ThreadConfigContext = createContext<ThreadConfig>({
   turnPrefix: () => undefined,
   promptSuffix: () => undefined,
   attachmentCards: () => [],
-  pageSession: () => undefined,
   grouping: () => undefined,
   groupEntries: () => [],
   readOnly: () => false,
@@ -563,7 +558,6 @@ function AssistantMessageView(): JSX.Element {
           <AssistantTurn
             entries={config.entries()}
             render={config.render()}
-            pageSession={config.pageSession()}
             grouping={config.grouping()}
             groupEntries={config.groupEntries()}
           />
@@ -639,7 +633,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
   const internal = useViewportInternal()
   const estimator = internal
     ? createTurnEstimator(internal.element, {
-        grouping: () => props.grouping ?? createGrouping(props.pageSession, props.tools ?? []),
+        grouping: () => props.grouping ?? defaultGrouping(props.tools ?? []),
         exactAllowed: () => props.turnPrefix === undefined && props.promptSuffix === undefined,
         disabled: () => props.components?.AssistantMessage !== undefined,
       })
@@ -655,7 +649,6 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
         turnPrefix: () => props.turnPrefix,
         promptSuffix: () => props.promptSuffix,
         attachmentCards: () => props.attachmentCards ?? [],
-        pageSession: () => props.pageSession,
         grouping: () => props.grouping,
         groupEntries: () => props.groupEntries ?? [],
         readOnly: () => props.readOnly ?? false,

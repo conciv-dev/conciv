@@ -8,7 +8,7 @@ import {useStartSession} from './start-session.js'
 export function PaneProvider(props: {
   sessionId: string
   onNewSession?: () => void
-  onReplaceSession?: (sessionId: string) => void
+  onReplaceSession?: (sessionId: string) => Promise<void> | void
   children: JSX.Element
 }): JSX.Element {
   const appData = useAppData()
@@ -44,12 +44,9 @@ export function PaneProvider(props: {
       }
       void openNewSession()
     },
-    replaceSession: (sessionId) => {
-      if (props.onReplaceSession) {
-        props.onReplaceSession(sessionId)
-        return
-      }
-      void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
+    replaceSession: async (sessionId) => {
+      if (props.onReplaceSession) return props.onReplaceSession(sessionId)
+      await router.navigate({to: '/panel/$sessionId', params: {sessionId}})
     },
     chat,
     refresh: coordinator.refresh,

@@ -25,12 +25,13 @@ describe('the host page drives the widget through its handle', () => {
     handles,
   }) => {
     const first = await createEngine()
+    await first.newSession('Work on the first engine')
     const second = await createEngine()
     await second.newSession('Work on the second engine')
-    const bound = {address: first.address}
+    const bound = {token: () => Promise.resolve(first.address.token)}
     const handle = createConciv({
       apiBase: first.address.apiBase,
-      engineToken: () => Promise.resolve(bound.address.token),
+      engineToken: () => bound.token(),
     })
     handles.push(handle)
 
@@ -50,8 +51,18 @@ describe('the host page drives the widget through its handle', () => {
     handle.toggle()
     await expect.element(panel).not.toBeVisible()
 
-    bound.address = second.address
-    await handle.rebind(second.address.apiBase)
+    const asked = Promise.withResolvers<void>()
+    const secondToken = Promise.withResolvers<string>()
+    bound.token = () => {
+      asked.resolve()
+      return secondToken.promise
+    }
+    const rebinding = handle.rebind(second.address.apiBase)
+    expect(await Promise.race([rebinding.then(() => 'rebound'), asked.promise.then(() => 'asked for a token')])).toBe(
+      'asked for a token',
+    )
+    secondToken.resolve(second.address.token)
+    await rebinding
     handle.open()
     await expect.element(page.getByRole('button', {name: 'Work on the second engine, session options'})).toBeVisible()
 

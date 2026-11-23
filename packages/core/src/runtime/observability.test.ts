@@ -196,7 +196,7 @@ describe('engine spans', () => {
   test('an engine start, one rpc call and the stop send each span once, in its tree, under one engine id', async () => {
     const before = collector.spans().length
     const engine = await createEngine({}, {env})
-    await makeRpcClient(engine.address.apiBase).meta.harnesses()
+    await makeRpcClient(engine.address.apiBase, {token: engine.address.token}).meta.harnesses()
     await engine.restart()
 
     const spans = stoppedRunSpans(collector.spans().slice(before))

@@ -15,7 +15,7 @@ Runs the `conciv init` pipeline. It checks the project, detects framework, packa
 - `detectProject(cwd)` / `detectFramework(cwd)` / `Framework` (`detect.ts`): nextjs, astro, vite, webpack, rspack, rollup, esbuild or unknown
 - `execFileOutcome(bin, args, options, onLine)` (`pipeline.ts`): spawns a process (SIGKILLed after `options.timeout` when given, so a child that ignores SIGTERM still settles) and resolves {code, output}
 - `harnessIds` / `harnessFileInits` / `harnessAgentsMdNote` (`harness-detect.ts`): from `@conciv/harness-init/registry`; installed-harness detection is `detectHarnesses` from `@conciv/harness-init/detect`
-- `captureFile` / `guardBackups` / `onInterrupt` (`interrupt.ts`): file backup and restore, and the SIGINT hook
+- `captureFile` / `guardBackups` / `onInterrupt` / `interruptExitCode` (`interrupt.ts`): file backup and restore, the SIGINT, SIGTERM and SIGHUP hook, and the 128-plus-signal exit code
 - `StepStatus`, `ManualCard`, `StepNote`, `StepPlan`, `StepOutcome`, `LedgerEntry` (`ledger.ts`)
 - `emitOutro(output, entries, next)` (`pipeline.ts`), `preflight(cwd, force)` (`pipeline.ts`), `silentOutput()` (`../init.ts`)
 - Subdirectories:
@@ -37,8 +37,8 @@ Runs the `conciv init` pipeline. It checks the project, detects framework, packa
 
 ## Side Effects
 
-- `defaultRuntime` (`pipeline.ts`): reads PATH, HOME and the conciv home (`concivHome`, CONCIV_HOME or the platform data folder); calls process.exit(130) on interrupt
-- `guardBackups` / `onInterrupt` (`interrupt.ts`): add process 'exit' and SIGINT listeners and rewrite or delete backed-up files
+- `defaultRuntime` (`pipeline.ts`): reads PATH, HOME and the conciv home (`concivHome`, CONCIV_HOME or the platform data folder); calls process.exit with 128 plus the signal number on interrupt (130 for SIGINT, 143 for SIGTERM, 129 for SIGHUP)
+- `guardBackups` / `onInterrupt` (`interrupt.ts`): add process 'exit', SIGINT, SIGTERM and SIGHUP listeners and rewrite or delete backed-up files
 - `execFileOutcome` (`pipeline.ts`): spawns child processes
 - `preflight` (`pipeline.ts`): runs `git status --porcelain` with LC_ALL=C
 - `detect.ts`: reads package.json and config files; `detectHarnesses` (`@conciv/harness-init/detect`) reads PATH entries and HOME config dirs

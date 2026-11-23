@@ -48,7 +48,7 @@ import {
 } from './machine.js'
 import {PageQueue} from './queue.js'
 import {Definition, type Action, type Command, type Outcome, type Result, type Work} from './rpc.js'
-import {symbolicateFrames} from './symbolicate.js'
+import type {Symbolicator} from './symbolicate.js'
 import type {GrabStore} from './grabs.js'
 import {
   PageCaptureBundleSchema,
@@ -181,6 +181,7 @@ const SessionNotFound = Predicate.isTagged('Session.NotFoundError')
 
 export const make = Effect.fn('PageConnection.make')(function* (
   ctx: Pick<Context, 'agent' | 'rpc' | 'session' | 'location' | 'event' | 'storage' | 'options'>,
+  symbolicator: Symbolicator,
   grabs: GrabStore,
 ) {
   const {pageReplyTimeoutMs, queuedActionTimeoutMs, permissionSyncTimeoutMs} = Windows.parse(ctx.options)
@@ -586,7 +587,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
       'grabs.get': (input) => grabs.get(input.id),
       'sessions.attached': () => Effect.sync(() => selectAttachedSessions(machine.state)),
       'tabs.list': (input) => Effect.sync(() => selectTabs(machine.state, input.sessionId)),
-      symbolicate: (input) => symbolicateFrames(input.frames, ctx.location.directory),
+      symbolicate: (input) => symbolicator.frames(input.frames),
       'queue.wait': (input, call) =>
         unavailable(
           (signal) => queues.wait(input.sessionId, input.queueId, input.waitMs, signal),
@@ -604,7 +605,6 @@ export const make = Effect.fn('PageConnection.make')(function* (
         Effect.sync(() => queues.settle(input.sessionId, input.queueIds, input.delivery)).pipe(
           Effect.as({ok: true as const}),
         ),
-      'queue.cancelSession': (input) => Effect.sync(() => queues.cancelSession(input.sessionId)),
     })
     .pipe(Effect.orDie)
 

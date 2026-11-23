@@ -76,7 +76,7 @@ export type ConcivRouterContext = {
   connected: () => boolean
   plugins: readonly ComposedPlugin[]
   servers: boolean
-  bindApiBase?: (apiBase: string) => void
+  bindApiBase?: (apiBase: string, token: string | undefined) => void
   grabProvider?: GrabProvider
   apiBase: () => string
   connectionGeneration: () => number
@@ -99,7 +99,7 @@ export type ConcivRouterConfig = {
   connected?: () => boolean
   plugins?: readonly ComposedPlugin[]
   servers?: boolean
-  bindApiBase?: (apiBase: string) => void
+  bindApiBase?: (apiBase: string, token: string | undefined) => void
   grabProvider?: GrabProvider
   apiBase?: () => string
   connectionGeneration?: () => number

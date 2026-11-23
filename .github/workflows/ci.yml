@@ -63,15 +63,20 @@ jobs:
           node-version: 26
       # Baseline artifacts are NOT ref-scoped like caches: any PR run can upload an
       # artifact under any name, and a repo-wide latest-by-name lookup would let a
-      # fork PR poison the baseline. Resolve from the latest successful main-push
-      # run of this workflow instead, and bound the download (scheduling data only,
-      # a few KB).
+      # fork PR poison the baseline. Resolve from the latest completed main-push
+      # run of this workflow that uploaded one instead, and bound the download
+      # (scheduling data only, a few KB). Completed, not successful: the summary job
+      # publishes timings on a red run too (a cancelled run is skipped: its shards stopped early), and a success-only lookup froze the
+      # baseline at the last green main for as long as main stayed red.
       - name: Fetch shard timings baseline
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" --jq '.workflow_runs[0].id') || true
-          url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=ci-test-timings" --jq '.artifacts[0].archive_download_url') || true
+          url=""
+          for run_id in $(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=completed&per_page=10" --jq '.workflow_runs[] | select(.conclusion != "cancelled") | .id'); do
+            url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=ci-test-timings" --jq '.artifacts[0].archive_download_url') || true
+            if [ -n "$url" ] && [ "$url" != "null" ]; then break; fi
+          done
           if [ -n "$url" ] && [ "$url" != "null" ]; then
             curl -fsL --max-filesize 1048576 -H "Authorization: Bearer ${GH_TOKEN}" -o ci-test-timings.zip "$url" || true
             unzip -p ci-test-timings.zip ci-test-timings.json > ci-test-timings.json || true
@@ -306,6 +311,7 @@ jobs:
       - run: pnpm exec conciv-publish check-changesets
       - run: pnpm exec conciv-publish check-catalog
       - run: pnpm exec conciv-publish check-typecheck-coverage
+      - run: pnpm exec conciv-publish check-test-budget
       - run: pnpm exec conciv-publish check-turbo-depends-on
       - run: pnpm exec conciv-publish check-dependency-loops
       - run: pnpm exec conciv-publish check-plugin-ui-kit
@@ -415,7 +421,7 @@ jobs:
           mode: firewall-free
           firewall-version: 1.16.0 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      - run: pnpm exec turbo run typecheck lint --filter='./apps/storybook'
+      - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook'
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always()
         with:
@@ -446,15 +452,18 @@ jobs:
         with:
           node-version: 26
       # Same artifact-poisoning posture as the package planner: artifacts are NOT
-      # ref-scoped, so resolve the baseline from the latest successful main-push run
-      # of this workflow instead of a repo-wide latest-by-name lookup, and bound the
-      # download (scheduling data only, a few KB).
+      # ref-scoped, so resolve the baseline from the latest completed main-push run
+      # of this workflow that uploaded one instead of a repo-wide latest-by-name
+      # lookup, and bound the download (scheduling data only, a few KB).
       - name: Fetch e2e shard timings baseline
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" --jq '.workflow_runs[0].id') || true
-          url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=e2e-test-timings" --jq '.artifacts[0].archive_download_url') || true
+          url=""
+          for run_id in $(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=completed&per_page=10" --jq '.workflow_runs[] | select(.conclusion != "cancelled") | .id'); do
+            url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=e2e-test-timings" --jq '.artifacts[0].archive_download_url') || true
+            if [ -n "$url" ] && [ "$url" != "null" ]; then break; fi
+          done
           if [ -n "$url" ] && [ "$url" != "null" ]; then
             curl -fsL --max-filesize 1048576 -H "Authorization: Bearer ${GH_TOKEN}" -o e2e-test-timings.zip "$url" || true
             unzip -p e2e-test-timings.zip e2e-test-timings.json > e2e-test-timings.json || true
@@ -513,27 +522,35 @@ jobs:
       # sfw exits 0 even when it crashes mid-install ("Socket Firewall encountered an
       # unexpected error: TypeError: fetch failed"), so a green step used to mean nothing
       # and the missing CLI surfaced much later as `claude: not found` inside a turn
-      # assertion. Success is keyed on the binaries resolving, never on the exit code.
+      # assertion. Success is keyed on every CLI answering --version, never on the exit code.
+      # claude-code and opencode-ai fetch their native binary in a postinstall script;
+      # npm 11 skips install scripts not named in --allow-scripts, which left `claude` as
+      # its stub that only prints "claude native binary not installed" and exits 1.
       - name: Install harness CLIs
         if: matrix.harnesses
         run: |
           packages="@anthropic-ai/claude-code@2.1.212 @openai/codex@0.144.5 @google/gemini-cli@0.51.0 opencode-ai@1.18.3"
           missing=""
           for attempt in 1 2 3; do
-            sfw npm install -g $packages || echo "attempt ${attempt}: sfw npm install -g reported a failure"
+            sfw npm install -g --allow-scripts=@anthropic-ai/claude-code,opencode-ai $packages ||
+              echo "attempt ${attempt}: sfw npm install -g reported a failure"
             missing=""
             for binary in claude codex gemini opencode; do
-              command -v "$binary" >/dev/null 2>&1 || missing="${missing} ${binary}"
+              "$binary" --version || missing="${missing} ${binary}"
             done
             if [ -z "$missing" ]; then
+              echo "claude resolves to $(readlink -f "$(command -v claude)")"
+              started=$(date +%s%N)
+              claude --version
+              echo "claude --version took $((($(date +%s%N) - started) / 1000000)) ms"
               exit 0
             fi
-            echo "attempt ${attempt}: harness CLIs still missing:${missing}"
+            echo "attempt ${attempt}: harness CLIs that do not answer --version:${missing}"
             if [ "$attempt" -lt 3 ]; then
               sleep $((attempt * 15))
             fi
           done
-          echo "::error::harness CLI install failed after 3 attempts; missing binaries:${missing}"
+          echo "::error::harness CLI install failed after 3 attempts; CLIs that do not answer --version:${missing}"
           exit 1
       # Consumer-shape suites: dist widget in CLI-scaffolded apps (root e2e/).
       # test:e2e is cache:false in turbo.json, so every run
@@ -541,6 +558,29 @@ jobs:
       - run: pnpm exec conciv-ci-shards run --task e2e
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: e2e-failures-${{ matrix.shard }}
+          path: |
+            e2e/astro/test-results/
+            e2e/harnesses/test-results/
+            e2e/init/test-results/
+            e2e/nextjs-component/test-results/
+            e2e/nextjs/test-results/
+            e2e/solid-start/test-results/
+            e2e/svelte/test-results/
+            e2e/tanstack-start-redact/test-results/
+            e2e/tanstack-start/test-results/
+            e2e/vite-preact-component/test-results/
+            e2e/vite-react-component/test-results/
+            e2e/vite-react-packed/test-results/
+            e2e/vite-react/test-results/
+            e2e/vite-solid-component/test-results/
+            e2e/vite-solid/test-results/
+            e2e/vite-vanilla/test-results/
+          include-hidden-files: true
+          if-no-files-found: ignore
       # Collapse this shard's playwright/vitest reports into ONE file and upload it by
       # literal name; never glob e2e/** here, the upload action would walk every
       # node_modules in the workspace.

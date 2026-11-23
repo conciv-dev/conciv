@@ -31,8 +31,9 @@ function sessionInput(tab: string | undefined): {sessionId?: SessionId} {
   return tab === undefined ? {} : {sessionId: SessionId.parse(tab)}
 }
 
-export function outsideAgent(apiBase: string, agent: OutsideAgent = {}): Outside {
+export function outsideAgent(apiBase: string, token: string, agent: OutsideAgent = {}): Outside {
   const rpc: RpcClient = makeRpcClient(apiBase, {
+    token,
     headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: agent.client ?? TERMINAL_CLIENT},
   })
   const session = sessionInput(agent.tab)

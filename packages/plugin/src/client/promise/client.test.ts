@@ -7,7 +7,10 @@ describe('the SDK client keeps its event stream open', () => {
   it('the stream connects, comes back after the engine restarts, reopens when it goes silent, and is connecting again once the last reader leaves', async () => {
     const engine = await createEngine({}, {timeouts: {eventHeartbeatIntervalMs: 60_000}})
     const server = () => engine.address.apiBase
-    const steady = make(makeRpcClient(engine.address.apiBase), {server, reconnectDelay: 0})
+    const steady = make(makeRpcClient(engine.address.apiBase, {token: engine.address.token}), {
+      server,
+      reconnectDelay: 0,
+    })
     const steadyReading = new AbortController()
     const steadyStream = steady.event.subscribe({types: ['permission.asked'], signal: steadyReading.signal})
     const steadyEvents = steadyStream[Symbol.asyncIterator]()
@@ -30,7 +33,11 @@ describe('the SDK client keeps its event stream open', () => {
     steadyReading.abort()
     expect(steady.connection.status()).toBe('connecting')
 
-    const watched = make(makeRpcClient(engine.address.apiBase), {server, idleTimeout: 50, reconnectDelay: 0})
+    const watched = make(makeRpcClient(engine.address.apiBase, {token: engine.address.token}), {
+      server,
+      idleTimeout: 50,
+      reconnectDelay: 0,
+    })
     const watchedReading = new AbortController()
     const watchedStream = watched.event.subscribe({types: ['permission.asked'], signal: watchedReading.signal})
     const watchedEvents = watchedStream[Symbol.asyncIterator]()

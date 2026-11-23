@@ -5,6 +5,8 @@ import {usePluginHost} from './host'
 
 type PluginServer = {readonly key: string; readonly plugin: string; readonly entry: ServerEntry}
 
+export type ServerBinding = {readonly apiBase: string; readonly token: string | undefined}
+
 const ServersContext = createContext<ReturnType<typeof createPluginServers>>()
 
 export function usePluginServers() {
@@ -64,10 +66,11 @@ function createPluginServers(servers: boolean) {
     return entries().find((item) => item.entry.state === 'ready' && item.entry.http) ?? entries()[0]
   })
 
-  const bound = createMemo(() => {
+  const bound = createMemo((): ServerBinding | undefined => {
     const current = routed()
+    const http = current?.entry.state === 'ready' ? current.entry.http : undefined
 
-    return current?.entry.state === 'ready' ? current.entry.http?.url : undefined
+    return http === undefined ? undefined : {apiBase: http.url, token: http.password}
   })
 
   return {
