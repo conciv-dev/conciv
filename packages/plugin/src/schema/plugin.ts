@@ -53,7 +53,6 @@ export type ChunkNotFound = typeof ChunkNotFound.Type
 export const State = Schema.Union([
   Schema.Struct({status: Schema.Literal('active')}),
   Schema.Struct({status: Schema.Literal('failed'), error: Schema.String, ref: Schema.String.pipe(optional)}),
-  Schema.Struct({status: Schema.Literal('disabled')}),
 ]).annotate({identifier: 'Plugin.State'})
 export type State = typeof State.Type
 

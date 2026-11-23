@@ -17,7 +17,7 @@ function staticEntry({setup, ...declarations}: Plugin.Definition): Omit<Entry, '
 export const builtins = compose({
   grab: {windowEntry: () => Promise.resolve({default: provideGrab})},
   terminal: staticEntry(terminal),
-  'conciv.page': staticEntry(page),
+  'conciv.page': {...staticEntry(page), server: true},
 })
 
 export const BUILTINS_UPDATED = 'conciv:experimental-plugins-updated'

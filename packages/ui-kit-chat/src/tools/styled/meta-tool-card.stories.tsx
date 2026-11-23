@@ -102,7 +102,7 @@ export const MutatingTool: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('page_fill #email')).toBeVisible()
-    await expect(canvas.getByText('page edit')).toBeVisible()
+    await expect(canvas.queryByText('page edit')).toBeNull()
   },
 }
 

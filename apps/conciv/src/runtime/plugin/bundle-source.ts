@@ -77,7 +77,7 @@ type Listing = {
   readonly reserved: readonly string[]
   readonly parts: Parts
   readonly builtinOptions: ReadonlyMap<string, PluginOptions>
-  readonly configOff: ReadonlySet<string>
+  readonly builtinsListed: ReadonlySet<string>
 }
 
 type PluginExperimentalsMessage = Parameters<Parameters<PluginExperimentalSource['on']>[0]>[0]
@@ -220,8 +220,8 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
     server: ReadonlySet<string>
     unreadable: ReadonlyMap<string, string>
     builtinOptions: ReadonlyMap<string, PluginOptions>
-    configOff: ReadonlySet<string>
-  } = {reserved: [], server: new Set(), unreadable: new Map(), builtinOptions: new Map(), configOff: new Set()}
+    builtinsListed: ReadonlySet<string> | undefined
+  } = {reserved: [], server: new Set(), unreadable: new Map(), builtinOptions: new Map(), builtinsListed: undefined}
   const enableState: {rows: readonly EnableState[] | undefined} = {rows: undefined}
   const machine = yield* Ref.make(createHostState())
   const signals = yield* PubSub.unbounded<BundleSignal>()
@@ -389,12 +389,8 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
       {concurrency: 'unbounded'},
     )
 
-    const configOff = new Set(
-      listed.flatMap((plugin) =>
-        plugin.source.type === 'builtin' && plugin.id !== undefined && plugin.state.status === 'disabled'
-          ? [plugin.id]
-          : [],
-      ),
+    const builtinsListed = new Set(
+      listed.flatMap((plugin) => (plugin.source.type === 'builtin' && plugin.id !== undefined ? [plugin.id] : [])),
     )
 
     return {
@@ -402,7 +398,7 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
       reserved,
       parts,
       builtinOptions,
-      configOff,
+      builtinsListed,
     }
   })
 
@@ -441,7 +437,7 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
         next.reserved.join('\n') === inventory.reserved.join('\n') &&
         [...next.parts.server].join('\n') === [...inventory.server].join('\n') &&
         [...next.parts.unreadable].join('\n') === [...inventory.unreadable].join('\n') &&
-        [...next.configOff].join('\n') === [...inventory.configOff].join('\n')
+        [...next.builtinsListed].join('\n') === [...(inventory.builtinsListed ?? [])].join('\n')
       )
         return Effect.void
       removed.forEach((pluginId) => plugins.delete(pluginId))
@@ -449,7 +445,7 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
       inventory.reserved = next.reserved
       inventory.server = next.parts.server
       inventory.unreadable = next.parts.unreadable
-      inventory.configOff = next.configOff
+      inventory.builtinsListed = next.builtinsListed
 
       return Effect.andThen(changed, publish)
     })
@@ -473,11 +469,11 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
   const known = (pluginId: string) => local.includes(pluginId) || plugins.has(pluginId)
 
   const installed = (): readonly Installed[] => [
-    ...local.map((pluginId) => ({
-      id: pluginId,
+    ...input.builtins.map((definition) => ({
+      id: definition.id,
       builtin: true,
-      enabled: enabled(pluginId),
-      ...(inventory.configOff.has(pluginId) ? {configOff: true as const} : {}),
+      enabled: enabled(definition.id),
+      ...(definition.server && inventory.builtinsListed ? {server: inventory.builtinsListed.has(definition.id)} : {}),
     })),
     ...[...plugins.keys()].map((pluginId) => ({
       id: pluginId,

@@ -135,13 +135,13 @@ export function selectDisabled(state: StartupGateState, ids: readonly string[], 
   if (state.status === 'preferences') return undefined
 
   const rows = enableRows(state.preferences)
-  const configOff = state.preferences.status === 'loaded' ? state.preferences.list : []
+  const listed = state.preferences.status === 'loaded' ? state.preferences.list : []
 
   return new Set(
     ids.filter((id) => {
       const builtin = builtins.has(id)
 
-      if (configOff.some((item) => item.id === id && item.configOff)) return true
+      if (listed.some((item) => item.id === id && item.builtin && item.server === false)) return true
 
       return !(rows ? pluginEnabled({id, builtin}, rows) : builtin)
     }),

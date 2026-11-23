@@ -36,7 +36,7 @@ import {
 } from 'effect'
 import {Bus} from './bus.js'
 import {PluginHost} from './plugin/host.js'
-import {type Chunks, type Generation, Service} from './plugin/service.js'
+import {type Chunks, type Failure, type Generation, Service} from './plugin/service.js'
 import {State} from './state.js'
 
 export {awaitActivation, type Failure, type Generation, type Interface, Service} from './plugin/service.js'
@@ -62,7 +62,7 @@ export const layer = Layer.effect(
     }
     const hold = () => Effect.sync(holdUnsafe)
     const pendingFailures = yield* Queue.unbounded<PendingFailure>()
-    let discovered: readonly Plugin.Info[] = []
+    let discovered: readonly Failure[] = []
     let inventory: Plugin.Info[] = []
     const snapshot = () => [...Array.from(active.values()).map(slotInfo), ...discovered]
     const publish = State.changes(
@@ -153,7 +153,7 @@ export const layer = Layer.effect(
 
     const activate = Effect.fn('Plugin.activate')(function* (
       plugins: readonly Generation[],
-      unloaded: readonly Plugin.Info[] = [],
+      failures: readonly Failure[] = [],
     ) {
       const definitions = plugins.map((plugin) => ({...plugin, id: Plugin.Id.make(plugin.id)}))
       const ids = new Set<Plugin.Id>()
@@ -168,7 +168,7 @@ export const layer = Layer.effect(
           lock.withPermit(
             Effect.gen(function* () {
               if (closed) return
-              discovered = unloaded
+              discovered = failures
               const current = Array.from(active.values())
               const changed = definitions.findIndex((definition, index) => {
                 const entry = current[index]
