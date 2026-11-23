@@ -1,6 +1,7 @@
 import {writeFileSync} from 'node:fs'
 import {delimiter, join} from 'node:path'
 import {ConfigProvider} from 'effect'
+import {z} from 'zod'
 import {describe} from 'vitest'
 import {makeRpcClient} from '@conciv/contract'
 import {claude} from '@conciv/harness/claude'
@@ -10,6 +11,7 @@ import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/pro
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {test} from '../../../test/engine-test.js'
+import {CHAT_SYSTEM_PROMPT} from '../../lib/chat-system-prompt.js'
 
 describe.concurrent('outside agents', () => {
   const readThrough = async (
@@ -144,6 +146,14 @@ describe.concurrent('outside agents', () => {
       content: [expect.objectContaining({type: 'text', text: expect.stringContaining('"agent":"outside"')})],
     })
     expect(await hub.registry.call({name: 'desk_agent', input: {}})).toEqual({agent: 'outside'})
+    const ran = await hub.code.execute({
+      sessionId: engine.session.id,
+      typescriptCode:
+        "const first = await external_desk_echo({text: 'one'}); const second = await external_desk_echo({text: 'two'}); return [first.callId, second.callId]",
+    })
+    const started = z.tuple([z.string(), z.string()]).parse(ran.ok ? ran.result : null)
+    expect(new Set(started).size).toBe(2)
+    expect(ran.toolCalls).toEqual(started)
     expect(await connect(engine).registry.call({name: 'desk_agent', input: {}})).toEqual({agent: 'build'})
   })
 })
@@ -208,6 +218,44 @@ describe.concurrent('tool registry', () => {
       code: 'UNKNOWN_TOOL',
       message: 'no registered tool answers to that name',
     })
+  })
+})
+
+describe.concurrent('session instructions', () => {
+  test("a session answers the system text its next turn sends: the base prompt, the attached page's entry, and what the context hooks leave, until it is deleted", async ({
+    connect,
+    expect,
+  }) => {
+    const engine = await createEngine({plugins: ['@conciv/plugin-page', './test/fixtures/plugins/desk']})
+    const rpc = connect(engine)
+    const sessionId = engine.session.id
+    const connectionId = 'desk'
+    const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
+    const attachment = engine.rpc
+      .call('experimental.page', 'attach', {sessionId, connectionId, version: 1})
+      .catch(() => 'closed')
+    await attached.arrived
+    await engine.rpc.call('experimental.page', 'state', {
+      sessionId,
+      connectionId,
+      state: {
+        id: 'tab_33333333-3333-4333-8333-333333333333',
+        url: 'http://localhost:3000/desk',
+        title: 'Desk',
+        focused: true,
+        visible: true,
+      },
+    })
+
+    const {text} = await rpc.sessions.instructions({sessionId})
+    expect(text).toContain(CHAT_SYSTEM_PROMPT.split('\n')[0])
+    expect(text).toContain('<context key="page">\nThe page capabilities read and drive the live page')
+    expect(text.endsWith('HOOKED')).toBe(true)
+
+    await rpc.sessions.delete({sessionId})
+    await expect(rpc.sessions.instructions({sessionId})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    await engine.restart()
+    expect(await attachment).toBe('closed')
   })
 })
 

@@ -21,7 +21,6 @@ import {
   TabsSchema,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
-import {PageQueueHandleSchema, PageQueueProgressSchema, PageQueueResultSchema} from '@conciv/protocol/page-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
 import {TtyServerControlSchema} from '@conciv/protocol/terminal-types'
 import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
@@ -210,8 +209,7 @@ const CodeSessionInput = z.object({sessionId: SessionId.optional()})
 const CodeDelivery = {
   logs: z.array(z.string()),
   files: z.array(ChatContentPartSchema).optional(),
-  queued: z.array(PageQueueHandleSchema),
-  finished: z.array(PageQueueResultSchema),
+  toolCalls: z.array(z.string()),
 }
 
 export const CodeExecuteResultSchema = z.discriminatedUnion('ok', [
@@ -225,7 +223,7 @@ export const CodeExecuteResultSchema = z.discriminatedUnion('ok', [
 
 export type CodeExecuteResult = z.infer<typeof CodeExecuteResultSchema>
 
-export const CodeDiscoverResultSchema = z.object({tools: z.unknown(), finished: z.array(PageQueueResultSchema)})
+export const CodeDiscoverResultSchema = z.object({tools: z.unknown()})
 
 export type CodeDiscoverResult = z.infer<typeof CodeDiscoverResultSchema>
 
@@ -234,8 +232,6 @@ export const CodeDescriptionsSchema = z.object({execute: z.string(), discover: z
 export type CodeDescriptions = z.infer<typeof CodeDescriptionsSchema>
 
 const noCodeMode = {NO_CODE_MODE: {message: 'code mode is unavailable on this engine'}}
-
-const noQueue = {NO_QUEUE: {message: 'no such queue on this tab'}}
 
 const pluginRpcFailed = {
   PLUGIN_RPC: {
@@ -432,6 +428,10 @@ export const contract = {
       .input(SessionIdInput)
       .output(SessionMetaSchema),
     preview: oc.errors(notFound).input(SessionPreviewInput).output(SessionPreviewSchema),
+    instructions: oc
+      .errors({...notFound, ...approvalDenied})
+      .input(SessionIdInput)
+      .output(z.object({text: z.string()})),
     create: oc.output(SessionIdInput.extend({session: SessionMetaSchema})),
     resolve: oc
       .errors(notFound)
@@ -529,14 +529,6 @@ export const contract = {
       .errors({...noCodeMode, ...approvalDenied, ...notFound})
       .input(CodeSessionInput.extend({toolNames: z.array(z.string())}))
       .output(CodeDiscoverResultSchema),
-  },
-  page: {
-    queue: {
-      wait: oc
-        .errors({...noQueue, ...approvalDenied})
-        .input(SessionIdInput.extend({queueId: z.string().min(1), waitMs: z.number().int().min(0)}))
-        .output(z.discriminatedUnion('status', [PageQueueResultSchema, PageQueueProgressSchema])),
-    },
   },
   meta: {
     models: oc.errors(approvalDenied).input(SessionIdInput).output(ChatModelsSchema),

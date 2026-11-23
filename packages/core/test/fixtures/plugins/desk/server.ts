@@ -11,8 +11,8 @@ export default Plugin.define({
           name: 'desk_echo',
           description: 'Say the text back',
           input: z.object({text: z.string()}),
-          output: z.object({text: z.string()}),
-          execute: ({text}) => Effect.succeed({output: {text}}),
+          output: z.object({text: z.string(), callId: z.string()}),
+          execute: ({text}, context) => Effect.succeed({output: {text, callId: context.id}}),
         })
         tools.add({
           name: 'desk_agent',
@@ -22,5 +22,10 @@ export default Plugin.define({
           execute: (_input, context) => Effect.succeed({output: {agent: context.agent}}),
         })
       })
+      yield* ctx.session.hook('context', (input) =>
+        Effect.sync(() => {
+          input.system.push({type: 'text', text: 'HOOKED'})
+        }),
+      )
     }),
 })

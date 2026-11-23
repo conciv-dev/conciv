@@ -328,6 +328,86 @@ async function refuseLoggedOut(harness: HarnessAdapter, signal: AbortSignal, log
   if (!login.loggedIn) throw new Error(login.message)
 }
 
+type TurnBasis = {
+  systemText: string
+  own: SessionRow | null
+  resumeSessionId: HarnessSessionId | null
+  reset: InstructionReset
+  toolSet: () => Promise<ReturnType<typeof chatToolSet>>
+  config: Awaited<ReturnType<HarnessAdapter['chatConfig']>>
+}
+
+type DraftRequest = Pick<SessionRequest, 'messages' | 'options' | 'tools'> & {system: readonly string[]}
+
+async function turnBasis(
+  deps: TurnDeps,
+  sessionId: SessionId,
+  harness: HarnessAdapter,
+  kind: Turn['kind'],
+  codeMode: boolean,
+  signal: AbortSignal,
+): Promise<TurnBasis> {
+  const systemText = await buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
+  const row = await deps.sessions.row(sessionId)
+  const own = ownRow(harness, row)
+  const model = own?.model ?? null
+  const resumeSessionId = await resumableToken(deps, harness, row)
+  const reset: InstructionReset = kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
+  const toolSet = async () =>
+    chatToolSet(await deps.capabilities(sessionId), {sessionId, agentId: sessionId, model}, codeMode)
+  const config = await harness.chatConfig({
+    cwd: deps.cwd,
+    sessionId,
+    askPermission: (ask) => deps.askPermission(sessionId, ask, signal),
+    resumeSessionId,
+    model: model ?? undefined,
+    effort: own?.effort ?? undefined,
+    env: deps.harnessEnv(sessionId),
+    kind,
+  })
+  return {systemText, own, resumeSessionId, reset, toolSet, config}
+}
+
+function systemPrompts(systemText: string, instructions: PluginInstructions): string[] {
+  return [systemText, instructions.initial].filter((text) => text !== '')
+}
+
+function sessionRequest(
+  sessionId: SessionId,
+  harness: HarnessAdapter,
+  own: SessionRow | null,
+  config: TurnBasis['config'],
+  request: DraftRequest,
+): SessionRequest {
+  return {
+    sessionId,
+    model: {id: config.adapter.model, providerId: harness.id, ...(own?.effort ? {variant: own.effort} : {})},
+    system: request.system.map((text) => ({type: 'text', text})),
+    messages: request.messages,
+    options: request.options,
+    tools: request.tools,
+  }
+}
+
+export async function sessionInstructions(
+  deps: TurnDeps,
+  sessionId: SessionId,
+  messages: ModelMessage[],
+  codeMode: boolean,
+  signal: AbortSignal,
+): Promise<string> {
+  const harness = await deps.harnessFor(sessionId)
+  const {systemText, own, reset, toolSet, config} = await turnBasis(deps, sessionId, harness, 'chat', codeMode, signal)
+  const instructions = await deps.pluginInstructions(sessionId, reset, (await toolSet()).inventory)
+  const system = systemPrompts(systemText, instructions)
+  const event = await deps.context(
+    'context',
+    sessionRequest(sessionId, harness, own, config, {system, messages, options: {}, tools: {}}),
+    signal,
+  )
+  return event.system.map((part) => part.text).join('\n\n')
+}
+
 export function turnHooks(
   deps: TurnDeps,
   context: {ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean},
@@ -341,41 +421,24 @@ export function turnHooks(
       const sessionId = SessionId.parse(turn.threadId)
       const harness = await deps.harnessFor(sessionId)
       await refuseLoggedOut(harness, runSignal, deps.log)
-      const systemText = await buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
-      const row = await deps.sessions.row(sessionId)
-      const own = ownRow(harness, row)
-      const model = own?.model ?? null
-      const resumeSessionId = await resumableToken(deps, harness, row)
-      const reset: InstructionReset = turn.kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
+      const {systemText, own, resumeSessionId, reset, toolSet, config} = await turnBasis(
+        deps,
+        sessionId,
+        harness,
+        turn.kind,
+        context.codeMode,
+        runSignal,
+      )
       const instructions = Promise.withResolvers<PluginInstructions>()
       const normalizer = once(async () => toolNameNormalizer(await deps.toolNames(sessionId)))
-      const toolSet = async () =>
-        chatToolSet(await deps.capabilities(sessionId), {sessionId, agentId: sessionId, model}, context.codeMode)
-      const config = await harness.chatConfig({
-        cwd: deps.cwd,
-        sessionId,
-        askPermission: (ask) => deps.askPermission(sessionId, ask, runSignal),
-        resumeSessionId,
-        model: model ?? undefined,
-        effort: own?.effort ?? undefined,
-        env: deps.harnessEnv(sessionId),
-        kind: turn.kind,
-      })
       return {
         adapter: config.adapter,
         modelOptions: config.modelOptions,
-        systemPrompts: async () => [systemText, (await instructions.promise).initial].filter((text) => text !== ''),
+        systemPrompts: async () => systemPrompts(systemText, await instructions.promise),
         context: async (request, signal) => {
           const event = await deps.context(
             turn.kind === 'compact' ? 'compaction' : 'context',
-            {
-              sessionId,
-              model: {id: config.adapter.model, providerId: harness.id, ...(own?.effort ? {variant: own.effort} : {})},
-              system: request.system.map((text) => ({type: 'text', text})),
-              messages: request.messages,
-              options: request.options,
-              tools: request.tools,
-            },
+            sessionRequest(sessionId, harness, own, config, request),
             signal,
           )
           return {

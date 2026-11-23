@@ -24,7 +24,19 @@ import type {Context} from '@conciv/plugin/effect/plugin'
 import type {RpcRegistration} from '@conciv/plugin/effect/rpc'
 import {Tool} from '@conciv/plugin/schema/tool'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import {PAGE_QUEUE_REFUSED, PAGE_QUEUE_STOPPED, PageRaisedErrorSchema} from '@conciv/protocol/page-types'
+import {
+  PAGE_QUEUE_REFUSED,
+  PAGE_QUEUE_STOPPED,
+  PageRaisedErrorSchema,
+  Definition,
+  PageChangeEntrySchema,
+  type Action,
+  type Command,
+  type Outcome,
+  type PageChangeEntry,
+  type Result,
+  type Work,
+} from './rpc.js'
 import {
   ACCESS,
   createConnectionState,
@@ -43,16 +55,6 @@ import {
 import {PageQueue} from './queue.js'
 import {queueNotice} from './queue-notice.js'
 import {PageSkill} from './skill.js'
-import {
-  Definition,
-  PageChangeEntrySchema,
-  type Action,
-  type Command,
-  type Outcome,
-  type PageChangeEntry,
-  type Result,
-  type Work,
-} from './rpc.js'
 import type {Symbolicator} from './symbolicate.js'
 import {PageCaptureBundleSchema, type PageCaptureBundle, type SessionCaptures} from './element-capture-types.js'
 import type {StorageEntry} from '@conciv/plugin/effect'

@@ -5,11 +5,8 @@ import {z} from 'zod'
 import type {Context} from '@conciv/plugin/effect/plugin'
 import {Agent} from '@conciv/plugin/schema/agent'
 import {Tool} from '@conciv/plugin/schema/tool'
-import {PageRaisedErrorSchema} from '@conciv/protocol/page-types'
-import {RawFrameSchema, SourceLocSchema} from '@conciv/contract'
-import {toolFailure, type Connection} from './connection.js'
-import {PageFiles} from './files.js'
 import {
+  PageRaisedErrorSchema,
   CliTools,
   Operations,
   PAGE_NAMESPACE,
@@ -19,6 +16,9 @@ import {
   type Operation,
   type Result,
 } from './rpc.js'
+import {RawFrameSchema, SourceLocSchema} from '@conciv/contract'
+import {toolFailure, type Connection} from './connection.js'
+import {PageFiles} from './files.js'
 import {PageSkill} from './skill.js'
 import type {Symbolicator} from './symbolicate.js'
 

@@ -19,8 +19,7 @@ import {
 } from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
 import {engineMcpUrl} from '../../engine-login.js'
-import {rowById} from '../../sessions/session-rows.js'
-import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './sessions.js'
+import {buildHarnessMenuEntry, buildHarnessMeta, requireLiveSession, sessionsRouter} from './sessions.js'
 import {
   admitOutsideCall,
   makeHubAdmission,
@@ -169,13 +168,6 @@ function pluginToolError(name: string, cause: Cause.Cause<Tool.Error>, errors: R
   const refused = failure.value.error
   if (isBlocked(refused) || isCorrected(refused)) return errors.APPROVAL_DENIED({message: failure.value.message})
   return registryCallError(failure.value, errors)
-}
-
-async function requireLiveSession(deps: RpcDeps, sessionId: SessionId | undefined, refuse: () => Error): Promise<void> {
-  if (sessionId === undefined) return
-  const row = await rowById(deps.chat.db, sessionId)
-  if (row !== null && row.deletedAt === null) return
-  throw refuse()
 }
 
 async function runPluginTool(
@@ -599,13 +591,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         if (code.sandbox.discover === null) throw call.errors.NO_CODE_MODE({message: 'no tools to discover'})
         return code.discover(input.toolNames)
       }),
-    },
-    page: {
-      queue: {
-        wait: os.page.queue.wait.handler(({input, errors}) => {
-          throw errors.NO_QUEUE({message: `no queue ${input.queueId} on this tab`})
-        }),
-      },
     },
     meta: {
       models: os.meta.models.handler(async ({input, signal = new AbortController().signal}) => {

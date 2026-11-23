@@ -166,6 +166,7 @@ async function runExecute(
   runner: CodeSandbox,
   typescriptCode: string,
   calls: CallPublisher,
+  toolCalls: () => string[],
 ): Promise<CodeExecuteResult> {
   await calls.publish(calls.trace.start(calls.run, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
@@ -175,7 +176,7 @@ async function runExecute(
   const result = parsed.success
     ? parsed.data
     : {success: false, error: {message: 'the sandbox returned an unreadable result'}}
-  const typed = typedResult(result, runner.declaredCodes)
+  const typed = typedResult(result, runner.declaredCodes, toolCalls())
   await publishResult(calls, codeExecuteReply(typed))
   return typed
 }
@@ -286,12 +287,12 @@ export async function openCodeSession(
       discover: code.discover?.description ?? null,
     }),
     execute: async (typescriptCode) => {
-      const result = await runExecute(code, typescriptCode, calls)
+      const result = await runExecute(code, typescriptCode, calls, () => [...childStarts.keys()])
       return {result, reply: codeExecuteReply(result)}
     },
     discover: async (toolNames) => {
       if (code.discover === null) throw new Error('no tools to discover')
-      return {tools: cappedValue(await code.discover.run(toolNames)), finished: []}
+      return {tools: cappedValue(await code.discover.run(toolNames))}
     },
   })
   return {
@@ -301,14 +302,16 @@ export async function openCodeSession(
   }
 }
 
-const NO_QUEUES = {queued: [], finished: []}
-
-function typedResult(result: ExecuteResult, declaredCodes: ReadonlySet<string>): CodeExecuteResult {
+function typedResult(
+  result: ExecuteResult,
+  declaredCodes: ReadonlySet<string>,
+  toolCalls: string[],
+): CodeExecuteResult {
   const logs = cappedLogs(result.logs ?? [])
   const files = result.files === undefined ? {} : {files: result.files}
-  if (result.success) return {ok: true, result: cappedValue(result.result), logs, ...files, ...NO_QUEUES}
+  if (result.success) return {ok: true, result: cappedValue(result.result), logs, ...files, toolCalls}
   const error = executeError(result, declaredCodes)
-  return {ok: false, error: {...error, message: cappedText(error.message)}, logs, ...files, ...NO_QUEUES}
+  return {ok: false, error: {...error, message: cappedText(error.message)}, logs, ...files, toolCalls}
 }
 
 function cappedLogs(logs: string[]): string[] {

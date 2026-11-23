@@ -1,5 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
+import {makeRpcClient} from '@conciv/contract'
+import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 
 describe('with no page open, the agent is offered no page tools', () => {
@@ -119,20 +121,23 @@ describe('a queue that finishes tells whoever started it', () => {
       queued: z.array(z.object({queueId: z.string(), actions: z.number()})),
       finished: z.array(z.object({result: z.object({queueId: z.string(), status: z.string()}), notice: z.string()})),
     })
-    const readOutside = async () =>
-      Outside.parse(await engine.rpc.call('experimental.page', 'queue.outside', {sessionId}))
+    const hub = makeRpcClient(engine.address.apiBase, {
+      token: engine.address.token,
+      headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'},
+    })
 
     const outsideAccepted = await commanded()
-    const outsideReply = await engine
-      .outside({tab: sessionId})
-      .call('page_queue_async', {actions: [{tool: 'page_click', selector: '#buy'}]})
-    const outsideText = z
-      .array(z.object({text: z.string()}))
-      .parse(outsideReply.content)
-      .map((part) => part.text)
-      .join('\n')
-    const outsideQueueId = /"queueId":"(q_[^"]+)"/.exec(outsideText)?.[1]
+    const outsideRun = await hub.code.execute({
+      sessionId,
+      typescriptCode: "return await external_page_queue_async({actions: [{tool: 'page_click', selector: '#buy'}]})",
+    })
+    const outsideQueueId = z.object({queueId: z.string()}).parse(outsideRun.ok ? outsideRun.result : null).queueId
     expect(outsideQueueId).toMatch(/^q_/)
+    expect(outsideRun.toolCalls).toHaveLength(1)
+    const readOutside = async () =>
+      Outside.parse(
+        await engine.rpc.call('experimental.page', 'queue.outside', {sessionId, toolCallIds: outsideRun.toolCalls}),
+      )
     const outsideFinished = await engine.event('rpc.experimental.page.queue.finished', {
       data: {queueId: outsideQueueId},
     })

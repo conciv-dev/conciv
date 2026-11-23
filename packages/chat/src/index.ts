@@ -23,7 +23,14 @@ import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {CodeModeCatalog} from '@conciv/plugin-host'
 import {clearThread, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
-import {deletedSessionError, firstUserTitle, sessionDeleted, turnHooks, type TurnDeps} from './turn.js'
+import {
+  deletedSessionError,
+  firstUserTitle,
+  sessionDeleted,
+  sessionInstructions,
+  turnHooks,
+  type TurnDeps,
+} from './turn.js'
 
 export {assistCapabilities, toolDomainCapabilities, type CodeCapability, type ToolDomain} from './code-mode.js'
 export type {SessionPort} from './turn.js'
@@ -89,6 +96,7 @@ export type ChatPlane = {
     messageId?: string,
   ) => Promise<CodeRunner | null>
   turnMessage: (sessionId: SessionId) => string | null
+  instructions: (sessionId: SessionId, signal: AbortSignal) => Promise<string>
   wake: (sessionId: SessionId) => Promise<void>
   catchUp: (sessionId: SessionId) => Promise<ChatEvent[]>
 }
@@ -301,6 +309,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         buildCodeRunner(sessionId, publish, given, messageId),
       ),
     turnMessage: (sessionId) => server.turnMessage(sessionId),
+    instructions: async (sessionId, signal) =>
+      sessionInstructions(deps, sessionId, await stores.messages.loadThread(sessionId), deps.driver !== null, signal),
   }
 }
 

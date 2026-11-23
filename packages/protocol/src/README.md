@@ -11,7 +11,6 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 - Chat events (`chat-event-types.ts`): `defineChatEvent`; 'approval-requested', 'conciv.run-lifecycle', 'conciv.session-run', 'conciv.idle-failed' (`{runId}`: the run's `experimental.idle` hook failed and its record now carries the error); `readApprovalAsk`, `isRunPhaseTerminal`; `CONTEXT_OVERFLOW_CODE` (re-exported from `@tanstack/ai`) and `SESSION_DELETED_CODE` (`'session_deleted'`, the `code` of a turn or compaction refused because its session is deleted), each a `RUN_ERROR` / `Error` `code`
 - Chat messages (`chat-message-types.ts`): @tanstack/ai aliases, `toModelMessages`, `CompactionMetadataSchema`, `OutsideCallMetadataSchema` (the `{conciv: {origin: 'hub', client, run}}` marker an outside agent's call carries), `isContentParts`, and `imagesIn` / `withoutImages` / `imageBlocks` (find image parts anywhere in a value, replace them with a stub, and turn them into MCP image blocks)
 - `chatBusy` (`chat-busy.ts`); `ChatTool` / `defineTool` (`chat-tool-types.ts`)
-- Page protocol (`page-types.ts`): PAGE_ERROR_CODES, SymbolicateSchema, OpenSourceResultSchema, `pageFailure`, PageQueueHandleSchema (`{queueId, actions}`), PAGE_QUEUE_SYNC_MS (`CODE_MODE_TIMEOUT_MS` minus 30 s)
 - UI markers (`ui-types.ts`): PLUGIN_OVERLAY_ATTR. Every plugin overlay host (`ctx.overlay`) carries it, so page captures and selection skip all of them.
 - Terminal control (`terminal-types.ts`): TtyClientControlSchema (resize, inject), TtyServerControlSchema (exit, busy, error)
 - UI input (`ui-types.ts`): UiInputSchema, UiAnswerSchema, `aguiSnapshotFor`
@@ -32,7 +31,6 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 - `defineChatEvent` (`chat-event-types.ts`): create() throws on invalid input; parse() returns null on mismatch
 - `isRunPhaseTerminal` (`chat-event-types.ts`): completed, failed and aborted are terminal
 - `TtyClientControlSchema` (`terminal-types.ts`): cols and rows 2..500; inject text 1..4096 chars
-- `SymbolicateSchema` (`page-types.ts`): 1..32 frames
 - `aguiSnapshotFor` (`ui-types.ts`): throws unless the chunk is a MESSAGES_SNAPSHOT
 - `createEventBusClient` (`event-bus.ts`): queues events until the connect handshake succeeds; retries every 300ms up to 5 times, then 'failed'
 

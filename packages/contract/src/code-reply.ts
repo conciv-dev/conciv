@@ -5,7 +5,6 @@ import {
   withoutImages,
   type ContentPart,
 } from '@conciv/protocol/chat-message-types'
-import type {PageQueueResult} from '@conciv/protocol/page-types'
 import type {CodeDiscoverResult, CodeExecuteResult} from './contract.js'
 
 export const RESULT_CAP_CHARS = 50_000
@@ -25,14 +24,13 @@ type Stringified = {ok: true; body: string} | {ok: false; failure: string}
 type PartsFit = {kept: CodeReplyContent[]; firstDropped: string | null; budget: number}
 
 export function codeExecuteReply(executed: CodeExecuteResult): CodeReply {
-  const notices = executed.finished.map(queueNoticePart)
   const files = (executed.files ?? []).map(partContent)
   if (!executed.ok) {
     const logs = executed.logs.length === 0 ? {} : {logs: executed.logs}
     const text = cappedText(safeStringify({error: executed.error, ...logs}))
-    return {content: [...notices, {type: 'text', text}, ...files], isError: true}
+    return {content: [{type: 'text', text}, ...files], isError: true}
   }
-  return {content: [...notices, ...resultContent(executed.result, executed.logs), ...files]}
+  return {content: [...resultContent(executed.result, executed.logs), ...files]}
 }
 
 export function toolValueReply(value: unknown): CodeReply {
@@ -43,12 +41,7 @@ export function toolValueReply(value: unknown): CodeReply {
 }
 
 export function codeDiscoverReply(discovered: CodeDiscoverResult): CodeReply {
-  const notices = discovered.finished.map(queueNoticePart)
-  return {content: [...notices, {type: 'text', text: cappedText(safeStringify(discovered.tools))}]}
-}
-
-export function queueNotice(result: PageQueueResult): string {
-  return `queue ${result.queueId} ${result.status}: ${result.played} played, ${result.failed} failed\n${JSON.stringify(result)}`
+  return {content: [{type: 'text', text: cappedText(safeStringify(discovered.tools))}]}
 }
 
 export function safeStringify(value: unknown): string {
@@ -69,10 +62,6 @@ export function cappedValue(value: unknown): unknown {
   if (body.length <= RESULT_CAP_CHARS) return value
   const images = imagesIn(value)
   return {...truncationPayload(oversizeReason(body.length), body), ...(images.length === 0 ? {} : {images})}
-}
-
-export function queueNoticePart(result: PageQueueResult): {type: 'text'; text: string} {
-  return {type: 'text', text: cappedText(queueNotice(result))}
 }
 
 function resultContent(result: unknown, logs: string[]): CodeReplyContent[] {

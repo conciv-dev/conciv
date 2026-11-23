@@ -9,7 +9,10 @@ import {
   type PageQueueHandle,
   type PageQueueResult,
   PageRaisedErrorSchema as Raised,
-} from '@conciv/protocol/page-types'
+  Action,
+  type PageChangeEntry,
+  type Result,
+} from './rpc.js'
 import type {Tool} from '@conciv/plugin/schema/tool'
 import {
   createQueueState,
@@ -25,7 +28,6 @@ import {
   type Settled,
 } from './queue-machine.js'
 import {queueNotice} from './queue-notice.js'
-import {Action, type PageChangeEntry, type Result} from './rpc.js'
 
 export type RequestSettlement =
   | {readonly ok: true; readonly result: Result}
@@ -193,7 +195,7 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
       Effect.flatMap(({queueId}) => wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS)),
     )
 
-  const outside = (sessionId: SessionId, toolCallIds: readonly string[] | undefined) =>
+  const outside = (sessionId: SessionId, toolCallIds: readonly string[]) =>
     Effect.suspend(() => {
       const picked = selectOutside(machine.state, sessionId, toolCallIds)
       return dispatch({type: 'delivered', queueIds: picked.finished.map((result) => result.queueId)}).pipe(

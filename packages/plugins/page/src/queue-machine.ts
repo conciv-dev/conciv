@@ -1,7 +1,7 @@
 import type {Deferred} from 'effect'
 import {RESULT_CAP_CHARS} from '@conciv/contract'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {PageQueueHandle, PageQueueOutcome, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
+import type {PageQueueHandle, PageQueueOutcome, PageQueueProgress, PageQueueResult} from './rpc.js'
 
 export type Landed = 'played' | 'stopped' | 'lost'
 
@@ -90,13 +90,10 @@ export function readProgress(entry: QueueEntry): PageQueueProgress {
 export function selectOutside(
   state: QueueState,
   sessionId: SessionId,
-  toolCallIds: readonly string[] | undefined,
+  toolCallIds: readonly string[],
 ): {queued: PageQueueHandle[]; finished: PageQueueResult[]} {
   const picked = state.entries.filter(
-    (entry) =>
-      entry.outside &&
-      entry.sessionId === sessionId &&
-      (toolCallIds === undefined || toolCallIds.includes(entry.toolCallId)),
+    (entry) => entry.outside && entry.sessionId === sessionId && toolCallIds.includes(entry.toolCallId),
   )
   return {
     queued: picked.flatMap((entry) =>
