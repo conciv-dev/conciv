@@ -3,7 +3,7 @@ import {ORPCError, withEventMeta, type Router} from '@orpc/server'
 import {asc, eq, sql} from 'drizzle-orm'
 import {isPageFailure, PAGE_ERROR_CODES, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isToolError, type RegistryCallGate} from '@conciv/protocol/tool-call-types'
-import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
+import type {HarnessAdapter} from '@conciv/harness'
 import {drafts, markers} from '@conciv/db'
 import {Cause, Effect, Exit, Option, Result, Schema, Stream, Queue} from 'effect'
 import type {TtySession} from '../../pty/pty-sessions.js'
@@ -626,19 +626,13 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
     },
     meta: {
-      models: os.meta.models.handler(async ({input}) => {
+      models: os.meta.models.handler(async ({input, signal = new AbortController().signal}) => {
         const harness = await chat.harnessFor(input.sessionId)
-        const models = await resolveHarnessModels(harness, {signal: chat.signal})
-        return {
-          models,
-          defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
-          harness: buildHarnessMeta(harness),
-        }
+        const {models, defaultModel, modelsFailed, login} = await buildHarnessMenuEntry(harness, signal, chat.log)
+        return {models, defaultModel, modelsFailed, harness: buildHarnessMeta(harness), login}
       }),
-      harnesses: os.meta.harnesses.handler(async () => ({
-        harnesses: await Promise.all(
-          chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, chat.signal, chat.log)),
-        ),
+      harnesses: os.meta.harnesses.handler(async ({signal = new AbortController().signal}) => ({
+        harnesses: await Promise.all(chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, signal, chat.log))),
         defaultHarness: chat.defaultHarness.id,
       })),
       commands: os.meta.commands.handler(({input, context}) =>

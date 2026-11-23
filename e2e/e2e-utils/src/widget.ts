@@ -66,6 +66,9 @@ function describeFailures(failures: PageFailures): string {
   ].join('\n')
 }
 
+const TRACE_SNAPSHOT_OF_SANDBOXED_PREVIEW =
+  "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set. [about:]"
+
 export async function expectWidgetBoots(page: Page, failures: PageFailures): Promise<void> {
   const launcher = page.getByRole('button', {name: /conciv chat$/})
   try {
@@ -85,7 +88,9 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
     detail,
   ).toEqual([])
   expect(
-    failures.consoleErrors.filter((entry) => !transientOptimizerReload.test(entry)),
+    failures.consoleErrors.filter(
+      (entry) => !transientOptimizerReload.test(entry) && entry !== TRACE_SNAPSHOT_OF_SANDBOXED_PREVIEW,
+    ),
     detail,
   ).toEqual([])
 }
@@ -119,6 +124,7 @@ export async function loginWidget(page: Page, path = '/', projectDir = testProje
   const origin = rpcSocketOrigin(page)
   await page.goto(link, {waitUntil: 'domcontentloaded', timeout: 60_000})
   recordedEngineBase(projectDir, await origin)
+  await expect(page).not.toHaveURL(/conciv_otp=/)
   await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()
 }
 

@@ -1,5 +1,11 @@
+import {writeFileSync} from 'node:fs'
+import {delimiter, join} from 'node:path'
+import {ConfigProvider} from 'effect'
 import {describe} from 'vitest'
 import {makeRpcClient} from '@conciv/contract'
+import {claude} from '@conciv/harness/claude'
+import {createHarnessEngine} from '@conciv/harness-testkit'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../../../test/engine-test.js'
@@ -96,6 +102,32 @@ describe.concurrent('harness listing', () => {
         {id: 'codex', models: [expect.objectContaining({id: 'gpt-5.6-sol'})], modelsFailed: false},
       ],
     })
+  })
+})
+
+describe('a harness whose CLI fails its model list', () => {
+  test('the session models answer with the harness and say the models failed, and the menu keeps the harness with its models failed', async ({
+    connect,
+    expect,
+  }) => {
+    const bin = tempDir('failing-claude-')
+    writeFileSync(join(bin, 'claude'), '#!/bin/sh\nexit 1\n', {mode: 0o755})
+    const path = [bin, '/usr/bin', '/bin'].join(delimiter)
+    const engine = await createHarnessEngine({}, {harness: claude(ConfigProvider.fromEnvRecord({PATH: path}))})
+    try {
+      const rpc = connect(engine)
+
+      await expect(rpc.meta.models({sessionId: engine.session.id})).resolves.toMatchObject({
+        models: [],
+        modelsFailed: true,
+        harness: {id: 'claude', persistentPty: true},
+      })
+      await expect(rpc.meta.harnesses()).resolves.toMatchObject({
+        harnesses: [{id: 'claude', models: [], modelsFailed: true}],
+      })
+    } finally {
+      await engine.stop()
+    }
   })
 })
 

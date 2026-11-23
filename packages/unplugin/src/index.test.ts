@@ -1,4 +1,4 @@
-import {existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync} from 'node:fs'
+import {chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe} from 'vitest'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -128,24 +128,35 @@ describe('a webpack development watch build', () => {
     ])
   })
 
-  test('fails the build when the engine cannot start, instead of leaving the page on no engine', async ({
-    project,
-    webpackWatch,
-    expect,
-  }) => {
-    const root = project('app')
-    const blocked = join(root, 'blocked')
-    mkdirSync(blocked)
-    writeFileSync(concivStateDir(blocked), '')
-    await expect(
-      webpackWatch({
-        mode: 'development',
-        context: root,
-        entry: './src/greeting.js',
-        output: {path: join(root, 'dist')},
-        externals: ['@conciv/embed'],
-        plugins: [concivWebpack({stateRoot: blocked, homeDir: join(root, 'home')})],
-      }),
-    ).rejects.toThrow('conciv: the engine failed to start')
-  })
+  test.for([
+    {name: 'the engine cannot start', block: 'state'},
+    {name: 'the widget client cannot be rewritten for the chosen port', block: 'client'},
+  ])(
+    'fails the build when $name, instead of leaving the page on no engine',
+    async ({block}, {project, webpackWatch, expect}) => {
+      const root = project('app')
+      const stateRoot = join(root, 'state-root')
+      mkdirSync(stateRoot)
+      if (block === 'state') writeFileSync(concivStateDir(stateRoot), '')
+      const lockWidgetClient = {
+        apply: () =>
+          readdirSync(concivStateDir(root))
+            .filter((name) => name.startsWith('widget-client.'))
+            .forEach((name) => chmodSync(join(concivStateDir(root), name), 0o444)),
+      }
+      await expect(
+        webpackWatch({
+          mode: 'development',
+          context: root,
+          entry: './src/greeting.js',
+          output: {path: join(root, 'dist')},
+          externals: ['@conciv/embed'],
+          plugins: [
+            concivWebpack({stateRoot, homeDir: join(root, 'home')}),
+            ...(block === 'client' ? [lockWidgetClient] : []),
+          ],
+        }).then(() => 'the build finished'),
+      ).rejects.toThrow('conciv: the engine failed to start')
+    },
+  )
 })

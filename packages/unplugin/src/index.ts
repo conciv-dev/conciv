@@ -122,7 +122,8 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
         options.widget === false ? undefined : writeWidgetClient(compiler.context, {askedPort, port: askedPort})
       compiler.hooks.watchRun.tapPromise('conciv', async () => {
         await startEngine((port) => {
-          if (client !== undefined) writeWidgetClient(compiler.context, {askedPort, port})
+          if (client === undefined || writeWidgetClient(compiler.context, {askedPort, port}) !== undefined) return
+          throw new Error(`conciv: could not rewrite the widget client for port ${String(port)}`)
         })
       })
       compiler.hooks.watchClose.tap('conciv', stopEngine)
