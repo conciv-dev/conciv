@@ -48,7 +48,7 @@ function demoteInjectedStyles(scope: Document | ShadowRoot, known: readonly Elem
   }
 }
 
-export type PlayerKit = {Player: typeof Player; playerCss: string; rrwebCss: string}
+export type PlayerKit = {Player: typeof Player; css: string}
 
 export function loadPlayerKit(): Promise<PlayerKit> {
   return Promise.all([
@@ -57,21 +57,13 @@ export function loadPlayerKit(): Promise<PlayerKit> {
     import('rrweb/dist/style.css?inline'),
   ]).then(([player, playerStyles, rrwebStyles]) => ({
     Player: player.default,
-    playerCss: playerStyles.default,
-    rrwebCss: rrwebStyles.default,
+    css: `@layer rrweb {\n${rrwebStyles.default}\n${playerStyles.default}\n}\n${themeCss}`,
   }))
 }
 
-function injectPlayerStyles(
-  kit: PlayerKit,
-  container: HTMLDivElement,
-): {scope: Document | ShadowRoot; known: readonly Element[]} {
+function knownStyles(container: HTMLDivElement): {scope: Document | ShadowRoot; known: readonly Element[]} {
   const scope = styleScope(container)
-  const style = document.createElement('style')
-  style.textContent = `@layer rrweb {\n${kit.rrwebCss}\n${kit.playerCss}\n}\n${themeCss}`
-  const known = [...scope.querySelectorAll('style'), style]
-  container.appendChild(style)
-  return {scope, known}
+  return {scope, known: [...scope.querySelectorAll('style')]}
 }
 
 const nextFrame: Effect.Effect<void> = Effect.callback<void>((resume) => {
@@ -166,7 +158,7 @@ function buildPlayer(
   events: RrwebEvent[],
   props: {readonly liveMode: boolean},
 ): Player {
-  const {scope, known} = injectPlayerStyles(kit, container)
+  const {scope, known} = knownStyles(container)
   const player = new kit.Player({
     target: container,
     props: {

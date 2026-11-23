@@ -358,7 +358,7 @@ describe('the agent fills in a form on the page', () => {
 })
 
 describe('the agent plays a list of actions on the page', () => {
-  test('a played list answers each action in the reply, and a queued list answers at once and the page plays it after', async () => {
+  test('a played list answers each action in the reply, and a queued list answers at once and its result wakes the agent after the page plays it', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
@@ -372,6 +372,7 @@ describe('the agent plays a list of actions on the page', () => {
           "return await external_page_queue_async({actions: [{tool: 'page_fill', selector: '#name', value: 'Grace'}, {tool: 'page_click', selector: '#save'}]})",
       }),
       TestLLM.text('Saving your names'),
+      TestLLM.text('Grace is saved too'),
     )
     const finished = await engine.event('session.execution.succeeded')
     const played = await engine.event('rpc.experimental.page.queue.finished')
@@ -402,13 +403,9 @@ describe('the agent plays a list of actions on the page', () => {
     expect(within(reply).getByText('Played page actions')).toBeVisible()
     await played.arrived
     expect(screen.getByText('Saved Grace')).toBeVisible()
-    await expect
-      .element(
-        page
-          .getByRole('article', {name: 'Reply to: Explain this page'})
-          .getByText('Queued page actions', {exact: true}),
-      )
-      .toHaveLength(2)
+    await expect.element(page.getByText('Queued page actions finished', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Grace is saved too', {exact: true})).toBeVisible()
+    expect(within(reply).getAllByText('Queued page actions', {exact: true})).toHaveLength(1)
   })
 })
 
@@ -491,12 +488,12 @@ describe('the page follows the session the user switches to', () => {
 })
 
 describe('the user grabs an element for the agent', () => {
-  test('the picked element is staged in the composer, which takes focus, and is sent with the message to the agent', async () => {
+  test('the picked element is staged in the composer, which takes focus, and is sent with the message to the agent, and one sent alone reads as an attachment', async () => {
     await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
-    await engine.reply(TestLLM.text('That button buys the fern'))
+    await engine.reply(TestLLM.text('That button buys the fern'), TestLLM.text('That is the same button'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
     render(() => (
@@ -518,6 +515,15 @@ describe('the user grabs an element for the agent', () => {
     expect(screen.getByRole('button', {name: 'Open grabbed element'})).toBeVisible()
     const [request] = await engine.requests()
     expect(JSON.stringify(request?.messages)).toContain('Buy the fern')
+
+    await user.click(screen.getByRole('button', {name: 'More composer actions'}))
+    await user.click(await screen.findByRole('menuitem', {name: 'Select an element from the page'}))
+    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
+    await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
+    await expect.element(page.getByRole('button', {name: 'Open grabbed element'}).nth(1)).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('That is the same button')).toBeVisible()
+    expect(screen.getByRole('article', {name: 'You: 1 attachment'})).toBeVisible()
   })
 })
 

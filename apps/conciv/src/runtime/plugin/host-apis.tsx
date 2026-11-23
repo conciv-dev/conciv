@@ -58,6 +58,7 @@ import {engineOlderThanWidget, engineVersionQueryOptions} from '../../shell/engi
 import {useNotices} from '../../shell/notice-context'
 import type {NoticeTone} from '../../shell/notices'
 import {Persist, persisted, removePersisted} from '../persistence/storage'
+import {createServerData} from './server-data'
 import {
   createHostApiAttachState,
   selectAttachAttempt,
@@ -73,7 +74,7 @@ import {mountOverlay} from './overlay'
 import {isPluginView, panelKey} from './panel-keys'
 import type {Region} from './panels'
 import {deferredHandle, globalStoreTarget, persistedHandle, projectStoreTarget, storeImports, storeName} from './stores'
-import {pluginUi} from './ui'
+import {ui} from './ui'
 
 type Attached = {
   sessions: Accessor<readonly SessionRef[]>
@@ -138,7 +139,9 @@ export function createHostApis() {
   const memory = new Map<string, ReturnType<Storage['memory']>>()
   const current = () => attached()
   const located = createLocatedWrites()
-  const client = useAppData().client
+  const appData = useAppData()
+  const client = appData.client
+  const data = createServerData(appData.utils)
   const unavailable = Conciv.make(createORPCClient<RpcClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}), {
     server: () => UNAVAILABLE,
   })
@@ -156,6 +159,7 @@ export function createHostApis() {
       return apiBase()
     },
     client,
+    data,
     local: true,
     builtin: true,
     get compatible() {
@@ -391,7 +395,7 @@ export function createHostApis() {
       settings: (page) => write((value) => value.settings(plugin, page)),
       draft: (input) => write((value) => value.draft(plugin, input)),
     }),
-    ui: (_plugin, _owner, _context, _register, _builtin, definition) => pluginUi(definition),
+    ui: () => ui,
   }
 
   const pane = () => current()?.grab()

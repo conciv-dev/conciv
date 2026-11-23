@@ -26,6 +26,5 @@ value that is not a positive integer fails the plugin's activation with `Tanstac
   the RPC `experimental.tanstack` other plugins call.
 - `./client`: `tanstackToolMeta(name)`, the label, icon and summary the thread shows for each TanStack tool; data only,
   no Solid.
-- `plugin-experimental.tsx` is a first-party definition (`defineInternalPlugin`): besides the page operations and the
-  inspector chip, it adds the thread card for each TanStack tool, drawn only through `ctx.ui`; the bundle inlines
-  `@conciv/plugin-internal` and imports no kit.
+- `plugin-experimental.tsx`: besides the page operations and the inspector chip, it adds the thread card for each
+  TanStack tool, drawn only through `ctx.ui` (conciv's own members read with `OpaqueUi.toInternal`); it imports no kit.

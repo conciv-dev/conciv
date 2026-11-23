@@ -276,22 +276,26 @@ export async function assertPublishedChangesCovered(cwd: string, base: string): 
   )
 }
 
-const ALWAYS_PRIVATE_PACKAGES = ['@conciv/plugin-internal']
+const PRIVATE_SCOPE = '@internal/'
 
 export async function assertPublicSet(cwd: string): Promise<void> {
   const packages = await readWorkspacePackages(cwd)
-  const found = packages
+  const published = packages
     .filter((pkg) => !pkg.manifest.private)
     .map((pkg) => pkg.manifest.name)
-    .filter((name): name is string => typeof name === 'string' && name.startsWith('@conciv/'))
-  const leaked = found.filter((name) => ALWAYS_PRIVATE_PACKAGES.includes(name))
+    .filter((name): name is string => typeof name === 'string')
+  const leaked = published.filter((name) => name.startsWith(PRIVATE_SCOPE))
   if (leaked.length > 0) {
     throw new Error(
       leaked
-        .map((name) => `${name} must stay private: first-party plugins inline it, it is never published`)
+        .map(
+          (name) =>
+            `${name} must stay private: ${PRIVATE_SCOPE}* packages are inlined by conciv's own builds, never published`,
+        )
         .join('\n'),
     )
   }
+  const found = published.filter((name) => name.startsWith('@conciv/'))
   const unexpected = found.filter((name) => !PUBLIC_PACKAGES.includes(name))
   const missing = PUBLIC_PACKAGES.filter((name) => !found.includes(name))
   if (unexpected.length > 0 || missing.length > 0) {
@@ -328,6 +332,48 @@ export async function assertPublicDepsPublic(cwd: string): Promise<void> {
   if (violations.length > 0) {
     throw new Error(violations.join('\n'))
   }
+}
+
+const DECLARATION_FILE = /\.d\.[cm]?ts$/
+
+const IMPORTED_MODULE = /(?:\bfrom\s*|\bimport\s*\(?\s*)['"]([^'"]+)['"]/g
+
+async function readDeclarationFiles(dir: string): Promise<string[]> {
+  const dist = join(dir, 'dist')
+  try {
+    const entries = await readdir(dist, {recursive: true})
+    return entries.filter((entry) => DECLARATION_FILE.test(entry)).map((entry) => join(dist, entry))
+  } catch (error) {
+    if (isMissingPath(error)) return []
+    throw error
+  }
+}
+
+export async function assertPublicTypesPublic(cwd: string): Promise<void> {
+  const packages = await readWorkspacePackages(cwd)
+  const privateNames = packages
+    .filter((pkg) => pkg.manifest.private)
+    .map((pkg) => pkg.manifest.name)
+    .filter((name): name is string => typeof name === 'string')
+  const namesPrivate = (specifier: string): string | undefined =>
+    privateNames.find((name) => specifier === name || specifier.startsWith(`${name}/`))
+  const violations = await Promise.all(
+    packages
+      .filter((pkg) => !pkg.manifest.private)
+      .map(async (pkg) => {
+        const files = await readDeclarationFiles(pkg.dir)
+        const found = await Promise.all(
+          files.map(async (file) =>
+            Array.from((await readFile(file, 'utf8')).matchAll(IMPORTED_MODULE), (match) => match[1] ?? '')
+              .flatMap((specifier) => namesPrivate(specifier) ?? [])
+              .map((name) => `${relative(cwd, file)} names private workspace package ${name}`),
+          ),
+        )
+        return found.flat()
+      }),
+  )
+  const all = violations.flat()
+  if (all.length > 0) throw new Error(all.join('\n'))
 }
 
 function findLoop(graph: Map<string, string[]>): string[] | undefined {

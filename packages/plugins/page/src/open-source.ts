@@ -1,4 +1,5 @@
 import {Data, Effect} from 'effect'
+import type {QueryClient} from '@conciv/client'
 import type {Desktop, MountedSession} from '@conciv/plugin/experimental'
 import type {GrabFrame} from '@conciv/plugin/experimental/grab'
 import type {LocateResult, Page, SourceLoc} from '@conciv/plugin/experimental/page'
@@ -12,13 +13,15 @@ export type SourceOpener = {
   desktop: Desktop | undefined
 }
 
-export function symbolicateInSession(routed: () => MountedSession | undefined) {
+export function symbolicateInSession(routed: () => MountedSession | undefined, queryClient: QueryClient) {
   return (frames: Parameters<Page['symbolicate']>[0]['frames']) => {
     const session = routed()
 
     if (!session) return Promise.reject(new Error('Page.symbolicate needs a routed session'))
 
-    return session.server.client.rpc(Definition).symbolicate({frames: [...frames]})
+    return queryClient.fetchQuery(
+      session.server.client.rpc(Definition).symbolicate.queryOptions({input: {frames: [...frames]}}),
+    )
   }
 }
 

@@ -184,6 +184,7 @@
     "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@standard-schema/spec": "catalog:",
+    "@tanstack/solid-query": "catalog:",
     "@zumer/snapdom": "catalog:",
     "effect": "catalog:",
     "zod": "catalog:"
