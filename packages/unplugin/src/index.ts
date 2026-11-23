@@ -6,15 +6,13 @@ import {makeEngineBooter, type Builtins} from './core/boot.js'
 import {CONCIV_DEFAULT_PORT, WIDGET_START_SPECIFIER} from './core/nextjs.js'
 import {makeViteHook} from './core/vite.js'
 import {existsSync, mkdirSync, writeFileSync} from 'node:fs'
-import {findPackageJSON} from 'node:module'
-import {dirname, join} from 'node:path'
+import {join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {isEnginePort} from './core/widget-start.js'
 
 function widgetStarterPath(): string {
-  const manifest = findPackageJSON(import.meta.url)
-  if (manifest === undefined) throw new Error('conciv: the @conciv/unplugin package.json was not found')
-  return join(dirname(manifest), 'dist', 'core', 'widget-start.js')
+  return fileURLToPath(new URL('../dist/core/widget-start.js', import.meta.url))
 }
 
 const STATE_GITIGNORE = ['*', '!.gitignore', '!settings/', '!settings/**', ''].join('\n')
