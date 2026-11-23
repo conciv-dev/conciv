@@ -177,13 +177,6 @@ export function makePagePlugin(host: () => PluginHost) {
       callIds.forEach((callId) => inFlight?.delete(callId))
       if (inFlight?.size === 0) inFlightHubCalls.delete(sessionId)
     },
-    cancelSession: async (sessionId: SessionId): Promise<void> => {
-      inFlightHubCalls.delete(sessionId)
-      heldHubCalls.delete(sessionId)
-      await call('queue.cancelSession', {sessionId}).catch((error: unknown) => {
-        if (!unlisted(error)) throw error
-      })
-    },
     followFinished: (listener: (finished: QueueFinished) => void) =>
       host().runPromise(
         Effect.gen(function* () {

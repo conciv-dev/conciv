@@ -83,8 +83,7 @@ The terminal runs the page tools as `conciv tools page <verb>`, as main: core's 
 tool for the session `--tab` or `CONCIV_SESSION_ID` names; `eval` from there asks as the cli README's 'Who is asked'
 says. Inside a chat turn the `eval` tool asks the user first.
 
-The engine's session delete calls `queue.cancelSession {sessionId}` before it tombstones the row, and the page plugin
-also runs it when it hears `session.deleted`: it drops that session's queue records (`queue.ts` `cancelSession`), as
+When the page plugin hears `session.deleted` it drops that session's queue records (`queue.ts` `cancelSession`), as
 the source's `jobs.cancelSession` does on delete: a result that lands later is never announced or owed, and
 `queue.wait` on it answers `no queue <id> on this tab`.
 `conciv plugin call experimental.page queue.wait` from a terminal is a peek: a caller who leaves (Ctrl-C) as the queue

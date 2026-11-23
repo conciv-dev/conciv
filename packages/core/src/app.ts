@@ -705,7 +705,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       signal: engineLife.signal,
       bundler: opts.bridge,
       openInEditor: opts.openInEditor,
-      sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: pagePlugin}),
+      sessions: () => ({chat: chatDeps, runtime, search, pluginHost}),
     })
   }
   const plugins = await Promise.try(startPlugins).catch(failedStart([settings.close]))
