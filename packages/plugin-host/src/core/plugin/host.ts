@@ -6,6 +6,7 @@ import {Plugin} from '@conciv/plugin/effect'
 import * as Bundler from '@conciv/plugin/schema/bundler'
 import {EventManifest} from '@conciv/plugin/schema/event-manifest'
 import {Event} from '@conciv/plugin/schema/event'
+import {SessionMessage} from '@conciv/plugin/schema/session-message'
 import {App} from '../app.js'
 import {Context, Effect, Schema, Stream} from 'effect'
 import type {Servers} from '@conciv/plugin'
@@ -206,7 +207,21 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
         if (input.permissions !== undefined)
           yield* sessions.setPermissions({sessionId: input.sessionId, permissions: input.permissions})
       }),
-      synthetic: undefined,
+      synthetic: Effect.fn(function* (input) {
+        const id =
+          input.id === undefined || input.id === null
+            ? undefined
+            : yield* Schema.decodeUnknownEffect(SessionMessage.Id)(input.id)
+        return yield* sessions.synthetic({
+          sessionID: input.sessionID,
+          id,
+          text: input.text,
+          description: input.description ?? undefined,
+          metadata: input.metadata,
+          delivery: input.delivery ?? undefined,
+          resume: input.resume ?? undefined,
+        })
+      }),
       interrupt: (input) =>
         sessions.interrupt(input.sessionId, {resume: input.resume}).pipe(Effect.map((interrupted) => ({interrupted}))),
       wait: (input) => sessions.wait(input.sessionId),

@@ -144,6 +144,10 @@
       "types": "./dist/schema/session-event.d.ts",
       "import": "./dist/schema/session-event.js"
     },
+    "./schema/session-inbox": {
+      "types": "./dist/schema/session-inbox.d.ts",
+      "import": "./dist/schema/session-inbox.js"
+    },
     "./schema/session-id": {
       "types": "./dist/schema/session-id.d.ts",
       "import": "./dist/schema/session-id.js"

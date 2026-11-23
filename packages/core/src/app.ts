@@ -69,7 +69,7 @@ import {
   Schema,
   Scope,
 } from 'effect'
-import {Bus, Permission, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
+import {Bus, Database, Permission, PluginHooks, SessionEvent, SessionInbox, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
 import {readModel, openDb, sessions, type ConcivDb} from '@conciv/db'
@@ -99,7 +99,6 @@ import {
 import {makePluginRuntime, type PluginRuntime} from './runtime/plugin-runtime.js'
 import {startObservability, type EngineObservability} from './runtime/observability.js'
 import type {CoreRuntime, SessionScope} from './runtime/scope-types.js'
-import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {carryEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
@@ -108,7 +107,8 @@ import {GROUP_EXIT_TIMEOUT_MS, inSpan, loadIsolateDriver, type Tracer} from '@co
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
-  agentPath,
+  connectToken,
+  engineMcpUrl,
   makeAuthRouter,
   makeCodeStore,
   makeConnectionTrust,
@@ -256,7 +256,7 @@ export type MakeAppOpts = {
 
   nativePageDir?: string
 
-  tokenScopedBase?: () => string | undefined
+  boundOrigin?: () => string | undefined
 
   plugins?: readonly Plugin.Plugin[]
 
@@ -401,11 +401,14 @@ function composeRoutes(
       rpcWebsocketRoute(rpc, {
         upgrade: upgradeWebSocket,
         onError: (message) => deps.log(Effect.logError(message)),
-        gate: (c) => rpcSocketGate(deps.trust, c.req.header('authorization')),
+        gate: (c) => rpcSocketGate(deps.trust, c.req.url),
         traceCall,
       }),
     )
-    .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc, traceCall))
+    .use(
+      `${RPC_PREFIX}/*`,
+      rpcFetchMiddleware(rpc, {traceCall, engineCaller: (c) => deps.trust.isEngine(connectToken(c.req.url))}),
+    )
     .route('/api/mcp', mcpApp)
 }
 
@@ -534,7 +537,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
   const harness = boot.harness
   const agentToken = opts.agentToken ?? randomUUID()
-  const basePath = agentPath(agentToken)
   const browsers = watchTrustedBrowsers(stateDir, earlyLog)
   const trust = makeConnectionTrust(agentToken, browsers)
   const listings = availableHarnesses(boot, opts, registry, stateDir, engineLife.signal, appEnv.path, earlyLog)
@@ -625,25 +627,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       .catch((error: unknown) =>
         log(Effect.logError('[core] publishing how the run ended failed', {sessionId, runId: run.runId, error})),
       )
-    if (run.phase === 'completed' && !(await owedFollowUp(sessionId))) {
-      const idled = await pluginHost
-        .runPromiseExit(
-          FiberMap.run(
-            idleTriggers,
-            sessionId,
-            PluginHooks.Service.use((hooks) =>
-              hooks.trigger('session', 'experimental.idle', {
-                sessionId: SessionSchema.Id.make(sessionId),
-                background: [],
-              }),
-            ),
-            {onlyIfMissing: true},
-          ).pipe(Effect.flatMap(Fiber.join)),
-        )
-        .catch((error: unknown) => Exit.die(error))
-      if (Exit.isFailure(idled) && !Cause.hasInterruptsOnly(idled.cause))
-        await idleFailed(sessionId, run.runId, Cause.squash(idled.cause))
-    }
+    if (run.phase === 'completed' && !(await owedFollowUp(sessionId))) await idleOrWake(sessionId, run.runId)
     if (run.phase === 'aborted') {
       if (engineLife.signal.aborted) return
       await holdForNextReply(pagePlugin.delivery, sessionId).catch((error: unknown) =>
@@ -652,6 +636,44 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       return
     }
     followUpOwedQueues(sessionId)
+  }
+  const runIdle = async (sessionId: SessionId, runId: string): Promise<void> => {
+    const idled = await pluginHost
+      .runPromiseExit(
+        FiberMap.run(
+          idleTriggers,
+          sessionId,
+          PluginHooks.Service.use((hooks) =>
+            hooks.trigger('session', 'experimental.idle', {
+              sessionId: SessionSchema.Id.make(sessionId),
+              background: [],
+            }),
+          ),
+          {onlyIfMissing: true},
+        ).pipe(Effect.flatMap(Fiber.join)),
+      )
+      .catch((error: unknown) => Exit.die(error))
+    if (Exit.isFailure(idled) && !Cause.hasInterruptsOnly(idled.cause))
+      await idleFailed(sessionId, runId, Cause.squash(idled.cause))
+  }
+  const idleOrWake = async (sessionId: SessionId, runId: string): Promise<void> => {
+    if (!(await inboxWaiting(sessionId))) await runIdle(sessionId, runId)
+    if (await inboxWaiting(sessionId)) wakeAfterRun(sessionId)
+  }
+  const inboxWaiting = (sessionId: SessionId): Promise<boolean> =>
+    pluginHost
+      .runPromise(Database.Service.use((database) => SessionInbox.has(database.db, sessionId, 'input')))
+      .catch((error: unknown) => {
+        log(Effect.logError('[core] the session inbox could not be read', {sessionId, error}))
+        return false
+      })
+  const wakeAfterRun = (sessionId: SessionId): void => {
+    const current = planeRef.current
+    if (current === null) return
+    void current
+      .settled(sessionId)
+      .then(() => current.wake(sessionId))
+      .catch((error: unknown) => log(Effect.logError('[core] the session inbox could not wake', {sessionId, error})))
   }
   const owedFollowUp = (sessionId: SessionId): Promise<boolean> =>
     owesFollowUp(pagePlugin.delivery, sessionId).catch((error: unknown) => {
@@ -695,7 +717,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       signal: engineLife.signal,
       bundler: opts.bridge,
       openInEditor: opts.openInEditor,
-      sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: pagePlugin}),
+      sessions: () => ({chat: chatDeps, runtime, search, pluginHost}),
     })
   }
   const plugins = await Promise.try(startPlugins).catch(failedStart([settings.close]))
@@ -805,6 +827,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       askPermission,
       pendingPermissions: (sessionId) => pluginHost.runPromise(pendingPermissionCards(sessionId)),
       tracer,
+      inbox: {
+        promote: (sessionId) =>
+          pluginHost.runPromise(
+            Effect.gen(function* () {
+              const database = yield* Database.Service
+              const bus = yield* Bus.Service
+              return yield* SessionInbox.promote(database.db, bus, sessionId, 'input')
+            }),
+          ),
+      },
     }),
   ).catch(startFailed([]))
   planeRef.current = plane
@@ -816,7 +848,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     harnesses,
     harnessFor,
     cwd: opts.cwd,
-    basePath,
+    agentToken,
     db,
     rows,
     plane,
@@ -907,8 +939,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     stateDir,
     env: appEnv.env,
     mcpUrl: () => {
-      const base = opts.tokenScopedBase?.()
-      return base === undefined ? null : `${base}/api/mcp`
+      const origin = opts.boundOrigin?.()
+      return origin === undefined ? null : engineMcpUrl(origin, agentToken)
     },
   })
   const rpcDeps: RpcDeps = {
@@ -930,7 +962,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     search,
     settings,
     tools: sessionTools,
-    openFromFrames: (frames) => openSourceFromFrames(frames, pagePlugin.symbolicate, opts.openInEditor),
     runtime,
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,

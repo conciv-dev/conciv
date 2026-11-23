@@ -559,6 +559,10 @@
       "exports": ["make"]
     },
     {
+      "file": "packages/plugin-host/src/core/session/inbox.ts",
+      "exports": ["make"]
+    },
+    {
       "file": "packages/plugin-host/src/core/config/markdown.ts",
       "exports": ["parse"]
     },

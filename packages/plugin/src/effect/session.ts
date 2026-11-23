@@ -4,6 +4,7 @@ import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {Model} from '../schema/model.js'
 import type {PromptInput, SessionCompactionResult, SessionRequestOptions, SystemPart} from '../promise/session.js'
 import type {Agent} from '../schema/agent.js'
+import type {SessionInbox} from '../schema/session-inbox.js'
 import type {
   InstructionEntryInfo,
   SessionCreateInput,
@@ -11,6 +12,7 @@ import type {
   SessionInboxDelivery,
   SessionInfo,
   SessionListInput,
+  SessionSyntheticInput,
   SessionUpdateInput,
 } from '../client/promise/generated/types.js'
 import type {ModelHooks} from './registration.js'
@@ -101,7 +103,7 @@ export type SessionDomain = {
     readonly id?: string | undefined
     readonly delivery?: SessionInboxDelivery | undefined
   }) => Effect.Effect<SessionInboxCompaction, unknown>
-  readonly synthetic: undefined
+  readonly synthetic: (input: SessionSyntheticInput) => Effect.Effect<SessionInbox.Synthetic, unknown>
   readonly interrupt: (input: {
     readonly sessionId: SessionId
     readonly resume?: boolean | undefined

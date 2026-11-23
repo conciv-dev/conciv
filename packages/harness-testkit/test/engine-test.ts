@@ -29,7 +29,7 @@ export const test: TestAPI<EngineFixtures> = base.extend<EngineFixtures>({
     const running: Running[] = []
     await use(async (config, start) => {
       const engine = await createHarnessEngine(config, start)
-      const client = makeBrowserRpcClient(engine.address.apiBase)
+      const client = makeBrowserRpcClient(engine.address.apiBase, {token: engine.address.token})
       running.push({engine, client})
       return {engine, client: client.rpc}
     })

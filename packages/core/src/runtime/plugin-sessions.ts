@@ -10,7 +10,7 @@ import {
   type SessionId,
   type SessionRecord,
 } from '@conciv/protocol/chat-types'
-import {Agent, type Bus, type KV, Session, SessionErrors} from '@conciv/plugin-host'
+import {Agent, type Bus, type KV, Session, SessionErrors, SessionInbox, SessionSynthetic} from '@conciv/plugin-host'
 import {Model} from '@conciv/plugin/schema/model'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import type {ChatContext} from '../api/rpc/mount.js'
@@ -20,14 +20,12 @@ import {newSessionId} from '../sessions/session-rows.js'
 import type {createSessionSearch} from '../sessions/session-search.js'
 import {rowById, setMetadata, setPermissions} from '../sessions/session-rows.js'
 import type {CoreRuntime} from './scope-types.js'
-import type {PagePlugin} from '../page/page-plugin.js'
 
 type SessionKeyDeps = {
   chat: ChatContext
   runtime: Pick<CoreRuntime, 'forSession'>
   search: Pick<ReturnType<typeof createSessionSearch>, 'retitle' | 'pages' | 'listed'>
   pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
-  queues: Pick<PagePlugin, 'cancelSession'>
 }
 
 type SessionInfo = Effect.Success<ReturnType<Session.Interface['get']>>
@@ -159,122 +157,136 @@ export function provideSessions(started: () => SessionKeyDeps) {
     yield* Effect.annotateCurrentSpan({sessionId})
     return sessionInfo(started().chat, yield* found(sessionId))
   })
-  return Layer.succeed(
+  return Layer.effect(
     Session.Service,
-    Session.Service.of({
-      get,
-      list: Effect.fn('core.sessions.list')(function* (input) {
-        const {chat, search} = started()
-        const cursor = input?.cursor === undefined ? null : yield* readCursor(input.cursor)
-        const limit = clamp(Math.trunc(input?.limit ?? DEFAULT_PAGE_SIZE), 1, MAX_PAGE_SIZE)
-        const term = input?.search?.trim() ?? ''
-        const page = yield* Effect.promise(() =>
-          term === ''
-            ? listedSessionPage(chat, search, {cursor, limit})
-            : searchedSessionPage(chat, search, {cursor, limit, term, everywhere: false}),
-        )
-        const rows = yield* Effect.promise(() => Promise.all(page.sessions.map((hit) => rowById(chat.db, hit.id))))
-        return {
-          data: rows.filter((row) => row !== null).map((row) => sessionInfo(chat, row)),
-          cursor: page.next === null ? {} : {next: JSON.stringify(page.next)},
-        }
-      }),
-      create: Effect.fn('core.sessions.create')(function* (input) {
-        const {chat, search, pluginHost} = started()
-        const supplied = input.id
-        const recorded = supplied === undefined ? null : yield* Effect.promise(() => rowById(chat.db, supplied))
-        if (recorded !== null && recorded.deletedAt === null) return sessionInfo(chat, recorded)
-        if (recorded !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: recorded.id}))
-        const sessionId = supplied ?? newSessionId()
-        yield* Effect.annotateCurrentSpan({sessionId})
-        const choice = yield* createdModel(chat, input, sessionId)
-        yield* Effect.promise(() => createChatSession(chat.rows, sessionId))
-        yield* Effect.promise(() => describeCreated({db: chat.db, search, pluginHost}, sessionId, input))
-        if (choice !== null && !(yield* applyModelChoice(chat, sessionId, choice))) {
-          return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
-        }
-        return yield* get(sessionId)
-      }),
-      remove: (sessionId) =>
-        found(sessionId).pipe(
-          Effect.andThen(() => {
-            const {chat, runtime, pluginHost, queues} = started()
-            return Effect.promise(() =>
-              deleteSession({db: chat.db, plane: chat.plane, runtime, pluginHost, queues}, sessionId),
-            )
-          }),
-        ),
-      switchAgent: (input) =>
-        found(input.sessionId).pipe(
-          Effect.andThen(() =>
-            input.agent === Agent.defaultId
-              ? Effect.void
-              : Effect.fail(
-                  SessionErrors.makeAgentNotFoundError({sessionId: input.sessionId, agent: Agent.Id.make(input.agent)}),
-                ),
+    Effect.gen(function* () {
+      const inbox = yield* SessionInbox.Service
+      const synthetic = SessionSynthetic.make({get: found}, inbox, (sessionId) =>
+        Effect.promise(() => started().chat.plane.wake(sessionId)),
+      )
+      return Session.Service.of({
+        get,
+        list: Effect.fn('core.sessions.list')(function* (input) {
+          const {chat, search} = started()
+          const cursor = input?.cursor === undefined ? null : yield* readCursor(input.cursor)
+          const limit = clamp(Math.trunc(input?.limit ?? DEFAULT_PAGE_SIZE), 1, MAX_PAGE_SIZE)
+          const term = input?.search?.trim() ?? ''
+          const page = yield* Effect.promise(() =>
+            term === ''
+              ? listedSessionPage(chat, search, {cursor, limit})
+              : searchedSessionPage(chat, search, {cursor, limit, term, everywhere: false}),
+          )
+          const rows = yield* Effect.promise(() => Promise.all(page.sessions.map((hit) => rowById(chat.db, hit.id))))
+          return {
+            data: rows.filter((row) => row !== null).map((row) => sessionInfo(chat, row)),
+            cursor: page.next === null ? {} : {next: JSON.stringify(page.next)},
+          }
+        }),
+        create: Effect.fn('core.sessions.create')(function* (input) {
+          const {chat, search, pluginHost} = started()
+          const supplied = input.id
+          const recorded = supplied === undefined ? null : yield* Effect.promise(() => rowById(chat.db, supplied))
+          if (recorded !== null && recorded.deletedAt === null) return sessionInfo(chat, recorded)
+          if (recorded !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: recorded.id}))
+          const sessionId = supplied ?? newSessionId()
+          yield* Effect.annotateCurrentSpan({sessionId})
+          const choice = yield* createdModel(chat, input, sessionId)
+          yield* Effect.promise(() => createChatSession(chat.rows, sessionId))
+          yield* Effect.promise(() => describeCreated({db: chat.db, search, pluginHost}, sessionId, input))
+          if (choice !== null && !(yield* applyModelChoice(chat, sessionId, choice))) {
+            return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
+          }
+          return yield* get(sessionId)
+        }),
+        remove: (sessionId) =>
+          found(sessionId).pipe(
+            Effect.andThen(() => {
+              const {chat, runtime, pluginHost} = started()
+              return Effect.promise(() =>
+                deleteSession({db: chat.db, plane: chat.plane, runtime, pluginHost}, sessionId),
+              )
+            }),
           ),
-        ),
-      switchModel: Effect.fn('core.sessions.switchModel')(function* (input) {
-        yield* Effect.annotateCurrentSpan({sessionId: input.sessionId})
-        const {chat} = started()
-        yield* found(input.sessionId)
-        const harness = yield* Effect.tryPromise({
-          try: () => chat.harnessFor(input.sessionId),
-          catch: (cause) => HarnessReadError.make({sessionId: input.sessionId, cause}),
-        }).pipe(Effect.orDie)
-        const choice = yield* modelChoice(harness, input.model, chat.signal)
-        if (choice === null || !(yield* applyModelChoice(chat, input.sessionId, choice))) {
-          return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
-        }
-      }),
-      rename: (input) =>
-        found(input.sessionId).pipe(
-          Effect.andThen(() => {
-            const {chat, search, pluginHost} = started()
-            return Effect.promise(() => renameSession({db: chat.db, search, pluginHost}, input.sessionId, input.title))
-          }),
-          Effect.flatMap((outcome) =>
-            outcome === 'missing'
-              ? Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
-              : Effect.void,
-          ),
-        ),
-      setMetadata: (input) =>
-        found(input.sessionId).pipe(
-          Effect.andThen(() =>
-            Effect.promise(() => setMetadata(started().chat.db, input.sessionId, metadataSchema.parse(input.metadata))),
-          ),
-        ),
-      setPermissions: (input) =>
-        found(input.sessionId).pipe(
-          Effect.andThen(() =>
-            Effect.promise(() =>
-              setPermissions(started().chat.db, input.sessionId, permissionsSchema.parse(input.permissions)),
+        switchAgent: (input) =>
+          found(input.sessionId).pipe(
+            Effect.andThen(() =>
+              input.agent === Agent.defaultId
+                ? Effect.void
+                : Effect.fail(
+                    SessionErrors.makeAgentNotFoundError({
+                      sessionId: input.sessionId,
+                      agent: Agent.Id.make(input.agent),
+                    }),
+                  ),
             ),
           ),
-        ),
-      compact: (input) =>
-        found(input.sessionId).pipe(
-          Effect.andThen(() => {
-            const compaction: Compaction = {
-              id: undefined,
-              sessionId: input.sessionId,
-              time: {created: Date.now()},
-              type: 'compaction',
-              payload: {},
-              delivery: undefined,
-            }
-            return Effect.promise(() => started().runtime.forSession(input.sessionId).run.compact()).pipe(
-              Effect.as(compaction),
-            )
-          }),
-        ),
-      wait: (sessionId) =>
-        found(sessionId).pipe(Effect.andThen(() => Effect.promise(() => started().chat.plane.settled(sessionId)))),
-      interrupt: (sessionId) =>
-        Effect.promise(() => started().runtime.forSession(sessionId).run.stop()).pipe(
-          Effect.map(({stopped}) => stopped),
-        ),
+        switchModel: Effect.fn('core.sessions.switchModel')(function* (input) {
+          yield* Effect.annotateCurrentSpan({sessionId: input.sessionId})
+          const {chat} = started()
+          yield* found(input.sessionId)
+          const harness = yield* Effect.tryPromise({
+            try: () => chat.harnessFor(input.sessionId),
+            catch: (cause) => HarnessReadError.make({sessionId: input.sessionId, cause}),
+          }).pipe(Effect.orDie)
+          const choice = yield* modelChoice(harness, input.model, chat.signal)
+          if (choice === null || !(yield* applyModelChoice(chat, input.sessionId, choice))) {
+            return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
+          }
+        }),
+        rename: (input) =>
+          found(input.sessionId).pipe(
+            Effect.andThen(() => {
+              const {chat, search, pluginHost} = started()
+              return Effect.promise(() =>
+                renameSession({db: chat.db, search, pluginHost}, input.sessionId, input.title),
+              )
+            }),
+            Effect.flatMap((outcome) =>
+              outcome === 'missing'
+                ? Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
+                : Effect.void,
+            ),
+          ),
+        setMetadata: (input) =>
+          found(input.sessionId).pipe(
+            Effect.andThen(() =>
+              Effect.promise(() =>
+                setMetadata(started().chat.db, input.sessionId, metadataSchema.parse(input.metadata)),
+              ),
+            ),
+          ),
+        setPermissions: (input) =>
+          found(input.sessionId).pipe(
+            Effect.andThen(() =>
+              Effect.promise(() =>
+                setPermissions(started().chat.db, input.sessionId, permissionsSchema.parse(input.permissions)),
+              ),
+            ),
+          ),
+        compact: (input) =>
+          found(input.sessionId).pipe(
+            Effect.andThen(() => {
+              const compaction: Compaction = {
+                id: undefined,
+                sessionId: input.sessionId,
+                time: {created: Date.now()},
+                type: 'compaction',
+                payload: {},
+                delivery: undefined,
+              }
+              return Effect.promise(() => started().runtime.forSession(input.sessionId).run.compact()).pipe(
+                Effect.as(compaction),
+              )
+            }),
+          ),
+        synthetic,
+        wait: (sessionId) =>
+          found(sessionId).pipe(Effect.andThen(() => Effect.promise(() => started().chat.plane.settled(sessionId)))),
+        interrupt: (sessionId) =>
+          Effect.promise(() => started().runtime.forSession(sessionId).run.stop()).pipe(
+            Effect.map(({stopped}) => stopped),
+          ),
+      })
     }),
   )
 }

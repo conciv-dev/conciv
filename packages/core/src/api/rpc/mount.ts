@@ -10,7 +10,6 @@ import type {ChatPlane} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
 import type {ConcivServerTool} from '@conciv/tools'
 import type {HarnessAdapter} from '@conciv/harness'
-import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
 import type {RowScope} from '../../sessions/session-rows.js'
 import {callTrace} from '../call-trace.js'
@@ -35,6 +34,7 @@ import type {
   Plugin,
   PluginHooks,
   Rpc,
+  SessionInbox,
   Skill,
   SkillInstructions,
   Tool,
@@ -61,7 +61,8 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Plugin.Interface
   | Database.Interface
   | EventFeed.Interface
-  | FileSystem.Interface,
+  | FileSystem.Interface
+  | SessionInbox.Interface,
   never
 >
 
@@ -70,7 +71,7 @@ export type ChatContext = {
   harnesses: readonly HarnessAdapter[]
   harnessFor: (sessionId: SessionId) => Promise<HarnessAdapter>
   cwd: string
-  basePath: string
+  agentToken: string
   db: ConcivDb
   rows: RowScope
   plane: ChatPlane
@@ -82,7 +83,6 @@ export type ChatContext = {
 export type RpcDeps = {
   chat: ChatContext
   tools: (sessionId: SessionId) => Promise<ChatTool[]>
-  openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   runtime: CoreRuntime
   allowedOrigins: ReadonlySet<string>
   staleness: () => EngineStaleness
@@ -94,7 +94,7 @@ export type RpcDeps = {
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
   code: McpVars['mcp']
   tabs: ReturnType<typeof createTabs>
-  queues: Pick<PagePlugin, 'cancelSession' | 'changes' | 'clearChanges' | 'attachedSessions'>
+  queues: Pick<PagePlugin, 'changes' | 'clearChanges' | 'attachedSessions'>
   queueWait: PagePlugin['queueWait']
   pluginHost: PluginHost
   eventHeartbeatIntervalMs?: number

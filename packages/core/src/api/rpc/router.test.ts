@@ -8,6 +8,7 @@ import {createHarnessEngine} from '@conciv/harness-testkit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {createEngine} from '@conciv/plugin-testkit'
+import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {test} from '../../../test/engine-test.js'
 
 describe.concurrent('outside agents', () => {
@@ -51,13 +52,38 @@ describe.concurrent('outside agents', () => {
     )
   })
 
-  test('an outside agent that is disconnected from conciv is refused', async ({expect}) => {
+  test("an outside agent that is disconnected from conciv is refused, and a connected one can't answer an ask, connect agents, read the event stream, use plugin routes or the session terminal", async ({
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
+    const outside = makeRpcClient(engine.address.apiBase, {
+      headers: {
+        [CONCIV_ORIGIN_HEADER]: 'hub',
+        [CONCIV_CLIENT_HEADER]: 'terminal',
+        [CONCIV_SESSION_HEADER]: engine.session.id,
+      },
+    })
+    const refused = (message: string) => ({code: 'APPROVAL_DENIED', message})
 
     expect(await engine.outside({client: 'codex'}).call('desk_echo', {text: 'Hello'})).toMatchObject({
       isError: true,
       content: [{type: 'text', text: expect.stringContaining('Codex is disconnected from conciv')}],
     })
+    await expect(outside.chat.permissionDecision({approvalId: 'approval-1', reply: 'once'})).rejects.toMatchObject(
+      refused("outside agents can't answer permission requests; decide it in the tab"),
+    )
+    await expect(outside.meta.connectHub({harness: 'claude'})).rejects.toMatchObject(
+      refused("outside agents can't connect or disconnect agents; do it in the tab"),
+    )
+    await expect(outside.event.subscribe()).rejects.toMatchObject(
+      refused("outside agents can't read the engine's event stream"),
+    )
+    await expect(outside.plugin.list()).rejects.toMatchObject(
+      refused("outside agents can't use plugin routes; use the plugin in the tab"),
+    )
+    await expect(outside.experimental.persistentPty.create({sessionId: engine.session.id})).rejects.toMatchObject(
+      refused("outside agents can't use the session terminal; use it in the tab"),
+    )
   })
 
   test('with project access a call into a session waits until the user allows it', async ({expect}) => {
@@ -173,8 +199,14 @@ describe.concurrent('outside agent CLIs', () => {
 describe.concurrent('terminal access', () => {
   test('a terminal opened from one origin answers that origin and is unknown to another', async ({expect}) => {
     const engine = await createEngine()
-    const opener = makeRpcClient(engine.address.apiBase, {headers: {origin: 'http://localhost:5173'}})
-    const stranger = makeRpcClient(engine.address.apiBase, {headers: {origin: 'http://127.0.0.1:5174'}})
+    const opener = makeRpcClient(engine.address.apiBase, {
+      token: engine.address.token,
+      headers: {origin: 'http://localhost:5173'},
+    })
+    const stranger = makeRpcClient(engine.address.apiBase, {
+      token: engine.address.token,
+      headers: {origin: 'http://127.0.0.1:5174'},
+    })
 
     const pty = await opener.experimental.persistentPty.create({sessionId: engine.session.id})
 

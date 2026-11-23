@@ -346,10 +346,7 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return outcome
     }),
     delete: os.sessions.delete.handler(async ({input}) => {
-      await deleteSession(
-        {db, plane: chat.plane, runtime: deps.runtime, pluginHost: deps.pluginHost, queues: deps.queues},
-        input.sessionId,
-      )
+      await deleteSession({db, plane: chat.plane, runtime: deps.runtime, pluginHost: deps.pluginHost}, input.sessionId)
       return {ok: true as const}
     }),
     model: os.sessions.model.handler(async ({input, errors}) => {

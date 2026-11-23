@@ -1,6 +1,5 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import type {SessionStatus} from '@conciv/ui-kit-chat'
-import MessageSquare from 'lucide-solid/icons/message-square'
 import {StatusBar, type StatusBarView} from './status-bar.js'
 
 const meta: Meta<typeof StatusBar> = {title: 'conciv/pane/StatusBar', component: StatusBar}
@@ -9,7 +8,7 @@ type Story = StoryObj<typeof StatusBar>
 
 const views: StatusBarView[] = [
   {id: 'chat', label: 'Chat'},
-  {id: 'activity', label: 'Activity', icon: MessageSquare},
+  {id: 'activity', label: 'Activity', icon: 'message-square'},
 ]
 
 function statusStory(status: SessionStatus, diff = {files: 3, adds: 42, dels: 11}, elapsedLabel = '02:14'): Story {

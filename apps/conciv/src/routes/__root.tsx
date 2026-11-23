@@ -60,15 +60,10 @@ import {applySchemeClass, applySkinClass, createHostTheme, themeClasses} from '.
 import {createPreferences} from '../settings/create-preferences.js'
 import {DialogProvider} from '../runtime/plugin/dialog-stack.js'
 import {PluginAttachment, PluginRoot} from '../runtime/plugin/root.js'
+import type {ServerBinding} from '../runtime/plugin/servers.js'
 import {PluginOverlay, PluginPanelKeys} from '../shell/plugin-surfaces.js'
 import '../styles.css'
 import 'virtual:uno.css'
-
-function escapeInTerminal(scopeEl: HTMLElement | undefined): boolean {
-  const root = scopeEl?.getRootNode()
-  const active = root instanceof ShadowRoot ? root.activeElement : document.activeElement
-  return active instanceof Element && active.closest('[data-terminal-screen]') !== null
-}
 
 function setShutter(router: AnyRouter, open: boolean): Promise<void> {
   const value: true | undefined = open ? true : undefined
@@ -117,8 +112,8 @@ function AppRoot() {
   const fab = createDraggablePosition({initial: app.settings.modal.position, storageKey: 'conciv-fab-position'})
 
   const [arrivedFromConnect, setArrivedFromConnect] = createSignal(false)
-  const connectBind = async (apiBase: string): Promise<string> => {
-    if (app.apiBase() !== apiBase) app.bindApiBase?.(apiBase)
+  const connectBind = async (server: ServerBinding): Promise<string> => {
+    if (app.apiBase() !== server.apiBase) app.bindApiBase?.(server.apiBase, server.token)
     const {sessionId} = await app.rpc.sessions.resolve({})
     setArrivedFromConnect(true)
     return sessionId
@@ -421,7 +416,6 @@ function RootChrome(props: {
     dismissableLayerOpenAtEscapeCapture = false
     if (event.defaultPrevented) return
     if (dismissableLayerWasOpen) return
-    if (escapeInTerminal(rootEl)) return
     const settingsRoute = settingsMatch()
     if (settingsRoute) {
       event.preventDefault()

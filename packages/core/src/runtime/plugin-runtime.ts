@@ -38,6 +38,7 @@ import {
   Rpc,
   SdkPlugins,
   Session,
+  SessionInbox,
   SessionProjector,
   Skill,
   SkillInstructions,
@@ -274,6 +275,8 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         publishBundlerDiagnostics(input.bundler),
       ),
     ),
+    Layer.provideMerge(provideSessions(input.sessions)),
+    Layer.provideMerge(SessionInbox.layer),
     Layer.provideMerge(Bus.configured()),
     Layer.provideMerge(
       Layer.mergeAll(
@@ -286,7 +289,6 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         provideConfiguredPermissions(input.config.permissions),
         Layer.succeed(ConfigPluginSource.ConfiguredPlugins, input.config.plugins),
         provideHarnessModels(input.harness, input.signal),
-        provideSessions(input.sessions),
         Watcher.layer().pipe(Layer.orDie, Layer.provide(Watcher.nativeLayer)),
         Npm.layer.pipe(Layer.provide(EffectFlock.layer)),
       ),

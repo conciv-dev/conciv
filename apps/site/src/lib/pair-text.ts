@@ -54,7 +54,7 @@ function pairText(token: string, origin: string): string {
     'attach line of this shape:',
     '',
     '```',
-    `claude --continue --mcp-config '{"mcpServers":{"conciv":{"type":"http","url":"http://127.0.0.1:<port>/t/${token}/api/mcp","alwaysLoad":true}}}'`,
+    `claude --continue --mcp-config '{"mcpServers":{"conciv":{"type":"http","url":"http://127.0.0.1:<port>/api/mcp?conciv_auth_token=${token}","alwaysLoad":true}}}'`,
     '```',
     '',
     'Claude Code loads MCP servers only at session start, so run it after exiting',

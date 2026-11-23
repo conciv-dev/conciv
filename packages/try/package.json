@@ -36,7 +36,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {
     "@clack/prompts": "catalog:",
@@ -47,9 +48,14 @@
     "effect": "catalog:"
   },
   "devDependencies": {
+    "@conciv/harness-testkit": "workspace:*",
+    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

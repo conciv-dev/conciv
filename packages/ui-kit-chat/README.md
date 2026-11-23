@@ -28,7 +28,7 @@ npm install -D @conciv/it
 
 ## Side Effects
 
-- See the child READMEs: draft persistence to caller-provided `WebStorage`, clipboard writes, a Shiki web worker for code highlighting, lazy `mermaid` and `rrweb-snapshot` imports, and DOM listeners and observers in the thread viewport.
+- See the child READMEs: draft persistence to caller-provided `WebStorage`, clipboard writes, a Shiki web worker for code highlighting, a lazy `mermaid` import, and DOM listeners and observers in the thread viewport.
 
 ## Verification
 

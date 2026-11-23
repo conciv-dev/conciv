@@ -6,7 +6,6 @@ import {useLayers} from '../app/context'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query'
 import {usePluginAttachment} from '../runtime/plugin/attachment'
 import {usePluginHost} from '../runtime/plugin/host'
-import {icons} from '../runtime/plugin/icons'
 import {createMobileViews, MobileViewContent, type MobileViews} from '../runtime/plugin/mobile'
 import {createMountedSession} from '../runtime/plugin/mounted-session'
 import {isPluginView, panelKey} from '../runtime/plugin/panel-keys'
@@ -85,7 +84,7 @@ export function createPluginTabs(input: {view: Accessor<string>; chat: () => voi
       ...[...mobile.tabs(), ...mobile.menu()].map((entry) => ({
         id: entry.key,
         label: entry.mobile.title,
-        icon: entry.mobile.icon && icons[entry.mobile.icon],
+        icon: entry.mobile.icon,
       })),
       ...panelTabs,
     ]

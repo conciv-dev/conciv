@@ -20,7 +20,6 @@ import {
   type TurnRollup,
 } from '@conciv/ui-kit-chat'
 import X from 'lucide-solid/icons/x'
-import MessageSquare from 'lucide-solid/icons/message-square'
 import Settings from 'lucide-solid/icons/settings'
 import Pencil from 'lucide-solid/icons/pencil'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
@@ -361,7 +360,7 @@ function PanelSession(): JSX.Element {
     return kind === 'done' || kind === 'stopped' ? 'LAST' : 'ACTIVE'
   }
   const statusBarViews = createMemo<StatusBarView[]>(() => [
-    {id: 'chat', label: 'Chat', icon: MessageSquare},
+    {id: 'chat', label: 'Chat', icon: 'message-square'},
     ...pluginTabs.views(),
   ])
 
