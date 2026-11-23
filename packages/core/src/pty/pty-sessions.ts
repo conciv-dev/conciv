@@ -124,6 +124,12 @@ const DEFAULT_ROWS = 32
 
 type Spawn = typeof import('@lydell/node-pty').spawn
 
+declare module '@lydell/node-pty' {
+  interface IPty {
+    on(event: 'close', listener: () => void): void
+  }
+}
+
 const loadSpawn = once((): Promise<Spawn> =>
   import('@lydell/node-pty').then(
     (module) => module.spawn,
@@ -162,8 +168,14 @@ export type TtySessions = {
   shutdown(): void
 }
 
+type PtyStatus =
+  | {kind: 'running'; pty: IPty}
+  | {kind: 'closed'; pty: IPty}
+  | {kind: 'exited'; code: number}
+  | {kind: 'failed'; message: string}
+
 type Entry = {
-  pty: IPty | null
+  status: PtyStatus
   session: TtySession
   replay: string[]
   replaySize: number
@@ -171,10 +183,22 @@ type Entry = {
   sinks: Set<TtySink>
   tracker: OscBusyTracker
   injector: FrameInjector
-  exit: {code: number} | null
-  error: string | null
   idle: ReturnType<typeof setTimeout> | null
   lastInterruptAt: number
+}
+
+function runningPty(entry: Entry | undefined): IPty | null {
+  return entry?.status.kind === 'running' ? entry.status.pty : null
+}
+
+function spawnedPty(status: PtyStatus | undefined): IPty | null {
+  return status?.kind === 'running' || status?.kind === 'closed' ? status.pty : null
+}
+
+function readExit(status: PtyStatus | undefined): {code: number} | null {
+  if (status?.kind === 'exited') return {code: status.code}
+  if (status?.kind === 'failed') return {code: -1}
+  return null
 }
 
 function replayTo(entry: Entry, sink: TtySink, from: number | undefined): void {
@@ -195,7 +219,7 @@ export function createTtySessions(opts: {env: Readonly<Record<string, string>>; 
     if (!entry) return
     entries.delete(sessionId)
     if (entry.idle) clearTimeout(entry.idle)
-    if (!entry.exit) entry.pty?.kill()
+    runningPty(entry)?.kill()
   }
 
   const armIdle = (sessionId: string, entry: Entry): void => {
@@ -228,27 +252,32 @@ export function createTtySessions(opts: {env: Readonly<Record<string, string>>; 
     return {...Object.fromEntries(kept), ...command.env}
   }
 
-  const spawnPty = (entry: Entry, spawn: Spawn, command: TtyCommand, cwd: string, size: PtySize | undefined): void => {
+  const spawnPty = (spawn: Spawn, command: TtyCommand, cwd: string, size: PtySize | undefined): PtyStatus => {
     try {
       ensureSpawnHelperExecutable()
-      entry.pty = spawn(command.bin, command.args, {
+      const pty = spawn(command.bin, command.args, {
         name: 'xterm-256color',
         cols: size?.cols ?? DEFAULT_COLS,
         rows: size?.rows ?? DEFAULT_ROWS,
         cwd,
         env: spawnEnv(command),
       })
+      return {kind: 'running', pty}
     } catch (error) {
-      entry.error = error instanceof Error ? error.message : String(error)
-      entry.exit = {code: -1}
-      return
+      return {kind: 'failed', message: error instanceof Error ? error.message : String(error)}
     }
-    entry.pty.onData((chunk) => {
+  }
+
+  const follow = (entry: Entry, pty: IPty): void => {
+    pty.onData((chunk) => {
       entry.tracker.feed(chunk)
       entry.injector.feed(chunk)
     })
-    entry.pty.onExit(({exitCode}) => {
-      entry.exit = {code: exitCode}
+    pty.on('close', () => {
+      if (entry.status.kind === 'running') entry.status = {kind: 'closed', pty}
+    })
+    pty.onExit(({exitCode}) => {
+      entry.status = {kind: 'exited', code: exitCode}
       broadcast(entry, {type: 'exit', code: exitCode})
     })
   }
@@ -267,29 +296,24 @@ export function createTtySessions(opts: {env: Readonly<Record<string, string>>; 
       sessionId,
       owner,
       admitted: [],
-      write: (data) => {
-        const entry = entries.get(sessionId)
-        if (entry && !entry.exit) entry.pty?.write(data)
-      },
+      write: (data) => runningPty(entries.get(sessionId))?.write(data),
       interrupt: () => {
         const entry = entries.get(sessionId)
-        if (!entry || entry.exit) return
+        const pty = runningPty(entry)
+        if (!entry || !pty) return
         const now = Date.now()
         if (now - entry.lastInterruptAt < INTERRUPT_DEBOUNCE_MS) return
         entry.lastInterruptAt = now
-        entry.pty?.write(INTERRUPT_BYTE)
+        pty.write(INTERRUPT_BYTE)
       },
       inject: (text) => {
         const entry = entries.get(sessionId)
-        if (entry && !entry.exit) entry.injector.inject(text)
+        if (entry && runningPty(entry)) entry.injector.inject(text)
       },
-      resize: (cols, rows) => {
-        const entry = entries.get(sessionId)
-        if (entry && !entry.exit) entry.pty?.resize(cols, rows)
-      },
+      resize: (cols, rows) => runningPty(entries.get(sessionId))?.resize(cols, rows),
       size: () => {
-        const pty = entries.get(sessionId)?.pty
-        return {cols: pty?.cols ?? DEFAULT_COLS, rows: pty?.rows ?? DEFAULT_ROWS}
+        const pty = spawnedPty(entries.get(sessionId)?.status)
+        return pty ? {cols: pty.cols, rows: pty.rows} : {cols: DEFAULT_COLS, rows: DEFAULT_ROWS}
       },
       cursor: () => entries.get(sessionId)?.written ?? 0,
       attach: (sink, from) => {
@@ -300,8 +324,8 @@ export function createTtySessions(opts: {env: Readonly<Record<string, string>>; 
         }
         replayTo(entry, sink, from)
         sink.control({type: 'busy', busy: entry.tracker.busy()})
-        if (entry.error) sink.control({type: 'error', message: entry.error})
-        if (entry.exit && !entry.error) sink.control({type: 'exit', code: entry.exit.code})
+        if (entry.status.kind === 'failed') sink.control({type: 'error', message: entry.status.message})
+        if (entry.status.kind === 'exited') sink.control({type: 'exit', code: entry.status.code})
         entry.sinks.add(sink)
         armIdle(sessionId, entry)
         return () => {
@@ -311,10 +335,11 @@ export function createTtySessions(opts: {env: Readonly<Record<string, string>>; 
       },
       busy: () => entries.get(sessionId)?.tracker.busy() ?? false,
       kill: () => drop(sessionId),
-      exited: () => entries.get(sessionId)?.exit ?? null,
+      exited: () => readExit(entries.get(sessionId)?.status),
     }
+    const status = spawnPty(spawn, command, cwd, size)
     const entry: Entry = {
-      pty: null,
+      status,
       session,
       replay: [],
       replaySize: 0,
@@ -325,14 +350,12 @@ export function createTtySessions(opts: {env: Readonly<Record<string, string>>; 
         record(entry, chunk)
         for (const sink of entry.sinks) sink.data(chunk, entry.written)
       }),
-      exit: null,
-      error: null,
       idle: null,
       lastInterruptAt: 0,
     }
     entry.tracker.onChange((busy) => broadcast(entry, {type: 'busy', busy}))
     entries.set(sessionId, entry)
-    spawnPty(entry, spawn, command, cwd, size)
+    if (status.kind === 'running') follow(entry, status.pty)
     return session
   }
 
