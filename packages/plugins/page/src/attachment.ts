@@ -1,22 +1,18 @@
-import {Cause, Deferred, Duration, Effect, Exit, Fiber, FiberMap, Schedule, Semaphore} from 'effect'
+import {Cause, Deferred, Duration, Effect, Exit, Fiber, FiberMap, Option, Schedule, Semaphore, Stream} from 'effect'
 import {z} from 'zod'
 import type {MountedSession} from '@conciv/plugin/experimental'
 import type {PageOperation} from '@conciv/plugin/experimental/page'
 import {Command, Control, Definition, Outcome, Tab} from './rpc.js'
 import type {PageOperations} from './operations.js'
 import {redactedUrl} from './redacted-url.js'
-
-export type AttachmentOutcome =
-  | 'born'
-  | 'closed'
-  | 'missing'
-  | 'refused'
-  | 'replaced'
-  | 'transient'
-  | 'unavailable'
-  | 'unsupported'
-
-export type AttachmentEnd = {readonly outcome: AttachmentOutcome; readonly attached: boolean}
+import {settleAttachment, startAttachment, transitionAttachment} from './attachment-machine.js'
+import type {
+  AttachmentEffect,
+  AttachmentEnd,
+  AttachmentEvent,
+  AttachmentOutcome,
+  AttachmentTransition,
+} from './attachment-machine.js'
 
 export type Attaching = {
   readonly session: MountedSession
@@ -32,8 +28,6 @@ const CONTROL: `rpc.${typeof Definition.id}.control` = `rpc.${Definition.id}.con
 
 const STATE_RETRY = Schedule.max([Schedule.exponential(Duration.millis(250)), Schedule.recurs(6)])
 
-const TRANSIENT_RETRY = Schedule.min([Schedule.exponential(Duration.seconds(1)), Schedule.spaced(Duration.seconds(30))])
-
 const WAKE_EVENTS = ['focus', 'pointerdown', 'keydown']
 
 const ControlHeader = z.object({type: z.string(), connectionId: z.string()})
@@ -45,11 +39,6 @@ const UNSUPPORTED: Outcome = {
   code: 'unsupported',
   message:
     'This page does not support the requested page operation. Ask the user to reload the page so it runs the same conciv version as the engine, or use another operation.',
-}
-
-const PAGE_TOOLS_OFF: Partial<Record<AttachmentOutcome, string>> = {
-  refused: 'Page tools couldn’t attach to this session. Reload the page or start a new session.',
-  unsupported: 'Page tools are off. Reload the page so it runs the same conciv version as the engine.',
 }
 
 const PAGE_TOOLS_BROKEN = 'Page tools stopped working. Reload the page.'
@@ -189,27 +178,30 @@ function connectOnce(input: Attaching): Effect.Effect<AttachmentEnd> {
         run(control.requestId, answer(control.requestId))
       }
 
-      const read = Effect.tryPromise({
-        try: async (signal): Promise<AttachmentOutcome> => {
-          for await (const event of client.event.subscribe({types: [CONTROL, 'session.created'], signal})) {
-            if (event.type === 'server.connected') {
-              Deferred.doneUnsafe(connected, Exit.void)
-              continue
-            }
-            if (event.type === 'session.created') {
-              if (event.data.sessionID === input.session.id) return 'born'
-              continue
-            }
-            const header = ControlHeader.safeParse(event.data)
-            if (!header.success || header.data.connectionId !== input.connectionId) continue
-            const control = Control.safeParse(event.data)
-            if (control.success) receive(control.data)
-            else if (header.data.type === 'attached') return 'unsupported'
+      const read = Stream.fromAsyncIterable(
+        client.event.subscribe({types: [CONTROL, 'session.created'], signal: ended}),
+        (): AttachmentOutcome => 'closed',
+      ).pipe(
+        Stream.map((event): AttachmentOutcome | undefined => {
+          if (event.type === 'server.connected') {
+            Deferred.doneUnsafe(connected, Exit.void)
+            return undefined
           }
-          return 'closed'
-        },
-        catch: (): AttachmentOutcome => 'closed',
-      }).pipe(Effect.catch(Effect.succeed))
+          if (event.type === 'session.created') return event.data.sessionID === input.session.id ? 'born' : undefined
+          const header = ControlHeader.safeParse(event.data)
+          if (!header.success || header.data.connectionId !== input.connectionId) return undefined
+          const control = Control.safeParse(event.data)
+          if (control.success) {
+            receive(control.data)
+            return undefined
+          }
+          return header.data.type === 'attached' ? 'unsupported' : undefined
+        }),
+        Stream.filter((outcome) => outcome !== undefined),
+        Stream.runHead,
+        Effect.map(Option.getOrElse((): AttachmentOutcome => 'closed')),
+        Effect.catch(Effect.succeed),
+      )
 
       input.changed(report, ended)
       const reading = yield* Effect.forkScoped(read)
@@ -224,27 +216,43 @@ function connectOnce(input: Attaching): Effect.Effect<AttachmentEnd> {
         Effect.catch(Effect.succeed),
       )
       const outcome = yield* Effect.raceFirst(joining, Fiber.join(reading))
-      const wasAttached = Deferred.isDoneUnsafe(attached)
       if (outcome === 'missing') return {outcome: yield* Fiber.join(reading), attached: false}
-      if (outcome === 'refused' || outcome === 'transient')
-        return {outcome: wasAttached ? 'closed' : outcome, attached: wasAttached}
-      return {outcome, attached: wasAttached}
+      return settleAttachment(outcome, Deferred.isDoneUnsafe(attached))
     }),
   )
 }
 
-function reportFailure(input: Pick<Attaching, 'notify'>, title: string | undefined, cause: unknown) {
-  if (!title) return
+function reportFailure(input: Pick<Attaching, 'notify'>, title: string, cause: unknown) {
   console.warn('[conciv] page attach failed', cause)
   input.notify(title)
 }
 
-export function keepAttached(input: Attaching): Effect.Effect<AttachmentEnd> {
-  return connectOnce(input).pipe(
-    Effect.repeat({schedule: TRANSIENT_RETRY, while: (end) => end.outcome === 'transient'}),
-    Effect.tap((end) => (end.outcome === 'closed' && end.attached ? woken() : Effect.void)),
-    Effect.repeat({while: (end) => end.outcome === 'born' || (end.outcome === 'closed' && end.attached)}),
-    Effect.tap((end) => Effect.sync(() => reportFailure(input, PAGE_TOOLS_OFF[end.outcome], end.outcome))),
+function perform(input: Attaching, effect: AttachmentEffect): Effect.Effect<AttachmentEvent | undefined> {
+  switch (effect.type) {
+    case 'connect':
+      return connectOnce(input).pipe(Effect.map((end): AttachmentEvent => ({type: 'ended', end})))
+    case 'wait-backoff':
+      return Effect.sleep(Duration.millis(effect.delayMillis)).pipe(Effect.as<AttachmentEvent>({type: 'backed-off'}))
+    case 'wait-wake':
+      return woken().pipe(Effect.as<AttachmentEvent>({type: 'woken'}))
+    case 'notify':
+      return Effect.sync(() => reportFailure(input, effect.title, effect.outcome)).pipe(Effect.as(undefined))
+    case 'stop':
+      return Effect.succeed(undefined)
+  }
+}
+
+function drive(input: Attaching, transition: AttachmentTransition): Effect.Effect<void> {
+  return Effect.forEach(transition.effects, (effect) => perform(input, effect)).pipe(
+    Effect.flatMap((events) => {
+      const event = events.find((next) => next !== undefined)
+      return event ? drive(input, transitionAttachment(transition.state, event)) : Effect.void
+    }),
+  )
+}
+
+export function keepAttached(input: Attaching): Effect.Effect<void> {
+  return drive(input, startAttachment).pipe(
     Effect.tapCause((cause) =>
       Effect.sync(() => Cause.hasInterruptsOnly(cause) || reportFailure(input, PAGE_TOOLS_BROKEN, Cause.pretty(cause))),
     ),
