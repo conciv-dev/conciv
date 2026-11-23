@@ -100,30 +100,39 @@ type SessionEvents = (abortSignal: AbortSignal, link?: EventsLink) => AsyncItera
 
 type EventsLink = {
   opened: () => Promise<void>
+  watching: () => void
   live: () => void
+  reconnecting: () => void
   dropped: () => void
-  gone: () => void
 }
 
-type LinkState = {phase: 'opening' | 'dropped'; waiting: PromiseWithResolvers<void>} | {phase: 'live'} | {phase: 'gone'}
+type LinkState =
+  | {phase: 'idle'}
+  | {phase: 'opening'; waiting: PromiseWithResolvers<void>}
+  | {phase: 'live'}
+  | {phase: 'dropped'}
 
 function eventsLink(onLiveAgain: (() => void) | undefined): EventsLink {
-  let state: LinkState = {phase: 'opening', waiting: Promise.withResolvers()}
+  let state: LinkState = {phase: 'idle'}
+  const moved = (next: LinkState): LinkState => {
+    const before = state
+    if (before.phase === 'opening') before.waiting.resolve()
+    state = next
+    return before
+  }
   return {
-    opened: () => (state.phase === 'live' || state.phase === 'gone' ? Promise.resolve() : state.waiting.promise),
+    opened: () => (state.phase === 'opening' ? state.waiting.promise : Promise.resolve()),
+    watching: () => {
+      if (state.phase === 'idle') state = {phase: 'opening', waiting: Promise.withResolvers()}
+    },
     live: () => {
-      const before = state
-      if (before.phase === 'live') return
-      state = {phase: 'live'}
-      if (before.phase !== 'gone') before.waiting.resolve()
-      if (before.phase !== 'opening') onLiveAgain?.()
+      if (moved({phase: 'live'}).phase === 'dropped') onLiveAgain?.()
+    },
+    reconnecting: () => {
+      if (state.phase === 'live') state = {phase: 'dropped'}
     },
     dropped: () => {
-      if (state.phase === 'live' || state.phase === 'gone') state = {phase: 'dropped', waiting: Promise.withResolvers()}
-    },
-    gone: () => {
-      if (state.phase === 'opening' || state.phase === 'dropped') state.waiting.resolve()
-      state = {phase: 'gone'}
+      moved({phase: 'dropped'})
     },
   }
 }
@@ -132,7 +141,7 @@ function watchedContext(link: EventsLink | undefined): RpcClientContext {
   if (link === undefined) return {}
   return {
     onRetry: () => {
-      link.dropped()
+      link.reconnecting()
       return (reopened) => {
         if (reopened) link.live()
       }
@@ -388,21 +397,23 @@ async function* sessionEvents(
   signal: AbortSignal,
   link: EventsLink | undefined,
 ): AsyncGenerator<ChatEvent> {
-  while (!signal.aborted) {
-    try {
-      const live = await rpc.chat.events({sessionId}, {signal, context: watchedContext(link)})
-      link?.live()
-      yield* live
-      if (!signal.aborted) link?.dropped()
-    } catch (error) {
-      if (signal.aborted) return
-      if (!refused(error)) {
-        link?.gone()
-        throw error
+  link?.watching()
+  try {
+    while (!signal.aborted) {
+      try {
+        const live = await rpc.chat.events({sessionId}, {signal, context: watchedContext(link)})
+        link?.live()
+        yield* live
+        if (!signal.aborted) link?.dropped()
+      } catch (error) {
+        if (signal.aborted) return
+        if (!refused(error)) throw error
+        link?.dropped()
+        await trustedAgain(engine, signal)
       }
-      link?.dropped()
-      await trustedAgain(engine, signal)
     }
+  } finally {
+    link?.dropped()
   }
 }
 
