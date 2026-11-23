@@ -1,6 +1,8 @@
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 
+export const CLAUDE_BIN = 'claude'
+
 type McpHttpServer = {type: 'http'; url: string; headers?: Record<string, string>}
 
 export function mcpServerConfig(mcpUrl: string, sessionId?: string): {conciv: McpHttpServer} {
