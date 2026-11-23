@@ -4,7 +4,8 @@ import {resolveHarnessModels} from '@conciv/harness'
 import {codex} from '@conciv/harness/codex'
 import {createEngine} from '@conciv/plugin-testkit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {withSavedModels} from './app.js'
+import {makeApp, withSavedModels} from './app.js'
+import {resolveConfig} from './config.js'
 
 describe('http surface', () => {
   test('health answers, an untokened route is refused, a foreign origin is refused, and every reply carries the version', async () => {
@@ -94,5 +95,27 @@ describe('the saved model list', () => {
     await expect(asked).resolves.toEqual(listed)
     expect(started).toEqual(['listing'])
     await warmed.settled()
+
+    const engineStarted: string[] = []
+    const recorded = {
+      ...adapter,
+      models: () => {
+        engineStarted.push('listing')
+        return Promise.resolve(listed)
+      },
+    }
+    const root = tempDir('app-root-')
+    const configProvider = ConfigProvider.fromEnvRecord({CODEX_HOME: tempDir('codex-home-')})
+    const made = await makeApp({
+      cfg: resolveConfig({stateRoot: root}, root, configProvider),
+      cwd: root,
+      home: tempDir('app-home-'),
+      configProvider,
+      openInEditor: () => {},
+      harness: recorded,
+      harnesses: [recorded],
+    })
+    expect(engineStarted).toEqual(['listing'])
+    await made.dispose()
   })
 })

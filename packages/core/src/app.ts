@@ -294,10 +294,10 @@ function availableHarnesses(
   path: string,
   log: Log,
 ): SavedModelsHarness[] {
-  const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses(registry, path))).map((adapter) =>
-    withSavedModels(adapter, stateDir, signal, log),
-  )
-  return [boot, ...others.filter((other) => other.harness.id !== boot.harness.id)]
+  const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses(registry, path)))
+    .filter((adapter) => adapter.id !== boot.harness.id)
+    .map((adapter) => withSavedModels(adapter, stateDir, signal, log))
+  return [boot, ...others]
 }
 
 async function recordSessionUsage(db: ConcivDb, sessionId: SessionId, usage: UsageSnapshot): Promise<void> {
