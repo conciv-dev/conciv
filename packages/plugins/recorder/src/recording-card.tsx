@@ -1,5 +1,5 @@
 import {Match, Show, Switch, createMemo, onCleanup, type JSX} from 'solid-js'
-import {useQuery} from '@conciv/client'
+import {useMutation, useQuery} from '@conciv/client'
 import {usePlugin, type NoteCardProps} from '@conciv/plugin/experimental'
 import {REPLAY_MIN_EVENTS, Recorder, type RrwebEvent} from './rpc.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
@@ -13,6 +13,7 @@ import type {PluginRuntime} from './subscription-ref-signal.js'
 
 function ExportVideoButton(props: {recordingId: string; runtime: PluginRuntime; disabled?: boolean}): JSX.Element {
   const ctx = usePlugin()
+  const exportPiece = useMutation(() => ctx.client.rpc(Recorder)['recordings.exportVideo'].mutationOptions())
   const [state, setState] = createStore({exporting: false})
 
   const exportVideo = (): void => {
@@ -20,7 +21,7 @@ function ExportVideoButton(props: {recordingId: string; runtime: PluginRuntime; 
     void props.runtime.runPromise(
       exportRecording({
         save: Effect.succeed({recordingId: props.recordingId}),
-        readPiece: videoPieceReader(ctx),
+        readPiece: videoPieceReader(exportPiece.mutateAsync),
         saveFile: (file) => Effect.sync(() => saveFileToDisk(file)),
       }).pipe(
         Effect.catch((error) =>

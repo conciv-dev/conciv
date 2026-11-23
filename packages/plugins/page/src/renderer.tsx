@@ -1,6 +1,7 @@
 import {Effect, Exit, Fiber, Layer, ManagedRuntime, Scope} from 'effect'
 import {z} from 'zod'
 import {onCleanup} from 'solid-js'
+import {useQueryClient} from '@conciv/client'
 import {Dynamic} from 'solid-js/web'
 import utilities from 'virtual:uno.css?inline'
 import {createKeyed, Plugin, Slot, ToolRegistry} from '@conciv/plugin/experimental'
@@ -29,7 +30,7 @@ export default Plugin.define({
     const tabId = `tab_${crypto.randomUUID()}`
     const routed = () => ctx.sessions.current()
 
-    const symbolicate = symbolicateInSession(routed)
+    const symbolicate = symbolicateInSession(routed, useQueryClient())
 
     const highlight = makeHighlight({
       opener: {symbolicate, desktop: ctx.desktop},

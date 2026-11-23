@@ -1,6 +1,6 @@
 import {Match, Show, Switch, onCleanup, untrack, type JSX} from 'solid-js'
 import {Effect, SubscriptionRef} from 'effect'
-import {useQuery, useQueryClient} from '@conciv/client'
+import {useMutation, useQuery, useQueryClient} from '@conciv/client'
 import {usePlugin, type PanelProps} from '@conciv/plugin/experimental'
 import {Page} from '@conciv/plugin/experimental/page'
 import {REPLAY_MIN_EVENTS, Recorder} from './rpc.js'
@@ -35,17 +35,22 @@ export function RecorderPanel(props: {
   const queryClient = useQueryClient()
   const recordingKey = () => recorder().window.key({input: {clientId: props.clientId}})
   const refresh = (): Promise<void> => queryClient.invalidateQueries({queryKey: recordingKey()})
+  const save = useMutation(() => recorder()['recordings.save'].mutationOptions())
+  const reset = useMutation(() => recorder().reset.mutationOptions())
+  const exportPiece = useMutation(() => recorder()['recordings.exportVideo'].mutationOptions())
 
   const panel = runInOwnerScope(
     runtime,
     openPanel({
       ...recorderPanelCalls({
         client: () => ctx.client,
+        save: save.mutateAsync,
+        reset: () => reset.mutateAsync(undefined),
         clientId: followedClientId,
         viewerId,
         refresh,
         flush: flushNow,
-        readPiece: videoPieceReader(ctx),
+        readPiece: videoPieceReader(exportPiece.mutateAsync),
         saveFile: (file) => Effect.sync(() => saveFileToDisk(file)),
         noteSaved: ({recordingId, summary}) => {
           props.host.screen.composer.attach({
@@ -69,19 +74,12 @@ export function RecorderPanel(props: {
   const live = subscriptionRefSignal(runtime, panel.live)
   const run = (effect: Effect.Effect<void>): void => void runtime.runFork(effect)
 
-  const recording = useQuery(() => {
-    const read = recorder().window.queryOptions({input: {clientId: props.clientId}})
-    return {
-      ...read,
-      queryFn: async (context: {readonly signal: AbortSignal}) => {
-        await runtime.runPromise(panel.renewPresence)
-        return read.queryFn(context)
-      },
-      retry: false,
-      gcTime: 0,
-      refetchOnWindowFocus: false,
-    }
-  })
+  const recording = useQuery(() => ({
+    ...recorder().window.queryOptions({input: {clientId: props.clientId}}),
+    retry: false,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+  }))
   const retry = (): void => void recording.refetch()
 
   const stopWatching = recorder().events.on(
