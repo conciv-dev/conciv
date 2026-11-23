@@ -7,6 +7,7 @@ import type {contract, SessionHit, SessionMeta} from '@conciv/contract'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {
   SessionId,
+  type HarnessLoginStatus,
   type HarnessMenuEntry,
   type HarnessSessionId,
   type HarnessMeta,
@@ -20,7 +21,7 @@ import type {
   TranscriptPage,
   TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
-import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
+import {resolveHarnessLogin, resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {sessions} from '@conciv/db'
 import {
   ensureRow,
@@ -177,23 +178,40 @@ export function buildHarnessMeta(harness: HarnessAdapter): HarnessMeta {
   }
 }
 
+function readHarnessLogin(harness: HarnessAdapter, signal: AbortSignal, log: Log): Promise<HarnessLoginStatus> {
+  return resolveHarnessLogin(harness, {
+    signal,
+    refresh: true,
+    onError: (error) => {
+      if (!signal.aborted) log(Effect.logError('[core] checking the login failed', {harness: harness.id, error}))
+    },
+  })
+}
+
+async function listMenuModels(
+  harness: HarnessAdapter,
+  signal: AbortSignal,
+  log: Log,
+): Promise<Pick<HarnessMenuEntry, 'models' | 'defaultModel' | 'modelsFailed'>> {
+  try {
+    const models = await resolveHarnessModels(harness, {signal})
+    return {models, defaultModel: harness.defaultModel ?? models[0]?.id ?? null, modelsFailed: false}
+  } catch (error) {
+    if (!signal.aborted) log(Effect.logError('[core] listing the models failed', {harness: harness.id, error}))
+    return {models: [], defaultModel: harness.defaultModel ?? null, modelsFailed: true}
+  }
+}
+
 export async function buildHarnessMenuEntry(
   harness: HarnessAdapter,
   signal: AbortSignal,
   log: Log,
 ): Promise<HarnessMenuEntry> {
-  try {
-    const models = await resolveHarnessModels(harness, {signal})
-    return {
-      ...buildHarnessMeta(harness),
-      models,
-      defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
-      modelsFailed: false,
-    }
-  } catch (error) {
-    if (!signal.aborted) log(Effect.logError('[core] listing the models failed', {harness: harness.id, error}))
-    return {...buildHarnessMeta(harness), models: [], defaultModel: harness.defaultModel ?? null, modelsFailed: true}
-  }
+  const [listed, login] = await Promise.all([
+    listMenuModels(harness, signal, log),
+    readHarnessLogin(harness, signal, log),
+  ])
+  return {...buildHarnessMeta(harness), ...listed, login}
 }
 
 const sameModel = (model: string | null) => (model === null ? isNull(sessions.model) : eq(sessions.model, model))
