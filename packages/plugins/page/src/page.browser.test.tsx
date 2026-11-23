@@ -116,6 +116,14 @@ describe('the agent acts on the page during a reply', () => {
         }),
       ]),
     })
+    const changes = engine.session.tool('page_changes')
+    expect(await changes.call({clear: true})).toMatchObject({
+      changes: expect.arrayContaining([
+        expect.objectContaining({verb: 'page_click', selector: '#buy'}),
+        expect.objectContaining({verb: 'page_settext', selector: '#title', args: {text: 'Fern shop'}}),
+      ]),
+    })
+    expect(await changes.call({})).toEqual({changes: []})
   })
 })
 
