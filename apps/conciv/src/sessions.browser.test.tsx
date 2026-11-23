@@ -215,7 +215,7 @@ describe('past sessions the CLI started', () => {
     onTestFinished(() => {
       vi.useRealTimers()
     })
-    const engine = await createEngine({}, pastSessions)
+    const engine = await createEngine({}, pastSessions())
     await engine.newSession('Alpha')
     await mount({
       engine,
