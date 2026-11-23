@@ -8,7 +8,9 @@ import {ComposerPill, SettingsPage, Slot, ToolRegistry, usePlugin, type Plugin} 
 import {defineInternalPlugin} from '@conciv/plugin-internal'
 import {GrabApi} from '@conciv/plugin/experimental/grab'
 import {whiteboardToolCards} from './cards.js'
-import {makeCommentCompose, type ComposePhase} from './comment-compose.js'
+import {makeCommentCompose} from './comment-compose.js'
+import type {ComposePhase} from './comment-compose-machine.js'
+import {WhiteboardCanvasMachine} from './canvas-machine.js'
 import {ComposePopover} from './compose-popover.js'
 import {WhiteboardCanvas, WhiteboardNotices} from './overlay.js'
 import {readCanvasBackground, whiteboardStores, type CanvasBackground} from './stores.js'
@@ -50,9 +52,11 @@ function CanvasBackgroundRow(): JSX.Element {
 const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlugin({
   stores: whiteboardStores,
   setup(ctx) {
-    const [canvas, setCanvas] = createStore({open: false, engaged: false})
     const runtime = ManagedRuntime.make(Layer.empty)
     onCleanup(() => void runtime.dispose())
+    const [canvas, setCanvas] = createStore<WhiteboardCanvasMachine.CanvasState>({
+      ...WhiteboardCanvasMachine.initialCanvas,
+    })
     const compose = runInOwnerScope(
       runtime,
       makeCommentCompose(ComposeOptions.parse(ctx.options).commentBindDeadlineMs),
@@ -72,7 +76,12 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
       retry: false,
       refetchOnWindowFocus: false,
     }))
-    const close = (): void => setCanvas('open', false)
+    const dispatchCanvas = (event: Parameters<typeof WhiteboardCanvasMachine.transitionCanvas>[1]): void => {
+      const next = WhiteboardCanvasMachine.transitionCanvas(canvas, event)
+      setCanvas(next.state)
+      next.effects.forEach(() => void surface.refetch())
+    }
+    const close = (): void => dispatchCanvas({type: 'closed'})
     const background = (): CanvasBackground => readCanvasBackground(ctx.stores.canvas.value.transparent)
     const layer = document.createElement('div')
     const overlay: Slot = {
@@ -91,14 +100,7 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
         label: 'Whiteboard',
         icon: 'presentation',
         title: 'Open the whiteboard canvas',
-        run: () => {
-          if (!surface.isError) {
-            setCanvas({engaged: true, open: !canvas.open})
-            return
-          }
-          setCanvas('open', true)
-          void surface.refetch()
-        },
+        run: () => dispatchCanvas({type: 'toggled', surfaceFailed: surface.isError}),
       }),
     }
     const commentPill: ComposerPill = {

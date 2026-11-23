@@ -1,7 +1,8 @@
 export * as WhiteboardDrain from './drain.js'
-import {Effect, FiberMap, Queue, Schedule, Schema, SubscriptionRef} from 'effect'
+import {Effect, FiberMap, Queue, Schedule, Schema} from 'effect'
 import type {PendingRow} from './rows.js'
 import {WhiteboardDrainMachine} from './drain-machine.js'
+import {makeMachineDriver} from './machine-driver.js'
 
 export const RemoveFailed = Schema.TaggedStruct('RemoveFailed', {message: Schema.String})
 type RemoveFailed = typeof RemoveFailed.Type
@@ -19,7 +20,6 @@ export const makePendingDrain = Effect.fn('whiteboard.pendingDrain')(function* (
   options: {removeRetryMs: number},
 ) {
   const start = WhiteboardDrainMachine.startDrain()
-  const state = yield* SubscriptionRef.make<WhiteboardDrainMachine.DrainState>(start.state)
   const inbox = yield* Queue.unbounded<WhiteboardDrainMachine.DrainEvent>()
   const rows = yield* FiberMap.make<string>()
   const retry = Schedule.min([Schedule.exponential(options.removeRetryMs), Schedule.spaced(REMOVE_MAX_WAIT_MS)]).pipe(
@@ -58,14 +58,14 @@ export const makePendingDrain = Effect.fn('whiteboard.pendingDrain')(function* (
     )
   }
 
-  const step = (event: WhiteboardDrainMachine.DrainEvent) =>
-    SubscriptionRef.modify(state, (current) => {
-      const next = WhiteboardDrainMachine.transitionDrain(current, event)
-      return [next.effects, next.state]
-    }).pipe(Effect.flatMap((effects) => Effect.forEach(effects, run, {discard: true})))
+  const driver = yield* makeMachineDriver({
+    initial: start.state,
+    transition: WhiteboardDrainMachine.transitionDrain,
+    run: (command: WhiteboardDrainMachine.DrainEffect) => Effect.asVoid(run(command)),
+  })
 
-  yield* Queue.take(inbox).pipe(Effect.flatMap(step), Effect.forever, Effect.forkScoped)
-  yield* Effect.addFinalizer(() => step({type: 'disposed'}))
+  yield* Queue.take(inbox).pipe(Effect.flatMap(driver.dispatch), Effect.forever, Effect.forkScoped)
+  yield* Effect.addFinalizer(() => driver.dispatch({type: 'disposed'}))
 
-  return {state, see: (seen: readonly PendingRow[]) => offer({type: 'seen', rows: seen})}
+  return {state: driver.state, see: (seen: readonly PendingRow[]) => offer({type: 'seen', rows: seen})}
 })
