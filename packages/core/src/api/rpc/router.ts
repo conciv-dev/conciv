@@ -185,6 +185,17 @@ async function requireAttachedPage(
   throw errors.NO_PAGE_CLIENT({message: `${call.name}: ${reason}`, cause: undefined})
 }
 
+async function requireKnownSession(
+  deps: RpcDeps,
+  sessionId: SessionId | undefined,
+  errors: {NOT_FOUND: (options: {message: string}) => Error},
+): Promise<void> {
+  if (sessionId === undefined) return
+  const row = await rowById(deps.chat.db, sessionId)
+  if (row !== null && row.deletedAt === null) return
+  throw errors.NOT_FOUND({message: `session ${sessionId} not found`})
+}
+
 async function requireLiveSession(deps: RpcDeps, sessionId: SessionId, errors: ApprovalErrors): Promise<void> {
   const row = await rowById(deps.chat.db, sessionId)
   if (row !== null && row.deletedAt === null) return
@@ -574,10 +585,12 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     code: {
       describe: os.code.describe.handler(async (call) => (await resolveCodeSession(deps, undefined, call)).describe()),
       execute: os.code.execute.handler(async ({input, ...call}) => {
+        await requireKnownSession(deps, input.sessionId, call.errors)
         const code = await resolveCodeSession(deps, input.sessionId, call)
         return (await code.execute(input.typescriptCode)).result
       }),
       discover: os.code.discover.handler(async ({input, ...call}) => {
+        await requireKnownSession(deps, input.sessionId, call.errors)
         const code = await resolveCodeSession(deps, input.sessionId, call)
         if (code.sandbox.discover === null) throw call.errors.NO_CODE_MODE({message: 'no tools to discover'})
         return code.discover(input.toolNames)

@@ -14,6 +14,7 @@ import {
   queueNoticePart,
   type CodeDescriptions,
   type CodeDiscoverResult,
+  type CodeExecuteResult,
   type CodeReply,
   type RpcClient,
 } from '@conciv/contract'
@@ -265,7 +266,7 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
     const executed = await routed(
       tab,
       (rpc, aborted) => rpc.code.execute({...buildSessionInput(tab), typescriptCode}, {signal: aborted}),
-      codeExecuteReply,
+      tab === undefined ? outsideExecuteReply : codeExecuteReply,
       signal,
     )
     settleDelivered(executed.value?.finished ?? [])
@@ -593,6 +594,14 @@ async function withTaskName(request: Request): Promise<Request> {
   const headers = new Headers(request.headers)
   if (taskId !== undefined) headers.set('mcp-name', taskId)
   return new Request(request.url, {method: request.method, headers, body, signal: request.signal})
+}
+
+const NO_SESSION_HINT = 'pass tab to execute_typescript; list_tabs lists the open tabs'
+
+function outsideExecuteReply(executed: CodeExecuteResult): Reply {
+  const reply = codeExecuteReply(executed)
+  if (executed.ok || executed.error.code !== 'NO_SESSION') return reply
+  return {...reply, content: [...reply.content, {type: 'text', text: NO_SESSION_HINT}]}
 }
 
 function failed(text: string): Reply {

@@ -5,7 +5,7 @@ import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../test/hub-test.js'
 
 describe('the hub', () => {
-  test('an outside agent lists the open tabs, discovers and runs a tool with no tab on the engine registered in the home, then queues page actions on a tab and reads the result of the queue on its next call', async ({
+  test('an outside agent lists the open tabs, discovers and runs code with no tab on the engine registered in the home, is told to pass a tab for a tool that needs a session, then queues page actions on a tab and reads the result of the queue on its next call', async ({
     hub,
   }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
@@ -25,6 +25,15 @@ describe('the hub', () => {
     const executed = await agent.callTool('execute_typescript', {typescriptCode: "return 'fern'"})
     expect(executed.isError).toBeUndefined()
     expect(executed.content).toEqual([{type: 'text', text: JSON.stringify({result: 'fern', logs: []})}])
+
+    const sessionBound = await agent.callTool('execute_typescript', {
+      typescriptCode: "return await external_shelf_label({plant: 'fern'})",
+    })
+    expect(sessionBound.isError).toBe(true)
+    expect(sessionBound.content).toEqual([
+      {type: 'text', text: expect.stringContaining('"code":"NO_SESSION"')},
+      {type: 'text', text: 'pass tab to execute_typescript; list_tabs lists the open tabs'},
+    ])
 
     const sessionId = engine.session.id
     const connectionId = 'shelf'

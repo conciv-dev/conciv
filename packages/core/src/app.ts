@@ -124,16 +124,16 @@ import {GRAB_MIME, parseGrabPayload} from '@conciv/grab/grab-attachment'
 import {writePrivateFile} from './lib/dev-endpoint.js'
 import {logOnContext, logOnRuntime, type Log, type LogOptions} from './lib/logging.js'
 
-const NO_TAB_MESSAGE = 'pass tab to execute_typescript; list_tabs lists the open tabs'
+const NO_SESSION_MESSAGE = 'this tool needs a session; this call has none'
 
 export function outsideRunCapabilities(capabilities: readonly CodeCapability[]): CodeCapability[] {
   return capabilities.map((capability): CodeCapability => {
     if (capability.direct === true) return capability
     return {
       ...capability,
-      errors: [...capability.errors, {code: 'NO_TAB', message: NO_TAB_MESSAGE}],
+      errors: [...capability.errors, {code: 'NO_SESSION', message: NO_SESSION_MESSAGE}],
       execute: () => {
-        throw toolError('NO_TAB', {message: NO_TAB_MESSAGE})
+        throw toolError('NO_SESSION', {message: NO_SESSION_MESSAGE})
       },
     }
   })

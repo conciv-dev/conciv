@@ -26,7 +26,7 @@ describe.concurrent('agent tools', () => {
     expect(await engine.session.tool('shelf_reset').call({})).toEqual({reset: true})
   })
 
-  test('the outside agent reads the tool description and catalog, discovers a capability, and a call with no tab fails with its declared code', async ({
+  test('the outside agent reads the tool description and catalog, discovers a capability, a call with no tab fails with its declared code, and a call on an unknown session is not found', async ({
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/shelf'], hubAccess: 'open'})
@@ -51,14 +51,24 @@ describe.concurrent('agent tools', () => {
     const refused = await outside.call('shelf_count', {shelf: 'poetry'})
     expect(refused.isError).toBe(true)
     expect(refused.content).toContainEqual(
-      expect.objectContaining({type: 'text', text: expect.stringContaining('"code":"NO_TAB"')}),
+      expect.objectContaining({type: 'text', text: expect.stringContaining('"code":"NO_SESSION"')}),
     )
     expect(refused.content).toContainEqual(
       expect.objectContaining({
         type: 'text',
-        text: expect.stringContaining('NO_TAB: pass tab to execute_typescript; list_tabs lists the open tabs'),
+        text: expect.stringContaining('NO_SESSION: this tool needs a session; this call has none'),
       }),
     )
+
+    const unknown = engine.outside({tab: 'conciv_unknown'})
+    expect(await unknown.call('shelf_count', {shelf: 'poetry'})).toEqual({
+      content: [{type: 'text', text: 'session conciv_unknown not found'}],
+      isError: true,
+    })
+    expect(await unknown.discover(['shelf_count'])).toEqual({
+      content: [{type: 'text', text: 'session conciv_unknown not found'}],
+      isError: true,
+    })
   })
 
   test('a malformed session header is refused', async ({expect}) => {

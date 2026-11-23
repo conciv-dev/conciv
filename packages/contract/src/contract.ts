@@ -516,11 +516,11 @@ export const contract = {
   code: {
     describe: oc.errors({...noCodeMode, ...approvalDenied}).output(CodeDescriptionsSchema),
     execute: oc
-      .errors({...noCodeMode, ...approvalDenied})
+      .errors({...noCodeMode, ...approvalDenied, ...notFound})
       .input(CodeSessionInput.extend({typescriptCode: z.string()}))
       .output(CodeExecuteResultSchema),
     discover: oc
-      .errors({...noCodeMode, ...approvalDenied})
+      .errors({...noCodeMode, ...approvalDenied, ...notFound})
       .input(CodeSessionInput.extend({toolNames: z.array(z.string())}))
       .output(CodeDiscoverResultSchema),
   },
