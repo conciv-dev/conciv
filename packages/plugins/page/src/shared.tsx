@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {lowerCase} from 'es-toolkit'
 import {For, Show, splitProps, type JSX} from 'solid-js'
-import type {ToolProps} from '@conciv/plugin/experimental'
+import {type ToolProps} from '@internal/plugin'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {

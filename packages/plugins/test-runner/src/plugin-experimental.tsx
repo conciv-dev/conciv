@@ -3,14 +3,12 @@ import {createMemo, createUniqueId, For, Match, onCleanup, Show, Switch, type JS
 import {
   Panel,
   Plugin,
-  ToolRegistry,
   type Context,
   type PanelTab,
   type SessionRef,
   type SessionScreen,
-  type ToolComponent,
 } from '@conciv/plugin/experimental'
-import {OpaqueUi, type InternalUi} from '@internal/plugin'
+import {OpaqueUi, type InternalUi, ToolRegistry, type ToolComponent} from '@internal/plugin'
 import type {Summary, TestError, TestRow} from './events.js'
 import {followRunView, type TestRunnerRuntime} from './follow.js'
 import {initialRunView, selectSummary, selectTests, type RunView} from './run-state.js'

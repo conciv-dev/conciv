@@ -3,14 +3,7 @@
   "extends": ["//"],
   "tasks": {
     "typecheck": {
-      "dependsOn": [
-        "build",
-        "^build",
-        "^build:types",
-        "@conciv/ai#build",
-        "@conciv/core#build",
-        "@conciv/harness#build"
-      ]
+      "dependsOn": ["^build", "^build:types", "@conciv/ai#build", "@conciv/core#build", "@conciv/harness#build"]
     }
   }
 }

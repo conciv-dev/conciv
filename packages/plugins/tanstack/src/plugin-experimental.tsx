@@ -2,16 +2,8 @@ import {For, onCleanup, Show, splitProps, type JSX} from 'solid-js'
 import {ManagedRuntime} from 'effect'
 import {isPlainObject, keyBy, mapKeys, sumBy} from 'es-toolkit'
 import {z} from 'zod'
-import {
-  Plugin,
-  Slot,
-  ToolRegistry,
-  type IconName,
-  type ToolComponent,
-  type ToolProps,
-  type Ui,
-} from '@conciv/plugin/experimental'
-import {OpaqueUi, type InternalUi} from '@internal/plugin'
+import {Plugin, Slot, type IconName, type Ui} from '@conciv/plugin/experimental'
+import {OpaqueUi, type InternalUi, ToolRegistry, type ToolComponent, type ToolProps} from '@internal/plugin'
 import {PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
 import {tanstackToolMeta, tanstackToolName, type TanstackToolName} from './client.js'
 import {errorRingLayer} from './error-ring.js'

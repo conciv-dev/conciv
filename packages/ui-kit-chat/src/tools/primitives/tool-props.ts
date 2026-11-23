@@ -24,6 +24,10 @@ export interface ToolProps {
 
 export type ToolComponent = Component<ToolProps>
 
-export type ToolRender = (
-  name: string,
-) => {readonly render?: ToolComponent; readonly errorComponent?: ToolComponent} | undefined
+export interface ToolEntry {
+  readonly name: string
+  readonly render?: ToolComponent
+  readonly errorComponent?: ToolComponent
+}
+
+export type ToolRender = (name: string) => ToolEntry | undefined

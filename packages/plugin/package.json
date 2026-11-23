@@ -194,7 +194,6 @@
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "@internal/plugin": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",

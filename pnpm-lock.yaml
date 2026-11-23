@@ -3295,9 +3295,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@internal/plugin':
-        specifier: workspace:*
-        version: link:../plugin-internal
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -3480,6 +3477,15 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../plugin
+      '@conciv/ui-kit-chat':
+        specifier: workspace:^
+        version: link:../ui-kit-chat
+      '@conciv/ui-kit-system':
+        specifier: workspace:^
+        version: link:../ui-kit-system
+      '@conciv/ui-kit-tap':
+        specifier: workspace:^
+        version: link:../ui-kit-tap
       '@internal/opaque':
         specifier: workspace:*
         version: link:../opaque-internal

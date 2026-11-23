@@ -1,7 +1,7 @@
 import type {JSX} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ElementCapture, ToolCaptureView} from './element-capture-types.js'
-import type {ToolProps} from '@conciv/plugin/experimental'
+import {type ToolProps} from '@internal/plugin'
 import {ToolDisplay, Trace, type TraceItem} from '@conciv/ui-kit-chat/tools'
 import {pageToolCards} from './cards.js'
 
@@ -12,7 +12,7 @@ const TRACE_FRAME_CLASS = 'p-4 w-[28rem] [background:var(--chat-panel)] [font-fa
 export const STORY_FRAME_CLASS = 'p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
 
 function pageCard(name: string) {
-  return {render: pageToolCards.find((entry) => entry.tools.includes(name))?.card}
+  return {name, render: pageToolCards.find((entry) => entry.tools.includes(name))?.card}
 }
 
 export function StoryTool(props: {call: StoryCall}): JSX.Element {

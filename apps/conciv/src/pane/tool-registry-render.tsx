@@ -1,7 +1,7 @@
 import {createMemo, mapArray, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {keyBy, mapValues} from 'es-toolkit'
-import {ToolRegistry, type ToolComponent, type ToolProps} from '@conciv/plugin/experimental'
+import {ToolRegistry, type ToolComponent, type ToolProps} from '@internal/plugin'
 import type {ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import {GenericTool, ToolErrorCard} from '@conciv/ui-kit-chat/tools'
 import {usePluginHost, type Item} from '../runtime/plugin/host'

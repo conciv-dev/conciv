@@ -444,8 +444,8 @@ export const ui = OpaqueUi.createInstance('v1', {
       </BasicTool>
     )
   },
-  ErrorMessage: (props) => <ErrorBlock message={props.message} label={props.label} />,
-  TruncatedText: (props) => <TruncatedText text={props.text} class={props.class} />,
+  ErrorMessage: ErrorBlock,
+  TruncatedText,
   StatusDot: (props) => (
     <Show when={stillDot[props.tone]} fallback={<StatusVisual status="running" form="dot" />}>
       {(tone) => <StatusDot tone={tone()} />}
@@ -464,8 +464,8 @@ export const ui = OpaqueUi.createInstance('v1', {
       {(value) => <JsonTree data={value()} />}
     </Show>
   ),
-  Image: (props) => <ResultImage src={props.src} alt={props.alt} />,
-  MentionField: (props) => <MentionField {...props} />,
+  Image: ResultImage,
+  MentionField,
   CopyButton: (props) => (
     <ClipboardCopyButton text={props.text} tooltips={{idle: props.label}} onCopied={() => props.onCopied?.()} />
   ),

@@ -9,7 +9,7 @@ plugins share, so the public `@conciv/plugin` SDK exports none of them.
   conciv's plugins read it with `OpaqueUi.toInternal(ctx.ui)`.
 - `src/index.ts`: `OpaqueNoteCard`, the same way: its public type is the
   SDK's `NoteCard`, its internal type is the `note-card` registry token of `InternalNoteCard` (which renders the SDK's public `NoteCardProps`). The
-  SDK creates the one `NoteCard` instance; the page and recorder plugins and the app read it with
+  SDK creates the one `NoteCard` instance with its own private definition of the same type and version; the page and recorder plugins and the app read it with
   `OpaqueNoteCard.toInternal(NoteCard)`.
 
 Invariants: `assertPublicSet` keeps the package private, and `assertPublicTypesPublic`

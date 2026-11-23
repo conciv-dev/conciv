@@ -1,6 +1,12 @@
-import type {JSX} from 'solid-js'
+import type {ComponentProps, JSX} from 'solid-js'
 import {createOpaqueType, type OpaqueType} from '@internal/opaque'
-import type {IconName, NoteCard, NoteCardProps, Registry, ToolProps, Ui} from '@conciv/plugin/experimental'
+import {Registry, type ComposerNote, type IconName, type MountedSession, type Ui} from '@conciv/plugin/experimental'
+import type {ErrorBlock, ResultImage, ToolEntry, ToolProps} from '@conciv/ui-kit-chat/tools'
+import type {TruncatedTextProps} from '@conciv/ui-kit-system'
+import type {MentionField} from '@conciv/ui-kit-tap'
+
+export type {ToolComponent, ToolProps} from '@conciv/ui-kit-chat/tools'
+export type {MentionFieldApi, MentionItem, MentionSegment} from '@conciv/ui-kit-tap'
 
 export interface InternalBasicToolProps extends ToolProps {
   readonly icon?: IconName
@@ -13,27 +19,12 @@ export interface InternalBasicToolProps extends ToolProps {
   readonly children?: JSX.Element
 }
 
-export interface InternalErrorMessageProps {
-  readonly message: string
-  readonly label?: string
-}
-
-export interface InternalTruncatedTextProps {
-  readonly text: string
-  readonly class?: string
-}
-
 export interface InternalStatusDotProps {
   readonly tone: 'neutral' | 'success' | 'warning' | 'danger' | 'running'
 }
 
 export interface InternalJsonProps {
   readonly value: unknown
-}
-
-export interface InternalImageProps {
-  readonly src: string
-  readonly alt: string
 }
 
 export interface InternalCopyButtonProps {
@@ -48,30 +39,14 @@ export interface InternalCollapsibleProps {
   readonly defaultOpen?: boolean
 }
 
-export type MentionItem = {id: string; label: string}
-
-export type MentionSegment = {type: 'text'; text: string} | {type: 'mention'; id: string; label: string}
-
-export type MentionFieldApi = {focus: () => void; clear: () => void; submit: () => void; element: HTMLElement}
-
-export interface InternalMentionFieldProps {
-  items: (query: string) => MentionItem[]
-  onSubmit: (segments: MentionSegment[]) => void
-  onReady?: (api: MentionFieldApi) => void
-  onEmptyChange?: (empty: boolean) => void
-  placeholder?: string
-  readonly ariaLabel: string
-  class?: string
-}
-
 interface InternalUiMembers {
   BasicTool(props: InternalBasicToolProps): JSX.Element
-  ErrorMessage(props: InternalErrorMessageProps): JSX.Element
-  TruncatedText(props: InternalTruncatedTextProps): JSX.Element
+  ErrorMessage(props: ComponentProps<typeof ErrorBlock>): JSX.Element
+  TruncatedText(props: TruncatedTextProps): JSX.Element
   StatusDot(props: InternalStatusDotProps): JSX.Element
   Json(props: InternalJsonProps): JSX.Element
-  Image(props: InternalImageProps): JSX.Element
-  MentionField(props: InternalMentionFieldProps): JSX.Element
+  Image(props: ComponentProps<typeof ResultImage>): JSX.Element
+  MentionField(props: ComponentProps<typeof MentionField>): JSX.Element
   CopyButton(props: InternalCopyButtonProps): JSX.Element
   Collapsible(props: InternalCollapsibleProps): JSX.Element
 }
@@ -88,13 +63,18 @@ export const OpaqueUi: OpaqueType<OpaqueUiShape> = createOpaqueType<OpaqueUiShap
   versions: ['v1'],
 })
 
+export interface NoteCardProps {
+  readonly note: Omit<ComposerNote, 'commentId'> & {readonly commentId?: string}
+  readonly session?: MountedSession
+}
+
 export interface InternalNoteCard {
   readonly origins: readonly string[]
   render(props: NoteCardProps): JSX.Element | undefined
 }
 
 type OpaqueNoteCardShape = {
-  public: NoteCard
+  public: {readonly $$type: '@conciv/NoteCard'}
   versions: Registry<InternalNoteCard> & {readonly version: 'v1'}
 }
 
@@ -102,3 +82,9 @@ export const OpaqueNoteCard: OpaqueType<OpaqueNoteCardShape> = createOpaqueType<
   type: '@conciv/NoteCard',
   versions: ['v1'],
 })
+
+export const NoteCard = OpaqueNoteCard.createInstance('v1', Registry.define<InternalNoteCard>('note-card'))
+
+export type ToolRegistry = ToolEntry
+
+export const ToolRegistry = Registry.define<ToolEntry>('tool-registry')

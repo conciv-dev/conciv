@@ -1,1 +1,1 @@
-{"extends": ["./tsconfig.json", "@conciv/tsconfig/tsconfig.build.json"], "compilerOptions": {"noCheck": true}}
+{"extends": ["./tsconfig.json", "@conciv/tsconfig/tsconfig.build.json"]}

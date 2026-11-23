@@ -1,4 +1,4 @@
-import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import {type ToolComponent, type ToolProps} from '@internal/plugin'
 import type {GroupEntry} from '@conciv/ui-kit-chat'
 import {PageSessionCard} from './session-card.js'
 import {PAGE_SESSION_GROUP_KEY} from './page-session.js'
