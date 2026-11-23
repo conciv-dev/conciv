@@ -1,7 +1,7 @@
 import {execFileSync, spawn, spawnSync, type ChildProcessWithoutNullStreams} from 'node:child_process'
 import {once} from 'node:events'
 import {createServer, type ServerResponse} from 'node:http'
-import {mkdirSync, readFileSync, symlinkSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {constants} from 'node:os'
 import {join} from 'node:path'
@@ -131,6 +131,39 @@ test.describe('conciv init on a real project', () => {
       return false
     }
   }
+
+  initTest(
+    'SIGTERM while the claude plugin installs stops the claude command, puts the config back and says so',
+    async ({startInit, registry}) => {
+      const {project, home, env, bin} = seedProject(['git'])
+      mkdirSync(join(home, '.claude'))
+      writeFileSync(join(env.PATH, 'claude'), `#!/bin/sh\nexec /usr/bin/curl -s ${registry.url}\n`, {mode: 0o755})
+
+      const child = startInit(project, env, bin)
+      const output: string[] = []
+      const read = (chunk: string) => output.push(chunk)
+      child.stdout.setEncoding('utf8').on('data', read)
+      child.stderr.setEncoding('utf8').on('data', read)
+      const closed = once(child, 'close')
+      await registry.asked
+      const initPid = child.pid
+      if (initPid === undefined) throw new Error('conciv init did not start')
+      const commands = childPids(initPid)
+      expect(commands).toHaveLength(1)
+      const [claudePid] = commands
+      if (claudePid === undefined) throw new Error('conciv init started no claude command')
+      process.kill(initPid, 'SIGTERM')
+      const [exitCode] = await closed
+
+      expect(exitCode).toBe(128 + constants.signals.SIGTERM)
+      expect(alive(claudePid)).toBe(false)
+      expect(output.join('')).toContain('Installing the conciv claude plugin')
+      expect(output.join('')).toContain('Interrupted')
+      expect(output.join('')).toContain('your config was restored.')
+      expect(readFileSync(join(project, 'vite.config.ts'), 'utf8')).not.toContain('conciv')
+      expect(existsSync(join(project, '.conciv/claude-connect/.claude-plugin/marketplace.json'))).toBe(false)
+    },
+  )
 
   for (const stop of [
     {name: 'Ctrl-C', signal: 'SIGINT', group: true},
