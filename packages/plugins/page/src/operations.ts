@@ -16,7 +16,7 @@ import type {
   ElementCaptureKind,
   PageCaptureBundle,
   ToolCaptureMode,
-} from '@conciv/protocol/element-capture-types'
+} from './element-capture-types.js'
 import {toolError, isToolError} from '@conciv/protocol/tool-call-types'
 import {
   addRef,

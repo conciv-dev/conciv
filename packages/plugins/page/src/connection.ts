@@ -49,11 +49,7 @@ import {
 import {PageQueue} from './queue.js'
 import {Definition, type Action, type Command, type Outcome, type Result, type Work} from './rpc.js'
 import type {Symbolicator} from './symbolicate.js'
-import {
-  PageCaptureBundleSchema,
-  type PageCaptureBundle,
-  type SessionCaptures,
-} from '@conciv/protocol/element-capture-types'
+import {PageCaptureBundleSchema, type PageCaptureBundle, type SessionCaptures} from './element-capture-types.js'
 import type {StorageEntry} from '@conciv/plugin/effect'
 
 const TAB_RETURN_MS = 5000
