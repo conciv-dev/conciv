@@ -31,47 +31,6 @@ function pageNames(verbs: string[]): string[] {
   return verbs.map((verb) => `${PAGE_TOOL_PREFIX}${verb}`)
 }
 
-export const pageToolCards: ReadonlyArray<{card: ToolComponent; tools: string[]}> = [
-  {card: ReadValueCard, tools: pageNames(['route', 'exists', 'screenshot', 'hmr', 'text', 'value', 'attr'])},
-  {card: ConsoleCard, tools: pageNames(['console'])},
-  {card: ReadBulkCard, tools: pageNames(['dom', 'query', 'snapshot'])},
-  {card: ReactCard, tools: pageNames(['locate', 'inspect', 'override', 'tree', 'find', 'track'])},
-  {card: EffectCard, tools: pageNames(['effect'])},
-  {
-    card: ActCard,
-    tools: pageNames([
-      'wait',
-      'reload',
-      'click',
-      'hover',
-      'scroll',
-      'submit',
-      'fill',
-      'select',
-      'check',
-      'uncheck',
-      'press',
-      'queue',
-    ]),
-  },
-  {
-    card: EditLiveCard,
-    tools: pageNames([
-      'setattr',
-      'removeattr',
-      'addclass',
-      'removeclass',
-      'setstyle',
-      'settext',
-      'sethtml',
-      'remove',
-      'insert',
-      'css',
-      'eval',
-    ]),
-  },
-]
-
 export const pageSessionEntry: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render: PageSessionCard}
 
 export const pageAttachmentCards: AttachmentCardSlot[] = [{mime: GRAB_MIME, render: GrabCard}]
@@ -530,3 +489,44 @@ export function formatHtml(src: string): string {
     return src
   }
 }
+
+export const pageToolCards: ReadonlyArray<{card: ToolComponent; tools: string[]}> = [
+  {card: ReadValueCard, tools: pageNames(['route', 'exists', 'screenshot', 'hmr', 'text', 'value', 'attr'])},
+  {card: ConsoleCard, tools: pageNames(['console'])},
+  {card: ReadBulkCard, tools: pageNames(['dom', 'query', 'snapshot'])},
+  {card: ReactCard, tools: pageNames(['locate', 'inspect', 'override', 'tree', 'find', 'track'])},
+  {card: EffectCard, tools: pageNames(['effect'])},
+  {
+    card: ActCard,
+    tools: pageNames([
+      'wait',
+      'reload',
+      'click',
+      'hover',
+      'scroll',
+      'submit',
+      'fill',
+      'select',
+      'check',
+      'uncheck',
+      'press',
+      'queue',
+    ]),
+  },
+  {
+    card: EditLiveCard,
+    tools: pageNames([
+      'setattr',
+      'removeattr',
+      'addclass',
+      'removeclass',
+      'setstyle',
+      'settext',
+      'sethtml',
+      'remove',
+      'insert',
+      'css',
+      'eval',
+    ]),
+  },
+]
