@@ -21,8 +21,8 @@ function effortConfig(effort: string | undefined): Record<string, string> {
   return effort === undefined ? {} : {model_reasoning_effort: `"${effort}"`}
 }
 
-export function codexRunAdapter(deps: HarnessChatDeps, toolCount: number): TextAdapter {
-  return codexAdapter(deps.model ?? codexDefaultModel(codexHome(deps.env)), {
+export function codexRunAdapter(deps: HarnessChatDeps, model: string, toolCount: number): TextAdapter {
+  return codexAdapter(model, {
     sandboxMode: 'workspace-write',
     approvalPolicy: 'never',
     config: {...(toolCount > 0 ? approveTanstackToolsConfig : {}), ...effortConfig(deps.effort)},
@@ -44,19 +44,19 @@ async function* runScopedStream(stream: AsyncIterable<ChatEvent>, runId: string)
   for await (const chunk of stream) yield runScopedChunk(chunk, runId)
 }
 
-function codexTurnAdapter(deps: HarnessChatDeps): TextAdapter {
+function codexTurnAdapter(deps: HarnessChatDeps, model: string): TextAdapter {
   const chatStream: TextAdapter['chatStream'] = (options) =>
     runScopedStream(
-      codexRunAdapter(deps, options.tools?.length ?? 0).chatStream(options),
+      codexRunAdapter(deps, model, options.tools?.length ?? 0).chatStream(options),
       options.runId ?? randomUUID(),
     )
-  return new Proxy(codexRunAdapter(deps, 0), {
+  return new Proxy(codexRunAdapter(deps, model, 0), {
     get: (target, key, receiver) => (key === 'chatStream' ? chatStream : Reflect.get(target, key, receiver)),
   })
 }
 
-const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: codexTurnAdapter(deps),
+const codexChatConfig = async (deps: HarnessChatDeps): Promise<HarnessChatConfig> => ({
+  adapter: codexTurnAdapter(deps, deps.model ?? (await codexDefaultModel(codexHome(deps.env)))),
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
 })
 
@@ -80,7 +80,7 @@ function codexLogin(home: string, path: string | undefined): HarnessLogin {
   const seen = {loggedIn: false}
   const env = {...process.env, ...definedEntries({PATH: path}), CODEX_HOME: home}
   return async ({signal, refresh}) => {
-    if (!codexUsesOpenaiLogin(home)) return {loggedIn: true}
+    if (!(await codexUsesOpenaiLogin(home))) return {loggedIn: true}
     if (seen.loggedIn && refresh !== true) return {loggedIn: true}
     const status = await readLoginStatus(env, signal)
     seen.loggedIn = status.loggedIn
@@ -109,7 +109,7 @@ export function codex(provider: ConfigProvider.ConfigProvider) {
     chatConfig: codexChatConfig,
     login: codexLogin(home, readOptionalConfig(provider, 'PATH')),
     models: () => codexModels(home),
-    defaultModel: codexDefaultModel(home),
+    defaultModel: () => codexDefaultModel(home),
     history: codexHistory(home),
     resume: {command: ({nativeId}) => ({bin: 'codex', args: ['resume', nativeId]})},
   })

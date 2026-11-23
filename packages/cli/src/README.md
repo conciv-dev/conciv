@@ -57,7 +57,7 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Five top-level commands: `init`
 - `runLink` (`auth.ts`): reads .conciv/server.json walking up from cwd and calls `auth.issueCode` on that engine; sends no session, `conciv-origin` or `conciv-client` header
 - `engineOrigin` (`engine-origin.ts`): reads CONCIV_PORT and .conciv/server.json walking up from cwd, then the home db and each live engine's `tabs.get`
 - `liveCatalog` (`run.ts`): calls rpc.registry.catalog on the target engine when argv reaches `conciv tools`
-- `existingPath` (`tool-command.ts`): existsSync for path-format arguments
+- `existingPath` (`tool-command.ts`): resolves a path-format argument to its absolute path when `access` finds it, else keeps it as given
 - `runInitCommand` (`init.ts`): runs the init pipeline, which writes files and installs packages
 
 ## Verification

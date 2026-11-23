@@ -1,5 +1,5 @@
 import {describe, expect} from 'vitest'
-import {recordHubConnection, withHomeDb} from '@conciv/db'
+import {prepareHome, recordHubConnection, withHomeDb} from '@conciv/db'
 import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../test/hub-test.js'
 
@@ -8,7 +8,7 @@ describe('the hub', () => {
     hub,
   }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
-    withHomeDb(engine.home, (db) => recordHubConnection(db, 'claude', Date.now()))
+    withHomeDb(await prepareHome(engine.home), (db) => recordHubConnection(db, 'claude', Date.now()))
     const agent = await hub(engine.home)
 
     const tabs = await agent.callTool('list_tabs', {})

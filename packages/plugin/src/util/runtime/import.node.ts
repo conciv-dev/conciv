@@ -1,4 +1,5 @@
 import {statSync} from 'node:fs'
+import {stat} from 'node:fs/promises'
 import {registerHooks} from 'node:module'
 import path from 'node:path'
 import {pathToFileURL} from 'node:url'
@@ -20,7 +21,7 @@ export async function importModule(specifier: string) {
   return Object.assign({}, imported, exports)
 }
 
-export function resolveModule(specifier: string, directory: string) {
+export async function resolveModule(specifier: string, directory: string) {
   if (path.isAbsolute(specifier)) return resolveFile(specifier)
   const hook = registerHooks({
     resolve(next, context, nextResolve) {
@@ -34,10 +35,19 @@ export function resolveModule(specifier: string, directory: string) {
   }
 }
 
-function resolveFile(target: string) {
+async function resolveFile(target: string) {
   const candidates = path.extname(target) ? [target] : [target, ...extensions.map((extension) => target + extension)]
-  const file = candidates.find((candidate) => statSync(candidate, {throwIfNoEntry: false})?.isFile())
+  const files = await Promise.all(candidates.map(existingFile))
+  const file = files.find((candidate) => candidate !== undefined)
   return file && pathToFileURL(file).href
+}
+
+async function existingFile(candidate: string) {
+  const stats = await stat(candidate).catch((error: unknown) => {
+    if (missing(error)) return undefined
+    throw error
+  })
+  return stats?.isFile() ? candidate : undefined
 }
 
 function resolvePackage(specifier: string) {

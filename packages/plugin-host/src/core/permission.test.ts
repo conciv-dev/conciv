@@ -27,7 +27,7 @@ describe.concurrent('asks', () => {
     expect(await call).toEqual({read: 'notes.txt'})
   })
 
-  test("a plugin lists, reads and answers the session's pending ask: once lets the call finish, always is saved for that file so the next call does not ask, and reject fails the call", async ({
+  test("a plugin lists, reads and answers the session's pending ask, another session can neither read nor answer it: once lets the call finish, always is saved for that file so the next call does not ask, and reject fails the call", async ({
     expect,
   }) => {
     const engine = await createEngine({
@@ -41,6 +41,11 @@ describe.concurrent('asks', () => {
     const once = engine.session.tool('guarded_write').call({file: 'notes.txt'})
     const {id: onceId} = asked.parse((await onceAsk.arrived).data)
     const pending = {id: onceId, action: 'guarded.write', resources: ['notes.txt']}
+    const otherSession = {sessionId: 'conciv_another_session', requestId: onceId}
+    await expect(engine.rpc.call('asks', 'get', otherSession)).rejects.toThrow('RPC call failed')
+    await expect(engine.rpc.call('asks', 'reply', {...otherSession, decision: 'once'})).rejects.toThrow(
+      'RPC call failed',
+    )
     expect(await engine.rpc.call('asks', 'list', {sessionId})).toEqual([pending])
     expect(await engine.rpc.call('asks', 'get', {sessionId, requestId: onceId})).toEqual(pending)
     expect(await engine.rpc.call('asks', 'reply', {sessionId, requestId: onceId, decision: 'once'})).toEqual({

@@ -5,12 +5,14 @@ import {
   hubConnections,
   lastHubRevocation,
   markHubOperationChild,
+  prepareHome,
   readHomeDb,
   recordHubConnection,
   removeHubConnection,
   takeHubOperation,
   withHomeDb,
   type HubOperation,
+  type PreparedHome,
 } from '@conciv/db'
 import {INIT_HARNESS_IDS, type InitHarnessId} from '@conciv/protocol/harness-types'
 import {initContributions} from './registry.js'
@@ -37,8 +39,8 @@ type LeasedRun = (argv: string[]) => Promise<RunOutcome>
 type Hub = {remove?: string[]}
 
 export function createHubConnections(home: string, run: Run = makeChildRun()) {
-  const list = (): HubConnection[] =>
-    (readHomeDb(home, hubConnections) ?? []).flatMap((row) => {
+  const list = async (): Promise<HubConnection[]> =>
+    ((await readHomeDb(home, hubConnections)) ?? []).flatMap((row) => {
       const parsed = HarnessIdSchema.safeParse(row.harness)
       const hub = parsed.success ? initContributions[parsed.data].hub : undefined
       if (!parsed.success || hub === undefined) return []
@@ -49,19 +51,23 @@ export function createHubConnections(home: string, run: Run = makeChildRun()) {
     connect: async (harness: InitHarnessId, command: string[]): Promise<HubOutcome> => {
       const hub = initContributions[harness].hub
       if (hub === undefined) return {ok: false, message: `${harness} cannot connect to the conciv hub`}
-      const current = readGeneration(home)
+      const prepared = await reachHome(home)
+      if (!prepared.ok) return prepared
+      const current = readGeneration(prepared.home)
       if (!current.ok) return current
       const install = (leased: LeasedRun) =>
         installHub(hub, hub.add(command, {CONCIV_HOME: home}), leased, () =>
-          recordSince(home, harness, hub.name, current.generation),
+          recordSince(prepared.home, harness, hub.name, current.generation),
         )
-      const outcome = await underLease(home, harness, run, install)
+      const outcome = await underLease(prepared.home, harness, run, install)
       return outcome === BUSY ? {ok: false, message: `${busy(hub.name)}; try again in a moment`} : outcome
     },
     disconnect: async (harness: InitHarnessId): Promise<HubOutcome> => {
       const hub = initContributions[harness].hub
       if (hub === undefined) return {ok: false, message: `${harness} cannot connect to the conciv hub`}
-      const forgotten = forget(home, harness)
+      const prepared = await reachHome(home)
+      if (!prepared.ok) return prepared
+      const forgotten = forget(prepared.home, harness)
       if (!forgotten.ok) return forgotten
       const remove = hub.remove
       if (remove === undefined) {
@@ -70,19 +76,19 @@ export function createHubConnections(home: string, run: Run = makeChildRun()) {
           note: `${hub.name} keeps its conciv-hub entry in opencode.json; conciv refuses it until you reconnect.`,
         }
       }
-      const outcome = await underLease(home, harness, run, (leased) => uninstallHub(hub.name, remove, leased))
+      const outcome = await underLease(prepared.home, harness, run, (leased) => uninstallHub(hub.name, remove, leased))
       if (outcome !== BUSY) return outcome
       return {
         ok: true,
         note: `${busy(hub.name)}, so its conciv-hub entry stays for now; conciv refuses it until you reconnect.`,
       }
     },
-    refusal: (client: string | null): string | null => {
+    refusal: async (client: string | null): Promise<string | null> => {
       const parsed = HarnessIdSchema.safeParse(client)
       if (!parsed.success) return null
       const hub = initContributions[parsed.data].hub
       if (hub === undefined) return null
-      const known = readable(list)
+      const known = await readable(list)
       if (!known.ok) return `conciv could not read its home folder ${home} to check ${hub.name}: ${known.message}`
       if (known.connections.some((connection) => connection.harness === parsed.data)) return null
       return `${hub.name} is disconnected from conciv; reconnect it from the conciv widget or run \`conciv mcp connect ${parsed.data}\``
@@ -111,8 +117,16 @@ async function uninstallHub(name: string, remove: string[], run: LeasedRun): Pro
   }
 }
 
+async function reachHome(home: string): Promise<{ok: true; home: PreparedHome} | {ok: false; message: string}> {
+  try {
+    return {ok: true, home: await prepareHome(home)}
+  } catch (error) {
+    return {ok: false, message: `conciv could not reach its home db: ${String(error)}`}
+  }
+}
+
 async function underLease(
-  home: string,
+  home: PreparedHome,
   harness: InitHarnessId,
   run: Run,
   change: (leased: LeasedRun) => Promise<HubOutcome>,
@@ -138,7 +152,7 @@ async function underLease(
   }
 }
 
-function release(home: string, operation: HubOperation): void {
+function release(home: PreparedHome, operation: HubOperation): void {
   try {
     withHomeDb(home, (db) => endHubOperation(db, operation))
   } catch {
@@ -146,7 +160,10 @@ function release(home: string, operation: HubOperation): void {
   }
 }
 
-function takeLease(home: string, operation: HubOperation): {ok: true} | {ok: false; outcome: HubOutcome | typeof BUSY} {
+function takeLease(
+  home: PreparedHome,
+  operation: HubOperation,
+): {ok: true} | {ok: false; outcome: HubOutcome | typeof BUSY} {
   try {
     if (withHomeDb(home, (db) => takeHubOperation(db, operation, staleFor(operation.startedAt)))) return {ok: true}
     return {ok: false, outcome: BUSY}
@@ -173,11 +190,11 @@ function busy(name: string): string {
   return `${name} is still being (dis)connected`
 }
 
-function readable(
-  list: () => HubConnection[],
-): {ok: true; connections: HubConnection[]} | {ok: false; message: string} {
+async function readable(
+  list: () => Promise<HubConnection[]>,
+): Promise<{ok: true; connections: HubConnection[]} | {ok: false; message: string}> {
   try {
-    return {ok: true, connections: list()}
+    return {ok: true, connections: await list()}
   } catch (error) {
     return {ok: false, message: String(error)}
   }
@@ -207,15 +224,15 @@ function runFile(argv: string[], options: RunOptions, env: NodeJS.ProcessEnv | u
   })
 }
 
-function readGeneration(home: string): {ok: true; generation: number} | {ok: false; message: string} {
+function readGeneration(home: PreparedHome): {ok: true; generation: number} | {ok: false; message: string} {
   try {
-    return {ok: true, generation: readHomeDb(home, lastHubRevocation) ?? 0}
+    return {ok: true, generation: withHomeDb(home, lastHubRevocation)}
   } catch (error) {
     return {ok: false, message: `conciv could not reach its home db: ${String(error)}`}
   }
 }
 
-function recordSince(home: string, harness: InitHarnessId, name: string, generation: number): HubOutcome {
+function recordSince(home: PreparedHome, harness: InitHarnessId, name: string, generation: number): HubOutcome {
   try {
     if (withHomeDb(home, (db) => recordHubConnection(db, harness, Date.now(), generation))) return {ok: true}
     return {ok: false, message: `${name} was disconnected while connecting; connect again`}
@@ -224,7 +241,7 @@ function recordSince(home: string, harness: InitHarnessId, name: string, generat
   }
 }
 
-function forget(home: string, harness: InitHarnessId): HubOutcome {
+function forget(home: PreparedHome, harness: InitHarnessId): HubOutcome {
   try {
     withHomeDb(home, (db) => removeHubConnection(db, harness))
     return {ok: true}

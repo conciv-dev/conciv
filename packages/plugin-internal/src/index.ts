@@ -1,26 +1,25 @@
 import type {ComponentProps, JSX} from 'solid-js'
-import {z} from 'zod'
-import {
+import {createOpaqueType} from '@conciv/opaque'
+import type {
+  ComposerNote,
+  Contract,
+  IconName,
+  MountedSession,
   Registry,
-  type ComposerNote,
-  type IconName,
-  type MountedSession,
-  type Plugin,
-  type SetupContext,
-  type ToolProps,
-  type Ui,
+  SetupContext,
+  ToolProps,
+  Ui,
 } from '@conciv/plugin/experimental'
 import type {MentionField} from '@conciv/ui-kit-tap'
 
 export type {MentionFieldApi, MentionItem, MentionSegment} from '@conciv/ui-kit-tap'
 
-const INTERNAL_PLUGIN = '@conciv/InternalPlugin' as const
-const VERSION = 'v1' as const
+export const OpaqueConcivContract = createOpaqueType<{
+  public: {$$type: '@conciv/ConcivContract'; kind: 'contract'; id: string}
+  versions: {version: 'v1'}
+}>({type: '@conciv/ConcivContract', versions: ['v1']})
 
-const Tagged = z.object({$$type: z.literal(INTERNAL_PLUGIN)})
-const Stamped = z.object({$$type: z.literal(INTERNAL_PLUGIN), version: z.unknown()})
-
-export interface InternalBasicToolProps extends ToolProps {
+export interface ConcivBasicToolProps extends ToolProps {
   readonly icon?: IconName
   readonly title: string
   readonly subtitle?: string
@@ -31,86 +30,71 @@ export interface InternalBasicToolProps extends ToolProps {
   readonly children?: JSX.Element
 }
 
-export interface InternalErrorMessageProps {
+export interface ConcivErrorMessageProps {
   readonly message: string
   readonly label?: string
 }
 
-export interface InternalTruncatedTextProps {
+export interface ConcivTruncatedTextProps {
   readonly text: string
   readonly class?: string
 }
 
-export interface InternalStatusDotProps {
+export interface ConcivStatusDotProps {
   readonly tone: 'neutral' | 'success' | 'warning' | 'danger' | 'running'
 }
 
-export interface InternalJsonProps {
+export interface ConcivJsonProps {
   readonly value: unknown
 }
 
-export interface InternalImageProps {
+export interface ConcivImageProps {
   readonly src: string
   readonly alt: string
 }
 
-export interface InternalCopyButtonProps {
+export interface ConcivCopyButtonProps {
   readonly text: string
   readonly label: string
   readonly onCopied?: () => void
 }
 
-export interface InternalCollapsibleProps {
+export interface ConcivCollapsibleProps {
   readonly trigger: string
   readonly children: JSX.Element
   readonly defaultOpen?: boolean
 }
 
-export type InternalMentionFieldProps = ComponentProps<typeof MentionField> & {readonly ariaLabel: string}
+export type ConcivMentionFieldProps = ComponentProps<typeof MentionField> & {readonly ariaLabel: string}
 
-export interface InternalUi extends Ui {
-  BasicTool(props: InternalBasicToolProps): JSX.Element
-  ErrorMessage(props: InternalErrorMessageProps): JSX.Element
-  TruncatedText(props: InternalTruncatedTextProps): JSX.Element
-  StatusDot(props: InternalStatusDotProps): JSX.Element
-  Json(props: InternalJsonProps): JSX.Element
-  Image(props: InternalImageProps): JSX.Element
-  MentionField(props: InternalMentionFieldProps): JSX.Element
-  CopyButton(props: InternalCopyButtonProps): JSX.Element
-  Collapsible(props: InternalCollapsibleProps): JSX.Element
+export interface ConcivUi extends Ui {
+  BasicTool(props: ConcivBasicToolProps): JSX.Element
+  ErrorMessage(props: ConcivErrorMessageProps): JSX.Element
+  TruncatedText(props: ConcivTruncatedTextProps): JSX.Element
+  StatusDot(props: ConcivStatusDotProps): JSX.Element
+  Json(props: ConcivJsonProps): JSX.Element
+  Image(props: ConcivImageProps): JSX.Element
+  MentionField(props: ConcivMentionFieldProps): JSX.Element
+  CopyButton(props: ConcivCopyButtonProps): JSX.Element
+  Collapsible(props: ConcivCollapsibleProps): JSX.Element
 }
 
-type Stores = NonNullable<Plugin.Declarations['stores']>
+export const OpaqueRegistry = createOpaqueType<{
+  public: {$$type: '@conciv/Registry'; kind: 'registry'; id: string}
+  versions: {version: 'v1'; access: 'public' | 'conciv'}
+}>({type: '@conciv/Registry', versions: ['v1']})
 
-type Icons = NonNullable<Plugin.Declarations['icons']>
+export const ConcivUi = OpaqueConcivContract.createInstance<
+  'v1',
+  Contract<ConcivUi, 'conciv.ui'> & typeof OpaqueConcivContract.TPublic
+>('v1', {kind: 'contract', id: 'conciv.ui'})
 
-export type InternalSetupContext<D> = SetupContext<D> & {readonly ui: InternalUi}
+export function readConcivUi(context: Pick<SetupContext<{}>, 'use'>): ConcivUi {
+  const live = context.use(ConcivUi)()
 
-export type InternalPluginInput<S extends Stores, I extends Icons = {}> = Plugin.Declarations<S, I> & {
-  readonly setup: (ctx: InternalSetupContext<NoInfer<Plugin.Declarations<S, I>>>) => Plugin.Cleanup | void
-}
+  if (live.status !== 'active') throw new Error('the conciv UI is answered by the conciv app only')
 
-export function defineInternalPlugin<const S extends Stores = {}, const I extends Icons = {}>(
-  plugin: InternalPluginInput<S, I>,
-): Plugin.Definition<S, I> {
-  const setup = plugin.setup as Plugin.Setup<NoInfer<Plugin.Declarations<S, I>>>
-  const stamped = {...plugin, setup, $$type: INTERNAL_PLUGIN, version: VERSION}
-  return stamped
-}
-
-export function isInternalPlugin(value: unknown): boolean {
-  return Tagged.safeParse(value).success
-}
-
-export function readInternalPlugin(value: unknown): typeof VERSION {
-  const stamp = Stamped.parse(value)
-
-  if (stamp.version !== VERSION)
-    throw new Error(
-      `An internal plugin definition is stamped for another app: got version '${String(stamp.version)}', expected '${VERSION}'`,
-    )
-
-  return VERSION
+  return live.value
 }
 
 export interface NoteCardProps {
@@ -123,4 +107,8 @@ export interface NoteCard {
   render(props: NoteCardProps): JSX.Element | undefined
 }
 
-export const NoteCard = Registry.define<NoteCard>('note-card')
+export const NoteCard = OpaqueRegistry.createInstance<'v1', Registry<NoteCard> & typeof OpaqueRegistry.TPublic>('v1', {
+  kind: 'registry',
+  id: 'note-card',
+  access: 'conciv',
+})

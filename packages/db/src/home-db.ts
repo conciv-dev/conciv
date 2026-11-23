@@ -1,4 +1,4 @@
-import {chmodSync, lstatSync, mkdirSync} from 'node:fs'
+import {chmod, lstat, mkdir} from 'node:fs/promises'
 import {join} from 'node:path'
 import {and, eq, isNull, max, sql} from 'drizzle-orm'
 import type {drizzle} from 'drizzle-orm/node-sqlite'
@@ -6,7 +6,7 @@ import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import envPaths from 'env-paths'
 import {z} from 'zod'
 import {homeMigrations} from './home-migrations.gen.js'
-import {openMigratedDb} from './open/migrated-db.js'
+import {openDatabase, openMigratedDb} from './open/migrated-db.js'
 import {engines, hubConnections as hubConnectionsTable, hubOperations, hubRevocations} from './home-schema.js'
 
 const ConcivHomeSchema = z.string().min(1).optional().catch(undefined)
@@ -20,12 +20,29 @@ export function concivHome(options: {homeDir?: string; env: NodeJS.ProcessEnv}):
   return options.homeDir ?? ConcivHomeSchema.parse(options.env['CONCIV_HOME']) ?? envPaths('conciv', {suffix: ''}).data
 }
 
-export function openHomeDb(home: string): HomeDb {
-  prepareFolder(home)
+const PreparedHomeSchema = z.string().brand('PreparedHome')
+
+export type PreparedHome = z.infer<typeof PreparedHomeSchema>
+
+const HOME_FILES = ['home.db', 'home.lock']
+const FILE_MODE = 0o600
+const FOLDER_MODE = 0o700
+
+export async function prepareHome(home: string): Promise<PreparedHome> {
+  await prepareFolder(home)
+  await Promise.all(HOME_FILES.map((name) => preparePrivateFile(join(home, name))))
+  return PreparedHomeSchema.parse(home)
+}
+
+async function preparePrivateFile(path: string): Promise<void> {
+  openDatabase(path).close()
+  await chmod(path, FILE_MODE)
+}
+
+export function openHomeDb(home: PreparedHome): HomeDb {
   return openMigratedDb({
     file: join(home, 'home.db'),
     lock: join(home, 'home.lock'),
-    mode: 0o600,
     migrate: (db) => migrateSync(homeMigrations, db._.session),
   })
 }
@@ -34,7 +51,7 @@ export function closeHomeDb(db: HomeDb): void {
   db.$client.close()
 }
 
-export function withHomeDb<T>(home: string, run: (db: HomeDb) => T): T {
+export function withHomeDb<T>(home: PreparedHome, run: (db: HomeDb) => T): T {
   const db = openHomeDb(home)
   try {
     return run(db)
@@ -43,9 +60,9 @@ export function withHomeDb<T>(home: string, run: (db: HomeDb) => T): T {
   }
 }
 
-export function readHomeDb<T>(home: string, run: (db: HomeDb) => T): T | null {
-  if (lstatSync(join(home, 'home.db'), {throwIfNoEntry: false}) === undefined) return null
-  return withHomeDb(home, run)
+export async function readHomeDb<T>(home: string, run: (db: HomeDb) => T): Promise<T | null> {
+  if ((await lstatOrNull(join(home, 'home.db'))) === null) return null
+  return withHomeDb(await prepareHome(home), run)
 }
 
 export function registerEngine(db: HomeDb, row: EngineRow): void {
@@ -126,17 +143,26 @@ export function isHomeFolderRefused(error: unknown): error is Error {
   return error instanceof Error && error.name === 'HomeFolderRefused'
 }
 
-function prepareFolder(home: string): void {
-  const stats = lstatSync(home, {throwIfNoEntry: false})
-  if (stats === undefined) {
-    mkdirSync(home, {recursive: true, mode: 0o700})
+const MissingEntrySchema = z.object({code: z.literal('ENOENT')})
+
+function lstatOrNull(path: string) {
+  return lstat(path).catch((error: unknown) => {
+    if (MissingEntrySchema.safeParse(error).success) return null
+    throw error
+  })
+}
+
+async function prepareFolder(home: string): Promise<void> {
+  const stats = await lstatOrNull(home)
+  if (stats === null) {
+    await mkdir(home, {recursive: true, mode: FOLDER_MODE})
     return
   }
   if (stats.isSymbolicLink()) throw homeFolderRefused(home, 'it is a symbolic link')
   if (!stats.isDirectory()) throw homeFolderRefused(home, 'it is not a directory')
   const uid = process.getuid?.()
   if (uid !== undefined && stats.uid !== uid) throw homeFolderRefused(home, `it is owned by uid ${stats.uid}`)
-  chmodSync(home, 0o700)
+  await chmod(home, FOLDER_MODE)
 }
 
 function homeFolderRefused(home: string, reason: string): Error {

@@ -24,6 +24,7 @@ import {
   ToolProvider,
   useComposerContext,
   useModelMenu,
+  useMessage,
   useThread,
   type ComposerDraft,
   type GroupEntry,
@@ -42,7 +43,12 @@ import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
 import type {ToolCardEntry, ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {type MarkerRow, DraftRowSchema} from '@conciv/contract'
-import {type ChatMessage, type SendContent, type ToolCallPart} from '@conciv/protocol/chat-message-types'
+import {
+  SyntheticMetadataSchema,
+  type ChatMessage,
+  type SendContent,
+  type ToolCallPart,
+} from '@conciv/protocol/chat-message-types'
 import {composerDraftSink, paneAttachments, returnQueueToDraft} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useLiveSessions, useRpc, useArrivedFromConnect} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
@@ -50,7 +56,7 @@ import {usePanelComposerFocus} from '../app/panel-focus.js'
 import type {PaneDraftSinks} from '../app/live-sessions.js'
 import {usePane} from '../app/pane-context.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
-import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
+import {CompactSpinner, ConversationSkeleton, Divider, Notice} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
 import {ComposerActions} from '../composer/actions.js'
 import {promptWithNotes} from '../composer/comment-note.js'
@@ -255,6 +261,42 @@ const PAGE_SESSION_ENTRIES: readonly GroupEntry[] = [
     ),
   },
 ]
+
+type SyntheticTag = {description?: string; metadata?: Record<string, unknown>}
+
+function shellResultFailed(metadata: Record<string, unknown>): boolean {
+  return metadata.timeout === true || (typeof metadata.exit === 'number' && metadata.exit !== 0)
+}
+
+function timelineNoticeRequired(synthetic: SyntheticTag): boolean {
+  const metadata = synthetic.metadata
+  return (
+    metadata?.state === 'error' ||
+    (metadata?.source === 'shell' && metadata.state === 'completed' && shellResultFailed(metadata))
+  )
+}
+
+function isNotice(synthetic: SyntheticTag): boolean {
+  return !!synthetic.description?.trim() || timelineNoticeRequired(synthetic)
+}
+
+function SyntheticNotice(): JSX.Element {
+  const message = useMessage()
+  const label = () => {
+    const synthetic = SyntheticMetadataSchema.safeParse(message.message().messages[0]?.metadata).data?.conciv.synthetic
+    if (synthetic === undefined || !isNotice(synthetic)) return undefined
+    return (
+      synthetic.description ??
+      message
+        .message()
+        .parts.flatMap((part) => (part.type === 'text' ? [part.content] : []))
+        .join('\n\n')
+    )
+  }
+  return <Show when={label()}>{(text) => <Notice label={text()} />}</Show>
+}
+
+const THREAD_COMPONENTS = {SystemMessage: SyntheticNotice}
 
 const ABOVE_COMPOSER =
   'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto pe-5 ps-5 gap-x-2 [background:var(--chat-queue-bg)] [box-shadow:inset_0_1px_0_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-chat-xs leading-snug'
@@ -556,6 +598,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     </Show>
                     <Thread.Messages
                       sessionID={sessionId}
+                      components={THREAD_COMPONENTS}
                       tools={tools()}
                       render={toolRender.render}
                       renderPending={toolRender.pending()}

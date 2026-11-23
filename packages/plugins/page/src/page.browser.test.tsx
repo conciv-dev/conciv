@@ -198,7 +198,7 @@ describe('the agent leaves the page alone for a while', () => {
 })
 
 describe('the agent fills in a form on the page', () => {
-  test('the agent reads the controls, types, picks, ticks, fills a whole form and a note, and submits by selector and by ref', async () => {
+  test('the agent reads the controls, types, picks, ticks, fills a whole form and a note, and submits by selector and by ref, and the page captures it keeps hold no card number, password or tracker url', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
@@ -233,6 +233,12 @@ describe('the agent fills in a form on the page', () => {
       }),
       TestLLM.toolCall('c10', 'execute_typescript', {
         typescriptCode: "return await external_page_fill({selector: '#note', value: 'Happy birthday'})",
+      }),
+      TestLLM.toolCall('c11', 'execute_typescript', {
+        typescriptCode: "return await external_page_fill({selector: '#card', value: '4242 4242 4242 4242'})",
+      }),
+      TestLLM.toolCall('c12', 'execute_typescript', {
+        typescriptCode: "return await external_page_fill({selector: '#password', value: 'hunter2'})",
       }),
       TestLLM.text('The order is placed'),
     )
@@ -297,6 +303,13 @@ describe('the agent fills in a form on the page', () => {
             Leave at the door
           </label>
           <div id="note" role="textbox" aria-label="Gift note" contentEditable />
+          <input
+            id="card"
+            aria-label="Card number"
+            autocomplete="cc-number"
+            style={{'background-image': 'url(https://tracker.example.com/card.gif)'}}
+          />
+          <input id="password" type="password" aria-label="Password" />
         </form>
       </main>
     ))
@@ -317,14 +330,22 @@ describe('the agent fills in a form on the page', () => {
     expect(screen.getByRole('textbox', {name: 'Gift note'})).toHaveTextContent('Happy birthday')
     const reply = screen.getByRole('article', {name: 'Reply to: Explain this page'})
     expect(within(reply).getByText('Captured a snapshot')).toBeVisible()
-    expect(within(reply).getByText('9 actions')).toBeVisible()
-    expect(within(reply).getAllByText('Typed')).toHaveLength(3)
+    expect(within(reply).getByText('11 actions')).toBeVisible()
+    expect(within(reply).getAllByText('Typed')).toHaveLength(5)
     expect(within(reply).getByText('Clicked')).toBeVisible()
     expect(within(reply).getByText('Selected')).toBeVisible()
     expect(within(reply).getByText('Checked a box')).toBeVisible()
     expect(within(reply).getByText('Unchecked a box')).toBeVisible()
     expect(within(reply).getByText('Submitted the form')).toBeVisible()
     expect(within(reply).getByText('Filled the form')).toBeVisible()
+    const captures = JSON.stringify(
+      await engine.rpc.call('experimental.page', 'captures.list', {sessionId: engine.session.id}),
+    )
+    expect(captures).toContain('Card number')
+    expect(captures).toContain('Password')
+    expect(captures).not.toContain('4242 4242 4242 4242')
+    expect(captures).not.toContain('hunter2')
+    expect(captures).not.toContain('tracker.example.com')
   })
 })
 
@@ -462,10 +483,10 @@ describe('the page follows the session the user switches to', () => {
 })
 
 describe('the user grabs an element for the agent', () => {
-  test('the picked element is a note drawn with its picture in the composer, which takes focus, and the agent gets its sentence and its picture with the message', async () => {
+  test('the picked element is a note drawn with its picture in the composer, which takes focus, a third-party plugin cannot draw it, and the agent gets its sentence and its picture with the message', async () => {
     await page.viewport(1280, 800)
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/note-card-copy']})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(TestLLM.text('That button buys the fern'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -483,6 +504,10 @@ describe('the user grabs an element for the agent', () => {
     const notes = await screen.findByRole('list', {name: 'Notes'})
     expect(await within(notes).findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
     await expect.element(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
+    await user.click(screen.getByRole('button', {name: 'Copy note'}))
+    expect(await within(notes).findByText('A note of its own')).toBeVisible()
+    expect(within(notes).queryByText('Third-party note card')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('textbox', {name: 'Message the conciv agent'}))
     await user.keyboard('What does this do?')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
 

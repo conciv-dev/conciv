@@ -6,4 +6,7 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   dts: false,
+  deps: {
+    alwaysBundle: [/^@conciv\/opaque(\/|$)/],
+  },
 })

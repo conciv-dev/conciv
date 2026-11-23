@@ -656,7 +656,7 @@ export async function createHarnessEngine(
     rpc: pluginRpc(engine),
     loginCode: async () => (await makeRpcClient(apiBase, {token}).auth.issueCode()).code,
     revokeBrowsers: async () => {
-      revokeBrowsers(concivStateDir(root), 'all')
+      await revokeBrowsers(concivStateDir(root), 'all')
     },
     restart,
     clock: heldClock?.clock ?? realClock,

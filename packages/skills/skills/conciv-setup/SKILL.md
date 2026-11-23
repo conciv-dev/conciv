@@ -148,8 +148,8 @@ agent CLI behind the chat. `claude` and `codex` are fully supported (`claude` is
 the `claude` CLI on `PATH`). `gemini-cli` and `opencode` are also real, implemented adapters: ACP and
 opencode's own text adapter respectively (`packages/harness/src/gemini-cli/index.ts`,
 `packages/harness/src/opencode/index.ts`). Only `pi` is a stub: its `chatConfig` always returns a
-"not yet supported" error (`unsupportedChatConfig`, `packages/harness/src/pi/index.ts:7-14`,
-wired at `packages/harness/src/pi/index.ts:31`) even though its `history` sidecar is real
+"not yet supported" error (`unsupportedChatConfig`, `packages/harness/src/pi/index.ts:9-16`,
+wired at `packages/harness/src/pi/index.ts:35`) even though its `history` sidecar is real
 (`packages/protocol/src/config-types.ts` for the `harness` field):
 
 ```ts
@@ -213,7 +213,7 @@ conciv({widget: {quickTerminal: false}}) // corner modal only
 - `mountConciv` called expecting a return value/handle to unmount later: it is fire-and-forget by
   design; use `createConciv` if you need lifecycle control.
 - `harness: 'pi'` picked for real use: its `chatConfig` is a stub that always errors
-  (`packages/harness/src/pi/index.ts:31`); `claude`, `codex`, `gemini-cli`, and `opencode` all have a
+  (`packages/harness/src/pi/index.ts:35`); `claude`, `codex`, `gemini-cli`, and `opencode` all have a
   real `chatConfig`.
 - Hand-rolling a `<script src=...>` injection for Vite, Next.js, webpack or Rspack: the plugin
   already puts the widget on the page; a second manual mount double-mounts.

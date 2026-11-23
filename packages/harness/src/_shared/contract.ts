@@ -16,7 +16,7 @@ import type {TtyCommand} from '@conciv/protocol/terminal-types'
 export type HarnessChatConfig = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
-  prepareMessages?: (messages: ModelMessage[]) => ModelMessage[]
+  prepareMessages?: (messages: ModelMessage[]) => Promise<ModelMessage[]>
 }
 
 type HarnessAdapterBase = {
@@ -25,10 +25,10 @@ type HarnessAdapterBase = {
 
   displayName?: string
 
-  chatConfig: (deps: HarnessChatDeps) => HarnessChatConfig
+  chatConfig: (deps: HarnessChatDeps) => Promise<HarnessChatConfig>
 
   models?: HarnessModels
-  defaultModel?: string
+  defaultModel?: () => Promise<string>
 
   tty?: {command(ctx: HarnessConnectContext): TtyCommand}
 }

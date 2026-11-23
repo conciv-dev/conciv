@@ -13,12 +13,13 @@ import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-type
 import {z} from 'zod'
 
 export type Turn =
-  | {threadId: string; runId: string; kind: 'chat' | 'compact'}
+  | {threadId: string; runId: string; kind: 'chat'; delivered: readonly string[]}
+  | {threadId: string; runId: string; kind: 'compact'}
   | {threadId: string; runId: string; kind: 'page-queue'; input: string}
 
 export type ChatJoin = {runId: string; lastEventId?: string}
 
-export type ChatSend = ChatJoin & {threadId: string; messages: readonly unknown[]}
+export type ChatSend = ChatJoin & {threadId: string; messages: readonly unknown[]; delivered?: readonly string[]}
 
 export type ChatDelivery = {
   send: (request: ChatSend, signal?: AbortSignal) => AsyncGenerator<ChatEvent>
@@ -102,9 +103,10 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
     await starts.withLock(params.runId, async () => {
       if (await seenRun(params.runId)) return
       IdentifiedMessagesSchema.parse(params.messages)
-      drive({threadId: params.threadId, runId: params.runId, kind: 'chat'}, params.messages).catch((error: unknown) =>
-        log(`[ai] run ${params.runId} failed outside its stream: ${String(error)}`),
-      )
+      drive(
+        {threadId: params.threadId, runId: params.runId, kind: 'chat', delivered: request.delivered ?? []},
+        params.messages,
+      ).catch((error: unknown) => log(`[ai] run ${params.runId} failed outside its stream: ${String(error)}`))
     })
     yield* join(request, signal)
   }

@@ -118,8 +118,9 @@ export const layer = Layer.effect(
           release: holdUnsafe(),
         })
       })
-      const host = yield* PluginHost.make({list}, plugin.id).pipe(Effect.provideContext(hostContext))
-      const exit = yield* Effect.suspend(() => plugin.effect(host)).pipe(
+      const exit = yield* PluginHost.make({list}, plugin.id).pipe(
+        Effect.provideContext(hostContext),
+        Effect.flatMap((host) => plugin.effect(host)),
         grouped,
         inherit,
         Effect.updateContext((context: Context.Context<never>) =>
