@@ -4,8 +4,8 @@ import {render} from 'solid-js/web'
 import {Layer, ManagedRuntime, SubscriptionRef} from 'effect'
 import {z} from 'zod'
 import {useQuery} from '@conciv/client'
-import {ComposerPill, SettingsPage, Slot, ToolRegistry, usePlugin, type Plugin} from '@conciv/plugin/experimental'
-import {defineInternalPlugin} from '@conciv/plugin-internal'
+import {ComposerPill, Plugin, SettingsPage, Slot, ToolRegistry, usePlugin} from '@conciv/plugin/experimental'
+import {OpaqueUi} from '@internal/plugin'
 import {GrabApi} from '@conciv/plugin/experimental/grab'
 import {whiteboardToolCards} from './cards.js'
 import {makeCommentCompose} from './comment-compose.js'
@@ -49,7 +49,7 @@ function CanvasBackgroundRow(): JSX.Element {
   )
 }
 
-const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlugin({
+const whiteboard: Plugin.Definition<typeof whiteboardStores> = Plugin.define({
   stores: whiteboardStores,
   setup(ctx) {
     const runtime = ManagedRuntime.make(Layer.empty)
@@ -165,7 +165,7 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
       render: () => <CanvasBackgroundRow />,
     })
     ctx.add(ComposerPill, commentPill)
-    whiteboardToolCards(ctx.ui).forEach((card) => ctx.add(ToolRegistry, card))
+    whiteboardToolCards(OpaqueUi.toInternal(ctx.ui)).forEach((card) => ctx.add(ToolRegistry, card))
     // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
     ctx.add(Slot, () => (visible() ? overlay : undefined))
     // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope

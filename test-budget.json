@@ -28,6 +28,7 @@
   "@conciv/ui-kit-chat-tools": 3,
   "@conciv/unplugin": 21,
   "@conciv/vitest-config": 8,
+  "@internal/opaque": 1,
   "conciv-e2e-astro": 1,
   "conciv-e2e-harnesses": 2,
   "conciv-e2e-init": 3,
