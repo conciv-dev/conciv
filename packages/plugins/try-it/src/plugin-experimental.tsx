@@ -31,15 +31,19 @@ function follow<A>(
   }, SubscriptionRef.getUnsafe(ref))
 }
 
-function entry(state: TryItConnectMachine.ConnectState, cover: ServerEntry['cover']): ServerEntry {
-  if (state.status === 'connected') return {id: 'core', name: 'conciv', state: 'ready', http: {url: state.base}, cover}
+function entry(state: TryItConnectMachine.ConnectState, token: string, cover: ServerEntry['cover']): ServerEntry {
+  if (state.status === 'connected') {
+    return {id: 'core', name: 'conciv', state: 'ready', http: {url: state.base, password: token}, cover}
+  }
   return {id: 'core', name: 'conciv', state: 'starting', cover}
 }
 
 const tryIt: Plugin.Definition = defineInternalPlugin({
   setup(ctx) {
     const options = TryItOptions.parse(ctx.options)
-    const runtime = ManagedRuntime.make(Layer.succeed(TryItProbe, {probe: probeCore(connectPorts(), options.probeMs)}))
+    const runtime = ManagedRuntime.make(
+      Layer.succeed(TryItProbe, {probe: probeCore(options.token, connectPorts(), options.probeMs)}),
+    )
     const scope = runtime.runSync(Scope.make())
     onCleanup(() => void runtime.runPromise(Scope.close(scope, Exit.void)).finally(() => runtime.dispose()))
     const started = runtime.runSync(
@@ -58,7 +62,7 @@ const tryIt: Plugin.Definition = defineInternalPlugin({
     ctx.add(Server, () => ({
       ready: !TryItConnectMachine.awaitingFirstSweep(state()),
       order: 0,
-      entries: [entry(state(), cover)],
+      entries: [entry(state(), options.token, cover)],
     }))
   },
 })

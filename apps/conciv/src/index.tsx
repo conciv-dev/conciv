@@ -175,8 +175,8 @@ function ServersApp(props: AppParts): JSX.Element {
     servers: true,
     connected: client.bound,
     apiBase: () => bound.apiBase,
-    bindApiBase: (nextApiBase) => {
-      client.bind(nextApiBase)
+    bindApiBase: (nextApiBase, token) => {
+      client.bind(nextApiBase, token)
       setBound('apiBase', nextApiBase)
     },
   })

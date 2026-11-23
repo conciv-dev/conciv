@@ -187,7 +187,6 @@ export interface ServerEntry {
   readonly listed?: boolean
   readonly http?: {
     readonly url: string
-    /** @remarks Not implemented yet. Always undefined in this version. */
     readonly password?: string
   }
   /**

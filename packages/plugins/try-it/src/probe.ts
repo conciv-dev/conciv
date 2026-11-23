@@ -1,4 +1,5 @@
 import {Context, Effect, Schema} from 'effect'
+import {CONCIV_AUTH_TOKEN_QUERY_PARAM} from '@conciv/protocol/rpc-types'
 
 const ProbeFailed = Schema.TaggedStruct('TryIt.ProbeFailed', {port: Schema.Int, cause: Schema.Defect()})
 type ProbeFailed = typeof ProbeFailed.Type & globalThis.Error
@@ -16,10 +17,16 @@ export const TryItProbe = Context.Service<{readonly probe: Effect.Effect<string,
   '@conciv/plugin-try-it/Probe',
 )
 
-function probePort(port: number) {
+function authedProbeUrl(base: string, token: string): URL {
+  const url = new URL('/rpc/meta/harnesses', base)
+  url.searchParams.set(CONCIV_AUTH_TOKEN_QUERY_PARAM, token)
+  return url
+}
+
+function probePort(token: string, port: number) {
   const base = `http://127.0.0.1:${port}`
   return Effect.tryPromise({
-    try: (signal) => fetch(`${base}/health`, {signal}),
+    try: (signal) => fetch(authedProbeUrl(base, token), {method: 'POST', signal}),
     catch: (cause) => makeProbeFailed({port, cause}),
   }).pipe(
     Effect.filterOrFail(
@@ -30,8 +37,12 @@ function probePort(port: number) {
   )
 }
 
-export const probeCore = Effect.fn('try-it.probeCore')(function* (ports: readonly number[], probeMs: number) {
-  return yield* Effect.raceAll(ports.map(probePort)).pipe(
+export const probeCore = Effect.fn('try-it.probeCore')(function* (
+  token: string,
+  ports: readonly number[],
+  probeMs: number,
+) {
+  return yield* Effect.raceAll(ports.map((port) => probePort(token, port))).pipe(
     Effect.timeout(probeMs),
     Effect.mapError(() => makeProbeSilent()),
   )
