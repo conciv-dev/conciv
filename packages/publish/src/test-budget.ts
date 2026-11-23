@@ -43,7 +43,7 @@ function readTestChain(callee: Expression | Super): TestChain | undefined {
   return node.type === 'Identifier' ? {name: node.name, members} : undefined
 }
 
-export function countTestCases(filename: string, source: string): number {
+function countTestCases(filename: string, source: string): number {
   const parsed = parseSync(filename, source)
   const [error] = parsed.errors
   if (error) throw new Error(`${filename}: cannot parse - ${error.message}`)
@@ -72,7 +72,7 @@ async function trackedTestFiles(cwd: string): Promise<string[]> {
   return stdout.split('\0').filter((path) => TEST_FILE.test(path) && !FIXTURE_SEGMENT.test(path))
 }
 
-export async function countTestCasesByPackage(cwd: string): Promise<Map<string, number>> {
+async function countTestCasesByPackage(cwd: string): Promise<Map<string, number>> {
   const [packages, files] = await Promise.all([readWorkspacePackages(cwd), trackedTestFiles(cwd)])
   const counts = new Map<string, number>()
   for (const path of files) {
