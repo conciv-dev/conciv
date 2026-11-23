@@ -7,7 +7,8 @@
         "@conciv/plugin-internal#build",
         "@conciv/plugin-page#build",
         "@conciv/plugin-testkit#build",
-        "@conciv/protocol#build"
+        "@conciv/protocol#build",
+        "@conciv/uno-preset#build"
       ]
     },
     "typecheck": {
