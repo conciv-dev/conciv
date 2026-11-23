@@ -8,10 +8,10 @@ clearest full example — it parses a JSONL rollout file into `UIMessage[]` and 
 ```ts
 export type HarnessHistory = {
   messages(cwd: string, sessionId: string): Promise<UIMessage[]>
-  transcriptPath?(cwd: string, sessionId: string): string
-  withinProject?(cwd: string, sessionId: string): boolean
+  transcriptPath?(cwd: string, sessionId: string): Promise<string>
+  withinProject?(cwd: string, sessionId: string): Promise<boolean>
   nameFromTranscript?(raw: string): string | null
-  contextTokens?(raw: string): number | undefined
+  contextTokens?(line: string): number | undefined
   list(cwd: string): Promise<HarnessSessionMeta[]>
   meta?(cwd: string, sessionId: string): Promise<HarnessSessionMeta | null>
 }

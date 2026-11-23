@@ -29,7 +29,7 @@ Top-level sources of `@conciv/harness-init`: the init-contribution registry for 
 ## Side Effects
 
 - `realpathSync` read in `realpathOrSelf` (`paths.ts`).
-- `detectHarnesses` (`detect.ts`) checks PATH entries and HOME config dirs with `existsSync` / `statSync`.
+- `detectHarnesses` (`detect.ts`) resolves after checking PATH entries and HOME config dirs with `access` / `stat` from `node:fs/promises`.
 
 ## Verification
 

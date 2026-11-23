@@ -42,7 +42,7 @@ export const yourHarness = defineHarness({
   },
   chatConfig: yourChatConfig,
   models: [{id: 'default', name: 'Default', group: 'Your CLI'}],
-  defaultModel: 'default',
+  defaultModel: async () => 'default',
   history: yourHistory,
 })
 ```
@@ -106,12 +106,12 @@ export type HarnessChatDeps = {
 export type HarnessChatConfig = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
-  prepareMessages?: (messages: ModelMessage[]) => ModelMessage[]
+  prepareMessages?: (messages: ModelMessage[]) => Promise<ModelMessage[]>
 }
 ```
 
-(`packages/protocol/src/harness-types.ts:98-106`, `packages/harness/src/_shared/contract.ts:15-19`.) `chatConfig` is a plain function, `deps =>
-HarnessChatConfig` — no async, no side effects at call time. Its `adapter` comes from a
+(`packages/protocol/src/harness-types.ts:98-106`, `packages/harness/src/_shared/contract.ts:15-19`.) `chatConfig` is an async function, `deps =>
+Promise<HarnessChatConfig>`: it may read files without blocking (codex reads its default model from `config.toml`), but starts no process at call time. Its `adapter` comes from a
 `@conciv/ai/server` factory for CLIs that have one (`codex`, `claudeCode`, `opencode`, `acp`, thin
 typed wrappers over the published `@tanstack/ai-*` adapters); if none exists for your CLI, build one
 with `makeTextAdapter(name, stream)` from `packages/ai/src/adapters/adapters.ts`, where `stream` is your own
@@ -124,8 +124,8 @@ outside the sandbox and its abort handling (see the sandbox-virtual workdir sect
 Canonical call site — codex, which needs no message prep:
 
 ```ts
-export function codexRunAdapter(deps: HarnessChatDeps, toolCount: number): TextAdapter {
-  return codexAdapter(deps.model ?? codexDefaultModel(codexHome(deps.env)), {
+export function codexRunAdapter(deps: HarnessChatDeps, model: string, toolCount: number): TextAdapter {
+  return codexAdapter(model, {
     sandboxMode: 'workspace-write',
     approvalPolicy: 'never',
     config: {...(toolCount > 0 ? approveTanstackToolsConfig : {}), ...effortConfig(deps.effort)},
@@ -133,8 +133,8 @@ export function codexRunAdapter(deps: HarnessChatDeps, toolCount: number): TextA
   })
 }
 
-const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: codexTurnAdapter(deps),
+const codexChatConfig = async (deps: HarnessChatDeps): Promise<HarnessChatConfig> => ({
+  adapter: codexTurnAdapter(deps, deps.model ?? (await codexDefaultModel(codexHome(deps.env)))),
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
 })
 ```
@@ -297,9 +297,9 @@ refinements, and one all-or-nothing pair:
 export type HarnessHistory = HarnessTranscriptPaths & {
   messages(cwd: string, sessionId: HarnessSessionId): Promise<ChatMessage[]>
   tail(cwd: string, sessionId: HarnessSessionId, options: TranscriptTailOptions): Promise<TranscriptPage>
-  withinProject?(cwd: string, sessionId: HarnessSessionId): boolean
+  withinProject?(cwd: string, sessionId: HarnessSessionId): Promise<boolean>
   nameFromTranscript?(raw: string): string | null
-  contextTokens?(raw: string): number | undefined
+  contextTokens?(line: string): number | undefined
   list(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage>
   meta(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null>
 }
