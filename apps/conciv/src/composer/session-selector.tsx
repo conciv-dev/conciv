@@ -304,6 +304,8 @@ export function SessionSelector(props: {
         if (!details.open) dismissPreview()
       }}
       openOnClick
+      lazyMount
+      unmountOnExit
       selectionBehavior="preserve"
       positioning={{strategy: 'fixed', placement: 'bottom-start', gutter: 6}}
     >
