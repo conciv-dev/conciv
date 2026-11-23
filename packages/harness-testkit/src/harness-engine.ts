@@ -139,7 +139,7 @@ type Turns = {
   closeAll: () => void
 }
 
-type Engine = {rpc: RpcClient; apiBase: string; turns: Turns; tools: ToolClients}
+type Engine = {rpc: RpcClient; apiBase: string; token: string; turns: Turns; tools: ToolClients}
 
 type Started = Awaited<ReturnType<typeof start>>
 
@@ -240,7 +240,7 @@ function failedTool(name: string, call: Promise<unknown>): Promise<HarnessEngine
 }
 
 async function asSession(engine: Engine, sessionId: string, use: (rpc: RpcClient) => Promise<void>): Promise<void> {
-  const browser = makeBrowserRpcClient(engine.apiBase, {session: () => sessionId})
+  const browser = makeBrowserRpcClient(engine.apiBase, {token: engine.token, session: () => sessionId})
   try {
     await use(browser.rpc)
   } finally {
@@ -549,7 +549,7 @@ function fixtureWrite(project: string, fixture: string | undefined): (path: stri
   }
 }
 
-function connect(engine: Engine, browser = makeBrowserRpcClient(engine.apiBase)): () => void {
+function connect(engine: Engine, browser = makeBrowserRpcClient(engine.apiBase, {token: engine.token})): () => void {
   engine.rpc = browser.rpc
   engine.turns = makeTurns(browser.rpc)
   return () => {
@@ -603,9 +603,16 @@ export async function createHarnessEngine(
     heldClock,
   }
   const first = await bootFirst(boot).catch((error: unknown) => abandonStart(error, [removeRoot, closeClock]))
-  const apiBase = `http://127.0.0.1:${first.port}/t/${first.agentToken}`
-  const browser = makeBrowserRpcClient(apiBase)
-  const engine: Engine = {apiBase, rpc: browser.rpc, turns: makeTurns(browser.rpc), tools: toolClients(apiBase)}
+  const apiBase = `http://127.0.0.1:${first.port}`
+  const token = first.agentToken
+  const browser = makeBrowserRpcClient(apiBase, {token})
+  const engine: Engine = {
+    apiBase,
+    token,
+    rpc: browser.rpc,
+    turns: makeTurns(browser.rpc),
+    tools: toolClients(apiBase, token),
+  }
   const state: {running: Running | undefined} = {running: {started: first, close: connect(engine, browser)}}
   const waits = new Set<OpenWait>()
   const halt = async (): Promise<unknown[]> => {
@@ -641,19 +648,19 @@ export async function createHarnessEngine(
     },
     gate: async () => script.gate(),
     requests: async () => script.requests(),
-    address: {apiBase, token: first.agentToken},
+    address: {apiBase, token},
     root: realpathSync(project),
     home: engineHome(root, options),
     opened: async () => [...opened],
     event: (type, match) => eventWait(engine, type, match, waits),
     rpc: pluginRpc(engine),
-    loginCode: async () => (await makeRpcClient(apiBase).auth.issueCode()).code,
+    loginCode: async () => (await makeRpcClient(apiBase, {token}).auth.issueCode()).code,
     revokeBrowsers: async () => {
       await revokeBrowsers(concivStateDir(root), 'all')
     },
     restart,
     clock: heldClock?.clock ?? realClock,
-    outside: (agent) => outsideAgent(apiBase, agent),
+    outside: (agent) => outsideAgent(apiBase, token, agent),
     reply: async (...replies) => {
       script.add(replies)
     },

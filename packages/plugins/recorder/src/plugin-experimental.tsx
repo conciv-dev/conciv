@@ -124,6 +124,7 @@ function recordingToolCard(ui: InternalUi): ToolComponent {
     return (
       <ui.BasicTool
         {...props}
+        icon="clapperboard"
         title={props.tool}
         subtitle={summarize(props.input, recording())}
         expandable

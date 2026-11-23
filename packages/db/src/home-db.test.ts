@@ -34,12 +34,16 @@ describe('home folder', () => {
     const home = join(tempDir('home-'), 'conciv')
 
     const prepared = await prepareHome(home)
-    withHomeDb(prepared, (db) => registerEngine(db, {id: 'engine-1', pid: 1, root: '/workspace', apiBase: 'x'}))
+    withHomeDb(prepared, (db) =>
+      registerEngine(db, {id: 'engine-1', pid: 1, root: '/workspace', apiBase: 'x', token: 'token-1'}),
+    )
 
     expect(statSync(home).mode & 0o777).toBe(0o700)
     expect(statSync(join(home, 'home.db')).mode & 0o777).toBe(0o600)
     expect(statSync(join(home, 'home.lock')).mode & 0o777).toBe(0o600)
-    expect(withHomeDb(prepared, listEngines)).toEqual([{id: 'engine-1', pid: 1, root: '/workspace', apiBase: 'x'}])
+    expect(withHomeDb(prepared, listEngines)).toEqual([
+      {id: 'engine-1', pid: 1, root: '/workspace', apiBase: 'x', token: 'token-1'},
+    ])
   })
 
   it('preparing the home again keeps the migration lock an open connection holds', async () => {

@@ -91,12 +91,12 @@ describe('resetting settings', () => {
 describe('plugins in settings', () => {
   test('a server plugin turned off elsewhere shows off in its settings row, and the user turns it on', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']})
-    await engine.setting({scope: 'global', namespace: 'plugin-enable', key: 'tanstack', value: false})
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    await engine.setting({scope: 'global', namespace: 'plugin-enable', key: 'release-train', value: false})
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     await user.click(await screen.findByRole('tab', {name: 'Plugins'}))
-    expect(await screen.findByRole('switch', {name: 'tanstack', checked: false})).toBeVisible()
+    expect(await screen.findByRole('switch', {name: 'release-train', checked: false})).toBeVisible()
     expect(screen.getByText('Server')).toBeVisible()
     expect(
       screen.getByText(
@@ -104,24 +104,24 @@ describe('plugins in settings', () => {
       ),
     ).toBeVisible()
 
-    await user.click(screen.getByRole('switch', {name: 'tanstack'}))
+    await user.click(screen.getByRole('switch', {name: 'release-train'}))
     await user.click(screen.getByRole('button', {name: 'Back to chat'}))
-    expect(await screen.findByRole('status', {name: 'TanStack inspector active'})).toBeVisible()
+    expect(await screen.findByText('Next train at noon')).toBeVisible()
   })
 
   test('a plugin added to the project while the Plugins section is open joins the list', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']}, {fs: {filewatcher: true}})
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']}, {fs: {filewatcher: true}})
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     await user.click(await screen.findByRole('tab', {name: 'Plugins'}))
-    expect(await screen.findByRole('switch', {name: 'tanstack'})).toBeVisible()
+    expect(await screen.findByRole('switch', {name: 'release-train'})).toBeVisible()
     expect(screen.queryByText('desk-notes')).not.toBeInTheDocument()
 
     await engine.write('conciv/plugins/desk-notes.js', "export default {id: 'desk-notes', setup: () => undefined}\n")
 
     expect(await screen.findByText('desk-notes')).toBeVisible()
-    expect(screen.getByRole('switch', {name: 'tanstack'})).toBeVisible()
+    expect(screen.getByRole('switch', {name: 'release-train'})).toBeVisible()
   })
 
   test('a plugin page joins the sections and its section shows in General, an unknown plugin page opens General, and a plugin under a built-in ID is not loaded', async () => {

@@ -144,6 +144,7 @@ function anchorCard(ui: InternalUi): ToolComponent {
     return (
       <ui.BasicTool
         {...props}
+        icon="presentation"
         title={props.tool}
         subtitle={anchorValue(props.input, props.output) || undefined}
         subtitleTone={tone()}
@@ -171,6 +172,7 @@ function elementCard(ui: InternalUi): ToolComponent {
     return (
       <ui.BasicTool
         {...props}
+        icon="presentation"
         title={props.tool}
         subtitle={elementValue(props.input, props.output) || undefined}
         subtitleTone={missing() ? 'danger' : 'muted'}
@@ -369,7 +371,14 @@ function canvasCard(ui: InternalUi): ToolComponent {
     const destructive = () => CANVAS_DESTRUCTIVE.includes(operation())
     const summary = () => summarizeCanvas(operation(), props.input, detail())
     return (
-      <ui.BasicTool {...props} title={props.tool} subtitle={summary()} failed={Boolean(failure())} expandable>
+      <ui.BasicTool
+        {...props}
+        icon="presentation"
+        title={props.tool}
+        subtitle={summary()}
+        failed={Boolean(failure())}
+        expandable
+      >
         <div class="flex flex-col gap-2 min-w-0">
           <Show
             when={destructive()}
@@ -530,7 +539,14 @@ function commentCard(ui: InternalUi): ToolComponent {
     const summary = () => summarizeComment(operation(), props.input, detail())
     const tone = (): FieldTone => (COMMENT_DESTRUCTIVE.includes(operation()) ? 'danger' : 'default')
     return (
-      <ui.BasicTool {...props} title={props.tool} subtitle={summary()} failed={Boolean(failure())} expandable>
+      <ui.BasicTool
+        {...props}
+        icon="presentation"
+        title={props.tool}
+        subtitle={summary()}
+        failed={Boolean(failure())}
+        expandable
+      >
         <div class="flex flex-col gap-2 min-w-0">
           <div class="flex gap-2 min-w-0 items-baseline">
             <OpTag op={operation()} tone={tone()} />

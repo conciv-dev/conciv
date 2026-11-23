@@ -111,7 +111,7 @@ type Reply = CodeReply
 
 type Runner = {root: string; rpc: RpcClient; described: CodeDescriptions | null}
 
-type TabOwner = {root: string; apiBase: string; instructions: string | null; rpc: RpcClient}
+type TabOwner = {root: string; apiBase: string; token: string; instructions: string | null; rpc: RpcClient}
 
 type TabEntry = {owner: Promise<TabOwner> | null; greeted: boolean}
 
@@ -427,7 +427,7 @@ async function firstUsable(rows: EngineRow[], headers: Record<string, string>, u
 }
 
 async function runnerAt(row: EngineRow, headers: Record<string, string>): Promise<Candidate> {
-  const rpc = makeRpcClient(row.apiBase, {headers})
+  const rpc = makeRpcClient(row.apiBase, {token: row.token, headers})
   return rpc.code.describe(undefined, {signal: AbortSignal.timeout(ENGINE_READ_MS)}).then(
     (described): Candidate => ({runner: {root: row.root, rpc, described}, unusable: null}),
     (error: unknown): Candidate => {
@@ -491,8 +491,9 @@ function ownerAmong(tab: SessionId, probes: TabAsk[], silent: Silent, headers: R
   return {
     root: only.row.root,
     apiBase: only.row.apiBase,
+    token: only.row.token,
     instructions: only.answer.instructions,
-    rpc: makeRpcClient(only.row.apiBase, {headers}),
+    rpc: makeRpcClient(only.row.apiBase, {token: only.row.token, headers}),
   }
 }
 

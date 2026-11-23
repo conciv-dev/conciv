@@ -19,8 +19,10 @@ type Snapshot = {rows: ReadonlyArray<EngineRow>; reached: ReadonlyArray<string>}
 
 type ServersSourceInput = {home: string; engineId: string}
 
-function connect(apiBase: string, tooOld: (apiBase: string) => void): ServerRef['client'] {
+function connect(row: EngineRow, tooOld: (apiBase: string) => void): ServerRef['client'] {
+  const {apiBase, token} = row
   const client = makeRpcClient(apiBase, {
+    token,
     interceptors: [
       ({next}) =>
         next().catch((error: unknown) => {
@@ -77,7 +79,7 @@ function makeServerRef(
   first: EngineRow,
   current: () => Snapshot,
   engineId: string,
-  clientAt: (apiBase: string) => ServerRef['client'],
+  clientAt: (row: EngineRow) => ServerRef['client'],
   incompatible: () => ReadonlyArray<EngineRow>,
 ): ServerRef {
   const row = (): EngineRow => current().rows.find((candidate) => candidate.id === first.id) ?? first
@@ -90,7 +92,7 @@ function makeServerRef(
       return row().apiBase
     },
     get client() {
-      return clientAt(row().apiBase)
+      return clientAt(row())
     },
     local: true,
     builtin: first.id === engineId,
@@ -139,7 +141,9 @@ export function provideServersSource(input: ServersSourceInput) {
             uniqBy([...current().rows.filter((row) => row.apiBase === apiBase), ...marked], (row) => row.id),
           ),
         )
-      const clientAt = memoize((apiBase: string) => connect(apiBase, markTooOld))
+      const clientAt = memoize((row: EngineRow) => connect(row, markTooOld), {
+        getCacheKey: (row) => `${row.apiBase} ${row.token}`,
+      })
       const serverRef = memoize(
         (first: EngineRow) =>
           makeServerRef(first, current, input.engineId, clientAt, () => Ref.getUnsafe(incompatible)),

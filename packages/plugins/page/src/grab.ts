@@ -5,7 +5,7 @@ import {captureElement} from './grab-preview.js'
 import {framesForElement, sourceFromAttr} from './react.js'
 import type {SourceLoc} from '@conciv/plugin/experimental/page'
 
-export const [picking, setPicking] = createSignal(false)
+const [picking, setPicking] = createSignal(false)
 
 let cancelFn: (() => void) | null = null
 
@@ -112,7 +112,7 @@ export function loadReactGrab(): Promise<typeof import('react-grab')> {
   return modulePromise
 }
 
-export function getReactGrabAdapter(): Promise<ReactGrabAdapter> {
+function getReactGrabAdapter(): Promise<ReactGrabAdapter> {
   if (!adapterPromise) adapterPromise = create()
   return adapterPromise
 }

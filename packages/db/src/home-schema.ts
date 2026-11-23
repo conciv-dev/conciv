@@ -5,6 +5,7 @@ export const engines = sqliteTable('engines', {
   pid: integer('pid').notNull(),
   root: text('root').notNull(),
   apiBase: text('api_base').notNull(),
+  token: text('token').notNull().default(''),
   deletedAt: integer('deleted_at'),
 })
 

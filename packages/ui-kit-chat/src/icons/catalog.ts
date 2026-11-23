@@ -1,11 +1,12 @@
 import type {Component} from 'solid-js'
 import type {LucideProps} from 'lucide-solid'
-import type {IconName} from '@conciv/plugin/experimental'
+import type {AppIconName} from '@conciv/plugin/experimental'
 import AppWindowIcon from 'lucide-solid/icons/app-window'
 import ArrowDownIcon from 'lucide-solid/icons/arrow-down'
 import ArrowUpIcon from 'lucide-solid/icons/arrow-up'
 import BanIcon from 'lucide-solid/icons/ban'
 import BlocksIcon from 'lucide-solid/icons/blocks'
+import BoxIcon from 'lucide-solid/icons/box'
 import CheckIcon from 'lucide-solid/icons/check'
 import ChevronDownIcon from 'lucide-solid/icons/chevron-down'
 import ChevronLeftIcon from 'lucide-solid/icons/chevron-left'
@@ -96,12 +97,13 @@ import WandSparklesIcon from 'lucide-solid/icons/wand-sparkles'
 import WrenchIcon from 'lucide-solid/icons/wrench'
 import XIcon from 'lucide-solid/icons/x'
 
-export const icons: Record<IconName, Component<LucideProps>> = {
+const icons: Record<AppIconName, Component<LucideProps>> = {
   'app-window': AppWindowIcon,
   'arrow-down': ArrowDownIcon,
   'arrow-up': ArrowUpIcon,
   ban: BanIcon,
   blocks: BlocksIcon,
+  box: BoxIcon,
   check: CheckIcon,
   'chevron-down': ChevronDownIcon,
   'chevron-left': ChevronLeftIcon,
@@ -191,4 +193,12 @@ export const icons: Record<IconName, Component<LucideProps>> = {
   'wand-sparkles': WandSparklesIcon,
   wrench: WrenchIcon,
   x: XIcon,
+}
+
+export function isIconName(name: string): name is AppIconName {
+  return Object.hasOwn(icons, name)
+}
+
+export function getIcon(name: AppIconName): Component<LucideProps> {
+  return icons[name]
 }

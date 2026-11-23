@@ -2,13 +2,8 @@ import {z} from 'zod'
 import {createMemo, Index, Match, Show, Switch, useContext, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {
-  pageSessionCallParts,
-  pageSessionThinkingParts,
-  MorphLabel,
-  ReasoningText,
-  type GroupRenderProps,
-} from '@conciv/ui-kit-chat'
+import {MorphLabel, ReasoningText, type GroupRenderProps} from '@conciv/ui-kit-chat'
+import {pageSessionCallParts, pageSessionThinkingParts} from './page-session.js'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {StatusDot, TruncatedText} from '@conciv/ui-kit-system'
 import {

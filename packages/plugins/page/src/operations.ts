@@ -31,38 +31,29 @@ import {
 } from './snapshot.js'
 import {dehydrate, navigatePath} from './dehydrate.js'
 import {
-  loadedSnapshotLibrary,
-  loadSnapshotLibrary,
+  cacheImport,
+  makeSnapshotLoader,
   takeElementCapture,
   toCssBundle,
   type PendingCssText,
+  type SnapshotLibrary,
 } from './capture.js'
-import {reactBridge, startTracking, stopTracking, report as trackReport} from './react.js'
-import {unwatchLayout} from './cursor.js'
+import {reactBridge, type Tracker} from './react.js'
 import {actionable, fill, focusedElement, hover, isDisabled, press, select, setChecked} from './act.js'
 import {Operations, SHORT_MAX, type Action, type File, type Outcome, type PageCommand, type Operation} from './rpc.js'
 import {screenshot} from './screenshot.js'
 import {redactedUrl} from './redacted-url.js'
-import {
-  acceptQueue,
-  arriveAt,
-  finishQueue,
-  isHtml,
-  landQueued,
-  pointAt,
-  queueStopped,
-  simulateClick,
-  startTask,
-  touchTask,
-  type Beat,
-} from './simulator.js'
+import {isHtml, type Beat, type Simulator} from './simulator.js'
 
 type Locator = Omit<Extract<Action, {type: 'dom'}>, 'type' | 'tabId'>
 
 type Queued = NonNullable<PageCommand['queued']>
 
 type Call = {
+  simulator: Simulator
+  tracker: Tracker
   agentId: string
+  snapdom: () => Promise<typeof import('@zumer/snapdom')>
   queued?: Queued
   signal?: AbortSignal
   document: Document
@@ -150,21 +141,21 @@ function result(value: unknown, attached: File[] = []): Answer {
   return {value, files: attached}
 }
 
-function touching(value: () => unknown): Answer {
-  touchTask()
+function touching(call: Call, value: () => unknown): Answer {
+  call.simulator.touchTask()
   return result(value())
 }
 
-async function touchingAsync(value: () => Promise<unknown>): Promise<Answer> {
-  touchTask()
+async function touchingAsync(call: Call, value: () => Promise<unknown>): Promise<Answer> {
+  call.simulator.touchTask()
   return result(await value())
 }
 
 async function acting(call: Call, input: Locator, value: () => unknown, beat: Beat = 'click'): Promise<Answer> {
   const queued = call.queued
   if (queued === undefined) {
-    startTask(call.agentId)
-    touchTask()
+    call.simulator.startTask(call.agentId)
+    call.simulator.touchTask()
     return result(await value())
   }
   return Effect.runPromise(
@@ -172,7 +163,7 @@ async function acting(call: Call, input: Locator, value: () => unknown, beat: Be
       Effect.map(result),
       Effect.ensuring(
         Effect.sync(() => {
-          if (queued.index === queued.of - 1) finishQueue(queued.id)
+          if (queued.index === queued.of - 1) call.simulator.finishQueue(queued.id)
         }),
       ),
     ),
@@ -183,20 +174,20 @@ function queueStoppedError(): Error {
   return toolError(PAGE_QUEUE_STOPPED, {message: PAGE_QUEUE_STOPPED_MESSAGE})
 }
 
-function stoppedBefore(queued: Queued): void {
-  if (queueStopped(queued.id)) throw queueStoppedError()
+function stoppedBefore(call: Call, queued: Queued): void {
+  if (call.simulator.queueStopped(queued.id)) throw queueStoppedError()
 }
 
 function stillPlaying(call: Call, queued: Queued): Effect.Effect<void, unknown> {
   return Effect.suspend(() => {
     if (call.signal?.aborted) return Effect.fail(call.signal.reason)
-    return queueStopped(queued.id) ? Effect.fail(queueStoppedError()) : Effect.void
+    return call.simulator.queueStopped(queued.id) ? Effect.fail(queueStoppedError()) : Effect.void
   })
 }
 
 function stillQueued(call: Call): void {
   call.signal?.throwIfAborted()
-  if (call.queued !== undefined) stoppedBefore(call.queued)
+  if (call.queued !== undefined) stoppedBefore(call, call.queued)
 }
 
 function paceTarget(input: Locator, call: Call): Element | null {
@@ -213,13 +204,16 @@ const playQueued = Effect.fnUntraced(function* (options: {
   value: () => unknown
 }) {
   const {input, call, queued, beat, value} = options
-  if (queueStopped(queued.id)) return yield* Effect.fail(queueStoppedError())
-  startTask(call.agentId)
-  touchTask()
+  if (call.simulator.queueStopped(queued.id)) return yield* Effect.fail(queueStoppedError())
+  call.simulator.startTask(call.agentId)
+  call.simulator.touchTask()
   const element = paceTarget(input, call)
-  if (element !== null) yield* arriveAt({element, agent: call.agentId, beat})
+  if (element !== null) yield* call.simulator.arriveAt({element, agent: call.agentId, beat})
   yield* stillPlaying(call, queued)
-  return yield* landQueued({beat, act: Effect.tryPromise({try: async () => value(), catch: (error) => error})})
+  return yield* call.simulator.landQueued({
+    beat,
+    act: Effect.tryPromise({try: async () => value(), catch: (error) => error}),
+  })
 })
 
 function actionableTarget(call: Call, input: Locator): Element {
@@ -236,18 +230,20 @@ function buildOutcome<Result extends Record<string, unknown>>(outcome: Result | 
 async function setCheckedOn(input: Locator, call: Call, checked: boolean): Promise<PageResult> {
   const element = call.target(input)
   if (isDisabled(element)) badArgs('That element is disabled.')
-  return buildOutcome(await setChecked({element, checked, agent: call.agentId}))
+  return buildOutcome(await setChecked({element, checked, agent: call.agentId, simulator: call.simulator}))
 }
 
 async function fillOn(input: Locator, call: Call, value: string): Promise<PageResult> {
   const element = actionableTarget(call, input)
-  return buildOutcome(await fill({element, value, agent: call.agentId, halt: () => stillQueued(call)}))
+  return buildOutcome(
+    await fill({element, value, agent: call.agentId, halt: () => stillQueued(call), simulator: call.simulator}),
+  )
 }
 
 async function selectOn(input: Locator, call: Call, value: string): Promise<PageResult> {
   const element = call.target(input)
   if (isDisabled(element)) badArgs('That element is disabled.')
-  pointAt({element, agent: call.agentId})
+  call.simulator.pointAt({element, agent: call.agentId})
   return buildOutcome(await select({element, value}))
 }
 
@@ -319,9 +315,9 @@ function evaluate(code: string): unknown {
   }
 }
 
-async function shot(input: {exclude?: string[]}): Promise<Answer> {
-  touchTask()
-  const {data, ...value} = await screenshot(input)
+async function shot(input: {exclude?: string[]}, call: Call): Promise<Answer> {
+  call.simulator.touchTask()
+  const {data, ...value} = await screenshot(input, await call.snapdom())
   const file: File = {id: `file_${crypto.randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data}
   return result(value, [file])
 }
@@ -334,7 +330,7 @@ function perform(
 ): Answer | Promise<Answer> {
   switch (action.type) {
     case 'route':
-      return touching(() => {
+      return touching(call, () => {
         const url = new URL(redactedUrl(location.href))
         return {
           pathname: url.pathname,
@@ -345,40 +341,40 @@ function perform(
         }
       })
     case 'console':
-      return touching(() => ({entries: call.consoleEntries(action.since)}))
+      return touching(call, () => ({entries: call.consoleEntries(action.since)}))
     case 'dom':
-      return touching(() => {
+      return touching(call, () => {
         const root = hasLocator(action) ? call.target(action) : call.document.body
         return {html: maskedOuterHtml(root).slice(0, DOM_CAP)}
       })
     case 'query':
-      return touching(() => {
+      return touching(call, () => {
         const matches = action.selector ? selectDeep(action.selector) : []
         return {count: matches.length, elements: matches.slice(0, 20).map(describeElement)}
       })
     case 'exists':
-      return touching(() => {
+      return touching(call, () => {
         const matches = action.selector ? selectDeep(action.selector) : []
         return {exists: matches.length > 0, count: matches.length}
       })
     case 'snapshot':
-      return touching(() => {
+      return touching(call, () => {
         const root = resolveRoot(call, action.selector)
         if (!root) return {nodes: []}
         call.resetRefs()
         return {nodes: buildSnapshot(root, call.addRef)}
       })
     case 'screenshot':
-      return shot(action)
+      return shot(action, call)
     case 'hmr':
-      return touchingAsync(() => waitForHotUpdate(action.timeout))
+      return touchingAsync(call, () => waitForHotUpdate(action.timeout))
     case 'locate':
-      return touchingAsync(async () => {
+      return touchingAsync(call, async () => {
         const located = await reactBridge.locate(call.target(action), call.addRef)
         return located ?? fail('no React fiber: element may be outside a React tree or not hydrated yet')
       })
     case 'inspect':
-      return touchingAsync(async () => {
+      return touchingAsync(call, async () => {
         const inspected = await reactBridge.inspect(call.target(action))
         if (!inspected) fail('no React fiber for element')
         const root = {props: inspected.props, state: inspected.state, hooks: inspected.hooks}
@@ -396,7 +392,7 @@ function perform(
         }
       })
     case 'override':
-      return touchingAsync(async () => {
+      return touchingAsync(call, async () => {
         const el = call.target(action)
         let value: unknown
         try {
@@ -411,24 +407,24 @@ function perform(
         return ok({target: action.target, path: action.path ?? '', ...(value === undefined ? {} : {value})})
       })
     case 'tree':
-      return touchingAsync(async () => {
+      return touchingAsync(call, async () => {
         const root = resolveRoot(call, action.selector)
         return root ? await reactBridge.tree(root, call.addRef) : badArgs('no root element')
       })
     case 'find':
-      return touchingAsync(async () => reactBridge.find(action.name, call.addRef))
+      return touchingAsync(call, async () => reactBridge.find(action.name, call.addRef))
     case 'track':
-      return touching(() => {
+      return touching(call, () => {
         const tracked = action.action ?? 'report'
         if (tracked === 'start') {
-          startTracking()
+          call.tracker.start()
           return ok({tracking: true})
         }
-        if (tracked === 'stop') return stopTracking()
-        return trackReport({name: action.name})
+        if (tracked === 'stop') return call.tracker.stop()
+        return call.tracker.report({name: action.name})
       })
     case 'effect':
-      return touching(() => {
+      return touching(call, () => {
         const driven = action.action ?? 'list'
         if (driven === 'list') return listEffects(effects, action.effect)
         const effect = requireEffect(effects, action.effect, driven)
@@ -436,29 +432,29 @@ function perform(
         return {effect: effect.name, enabled: effect.enabled()}
       })
     case 'wait':
-      return touchingAsync(() =>
+      return touchingAsync(call, () =>
         action.selector
           ? waitFor(action.selector, action.state ?? 'visible', action.timeout ?? 5000, signal)
           : badArgs('wait requires a selector'),
       )
     case 'reload':
-      return touching(() => {
+      return touching(call, () => {
         afterResultFlush(() => call.document.location.reload())
         return ok({initiated: true})
       })
     case 'text':
-      return touching(() => ({text: (call.target(action).textContent ?? '').slice(0, DOM_CAP)}))
+      return touching(call, () => ({text: (call.target(action).textContent ?? '').slice(0, DOM_CAP)}))
     case 'value':
-      return touching(() => {
+      return touching(call, () => {
         const el = call.target(action)
         if (!isField(el)) return {value: null}
         return {value: isSensitiveField(el) ? MASKED_VALUE : el.value}
       })
     case 'attr':
-      return touching(() => ({value: maskedValueAttribute(call.target(action), action.attribute)}))
+      return touching(call, () => ({value: maskedValueAttribute(call.target(action), action.attribute)}))
     case 'click':
       return acting(call, action, () => {
-        simulateClick({element: actionableTarget(call, action), agent: call.agentId})
+        call.simulator.simulateClick({element: actionableTarget(call, action), agent: call.agentId})
         return ok()
       })
     case 'hover':
@@ -467,7 +463,7 @@ function perform(
         action,
         () => {
           const element = actionableTarget(call, action)
-          pointAt({element, agent: call.agentId})
+          call.simulator.pointAt({element, agent: call.agentId})
           hover(element)
           return ok()
         },
@@ -478,13 +474,13 @@ function perform(
         call,
         action,
         () => {
-          pointAt({element: call.target(action), agent: call.agentId})
+          call.simulator.pointAt({element: call.target(action), agent: call.agentId})
           return ok()
         },
         'point',
       )
     case 'submit':
-      return touching(() => {
+      return touching(call, () => {
         const el = call.target(action)
         const form = el instanceof HTMLFormElement ? el : el.closest('form')
         if (!form) badArgs('no form to submit')
@@ -511,7 +507,7 @@ function perform(
             return ok()
           }
           const element = actionableTarget(call, action)
-          pointAt({element, agent: call.agentId})
+          call.simulator.pointAt({element, agent: call.agentId})
           if (isHtml(element)) element.focus({preventScroll: true})
           press({element, key: action.key})
           return ok()
@@ -522,54 +518,54 @@ function perform(
     case 'queue_async':
       return accepted(call, action.actions.length, signal)
     case 'setattr':
-      return touching(() => {
+      return touching(call, () => {
         call.target(action).setAttribute(action.attribute, action.value)
         return ok()
       })
     case 'removeattr':
-      return touching(() => {
+      return touching(call, () => {
         call.target(action).removeAttribute(action.attribute)
         return ok()
       })
     case 'addclass':
-      return touching(() => {
+      return touching(call, () => {
         call.target(action).classList.add(action.class)
         return ok()
       })
     case 'removeclass':
-      return touching(() => {
+      return touching(call, () => {
         call.target(action).classList.remove(action.class)
         return ok()
       })
     case 'setstyle':
-      return touching(() => {
+      return touching(call, () => {
         const el = call.target(action)
         if (!(el instanceof HTMLElement)) badArgs('setstyle target is not an HTMLElement')
         el.style.setProperty(action.prop, action.value)
         return ok()
       })
     case 'settext':
-      return touching(() => {
+      return touching(call, () => {
         call.target(action).textContent = action.text
         return ok()
       })
     case 'sethtml':
-      return touching(() => {
+      return touching(call, () => {
         call.target(action).innerHTML = action.html
         return ok()
       })
     case 'remove':
-      return touching(() => {
+      return touching(call, () => {
         call.target(action).remove()
         return ok()
       })
     case 'insert':
-      return touching(() => {
+      return touching(call, () => {
         call.target(action).insertAdjacentHTML(INSERT_POS[action.position ?? 'append'], action.html)
         return ok()
       })
     case 'css':
-      return touching(() => {
+      return touching(call, () => {
         const style = call.document.createElement('style')
         style.setAttribute('data-vibe-css', '')
         style.textContent = action.text
@@ -577,7 +573,7 @@ function perform(
         return ok()
       })
     case 'eval':
-      return touchingAsync(async () => {
+      return touchingAsync(call, async () => {
         const evaluated: unknown = await evaluate(action.code)
         return {result: serialize(evaluated)}
       })
@@ -616,19 +612,22 @@ type TargetSlot = {el: Element | null}
 function accepted(call: Call, of: number, signal: AbortSignal | undefined): Answer {
   const queued = call.queued
   if (queued === undefined) badArgs('page_queue plays through the engine queue only')
-  startTask(call.agentId)
-  touchTask()
-  acceptQueue(queued.id, signal)
+  call.simulator.startTask(call.agentId)
+  call.simulator.touchTask()
+  call.simulator.acceptQueue(queued.id, signal)
   return result({queueId: queued.id, status: 'playing', done: 0, of})
 }
 
 function callCtx(
+  simulator: Simulator,
+  tracker: Tracker,
   agentId: string,
   refs: Refs,
   consoleBuf: ConsoleEntry[],
   slot: TargetSlot,
   queued: Queued | undefined,
   signal: AbortSignal | undefined,
+  snapdom: Call['snapdom'],
 ): Call {
   const remember = (el: Element | null): Element | null => {
     if (el !== null) slot.el = el
@@ -636,7 +635,10 @@ function callCtx(
   }
   const resolve = (locator: Locator): Element | null => remember(locatorTarget(locator, refs))
   return {
+    simulator,
+    tracker,
     agentId,
+    snapdom,
     ...(queued === undefined ? {} : {queued}),
     ...(signal === undefined ? {} : {signal}),
     document,
@@ -666,14 +668,14 @@ type CaptureCollector = {
   entries: () => readonly PendingBundleEntry[]
 }
 
-function makeCaptureCollector(operation: string): CaptureCollector {
+function makeCaptureCollector(operation: string, snapshot: () => SnapshotLibrary | null): CaptureCollector {
   const entries: PendingBundleEntry[] = []
   const seen = new Set<ElementCaptureKind>()
   return {
     take: (kind, el) => {
       if (el === null || seen.has(kind)) return
       try {
-        const taken = takeElementCapture(el, kind, {document, snapshot: loadedSnapshotLibrary()})
+        const taken = takeElementCapture(el, kind, {document, snapshot: snapshot()})
         if (taken === null) return
         seen.add(kind)
         entries.push({kind, capture: taken.capture, pendingCss: taken.pendingCss})
@@ -741,20 +743,29 @@ function failure(error: PageFailure): Outcome {
   return {type: 'failure', code: 'handler-error', message: error.error.message.slice(0, SHORT_MAX)}
 }
 
-export function makePageOperations(effects: readonly PageEffect[]): PageOperations {
+export function makePageOperations(
+  effects: readonly PageEffect[],
+  simulator: Simulator,
+  tracker: Tracker,
+  notify: (message: string) => void,
+): PageOperations {
   const refs: Refs = {map: new Map(), n: 0}
   const scope = Scope.makeUnsafe()
   const consoleBuf = Effect.runSync(consoleBuffer.pipe(Scope.provide(scope)))
-  void loadSnapshotLibrary()
+  const snapshots = makeSnapshotLoader(notify)
+  const snapdom = cacheImport(() => import('@zumer/snapdom'))
+  void snapshots.warm()
 
   const dispatch = Effect.fnUntraced(function* (command: PageCommand, signal: AbortSignal | undefined) {
     yield* Effect.try({try: () => signal?.throwIfAborted(), catch: toPageFailure})
-    void loadSnapshotLibrary()
+    void snapshots.warm()
     const {action} = command
     const mode = captureMode(action)
     const slot: TargetSlot = {el: null}
-    const captures = makeCaptureCollector(action.type)
-    const call = callCtx(command.agentId, refs, consoleBuf, slot, command.queued, signal)
+    const captures = makeCaptureCollector(action.type, snapshots.loaded)
+    const call = callCtx(simulator, tracker, command.agentId, refs, consoleBuf, slot, command.queued, signal, () =>
+      Effect.runPromise(snapdom),
+    )
     const answer = yield* Effect.tryPromise({
       try: async () => perform(action, capturingCall(call, mode, captures), effects, signal),
       catch: toPageFailure,
@@ -785,7 +796,6 @@ export function makePageOperations(effects: readonly PageEffect[]): PageOperatio
   function dispose(): void {
     for (const effect of effects) if (effect.enabled()) effect.set(false)
     Effect.runSync(Scope.close(scope, Exit.void))
-    unwatchLayout()
   }
 
   return {execute, dispose}

@@ -35,36 +35,37 @@ export async function discoveredEngine(directory: string): Promise<ServerState |
   return discoveredEngine(parent)
 }
 
-type EngineOrigin = {origin: string; outside: boolean}
+type EngineAddress = {origin: string; token: string | undefined}
+
+type EngineOrigin = EngineAddress & {outside: boolean}
 
 const SILENT_HINT =
   'a dev server still starting answers once it is ready; run the command again, or restart the dev server if it stays silent.'
 
 export async function engineOrigin(cwd: string, env: NodeJS.ProcessEnv, tab: SessionId | null): Promise<EngineOrigin> {
   const home = concivHome({env})
-  if (tab !== null) return {origin: await tabOwner(home, tab), outside: true}
+  if (tab !== null) return {...(await tabOwner(home, tab)), outside: true}
   const discovered = await discoveredEngine(cwd)
   const port = env.CONCIV_PORT ?? discovered?.port
   const token = env.CONCIV_TOKEN ?? discovered?.token
-  if (port !== undefined) return {origin: scopedOrigin(port, token), outside: false}
+  if (port !== undefined) return {...scopedOrigin(port, token), outside: false}
   const first = await checkEngines(home, {timeoutMs: PROBE_MS})
   if (first.live.length === 0 && first.unreachable.length === 0) {
-    return {origin: scopedOrigin(DEFAULT_ENGINE_PORT, token), outside: false}
+    return {...scopedOrigin(DEFAULT_ENGINE_PORT, token), outside: false}
   }
   const checked = first.live.length > 0 ? first : await askAgain(home, first.unreachable)
   const latest = checked.live.at(-1)
   if (latest === undefined) {
     throw userFailure(`no conciv dev server answered: ${silence(checked.unreachable)}.`, {hint: SILENT_HINT})
   }
-  return {origin: latest.apiBase, outside: true}
+  return {origin: latest.apiBase, token: latest.token, outside: true}
 }
 
-export function scopedOrigin(port: string | number, token: string | undefined): string {
-  const origin = `http://127.0.0.1:${port}`
-  return token === undefined ? origin : `${origin}/t/${token}`
+export function scopedOrigin(port: string | number, token: string | undefined): EngineAddress {
+  return {origin: `http://127.0.0.1:${port}`, token}
 }
 
-async function tabOwner(home: string, tab: SessionId): Promise<string> {
+async function tabOwner(home: string, tab: SessionId): Promise<EngineAddress> {
   const first = await checkEngines(home, {timeoutMs: PROBE_MS})
   if (first.live.length === 0 && first.unreachable.length === 0) {
     throw userFailure(
@@ -97,10 +98,10 @@ function isOpen(asked: TabAsk): boolean {
   return asked.answer?.open === true
 }
 
-function ownerAmong(tab: SessionId, answers: TabAsk[], silent: Silent): string {
+function ownerAmong(tab: SessionId, answers: TabAsk[], silent: Silent): EngineAddress {
   const owners = answers.filter(isOpen).map((answer) => answer.row)
   const [owner, ...others] = owners
-  if (owner !== undefined && others.length === 0) return owner.apiBase
+  if (owner !== undefined && others.length === 0) return {origin: owner.apiBase, token: owner.token}
   if (owner !== undefined) {
     const roots = owners.map((row) => row.root).join(', ')
     throw userFailure(`tab ${tab} is open in ${owners.length} running conciv dev servers: ${roots}.`, {

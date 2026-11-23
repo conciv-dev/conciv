@@ -22,7 +22,6 @@ import {
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
 import {
-  OpenSourceResultSchema,
   PageChangeEntrySchema,
   PageQueueHandleSchema,
   PageQueueProgressSchema,
@@ -33,7 +32,7 @@ import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
 import {TtyServerControlSchema} from '@conciv/protocol/terminal-types'
 import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
-import {OpenSourceSchema, SourceLocSchema} from './source-location.js'
+import {SourceLocSchema} from './source-location.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
@@ -543,9 +542,6 @@ export const contract = {
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
     changes: oc.errors(approvalDenied).output(z.array(PageChangeEntrySchema)),
     clearChanges: oc.errors(approvalDenied).output(Ok),
-  },
-  editor: {
-    openFromFrames: oc.input(OpenSourceSchema).output(OpenSourceResultSchema),
   },
   meta: {
     models: oc.errors(approvalDenied).input(SessionIdInput).output(ChatModelsSchema),

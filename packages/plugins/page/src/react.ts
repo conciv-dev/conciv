@@ -30,8 +30,10 @@ type Renderer = {
 
 export function installReactBridge(): void {
   try {
-    installTracker()
-  } catch {}
+    instrument({})
+  } catch (error) {
+    console.warn('[conciv] react devtools hook unavailable', error)
+  }
 }
 
 function getRenderer(): Renderer | null {
@@ -379,7 +381,7 @@ export function find(
 
 type Stat = {component: string; renders: number; lastReason: string; changedProps: string[]; selfTimeMaxMs: number}
 
-type TrackReport = {
+export type TrackReport = {
   tracking: boolean
   tracked: number
 
@@ -394,7 +396,12 @@ type TrackReport = {
   note?: string
 }
 
-const state = {tracking: false, installed: false, stats: new Map<number, Stat>()}
+export type Tracker = {
+  start: () => void
+  report: (opts?: {name?: string; limit?: number}) => TrackReport
+  stop: () => TrackReport
+  dispose: () => void
+}
 
 const isRecordPair = (prev: unknown, next: unknown): boolean =>
   Boolean(prev) && Boolean(next) && typeof next === 'object' && typeof prev === 'object'
@@ -406,16 +413,8 @@ function changedProps(fiber: Fiber): string[] {
   return [...new Set([...Object.keys(prev), ...Object.keys(next)])].filter((k) => prev[k] !== next[k])
 }
 
-function statFor(fiber: Fiber): Stat {
-  return (
-    state.stats.get(getFiberId(fiber)) ?? {
-      component: getDisplayName(fiber) || '?',
-      renders: 0,
-      lastReason: '',
-      changedProps: [],
-      selfTimeMaxMs: 0,
-    }
-  )
+function freshStat(fiber: Fiber): Stat {
+  return {component: getDisplayName(fiber) || '?', renders: 0, lastReason: '', changedProps: [], selfTimeMaxMs: 0}
 }
 
 const renderReason = (mount: boolean, cp: string[]): string =>
@@ -427,40 +426,28 @@ function bumpSelfTime(cur: Stat, fiber: Fiber): void {
   if (self > cur.selfTimeMaxMs) cur.selfTimeMaxMs = self
 }
 
-function recordRender(fiber: Fiber): void {
-  const cur = statFor(fiber)
+function recordRender(stats: Map<number, Stat>, fiber: Fiber): void {
+  const cur = stats.get(getFiberId(fiber)) ?? freshStat(fiber)
   cur.renders += 1
   const mount = !fiber.alternate
   const cp = mount ? [] : changedProps(fiber)
   cur.changedProps = cp
   cur.lastReason = renderReason(mount, cp)
   bumpSelfTime(cur, fiber)
-  state.stats.set(getFiberId(fiber), cur)
+  stats.set(getFiberId(fiber), cur)
 }
 
-function onCommit(_rendererID: number, root: Fiber): void {
-  if (!state.tracking) return
-  traverseRenderedFibers(root, (fiber: Fiber) => {
-    if (isCompositeFiber(fiber)) recordRender(fiber)
-  })
+function matchesName(stat: Stat, name: string | undefined): boolean {
+  return name === undefined || name === '' || stat.component.toLowerCase().includes(name.toLowerCase())
 }
 
-export function installTracker(): void {
-  if (state.installed) return
-  state.installed = true
-  instrument({onCommitFiberRoot: onCommit})
-}
-
-export function startTracking(): void {
-  state.stats.clear()
-  state.tracking = true
-}
-
-export function report(opts: {name?: string; limit?: number} = {}): TrackReport {
-  const all = [...state.stats.values()]
+function buildReport(stats: Map<number, Stat>, tracking: boolean, opts: {name?: string; limit?: number}): TrackReport {
+  const all = [...stats.values()]
   const timingsAvailable = all.some((s) => s.selfTimeMaxMs > 0)
-  const filtered = opts.name ? all.filter((s) => s.component.toLowerCase().includes(opts.name!.toLowerCase())) : all
-  const ranked = filtered.toSorted((a, b) => b.renders - a.renders).slice(0, opts.limit ?? 15)
+  const ranked = all
+    .filter((s) => matchesName(s, opts.name))
+    .toSorted((a, b) => b.renders - a.renders)
+    .slice(0, opts.limit ?? 15)
   const components = ranked.map((s) => ({
     component: s.component,
     renders: s.renders,
@@ -469,7 +456,7 @@ export function report(opts: {name?: string; limit?: number} = {}): TrackReport 
     ...(timingsAvailable ? {selfTimeMaxMs: Number(s.selfTimeMaxMs.toFixed(2))} : {}),
   }))
   return {
-    tracking: state.tracking,
+    tracking,
     tracked: all.length,
     timingsAvailable,
     components,
@@ -477,10 +464,45 @@ export function report(opts: {name?: string; limit?: number} = {}): TrackReport 
   }
 }
 
-export function stopTracking(): TrackReport {
-  const r = report()
-  state.tracking = false
-  return {...r, tracking: false}
+export function makeTracker(): Tracker {
+  const tracker = {tracking: false, stats: new Map<number, Stat>()}
+  const subscribed = subscribeCommits((root) => {
+    if (!tracker.tracking) return
+    traverseRenderedFibers(root, (fiber: Fiber) => {
+      if (isCompositeFiber(fiber)) recordRender(tracker.stats, fiber)
+    })
+  })
+  const report = (opts: {name?: string; limit?: number} = {}): TrackReport =>
+    subscribed.ok
+      ? buildReport(tracker.stats, tracker.tracking, opts)
+      : {tracking: false, tracked: 0, timingsAvailable: false, components: [], note: TRACKING_UNAVAILABLE}
+  return {
+    start: () => {
+      tracker.stats.clear()
+      tracker.tracking = true
+    },
+    report,
+    stop: () => {
+      const r = report()
+      tracker.tracking = false
+      return {...r, tracking: false}
+    },
+    dispose: subscribed.unsubscribe,
+  }
+}
+
+const TRACKING_UNAVAILABLE = 'render tracking is unavailable: this page does not let conciv hook into React'
+
+function subscribeCommits(onCommit: (root: Fiber) => void): {ok: boolean; unsubscribe: () => void} {
+  try {
+    return {
+      ok: true,
+      unsubscribe: instrument({onCommitFiberRoot: (_rendererID: number, root: Fiber) => onCommit(root)}),
+    }
+  } catch (error) {
+    console.warn('[conciv] react render tracking unavailable', error)
+    return {ok: false, unsubscribe: () => {}}
+  }
 }
 
 export function sourceFromAttr(el: Element): SourceLoc | null {

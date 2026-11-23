@@ -19,7 +19,7 @@ import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {logOnContext, logOnRuntime, type Log, type LogEntry, type LogOptions} from './lib/logging.js'
 import {inSpan, type Tracer} from '@conciv/ai/server'
 import {startObservability, type EngineObservability} from './runtime/observability.js'
-import {agentPath} from './engine-login.js'
+import {engineMcpUrl} from './engine-login.js'
 import {carryEngineRouter, readEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
@@ -337,9 +337,9 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     const baseEnv = {...(opts.childEnv ? opts.childEnv(portRef.port) : env), CONCIV_TOKEN: agentToken}
     return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
   }
-  const tokenScopedBase = (): string | undefined => {
+  const boundOrigin = (): string | undefined => {
     if (portRef.port === 0) return undefined
-    return `http://127.0.0.1:${portRef.port}${agentPath(agentToken)}`
+    return `http://127.0.0.1:${portRef.port}`
   }
 
   const appOpts: MakeAppOpts = {
@@ -361,7 +361,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     allowedOrigins: opts.allowedOrigins,
     onShutdown: opts.onShutdown,
     nativePageDir: opts.nativePageDir,
-    tokenScopedBase,
+    boundOrigin,
     plugins: opts.plugins,
     harnesses: opts.harnesses,
     firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
@@ -398,27 +398,28 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
   const log = logOnRuntime(made.pluginHost)
 
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
-  const base = tokenScopedBase()
+  const origin = boundOrigin()
   try {
-    if (base) {
-      const endpoint = claudeConnectEndpointFile({stateDir: paths.dir, mcpUrl: `${base}/api/mcp`})
+    if (origin) {
+      const endpoint = claudeConnectEndpointFile({stateDir: paths.dir, mcpUrl: engineMcpUrl(origin, agentToken)})
       await writePrivateFile(endpoint.path, endpoint.contents)
     }
-    if (opts.nativePageDir && base) {
-      await writeDevEndpoint(endpointDir, {apiBase: base, token: agentToken, pid: process.pid})
+    if (opts.nativePageDir && origin) {
+      await writeDevEndpoint(endpointDir, {apiBase: origin, token: agentToken, pid: process.pid})
     }
   } catch (error) {
     await abandonStart([dispose])
     throw error
   }
-  const retire = base
+  const retire = origin
     ? await registerForOutsideAgents(
         home,
         {
           id: engineId,
           pid: process.pid,
           root: opts.root,
-          apiBase: base,
+          apiBase: origin,
+          token: agentToken,
         },
         log,
       )

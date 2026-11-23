@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chat state and pure derivations: the `ChatProvider` context with view state, turn coalescing and part grouping, page-session grouping, turn rollups, session status, run clock and the tool view context.
+Chat state and pure derivations: the `ChatProvider` context with view state, turn coalescing and part grouping, turn rollups, session status, run clock and the tool view context.
 
 ## Interface
 

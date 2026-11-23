@@ -18,8 +18,13 @@ describe('auth', () => {
     })
 
     const client = makeRpcClient(engine.address.apiBase)
+    const exchanged = z.object({token: z.string()}).parse(await client.auth.exchange({code: await engine.loginCode()}))
     expect(await client.auth.exchange({code: await engine.loginCode()})).toEqual({token: expect.any(String)})
-    expect(await client.auth.exchange({code: await engine.loginCode()})).toEqual({token: expect.any(String)})
+    await expect(
+      makeRpcClient(engine.address.apiBase, {token: exchanged.token}).auth.issueCode(),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
 
     const listed = await cli(['auth', 'revoke'], {cwd: engine.root})
     const trusted = z

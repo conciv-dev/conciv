@@ -1,7 +1,7 @@
 import type {Dirent} from 'node:fs'
 import {readdir, stat} from 'node:fs/promises'
 import {join} from 'node:path'
-import {DatabaseSync, type SQLInputValue} from 'node:sqlite'
+import type {SQLInputValue} from 'node:sqlite'
 import {z} from 'zod'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -14,9 +14,10 @@ import type {
   TranscriptPage,
   TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
-import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
-import {containedPath} from '../_shared/contained-path.js'
+import {sameCwd} from '../_shared/cwd.js'
+import {containedPath, containedRealPath, resolveRealPath} from '../_shared/contained-path.js'
 import {pageAfter} from '../_shared/page.js'
+import {withDatabase} from '../_shared/read-database.js'
 import {whenMissing} from '../_shared/when-missing.js'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
@@ -34,14 +35,8 @@ export function sessionsRoot(home: string): string {
   return join(home, 'sessions')
 }
 
-async function queryRows(dbPath: string, sql: string, params: SQLInputValue[]): Promise<unknown[]> {
-  if ((await stat(dbPath).catch(whenMissing(null))) === null) return []
-  const db = new DatabaseSync(dbPath, {readOnly: true})
-  try {
-    return db.prepare(sql).all(...params)
-  } finally {
-    db.close()
-  }
+function queryRows(dbPath: string, sql: string, params: SQLInputValue[]): unknown[] {
+  return withDatabase<unknown[]>(dbPath, [], (db) => db.prepare(sql).all(...params))
 }
 
 const ThreadRowSchema = z
@@ -74,7 +69,7 @@ const THREAD_BY_ID = `select ${THREAD_COLUMNS} from threads where id = ? limit 1
 const PROJECT_THREAD = `select ${THREAD_COLUMNS} from threads where id = ? and cwd = ? limit 1`
 
 async function threadRows(dbPath: string, sql: string, params: SQLInputValue[]): Promise<ThreadRow[]> {
-  return (await queryRows(dbPath, sql, params)).flatMap((row) => {
+  return queryRows(dbPath, sql, params).flatMap((row) => {
     const parsed = ThreadRowSchema.safeParse(row)
     return parsed.success ? [parsed.data] : []
   })
@@ -344,7 +339,10 @@ async function transcriptMessages(
 
 async function listSessions(home: string, scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage> {
   const after = page.after
-  const projectCwd = 'cwd' in scope ? realpathOrSelf(scope.cwd) : null
+  const [realHome, projectCwd] = await Promise.all([
+    resolveRealPath(home),
+    'cwd' in scope ? resolveRealPath(scope.cwd) : null,
+  ])
   const rows = await threadRows(stateDbPath(home), LIST_THREADS, [
     projectCwd,
     projectCwd,
@@ -354,12 +352,12 @@ async function listSessions(home: string, scope: HarnessListScope, page: Harness
     page.limit + 1,
   ])
   const paged = pageAfter(rows, page, (row) => ({updatedAt: millis(row.updated_at_ms, row.updated_at), id: row.id}))
-  const metas = await Promise.all(paged.items.map((row) => threadMeta(home, row)))
+  const metas = await Promise.all(paged.items.map((row) => threadMeta(realHome, row)))
   return {sessions: metas.filter((meta) => meta !== null), next: paged.next}
 }
 
-async function threadMeta(home: string, row: ThreadRow): Promise<HarnessSessionMeta | null> {
-  const path = await containedPath(home, row.rollout_path)
+async function threadMeta(realHome: string, row: ThreadRow): Promise<HarnessSessionMeta | null> {
+  const path = await containedRealPath(realHome, row.rollout_path)
   if (path === null) return null
   const info = await stat(path).catch(whenMissing(null))
   if (info === null) return null
@@ -377,8 +375,9 @@ async function threadMeta(home: string, row: ThreadRow): Promise<HarnessSessionM
 }
 
 async function storedMeta(home: string, cwd: string, sessionId: string): Promise<HarnessSessionMeta | null> {
-  const row = (await threadRows(stateDbPath(home), PROJECT_THREAD, [sessionId, realpathOrSelf(cwd)])).at(0)
-  return row ? threadMeta(home, row) : null
+  const [realHome, realCwd] = await Promise.all([resolveRealPath(home), resolveRealPath(cwd)])
+  const row = (await threadRows(stateDbPath(home), PROJECT_THREAD, [sessionId, realCwd])).at(0)
+  return row ? threadMeta(realHome, row) : null
 }
 
 type EventLine = {event: SpineEvent; offset: number}

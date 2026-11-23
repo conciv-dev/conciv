@@ -14,7 +14,7 @@ const IMMEDIATE: {behavior: 'immediate'} = {behavior: 'immediate'}
 
 export type HomeDb = ReturnType<typeof drizzle>
 
-export type EngineRow = {id: string; pid: number; root: string; apiBase: string}
+export type EngineRow = {id: string; pid: number; root: string; apiBase: string; token: string}
 
 export function concivHome(options: {homeDir?: string; env: NodeJS.ProcessEnv}): string {
   return options.homeDir ?? ConcivHomeSchema.parse(options.env['CONCIV_HOME']) ?? envPaths('conciv', {suffix: ''}).data
@@ -75,7 +75,7 @@ export function retireEngine(db: HomeDb, id: string, now: number): void {
 
 export function listEngines(db: HomeDb): EngineRow[] {
   return db
-    .select({id: engines.id, pid: engines.pid, root: engines.root, apiBase: engines.apiBase})
+    .select({id: engines.id, pid: engines.pid, root: engines.root, apiBase: engines.apiBase, token: engines.token})
     .from(engines)
     .where(isNull(engines.deletedAt))
     .orderBy(sql`rowid`)

@@ -64,7 +64,6 @@ export {
 export {TraceActionRow} from './styled/trace/action-row.js'
 export {TracePermissionBlock} from './styled/trace/permission-block.js'
 export {Trace, type TraceBranch, type TraceItem} from './styled/trace/trace.js'
-export {ElementPreview} from './tools/styled/element-preview.js'
 export {Chip, ChipRow, ChipGroup, CHIP} from './tools/styled/chip.js'
 export {CodeBlock, DiffBlock, diffBlockClass, SUNKEN_SURFACE} from './tools/styled/code-block.js'
 export {ErrorBlock} from './tools/styled/error-block.js'
@@ -76,14 +75,6 @@ export {JsonTree} from './tools/styled/json-tree.js'
 export {ShapedValue} from './tools/styled/shaped-content.js'
 export {NoteRow, type NoteRowTone} from './tools/styled/note-row.js'
 export {SHIMMER} from './styled/shimmer.js'
-export {
-  ELEMENT_CAPTURE_FIXTURE_CSS,
-  ELEMENT_CAPTURE_FIXTURE_FULL,
-  ELEMENT_CAPTURE_FIXTURE_EDIT_BEFORE,
-  ELEMENT_CAPTURE_FIXTURE_EDIT_AFTER,
-  ELEMENT_CAPTURE_FIXTURE_MASKED,
-  ELEMENT_CAPTURE_FIXTURE_DESCRIPTOR_ONLY,
-} from './tools/element-capture.fixtures.js'
 export {BasicTool, GenericTool, type BasicToolProps, type TriggerTitle} from './tools/styled/basic-tool.js'
 export {ToolErrorCard, type ToolErrorCardProps} from './tools/styled/tool-error-card.js'
 export {ToolDisplay, type ToolDisplayProps} from './tools/styled/tool-display.js'

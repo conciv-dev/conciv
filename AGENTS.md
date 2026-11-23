@@ -152,6 +152,8 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   a test file is at most 1,000 lines. The app is the one exception, as opencode's keeper suites
   (`_ref/opencode/packages/app/e2e/regression/`): `apps/conciv` has one browser-mode file per product area
   (`src/<area>.browser.test.tsx`), and a new case goes into its area's file.
+- Test budget (`test-budget.json`, `conciv-publish check-test-budget`, CI repo checks): extend an existing test;
+  going over a package's budget means raising its number in the PR, which the maintainer approves.
 - The kits. `@conciv/plugin-testkit`: `createEngine(config, start)`, `TestLLM`. `@conciv/plugin-testkit/browser`:
   `mount` and `createEngineRouterHistory`; `mount({engine, history})` opens the app on a tab's last screen (`createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})`, written to sessionStorage) or on any TanStack `RouterHistory`. `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. `config` is the product's own
   `ConcivConfig`; `start` is only what is not product config (`directory`, `timeouts`, `harnesses`, `env`, `fs`,
