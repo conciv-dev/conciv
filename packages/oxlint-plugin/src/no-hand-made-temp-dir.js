@@ -220,7 +220,7 @@ export default {
     type: 'problem',
     messages: {
       e2eTempDir:
-        'An e2e helper or spec that makes a folder or file under the OS temp dir leaves it behind when the run ends. Put it under the app run state folder e2e/.conciv-e2e/<app> (e2eDevEndpointDir in @conciv/e2e-utils/dev-endpoint shows the path), which the e2e web server empties at start and the shared state cleanup reporter removes when the run ends; a folder that must stay outside the repo goes in the runFolders the same reporter removes.',
+        'An e2e helper or spec that makes a folder or file under the OS temp dir leaves it behind when the run ends. Put it under the app run state folder e2e/.conciv-e2e/<app> (e2eDevEndpointDir in @conciv/e2e-utils/state-dir shows the path), which the e2e web server empties at start and the shared state cleanup reporter removes when the run ends; a folder that must stay outside the repo goes in the runFolders the same reporter removes.',
       testkitTempDir:
         'A testkit that makes its own folder or file under the OS temp dir leaks it when setup throws or the caller never cleans up. Take a folder the caller owns and removes: pass it in.',
       handMadeTempDir:

@@ -30,7 +30,6 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
         port: options.port === undefined ? undefined : {exact: options.port},
         launchEditor: makeOpenInEditor(root),
         nativePageDir: builtins.nativePageDir,
-        devEndpointDir: options.devEndpointDir,
         homeDir: options.homeDir,
         log: {emit: writeEngineLine},
         childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),

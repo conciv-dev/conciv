@@ -1,5 +1,6 @@
 import {join} from 'node:path'
 import {Schema} from 'effect'
+import {omit} from 'es-toolkit'
 import {z} from 'zod'
 
 const DEFAULT_SIMULATOR = 'iPhone 17 Pro'
@@ -36,14 +37,16 @@ const FullIosConfigSchema = z.object({
   concivUrl: ConcivUrlSchema.optional(),
 })
 
-function emptyToUndefined(raw: unknown): unknown {
-  if (raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length === 0) return undefined
-  return raw
+function appOptions(raw: unknown): unknown {
+  const record = z.record(z.string(), z.unknown()).safeParse(raw)
+  if (!record.success) return raw
+  const app = omit(record.data, ['devEndpointDir'])
+  return Object.keys(app).length === 0 ? undefined : app
 }
 
 export const InvalidOptions = Schema.TaggedStruct('InvalidOptions', {message: Schema.String})
 
-export const IosConfigSchema = z.preprocess(emptyToUndefined, FullIosConfigSchema.optional())
+export const IosConfigSchema = z.preprocess(appOptions, FullIosConfigSchema.optional())
 
 export type IosConfig = z.infer<typeof FullIosConfigSchema>
 

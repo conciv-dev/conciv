@@ -2,7 +2,7 @@ import {readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {test as base, expect, type Page} from '@playwright/test'
 import {e2eConfigDir} from './config.js'
-import {e2ePluginCopyDir} from './dev-endpoint.js'
+import {e2ePluginCopyDir} from './state-dir.js'
 import {collectFailures, expectWidgetBoots, loginWidget} from './widget.js'
 
 type RebuildPlugin = (plugin: string, from: string, to: string) => Promise<void>

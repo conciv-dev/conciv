@@ -194,7 +194,6 @@ async function bootEngine(
     launchEditor: makeOpenInEditor(server.config.root),
     allowedOrigins: devOrigins(server),
     nativePageDir,
-    devEndpointDir: options.devEndpointDir,
     homeDir: options.homeDir,
     log: {emit: (entry) => writeEngineLog(server, entry)},
     childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),

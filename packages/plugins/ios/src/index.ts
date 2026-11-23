@@ -1,9 +1,16 @@
 import {Effect} from 'effect'
 import {Plugin} from '@conciv/plugin/effect'
+import {pairDevEndpoint} from './dev-endpoint.js'
 import {Simctl} from './simctl.js'
 import {register} from './tools.js'
 
 export default Plugin.define({
   id: 'ios',
-  effect: (ctx) => register(ctx).pipe(Effect.provide(Simctl.layer)),
+  effect: (ctx) =>
+    Effect.gen(function* () {
+      yield* pairDevEndpoint(ctx).pipe(
+        Effect.catch((error) => Effect.logError('[ios] writing the dev endpoint file failed', {error})),
+      )
+      yield* register(ctx).pipe(Effect.provide(Simctl.layer))
+    }),
 })

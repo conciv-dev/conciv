@@ -1,7 +1,7 @@
 import {delimiter, dirname, join} from 'node:path'
 import {defineConfig, devices, type PlaywrightTestConfig, type ReporterDescription} from '@playwright/test'
 import getPort from 'get-port'
-import {e2ePluginCopyDir, e2eStateDir} from './dev-endpoint.js'
+import {e2ePluginCopyDir, e2eStateDir} from './state-dir.js'
 
 export type E2EApp =
   | 'vite-vanilla'

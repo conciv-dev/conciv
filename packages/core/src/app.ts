@@ -122,7 +122,7 @@ import {
 import type {OpenInEditor} from './editor/open.js'
 import type {AttachmentDocumentPart, ContentPart} from '@conciv/protocol/chat-message-types'
 import {GRAB_MIME, parseGrabPayload} from '@conciv/grab/grab-attachment'
-import {writePrivateFile} from './lib/dev-endpoint.js'
+import {writePrivateFile} from './lib/private-file.js'
 import {logOnContext, logOnRuntime, type Log, type LogOptions} from './lib/logging.js'
 
 const NO_TAB_MESSAGE = 'pass tab to execute_typescript; list_tabs lists the open tabs'
