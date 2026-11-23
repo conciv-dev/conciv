@@ -219,7 +219,7 @@ export function createTtySessions(opts: {env: Readonly<Record<string, string>>; 
     if (!entry) return
     entries.delete(sessionId)
     if (entry.idle) clearTimeout(entry.idle)
-    runningPty(entry)?.kill()
+    spawnedPty(entry.status)?.kill()
   }
 
   const armIdle = (sessionId: string, entry: Entry): void => {
