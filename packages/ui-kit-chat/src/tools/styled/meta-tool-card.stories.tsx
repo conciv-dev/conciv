@@ -81,7 +81,7 @@ export const ReadTool: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Read the text #headline')).toBeVisible()
+    await expect(canvas.getByText('page_text #headline')).toBeVisible()
     await userEvent.click(canvas.getByRole('button'))
     await waitFor(() => expect(canvas.getByText('read the visible text of an element')).toBeVisible())
     await waitFor(() => expect(canvas.getByText('prefer this over dom when you only need the words')).toBeVisible())
@@ -101,7 +101,7 @@ export const MutatingTool: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Filled the field #email')).toBeVisible()
+    await expect(canvas.getByText('page_fill #email')).toBeVisible()
     await expect(canvas.getByText('page edit')).toBeVisible()
   },
 }
@@ -141,7 +141,7 @@ export const NestedListResult: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', {name: /Ran diagnostics/}))
+    await userEvent.click(canvas.getByRole('button', {name: /system\.diagnostics staging/}))
     await waitFor(() => expect(canvas.getByRole('tree')).toBeVisible())
     await waitFor(() => expect(canvas.getAllByText(/network/, {exact: false}).length).toBeGreaterThan(0))
     await waitFor(() => expect(canvas.getAllByText(/metrics/, {exact: false}).length).toBeGreaterThan(0))
@@ -161,7 +161,7 @@ export const TitleTooltip: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     const page = within(canvasElement.ownerDocument.body)
-    await userEvent.hover(canvas.getByText('Filled the field #email'))
+    await userEvent.hover(canvas.getByText('page_fill #email'))
     await waitFor(() => expect(page.getByRole('tooltip')).toHaveTextContent('type a value into a form field'), {
       timeout: 2000,
     })
@@ -180,6 +180,6 @@ export const PositionalHeadline: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Reading the text main > h1')).toBeVisible()
+    await expect(canvas.getByText('page_text main > h1')).toBeVisible()
   },
 }
