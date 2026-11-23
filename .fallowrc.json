@@ -787,7 +787,8 @@
     "packages/brand/src/brand-guidelines.mdx",
     "packages/embed/src/native-entry.ts",
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",
-    "packages/db/drizzle-home.config.ts"
+    "packages/db/drizzle-home.config.ts",
+    "**/*.typecheck.ts"
   ],
   "framework": [
     {

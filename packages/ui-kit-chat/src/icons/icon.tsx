@@ -1,12 +1,11 @@
 import {createEffect, onCleanup, Show, splitProps, type ComponentProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {AppIconName} from '@conciv/plugin/experimental'
 import {isDocument, isShadowRoot} from '@conciv/ui-kit-system'
-import {getIcon, isIconName} from './catalog.js'
+import {getIcon, isIconName, type IconName} from './catalog.js'
 import {isRegisteredIconName, mountRegisteredIcon, registeredIconSymbol, type RegisteredIconName} from './registry.js'
 
 export interface IconProps extends ComponentProps<'svg'> {
-  name: AppIconName | RegisteredIconName | (string & {})
+  name: IconName | RegisteredIconName | (string & {})
   size?: 'small' | 'normal' | 'large'
 }
 
@@ -15,7 +14,7 @@ export function Icon(props: IconProps): JSX.Element {
   const element: {svg?: SVGSVGElement} = {}
 
   const registered = () => (isRegisteredIconName(split.name) ? split.name : undefined)
-  const iconName = (): AppIconName => (isIconName(split.name) ? split.name : 'plus')
+  const iconName = (): IconName => (isIconName(split.name) ? split.name : 'plus')
 
   const pixelSize = () => (split.size === 'large' ? 20 : split.size === 'small' ? 14 : 16)
 

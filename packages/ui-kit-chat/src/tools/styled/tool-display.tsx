@@ -1,15 +1,15 @@
 import {createMemo, Match, splitProps, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {Dynamic} from 'solid-js/web'
-import type {ToolComponent, ToolProps, ToolRegistry} from '@conciv/plugin/experimental'
 import {BasicTool, GenericTool} from './basic-tool.js'
 import {ToolErrorCard} from './tool-error-card.js'
 import {ToolPartProvider} from './card-chrome.js'
 import {toolErrorSubtitle, webSearchProviderLabel} from '../primitives/tool-error-subtitle.js'
+import type {ToolComponent, ToolProps, ToolRender} from '../primitives/tool-props.js'
 
 export type ToolDisplayProps = ToolProps & {
   id: string
-  render?: (name: string) => Pick<ToolRegistry, 'render' | 'errorComponent'> | undefined
+  render?: ToolRender
   renderPending?: boolean
   durationMs?: number
   tag?: string

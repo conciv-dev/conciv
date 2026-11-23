@@ -1,6 +1,5 @@
 import type {Component} from 'solid-js'
 import type {LucideProps} from 'lucide-solid'
-import type {AppIconName} from '@conciv/plugin/experimental'
 import AppWindowIcon from 'lucide-solid/icons/app-window'
 import ArrowDownIcon from 'lucide-solid/icons/arrow-down'
 import ArrowUpIcon from 'lucide-solid/icons/arrow-up'
@@ -97,7 +96,7 @@ import WandSparklesIcon from 'lucide-solid/icons/wand-sparkles'
 import WrenchIcon from 'lucide-solid/icons/wrench'
 import XIcon from 'lucide-solid/icons/x'
 
-const icons: Record<AppIconName, Component<LucideProps>> = {
+const icons = {
   'app-window': AppWindowIcon,
   'arrow-down': ArrowDownIcon,
   'arrow-up': ArrowUpIcon,
@@ -193,12 +192,18 @@ const icons: Record<AppIconName, Component<LucideProps>> = {
   'wand-sparkles': WandSparklesIcon,
   wrench: WrenchIcon,
   x: XIcon,
+} satisfies Record<string, Component<LucideProps>>
+
+export type IconName = keyof typeof icons
+
+export function iconNames(): IconName[] {
+  return Object.keys(icons).filter(isIconName)
 }
 
-export function isIconName(name: string): name is AppIconName {
+export function isIconName(name: string): name is IconName {
   return Object.hasOwn(icons, name)
 }
 
-export function getIcon(name: AppIconName): Component<LucideProps> {
+export function getIcon(name: IconName): Component<LucideProps> {
   return icons[name]
 }

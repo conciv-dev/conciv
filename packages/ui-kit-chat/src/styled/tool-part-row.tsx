@@ -1,17 +1,15 @@
 import {createMemo, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolRegistry} from '@conciv/plugin/experimental'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {toolCallDuration} from '@conciv/protocol/chat-event-types'
 import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {findToolEntry} from '../tools/primitives/define-toolkit.js'
 import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
 import {parseInput, resultText} from '../tools/primitives/tool-util.js'
+import type {ToolRender} from '../tools/primitives/tool-props.js'
 import {ToolDisplay} from '../tools/styled/tool-display.js'
 import {outsideTag, ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
 import {ROW_ITEM} from './trace/trace-row.js'
-
-export type ToolRender = (name: string) => Pick<ToolRegistry, 'render' | 'errorComponent'> | undefined
 
 export type ToolDisclosure = {
   open: (partId: string) => boolean | undefined

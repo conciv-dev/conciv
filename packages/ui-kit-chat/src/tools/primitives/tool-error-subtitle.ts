@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {uniq} from 'es-toolkit'
-import type {ToolProps} from '@conciv/plugin/experimental'
+import type {ToolProps} from './tool-props.js'
 
 const Text = z.string().min(1)
 
