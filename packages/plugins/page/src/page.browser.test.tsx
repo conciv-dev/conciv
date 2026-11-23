@@ -491,12 +491,12 @@ describe('the page follows the session the user switches to', () => {
 })
 
 describe('the user grabs an element for the agent', () => {
-  test('the picked element is staged in the composer, which takes focus, and is sent with the message to the agent', async () => {
+  test('the picked element is staged in the composer, which takes focus, and is sent with the message to the agent, and one sent alone reads as an attachment', async () => {
     await page.viewport(1280, 800)
     const user = userEvent.setup()
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
-    await engine.reply(TestLLM.text('That button buys the fern'))
+    await engine.reply(TestLLM.text('That button buys the fern'), TestLLM.text('That is the same button'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
     render(() => (
@@ -518,6 +518,14 @@ describe('the user grabs an element for the agent', () => {
     expect(screen.getByRole('button', {name: 'Open grabbed element'})).toBeVisible()
     const [request] = await engine.requests()
     expect(JSON.stringify(request?.messages)).toContain('Buy the fern')
+
+    await user.click(screen.getByRole('button', {name: 'More composer actions'}))
+    await user.click(await screen.findByRole('menuitem', {name: 'Select an element from the page'}))
+    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
+    await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
+    await user.click(await screen.findByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('That is the same button')).toBeVisible()
+    expect(screen.getByRole('article', {name: 'You: 1 attachment'})).toBeVisible()
   })
 })
 
