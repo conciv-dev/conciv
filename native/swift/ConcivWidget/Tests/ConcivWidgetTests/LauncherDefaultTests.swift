@@ -17,7 +17,7 @@ final class LauncherDefaultTests: XCTestCase {
   }
 
   private func discovered() -> ConcivEndpoint {
-    ConcivEndpoint(apiBase: url("http://127.0.0.1:59990"), token: nil, pid: 1)
+    ConcivEndpoint(apiBase: url("http://127.0.0.1:59990"), pid: 1)
   }
 
   private func assertMascotMount(_ message: String) {
@@ -25,7 +25,7 @@ final class LauncherDefaultTests: XCTestCase {
     XCTAssertEqual(controller.container.state.launcher, .mascot, message)
     XCTAssertEqual(
       controller.pageUrl,
-      url("http://127.0.0.1:59990/native?launcher=mascot"),
+      url("http://127.0.0.1:59990/widget?launcher=mascot"),
       "the default mount must ask the page for the mascot launcher: \(message)"
     )
   }
@@ -79,8 +79,8 @@ final class LauncherDefaultTests: XCTestCase {
     XCTAssertEqual(controller.container.state.launcher, .native, "the native FAB stays an explicit opt-in")
     XCTAssertEqual(
       controller.pageUrl,
-      url("http://127.0.0.1:59990/native"),
-      "native mode loads the page with no launcher query"
+      url("http://127.0.0.1:59990/widget?launcher=native"),
+      "native mode asks the page for the native launcher"
     )
   }
 }

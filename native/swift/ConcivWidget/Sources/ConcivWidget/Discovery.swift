@@ -2,29 +2,26 @@ import Foundation
 
 // Deterministic dev-core discovery (06 M5). Foundation-only so the pure logic runs
 // under the macOS-host `swift test` job; the URLSession prober and the re-pair UI
-// live in the UIKit-guarded files. The core writes ~/.conciv/dev-endpoint.json
-// (packages/core/src/lib/dev-endpoint.ts); the simulator shares the host filesystem
-// so a paired endpoint is read directly. `apiBase` in that file already carries the
-// /t/<token> prefix when the core minted an access token, so the WebView loads
-// apiBase/native token-scoped and RPC/SSE are path-scoped with zero extra work.
+// live in the UIKit-guarded files. An engine with the ios plugin writes
+// ~/.conciv/dev-endpoint.json (packages/plugins/ios/src/dev-endpoint.ts); the simulator
+// shares the host filesystem so a paired endpoint is read directly. The file holds no
+// token: the WebView loads apiBase/widget and logs in with a one-time code like any
+// browser.
 
 public struct ConcivEndpoint: Equatable {
   public let apiBase: URL
-  public let token: String?
   public let pid: Int?
 
-  public init(apiBase: URL, token: String?, pid: Int?) {
+  public init(apiBase: URL, pid: Int?) {
     self.apiBase = apiBase
-    self.token = token
     self.pid = pid
   }
 }
 
-// Codable mirror of the pairing file written by the core. Extra keys are ignored so
+// Codable mirror of the pairing file written by the ios plugin. Extra keys are ignored so
 // the file format can grow additively without bricking an older SDK.
 struct DevEndpointFile: Codable {
   let apiBase: String
-  let token: String?
   let pid: Int
 }
 
@@ -46,12 +43,12 @@ public enum ConcivDiscovery {
           !file.apiBase.isEmpty,
           let url = URL(string: file.apiBase)
     else { return nil }
-    return ConcivEndpoint(apiBase: url, token: file.token, pid: file.pid)
+    return ConcivEndpoint(apiBase: url, pid: file.pid)
   }
 
-  // The WebView loads the native page under the (possibly token-scoped) apiBase.
+  // The WebView loads the engine's standalone widget page.
   public static func pageURL(for apiBase: URL) -> URL {
-    apiBase.appendingPathComponent("native")
+    apiBase.appendingPathComponent("widget")
   }
 
   public static func healthURL(for apiBase: URL) -> URL {
@@ -67,7 +64,7 @@ public enum ConcivDiscovery {
     return payload.ok && !payload.harness.isEmpty
   }
 
-  // Origin pin stays scheme://host:port regardless of the /t/<token> path.
+  // Origin pin is scheme://host:port.
   public static func origin(of apiBase: URL) -> String {
     guard let scheme = apiBase.scheme, let host = apiBase.host else { return apiBase.absoluteString }
     if let port = apiBase.port { return "\(scheme)://\(host):\(port)" }
@@ -78,14 +75,8 @@ public enum ConcivDiscovery {
     ports.compactMap { URL(string: "http://127.0.0.1:\($0)") }
   }
 
-  // A 401/404 on the token-scoped base means the token is stale: the whole app moved
-  // to a new /t/<newtoken> mount (06 D13), so the old prefix no longer resolves.
-  public static func isStaleToken(status: Int) -> Bool {
-    status == 401 || status == 404
-  }
-
-  // Same-core discriminator is the pairing-file pid: the pid is always present (token
-  // is null on pure loopback), and an unchanged pid means the same core process is
+  // Same-core discriminator is the pairing-file pid: the pid is always present, and an
+  // unchanged pid means the same core process is
   // still alive, so a re-point (handshake rebind, D8) is correct. A changed pid is a
   // different process, which is a fresh mount, never a rebind.
   public static func isSameCore(previous: ConcivEndpoint?, discovered: ConcivEndpoint) -> Bool {
@@ -94,8 +85,8 @@ public enum ConcivDiscovery {
   }
 
   // The env-injected api base. ios.run launches the app with SIMCTL_CHILD_CONCIV_URL,
-  // which the child process reads as CONCIV_URL: a bare core api base with no /native
-  // suffix (the SDK appends /native itself). A missing, empty, or malformed value falls
+  // which the child process reads as CONCIV_URL: a bare core api base with no /widget
+  // suffix (the SDK appends /widget itself). A missing, empty, or malformed value falls
   // back to auto-discovery rather than crashing, so attach() is safe with no env at all.
   // A usable base carries both a scheme and a host; a scheme-less relative string (a
   // typo like "127.0.0.1:4599") is rejected as malformed and routed to discovery.
@@ -163,7 +154,7 @@ public struct ConcivDiscoverer {
       return endpoint
     }
     for base in ConcivDiscovery.candidateBases(ports: candidatePorts) where probe(ConcivDiscovery.healthURL(for: base)) {
-      return ConcivEndpoint(apiBase: base, token: nil, pid: nil)
+      return ConcivEndpoint(apiBase: base, pid: nil)
     }
     return nil
   }

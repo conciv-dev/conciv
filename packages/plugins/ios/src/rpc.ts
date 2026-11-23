@@ -137,7 +137,6 @@ export const HandshakeSchema = z.object({
   seq: SeqSchema,
   type: z.literal('handshake'),
   apiBase: z.string(),
-  token: nullish(z.string()),
 })
 
 export const BridgeIncompatibleSchema = z.object({

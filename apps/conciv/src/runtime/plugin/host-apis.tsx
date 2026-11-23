@@ -334,6 +334,7 @@ export function createHostApis() {
     widget: () => ({
       open: () => write((value) => value.widget()?.open()),
       close: () => write((value) => value.widget()?.close()),
+      isOpen: () => current()?.widget()?.isOpen() ?? false,
     }),
     keybinds: () => ({
       keybind: () => [],

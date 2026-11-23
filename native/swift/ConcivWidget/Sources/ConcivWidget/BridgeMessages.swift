@@ -236,14 +236,12 @@ public struct Handshake: Codable, Equatable {
   public var seq: Int
   public var type: String
   public var apiBase: String
-  public var token: String?
 
-  public init(v: Int, seq: Int, apiBase: String, token: String?, type: String = "handshake") {
+  public init(v: Int, seq: Int, apiBase: String, type: String = "handshake") {
     self.v = v
     self.seq = seq
     self.type = type
     self.apiBase = apiBase
-    self.token = token
   }
 }
 

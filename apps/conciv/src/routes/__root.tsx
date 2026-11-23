@@ -331,7 +331,7 @@ function RootChrome(props: {
     })
   }
   const togglePanel = () => (panelOpen() ? closePanel() : showPanel())
-  onCleanup(usePluginAttachment().bindWidget({open: showPanel, close: () => closePanel()}))
+  onCleanup(usePluginAttachment().bindWidget({open: showPanel, close: () => closePanel(), isOpen: panelOpen}))
   const openStoredOnLoad = createReaction(() => {
     if (!settings.fromHost.defaultOpen && preferences.openOnLoad() && closedMatch()) showPanel()
   })

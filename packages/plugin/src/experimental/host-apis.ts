@@ -488,6 +488,15 @@ export interface Widget {
    * ```
    */
   close(): void
+  /**
+   * Whether the widget's panel is open, as the launcher shows it. Reactive: read it in a tracked scope to follow it.
+   *
+   * @example
+   * ```ts
+   * createMemo(() => ctx.widget.isOpen())
+   * ```
+   */
+  isOpen(): boolean
 }
 
 export interface Keybinds {
