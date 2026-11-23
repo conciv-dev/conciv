@@ -1,7 +1,6 @@
-import {randomUUID} from 'node:crypto'
 import {eq} from 'drizzle-orm'
 import {Effect, type ManagedRuntime} from 'effect'
-import type {ChatPlane} from '@conciv/chat'
+import {MarkerId, type ChatPlane} from '@conciv/chat'
 import {drafts, markers, SessionInboxTable, sessions, type ConcivDb} from '@conciv/db'
 import {SessionId} from '@conciv/plugin/schema/session-id'
 import {Bus, KV, SessionEvent, SessionSchema} from '@conciv/plugin-host'
@@ -41,7 +40,9 @@ function chatRow(scope: RowScope, sessionId: SessionId): FreshRowInput {
 }
 
 async function markNew(db: ConcivDb, sessionId: SessionId): Promise<void> {
-  await Effect.runPromise(db.insert(markers).values({id: randomUUID(), sessionId, afterMessageId: null, kind: 'new'}))
+  await Effect.runPromise(
+    db.insert(markers).values({id: MarkerId.create(), sessionId, afterMessageId: null, kind: 'new'}),
+  )
 }
 
 export async function createChatSession(
