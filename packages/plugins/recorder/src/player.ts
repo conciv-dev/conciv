@@ -1,10 +1,12 @@
-import {Effect, Stream, type Scope} from 'effect'
+import {Effect, Queue, Stream, SubscriptionRef, type Scope} from 'effect'
 import {z} from 'zod'
 import type {eventWithTime} from '@rrweb/types'
 import themeCss from './assets/player-theme.css?inline'
 import type Player from 'rrweb-player'
 import {RrwebEventSchema, type RrwebEvent} from './rpc.js'
 import type {ReplaySource} from './player-follow.js'
+import {makeMachineDriver} from './machine-driver.js'
+import {RecorderPlayerMachine, type Playback} from './player-machine.js'
 
 const playerEvent = z.custom<eventWithTime>()
 const playerEvents = z.array(playerEvent)
@@ -72,26 +74,43 @@ function injectPlayerStyles(
   return {scope, known}
 }
 
-function observeContainerSize(
+const nextFrame: Effect.Effect<void> = Effect.callback<void>((resume) => {
+  const frame = requestAnimationFrame(() => resume(Effect.void))
+  return Effect.sync(() => cancelAnimationFrame(frame))
+})
+
+function whenConnected(container: HTMLDivElement): Effect.Effect<void> {
+  return Effect.suspend(() =>
+    container.isConnected ? Effect.void : Effect.andThen(nextFrame, whenConnected(container)),
+  )
+}
+
+function followContainerSize(
   container: HTMLDivElement,
-  resize: (size: {width: number; height: number}) => void,
   aspect: () => number,
-): () => void {
-  let frame = 0
-  const observer = new ResizeObserver(() => {
-    cancelAnimationFrame(frame)
-    frame = requestAnimationFrame(() => {
-      if (document.fullscreenElement) return
-      const size = playerSize(container, aspect())
-      if (size.width < 80) return
-      resize(size)
-    })
-  })
-  observer.observe(container)
-  return () => {
-    cancelAnimationFrame(frame)
-    observer.disconnect()
-  }
+  resize: (size: {width: number; height: number}) => void,
+): Effect.Effect<void, never, Scope.Scope> {
+  return Stream.callback<void>((queue) =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        const observer = new ResizeObserver(() => void Queue.offerUnsafe(queue, undefined))
+        observer.observe(container)
+        return observer
+      }),
+      (observer) => Effect.sync(() => observer.disconnect()),
+    ),
+  ).pipe(
+    Stream.switchMap(() => Stream.fromEffect(nextFrame)),
+    Stream.runForEach(() =>
+      Effect.sync(() => {
+        if (document.fullscreenElement) return
+        const size = playerSize(container, aspect())
+        if (size.width >= 80) resize(size)
+      }),
+    ),
+    Effect.forkScoped,
+    Effect.asVoid,
+  )
 }
 
 const SCRUB_STEP_MS = 5000
@@ -135,7 +154,33 @@ function enhanceControllerAccess(container: HTMLDivElement, player: Player): voi
   )
 }
 
-const LIVE_EDGE_MS = 2500
+function readPlayback(player: Player | undefined): Playback {
+  const replayer = player?.getReplayer()
+  if (!replayer) return {playing: false, currentTime: 0}
+  return {playing: replayer.service.state.matches('playing'), currentTime: replayer.getCurrentTime()}
+}
+
+function buildPlayer(
+  kit: PlayerKit,
+  container: HTMLDivElement,
+  events: RrwebEvent[],
+  props: {readonly liveMode: boolean},
+): Player {
+  const {scope, known} = injectPlayerStyles(kit, container)
+  const player = new kit.Player({
+    target: container,
+    props: {
+      ...playerSize(container, recordedAspect(events)),
+      events: playerEvents.parse(events),
+      autoPlay: false,
+      triggerFocus: false,
+      ...(props.liveMode ? {liveMode: true, showController: true, skipInactive: false} : {}),
+    },
+  })
+  demoteInjectedStyles(scope, known)
+  enhanceControllerAccess(container, player)
+  return player
+}
 
 export function streamPlayer(
   kit: PlayerKit,
@@ -148,157 +193,93 @@ export function streamPlayer(
   },
 ): Effect.Effect<void, never, Scope.Scope> {
   return Effect.gen(function* () {
-    const mounted = yield* Effect.acquireRelease(
-      Effect.sync(() => mountStreamPlayer(kit, container, initial, hooks.onLive)),
-      (player) => Effect.sync(player.dispose),
+    const buffer = detachEvents(initial.events)
+    const view: {player: Player | undefined} = {player: undefined}
+    const observations = yield* Queue.unbounded<void>()
+    const observe = (): void => void Queue.offerUnsafe(observations, undefined)
+    const append = (events: readonly RrwebEvent[], to: 'buffer' | 'edge' | 'player'): void => {
+      buffer.push(...events)
+      const player = view.player
+      if (!player || to === 'buffer') return
+      for (const event of events) {
+        const parsed = playerEvent.parse(event)
+        if (to === 'edge') player.getReplayer().addEvent(parsed)
+        else player.addEvent(parsed)
+      }
+    }
+    const build = (): void => {
+      const player = buildPlayer(kit, container, buffer, {liveMode: true})
+      player.addEventListener('ui-update-player-state', observe)
+      player.addEventListener('ui-update-current-time', observe)
+      player.getReplayer().on('event-cast', observe)
+      view.player = player
+    }
+    const perform = (command: RecorderPlayerMachine.PlayerEffect): void => {
+      if (command.type === 'announce') hooks.onLive(command.live)
+      else if (command.type === 'destroy') view.player?.$destroy()
+      else if (command.type === 'seek') view.player?.goto(command.offset, true)
+      else if (command.type === 'build') build()
+      else append(command.events, command.to)
+    }
+    const run = (command: RecorderPlayerMachine.PlayerEffect): Effect.Effect<void> =>
+      Effect.sync(() => perform(command))
+    const driver = yield* makeMachineDriver({
+      initial: RecorderPlayerMachine.initialPlayer(buffer, initial.cursor),
+      transition: RecorderPlayerMachine.transitionPlayer,
+      run,
+    })
+    yield* Effect.addFinalizer(() => driver.dispatch({type: 'disposed'}))
+    yield* followContainerSize(
+      container,
+      () => recordedAspect(buffer),
+      (size) => {
+        view.player?.$set(size)
+        view.player?.triggerResize()
+      },
     )
-    yield* Stream.suspend(() => hooks.follow(mounted.cursor())).pipe(
-      Stream.runForEach((fresh) => Effect.sync(() => mounted.take(fresh))),
+    yield* whenConnected(container).pipe(Effect.andThen(driver.dispatch({type: 'connected'})), Effect.forkScoped)
+    yield* Stream.suspend(() => hooks.follow(SubscriptionRef.getUnsafe(driver.state).cursor)).pipe(
+      Stream.runForEach((fresh) =>
+        driver.dispatch({
+          type: 'arrived',
+          events: fresh.events,
+          cursor: fresh.cursor,
+          playback: readPlayback(view.player),
+        }),
+      ),
+      Effect.forkScoped,
+    )
+    yield* Stream.fromQueue(observations).pipe(
+      Stream.runForEach(() => driver.dispatch({type: 'observed', playback: readPlayback(view.player)})),
       Effect.forkScoped,
     )
     yield* hooks.goLiveRequests.pipe(
-      Stream.runForEach(() => Effect.sync(mounted.goLive)),
+      Stream.runForEach(() => driver.dispatch({type: 'go-live'})),
       Effect.forkScoped,
     )
   })
 }
 
-function mountStreamPlayer(
+export function mountPlayer(
   kit: PlayerKit,
   container: HTMLDivElement,
-  initial: ReplaySource,
-  onLive: (live: boolean) => void,
-): {goLive: () => void; take: (fresh: ReplaySource) => void; cursor: () => number; dispose: () => void} {
-  const buffer = detachEvents(initial.events)
-  let cursor = initial.cursor
-  let lastTs = buffer.at(-1)?.timestamp ?? 0
-  let aspect = recordedAspect(buffer)
-  let mounted: {player: Player} | undefined
-
-  const tailOffset = (): number => lastTs - (buffer[0]?.timestamp ?? 0)
-
-  const isLive = (): boolean => {
-    if (!mounted) return true
-    const replayer = mounted.player.getReplayer()
-    if (!replayer.service.state.matches('playing')) return false
-    return replayer.getCurrentTime() + LIVE_EDGE_MS >= tailOffset()
-  }
-
-  const announceLive = (): void => onLive(isLive())
-
-  const build = (): void => {
-    const {scope, known} = injectPlayerStyles(kit, container)
-    aspect = recordedAspect(buffer)
-    const player = new kit.Player({
-      target: container,
-      props: {
-        ...playerSize(container, aspect),
-        events: playerEvents.parse(buffer),
-        autoPlay: false,
-        liveMode: true,
-        triggerFocus: false,
-        showController: true,
-        skipInactive: false,
+  events: RrwebEvent[],
+): Effect.Effect<void, never, Scope.Scope> {
+  return Effect.gen(function* () {
+    const detached = detachEvents(events)
+    const view: {player: Player | undefined} = {player: undefined}
+    yield* Effect.addFinalizer(() => Effect.sync(() => view.player?.$destroy()))
+    yield* followContainerSize(
+      container,
+      () => recordedAspect(detached),
+      (size) => {
+        view.player?.$set(size)
+        view.player?.triggerResize()
       },
-    })
-    demoteInjectedStyles(scope, known)
-    enhanceControllerAccess(container, player)
-    mounted = {player}
-    player.goto(tailOffset() + 1, true)
-    player.addEventListener('ui-update-player-state', announceLive)
-    player.addEventListener('ui-update-current-time', announceLive)
-    player.getReplayer().on('event-cast', announceLive)
-    onLive(true)
-  }
-
-  const cancelBuild = whenConnected(container, build)
-
-  const feed = (event: RrwebEvent, atEdge: boolean): void => {
-    buffer.push(event)
-    lastTs = Math.max(lastTs, event.timestamp)
-    if (!mounted) return
-    const parsed = playerEvent.parse(event)
-    if (atEdge) {
-      mounted.player.getReplayer().addEvent(parsed)
-      return
-    }
-    mounted.player.addEvent(parsed)
-  }
-
-  const take = (fresh: ReplaySource): void => {
-    const atEdge = isLive()
-    for (const event of fresh.events) feed(event, atEdge)
-    cursor = Math.max(cursor, fresh.cursor)
-    announceLive()
-  }
-
-  const stopResize = observeContainerSize(
-    container,
-    (size) => {
-      mounted?.player.$set({width: size.width, height: size.height})
-      mounted?.player.triggerResize()
-    },
-    () => aspect,
-  )
-
-  return {
-    take,
-    cursor: () => cursor,
-    goLive: () => {
-      mounted?.player.goto(tailOffset() + 1, true)
-      onLive(true)
-    },
-    dispose: () => {
-      cancelBuild()
-      stopResize()
-      mounted?.player.$destroy()
-    },
-  }
-}
-
-export function mountPlayer(kit: PlayerKit, container: HTMLDivElement, events: RrwebEvent[]): () => void {
-  const detached = detachEvents(events)
-  const aspect = recordedAspect(detached)
-  let player: Player | undefined
-  const cancelBuild = whenConnected(container, () => {
-    const {scope, known} = injectPlayerStyles(kit, container)
-    const mounted = new kit.Player({
-      target: container,
-      props: {
-        ...playerSize(container, aspect),
-        events: playerEvents.parse(detached),
-        autoPlay: false,
-        triggerFocus: false,
-      },
-    })
-    demoteInjectedStyles(scope, known)
-    enhanceControllerAccess(container, mounted)
-    player = mounted
+    )
+    yield* whenConnected(container).pipe(
+      Effect.andThen(Effect.sync(() => void (view.player = buildPlayer(kit, container, detached, {liveMode: false})))),
+      Effect.forkScoped,
+    )
   })
-  const stopResize = observeContainerSize(
-    container,
-    (size) => {
-      player?.$set({width: size.width, height: size.height})
-      player?.triggerResize()
-    },
-    () => aspect,
-  )
-  return () => {
-    cancelBuild()
-    stopResize()
-    player?.$destroy()
-  }
-}
-
-function whenConnected(container: HTMLDivElement, run: () => void): () => void {
-  let frame = 0
-  const attempt = (): void => {
-    if (!container.isConnected) {
-      frame = requestAnimationFrame(attempt)
-      return
-    }
-    run()
-  }
-  attempt()
-  return () => cancelAnimationFrame(frame)
 }
