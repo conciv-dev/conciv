@@ -143,7 +143,7 @@ function followSignal(signal: AbortSignal): AbortController {
   return controller
 }
 
-function probeListed(signal: AbortSignal, env: ClaudeProbeEnv): Promise<SDKControlInitializeResponse> {
+function probeListed(env: ClaudeProbeEnv, signal?: AbortSignal): Promise<SDKControlInitializeResponse> {
   const before = probeState.current
   return probe({cwd: process.cwd(), env}, signal)
     .then((init) => {
@@ -165,13 +165,13 @@ function probeListed(signal: AbortSignal, env: ClaudeProbeEnv): Promise<SDKContr
 type ProbeContext = {signal: AbortSignal; env: ClaudeProbeEnv}
 
 function startChecking({signal, env}: ProbeContext): Promise<SDKControlInitializeResponse> {
-  const pending = probeListed(signal, env)
+  const pending = probeListed(env, signal)
   probeState.current = {type: 'checking', probe: pending}
   return pending
 }
 
-function refreshHeld(init: SDKControlInitializeResponse, {signal, env}: ProbeContext): void {
-  const refresh = probeListed(signal, env)
+function refreshHeld(init: SDKControlInitializeResponse, env: ClaudeProbeEnv): void {
+  const refresh = probeListed(env)
   probeState.current = {type: 'held', init, refresh}
   refresh.catch(() => {})
 }
@@ -201,7 +201,7 @@ export async function claudeSdkLogin(context: ProbeContext): Promise<HarnessLogi
   const current = probeState.current
   if (current.type !== 'held') return readLogin(await probed(context))
   const login = readLogin(current.init)
-  if (!login.loggedIn && current.refresh === undefined) refreshHeld(current.init, context)
+  if (!login.loggedIn && current.refresh === undefined) refreshHeld(current.init, context.env)
   return login
 }
 

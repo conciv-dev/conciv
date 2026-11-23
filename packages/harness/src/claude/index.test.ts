@@ -73,11 +73,11 @@ describe('the claude login check', () => {
     expect(await claude(ConfigProvider.fromEnvRecord({PATH: claudeOnPath.path})).login({signal})).toEqual(notLoggedIn)
     expect(claudeOnPath.started()).toBe(true)
 
-    const hung = claude(ConfigProvider.fromEnvRecord({PATH: hungClaudeOnPath()}))
-    const hungProbe = new AbortController()
-    expect(await hung.login({signal: hungProbe.signal})).toEqual(notLoggedIn)
-    hungProbe.abort()
-    await expect(hung.models({signal: hungProbe.signal})).rejects.toThrow()
+    const hungClaude = hungClaudeOnPath()
+    const hung = claude(ConfigProvider.fromEnvRecord({PATH: hungClaude.path}))
+    expect(await hung.login({signal})).toEqual(notLoggedIn)
+    hungClaude.release()
+    await expect(hung.models({signal})).rejects.toThrow()
 
     const loggedIn = claude(
       ConfigProvider.fromEnvRecord({PATH: claudeOnPath.path, ANTHROPIC_API_KEY: 'sk-ant-test-not-a-real-key'}),

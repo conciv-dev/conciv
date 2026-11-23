@@ -48,9 +48,10 @@ export function recordedClaudeOnPath(): {path: string; started: () => boolean} {
   return {path: `${bin}${delimiter}${process.env.PATH ?? ''}`, started: () => existsSync(startedFile)}
 }
 
-export function hungClaudeOnPath(): string {
+export function hungClaudeOnPath(): {path: string; release: () => void} {
   const bin = tempDir('hung-claude-on-path-')
-  writeFileSync(join(bin, 'claude'), '#!/bin/sh\nexec sleep 600\n')
+  const releaseFile = join(bin, 'release')
+  writeFileSync(join(bin, 'claude'), `#!/bin/sh\nwhile [ ! -e '${releaseFile}' ]; do sleep 0.1; done\nexit 1\n`)
   chmodSync(join(bin, 'claude'), 0o755)
-  return `${bin}${delimiter}${process.env.PATH ?? ''}`
+  return {path: `${bin}${delimiter}${process.env.PATH ?? ''}`, release: () => writeFileSync(releaseFile, '')}
 }
