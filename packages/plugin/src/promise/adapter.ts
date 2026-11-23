@@ -8,6 +8,7 @@ import {Model} from '../schema/model.js'
 import {Permission} from '../schema/permission.js'
 import {Plugin as PluginSchema} from '../schema/plugin.js'
 import {Session} from '../schema/session.js'
+import {SessionInbox} from '../schema/session-inbox.js'
 import {Skill} from '../schema/skill.js'
 import {InstructionEntry} from '../schema/instruction-entry.js'
 import {optional, PositiveInt} from '../schema/schema.js'
@@ -89,6 +90,18 @@ const SessionListSchemas = passingUnknownKeys({
 const SessionSwitchAgentSchemas = passingUnknownKeys({sessionId: Session.Id, agent: Agent.Id})
 const SessionSwitchModelSchemas = passingUnknownKeys({sessionId: Session.Id, model: Model.Ref})
 const SessionCompactSchemas = passingUnknownKeys({sessionId: Session.Id, id: Schema.optional(SessionMessage.Id)})
+const SessionSyntheticSchemas = {
+  ...passingUnknownKeys({
+    sessionID: Session.Id,
+    id: Schema.optional(Schema.NullOr(SessionMessage.Id)),
+    text: Schema.String,
+    description: Schema.optional(Schema.NullOr(Schema.String)),
+    metadata: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
+    delivery: Schema.optional(Schema.NullOr(SessionInbox.Delivery)),
+    resume: Schema.optional(Schema.NullOr(Schema.Boolean)),
+  }),
+  output: SessionInbox.Synthetic,
+}
 const SessionInterruptSchemas = passingUnknownKeys({sessionId: Session.Id, resume: Schema.optional(Schema.Boolean)})
 const InstructionEntryPutSchemas = passingUnknownKeys({
   sessionId: Session.Id,
@@ -433,7 +446,7 @@ export function fromPromise(plugin: Plugin.Plugin) {
             generate: undefined,
             command: undefined,
             compact: adaptMethod(SessionCompactSchemas, host.session.compact),
-            synthetic: undefined,
+            synthetic: adaptMethod(SessionSyntheticSchemas, host.session.synthetic),
             interrupt: adaptMethod(SessionInterruptSchemas, host.session.interrupt),
             update: adaptMethod(SessionUpdateSchemas, host.session.update),
             wait: adaptMethod(SessionIdSchemas, host.session.wait),

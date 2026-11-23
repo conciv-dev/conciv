@@ -3,6 +3,7 @@ import {Dynamic} from 'solid-js/web'
 import SquarePen from 'lucide-solid/icons/square-pen'
 import FoldVertical from 'lucide-solid/icons/fold-vertical'
 import Square from 'lucide-solid/icons/square'
+import Info from 'lucide-solid/icons/info'
 import {Progress} from '@conciv/ui-kit-system'
 
 const DIVIDER =
@@ -33,6 +34,17 @@ export function Divider(props: {kind: DividerKind; pending?: boolean}): JSX.Elem
           aria-hidden="true"
         />
         {label()}
+      </span>
+    </div>
+  )
+}
+
+export function Notice(props: {label: string}): JSX.Element {
+  return (
+    <div class={`${DIVIDER} text-chat-text-3`} role="note" aria-label={props.label}>
+      <span class={DIVIDER_LABEL}>
+        <Info class="size-3" aria-hidden="true" />
+        {props.label}
       </span>
     </div>
   )

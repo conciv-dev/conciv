@@ -191,7 +191,7 @@ export interface SessionInboxCompaction {
 
 export interface SessionInboxSynthetic {
   id: string
-  sessionId: SessionId
+  sessionID: SessionId
   time: {created: number}
   type: 'synthetic'
   payload: {text: string; description?: string; metadata?: {[key: string]: Json}}
@@ -223,7 +223,7 @@ export interface SessionCommandInput {
 }
 
 export interface SessionSyntheticInput {
-  readonly sessionId: SessionId
+  readonly sessionID: SessionId
   readonly id?: string | null | undefined
   readonly text: string
   readonly description?: string | null | undefined
