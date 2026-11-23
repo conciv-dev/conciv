@@ -26,7 +26,7 @@ A built-in: it draws with the UI kits directly, like opencode's gui plugins, and
   (`SourceLoc`, both from `@conciv/contract`) with @jridgewell/trace-mapping; the `symbolicate`
   method answers with `symbolicateFrames`
 - `Definition` (`rpc.ts`, `./rpc`): the RPC `experimental.page`
-- `CliTools` (`rpc.ts`, `./rpc`): per operation, the permission the call asks (`page_eval` for `eval`)
+- `CliTools` (`rpc.ts`, `./rpc`): per operation, the terminal shape the engine catalog (`pluginSignatures`) reads
 - `attach` refuses a session that does not exist with the error type `missing` (`connection.ts`), every other refusal with `unavailable`
 - option `pageReplyTimeoutMs` (`connection.ts`, milliseconds, default 5 000): how long a tab has to answer an action that declares no timeout of its own, and to accept a queue
 - option `queuedActionTimeoutMs` (`connection.ts`, milliseconds, default 7 000): how long each queued action has to confirm once the tab reaches it

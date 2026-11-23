@@ -84,7 +84,21 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
   if ((await launcher.getAttribute('aria-expanded')) !== 'true') await launcher.click()
   await page.getByRole('tab', {name: 'Chat'}).click()
   await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
-  await expectBootShows(page.getByRole('tab', {name: 'Terminal'}), failures)
+  const inspector = page.getByText('Inspecting · click to open source')
+  try {
+    await expect(async () => {
+      await page.keyboard.down('Alt')
+      try {
+        await expect(inspector).toBeVisible({timeout: 500})
+      } finally {
+        await page.keyboard.up('Alt')
+      }
+    }).toPass()
+  } catch (error) {
+    const detail = describeFailures(failures)
+    throw detail === '' ? error : new Error(`widget did not boot\n${detail}`, {cause: error})
+  }
+  await expect(inspector).toBeHidden()
   const transientOptimizerReload = /Failed to fetch dynamically imported module|504 \(Outdated Optimize Dep\)/
   const detail = describeFailures(failures)
   expect(failures.thirdPartyRequests, detail).toEqual([])

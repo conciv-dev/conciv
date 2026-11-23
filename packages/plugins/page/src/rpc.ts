@@ -637,10 +637,16 @@ export const Definition = Rpc.define({
   },
 })
 
+const REACT_OPERATIONS: readonly string[] = ['locate', 'tree', 'inspect', 'override', 'find', 'track']
+const TERMINAL_LEFT_OUT: readonly string[] = ['tabs.list', 'fill_form']
+
 export const CLI_HIDDEN_FIELDS: readonly string[] = ['tabId']
 
 export type CliEntry = {
+  readonly positional: 'selector' | undefined
+  readonly category: 'react' | undefined
   readonly asks: ((input: unknown) => AskedPermission) | undefined
+  readonly terminal: boolean
 }
 
 export type AskedPermission = {readonly action: string; readonly resources: readonly string[]}
@@ -648,10 +654,13 @@ export type AskedPermission = {readonly action: string; readonly resources: read
 export const CliTools: Readonly<Record<string, CliEntry>> = mapValues(
   keyBy(Operations, (entry) => entry.name),
   (entry): CliEntry => ({
+    positional: Object.hasOwn(entry.input.shape, 'selector') ? 'selector' : undefined,
+    category: REACT_OPERATIONS.includes(entry.name) ? 'react' : undefined,
     asks:
       entry.name === 'eval'
         ? (input: unknown): AskedPermission => ({action: 'page_eval', resources: [entry.input.parse(input).code]})
         : undefined,
+    terminal: !TERMINAL_LEFT_OUT.includes(entry.name),
   }),
 )
 
