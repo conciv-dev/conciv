@@ -23,9 +23,13 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
     if (booting) return booting
     const stateRoot = options.stateRoot ?? root
     booting = Promise.try(() => installConcivBinShim(concivStateDir(stateRoot))).then(async (agentPath) => {
-      const {start} = await import('@conciv/core/start')
+      const [{start}, {default: page}] = await Promise.all([
+        import('@conciv/core/start'),
+        import('@conciv/plugin-page'),
+      ])
       return start({
         options,
+        builtins: [page],
         root,
         port: options.port === undefined ? undefined : {exact: options.port},
         launchEditor: makeOpenInEditor(root),

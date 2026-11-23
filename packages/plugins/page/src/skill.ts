@@ -5,6 +5,14 @@ import {Operations} from './rpc.js'
 
 export const id = 'page'
 
+export const instructions = [
+  'The page capabilities read and drive the live page the user sees and its React components.',
+  '',
+  'Live DOM, CSS and React tweaks made through the page capabilities are EPHEMERAL: they are wiped on the next HMR reload. Use them to preview or to test a hypothesis, then persist the change to the real source files. When a page capability resolves an element to a source file:line, open it through the editor capability.',
+  '',
+  'When the user says "this", "here", or refers to what they\'re looking at, ground yourself in the rendered page before editing.',
+].join('\n')
+
 export const info: Skill.Info = {
   id: Skill.Id.make(id),
   name: Skill.Name.make('Page'),

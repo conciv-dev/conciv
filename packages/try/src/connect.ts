@@ -3,6 +3,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {inspect} from 'node:util'
 import {start, type Engine, type LogEntry} from '@conciv/core/start'
+import page from '@conciv/plugin-page'
 import {ConfigProvider} from 'effect'
 import {harnessRegistry} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -86,6 +87,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
     try {
       const engine = await start({
         options: {harness: adapter.id, stateRoot: root, systemPrompt: CONNECT_SYSTEM_PROMPT},
+        builtins: [page],
         root,
         port: {exact: port},
         launchEditor: () => {},

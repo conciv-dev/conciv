@@ -61,8 +61,8 @@ looks or behaves the way it does, use conciv first. Every command prints JSON. S
 - Which component rendered an element, and the source file and line: `conciv tools page locate --selector <selector>`
 - Props, state, hooks and context of a live component: `conciv tools page inspect --selector <selector>`
 - Every mounted instance of a component by name: `conciv tools page find <ComponentName>`
-- A value that stays stale, a list that does not refresh, cached data: `conciv tools page inspect --name <ComponentName>`, then `conciv tools page eval <expression>` to read the store or query cache on `window`
-- An element that cannot be clicked or is not visible: `conciv tools page query --selector <selector>` for its box and styles, `conciv tools page eval <expression>` with `getComputedStyle` and `elementFromPoint`
+- A value that stays stale, a list that does not refresh, cached data: `conciv tools page inspect --name <ComponentName>`, then `conciv tools page eval --code <expression>` to read the store or query cache on `window`
+- An element that cannot be clicked or is not visible: `conciv tools page query --selector <selector>` for its box and styles, `conciv tools page eval --code <expression>` with `getComputedStyle` and `elementFromPoint`
 - Browser console errors and warnings: `conciv tools page console`
 - Unexpected re-renders or a memo that never updates: `conciv tools page track --action start`, reproduce, then `conciv tools page track --action report [--name <ComponentName>]`, then `conciv tools page track --action stop`
 - Module graph and transformed source: `conciv plugin call server graph --data '{"file":"<file>"}'`, `conciv plugin call server transform --data '{"url":"<url>"}'`

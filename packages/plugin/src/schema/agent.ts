@@ -13,6 +13,8 @@ const Updated = ephemeral({type: 'agent.updated', schema: {}})
 export const Id = Schema.String.pipe(Schema.brand('Agent.ID'), Schema.annotate({identifier: 'Agent.ID'}))
 export type Id = typeof Id.Type
 
+export const outsideId = Id.make('outside')
+
 export const Name = Schema.String.pipe(Schema.brand('Agent.Name'))
 export type Name = typeof Name.Type
 

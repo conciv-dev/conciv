@@ -87,7 +87,7 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
   const liveSessions = useLiveSessions()
   const attachment = usePluginAttachment()
   const engine = attachment.engine
-  const listed = useQuery(() => ({...appData.utils.tabs.list.queryOptions(), enabled: connection()}))
+  const engineLocation = useQuery(() => ({...appData.utils.location.get.queryOptions(), enabled: connection()}))
   const owner = getOwner()
   const [binding, setBinding] = createSignal<BoundComposer>()
   const bound = createMemo(() => binding() !== undefined)
@@ -285,7 +285,7 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
 
   const mounted = createMemo<MountedSession | undefined>((previous) => {
     const id = session.id()
-    const directory = listed.isSuccess ? listed.data?.project.root : undefined
+    const directory = engineLocation.isSuccess ? engineLocation.data?.directory : undefined
     const tab = id
 
     if (directory === undefined) return

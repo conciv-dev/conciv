@@ -15,7 +15,6 @@ export default defineConfig({
     'src/terminal-types.ts',
     'src/bundler-types.ts',
     'src/config-types.ts',
-    'src/page-types.ts',
     'src/tool-view-types.ts',
     'src/connect-ports.ts',
     'src/state-types.ts',

@@ -35,6 +35,8 @@ export type ModelRequest = {
 
 export type ModelRequestDraft = Omit<ModelRequest, 'tools' | 'result'> & {tools: ChatTool[]}
 
+export type HookedRequest = Omit<ModelRequest, 'tools'> & {tools: ChatTool[]}
+
 export type RequestHook = (request: ModelRequest, signal: AbortSignal) => Promise<ModelRequest>
 
 function inputSchema(tool: ChatTool): Record<string, unknown> {
@@ -68,7 +70,7 @@ export async function hookedRequest(
   hook: RequestHook,
   draft: ModelRequestDraft,
   signal: AbortSignal,
-): Promise<Omit<ModelRequest, 'tools'> & {tools: ChatTool[]}> {
+): Promise<HookedRequest> {
   const offered = draft.tools.map((tool) => {
     const input = inputSchema(tool)
     return {

@@ -8,14 +8,12 @@ import {
   cappedValue,
   codeDiscoverReply,
   codeExecuteReply,
-  queueNotice,
   safeStringify,
   toolValueReply,
   type CodeDescriptions,
   type CodeDiscoverResult,
   type CodeExecuteResult,
   type CodeReply,
-  type CodeReplyContent,
   type EngineStaleness,
 } from '@conciv/contract'
 import {HTTPException} from 'hono/http-exception'
@@ -36,7 +34,6 @@ import {CodeModeCatalog, CodeModeInstructions} from '@conciv/plugin-host'
 import {loopbackHostAllowlist} from '../lib/cors.js'
 import {callTrace} from './call-trace.js'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema, type ExecuteResult} from './execute-schemas.js'
-import type {PageQueueHandle, PageQueueResult} from '@conciv/protocol/page-types'
 
 export function sessionIdFromHeaders(headers: Headers): SessionId | null {
   const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()
@@ -169,6 +166,7 @@ async function runExecute(
   runner: CodeSandbox,
   typescriptCode: string,
   calls: CallPublisher,
+  toolCalls: () => string[],
 ): Promise<CodeExecuteResult> {
   await calls.publish(calls.trace.start(calls.run, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
@@ -178,7 +176,7 @@ async function runExecute(
   const result = parsed.success
     ? parsed.data
     : {success: false, error: {message: 'the sandbox returned an unreadable result'}}
-  const typed = typedResult(result, runner.declaredCodes, {queued: [], finished: []})
+  const typed = typedResult(result, runner.declaredCodes, toolCalls())
   await publishResult(calls, codeExecuteReply(typed))
   return typed
 }
@@ -201,13 +199,11 @@ type McpDeps = {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
+    messageId?: string,
   ) => Promise<CodeRunner | null>
-  hubCall: (sessionId: SessionId, callId: string) => void
-  hubReplied: (sessionId: SessionId, callIds: ReadonlySet<string>) => Promise<void>
-  finishedQueues: (sessionId: SessionId) => Promise<PageQueueResult[]>
-  startedQueues: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => Promise<PageQueueHandle[]>
-  outsideCapabilities: (sessionId: SessionId) => Promise<CodeCapability[]>
+  outsideCapabilities: (sessionId: SessionId, run: {tab: boolean}) => Promise<CodeCapability[]>
   driving: ChatPlane['driving']
+  turnMessage: ChatPlane['turnMessage']
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   hubRefusal: (client: string | null) => Promise<string | null>
@@ -226,12 +222,6 @@ function gated<Args>(admit: () => Promise<string | null>, run: (args: Args) => P
 }
 
 type CodeCaller = {trace: CallTrace; outside: boolean; signal: AbortSignal}
-
-function withFinishedQueues(reply: CodeReply, finished: readonly PageQueueResult[]): CodeReply {
-  if (finished.length === 0) return reply
-  const notices = finished.map((result): CodeReplyContent => ({type: 'text', text: cappedText(queueNotice(result))}))
-  return {...reply, content: [...notices, ...reply.content]}
-}
 
 type CodeRun = {result: CodeExecuteResult; reply: CodeReply}
 
@@ -262,7 +252,6 @@ export async function openCodeSession(
     log: deps.log,
   })
   const childStarts = new Map<string, number>()
-  const childCalls = (): ReadonlySet<string> => new Set(childStarts.keys())
   const timed = (chunk: ChatEvent): ChatEvent[] => {
     if (chunk.type === ChatEventType.TOOL_CALL_START) {
       const start = Date.now()
@@ -275,13 +264,13 @@ export async function openCodeSession(
     return [{...chunk, metadata: {...chunk.metadata, time}}]
   }
   const publish = (chunk: ChatEvent): void => {
-    if (hub && chunk.type === ChatEventType.TOOL_CALL_START) deps.hubCall(scope.id, chunk.toolCallId)
     void mirror.publish(timed(chunk).map(caller.trace.mark))
   }
   const runner = await deps.codeRunner(
     scope.id,
     publish,
-    hub && caller.outside ? await deps.outsideCapabilities(scope.id) : undefined,
+    hub ? await deps.outsideCapabilities(scope.id, {tab: !caller.outside}) : undefined,
+    hub || !run.live ? undefined : (deps.turnMessage(scope.id) ?? undefined),
   )
   if (runner === null) return null
   const calls: CallPublisher = {
@@ -291,54 +280,38 @@ export async function openCodeSession(
     run,
     signal: caller.signal,
   }
-  const finished = async (): Promise<PageQueueResult[]> =>
-    caller.signal.aborted || !hub ? [] : deps.finishedQueues(scope.id)
-  const hubRequest = async <Value>(work: () => Promise<Value>): Promise<Value> => {
-    if (!hub) return work()
-    deps.hubCall(scope.id, caller.trace.callId)
-    return work().finally(() => deps.hubReplied(scope.id, new Set([caller.trace.callId, ...childCalls()])))
-  }
   const sandbox = (code: CodeSandbox): CodeSandboxSession => ({
     sandbox: code,
     describe: async () => ({
       execute: executeDescription(code, await deps.staleness()),
       discover: code.discover?.description ?? null,
     }),
-    execute: (typescriptCode) =>
-      hubRequest(async () => {
-        const executed = await runExecute(code, typescriptCode, calls)
-        const started = await deps.startedQueues(scope.id, childCalls())
-        const delivered = await finished()
-        const finishedIds = new Set(delivered.map((result) => result.queueId))
-        const result = {
-          ...executed,
-          queued: started.filter((handle) => !finishedIds.has(handle.queueId)),
-          finished: delivered,
-        }
-        return {result, reply: codeExecuteReply(result)}
-      }),
+    execute: async (typescriptCode) => {
+      const result = await runExecute(code, typescriptCode, calls, () => [...childStarts.keys()])
+      return {result, reply: codeExecuteReply(result)}
+    },
     discover: async (toolNames) => {
       if (code.discover === null) throw new Error('no tools to discover')
-      const tools = cappedValue(await code.discover.run(toolNames))
-      return {tools, finished: await finished()}
+      return {tools: cappedValue(await code.discover.run(toolNames))}
     },
   })
   return {
     runner,
     sandbox: runner.code === null ? null : sandbox(runner.code),
-    direct: (tool, input) =>
-      hubRequest(async () => withFinishedQueues(await runDirect(tool, input, calls), await finished())),
+    direct: (tool, input) => runDirect(tool, input, calls),
   }
 }
 
-type Delivery = Pick<CodeExecuteResult, 'queued' | 'finished'>
-
-function typedResult(result: ExecuteResult, declaredCodes: ReadonlySet<string>, delivery: Delivery): CodeExecuteResult {
+function typedResult(
+  result: ExecuteResult,
+  declaredCodes: ReadonlySet<string>,
+  toolCalls: string[],
+): CodeExecuteResult {
   const logs = cappedLogs(result.logs ?? [])
   const files = result.files === undefined ? {} : {files: result.files}
-  if (result.success) return {ok: true, result: cappedValue(result.result), logs, ...files, ...delivery}
+  if (result.success) return {ok: true, result: cappedValue(result.result), logs, ...files, toolCalls}
   const error = executeError(result, declaredCodes)
-  return {ok: false, error: {...error, message: cappedText(error.message)}, logs, ...files, ...delivery}
+  return {ok: false, error: {...error, message: cappedText(error.message)}, logs, ...files, toolCalls}
 }
 
 function cappedLogs(logs: string[]): string[] {

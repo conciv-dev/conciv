@@ -90,19 +90,23 @@ the source's `jobs.cancelSession` does on delete: a result that lands later is n
 finishes may not see that result in their terminal; it stays in the queue's journal and card and can be read again with
 `conciv plugin call experimental.page queue.wait --data '{"sessionId":"<sessionId>","queueId":"<queueId>","waitMs":0}'`,
 which answers the kept result again (`src/queue.ts` `wait` returns the result whatever its delivery; the
-newest 200 delivered queues are kept). The delivered-once guarantee belongs to the hub and the dedicated
-`page.queue.wait` forwarder.
+newest 200 delivered queues are kept). The delivered-once guarantee belongs to the session notice and `queue.outside`: a queue the session
+started reaches it once as a `Session.synthetic` message (`Queued page actions <status>`, `src/connection.ts`), and a
+queue an outside agent started (`ctx.agent` is `Agent.outsideId`) is handed over once by `queue.outside({sessionId,
+toolCallIds})`, which answers `queued`, the still-playing queues those tool calls started, and `finished`, every finished
+queue an outside agent started in that session not handed over yet whatever call started it, each with its `notice`. A
+finished `queue.wait` answer carries the same `notice`.
 Deleting a session stops what its tabs are still playing: each request in flight gets the same `cancel` control a
 dropped request gets (`src/machine.ts` `cancelPending`), and the queue's next actions are never sent (the
 attachment is closed, so they settle `disconnected before dispatch`). The source only fails the request on delete
 (opencode `plugin-browser/src/machine.ts` `failPending`), without a cancel. A closed tab gets no cancel: nothing is
 left to receive it.
 
-Core activates the engine half last, in the host's post position (`core/src/app.ts` `post: [concivPage]`, through
-`InstancePlugins.bound(plugins, post)`), as the source activates its browser plugin last (opencode
-`core/src/plugin/internal.ts:290-294`, `supervisor.ts:146-147`): the half pushes its page rules and the `page_eval`
-ask onto every agent, so it runs after every project plugin that adds one. The source lists that plugin in its own
-internal list; core cannot, because plugin-host would then import plugin-page, which imports the host's SDK.
+The engine starters (`unplugin` `core/boot.ts` and `core/vite.ts`, `try` `connect.ts`) pass the engine half in core `start`'s
+`builtins`, which fill the host's post slot (`InstancePlugins.bound(plugins, {post: builtins})`), so it is known
+before the config's entries run (`-conciv.page` turns it off) and activates last, as the source activates its browser plugin last (opencode `core/src/plugin/internal.ts:290-294`,
+`supervisor.ts:146-147`): the half pushes its page rules and the `page_eval` ask onto every agent, so it runs after
+every project plugin that adds one. Core lists no plugin of its own.
 A tool call that arrives while its plugin restarts after a reload meets the restart window, as in opencode: work
 started after the reload waits for activation (opencode `core/src/session/prompt.ts:40`; conciv
 `core/src/runtime/plugin-runtime.ts` `Plugin.awaitActivation`), a call already in flight does not.

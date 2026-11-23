@@ -74,7 +74,6 @@
     "@conciv/harness-init": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-host": "workspace:^",
-    "@conciv/plugin-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@conciv/tools": "workspace:^",

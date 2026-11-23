@@ -13,7 +13,7 @@ import {
   type ContentPart,
   type ModelMessage,
 } from '@conciv/protocol/chat-message-types'
-import type {Turn, TurnHooks} from '@conciv/ai/server'
+import type {createChatServer, Turn, TurnHooks} from '@conciv/ai/server'
 import {foldJsonlFile, resolveHarnessLogin, transcriptPathWithin} from '@conciv/harness'
 import {isEqual, once} from 'es-toolkit'
 import {
@@ -190,7 +190,7 @@ function promptedMessage(message: ModelMessage, event: SessionPrompt): ModelMess
   return {...message, content: [...text, ...(event.prompt.files ?? []).map(attachmentPart)], metadata: event.metadata}
 }
 
-function askedMessages(turn: Turn, messages: ModelMessage[], harness: HarnessAdapter): ModelMessage[] {
+function askedMessages(turn: PlannedTurn, messages: ModelMessage[], harness: HarnessAdapter): ModelMessage[] {
   if (turn.kind === 'compact') return [...messages, compactPrompt(harness)]
   return messages
 }
@@ -214,7 +214,7 @@ function withUpdate(messages: ModelMessage[], update: string): ModelMessage[] {
   })
 }
 
-function newToRun(turn: Turn, messages: ModelMessage[]): ModelMessage[] {
+function newToRun(turn: PlannedTurn, messages: ModelMessage[]): ModelMessage[] {
   const lastUser = Math.max(
     messages.findLastIndex((message) => message.role === 'user'),
     0,
@@ -291,10 +291,176 @@ async function refuseLoggedOut(harness: HarnessAdapter, signal: AbortSignal, log
   if (!login.loggedIn) throw new Error(login.message)
 }
 
-export function turnHooks(
+type TurnBasis = {
+  systemText: string
+  own: SessionRow | null
+  resumeSessionId: HarnessSessionId | null
+  reset: InstructionReset
+  toolSet: () => Promise<ReturnType<typeof chatToolSet>>
+  config: Awaited<ReturnType<HarnessAdapter['chatConfig']>>
+}
+
+type DraftRequest = Pick<SessionRequest, 'messages' | 'options' | 'tools'> & {system: readonly string[]}
+
+async function turnBasis(
   deps: TurnDeps,
-  context: {ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean},
-): TurnHooks {
+  sessionId: SessionId,
+  harness: HarnessAdapter,
+  kind: Turn['kind'],
+  codeMode: boolean,
+  signal: AbortSignal,
+): Promise<TurnBasis> {
+  const systemText = await buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
+  const row = await deps.sessions.row(sessionId)
+  const own = ownRow(harness, row)
+  const model = own?.model ?? null
+  const resumeSessionId = await resumableToken(deps, harness, row)
+  const reset: InstructionReset = kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
+  const toolSet = async () =>
+    chatToolSet(await deps.capabilities(sessionId), {sessionId, agentId: sessionId, model}, codeMode)
+  const config = await harness.chatConfig({
+    cwd: deps.cwd,
+    sessionId,
+    askPermission: (ask) => deps.askPermission(sessionId, ask, signal),
+    resumeSessionId,
+    model: model ?? undefined,
+    effort: own?.effort ?? undefined,
+    env: deps.harnessEnv(sessionId),
+    kind,
+  })
+  return {systemText, own, resumeSessionId, reset, toolSet, config}
+}
+
+function systemPrompts(systemText: string, instructions: PluginInstructions): string[] {
+  return [systemText, instructions.initial].filter((text) => text !== '')
+}
+
+function sessionRequest(
+  sessionId: SessionId,
+  harness: HarnessAdapter,
+  own: SessionRow | null,
+  config: TurnBasis['config'],
+  request: DraftRequest,
+): SessionRequest {
+  return {
+    sessionId,
+    model: {id: config.adapter.model, providerId: harness.id, ...(own?.effort ? {variant: own.effort} : {})},
+    system: request.system.map((text) => ({type: 'text', text})),
+    messages: request.messages,
+    options: request.options,
+    tools: request.tools,
+  }
+}
+
+type TurnContext = {ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean}
+
+type TurnPlan = Awaited<ReturnType<TurnHooks['plan']>>
+
+type PlannedTurn =
+  | Pick<Extract<Turn, {kind: 'chat'}>, 'kind' | 'delivered'>
+  | Pick<Extract<Turn, {kind: 'compact'}>, 'kind'>
+
+type RequestContext = Awaited<ReturnType<typeof createChatServer>>['requestContext']
+
+export async function sessionInstructions(
+  deps: TurnDeps,
+  context: TurnContext,
+  sessionId: SessionId,
+  requestContext: RequestContext,
+  signal: AbortSignal,
+): Promise<string> {
+  const plan = await turnPlan(
+    deps,
+    context,
+    sessionId,
+    {kind: 'chat', delivered: []},
+    await deps.harnessFor(sessionId),
+    signal,
+  )
+  return (await requestContext(sessionId, plan, signal)).system.join('\n\n')
+}
+
+async function turnPlan(
+  deps: TurnDeps,
+  context: TurnContext,
+  sessionId: SessionId,
+  turn: PlannedTurn,
+  harness: HarnessAdapter,
+  runSignal: AbortSignal,
+): Promise<TurnPlan> {
+  const {systemText, own, resumeSessionId, reset, toolSet, config} = await turnBasis(
+    deps,
+    sessionId,
+    harness,
+    turn.kind,
+    context.codeMode,
+    runSignal,
+  )
+  const instructions = once(async () => deps.pluginInstructions(sessionId, reset, (await toolSet()).inventory))
+  const normalizer = once(async () => toolNameNormalizer(await deps.toolNames(sessionId)))
+  return {
+    adapter: config.adapter,
+    modelOptions: config.modelOptions,
+    systemPrompts: async () => systemPrompts(systemText, await instructions()),
+    context: async (request, signal) => {
+      const event = await deps.context(
+        turn.kind === 'compact' ? 'compaction' : 'context',
+        sessionRequest(sessionId, harness, own, config, request),
+        signal,
+      )
+      return {
+        system: event.system.map((part) => part.text),
+        messages: event.messages,
+        options: event.options,
+        tools: event.tools,
+        ...(turn.kind !== 'compact' || event.result === undefined ? {} : {result: event.result}),
+      }
+    },
+    tools: toolSet,
+    setup: async () => {
+      await deps.sessions.ensure(sessionId)
+      await deps.sessions.onRunStart(sessionId)
+      await context.transcripts.sync(sessionId)
+      await normalizer()
+    },
+    prompt: async (message, signal) => {
+      if (turn.kind !== 'chat' || message.id === undefined) return message
+      if (!(await deps.promptHooked())) return message
+      const event = promptEvent(sessionId, message.id, message)
+      const prompted = await deps.prompt(structuredClone(event), signal)
+      if (isEqual(prompted, event)) return message
+      return promptedMessage(message, prompted)
+    },
+    expand: async (messages) => {
+      const lastUser = messages.findLast((message) => message.role === 'user')
+      if (turn.kind === 'chat' && lastUser !== undefined && isBlank(lastUser)) {
+        throw new Error('the message is empty')
+      }
+      return messages
+    },
+    providerMessages: async (messages) => {
+      const asked = askedMessages(turn, messages, harness)
+      const prepared = resumeSessionId === null ? asked : newToRun(turn, asked)
+      const told = withUpdate(prepared, (await instructions()).update)
+      return (await config.prepareMessages?.(told)) ?? told
+    },
+    chunk: async (chunk) => {
+      const shaped = chunk.type === ChatEventType.TOOL_CALL_START ? normalizedChunk(chunk, await normalizer()) : chunk
+      if (chunk.type === ChatEventType.RUN_FINISHED) await (await instructions()).told()
+      if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') {
+        await recordContext(deps, sessionId)
+      }
+      if (shaped.type === ChatEventType.TOOL_CALL_START) {
+        context.ui.noteToolCall(sessionId, shaped.toolCallId, shaped.toolCallName)
+      }
+      const minted = mintedSessionId(shaped)
+      if (minted !== null) await deps.sessions.recordNativeId(sessionId, harness.id, minted)
+      return [shaped]
+    },
+  }
+}
+
+export function turnHooks(deps: TurnDeps, context: TurnContext): TurnHooks {
   return {
     admit: async (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
@@ -304,96 +470,7 @@ export function turnHooks(
       const sessionId = SessionId.parse(turn.threadId)
       const harness = await deps.harnessFor(sessionId)
       await refuseLoggedOut(harness, runSignal, deps.log)
-      const systemText = await buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
-      const row = await deps.sessions.row(sessionId)
-      const own = ownRow(harness, row)
-      const model = own?.model ?? null
-      const resumeSessionId = await resumableToken(deps, harness, row)
-      const reset: InstructionReset = turn.kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
-      const instructions = Promise.withResolvers<PluginInstructions>()
-      const normalizer = once(async () => toolNameNormalizer(await deps.toolNames(sessionId)))
-      const toolSet = async () =>
-        chatToolSet(await deps.capabilities(sessionId), {sessionId, agentId: sessionId, model}, context.codeMode)
-      const config = await harness.chatConfig({
-        cwd: deps.cwd,
-        sessionId,
-        askPermission: (ask) => deps.askPermission(sessionId, ask, runSignal),
-        resumeSessionId,
-        model: model ?? undefined,
-        effort: own?.effort ?? undefined,
-        env: deps.harnessEnv(sessionId),
-        kind: turn.kind,
-      })
-      return {
-        adapter: config.adapter,
-        modelOptions: config.modelOptions,
-        systemPrompts: async () => [systemText, (await instructions.promise).initial].filter((text) => text !== ''),
-        context: async (request, signal) => {
-          const event = await deps.context(
-            turn.kind === 'compact' ? 'compaction' : 'context',
-            {
-              sessionId,
-              model: {id: config.adapter.model, providerId: harness.id, ...(own?.effort ? {variant: own.effort} : {})},
-              system: request.system.map((text) => ({type: 'text', text})),
-              messages: request.messages,
-              options: request.options,
-              tools: request.tools,
-            },
-            signal,
-          )
-          return {
-            system: event.system.map((part) => part.text),
-            messages: event.messages,
-            options: event.options,
-            tools: event.tools,
-            ...(turn.kind !== 'compact' || event.result === undefined ? {} : {result: event.result}),
-          }
-        },
-        tools: toolSet,
-        setup: async () => {
-          await deps.sessions.ensure(sessionId)
-          await deps.sessions.onRunStart(sessionId)
-          await context.transcripts.sync(sessionId)
-          const {inventory} = await toolSet()
-          await normalizer()
-          instructions.resolve(deps.pluginInstructions(sessionId, reset, inventory))
-        },
-        prompt: async (message, signal) => {
-          if (turn.kind !== 'chat' || message.id === undefined) return message
-          if (!(await deps.promptHooked())) return message
-          const event = promptEvent(sessionId, message.id, message)
-          const prompted = await deps.prompt(structuredClone(event), signal)
-          if (isEqual(prompted, event)) return message
-          return promptedMessage(message, prompted)
-        },
-        expand: async (messages) => {
-          const lastUser = messages.findLast((message) => message.role === 'user')
-          if (turn.kind === 'chat' && lastUser !== undefined && isBlank(lastUser)) {
-            throw new Error('the message is empty')
-          }
-          return messages
-        },
-        providerMessages: async (messages) => {
-          const asked = askedMessages(turn, messages, harness)
-          const prepared = resumeSessionId === null ? asked : newToRun(turn, asked)
-          const told = withUpdate(prepared, (await instructions.promise).update)
-          return (await config.prepareMessages?.(told)) ?? told
-        },
-        chunk: async (chunk) => {
-          const shaped =
-            chunk.type === ChatEventType.TOOL_CALL_START ? normalizedChunk(chunk, await normalizer()) : chunk
-          if (chunk.type === ChatEventType.RUN_FINISHED) await (await instructions.promise).told()
-          if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') {
-            await recordContext(deps, sessionId)
-          }
-          if (shaped.type === ChatEventType.TOOL_CALL_START) {
-            context.ui.noteToolCall(sessionId, shaped.toolCallId, shaped.toolCallName)
-          }
-          const minted = mintedSessionId(shaped)
-          if (minted !== null) await deps.sessions.recordNativeId(sessionId, harness.id, minted)
-          return [shaped]
-        },
-      }
+      return turnPlan(deps, context, sessionId, turn, harness, runSignal)
     },
     usage: async (turn, reported) => {
       const sessionId = SessionId.parse(turn.threadId)

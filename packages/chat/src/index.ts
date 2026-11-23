@@ -24,7 +24,14 @@ import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {CodeModeCatalog} from '@conciv/plugin-host'
 import {clearThread, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
-import {deletedSessionError, firstUserTitle, sessionDeleted, turnHooks, type TurnDeps} from './turn.js'
+import {
+  deletedSessionError,
+  firstUserTitle,
+  sessionDeleted,
+  sessionInstructions,
+  turnHooks,
+  type TurnDeps,
+} from './turn.js'
 
 export {assistCapabilities, toolDomainCapabilities, type CodeCapability, type ToolDomain} from './code-mode.js'
 export type {SessionPort} from './turn.js'
@@ -88,7 +95,10 @@ export type ChatPlane = {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
+    messageId?: string,
   ) => Promise<CodeRunner | null>
+  turnMessage: (sessionId: SessionId) => string | null
+  instructions: (sessionId: SessionId, signal: AbortSignal) => Promise<string>
   wake: (sessionId: SessionId) => Promise<void>
   catchUp: (sessionId: SessionId) => Promise<ChatEvent[]>
 }
@@ -120,10 +130,11 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         : {nativeId: row.nativeId, cwd: row.cwd, harnessKind: row.harnessKind}
     },
   })
+  const turnContext = {ui, transcripts, codeMode: deps.driver !== null}
   const server = await createChatServer({
     stores,
     sandbox: {dir: deps.cwd, groupExitTimeoutMs: deps.groupExitTimeoutMs},
-    hooks: turnHooks(deps, {ui, transcripts, codeMode: deps.driver !== null}),
+    hooks: turnHooks(deps, turnContext),
     codeModeResult: cappedValue,
     startTimeoutMs: deps.firstStartTimeoutMs ?? FIRST_START_TIMEOUT_MS,
     firstOutputTimeoutMs: deps.firstOutputTimeoutMs ?? FIRST_OUTPUT_TIMEOUT_MS,
@@ -220,10 +231,12 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
     given: readonly CodeCapability[] | undefined,
+    messageId: string | undefined,
   ): Promise<CodeRunner | null> => {
     const model = (await deps.sessions.row(sessionId))?.model ?? null
     const capabilities = given ?? (await deps.capabilities(sessionId))
-    const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model}, deps.driver !== null)
+    const request = {sessionId, agentId: sessionId, model, ...(messageId === undefined ? {} : {messageId})}
+    const toolSet = chatToolSet(capabilities, request, deps.driver !== null)
     const runner = server.codeRunner(toolSet.codeMode, toolSet.search)
     if (runner === null && toolSet.direct.length === 0) return null
     const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
@@ -294,10 +307,13 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       wake(sessionId).catch((error: unknown) =>
         deps.log(`[chat] waking session ${sessionId} for its inbox failed: ${String(error)}`),
       ),
-    codeRunner: (sessionId, publish, given) =>
+    codeRunner: (sessionId, publish, given, messageId) =>
       inSpan(deps.tracer, 'ChatPlane.codeRunner', {'conciv.session.id': sessionId}, () =>
-        buildCodeRunner(sessionId, publish, given),
+        buildCodeRunner(sessionId, publish, given, messageId),
       ),
+    turnMessage: (sessionId) => server.turnMessage(sessionId),
+    instructions: (sessionId, signal) =>
+      sessionInstructions(deps, turnContext, sessionId, server.requestContext, signal),
   }
 }
 

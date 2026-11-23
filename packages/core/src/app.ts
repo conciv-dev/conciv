@@ -71,6 +71,7 @@ import {
 } from 'effect'
 import {Bus, Database, Permission, PluginHooks, SessionEvent, SessionInbox, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
+import type {Plugin as EffectPlugin} from '@conciv/plugin/effect/plugin'
 import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
 import {readModel, openDb, sessions, type ConcivDb} from '@conciv/db'
 import {createSettingsStorage, settingsOnDisk} from './settings/settings-storage.js'
@@ -78,13 +79,10 @@ import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {makeHubInstaller} from './api/rpc/hub.js'
 import {readConcivHome, readProcessEnv, runWithProvider} from './lib/engine-env.js'
-import {createTabs} from './api/tabs.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
-import {makePagePlugin} from './page/page-plugin.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {createPersistentPtys} from './pty/persistent-ptys.js'
-import concivPage from '@conciv/plugin-page'
 import {
   answerPermission,
   askForHarness,
@@ -94,13 +92,13 @@ import {
   pluginInstructions,
   settlingAsks,
   currentToolDomain,
+  type CallOrigin,
 } from './runtime/permission-cards.js'
 import {makePluginRuntime, type PluginRuntime} from './runtime/plugin-runtime.js'
 import {startObservability, type EngineObservability} from './runtime/observability.js'
 import type {CoreRuntime, SessionScope} from './runtime/scope-types.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {carryEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
-import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute} from '@conciv/serve/rpc'
 import {GROUP_EXIT_TIMEOUT_MS, inSpan, loadIsolateDriver, type Tracer} from '@conciv/ai/server'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
@@ -122,16 +120,16 @@ import type {OpenInEditor} from './editor/open.js'
 import {writePrivateFile} from './lib/dev-endpoint.js'
 import {logOnContext, logOnRuntime, type Log, type LogOptions} from './lib/logging.js'
 
-const NO_TAB_MESSAGE = 'pass tab to execute_typescript; list_tabs lists the open tabs'
+const NO_SESSION_MESSAGE = 'this tool needs a session; this call has none'
 
 export function outsideRunCapabilities(capabilities: readonly CodeCapability[]): CodeCapability[] {
   return capabilities.map((capability): CodeCapability => {
     if (capability.direct === true) return capability
     return {
       ...capability,
-      errors: [...capability.errors, {code: 'NO_TAB', message: NO_TAB_MESSAGE}],
+      errors: [...capability.errors, {code: 'NO_SESSION', message: NO_SESSION_MESSAGE}],
       execute: () => {
-        throw toolError('NO_TAB', {message: NO_TAB_MESSAGE})
+        throw toolError('NO_SESSION', {message: NO_SESSION_MESSAGE})
       },
     }
   })
@@ -244,6 +242,8 @@ export type MakeAppOpts = {
   boundOrigin?: () => string | undefined
 
   plugins?: readonly Plugin.Plugin[]
+
+  builtins?: readonly EffectPlugin[]
 
   staleness?: () => EngineStaleness | undefined
 
@@ -572,7 +572,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
-  const pagePlugin = makePagePlugin(() => pluginHost)
   const settings = createSettingsStorage(settingsOnDisk({global: appEnv.home, project: stateDir}), earlyLog)
   const primitives = makeSessionPrimitives()
   const {stream} = primitives
@@ -683,7 +682,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       engineId,
       config: opts.cfg,
       plugins: opts.plugins ?? [],
-      post: [concivPage],
+      builtins: opts.builtins ?? [],
       harness,
       signal: engineLife.signal,
       bundler: opts.bridge,
@@ -728,11 +727,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const reportToolCollision = memoize((name: string) =>
     log(Effect.logError('[core] a plugin tool is left out: a built-in capability already has that name', {name})),
   )
-  const withPluginTools = async (sessionId: SessionId, capabilities: CodeCapability[]): Promise<CodeCapability[]> =>
+  const withPluginTools = async (
+    sessionId: SessionId,
+    capabilities: CodeCapability[],
+    origin: CallOrigin,
+  ): Promise<CodeCapability[]> =>
     toolDomainCapabilities(
       capabilities,
-      await pluginHost.runPromise(currentToolDomain(sessionId)),
-      currentToolDomain(sessionId),
+      await pluginHost.runPromise(currentToolDomain(sessionId, origin)),
+      currentToolDomain(sessionId, origin),
       (effect, signal) => pluginHost.runPromiseExit(settlingAsks(sessionId, effect, publishCard), {signal}),
       reportToolCollision,
     )
@@ -740,10 +743,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const offeredCapabilities = (sessionId: SessionId): CodeCapability[] =>
     assistCapabilities(concivSandboxTools(makeToolCtx(sessionId)))
   const codeModeCapabilities = (sessionId: SessionId): Promise<CodeCapability[]> =>
-    withPluginTools(sessionId, offeredCapabilities(sessionId))
+    withPluginTools(sessionId, offeredCapabilities(sessionId), {outside: false})
   const sessionTools = async (sessionId: SessionId): Promise<ChatTool[]> => {
     const offered = offeredCapabilities(sessionId)
-    const given = await withPluginTools(sessionId, offered)
+    const given = await withPluginTools(sessionId, offered, {outside: false})
     return differenceBy(given, offered, (capability) => capability.name).map(({name, description}) => ({
       name,
       description,
@@ -833,11 +836,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     model: sessionModel,
     staleness,
     interruptIdle,
-    symbolicate: pagePlugin.symbolicateOrNone,
     log,
   })
-
-  await pagePlugin.deliverFinished()
 
   const admitOutside = async (
     scope: SessionScope,
@@ -857,14 +857,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses, log, tracer})
   const mcp: McpVars['mcp'] = {
-    codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
-    hubCall: pagePlugin.hubCall,
-    hubReplied: pagePlugin.hubReplied,
-    finishedQueues: pagePlugin.hubFinished,
-    startedQueues: pagePlugin.startedBy,
+    codeRunner: (sessionId, publish, capabilities, messageId) =>
+      plane.codeRunner(sessionId, publish, capabilities, messageId),
     driving: (sessionId) => plane.driving(sessionId),
-    outsideCapabilities: async (sessionId) =>
-      outsideRunCapabilities(await withPluginTools(sessionId, offeredCapabilities(sessionId))),
+    turnMessage: (sessionId) => plane.turnMessage(sessionId),
+    outsideCapabilities: async (sessionId, run) => {
+      const capabilities = await withPluginTools(sessionId, offeredCapabilities(sessionId), {outside: true})
+      return run.tab ? capabilities : outsideRunCapabilities(capabilities)
+    },
     resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
     admitOutside,
     hubRefusal: hub.refusal,
@@ -885,16 +885,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const rpcDeps: RpcDeps = {
     ptys,
     code: mcp,
-    tabs: createTabs({
-      attachedSessions: pagePlugin.attachedSessions,
-      pageTabs: pagePlugin.tabs,
-      session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
-      root: opts.cwd,
-      instructions: systemPromptText,
-      log,
-    }),
-    queues: pagePlugin,
-    queueWait: pagePlugin.queueWait,
     pluginHost,
     eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
     chat: chatDeps,

@@ -65,7 +65,7 @@ describe('the agent reads the TanStack dev server', () => {
 
 describe('the agent works with the TanStack plugin and no page open', () => {
   test('the TanStack skill reaches the model, and with no page open the page operations are not offered', async () => {
-    const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']})
+    const engine = await createEngine({plugins: ['@conciv/plugin-page', '@conciv/plugin-tanstack']})
     await engine.reply(TestLLM.text('Your app uses TanStack Router'))
 
     await engine.session.send('What router does my app use?')

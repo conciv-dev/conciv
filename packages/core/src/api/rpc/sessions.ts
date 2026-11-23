@@ -291,6 +291,17 @@ export function searchedSessionPage(
   return sessionPage(chat, input, input.term, (cursorPage) => search.pages(input.term, cursorPage, input.everywhere))
 }
 
+export async function requireLiveSession(
+  deps: RpcDeps,
+  sessionId: SessionId | undefined,
+  refuse: () => Error,
+): Promise<void> {
+  if (sessionId === undefined) return
+  const row = await rowById(deps.chat.db, sessionId)
+  if (row !== null && row.deletedAt === null) return
+  throw refuse()
+}
+
 export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, RpcContext> {
   const chat = deps.chat
   const db = chat.db
@@ -319,6 +330,10 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       }
       if ('cwd' in input && input.cwd !== undefined) search.cover(input.cwd)
       return page
+    }),
+    instructions: os.sessions.instructions.handler(async ({input, errors, signal = new AbortController().signal}) => {
+      await requireLiveSession(deps, input.sessionId, () => errors.NOT_FOUND())
+      return {text: await chat.plane.instructions(input.sessionId, signal)}
     }),
     create: os.sessions.create.handler(async () => {
       const {sessionId} = await createChatSession(scope)

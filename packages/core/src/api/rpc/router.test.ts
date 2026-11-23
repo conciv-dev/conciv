@@ -1,6 +1,7 @@
 import {writeFileSync} from 'node:fs'
 import {delimiter, join} from 'node:path'
 import {ConfigProvider} from 'effect'
+import {z} from 'zod'
 import {describe} from 'vitest'
 import {makeRpcClient} from '@conciv/contract'
 import {claude} from '@conciv/harness/claude'
@@ -10,6 +11,7 @@ import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/pro
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {test} from '../../../test/engine-test.js'
+import {CHAT_SYSTEM_PROMPT} from '../../lib/chat-system-prompt.js'
 
 describe.concurrent('outside agents', () => {
   const readThrough = async (
@@ -96,19 +98,19 @@ describe.concurrent('outside agents', () => {
       content: [{type: 'text', text: expect.stringContaining('Codex is disconnected from conciv')}],
     })
     await expect(outside.chat.permissionDecision({approvalId: 'approval-1', reply: 'once'})).rejects.toMatchObject(
-      refused("outside agents can't answer permission requests; decide it in the tab"),
+      refused("outside agents can't answer permission requests; decide it in the conciv panel"),
     )
     await expect(outside.meta.connectHub({harness: 'claude'})).rejects.toMatchObject(
-      refused("outside agents can't connect or disconnect agents; do it in the tab"),
+      refused("outside agents can't connect or disconnect agents; do it in the conciv panel"),
     )
     await expect(outside.event.subscribe()).rejects.toMatchObject(
       refused("outside agents can't read the engine's event stream"),
     )
     await expect(outside.plugin.list()).rejects.toMatchObject(
-      refused("outside agents can't use plugin routes; use the plugin in the tab"),
+      refused("outside agents can't use plugin routes; use the plugin in the conciv panel"),
     )
     await expect(outside.experimental.persistentPty.create({sessionId: engine.session.id})).rejects.toMatchObject(
-      refused("outside agents can't use the session terminal; use it in the tab"),
+      refused("outside agents can't use the session terminal; open it in the conciv panel"),
     )
   })
 
@@ -123,12 +125,36 @@ describe.concurrent('outside agents', () => {
     })
   })
 
-  test('with open access a call into a session runs without asking', async ({expect}) => {
+  test('with open access a call into a session runs without asking, as the outside agent, while the panel calls as the session agent', async ({
+    connect,
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk'], hubAccess: 'open'})
+    const hub = makeRpcClient(engine.address.apiBase, {
+      token: engine.address.token,
+      headers: {
+        [CONCIV_ORIGIN_HEADER]: 'hub',
+        [CONCIV_CLIENT_HEADER]: 'terminal',
+        [CONCIV_SESSION_HEADER]: engine.session.id,
+      },
+    })
 
     expect(await engine.outside({tab: engine.session.id}).call('desk_echo', {text: 'Hello'})).toEqual({
       content: [expect.objectContaining({type: 'text', text: expect.stringContaining('Hello')})],
     })
+    expect(await engine.outside({tab: engine.session.id}).call('desk_agent', {})).toEqual({
+      content: [expect.objectContaining({type: 'text', text: expect.stringContaining('"agent":"outside"')})],
+    })
+    expect(await hub.registry.call({name: 'desk_agent', input: {}})).toEqual({agent: 'outside'})
+    const ran = await hub.code.execute({
+      sessionId: engine.session.id,
+      typescriptCode:
+        "const first = await external_desk_echo({text: 'one'}); const second = await external_desk_echo({text: 'two'}); return [first.callId, second.callId]",
+    })
+    const started = z.tuple([z.string(), z.string()]).parse(ran.ok ? ran.result : null)
+    expect(new Set(started).size).toBe(2)
+    expect(ran.toolCalls).toEqual(started)
+    expect(await connect(engine).registry.call({name: 'desk_agent', input: {}})).toEqual({agent: 'build'})
   })
 })
 
@@ -184,14 +210,29 @@ describe('a harness whose CLI fails its model list', () => {
 })
 
 describe.concurrent('tool registry', () => {
-  test('a call naming no registered tool is refused with UNKNOWN_TOOL', async ({connect, expect}) => {
+  test("a call naming no registered tool is refused with UNKNOWN_TOOL, and a session answers the system text its next turn sends: the base prompt, a plugin's instruction entry, the code-mode preface, and what the context hooks leave seeing the offered tools, until it is deleted", async ({
+    connect,
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
     const rpc = connect(engine)
+    const sessionId = engine.session.id
 
     await expect(rpc.registry.call({name: 'desk_missing', input: {}})).rejects.toMatchObject({
       code: 'UNKNOWN_TOOL',
       message: 'no registered tool answers to that name',
     })
+
+    await engine.rpc.call('desk', 'pin', {sessionId})
+    const {text} = await rpc.sessions.instructions({sessionId})
+    expect(text).toContain(CHAT_SYSTEM_PROMPT.split('\n')[0])
+    expect(text).toContain('<context key="desk">\nThe desk keeps the notes of this session.')
+    expect(text).toContain('## Code Execution Tool')
+    expect(text).toMatch(/^TOOLS .*execute_typescript/m)
+    expect(text.endsWith('HOOKED')).toBe(true)
+
+    await rpc.sessions.delete({sessionId})
+    await expect(rpc.sessions.instructions({sessionId})).rejects.toMatchObject({code: 'NOT_FOUND'})
   })
 })
 

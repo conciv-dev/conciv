@@ -18,8 +18,6 @@ import type {createSessionSearch} from '../../sessions/session-search.js'
 import type {createHubInstaller} from './hub.js'
 import type {createSettingsStorage} from '../../settings/settings-storage.js'
 import type {McpVars} from '../mcp.js'
-import type {createTabs} from '../tabs.js'
-import type {PagePlugin} from '../../page/page-plugin.js'
 import type {ManagedRuntime} from 'effect'
 import type {
   Agent,
@@ -95,9 +93,6 @@ export type RpcDeps = {
   hub: ReturnType<typeof createHubInstaller>
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
   code: McpVars['mcp']
-  tabs: ReturnType<typeof createTabs>
-  queues: Pick<PagePlugin, 'attachedSessions'>
-  queueWait: PagePlugin['queueWait']
   pluginHost: PluginHost
   eventHeartbeatIntervalMs?: number
   answerPermission: PermissionAnswer
@@ -161,11 +156,11 @@ export async function admitOutsideCall(
 
 const DECIDING_PROCEDURES = new Set(['chat.permissionDecision'])
 
-const OUTSIDE_DECISION_REFUSAL = "outside agents can't answer permission requests; decide it in the tab"
+const OUTSIDE_DECISION_REFUSAL = "outside agents can't answer permission requests; decide it in the conciv panel"
 
 const HUB_PROCEDURES = new Set(['meta.connectHub', 'meta.disconnectHub'])
 
-const OUTSIDE_HUB_REFUSAL = "outside agents can't connect or disconnect agents; do it in the tab"
+const OUTSIDE_HUB_REFUSAL = "outside agents can't connect or disconnect agents; do it in the conciv panel"
 
 const EVENT_PROCEDURES = new Set(['event.subscribe', 'chat.join'])
 
@@ -181,7 +176,7 @@ const PLUGIN_PROCEDURES = new Set([
   'fs.find',
 ])
 
-const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the tab"
+const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the conciv panel"
 
 const PTY_PROCEDURES = new Set([
   'experimental.persistentPty.create',
@@ -192,7 +187,7 @@ const PTY_PROCEDURES = new Set([
   'experimental.persistentPty.inject',
 ])
 
-const OUTSIDE_PTY_REFUSAL = "outside agents can't use the session terminal; use it in the tab"
+const OUTSIDE_PTY_REFUSAL = "outside agents can't use the session terminal; open it in the conciv panel"
 
 export function makeHubAdmission(deps: RpcDeps) {
   return plainOs.$context<RpcContext>().middleware(async ({context, next, signal, path}, input: unknown) => {

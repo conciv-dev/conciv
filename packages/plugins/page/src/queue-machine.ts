@@ -1,18 +1,19 @@
 import type {Deferred} from 'effect'
 import {RESULT_CAP_CHARS} from '@conciv/contract'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {PageQueueHandle, PageQueueOutcome, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
+import type {PageQueueHandle, PageQueueOutcome, PageQueueProgress, PageQueueResult} from './rpc.js'
 
 export type Landed = 'played' | 'stopped' | 'lost'
 
 export type Settled = {readonly outcome: PageQueueOutcome; readonly landed: Landed}
 
-export type Delivery = 'owed' | 'claimed' | 'delivered'
+export type Delivery = 'owed' | 'delivered'
 
 export type QueueEntry = {
   readonly queueId: string
   readonly sessionId: SessionId
   readonly toolCallId: string
+  readonly outside: boolean
   readonly tools: readonly string[]
   readonly settled: readonly (Settled | undefined)[]
   readonly result: PageQueueResult | null
@@ -28,13 +29,6 @@ export type QueueEvent =
   | {readonly type: 'finished'; readonly queueId: string}
   | {readonly type: 'announce'; readonly queueId: string}
   | {readonly type: 'delivered'; readonly queueIds: readonly string[]}
-  | {readonly type: 'claimed'; readonly queueIds: readonly string[]}
-  | {
-      readonly type: 'settled'
-      readonly sessionId: SessionId
-      readonly queueIds: readonly string[]
-      readonly delivery: Exclude<Delivery, 'claimed'>
-    }
   | {readonly type: 'session.cancelled'; readonly sessionId: SessionId}
 
 export type QueueEffect =
@@ -42,12 +36,6 @@ export type QueueEffect =
   | {readonly type: 'announce'; readonly entry: QueueEntry}
 
 export type QueueTransition = {readonly state: QueueState; readonly effects: readonly QueueEffect[]}
-
-export type Owed = {
-  readonly queueId: string
-  readonly toolCallId: string
-  readonly result: PageQueueResult
-}
 
 export const KEPT_QUEUES = 200
 
@@ -78,15 +66,7 @@ export function transitionQueue(state: QueueState, event: QueueEvent): QueueTran
     if (entry === undefined || entry.result === null || entry.delivery !== 'owed') return {state, effects: []}
     return {state, effects: [{type: 'announce', entry}]}
   }
-  if (event.type === 'delivered') return redelivered(state, event.queueIds, () => true, 'delivered')
-  if (event.type === 'claimed') return redelivered(state, event.queueIds, () => true, 'claimed')
-  if (event.type === 'settled')
-    return redelivered(
-      state,
-      event.queueIds,
-      (entry) => entry.sessionId === event.sessionId && entry.delivery === 'claimed',
-      event.delivery,
-    )
+  if (event.type === 'delivered') return delivered(state, event.queueIds)
   return {state: {entries: state.entries.filter((entry) => entry.sessionId !== event.sessionId)}, effects: []}
 }
 
@@ -107,35 +87,20 @@ export function readProgress(entry: QueueEntry): PageQueueProgress {
   }
 }
 
-export function awaitsDelivery(entry: QueueEntry): boolean {
-  return entry.delivery === 'owed' && entry.result !== null
-}
-
-export function selectStartedBy(
+export function selectOutside(
   state: QueueState,
   sessionId: SessionId,
   toolCallIds: readonly string[],
-): PageQueueHandle[] {
-  return state.entries.flatMap((entry) =>
-    entry.sessionId === sessionId && entry.result === null && toolCallIds.includes(entry.toolCallId)
-      ? [{queueId: entry.queueId, actions: entry.tools.length}]
-      : [],
-  )
-}
-
-export function selectUndelivered(
-  state: QueueState,
-  sessionId: SessionId,
-  toolCallIds: readonly string[] | undefined,
-): Owed[] {
-  return state.entries.flatMap((entry) =>
-    entry.sessionId === sessionId &&
-    (toolCallIds === undefined || toolCallIds.includes(entry.toolCallId)) &&
-    entry.result !== null &&
-    awaitsDelivery(entry)
-      ? [{queueId: entry.queueId, toolCallId: entry.toolCallId, result: entry.result}]
-      : [],
-  )
+): {queued: PageQueueHandle[]; finished: PageQueueResult[]} {
+  const outside = state.entries.filter((entry) => entry.outside && entry.sessionId === sessionId)
+  return {
+    queued: outside.flatMap((entry) =>
+      entry.result === null && toolCallIds.includes(entry.toolCallId)
+        ? [{queueId: entry.queueId, actions: entry.tools.length}]
+        : [],
+    ),
+    finished: outside.flatMap((entry) => (entry.result !== null && entry.delivery === 'owed' ? [entry.result] : [])),
+  }
 }
 
 function updated(state: QueueState, queueId: string, change: (entry: QueueEntry) => QueueEntry): QueueTransition {
@@ -145,16 +110,11 @@ function updated(state: QueueState, queueId: string, change: (entry: QueueEntry)
   }
 }
 
-function redelivered(
-  state: QueueState,
-  queueIds: readonly string[],
-  allowed: (entry: QueueEntry) => boolean,
-  delivery: Delivery,
-): QueueTransition {
+function delivered(state: QueueState, queueIds: readonly string[]): QueueTransition {
   return {
     state: {
       entries: state.entries.map((entry) =>
-        queueIds.includes(entry.queueId) && allowed(entry) ? {...entry, delivery} : entry,
+        queueIds.includes(entry.queueId) ? {...entry, delivery: 'delivered' as const} : entry,
       ),
     },
     effects: [],

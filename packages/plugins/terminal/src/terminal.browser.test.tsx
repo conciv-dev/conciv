@@ -105,7 +105,7 @@ describe('the terminal', () => {
 
   test('a grab picked from the toolbar is held as a chip, pasted into the CLI on Enter and never sent to the chat, and Back to chat leaves an ended CLI', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived

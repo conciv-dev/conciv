@@ -2,6 +2,7 @@ import {z} from 'zod'
 import {
   chat,
   convertMessagesToModelMessages,
+  createCapability,
   defineChatMiddleware,
   EventType,
   isToolResultOutcome,
@@ -48,10 +49,17 @@ import {askingToolProvisioner, type AskPermission} from './image-tool-results.js
 import {childCards, withoutHiddenCalls} from './child-cards.js'
 import {codeModeTools, readSecretRefusal, stoppedWith, tracedDriver} from './code-mode.js'
 import type {CodeDriver} from './quickjs-thread.js'
+import type {IsolateDriver} from '@tanstack/ai-code-mode'
 import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
 import {GROUP_EXIT_TIMEOUT_MS, localSandbox} from './local-sandbox.js'
-import {answeredAdapter, answeredMetadata, hookedRequest, type RequestHook} from './model-request.js'
+import {
+  answeredAdapter,
+  answeredMetadata,
+  hookedRequest,
+  type HookedRequest,
+  type RequestHook,
+} from './model-request.js'
 import {formatLoggedError} from './logged-error.js'
 import {cloneDeepWith, isPlainObject, takeWhile} from 'es-toolkit'
 import {inSpan, streamInSpan, type SpanAttributes, type Tracer} from './spans.js'
@@ -268,12 +276,14 @@ export type ChatServer = ChatDelivery & {
   endAllRuns: () => Promise<void>
   settled: (threadId: string) => Promise<void>
   driving: (threadId: string) => boolean
+  turnMessage: (threadId: string) => string | null
   hydrate: (threadId: string, window?: ChatThreadWindow) => Promise<ChatThread>
   record: (threadId: string, chunks: readonly ChatEvent[]) => Promise<void>
   codeRunner: (
     codeMode: readonly ChatTool[],
     search: ((input: unknown) => Promise<unknown>) | null,
   ) => CodeRunner | null
+  requestContext: (threadId: string, plan: TurnPlan, signal: AbortSignal) => Promise<HookedRequest>
 }
 
 const PHASE_BY_STATUS: Record<RunRecord['status'], RunPhase> = {
@@ -346,6 +356,33 @@ function withLastUser(messages: ModelMessage[], user: ModelMessage | undefined):
 
 type OfferedTools = {tools: ChatTool[]; preface: string | null}
 
+type PreparedContext = {system: readonly string[]; expanded: ModelMessage[]; provider: ModelMessage[]}
+
+async function preparedContext(plan: TurnPlan, messages: ModelMessage[]): Promise<PreparedContext> {
+  const system = await plan.systemPrompts()
+  const expanded = await plan.expand(messages)
+  return {system, expanded, provider: await plan.providerMessages(expanded)}
+}
+
+function modelRequest(
+  plan: TurnPlan,
+  prepared: PreparedContext,
+  offered: OfferedTools,
+  messages: ModelMessage[],
+  signal: AbortSignal,
+): Promise<HookedRequest> {
+  return hookedRequest(
+    (draft, hookSignal) => untilAborted(plan.context(draft, hookSignal), hookSignal),
+    {
+      system: [...prepared.system, ...(offered.preface === null ? [] : [offered.preface])],
+      messages: [...prepared.provider, ...messages.slice(prepared.expanded.length)],
+      options: requestOptions(plan.modelOptions),
+      tools: offered.tools,
+    },
+    signal,
+  )
+}
+
 function buildDiscovery(tool: ChatTool | null): CodeDiscovery | null {
   const execute = tool?.execute
   if (tool === null || !execute) return null
@@ -382,7 +419,12 @@ type LiveRun = {
   settled: PromiseWithResolvers<void>
   stopping: boolean
   interrupted: ModelMessage[]
+  message: () => string | null
 }
+
+export const TurnMessageCapability = createCapability<() => string | null>()('conciv.turn-message')
+
+const [, provideTurnMessage] = TurnMessageCapability
 
 type RunMessages = {full: ModelMessage[]}
 
@@ -663,6 +705,16 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     return preparing.length > 0
   }
 
+  const offeredTools = async (plan: TurnPlan, coding: IsolateDriver | null): Promise<OfferedTools> => {
+    const tools = await plan.tools()
+    const coded =
+      coding === null ? null : codeModeTools(coding, tools.codeMode, tools.search, config.codeModeResult, debug, tracer)
+    return {
+      tools: [...(coded?.tools ?? []), ...tools.direct],
+      preface: coded?.preface ?? null,
+    }
+  }
+
   function concivTurn(
     turn: Turn,
     plan: TurnPlan,
@@ -671,11 +723,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     offered: () => Promise<OfferedTools>,
   ) {
     const failure: {message: string | null} = {message: null}
-    const prepared: {sent: number; provider: ModelMessage[]; system: readonly string[]} = {
-      sent: 0,
-      provider: [],
-      system: [],
-    }
+    const prepared: {context: PreparedContext} = {context: {system: [], expanded: [], provider: []}}
     const shown = new StreamProcessor()
     const saveSoFar = (finish: (message: ModelMessage) => ModelMessage = (message) => message): Promise<void> =>
       savingShown(turn.threadId, () =>
@@ -702,16 +750,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         if (ctx.phase === 'beforeModel') {
           const next = await offered()
           const request = await inSpan(tracer, 'ChatServer.requestContext', turnAttributes(turn), () =>
-            hookedRequest(
-              (draft, signal) => untilAborted(plan.context(draft, signal), signal),
-              {
-                system: [...prepared.system, ...(next.preface === null ? [] : [next.preface])],
-                messages: [...prepared.provider, ...withoutHiddenCalls(current.messages).slice(prepared.sent)],
-                options: requestOptions(plan.modelOptions),
-                tools: next.tools,
-              },
-              entry.controller.signal,
-            ),
+            modelRequest(plan, prepared.context, next, withoutHiddenCalls(current.messages), entry.controller.signal),
           )
           return {
             messages: [...ctx.messages],
@@ -726,22 +765,18 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         return inSpan(tracer, 'ChatServer.prepareContext', turnAttributes(turn), async () => {
           await plan.setup()
           const next = await offered()
-          prepared.system = await plan.systemPrompts()
-          const systemPrompts = [
-            ...prepared.system,
-            ...(next.preface === null ? [] : [next.preface]),
-            ...current.systemPrompts,
-          ]
-          const expanded = await plan.expand(withoutHiddenCalls(current.messages))
-          prepared.sent = expanded.length
-          prepared.provider = await plan.providerMessages(expanded)
+          prepared.context = await preparedContext(plan, withoutHiddenCalls(current.messages))
           return {
             messages: withLastUser(
               view.full,
-              expanded.findLast((message) => message.role === 'user'),
+              prepared.context.expanded.findLast((message) => message.role === 'user'),
             ),
-            providerMessages: prepared.provider,
-            systemPrompts,
+            providerMessages: prepared.context.provider,
+            systemPrompts: [
+              ...prepared.context.system,
+              ...(next.preface === null ? [] : [next.preface]),
+              ...current.systemPrompts,
+            ],
             tools: next.tools,
           }
         })
@@ -818,6 +853,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       settled: Promise.withResolvers(),
       stopping: false,
       interrupted: [],
+      message: () => null,
     }
     live.set(turn.runId, entry)
     return streamInSpan(tracer, 'ChatServer.turn', turnAttributes(turn), () =>
@@ -856,17 +892,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     plan: TurnPlan,
   ) {
     const coding = driver === null ? null : stoppedWith(tracedDriver(driver, tracer), controller.signal, config.log)
-    const offered = async (): Promise<OfferedTools> => {
-      const tools = await plan.tools()
-      const coded =
-        coding === null
-          ? null
-          : codeModeTools(coding, tools.codeMode, tools.search, config.codeModeResult, debug, tracer)
-      return {
-        tools: [...(coded?.tools ?? []), ...tools.direct],
-        preface: coded?.preface ?? null,
-      }
-    }
+    const offered = () => offeredTools(plan, coding)
     const seconds = (ms: number) => Math.round(ms / 1000)
     const failed = (message: string) => entry.ending.abort({type: EventType.RUN_ERROR, message, timestamp: Date.now()})
     const view: RunMessages = {full: []}
@@ -898,6 +924,14 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         defineChatMiddleware({
           name: 'conciv-steer',
           setup: () => endOlderRuns(turn, entry),
+        }),
+        defineChatMiddleware({
+          name: 'conciv-turn-message',
+          provides: [TurnMessageCapability],
+          setup: (ctx) => {
+            entry.message = () => ctx.currentMessageId
+            provideTurnMessage(ctx, entry.message)
+          },
         }),
         defineChatMiddleware({
           name: 'conciv-image-tools',
@@ -949,6 +983,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       inSpan(tracer, 'ChatServer.endRuns', {'conciv.session.id': threadId}, () => endThreadRuns(threadId)),
     endAllRuns: () => inSpan(tracer, 'ChatServer.endAllRuns', {}, endAllRuns),
     driving: (threadId) => filterLiveRuns(threadId).length > 0,
+    turnMessage: (threadId) => filterLiveRuns(threadId).at(-1)?.[1].message() ?? null,
     settled: async (threadId) => {
       await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
     },
@@ -958,6 +993,18 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       inSpan(tracer, 'ChatServer.record', {'conciv.session.id': threadId, 'conciv.chunk.count': chunks.length}, () =>
         recordChunks(threadId, chunks),
       ),
+    requestContext: (threadId, plan, signal) =>
+      inSpan(tracer, 'ChatServer.requestContext', {'conciv.session.id': threadId}, async () => {
+        const messages = withoutHiddenCalls(await stores.messages.loadThread(threadId))
+        const coding = driver === null ? null : tracedDriver(driver, tracer)
+        return modelRequest(
+          plan,
+          await preparedContext(plan, messages),
+          await offeredTools(plan, coding),
+          messages,
+          signal,
+        )
+      }),
     codeRunner: (codeMode, search) => {
       if (driver === null) return null
       const coded = codeModeTools(tracedDriver(driver, tracer), codeMode, search, (value) => value, debug, tracer)

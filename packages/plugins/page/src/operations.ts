@@ -9,7 +9,14 @@ import {
   type PageFailure,
   type PageResult,
   isPageFailure,
-} from '@conciv/protocol/page-types'
+  Operations,
+  SHORT_MAX,
+  type Action,
+  type File,
+  type Outcome,
+  type PageCommand,
+  type Operation,
+} from './rpc.js'
 import type {
   CssBundle,
   ElementCapture,
@@ -40,7 +47,6 @@ import {
 } from './capture.js'
 import {reactBridge, type Tracker} from './react.js'
 import {actionable, fill, focusedElement, hover, isDisabled, press, select, setChecked} from './act.js'
-import {Operations, SHORT_MAX, type Action, type File, type Outcome, type PageCommand, type Operation} from './rpc.js'
 import {screenshot} from './screenshot.js'
 import {redactedUrl} from './redacted-url.js'
 import {isHtml, type Beat, type Simulator} from './simulator.js'

@@ -24,7 +24,19 @@ import type {Context} from '@conciv/plugin/effect/plugin'
 import type {RpcRegistration} from '@conciv/plugin/effect/rpc'
 import {Tool} from '@conciv/plugin/schema/tool'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import {PAGE_QUEUE_REFUSED, PAGE_QUEUE_STOPPED, PageRaisedErrorSchema} from '@conciv/protocol/page-types'
+import {
+  PAGE_QUEUE_REFUSED,
+  PAGE_QUEUE_STOPPED,
+  PageRaisedErrorSchema,
+  Definition,
+  PageChangeEntrySchema,
+  type Action,
+  type Command,
+  type Outcome,
+  type PageChangeEntry,
+  type Result,
+  type Work,
+} from './rpc.js'
 import {
   ACCESS,
   createConnectionState,
@@ -41,17 +53,9 @@ import {
   type ConnectionEvent,
 } from './machine.js'
 import {PageQueue} from './queue.js'
+import {queueNotice} from './queue-notice.js'
+import {PageSkill} from './skill.js'
 import type {GrabStore} from './grabs.js'
-import {
-  Definition,
-  PageChangeEntrySchema,
-  type Action,
-  type Command,
-  type Outcome,
-  type PageChangeEntry,
-  type Result,
-  type Work,
-} from './rpc.js'
 import type {Symbolicator} from './symbolicate.js'
 import {PageCaptureBundleSchema, type PageCaptureBundle, type SessionCaptures} from './element-capture-types.js'
 import type {StorageEntry} from '@conciv/plugin/effect'
@@ -238,7 +242,15 @@ export const make = Effect.fn('PageConnection.make')(function* (
     return Deferred.done(drained, Exit.void).pipe(Effect.asVoid)
   }
   const syncPermissions = (effect: SyncEffect) =>
-    ctx.session.get({sessionId: effect.sessionId}).pipe(
+    (effect.allow
+      ? ctx.session.instructions.entry.put({
+          sessionId: effect.sessionId,
+          key: PageSkill.id,
+          value: PageSkill.instructions,
+        })
+      : ctx.session.instructions.entry.remove({sessionId: effect.sessionId, key: PageSkill.id})
+    ).pipe(
+      Effect.andThen(ctx.session.get({sessionId: effect.sessionId})),
       Effect.flatMap((session) => {
         const permissions = reconcilePagePermissions(session.permissions, effect.allow)
         return permissions ? ctx.session.update({sessionId: effect.sessionId, permissions}) : Effect.void
@@ -428,12 +440,25 @@ export const make = Effect.fn('PageConnection.make')(function* (
     finished: (entry) => {
       if (entry.result === null) return Effect.void
       const {sessionId, queueId, toolCallId, result} = entry
-      return Effect.forkIn(
+      const announced = Effect.forkIn(
         registration.events
           .emit('queue.finished', {sessionId, queueId, toolCallId, result})
           .pipe(Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause))),
         work,
       ).pipe(Effect.asVoid)
+      if (entry.outside) return announced
+      return ctx.session
+        .synthetic({
+          sessionID: sessionId,
+          text: queueNotice(result),
+          description: `Queued page actions ${result.status}`,
+          metadata: {source: 'page-queue', queueId, state: result.status},
+        })
+        .pipe(
+          Effect.catchIf(SessionNotFound, () => Effect.void),
+          Effect.asVoid,
+          Effect.ensuring(announced),
+        )
     },
   }).pipe(Scope.provide(work))
 
@@ -570,18 +595,11 @@ export const make = Effect.fn('PageConnection.make')(function* (
       'tabs.list': (input) => Effect.sync(() => selectTabs(machine.state, input.sessionId)),
       symbolicate: (input) => symbolicator.frames(input.frames),
       'queue.wait': (input, call) =>
-        queues
-          .wait(input.sessionId, input.queueId, input.waitMs)
-          .pipe(Effect.mapError((error) => call.error('unavailable', error.message, {}))),
-      'queue.claim': (input, call) =>
-        queues
-          .claim(input.sessionId, input.queueId, input.waitMs)
-          .pipe(Effect.mapError((error) => call.error('unavailable', error.message, {}))),
-      'queue.startedBy': (input) => queues.startedBy(input.sessionId, input.toolCallIds),
-      'queue.undelivered': (input) => queues.undelivered(input.sessionId, input.toolCallIds),
-      'queue.owed': (input) => queues.owed(input.sessionId),
-      'queue.settle': (input) =>
-        queues.settle(input.sessionId, input.queueIds, input.delivery).pipe(Effect.as({ok: true as const})),
+        queues.wait(input.sessionId, input.queueId, input.waitMs).pipe(
+          Effect.map((waited) => (waited.status === 'playing' ? waited : {...waited, notice: queueNotice(waited)})),
+          Effect.mapError((error) => call.error('unavailable', error.message, {})),
+        ),
+      'queue.outside': (input) => queues.outside(input.sessionId, input.toolCallIds),
     })
     .pipe(Effect.orDie)
 

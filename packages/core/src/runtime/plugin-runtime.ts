@@ -69,7 +69,7 @@ import type {PluginHost as PluginHostRuntime} from '../api/rpc/mount.js'
 import type {ResolvedConcivConfig} from '../config.js'
 import * as EventFeed from '../event-feed.js'
 import {provideInstructionEntries} from './instruction-entries.js'
-import {permissionSessions} from './permission-cards.js'
+import {outsideAgent, permissionSessions} from './permission-cards.js'
 import {provideSessions} from './plugin-sessions.js'
 import {provideServersSource} from './servers-source.js'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
@@ -208,7 +208,7 @@ export type PluginRuntimeInput = {
   engineId: string
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies' | 'permissions'>
   plugins: readonly PluginDefinition.Plugin[]
-  post: readonly EffectPlugin[]
+  builtins: readonly EffectPlugin[]
   harness: HarnessAdapter
   signal: AbortSignal
   bundler: Bundler.BundlerBridge | undefined
@@ -252,9 +252,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     SdkPlugins.layer,
     InstancePlugins.bound(
       input.plugins.map((plugin) => PluginPromise.fromPromise(plugin)),
-      {
-        post: input.post,
-      },
+      {post: [...input.builtins, outsideAgent]},
     ),
     PluginUpdate.layer,
     ConfigPluginSource.layer,

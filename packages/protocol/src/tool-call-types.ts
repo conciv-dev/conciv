@@ -6,6 +6,7 @@ export type ToolRequest = {
   agentId: string
   model: string | null
   toolCallId?: string
+  messageId?: string
   signal?: AbortSignal
 }
 

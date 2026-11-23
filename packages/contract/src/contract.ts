@@ -17,20 +17,11 @@ import {
   PermissionRuleSchema,
   ReasoningEffortSchema,
   SessionId,
-  TabOpenSchema,
-  TabsSchema,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
-import {
-  PageQueueHandleSchema,
-  PageQueueProgressSchema,
-  PageQueueResultSchema,
-  SymbolicateSchema,
-} from '@conciv/protocol/page-types'
 import {TtyServerControlSchema} from '@conciv/protocol/terminal-types'
 import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
-import {SourceLocSchema} from './source-location.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
@@ -147,8 +138,6 @@ const HubOutcome = z
   .object({ok: z.literal(true), note: z.string().optional()})
   .or(z.object({ok: z.literal(false), message: z.string()}))
 const registryCallErrors = {
-  NO_PAGE_CLIENT: {message: 'no widget connected'},
-  PAGE_TIMEOUT: {message: 'page did not reply (no widget connected?)'},
   UNKNOWN_TOOL: {message: 'no registered tool answers to that name'},
   INVALID_ARGS: {message: 'the tool rejected the arguments'},
   HANDLER_ERROR: {message: 'the tool failed to run'},
@@ -212,8 +201,7 @@ const CodeSessionInput = z.object({sessionId: SessionId.optional()})
 const CodeDelivery = {
   logs: z.array(z.string()),
   files: z.array(ChatContentPartSchema).optional(),
-  queued: z.array(PageQueueHandleSchema),
-  finished: z.array(PageQueueResultSchema),
+  toolCalls: z.array(z.string()),
 }
 
 export const CodeExecuteResultSchema = z.discriminatedUnion('ok', [
@@ -227,7 +215,7 @@ export const CodeExecuteResultSchema = z.discriminatedUnion('ok', [
 
 export type CodeExecuteResult = z.infer<typeof CodeExecuteResultSchema>
 
-export const CodeDiscoverResultSchema = z.object({tools: z.unknown(), finished: z.array(PageQueueResultSchema)})
+export const CodeDiscoverResultSchema = z.object({tools: z.unknown()})
 
 export type CodeDiscoverResult = z.infer<typeof CodeDiscoverResultSchema>
 
@@ -236,8 +224,6 @@ export const CodeDescriptionsSchema = z.object({execute: z.string(), discover: z
 export type CodeDescriptions = z.infer<typeof CodeDescriptionsSchema>
 
 const noCodeMode = {NO_CODE_MODE: {message: 'code mode is unavailable on this engine'}}
-
-const noQueue = {NO_QUEUE: {message: 'no such queue on this tab'}}
 
 const pluginRpcFailed = {
   PLUGIN_RPC: {
@@ -261,6 +247,10 @@ const LocationPublicRefSchema = z.object({directory: z.string()})
 function locationResponse<Data extends z.ZodType>(data: Data) {
   return z.object({location: LocationPublicRefSchema, data})
 }
+
+const LocationPublicInfoSchema = LocationPublicRefSchema.extend({
+  project: z.object({id: z.string(), directory: z.string(), canonical: z.string()}),
+})
 
 export const EventEnvelopeSchema = z.object({
   id: z.string(),
@@ -431,6 +421,10 @@ export const contract = {
       .input(SessionIdInput)
       .output(SessionMetaSchema),
     preview: oc.errors(notFound).input(SessionPreviewInput).output(SessionPreviewSchema),
+    instructions: oc
+      .errors({...notFound, ...approvalDenied})
+      .input(SessionIdInput)
+      .output(z.object({text: z.string()})),
     create: oc.output(SessionIdInput.extend({session: SessionMetaSchema})),
     resolve: oc
       .errors(notFound)
@@ -511,29 +505,19 @@ export const contract = {
       .input(z.object({name: z.string().min(1), input: z.record(z.string(), z.unknown())}))
       .output(z.unknown()),
   },
-  tabs: {
-    list: oc.output(TabsSchema),
-    get: oc.input(SessionIdInput).output(TabOpenSchema),
+  location: {
+    get: oc.output(LocationPublicInfoSchema),
   },
   code: {
     describe: oc.errors({...noCodeMode, ...approvalDenied}).output(CodeDescriptionsSchema),
     execute: oc
-      .errors({...noCodeMode, ...approvalDenied})
+      .errors({...noCodeMode, ...approvalDenied, ...notFound})
       .input(CodeSessionInput.extend({typescriptCode: z.string()}))
       .output(CodeExecuteResultSchema),
     discover: oc
-      .errors({...noCodeMode, ...approvalDenied})
+      .errors({...noCodeMode, ...approvalDenied, ...notFound})
       .input(CodeSessionInput.extend({toolNames: z.array(z.string())}))
       .output(CodeDiscoverResultSchema),
-  },
-  page: {
-    queue: {
-      wait: oc
-        .errors({...noQueue, ...approvalDenied})
-        .input(SessionIdInput.extend({queueId: z.string().min(1), waitMs: z.number().int().min(0)}))
-        .output(z.discriminatedUnion('status', [PageQueueResultSchema, PageQueueProgressSchema])),
-    },
-    symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
   },
   meta: {
     models: oc.errors(approvalDenied).input(SessionIdInput).output(ChatModelsSchema),

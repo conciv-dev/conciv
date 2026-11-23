@@ -3,12 +3,10 @@ import {Buffer} from 'node:buffer'
 import {Effect} from 'effect'
 import {z} from 'zod'
 import type {Context} from '@conciv/plugin/effect/plugin'
+import {Agent} from '@conciv/plugin/schema/agent'
 import {Tool} from '@conciv/plugin/schema/tool'
-import {PageRaisedErrorSchema} from '@conciv/protocol/page-types'
-import {RawFrameSchema, SourceLocSchema} from '@conciv/contract'
-import {toolFailure, type Connection} from './connection.js'
-import {PageFiles} from './files.js'
 import {
+  PageRaisedErrorSchema,
   CliTools,
   Operations,
   PAGE_NAMESPACE,
@@ -18,6 +16,9 @@ import {
   type Operation,
   type Result,
 } from './rpc.js'
+import {RawFrameSchema, SourceLocSchema} from '@conciv/contract'
+import {toolFailure, type Connection} from './connection.js'
+import {PageFiles} from './files.js'
 import {PageSkill} from './skill.js'
 import type {Symbolicator} from './symbolicate.js'
 
@@ -59,7 +60,7 @@ export const register = Effect.fn('PageTools.register')(function* (
   const root = ctx.location.directory
   const execute = Effect.fn('PageTools.execute')(function* (operation: Operation, action: Action, tool: Tool.Context) {
     if (action.type === 'tabs.list') return yield* exportResult(connection.tabs(tool.sessionId), [], root)
-    const queueing = {agentId: tool.agent, toolCallId: tool.id}
+    const queueing = {agentId: tool.agent, toolCallId: tool.id, outside: tool.agent === Agent.outsideId}
     if (action.type === 'queue') {
       const played = yield* connection.queues
         .play(tool.sessionId, {...queueing, action})

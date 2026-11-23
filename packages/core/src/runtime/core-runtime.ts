@@ -1,6 +1,6 @@
 import {Effect} from 'effect'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {EngineStaleness, RawFrame, SourceLoc} from '@conciv/contract'
+import type {EngineStaleness} from '@conciv/contract'
 import type {ChatPlane} from '@conciv/chat'
 import {sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {Log} from '../lib/logging.js'
@@ -13,14 +13,12 @@ export type CoreRuntimeDeps = {
   model: (sessionId: SessionId) => Promise<string | null>
   staleness: () => Promise<EngineStaleness>
   interruptIdle: (sessionId: SessionId, stopped: boolean) => Promise<boolean>
-  symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
   log: Log
 }
 
 function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
   return {
     staleness: deps.staleness,
-    symbolicate: deps.symbolicate,
   }
 }
 

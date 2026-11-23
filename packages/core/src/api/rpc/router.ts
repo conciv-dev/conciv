@@ -1,7 +1,6 @@
 import {z} from 'zod'
 import {ORPCError, withEventMeta, type Router} from '@orpc/server'
 import {asc, eq, sql} from 'drizzle-orm'
-import {isPageFailure, PAGE_ERROR_CODES, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isToolError, type RegistryCallGate} from '@conciv/protocol/tool-call-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import {drafts, markers} from '@conciv/db'
@@ -20,8 +19,7 @@ import {
 } from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
 import {engineMcpUrl} from '../../engine-login.js'
-import {rowById} from '../../sessions/session-rows.js'
-import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './sessions.js'
+import {buildHarnessMenuEntry, buildHarnessMeta, requireLiveSession, sessionsRouter} from './sessions.js'
 import {
   admitOutsideCall,
   makeHubAdmission,
@@ -36,7 +34,7 @@ import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {callTrace} from '../call-trace.js'
 import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
-import {callPluginTool, isPageTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
+import {callPluginTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
 import {settlingAsks, decidePermissionCard} from '../../runtime/permission-cards.js'
 import type {SessionId, ChatCommand, ChatCommands} from '@conciv/protocol/chat-types'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
@@ -146,28 +144,15 @@ export function ptyOutput<Failure>(
   )
 }
 
-export const PAGE_ERROR_NAME = {
-  'no-widget': 'NO_PAGE_CLIENT',
-  timeout: 'PAGE_TIMEOUT',
-  'unknown-verb': 'UNKNOWN_TOOL',
-  'invalid-args': 'INVALID_ARGS',
-  'handler-error': 'HANDLER_ERROR',
-} as const satisfies Record<PageErrorCode, RegistryCallErrorName>
-
 type RegistryErrors = Record<RegistryCallErrorName, (options: {message: string; cause: unknown}) => Error>
 type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
 type SessionContext = RpcContext & {session: SessionScope}
 
 function registryCallError(error: unknown, errors: RegistryErrors): Error {
-  if (isPageFailure(error)) {
-    return errors[PAGE_ERROR_NAME[error.error.code]]({message: error.error.message, cause: error})
-  }
   if (isToolError(error)) return new ORPCError(error.code, {message: error.message, data: error.data, cause: error})
   if (error instanceof ORPCError) return error
   return errors.HANDLER_ERROR({message: error instanceof Error ? error.message : String(error), cause: error})
 }
-
-const PluginPageFailure = z.object({code: z.enum(PAGE_ERROR_CODES), message: z.string()})
 
 const isDeclined = Schema.is(Permission.DeclinedError)
 const isBlocked = Schema.is(Permission.BlockedError)
@@ -182,44 +167,35 @@ function pluginToolError(name: string, cause: Cause.Cause<Tool.Error>, errors: R
   if (Option.isNone(failure)) return registryCallError(Cause.squash(cause), errors)
   const refused = failure.value.error
   if (isBlocked(refused) || isCorrected(refused)) return errors.APPROVAL_DENIED({message: failure.value.message})
-  const page = PluginPageFailure.safeParse(z.object({metadata: z.unknown()}).safeParse(failure.value).data?.metadata)
-  if (page.success) {
-    return errors[PAGE_ERROR_NAME[page.data.code]]({message: `${name}: ${page.data.message}`, cause: failure.value})
-  }
   return registryCallError(failure.value, errors)
-}
-
-async function requireAttachedPage(
-  deps: RpcDeps,
-  call: {sessionId: SessionId; name: string},
-  errors: RegistryErrors,
-): Promise<void> {
-  const attached = await deps.queues.attachedSessions()
-  if (attached.includes(call.sessionId)) return
-  const reason =
-    attached.length > 0
-      ? 'the page is showing another session; switch back to this session to use page tools'
-      : 'no widget connected to session'
-  throw errors.NO_PAGE_CLIENT({message: `${call.name}: ${reason}`, cause: undefined})
-}
-
-async function requireLiveSession(deps: RpcDeps, sessionId: SessionId, errors: ApprovalErrors): Promise<void> {
-  const row = await rowById(deps.chat.db, sessionId)
-  if (row !== null && row.deletedAt === null) return
-  throw errors.APPROVAL_DENIED({message: `session "${sessionId}" does not exist`})
 }
 
 async function runPluginTool(
   deps: RpcDeps,
-  call: {sessionId: SessionId; name: string; input: unknown; callId: string; widget: boolean; signal?: AbortSignal},
+  call: {
+    sessionId: SessionId
+    name: string
+    input: unknown
+    callId: string
+    widget: boolean
+    outside: boolean
+    signal?: AbortSignal
+  },
   errors: RegistryErrors & ApprovalErrors,
 ): Promise<unknown> {
-  if (!call.widget) await requireLiveSession(deps, call.sessionId, errors)
-  if (isPageTool(call.name)) await requireAttachedPage(deps, call, errors)
+  if (!call.widget) {
+    await requireLiveSession(deps, call.sessionId, () =>
+      errors.APPROVAL_DENIED({message: `session "${call.sessionId}" does not exist`}),
+    )
+  }
   const exit = await deps.pluginHost.runPromiseExit(
     settlingAsks(
       call.sessionId,
-      callPluginTool(call.sessionId, call.name, call.input, {id: call.callId, widget: call.widget}),
+      callPluginTool(call.sessionId, call.name, call.input, {
+        id: call.callId,
+        widget: call.widget,
+        outside: call.outside,
+      }),
       (sessionId, chunk) => deps.runtime.forSession(sessionId).stream.publish(chunk),
     ),
     {signal: call.signal},
@@ -274,10 +250,6 @@ async function hubTraced<Result>(
 type CodeErrors = {NO_CODE_MODE: (options?: {message: string}) => Error}
 
 type CodeCall = {context: RpcContext; errors: CodeErrors; signal?: AbortSignal}
-
-function replyWentOut(context: RpcContext, signal: AbortSignal | undefined): Promise<boolean> | undefined {
-  return context.replied?.then((sent) => sent && signal?.aborted !== true)
-}
 
 async function resolveCodeSession(
   deps: RpcDeps,
@@ -353,6 +325,16 @@ function locationResponse<Data, Failure, Services>(data: Effect.Effect<Data, Fai
     const location = yield* Location.Service
     return {location: {directory: location.directory}, data: yield* data}
   }).pipe(Effect.withSpan('core.rpc.locationResponse'))
+}
+
+function locationGet(host: PluginHost, signal: AbortSignal | undefined) {
+  return host.runPromise(
+    Effect.gen(function* () {
+      const location = yield* Location.Service
+      return {directory: location.directory, project: location.project}
+    }),
+    {signal},
+  )
 }
 
 function pluginList(host: PluginHost, signal: AbortSignal | undefined) {
@@ -479,7 +461,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
           assist === undefined ? await deps.pluginHost.runPromise(pluginSignature(input.name), {signal}) : undefined
         if (assist === undefined && plugin === undefined) throw errors.UNKNOWN_TOOL()
         const trace = callTrace((header) => rpcHeader(context, header))
-        if (trace.hub !== null) deps.code.hubCall(context.session.id, trace.callId)
         const gate: RegistryCallGate = async (run) => {
           await admitOutsideCall(deps, context, context.session, signal, path.join('.'))
           return hubTraced(deps, context, input.name, input.input, run, trace)
@@ -493,19 +474,16 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
               input: input.input,
               callId: trace.callId,
               widget: widgetCaller(context.callerOrigin, deps.allowedOrigins),
+              outside: trace.hub !== null,
               signal,
             },
             errors,
           )
         const call = (): Promise<unknown> =>
           assist === undefined ? gate(pluginRun) : gate(() => assist.execute(input.input))
-        return call()
-          .catch((error: unknown) => {
-            throw registryCallError(error, errors)
-          })
-          .finally(async () => {
-            if (trace.hub !== null) await deps.code.hubReplied(context.session.id, new Set([trace.callId]))
-          })
+        return call().catch((error: unknown) => {
+          throw registryCallError(error, errors)
+        })
       }),
     },
     skill: {
@@ -589,32 +567,26 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         eventStream(deps.pluginHost, deps.eventHeartbeatIntervalMs, input?.types, signal),
       ),
     },
-    tabs: {
-      list: os.tabs.list.handler(() => deps.tabs.list()),
-      get: os.tabs.get.handler(({input}) => deps.tabs.get(input.sessionId)),
+    location: {
+      get: os.location.get.handler(({signal}) => locationGet(deps.pluginHost, signal)),
     },
     code: {
       describe: os.code.describe.handler(async (call) => (await resolveCodeSession(deps, undefined, call)).describe()),
       execute: os.code.execute.handler(async ({input, ...call}) => {
+        await requireLiveSession(deps, input.sessionId, () =>
+          call.errors.NOT_FOUND({message: `session ${input.sessionId} not found`}),
+        )
         const code = await resolveCodeSession(deps, input.sessionId, call)
         return (await code.execute(input.typescriptCode)).result
       }),
       discover: os.code.discover.handler(async ({input, ...call}) => {
+        await requireLiveSession(deps, input.sessionId, () =>
+          call.errors.NOT_FOUND({message: `session ${input.sessionId} not found`}),
+        )
         const code = await resolveCodeSession(deps, input.sessionId, call)
         if (code.sandbox.discover === null) throw call.errors.NO_CODE_MODE({message: 'no tools to discover'})
         return code.discover(input.toolNames)
       }),
-    },
-    page: {
-      queue: {
-        wait: os.page.queue.wait.handler(({input, context, errors, signal}) =>
-          deps.queueWait(input, signal, replyWentOut(context, signal)).catch((error: unknown) => {
-            if (signal?.aborted === true) throw error
-            throw errors.NO_QUEUE({message: error instanceof Error ? error.message : String(error)})
-          }),
-        ),
-      },
-      symbolicate: os.page.symbolicate.handler(({input}) => engine.symbolicate(input.frames)),
     },
     meta: {
       models: os.meta.models.handler(async ({input, signal = new AbortController().signal}) => {
