@@ -2,21 +2,31 @@ import {readFileSync} from 'node:fs'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {codexModels as adapterCodexModels} from '@conciv/ai/server'
+import {parse} from 'smol-toml'
 import {z} from 'zod'
 import {ReasoningEffortSchema, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
 
-const CONFIG_MODEL = /^model\s*=\s*"([^"]+)"/m
-
-const CONFIG_PROVIDER = /^model_provider\s*=\s*"([^"]+)"/m
-
-const REQUIRES_OPENAI_AUTH = /^\s*requires_openai_auth\s*=\s*true\b/m
-
 const OPENAI_PROVIDER = 'openai'
 
-const TABLE_HEADER = /^\s*\[/m
+const CodexConfigSchema = z
+  .object({
+    model: z.string().optional().catch(undefined),
+    model_provider: z.string().optional().catch(undefined),
+    model_providers: z
+      .record(
+        z.string(),
+        z
+          .object({requires_openai_auth: z.boolean().optional().catch(undefined)})
+          .loose()
+          .catch({}),
+      )
+      .optional()
+      .catch(undefined),
+  })
+  .loose()
 
-const HEADER_LINE = /^\s*(\[.*?\])\s*(?:#.*)?$/
+type CodexConfig = z.infer<typeof CodexConfigSchema>
 
 const ModelsCacheSchema = z
   .object({
@@ -79,32 +89,31 @@ export function codexModels(codexDir: string): HarnessModel[] {
     })
 }
 
-const readConfig = (codexDir: string): string => readText(join(codexDir, 'config.toml')) ?? ''
-
-function readTopLevel(config: string): string {
-  const headerIndex = config.search(TABLE_HEADER)
-  return headerIndex === -1 ? config : config.slice(0, headerIndex)
+const parseToml = (path: string, text: string): unknown => {
+  try {
+    return parse(text)
+  } catch (error) {
+    console.warn(`conciv: ignoring unparsable ${path}`, error)
+    return {}
+  }
 }
 
-function readProviderTable(config: string, provider: string): string {
-  const lines = config.split('\n')
-  const headers = [`[model_providers.${provider}]`, `[model_providers."${provider}"]`]
-  const start = lines.findIndex((line) => headers.includes(line.match(HEADER_LINE)?.[1] ?? ''))
-  if (start === -1) return ''
-  const rest = lines.slice(start + 1)
-  const end = rest.findIndex((line) => TABLE_HEADER.test(line))
-  return (end === -1 ? rest : rest.slice(0, end)).join('\n')
+function readConfig(codexDir: string): CodexConfig {
+  const path = join(codexDir, 'config.toml')
+  const text = readText(path)
+  const parsed = CodexConfigSchema.safeParse(text === null ? {} : parseToml(path, text))
+  return parsed.success ? parsed.data : {}
 }
 
 export function codexUsesOpenaiLogin(codexDir: string): boolean {
   const config = readConfig(codexDir)
-  const provider = readTopLevel(config).match(CONFIG_PROVIDER)?.[1] ?? OPENAI_PROVIDER
+  const provider = config.model_provider ?? OPENAI_PROVIDER
   if (provider === OPENAI_PROVIDER) return true
-  return REQUIRES_OPENAI_AUTH.test(readProviderTable(config, provider))
+  return config.model_providers?.[provider]?.requires_openai_auth === true
 }
 
 export function codexDefaultModel(codexDir: string): string {
-  const configured = readTopLevel(readConfig(codexDir)).match(CONFIG_MODEL)?.[1]
+  const configured = readConfig(codexDir).model
   if (configured) return configured
   return codexModels(codexDir)[0]?.id ?? adapterCodexModels[0]
 }

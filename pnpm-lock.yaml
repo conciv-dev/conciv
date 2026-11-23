@@ -567,6 +567,9 @@ catalogs:
     shiki:
       specifier: ^4.5.0
       version: 4.6.0
+    smol-toml:
+      specifier: 1.9.1
+      version: 1.9.1
     solid-js:
       specifier: ^1.9.17
       version: 1.9.17
@@ -2979,6 +2982,9 @@ importers:
       effect:
         specifier: 'catalog:'
         version: 4.1.0
+      smol-toml:
+        specifier: 'catalog:'
+        version: 1.9.1
       zod:
         specifier: 'catalog:'
         version: 4.6.7
