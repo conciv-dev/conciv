@@ -1,5 +1,6 @@
 import {execFileSync, spawn, spawnSync, type ChildProcessWithoutNullStreams} from 'node:child_process'
 import {once} from 'node:events'
+import {createServer, type ServerResponse} from 'node:http'
 import {mkdirSync, readFileSync, symlinkSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {constants} from 'node:os'
@@ -9,7 +10,26 @@ import {expect, test} from '@playwright/test'
 test.describe('conciv init on a real project', () => {
   const initTest = test.extend<{
     startInit: (cwd: string, env: NodeJS.ProcessEnv, bin: string) => ChildProcessWithoutNullStreams
+    registry: {url: string; asked: Promise<void>}
   }>({
+    // eslint-disable-next-line no-empty-pattern
+    registry: async ({}, use) => {
+      const held: ServerResponse[] = []
+      const asked = Promise.withResolvers<void>()
+      const server = createServer((_request, response) => {
+        held.push(response)
+        asked.resolve()
+      })
+      server.listen(0, '127.0.0.1')
+      await once(server, 'listening')
+      const address = server.address()
+      if (address === null || typeof address === 'string') throw new Error('the held registry has no port')
+      await use({url: `http://127.0.0.1:${address.port}/`, asked: asked.promise})
+      for (const response of held) response.destroy()
+      server.closeAllConnections()
+      server.close()
+      await once(server, 'close')
+    },
     // eslint-disable-next-line no-empty-pattern
     startInit: async ({}, use) => {
       const started: ChildProcessWithoutNullStreams[] = []
@@ -119,30 +139,28 @@ test.describe('conciv init on a real project', () => {
   ] satisfies {name: string; signal: NodeJS.Signals; group: boolean}[]) {
     initTest(
       `${stop.name} while @conciv/it installs stops the npm install, puts package.json back and says the config was restored`,
-      async ({startInit}) => {
+      async ({startInit, registry}) => {
         const {project, env, bin} = seedProject(['npm', 'git'])
 
-        const child = startInit(project, env, bin)
+        const child = startInit(project, {...env, npm_config_registry: registry.url}, bin)
         const output: string[] = []
-        const installing = Promise.withResolvers<void>()
-        const read = (chunk: string) => {
-          output.push(chunk)
-          if (output.join('').includes('Installing @conciv/it with npm')) installing.resolve()
-        }
+        const read = (chunk: string) => output.push(chunk)
         child.stdout.setEncoding('utf8').on('data', read)
         child.stderr.setEncoding('utf8').on('data', read)
         const closed = once(child, 'close')
-        await installing.promise
+        await registry.asked
         const initPid = child.pid
         if (initPid === undefined) throw new Error('conciv init did not start')
-        await expect.poll(() => childPids(initPid)).toHaveLength(1)
-        const [installPid] = childPids(initPid)
+        const installs = childPids(initPid)
+        expect(installs).toHaveLength(1)
+        const [installPid] = installs
         if (installPid === undefined) throw new Error('conciv init started no npm install')
         process.kill(stop.group ? -initPid : initPid, stop.signal)
         const [exitCode] = await closed
 
         expect(exitCode).toBe(128 + constants.signals[stop.signal])
-        await expect.poll(() => alive(installPid)).toBe(false)
+        expect(alive(installPid)).toBe(false)
+        expect(output.join('')).toContain('Installing @conciv/it with npm')
         expect(output.join('')).toContain('Interrupted')
         expect(output.join('')).toContain('your config was restored.')
         expect(readFileSync(join(project, 'package.json'), 'utf8')).toBe(manifest)
