@@ -1,7 +1,7 @@
 import {ConfigProvider} from 'effect'
 import {describe, expect, it} from 'vitest'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import {recordedClaudeOnPath} from '../../test/claude-sdk-env.js'
+import {hungClaudeOnPath, recordedClaudeOnPath} from '../../test/claude-sdk-env.js'
 import {claude, claudeTtyCommand} from './index.js'
 
 describe('claude', () => {
@@ -63,17 +63,27 @@ describe('claude', () => {
 })
 
 describe('the claude login check', () => {
-  it('runs the claude on PATH, says not logged in for a CLI with no login, and the first check after a login says logged in', async () => {
+  it('runs the claude on PATH, answers a check from the held login at once even while its CLI hangs, and a re-check started by a logged-out check replaces the held answer', async () => {
     const signal = new AbortController().signal
-    const claudeOnPath = recordedClaudeOnPath()
-    const env: Record<string, string> = {PATH: claudeOnPath.path}
-    const harness = claude(ConfigProvider.fromEnvRecord(env))
-    expect(await harness.login({signal})).toEqual({
+    const notLoggedIn = {
       loggedIn: false,
       message: 'Claude Code is not logged in. Run `claude auth login` in a terminal.',
-    })
+    }
+    const claudeOnPath = recordedClaudeOnPath()
+    expect(await claude(ConfigProvider.fromEnvRecord({PATH: claudeOnPath.path})).login({signal})).toEqual(notLoggedIn)
     expect(claudeOnPath.started()).toBe(true)
-    env.ANTHROPIC_API_KEY = 'sk-ant-test-not-a-real-key'
-    expect(await harness.login({signal})).toEqual({loggedIn: true})
+
+    const hung = claude(ConfigProvider.fromEnvRecord({PATH: hungClaudeOnPath()}))
+    const hungProbe = new AbortController()
+    expect(await hung.login({signal: hungProbe.signal})).toEqual(notLoggedIn)
+    hungProbe.abort()
+    await expect(hung.models({signal: hungProbe.signal})).rejects.toThrow()
+
+    const loggedIn = claude(
+      ConfigProvider.fromEnvRecord({PATH: claudeOnPath.path, ANTHROPIC_API_KEY: 'sk-ant-test-not-a-real-key'}),
+    )
+    expect(await loggedIn.login({signal})).toEqual(notLoggedIn)
+    await loggedIn.models({signal})
+    expect(await loggedIn.login({signal})).toEqual({loggedIn: true})
   })
 })

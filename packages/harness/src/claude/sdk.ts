@@ -123,11 +123,18 @@ function listedModels(models: ModelInfo[]): HarnessModel[] {
   return listed
 }
 
-function rememberProbe(init: SDKControlInitializeResponse): void {
-  if (toHarnessModels(init.models).length > 0) probeCache.pending ??= Promise.resolve(init)
-}
+type ProbeState =
+  | {type: 'idle'}
+  | {type: 'checking'; probe: Promise<SDKControlInitializeResponse>}
+  | {type: 'held'; init: SDKControlInitializeResponse; refresh?: Promise<SDKControlInitializeResponse>}
 
-const probeCache: {pending?: Promise<SDKControlInitializeResponse>} = {}
+const probeState: {current: ProbeState} = {current: {type: 'idle'}}
+
+function rememberProbe(init: SDKControlInitializeResponse): void {
+  if (probeState.current.type === 'idle' && toHarnessModels(init.models).length > 0) {
+    probeState.current = {type: 'held', init}
+  }
+}
 
 function followSignal(signal: AbortSignal): AbortController {
   const controller = new AbortController()
@@ -137,24 +144,47 @@ function followSignal(signal: AbortSignal): AbortController {
 }
 
 function probeListed(signal: AbortSignal, env: ClaudeProbeEnv): Promise<SDKControlInitializeResponse> {
-  return probe({cwd: process.cwd(), env}, signal).then((init) => {
-    listedModels(init.models)
-    return init
-  })
-}
-
-function probed(signal: AbortSignal, env: ClaudeProbeEnv): Promise<SDKControlInitializeResponse> {
-  probeCache.pending ??= probeListed(signal, env).catch((error: unknown) => {
-    delete probeCache.pending
-    throw error
-  })
-  return probeCache.pending
+  const before = probeState.current
+  return probe({cwd: process.cwd(), env}, signal)
+    .then((init) => {
+      listedModels(init.models)
+      return init
+    })
+    .then(
+      (init) => {
+        probeState.current = {type: 'held', init}
+        return init
+      },
+      (error: unknown) => {
+        probeState.current = before.type === 'held' ? {type: 'held', init: before.init} : {type: 'idle'}
+        throw error
+      },
+    )
 }
 
 type ProbeContext = {signal: AbortSignal; env: ClaudeProbeEnv}
 
-export function claudeSdkModels({signal, env}: ProbeContext): Promise<HarnessModel[]> {
-  return probed(signal, env).then((init) => listedModels(init.models))
+function startChecking({signal, env}: ProbeContext): Promise<SDKControlInitializeResponse> {
+  const pending = probeListed(signal, env)
+  probeState.current = {type: 'checking', probe: pending}
+  return pending
+}
+
+function refreshHeld(init: SDKControlInitializeResponse, {signal, env}: ProbeContext): void {
+  const refresh = probeListed(signal, env)
+  probeState.current = {type: 'held', init, refresh}
+  refresh.catch(() => {})
+}
+
+function probed(context: ProbeContext): Promise<SDKControlInitializeResponse> {
+  const current = probeState.current
+  if (current.type === 'checking') return current.probe
+  if (current.type === 'held') return current.refresh ?? Promise.resolve(current.init)
+  return startChecking(context)
+}
+
+export function claudeSdkModels(context: ProbeContext): Promise<HarnessModel[]> {
+  return probed(context).then((init) => listedModels(init.models))
 }
 
 const NOT_LOGGED_IN = 'Claude Code is not logged in. Run `claude auth login` in a terminal.'
@@ -167,12 +197,12 @@ function readLogin(init: SDKControlInitializeResponse): HarnessLoginStatus {
   return isLoggedIn(init.account) ? {loggedIn: true} : {loggedIn: false, message: NOT_LOGGED_IN}
 }
 
-export async function claudeSdkLogin({signal, env}: ProbeContext): Promise<HarnessLoginStatus> {
-  const cached = probeCache.pending
-  const login = readLogin(await probed(signal, env))
-  if (login.loggedIn || cached === undefined) return login
-  if (probeCache.pending === cached) delete probeCache.pending
-  return readLogin(await probed(signal, env))
+export async function claudeSdkLogin(context: ProbeContext): Promise<HarnessLoginStatus> {
+  const current = probeState.current
+  if (current.type !== 'held') return readLogin(await probed(context))
+  const login = readLogin(current.init)
+  if (!login.loggedIn && current.refresh === undefined) refreshHeld(current.init, context)
+  return login
 }
 
 export async function claudeSdkCommands(ctx: HarnessCommandsContext, env: ClaudeProbeEnv): Promise<HarnessCommand[]> {
