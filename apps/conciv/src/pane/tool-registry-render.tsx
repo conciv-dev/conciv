@@ -2,7 +2,6 @@ import {createMemo, mapArray, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {keyBy, mapValues} from 'es-toolkit'
 import {ToolRegistry, type ToolComponent, type ToolProps} from '@conciv/plugin/experimental'
-import type {ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import {GenericTool, ToolErrorCard} from '@conciv/ui-kit-chat/tools'
 import {usePluginHost, type Item} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
@@ -17,12 +16,11 @@ function contributed(item: Item<ToolRegistry>, render: ToolComponent, Fallback: 
   )
 }
 
-function failedTool(catalog: ToolCatalogView): ToolComponent {
-  return (props: ToolProps): JSX.Element => (
+function FailedTool(props: ToolProps): JSX.Element {
+  return (
     <ToolErrorCard
       tool={props.tool}
       error={props.error ?? ''}
-      title={catalog.meta(props.tool)?.label?.done}
       defaultOpen={props.defaultOpen}
       open={props.open}
       onOpenChange={props.onOpenChange}
@@ -35,8 +33,7 @@ export type ToolRender = {
   render: (name: string) => ToolRegistry | undefined
 }
 
-export function createToolRender(catalog: ToolCatalogView): ToolRender {
-  const FailedTool = failedTool(catalog)
+export function createToolRender(): ToolRender {
   const host = usePluginHost()
   const known = usePluginsKnown()
   const reachability = useEngineReachability()

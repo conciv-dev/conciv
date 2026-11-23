@@ -24,6 +24,7 @@ import {
 } from 'effect'
 import {subscribeRpcReachability, type EngineConnectionTimings} from '@conciv/contract'
 import type {ConcivClient} from '@conciv/plugin'
+import type {PluginOptions} from '@conciv/plugin/experimental'
 import {
   pluginEnabled,
   pluginIdAvailable,
@@ -42,6 +43,7 @@ import {
   type HostEndpoint,
   type HostEvent,
 } from './host-machine'
+import {BUILTINS_WITH_ENGINE_HALF} from './builtins'
 import {pluginError} from './error'
 import {createManager} from './manager'
 import type {PluginExperimentalSource} from './plugins'
@@ -75,6 +77,8 @@ type Listing = {
   readonly plugins: ReadonlyMap<string, BridgePluginExperimental>
   readonly reserved: readonly string[]
   readonly parts: Parts
+  readonly builtinOptions: ReadonlyMap<string, PluginOptions>
+  readonly builtinsListed: ReadonlySet<string>
 }
 
 type PluginExperimentalsMessage = Parameters<Parameters<PluginExperimentalSource['on']>[0]>[0]
@@ -88,6 +92,8 @@ type BundleSignal =
   | {readonly type: 'sessions-changed'; readonly sessionId: string | undefined}
 
 type ListedPlugin = Parameters<typeof shipsPluginExperimental>[0]
+
+const BuiltinOptionsSchema = z.record(z.string(), z.json())
 
 type BundleData = Awaited<ReturnType<ConcivClient['plugin']['experimental']>>['data']
 
@@ -114,6 +120,7 @@ type BundleDriverShape = {
   readonly pluginExperimentals: Effect.Effect<BridgePluginExperimentals, PluginSourceClosed>
   readonly enableLoaded: Effect.Effect<readonly EnableState[], unknown>
   readonly installed: Effect.Effect<readonly Installed[]>
+  readonly builtinOptions: (pluginId: string) => PluginOptions | undefined
   readonly listen: (handle: (signal: BundleSignal) => void) => Effect.Effect<Fiber.Fiber<void>>
   readonly setEnabled: (pluginId: string, value: boolean) => Effect.Effect<void, unknown>
   readonly reload: (pluginId: string) => Effect.Effect<void, unknown>
@@ -132,6 +139,7 @@ export type BundleSource = PluginExperimentalSource & {
   readonly manager: PluginManager
   readonly onPluginListChange: (listener: () => void) => () => void
   readonly onSessionsChanged: (listener: (sessionId: string | undefined) => void) => () => void
+  readonly builtinOptions: (pluginId: string) => PluginOptions | undefined
   readonly dispose: () => void
 }
 
@@ -208,8 +216,13 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
   const engine = yield* PluginEngine
   const local = input.builtins.map((definition) => definition.id)
   const plugins = new Map<string, BridgePluginExperimental>()
-  const inventory: {reserved: readonly string[]; server: ReadonlySet<string>; unreadable: ReadonlyMap<string, string>} =
-    {reserved: [], server: new Set(), unreadable: new Map()}
+  const inventory: {
+    reserved: readonly string[]
+    server: ReadonlySet<string>
+    unreadable: ReadonlyMap<string, string>
+    builtinOptions: ReadonlyMap<string, PluginOptions>
+    builtinsListed: ReadonlySet<string> | undefined
+  } = {reserved: [], server: new Set(), unreadable: new Map(), builtinOptions: new Map(), builtinsListed: undefined}
   const enableState: {rows: readonly EnableState[] | undefined} = {rows: undefined}
   const machine = yield* Ref.make(createHostState())
   const signals = yield* PubSub.unbounded<BundleSignal>()
@@ -348,7 +361,16 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
     )
 
   const readListing: Effect.Effect<Listing, unknown> = Effect.gen(function* () {
-    const shipped = (yield* engine.list).filter(shipsPluginExperimental)
+    const listed = yield* engine.list
+    const shipped = listed.filter(shipsPluginExperimental)
+    const builtinOptions = new Map(
+      listed.flatMap((plugin) => {
+        const options = BuiltinOptionsSchema.safeParse(plugin.options)
+        return plugin.source.type === 'builtin' && plugin.id !== undefined && options.success
+          ? [[plugin.id, options.data] as const]
+          : []
+      }),
+    )
     const reserved = yield* Effect.try({
       try: () =>
         ReservedSchema.parse(
@@ -368,7 +390,17 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
       {concurrency: 'unbounded'},
     )
 
-    return {plugins: new Map(read.flatMap((entry) => (entry ? [entry] : []))), reserved, parts}
+    const builtinsListed = new Set(
+      listed.flatMap((plugin) => (plugin.source.type === 'builtin' && plugin.id !== undefined ? [plugin.id] : [])),
+    )
+
+    return {
+      plugins: new Map(read.flatMap((entry) => (entry ? [entry] : []))),
+      reserved,
+      parts,
+      builtinOptions,
+      builtinsListed,
+    }
   })
 
   const readPlugin = (pluginId: string, unreadable: Map<string, string>) => {
@@ -396,6 +428,7 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
 
   const applyPlugins = (next: Listing): Effect.Effect<void> =>
     Effect.suspend(() => {
+      inventory.builtinOptions = next.builtinOptions
       const removed = [...plugins.keys()].filter((pluginId) => !next.plugins.has(pluginId))
       const changes = [...next.plugins].filter(([pluginId, plugin]) => plugins.get(pluginId) !== plugin)
 
@@ -404,7 +437,8 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
         changes.length === 0 &&
         next.reserved.join('\n') === inventory.reserved.join('\n') &&
         [...next.parts.server].join('\n') === [...inventory.server].join('\n') &&
-        [...next.parts.unreadable].join('\n') === [...inventory.unreadable].join('\n')
+        [...next.parts.unreadable].join('\n') === [...inventory.unreadable].join('\n') &&
+        [...next.builtinsListed].join('\n') === [...(inventory.builtinsListed ?? [])].join('\n')
       )
         return Effect.void
       removed.forEach((pluginId) => plugins.delete(pluginId))
@@ -412,6 +446,7 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
       inventory.reserved = next.reserved
       inventory.server = next.parts.server
       inventory.unreadable = next.parts.unreadable
+      inventory.builtinsListed = next.builtinsListed
 
       return Effect.andThen(changed, publish)
     })
@@ -435,7 +470,14 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
   const known = (pluginId: string) => local.includes(pluginId) || plugins.has(pluginId)
 
   const installed = (): readonly Installed[] => [
-    ...local.map((pluginId) => ({id: pluginId, builtin: true, enabled: enabled(pluginId)})),
+    ...local.map((pluginId) => ({
+      id: pluginId,
+      builtin: true,
+      enabled: enabled(pluginId),
+      ...(BUILTINS_WITH_ENGINE_HALF.has(pluginId) && inventory.builtinsListed
+        ? {server: inventory.builtinsListed.has(pluginId)}
+        : {}),
+    })),
     ...[...plugins.keys()].map((pluginId) => ({
       id: pluginId,
       builtin: false,
@@ -506,6 +548,7 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
     pluginExperimentals: Deferred.await(firstListing).pipe(Effect.map(pluginExperimentals)),
     enableLoaded: Deferred.await(loaded),
     installed: Effect.sync(installed),
+    builtinOptions: (pluginId) => inventory.builtinOptions.get(pluginId),
     listen: (handle) =>
       FiberSet.run(
         listeners,
@@ -587,6 +630,7 @@ export function createBundleSource(input: {
       listen((signal) => {
         if (signal.type === 'sessions-changed') listener(signal.sessionId)
       }),
+    builtinOptions: driver.builtinOptions,
     manager: {
       initial: following ? enableLoaded : Promise.resolve(undefined),
       list: () =>

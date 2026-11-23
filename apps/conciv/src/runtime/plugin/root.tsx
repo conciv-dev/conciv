@@ -201,7 +201,7 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
           installed={installed}
           builtins={builtinIds}
           servers={props.servers}
-          options={(id) => (id === 'page' ? timings()?.page : composed.find(([plugin]) => plugin.id === id)?.[1])}
+          options={(id) => composed.find(([plugin]) => plugin.id === id)?.[1] ?? untrack(bundle)?.builtinOptions(id)}
           apis={apis.apis}
           whenMounted={apis.whenMounted}
           plugin={(id) => loaded().plugins.find((plugin) => plugin.definition.id === id)}

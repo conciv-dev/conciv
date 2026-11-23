@@ -3,7 +3,13 @@ import {lowerCase} from 'es-toolkit'
 import {For, Show, splitProps, type JSX} from 'solid-js'
 import type {ToolProps} from '@conciv/plugin/experimental'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import Clock from 'lucide-solid/icons/clock'
+import Code from 'lucide-solid/icons/code'
+import Component from 'lucide-solid/icons/component'
+import Keyboard from 'lucide-solid/icons/keyboard'
+import MousePointerClick from 'lucide-solid/icons/mouse-pointer-click'
+import ScanSearch from 'lucide-solid/icons/scan-search'
+import Wand2 from 'lucide-solid/icons/wand-sparkles'
 import {
   BasicTool,
   Chip,
@@ -17,7 +23,77 @@ import {
   ToolErrorCard,
   type CardChip,
 } from '@conciv/ui-kit-chat/tools'
-import {pageToolMeta, pageVerbOfTool} from './rpc.js'
+import {Operations, PAGE_TOOL_PREFIX, pageVerbOfTool, type Method} from './rpc.js'
+
+type StepView = {
+  readonly icon: (props: {size: number}) => JSX.Element
+  readonly label: {readonly running: string; readonly done: string}
+}
+
+const STEP_VIEWS: Readonly<Record<Method, StepView>> = {
+  'tabs.list': {icon: ScanSearch, label: {running: 'Listing the tabs', done: 'Listed the tabs'}},
+  route: {icon: ScanSearch, label: {running: 'Reading the route', done: 'Read the route'}},
+  dom: {icon: ScanSearch, label: {running: 'Reading the DOM', done: 'Read the DOM'}},
+  query: {icon: ScanSearch, label: {running: 'Querying the page', done: 'Queried the page'}},
+  console: {icon: ScanSearch, label: {running: 'Reading the console', done: 'Read the console'}},
+  text: {icon: ScanSearch, label: {running: 'Reading text', done: 'Read the text'}},
+  value: {icon: ScanSearch, label: {running: 'Reading a value', done: 'Read a value'}},
+  attr: {icon: ScanSearch, label: {running: 'Reading an attribute', done: 'Read an attribute'}},
+  exists: {icon: ScanSearch, label: {running: 'Checking existence', done: 'Checked existence'}},
+  snapshot: {icon: ScanSearch, label: {running: 'Capturing a snapshot', done: 'Captured a snapshot'}},
+  screenshot: {icon: ScanSearch, label: {running: 'Taking a screenshot', done: 'Took a screenshot'}},
+  hmr: {icon: Clock, label: {running: 'Waiting for the hot update', done: 'Waited for the hot update'}},
+  locate: {icon: Component, label: {running: 'Locating the source', done: 'Located the source'}},
+  tree: {icon: Component, label: {running: 'Reading the page tree', done: 'Read the page tree'}},
+  inspect: {icon: Component, label: {running: 'Inspecting a component', done: 'Inspected a component'}},
+  override: {icon: Wand2, label: {running: 'Overriding a value', done: 'Overrode a value'}},
+  find: {icon: Component, label: {running: 'Finding components', done: 'Found components'}},
+  track: {icon: Component, label: {running: 'Tracking renders', done: 'Tracked renders'}},
+  effect: {icon: Wand2, label: {running: 'Driving an effect', done: 'Drove an effect'}},
+  wait: {icon: Clock, label: {running: 'Waiting for the page', done: 'Waited for the page'}},
+  reload: {icon: Clock, label: {running: 'Reloading the page', done: 'Reloaded the page'}},
+  click: {icon: MousePointerClick, label: {running: 'Clicking', done: 'Clicked'}},
+  fill: {icon: Keyboard, label: {running: 'Typing', done: 'Typed'}},
+  fill_form: {icon: Keyboard, label: {running: 'Filling the form', done: 'Filled the form'}},
+  select: {icon: MousePointerClick, label: {running: 'Selecting an option', done: 'Selected'}},
+  check: {icon: MousePointerClick, label: {running: 'Checking a box', done: 'Checked a box'}},
+  uncheck: {icon: MousePointerClick, label: {running: 'Unchecking a box', done: 'Unchecked a box'}},
+  press: {icon: Keyboard, label: {running: 'Pressing a key', done: 'Pressed'}},
+  hover: {icon: MousePointerClick, label: {running: 'Hovering', done: 'Hovered'}},
+  scroll: {icon: MousePointerClick, label: {running: 'Scrolling', done: 'Scrolled'}},
+  submit: {icon: MousePointerClick, label: {running: 'Submitting the form', done: 'Submitted the form'}},
+  queue: {icon: MousePointerClick, label: {running: 'Playing page actions', done: 'Played page actions'}},
+  queue_async: {icon: MousePointerClick, label: {running: 'Queueing page actions', done: 'Queued page actions'}},
+  setattr: {icon: Wand2, label: {running: 'Setting an attribute', done: 'Set an attribute'}},
+  removeattr: {icon: Wand2, label: {running: 'Removing an attribute', done: 'Removed an attribute'}},
+  addclass: {icon: Wand2, label: {running: 'Adding a class', done: 'Added a class'}},
+  removeclass: {icon: Wand2, label: {running: 'Removing a class', done: 'Removed a class'}},
+  setstyle: {icon: Wand2, label: {running: 'Styling an element', done: 'Styled an element'}},
+  settext: {icon: Wand2, label: {running: 'Setting text', done: 'Set the text'}},
+  sethtml: {icon: Wand2, label: {running: 'Setting HTML', done: 'Set the HTML'}},
+  remove: {icon: Wand2, label: {running: 'Removing an element', done: 'Removed an element'}},
+  insert: {icon: Wand2, label: {running: 'Inserting content', done: 'Inserted content'}},
+  css: {icon: Wand2, label: {running: 'Injecting CSS', done: 'Injected CSS'}},
+  eval: {icon: Code, label: {running: 'Running a script', done: 'Ran a script'}},
+}
+
+function readStepView(tool: string): StepView | undefined {
+  const operation = Operations.find((candidate) => `${PAGE_TOOL_PREFIX}${candidate.name}` === tool)
+  return operation === undefined ? undefined : STEP_VIEWS[operation.name]
+}
+
+export function pageStepView(verb: string): StepView | undefined {
+  return readStepView(`${PAGE_TOOL_PREFIX}${verb}`)
+}
+
+export function pageVerbGerund(verb: string): string {
+  const word = pageStepView(verb)?.label.running.split(' ')[0] ?? ''
+  return word.length > 0 ? word : verb
+}
+
+function pageToolMutating(tool: string): boolean {
+  return Operations.some((operation) => `${PAGE_TOOL_PREFIX}${operation.name}` === tool && operation.mutating)
+}
 
 export const ELEMENT_TARGET_KEYS = new Set(['selector', 'ref', 'name'])
 
@@ -75,8 +151,8 @@ export function ChipRow(props: {chips: ReadonlyArray<CardChip>}): JSX.Element {
   )
 }
 
-export function mutatingBadge(meta: ToolViewMeta | undefined): string | undefined {
-  return meta?.mutating === true ? MUTATING_BADGE : undefined
+export function mutatingBadge(mutating: boolean): string | undefined {
+  return mutating ? MUTATING_BADGE : undefined
 }
 
 export function elementTarget(input: Record<string, unknown>): string | undefined {
@@ -98,7 +174,7 @@ function inputArgs(input: Record<string, unknown>, skip: ReadonlySet<string>): s
 }
 
 export function pageTitle(tool: string, running: boolean): string {
-  const label = pageToolMeta(tool)?.label
+  const label = readStepView(tool)?.label
   if (label === undefined) return tool
   return running ? label.running : label.done
 }
@@ -115,7 +191,7 @@ export function PageTool(
   const [local, tool] = splitProps(props, ['subtitle', 'skip', 'failed', 'hasContent', 'children'])
   const running = () => tool.status === 'pending' || tool.status === 'running' || tool.status === 'streaming'
   const args = () => {
-    const badge = mutatingBadge(pageToolMeta(tool.tool))
+    const badge = mutatingBadge(pageToolMutating(tool.tool))
     const values = inputArgs(tool.input, local.skip ?? NO_SKIP)
     return badge === undefined ? values : [...values, badge]
   }

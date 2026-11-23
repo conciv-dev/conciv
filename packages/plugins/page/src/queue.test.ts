@@ -8,7 +8,7 @@ describe('waiting on a queue', () => {
   test('a wait that ends because the queue finished leaves no timer running, so a stopped engine leaves nothing behind', async ({
     clock,
   }) => {
-    const sessionId = SessionId.parse('conciv_7d1c2f3a-0b4e-4c5d-8e9f-a0b1c2d3e4f5')
+    const sessionId = SessionId.parse('ses_7d1c2f3a-0b4e-4c5d-8e9f-a0b1c2d3e4f5')
     await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {

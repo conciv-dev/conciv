@@ -41,6 +41,7 @@
     "@conciv/contract": "workspace:^",
     "@conciv/db": "workspace:^",
     "@conciv/harness": "workspace:^",
+    "@conciv/plugin": "workspace:^",
     "@conciv/plugin-host": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/tools": "workspace:^",
@@ -51,7 +52,6 @@
   },
   "devDependencies": {
     "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@effect/sql-sqlite-node": "catalog:",

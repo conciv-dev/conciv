@@ -21,12 +21,12 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 - RPC (`rpc-types.ts`): WS_MAX_PAYLOAD_BYTES (16 MiB), WS_RPC_PAYLOAD_BUDGET_BYTES, `CONCIV_VERSION_HEADER` (`'x-conciv-version'`), `RPC_WS_PATH` (`'/rpc-ws'`), RpcContext (with optional `clientVersion` and `socket`, the per-connection `RpcSocketTrust` `{allows(path), admit(token)}` a socket-served call carries, and `replied`, a per-request promise that resolves true once that call's reply has gone out and false when it did not), `rpcHeader`
 - Event bus (`event-bus.ts`): `createEventBus`, `createEventBusClient`, DISPATCH_EVENT, CONNECT_EVENT, GLOBAL_EVENT, PANEL_PLUGIN_ID
 - Config (`config-types.ts`): ConcivConfig, ConcivSettingsInit, ExtensionRegistry, `defineConfig`
-- Tool views (`tool-view-types.ts`): ToolCardProps, ToolCardEntry, ToolUIComponent; TOOL_ICON_KEYS (`tool-icon-types.ts`)
+- Tool views (`tool-view-types.ts`): ToolCardProps, ToolCardEntry, ToolUIComponent
 - Ports and state (`connect-ports.ts`, `state-types.ts`): CONNECT_FIRST_PORT 4732 to CONNECT_LAST_PORT 4741, CONCIV_STATE_DIR '.conciv', `concivStateDir`
 
 ## Invariants
 
-- `SessionId` (`chat-types.ts`): /^conciv_[A-Za-z0-9_-]{1,128}$/; `HarnessSessionId` /^[A-Za-z0-9_-]{1,128}$/
+- `SessionId` (`chat-types.ts`): /^ses_[A-Za-z0-9_-]{1,128}$/ (validator only; ids are made by `@conciv/plugin/schema/session-id`); `HarnessSessionId` /^[A-Za-z0-9_-]{1,128}$/
 - `ChatContentPartSchema` (`chat-types.ts`): image and document payloads must be non-empty valid base64 within the base64 length of MAX_ATTACHMENT_RAW_BYTES
 - `RenameSessionSchema` (`chat-types.ts`): title at most 120 chars; `PermissionDecisionSchema` carries opencode's reply: `once`, `always` (saves a project rule, offered only for an ask with `save`) or `reject`
 - `defineChatEvent` (`chat-event-types.ts`): create() throws on invalid input; parse() returns null on mismatch

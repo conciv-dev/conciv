@@ -26,12 +26,12 @@ A built-in: it draws with the UI kits directly, like opencode's gui plugins, and
   (`SourceLoc`, both from `@conciv/contract`) with @jridgewell/trace-mapping; the `symbolicate`
   method answers with `symbolicateFrames`
 - `Definition` (`rpc.ts`, `./rpc`): the RPC `experimental.page`
-- `CliTools` (`rpc.ts`, `./rpc`): per operation, the terminal shape and its `view` (icon and running/done label), the one source the engine catalog (`pluginSignatures`) and the pane's `builtinToolMeta` read
+- `CliTools` (`rpc.ts`, `./rpc`): per operation, the permission the call asks (`page_eval` for `eval`)
 - `attach` refuses a session that does not exist with the error type `missing` (`connection.ts`), every other refusal with `unavailable`
 - option `pageReplyTimeoutMs` (`connection.ts`, milliseconds, default 5 000): how long a tab has to answer an action that declares no timeout of its own, and to accept a queue
 - option `queuedActionTimeoutMs` (`connection.ts`, milliseconds, default 7 000): how long each queued action has to confirm once the tab reaches it
 - option `permissionSyncTimeoutMs` (`connection.ts`, milliseconds, default 10 000): how long granting or revoking a tab's page permissions on its session may take before the attach is refused (the tab retries on its back-off)
-- `client.ts` (`./client`): the DOM helpers, `reactBridge` as a namespace, `pageSessionEntry`, `PAGE_ACT_TOOL_NAMES`, `PAGE_TOOL_PREFIX`, `pageToolMeta`
+- `client.ts` (`./client`): the DOM helpers, `reactBridge` as a namespace, `pageSessionEntry`, `PAGE_ACT_TOOL_NAMES`, `PAGE_TOOL_PREFIX`
 - `renderer.tsx` (`./renderer`): the window setup (default export) the built-ins load lazily
 - `grab.ts:getReactGrabAdapter` - creates the adapter once and returns `{activate(onGrab), comment(onGrab), deactivate(), isActive()}` (`ReactGrabAdapter`).
 - `grab.ts:GrabSink` - `(grab: Promise<Grab>) => void`: called as soon as an element is picked, before react-grab deactivates, so a pick never resolves before its capture ends.

@@ -13,7 +13,7 @@ import {
 } from '@conciv/plugin/experimental'
 import {OpaqueUi, type InternalUi} from '@internal/plugin'
 import {PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
-import {tanstackToolMeta, tanstackToolName, type TanstackToolName} from './client.js'
+import {tanstackToolLabel, tanstackToolName, type TanstackToolName} from './tool-labels.js'
 import {errorRingLayer} from './error-ring.js'
 import {execute} from './operations.js'
 import {
@@ -93,7 +93,7 @@ function isRunning(status: ToolProps['status']): boolean {
 }
 
 function tanstackTitle(tool: string, status: ToolProps['status']): string {
-  const label = tanstackToolMeta(tool)?.label
+  const label = tanstackToolLabel(tool)
   if (label === undefined) return tool
   return isRunning(status) ? label.running : label.done
 }

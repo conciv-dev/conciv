@@ -37,7 +37,7 @@ describe('codex', () => {
     expect(await harness.defaultModel()).toBe('gpt-5.6-sol')
     const turn = await harness.chatConfig({
       cwd: '/workspace',
-      sessionId: SessionId.parse('conciv_session_1'),
+      sessionId: SessionId.parse('ses_session_1'),
       askPermission: async () => ({allowed: true}),
       resumeSessionId: null,
       env: {CODEX_HOME: home},

@@ -36,8 +36,7 @@ import {
 } from '@conciv/ui-kit-chat'
 import type {DraftItem, PermissionReply} from '@conciv/protocol/chat-types'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
-import {createPageSessionGrouper, pageSessionEntry, pageToolMeta} from '@conciv/plugin-page/client'
-import {tanstackToolMeta} from '@conciv/plugin-tanstack/client'
+import {createPageSessionGrouper, pageSessionEntry} from '@conciv/plugin-page/client'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
@@ -82,7 +81,6 @@ import {
   SessionStatusSlot,
 } from './plugin-session-parts.js'
 import {createToolRender} from './tool-registry-render.js'
-import {mergeToolMeta} from './tool-catalog-meta.js'
 import {Contribution} from '../runtime/plugin/render'
 import {useEngineReachability} from '../app/reachability.js'
 import {StandingNotice} from '../shell/notices.js'
@@ -255,7 +253,7 @@ const PAGE_SESSION_ENTRIES: readonly GroupEntry[] = [
   {
     key: pageSessionEntry.key,
     render: (props) => (
-      <Contribution plugin="page" fallback={() => props.children}>
+      <Contribution plugin="conciv.page" fallback={() => props.children}>
         {() => pageSessionEntry.render(props)}
       </Contribution>
     ),
@@ -475,7 +473,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     addResult: messaging.onAnswer,
   })
 
-  const toolRender = createToolRender(catalog)
+  const toolRender = createToolRender()
   const tools = (): ToolCardEntry[] => [...concivToolCards, ...coreToolCards, ...builtinToolCards]
   const pageSessionGrouper = createPageSessionGrouper()
   const grouping = (): Grouping => ({grouper: pageSessionGrouper, context: {toolEntries: tools()}})
@@ -531,7 +529,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     const NarrationRow = (): JSX.Element => {
       const title = createMemo(() => {
         const call = activeToolCall(lastTurn())
-        if (call) return nowTitle(call, catalog)
+        if (call) return nowTitle(call)
         return isThinking() ? THINKING_TITLE : RESPONDING_TITLE
       })
       return (
@@ -751,11 +749,7 @@ function useToolCatalog(): ToolCatalogView {
   const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
   return {
     loaded: () => registryCatalog.data !== undefined,
-    meta: (name) =>
-      mergeToolMeta(
-        registryCatalog.data?.find((signature) => signature.name === name),
-        pageToolMeta(name) ?? tanstackToolMeta(name),
-      ),
+    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
   }
 }
 

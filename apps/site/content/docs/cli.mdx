@@ -36,7 +36,7 @@ so `--name` always means the component.
 
 ```bash
 conciv tools page snapshot
-conciv tools page text .price
+conciv tools page text --selector .price
 conciv tools page changes --clear
 ```
 
@@ -44,18 +44,18 @@ Live edits are ephemeral by design: they preview a change instantly, and the jou
 agent knows what to persist to source afterwards. See
 [Page control](/docs/usage/page-control).
 
-### `react`
+### React components
 
-Inspect and edit live React components by name: `inspect`, `tree`, `find`, `locate`, `override`,
-`track`.
+The `page` group also inspects and edits live React components by name: `inspect`, `tree`, `find`,
+`locate`, `override`, `track`.
 
 ```bash
-conciv tools react inspect --name PricingCard
-conciv tools react override --name PricingCard --target props --path plan --json '"pro"'
+conciv tools page inspect --name PricingCard
+conciv tools page override props --name PricingCard --path plan --json '"pro"'
 ```
 
-`override` patches `props`, `state`, `hooks`, or `context` on the live instance and needs
-`--target`. `track` records re-renders page-wide: `--action start` begins recording, `--action report`
+`override` patches `props`, `state`, `hooks`, or `context` on the live instance, named as its first
+argument. `track` records re-renders page-wide: `--action start` begins recording, `--action report`
 (the default) lists them, `--name` narrows the report to one component, and `--action stop` ends
 recording.
 

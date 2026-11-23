@@ -11,7 +11,7 @@ describe('preparing a turn', () => {
     const project = tempDir('claude-chat-')
     const deps: HarnessChatDeps = {
       cwd: project,
-      sessionId: SessionId.parse('conciv_session_1'),
+      sessionId: SessionId.parse('ses_session_1'),
       askPermission: async () => ({allowed: true}),
       resumeSessionId: null,
       env: {},

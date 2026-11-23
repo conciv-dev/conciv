@@ -44,7 +44,7 @@ function resolveSessionId(candidates: (string | undefined)[]): SessionId | undef
   const declared = declaredValue(candidates)
   if (declared === undefined) return undefined
   if (!isSessionId(declared)) {
-    throw new Error(`the configured conciv session id "${declared}" is not a conciv session id (conciv_...)`)
+    throw new Error(`the configured conciv session id "${declared}" is not a conciv session id (ses_...)`)
   }
   return declared
 }

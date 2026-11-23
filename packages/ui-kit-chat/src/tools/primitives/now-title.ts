@@ -1,6 +1,5 @@
 import {z} from 'zod'
 import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
-import type {ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import {parseInput} from './tool-util.js'
 
 const Hint = z.object({
@@ -52,9 +51,7 @@ const TITLE_BY_TOOL: Record<string, (h: HintData) => string> = {
   TodoWrite: () => 'Updating tasks',
 }
 
-export function nowTitle(part: ToolCallPart, catalog: ToolCatalogView): string {
-  const declared = catalog.meta(part.name)?.label?.running
-  if (declared) return declared
+export function nowTitle(part: ToolCallPart): string {
   const title = TITLE_BY_TOOL[part.name]
   if (!title) return humanToolName(part.name)
   return title(hint(part))

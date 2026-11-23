@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {defineChatMiddleware, generateMessageId, withTanstackMetadata, type ModelMessage} from '@tanstack/ai'
+import {defineChatMiddleware, withTanstackMetadata, type ModelMessage} from '@tanstack/ai'
 import {
   ChatEventType,
   codeModeCallEvent,
@@ -7,6 +7,7 @@ import {
   codeModeResultEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
+import {SessionMessage} from '@conciv/plugin/schema/session-message'
 import {CODE_MODE_EXTERNAL_PREFIX} from '@conciv/protocol/chat-types'
 import {isOutsideCallMessageId} from '@conciv/protocol/chat-message-types'
 
@@ -85,7 +86,7 @@ function childResultChunks(event: ChatEvent, shapeResult: ShapeResult): ChatEven
   return [
     {
       type: ChatEventType.TOOL_CALL_RESULT,
-      messageId: generateMessageId(),
+      messageId: SessionMessage.Id.create(),
       toolCallId: settled.callId,
       content: serialized(shapeResult(settled.result ?? null)),
     },
@@ -115,7 +116,7 @@ function childErrorChunks(event: ChatEvent): ChatEvent[] | null {
   return [
     {
       type: ChatEventType.TOOL_CALL_RESULT,
-      messageId: generateMessageId(),
+      messageId: SessionMessage.Id.create(),
       toolCallId: failed.callId,
       content: serialized({error: failed.error}),
       metadata: {tanstack: {state: 'output-error', ...outcome}},

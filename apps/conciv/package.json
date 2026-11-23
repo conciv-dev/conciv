@@ -26,7 +26,6 @@
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
     "@conciv/plugin": "workspace:^",
-    "@conciv/plugin-tanstack": "workspace:^",
     "@conciv/plugin-terminal": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",

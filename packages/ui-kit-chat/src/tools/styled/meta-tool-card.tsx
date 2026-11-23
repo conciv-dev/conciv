@@ -1,16 +1,14 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
-import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCardProps, ToolViewCtx, ToolViewError, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {parseInput, parseResultPayload, resultText} from '../primitives/tool-util.js'
-import {MUTATING_BADGE, clip, displayValue} from '../primitives/tool-presentation.js'
+import {clip, displayValue} from '../primitives/tool-presentation.js'
 import {namedArgument} from '../primitives/tool-row.js'
 import {CardShell, cardHeader} from './card-shell.js'
 import {CHIP} from './chip.js'
 import {JsonTree} from './json-tree.js'
 import {ShapedValue} from './shaped-content.js'
-import {NoteRow} from './note-row.js'
 import {CodeBlock} from './code-block.js'
 import {ErrorBlock} from './error-block.js'
 
@@ -103,7 +101,6 @@ function ResultView(props: {outputSchema: unknown; payload: unknown; raw: string
 function summaryLine(part: ToolCallPart, meta: ToolViewMeta | undefined): string | undefined {
   const summary = meta?.summary
   if (summary === undefined || summary.length === 0) return undefined
-  if (meta?.label !== undefined) return summary
   return namedArgument(part) === undefined ? undefined : summary
 }
 
@@ -114,7 +111,7 @@ export function metaToolHasEmbeddedBody(
 ): boolean {
   const meta = ctx.catalog.meta(part.name)
   if (summaryLine(part, meta) !== undefined) return true
-  if (meta?.hint !== undefined || meta?.approval === 'ask') return true
+  if (meta?.hint !== undefined) return true
   if (failureText(result, meta?.errors) !== undefined) return true
   return resultText(result).length > 0
 }
@@ -149,11 +146,6 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
     <>
       <Show when={bodySummary()}>{(summary) => <p class={SUMMARY}>{summary()}</p>}</Show>
       <Show when={meta()?.hint}>{(hint) => <p class={HINT}>{hint()}</p>}</Show>
-      <Show when={meta()?.approval === 'ask'}>
-        <NoteRow icon={<ShieldAlert size={12} aria-hidden="true" />} tone="accent">
-          asks before it runs
-        </NoteRow>
-      </Show>
       <Show when={errorMessage()}>
         {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
       </Show>
@@ -166,7 +158,6 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
     <CardShell
       meta={meta()}
       title={headline()}
-      metaBadge={meta()?.mutating === true ? MUTATING_BADGE : undefined}
       part={props.part}
       result={props.result}
       durationMs={props.durationMs}

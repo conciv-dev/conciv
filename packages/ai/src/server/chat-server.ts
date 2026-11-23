@@ -4,7 +4,6 @@ import {
   convertMessagesToModelMessages,
   defineChatMiddleware,
   EventType,
-  generateMessageId,
   isToolResultOutcome,
   requestRunCancel,
   RUN_CANCEL_REASON,
@@ -33,6 +32,7 @@ import {
   withSandbox,
   isSandboxToolCall,
 } from '@tanstack/ai-sandbox'
+import {SessionMessage} from '@conciv/plugin/schema/session-message'
 import {makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
 import {
   isRunPhaseTerminal,
@@ -447,7 +447,7 @@ async function saveStoppedTurn(
     threadId,
     processor,
     stopped,
-    [stopped({role: 'assistant', content: null, id: generateMessageId()})],
+    [stopped({role: 'assistant', content: null, id: SessionMessage.Id.create()})],
     (thread) => {
       const latest = lastToolResults(thread)
       written.results = interruptedResults(latest)
@@ -464,7 +464,7 @@ function interruptedChunks(results: readonly ModelMessage[]): ChatEvent[] {
       : [
           {
             type: ChatEventType.TOOL_CALL_RESULT,
-            messageId: generateMessageId(),
+            messageId: SessionMessage.Id.create(),
             toolCallId: result.toolCallId,
             content: JSON.stringify({error: INTERRUPTED}),
             metadata: {tanstack: {state: 'output-error'}},

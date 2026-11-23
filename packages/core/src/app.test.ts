@@ -24,7 +24,7 @@ describe('http surface', () => {
       ok: true,
       harness: 'reviewer',
       engine: {stale: false},
-      id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+      id: expect.stringMatching(/^eng_[0-9A-Za-z]{26}$/),
     })
 
     const untokened = await fetch(`${origin}/api/mcp`, {method: 'POST'})
