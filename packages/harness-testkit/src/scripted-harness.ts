@@ -91,6 +91,7 @@ const CAPABILITIES = {
   systemPrompt: 'flag',
   mcp: 'none',
   init: 'none',
+  login: 'none',
   imageInput: false,
   slashCommands: 'live',
 } satisfies Omit<HarnessCapabilities, 'resume' | 'transcriptHistory'>
