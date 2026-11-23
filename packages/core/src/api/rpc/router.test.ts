@@ -71,6 +71,7 @@ describe.concurrent('outside agents', () => {
         parts: expect.arrayContaining([expect.objectContaining({type: 'tool-call', name: 'execute_typescript'})]),
       }),
     )
+    expect(replies.at(-1)?.id).toMatch(/^msg_/)
     expect(replies).toHaveLength(2)
     expect(replies.at(-1)?.parts).toEqual(
       expect.arrayContaining([expect.objectContaining({type: 'text', content: 'The release notes are out'})]),

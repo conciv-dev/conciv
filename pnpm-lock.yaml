@@ -2106,6 +2106,9 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

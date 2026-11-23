@@ -1,7 +1,7 @@
-import {randomUUID} from 'node:crypto'
 import {convertSchemaToJsonSchema, EventType} from '@tanstack/ai'
 import {isEqual, keyBy} from 'es-toolkit'
 import {z} from 'zod'
+import {SessionMessage} from '@conciv/plugin/schema/session-message'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
@@ -110,7 +110,7 @@ export function answeredMetadata(
 }
 
 async function* answered(result: RequestResult, run: {threadId: string; runId: string}): AsyncIterable<ChatEvent> {
-  const messageId = randomUUID()
+  const messageId = SessionMessage.Id.create()
   const tokens = result.tokens
   yield {type: EventType.RUN_STARTED, ...run}
   yield {type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant'}

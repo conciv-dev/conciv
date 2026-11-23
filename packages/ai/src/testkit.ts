@@ -1,10 +1,10 @@
-import {generateMessageId} from '@tanstack/ai'
 import {chat, StreamProcessor} from '@tanstack/ai'
 import type {CapabilityContext} from '@tanstack/ai'
 import type {ConnectConnectionAdapter} from '@tanstack/ai-client'
 import {getToolBridgeProvisioner} from '@tanstack/ai-sandbox'
 import {z} from 'zod'
 import type {TextAdapter} from './adapters/adapters.js'
+import {SessionMessage} from '@conciv/plugin/schema/session-message'
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 
@@ -163,7 +163,7 @@ export function createToolResultChunk(
 ): ChatEvent {
   return {
     type: ChatEventType.TOOL_CALL_RESULT,
-    messageId: options?.messageId ?? generateMessageId(),
+    messageId: options?.messageId ?? SessionMessage.Id.create(),
     toolCallId,
     content,
     ...(options?.state === 'output-error' && {metadata: {tanstack: {state: 'output-error'}}}),

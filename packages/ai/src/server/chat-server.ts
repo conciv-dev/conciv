@@ -4,7 +4,6 @@ import {
   convertMessagesToModelMessages,
   defineChatMiddleware,
   EventType,
-  generateMessageId,
   isToolResultOutcome,
   requestRunCancel,
   RUN_CANCEL_REASON,
@@ -33,7 +32,8 @@ import {
   withSandbox,
   isSandboxToolCall,
 } from '@tanstack/ai-sandbox'
-import {makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
+import {SessionMessage} from '@conciv/plugin/schema/session-message'
+import {isSubagentChunk, makeTextAdapter, stampMessageIds, type TextAdapter} from '../adapters/adapters.js'
 import {
   isRunPhaseTerminal,
   runLifecycleEvent,
@@ -386,10 +386,6 @@ type LiveRun = {
 
 type RunMessages = {full: ModelMessage[]}
 
-function isSubagentChunk(chunk: ChatEvent): boolean {
-  return 'subagentRunId' in chunk && chunk.subagentRunId !== undefined
-}
-
 function followRun(processor: StreamProcessor, chunk: ChatEvent): void {
   if (isSubagentChunk(chunk) || chunk.type === EventType.MESSAGES_SNAPSHOT) return
   processor.processChunk(chunk)
@@ -447,7 +443,7 @@ async function saveStoppedTurn(
     threadId,
     processor,
     stopped,
-    [stopped({role: 'assistant', content: null, id: generateMessageId()})],
+    [stopped({role: 'assistant', content: null, id: SessionMessage.Id.create()})],
     (thread) => {
       const latest = lastToolResults(thread)
       written.results = interruptedResults(latest)
@@ -464,7 +460,7 @@ function interruptedChunks(results: readonly ModelMessage[]): ChatEvent[] {
       : [
           {
             type: ChatEventType.TOOL_CALL_RESULT,
-            messageId: generateMessageId(),
+            messageId: SessionMessage.Id.create(),
             toolCallId: result.toolCallId,
             content: JSON.stringify({error: INTERRUPTED}),
             metadata: {tanstack: {state: 'output-error'}},
@@ -873,7 +869,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const tracing: ChatMiddleware[] =
       tracer === undefined ? [] : [otelMiddleware({tracer, attributeEnricher: chatAttributes})]
     const stream = chat({
-      adapter: guardedAdapter(answeredAdapter(plan.adapter), {
+      adapter: guardedAdapter(answeredAdapter(stampMessageIds(plan.adapter)), {
         ended: entry.ending.signal,
         stopped: controller.signal,
         startMs: config.startTimeoutMs,
