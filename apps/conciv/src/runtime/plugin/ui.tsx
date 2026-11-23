@@ -7,7 +7,7 @@ import {
   type UiMenuRadioGroup,
   type UiMenuSubProps,
 } from '@conciv/plugin/experimental'
-import {OpaqueUi, type InternalStatusDotProps} from '@internal/plugin'
+import {OpaqueUi} from '@internal/plugin'
 import {Icon as KitIcon, Markdown} from '@conciv/ui-kit-chat'
 import {BasicTool, Chip, CodeBlock, ErrorBlock, JsonTree, ResultImage, StatusVisual} from '@conciv/ui-kit-chat/tools'
 import {MentionField} from '@conciv/ui-kit-tap'
@@ -82,7 +82,7 @@ const COLLAPSIBLE_TRIGGER =
 
 const subtitleTone = {default: '', muted: 'text-chat-text-3', warning: 'text-chat-warn', danger: 'text-chat-danger'}
 
-const stillDot: Record<InternalStatusDotProps['tone'], StatusDotTone | undefined> = {
+const stillDot: Record<Parameters<(typeof OpaqueUi.TInternal)['StatusDot']>[0]['tone'], StatusDotTone | undefined> = {
   neutral: 'idle',
   success: 'success',
   warning: 'warn',

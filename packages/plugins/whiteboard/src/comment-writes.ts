@@ -1,6 +1,8 @@
-import type {MentionSegment} from '@internal/plugin'
+import type {OpaqueUi} from '@internal/plugin'
 import type {CommentRow, PinRow, ReadRow} from './rows.js'
 import type {WhiteboardDb} from './whiteboard-db.js'
+
+type MentionSegment = Parameters<Parameters<(typeof OpaqueUi.TInternal)['MentionField']>[0]['onSubmit']>[0][number]
 
 export type PinPatch = Partial<Pick<PinRow, 'x' | 'y' | 'pinState' | 'anchorX' | 'anchorY'>>
 

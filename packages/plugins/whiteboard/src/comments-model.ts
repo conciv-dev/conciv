@@ -2,7 +2,7 @@ import {createMemo, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import {useLiveQuery} from '@tanstack/solid-db'
 import {maxBy, uniq, uniqBy} from 'es-toolkit'
-import type {MentionItem, MentionSegment} from '@internal/plugin'
+import type {OpaqueUi} from '@internal/plugin'
 import {screenToScene, type Viewport} from './coords.js'
 import type {CommentRow, PinRow, ReadRow} from './rows.js'
 import {useWhiteboardDb} from './db.js'
@@ -18,6 +18,12 @@ import {
 } from './comment-writes.js'
 import {createPinDrag} from './pin-drag.js'
 import {WhiteboardCommentsViewMachine, type InboxSort} from './comments-view-machine.js'
+
+type MentionField = Parameters<(typeof OpaqueUi.TInternal)['MentionField']>[0]
+
+type MentionItem = ReturnType<MentionField['items']>[number]
+
+type MentionSegment = Parameters<MentionField['onSubmit']>[0][number]
 
 export type CommentsModel = ReturnType<typeof createCommentsModel>
 

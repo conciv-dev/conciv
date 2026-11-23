@@ -1,5 +1,5 @@
 import type {Ui} from '@conciv/plugin/experimental'
-import {OpaqueUi, type InternalUi} from '@internal/plugin'
+import {OpaqueUi} from '@internal/plugin'
 import {autofocus} from '@solid-primitives/autofocus'
 import {Show, type Accessor, type JSX} from 'solid-js'
 import type {TryItConnectMachine} from './connect-machine.js'
@@ -20,7 +20,7 @@ const STEP_TITLES: Record<TryStep, string> = {
   approve: "Approve Chrome's local-network prompt",
 }
 
-function CopyRow(props: {ui: InternalUi; label: string; text: string; onCopy: () => void}): JSX.Element {
+function CopyRow(props: {ui: typeof OpaqueUi.TInternal; label: string; text: string; onCopy: () => void}): JSX.Element {
   return (
     <div class="py-1.5 pl-3 pr-1.5 border border-chat-line rounded-chat-surface-md bg-chat-fill flex gap-2 items-center">
       <props.ui.TruncatedText
@@ -32,7 +32,7 @@ function CopyRow(props: {ui: InternalUi; label: string; text: string; onCopy: ()
   )
 }
 
-function StepMarker(props: {ui: InternalUi; index: number; state: StepState}): JSX.Element {
+function StepMarker(props: {ui: typeof OpaqueUi.TInternal; index: number; state: StepState}): JSX.Element {
   return (
     <Show
       when={props.state === 'done'}
@@ -53,7 +53,7 @@ function StepMarker(props: {ui: InternalUi; index: number; state: StepState}): J
 }
 
 function Step(props: {
-  ui: InternalUi
+  ui: typeof OpaqueUi.TInternal
   index: number
   state: StepState
   title: string
@@ -83,7 +83,7 @@ export function ConnectPane(props: ConnectPaneProps & {ui: Ui}): JSX.Element {
   return <Pane {...props} ui={OpaqueUi.toInternal(props.ui)} />
 }
 
-function Pane(props: ConnectPaneProps & {ui: InternalUi}): JSX.Element {
+function Pane(props: ConnectPaneProps & {ui: typeof OpaqueUi.TInternal}): JSX.Element {
   const connected = () => {
     const status = props.state().status
     return status === 'holding' || status === 'connected'

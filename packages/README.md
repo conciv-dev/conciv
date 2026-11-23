@@ -43,7 +43,7 @@ Contracts:
 - contract: [contract/README.md](./contract/README.md) - The oRPC contract between core and its clients, with fetch and browser RPC clients.
 - grab: [grab/README.md](./grab/README.md) - Element-grab types and label helpers.
 - plugin: [plugin/README.md](./plugin/README.md) - `@conciv/plugin`, the plugin SDK: `Plugin.define` for a plugin's engine and browser parts, RPC contracts, registries and stores.
-- opaque-internal: `@internal/opaque`, private, source-only: `createOpaqueType`, which makes a type with a public shape and versioned internal fields that only conciv's own packages read.
+- opaque-internal: `@internal/opaque`, private, source-only: `OpaqueType` (as Backstage's), whose `OpaqueType.create` makes a type with a public shape and versioned internal fields that only conciv's own packages read.
 - plugin-internal: [plugin-internal/README.md](./plugin-internal/README.md) - `@internal/plugin`, private, source-only: the opaque definitions (`OpaqueUi`) the app and conciv's own plugins share, inlined into their builds.
 - builtin-plugins-internal: [builtin-plugins-internal/README.md](./builtin-plugins-internal/README.md) - `@internal/builtin-plugins`, private, source-only: the app's built-in plugins (page, terminal) as one composed list, the only place the app's build names them.
 - extensions: [extensions/README.md](./extensions/README.md) - `@conciv/extension-design`, the one package left from the old extension system, out of the release.

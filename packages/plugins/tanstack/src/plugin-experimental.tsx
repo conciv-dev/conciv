@@ -11,7 +11,7 @@ import {
   type ToolProps,
   type Ui,
 } from '@conciv/plugin/experimental'
-import {OpaqueUi, type InternalUi} from '@internal/plugin'
+import {OpaqueUi} from '@internal/plugin'
 import {PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
 import {tanstackToolMeta, tanstackToolName, type TanstackToolName} from './client.js'
 import {errorRingLayer} from './error-ring.js'
@@ -43,7 +43,7 @@ function InspectorChip(props: {readonly ui: Ui; readonly logo: IconName}): JSX.E
   )
 }
 
-type Card = (ui: InternalUi, logo: IconName) => ToolComponent
+type Card = (ui: typeof OpaqueUi.TInternal, logo: IconName) => ToolComponent
 
 const COUNT_FORMAT = new Intl.NumberFormat()
 const COUNT_PLURAL = new Intl.PluralRules('en')
@@ -100,7 +100,7 @@ function tanstackTitle(tool: string, status: ToolProps['status']): string {
 
 function InspectionCard(
   props: ToolProps & {
-    ui: InternalUi
+    ui: typeof OpaqueUi.TInternal
     logo: IconName
     summary: string
     failed?: boolean
@@ -207,7 +207,7 @@ function countRoutes(node: RouteBranchNode): number {
   return 1 + sumBy(node.children, countRoutes)
 }
 
-function RouteBranch(props: {ui: InternalUi; node: RouteBranchNode; root: boolean}): JSX.Element {
+function RouteBranch(props: {ui: typeof OpaqueUi.TInternal; node: RouteBranchNode; root: boolean}): JSX.Element {
   return (
     <>
       <CardRow>
@@ -343,7 +343,7 @@ const QueryCacheSchema = z.object({
   mutations: z.array(CacheEntrySchema).default([]),
 })
 
-function CacheEntryRow(props: {ui: InternalUi; entry: z.infer<typeof CacheEntrySchema>}): JSX.Element {
+function CacheEntryRow(props: {ui: typeof OpaqueUi.TInternal; entry: z.infer<typeof CacheEntrySchema>}): JSX.Element {
   return (
     <div class="flex flex-col gap-1">
       <CardRow>

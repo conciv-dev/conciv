@@ -3,7 +3,7 @@ import {createStore} from 'solid-js/store'
 import {Effect} from 'effect'
 import {z} from 'zod'
 import {usePlugin} from '@conciv/plugin/experimental'
-import {OpaqueUi, type MentionFieldApi, type MentionItem} from '@internal/plugin'
+import {OpaqueUi} from '@internal/plugin'
 import type {CommentRow} from './rows.js'
 import {useComments} from './comments.js'
 import {useWhiteboardRuntime} from './solid-runtime.js'
@@ -18,6 +18,9 @@ const ToolPart = z.object({
 })
 
 const InlinePart = z.discriminatedUnion('type', [TextPart, MentionPart])
+type MentionField = Parameters<(typeof OpaqueUi.TInternal)['MentionField']>[0]
+type MentionItem = ReturnType<MentionField['items']>[number]
+type MentionFieldApi = Parameters<NonNullable<MentionField['onReady']>>[0]
 type InlineSegment = z.output<typeof InlinePart>
 type PartRun = {kind: 'inline'; segments: InlineSegment[]} | {kind: 'block'; part: unknown}
 

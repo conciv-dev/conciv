@@ -10,7 +10,7 @@ import {
   type SessionScreen,
   type ToolComponent,
 } from '@conciv/plugin/experimental'
-import {OpaqueUi, type InternalUi} from '@internal/plugin'
+import {OpaqueUi} from '@internal/plugin'
 import type {Summary, TestError, TestRow} from './events.js'
 import {followRunView, type TestRunnerRuntime} from './follow.js'
 import {initialRunView, selectSummary, selectTests, type RunView} from './run-state.js'
@@ -33,7 +33,7 @@ import {
 } from './view.js'
 
 type Actions = {
-  readonly ui: InternalUi
+  readonly ui: typeof OpaqueUi.TInternal
   readonly canOpen: boolean
   readonly onOpen: (error: TestError) => void
   readonly onFix: (error: TestError) => void
@@ -60,7 +60,7 @@ const TEST_RUNNER_TITLES: Record<string, {running: string; done: string}> = {
 }
 
 function Disclosure(props: {
-  ui: InternalUi
+  ui: typeof OpaqueUi.TInternal
   level: keyof typeof LEVEL
   open?: boolean
   name?: string
@@ -290,7 +290,7 @@ function openFailure(ctx: Context, runtime: TestRunnerRuntime, error: TestError)
   )
 }
 
-function testRunCard(ctx: Context, runtime: TestRunnerRuntime, ui: InternalUi): ToolComponent {
+function testRunCard(ctx: Context, runtime: TestRunnerRuntime, ui: typeof OpaqueUi.TInternal): ToolComponent {
   const session = () => ctx.sessions.current()
   const client = () => session()?.server.client
   const actions: Actions = {

@@ -1,13 +1,13 @@
 import {describe, expect, it} from 'vitest'
-import {createOpaqueType} from './index.js'
+import {OpaqueType} from './index.js'
 
-describe('createOpaqueType', () => {
+describe('OpaqueType.create', () => {
   it('makes, checks and reads an opaque type with one version, several versions, an undefined version, undefined mixed with versions, no internal fields, and a prototype implementation', () => {
     type MyType = {
       $$type: 'my-type'
     }
 
-    const OpaqueSingleMyType = createOpaqueType<{
+    const OpaqueSingleMyType = OpaqueType.create<{
       public: MyType
       versions: {
         version: 'v1'
@@ -86,7 +86,7 @@ describe('createOpaqueType', () => {
       new TypeError("Invalid opaque type instance, got version '[object Object]', expected 'v1'"),
     )
 
-    const OpaqueVersionsMyType = createOpaqueType<{
+    const OpaqueVersionsMyType = OpaqueType.create<{
       public: MyType
       versions:
         | {
@@ -177,7 +177,7 @@ describe('createOpaqueType', () => {
       new TypeError("Invalid opaque type instance, got version 'v0', expected 'v1', 'v2', or 'v3'"),
     )
 
-    const OpaqueUndefinedMyType = createOpaqueType<{
+    const OpaqueUndefinedMyType = OpaqueType.create<{
       public: MyType
       versions: {
         version: undefined
@@ -225,7 +225,7 @@ describe('createOpaqueType', () => {
       new TypeError("Invalid opaque type instance, got version 'v0', expected undefined"),
     )
 
-    const OpaqueMixedMyType = createOpaqueType<{
+    const OpaqueMixedMyType = OpaqueType.create<{
       public: MyType
       versions:
         | {
@@ -310,7 +310,7 @@ describe('createOpaqueType', () => {
       new TypeError("Invalid opaque type instance, got version 'v3', expected undefined or 'v1'"),
     )
 
-    const OpaqueEmptyMyType = createOpaqueType<{
+    const OpaqueEmptyMyType = OpaqueType.create<{
       public: MyType
       versions: {
         version: undefined
@@ -337,7 +337,7 @@ describe('createOpaqueType', () => {
     expect(myEmptyInternal.$$type).toBe('my-type')
     expect(myEmptyInternal.version).toBe(undefined)
 
-    const OpaquePrototypeMyType = createOpaqueType<{
+    const OpaquePrototypeMyType = OpaqueType.create<{
       public: MyType
       versions: {
         version: 'v1'

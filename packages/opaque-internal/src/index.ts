@@ -1,9 +1,9 @@
-export interface OpaqueShape {
-  public: {$$type: string}
-  versions: {version: string | undefined}
-}
-
-export interface OpaqueType<T extends OpaqueShape> {
+export type OpaqueType<
+  T extends {
+    public: {$$type: string}
+    versions: {version: string | undefined}
+  },
+> = {
   readonly TPublic: T['public']
   readonly TInternal: T['public'] & T['versions']
   isType(value: unknown): value is T['public']
@@ -38,10 +38,12 @@ function joinExpectedVersions(versions: ReadonlySet<string | undefined>): string
   return names.length > 2 ? names.join(', ') : names.join(' ')
 }
 
-export function createOpaqueType<T extends OpaqueShape>(options: {
-  type: T['public']['$$type']
-  versions: Array<T['versions']['version']>
-}): OpaqueType<T> {
+function create<
+  T extends {
+    public: {$$type: string}
+    versions: {version: string | undefined}
+  },
+>(options: {type: T['public']['$$type']; versions: Array<T['versions']['version']>}): OpaqueType<T> {
   const type: string = options.type
   const versions = new Set<string | undefined>(options.versions)
 
@@ -70,3 +72,5 @@ export function createOpaqueType<T extends OpaqueShape>(options: {
     },
   }
 }
+
+export const OpaqueType = {create}

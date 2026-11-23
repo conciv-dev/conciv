@@ -2,7 +2,7 @@ import {Layer, ManagedRuntime} from 'effect'
 import {For, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {NoteCard, Panel, Plugin, ToolRegistry, type PanelTab, type ToolComponent} from '@conciv/plugin/experimental'
-import {OpaqueNoteCard, OpaqueUi, type InternalUi} from '@internal/plugin'
+import {OpaqueNoteCard, OpaqueUi} from '@internal/plugin'
 import {bootCapture} from './page-capture.js'
 import {RecorderPanel} from './panel-view.js'
 import {RecordingCard} from './recording-card.js'
@@ -94,7 +94,7 @@ function readActions(recording: Recording): RecordingAction[] | undefined {
   return recording.kind === 'window' ? recording.actions : undefined
 }
 
-function ActionList(props: {ui: InternalUi; actions: RecordingAction[]}): JSX.Element {
+function ActionList(props: {ui: typeof OpaqueUi.TInternal; actions: RecordingAction[]}): JSX.Element {
   return (
     <Show when={props.actions.length > 0} fallback={<span class={QUIET_CLASS}>no recorded activity</span>}>
       <div class="flex flex-col gap-0.5">
@@ -112,7 +112,7 @@ function ActionList(props: {ui: InternalUi; actions: RecordingAction[]}): JSX.El
   )
 }
 
-function recordingToolCard(ui: InternalUi): ToolComponent {
+function recordingToolCard(ui: typeof OpaqueUi.TInternal): ToolComponent {
   return (props) => {
     const recording = () => readRecording(props.output)
     return (

@@ -2,11 +2,11 @@ import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {groupBy} from 'es-toolkit'
 import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
-import type {InternalBasicToolProps, InternalUi} from '@internal/plugin'
+import type {OpaqueUi} from '@internal/plugin'
 
 type ToolInput = ToolProps['input']
 
-type SubtitleTone = NonNullable<InternalBasicToolProps['subtitleTone']>
+type SubtitleTone = NonNullable<Parameters<(typeof OpaqueUi.TInternal)['BasicTool']>[0]['subtitleTone']>
 
 type FieldTone = 'default' | 'danger'
 
@@ -135,7 +135,7 @@ function anchorValue(input: ToolInput, output: string | undefined): string {
   return resolved === undefined ? cid : `${cid} · ${resolved}`
 }
 
-function anchorCard(ui: InternalUi): ToolComponent {
+function anchorCard(ui: typeof OpaqueUi.TInternal): ToolComponent {
   return (props) => {
     const tone = (): SubtitleTone => {
       const resolved = readAnchorStatus(props.output)
@@ -166,7 +166,7 @@ function elementValue(input: ToolInput, output: string | undefined): string {
   return readFound(output) === false ? `${component} not found` : component
 }
 
-function elementCard(ui: InternalUi): ToolComponent {
+function elementCard(ui: typeof OpaqueUi.TInternal): ToolComponent {
   return (props) => {
     const missing = () => readFound(props.output) === false
     return (
@@ -348,7 +348,7 @@ function operationFields(operation: string, input: ToolInput, detail: CanvasDeta
   return OPERATION_FIELDS[operation]?.(input, detail, summarizeCanvas(operation, input, detail)) ?? []
 }
 
-function SourceBlock(props: {ui: InternalUi; input: ToolInput; operation: string}): JSX.Element {
+function SourceBlock(props: {ui: typeof OpaqueUi.TInternal; input: ToolInput; operation: string}): JSX.Element {
   const svg = () => (props.operation === 'svg' ? readInput(SvgInput, props.input)?.svg : undefined)
   const mermaid = () => (props.operation === 'diagram' ? readInput(DiagramInput, props.input)?.mermaid : undefined)
   return (
@@ -359,7 +359,7 @@ function SourceBlock(props: {ui: InternalUi; input: ToolInput; operation: string
   )
 }
 
-function canvasCard(ui: InternalUi): ToolComponent {
+function canvasCard(ui: typeof OpaqueUi.TInternal): ToolComponent {
   return (props) => {
     const operation = () => readCanvasOperation(props.tool)
     const media = () => readMedia(props.output)
@@ -527,7 +527,7 @@ function ThreadRows(props: {rows: CommentRow[]}): JSX.Element {
   )
 }
 
-function commentCard(ui: InternalUi): ToolComponent {
+function commentCard(ui: typeof OpaqueUi.TInternal): ToolComponent {
   return (props) => {
     const operation = () => readCommentOperation(props.tool)
     const detail = (): CommentDetail => {
@@ -587,7 +587,7 @@ const COMMENT_TOOLS = [
   'whiteboard_pin_set_state',
 ] as const
 
-export function whiteboardToolCards(ui: InternalUi): {name: string; render: ToolComponent}[] {
+export function whiteboardToolCards(ui: typeof OpaqueUi.TInternal): {name: string; render: ToolComponent}[] {
   const canvas = canvasCard(ui)
   const comment = commentCard(ui)
   return [
