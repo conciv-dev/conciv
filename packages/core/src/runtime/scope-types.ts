@@ -1,7 +1,7 @@
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {ChatHistoryWindow, ChatHydration, EngineStaleness, RawFrame, SourceLoc} from '@conciv/contract'
+import type {ChatHistoryWindow, ChatHydration, EngineStaleness} from '@conciv/contract'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 
 export type SessionStream = {
@@ -36,7 +36,6 @@ export type SessionScope = {
 
 export type EngineScope = {
   staleness: () => Promise<EngineStaleness>
-  symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
 }
 
 export type CoreRuntime = {

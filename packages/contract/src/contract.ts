@@ -21,17 +21,11 @@ import {
   TabsSchema,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
-import {
-  PageQueueHandleSchema,
-  PageQueueProgressSchema,
-  PageQueueResultSchema,
-  SymbolicateSchema,
-} from '@conciv/protocol/page-types'
+import {PageQueueHandleSchema, PageQueueProgressSchema, PageQueueResultSchema} from '@conciv/protocol/page-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
 import {TtyServerControlSchema} from '@conciv/protocol/terminal-types'
 import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
-import {SourceLocSchema} from './source-location.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
@@ -537,7 +531,6 @@ export const contract = {
         .input(SessionIdInput.extend({queueId: z.string().min(1), waitMs: z.number().int().min(0)}))
         .output(z.discriminatedUnion('status', [PageQueueResultSchema, PageQueueProgressSchema])),
     },
-    symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
   },
   meta: {
     models: oc.errors(approvalDenied).input(SessionIdInput).output(ChatModelsSchema),

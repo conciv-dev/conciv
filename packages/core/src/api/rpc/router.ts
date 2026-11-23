@@ -592,7 +592,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
           }),
         ),
       },
-      symbolicate: os.page.symbolicate.handler(({input}) => engine.symbolicate(input.frames)),
     },
     meta: {
       models: os.meta.models.handler(async ({input, signal = new AbortController().signal}) => {

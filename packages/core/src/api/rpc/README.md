@@ -12,7 +12,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - RPC `settings.all`, `settings.set`, `settings.delete`, `settings.changes` (streaming) (`router.ts`): one `{scope: 'global' | 'project', namespace}` settings file each, every answer the full `{generation, version, value}` snapshot
 - RPC `drafts.get`, `drafts.set`, `markers.list` (`router.ts`)
 - RPC `registry.catalog`, `registry.call` (`router.ts`); `registry.catalog` answers the registry's signatures and then the page plugin's tools as CLI signatures (`pluginSignatures`, `runtime/plugin-signatures.ts`): read session-free from the host's `Tool.Service.list()` after `Plugin.awaitActivation`, matched to `@conciv/plugin-page/rpc`'s `CliTools` (keyed by operation name) through the host's own `ToolRuntime.effectiveName`, binding `client`, positional, category and `approval: 'ask'` from that table, the tools it marks not for the terminal left out, and its `CLI_HIDDEN_FIELDS` (`tabId`) dropped from the input schema
-- RPC `page.symbolicate`, `page.changes`, `page.clearChanges` (`router.ts`)
+- RPC `page.changes`, `page.clearChanges` (`router.ts`)
 - RPC `page.queue.wait({sessionId, queueId, waitMs})` (`router.ts`): the queue store's `wait`, a queue result (marked delivered) or `{status: 'playing', done, of}`; NO_QUEUE for a queue this tab does not have
 - RPC `tabs.list`, `tabs.get({sessionId})` (`router.ts`): `createTabs` (`../tabs.ts`)
 - RPC `code.describe`, `code.execute({sessionId?, typescriptCode})`, `code.discover({sessionId?, toolNames})` (`router.ts`): `openCodeSession` (`../mcp.ts`), the same function `/api/mcp` runs; without `sessionId` a hub-origin call is the outside run; NO_CODE_MODE when the engine has no code runner (or, for `code.discover`, no discover tool)

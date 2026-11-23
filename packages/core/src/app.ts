@@ -864,7 +864,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     model: sessionModel,
     staleness,
     interruptIdle,
-    symbolicate: pageReader.symbolicateOrNone,
     log,
   })
 

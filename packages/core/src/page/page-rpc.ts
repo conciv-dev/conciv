@@ -3,7 +3,6 @@ import {Effect} from 'effect'
 import {Plugin, Rpc} from '@conciv/plugin-host'
 import {Definition, State} from '@conciv/plugin-page/rpc'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {RawFrame, SourceLoc} from '@conciv/contract'
 import type {PluginHost} from '../api/rpc/mount.js'
 import {logOnRuntime, type Log} from '../lib/logging.js'
 
@@ -53,13 +52,5 @@ export function makePageReader(host: () => PluginHost) {
         'the sessions with a page attached',
         log,
       ),
-    symbolicateOrNone: async (frames: RawFrame[]): Promise<SourceLoc | null> => {
-      try {
-        return Definition.methods.symbolicate.output.parse(await call('symbolicate', {frames}))
-      } catch (error) {
-        if (!unlisted(error)) log(Effect.logError('[core] the page plugin could not symbolicate', {error}))
-        return null
-      }
-    },
   }
 }
