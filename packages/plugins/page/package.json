@@ -78,7 +78,6 @@
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/uno-preset": "workspace:*",
     "@internal/plugin": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/react-router": "catalog:",
@@ -100,7 +99,6 @@
     "storybook-solidjs-vite": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "unocss": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"

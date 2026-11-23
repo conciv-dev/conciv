@@ -10,7 +10,7 @@ import {
   type RunClockSource,
   type RunLifecycle,
 } from '@conciv/protocol/chat-event-types'
-import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import type {ChatMessage, ToolCallPart} from '@conciv/protocol/chat-message-types'
 import {chatBusy} from '@conciv/protocol/chat-busy'
 import {CHAT_HISTORY_PAGE_SIZE, type PermissionReply} from '@conciv/protocol/chat-types'
 
@@ -37,7 +37,7 @@ export type ChatSessionCallbacks = {
   onLifecycle: (lifecycle: RunLifecycle) => void
   onHydrated: (hydration: ChatSessionHydration) => void
   onRunError: () => void
-  onLive: () => void
+  onLiveAgain: () => void
   onApprovalAsk: (ask: ApprovalAsk) => void
   onApprovalSettled: (approvalId: string) => void
   joinsRun: (runId: string) => Promise<boolean>
@@ -155,6 +155,16 @@ function overlaps(rendered: readonly ChatMessage[], hydration: ChatSessionHydrat
   return start === undefined || rendered.some((message) => message.id === start.id)
 }
 
+function settledCall(part: ToolCallPart): boolean {
+  return part.state === 'complete' || part.state === 'error' || part.output !== undefined
+}
+
+function cardStillRunning(messages: readonly ChatMessage[]): boolean {
+  const parts = messages.flatMap((message) => (message.role === 'assistant' ? message.parts : []))
+  const answeredIds = new Set(parts.flatMap((part) => (part.type === 'tool-result' ? [part.toolCallId] : [])))
+  return parts.some((part) => part.type === 'tool-call' && !settledCall(part) && !answeredIds.has(part.id))
+}
+
 function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
 }
@@ -219,6 +229,8 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     onLifecycle: (lifecycle) => {
       receive({lifecycle, receivedAt: Date.now()})
       if (lifecycle.phase === 'aborted' && lifecycle.runId === chat.runId() && chat.isLoading()) chat.stop()
+      if (isRunPhaseTerminal(lifecycle.phase) && cardStillRunning(chat.messages()))
+        void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
     onHydrated: (hydration) => {
       receive(newerRun(run().source, hydration))
@@ -232,8 +244,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     onRunError: () => {
       void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
-    onLive: () => {
-      if (chat.isLoading()) return
+    onLiveAgain: () => {
       void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
     onApprovalAsk: (ask) => arrive({kind: 'ask', ask}),
@@ -268,8 +279,11 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const shownIds = (): Set<string> => new Set(chat.messages().map((message) => message.id))
   const showWindow = (window: readonly ChatMessage[], shown: Set<string>): void => {
     const fetched = new Set(window.map((message) => message.id))
-    const sentSince = chat.messages().filter((message) => !shown.has(message.id) && !fetched.has(message.id))
-    chat.setMessages(stitched(chat.messages(), [...window, ...sentSince]))
+    const sending = chat.isLoading() ? chat.messages().findLast((message) => message.role === 'user')?.id : undefined
+    const local = chat
+      .messages()
+      .filter((message) => !fetched.has(message.id) && (!shown.has(message.id) || message.id === sending))
+    chat.setMessages(stitched(chat.messages(), [...window, ...local]))
   }
   const refresh = async (): Promise<void> => {
     const shown = shownIds()

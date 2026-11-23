@@ -421,24 +421,29 @@ describe('the agent asks for permission', () => {
     expect(screen.queryByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
   })
 
-  test('an ask answered from another window leaves this page without its buttons and the run goes on', async () => {
-    const user = userEvent.setup()
+  test('a panel opened while a reply waits on its ask shows the reply so far, and an ask answered from another window leaves it without its buttons and the whole reply once', async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    const asked = await engine.event('permission.asked')
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
         typescriptCode: "return await external_release_ship({branch: 'main'})",
       }),
       TestLLM.text('Main is shipped'),
     )
+    const replied = engine.session.send('Ship main')
+    await asked.arrived
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship main')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    const reply = await screen.findByRole('article', {name: 'Reply to: Ship main'})
+    expect(await within(reply).findByRole('img', {name: 'running'})).toBeVisible()
     expect(await screen.findByRole('button', {name: 'Allow once'})).toBeVisible()
 
     await engine.session.approve()
+    await replied
 
     expect(await screen.findByText('Main is shipped')).toBeVisible()
+    expect(screen.getAllByText('Main is shipped')).toHaveLength(1)
+    expect(screen.getAllByRole('article', {name: 'Reply to: Ship main'})).toHaveLength(1)
     expect(screen.queryByRole('button', {name: 'Allow once'})).not.toBeInTheDocument()
     expect(screen.queryByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
   })
@@ -920,18 +925,31 @@ describe('the agent runs a program', () => {
 })
 
 describe('an outside agent calls a tool', () => {
-  test('the call shows in the open thread tagged with the agent that made it, and the agent gets the result', async () => {
+  test('a panel opened while an outside call waits on its ask shows the running call tagged with the agent, its result once allowed, and a later call in the open panel too, and each agent gets its result', async () => {
+    const user = userEvent.setup()
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    const outside = engine.outside({client: 'conciv-test', tab: engine.session.id})
+    const asked = await engine.event('permission.asked')
+    const shipReply = outside.call('release_ship', {branch: 'main'})
+    await asked.arrived
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    expect((await screen.findAllByText('from conciv-test')).at(0)).toBeVisible()
+    expect(screen.getByRole('img', {name: 'running'})).toBeVisible()
+    expect(screen.queryByText('ok')).not.toBeInTheDocument()
+    await user.click(await screen.findByRole('button', {name: 'Allow once'}))
 
-    const reply = await engine
-      .outside({client: 'conciv-test', tab: engine.session.id})
-      .call('release_window', {branch: 'main'})
-
-    expect(reply).toMatchObject({content: [{type: 'text', text: expect.stringContaining('noon to two')}]})
+    expect(await shipReply).toMatchObject({content: [{type: 'text', text: expect.stringContaining('shipped')}]})
     expect(await screen.findByText('ok')).toBeVisible()
     expect(screen.getAllByText('from conciv-test')).toHaveLength(2)
+
+    const windowReply = await outside.call('release_window', {branch: 'main'})
+
+    expect(windowReply).toMatchObject({content: [{type: 'text', text: expect.stringContaining('noon to two')}]})
+    expect(await screen.findByRole('button', {name: /Called release_window/})).toBeVisible()
+    expect(screen.getAllByText('ok')).toHaveLength(2)
+    expect(screen.getAllByText('from conciv-test')).toHaveLength(4)
     expect(screen.queryByRole('article', {name: /^You:/})).not.toBeInTheDocument()
   })
 })

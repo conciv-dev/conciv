@@ -1,4 +1,5 @@
 import {compose, type Entry} from '@conciv/plugin/experimental/host'
+import page from '@conciv/plugin-page/renderer'
 import terminal from '@conciv/plugin-terminal/client'
 import type {Plugin} from '@conciv/plugin/experimental'
 import {GrabPicker} from '@conciv/plugin/experimental/grab'
@@ -9,20 +10,14 @@ const provideGrab: Plugin.Setup = (ctx) => {
   if (provider) ctx.add(GrabPicker, provider())
 }
 
-function terminalEntry({setup, ...declarations}: typeof terminal): Omit<Entry, 'id'> {
+function staticEntry({setup, ...declarations}: Plugin.Definition): Omit<Entry, 'id'> {
   return {...declarations, windowEntry: setup && (() => Promise.resolve({default: setup}))}
 }
 
 export const builtins = compose({
   grab: {windowEntry: () => Promise.resolve({default: provideGrab})},
-  terminal: terminalEntry(terminal),
-  page: {
-    windowEntry: () =>
-      import('@conciv/plugin-page/renderer').then(({default: page}) => {
-        const setup: Plugin.Setup<typeof page> = (ctx) => page.setup?.(ctx)
-        return {default: setup}
-      }),
-  },
+  terminal: staticEntry(terminal),
+  page: staticEntry(page),
 })
 
 export const BUILTINS_UPDATED = 'conciv:experimental-plugins-updated'
@@ -31,6 +26,6 @@ if (import.meta.hot)
   import.meta.hot.accept('@conciv/plugin-terminal/client', (module) => {
     if (module)
       window.dispatchEvent(
-        new CustomEvent(BUILTINS_UPDATED, {detail: compose({terminal: terminalEntry(module.default)})}),
+        new CustomEvent(BUILTINS_UPDATED, {detail: compose({terminal: staticEntry(module.default)})}),
       )
   })

@@ -1,4 +1,3 @@
-export {installReactBridge} from './react.js'
 export {showToast} from './toast.js'
 export {pageSessionEntry} from './cards.js'
 export {pageToolMeta} from './rpc.js'

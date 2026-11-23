@@ -450,6 +450,9 @@ function createHost(input: HostInput) {
         (cause: unknown) => dispatch({type: 'failed', id: effect.id, attempt: effect.attempt, cause}),
       )
 
+    if (effect.type === 'register')
+      return effect.definition.beforeRegister?.(input.plugin?.(effect.id)?.options ?? input.options?.(effect.id) ?? {})
+
     if (effect.type === 'create')
       return void runWithOwner(owner, () =>
         createRoot((dispose) => {
