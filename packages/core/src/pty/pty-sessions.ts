@@ -1,6 +1,8 @@
-import {randomUUID} from 'node:crypto'
 import type {IPty} from '@lydell/node-pty'
+import {Schema} from 'effect'
 import {once} from 'es-toolkit'
+import {ascending} from '@conciv/plugin/schema/identifier'
+import {statics} from '@conciv/plugin/schema/schema'
 import type {TtyCommand, TtyServerControl} from '@conciv/protocol/terminal-types'
 import {constants} from 'node:fs'
 import {access, chmod} from 'node:fs/promises'
@@ -145,8 +147,15 @@ const loadSpawn = once((): Promise<Spawn> =>
 
 export type TtySink = {data(chunk: string, end: number): void; control(frame: TtyServerControl): void}
 
+const PtyId = Schema.String.check(Schema.isStartingWith('pty_')).pipe(
+  Schema.brand('Pty.ID'),
+  Schema.annotate({identifier: 'Pty.ID'}),
+  statics((schema) => ({create: () => schema.make('pty_' + ascending())})),
+)
+type PtyId = typeof PtyId.Type
+
 export type TtySession = {
-  id: string
+  id: PtyId
   sessionId: string
   owner: string
   admitted: ReadonlyArray<string | null>
@@ -295,7 +304,7 @@ export function createTtySessions(opts: {env: Readonly<Record<string, string>>; 
     const spawn = await loadSpawn()
     drop(sessionId)
     const session: TtySession = {
-      id: `pty_${randomUUID()}`,
+      id: PtyId.create(),
       sessionId,
       owner,
       admitted: [],

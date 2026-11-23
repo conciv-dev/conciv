@@ -13,7 +13,7 @@ describe('session', () => {
       error: {
         kind: 'user',
         message: 'CONCIV_SESSION_ID is not a conciv session id: "not-a-session"',
-        hint: 'Unset it, or set it to the conciv_… id the engine handed your terminal.',
+        hint: 'Unset it, or set it to the ses_… id the engine handed your terminal.',
       },
     })
 

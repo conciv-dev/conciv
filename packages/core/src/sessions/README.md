@@ -20,7 +20,7 @@ Session persistence and plumbing: an in-memory per-session pub/sub bus for chat 
 
 - `listCommands` (`../api/rpc/router.ts`): uses the session's harness (`harnessFor`); `{commands: []}` without `harness.commands`; mcpUrl passed only when `capabilities.mcp === 'http'`
 - `createSessionBus` (`../runtime/primitives.ts`): empty listener sets are deleted; `events` unlistens on abort, cancel and finally
-- `session-rows.ts`: rows are validated with `SessionRecordSchema.parse`; default ids are `conciv_<uuid>`
+- `session-rows.ts`: rows are validated with `SessionRecordSchema.parse`; default ids come from `SessionId.create()` (`ses_` + descending)
 - `claimNativeRow` (`session-rows.ts`): insert onConflictDoNothing on (harnessKind, cwd, harnessSessionId), then re-read
 - `openNativeRow` (`session-rows.ts`, the `sessions.open` handler): the row that holds the native session, or a new one for a native session never seen; a deleted row answers `null` and `sessions.open` answers `NOT_FOUND`, never undeleting it
 - `resolveRow` (`session-rows.ts`): conciv id, then harness id, then latest non-deleted chat row for the cwd (by realpath), then a new id; a conciv id or harness id whose row is deleted answers `null` and `sessions.resolve` answers `NOT_FOUND`, never undeleting it

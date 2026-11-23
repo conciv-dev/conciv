@@ -46,6 +46,7 @@
   },
   "dependencies": {
     "@conciv/db": "workspace:^",
+    "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",

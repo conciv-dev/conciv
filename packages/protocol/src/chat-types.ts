@@ -70,7 +70,7 @@ export type ChatContentPart = z.infer<typeof ChatContentPartSchema>
 
 export const SessionId = z
   .string()
-  .regex(/^conciv_[A-Za-z0-9_-]{1,128}$/)
+  .regex(/^ses_[A-Za-z0-9_-]{1,128}$/)
   .brand<'ConcivSessionId'>()
 export type SessionId = z.infer<typeof SessionId>
 

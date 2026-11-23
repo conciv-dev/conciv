@@ -2106,6 +2106,9 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2313,6 +2316,9 @@ importers:
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       '@conciv/plugin-host':
         specifier: workspace:^
         version: link:../plugin-host
@@ -2338,9 +2344,6 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:*
         version: link:../harness-testkit
-      '@conciv/plugin':
-        specifier: workspace:*
-        version: link:../plugin
       '@conciv/plugin-testkit':
         specifier: workspace:*
         version: link:../plugin-testkit
@@ -3261,9 +3264,6 @@ importers:
 
   packages/plugin:
     dependencies:
-      '@conciv/client':
-        specifier: workspace:^
-        version: link:../client
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
@@ -3273,6 +3273,9 @@ importers:
       '@standard-schema/spec':
         specifier: 'catalog:'
         version: 1.1.0
+      '@tanstack/solid-query':
+        specifier: 'catalog:'
+        version: 5.107.1(patch_hash=6ca287b8a3085f4433ba1dbacd30d21e25e9c73cb2f279264f59a24b9df6218f)(solid-js@1.9.17)
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 3.3.3

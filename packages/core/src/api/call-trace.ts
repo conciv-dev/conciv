@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {
   generateMessageId,
@@ -9,6 +8,8 @@ import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CONCIV_CLIENT_HEADER, CONCIV_NAMED_TAB_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
 import {safeStringify} from '@conciv/contract'
 import {Effect} from 'effect'
+import {ascending} from '@conciv/plugin/schema/identifier'
+import {CallId} from '@conciv/plugin/schema/tool'
 import type {Log} from '../lib/logging.js'
 
 const HubOriginSchema = z.object({
@@ -32,7 +33,7 @@ type MirrorSink = {
 
 export function callTrace(header: (name: string) => string | null) {
   const hub = hubOrigin(header)
-  const callId = randomUUID()
+  const callId = CallId.make('call_' + ascending())
   const clock = {startedAt: Date.now()}
   const marker: CallMarker = hub === null ? null : {conciv: {origin: 'hub', client: hub.client, run: callId}}
   return {

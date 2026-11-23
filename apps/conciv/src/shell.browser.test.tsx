@@ -342,7 +342,7 @@ describe('where the app opens', () => {
     await engine.newSession('Plan the release')
     await mount({
       engine,
-      history: createEngineRouterHistory({initialEntries: ['/panel/conciv_shared-by-a-teammate?open=true']}),
+      history: createEngineRouterHistory({initialEntries: ['/panel/ses_shared-by-a-teammate?open=true']}),
     })
 
     expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()

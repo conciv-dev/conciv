@@ -181,10 +181,10 @@
     "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {
-    "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@standard-schema/spec": "catalog:",
+    "@tanstack/solid-query": "catalog:",
     "@zumer/snapdom": "catalog:",
     "effect": "catalog:",
     "zod": "catalog:"
