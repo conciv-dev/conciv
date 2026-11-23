@@ -1,5 +1,6 @@
 import {readFileSync, watch} from 'node:fs'
 import {expect, test, type ConsoleMessage, type Locator, type Page} from '@playwright/test'
+import {makeRpcClient} from '@conciv/contract'
 import {magicLink, recordedEngineBase, testProjectDir} from './login.js'
 import {e2eConfigDir, e2eServerLog} from './config.js'
 
@@ -84,21 +85,18 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
   if ((await launcher.getAttribute('aria-expanded')) !== 'true') await launcher.click()
   await page.getByRole('tab', {name: 'Chat'}).click()
   await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
-  const inspector = page.getByText('Inspecting · click to open source')
+  const recorded = recordedEngineBase(testProjectDir())
+  const engine = makeRpcClient(recorded.base, {token: recorded.token})
+  const pageAttached = async () =>
+    (await engine.tabs.list()).tabs.some((tab) =>
+      tab.browserTabs.some((browserTab) => browserTab.page?.href === page.url()),
+    )
   try {
-    await expect(async () => {
-      await page.keyboard.down('Alt')
-      try {
-        await expect(inspector).toBeVisible({timeout: 500})
-      } finally {
-        await page.keyboard.up('Alt')
-      }
-    }).toPass()
+    await expect.poll(pageAttached).toBe(true)
   } catch (error) {
     const detail = describeFailures(failures)
     throw detail === '' ? error : new Error(`widget did not boot\n${detail}`, {cause: error})
   }
-  await expect(inspector).toBeHidden()
   const transientOptimizerReload = /Failed to fetch dynamically imported module|504 \(Outdated Optimize Dep\)/
   const detail = describeFailures(failures)
   expect(failures.thirdPartyRequests, detail).toEqual([])
