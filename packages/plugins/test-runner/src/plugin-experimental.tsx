@@ -1,4 +1,4 @@
-import {Effect, Exit, Layer, ManagedRuntime, Scope} from 'effect'
+import {Effect, Layer, ManagedRuntime} from 'effect'
 import {createMemo, createUniqueId, For, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
 import {
   Panel,
@@ -223,10 +223,10 @@ function RunCard(props: Actions & RunCardView): JSX.Element {
 
 type Client = Context['client']
 
-function LiveRunCard(props: Actions & {client: () => Client | undefined}): JSX.Element {
+function LiveRunCard(props: Actions & {runtime: TestRunnerRuntime; client: () => Client | undefined}): JSX.Element {
   const follow = createMemo(() => {
     const client = props.client()
-    return client ? followRunView(client) : undefined
+    return client ? followRunView(props.runtime, client) : undefined
   })
   const run = (): RunView => follow()?.() ?? initialRunView
   const unavailable = () => {
@@ -320,7 +320,7 @@ function testRunCard(ctx: Context, runtime: TestRunnerRuntime, ui: InternalUi): 
         expandable={streams() || finished() !== undefined}
         openWhileRunning
       >
-        <Show when={finished()} fallback={<LiveRunCard {...actions} client={client} />}>
+        <Show when={finished()} fallback={<LiveRunCard {...actions} runtime={runtime} client={client} />}>
           {(result) => <RunCard {...actions} summary={result().summary} tests={result().tests} running={false} />}
         </Show>
       </ui.BasicTool>
@@ -331,8 +331,7 @@ function testRunCard(ctx: Context, runtime: TestRunnerRuntime, ui: InternalUi): 
 const runner: Plugin.Definition = defineInternalPlugin({
   setup(ctx) {
     const runtime = ManagedRuntime.make(Layer.empty)
-    const scope = runtime.runSync(Scope.make())
-    onCleanup(() => void runtime.runPromise(Scope.close(scope, Exit.void)).finally(() => runtime.dispose()))
+    onCleanup(() => void runtime.dispose())
     const tab: PanelTab = {
       id: 'tests',
       title: 'Tests',
