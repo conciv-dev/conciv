@@ -128,6 +128,18 @@ function eventsLink(onLiveAgain: (() => void) | undefined): EventsLink {
   }
 }
 
+function watchedContext(link: EventsLink | undefined): RpcClientContext {
+  if (link === undefined) return {}
+  return {
+    onRetry: () => {
+      link.dropped()
+      return (reopened) => {
+        if (reopened) link.live()
+      }
+    },
+  }
+}
+
 type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncGenerator<ChatEvent>
 
 type Turns = {adapter: SubscribeConnectionAdapter; joinRun: JoinRun; handovers: EventTarget}
@@ -378,19 +390,19 @@ async function* sessionEvents(
 ): AsyncGenerator<ChatEvent> {
   while (!signal.aborted) {
     try {
-      const live = await rpc.chat.events({sessionId}, {signal})
+      const live = await rpc.chat.events({sessionId}, {signal, context: watchedContext(link)})
       link?.live()
       yield* live
-      return
+      if (!signal.aborted) link?.dropped()
     } catch (error) {
       if (signal.aborted) return
       if (!refused(error)) {
         link?.gone()
         throw error
       }
+      link?.dropped()
+      await trustedAgain(engine, signal)
     }
-    link?.dropped()
-    await trustedAgain(engine, signal)
   }
 }
 
