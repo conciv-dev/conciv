@@ -110,7 +110,10 @@ describe.concurrent('session.synthetic wakes and delivers', () => {
 
     const requests = await engine.requests()
     expect(requests).toHaveLength(2)
-    expect(requests[1]?.messages).toContainEqual({role: 'user', content: 'Background work completed'})
+    expect(requests[1]?.messages.map(({role, content}) => ({role, content}))).toContainEqual({
+      role: 'user',
+      content: 'Background work completed',
+    })
   })
 
   test('preserves durable queued input for a later run after interruption', async ({expect}) => {
@@ -209,7 +212,9 @@ describe.concurrent('session.synthetic wakes and delivers', () => {
     await stream.release()
 
     const [request] = await engine.requests()
-    expect(request?.messages).toEqual([{role: 'user', content: 'Instructions from: /repo/sub/AGENTS.md\ncontent'}])
+    expect(request?.messages.map(({role, content}) => ({role, content}))).toEqual([
+      {role: 'user', content: 'Instructions from: /repo/sub/AGENTS.md\ncontent'},
+    ])
   })
 })
 
