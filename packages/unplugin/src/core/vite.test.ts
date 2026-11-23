@@ -1,13 +1,13 @@
 import {spawn} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
 import {once} from 'node:events'
-import {mkdirSync, readFileSync, readdirSync, writeFileSync} from 'node:fs'
+import {mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {dirname, join} from 'node:path'
 import {createInterface} from 'node:readline'
 import {text} from 'node:stream/consumers'
 import {pathToFileURL} from 'node:url'
-import {optimizeDeps, resolveConfig} from 'vite'
+import {optimizeDeps, resolveConfig, type InlineConfig} from 'vite'
 import {describe} from 'vitest'
 import {z} from 'zod'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
@@ -118,6 +118,44 @@ describe.concurrent('the vite dev server', () => {
       const metadata = await optimizeDeps(config, true)
 
       expect(Object.keys(metadata.optimized)).toContain('widget-dependency')
+    },
+  )
+  test.for<{name: string; config: InlineConfig}>([
+    {name: "the client environment's input, with no html page", config: {input: 'src/main.js'}},
+  ])(
+    "the dependency scan keeps the app's own entry next to the widget when vite would scan $name",
+    async ({config: appConfig}, {project, expect}) => {
+      const root = project('app')
+      rmSync(join(root, 'index.html'))
+      for (const name of ['app-dependency', 'widget-dependency']) {
+        mkdirSync(join(root, 'node_modules', name), {recursive: true})
+        writeFileSync(
+          join(root, 'node_modules', name, 'package.json'),
+          JSON.stringify({name, type: 'module', main: 'index.js'}),
+        )
+        writeFileSync(join(root, 'node_modules', name, 'index.js'), 'export const ready = true\n')
+      }
+      writeFileSync(
+        join(root, 'src', 'main.js'),
+        "import {ready} from 'app-dependency'\nexport const started = ready\n",
+      )
+      const embedEntry = join(root, 'widget', 'mount.js')
+      mkdirSync(dirname(embedEntry))
+      writeFileSync(embedEntry, "import {ready} from 'widget-dependency'\nexport const mountConciv = () => ready\n")
+
+      const config = await resolveConfig(
+        {
+          root,
+          configFile: false,
+          logLevel: 'silent',
+          ...appConfig,
+          plugins: [makeViteHook({homeDir: join(root, 'home')}, {embedEntry})],
+        },
+        'serve',
+      )
+      const metadata = await optimizeDeps(config, true)
+
+      expect(Object.keys(metadata.optimized)).toEqual(expect.arrayContaining(['app-dependency', 'widget-dependency']))
     },
   )
   test('a widget path holding a backslash and a paren reaches the scan entries with both escaped', async ({

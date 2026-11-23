@@ -80,14 +80,18 @@ function readInputFiles(input: unknown, root: string): string[] | undefined {
 }
 
 function addScanEntries(
-  config: {optimizeDeps?: {entries?: string | string[]}; build?: {rolldownOptions?: {input?: unknown}}},
+  config: {
+    optimizeDeps?: {entries?: string | string[]}
+    input?: unknown
+    build?: {rolldownOptions?: {input?: unknown}}
+  },
   root: string,
   files: readonly string[],
 ): string[] | undefined {
   if (files.length === 0) return undefined
   const patterns = files.map(escapeGlob)
   if (config.optimizeDeps?.entries !== undefined) return patterns
-  const input = config.build?.rolldownOptions?.input
+  const input = config.input ?? config.build?.rolldownOptions?.input
   if (input === undefined) return [...DEFAULT_SCAN_ENTRIES, ...patterns]
   const inputFiles = readInputFiles(input, root)
   return inputFiles === undefined ? undefined : [...inputFiles.map(escapeGlob), ...patterns]
