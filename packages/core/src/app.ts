@@ -99,7 +99,6 @@ import {
 import {makePluginRuntime, type PluginRuntime} from './runtime/plugin-runtime.js'
 import {startObservability, type EngineObservability} from './runtime/observability.js'
 import type {CoreRuntime, SessionScope} from './runtime/scope-types.js'
-import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {carryEngineRouter, type EngineRouterBrand} from './api/rpc/engine-router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
@@ -695,7 +694,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       signal: engineLife.signal,
       bundler: opts.bridge,
       openInEditor: opts.openInEditor,
-      sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: pagePlugin}),
+      sessions: () => ({chat: chatDeps, runtime, search, pluginHost}),
     })
   }
   const plugins = await Promise.try(startPlugins).catch(failedStart([settings.close]))
@@ -930,7 +929,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     search,
     settings,
     tools: sessionTools,
-    openFromFrames: (frames) => openSourceFromFrames(frames, pagePlugin.symbolicate, opts.openInEditor),
     runtime,
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,

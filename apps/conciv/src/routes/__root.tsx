@@ -64,12 +64,6 @@ import {PluginOverlay, PluginPanelKeys} from '../shell/plugin-surfaces.js'
 import '../styles.css'
 import 'virtual:uno.css'
 
-function escapeInTerminal(scopeEl: HTMLElement | undefined): boolean {
-  const root = scopeEl?.getRootNode()
-  const active = root instanceof ShadowRoot ? root.activeElement : document.activeElement
-  return active instanceof Element && active.closest('[data-terminal-screen]') !== null
-}
-
 function setShutter(router: AnyRouter, open: boolean): Promise<void> {
   const value: true | undefined = open ? true : undefined
   return router.navigate({
@@ -421,7 +415,6 @@ function RootChrome(props: {
     dismissableLayerOpenAtEscapeCapture = false
     if (event.defaultPrevented) return
     if (dismissableLayerWasOpen) return
-    if (escapeInTerminal(rootEl)) return
     const settingsRoute = settingsMatch()
     if (settingsRoute) {
       event.preventDefault()

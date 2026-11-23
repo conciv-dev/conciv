@@ -592,7 +592,6 @@ export const make = Effect.fn('PageConnection.make')(function* (
         Effect.sync(() => queues.settle(input.sessionId, input.queueIds, input.delivery)).pipe(
           Effect.as({ok: true as const}),
         ),
-      'queue.cancelSession': (input) => Effect.sync(() => queues.cancelSession(input.sessionId)),
     })
     .pipe(Effect.orDie)
 

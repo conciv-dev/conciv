@@ -4718,9 +4718,6 @@ importers:
       mermaid:
         specifier: 'catalog:'
         version: 12.2.0
-      rrweb-snapshot:
-        specifier: 'catalog:'
-        version: 2.2.0
       shiki:
         specifier: 'catalog:'
         version: 4.6.0

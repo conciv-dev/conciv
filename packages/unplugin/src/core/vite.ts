@@ -197,7 +197,6 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
   '@conciv/ui-kit-chat > @shikijs/langs-precompiled/typescript',
   '@conciv/ui-kit-chat > shiki/engine/javascript',
   '@conciv/ui-kit-chat > shiki/langs/bash.mjs',
-  '@conciv/ui-kit-chat > rrweb-snapshot',
   '@conciv/ui-kit-chat > shiki/core',
   '@conciv/ui-kit-chat > @chenglou/pretext',
   '@conciv/ui-kit-tap > @tiptap/suggestion',
