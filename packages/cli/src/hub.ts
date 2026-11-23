@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {once} from 'node:events'
 import {z} from 'zod'
 import {differenceBy, partition} from 'es-toolkit'
@@ -28,6 +27,7 @@ import {
 import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
 import {PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
+import {ascending} from '@conciv/plugin/schema/identifier'
 import cliManifest from '../package.json' with {type: 'json'}
 import type {CliOutcome} from './envelope.js'
 import {
@@ -88,6 +88,8 @@ const RefusedSchema = z.object({cause: z.object({code: z.literal('ECONNREFUSED')
 const TasksCapableSchema = z.object({
   [CLIENT_CAPABILITIES]: z.object({extensions: z.object({[TASKS_EXTENSION]: z.unknown()})}),
 })
+
+const TaskIdSchema = z.string().startsWith('tsk_').brand<'Task.ID'>()
 
 const TaskIdParamsSchema = z.object({taskId: z.string().min(1)})
 
@@ -274,7 +276,7 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
     if (tab === undefined || queued.length === 0 || !TasksCapableSchema.safeParse(envelope).success) {
       return executed.reply
     }
-    const taskId = randomUUID()
+    const taskId = TaskIdSchema.parse('tsk_' + ascending())
     const now = new Date().toISOString()
     queueTasks.set(taskId, {status: 'working', tab, queued, createdAt: now, lastUpdatedAt: now, reply: executed.reply})
     return {

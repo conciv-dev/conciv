@@ -1,7 +1,7 @@
-import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {Cause, Effect, Exit, Option, Result, Schema} from 'effect'
 import {partition} from 'es-toolkit'
+import {ascending} from '@conciv/plugin/schema/identifier'
 import {approvalDenied, CodeFilesCapability, describeSchemas} from '@conciv/ai/server'
 import {cappedValue, safeStringify} from '@conciv/contract'
 import {
@@ -82,7 +82,7 @@ function toolContext(request: ToolRequest, agent: Agent.Id): Tool.Context {
     sessionId: SessionSchema.Id.make(request.sessionId),
     agent,
     messageId: undefined,
-    id: Tool.CallId.make(request.toolCallId ?? randomUUID()),
+    id: Tool.CallId.make(request.toolCallId ?? 'call_' + ascending()),
     progress: () => Effect.void,
     ...(request.signal === undefined ? {} : {cancel: waitForCancel(request.signal)}),
   }
