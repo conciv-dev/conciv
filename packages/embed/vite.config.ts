@@ -7,13 +7,7 @@ import {concivTest} from '@conciv/plugin-testkit/vitest'
 
 const EXTERNAL_PREFIXES = ['solid-js/', 'effect/', '@ark-ui/', '@conciv/']
 
-const INLINED_PREFIXES = [
-  '@conciv/plugin-page/client',
-  '@conciv/app',
-  '@conciv/plugin-tanstack',
-  '@conciv/tools',
-  '@conciv/core',
-]
+const INLINED_PREFIXES = ['@conciv/app', '@conciv/tools', '@conciv/core']
 
 const BUILTIN_PLUGINS = dirname(fileURLToPath(import.meta.resolve('@internal/builtin-plugins')))
 

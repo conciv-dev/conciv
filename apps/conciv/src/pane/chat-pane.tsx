@@ -36,8 +36,6 @@ import {
 } from '@conciv/ui-kit-chat'
 import type {DraftItem, PermissionReply} from '@conciv/protocol/chat-types'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
-import {pageToolMeta} from '@conciv/plugin-page/client'
-import {tanstackToolMeta} from '@conciv/plugin-tanstack/client'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
@@ -82,7 +80,6 @@ import {
   SessionStatusSlot,
 } from './plugin-session-parts.js'
 import {createToolRender} from './tool-registry-render.js'
-import {mergeToolMeta} from './tool-catalog-meta.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {StandingNotice} from '../shell/notices.js'
 import {Button} from '@conciv/ui-kit-system'
@@ -737,11 +734,7 @@ function useToolCatalog(): ToolCatalogView {
   const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
   return {
     loaded: () => registryCatalog.data !== undefined,
-    meta: (name) =>
-      mergeToolMeta(
-        registryCatalog.data?.find((signature) => signature.name === name),
-        pageToolMeta(name) ?? tanstackToolMeta(name),
-      ),
+    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
   }
 }
 

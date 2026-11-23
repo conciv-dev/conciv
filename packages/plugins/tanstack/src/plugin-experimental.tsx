@@ -124,6 +124,14 @@ function InspectionCard(
   )
 }
 
+function failedCard(ui: typeof OpaqueUi.TInternal, logo: IconName): ToolComponent {
+  return (props) => (
+    <InspectionCard {...props} ui={ui} logo={logo} summary="" failed hasContent>
+      <ui.ErrorMessage message={props.error ?? ''} />
+    </InspectionCard>
+  )
+}
+
 function summaryOnlyCard(summary: (props: ToolProps) => string): Card {
   return (ui, logo) => (props) => <InspectionCard {...props} ui={ui} logo={logo} summary={summary(props)} />
 }
@@ -559,8 +567,13 @@ const tanstack: Plugin.Definition = Plugin.define({
 
     ctx.add(Slot, {at: 'session.status', render: () => <InspectorChip ui={ctx.ui} logo={ctx.icons.logo} />})
 
+    const ui = OpaqueUi.toInternal(ctx.ui)
     Object.entries(tanstackCards).forEach(([name, card]) =>
-      ctx.add(ToolRegistry, {name, render: card(OpaqueUi.toInternal(ctx.ui), ctx.icons.logo)}),
+      ctx.add(ToolRegistry, {
+        name,
+        render: card(ui, ctx.icons.logo),
+        errorComponent: failedCard(ui, ctx.icons.logo),
+      }),
     )
   },
 })

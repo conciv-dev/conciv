@@ -741,9 +741,6 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../../packages/plugin
-      '@conciv/plugin-tanstack':
-        specifier: workspace:^
-        version: link:../../packages/plugins/tanstack
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../packages/protocol
@@ -844,9 +841,6 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:*
         version: link:../../packages/harness-testkit
-      '@conciv/plugin-page':
-        specifier: workspace:^
-        version: link:../../packages/plugins/page
       '@conciv/plugin-testkit':
         specifier: workspace:*
         version: link:../../packages/plugin-testkit

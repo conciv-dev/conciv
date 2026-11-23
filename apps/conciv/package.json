@@ -26,7 +26,6 @@
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
     "@conciv/plugin": "workspace:^",
-    "@conciv/plugin-tanstack": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
     "@conciv/storage-history": "workspace:^",
@@ -62,7 +61,6 @@
   },
   "devDependencies": {
     "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
