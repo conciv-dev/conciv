@@ -1,4 +1,5 @@
 import {readFile} from 'node:fs/promises'
+import {createServer} from 'node:http'
 import {fileURLToPath} from 'node:url'
 import {Effect} from 'effect'
 import {describe, expect, it} from 'vitest'
@@ -22,18 +23,34 @@ describe('locate names the source file and line that rendered an element', () =>
     expect(await Effect.runPromise(located)).toEqual(source)
   })
 
-  it('a chunk located twice is fetched and its map parsed once', async () => {
-    const fetched: string[] = []
-    const served = async (input: RequestInfo | URL) => {
-      const url = new URL(String(input))
-      fetched.push(url.pathname)
-      return new Response(await readFile(`${project}${url.pathname}`, 'utf8'))
-    }
-    const frame = {fileName: 'http://127.0.0.1:5173/assets/checkout.js?t=1', line: 1, column: 1}
-    const located = Effect.flatMap(makeSymbolicator({root: project, fetch: served}), (symbolicator) =>
+  const withAssets = it.extend<{assets: {origin: string; fetched: string[]}}>({
+    assets: async ({task: _task}, use) => {
+      const fetched: string[] = []
+      const server = createServer((request, response) => {
+        const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
+        fetched.push(path)
+        readFile(`${project}${path}`, 'utf8').then(
+          (body) => response.end(body),
+          () => response.writeHead(404).end(),
+        )
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const address = server.address()
+      const port = typeof address === 'object' && address !== null ? address.port : 0
+      try {
+        await use({origin: `http://127.0.0.1:${port}`, fetched})
+      } finally {
+        await new Promise((resolve) => server.close(resolve))
+      }
+    },
+  })
+
+  withAssets('a chunk located twice is fetched and its map parsed once', async ({assets}) => {
+    const frame = {fileName: `${assets.origin}/assets/checkout.js?t=1`, line: 1, column: 1}
+    const located = Effect.flatMap(makeSymbolicator({root: project}), (symbolicator) =>
       Effect.all([symbolicator.frames([frame]), symbolicator.frames([frame, frame])]),
     )
     expect(await Effect.runPromise(located)).toEqual([app, app])
-    expect(fetched).toEqual(['/assets/checkout.js', '/assets/checkout.js.map'])
+    expect(assets.fetched).toEqual(['/assets/checkout.js', '/assets/checkout.js.map'])
   })
 })

@@ -24,33 +24,31 @@ function readFileInRoot(path: string, root: string) {
   })
 }
 
-function fetchLoopback(url: string, fetchImpl: typeof fetch) {
+function fetchLoopback(url: string) {
   return Effect.tryPromise(async (signal) => {
     if (!LOOPBACK_HOSTS.has(new URL(url).hostname)) throw new Error(`refused: non-loopback host ${url}`)
-    return (await fetchImpl(url, {signal})).text()
+    return (await fetch(url, {signal})).text()
   }).pipe(Effect.timeout(Duration.millis(SOURCE_FETCH_TIMEOUT_MS)))
 }
 
-function readUrl(url: string, root: string, fetchImpl: typeof fetch): Effect.Effect<string, unknown> {
+function readUrl(url: string, root: string): Effect.Effect<string, unknown> {
   const clean = normalizeUrl(url)
   if (clean.startsWith('file://'))
     return Effect.try(() => fileURLToPath(clean)).pipe(Effect.flatMap((path) => readFileInRoot(path, root)))
-  if (clean.startsWith('http')) return fetchLoopback(clean, fetchImpl)
+  if (clean.startsWith('http')) return fetchLoopback(clean)
   return readFileInRoot(clean, root)
 }
 
-function loadSourceMap(chunkUrl: string, root: string, fetchImpl: typeof fetch): Effect.Effect<string, unknown> {
+function loadSourceMap(chunkUrl: string, root: string): Effect.Effect<string, unknown> {
   const clean = normalizeUrl(chunkUrl)
-  return readUrl(chunkUrl, root, fetchImpl).pipe(
+  return readUrl(chunkUrl, root).pipe(
     Effect.flatMap((script) => {
       const reference = script.match(/\/\/[#@]\s*sourceMappingURL=([^\s'"]+)\s*$/m)
-      if (!reference) return readUrl(clean + '.map', root, fetchImpl)
+      if (!reference) return readUrl(clean + '.map', root)
       const mapUrl = (reference[1] ?? '').trim()
       if (mapUrl.startsWith('data:'))
         return Effect.succeed(Buffer.from(mapUrl.slice(mapUrl.indexOf('base64,') + 7), 'base64').toString('utf8'))
-      return Effect.try(() => new URL(mapUrl, clean).href).pipe(
-        Effect.flatMap((href) => readUrl(href, root, fetchImpl)),
-      )
+      return Effect.try(() => new URL(mapUrl, clean).href).pipe(Effect.flatMap((href) => readUrl(href, root)))
     }),
   )
 }
@@ -63,22 +61,14 @@ function firstPosition(traced: TraceMap, frame: RawFrame, line: number): SourceL
   return {file: position.source, line: position.line ?? line, column: position.column ?? 0}
 }
 
-function parseSourceMap(
-  chunkUrl: string,
-  root: string,
-  fetchImpl: typeof fetch,
-): Effect.Effect<TraceMap | null, unknown> {
-  return loadSourceMap(chunkUrl, root, fetchImpl).pipe(
+function parseSourceMap(chunkUrl: string, root: string): Effect.Effect<TraceMap | null, unknown> {
+  return loadSourceMap(chunkUrl, root).pipe(
     Effect.flatMap((map) => Effect.try((): TraceMap | null => new AnyMap(map)).pipe(Effect.orElseSucceed(() => null))),
   )
 }
 
-export const makeSymbolicator = Effect.fn('makeSymbolicator')(function* (options: {
-  root: string
-  fetch?: typeof fetch
-}) {
-  const fetchImpl = options.fetch ?? fetch
-  const maps = yield* Cache.makeWith((chunkUrl: string) => parseSourceMap(chunkUrl, options.root, fetchImpl), {
+export const makeSymbolicator = Effect.fn('makeSymbolicator')(function* (options: {root: string}) {
+  const maps = yield* Cache.makeWith((chunkUrl: string) => parseSourceMap(chunkUrl, options.root), {
     capacity: SOURCE_MAP_CAPACITY,
     timeToLive: (exit) => (Exit.isSuccess(exit) ? SOURCE_MAP_TIME_TO_LIVE : Duration.zero),
   })
