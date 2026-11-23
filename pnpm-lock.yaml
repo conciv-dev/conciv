@@ -3688,9 +3688,15 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
+      '@solidjs/testing-library':
+        specifier: 'catalog:'
+        version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@testing-library/user-event':
+        specifier: 'catalog:'
+        version: 14.6.8(@testing-library/dom@10.4.2)
       '@tiptap/core':
         specifier: 'catalog:'
         version: 3.32.1(@tiptap/pm@3.32.1)
@@ -3718,6 +3724,9 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.3.0(@types/react@19.3.0)
+      playwright:
+        specifier: 'catalog:'
+        version: 1.64.1
       react:
         specifier: 'catalog:'
         version: 19.3.1
