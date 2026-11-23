@@ -26,7 +26,7 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 
 ## Invariants
 
-- `SessionId` (`chat-types.ts`): /^conciv_[A-Za-z0-9_-]{1,128}$/; `HarnessSessionId` /^[A-Za-z0-9_-]{1,128}$/
+- `SessionId` (`chat-types.ts`): /^ses_[A-Za-z0-9_-]{1,128}$/ (validator only; ids are made by `@conciv/plugin/schema/session-id`); `HarnessSessionId` /^[A-Za-z0-9_-]{1,128}$/
 - `ChatContentPartSchema` (`chat-types.ts`): image and document payloads must be non-empty valid base64 within the base64 length of MAX_ATTACHMENT_RAW_BYTES
 - `RenameSessionSchema` (`chat-types.ts`): title at most 120 chars; `PermissionDecisionSchema` carries opencode's reply: `once`, `always` (saves a project rule, offered only for an ask with `save`) or `reject`
 - `defineChatEvent` (`chat-event-types.ts`): create() throws on invalid input; parse() returns null on mismatch

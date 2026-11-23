@@ -43,7 +43,7 @@ describe('sessions', () => {
       id: sessionId,
       title: 'Plan the trip',
     })
-    await expect(client.sessions.get({sessionId: 'conciv_00000000-0000-4000-8000-000000000000'})).rejects.toThrow(
+    await expect(client.sessions.get({sessionId: 'ses_00000000-0000-4000-8000-000000000000'})).rejects.toThrow(
       expect.objectContaining({code: 'NOT_FOUND'}),
     )
   })

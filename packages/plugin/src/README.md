@@ -238,7 +238,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 ### Names and types
 
 - `ID` is spelled `Id` (`sessionId`, `messageId`, `requestId`, `parentId`, `modelId`, `providerId`, `workspaceId`, `shellId`, `partId`).
-- Branded ids (`Event.Id`, `Skill.Id`, `Skill.Name`, `Tool.CallId`, `Agent.Id`, `Agent.Name`, `Model.Id`, `Provider.Id`, `Permission.Id`) are source's Effect Schema brands, built with the schema's makers (`Skill.Id.make('deploy')`); session ids check conciv's `conciv_` prefix.
+- Branded ids (`Event.Id`, `Skill.Id`, `Skill.Name`, `Tool.CallId`, `Agent.Id`, `Agent.Name`, `Model.Id`, `Provider.Id`, `Permission.Id`) are source's Effect Schema brands, built with the schema's makers (`Skill.Id.make('deploy')`); session ids check the `ses_` prefix and `Session.Id.create()` makes one (`ses_` + descending, as opencode).
 - No `any`: `PluginOptions` values are `Json`; `Tool.Metadata` is `Readonly<Record<string, unknown>>`. `Tool.ValueSchema`, `InputValue` and `OutputValue` keep source's `any` (`schema/src/tool.ts:61-76`).
 - `Types.Mutable` / `Types.DeepMutable` become a mapped type that drops `readonly` one level deep (the edited values are flat); `ModelEditor` hands out `Model.Info` as is.
 - `Tool.Info.execute` uses method syntax, so a `Tool.Info<Input, Output>` is assignable to `Tool.Info` without `any`.

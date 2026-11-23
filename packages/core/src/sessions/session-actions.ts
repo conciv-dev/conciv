@@ -3,11 +3,11 @@ import {eq} from 'drizzle-orm'
 import {Effect, type ManagedRuntime} from 'effect'
 import type {ChatPlane} from '@conciv/chat'
 import {drafts, markers, SessionInboxTable, sessions, type ConcivDb} from '@conciv/db'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {SessionId} from '@conciv/plugin/schema/session-id'
 import {Bus, KV, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import {runInOrder} from '../lib/shutdown.js'
 import {removeInstructionEntries} from '../runtime/instruction-entries.js'
-import {createRow, newSessionId, rowById, tombstoneRow, type FreshRowInput, type RowScope} from './session-rows.js'
+import {createRow, rowById, tombstoneRow, type FreshRowInput, type RowScope} from './session-rows.js'
 import type {createSessionSearch} from './session-search.js'
 import type {CoreRuntime} from '../runtime/scope-types.js'
 
@@ -46,7 +46,7 @@ async function markNew(db: ConcivDb, sessionId: SessionId): Promise<void> {
 
 export async function createChatSession(
   scope: RowScope,
-  sessionId: SessionId = newSessionId(),
+  sessionId: SessionId = SessionId.create(),
 ): Promise<{sessionId: SessionId}> {
   await createRow(scope, chatRow(scope, sessionId))
   await markNew(scope.db, sessionId)

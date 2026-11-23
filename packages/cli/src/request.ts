@@ -46,7 +46,7 @@ function declaredSessionId(): SessionId | null {
   if (!raw) return null
   if (!isSessionId(raw)) {
     throw userFailure(`CONCIV_SESSION_ID is not a conciv session id: "${raw}"`, {
-      hint: 'Unset it, or set it to the conciv_… id the engine handed your terminal.',
+      hint: 'Unset it, or set it to the ses_… id the engine handed your terminal.',
     })
   }
   return raw

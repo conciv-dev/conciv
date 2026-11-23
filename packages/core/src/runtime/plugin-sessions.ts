@@ -7,16 +7,15 @@ import {
   ReasoningEffortSchema,
   SessionRecordSchema,
   type ReasoningEffort,
-  type SessionId,
   type SessionRecord,
 } from '@conciv/protocol/chat-types'
 import {Agent, type Bus, type KV, Session, SessionErrors, SessionInbox, SessionSynthetic} from '@conciv/plugin-host'
 import {Model} from '@conciv/plugin/schema/model'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
+import {SessionId} from '@conciv/plugin/schema/session-id'
 import type {ChatContext} from '../api/rpc/mount.js'
 import {listedSessionPage, searchedSessionPage, switchSessionEffort, switchSessionModel} from '../api/rpc/sessions.js'
 import {createChatSession, deleteSession, renameSession} from '../sessions/session-actions.js'
-import {newSessionId} from '../sessions/session-rows.js'
 import type {createSessionSearch} from '../sessions/session-search.js'
 import {rowById, setMetadata, setPermissions} from '../sessions/session-rows.js'
 import type {CoreRuntime} from './scope-types.js'
@@ -188,7 +187,7 @@ export function provideSessions(started: () => SessionKeyDeps) {
           const recorded = supplied === undefined ? null : yield* Effect.promise(() => rowById(chat.db, supplied))
           if (recorded !== null && recorded.deletedAt === null) return sessionInfo(chat, recorded)
           if (recorded !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: recorded.id}))
-          const sessionId = supplied ?? newSessionId()
+          const sessionId = supplied ?? SessionId.create()
           yield* Effect.annotateCurrentSpan({sessionId})
           const choice = yield* createdModel(chat, input, sessionId)
           yield* Effect.promise(() => createChatSession(chat.rows, sessionId))

@@ -12,7 +12,7 @@ import {
 
 describe('a page that attaches is offered to the agent', () => {
   it('grants the page permissions, tells the page it is attached and serves calls on its tab', () => {
-    const sessionId = SessionId.parse('conciv_checkout')
+    const sessionId = SessionId.parse('ses_checkout')
     const checkout = {
       id: 'tab_11111111-1111-4111-8111-111111111111',
       url: 'http://localhost:3000/checkout',
@@ -63,7 +63,7 @@ describe('a page that attaches is offered to the agent', () => {
 
 describe('a permission sync that times out closes the page', () => {
   it('warns, closes the attachment as unavailable, takes the permissions back and refuses page calls', () => {
-    const sessionId = SessionId.parse('conciv_checkout')
+    const sessionId = SessionId.parse('ses_checkout')
     const disconnected =
       '[page.disconnected] No page is open in this session. Ask the user to open the page with the conciv panel and wait for it to connect. Then call page.tabs.list({}). Repeating page actions while disconnected will not help.'
     const started = transitionConnection(createConnectionState(), {
@@ -90,7 +90,7 @@ describe('a permission sync that times out closes the page', () => {
 
 describe('with several tabs open, a call goes to the tab the user focused last', () => {
   it('serves the focused tab, a named tab, refuses an unknown tab and falls back when the focused tab closes', () => {
-    const sessionId = SessionId.parse('conciv_checkout')
+    const sessionId = SessionId.parse('ses_checkout')
     const checkout = {
       id: 'tab_11111111-1111-4111-8111-111111111111',
       url: 'http://localhost:3000/checkout',
@@ -134,7 +134,7 @@ describe('with several tabs open, a call goes to the tab the user focused last',
 
 describe('deleting the session lets go of its page', () => {
   it('closes every tab and refuses page calls afterwards', () => {
-    const sessionId = SessionId.parse('conciv_checkout')
+    const sessionId = SessionId.parse('ses_checkout')
     const checkout = {
       id: 'tab_11111111-1111-4111-8111-111111111111',
       url: 'http://localhost:3000/checkout',

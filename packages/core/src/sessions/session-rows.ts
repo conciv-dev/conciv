@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {Effect} from 'effect'
 import {
   and,
@@ -41,6 +40,7 @@ import type {
   HarnessSessionMeta,
   HarnessSessionPage,
 } from '@conciv/protocol/harness-types'
+import {SessionId as SessionIdMaker} from '@conciv/plugin/schema/session-id'
 import {anchorKey, chatMetadata, chatRuns, drafts, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
@@ -52,8 +52,6 @@ export type RowScope = {
   cwd: string
   publishCreated: (born: SessionRecord) => Promise<void>
 }
-
-export const newSessionId = (): SessionId => SessionIdSchema.parse(`conciv_${randomUUID()}`)
 
 const sessionColumns = {...getTableColumns(sessions), permissions: sql<string | null>`${sessions.permissions}`}
 
@@ -165,7 +163,7 @@ async function claimNativeRow(
 ): Promise<SessionRecord> {
   const now = Date.now()
   const record = SessionRecordSchema.parse({
-    id: newSessionId(),
+    id: SessionIdMaker.create(),
     harnessSessionId: ref.nativeId,
     harnessKind: ref.harnessKind,
     origin,
@@ -251,7 +249,7 @@ export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<
   }
   const latest = await latestRow(scope)
   if (latest) return {sessionId: latest.id}
-  const minted = newSessionId()
+  const minted = SessionIdMaker.create()
   await ensureRow(scope, minted)
   return {sessionId: minted}
 }
@@ -292,7 +290,7 @@ export async function ensureAgentRow(scope: RowScope, nativeId: HarnessSessionId
 
 export async function mintExternalRow(scope: RowScope): Promise<SessionId> {
   const created = await createRow(scope, {
-    id: newSessionId(),
+    id: SessionIdMaker.create(),
     harnessSessionId: null,
     harnessKind: scope.harnessKind,
     origin: 'external',
