@@ -17,7 +17,7 @@ import {Dynamic} from 'solid-js/web'
 import {keyBy} from 'es-toolkit'
 import {createStore} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
-import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import {SyntheticMetadataSchema, type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useComposer, useThread, type TurnItem} from '../../store/chat-context.js'
 import type {Turn} from '../../store/grouping.js'
@@ -103,9 +103,11 @@ type MessagesProps =
   | {components: MessagesComponents; children?: never}
   | {children: (message: () => ChatMessage) => JSX.Element; components?: never}
 
-function componentForRole(role: Turn['role'], components: MessagesComponents): Component | undefined {
-  if (role === 'user') return components.UserMessage
-  if (role === 'assistant') return components.AssistantMessage
+function componentForTurn(turn: Turn, components: MessagesComponents): Component | undefined {
+  if (turn.role === 'user' && SyntheticMetadataSchema.safeParse(turn.messages[0]?.metadata).success)
+    return components.SystemMessage
+  if (turn.role === 'user') return components.UserMessage
+  if (turn.role === 'assistant') return components.AssistantMessage
   return components.SystemMessage
 }
 
@@ -121,7 +123,7 @@ function TurnSlot(props: TurnSlotProps): JSX.Element {
   const isLast = createMemo(() => item.index() === props.total() - 1)
   const component = () =>
     'components' in props.messages && props.messages.components
-      ? componentForRole(item.role, props.messages.components)
+      ? componentForTurn(item.turn(), props.messages.components)
       : undefined
   return (
     <MessageProvider value={{key: item.key, role: item.role, message: item.turn, index: item.index, parts, isLast}}>

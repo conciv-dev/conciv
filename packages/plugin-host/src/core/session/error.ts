@@ -44,3 +44,16 @@ export const makeAgentNotFoundError = (fields: Omit<typeof AgentNotFoundError.Ty
   Object.assign(new globalThis.Error(`Agent not found: "${fields.agent}"`), AgentNotFoundError.make(fields), {
     name: 'Session.AgentNotFoundError',
   })
+
+export const SyntheticConflictError = Schema.TaggedStruct('Session.SyntheticConflictError', {
+  sessionID: Session.Id,
+  inputID: SessionMessage.Id,
+})
+export type SyntheticConflictError = typeof SyntheticConflictError.Type & globalThis.Error
+
+export const makeSyntheticConflictError = (
+  fields: Omit<typeof SyntheticConflictError.Type, '_tag'>,
+): SyntheticConflictError =>
+  Object.assign(new globalThis.Error(), SyntheticConflictError.make(fields), {
+    name: 'Session.SyntheticConflictError',
+  })

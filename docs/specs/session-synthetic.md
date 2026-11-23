@@ -238,8 +238,27 @@ As opencode, the delivered synthetic message is a notice row with the label `des
   same kind of routing by metadata that `store/grouping.ts:44-71` already does for compaction.
 - The row is drawn from the existing divider and notice parts in `apps/conciv/src/pane/indicators.tsx`. No new
   registry.
-- **OPEN 6:** which synthetics show.
-- **OPEN 7:** how an open widget learns of a promoted message.
+- Which synthetics show: only those with a non-empty `description` (OPEN 6, decided in section 10).
+
+How an open widget learns of a notice (OPEN 7, ruled 2026-11-21, as opencode):
+
+- opencode's client learns the content from `session.inbox.enqueued` (`oc/schema/src/session-event.ts:220-228`,
+  payload `{sessionID, inboxID, item}`). It adds the row as soon as the item is admitted, while it waits
+  (`oc/client/src/solid/data.ts:943-952`; `admitLocal` and `materializeInboxMessage`, :482-507).
+- On `session.inbox.delivered` (`{sessionID, inboxID}` only, `session-event.ts:208-216`), it drops the pending entry
+  and moves that row, with the delivery time (`data.ts:919-933`). It never re-reads history, and it ignores an id it
+  never saw.
+- Conciv carries both events in their ported shapes, as CUSTOM chunks with zod schemas in protocol, the way
+  `conciv.tool-time` is carried (`protocol/src/chat-event-types.ts:23-49`).
+- They travel on the session stream `chat.events` (`core/src/runtime/core-runtime.ts:58`; client
+  `client/src/chat-connection.ts:337-366`), not on a run's stream.
+- So a waiting notice shows in an open widget before it is delivered, as in opencode. The description rule above still
+  applies.
+- A widget opened later reads the waiting items with `SessionInbox.list`. It comes back for this caller, as opencode's
+  `session.inbox.list` (`data.ts:1639`).
+- Delivery order: conciv's own user message is not an inbox item. On the send path, the delivered row moves to sit
+  before the widget's last user message, not to the end. This is the order opencode reaches by delivering the notices
+  before the prompt.
 
 ## 6. How it fits services plan B
 
@@ -290,9 +309,10 @@ Changed:
 
 ## 8. Tests
 
-Node tests use `@conciv/plugin-testkit/node` `createEngine`. Happy-dom tests use `@conciv/plugin-testkit/browser`
-`mount`. Each node test has a small plugin folder under test. A tool of that plugin calls `ctx.session.synthetic`,
-and the script of replies shows whether a turn ran.
+Node tests use `createEngine` from `@conciv/plugin-testkit`. The app case uses `@conciv/plugin-testkit/browser`
+`mount` in browser mode (main deleted the happy-dom layer at 83c6c3181). Each test has a small plugin folder under
+test. A tool of that plugin calls `ctx.session.synthetic`, and `engine.requests()` shows whether a turn ran and what
+the model received.
 
 Each opencode test named is the one the case copies.
 
@@ -311,16 +331,19 @@ Node, `packages/plugin-host/src/core/session/synthetic.test.ts`:
 8. Queued items go one per run, oldest first; steers go together. `session-runner.test.ts:4793`, 4879.
 9. The model gets the text only, never description or metadata. `session-instructions.test.ts:364`.
 
-Happy-dom, in the app: 10. A delivered notice shows as its own row with `description ?? text`, not as a user bubble.
-The thread code is ui-kit-chat, a package the app is made of, and the ruling of 2026-11-20 (as opencode;
-`docs/specs/test-rewrite-after-port.md` at 2ff22de0e, AGENTS.md Testing) says such a package never mounts the app.
-The case mounts the whole app on a `createEngine` with the small plugin above, so it lives in
-`apps/conciv/src/pane/chat-pane.dom.test.tsx`, as the first step of the notice journey that
+Browser, in the app: 10. A delivered notice shows as its own row with `description ?? text`, not as a user bubble,
+and a notice with no description shows no row (section 10, decision 6). The thread code is ui-kit-chat, a package the
+app is made of, and the ruling of 2026-11-20 (as opencode; `docs/specs/test-rewrite-after-port.md` at 2ff22de0e,
+AGENTS.md Testing) says such a package never mounts the app. The case mounts the whole app on a `createEngine` with a
+small plugin of the app's own fixtures, so it lives in the app's thread browser file,
+`apps/conciv/src/pane.browser.test.tsx`, as the first step of the notice journey that
 `docs/specs/page-plugin-out-of-core.md` section 5 shares with the page queue and outside-call notices (one journey,
-not three tests). It has no old test, so no `M-*` group yet; the app area names it. If the notice row is a ui-kit-chat
-component, its states are a story in ui-kit-chat, without the kit. No browser-mode test: the row needs no layout.
+not three tests). Main has no happy-dom project any more, so the case runs in browser mode. If the notice row is a
+ui-kit-chat component, its states are a story in ui-kit-chat, without the kit.
 
-**OPEN 8:** whether the kit can show what the model received.
+**OPEN 8:** answered by the kit on main: `engine.requests()` returns every request the scripted harness received
+(`packages/harness-testkit/src/scripted-harness.ts`, `recorded`), so cases 1 and 9 read the model's input there. No new
+kit API.
 
 ## 9. OPEN points
 
@@ -355,11 +378,11 @@ Each lists my pick first, then the alternative.
    - Pick: every delivered synthetic shows as a notice row in PR 1, because conciv has no settings for notice
      placement (`detail.notices.placement`).
    - Alternative: opencode's `isNotice` filter (subagent source, or a non-empty description), with the rest hidden.
-7. **Reaching an open widget.**
-   - Pick: the run that delivers the notice carries it like the user message of a server-driven run, the way the
-     compact `drive` shows today. The writer checks that the stored message reaches the client's message list, and
-     reports if it does not.
-   - Alternative: a bus event to the widget.
+7. **Reaching an open widget.** RULED 2026-11-21, as opencode: see section 5.
+   - The first pick (the run that delivers the notice carries it) left a notice delivered on the widget's own send
+     unseen until reload, because the widget skips refreshing for its own run.
+   - Instead, opencode's two inbox events, `session.inbox.enqueued` and `session.inbox.delivered`, are carried on the
+     session stream, and `list` comes back for a widget opened later.
 8. **Reading the model's input in tests.**
    - Pick: the scripted harness already gets the request, so a test reads it from there if the kit exposes it.
    - Alternative: the scripted reply matches the expected text.

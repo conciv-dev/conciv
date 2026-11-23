@@ -1,5 +1,6 @@
 import {chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
+import {DevTools} from '@vitejs/devtools'
 import {describe} from 'vitest'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import conciv from './vite.js'
@@ -34,6 +35,32 @@ describe.concurrent('a vite server on a fixture project', () => {
       expect(existsSync(concivStateDir(root))).toBe(false)
     },
   )
+
+  test("with Vite DevTools on, a socket that never logged in to DevTools is refused the engine's login token", async ({
+    project,
+    serve,
+    expect,
+    webSocket,
+  }) => {
+    const root = project('app')
+    const server = await serve({root, plugins: [conciv({homeDir: join(root, 'home')}), DevTools()]})
+    const [local = ''] = server.resolvedUrls?.local ?? []
+    await fetch(local)
+    const socket = webSocket(`${local.replace('http', 'ws')}__devtools/__ws`)
+    const answered = new Promise<string>((resolve, reject) => {
+      socket.addEventListener('message', (event) => {
+        if (String(event.data).includes('engine-token-probe')) resolve(String(event.data))
+      })
+      socket.addEventListener('error', () => reject(new Error('the DevTools socket failed')))
+    })
+    socket.addEventListener('open', () =>
+      socket.send(JSON.stringify({t: 'q', i: 'engine-token-probe', m: 'conciv:engine-token', a: []})),
+    )
+
+    const answer = await answered
+
+    expect(answer).toContain('RPC call to \\"conciv:engine-token\\" was rejected: the caller is not authorized.')
+  })
 })
 
 describe.concurrent('bundler builds', () => {
