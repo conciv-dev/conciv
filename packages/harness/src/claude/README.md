@@ -12,7 +12,7 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 - `CLAUDE_ASK_RULES`, `claudeAskSettingsFile()` (`chat.ts`): `permissions.ask` rules for risky git/rm/chmod/chown/sudo Bash commands, written to a temp settings file.
 - `TextBlock`, `ThinkingBlock`, `ToolUseBlock`, `ToolResultBlock` zod schemas; `canonicalToolName(name)` (strips `mcp__conciv__` / `mcp__plugin_conciv-connect_conciv__`); `contentText(raw)` (`history.ts`).
 - `imageRefs(images, cwd)`, `claudeExecutable(pluginDir, settingsFile?)`, `claudeChatConfig(deps)` (`chat.ts`): claudeCode adapter with `systemPromptMode: 'append'`, `allowedTools: ['mcp__tanstack']`, `disallowedTools: ['AskUserQuestion']`, `permissionMode: 'auto'`; `prepareMessages` swaps the last user text to `/compact` for `kind === 'compact'`, otherwise appends image refs.
-- `CONCIV_PLUGIN_DIR` (`plugin-dir.ts`): first `plugins/claude` dir containing `.claude-plugin/plugin.json`, up to 6 levels above the module, or null.
+- `claudePluginDir()` (`plugin-dir.ts`): resolves to the first `plugins/claude` dir containing `.claude-plugin/plugin.json`, up to 6 levels above the module, or null.
 - `claudeSdkCommands(ctx)`, test hook `__commandsCacheSet(cwd, commands)` (`sdk.ts`).
 - `resume.command({nativeId})` (`index.ts`): `claude --resume <nativeId>`, built by `claudeSessionArgs` (`args.ts`), the same helper `claudeConnectArgs` uses.
 - `claudeTtyCommand(ctx)` (`index.ts`): `{bin: 'claude', args, env TERM/COLORTERM, unsetEnvPrefixes}`.
@@ -39,7 +39,7 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 - Writes `conciv-claude-settings-<sha256 16>.json` to `os.tmpdir()` on every `claudeChatConfig` call (`claudeAskSettingsFile`).
 - Creates `<concivStateDir(cwd)>/tmp` and writes `img-<uuid>.<ext>` files (`imageRefs`).
 - Sets adapter env `MCP_TOOL_TIMEOUT=3600000` (one hour, so a permission card waits for the user) and `ENABLE_TOOL_SEARCH=false`, merged with `deps.env` (`claudeChatConfig`).
-- `existsSync` probe at module load (`CONCIV_PLUGIN_DIR`).
+- Probes up to 6 `plugins/claude/.claude-plugin/plugin.json` paths each time `claudePluginDir()` runs: on every `claudeChatConfig` call and every slash-command probe, never at module load.
 - Starts an Agent SDK `query` with `permissionMode: 'acceptEdits'` to read `supportedCommands`, then interrupts it (`probeCommands`, `sdk.ts`).
 - Reads `<Claude config dir>/projects/<encoded cwd>/*.jsonl` (`transcriptMessages`, `transcriptTail`, `observeTranscript`) and, through the Agent SDK, the same directory's heads and tails (`listSessions`, `sessionMeta`); an `everywhere` listing reads every `projects/*` directory.
 - The TTY command unsets env vars with prefixes `CLAUDECODE`, `CLAUDE_CODE_`, `CLAUDE_EFFORT`, `AI_AGENT` (`NESTED_SESSION_MARKERS`, `index.ts`).

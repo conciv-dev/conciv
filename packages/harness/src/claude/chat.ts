@@ -1,5 +1,5 @@
 import {randomUUID, createHash} from 'node:crypto'
-import {mkdirSync, writeFileSync} from 'node:fs'
+import {mkdir, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import {claudeCode} from '@conciv/ai/server'
@@ -9,7 +9,7 @@ import {type HarnessChatConfig} from '../_shared/contract.js'
 import {definedEntries} from '../_shared/env.js'
 import {lastUserImages} from '../_shared/text-adapter.js'
 import {CLAUDE_BIN} from './args.js'
-import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
+import {claudePluginDir} from './plugin-dir.js'
 import {tmpdir} from 'node:os'
 
 const GIT_RISKS = [
@@ -43,11 +43,11 @@ export const CLAUDE_ASK_RULES = [
   'Bash(sudo *)',
 ]
 
-function claudeAskSettingsFile(): string {
+async function claudeAskSettingsFile(): Promise<string> {
   const settings = JSON.stringify({permissions: {ask: CLAUDE_ASK_RULES}})
   const digest = createHash('sha256').update(settings).digest('hex').slice(0, 16)
   const path = join(tmpdir(), `conciv-claude-settings-${digest}.json`)
-  writeFileSync(path, settings)
+  await writeFile(path, settings)
   return path
 }
 
@@ -62,17 +62,18 @@ const IMAGE_EXT: Record<string, string> = {
   'image/webp': 'webp',
 }
 
-export function imageRefs(images: HarnessImage[], cwd: string): string {
-  const tmpDir = join(createConcivStateDir(concivStateDir(cwd)), 'tmp')
-  mkdirSync(tmpDir, {recursive: true})
-  return images
-    .map((img) => {
+export async function imageRefs(images: HarnessImage[], cwd: string): Promise<string> {
+  const tmpDir = join(await createConcivStateDir(concivStateDir(cwd)), 'tmp')
+  await mkdir(tmpDir, {recursive: true})
+  const refs = await Promise.all(
+    images.map(async (img) => {
       const ext = IMAGE_EXT[img.mediaType] ?? 'png'
       const path = join(tmpDir, `img-${randomUUID()}.${ext}`)
-      writeFileSync(path, Buffer.from(img.dataBase64, 'base64'))
+      await writeFile(path, Buffer.from(img.dataBase64, 'base64'))
       return `@${path}`
-    })
-    .join(' ')
+    }),
+  )
+  return refs.join(' ')
 }
 
 function spaceFreePath(flag: string, path: string): string {
@@ -97,10 +98,10 @@ function withLastUserText(messages: ModelMessage[], text: string): ModelMessage[
   return messages.map((message, index) => (index === lastUserIndex ? {...message, content: text} : message))
 }
 
-function withImageRefs(messages: ModelMessage[], cwd: string): ModelMessage[] {
+async function withImageRefs(messages: ModelMessage[], cwd: string): Promise<ModelMessage[]> {
   const images = lastUserImages(messages)
   if (!images.length) return messages
-  const refsText = `${FILE_REF_PREFIX} ${imageRefs(images, cwd)}`
+  const refsText = `${FILE_REF_PREFIX} ${await imageRefs(images, cwd)}`
   const lastUserIndex = messages.findLastIndex((message) => message.role === 'user')
   return messages.map((message, index) => {
     if (index !== lastUserIndex) return message
@@ -111,10 +112,10 @@ function withImageRefs(messages: ModelMessage[], cwd: string): ModelMessage[] {
   })
 }
 
-export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
+export const claudeChatConfig = async (deps: HarnessChatDeps): Promise<HarnessChatConfig> => ({
   adapter: claudeCode(deps.model ?? 'opus', {
     addDirs: [deps.cwd],
-    claudeExecutable: claudeExecutable(CONCIV_PLUGIN_DIR, claudeAskSettingsFile()),
+    claudeExecutable: claudeExecutable(await claudePluginDir(), await claudeAskSettingsFile()),
     systemPromptMode: 'append',
     emitDiff: false,
     allowedTools: BRIDGED_CONCIV_TOOLS,
@@ -127,6 +128,6 @@ export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
     }),
   }),
   modelOptions: {permissionMode: 'auto', ...(deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {})},
-  prepareMessages: (messages) =>
+  prepareMessages: async (messages) =>
     deps.kind === 'compact' ? withLastUserText(messages, '/compact') : withImageRefs(messages, deps.cwd),
 })

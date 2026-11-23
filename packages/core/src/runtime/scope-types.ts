@@ -35,7 +35,7 @@ export type SessionScope = {
 }
 
 export type EngineScope = {
-  staleness: () => EngineStaleness
+  staleness: () => Promise<EngineStaleness>
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
 }
 

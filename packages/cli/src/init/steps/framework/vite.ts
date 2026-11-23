@@ -18,8 +18,8 @@ function snippetCard(): ManualCard {
   }
 }
 
-function detectWired(cwd: string, configFile: string | null): 'missing' | 'present' {
-  const config = readConfig(cwd, configFile)
+async function detectWired(cwd: string, configFile: string | null): Promise<'missing' | 'present'> {
+  const config = await readConfig(cwd, configFile)
   if (config === null) return 'missing'
   if (pluginCallWired(config.content, pluginModule, pluginCall, {importStyle: 'default'})) return 'present'
   return 'missing'
@@ -35,22 +35,22 @@ export function viteStep(detected: Detected): InitStep {
     title: 'Wire the vite config',
     running: `Wiring ${configName(detected)}…`,
     completed: `Wired ${configName(detected)}`,
-    detect: async (ctx) => detectWired(ctx.cwd, detected.configFile),
+    detect: (ctx) => detectWired(ctx.cwd, detected.configFile),
     plan: async () => ({
       summary: `add the ${pluginModule} plugin to ${detected.configFile ?? 'your vite config'}`,
       wouldEdit: detected.configFile === null ? [] : [detected.configFile],
     }),
     apply: async (ctx) => {
-      const config = readConfig(ctx.cwd, detected.configFile)
+      const config = await readConfig(ctx.cwd, detected.configFile)
       if (config === null) return {status: 'manual', cards: [snippetCard()]}
       const transformed = addToPluginsArray(config.content, 'conciv', pluginModule, pluginCall, {
         importStyle: 'default',
       })
       if (!transformed.matched || transformed.output === null) return {status: 'manual', cards: [snippetCard()]}
-      writeConfigChange(ctx, config, transformed.output)
+      await writeConfigChange(ctx, config, transformed.output)
       return {status: 'done'}
     },
-    verify: async (ctx) => detectWired(ctx.cwd, detected.configFile) === 'present',
+    verify: async (ctx) => (await detectWired(ctx.cwd, detected.configFile)) === 'present',
     manualCard: () => snippetCard(),
   }
 }

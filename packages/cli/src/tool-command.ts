@@ -1,4 +1,4 @@
-import {existsSync} from 'node:fs'
+import {access} from 'node:fs/promises'
 import {resolve} from 'node:path'
 import {z} from 'zod'
 import {kebabCase} from 'es-toolkit'
@@ -57,7 +57,7 @@ export function wireToolCommand(signature: WireToolSignature, options: ToolComma
     ...fields.map((field) => fieldElement(field, positional)),
     ...envelope,
     ...tab,
-    handler((model, target) => options.run(suppliedInput(fields, model), target)),
+    handler(async (model, target) => options.run(await suppliedInput(fields, model), target)),
   )
 }
 
@@ -109,7 +109,7 @@ function scalarSchema(type: string | undefined, format: string | undefined): z.Z
   if (type === 'boolean') return z.boolean()
   if (type === 'number') return z.number()
   if (type === 'integer') return z.int()
-  if (format === 'path') return z.string().transform(existingPath)
+  if (format === 'path') return z.string()
   if (type === undefined) return z.string().transform(jsonOrRaw)
   return z.string()
 }
@@ -134,12 +134,25 @@ function parsedJson(value: string): unknown {
   }
 }
 
-function existingPath(value: string): string {
-  return existsSync(resolve(value)) ? resolve(value) : value
+async function existingPath(value: string): Promise<string> {
+  const absolute = resolve(value)
+  return access(absolute).then(
+    () => absolute,
+    () => value,
+  )
 }
 
-function suppliedInput(fields: ToolField[], model: Record<string, unknown>): Record<string, unknown> {
+function takesPath(field: Field): boolean {
+  return field.enum === undefined && field.type !== 'array' && field.format === 'path'
+}
+
+async function suppliedValue(field: ToolField, value: unknown): Promise<unknown> {
+  return takesPath(field.field) && typeof value === 'string' ? existingPath(value) : value
+}
+
+async function suppliedInput(fields: ToolField[], model: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const supplied = fields.filter((field) => model[field.name] !== undefined)
   return Object.fromEntries(
-    fields.flatMap((field) => (model[field.name] === undefined ? [] : [[field.name, model[field.name]]])),
+    await Promise.all(supplied.map(async (field) => [field.name, await suppliedValue(field, model[field.name])])),
   )
 }

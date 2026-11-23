@@ -1,13 +1,27 @@
-import {existsSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {rmSync, writeFileSync} from 'node:fs'
+import {access, readFile} from 'node:fs/promises'
 import {constants} from 'node:os'
 
 export type FileBackup = {path: string; content: string | null}
 
 type BackupGuard = {remember: (file: FileBackup) => void; restore: () => void; release: () => void}
 
-export function captureFile(path: string): FileBackup {
-  if (!existsSync(path)) return {path, content: null}
-  return {path, content: readFileSync(path, 'utf8')}
+export async function pathExists(path: string): Promise<boolean> {
+  return access(path).then(
+    () => true,
+    () => false,
+  )
+}
+
+export async function readOptionalText(path: string): Promise<string | null> {
+  return readFile(path, 'utf8').catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return null
+    throw error
+  })
+}
+
+export async function captureFile(path: string): Promise<FileBackup> {
+  return {path, content: await readOptionalText(path)}
 }
 
 function restoreFile(file: FileBackup): void {

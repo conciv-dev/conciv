@@ -30,7 +30,7 @@ The framework wiring step for each bundler. Vite, Next.js and webpack/rspack con
 
 ## Side Effects
 
-- `writeConfigChange` (`config-edit.ts`): backs up and writes the config with writeFileSync and emits a colored unified diff note
+- `writeConfigChange` (`config-edit.ts`): backs up and writes the config with `writeFile` from `node:fs/promises` and emits a colored unified diff note
 - `wireFile` (`nextjs.ts`): backs up and creates instrumentation.ts and instrumentation-client.ts
 - `readConfig` (`config-edit.ts`) and `fileState` (`nextjs.ts`): read files from disk
 

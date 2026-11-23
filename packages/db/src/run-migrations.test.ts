@@ -48,7 +48,7 @@ describe('restart', () => {
 describe('two openers', () => {
   it('an opener waits while another opener holds the migration lock, and opens once it is let go', async () => {
     const root = tempDir('state-')
-    const other = new DatabaseSync(join(createConcivStateDir(concivStateDir(root)), 'conciv.lock'))
+    const other = new DatabaseSync(join(await createConcivStateDir(concivStateDir(root)), 'conciv.lock'))
     other.exec('BEGIN EXCLUSIVE')
 
     const refused = await Effect.runPromise(openDb(root, {busyTimeoutMs: 50}).pipe(Effect.flip, Effect.scoped))
@@ -73,7 +73,7 @@ describe('two openers', () => {
 describe('upgrade', () => {
   it('a database from the first release opens migrated and keeps its sessions', async () => {
     const root = tempDir('state-')
-    const old = drizzle({client: new DatabaseSync(join(createConcivStateDir(concivStateDir(root)), 'conciv.db'))})
+    const old = drizzle({client: new DatabaseSync(join(await createConcivStateDir(concivStateDir(root)), 'conciv.db'))})
     migrateSync(migrations.slice(0, 1), old._.session)
     old.$client.exec(
       "INSERT INTO sessions (id, harness_kind, origin, title, cwd, created_at, updated_at) VALUES ('kept', 'claude', 'chat', 'Release notes', '/workspace', 1, 2)",

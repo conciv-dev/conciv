@@ -36,7 +36,7 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 
 - `logging.ts`: emits only through the caller's `log.emit`; with no `log`, nothing is written
 - `writeDevEndpoint` / `removeDevEndpoint` (`dev-endpoint.ts`): write or delete files under ~/.conciv by default
-- `engine-stamp.ts`: on load resolves modules with `import.meta.resolve` and hashes them; each `engineStaleness` call re-reads them
+- `engine-stamp.ts`: on load resolves modules with `import.meta.resolve` and starts hashing them without blocking; each `engineStaleness` call awaits those first digests and re-reads the files
 - `writeText` (`../start.ts`), `writePersistedPort` (`../start.ts`): write files
 - `homeDbReads` (`home-db-watch.ts`): never creates `home.db`; once the file exists each call holds its own connection to it and a one-second timer until `signal` aborts or the caller stops reading
 

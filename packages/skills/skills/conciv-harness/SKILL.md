@@ -42,14 +42,14 @@ export const yourHarness = defineHarness({
   },
   chatConfig: yourChatConfig,
   models: [{id: 'default', name: 'Default', group: 'Your CLI'}],
-  defaultModel: 'default',
+  defaultModel: async () => 'default',
   history: yourHistory,
 })
 ```
 
-(`packages/harness/src/codex/index.ts:21-52`, the smallest complete adapter in the repo — no
+(`packages/harness/src/codex/index.ts:22-84`, the smallest complete adapter in the repo — no
 `attach`, `tty`, or `commands`.) Register it in `packages/harness/src/registry.ts` (the adapter list
-`harnessRegistry(provider)` builds, `packages/harness/src/registry.ts:20-26`) and add its docs entry to
+`harnessRegistry(provider)` builds, `packages/harness/src/registry.ts:21-27`) and add its docs entry to
 `apps/site/content/docs/harnesses.mdx`.
 
 ## HarnessCapabilities: flags that gate the type, not just behavior
@@ -68,9 +68,9 @@ export type HarnessCapabilities = {
 }
 ```
 
-(`packages/protocol/src/harness-types.ts:4-18`.) Three of these flags are load-bearing for the type
+(`packages/protocol/src/harness-types.ts:7-21`.) Three of these flags are load-bearing for the type
 checker — `HarnessAdapter` is an intersection of three conditional pairs
-(`packages/harness/src/_shared/contract.ts:36-48`):
+(`packages/harness/src/_shared/contract.ts:35-47`):
 
 - `capabilities.transcriptHistory: true` ⇒ `history: HarnessHistory` is REQUIRED. `false` ⇒ `history`
   must be `undefined` (omit the field entirely).
@@ -81,8 +81,8 @@ checker — `HarnessAdapter` is an intersection of three conditional pairs
 There is no matching compile-time link for `resume`, `permissionGate`, `compaction`, `systemPrompt`,
 `mcp`, or `imageInput` — those are read at runtime by `packages/chat/src/turn.ts` (e.g.
 `harness.capabilities.resume` gates whether a resume token is used,
-`packages/chat/src/turn.ts:108-117`; `harness.capabilities.compaction` picks `/compact` vs a
-fallback prompt, `packages/chat/src/turn.ts:194-196`). Declare them honestly: `resume: false` when
+`packages/chat/src/turn.ts:138-150`; `harness.capabilities.compaction` picks `/compact` vs a
+fallback prompt, `packages/chat/src/turn.ts:228-230`). Declare them honestly: `resume: false` when
 your CLI has no session-resume flag, `mcp: 'none'` when it can't accept an MCP server URL, and so on —
 core branches on these values to decide what to even attempt.
 
@@ -97,21 +97,23 @@ only `chatConfig`.
 export type HarnessChatDeps = {
   cwd: string
   sessionId: SessionId
+  askPermission: (ask: HarnessPermissionAsk) => Promise<HarnessPermissionVerdict>
   resumeSessionId: HarnessSessionId | null
   model?: string
+  effort?: ReasoningEffort
   env: Record<string, string | undefined>
-  kind: 'chat' | 'compact'
+  kind: 'chat' | 'compact' | 'page-queue'
 }
 
 export type HarnessChatConfig = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
-  prepareMessages?: (messages: ModelMessage[]) => ModelMessage[]
+  prepareMessages?: (messages: ModelMessage[]) => Promise<ModelMessage[]>
 }
 ```
 
-(`packages/protocol/src/harness-types.ts:98-106`, `packages/harness/src/_shared/contract.ts:15-19`.) `chatConfig` is a plain function, `deps =>
-HarnessChatConfig` — no async, no side effects at call time. Its `adapter` comes from a
+(`packages/protocol/src/harness-types.ts:110-119`, `packages/harness/src/_shared/contract.ts:15-19`.) `chatConfig` is an async function, `deps =>
+Promise<HarnessChatConfig>`: it may read files without blocking (codex reads its default model from `config.toml`), but starts no process at call time. Its `adapter` comes from a
 `@conciv/ai/server` factory for CLIs that have one (`codex`, `claudeCode`, `opencode`, `acp`, thin
 typed wrappers over the published `@tanstack/ai-*` adapters); if none exists for your CLI, build one
 with `makeTextAdapter(name, stream)` from `packages/ai/src/adapters/adapters.ts`, where `stream` is your own
@@ -124,8 +126,8 @@ outside the sandbox and its abort handling (see the sandbox-virtual workdir sect
 Canonical call site — codex, which needs no message prep:
 
 ```ts
-export function codexRunAdapter(deps: HarnessChatDeps, toolCount: number): TextAdapter {
-  return codexAdapter(deps.model ?? codexDefaultModel(codexHome(deps.env)), {
+export function codexRunAdapter(deps: HarnessChatDeps, model: string, toolCount: number): TextAdapter {
+  return codexAdapter(model, {
     sandboxMode: 'workspace-write',
     approvalPolicy: 'never',
     config: {...(toolCount > 0 ? approveTanstackToolsConfig : {}), ...effortConfig(deps.effort)},
@@ -133,8 +135,8 @@ export function codexRunAdapter(deps: HarnessChatDeps, toolCount: number): TextA
   })
 }
 
-const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: codexTurnAdapter(deps),
+const codexChatConfig = async (deps: HarnessChatDeps): Promise<HarnessChatConfig> => ({
+  adapter: codexTurnAdapter(deps, deps.model ?? (await codexDefaultModel(codexHome(deps.env)))),
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
 })
 ```
@@ -142,22 +144,22 @@ const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
 The tools a turn offers can change between model steps, so `deps` carries no tool flag. A CLI that must
 know whether tools ride a step reads that step's `options.tools` inside `chatStream`, the way codex builds
 its run adapter per step and auto-approves its tanstack MCP server only when that step offers tools
-(`codexTurnAdapter`, `packages/harness/src/codex/index.ts:43-52`).
+(`codexTurnAdapter`, `packages/harness/src/codex/index.ts:45-54`).
 
-(`packages/harness/src/codex/index.ts:20-27`, `:54-57`.) `deps.env` is `Record<string, string | undefined>`
+(`packages/harness/src/codex/index.ts:22-29`, `:56-59`.) `deps.env` is `Record<string, string | undefined>`
 (it's `process.env`-shaped); most `@tanstack/ai-*` adapters want `Record<string, string>`, so run it
 through `definedEntries` (`packages/harness/src/_shared/env.ts:1-3`) to drop the `undefined` values
 rather than casting.
 
 `prepareMessages` is where you rewrite the turn before it reaches the adapter — e.g. claude's chat
 config swaps in image file references or a literal `/compact` prompt depending on `deps.kind`
-(`packages/harness/src/claude/chat.ts:70-83`). Only add it if your CLI needs message-shape
+(`packages/harness/src/claude/chat.ts:130-131`). Only add it if your CLI needs message-shape
 translation; most adapters omit it.
 
 ## `chat()` owns the turn — you never spawn or decode the CLI in core/widget
 
-`packages/chat/src/turn.ts:322-331` is the only call site that invokes `chatConfig`; the plan it
-returns reaches `chat()` in `started` (`packages/ai/src/server/chat-server.ts:589-662`):
+`packages/chat/src/turn.ts:337-346` is the only call site that invokes `chatConfig`; the plan it
+returns reaches `chat()` in `started` (`packages/ai/src/server/chat-server.ts:811-897`):
 
 ```ts
 const stream = chat({
@@ -237,7 +239,7 @@ drops the card. Never add an "is this command risky" check to core or the widget
 
 ## Sandbox-virtual workdir: `chatConfig` never passes a host `cwd`; `tty.command()` legitimately does
 
-`localProcessSandbox({dir})` (`packages/ai/src/server/chat-server.ts:234-247`, `dir` is the engine cwd) roots every process
+`localProcessSandbox({dir})` (`packages/ai/src/server/local-sandbox.ts:30`, `dir` is the engine cwd) roots every process
 spawned **through the sandbox** at `deps.cwd` already — the sandbox root IS `deps.cwd`, not a
 subdirectory of it (AGENTS.md, "Harness & runner
 adapters": "the local-process sandbox root IS the cwd... adapters default to `/workspace`"). Because of
@@ -247,11 +249,11 @@ a fixed sandbox-relative path like `/workspace` is already handled correctly by 
 rooted there — passing `deps.cwd` (a host-absolute path) as an extra `cwd` argument on top of that gets
 resolved _again_, relative to the sandbox root, and that's what nests a junk
 `/workspace/Users/you/project/...` tree. Codex's `chatConfig` passes **no** `cwd` at all
-(`packages/harness/src/codex/index.ts:11-19`) — that omission is correct, not a bug to fix.
+(`packages/harness/src/codex/index.ts:22-29`) — that omission is correct, not a bug to fix.
 
 `deps.cwd` is still a legitimate value inside `chatConfig` for anything that isn't the process's
 working directory: claude's chat config threads it through as `addDirs: [deps.cwd]`
-(`packages/harness/src/claude/chat.ts:73`), an additional-directory permission grant for MCP/tool file
+(`packages/harness/src/claude/chat.ts:116`), an additional-directory permission grant for MCP/tool file
 access, not a `cwd` override.
 
 `tty.command(ctx)` is a different seam: it builds the argv for the CLI in the built-in terminal pane,
@@ -266,12 +268,12 @@ with different rooting rules.
 
 - **`models?: HarnessModels`**: either a plain `HarnessModel[]` or a `({signal}) => HarnessModel[] |
   Promise<HarnessModel[]>` for CLIs whose model list must be fetched
-  (`packages/protocol/src/harness-types.ts:26-38`). The engine aborts `signal` when it stops: hand it to
+  (`packages/protocol/src/harness-types.ts:27-39`). The engine aborts `signal` when it stops: hand it to
   whatever lists the models (`execFile(..., {signal})`, a `fetch`, an SDK's abort controller) so a
   listing still running is ended with the engine, and settle only once that child has exited
   (`packages/harness/src/opencode/models.ts`). A `models` that takes no parameter still type-checks;
   the engine's close waits for a listing at most `GROUP_EXIT_TIMEOUT_MS` (5 s) and then goes on without it.
-  Read it through `resolveHarnessModels(adapter, {signal})` (`packages/harness/src/registry.ts:28-35`),
+  Read it through `resolveHarnessModels(adapter, {signal})` (`packages/harness/src/registry.ts:29-36`),
   never by branching on `typeof adapter.models` yourself elsewhere.
 - **`tty?: {command(ctx: HarnessConnectContext): TtyCommand}`** — the argv/options for opening the CLI
   in the built-in terminal pane.
@@ -283,24 +285,23 @@ with different rooting rules.
   not on the `HarnessAdapter`; `shellEnv` is the variable the CLI sets in its shell tool's env, so `conciv tools`
   run from that agent names it. A harness with no MCP support (pi) omits `hub`.
 - **`commands?: HarnessCommands`** — `(ctx: HarnessCommandsContext) => Promise<HarnessCommand[]>`
-  (`packages/protocol/src/harness-types.ts:35-39`), required whenever `slashCommands !== 'none'`. Each
+  (`packages/protocol/src/harness-types.ts:41-45`), required whenever `slashCommands !== 'none'`. Each
   `HarnessCommand` is `{name, description?, argumentHint?}`; `'live'` means query the running CLI for
   its commands, `'files'` means read them off disk.
 
 ## HarnessHistory: reading the CLI's own transcript
 
 Required whenever `capabilities.transcriptHistory: true`. The contract
-(`packages/protocol/src/harness-types.ts:151-166`) has four required methods, several optional
+(`packages/protocol/src/harness-types.ts:159-170`) has four required methods, several optional
 refinements, and one all-or-nothing pair:
 
 ```ts
 export type HarnessHistory = HarnessTranscriptPaths & {
-  messages(cwd: string, sessionId: HarnessSessionId): Promise<ChatMessage[]>
+  messages(cwd: string, sessionId: HarnessSessionId, options?: {signal?: AbortSignal}): Promise<ChatMessage[]>
   tail(cwd: string, sessionId: HarnessSessionId, options: TranscriptTailOptions): Promise<TranscriptPage>
-  withinProject?(cwd: string, sessionId: HarnessSessionId): boolean
-  nameFromTranscript?(raw: string): string | null
-  contextTokens?(raw: string): number | undefined
-  list(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage>
+  withinProject?(cwd: string, sessionId: HarnessSessionId): Promise<boolean>
+  contextTokens?(line: string): number | undefined
+  list(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage>
   meta(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null>
 }
 ```
@@ -310,11 +311,11 @@ transcript into `ChatMessage[]`, read one page back from the end (`{limit, befor
 `{messages, earlier}`, with an opaque cursor; build it on `tailLines` from
 `packages/harness/src/_shared/tail-lines.ts` for a JSONL transcript, so a page costs its own size
 and its ids match `messages()`), and enumerate past sessions for a cwd. `HarnessTranscriptPaths`
-(`packages/protocol/src/harness-types.ts:143-149`) is a union, not two loose optionals: declare BOTH
+(`packages/protocol/src/harness-types.ts:145-151`) is a union, not two loose optionals: declare BOTH
 `transcriptPath` and `transcriptRoot` or neither, because core resolves one against the other and
 rejects a transcript that escapes the root (`transcriptPathWithin`,
-`packages/harness/src/_shared/contained-path.ts:30-35`, reached for resume liveness by
-`resumableToken` in `packages/chat/src/turn.ts:103-117`). See
+`packages/harness/src/_shared/contained-path.ts:21-30`, reached for resume liveness by
+`resumableToken` in `packages/chat/src/turn.ts:122-150`). See
 [transcript-history](references/transcript-history.md) for the full worked walkthrough (event folding, project-scoping by the recorded cwd) — it's the densest part of a real adapter and doesn't
 fit in this file's budget.
 

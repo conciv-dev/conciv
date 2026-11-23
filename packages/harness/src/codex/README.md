@@ -22,7 +22,7 @@ Codex CLI harness, published as `./codex`. It chats through `codex` from `@conci
 
 ## Side Effects
 
-- Reads `$CODEX_HOME` (default `~/.codex`) `models_cache.json` and `config.toml` synchronously, including when `codex(provider)` runs, through `defaultModel: codexDefaultModel(home)` (`models.ts`, `index.ts`); a turn's default model reads the home from the turn's harness env (`codexRunAdapter`).
+- Reads `$CODEX_HOME` (default `~/.codex`) `models_cache.json` and `config.toml` without blocking, only when `models()`, `defaultModel()` or `login()` is called (`codexModels(home)`, `codexDefaultModel(home)`, `codexUsesOpenaiLogin(home)`, `models.ts`, `index.ts`); `codex(provider)` reads no file. A turn without a chosen model reads its default from the home in the turn's harness env (`codexChatConfig`).
 - Opens `$CODEX_HOME/state_5.sqlite` read-only with `node:sqlite` `DatabaseSync` (`queryRows`).
 - Reads rollout JSONL files and recursively scans `$CODEX_HOME/sessions` (`rolloutEntries`, `listSessions`); `withinProject` and `tail` read only the head (`readHead`, 64 KiB).
 - The chat adapter runs the codex CLI with the caller's env.
