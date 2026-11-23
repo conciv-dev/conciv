@@ -1,5 +1,5 @@
 import {readFileSync, watch} from 'node:fs'
-import {expect, test, type ConsoleMessage, type Page} from '@playwright/test'
+import {expect, test, type ConsoleMessage, type Locator, type Page} from '@playwright/test'
 import {magicLink, recordedEngineBase, testProjectDir} from './login.js'
 import {e2eConfigDir, e2eServerLog} from './config.js'
 
@@ -69,17 +69,22 @@ function describeFailures(failures: PageFailures): string {
 const TRACE_SNAPSHOT_OF_SANDBOXED_PREVIEW =
   "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set. [about:]"
 
-export async function expectWidgetBoots(page: Page, failures: PageFailures): Promise<void> {
-  const launcher = page.getByRole('button', {name: /conciv chat$/})
+async function expectBootShows(locator: Locator, failures: PageFailures): Promise<void> {
   try {
-    await expect(launcher).toBeVisible()
+    await expect(locator).toBeVisible()
   } catch (error) {
     const detail = describeFailures(failures)
     throw detail === '' ? error : new Error(`widget did not boot\n${detail}`, {cause: error})
   }
+}
+
+export async function expectWidgetBoots(page: Page, failures: PageFailures): Promise<void> {
+  const launcher = page.getByRole('button', {name: /conciv chat$/})
+  await expectBootShows(launcher, failures)
   if ((await launcher.getAttribute('aria-expanded')) !== 'true') await launcher.click()
   await page.getByRole('tab', {name: 'Chat'}).click()
   await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+  await expectBootShows(page.getByRole('tab', {name: 'Terminal'}), failures)
   const transientOptimizerReload = /Failed to fetch dynamically imported module|504 \(Outdated Optimize Dep\)/
   const detail = describeFailures(failures)
   expect(failures.thirdPartyRequests, detail).toEqual([])
