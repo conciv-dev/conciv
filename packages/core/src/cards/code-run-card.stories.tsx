@@ -9,7 +9,7 @@ const meta: Meta = {title: 'core/cards/CodeRunCard'}
 export default meta
 type Story = StoryObj
 
-const CODE = `const picked = await external_conciv_ui({kind: 'choices', options})\nconsole.log('answered', picked.ids)\nreturn picked.ids`
+const CODE = `const picked = await external_conciv_ui(question)\nconsole.log('answered', picked.ids)\nreturn picked.ids`
 
 function part(state: ToolCallPart['state'] = 'complete'): ToolCallPart {
   return {
@@ -178,7 +178,7 @@ export const EmbeddedSuccess: Story = {
     const c = within(canvasElement)
     await expect(c.getByText('exec')).toBeVisible()
     await expect(c.getByText('ok')).toBeVisible()
-    await expect(c.getByText("const picked = await external_conciv_ui({kind: 'choices', options})")).toBeVisible()
+    await expect(c.getByText('const picked = await external_conciv_ui(question)')).toBeVisible()
     await expect(c.getByRole('button', {name: /external_conciv_ui/})).toBeVisible()
     await waitFor(async () => expect(await codeText(canvasElement)).toContain('answered'))
   },
