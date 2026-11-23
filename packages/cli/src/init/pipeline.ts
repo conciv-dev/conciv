@@ -309,15 +309,13 @@ function hubAgents(found: FoundHarness[]): HarnessId[] {
   return found.flatMap(({id}) => (initContributions[id].hub === undefined ? [] : [id]))
 }
 
-function connectableAgents(found: FoundHarness[], home: string): HarnessId[] {
-  return difference(hubAgents(found), connectedAgents(home))
+async function connectableAgents(found: FoundHarness[], home: string): Promise<HarnessId[]> {
+  return difference(hubAgents(found), await connectedAgents(home))
 }
 
-function connectedAgents(home: string): HarnessId[] {
+async function connectedAgents(home: string): Promise<HarnessId[]> {
   try {
-    return createHubConnections(home)
-      .list()
-      .map((connection) => connection.harness)
+    return (await createHubConnections(home).list()).map((connection) => connection.harness)
   } catch {
     return []
   }
@@ -374,7 +372,7 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
   }
   const detected = await detectProject(options.cwd)
   const found = detectHarnesses(runtime.env)
-  const agents = connectableAgents(found, runtime.concivHome)
+  const agents = await connectableAgents(found, runtime.concivHome)
   detecting.stop(detectionSummary(detected, found))
   const approved = await approvePlan({
     yes: options.yes,

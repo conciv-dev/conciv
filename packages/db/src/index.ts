@@ -8,9 +8,9 @@ import {eq} from 'drizzle-orm'
 import {Effect} from 'effect'
 import type {ConcivDb} from './db.js'
 import {sessions} from './schema.js'
-import {existsSync} from 'node:fs'
+import {access} from 'node:fs/promises'
 import {z} from 'zod'
-import {listEngines, retireEngine, withHomeDb, type EngineRow} from './home-db.js'
+import {listEngines, prepareHome, retireEngine, withHomeDb, type EngineRow} from './home-db.js'
 
 const HealthSchema = z.object({ok: z.literal(true), id: z.string()})
 const RefusedSchema = z.object({cause: z.object({code: z.literal('ECONNREFUSED')})})
@@ -22,14 +22,15 @@ export async function checkEngines(
   home: string,
   options: {timeoutMs: number; roots?: string[]},
 ): Promise<{live: EngineRow[]; unreachable: Array<{root: string; error: string}>}> {
-  const listed = withHomeDb(home, listEngines)
+  const prepared = await prepareHome(home)
+  const listed = withHomeDb(prepared, listEngines)
   const roots = options.roots
   const rows = roots === undefined ? listed : listed.filter((row) => roots.includes(row.root))
   const verdicts = await Promise.all(rows.map((row) => probe(row, options.timeoutMs)))
   const retired = verdicts.filter((verdict) => verdict.kind === 'retire')
   if (retired.length > 0) {
     const now = Date.now()
-    withHomeDb(home, (db) => retired.forEach((verdict) => retireEngine(db, verdict.row.id, now)))
+    withHomeDb(prepared, (db) => retired.forEach((verdict) => retireEngine(db, verdict.row.id, now)))
   }
   return {
     live: verdicts.filter((verdict) => verdict.kind === 'live').map((verdict) => verdict.row),
@@ -65,9 +66,16 @@ function healthVerdict(row: EngineRow, status: number, text: string): Verdict {
   return {row, kind: health.data.id === row.id ? 'live' : 'retire'}
 }
 
+function rootExists(root: string): Promise<boolean> {
+  return access(root).then(
+    () => true,
+    () => false,
+  )
+}
+
 async function probe(row: EngineRow, timeoutMs: number): Promise<Verdict> {
   const origin = URL.parse(row.apiBase)?.origin
-  if (origin === undefined || !processAlive(row.pid) || !existsSync(row.root)) return {row, kind: 'retire'}
+  if (origin === undefined || !processAlive(row.pid) || !(await rootExists(row.root))) return {row, kind: 'retire'}
   try {
     const response = await fetch(`${origin}/health`, {signal: AbortSignal.timeout(timeoutMs)})
     return healthVerdict(row, response.status, await response.text())

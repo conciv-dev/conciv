@@ -210,7 +210,7 @@ type McpDeps = {
   driving: ChatPlane['driving']
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
-  hubRefusal: (client: string | null) => string | null
+  hubRefusal: (client: string | null) => Promise<string | null>
   staleness: () => EngineStaleness
   log: Log
 }
@@ -351,9 +351,9 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: CodeCall
   const origin = caller.trace.hub
   const admit = async (): Promise<string | null> => {
     if (origin === null) return null
-    const refusal = deps.hubRefusal(origin.client)
+    const refusal = await deps.hubRefusal(origin.client)
     if (refusal !== null || caller.outside) return refusal
-    return (await deps.admitOutside(scope, origin.client, caller.signal)) ?? deps.hubRefusal(origin.client)
+    return (await deps.admitOutside(scope, origin.client, caller.signal)) ?? (await deps.hubRefusal(origin.client))
   }
   const code = await openCodeSession(deps, scope, caller)
   if (code === null) {

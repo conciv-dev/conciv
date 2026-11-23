@@ -1,6 +1,14 @@
 import {randomUUID} from 'node:crypto'
 import {serveHono, type ServeFetch} from '@conciv/serve'
-import {checkEngines, registerEngine, retireEngine, withHomeDb, type EngineRow} from '@conciv/db'
+import {
+  checkEngines,
+  prepareHome,
+  registerEngine,
+  retireEngine,
+  withHomeDb,
+  type EngineRow,
+  type PreparedHome,
+} from '@conciv/db'
 import {type ConfigProvider, Effect, type Layer} from 'effect'
 import {z} from 'zod'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
@@ -225,19 +233,26 @@ function onceNotifier(callback?: () => void): () => void {
   }
 }
 
-function registerForOutsideAgents(home: string, row: EngineRow, log: Log): () => void {
+async function registeredHome(home: string, row: EngineRow, log: Log): Promise<PreparedHome | null> {
   try {
-    withHomeDb(home, (db) => registerEngine(db, row))
+    const prepared = await prepareHome(home)
+    withHomeDb(prepared, (db) => registerEngine(db, row))
+    return prepared
   } catch (error) {
     log(Effect.logError('conciv: engine not registered for outside agents', {engineId: row.id, error}))
-    return () => {}
+    return null
   }
+}
+
+async function registerForOutsideAgents(home: string, row: EngineRow, log: Log): Promise<() => void> {
+  const registered = await registeredHome(home, row, log)
+  if (registered === null) return () => {}
   checkEngines(home, {timeoutMs: 300}).catch((error: unknown) =>
     log(Effect.logError('conciv: checking registered engines failed', {error})),
   )
   return () => {
     try {
-      withHomeDb(home, (db) => retireEngine(db, row.id, Date.now()))
+      withHomeDb(registered, (db) => retireEngine(db, row.id, Date.now()))
     } catch (error) {
       log(Effect.logError('conciv: engine row not retired', {engineId: row.id, error}))
     }
@@ -397,7 +412,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     throw error
   }
   const retire = base
-    ? registerForOutsideAgents(
+    ? await registerForOutsideAgents(
         home,
         {
           id: engineId,
