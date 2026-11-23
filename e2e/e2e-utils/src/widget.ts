@@ -119,6 +119,7 @@ export async function loginWidget(page: Page, path = '/', projectDir = testProje
   const origin = rpcSocketOrigin(page)
   await page.goto(link, {waitUntil: 'domcontentloaded', timeout: 60_000})
   recordedEngineBase(projectDir, await origin)
+  await expect(page).not.toHaveURL(/conciv_otp=/)
   await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()
 }
 

@@ -6,19 +6,22 @@ test.describe('signing in to the widget', () => {
 
   test('the user signs in by magic link and the widget opens on a tanstack start page with no error, also while the page is still hydrating', async ({
     page,
+    request,
   }) => {
     const hydrationHold = '/api/hydration-hold'
     const failures = collectFailures(page)
     await loginWidget(page)
-    const holding = page.waitForRequest((request) => new URL(request.url()).pathname === hydrationHold)
+    const holding = page.waitForRequest((sent) => new URL(sent.url()).pathname === hydrationHold)
     await page.goto('/?hold=true', {waitUntil: 'domcontentloaded'})
     await holding
     try {
-      await page.getByRole('button', {name: 'Open conciv chat'}).click()
+      const launcher = page.getByRole('button', {name: 'Open conciv chat'})
+      await expect(launcher).toBeVisible()
+      await launcher.click()
       await expect(page.getByRole('tab', {name: 'Chat'})).toBeVisible()
       await expect(page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible()
     } finally {
-      await page.request.post(hydrationHold)
+      await request.post(hydrationHold)
     }
 
     await page.getByRole('button', {name: /^Theme mode: auto/}).press('Enter')
