@@ -1,6 +1,5 @@
 import {Effect, Fiber, Scope, Stream, SubscriptionRef, type ManagedRuntime} from 'effect'
-import {createMemo, from, onCleanup, untrack, type Accessor} from 'solid-js'
-import {createTanstackQueryUtils, useQuery} from '@conciv/client'
+import {createMemo, from, onCleanup, type Accessor} from 'solid-js'
 import {createKeyed, type MountedSession, type SetupContext} from '@conciv/plugin/experimental'
 import type {terminalDeclarations} from './stores.js'
 import {followDeletedSessions, runTerminal} from './terminal-driver.js'
@@ -26,25 +25,14 @@ function follow<A>(runtime: TerminalRuntime, ref: SubscriptionRef.SubscriptionRe
   }, SubscriptionRef.getUnsafe(ref))
 }
 
-function readModels(ctx: TerminalContext, input: {sessionId: string}, options: {signal?: AbortSignal} = {}) {
-  const session = untrack(() => ctx.sessions.current())
-  if (!session || session.id !== input.sessionId)
-    throw new Error(`the terminal read ${input.sessionId} after it was left`)
-  return session.server.client.meta.models(input, options)
-}
-
 export function createTerminalState(ctx: TerminalContext, runtime: TerminalRuntime, scope: Scope.Scope) {
-  const readSessionId = createMemo((previous: string | undefined) => ctx.sessions.current()?.id ?? previous)
-  const modelsUtils = createTanstackQueryUtils(
-    {terminal: (input: {sessionId: string}, options?: {signal?: AbortSignal}) => readModels(ctx, input, options)},
-    {path: ['meta', 'models']},
-  )
-  const read = useQuery(() => ({
-    ...modelsUtils.terminal.queryOptions({input: {sessionId: readSessionId() ?? ''}}),
-    enabled: readSessionId() !== undefined,
-    retry: false,
-    refetchOnWindowFocus: false,
-  }))
+  const readSession = createMemo((previous: MountedSession | undefined) => ctx.sessions.current() ?? previous)
+  const models = () => readSession()?.server.data.meta.models
+  const syncModels = (session: MountedSession) =>
+    void session.server.data.meta.models.sync(session.id).catch((cause: unknown) => {
+      console.error('[terminal] reading the session models failed', cause)
+    })
+  createKeyed(readSession, syncModels, {equals: (previous, next) => previous.key === next.key})
   const driver = runtime.runSync(
     runTerminal({
       toast: (message) => void ctx.toast.show({title: message, variant: 'error'}),
@@ -58,8 +46,9 @@ export function createTerminalState(ctx: TerminalContext, runtime: TerminalRunti
   const run = follow(runtime, driver.state)
   const send = (event: TerminalEvent) => void runtime.runFork(driver.dispatch(event))
 
-  const meta = (sessionId: string) => (readSessionId() === sessionId && !read.isPending ? read.data : undefined)
-  const models = (sessionId: string) => meta(sessionId)?.models ?? []
+  const meta = (sessionId: string) => (readSession()?.id === sessionId ? models()?.get(sessionId) : undefined)
+  const failed = (sessionId: string) => readSession()?.id === sessionId && models()?.failed(sessionId) === true
+  const listedModels = (sessionId: string) => meta(sessionId)?.models ?? []
   const key = (sessionId: string) => `${sessionId}:${run().generation}`
   const busy = (sessionId: string) => {
     const live = run().live
@@ -70,7 +59,7 @@ export function createTerminalState(ctx: TerminalContext, runtime: TerminalRunti
 
   const spawnModel = (sessionId: string) => {
     const listed = (model: string | null | undefined): model is string =>
-      typeof model === 'string' && models(sessionId).some((entry) => entry.id === model)
+      typeof model === 'string' && listedModels(sessionId).some((entry) => entry.id === model)
     const picked = [ctx.stores.prefs.value.sessions[sessionId], ctx.stores.prefs.value.model].find(listed)
     return picked ?? meta(sessionId)?.defaultModel ?? undefined
   }
@@ -111,12 +100,17 @@ export function createTerminalState(ctx: TerminalContext, runtime: TerminalRunti
     supported: (sessionId: string) => meta(sessionId)?.harness.persistentPty,
     ready: (sessionId: string) => {
       const known = meta(sessionId)
-      return known ? known.harness.persistentPty === true : read.errorUpdateCount > 0
+      return known ? known.harness.persistentPty === true : failed(sessionId)
     },
     meta,
-    modelsFailed: (sessionId: string) => meta(sessionId) === undefined && read.isError,
-    modelsLoading: (sessionId: string) => meta(sessionId) === undefined && !read.isError,
-    reloadModels: () => void read.refetch(),
+    modelsFailed: (sessionId: string) => meta(sessionId) === undefined && failed(sessionId),
+    modelsLoading: (sessionId: string) => meta(sessionId) === undefined && !failed(sessionId),
+    reloadModels: () => {
+      const session = readSession()
+      if (!session) return
+      session.server.data.meta.models.invalidate(session.id)
+      syncModels(session)
+    },
     spawnModel,
     shownModel,
     key,

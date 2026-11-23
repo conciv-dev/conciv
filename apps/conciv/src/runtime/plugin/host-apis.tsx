@@ -58,6 +58,7 @@ import {engineOlderThanWidget, engineVersionQueryOptions} from '../../shell/engi
 import {useNotices} from '../../shell/notice-context'
 import type {NoticeTone} from '../../shell/notices'
 import {Persist, persisted, removePersisted} from '../persistence/storage'
+import {createServerData} from './server-data'
 import {
   createHostApiAttachState,
   selectAttachAttempt,
@@ -138,7 +139,9 @@ export function createHostApis() {
   const memory = new Map<string, ReturnType<Storage['memory']>>()
   const current = () => attached()
   const located = createLocatedWrites()
-  const client = useAppData().client
+  const appData = useAppData()
+  const client = appData.client
+  const data = createServerData(appData.utils, useAppQueryClient())
   const unavailable = Conciv.make(createORPCClient<RpcClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}), {
     server: () => UNAVAILABLE,
   })
@@ -156,6 +159,7 @@ export function createHostApis() {
       return apiBase()
     },
     client,
+    data,
     local: true,
     builtin: true,
     get compatible() {
