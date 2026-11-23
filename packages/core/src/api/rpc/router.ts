@@ -629,11 +629,11 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
     },
     meta: {
-      models: os.meta.models.handler(async ({input}) => {
+      models: os.meta.models.handler(async ({input, signal = new AbortController().signal}) => {
         const harness = await chat.harnessFor(input.sessionId)
         const [models, login] = await Promise.all([
-          resolveHarnessModels(harness, {signal: chat.signal}),
-          readHarnessLogin(harness, chat.signal, chat.log),
+          resolveHarnessModels(harness, {signal}),
+          readHarnessLogin(harness, signal, chat.log),
         ])
         return {
           models,
@@ -642,10 +642,8 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
           login,
         }
       }),
-      harnesses: os.meta.harnesses.handler(async () => ({
-        harnesses: await Promise.all(
-          chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, chat.signal, chat.log)),
-        ),
+      harnesses: os.meta.harnesses.handler(async ({signal = new AbortController().signal}) => ({
+        harnesses: await Promise.all(chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, signal, chat.log))),
         defaultHarness: chat.defaultHarness.id,
       })),
       commands: os.meta.commands.handler(({input, context}) =>

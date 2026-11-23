@@ -83,7 +83,7 @@ describe('the claude login check', () => {
     const hung = claude(ConfigProvider.fromEnvRecord({PATH: hungClaude.path, CLAUDE_CONFIG_DIR: configDir}))
     expect(await hung.login({signal})).toEqual(notLoggedIn)
     hungClaude.release()
-    await expect(hung.models({signal})).rejects.toThrow()
+    await expect(hung.models()).rejects.toThrow()
 
     const loggedIn = claude(
       ConfigProvider.fromEnvRecord({
@@ -93,13 +93,13 @@ describe('the claude login check', () => {
       }),
     )
     expect(await loggedIn.login({signal})).toEqual(notLoggedIn)
-    await loggedIn.models({signal})
+    await loggedIn.models()
     expect(await loggedIn.login({signal})).toEqual({loggedIn: true})
 
     const loggedOut = claude(ConfigProvider.fromEnvRecord({PATH: claudeOnPath.path, CLAUDE_CONFIG_DIR: configDir}))
     expect(await loggedOut.login({signal})).toEqual({loggedIn: true})
     expect(await loggedOut.login({signal, refresh: true})).toEqual({loggedIn: true})
-    await loggedOut.models({signal})
+    await loggedOut.models()
     expect(await loggedOut.login({signal})).toEqual(notLoggedIn)
   })
 })

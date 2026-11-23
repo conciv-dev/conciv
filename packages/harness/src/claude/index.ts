@@ -36,7 +36,7 @@ export function claude(provider: ConfigProvider.ConfigProvider) {
     id: 'claude',
     binName: 'claude',
     displayName: 'Claude',
-    models: ({signal}) => claudeSdkModels({signal, env: readProbeEnv(provider)}),
+    models: () => claudeSdkModels({env: readProbeEnv(provider)}),
     defaultModel: 'opus',
     capabilities: {
       resume: true,
@@ -53,7 +53,7 @@ export function claude(provider: ConfigProvider.ConfigProvider) {
     init: claudeInit,
     chatConfig: claudeChatConfig,
     commands: (ctx) => claudeSdkCommands(ctx, readProbeEnv(provider)),
-    login: ({signal, refresh}) => claudeSdkLogin({signal, refresh: refresh ?? false, env: readProbeEnv(provider)}),
+    login: ({refresh}) => claudeSdkLogin({refresh: refresh ?? false, env: readProbeEnv(provider)}),
     history: claudeHistory(configDir),
     tty: {command: claudeTtyCommand},
     resume: {command: ({nativeId}) => ({bin: 'claude', args: claudeSessionArgs(nativeId, true)})},

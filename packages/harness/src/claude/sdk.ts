@@ -58,11 +58,10 @@ export function __commandsCacheSet(cwd: string, commands: HarnessCommand[]): voi
 
 const PROBE_START_TIMEOUT_MS = 30_000
 
-async function probe(options: Options, signal?: AbortSignal): Promise<SDKControlInitializeResponse> {
+async function probe(options: Options): Promise<SDKControlInitializeResponse> {
   const {query} = await loadClaudeAgentSdk()
   const input = makeInputQueue()
-  const bound = AbortSignal.timeout(PROBE_START_TIMEOUT_MS)
-  const abortController = followSignal(signal ? AbortSignal.any([signal, bound]) : bound)
+  const abortController = followSignal(AbortSignal.timeout(PROBE_START_TIMEOUT_MS))
   const session = query({
     prompt: input.stream,
     options: {...options, pathToClaudeCodeExecutable: CLAUDE_BIN, abortController},
@@ -143,9 +142,9 @@ function followSignal(signal: AbortSignal): AbortController {
   return controller
 }
 
-function probeListed(env: ClaudeProbeEnv, signal?: AbortSignal): Promise<SDKControlInitializeResponse> {
+function probeListed(env: ClaudeProbeEnv): Promise<SDKControlInitializeResponse> {
   const before = probeState.current
-  return probe({cwd: process.cwd(), env}, signal)
+  return probe({cwd: process.cwd(), env})
     .then((init) => {
       listedModels(init.models)
       return init
@@ -162,10 +161,10 @@ function probeListed(env: ClaudeProbeEnv, signal?: AbortSignal): Promise<SDKCont
     )
 }
 
-type ProbeContext = {signal: AbortSignal; env: ClaudeProbeEnv}
+type ProbeContext = {env: ClaudeProbeEnv}
 
-function startChecking({signal, env}: ProbeContext): Promise<SDKControlInitializeResponse> {
-  const pending = probeListed(env, signal)
+function startChecking({env}: ProbeContext): Promise<SDKControlInitializeResponse> {
+  const pending = probeListed(env)
   probeState.current = {type: 'checking', probe: pending}
   return pending
 }
