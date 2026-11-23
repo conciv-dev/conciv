@@ -1,16 +1,18 @@
-import {existsSync, readFileSync, writeFileSync} from 'node:fs'
+import {writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {structuredPatch} from 'diff'
 import picocolors from 'picocolors'
+import {readOptionalText} from '../../interrupt.js'
 import type {InitContext} from '../../pipeline.js'
 
 type ConfigFile = {name: string; path: string; content: string}
 
-export function readConfig(cwd: string, configFile: string | null): ConfigFile | null {
+export async function readConfig(cwd: string, configFile: string | null): Promise<ConfigFile | null> {
   if (configFile === null) return null
   const path = join(cwd, configFile)
-  if (!existsSync(path)) return null
-  return {name: configFile, path, content: readFileSync(path, 'utf8')}
+  const content = await readOptionalText(path)
+  if (content === null) return null
+  return {name: configFile, path, content}
 }
 
 function colorDiffLine(line: string): string {
@@ -29,8 +31,8 @@ function coloredDiff(name: string, before: string, after: string): string {
   return [...header, ...body].join('\n')
 }
 
-export function writeConfigChange(ctx: InitContext, config: ConfigFile, output: string): void {
+export async function writeConfigChange(ctx: InitContext, config: ConfigFile, output: string): Promise<void> {
   ctx.backup({path: config.path, content: config.content})
-  writeFileSync(config.path, output)
+  await writeFile(config.path, output)
   ctx.note({title: config.name, body: coloredDiff(config.name, config.content, output)})
 }

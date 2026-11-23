@@ -1,8 +1,8 @@
-import {existsSync, readFileSync, writeFileSync} from 'node:fs'
+import {writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {CONCIV_BIN, CONCIV_COMMAND_GUIDE, CONCIV_RANKING_SENTENCE} from '@conciv/harness-init/agent-guide'
 import {harnessAgentsMdNote, type HarnessId} from '../../harness-detect.js'
-import {captureFile} from '../../interrupt.js'
+import {captureFile, pathExists, readOptionalText} from '../../interrupt.js'
 import type {ManualCard} from '../../ledger.js'
 import type {InitContext, InitStep} from '../../pipeline.js'
 
@@ -56,32 +56,38 @@ function markerSpan(content: string): MarkerSpan {
   return {kind: 'block', start, end: end + endMarker.length}
 }
 
-function currentSpan(file: string): string | null {
-  if (!existsSync(file)) return null
-  const content = readFileSync(file, 'utf8')
+async function currentSpan(file: string): Promise<string | null> {
+  const content = await readOptionalText(file)
+  if (content === null) return null
   const span = markerSpan(content)
   if (span.kind !== 'block') return null
   return content.slice(span.start, span.end)
 }
 
-function upsertSection(file: string, section: string): void {
-  if (!existsSync(file)) {
-    writeFileSync(file, `${section}\n`)
+async function upsertSection(file: string, section: string): Promise<void> {
+  const content = await readOptionalText(file)
+  if (content === null) {
+    await writeFile(file, `${section}\n`)
     return
   }
-  const content = readFileSync(file, 'utf8')
   const span = markerSpan(content)
   if (span.kind === 'mismatched') return
   if (span.kind === 'absent') {
     const separator = content.endsWith('\n') ? '\n' : '\n\n'
-    writeFileSync(file, `${content}${separator}${section}\n`)
+    await writeFile(file, `${content}${separator}${section}\n`)
     return
   }
-  writeFileSync(file, `${content.slice(0, span.start)}${section}${content.slice(span.end)}`)
+  await writeFile(file, `${content.slice(0, span.start)}${section}${content.slice(span.end)}`)
 }
 
-function mismatchedTargets(cwd: string): string[] {
-  return targets(cwd).filter((file) => existsSync(file) && markerSpan(readFileSync(file, 'utf8')).kind === 'mismatched')
+async function mismatchedTargets(cwd: string): Promise<string[]> {
+  const found = await Promise.all(
+    (await targets(cwd)).map(async (file) => {
+      const content = await readOptionalText(file)
+      return content !== null && markerSpan(content).kind === 'mismatched' ? file : null
+    }),
+  )
+  return found.filter((file) => file !== null)
 }
 
 const CLAUDE_IMPORT = '@AGENTS.md'
@@ -90,35 +96,37 @@ function resolveClaudeFile(cwd: string): string {
   return join(cwd, 'CLAUDE.md')
 }
 
-function importsAgents(file: string): boolean {
-  return readFileSync(file, 'utf8')
-    .split('\n')
-    .some((line) => line.trim() === CLAUDE_IMPORT)
+function importsAgents(content: string): boolean {
+  return content.split('\n').some((line) => line.trim() === CLAUDE_IMPORT)
 }
 
-function targets(cwd: string): string[] {
+async function targets(cwd: string): Promise<string[]> {
   const agentsFile = join(cwd, 'AGENTS.md')
   const claudeFile = resolveClaudeFile(cwd)
-  if (existsSync(claudeFile) && !importsAgents(claudeFile)) return [agentsFile, claudeFile]
+  const claude = await readOptionalText(claudeFile)
+  if (claude !== null && !importsAgents(claude)) return [agentsFile, claudeFile]
   return [agentsFile]
 }
 
-function needsClaudeImport(cwd: string, consented: HarnessId[]): boolean {
-  return consented.includes('claude') && !existsSync(resolveClaudeFile(cwd))
+async function needsClaudeImport(cwd: string, consented: HarnessId[]): Promise<boolean> {
+  return consented.includes('claude') && !(await pathExists(resolveClaudeFile(cwd)))
 }
 
-function sectionCurrent(cwd: string, section: string, consented: HarnessId[]): boolean {
-  return !needsClaudeImport(cwd, consented) && targets(cwd).every((file) => currentSpan(file) === section)
+async function sectionCurrent(cwd: string, section: string, consented: HarnessId[]): Promise<boolean> {
+  if (await needsClaudeImport(cwd, consented)) return false
+  const spans = await Promise.all((await targets(cwd)).map(currentSpan))
+  return spans.every((span) => span === section)
 }
 
-function wouldEdit(cwd: string, consented: HarnessId[]): string[] {
-  const files = needsClaudeImport(cwd, consented) ? [...targets(cwd), resolveClaudeFile(cwd)] : targets(cwd)
+async function wouldEdit(cwd: string, consented: HarnessId[]): Promise<string[]> {
+  const found = await targets(cwd)
+  const files = (await needsClaudeImport(cwd, consented)) ? [...found, resolveClaudeFile(cwd)] : found
   return files.map((file) => file.slice(cwd.length + 1))
 }
 
 export function agentsMdStep(consented: () => HarnessId[]): InitStep {
   const detect = async (ctx: InitContext): Promise<'missing' | 'present'> =>
-    sectionCurrent(ctx.cwd, agentsSection(consented()), consented()) ? 'present' : 'missing'
+    (await sectionCurrent(ctx.cwd, agentsSection(consented()), consented())) ? 'present' : 'missing'
   return {
     id: 'agents',
     title: 'Teach agents the conciv CLI',
@@ -127,10 +135,10 @@ export function agentsMdStep(consented: () => HarnessId[]): InitStep {
     detect,
     plan: async (ctx) => ({
       summary: 'add a marked conciv section to AGENTS.md teaching the conciv tools CLI',
-      wouldEdit: wouldEdit(ctx.cwd, consented()),
+      wouldEdit: await wouldEdit(ctx.cwd, consented()),
     }),
     apply: async (ctx) => {
-      const mismatched = mismatchedTargets(ctx.cwd)
+      const mismatched = await mismatchedTargets(ctx.cwd)
       if (mismatched.length > 0) {
         return {
           status: 'manual',
@@ -139,14 +147,14 @@ export function agentsMdStep(consented: () => HarnessId[]): InitStep {
         }
       }
       const section = agentsSection(consented())
-      for (const file of targets(ctx.cwd)) {
-        ctx.backup(captureFile(file))
-        upsertSection(file, section)
+      for (const file of await targets(ctx.cwd)) {
+        ctx.backup(await captureFile(file))
+        await upsertSection(file, section)
       }
-      if (needsClaudeImport(ctx.cwd, consented())) {
+      if (await needsClaudeImport(ctx.cwd, consented())) {
         const claudeFile = resolveClaudeFile(ctx.cwd)
-        ctx.backup(captureFile(claudeFile))
-        writeFileSync(claudeFile, `${CLAUDE_IMPORT}\n`)
+        ctx.backup(await captureFile(claudeFile))
+        await writeFile(claudeFile, `${CLAUDE_IMPORT}\n`)
       }
       return {status: 'done'}
     },

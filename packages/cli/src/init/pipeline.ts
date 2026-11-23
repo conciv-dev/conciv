@@ -7,7 +7,7 @@ import {CONCIV_BIN} from '@conciv/harness-init/agent-guide'
 import {detectProject, type Detected} from './detect.js'
 import {detectHarnesses, type FoundHarness} from '@conciv/harness-init/detect'
 import {harnessFileInits, harnessIds, type HarnessId} from './harness-detect.js'
-import {guardBackups, onInterrupt, type FileBackup} from './interrupt.js'
+import {guardBackups, onInterrupt, pathExists, type FileBackup} from './interrupt.js'
 import type {LedgerEntry, ManualCard, StepNote, StepOutcome, StepPlan, StepStatus} from './ledger.js'
 import {docsPackStep} from './steps/docs-pack.js'
 import {fallbackStep} from './steps/framework/fallback.js'
@@ -31,7 +31,6 @@ import {
   type PlanRow,
 } from './wizard.js'
 import {execFile, spawn} from 'node:child_process'
-import {existsSync} from 'node:fs'
 import {join} from 'node:path'
 import {promisify} from 'node:util'
 
@@ -158,7 +157,7 @@ type TreeState = {kind: 'clean'} | {kind: 'dirty'} | {kind: 'no-repository'} | {
 const NO_REPOSITORY = 'not a git repository'
 
 export async function preflight(cwd: string, force: boolean): Promise<PreflightResult> {
-  if (!existsSync(join(cwd, 'package.json'))) {
+  if (!(await pathExists(join(cwd, 'package.json')))) {
     return {ok: false, reason: 'no package.json here — run init from your app directory'}
   }
   if (force) return {ok: true}

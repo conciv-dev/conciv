@@ -51,10 +51,10 @@ export function installItStep(add: AddDep, packageManager: string): InitStep {
     title: `Install ${itName}`,
     running: `Installing ${itName} with ${packageManager}…`,
     completed: `Installed ${itName}`,
-    detect: async (ctx) => (hasIt(readManifest(ctx.cwd)) ? 'present' : 'missing'),
+    detect: async (ctx) => (hasIt(await readManifest(ctx.cwd)) ? 'present' : 'missing'),
     plan: async () => ({summary: `add ${itName} as a dev dependency`, wouldEdit: ['package.json']}),
     apply: async (ctx) => {
-      ctx.backup(captureFile(join(ctx.cwd, 'package.json')))
+      ctx.backup(await captureFile(join(ctx.cwd, 'package.json')))
       const failure = await add(itName, {cwd: ctx.cwd, signal: ctx.signal}).then(
         () => null,
         (error: unknown) => (error instanceof Error ? error.message : String(error)),
@@ -62,7 +62,7 @@ export function installItStep(add: AddDep, packageManager: string): InitStep {
       if (failure === null) return {status: 'done'}
       return {status: 'manual', cards: [await installCard(ctx.cwd)], detail: failure}
     },
-    verify: async (ctx) => hasIt(readManifest(ctx.cwd)),
+    verify: async (ctx) => hasIt(await readManifest(ctx.cwd)),
     manualCard: () => ({
       title: `Install ${itName}`,
       body: `Add ${itName} as a dev dependency with your package manager, then re-run conciv init.`,

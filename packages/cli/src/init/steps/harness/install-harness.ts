@@ -1,4 +1,4 @@
-import {mkdirSync, writeFileSync} from 'node:fs'
+import {mkdir, writeFile} from 'node:fs/promises'
 import {dirname, relative} from 'node:path'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {HarnessInit, HarnessInitCommand, HarnessInitPlan} from '@conciv/protocol/harness-types'
@@ -21,11 +21,11 @@ function buildProject(cwd: string): {cwd: string; stateDir: string} {
   return {cwd, stateDir: concivStateDir(cwd)}
 }
 
-function writePlanFiles(ctx: InitContext, plan: HarnessInitPlan): void {
+async function writePlanFiles(ctx: InitContext, plan: HarnessInitPlan): Promise<void> {
   for (const file of plan.files) {
-    mkdirSync(dirname(file.path), {recursive: true})
-    ctx.backup(captureFile(file.path))
-    writeFileSync(file.path, file.contents, {mode: file.mode ?? 0o600})
+    await mkdir(dirname(file.path), {recursive: true})
+    ctx.backup(await captureFile(file.path))
+    await writeFile(file.path, file.contents, {mode: file.mode ?? 0o600})
   }
 }
 
@@ -48,7 +48,7 @@ async function applyInit(
 ): Promise<StepOutcome> {
   if (!consented().includes(init.harnessId)) return {status: 'skipped', detail: 'not selected'}
   const plan = init.plan(buildProject(ctx.cwd))
-  writePlanFiles(ctx, plan)
+  await writePlanFiles(ctx, plan)
   for (const command of plan.commands) {
     const failed = await runCommand(ctx, io, command)
     if (failed !== null) return {status: 'manual', cards: [init.manualCard(plan.root)], detail: failed}

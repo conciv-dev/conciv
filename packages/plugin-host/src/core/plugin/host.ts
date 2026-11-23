@@ -1,6 +1,5 @@
 export * as PluginHost from './host.js'
 
-import {mkdirSync} from 'node:fs'
 import path from 'node:path'
 import {Plugin} from '@conciv/plugin/effect'
 import * as Bundler from '@conciv/plugin/schema/bundler'
@@ -23,6 +22,7 @@ import {Tool} from '../tool.js'
 import {Permission} from '../permission.js'
 import {PluginHooks} from './hooks.js'
 import {Global} from '../../util/global.js'
+import {FSUtil} from '../../util/fs-util.js'
 import type {Interface} from '../plugin.js'
 
 const mutable = <T>(value: T) => value as DeepMutable<T>
@@ -59,6 +59,9 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
   const servers = yield* ServersSource
   const bundler = yield* BundlerSource
   const global = yield* Global.Service
+  const fs = yield* FSUtil.Service
+  const storageDirectory = path.join(global.state, 'plugin-storage', encodePluginId(pluginId))
+  yield* fs.ensureDir(storageDirectory)
   const locationInfo = (current: Location.Interface = location) =>
     Location.Info.make({
       directory: current.directory,
@@ -164,7 +167,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
           })
         }),
     },
-    storage: storage(kv, pluginId, global.state),
+    storage: storage(kv, pluginId, storageDirectory),
     tool: {
       transform: (callback) =>
         tools.transform((editor) => {
@@ -234,21 +237,17 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
   return context
 })
 
-export function storage(kv: KV.Interface, pluginId: string, stateRoot: string): Plugin.Context['storage'] {
-  const encoded = pluginId
+function encodePluginId(pluginId: string) {
+  return pluginId
     .split('')
     .map((value) => value.charCodeAt(0).toString(16).padStart(4, '0'))
     .join('')
-  const namespace = `plugin:${encoded}:`
-  const directory = path.join(stateRoot, 'plugin-storage', encoded)
-  let made = false
+}
+
+export function storage(kv: KV.Interface, pluginId: string, directory: string): Plugin.Context['storage'] {
+  const namespace = `plugin:${encodePluginId(pluginId)}:`
   return {
-    get directory() {
-      if (made) return directory
-      mkdirSync(directory, {recursive: true})
-      made = true
-      return directory
-    },
+    directory,
     get: (key) => kv.get(namespace + key),
     set: (key, value) => kv.set(namespace + key, value),
     remove: (key) => kv.remove(namespace + key),

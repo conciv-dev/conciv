@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs'
+import {readFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {z} from 'zod'
 
@@ -9,8 +9,8 @@ const manifestSchema = z.object({
 
 export type PackageJson = z.infer<typeof manifestSchema>
 
-export function readManifest(cwd: string): PackageJson {
-  const parsed = manifestSchema.safeParse(JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8')))
+export async function readManifest(cwd: string): Promise<PackageJson> {
+  const parsed = manifestSchema.safeParse(JSON.parse(await readFile(join(cwd, 'package.json'), 'utf8')))
   if (!parsed.success) return {}
   return parsed.data
 }

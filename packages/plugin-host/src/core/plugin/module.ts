@@ -8,7 +8,6 @@ import {Hash} from '../../util/hash.js'
 import {Npm} from '../../util/npm.js'
 import {Deferred, Duration, Effect, FiberSet, PubSub, RcMap, Schema, Stream} from 'effect'
 import path from 'path'
-import {existsSync} from 'node:fs'
 import {readFile, stat} from 'node:fs/promises'
 import {z} from 'zod'
 import {fileURLToPath, pathToFileURL} from 'url'
@@ -117,7 +116,7 @@ const load = Effect.fn('PluginModule.load')(function* (
   const entrypoints: Host.Entrypoints =
     local && (yield* Effect.promise(() => stat(operation.target))).isFile()
       ? {server: pathToFileURL(operation.target).href}
-      : yield* Effect.sync(() => Host.resolve(installed ?? {directory: operation.target}))
+      : yield* Effect.promise(() => Host.resolve(installed ?? {directory: operation.target}))
   const entrypoint = entrypoints.server
   const found = entrypoint || entrypoints.experimental
   if (!local && options?.install === false && !found) return {pending: true as const}
@@ -127,7 +126,7 @@ const load = Effect.fn('PluginModule.load')(function* (
     ? yield* loadServer(entrypoint, local ? sources : undefined, installed?.revision)
     : undefined
   const plugin = server?.plugin ?? {
-    id: Host.packageId(installed ?? {directory: operation.target}),
+    id: yield* Effect.promise(() => Host.packageId(installed ?? {directory: operation.target})),
     effect: () => Effect.void,
   }
   const revision = JSON.stringify([operation, server ? server.version : installed?.revision])
@@ -187,13 +186,21 @@ const Manifest = z.record(
 
 const readChunks = Effect.fn('PluginModule.readChunks')(function* (entry: string) {
   const manifest = `${entry}.manifest.json`
-  if (!existsSync(manifest)) return {start: [], files: new Map()} satisfies Chunks
   const refusal = (problem: string, cause?: unknown) =>
     makeLoadError({message: `The chunk manifest of ${entry} ${problem}`, cause})
+  const text = yield* Effect.tryPromise({
+    try: () =>
+      readFile(manifest, 'utf8').catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return undefined
+        throw error
+      }),
+    catch: (cause) => refusal("can't be read", cause),
+  })
+  if (text === undefined) return {start: [], files: new Map()} satisfies Chunks
   const records = new Map(
     Object.entries(
-      yield* Effect.tryPromise({
-        try: async () => Manifest.parse(JSON.parse(await readFile(manifest, 'utf8'))),
+      yield* Effect.try({
+        try: () => Manifest.parse(JSON.parse(text)),
         catch: (cause) => refusal('is malformed', cause),
       }),
     ),

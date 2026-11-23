@@ -40,8 +40,8 @@ function transformConfig(content: string, name: FamilyName): Transform {
   return addToPluginsArray(content, 'conciv', pluginModule(name), pluginCall(style), {importStyle: 'default'})
 }
 
-function detectWired(cwd: string, configFile: string | null, name: FamilyName): 'missing' | 'present' {
-  const config = readConfig(cwd, configFile)
+async function detectWired(cwd: string, configFile: string | null, name: FamilyName): Promise<'missing' | 'present'> {
+  const config = await readConfig(cwd, configFile)
   if (config === null) return 'missing'
   const style = moduleStyle(config.content)
   if (style === 'ambiguous') return 'missing'
@@ -57,20 +57,20 @@ export function webpackFamilyStep(detected: Detected): InitStep {
     title: `Wire the ${name} config`,
     running: `Wiring the ${name} config…`,
     completed: `Wired the ${name} config`,
-    detect: async (ctx) => detectWired(ctx.cwd, detected.configFile, name),
+    detect: (ctx) => detectWired(ctx.cwd, detected.configFile, name),
     plan: async () => ({
       summary: `add the ${pluginModule(name)} plugin to ${detected.configFile ?? `your ${name} config`}`,
       wouldEdit: detected.configFile === null ? [] : [detected.configFile],
     }),
     apply: async (ctx) => {
-      const config = readConfig(ctx.cwd, detected.configFile)
+      const config = await readConfig(ctx.cwd, detected.configFile)
       if (config === null) return {status: 'manual', cards: [configCard(name)]}
       const transformed = transformConfig(config.content, name)
       if (!transformed.matched || transformed.output === null) return {status: 'manual', cards: [configCard(name)]}
-      writeConfigChange(ctx, config, transformed.output)
+      await writeConfigChange(ctx, config, transformed.output)
       return {status: 'done'}
     },
-    verify: async (ctx) => detectWired(ctx.cwd, detected.configFile, name) === 'present',
+    verify: async (ctx) => (await detectWired(ctx.cwd, detected.configFile, name)) === 'present',
     manualCard: () => configCard(name),
   }
 }
