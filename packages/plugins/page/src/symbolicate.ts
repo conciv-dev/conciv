@@ -1,13 +1,15 @@
 import {readFile, realpath} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import {resolve, sep} from 'node:path'
-import {AnyMap, originalPositionFor} from '@jridgewell/trace-mapping'
-import {Duration, Effect} from 'effect'
+import {AnyMap, originalPositionFor, type TraceMap} from '@jridgewell/trace-mapping'
+import {Cache, Duration, Effect, Exit} from 'effect'
 import type {RawFrame, SourceLoc} from '@conciv/contract'
 
 const SERVER_PREFIX = /^about:\/\/React\/Server\//
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
 const SOURCE_FETCH_TIMEOUT_MS = 5000
+const SOURCE_MAP_CAPACITY = 64
+const SOURCE_MAP_TIME_TO_LIVE = Duration.seconds(30)
 
 function normalizeUrl(url: string): string {
   return url.replace(SERVER_PREFIX, '').split('?')[0] ?? url
@@ -53,8 +55,7 @@ function loadSourceMap(chunkUrl: string, root: string, fetchImpl: typeof fetch):
   )
 }
 
-function firstPosition(map: string, frame: RawFrame, line: number): SourceLoc | null {
-  const traced = new AnyMap(map)
+function firstPosition(traced: TraceMap, frame: RawFrame, line: number): SourceLoc | null {
   const position = [(frame.column ?? 1) - 1, frame.column ?? 0, 0]
     .map((column) => originalPositionFor(traced, {line, column: Math.max(0, column)}))
     .find((candidate) => candidate.source)
@@ -62,25 +63,40 @@ function firstPosition(map: string, frame: RawFrame, line: number): SourceLoc | 
   return {file: position.source, line: position.line ?? line, column: position.column ?? 0}
 }
 
-function locate(frame: RawFrame, root: string, fetchImpl: typeof fetch): Effect.Effect<SourceLoc | null> {
-  const {fileName, line} = frame
-  if (fileName === undefined || line === undefined) return Effect.succeed(null)
-  return loadSourceMap(fileName, root, fetchImpl).pipe(
-    Effect.flatMap((map) => Effect.try(() => firstPosition(map, frame, line))),
-    Effect.orElseSucceed(() => null),
+function parseSourceMap(
+  chunkUrl: string,
+  root: string,
+  fetchImpl: typeof fetch,
+): Effect.Effect<TraceMap | null, unknown> {
+  return loadSourceMap(chunkUrl, root, fetchImpl).pipe(
+    Effect.flatMap((map) => Effect.try((): TraceMap | null => new AnyMap(map)).pipe(Effect.orElseSucceed(() => null))),
   )
 }
 
-export function symbolicateFrames(
-  frames: RawFrame[],
-  root: string,
-  fetchImpl: typeof fetch = fetch,
-): Effect.Effect<SourceLoc | null> {
-  return Effect.gen(function* () {
-    for (const frame of frames) {
-      const location = yield* locate(frame, root, fetchImpl)
-      if (location && !location.file.includes('node_modules')) return location
-    }
-    return null
+export const makeSymbolicator = Effect.fn('makeSymbolicator')(function* (options: {
+  root: string
+  fetch?: typeof fetch
+}) {
+  const fetchImpl = options.fetch ?? fetch
+  const maps = yield* Cache.makeWith((chunkUrl: string) => parseSourceMap(chunkUrl, options.root, fetchImpl), {
+    capacity: SOURCE_MAP_CAPACITY,
+    timeToLive: (exit) => (Exit.isSuccess(exit) ? SOURCE_MAP_TIME_TO_LIVE : Duration.zero),
   })
-}
+  return {
+    frames: (frames: readonly RawFrame[]): Effect.Effect<SourceLoc | null> =>
+      Effect.gen(function* () {
+        for (const frame of frames) {
+          const {fileName, line} = frame
+          if (fileName === undefined || line === undefined) continue
+          const location = yield* Cache.get(maps, fileName).pipe(
+            Effect.flatMap((traced) => Effect.try(() => (traced ? firstPosition(traced, frame, line) : null))),
+            Effect.orElseSucceed(() => null),
+          )
+          if (location && !location.file.includes('node_modules')) return location
+        }
+        return null
+      }),
+  }
+})
+
+export type Symbolicator = Effect.Success<ReturnType<typeof makeSymbolicator>>
