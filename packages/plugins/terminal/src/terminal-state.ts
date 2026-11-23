@@ -42,7 +42,10 @@ export function createTerminalState(ctx: TerminalContext, runtime: TerminalRunti
   const run = follow(runtime, driver.state)
   const send = (event: TerminalEvent) => void runtime.runFork(driver.dispatch(event))
 
-  const meta = (sessionId: string) => (readSession()?.id === sessionId ? readModels()?.data : undefined)
+  const meta = (sessionId: string) => {
+    const models = readModels()
+    return readSession()?.id === sessionId && models && !models.isPending ? models.data : undefined
+  }
   const failed = (sessionId: string) => readSession()?.id === sessionId && readModels()?.isError === true
   const listedModels = (sessionId: string) => meta(sessionId)?.models ?? []
   const key = (sessionId: string) => `${sessionId}:${run().generation}`
