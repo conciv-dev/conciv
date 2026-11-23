@@ -44,7 +44,7 @@ function grabNote(id: GrabId, grab: StoredGrab): ComposerNote {
     origin: GRAB_NOTE_ORIGIN,
     commentId: id,
     label: 'Grabbed element',
-    title: component ?? 'Element',
+    title: component ?? 'Grabbed element',
     ...(where === '' ? {} : {subtitle: where}),
     icon: 'crosshair',
     subject: `the grabbed ${component ? `${component} ` : ''}element ${grab.text}`,
