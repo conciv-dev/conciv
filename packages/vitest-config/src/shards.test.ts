@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {E2E_SHARD_SIZING, planShards, readPackagePart} from './shards.ts'
+import {E2E_SHARD_SIZING, parseTimings, planShards, readPackagePart} from './shards.ts'
 
 describe('the CI shard plan', () => {
   test('splits a package heavier than one shard into parts, one part per shard, and keeps light packages whole', () => {
@@ -45,10 +45,20 @@ describe('the CI shard plan', () => {
     expect(plan.map((shard) => shard.packages)).toEqual([['@conciv/app#1/3'], ['@conciv/app#2/3'], ['@conciv/app#3/3']])
   })
 
-  test('keeps an e2e app whole however heavy it is', () => {
+  test('keeps an e2e app whole however heavy it is, weighing a multi-project app by the sum of its playwright projects', () => {
     const plan = planShards([{name: 'conciv-e2e-next', e2e: true}], {'conciv-e2e-next': 3_000_000}, E2E_SHARD_SIZING)
 
     expect(plan.flatMap((shard) => shard.packages)).toEqual(['conciv-e2e-next'])
+
+    const timings = parseTimings(
+      JSON.stringify({
+        'conciv-e2e-vite-react (chromium)': 100_000,
+        'conciv-e2e-vite-react (firefox-storage-refused)': 13_000,
+        'conciv-e2e-astro': 7_000,
+        'conciv-e2e-init': -1,
+      }),
+    )
+    expect(timings).toEqual({'conciv-e2e-vite-react': 113_000, 'conciv-e2e-astro': 7_000})
   })
 
   test('reads a planned entry as a part only when it ends in index/count, and anything else as the whole package', () => {
