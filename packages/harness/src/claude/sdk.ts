@@ -9,7 +9,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import type {HarnessLoginStatus} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessCommandsContext, HarnessModel} from '@conciv/protocol/harness-types'
-import {mcpServerConfig} from './args.js'
+import {CLAUDE_BIN, mcpServerConfig} from './args.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 
 let claudeAgentSdk: Promise<typeof ClaudeAgentSdk> | undefined
@@ -56,10 +56,17 @@ export function __commandsCacheSet(cwd: string, commands: HarnessCommand[]): voi
   commandsByCwd.set(cwd, commands)
 }
 
-async function probe(options: Options): Promise<SDKControlInitializeResponse> {
+const PROBE_START_TIMEOUT_MS = 30_000
+
+async function probe(options: Options, signal?: AbortSignal): Promise<SDKControlInitializeResponse> {
   const {query} = await loadClaudeAgentSdk()
   const input = makeInputQueue()
-  const session = query({prompt: input.stream, options})
+  const bound = AbortSignal.timeout(PROBE_START_TIMEOUT_MS)
+  const abortController = followSignal(signal ? AbortSignal.any([signal, bound]) : bound)
+  const session = query({
+    prompt: input.stream,
+    options: {...options, pathToClaudeCodeExecutable: CLAUDE_BIN, abortController},
+  })
   try {
     return await session.initializationResult()
   } finally {
@@ -128,7 +135,7 @@ function followSignal(signal: AbortSignal): AbortController {
 }
 
 function probeListed(signal: AbortSignal): Promise<SDKControlInitializeResponse> {
-  return probe({cwd: process.cwd(), abortController: followSignal(signal)}).then((init) => {
+  return probe({cwd: process.cwd()}, signal).then((init) => {
     listedModels(init.models)
     return init
   })

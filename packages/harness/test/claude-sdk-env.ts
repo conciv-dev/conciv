@@ -1,7 +1,10 @@
 import {execFile} from 'node:child_process'
-import {delimiter} from 'node:path'
+import {chmodSync, existsSync, writeFileSync} from 'node:fs'
+import {createRequire} from 'node:module'
+import {delimiter, dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {promisify} from 'node:util'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const LIST_IN_CHILD = [
   "import {ConfigProvider} from 'effect'",
@@ -32,4 +35,15 @@ export function listClaudeSessionsInChild(configDir: string, cwd: string): Promi
 
 export function listOpencodeModelsInChild(binDir: string): Promise<unknown> {
   return runInChild(MODELS_IN_CHILD, [], {...process.env, PATH: `${binDir}${delimiter}${process.env.PATH ?? ''}`})
+}
+
+export function recordedClaudeOnPath(): {path: string; started: () => boolean} {
+  const sdkEntry = createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk')
+  const nativePackage = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}/package.json`
+  const native = join(dirname(createRequire(sdkEntry).resolve(nativePackage)), 'claude')
+  const bin = tempDir('claude-on-path-')
+  const startedFile = join(bin, 'started')
+  writeFileSync(join(bin, 'claude'), `#!/bin/sh\ntouch '${startedFile}'\nexec '${native}' "$@"\n`)
+  chmodSync(join(bin, 'claude'), 0o755)
+  return {path: `${bin}${delimiter}${process.env.PATH ?? ''}`, started: () => existsSync(startedFile)}
 }
