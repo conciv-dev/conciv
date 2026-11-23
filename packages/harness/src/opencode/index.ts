@@ -27,6 +27,7 @@ export function opencode(provider: ConfigProvider.ConfigProvider) {
       slashCommands: 'none',
       imageInput: false,
       init: 'none',
+      login: 'none',
     },
     chatConfig: opencodeChatConfig,
     models: opencodeModels,

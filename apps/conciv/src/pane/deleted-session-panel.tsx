@@ -38,9 +38,9 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
       await clearMovedDraft(appData, keepDraft, props.sessionId)
       return sessionId
     },
-    onSuccess: (sessionId: string) => {
+    onSuccess: async (sessionId: string) => {
+      await pane.replaceSession(sessionId)
       announce('Started a new session')
-      pane.replaceSession(sessionId)
     },
   }))
 
