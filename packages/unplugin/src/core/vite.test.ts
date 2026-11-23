@@ -124,6 +124,11 @@ describe.concurrent('the vite dev server', () => {
   test.for<{name: string; config: InlineConfig; relativeRoot: boolean}>([
     {name: "the client environment's input, with no html page", config: {input: 'src/main.js'}, relativeRoot: false},
     {
+      name: 'a Vite 6 and 7 style build.rollupOptions input',
+      config: {build: {rollupOptions: {input: 'src/main.js'}}},
+      relativeRoot: false,
+    },
+    {
       name: 'a build input under a root given relative to the working folder',
       config: {build: {rolldownOptions: {input: 'src/main.js'}}},
       relativeRoot: true,

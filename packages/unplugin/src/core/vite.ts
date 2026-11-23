@@ -101,19 +101,22 @@ function readInputFiles(input: unknown, root: string): string[] | undefined {
   return files.every((file) => existsSync(file)) ? files : undefined
 }
 
-function addScanEntries(
-  config: {
-    optimizeDeps?: {entries?: string | string[]}
-    input?: unknown
-    build?: {rolldownOptions?: {input?: unknown}}
-  },
-  root: string,
-  files: readonly string[],
-): string[] | undefined {
+type ScanConfig = {
+  optimizeDeps?: {entries?: string | string[]}
+  input?: unknown
+  build?: {rolldownOptions?: {input?: unknown}; rollupOptions?: {input?: unknown}}
+}
+
+function readAppInput(config: ScanConfig): unknown {
+  const build = config.build ?? {}
+  return config.input ?? build.rolldownOptions?.input ?? build.rollupOptions?.input
+}
+
+function addScanEntries(config: ScanConfig, root: string, files: readonly string[]): string[] | undefined {
   if (files.length === 0) return undefined
   const patterns = writeScanEntry(root, files).map(escapeGlob)
   if (config.optimizeDeps?.entries !== undefined) return patterns
-  const input = config.input ?? config.build?.rolldownOptions?.input
+  const input = readAppInput(config)
   if (input === undefined) return [...DEFAULT_SCAN_ENTRIES, ...patterns]
   const inputFiles = readInputFiles(input, root)
   return inputFiles === undefined ? undefined : [...inputFiles.map(escapeGlob), ...patterns]
