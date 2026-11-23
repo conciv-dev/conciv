@@ -1,4 +1,5 @@
-import type {InternalUi} from '@conciv/plugin/experimental'
+import type {Ui} from '@conciv/plugin/experimental'
+import {OpaqueUi, type InternalUi} from '@internal/plugin'
 import {autofocus} from '@solid-primitives/autofocus'
 import {Show, type Accessor, type JSX} from 'solid-js'
 import type {TryItConnectMachine} from './connect-machine.js'
@@ -71,13 +72,18 @@ function Step(props: {
   )
 }
 
-export function ConnectPane(props: {
-  ui: InternalUi
+type ConnectPaneProps = {
   token: string
   state: Accessor<TryItConnectMachine.ConnectState>
   localNetworkAccess: Accessor<LocalNetworkAccessState>
   onCopied: () => void
-}): JSX.Element {
+}
+
+export function ConnectPane(props: ConnectPaneProps & {ui: Ui}): JSX.Element {
+  return <Pane {...props} ui={OpaqueUi.toInternal(props.ui)} />
+}
+
+function Pane(props: ConnectPaneProps & {ui: InternalUi}): JSX.Element {
   const connected = () => {
     const status = props.state().status
     return status === 'holding' || status === 'connected'

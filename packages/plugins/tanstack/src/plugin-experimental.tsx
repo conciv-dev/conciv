@@ -3,16 +3,15 @@ import {ManagedRuntime} from 'effect'
 import {isPlainObject, keyBy, mapKeys, sumBy} from 'es-toolkit'
 import {z} from 'zod'
 import {
-  OpaqueUi,
   Plugin,
   Slot,
   ToolRegistry,
   type IconName,
-  type InternalUi,
   type ToolComponent,
   type ToolProps,
   type Ui,
 } from '@conciv/plugin/experimental'
+import {OpaqueUi, type InternalUi} from '@internal/plugin'
 import {PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
 import {tanstackToolMeta, tanstackToolName, type TanstackToolName} from './client.js'
 import {errorRingLayer} from './error-ring.js'

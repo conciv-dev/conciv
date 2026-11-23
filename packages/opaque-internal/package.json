@@ -1,5 +1,5 @@
 {
-  "name": "@conciv/opaque",
+  "name": "@internal/opaque",
   "version": "0.0.22",
   "private": true,
   "description": "Private to conciv: opaque types as Backstage has them, one object with a public shape and versioned fields only conciv's own packages read.",
@@ -8,20 +8,15 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/conciv-dev/conciv.git",
-    "directory": "packages/opaque"
+    "directory": "packages/opaque-internal"
   },
-  "files": [
-    "dist"
-  ],
   "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+    ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
@@ -30,7 +25,6 @@
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

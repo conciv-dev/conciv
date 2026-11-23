@@ -1,7 +1,8 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {groupBy} from 'es-toolkit'
-import type {InternalBasicToolProps, InternalUi, ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import type {InternalBasicToolProps, InternalUi} from '@internal/plugin'
 
 type ToolInput = ToolProps['input']
 

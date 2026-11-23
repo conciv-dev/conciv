@@ -1,6 +1,6 @@
 import {Effect, Exit, Fiber, Layer, ManagedRuntime, Scope, Stream, SubscriptionRef} from 'effect'
 import {from, onCleanup, type Accessor} from 'solid-js'
-import {OpaqueUi, Plugin, Server, type ServerEntry} from '@conciv/plugin/experimental'
+import {Plugin, Server, type ServerEntry} from '@conciv/plugin/experimental'
 import {connectPorts} from '@conciv/protocol/connect-ports'
 import {connect} from './connect.js'
 import {TryItConnectMachine} from './connect-machine.js'
@@ -55,13 +55,7 @@ const tryIt: Plugin.Definition = Plugin.define({
     const access = follow(runtime, started.access)
     const copied = () => void runtime.runFork(started.connection.dispatch({type: 'copied'}))
     const cover = () => (
-      <ConnectPane
-        ui={OpaqueUi.toInternal(ctx.ui)}
-        token={options.token}
-        state={state}
-        localNetworkAccess={access}
-        onCopied={copied}
-      />
+      <ConnectPane ui={ctx.ui} token={options.token} state={state} localNetworkAccess={access} onCopied={copied} />
     )
 
     ctx.add(Server, () => ({

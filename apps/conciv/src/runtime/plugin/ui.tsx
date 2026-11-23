@@ -1,7 +1,5 @@
 import {children, createUniqueId, For, onCleanup, Show, splitProps, type JSX} from 'solid-js'
 import {
-  OpaqueUi,
-  type InternalStatusDotProps,
   type Ui,
   type UiIconProps,
   type UiMenuCheckbox,
@@ -9,6 +7,7 @@ import {
   type UiMenuRadioGroup,
   type UiMenuSubProps,
 } from '@conciv/plugin/experimental'
+import {OpaqueUi, type InternalStatusDotProps} from '@internal/plugin'
 import {Icon as KitIcon, Markdown} from '@conciv/ui-kit-chat'
 import {BasicTool, Chip, CodeBlock, ErrorBlock, JsonTree, ResultImage, StatusVisual} from '@conciv/ui-kit-chat/tools'
 import {MentionField} from '@conciv/ui-kit-tap'

@@ -43,7 +43,8 @@ Contracts:
 - contract: [contract/README.md](./contract/README.md) - The oRPC contract between core and its clients, with fetch and browser RPC clients.
 - grab: [grab/README.md](./grab/README.md) - Element-grab types, `GrabApi` and the size-bounded attachment serializer.
 - plugin: [plugin/README.md](./plugin/README.md) - `@conciv/plugin`, the plugin SDK: `Plugin.define` for a plugin's engine and browser parts, RPC contracts, registries and stores.
-- opaque: `@conciv/opaque`, private: Backstage's `OpaqueType` as functions; the plugin SDK inlines it for `OpaqueUi`.
+- opaque-internal: `@internal/opaque`, private, source-only: Backstage's `OpaqueType` as functions (Backstage's `packages/opaque-internal`, also `@internal/opaque`).
+- plugin-internal: [plugin-internal/README.md](./plugin-internal/README.md) - `@internal/plugin`, private, source-only, as Backstage's `@internal/frontend`: the opaque definitions (`OpaqueUi`) the app and conciv's own plugins share, inlined into their builds.
 - extensions: [extensions/README.md](./extensions/README.md) - `@conciv/extension-design`, the one package left from the old extension system, out of the release.
 - plugin-testkit: [plugin-testkit/README.md](./plugin-testkit/README.md) - Boots the real engine and widget with the fake model chat for widget and plugin tests: core kit, wire observers and fault injectors.
 
