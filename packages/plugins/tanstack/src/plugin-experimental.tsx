@@ -1,5 +1,5 @@
 import {For, onCleanup, Show, splitProps, type JSX} from 'solid-js'
-import {Effect, Exit, Layer, Scope} from 'effect'
+import {ManagedRuntime} from 'effect'
 import {isPlainObject, keyBy, mapKeys, sumBy} from 'es-toolkit'
 import {z} from 'zod'
 import {Slot, ToolRegistry, type Plugin, type ToolComponent, type ToolProps, type Ui} from '@conciv/plugin/experimental'
@@ -522,15 +522,14 @@ const tanstackCards = {
 const tanstack: Plugin.Definition = defineInternalPlugin({
   setup(ctx) {
     const tree = ctx.use(ReactTree)
-    const scope = Effect.runSync(Scope.make())
-    const services = Effect.runSync(Layer.buildWithScope(errorRingLayer, scope))
-    onCleanup(() => Effect.runFork(Scope.close(scope, Exit.void)))
+    const runtime = ManagedRuntime.make(errorRingLayer)
+    runtime.runSync(runtime.contextEffect)
+    onCleanup(() => void runtime.dispose())
 
     Operations.forEach((operation) =>
       ctx.add(PageOperation, {
         name: `tanstack.${operation.name}`,
-        run: (input, signal) =>
-          Effect.runPromise(execute(operation.name, input, tree()).pipe(Effect.provideContext(services)), {signal}),
+        run: (input, signal) => runtime.runPromise(execute(operation.name, input, tree()), {signal}),
       }),
     )
 
