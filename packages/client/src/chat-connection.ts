@@ -79,6 +79,7 @@ export type ChatConnectionOptions = {
   onApprovalAsk?: (ask: ApprovalAsk) => void
   onApprovalSettled?: (approvalId: string) => void
   onRunError?: () => void
+  onLive?: () => void
   joinsRun?: (runId: string) => Promise<boolean>
   runReconnect?: {attempts?: number; firstDelayMs?: number; maxDelayMs?: number}
   engineTimings?: Partial<EngineConnectionTimings>
@@ -95,7 +96,7 @@ export type ChatConnection = SubscribeConnectionAdapter & {
   close: () => void
 }
 
-type SessionEvents = (abortSignal: AbortSignal) => AsyncIterable<ChatEvent>
+type SessionEvents = (abortSignal: AbortSignal, onLive?: () => void) => AsyncIterable<ChatEvent>
 
 type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncGenerator<ChatEvent>
 
@@ -306,7 +307,7 @@ function watching(
 ): AsyncGenerator<ChatEvent> {
   const sources: Source<ChatEvent>[] = [
     (scope) => turns.adapter.subscribe(scope),
-    events,
+    (scope) => events(scope, options.onLive),
     (scope) => announcedRuns(turns, events, options, scope, threadId),
     (scope) => handedOverRuns(turns, scope, threadId),
   ]
@@ -342,10 +343,13 @@ async function* sessionEvents(
   engine: Engine,
   sessionId: string,
   signal: AbortSignal,
+  onLive: (() => void) | undefined,
 ): AsyncGenerator<ChatEvent> {
   while (!signal.aborted) {
     try {
-      yield* await rpc.chat.events({sessionId}, {signal})
+      const live = await rpc.chat.events({sessionId}, {signal})
+      onLive?.()
+      yield* live
       return
     } catch (error) {
       if (signal.aborted) return
@@ -394,8 +398,8 @@ export function chatConnection(
     firstDelayMs: options.runReconnect?.firstDelayMs ?? RUN_RECONNECT_FIRST_DELAY_MS,
     maxDelayMs: options.runReconnect?.maxDelayMs ?? RUN_RECONNECT_MAX_DELAY_MS,
   })
-  const events: SessionEvents = (abortSignal) =>
-    sessionEvents(rpc, engine, sessionId, within(lifetime.signal, abortSignal))
+  const events: SessionEvents = (abortSignal, onLive) =>
+    sessionEvents(rpc, engine, sessionId, within(lifetime.signal, abortSignal), onLive)
   const hydrate = async (threadId: string, window: ChatHistoryWindow = {}): Promise<ChatHydration> => {
     const hydration = await rpc.chat.hydrate({...window, sessionId: threadId})
     options.onHydrated?.(hydration)
