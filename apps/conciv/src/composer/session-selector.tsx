@@ -304,8 +304,6 @@ export function SessionSelector(props: {
         if (!details.open) dismissPreview()
       }}
       openOnClick
-      lazyMount
-      unmountOnExit
       selectionBehavior="preserve"
       positioning={{strategy: 'fixed', placement: 'bottom-start', gutter: 6}}
     >
@@ -413,67 +411,76 @@ export function SessionSelector(props: {
               {search() ? 'No sessions match' : 'No other sessions yet'}
             </div>
           </Show>
-          <TruncatedTextGroup>
-            <VirtualList
-              class="flex-1 min-h-0 overflow-y-auto overscroll-contain"
-              rows={rows()}
-              readSize={rowSize}
-              readKey={rowKey}
-              more={list.hasNextPage}
-              moreRowSize={MORE_ROW_SIZE}
-              onReachMore={loadMore}
-              onScroller={(scroll) => {
-                scrollToRow = scroll
-              }}
-              moreRow={
-                <Show
-                  when={list.isFetchNextPageError}
-                  fallback={
-                    <div
-                      class="text-[0.75rem] text-chat-text-3 px-2 flex gap-2 min-h-11 items-center"
-                      role="status"
-                      aria-busy="true"
-                    >
-                      <span class="rounded-chat-pill bg-chat-text-3 shrink-0 size-1.75 anim-pulse" aria-hidden="true" />
-                      Loading more…
-                    </div>
-                  }
-                >
-                  <div
-                    class="text-[0.75rem] text-chat-text-3 px-2 py-1.5 flex gap-2 items-center justify-between"
-                    role="status"
+          <Combobox.Context>
+            {(api) => (
+              <Show when={api().open}>
+                <TruncatedTextGroup>
+                  <VirtualList
+                    class="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+                    rows={rows()}
+                    readSize={rowSize}
+                    readKey={rowKey}
+                    more={list.hasNextPage}
+                    moreRowSize={MORE_ROW_SIZE}
+                    onReachMore={loadMore}
+                    onScroller={(scroll) => {
+                      scrollToRow = scroll
+                    }}
+                    moreRow={
+                      <Show
+                        when={list.isFetchNextPageError}
+                        fallback={
+                          <div
+                            class="text-[0.75rem] text-chat-text-3 px-2 flex gap-2 min-h-11 items-center"
+                            role="status"
+                            aria-busy="true"
+                          >
+                            <span
+                              class="rounded-chat-pill bg-chat-text-3 shrink-0 size-1.75 anim-pulse"
+                              aria-hidden="true"
+                            />
+                            Loading more…
+                          </div>
+                        }
+                      >
+                        <div
+                          class="text-[0.75rem] text-chat-text-3 px-2 py-1.5 flex gap-2 items-center justify-between"
+                          role="status"
+                        >
+                          <span>Couldn't load more sessions</span>
+                          <Button variant="outline" size="xs" onClick={() => void list.fetchNextPage()}>
+                            Retry
+                          </Button>
+                        </div>
+                      </Show>
+                    }
                   >
-                    <span>Couldn't load more sessions</span>
-                    <Button variant="outline" size="xs" onClick={() => void list.fetchNextPage()}>
-                      Retry
-                    </Button>
-                  </div>
-                </Show>
-              }
-            >
-              {(row) => (
-                <Show
-                  when={typeof row === 'string' ? undefined : row}
-                  fallback={
-                    <div
-                      class="text-[0.6875rem] text-chat-text-3 tracking-[0.02em] font-semibold px-2 pb-0.5 pt-1.5 [text-transform:uppercase]"
-                      aria-hidden="true"
-                    >
-                      {typeof row === 'string' ? row : ''}
-                    </div>
-                  }
-                >
-                  {(session) => (
-                    <SessionOption
-                      session={session()}
-                      suffix={harnessSuffix(session())}
-                      copied={findResumeCopy(session().id)?.announcement() ?? ''}
-                    />
-                  )}
-                </Show>
-              )}
-            </VirtualList>
-          </TruncatedTextGroup>
+                    {(row) => (
+                      <Show
+                        when={typeof row === 'string' ? undefined : row}
+                        fallback={
+                          <div
+                            class="text-[0.6875rem] text-chat-text-3 tracking-[0.02em] font-semibold px-2 pb-0.5 pt-1.5 [text-transform:uppercase]"
+                            aria-hidden="true"
+                          >
+                            {typeof row === 'string' ? row : ''}
+                          </div>
+                        }
+                      >
+                        {(session) => (
+                          <SessionOption
+                            session={session()}
+                            suffix={harnessSuffix(session())}
+                            copied={findResumeCopy(session().id)?.announcement() ?? ''}
+                          />
+                        )}
+                      </Show>
+                    )}
+                  </VirtualList>
+                </TruncatedTextGroup>
+              </Show>
+            )}
+          </Combobox.Context>
         </Combobox.Content>
       </Combobox.Positioner>
       <SessionPreview
