@@ -1,12 +1,18 @@
 import {describe, expect, test} from 'vitest'
 import {createRoot, observable} from 'solid-js'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {createChatSession, type ChatSessionHydration} from './session.js'
 import {createTextChunks} from '../testkit.js'
 
-describe('a refresh still in flight when the user sends', () => {
-  test('keeps the sent message and its streamed reply alongside the older history the refresh fetched', async () => {
+describe('a refresh racing a send', () => {
+  test('keeps the sent message and its streamed reply alongside the older history the refresh fetched, and keeps a message the server has not stored yet until a fetch holds it', async () => {
     const fetched = Promise.withResolvers<ChatSessionHydration>()
+    const held = Promise.withResolvers<void>()
+    const refreshes = [fetched.promise]
+    const gates = [Promise.resolve(), held.promise]
+    const replies = [createTextChunks('Short answer', 'reply')]
+    const saved: ChatMessage[] = []
     const events = new TransformStream<ChatEvent, ChatEvent>()
     const engine = events.writable.getWriter()
     const session = createRoot(() =>
@@ -15,18 +21,25 @@ describe('a refresh still in flight when the user sends', () => {
         connect: () => ({
           subscribe: () => events.readable,
           send: async (_messages, _data, _signal, run) => {
+            await gates.shift()
             const ids = {threadId: run.threadId, runId: run.runId}
             await engine.write({type: ChatEventType.RUN_STARTED, ...ids})
-            for (const chunk of createTextChunks('Short answer', 'reply')) await engine.write(chunk)
+            for (const chunk of replies.shift() ?? []) await engine.write(chunk)
             await engine.write({type: ChatEventType.RUN_FINISHED, ...ids, finishReason: 'stop'})
           },
-          refresh: () => fetched.promise,
+          refresh: () =>
+            refreshes.shift() ??
+            Promise.resolve({messages: [...saved], messageHarness: {}, lastRun: null, pendingApprovals: []}),
           close: () => undefined,
         }),
         stop: async () => undefined,
         decide: async () => undefined,
       }),
     )
+    const texts = (): string[] =>
+      session
+        .messages()
+        .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])))
 
     const refreshed = session.refresh()
     const sent = session.sendMessage('Be quick')
@@ -39,6 +52,23 @@ describe('a refresh still in flight when the user sends', () => {
       expect.objectContaining({type: 'text', content: 'Be quick'}),
       expect.objectContaining({type: 'text', content: 'Short answer'}),
     ])
+
+    saved.splice(0, saved.length, ...session.messages())
+    const holding = session.sendMessage('Hold on')
+    await expect.poll(texts).toEqual(['Be quick', 'Short answer', 'Hold on'])
+    const storedIds = saved.map((message) => message.id)
+    const unstored = session.messages().filter((message) => !storedIds.includes(message.id))
+    await session.refresh()
+    saved.push(...unstored)
+    held.resolve()
+    await holding
+    await expect.poll(session.runInProgress).toBe(false)
+
+    expect(texts()).toEqual(['Be quick', 'Short answer', 'Hold on'])
+
+    await session.refresh()
+
+    expect(texts()).toEqual(['Be quick', 'Short answer', 'Hold on'])
   })
 })
 

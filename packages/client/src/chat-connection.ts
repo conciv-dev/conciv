@@ -79,7 +79,7 @@ export type ChatConnectionOptions = {
   onApprovalAsk?: (ask: ApprovalAsk) => void
   onApprovalSettled?: (approvalId: string) => void
   onRunError?: () => void
-  onLive?: () => void
+  onLiveAgain?: () => void
   joinsRun?: (runId: string) => Promise<boolean>
   runReconnect?: {attempts?: number; firstDelayMs?: number; maxDelayMs?: number}
   engineTimings?: Partial<EngineConnectionTimings>
@@ -96,7 +96,58 @@ export type ChatConnection = SubscribeConnectionAdapter & {
   close: () => void
 }
 
-type SessionEvents = (abortSignal: AbortSignal, onLive?: () => void) => AsyncIterable<ChatEvent>
+type SessionEvents = (abortSignal: AbortSignal, link?: EventsLink) => AsyncIterable<ChatEvent>
+
+type EventsLink = {
+  opened: () => Promise<void>
+  watching: () => void
+  live: () => void
+  reconnecting: () => void
+  dropped: () => void
+}
+
+type LinkState =
+  | {phase: 'idle'}
+  | {phase: 'opening'; waiting: PromiseWithResolvers<void>}
+  | {phase: 'live'}
+  | {phase: 'dropped'}
+
+function eventsLink(onLiveAgain: (() => void) | undefined): EventsLink {
+  let state: LinkState = {phase: 'idle'}
+  const moved = (next: LinkState): LinkState => {
+    const before = state
+    if (before.phase === 'opening') before.waiting.resolve()
+    state = next
+    return before
+  }
+  return {
+    opened: () => (state.phase === 'opening' ? state.waiting.promise : Promise.resolve()),
+    watching: () => {
+      if (state.phase === 'idle') state = {phase: 'opening', waiting: Promise.withResolvers()}
+    },
+    live: () => {
+      if (moved({phase: 'live'}).phase === 'dropped') onLiveAgain?.()
+    },
+    reconnecting: () => {
+      if (state.phase === 'live') state = {phase: 'dropped'}
+    },
+    dropped: () => {
+      moved({phase: 'dropped'})
+    },
+  }
+}
+
+function watchedContext(link: EventsLink | undefined): RpcClientContext {
+  if (link === undefined) return {}
+  return {
+    onRetry: () => {
+      link.reconnecting()
+      return (reopened) => {
+        if (reopened) link.live()
+      }
+    },
+  }
+}
 
 type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncGenerator<ChatEvent>
 
@@ -121,7 +172,17 @@ const RUN_RECONNECT_ATTEMPTS = 5
 const RUN_RECONNECT_FIRST_DELAY_MS = 250
 const RUN_RECONNECT_MAX_DELAY_MS = 5000
 
-function runReconnects(engine: Engine, {attempts, firstDelayMs, maxDelayMs}: RunReconnect): RpcClientContext {
+function reconnectDelayMs({firstDelayMs, maxDelayMs}: RunReconnect, attempt: number): number {
+  return Math.min(maxDelayMs, firstDelayMs * 2 ** attempt)
+}
+
+function waited(delayMs: number, signal: AbortSignal): Promise<void> {
+  const done = AbortSignal.any([signal, AbortSignal.timeout(delayMs)])
+  if (done.aborted) return Promise.resolve()
+  return new Promise((resolve) => done.addEventListener('abort', () => resolve(), {once: true}))
+}
+
+function runReconnects(engine: Engine, reconnect: RunReconnect): RpcClientContext {
   let progressed: {attemptIndex: number; lastEventId: string | undefined} = {attemptIndex: 0, lastEventId: undefined}
   const attemptsSinceProgress = (attemptIndex: number, lastEventId: string | undefined): number => {
     if (lastEventId !== progressed.lastEventId) progressed = {attemptIndex, lastEventId}
@@ -135,10 +196,10 @@ function runReconnects(engine: Engine, {attempts, firstDelayMs, maxDelayMs}: Run
         await trustedAgain(engine, signal)
         return !signal.aborted
       }
-      return !(error instanceof ORPCError) && attemptsSinceProgress(attemptIndex, lastEventId) < attempts
+      return !(error instanceof ORPCError) && attemptsSinceProgress(attemptIndex, lastEventId) < reconnect.attempts
     },
     retryDelay: ({attemptIndex, lastEventId}) =>
-      Math.min(maxDelayMs, firstDelayMs * 2 ** attemptsSinceProgress(attemptIndex, lastEventId)),
+      reconnectDelayMs(reconnect, attemptsSinceProgress(attemptIndex, lastEventId)),
   }
 }
 
@@ -301,13 +362,14 @@ async function* handedOverRuns(turns: Turns, scope: AbortSignal, threadId: strin
 function watching(
   turns: Turns,
   events: SessionEvents,
+  link: EventsLink,
   options: ChatConnectionOptions,
   abortSignal: AbortSignal | undefined,
   threadId: string,
 ): AsyncGenerator<ChatEvent> {
   const sources: Source<ChatEvent>[] = [
     (scope) => turns.adapter.subscribe(scope),
-    (scope) => events(scope, options.onLive),
+    (scope) => events(scope, link),
     (scope) => announcedRuns(turns, events, options, scope, threadId),
     (scope) => handedOverRuns(turns, scope, threadId),
   ]
@@ -343,19 +405,34 @@ async function* sessionEvents(
   engine: Engine,
   sessionId: string,
   signal: AbortSignal,
-  onLive: (() => void) | undefined,
+  reconnect: RunReconnect,
+  link: EventsLink | undefined,
 ): AsyncGenerator<ChatEvent> {
-  while (!signal.aborted) {
-    try {
-      const live = await rpc.chat.events({sessionId}, {signal})
-      onLive?.()
-      yield* live
-      return
-    } catch (error) {
+  link?.watching()
+  let failures = 0
+  try {
+    while (!signal.aborted) {
+      try {
+        const live = await rpc.chat.events({sessionId}, {signal, context: watchedContext(link)})
+        link?.live()
+        failures = 0
+        yield* live
+      } catch (error) {
+        if (signal.aborted) return
+        if (refused(error)) {
+          link?.dropped()
+          await trustedAgain(engine, signal)
+          continue
+        }
+      }
       if (signal.aborted) return
-      if (!refused(error)) throw error
+      link?.dropped()
+      if (failures >= reconnect.attempts) throw new StreamReconnectLimitError(reconnect.attempts)
+      await waited(reconnectDelayMs(reconnect, failures), signal)
+      failures += 1
     }
-    await trustedAgain(engine, signal)
+  } finally {
+    link?.dropped()
   }
 }
 
@@ -393,20 +470,26 @@ export function chatConnection(
 ): ChatConnection {
   const lifetime = new AbortController()
   const engine: Engine = {apiBase, timings: options.engineTimings}
-  const turns = overRpc(rpc, engine, sessionId, lifetime.signal, {
+  const reconnect: RunReconnect = {
     attempts: options.runReconnect?.attempts ?? RUN_RECONNECT_ATTEMPTS,
     firstDelayMs: options.runReconnect?.firstDelayMs ?? RUN_RECONNECT_FIRST_DELAY_MS,
     maxDelayMs: options.runReconnect?.maxDelayMs ?? RUN_RECONNECT_MAX_DELAY_MS,
-  })
-  const events: SessionEvents = (abortSignal, onLive) =>
-    sessionEvents(rpc, engine, sessionId, within(lifetime.signal, abortSignal), onLive)
-  const hydrate = async (threadId: string, window: ChatHistoryWindow = {}): Promise<ChatHydration> => {
+  }
+  const turns = overRpc(rpc, engine, sessionId, lifetime.signal, reconnect)
+  const link = eventsLink(options.onLiveAgain)
+  const events: SessionEvents = (abortSignal, watched) =>
+    sessionEvents(rpc, engine, sessionId, within(lifetime.signal, abortSignal), reconnect, watched)
+  const fetched = async (threadId: string, window: ChatHistoryWindow): Promise<ChatHydration> => {
     const hydration = await rpc.chat.hydrate({...window, sessionId: threadId})
     options.onHydrated?.(hydration)
     return hydration
   }
+  const hydrate = async (threadId: string, window: ChatHistoryWindow = {}): Promise<ChatHydration> => {
+    if (window.before === undefined) await link.opened()
+    return fetched(threadId, window)
+  }
   return {
-    subscribe: (abortSignal) => watching(turns, events, options, within(lifetime.signal, abortSignal), sessionId),
+    subscribe: (abortSignal) => watching(turns, events, link, options, within(lifetime.signal, abortSignal), sessionId),
     send: async (messages: Array<ChatMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {
       const {adapter} = turns
       if (messages.every((message) => 'parts' in message)) {
@@ -419,7 +502,7 @@ export function chatConnection(
       noticing(finishedOnItsLifecycle(joinedOrHandedOver(turns, runId, abortSignal), sessionId, runId), options),
     hydrate,
     refresh: (before) =>
-      hydrate(
+      fetched(
         sessionId,
         before === undefined ? {limit: CHAT_HISTORY_PAGE_SIZE} : {limit: CHAT_HISTORY_PAGE_SIZE, before},
       ),
