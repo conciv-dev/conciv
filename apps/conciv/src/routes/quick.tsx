@@ -144,8 +144,8 @@ function QuickLayer(): JSX.Element {
   const paneStartOptions = (startSession: StartSession) => ({
     scope: PANE_SESSIONS_SCOPE,
     mutationFn: startSession,
-    onSuccess: ({sessionId}: {sessionId: string}) => openPane(sessionId),
   })
+  const openStartedPane = {onSuccess: ({sessionId}: {sessionId: string}) => openPane(sessionId)}
 
   const startSession = useStartSession()
   const resumeLatestPane = useMutation(() => paneStartOptions(() => rpc.sessions.resolve({})))
@@ -160,17 +160,17 @@ function QuickLayer(): JSX.Element {
 
   const bootstrapPane = (): void => {
     if (paneStartPending() || paneIds().length > 0) return
-    resumeLatestPane.mutate()
+    resumeLatestPane.mutate(undefined, openStartedPane)
   }
 
   const addFreshPane = (): void => {
     if (paneStartPending()) return
-    createFreshPane.mutate()
+    createFreshPane.mutate(undefined, openStartedPane)
   }
 
   const retryPaneStart = (): void => {
     if (paneStartPending()) return
-    lastPaneStart().mutate()
+    lastPaneStart().mutate(undefined, openStartedPane)
   }
 
   createEffect(
