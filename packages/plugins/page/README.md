@@ -4,16 +4,16 @@
 
 conciv's built-in page plugin, both halves in one package (as opencode's `plugin-browser` and `gui-plugins/browser`):
 the engine part (`.`: the plugin `conciv.page`, its connection, tools, skill and queue), the RPC contract (`./rpc`),
-the browser part the widget runs eagerly (`./client`: the DOM helpers, the cards and the page tool names), the window
+the browser part the widget runs eagerly (`./client`: what the widget calls directly), the window
 setup loaded lazily by the built-ins (`./renderer`).
 
 The engine part, the plugin `conciv.page` (`.`), registers the RPC `experimental.page` (`./rpc`) and answers it: each
 tab's attachment and the commands it runs, page operations, live changes, captures, action queues and `symbolicate`.
 Core passes it to the plugin host as a post built-in and asks it over that RPC.
 
-The DOM helpers (`./client`), inlined into the widget by `@conciv/embed`: plain functions the page plugin and the
-widget call: the React bridge, accessibility snapshots and element refs, element captures with their CSS, dehydrate,
-the element picker and a toast. They hold no connection to the engine themselves.
+The widget's entry (`./client`), inlined into the widget by `@conciv/embed`: the React bridge install, the element
+picker, the grab preview fit, a toast, the attachment and session cards and the page tool names. They hold no
+connection to the engine themselves.
 
 A built-in: it draws with the UI kits directly, like opencode's gui plugins, and is one of the two plugin packages
 `conciv-publish check-plugin-ui-kit` lets import `@conciv/ui-kit*`. The app composes its `./renderer` in
@@ -31,7 +31,7 @@ A built-in: it draws with the UI kits directly, like opencode's gui plugins, and
 - option `pageReplyTimeoutMs` (`connection.ts`, milliseconds, default 5 000): how long a tab has to answer an action that declares no timeout of its own, and to accept a queue
 - option `queuedActionTimeoutMs` (`connection.ts`, milliseconds, default 7 000): how long each queued action has to confirm once the tab reaches it
 - option `permissionSyncTimeoutMs` (`connection.ts`, milliseconds, default 10 000): how long granting or revoking a tab's page permissions on its session may take before the attach is refused (the tab retries on its back-off)
-- `client.ts` (`./client`): the DOM helpers, `reactBridge` as a namespace, `pageAttachmentCards`, `pageSessionEntry`, `PAGE_ACT_TOOL_NAMES`, `PAGE_TOOL_PREFIX`, `pageToolMeta`
+- `client.ts` (`./client`): `installReactBridge`, `grabApi`, `fitImagePreview`, `showToast`, `pageAttachmentCards`, `pageSessionEntry`, `PAGE_ACT_TOOL_NAMES`, `PAGE_TOOL_PREFIX`, `pageToolMeta`
 - `renderer.tsx` (`./renderer`): the window setup (default export) the built-ins load lazily
 - `grab.ts:getReactGrabAdapter` - creates the adapter once and returns `{activate(onGrab), comment(onGrab), deactivate(), isActive()}` (`ReactGrabAdapter`).
 - `grab.ts:GrabSink` - `(grab: Grab) => void`.
