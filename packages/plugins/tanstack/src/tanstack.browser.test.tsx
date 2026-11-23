@@ -61,3 +61,16 @@ describe('the TanStack plugin is configured', () => {
     expect(screen.getByText('Failed')).toBeVisible()
   })
 })
+
+describe('the agent finds the tab through the TanStack plugin', () => {
+  test('the TanStack tab list names the focused tab', async () => {
+    const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']})
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    expect(await engine.session.tool('tanstack_tabs_list').call({})).toMatchObject({
+      tabs: [{focused: true, visible: true}],
+    })
+  })
+})
