@@ -1317,9 +1317,6 @@ importers:
       '@vitest/browser-playwright':
         specifier: 'catalog:'
         version: 5.1.0(playwright@1.64.1)(vite@8.3.5)(vitest@5.1.0)
-      '@vitest/coverage-v8':
-        specifier: 'catalog:'
-        version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       '@zag-js/focus-visible':
         specifier: 1.47.0
         version: 1.47.0

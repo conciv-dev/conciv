@@ -41,7 +41,6 @@
     "@unocss/postcss": "catalog:",
     "@unocss/reset": "catalog:",
     "@vitest/browser-playwright": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
     "@zag-js/focus-visible": "1.47.0",
     "lucide-solid": "catalog:",
     "marked": "catalog:",
