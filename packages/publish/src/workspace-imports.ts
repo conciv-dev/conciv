@@ -37,7 +37,7 @@ export async function assertBuildDependsOnCoversImports(cwd: string): Promise<vo
   const buildable = new Set(packages.filter((pkg) => pkg.manifest.scripts?.build !== undefined).map(readName))
   const explicit = await Promise.all(
     packages
-      .filter((pkg) => !isTranspileOnly(pkg))
+      .filter((pkg) => !isTranspileOnly(pkg) && pkg.manifest.scripts?.build !== undefined)
       .map(async (pkg) => ({pkg, dependsOn: await readBuildDependsOn(pkg)})),
   )
   const violations = await Promise.all(

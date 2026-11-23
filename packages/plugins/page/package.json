@@ -79,6 +79,7 @@
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
+    "@internal/plugin": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@testing-library/user-event": "catalog:",

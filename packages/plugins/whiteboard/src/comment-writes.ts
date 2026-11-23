@@ -1,4 +1,4 @@
-import type {MentionSegment} from '@conciv/plugin/experimental'
+import type {MentionSegment} from '@internal/plugin'
 import type {CommentRow, PinRow, ReadRow} from './rows.js'
 import type {WhiteboardDb} from './whiteboard-db.js'
 

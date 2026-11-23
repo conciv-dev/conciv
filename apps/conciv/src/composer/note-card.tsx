@@ -4,13 +4,8 @@ import {Key} from '@solid-primitives/keyed'
 import {isEqual, isNil} from 'es-toolkit'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {CornerRemoveButton, Icon, isIconName, isRegisteredIconName, useComposerContext} from '@conciv/ui-kit-chat'
-import {
-  NoteCard,
-  OpaqueNoteCard,
-  type IconName,
-  type MountedSession,
-  type NoteCardProps,
-} from '@conciv/plugin/experimental'
+import {NoteCard, type IconName, type MountedSession, type NoteCardProps} from '@conciv/plugin/experimental'
+import {OpaqueNoteCard, type InternalNoteCard} from '@internal/plugin'
 import {usePluginHost, type Item} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
 import type {ChatMessage, NoteComment} from '@conciv/protocol/chat-message-types'
@@ -47,7 +42,7 @@ function NoteChip(props: {note: NoteComment}): JSX.Element {
 }
 
 function DrawnNoteCard(props: {
-  claimant: Item<NoteCard>
+  claimant: Item<InternalNoteCard>
   note: Accessor<NoteComment>
   session: MountedSession | undefined
 }): JSX.Element {

@@ -70,6 +70,7 @@
     "@conciv/vitest-config": "workspace:*",
     "@excalidraw/excalidraw": "catalog:",
     "@excalidraw/mermaid-to-excalidraw": "catalog:",
+    "@internal/plugin": "workspace:*",
     "@solid-primitives/event-listener": "catalog:",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/solid-db": "catalog:",
