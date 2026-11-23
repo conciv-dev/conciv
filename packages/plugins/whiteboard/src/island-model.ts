@@ -1,6 +1,6 @@
 import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
-import {Deferred, Effect, Ref, Scope} from 'effect'
+import {Cause, Deferred, Effect, Ref, Scope} from 'effect'
 import {isPlainObject, keyBy, pickBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {WhiteboardDb} from './whiteboard-db.js'
@@ -83,21 +83,28 @@ const ExportPayload = z.object({requestId: z.string(), scope: z.enum(['live', 'd
 const withStableIds = (skeletons: ExcalidrawElementSkeleton[], rowId: string): ExcalidrawElementSkeleton[] =>
   skeletons.map((item, index) => (item.id ? item : {...item, id: `${rowId}-${index}`}))
 
-async function buildSkeletons(row: PendingRow): Promise<ExcalidrawElementSkeleton[]> {
-  if (row.kind === 'mermaid') {
-    const {parseMermaidToExcalidraw} = await import('@excalidraw/mermaid-to-excalidraw')
-    const {source} = MermaidPayload.parse(row.payload)
-    return withStableIds((await parseMermaidToExcalidraw(source, {maxEdges: 500})).elements, row.id)
-  }
-  if (row.kind === 'svg') {
-    const {svgToSkeletons} = await import('./svg-convert.js')
-    const {svg, x, y, width, roughness} = SvgPayload.parse(row.payload)
-    validateSvg(svg)
-    const skeletons = svgToSkeletons(svg, {x, y, width, roughness})
-    if (!skeletons.length) throw new Error('the svg had nothing drawable')
-    return withStableIds(skeletons, row.id)
-  }
-  return withStableIds(SkeletonsPayload.parse(row.payload).elements, row.id)
+const buildSkeletons = (row: PendingRow): Effect.Effect<ExcalidrawElementSkeleton[], unknown> =>
+  Effect.gen(function* () {
+    if (row.kind === 'mermaid') {
+      const {parseMermaidToExcalidraw} = yield* Effect.tryPromise(() => import('@excalidraw/mermaid-to-excalidraw'))
+      const {source} = yield* Effect.try(() => MermaidPayload.parse(row.payload))
+      const parsed = yield* Effect.tryPromise(() => parseMermaidToExcalidraw(source, {maxEdges: 500}))
+      return withStableIds(parsed.elements, row.id)
+    }
+    if (row.kind === 'svg') {
+      const {svgToSkeletons} = yield* Effect.tryPromise(() => import('./svg-convert.js'))
+      const {svg, x, y, width, roughness} = yield* Effect.try(() => SvgPayload.parse(row.payload))
+      yield* Effect.try(() => validateSvg(svg))
+      const skeletons = svgToSkeletons(svg, {x, y, width, roughness})
+      if (!skeletons.length) return yield* Effect.fail(new Error('the svg had nothing drawable'))
+      return withStableIds(skeletons, row.id)
+    }
+    return withStableIds((yield* Effect.try(() => SkeletonsPayload.parse(row.payload))).elements, row.id)
+  })
+
+function readFailureReason(failure: unknown): string {
+  const cause = Cause.isUnknownError(failure) ? failure.cause : failure
+  return cause instanceof Error ? cause.message : String(cause)
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -138,16 +145,14 @@ export const makeCanvasPending = Effect.fn('whiteboard.canvasPending')(function*
     )
 
   const drawPending = (row: PendingRow) =>
-    Effect.tryPromise(() => buildSkeletons(row)).pipe(
+    buildSkeletons(row).pipe(
       Effect.map((skeletons) => elementsToRows(db.room, canvas.toElements(skeletons))),
       Effect.flatMap((rows) =>
         Effect.tryPromise(() => db.bulkUpsertElements(row.stage === 'draft' ? 'draft' : 'live', rows)),
       ),
       Effect.catch((failure) =>
         Effect.logError(`draining pending ${row.kind} ${row.id} failed`, failure).pipe(
-          Effect.andThen(
-            replyDrawFailure(row, failure.cause instanceof Error ? failure.cause.message : String(failure.cause)),
-          ),
+          Effect.andThen(replyDrawFailure(row, readFailureReason(failure))),
         ),
       ),
     )
@@ -183,29 +188,34 @@ export const makeCanvasPending = Effect.fn('whiteboard.canvasPending')(function*
       Effect.tapError((failure) => Effect.logError(`committing pending ${row.id} failed`, failure)),
     )
 
-  const draftExportElements = async (scope: ExportScope): Promise<SceneElement[]> => {
-    if (scope === 'live') return []
-    await db.canvasDraftElements.preload()
-    return rowsToScene([...db.canvasDraftElements.state.values()])
-  }
+  const draftExportElements = (scope: ExportScope): Effect.Effect<SceneElement[], unknown> =>
+    scope === 'live'
+      ? Effect.succeed([])
+      : Effect.tryPromise(() => db.canvasDraftElements.preload()).pipe(
+          Effect.map(() => rowsToScene([...db.canvasDraftElements.state.values()])),
+        )
 
-  const exportReply = async (scope: ExportScope): Promise<JsonValue> => {
-    const live = canvas.liveElements()
-    if (scope !== 'draft' && !live) {
-      throw new Error(`[whiteboard] the canvas has not attached yet, so a ${scope} export has nothing to render`)
-    }
-    const elements = [...(scope === 'draft' ? [] : (live ?? [])), ...(await draftExportElements(scope))]
-    const blob = await canvas.render(elements)
-    return {dataBase64: toBase64(new Uint8Array(await blob.arrayBuffer()))}
-  }
+  const exportReply = (scope: ExportScope): Effect.Effect<JsonValue, unknown> =>
+    Effect.gen(function* () {
+      const live = canvas.liveElements()
+      if (scope !== 'draft' && !live) {
+        return yield* Effect.fail(
+          new Error(`[whiteboard] the canvas has not attached yet, so a ${scope} export has nothing to render`),
+        )
+      }
+      const elements = [...(scope === 'draft' ? [] : (live ?? [])), ...(yield* draftExportElements(scope))]
+      const blob = yield* Effect.tryPromise(() => canvas.render(elements))
+      const bytes = yield* Effect.tryPromise(() => blob.arrayBuffer())
+      return {dataBase64: toBase64(new Uint8Array(bytes))}
+    })
 
   const exportPending = (row: PendingRow) =>
     Effect.gen(function* () {
       const {requestId, scope} = yield* Effect.try(() => ExportPayload.parse(row.payload))
-      const payload = yield* Effect.tryPromise(() => exportReply(scope)).pipe(
+      const payload = yield* exportReply(scope).pipe(
         Effect.catch((failure) =>
           Effect.logError('canvas_export render failed', failure).pipe(
-            Effect.as({error: 'export render failed', reason: String(failure.cause)}),
+            Effect.as({error: 'export render failed', reason: readFailureReason(failure)}),
           ),
         ),
       )
@@ -227,10 +237,9 @@ export const makeCanvasPending = Effect.fn('whiteboard.canvasPending')(function*
       perform: (row) => handlers[row.kind]?.(row) ?? Effect.void,
       remove: (row) =>
         Effect.tryPromise({
-          try: () =>
-            db.canvasPending.has(row.id)
-              ? db.canvasPending.delete(row.id).isPersisted.promise.then(() => undefined)
-              : Promise.resolve(),
+          try: async () => {
+            if (db.canvasPending.has(row.id)) await db.canvasPending.delete(row.id).isPersisted.promise
+          },
           catch: (cause) => WhiteboardDrain.RemoveFailed.make({message: String(cause)}),
         }),
     },

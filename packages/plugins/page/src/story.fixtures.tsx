@@ -1,6 +1,6 @@
 import type {JSX} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import type {ElementCapture, ToolCaptureView} from '@conciv/protocol/element-capture-types'
+import type {ElementCapture, ToolCaptureView} from './element-capture-types.js'
 import type {ToolProps} from '@conciv/plugin/experimental'
 import {ToolDisplay, Trace, type TraceItem} from '@conciv/ui-kit-chat/tools'
 import {pageToolCards} from './cards.js'

@@ -24,13 +24,7 @@ import type {Context} from '@conciv/plugin/effect/plugin'
 import type {RpcRegistration} from '@conciv/plugin/effect/rpc'
 import {Tool} from '@conciv/plugin/schema/tool'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import {
-  PAGE_QUEUE_REFUSED,
-  PAGE_QUEUE_STOPPED,
-  PageRaisedErrorSchema,
-  PageChangeEntrySchema,
-  type PageChangeEntry,
-} from '@conciv/protocol/page-types'
+import {PAGE_QUEUE_REFUSED, PAGE_QUEUE_STOPPED, PageRaisedErrorSchema} from '@conciv/protocol/page-types'
 import {
   ACCESS,
   createConnectionState,
@@ -47,14 +41,19 @@ import {
   type ConnectionEvent,
 } from './machine.js'
 import {PageQueue} from './queue.js'
-import {Definition, type Action, type Command, type Outcome, type Result, type Work} from './rpc.js'
-import type {Symbolicator} from './symbolicate.js'
 import type {GrabStore} from './grabs.js'
 import {
-  PageCaptureBundleSchema,
-  type PageCaptureBundle,
-  type SessionCaptures,
-} from '@conciv/protocol/element-capture-types'
+  Definition,
+  PageChangeEntrySchema,
+  type Action,
+  type Command,
+  type Outcome,
+  type PageChangeEntry,
+  type Result,
+  type Work,
+} from './rpc.js'
+import type {Symbolicator} from './symbolicate.js'
+import {PageCaptureBundleSchema, type PageCaptureBundle, type SessionCaptures} from './element-capture-types.js'
 import type {StorageEntry} from '@conciv/plugin/effect'
 
 const TAB_RETURN_MS = 5000
@@ -556,8 +555,6 @@ export const make = Effect.fn('PageConnection.make')(function* (
           ),
           Effect.mapError((error) => call.error('unavailable', toolFailure(error).message, {})),
         ),
-      changes: (input) => records.changes(input.sessionId),
-      clearChanges: (input) => records.clear(input.sessionId).pipe(Effect.as({ok: true as const})),
       'captures.list': (input) => records.captures(input.sessionId),
       'grabs.save': (input, call) =>
         grabs.save(input.grab).pipe(
@@ -614,7 +611,13 @@ export const make = Effect.fn('PageConnection.make')(function* (
   return {
     run,
     queues,
-    records,
+    records: {
+      ...records,
+      capture: (sessionId: SessionId, toolCallId: string, bundle: PageCaptureBundle) =>
+        records
+          .capture(sessionId, toolCallId, bundle)
+          .pipe(Effect.andThen(registration.events.emit('captures.saved', {sessionId}))),
+    },
     tabs: (sessionId: SessionId) => selectTabs(machine.state, sessionId),
   }
 })
@@ -642,6 +645,10 @@ export function fromStorage(storage: Context['storage']) {
           `changes/${sessionId}/${String(change.ts).padStart(16, '0')}-${crypto.randomUUID()}`,
           Stored.parse(change),
         ),
+      ).pipe(
+        Effect.withSpan('PageConnection.change', {
+          attributes: {verb: change.verb, element: change.ref ?? change.selector, args: change.args},
+        }),
       ),
     changes: (sessionId: SessionId): Effect.Effect<PageChangeEntry[]> =>
       every(`changes/${sessionId}/`).pipe(

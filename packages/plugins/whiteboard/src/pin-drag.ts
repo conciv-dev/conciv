@@ -1,24 +1,8 @@
-import {createStore} from 'solid-js/store'
+import {createStore, reconcile} from 'solid-js/store'
 import {screenToScene, type Viewport} from './coords.js'
 import type {CommentRow, PinRow} from './rows.js'
 import type {PinPatch} from './comment-writes.js'
-
-const DRAG_THRESHOLD = 4
-
-type Drag = {
-  pointerId: number
-  cid: string
-  grabX: number
-  grabY: number
-  originX: number
-  originY: number
-  x: number
-  y: number
-}
-type Prompt = {cid: string; x: number; y: number; originX: number; originY: number}
-
-const movedPastThreshold = (drag: Drag): boolean =>
-  Math.abs(drag.x - drag.originX) > DRAG_THRESHOLD || Math.abs(drag.y - drag.originY) > DRAG_THRESHOLD
+import {WhiteboardPinDragMachine} from './pin-drag-machine.js'
 
 type PinDragModel = {
   detachAnchor: (cid: string) => void
@@ -28,39 +12,25 @@ type PinDragModel = {
   toggleThread: (cid: string) => void
 }
 
+type PinDragEvent = Parameters<typeof WhiteboardPinDragMachine.transitionPinDrag>[1]
+
 export function createPinDrag(model: PinDragModel) {
-  const [state, setState] = createStore<{drag: Drag | null; prompt: Prompt | null}>({drag: null, prompt: null})
+  const [state, setState] = createStore<WhiteboardPinDragMachine.PinDragState>({
+    ...WhiteboardPinDragMachine.initialPinDrag,
+  })
 
-  const scenePosition = (pin: PinRow): {x: number; y: number} => {
-    const held = [state.drag, state.prompt].find((entry) => entry?.cid === pin.cid)
-    return held ? {x: held.x, y: held.y} : {x: pin.x, y: pin.y}
+  const perform = (effect: WhiteboardPinDragMachine.PinDragEffect, target: HTMLButtonElement | undefined): void => {
+    if (effect.type === 'capture') target?.setPointerCapture(effect.pointerId)
+    else if (effect.type === 'close-thread') model.closeThread()
+    else if (effect.type === 'toggle-thread') model.toggleThread(effect.cid)
+    else if (effect.type === 'detach-anchor') model.detachAnchor(effect.cid)
+    else model.movePin(effect.cid, effect.patch)
   }
 
-  const disconnect = (): void => {
-    const entry = state.prompt
-    if (!entry) return
-    model.detachAnchor(entry.cid)
-    model.movePin(entry.cid, {x: entry.x, y: entry.y, pinState: 'offset'})
-    setState('prompt', null)
-  }
-  const keep = (): void => {
-    const entry = state.prompt
-    if (!entry) return
-    model.movePin(entry.cid, {
-      x: entry.x,
-      y: entry.y,
-      pinState: 'offset',
-      anchorX: entry.originX,
-      anchorY: entry.originY,
-    })
-    setState('prompt', null)
-  }
-  const promptAnchor = (): HTMLButtonElement | undefined =>
-    state.prompt ? model.pinButton(state.prompt.cid) : undefined
-
-  const heldBy = (pin: PinRow, event: PointerEvent): Drag | undefined => {
-    const drag = state.drag
-    return drag?.cid === pin.cid && drag.pointerId === event.pointerId ? drag : undefined
+  const dispatch = (event: PinDragEvent, target?: HTMLButtonElement): void => {
+    const next = WhiteboardPinDragMachine.transitionPinDrag(state, event)
+    setState(reconcile(next.state))
+    next.effects.forEach((effect) => perform(effect, target))
   }
 
   const held = (): boolean => {
@@ -68,55 +38,41 @@ export function createPinDrag(model: PinDragModel) {
     return drag !== null && model.pinButton(drag.cid)?.hasPointerCapture(drag.pointerId) === true
   }
 
-  const grab = (view: Viewport, pin: PinRow, event: PointerEvent & {currentTarget: HTMLButtonElement}): void => {
-    if (held() || state.prompt) return
-    const down = screenToScene(view, event.clientX, event.clientY)
-    setState('drag', {
-      pointerId: event.pointerId,
-      cid: pin.cid,
-      grabX: pin.x - down.x,
-      grabY: pin.y - down.y,
-      originX: pin.x,
-      originY: pin.y,
-      x: pin.x,
-      y: pin.y,
-    })
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-
-  const follow = (view: Viewport, pin: PinRow, event: PointerEvent): void => {
-    const drag = heldBy(pin, event)
-    if (!drag) return
-    const scene = screenToScene(view, event.clientX, event.clientY)
-    setState('drag', {x: scene.x + drag.grabX, y: scene.y + drag.grabY})
-    if (movedPastThreshold(drag)) model.closeThread()
-  }
-
-  const release = (drag: Drag, comment: CommentRow | undefined): void => {
-    if (!movedPastThreshold(drag)) return model.toggleThread(drag.cid)
-    if (comment?.kind !== 'source-linked') return model.movePin(drag.cid, {x: drag.x, y: drag.y})
-    setState('prompt', {cid: drag.cid, x: drag.x, y: drag.y, originX: drag.originX, originY: drag.originY})
-  }
-  const drop = (pin: PinRow, comment: CommentRow | undefined, event: PointerEvent): void => {
-    const drag = heldBy(pin, event)
-    if (!drag) return
-    setState('drag', null)
-    release(drag, comment)
-  }
-
   return {
-    scenePosition,
-    grab,
-    follow,
-    drop,
-    abandon: (pin: PinRow, event: PointerEvent): void => {
-      if (heldBy(pin, event)) setState('drag', null)
-    },
+    scenePosition: (pin: PinRow): {x: number; y: number} => WhiteboardPinDragMachine.selectScenePosition(state, pin),
+    grab: (view: Viewport, pin: PinRow, event: PointerEvent & {currentTarget: HTMLButtonElement}): void =>
+      dispatch(
+        {
+          type: 'grab',
+          pointerId: event.pointerId,
+          cid: pin.cid,
+          pin: {x: pin.x, y: pin.y},
+          down: screenToScene(view, event.clientX, event.clientY),
+          held: held(),
+        },
+        event.currentTarget,
+      ),
+    follow: (view: Viewport, pin: PinRow, event: PointerEvent): void =>
+      dispatch({
+        type: 'move',
+        pointerId: event.pointerId,
+        cid: pin.cid,
+        scene: screenToScene(view, event.clientX, event.clientY),
+      }),
+    drop: (pin: PinRow, comment: CommentRow | undefined, event: PointerEvent): void =>
+      dispatch({
+        type: 'drop',
+        pointerId: event.pointerId,
+        cid: pin.cid,
+        sourceLinked: comment?.kind === 'source-linked',
+      }),
+    abandon: (pin: PinRow, event: PointerEvent): void =>
+      dispatch({type: 'abandon', pointerId: event.pointerId, cid: pin.cid}),
     prompting: (): boolean => state.prompt !== null,
     promptCid: (): string | undefined => state.prompt?.cid,
-    promptAnchor,
-    disconnect,
-    keep,
-    cancel: (): void => void setState('prompt', null),
+    promptAnchor: (): HTMLButtonElement | undefined => (state.prompt ? model.pinButton(state.prompt.cid) : undefined),
+    disconnect: (): void => dispatch({type: 'disconnect'}),
+    keep: (): void => dispatch({type: 'keep'}),
+    cancel: (): void => dispatch({type: 'cancel'}),
   }
 }

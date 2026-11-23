@@ -1,4 +1,4 @@
-import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
+import {CONCIV_UI_SELECTOR} from './conciv-ui.js'
 import type {SnapdomPlugin} from '@zumer/snapdom'
 
 const WEBP_QUALITY = 0.8

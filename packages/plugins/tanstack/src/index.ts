@@ -1,6 +1,6 @@
 import {Effect, Layer} from 'effect'
 import {z} from 'zod'
-import {define} from '@conciv/plugin/effect/plugin'
+import {Plugin} from '@conciv/plugin/effect'
 import {diagnosticsLayer} from './diagnostics.js'
 import {InvalidOptions, RpcRegisterFailed} from './failures.js'
 import {Definition} from './rpc.js'
@@ -20,7 +20,7 @@ function readOptions(input: unknown) {
   return Effect.fail(InvalidOptions.make({message}))
 }
 
-export default define({
+export default Plugin.define({
   id: 'tanstack',
   effect: (ctx) =>
     Effect.gen(function* () {
