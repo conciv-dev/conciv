@@ -65,21 +65,15 @@ describe('claude', () => {
 describe('the claude login check', () => {
   it('runs the claude on PATH, says not logged in for a CLI with no login, and the first check after a login says logged in', async () => {
     const signal = new AbortController().signal
-    const harness = claude(ConfigProvider.fromEnvRecord({}))
     const claudeOnPath = recordedClaudeOnPath()
-    const inheritedPath = process.env.PATH
-    process.env.PATH = claudeOnPath.path
-    try {
-      expect(await harness.login({signal})).toEqual({
-        loggedIn: false,
-        message: 'Claude Code is not logged in. Run `claude auth login` in a terminal.',
-      })
-      expect(claudeOnPath.started()).toBe(true)
-      process.env.ANTHROPIC_API_KEY = 'sk-ant-test-not-a-real-key'
-      expect(await harness.login({signal})).toEqual({loggedIn: true})
-    } finally {
-      process.env.PATH = inheritedPath
-      delete process.env.ANTHROPIC_API_KEY
-    }
+    const env: Record<string, string> = {PATH: claudeOnPath.path}
+    const harness = claude(ConfigProvider.fromEnvRecord(env))
+    expect(await harness.login({signal})).toEqual({
+      loggedIn: false,
+      message: 'Claude Code is not logged in. Run `claude auth login` in a terminal.',
+    })
+    expect(claudeOnPath.started()).toBe(true)
+    env.ANTHROPIC_API_KEY = 'sk-ant-test-not-a-real-key'
+    expect(await harness.login({signal})).toEqual({loggedIn: true})
   })
 })
