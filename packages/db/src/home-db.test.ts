@@ -1,5 +1,8 @@
+import {execFile} from 'node:child_process'
 import {mkdirSync, statSync, symlinkSync, writeFileSync} from 'node:fs'
 import {join, parse} from 'node:path'
+import {DatabaseSync} from 'node:sqlite'
+import {promisify} from 'node:util'
 import {describe, expect, it} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {isHomeFolderRefused, listEngines, prepareHome, registerEngine, withHomeDb} from './home-db.js'
@@ -37,5 +40,28 @@ describe('home folder', () => {
     expect(statSync(join(home, 'home.db')).mode & 0o777).toBe(0o600)
     expect(statSync(join(home, 'home.lock')).mode & 0o777).toBe(0o600)
     expect(withHomeDb(prepared, listEngines)).toEqual([{id: 'engine-1', pid: 1, root: '/workspace', apiBase: 'x'}])
+  })
+
+  it('preparing the home again keeps the migration lock an open connection holds', async () => {
+    const prepared = await prepareHome(join(tempDir('home-'), 'conciv'))
+    const lockFile = join(prepared, 'home.lock')
+    const lockFromAnotherProcess = [
+      "const {DatabaseSync} = require('node:sqlite')",
+      'const db = new DatabaseSync(process.argv[1], {timeout: 0})',
+      "try { db.exec('BEGIN EXCLUSIVE'); process.stdout.write('taken') } catch (error) { process.stdout.write(error.message) }",
+    ].join('\n')
+    const takeLockFromAnotherProcess = async () =>
+      (await promisify(execFile)(process.execPath, ['-e', lockFromAnotherProcess, lockFile])).stdout
+    const held = new DatabaseSync(lockFile)
+    try {
+      held.exec('BEGIN EXCLUSIVE')
+      expect(await takeLockFromAnotherProcess()).toBe('database is locked')
+
+      await prepareHome(prepared)
+
+      expect(await takeLockFromAnotherProcess()).toBe('database is locked')
+    } finally {
+      held.close()
+    }
   })
 })

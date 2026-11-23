@@ -21,7 +21,7 @@ export function openMigratedDb(options: {
 
 const BUSY_TIMEOUT_MS = 5000
 
-function openDatabase(file: string, busyTimeoutMs = BUSY_TIMEOUT_MS): DatabaseSync {
+export function openDatabase(file: string, busyTimeoutMs = BUSY_TIMEOUT_MS): DatabaseSync {
   return new DatabaseSync(file, {timeout: busyTimeoutMs})
 }
 

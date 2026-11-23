@@ -1,4 +1,4 @@
-import {chmod, lstat, mkdir, open} from 'node:fs/promises'
+import {chmod, lstat, mkdir} from 'node:fs/promises'
 import {join} from 'node:path'
 import {and, eq, isNull, max, sql} from 'drizzle-orm'
 import type {drizzle} from 'drizzle-orm/node-sqlite'
@@ -6,7 +6,7 @@ import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import envPaths from 'env-paths'
 import {z} from 'zod'
 import {homeMigrations} from './home-migrations.gen.js'
-import {openMigratedDb} from './open/migrated-db.js'
+import {openDatabase, openMigratedDb} from './open/migrated-db.js'
 import {engines, hubConnections as hubConnectionsTable, hubOperations, hubRevocations} from './home-schema.js'
 
 const ConcivHomeSchema = z.string().min(1).optional().catch(undefined)
@@ -35,8 +35,7 @@ export async function prepareHome(home: string): Promise<PreparedHome> {
 }
 
 async function preparePrivateFile(path: string): Promise<void> {
-  const file = await open(path, 'a', FILE_MODE)
-  await file.close()
+  openDatabase(path).close()
   await chmod(path, FILE_MODE)
 }
 

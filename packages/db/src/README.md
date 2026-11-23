@@ -35,7 +35,7 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 
 ## Side Effects
 
-- `home-db.ts:prepareHome` creates the home folder (`0700`, or `chmod 0700` when it exists), and creates `home.db` and `home.lock` with an `fs` append handle it closes at once, then sets each to mode `0600`.
+- `home-db.ts:prepareHome` creates the home folder (`0700`, or `chmod 0700` when it exists), and creates `home.db` and `home.lock` by opening and closing each through sqlite, never through a separate `fs` file descriptor (closing any descriptor on a file drops every lock the process holds on it, sqlite's included), then chmods each to `0600` by path.
 - `home-db.ts:openHomeDb` opens `home.db` with a 5000 ms busy timeout and WAL.
 - `index.ts:checkEngines` makes HTTP requests to each registered engine's `/health` and retires rows that fail the identity check.
 

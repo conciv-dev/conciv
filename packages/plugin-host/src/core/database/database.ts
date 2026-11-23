@@ -4,7 +4,8 @@ import {makeWithDefaults} from 'drizzle-orm/effect-sqlite-node'
 import {sqliteLayer, supportsForeignKeyToggle, supportsTuningPragmas} from './sqlite.node.js'
 import {Context, Effect, FileSystem, Layer, Schema} from 'effect'
 import type {SqliteClient} from '@effect/sql-sqlite-node'
-import {chmod, open} from 'node:fs/promises'
+import {chmod} from 'node:fs/promises'
+import {DatabaseSync} from 'node:sqlite'
 
 const makeDatabase = makeWithDefaults()
 type DatabaseShape = Effect.Success<typeof makeDatabase>
@@ -53,7 +54,7 @@ export function layer(options: Options = {path: ':memory:'}) {
 
 async function restrictToOwner(filename: string) {
   if (process.platform === 'win32') return
-  await (await open(filename, 'a', 0o600)).close()
+  new DatabaseSync(filename).close()
   await chmod(filename, 0o600)
   await Promise.all(
     [`${filename}-wal`, `${filename}-shm`].map((file) =>
