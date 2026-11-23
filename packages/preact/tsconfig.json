@@ -2,9 +2,6 @@
   "extends": "@conciv/tsconfig/tsconfig.react.json",
   "compilerOptions": {
     "jsxImportSource": "preact",
-    "types": ["vite/client", "node"],
-    "paths": {
-      "@conciv/preact": ["./src/index.ts"]
-    }
+    "types": ["vite/client", "node"]
   }
 }

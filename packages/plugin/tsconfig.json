@@ -1,9 +1,6 @@
 {
   "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
-    "types": ["node"],
-    "paths": {
-      "@conciv/plugin/experimental": ["./src/experimental/index.ts"]
-    }
+    "types": ["node"]
   }
 }
