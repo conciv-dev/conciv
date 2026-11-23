@@ -37,7 +37,7 @@ export function listOpencodeModelsInChild(binDir: string): Promise<unknown> {
   return runInChild(MODELS_IN_CHILD, [], {...process.env, PATH: `${binDir}${delimiter}${process.env.PATH ?? ''}`})
 }
 
-export function recordedClaudeOnPath(): {path: string; started: () => boolean} {
+export function recordedClaudeOnPath(): {bin: string; path: string; started: () => boolean} {
   const sdkEntry = createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk')
   const nativePackage = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}/package.json`
   const native = join(dirname(createRequire(sdkEntry).resolve(nativePackage)), 'claude')
@@ -45,7 +45,7 @@ export function recordedClaudeOnPath(): {path: string; started: () => boolean} {
   const startedFile = join(bin, 'started')
   writeFileSync(join(bin, 'claude'), `#!/bin/sh\ntouch '${startedFile}'\nexec '${native}' "$@"\n`)
   chmodSync(join(bin, 'claude'), 0o755)
-  return {path: `${bin}${delimiter}${process.env.PATH ?? ''}`, started: () => existsSync(startedFile)}
+  return {bin, path: `${bin}${delimiter}${process.env.PATH ?? ''}`, started: () => existsSync(startedFile)}
 }
 
 export function hungClaudeOnPath(): {path: string; release: () => void} {

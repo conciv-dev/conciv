@@ -61,12 +61,12 @@ const PROBE_START_TIMEOUT_MS = 30_000
 
 const NOT_INSTALLED = 'Claude Code is not installed. Install it, then run `claude auth login`.'
 
-function claudeInstalled(env: ClaudeProbeEnv): boolean {
-  return onPath(env.PATH ?? '', CLAUDE_BIN)
+function claudeInstalled(env: ClaudeProbeEnv, cwd: string): boolean {
+  return onPath(env.PATH ?? '', CLAUDE_BIN, cwd)
 }
 
 async function probe(options: Options & {env: ClaudeProbeEnv}): Promise<SDKControlInitializeResponse> {
-  if (!claudeInstalled(options.env)) throw new Error(NOT_INSTALLED)
+  if (!claudeInstalled(options.env, options.cwd ?? process.cwd())) throw new Error(NOT_INSTALLED)
   const {query} = await loadClaudeAgentSdk()
   const input = makeInputQueue()
   const abortController = followSignal(AbortSignal.timeout(PROBE_START_TIMEOUT_MS))
@@ -208,7 +208,7 @@ export async function claudeSdkLogin({
   refresh,
   ...context
 }: ProbeContext & {refresh: boolean}): Promise<HarnessLoginStatus> {
-  if (!claudeInstalled(context.env)) return {loggedIn: false, message: NOT_INSTALLED}
+  if (!claudeInstalled(context.env, process.cwd())) return {loggedIn: false, message: NOT_INSTALLED}
   const current = probeState.current
   if (current.type !== 'held') return readLogin(await probed(context))
   const login = readLogin(current.init)

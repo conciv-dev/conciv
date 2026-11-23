@@ -281,8 +281,8 @@ const readAppEnv = Effect.fn('core.app.readEnv')(function* (homeDir: string | un
   return {home, path: yield* PathConfig, env, hub: yield* makeHubInstaller(home, env, log)}
 })
 
-function detectedHarnesses(registry: HarnessRegistry, path: string): HarnessAdapter[] {
-  return registry.list().filter((adapter) => onPath(path, adapter.binName))
+function detectedHarnesses(registry: HarnessRegistry, path: string, cwd: string): HarnessAdapter[] {
+  return registry.list().filter((adapter) => onPath(path, adapter.binName, cwd))
 }
 
 function availableHarnesses(
@@ -294,7 +294,7 @@ function availableHarnesses(
   path: string,
   log: Log,
 ): SavedModelsHarness[] {
-  const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses(registry, path)))
+  const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses(registry, path, opts.cwd)))
     .filter((adapter) => adapter.id !== boot.harness.id)
     .map((adapter) => withSavedModels(adapter, stateDir, signal, log))
   return [boot, ...others]

@@ -1,3 +1,4 @@
+import {delimiter} from 'node:path'
 import {ConfigProvider} from 'effect'
 import {describe, expect, it} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
@@ -111,5 +112,13 @@ describe('the claude login check', () => {
     expect(await loggedOut.login({signal, refresh: true})).toEqual({loggedIn: true})
     await loggedOut.models()
     expect(await loggedOut.login({signal})).toEqual(notLoggedIn)
+
+    const claudeInCwd = recordedClaudeOnPath()
+    const emptyEntry = claude(
+      ConfigProvider.fromEnvRecord({PATH: `${delimiter}/usr/bin${delimiter}/bin`, CLAUDE_CONFIG_DIR: configDir}),
+    )
+    const commands = emptyEntry.commands({cwd: claudeInCwd.bin, sessionId: SessionId.parse('conciv_one')})
+    await expect(commands).resolves.toEqual(expect.any(Array))
+    expect(claudeInCwd.started()).toBe(true)
   })
 })
