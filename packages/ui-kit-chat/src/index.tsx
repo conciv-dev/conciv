@@ -20,7 +20,6 @@ export {
   readParentToolCallId,
   standaloneToolNames,
   CHAIN_GROUP_KEY,
-  stickyGrouper,
   type ToolCallPartWithParent,
   type Turn,
   type GroupKey,

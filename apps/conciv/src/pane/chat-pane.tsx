@@ -16,6 +16,7 @@ import {z} from 'zod'
 import {compact, uniq} from 'es-toolkit'
 import {
   activeToolCall,
+  defaultGrouper,
   ChatProvider,
   ComposerHandlersProvider,
   NowLine,
@@ -27,7 +28,6 @@ import {
   useMessage,
   useThread,
   type ComposerDraft,
-  type GroupEntry,
   type Grouping,
   type TurnItem,
   type TurnPrefixSource,
@@ -36,7 +36,7 @@ import {
 } from '@conciv/ui-kit-chat'
 import type {DraftItem, PermissionReply} from '@conciv/protocol/chat-types'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
-import {createPageSessionGrouper, pageSessionEntry, pageToolMeta} from '@conciv/plugin-page/client'
+import {pageToolMeta} from '@conciv/plugin-page/client'
 import {tanstackToolMeta} from '@conciv/plugin-tanstack/client'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
@@ -83,7 +83,6 @@ import {
 } from './plugin-session-parts.js'
 import {createToolRender} from './tool-registry-render.js'
 import {mergeToolMeta} from './tool-catalog-meta.js'
-import {Contribution} from '../runtime/plugin/render'
 import {useEngineReachability} from '../app/reachability.js'
 import {StandingNotice} from '../shell/notices.js'
 import {Button} from '@conciv/ui-kit-system'
@@ -250,17 +249,6 @@ function DraftUnsavedNotice(props: {
     </Show>
   )
 }
-
-const PAGE_SESSION_ENTRIES: readonly GroupEntry[] = [
-  {
-    key: pageSessionEntry.key,
-    render: (props) => (
-      <Contribution plugin="page" fallback={() => props.children}>
-        {() => pageSessionEntry.render(props)}
-      </Contribution>
-    ),
-  },
-]
 
 type SyntheticTag = {description?: string; metadata?: Record<string, unknown>}
 
@@ -477,8 +465,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
 
   const toolRender = createToolRender(catalog)
   const tools = (): ToolCardEntry[] => [...concivToolCards, ...coreToolCards, ...builtinToolCards]
-  const pageSessionGrouper = createPageSessionGrouper()
-  const grouping = (): Grouping => ({grouper: pageSessionGrouper, context: {toolEntries: tools()}})
+  const grouping = (): Grouping => ({grouper: defaultGrouper, context: {toolEntries: tools()}})
 
   const compacting = messaging.compacting
 
@@ -605,7 +592,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       turnPrefix={renderTurnPrefix}
                       promptSuffix={renderPromptSuffix}
                       grouping={grouping()}
-                      groupEntries={PAGE_SESSION_ENTRIES}
                       refreshDisabled={!messaging.resendAllowed()}
                     />
                     <Show when={lastTurnStopped()}>

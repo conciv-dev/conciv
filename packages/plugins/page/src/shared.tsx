@@ -1,8 +1,6 @@
-import {z} from 'zod'
 import {lowerCase} from 'es-toolkit'
 import {For, Show, splitProps, type JSX} from 'solid-js'
 import type {ToolProps} from '@conciv/plugin/experimental'
-import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {
   BasicTool,
@@ -11,9 +9,7 @@ import {
   clip,
   displayValue,
   MUTATING_BADGE,
-  parseInput,
   parseResultMedia,
-  resultText,
   ToolErrorCard,
   type CardChip,
 } from '@conciv/ui-kit-chat/tools'
@@ -31,12 +27,6 @@ const COUNT_PLURAL = new Intl.PluralRules('en')
 
 export function countLabel(count: number, one: string, other: string): string {
   return `${COUNT_FORMAT.format(count)} ${COUNT_PLURAL.select(count) === 'one' ? one : other}`
-}
-
-const InputRecord = z.record(z.string(), z.unknown())
-
-export function toolInput(part: ToolCallPart): Record<string, unknown> {
-  return parseInput(InputRecord, part) ?? {}
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -75,7 +65,7 @@ export function ChipRow(props: {chips: ReadonlyArray<CardChip>}): JSX.Element {
   )
 }
 
-export function mutatingBadge(meta: ToolViewMeta | undefined): string | undefined {
+function mutatingBadge(meta: ToolViewMeta | undefined): string | undefined {
   return meta?.mutating === true ? MUTATING_BADGE : undefined
 }
 
@@ -130,14 +120,6 @@ export function PageTool(
       {local.children}
     </BasicTool>
   )
-}
-
-export function cardErrorMessage(result: ToolResultPart | undefined): string | undefined {
-  if (result?.state !== 'error') return undefined
-  const direct = result.error
-  if (typeof direct === 'string' && direct.length > 0) return direct
-  const text = resultText(result)
-  return text.length > 0 ? text : undefined
 }
 
 export function PageFailedTool(props: ToolProps): JSX.Element {

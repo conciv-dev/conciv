@@ -59,15 +59,3 @@ export const SessionCapturesSchema = z.object({
   cssBundles: z.record(z.string(), z.string()),
 })
 export type SessionCaptures = z.infer<typeof SessionCapturesSchema>
-
-export type ToolCaptureView = {before?: ElementCapture; after?: ElementCapture; css?: string}
-
-export function toolCaptureViews(session: SessionCaptures): Record<string, ToolCaptureView> {
-  const views: Record<string, ToolCaptureView> = {}
-  for (const row of session.captures) {
-    const existing = views[row.toolCallId] ?? {}
-    const css = row.capture.cssBundleId === undefined ? undefined : session.cssBundles[row.capture.cssBundleId]
-    views[row.toolCallId] = {...existing, [row.kind]: row.capture, ...(css === undefined ? {} : {css})}
-  }
-  return views
-}

@@ -12,8 +12,6 @@ import {makeHighlight} from './highlight.js'
 import {symbolicateInSession} from './open-source.js'
 import {makePageOperations} from './operations.js'
 import {pageToolCards} from './cards.js'
-import {SessionCaptures} from './captures.js'
-import {Definition} from './rpc.js'
 import {PageFailedTool} from './shared.js'
 import {makeSimulator} from './simulator.js'
 import {CONCIV_UI_SELECTOR} from './conciv-ui.js'
@@ -108,29 +106,13 @@ export default Plugin.define({
       (session) => onCleanup(() => simulator.endRun(session.id)),
     )
 
-    createKeyed(
-      () => routed()?.server.client,
-      (client) => {
-        const page = client.rpc(Definition)
-        onCleanup(
-          page.events.on('captures.saved', (event) =>
-            queryClient.invalidateQueries({queryKey: page['captures.list'].key({input: event.data})}),
-          ),
-        )
-      },
-    )
-
     onCleanup(highlight.mount(ctx.overlay().element))
 
     pageToolCards.forEach(({card, tools}) =>
       tools.forEach((name) =>
         ctx.add(ToolRegistry, {
           name,
-          render: (props) => (
-            <SessionCaptures sessionID={props.sessionID}>
-              <Dynamic component={card} {...props} />
-            </SessionCaptures>
-          ),
+          render: (props) => <Dynamic component={card} {...props} />,
           errorComponent: PageFailedTool,
         }),
       ),
