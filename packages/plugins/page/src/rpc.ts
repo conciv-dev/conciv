@@ -100,6 +100,45 @@ const tab = {
   ),
 }
 
+export const GRAB_NOTE_ORIGIN = 'page'
+const GRAB_HREF_PREFIX = 'page-grab:'
+const MAX_PREVIEW_CHARACTERS = 1_400_000
+export const GrabId = z.string().regex(/^grab_[a-f0-9-]{36}$/u)
+export type GrabId = z.infer<typeof GrabId>
+const GrabSource = z.object({componentName: short.nullable(), filePath: text, lineNumber: z.number().int().nullable()})
+const GrabRect = z.object({x: z.number(), y: z.number(), width: z.number(), height: z.number()})
+const GrabPreview = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('dom'),
+    html: z.string().max(MAX_PREVIEW_CHARACTERS),
+    width: z.number(),
+    height: z.number(),
+  }),
+  z.object({
+    kind: z.literal('image'),
+    dataUrl: z.string().max(MAX_PREVIEW_CHARACTERS).startsWith('data:image/'),
+    width: z.number(),
+    height: z.number(),
+  }),
+])
+export const StoredGrab = z.object({
+  text,
+  snippet: text.optional(),
+  source: GrabSource.nullable(),
+  rect: GrabRect.nullable(),
+  preview: GrabPreview.nullable(),
+})
+export type StoredGrab = z.infer<typeof StoredGrab>
+
+export function grabHref(id: GrabId): string {
+  return `${GRAB_HREF_PREFIX}${id}`
+}
+
+export function readGrabId(href: string | undefined): GrabId[] {
+  const parsed = GrabId.safeParse(href?.startsWith(GRAB_HREF_PREFIX) ? href.slice(GRAB_HREF_PREFIX.length) : undefined)
+  return parsed.success ? [parsed.data] : []
+}
+
 export const Tab = z.object({
   id: TabId,
   url: z.string().max(16_384),
@@ -641,6 +680,8 @@ export const Definition = Rpc.define({
       errors,
     },
     'captures.list': {input: z.object({sessionId: SessionId}), output: SessionCapturesSchema, errors},
+    'grabs.save': {input: z.object({grab: StoredGrab}), output: z.object({id: GrabId}), errors},
+    'grabs.get': {input: z.object({id: GrabId}), output: StoredGrab.nullable(), errors},
     'sessions.attached': {input: z.object({}), output: z.array(SessionId), errors},
     'tabs.list': {input: z.object({sessionId: SessionId}), output: State, errors},
     symbolicate: {input: SymbolicateSchema, output: SourceLocSchema.nullable(), errors},

@@ -1,7 +1,7 @@
 # @conciv/grab
 
 The conciv element-grab contract: the grab data types
-(`Grab`/`GrabPreview`/`DomPreview`/`ImagePreview`/`ElementSource`) and the `GrabApi` capability surface
+(`Grab`/`GrabPreview`/`DomPreview`/`ImagePreview`/`ElementSource`) and the `GrabActions` picker shape
 shared by the widget and the page plugin.
 
 Part of [conciv](https://github.com/conciv-dev/conciv). It ships as a dependency of the
@@ -13,9 +13,9 @@ npm install -D @conciv/it
 
 ## Interface
 
-- [src/README.md](./src/README.md): all types, `sourceLabel`, `composeGrabText`, and the grab-attachment serializer.
-- `exports["."]` -> `dist/grab.js` (from `src/grab.ts`); `exports["./grab-attachment"]` -> `dist/grab-attachment.js` (`GRAB_MIME`, `grabToPayload`, `grabToFile`, `parseGrabPayload`, `MAX_PAYLOAD_BYTES`, `imagePreviewBudget`) (`package.json`).
-- Only runtime dependency: `zod`. Scripts: `build` (`tsdown`), `typecheck`, `lint` (`oxlint`), `test` (`vitest run --passWithNoTests`), `publint`, `attw`.
+- [src/README.md](./src/README.md): all types, `sourceLabel`, `composeGrabText`.
+- `exports["."]` -> `dist/grab.js` (from `src/grab.ts`) (`package.json`).
+- Only runtime dependency: `@conciv/plugin`. Scripts: `build` (`tsdown`), `typecheck`, `lint` (`oxlint`), `test` (`vitest run --passWithNoTests`), `publint`, `attw`.
 
 ## Invariants
 

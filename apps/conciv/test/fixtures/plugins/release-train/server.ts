@@ -36,6 +36,25 @@ export default Plugin.define({
         execute: () => Effect.succeed({output: {window: 'noon to two'}}),
       })
       tools.add({
+        name: 'release_rollback',
+        description: 'Roll a branch back each time the user allows it',
+        input: z.object({branch: z.string()}),
+        output: z.object({rolledBack: z.boolean()}),
+        execute: ({branch}, tool) =>
+          ctx.permission
+            .assert({
+              action: 'release_rollback',
+              resources: [branch],
+              save: [],
+              fallback: 'ask',
+              metadata: {},
+              sessionId: tool.sessionId,
+              agent: tool.agent,
+              source: {type: 'tool', messageId: tool.messageId, id: tool.id},
+            })
+            .pipe(Effect.as({output: {rolledBack: true}})),
+      })
+      tools.add({
         name: 'release_ship',
         description: 'Ship a branch once the user allows it',
         input: z.object({branch: z.string()}),

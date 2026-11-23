@@ -5,6 +5,7 @@ import {isEqual, isNil} from 'es-toolkit'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {CornerRemoveButton, Icon, isIconName, isRegisteredIconName, useComposerContext} from '@conciv/ui-kit-chat'
 import {NoteCard, type IconName, type MountedSession, type NoteCardProps} from '@conciv/plugin/experimental'
+import {OpaqueNoteCard, type InternalNoteCard} from '@internal/plugin'
 import {usePluginHost, type Item} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
 import type {ChatMessage, NoteComment} from '@conciv/protocol/chat-message-types'
@@ -41,7 +42,7 @@ function NoteChip(props: {note: NoteComment}): JSX.Element {
 }
 
 function DrawnNoteCard(props: {
-  claimant: Item<NoteCard>
+  claimant: Item<InternalNoteCard>
   note: Accessor<NoteComment>
   session: MountedSession | undefined
 }): JSX.Element {
@@ -84,7 +85,9 @@ function PluginNoteCard(props: {
   const note = createMemo(() => props.note, undefined, {equals: isEqual})
   const attempt = createMemo(() => {
     const current = note()
-    const claimant = host.items(NoteCard).find((item) => item.value.origins.includes(current.origin))
+    const claimant = host
+      .items(OpaqueNoteCard.toInternal(NoteCard))
+      .find((item) => item.value.origins.includes(current.origin))
 
     return claimant && {claimant, note: current}
   })

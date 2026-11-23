@@ -10,6 +10,7 @@ import {
   assertChangesetsResolve,
   assertNoRuntimeDependencyLoop,
   assertPublicDepsPublic,
+  assertPublicTypesPublic,
   assertPublicSet,
   assertPublishedChangesCovered,
   assertSharedDependenciesCatalogued,
@@ -165,8 +166,9 @@ const checkPluginUiKit = defineCommand({
 const check = defineCommand({
   meta: {name: 'check', description: 'Validate every package: build + publint + attw'},
   async run() {
-    const {turbo} = await atRoot()
+    const {cwd, turbo} = await atRoot()
     await turbo('build', 'publint', 'attw', OUT_OF_RELEASE_FILTER)
+    await assertPublicTypesPublic(cwd)
   },
 })
 
@@ -178,6 +180,7 @@ const release = defineCommand({
     await assertPublicDepsPublic(cwd)
     await assertVersioned(cwd)
     await turbo('build', 'publint', 'attw', OUT_OF_RELEASE_FILTER)
+    await assertPublicTypesPublic(cwd)
     await changeset('publish')
   },
 })
@@ -192,6 +195,7 @@ const snapshot = defineCommand({
     await assertPublicDepsPublic(cwd)
     await changeset('version', '--snapshot', args.tag)
     await turbo('build', 'publint', 'attw', OUT_OF_RELEASE_FILTER)
+    await assertPublicTypesPublic(cwd)
     await changeset('publish', '--tag', args.tag)
   },
 })

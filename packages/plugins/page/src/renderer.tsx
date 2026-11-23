@@ -3,8 +3,10 @@ import {z} from 'zod'
 import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {useQueryClient} from '@conciv/client'
-import {createKeyed, Plugin, Slot, ToolRegistry} from '@conciv/plugin/experimental'
+import {createKeyed, NoteCard, Plugin, Slot, ToolRegistry} from '@conciv/plugin/experimental'
+import {OpaqueNoteCard} from '@internal/plugin'
 import {Page, PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
+import {GrabPicker} from '@conciv/plugin/experimental/grab'
 import {keepAttached, readTab, reportChanges} from './attachment.js'
 import {makeHighlight} from './highlight.js'
 import {symbolicateInSession} from './open-source.js'
@@ -19,6 +21,9 @@ import {addRef, type Refs} from './snapshot.js'
 import {dehydrate} from './dehydrate.js'
 import {describe, installReactBridge, locate, makeTracker, reactBridge, rootFibers} from './react.js'
 import {disposeReactGrab, grabApi} from './grab.js'
+import {makeGrabNotePicker} from './grab-note.js'
+import {GrabNoteCard} from './grab-card.js'
+import {GRAB_NOTE_ORIGIN} from './rpc.js'
 import {capturePlugins} from './screenshot.js'
 
 const PageOptionsSchema = z.object({taskTimeoutMs: z.number().int().positive().optional()}).catch({})
@@ -130,15 +135,23 @@ export default Plugin.define({
         }),
       ),
     )
+    ctx.add(
+      GrabPicker,
+      makeGrabNotePicker(grabApi, {
+        session: routed,
+        screen: ctx.screen,
+        symbolicate: (input) => symbolicate(input.frames),
+      }),
+    )
+    ctx.add(OpaqueNoteCard.toInternal(NoteCard), {
+      origins: [GRAB_NOTE_ORIGIN],
+      render: (props) => <GrabNoteCard {...props} />,
+    })
     ctx.provide(Page, {
       toast: (message, tone) =>
         void ctx.toast.show({title: message, variant: tone === 'error' || tone === 'success' ? tone : 'default'}),
       capture: {exclude: CONCIV_UI_SELECTOR, plugins: capturePlugins},
-      pick: async () => {
-        const grab = await grabApi.comment()
-        if (!grab) return null
-        return {source: grab.source, rect: grab.rect}
-      },
+      pick: () => grabApi.comment(),
       symbolicate: (input) => symbolicate(input.frames),
     })
     ctx.provide(ReactTree, makeReactTree())

@@ -22,8 +22,6 @@ import {writeClipboardText} from '@conciv/ui-kit-system'
 import type {ComposerContextValue} from '@conciv/ui-kit-chat'
 import {Conciv, type ClientConnectionStatus, type ConcivClient} from '@conciv/plugin'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
-import type {GrabApi} from '@conciv/plugin/experimental/grab'
-import type {GrabApi as PaneGrab} from '@conciv/grab'
 import type {
   Layout,
   MountedSession,
@@ -46,6 +44,7 @@ import {
   useAppData,
   useAppQueryClient,
   useConnected,
+  useGrabProvider,
   useHostTheme,
   useLiveSessions,
   useRpc,
@@ -74,14 +73,13 @@ import {mountOverlay} from './overlay'
 import {isPluginView, panelKey} from './panel-keys'
 import type {Region} from './panels'
 import {deferredHandle, globalStoreTarget, persistedHandle, projectStoreTarget, storeImports, storeName} from './stores'
-import {pluginUi} from './ui'
+import {ui} from './ui'
 
 type Attached = {
   sessions: Accessor<readonly SessionRef[]>
   current: Accessor<MountedSession | undefined>
   tabs: Omit<Tabs, 'move'>
   screen: Accessor<SessionScreen | undefined>
-  grab: Accessor<PaneGrab | undefined>
   layout: Pick<Layout, 'open' | 'close' | 'toggle' | 'hide' | 'state'> & {
     stored(plugin: string, session: SessionRef): readonly string[]
   }
@@ -395,28 +393,13 @@ export function createHostApis() {
       settings: (page) => write((value) => value.settings(plugin, page)),
       draft: (input) => write((value) => value.draft(plugin, input)),
     }),
-    ui: (_plugin, _owner, _context, _register, _builtin, definition) => pluginUi(definition),
-  }
-
-  const pane = () => current()?.grab()
-
-  const grab: GrabApi = {
-    pick: () => pane()?.pick() ?? Promise.resolve(null),
-    comment: () => pane()?.comment() ?? Promise.resolve(null),
-    grabbable: () => {
-      const bound = pane()
-
-      return bound ? (bound.grabbable?.() ?? true) : false
-    },
-    stage: (value) => pane()?.stage(value),
-    staged: () => pane()?.staged() ?? [],
-    clear: () => pane()?.clear(),
+    ui: () => ui,
   }
 
   return {
     apis,
     engine,
-    grab,
+    grabProvider: useGrabProvider(),
     unavailableClient: (): ConcivClient => unavailable,
     queryClient: useAppQueryClient(),
     whenMounted: (run: () => void) => write(() => run()),
@@ -464,7 +447,6 @@ export function createPluginAttachment(apis: HostApis) {
   const [screen, setScreen] = createSignal<SessionScreen>()
   const [routedView, setRoutedView] = createSignal<Accessor<MountedSession | undefined>>()
   const [composer, setComposer] = createSignal<ComposerBinder>()
-  const [grab, setGrab] = createSignal<PaneGrab>()
   const refs = new Map<string, SessionRef>()
 
   const engineLocation = useQuery(() => ({...appData.utils.location.get.queryOptions(), enabled: connection()}))
@@ -604,7 +586,6 @@ export function createPluginAttachment(apis: HostApis) {
     tabs: shell,
     mode: () => theme().scheme,
     screen,
-    grab,
     draft,
     routing: useRouterState({select: (value) => value.status === 'pending'}),
     path: useLocation({select: (location) => `${location.pathname}${location.searchStr}`}),
@@ -686,13 +667,6 @@ export function createPluginAttachment(apis: HostApis) {
 
       return () => {
         if (composer() === value) setComposer(undefined)
-      }
-    },
-    bindGrab(value: PaneGrab) {
-      setGrab(() => value)
-
-      return () => {
-        if (grab() === value) setGrab(undefined)
       }
     },
     region(value: Region) {

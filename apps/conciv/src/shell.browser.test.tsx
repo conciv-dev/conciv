@@ -195,7 +195,7 @@ describe('phone width', () => {
     expect(screen.queryByRole('separator', {name: 'Resize chat width'})).not.toBeInTheDocument()
     expect(screen.queryByRole('button', {name: 'Minimize conciv chat'})).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', {name: 'Close chat'}))
+    await user.click(await screen.findByRole('button', {name: 'Close chat'}))
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     await expect.element(panel).not.toBeVisible()
   })

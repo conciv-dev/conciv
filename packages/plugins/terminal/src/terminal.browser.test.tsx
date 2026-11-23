@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest'
 import {page, userEvent as browserUserEvent} from 'vitest/browser'
-import {cleanup, render, screen} from '@solidjs/testing-library'
+import {cleanup, render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
@@ -103,7 +103,7 @@ describe('the terminal', () => {
     expect((await screen.findAllByText('still:here')).at(-1)).toBeVisible()
   })
 
-  test('a grab picked from the toolbar is pasted into the CLI on Enter, and Back to chat leaves an ended CLI', async () => {
+  test('a grab picked from the toolbar is held as a chip, pasted into the CLI on Enter and never sent to the chat, and Back to chat leaves an ended CLI', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
@@ -121,15 +121,19 @@ describe('the terminal', () => {
     await user.click(screen.getByRole('button', {name: 'Select an element from the page'}))
     // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
     await browserUserEvent.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
+    const toolbar = screen.getByRole('toolbar', {name: 'Terminal'})
+    expect(await within(toolbar).findByRole('button', {name: 'Remove button'})).toBeVisible()
     await browserUserEvent.click(input)
     expect(input).toHaveFocus()
     await browserUserEvent.keyboard('{Enter}')
-    expect((await screen.findAllByText(/<button id="buy" type="button">Buy the fern/)).at(-1)).toBeVisible()
+    expect((await screen.findAllByText(/<button id="buy">Buy the fern<\/button>/)).at(-1)).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Remove button'})).not.toBeInTheDocument()
 
     await browserUserEvent.keyboard('exit{Enter}')
     await user.click(await screen.findByRole('button', {name: 'Back to chat'}))
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
     expect(screen.getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
+    expect(screen.queryByRole('list', {name: 'Notes'})).not.toBeInTheDocument()
   })
 })
 

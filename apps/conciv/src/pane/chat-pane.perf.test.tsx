@@ -68,8 +68,8 @@ describe('the calm chat plane', () => {
       await engine.session.send(`seeded exchange ${index}`)
     }
     await engine.reply(
-      TestLLM.toolCall('fill', 'page_fill', {selector: '#name', value: 'Ada'}),
-      TestLLM.toolCall('save', 'page_click', {selector: '#save'}),
+      TestLLM.toolCall('fill', 'Edit', {file_path: 'form.tsx', old_string: 'name', new_string: 'Ada'}),
+      TestLLM.toolCall('save', 'Bash', {command: 'save the form'}),
       TestLLM.text('The long thread is done.'),
     )
     const held = await engine.gate()

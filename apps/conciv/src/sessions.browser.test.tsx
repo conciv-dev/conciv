@@ -390,22 +390,17 @@ describe('the launcher while a run works', () => {
 describe('the launcher while a run waits', () => {
   test('the launcher tells the user a run waits for their Allow', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_page_eval({code: 'return 1 + 1'})",
+        typescriptCode: "return await external_release_ship({branch: 'main'})",
       }),
       TestLLM.text('Done'),
     )
-    const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/']})})
 
     await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
-    await control.arrived
-    await user.type(
-      await screen.findByRole('textbox', {name: 'Message the conciv agent'}),
-      'Add one and one on the page',
-    )
+    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship main')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByRole('group', {name: 'Permission request'})).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Close chat'}))

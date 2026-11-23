@@ -1,6 +1,8 @@
 import {Effect, Fiber, Scope, Stream, SubscriptionRef, type ManagedRuntime} from 'effect'
 import {createMemo, from, onCleanup, type Accessor} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {createKeyed, type MountedSession, type SetupContext} from '@conciv/plugin/experimental'
+import type {Grab} from '@conciv/plugin/experimental/grab'
 import type {terminalDeclarations} from './stores.js'
 import {followDeletedSessions, runTerminal} from './terminal-driver.js'
 import type {LiveTerminal, TerminalEvent} from './terminal-machine.js'
@@ -41,6 +43,7 @@ export function createTerminalState(ctx: TerminalContext, runtime: TerminalRunti
   )
   const run = follow(runtime, driver.state)
   const send = (event: TerminalEvent) => void runtime.runFork(driver.dispatch(event))
+  const [held, setHeld] = createStore<{grabs: Grab[]}>({grabs: []})
 
   const meta = (sessionId: string) => {
     const models = readModels()
@@ -119,6 +122,14 @@ export function createTerminalState(ctx: TerminalContext, runtime: TerminalRunti
     fail: (terminalKey: string, message: string) => send({type: 'failed', key: terminalKey, message}),
     retry: () => send({type: 'retried'}),
     restart,
+    held: () => held.grabs,
+    hold: (grab: Grab) => setHeld('grabs', (grabs) => [...grabs, grab]),
+    release: (index: number) => setHeld('grabs', (grabs) => grabs.toSpliced(index, 1)),
+    takeHeld: () => {
+      const taken = [...held.grabs]
+      setHeld('grabs', [])
+      return taken
+    },
     pick: (session: MountedSession, model: string) =>
       send({
         type: 'model.picked',

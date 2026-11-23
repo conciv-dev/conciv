@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event'
 import {createEngine} from '@conciv/plugin-testkit'
 import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 import {userEvent as browserInput, userEvent as browserUserEvent} from 'vitest/browser'
+import {createMemoryHistory} from '@tanstack/solid-router'
+import {createEventBusClient, PANEL_PLUGIN_ID, type PanelCommandEventMap} from '@conciv/protocol/event-bus'
 
 describe('moving around settings', () => {
   test('settings open on General, then on the last section the user left', async () => {
@@ -149,10 +151,11 @@ describe('plugins in settings', () => {
 })
 
 describe('the general settings change the panel', () => {
-  test('the user picks a colour mode, a skin, hides the launcher and brings it back, and closes the panel with a page click', async () => {
+  test('the user picks a colour mode, a skin, hides the launcher and brings it back, and closes the panel with a page click, and the host closes it while it opens', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const history = createMemoryHistory({initialEntries: ['/panel/latest?open=true']})
+    await mount({engine, history})
     const panel = await screen.findByRole('dialog', {name: 'conciv chat agent'})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
 
@@ -176,6 +179,19 @@ describe('the general settings change the panel', () => {
     render(() => <p>The host page</p>)
     await user.click(screen.getByText('The host page'))
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
+    await expect.element(panel).not.toBeVisible()
+
+    const closed = Promise.withResolvers<string>()
+    const unsubscribe = history.subscribe(({location}) => {
+      if (!location.search.includes('open=true')) closed.resolve(location.pathname)
+    })
+    const panelCommands = createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID})
+    panelCommands.emit('open', undefined)
+    panelCommands.emit('close', undefined)
+    expect(await closed.promise).toMatch(/^\/panel\//)
+    unsubscribe()
+    panelCommands.dispose()
+    expect(screen.getByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     await expect.element(panel).not.toBeVisible()
   })
 

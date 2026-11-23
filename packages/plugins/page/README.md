@@ -31,12 +31,12 @@ A built-in: it draws with the UI kits directly, like opencode's gui plugins, and
 - option `pageReplyTimeoutMs` (`connection.ts`, milliseconds, default 5 000): how long a tab has to answer an action that declares no timeout of its own, and to accept a queue
 - option `queuedActionTimeoutMs` (`connection.ts`, milliseconds, default 7 000): how long each queued action has to confirm once the tab reaches it
 - option `permissionSyncTimeoutMs` (`connection.ts`, milliseconds, default 10 000): how long granting or revoking a tab's page permissions on its session may take before the attach is refused (the tab retries on its back-off)
-- `client.ts` (`./client`): the DOM helpers, `reactBridge` as a namespace, `pageAttachmentCards`, `pageSessionEntry`, `PAGE_ACT_TOOL_NAMES`, `PAGE_TOOL_PREFIX`, `pageToolMeta`
+- `client.ts` (`./client`): the DOM helpers, `reactBridge` as a namespace, `pageSessionEntry`, `PAGE_ACT_TOOL_NAMES`, `PAGE_TOOL_PREFIX`, `pageToolMeta`
 - `renderer.tsx` (`./renderer`): the window setup (default export) the built-ins load lazily
 - `grab.ts:getReactGrabAdapter` - creates the adapter once and returns `{activate(onGrab), comment(onGrab), deactivate(), isActive()}` (`ReactGrabAdapter`).
-- `grab.ts:GrabSink` - `(grab: Grab) => void`.
+- `grab.ts:GrabSink` - `(grab: Promise<Grab>) => void`: called as soon as an element is picked, before react-grab deactivates, so a pick never resolves before its capture ends.
 - `grab.ts:picking` / `setPicking` - Solid signal for pick mode; `setCancelPick` / `cancelPick`.
-- `grab-preview.ts:captureElement` - returns a `DomPreview` (`kind: 'dom'`, html, width, height) for an element.
+- `grab-preview.ts:capturePreview` - returns an `ImagePreview` (`kind: 'image'`, a WebP data URL drawn by snapdom, as `page_screenshot` draws) for an element, or a `DomPreview` (`kind: 'dom'`, html, width, height) when drawing fails.
 - `grab.ts:elementSnippet` / `groundGrabText` - an element's opening tag and text, with its source location from `sourceFromAttr`.
 - `grab-preview.ts:correctFallbackMetrics` / `isStyledElement` - adjust cloned text runs whose web fonts fall back.
 
@@ -154,6 +154,13 @@ Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTo
 
 ## Invariants
 
+- A grab picked from the composer becomes a composer note with origin `page` and `href: page-grab:<id>`
+  (`grab-note.ts`, the plugin's `GrabPicker`): the plugin resolves the source, shrinks an image preview to 750 000
+  bytes, saves the grab on the engine (`grabs.save`, one JSON file per grab under `.conciv/page/grabs/`, `grabs.ts`)
+  and attaches the note. Its `NoteCard` draws the grab from the engine by id, in the composer and in the sent message.
+- The model reads the note's sentence (the grab's text with its source) and, for an image preview, the picture: the
+  `session.prompt` hook adds it as an image file of the message (`grabs.ts:addPictures`).
+
 - `readFileInRoot` (`symbolicate.ts`): throws on a realpath outside the project root
 - `fetchLoopback` (`symbolicate.ts`): refuses hosts other than localhost, 127.0.0.1, ::1 or [::1]
 - `symbolicateFrames` (`symbolicate.ts`): skips node_modules results; a frame that fails to map counts as null; it runs in the calling host fiber, so its source fetch timeout is on the engine's clock
@@ -184,6 +191,7 @@ Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTo
 
 ## Side Effects
 
+- `grabs.ts` writes one file per saved grab under `<project>/.conciv/page/grabs/`; nothing removes them.
 - `symbolicate.ts`: reads files and fetches source maps over loopback HTTP
 - `react.ts:installTracker` - instruments React through `bippy` `instrument({onCommitFiberRoot})`.
 - `toast.ts:showToast` - appends overlay elements to the page.
@@ -191,8 +199,8 @@ Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTo
 
 - `grab.ts:create` - sets `window.__REACT_GRAB_DISABLED__ = true`, dynamically imports `react-grab` and registers the `conciv` react-grab plugin.
 - `grab-preview.ts` - appends a temporary `<iframe>` and a holder element to `document.body` to measure fonts.
-- `grab-preview.ts:captureElement` - waits one `requestAnimationFrame`, clones the element with inlined computed styles into a detached `<div>`, and returns its `outerHTML`.
-- `GrabCard` (`grab-card.tsx`) reads `attachment.file.text()` asynchronously through `useQuery`, keyed by the attachment id
+- `grab-preview.ts:capturePreview` - waits one `requestAnimationFrame`, draws the element with snapdom; on failure clones the element with inlined computed styles into a detached `<div>`, and returns its `outerHTML`.
+- `GrabNoteCard` (`grab-card.tsx`) reads the grab of a note (`href: page-grab:<id>`) from the engine with `grabs.get` through `useQuery`, keyed by the grab id
 - `GrabSnapshotFrame` (`grab-card.tsx`) reads `getComputedStyle` (`--chat-panel`, `--chat-fill`) on mount and renders a sandboxed srcdoc iframe
 - `sessionLocation` (`session-card.tsx`) reads global `location.host`/`location.pathname` while streaming
 - Every page render and `PageSessionCard` (`session-card.tsx`) run the page plugin's captures query on the app's QueryClient, keyed exactly as the app invalidates it

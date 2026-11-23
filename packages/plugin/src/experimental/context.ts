@@ -268,20 +268,4 @@ export interface SetupContext<D> extends Context {
    * ```
    */
   readonly icons: {readonly [K in keyof DeclaredIcons<D>]: PluginIconName}
-  /**
-   * The app's own components, as `Context.ui`, typed from the definition's setup: what that setup receives as
-   * `ctx.ui` is what `usePlugin<typeof definition>().ui` sees.
-   *
-   * @example
-   * ```tsx
-   * const ui = usePlugin<typeof definition>().ui
-   * ```
-   */
-  readonly ui: SetupUi<D>
 }
-
-type SetupUi<D> = D extends {readonly setup?: (ctx: infer C) => unknown}
-  ? C extends {readonly ui: infer U extends Ui}
-    ? U
-    : Ui
-  : Ui

@@ -16,7 +16,6 @@ import {z} from 'zod'
 import {compact, uniq} from 'es-toolkit'
 import {
   activeToolCall,
-  AttachmentByMime,
   ChatProvider,
   ComposerHandlersProvider,
   NowLine,
@@ -50,7 +49,6 @@ import {
   type SendContent,
   type ToolCallPart,
 } from '@conciv/protocol/chat-message-types'
-import type {Grab} from '@conciv/grab'
 import {composerDraftSink, paneAttachments, returnQueueToDraft} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useLiveSessions, useRpc, useArrivedFromConnect} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
@@ -328,18 +326,9 @@ function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Eleme
   const pane = usePane()
   const context = useComposerContext()
   onMount(() => {
-    pane.grabStaging.connect({
-      attachments: context.attachments,
-      addAttachment: context.addAttachment,
-      replaceAttachment: context.replaceAttachment,
-      removeAttachment: context.removeAttachment,
-      hasAttachment: context.hasAttachment,
-    })
     props.onReady({addAttachment: context.addAttachment, addItem: context.addItem})
     for (const file of pane.attachments.drain()) void context.addAttachment(file)
   })
-  onCleanup(() => pane.grabStaging.disconnect())
-  createEffect(() => pane.grabStaging.reconcile(context.attachments()))
   return <></>
 }
 
@@ -525,14 +514,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     inputHandle()?.focus()
   }
   const imageInput = () => harness()?.imageInput
-  const attachments = createMemo(() => paneAttachments(imageInput(), appData.drafts))
-  const PaneAttachment = (slotProps: {onRemove?: (id: string) => void}): JSX.Element => (
-    <AttachmentByMime cards={attachments().chips} onRemove={slotProps.onRemove} />
-  )
-  const stageGrab = (grab: Grab) => {
-    pane.grabStaging.stage(grab)
-    inputHandle()?.focus()
-  }
+  const attachmentAdapter = createMemo(() => paneAttachments(imageInput(), appData.drafts))
 
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
   const markerRowsAfter = markersAfter(chat, () => (markers.isPending ? [] : (markers.data ?? [])))
@@ -618,7 +600,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       sessionID={sessionId}
                       components={THREAD_COMPONENTS}
                       tools={tools()}
-                      attachmentCards={attachments().cards}
                       render={toolRender.render}
                       renderPending={toolRender.pending()}
                       turnPrefix={renderTurnPrefix}
@@ -683,8 +664,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     draftKey={sessionId}
                     placeholder={composerPlaceholder()}
                     inputLabel="Message the conciv agent"
-                    attachmentAdapter={attachments().adapter}
-                    AttachmentComponent={PaneAttachment}
+                    attachmentAdapter={attachmentAdapter()}
                     notes={<ComposerNotes session={pluginSession.view} onRemoved={() => inputHandle()?.focus()} />}
                     onInputReady={setInputHandle}
                     onSelectionChange={draftStorage.noteSelection}
@@ -717,7 +697,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                         compacting={compacting()}
                         onCompact={() => messaging.compact.mutate()}
                         onNewSession={() => pane.newSession()}
-                        onStageGrab={stageGrab}
+                        onGrabbed={() => inputHandle()?.focus()}
                       />
                       <ComposerWiring
                         onReady={(api) => {

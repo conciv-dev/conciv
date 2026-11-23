@@ -2,10 +2,10 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {cli, createEngine, TestLLM} from '@conciv/plugin-testkit'
 
 describe('with no page open, the agent is offered no page tools', () => {
-  it('leaves the page tools and the page skill out of the request and out of reach of a call', async () => {
+  it('leaves the page tools and the page skill out of the request and out of reach of a call, and the CLI lists the page group, which holds every page tool, but a page tool is not available', async () => {
     const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     await engine.reply(TestLLM.text('Open the page first'))
     await engine.session.send('Click the checkout button')
@@ -24,6 +24,23 @@ describe('with no page open, the agent is offered no page tools', () => {
     })
     expect(await engine.outside().discover(['page_click'])).toMatchObject({
       content: [{type: 'text', text: expect.stringContaining("Unknown tool: 'page_click'")}],
+    })
+
+    const help = await cli(['tools', '--help'], {engine})
+    expect(help.stdout).toMatch(/^ {2}page +the page tools the running dev server serves/m)
+    expect(help.stdout).not.toMatch(/^ {2}react +/m)
+    const pageHelp = await cli(['tools', 'page', '--help'], {engine})
+    expect(pageHelp.stdout).toMatch(/^ {2}locate +find the source location that rendered an element/m)
+    expect(pageHelp.stdout).toMatch(/^ {2}fill_form +fill several fields in order/m)
+    const noPage = await cli(['tools', 'page', 'route'], {engine})
+    expect(noPage.exitCode).toBe(1)
+    expect(JSON.parse(noPage.stdout)).toEqual({
+      ok: false,
+      error: {
+        kind: 'user',
+        message: 'No tool named "page_route" is currently available. Please use a tool from the available tool list.',
+        code: 'HANDLER_ERROR',
+      },
     })
   })
 })

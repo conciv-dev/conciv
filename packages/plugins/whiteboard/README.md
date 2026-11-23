@@ -24,8 +24,8 @@ What enabling it gives today:
 
 The browser part also draws the thread cards for the whiteboard tools: the canvas operations (with the drawn element
 types and bounds, the svg or mermaid source, and an export's image), the comment and pin operations (with the thread),
-`element_reference` and `anchor_resolve`. It is a first-party definition (`defineInternalPlugin`) that draws only
-through `ctx.ui`; the bundle inlines `@conciv/plugin-internal` and imports no kit.
+`element_reference` and `anchor_resolve`. It draws only through `ctx.ui`, reading
+conciv's own members with `OpaqueUi.toInternal(ctx.ui)`, and imports no kit.
 
 Once opened, the canvas stays mounted and hidden after Escape, so the agent keeps drawing into it. In a tab
 where the canvas was never opened, drawing answers `NO_CANVAS` after 8 seconds and a PNG export answers `EXPORT_TIMEOUT`.

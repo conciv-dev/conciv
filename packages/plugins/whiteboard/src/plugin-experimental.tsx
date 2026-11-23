@@ -4,9 +4,9 @@ import {render} from 'solid-js/web'
 import {Layer, ManagedRuntime, SubscriptionRef} from 'effect'
 import {z} from 'zod'
 import {useQuery} from '@conciv/client'
-import {ComposerPill, SettingsPage, Slot, ToolRegistry, usePlugin, type Plugin} from '@conciv/plugin/experimental'
-import {defineInternalPlugin} from '@conciv/plugin-internal'
-import {GrabApi} from '@conciv/plugin/experimental/grab'
+import {ComposerPill, Plugin, SettingsPage, Slot, ToolRegistry, usePlugin} from '@conciv/plugin/experimental'
+import {Page} from '@conciv/plugin/experimental/page'
+import {OpaqueUi} from '@internal/plugin'
 import {whiteboardToolCards} from './cards.js'
 import {makeCommentCompose} from './comment-compose.js'
 import type {ComposePhase} from './comment-compose-machine.js'
@@ -49,7 +49,7 @@ function CanvasBackgroundRow(): JSX.Element {
   )
 }
 
-const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlugin({
+const whiteboard: Plugin.Definition<typeof whiteboardStores> = Plugin.define({
   stores: whiteboardStores,
   setup(ctx) {
     const runtime = ManagedRuntime.make(Layer.empty)
@@ -68,7 +68,7 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
       return current.status === 'composing' ? current : undefined
     }
     const visible = (): boolean => canvas.open && phase().status === 'idle'
-    const grab = ctx.use(GrabApi)
+    const page = ctx.use(Page)
     const surface = useQuery(() => ({
       queryKey: ['plugin', 'whiteboard', 'canvas-surface'],
       queryFn: () => import('./canvas-surface.js').then((module) => module.default),
@@ -107,8 +107,8 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
       id: 'whiteboard-comment',
       order: 19,
       show: () => {
-        const live = grab()
-        if (live.status !== 'active' || comments() === undefined || !live.value.grabbable()) return undefined
+        const live = page()
+        if (live.status !== 'active' || comments() === undefined) return undefined
         return {
           label: 'Comment',
           icon: 'message-square-plus',
@@ -116,7 +116,7 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
           run: () => {
             runtime.runFork(
               compose.start({
-                pick: () => live.value.comment(),
+                pick: () => live.value.pick(),
                 canvasOpen: () => canvas.open,
                 added: () => void ctx.toast.show({title: 'Comment added to the whiteboard', variant: 'success'}),
                 unbound: () =>
@@ -165,7 +165,7 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
       render: () => <CanvasBackgroundRow />,
     })
     ctx.add(ComposerPill, commentPill)
-    whiteboardToolCards(ctx.ui).forEach((card) => ctx.add(ToolRegistry, card))
+    whiteboardToolCards(OpaqueUi.toInternal(ctx.ui)).forEach((card) => ctx.add(ToolRegistry, card))
     // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
     ctx.add(Slot, () => (visible() ? overlay : undefined))
     // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
