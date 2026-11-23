@@ -26,6 +26,7 @@ import {
   CHAIN_GROUP_KEY,
   childCallsFor,
   groupEntryFor,
+  defaultGrouping,
   groupParts,
   readParentToolCallId,
   type GroupEntry,
@@ -36,7 +37,6 @@ import {
   type Turn,
   groupNodeIdentity,
 } from '../store/grouping.js'
-import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {Dynamic} from 'solid-js/web'
 import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
 import {OUTCOME_TONE} from '../tools/primitives/tool-presentation.js'
@@ -52,7 +52,6 @@ type ActivityConfig = {
   tools: () => ToolCardEntry[]
   fallback: () => ToolCardView
   ctx: () => ToolViewCtx
-  pageSession: () => PageSessionConfig | undefined
   grouping: () => Grouping | undefined
   groupEntries: () => readonly GroupEntry[]
 }
@@ -61,7 +60,6 @@ const ActivityConfigContext = createContext<ActivityConfig>({
   tools: () => [],
   fallback: () => toolFallbackCardView,
   ctx: () => ({...INERT_TOOL_CTX, respondApproval: () => {}}),
-  pageSession: () => undefined,
   grouping: () => undefined,
   groupEntries: () => [],
 })
@@ -73,7 +71,6 @@ export type ActivityProps = ParentProps<{
   tools?: ToolCardEntry[]
   ctx?: ToolViewCtx
   fallback?: ToolCardView
-  pageSession?: PageSessionConfig
   grouping?: Grouping
   groupEntries?: readonly GroupEntry[]
   class?: string
@@ -88,7 +85,6 @@ function Root(props: ActivityProps): JSX.Element {
           tools: () => props.tools ?? [],
           fallback: () => props.fallback ?? toolFallbackCardView,
           ctx: () => props.ctx ?? parent.ctx(),
-          pageSession: () => props.pageSession ?? parent.pageSession(),
           grouping: () => props.grouping ?? parent.grouping(),
           groupEntries: () => props.groupEntries ?? parent.groupEntries(),
         }}
@@ -295,15 +291,14 @@ function userText(turn: Turn): string {
 function AssistantTurnView(props: {turn: Turn}): JSX.Element {
   const activity = useActivity()
   const config = useContext(ActivityConfigContext)
-  const grouping = createMemo(() => config.grouping() ?? createGrouping(config.pageSession(), config.tools()))
+  const grouping = createMemo(() => config.grouping() ?? defaultGrouping(config.tools()))
   const nodes = createMemo(() => groupParts(props.turn.parts, grouping().grouper, grouping().context))
   const groupEntries = createMemo<GroupEntry[]>(() => {
     const chain: GroupEntry = {
       key: CHAIN_GROUP_KEY,
       render: (groupProps) => <StepGroup turn={props.turn} node={groupProps.node} liveSegment={groupProps.streaming} />,
     }
-    const pageSession = config.pageSession()
-    return [chain, ...(pageSession ? [pageSession.entry] : []), ...config.groupEntries()]
+    return [chain, ...config.groupEntries()]
   })
   const hasSteps = (node: GroupNodeGroup): boolean =>
     node.key !== CHAIN_GROUP_KEY || stepIndices(props.turn, node.indices).length > 0

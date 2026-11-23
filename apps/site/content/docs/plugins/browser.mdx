@@ -182,15 +182,8 @@ ctx.add(Panel, {
 
 A slot puts content at a fixed place in the widget:
 
-```tsx title="packages/builtin-plugins/src/terminal/plugin-experimental.tsx"
-ctx.add(Slot, {
-  at: 'session.panel.end',
-  render: (input) => (
-    <Show when={ctx.layout.state(PANEL_KEY, input.session) === 'visible'}>
-      <TerminalToolbar session={input.session} terminal={terminal} />
-    </Show>
-  ),
-})
+```tsx title="packages/plugins/tanstack/src/plugin-experimental.tsx"
+ctx.add(Slot, {at: 'session.status', render: () => <InspectorChip ui={ctx.ui} />})
 ```
 
 | `at`                | Where                             | `render` input                           |

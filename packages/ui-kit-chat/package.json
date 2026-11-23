@@ -72,6 +72,7 @@
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/keyed": "catalog:",
     "@solid-primitives/map": "catalog:",
+    "@solid-primitives/media": "catalog:",
     "@solid-primitives/resize-observer": "catalog:",
     "@solid-primitives/timer": "catalog:",
     "@tanstack/pacer": "catalog:",
@@ -80,7 +81,6 @@
     "es-toolkit": "catalog:",
     "lucide-solid": "catalog:",
     "mermaid": "catalog:",
-    "rrweb-snapshot": "catalog:",
     "shiki": "catalog:",
     "zod": "catalog:"
   },

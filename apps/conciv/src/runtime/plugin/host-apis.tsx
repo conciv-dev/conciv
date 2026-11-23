@@ -67,7 +67,6 @@ import {
   type HostApiAttachEvent,
 } from './attach-machine'
 import {usePluginHost, type HostApiFactories} from './host'
-import {icons} from './icons'
 import {createLocatedWrites} from './located'
 import {createMobileViews} from './mobile'
 import {mountOverlay} from './overlay'
@@ -356,7 +355,7 @@ export function createHostApis() {
           description: options.description,
           tone: TOAST_TONE[options.variant ?? 'default'],
           loading: options.variant === 'loading',
-          icon: options.icon && icons[options.icon],
+          icon: options.icon,
           duration: options.duration,
           persist: options.persistent,
           actions: options.actions?.map((action) => ({

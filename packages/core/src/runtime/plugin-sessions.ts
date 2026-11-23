@@ -20,14 +20,12 @@ import {newSessionId} from '../sessions/session-rows.js'
 import type {createSessionSearch} from '../sessions/session-search.js'
 import {rowById, setMetadata, setPermissions} from '../sessions/session-rows.js'
 import type {CoreRuntime} from './scope-types.js'
-import type {PagePlugin} from '../page/page-plugin.js'
 
 type SessionKeyDeps = {
   chat: ChatContext
   runtime: Pick<CoreRuntime, 'forSession'>
   search: Pick<ReturnType<typeof createSessionSearch>, 'retitle' | 'pages' | 'listed'>
   pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
-  queues: Pick<PagePlugin, 'cancelSession'>
 }
 
 type SessionInfo = Effect.Success<ReturnType<Session.Interface['get']>>
@@ -203,9 +201,9 @@ export function provideSessions(started: () => SessionKeyDeps) {
         remove: (sessionId) =>
           found(sessionId).pipe(
             Effect.andThen(() => {
-              const {chat, runtime, pluginHost, queues} = started()
+              const {chat, runtime, pluginHost} = started()
               return Effect.promise(() =>
-                deleteSession({db: chat.db, plane: chat.plane, runtime, pluginHost, queues}, sessionId),
+                deleteSession({db: chat.db, plane: chat.plane, runtime, pluginHost}, sessionId),
               )
             }),
           ),

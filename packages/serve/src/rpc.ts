@@ -37,13 +37,19 @@ export type UpgradeWebSocket = (createEvents: (c: Context) => WSEvents) => Middl
 
 export type RpcSocketGate = {
   trust: RpcSocketTrust
+  engineCaller: boolean
   open: (socket: Pick<WSContext<unknown>, 'close'>) => void
   present: (token: string) => void
   close: () => void
 }
 
-function rpcConnectionContext(requestUrl: string, callerOrigin: string | null, headers: RpcHeaders = {}): RpcContext {
-  return {origin: new URL(requestUrl).origin, callerOrigin, headers}
+function rpcConnectionContext(
+  requestUrl: string,
+  callerOrigin: string | null,
+  engineCaller: boolean,
+  headers: RpcHeaders = {},
+): RpcContext {
+  return {origin: new URL(requestUrl).origin, callerOrigin, engineCaller, headers}
 }
 
 export type TraceRpcCall = (path: readonly string[], call: () => Promise<unknown>) => Promise<unknown>
@@ -137,13 +143,16 @@ function readClientVersion(headers: RpcHeaders): string | undefined {
   return ClientVersionSchema.parse(Array.isArray(value) ? value[0] : value)
 }
 
-export function rpcFetchMiddleware(router: AnyRouter, traceCall?: TraceRpcCall): MiddlewareHandler {
-  const handler = new RPCHandler<RpcContext>(router, rpcHandlerOptions(traceCall))
+export function rpcFetchMiddleware(
+  router: AnyRouter,
+  options: {traceCall?: TraceRpcCall; engineCaller?: (c: Context) => boolean} = {},
+): MiddlewareHandler {
+  const handler = new RPCHandler<RpcContext>(router, rpcHandlerOptions(options.traceCall))
   return async (c, next) => {
     const {matched, response} = await handler.handle(c.req.raw, {
       prefix: RPC_PREFIX,
       context: {
-        ...rpcConnectionContext(c.req.url, c.req.header('origin') ?? null),
+        ...rpcConnectionContext(c.req.url, c.req.header('origin') ?? null, options.engineCaller?.(c) ?? false),
         replied: responseWritten(c.env?.outgoing),
       },
     })
@@ -219,7 +228,12 @@ export function rpcWebsocketRoute(
     }
     const handler = new WebsocketRPCHandler<RpcContext>(router, rpcHandlerOptions(options.traceCall, streams))
     const gate = options.gate?.(c)
-    const connection = rpcConnectionContext(c.req.url, c.req.header('origin') ?? null, upgradeHeaders(c))
+    const connection = rpcConnectionContext(
+      c.req.url,
+      c.req.header('origin') ?? null,
+      gate?.engineCaller ?? false,
+      upgradeHeaders(c),
+    )
     const context = gate === undefined ? connection : {...connection, socket: gate.trust}
     const peer = peerSocket(held)
     return {

@@ -95,7 +95,6 @@ export function makePagePlugin(host: () => PluginHost) {
     Definition.methods.symbolicate.output.parse(await call('symbolicate', {frames}))
 
   return {
-    symbolicate,
     symbolicateOrNone: (frames: RawFrame[]): Promise<SourceLoc | null> =>
       symbolicate(frames).catch((error: unknown) => {
         if (!unlisted(error)) log(Effect.logError('[core] the page plugin could not symbolicate', {error}))
@@ -177,13 +176,6 @@ export function makePagePlugin(host: () => PluginHost) {
       const inFlight = inFlightHubCalls.get(sessionId)
       callIds.forEach((callId) => inFlight?.delete(callId))
       if (inFlight?.size === 0) inFlightHubCalls.delete(sessionId)
-    },
-    cancelSession: async (sessionId: SessionId): Promise<void> => {
-      inFlightHubCalls.delete(sessionId)
-      heldHubCalls.delete(sessionId)
-      await call('queue.cancelSession', {sessionId}).catch((error: unknown) => {
-        if (!unlisted(error)) throw error
-      })
     },
     followFinished: (listener: (finished: QueueFinished) => void) =>
       host().runPromise(

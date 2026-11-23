@@ -19,6 +19,7 @@ import {
   type RegistryCallErrorName,
 } from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
+import {engineMcpUrl} from '../../engine-login.js'
 import {rowById} from '../../sessions/session-rows.js'
 import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './sessions.js'
 import {
@@ -85,11 +86,7 @@ function chatRouter(deps: RpcDeps, sessionOs: SessionOs): Router<typeof contract
 type CommandSource = {
   harnessFor: (sessionId: SessionId) => Promise<HarnessAdapter>
   cwd: string
-  basePath: string
-}
-
-function mcpUrlFor(deps: CommandSource, origin: string): string {
-  return `${origin}${deps.basePath}/api/mcp`
+  agentToken: string
 }
 
 function commandSource(name: string): ChatCommand['source'] {
@@ -102,7 +99,7 @@ async function listCommands(deps: CommandSource, opts: {sessionId: SessionId; or
   const harness = await deps.harnessFor(opts.sessionId)
   const commands = harness.commands
   if (!commands) return {commands: []}
-  const mcpUrl = harness.capabilities.mcp === 'http' ? mcpUrlFor(deps, opts.origin) : undefined
+  const mcpUrl = harness.capabilities.mcp === 'http' ? engineMcpUrl(opts.origin, deps.agentToken) : undefined
   const list = await commands({cwd: deps.cwd, sessionId: opts.sessionId, mcpUrl})
   return {
     commands: list.map((command) => ({
@@ -624,9 +621,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       clearChanges: sessionOs.page.clearChanges.handler(({context}) =>
         hubTraced(deps, context, 'page_clear_changes', {}, () => deps.queues.clearChanges(context.session.id)),
       ),
-    },
-    editor: {
-      openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
     },
     meta: {
       models: os.meta.models.handler(async ({input, signal = new AbortController().signal}) => {

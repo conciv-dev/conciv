@@ -20,7 +20,7 @@ export {
   readParentToolCallId,
   standaloneToolNames,
   CHAIN_GROUP_KEY,
-  PAGE_SESSION_GROUP_KEY,
+  stickyGrouper,
   type ToolCallPartWithParent,
   type Turn,
   type GroupKey,
@@ -35,15 +35,6 @@ export {
   type GroupEntry,
   type PartTypePaths,
 } from './store/grouping.js'
-export {
-  createGrouping,
-  createPageSessionGrouper,
-  pageSessionCallParts,
-  pageSessionThinkingParts,
-  type PageSessionConfig,
-  type PageSessionGrouperConfig,
-  type PageSessionThinkingPart,
-} from './store/page-session.js'
 export {ToolProvider, useToolCtx} from './store/tool-context.js'
 export {createTurnRollup, sessionTotals, summaryLine, turnRollup, type TurnRollup} from './store/turn-rollup.js'
 export {activeCallInParts, activeToolCall} from './store/active-call.js'
@@ -199,3 +190,6 @@ export {NowLine} from './styled/now-line.js'
 export {TURN_MEASURE_CLASS} from './styled/turn-classes.js'
 export {MorphLabel} from './styled/morph-label.js'
 export {VirtualLines, type VirtualLinesProps} from './styled/virtual-lines.js'
+export {isIconName} from './icons/catalog.js'
+export {Icon, type IconProps} from './icons/icon.js'
+export {isRegisteredIconName, registerIcons} from './icons/registry.js'

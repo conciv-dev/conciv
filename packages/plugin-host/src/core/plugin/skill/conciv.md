@@ -59,9 +59,8 @@ For a tour of the widget, fetch [Usage](https://conciv.dev/docs/usage). Built in
 [Chat](https://conciv.dev/docs/usage/chat), [Page control](https://conciv.dev/docs/usage/page-control) (the agent
 reads and drives the live page), [Dev server](https://conciv.dev/docs/usage/dev-server) (the agent reads the dev
 server's config, module graph and served code), [Approvals](https://conciv.dev/docs/usage/approvals) and the
-[Quick terminal](https://conciv.dev/docs/usage/quick-terminal). Plugins you turn on:
-[Live tests](https://conciv.dev/docs/usage/live-tests) (the agent runs the project's tests),
-[Whiteboard](https://conciv.dev/docs/usage/whiteboard) and TanStack.
+[Quick terminal](https://conciv.dev/docs/usage/quick-terminal). Each plugin the project turns on adds its own tools
+and skill; the tour lists them.
 
 ## [CLI](https://conciv.dev/docs/cli)
 

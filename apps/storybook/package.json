@@ -6,6 +6,7 @@
   "scripts": {
     "storybook": "storybook dev -p 6006 --config-dir src/storybook",
     "build-storybook": "NODE_OPTIONS=--max-old-space-size=8192 storybook build --config-dir src/storybook",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint"
   },
@@ -26,7 +27,9 @@
     "@storybook/addon-a11y": "^10.6.4",
     "@storybook/addon-docs": "catalog:",
     "@storybook/addon-themes": "^10.6.4",
+    "@storybook/addon-vitest": "^10.6.4",
     "@tanstack/solid-virtual": "catalog:",
+    "@testing-library/dom": "^10.4.2",
     "@tiptap/core": "catalog:",
     "@tiptap/extension-document": "catalog:",
     "@tiptap/extension-hard-break": "catalog:",
@@ -37,9 +40,11 @@
     "@types/node": "catalog:",
     "@unocss/postcss": "catalog:",
     "@unocss/reset": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
     "@zag-js/focus-visible": "1.47.0",
     "lucide-solid": "catalog:",
     "marked": "catalog:",
+    "playwright": "catalog:",
     "postcss": "catalog:",
     "rehype-harden": "catalog:",
     "rehype-raw": "catalog:",
@@ -55,6 +60,7 @@
     "typescript": "catalog:",
     "unified": "catalog:",
     "unocss": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

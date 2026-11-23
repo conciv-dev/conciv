@@ -9,7 +9,6 @@ import {runInOrder} from '../lib/shutdown.js'
 import {removeInstructionEntries} from '../runtime/instruction-entries.js'
 import {createRow, newSessionId, rowById, tombstoneRow, type FreshRowInput, type RowScope} from './session-rows.js'
 import type {createSessionSearch} from './session-search.js'
-import type {PagePlugin} from '../page/page-plugin.js'
 import type {CoreRuntime} from '../runtime/scope-types.js'
 
 type PluginHost = ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
@@ -25,7 +24,6 @@ type SessionDeletion = {
   plane: Pick<ChatPlane, 'clear' | 'endRuns'>
   runtime: Pick<CoreRuntime, 'forSession'>
   pluginHost: PluginHost
-  queues: Pick<PagePlugin, 'cancelSession'>
 }
 
 function chatRow(scope: RowScope, sessionId: SessionId): FreshRowInput {
@@ -86,7 +84,6 @@ const deletionFailed = 'conciv: deleting the session failed'
 export async function deleteSession(deletion: SessionDeletion, sessionId: SessionId): Promise<void> {
   await deletion.runtime.forSession(sessionId).run.stop()
   await deletion.plane.endRuns(sessionId)
-  await deletion.queues.cancelSession(sessionId)
   await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
   await tombstoneRow(deletion.db, sessionId)
   const draftFailures = await Effect.runPromise(
