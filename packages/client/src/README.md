@@ -22,12 +22,13 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that car
 - `finishedOnItsLifecycle` (`chat-connection.ts`): a joined run (announced, or `joinRun`) that reports its own `aborted` run lifecycle (a stopped run, which has no `RUN_FINISHED`/`RUN_ERROR`) is closed with a `RUN_FINISHED` for that run, so a client that joined it stops generating; a completed or failed run ends on its own `RUN_FINISHED`/`RUN_ERROR`, which the server sends after the lifecycle
 - `merged` (`chat-connection.ts`): aborts all sources when any finishes
 - `sessionEvents` (`chat-connection.ts`): an `rpc.chat.events` stream the engine refuses with `UNAUTHORIZED` (opened while logged out, or failed by a revoke) is not a chat error: it waits until the api base's trust is `trusted` again and subscribes anew, as the push socket's reconnect did
+- `eventsLink` (`chat-connection.ts`): the watched `rpc.chat.events` stream (the one `subscribe` opens for the session, not the one `announcedRuns` reads) is the connection's connected point, as opencode's client sync: it is live once `rpc.chat.events` answers (the engine listens before it answers), and the latest-window `hydrate` (no `before`) waits for that, so the panel fetches its history once, after it can no longer miss an event; a stream that drops goes back to waiting and, once live again, `options.onLiveAgain` fires once so the session re-hydrates; a stream that fails for good releases the waiting `hydrate`
 - `registerReachabilitySource` (`reachability.ts`): restores the default onlineManager listener on the last release
 
 ## Side Effects
 
 - `close` (`chat-connection.ts`): aborts every stream the connection opened
-- `hydrate` (`chat-connection.ts`): the `rpc.chat.hydrate` RPC
+- `hydrate` (`chat-connection.ts`): the `rpc.chat.hydrate` RPC, for the latest window once the watched events stream is live; `refresh` and older pages call it at once
 - `setupEngineReachability` (`reachability.ts`): sets the onlineManager event listener and window online/offline listeners
 - `useChatSession` (`index.ts`): calls `rpc.chat.stop` and `rpc.chat.permissionDecision`
 

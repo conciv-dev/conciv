@@ -79,7 +79,7 @@ export type ChatConnectionOptions = {
   onApprovalAsk?: (ask: ApprovalAsk) => void
   onApprovalSettled?: (approvalId: string) => void
   onRunError?: () => void
-  onLive?: () => void
+  onLiveAgain?: () => void
   joinsRun?: (runId: string) => Promise<boolean>
   runReconnect?: {attempts?: number; firstDelayMs?: number; maxDelayMs?: number}
   engineTimings?: Partial<EngineConnectionTimings>
@@ -96,7 +96,37 @@ export type ChatConnection = SubscribeConnectionAdapter & {
   close: () => void
 }
 
-type SessionEvents = (abortSignal: AbortSignal, onLive?: () => void) => AsyncIterable<ChatEvent>
+type SessionEvents = (abortSignal: AbortSignal, link?: EventsLink) => AsyncIterable<ChatEvent>
+
+type EventsLink = {
+  opened: () => Promise<void>
+  live: () => void
+  dropped: () => void
+  gone: () => void
+}
+
+type LinkState = {phase: 'opening' | 'dropped'; waiting: PromiseWithResolvers<void>} | {phase: 'live'} | {phase: 'gone'}
+
+function eventsLink(onLiveAgain: (() => void) | undefined): EventsLink {
+  let state: LinkState = {phase: 'opening', waiting: Promise.withResolvers()}
+  return {
+    opened: () => (state.phase === 'live' || state.phase === 'gone' ? Promise.resolve() : state.waiting.promise),
+    live: () => {
+      const before = state
+      if (before.phase === 'live') return
+      state = {phase: 'live'}
+      if (before.phase !== 'gone') before.waiting.resolve()
+      if (before.phase !== 'opening') onLiveAgain?.()
+    },
+    dropped: () => {
+      if (state.phase === 'live' || state.phase === 'gone') state = {phase: 'dropped', waiting: Promise.withResolvers()}
+    },
+    gone: () => {
+      if (state.phase === 'opening' || state.phase === 'dropped') state.waiting.resolve()
+      state = {phase: 'gone'}
+    },
+  }
+}
 
 type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncGenerator<ChatEvent>
 
@@ -301,13 +331,14 @@ async function* handedOverRuns(turns: Turns, scope: AbortSignal, threadId: strin
 function watching(
   turns: Turns,
   events: SessionEvents,
+  link: EventsLink,
   options: ChatConnectionOptions,
   abortSignal: AbortSignal | undefined,
   threadId: string,
 ): AsyncGenerator<ChatEvent> {
   const sources: Source<ChatEvent>[] = [
     (scope) => turns.adapter.subscribe(scope),
-    (scope) => events(scope, options.onLive),
+    (scope) => events(scope, link),
     (scope) => announcedRuns(turns, events, options, scope, threadId),
     (scope) => handedOverRuns(turns, scope, threadId),
   ]
@@ -343,18 +374,22 @@ async function* sessionEvents(
   engine: Engine,
   sessionId: string,
   signal: AbortSignal,
-  onLive: (() => void) | undefined,
+  link: EventsLink | undefined,
 ): AsyncGenerator<ChatEvent> {
   while (!signal.aborted) {
     try {
       const live = await rpc.chat.events({sessionId}, {signal})
-      onLive?.()
+      link?.live()
       yield* live
       return
     } catch (error) {
       if (signal.aborted) return
-      if (!refused(error)) throw error
+      if (!refused(error)) {
+        link?.gone()
+        throw error
+      }
     }
+    link?.dropped()
     await trustedAgain(engine, signal)
   }
 }
@@ -398,15 +433,20 @@ export function chatConnection(
     firstDelayMs: options.runReconnect?.firstDelayMs ?? RUN_RECONNECT_FIRST_DELAY_MS,
     maxDelayMs: options.runReconnect?.maxDelayMs ?? RUN_RECONNECT_MAX_DELAY_MS,
   })
-  const events: SessionEvents = (abortSignal, onLive) =>
-    sessionEvents(rpc, engine, sessionId, within(lifetime.signal, abortSignal), onLive)
-  const hydrate = async (threadId: string, window: ChatHistoryWindow = {}): Promise<ChatHydration> => {
+  const link = eventsLink(options.onLiveAgain)
+  const events: SessionEvents = (abortSignal, watched) =>
+    sessionEvents(rpc, engine, sessionId, within(lifetime.signal, abortSignal), watched)
+  const fetched = async (threadId: string, window: ChatHistoryWindow): Promise<ChatHydration> => {
     const hydration = await rpc.chat.hydrate({...window, sessionId: threadId})
     options.onHydrated?.(hydration)
     return hydration
   }
+  const hydrate = async (threadId: string, window: ChatHistoryWindow = {}): Promise<ChatHydration> => {
+    if (window.before === undefined) await link.opened()
+    return fetched(threadId, window)
+  }
   return {
-    subscribe: (abortSignal) => watching(turns, events, options, within(lifetime.signal, abortSignal), sessionId),
+    subscribe: (abortSignal) => watching(turns, events, link, options, within(lifetime.signal, abortSignal), sessionId),
     send: async (messages: Array<ChatMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {
       const {adapter} = turns
       if (messages.every((message) => 'parts' in message)) {
@@ -419,7 +459,7 @@ export function chatConnection(
       noticing(finishedOnItsLifecycle(joinedOrHandedOver(turns, runId, abortSignal), sessionId, runId), options),
     hydrate,
     refresh: (before) =>
-      hydrate(
+      fetched(
         sessionId,
         before === undefined ? {limit: CHAT_HISTORY_PAGE_SIZE} : {limit: CHAT_HISTORY_PAGE_SIZE, before},
       ),

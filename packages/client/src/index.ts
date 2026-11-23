@@ -57,9 +57,9 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
           options.connection?.onRunError?.()
           session.onRunError()
         },
-        onLive: () => {
-          options.connection?.onLive?.()
-          session.onLive()
+        onLiveAgain: () => {
+          options.connection?.onLiveAgain?.()
+          session.onLiveAgain()
         },
         onApprovalAsk: (ask) => {
           options.connection?.onApprovalAsk?.(ask)
