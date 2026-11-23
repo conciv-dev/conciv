@@ -1,6 +1,7 @@
 export {defineHarness} from './_shared/contract.js'
 export type {HarnessAdapter, HarnessChatConfig} from './_shared/contract.js'
 import type {ConfigProvider} from 'effect'
+import type {HarnessLoginStatus} from '@conciv/protocol/chat-types'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
 import type {HarnessAdapter} from './_shared/contract.js'
 import {claude} from './claude/index.js'
@@ -32,4 +33,11 @@ export async function resolveHarnessModels(
   const models = adapter.models
   if (!models) return []
   return typeof models === 'function' ? models(options) : models
+}
+
+export async function resolveHarnessLogin(
+  adapter: HarnessAdapter,
+  options: {signal: AbortSignal},
+): Promise<HarnessLoginStatus> {
+  return adapter.login ? adapter.login(options) : {loggedIn: true}
 }

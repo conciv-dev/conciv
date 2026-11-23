@@ -1,9 +1,11 @@
+import {execFile} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
 import type {ConfigProvider} from 'effect'
 import {readOptionalConfig} from '../_shared/optional-config.js'
 import {type TextAdapter, codex as codexAdapter} from '@conciv/ai/server'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
-import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
+import type {HarnessLoginStatus} from '@conciv/protocol/chat-types'
+import type {HarnessChatDeps, HarnessLogin} from '@conciv/protocol/harness-types'
 import {defineHarness, type HarnessChatConfig} from '../_shared/contract.js'
 import {codexHistory} from './history.js'
 import {codexDefaultModel, codexModels, codexHome} from './models.js'
@@ -58,6 +60,25 @@ const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
 })
 
+const NOT_LOGGED_IN = 'Codex is not logged in. Run `codex login` in a terminal.'
+
+function codexLogin(home: string): HarnessLogin {
+  return ({signal}) => {
+    const {promise, resolve, reject} = Promise.withResolvers<HarnessLoginStatus>()
+    execFile(
+      'codex',
+      ['login', 'status'],
+      {env: {...process.env, CODEX_HOME: home}, signal},
+      (error, _stdout, stderr) => {
+        if (error === null) return resolve({loggedIn: true})
+        if (stderr.includes('Not logged in')) return resolve({loggedIn: false, message: NOT_LOGGED_IN})
+        reject(error)
+      },
+    )
+    return promise
+  }
+}
+
 export function codex(provider: ConfigProvider.ConfigProvider) {
   const home = codexHome({CODEX_HOME: readOptionalConfig(provider, 'CODEX_HOME')})
   return defineHarness({
@@ -74,8 +95,10 @@ export function codex(provider: ConfigProvider.ConfigProvider) {
       slashCommands: 'none',
       imageInput: false,
       init: 'none',
+      login: 'probe',
     },
     chatConfig: codexChatConfig,
+    login: codexLogin(home),
     models: () => codexModels(home),
     defaultModel: codexDefaultModel(home),
     history: codexHistory(home),

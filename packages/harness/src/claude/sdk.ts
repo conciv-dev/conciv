@@ -1,11 +1,13 @@
 import type * as ClaudeAgentSdk from '@anthropic-ai/claude-agent-sdk'
 import type {
+  AccountInfo,
   ModelInfo,
   SDKControlInitializeResponse,
   SDKUserMessage,
   SlashCommand,
   Options,
 } from '@anthropic-ai/claude-agent-sdk'
+import type {HarnessLoginStatus} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessCommandsContext, HarnessModel} from '@conciv/protocol/harness-types'
 import {mcpServerConfig} from './args.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
@@ -71,7 +73,7 @@ async function probeCommands(ctx: HarnessCommandsContext): Promise<SlashCommand[
   if (ctx.mcpUrl) options.mcpServers = mcpServerConfig(ctx.mcpUrl, ctx.sessionId)
   if (CONCIV_PLUGIN_DIR) options.plugins = [{type: 'local', path: CONCIV_PLUGIN_DIR}]
   const init = await probe(options)
-  rememberModels(init.models)
+  rememberProbe(init)
   return init.commands
 }
 
@@ -112,12 +114,11 @@ function listedModels(models: ModelInfo[]): HarnessModel[] {
   return listed
 }
 
-function rememberModels(models: ModelInfo[]): void {
-  const listed = toHarnessModels(models)
-  if (listed.length > 0) modelsCache.pending ??= Promise.resolve(listed)
+function rememberProbe(init: SDKControlInitializeResponse): void {
+  if (toHarnessModels(init.models).length > 0) probeCache.pending ??= Promise.resolve(init)
 }
 
-const modelsCache: {pending?: Promise<HarnessModel[]>} = {}
+const probeCache: {pending?: Promise<SDKControlInitializeResponse>} = {}
 
 function followSignal(signal: AbortSignal): AbortController {
   const controller = new AbortController()
@@ -126,14 +127,46 @@ function followSignal(signal: AbortSignal): AbortController {
   return controller
 }
 
+function probeListed(signal: AbortSignal): Promise<SDKControlInitializeResponse> {
+  return probe({cwd: process.cwd(), abortController: followSignal(signal)}).then((init) => {
+    listedModels(init.models)
+    return init
+  })
+}
+
+function probed(signal: AbortSignal): Promise<SDKControlInitializeResponse> {
+  probeCache.pending ??= probeListed(signal).catch((error: unknown) => {
+    delete probeCache.pending
+    throw error
+  })
+  return probeCache.pending
+}
+
+function reprobe(signal: AbortSignal, stale: Promise<SDKControlInitializeResponse>): void {
+  probeListed(signal).then(
+    (init) => {
+      if (probeCache.pending === stale) probeCache.pending = Promise.resolve(init)
+    },
+    () => undefined,
+  )
+}
+
 export function claudeSdkModels({signal}: {signal: AbortSignal}): Promise<HarnessModel[]> {
-  modelsCache.pending ??= probe({cwd: process.cwd(), abortController: followSignal(signal)})
-    .then((init) => listedModels(init.models))
-    .catch((error: unknown) => {
-      delete modelsCache.pending
-      throw error
-    })
-  return modelsCache.pending
+  return probed(signal).then((init) => listedModels(init.models))
+}
+
+const NOT_LOGGED_IN = 'Claude Code is not logged in. Run `claude auth login` in a terminal.'
+
+function isLoggedIn(account: AccountInfo): boolean {
+  return account.tokenSource !== 'none' || account.apiKeySource !== undefined
+}
+
+export async function claudeSdkLogin({signal}: {signal: AbortSignal}): Promise<HarnessLoginStatus> {
+  const pending = probed(signal)
+  const init = await pending
+  if (isLoggedIn(init.account)) return {loggedIn: true}
+  reprobe(signal, pending)
+  return {loggedIn: false, message: NOT_LOGGED_IN}
 }
 
 export async function claudeSdkCommands(ctx: HarnessCommandsContext): Promise<HarnessCommand[]> {

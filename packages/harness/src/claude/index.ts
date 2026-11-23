@@ -7,7 +7,7 @@ import {defineHarness} from '../_shared/contract.js'
 import {claudeSessionArgs, claudeConnectArgs} from './args.js'
 import {claudeChatConfig} from './chat.js'
 import {claudeHistory} from './history.js'
-import {claudeSdkCommands, claudeSdkModels} from './sdk.js'
+import {claudeSdkCommands, claudeSdkLogin, claudeSdkModels} from './sdk.js'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 
@@ -40,10 +40,12 @@ export function claude(provider: ConfigProvider.ConfigProvider) {
       slashCommands: 'live',
       imageInput: 'fileRef',
       init: 'files',
+      login: 'probe',
     },
     init: claudeInit,
     chatConfig: claudeChatConfig,
     commands: claudeSdkCommands,
+    login: claudeSdkLogin,
     history: claudeHistory(configDir),
     tty: {command: claudeTtyCommand},
     resume: {command: ({nativeId}) => ({bin: 'claude', args: claudeSessionArgs(nativeId, true)})},

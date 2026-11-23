@@ -20,7 +20,7 @@ import {
 } from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
 import {rowById} from '../../sessions/session-rows.js'
-import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './sessions.js'
+import {buildHarnessMenuEntry, buildHarnessMeta, readHarnessLogin, sessionsRouter} from './sessions.js'
 import {
   admitOutsideCall,
   makeHubAdmission,
@@ -631,11 +631,15 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     meta: {
       models: os.meta.models.handler(async ({input}) => {
         const harness = await chat.harnessFor(input.sessionId)
-        const models = await resolveHarnessModels(harness, {signal: chat.signal})
+        const [models, login] = await Promise.all([
+          resolveHarnessModels(harness, {signal: chat.signal}),
+          readHarnessLogin(harness, chat.signal, chat.log),
+        ])
         return {
           models,
           defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
           harness: buildHarnessMeta(harness),
+          login,
         }
       }),
       harnesses: os.meta.harnesses.handler(async () => ({

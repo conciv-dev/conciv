@@ -166,10 +166,16 @@ export const HarnessMetaSchema = z.object({
   persistentPty: z.boolean(),
 })
 export type HarnessMeta = z.infer<typeof HarnessMetaSchema>
+export const HarnessLoginStatusSchema = z.discriminatedUnion('loggedIn', [
+  z.object({loggedIn: z.literal(true)}),
+  z.object({loggedIn: z.literal(false), message: z.string()}),
+])
+export type HarnessLoginStatus = z.infer<typeof HarnessLoginStatusSchema>
 export const ChatModelsSchema = z.object({
   models: z.array(HarnessModelSchema),
   defaultModel: z.string().nullable(),
   harness: HarnessMetaSchema,
+  login: HarnessLoginStatusSchema,
 })
 const HubAgentSchema = z.object({harnessId: z.enum(INIT_HARNESS_IDS), name: z.string()})
 export const HubAgentsSchema = z.object({installs: z.array(HubAgentSchema), connections: z.array(HubAgentSchema)})
@@ -178,6 +184,7 @@ export const HarnessMenuEntrySchema = HarnessMetaSchema.extend({
   models: z.array(HarnessModelSchema),
   defaultModel: z.string().nullable(),
   modelsFailed: z.boolean(),
+  login: HarnessLoginStatusSchema,
 })
 export type HarnessMenuEntry = z.infer<typeof HarnessMenuEntrySchema>
 export const ChatHarnessesSchema = z.object({
