@@ -326,7 +326,7 @@ const PluginInfoSchema = z.object({
   source: PluginSourceSchema,
   features: PluginFeaturesSchema,
   state: PluginStateSchema,
-  options: z.record(z.string(), z.json()).optional(),
+  options: z.record(z.string(), z.unknown()).optional(),
 })
 
 const SkillInfoSchema = z.object({

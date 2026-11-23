@@ -91,6 +91,8 @@ type BundleSignal =
 
 type ListedPlugin = Parameters<typeof shipsPluginExperimental>[0]
 
+const BuiltinOptionsSchema = z.record(z.string(), z.json())
+
 type BundleData = Awaited<ReturnType<ConcivClient['plugin']['experimental']>>['data']
 
 type EngineEvent = ReturnType<ConcivClient['event']['subscribe']> extends AsyncIterable<infer Event> ? Event : never
@@ -359,11 +361,12 @@ export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input:
     const listed = yield* engine.list
     const shipped = listed.filter(shipsPluginExperimental)
     const builtinOptions = new Map(
-      listed.flatMap((plugin) =>
-        plugin.source.type === 'builtin' && plugin.id !== undefined && plugin.options !== undefined
-          ? [[plugin.id, plugin.options] as const]
-          : [],
-      ),
+      listed.flatMap((plugin) => {
+        const options = BuiltinOptionsSchema.safeParse(plugin.options)
+        return plugin.source.type === 'builtin' && plugin.id !== undefined && options.success
+          ? [[plugin.id, options.data] as const]
+          : []
+      }),
     )
     const reserved = yield* Effect.try({
       try: () =>

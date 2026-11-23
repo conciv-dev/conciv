@@ -62,7 +62,7 @@ export const Info = Schema.Struct({
   source: Source,
   features: Features,
   state: State,
-  options: Options.pipe(optional),
+  options: Schema.Record(Schema.String, Schema.Unknown).pipe(optional),
 }).annotate({identifier: 'Plugin.Info'})
 
 const Updated = ephemeral({
