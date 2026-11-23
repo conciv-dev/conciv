@@ -190,7 +190,6 @@ export const make = Effect.fn('PageConnection.make')(function* (
   )
   const work = yield* Scope.make()
   yield* Effect.addFinalizer((exit) => Scope.close(work, exit))
-  const context = yield* Effect.context<never>()
   const machine = {state: createConnectionState()}
   const records = fromStorage(ctx.storage)
   const attachments = yield* RcMap.make({
@@ -373,7 +372,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
       )
     })
 
-  const playQueue = (
+  const playQueue = Effect.fn('PageConnection.playQueue')(function* (
     sessionId: SessionId,
     play: {
       readonly action: Action
@@ -381,12 +380,16 @@ export const make = Effect.fn('PageConnection.make')(function* (
       readonly queueId: string
       readonly actions: readonly Action[]
     },
-  ): Promise<PageQueue.RequestSettlement>[] => {
+  ) {
     const tabId = play.action.type === 'tabs.list' ? undefined : play.action.tabId
     const chosen = selectTarget(machine.state, sessionId, tabId)
-    if (!chosen.ok) throw raise(chosen.error)
+    if (!chosen.ok) return yield* Effect.fail(raise(chosen.error))
     const of = play.actions.length
-    const played = play.actions.map(() => Promise.withResolvers<PageQueue.RequestSettlement>())
+    const played = yield* Effect.forEach(play.actions, (action) =>
+      Deferred.make<PageQueue.RequestSettlement>().pipe(Effect.map((reply) => ({action, reply}))),
+    )
+    const settleAll = (landed: PageQueue.RequestSettlement) =>
+      Effect.forEach(played, ({reply}) => Deferred.succeed(reply, landed), {discard: true})
     const playing = Effect.gen(function* () {
       const target = yield* selected(sessionId, tabId)
       const send = (action: Action, index: number, timeoutMs: number) =>
@@ -396,61 +399,42 @@ export const make = Effect.fn('PageConnection.make')(function* (
         )
       const acceptance = yield* send(play.action, -1, pageReplyTimeoutMs)
       yield* Effect.forEach(
-        play.actions,
-        (action, index) =>
+        played,
+        ({action, reply}, index) =>
           (acceptance.ok
             ? send(action, index, queuedActionTimeoutMs).pipe(
                 Effect.onInterrupt(() =>
-                  Effect.sync(() =>
-                    played[index]?.resolve({ok: false, error: disconnectedAfterDispatch(), tabClosed: true}),
-                  ),
+                  Deferred.succeed(reply, {ok: false, error: disconnectedAfterDispatch(), tabClosed: true}),
                 ),
               )
             : Effect.succeed(refused(acceptance.error))
-          ).pipe(Effect.map((landed) => played[index]?.resolve(landed))),
+          ).pipe(Effect.flatMap((landed) => Deferred.succeed(reply, landed))),
         {discard: true},
       )
     })
-    Effect.runSyncWith(context)(
-      Effect.forkIn(
-        serialized(
-          sessionId,
-          playing.pipe(
-            Effect.catch((error) => Effect.sync(() => played.forEach((each) => each.resolve(refused(error))))),
-          ),
-        ).pipe(
-          Effect.onExit((exit) =>
-            Exit.isSuccess(exit) ? Effect.void : Effect.sync(() => played.forEach((each) => each.resolve(stopped()))),
-          ),
-        ),
-        work,
+    yield* Effect.forkIn(
+      serialized(sessionId, playing.pipe(Effect.catch((error) => settleAll(refused(error))))).pipe(
+        Effect.onExit((exit) => (Exit.isSuccess(exit) ? Effect.void : settleAll(stopped()))),
       ),
+      work,
     )
-    return played.map((each) => each.promise)
-  }
-
-  const queues = PageQueue.fromPlay({
-    play: playQueue,
-    journal: (sessionId, change) => Effect.runPromise(records.append(sessionId, change)),
-    finished: (record) => {
-      if (record.result === null) return
-      const {sessionId, queueId, toolCallId, result} = record
-      Effect.runSync(
-        Effect.forkIn(
-          registration.events
-            .emit('queue.finished', {sessionId, queueId, toolCallId, result})
-            .pipe(Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause))),
-          work,
-        ),
-      )
-    },
+    return played.map(({reply}) => reply)
   })
 
-  const unavailable = <A, F>(task: (signal: AbortSignal) => Promise<A>, refuse: (message: string) => F) =>
-    Effect.tryPromise({
-      try: task,
-      catch: (error) => refuse(error instanceof Error ? error.message : String(error)),
-    })
+  const queues = yield* PageQueue.makeQueues({
+    play: playQueue,
+    journal: (sessionId, change) => records.append(sessionId, change),
+    finished: (entry) => {
+      if (entry.result === null) return Effect.void
+      const {sessionId, queueId, toolCallId, result} = entry
+      return Effect.forkIn(
+        registration.events
+          .emit('queue.finished', {sessionId, queueId, toolCallId, result})
+          .pipe(Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause))),
+        work,
+      ).pipe(Effect.asVoid)
+    },
+  }).pipe(Scope.provide(work))
 
   const registration: RpcRegistration<typeof Definition> = yield* ctx.rpc
     .register(Definition, {
@@ -577,29 +561,25 @@ export const make = Effect.fn('PageConnection.make')(function* (
       'tabs.list': (input) => Effect.sync(() => selectTabs(machine.state, input.sessionId)),
       symbolicate: (input) => symbolicator.frames(input.frames),
       'queue.wait': (input, call) =>
-        unavailable(
-          (signal) => queues.wait(input.sessionId, input.queueId, input.waitMs, signal),
-          (message) => call.error('unavailable', message, {}),
-        ),
+        queues
+          .wait(input.sessionId, input.queueId, input.waitMs)
+          .pipe(Effect.mapError((error) => call.error('unavailable', error.message, {}))),
       'queue.claim': (input, call) =>
-        unavailable(
-          (signal) => queues.claim(input.sessionId, input.queueId, input.waitMs, signal),
-          (message) => call.error('unavailable', message, {}),
-        ),
-      'queue.startedBy': (input) => Effect.sync(() => queues.startedBy(input.sessionId, input.toolCallIds)),
-      'queue.undelivered': (input) => Effect.sync(() => queues.undelivered(input.sessionId, input)),
-      'queue.owed': (input) => Effect.sync(() => queues.owed(input.sessionId, input.excludeToolCallIds, input.claim)),
+        queues
+          .claim(input.sessionId, input.queueId, input.waitMs)
+          .pipe(Effect.mapError((error) => call.error('unavailable', error.message, {}))),
+      'queue.startedBy': (input) => queues.startedBy(input.sessionId, input.toolCallIds),
+      'queue.undelivered': (input) => queues.undelivered(input.sessionId, input),
+      'queue.owed': (input) => queues.owed(input.sessionId, input.excludeToolCallIds, input.claim),
       'queue.settle': (input) =>
-        Effect.sync(() => queues.settle(input.sessionId, input.queueIds, input.delivery)).pipe(
-          Effect.as({ok: true as const}),
-        ),
+        queues.settle(input.sessionId, input.queueIds, input.delivery).pipe(Effect.as({ok: true as const})),
     })
     .pipe(Effect.orDie)
 
   const deleted = (sessionId: SessionId) =>
     Effect.gen(function* () {
       yield* RcMap.invalidate(lanes, sessionId)
-      queues.cancelSession(sessionId)
+      yield* queues.cancelSession(sessionId)
       yield* lock.withPermit(
         Effect.gen(function* () {
           const owned = Arr.filter(yield* RcMap.keys(calls), (call) => call.sessionId === sessionId)

@@ -52,17 +52,15 @@ export const register = Effect.fn('PageTools.register')(function* (
     if (action.type === 'tabs.list') return yield* exportResult(connection.tabs(tool.sessionId), [], root)
     const queueing = {agentId: tool.agent, toolCallId: tool.id}
     if (action.type === 'queue') {
-      const played = yield* Effect.tryPromise({
-        try: (signal) => connection.queues.play(tool.sessionId, {...queueing, action}, signal),
-        catch: asToolError('The queue could not be played'),
-      })
+      const played = yield* connection.queues
+        .play(tool.sessionId, {...queueing, action})
+        .pipe(Effect.mapError(asToolError('The queue could not be played')))
       return yield* exportResult(played, [], root)
     }
     if (action.type === 'queue_async') {
-      const started = yield* Effect.try({
-        try: () => connection.queues.start(tool.sessionId, {...queueing, action}),
-        catch: asToolError('The queue could not be started'),
-      })
+      const started = yield* connection.queues
+        .start(tool.sessionId, {...queueing, action})
+        .pipe(Effect.mapError(asToolError('The queue could not be started')))
       return yield* exportResult(started, [], root)
     }
     const response = yield* connection

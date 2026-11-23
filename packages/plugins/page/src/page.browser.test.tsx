@@ -167,7 +167,7 @@ describe('the agent leaves the page alone for a while', () => {
       TestLLM.toolCall('c1', 'execute_typescript', {
         typescriptCode: "return await external_page_click({selector: '#buy'})",
       }),
-      TestLLM.text('Clicked'),
+      TestLLM.text('The fern is in the cart'),
     )
     const click = await engine.gate()
     await mount({
@@ -192,7 +192,7 @@ describe('the agent leaves the page alone for a while', () => {
 
     await expect.element(mask).not.toBeInTheDocument()
     await answer.release()
-    expect(await screen.findByText('Clicked')).toBeVisible()
+    expect(await screen.findByText('The fern is in the cart')).toBeVisible()
   })
 })
 
