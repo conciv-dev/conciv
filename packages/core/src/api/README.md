@@ -2,15 +2,15 @@
 
 ## Overview
 
-Hono sub-apps for the core server: an MCP endpoint that exposes the sandboxed TypeScript runner as MCP tools, and a route that serves the native widget host page and bundle. Also holds the zod schemas for the execute tool.
+Hono sub-apps for the core server: an MCP endpoint that exposes the sandboxed TypeScript runner as MCP tools, and a route that serves the standalone widget page and bundle. Also holds the zod schemas for the execute tool.
 
 ## Interface
 
 - HTTP `POST /` (`mcp.ts`, default export `app`): stateless MCP endpoint served by `createMCPServer` from `@conciv/ai/server`, built per request with the session's tools; spec 2025 replies stream as SSE
 - MCP tool `execute_typescript` (`mcp.ts`, `EXECUTE_TOOL_NAME` in `execute-schemas.ts`): runs `typescriptCode` through `CodeRunner.run`; its description carries the stale-engine warning, the sandbox rules and then the code-mode catalog text (`executeDescription`, `CodeModeInstructions.render`), since MCP server instructions are not sent; it stays within 4096 characters (the Claude Code cap) through the catalog's own budget, and `search` inside the sandbox finds what is not listed
 - MCP tool `discover_tools` (`mcp.ts`, `DISCOVER_TOOL_NAME`): typed signatures for `{toolNames}`; registered only when `runner.discover` is not null
-- HTTP `GET /`, `GET /:file` and `GET /widget/:file` (`native-page.ts`, `makeNativePageApp`): host HTML, the `conciv-widget-native.global.js` loader, and the widget's ESM chunks from the bundle dir's `widget/` folder
-- `NATIVE_PAGE_PATH` = '/native' (`native-page.ts`)
+- HTTP `GET /`, `GET /:file` and `GET /widget/:file` (`widget-page.ts`, `makeWidgetPageApp`): a standalone widget page naming no plugin (the request origin as `conciv-api-base`, a `?launcher=native|mascot` copied into the `conciv-widget` settings), the plain `conciv-widget.global.js` loader, and the widget's ESM chunks from the bundle dir's `widget/` folder
+- `WIDGET_PAGE_PATH` = '/widget' (`widget-page.ts`)
 - `sessionIdFromHeaders` / `nativeIdFromHeaders` / `McpVars` (`mcp.ts`)
 - `openCodeSession(deps, scope, caller)` (`mcp.ts`): the one engine function behind both `/api/mcp` and the RPC `code.*` procedures: it builds the session's code runner (the outside capability set for a hub-origin call without a session) and mirrors every call into the session's chat; `execute(code)` gives the typed `CodeExecuteResult` (`toolCalls` lists the ids of the child tool calls the run started, in start order) and the MCP reply `/api/mcp` serves; `discover(names)` the capped signatures; `describe()` the two tool descriptions; returns null when code mode is unavailable
 - `outsideRunCapabilities(capabilities)` (`../app.ts`): the capability set of an outside run (a hub-origin request without a session header): direct plugin tools as is, every other non-ask capability throws `NO_SESSION` ('this tool needs a session; this call has none'), to which the hub adds 'pass tab to execute_typescript; list_tabs lists the open tabs'; listing tabs across engines is the hub's `list_tabs` (`packages/cli`), not an engine capability; a block that drives a tab comes from the hub with that tab's session header and runs on the session path
@@ -27,13 +27,13 @@ Hono sub-apps for the core server: an MCP endpoint that exposes the sandboxed Ty
 - `sessionTools` (`mcp.ts`): every hub-origin call is refused first when `deps.hubRefusal(client)` says the calling agent is disconnected (outside runs included, whatever `hubAccess` says), and again after the Allow card resolves; an outside run skips the consent check (it runs no tab's capability); for a hub-origin session the consent check runs when a tool is called, never on initialize or `tools/list`, and waits on the card with no timeout, ending when the request aborts
 - `runExecute` (`mcp.ts`): output failing `ExecuteResultSchema` becomes 'the sandbox returned an unreadable result'; error codes are decoded only when listed in `runner.declaredCodes`
 - `typedResult` (`mcp.ts`): the `code.execute` result is bounded where it is built: `result` through `cappedValue`, `logs` (as one JSON text) and `error.message` through `cappedText` (`@conciv/contract`); `/api/mcp` and the hub both turn it into MCP content with `codeExecuteReply` (`@conciv/contract`), which caps again per text part
-- `makeNativePageApp` (`native-page.ts`): `/:file` serves only `NativeFileSchema` (the loader); `/widget/:file` serves only names matching `ChunkFileSchema` (no slash, no `..` segment, `.js`); anything else is 404
+- `makeWidgetPageApp` (`widget-page.ts`): `/:file` serves only `LoaderFileSchema` (the loader); `/widget/:file` serves only names matching `ChunkFileSchema` (no slash, no `..` segment, `.js`); anything else is 404
 
 ## Side Effects
 
 - `runExecute` / `runDirect` (`mcp.ts`): `runExecute` replies through `codeExecuteReply`, which appends the run's `files` as MCP image blocks after the text; `runDirect` replies through `toolValueReply`, which maps a content-part list part by part (image parts become image blocks) and lifts images out of any other value. Both publish TOOL_CALL_START/ARGS/END/RESULT chat events to `scope.stream`
 - `mcp.ts`: an Effect error log when code mode is unavailable or execute fails outside the sandbox
-- `makeNativePageApp` (`native-page.ts`): reads bundle files from disk
+- `makeWidgetPageApp` (`widget-page.ts`): reads bundle files from disk
 
 ## Verification
 

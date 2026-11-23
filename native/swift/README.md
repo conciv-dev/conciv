@@ -5,7 +5,7 @@
 Swift sources: the ConcivWidget iOS SDK package and the ConcivDemo app that consumes it. This folder is
 also the iOS example host (package `ios-example`): a bare Vite dev server whose only job is to run the
 conciv engine with the `@conciv/plugin-ios` plugin pointed at ConcivDemo. There is no web page; the overlay loads the
-engine's own `/native` page inside the app. The engine's working directory is this folder, so the agent can
+engine's own `/widget` page inside the app. The engine's working directory is this folder, so the agent can
 edit both the demo app and the SDK sources.
 
 ## Subdirectories & Boundaries

@@ -32,6 +32,7 @@ import type {
   System,
   Tabs,
   Toasts,
+  Widget,
   Ui,
 } from './host-apis.js'
 
@@ -217,6 +218,15 @@ export interface Context extends BaseContext {
    * ```
    */
   readonly router: Router
+  /**
+   * Opens and closes the widget's panel. Whether it is open is `ctx.router.path()` on a `/panel` route.
+   *
+   * @example
+   * ```ts
+   * ctx.widget.open()
+   * ```
+   */
+  readonly widget: Widget
   /**
    * The effective keybinds of published commands.
    *

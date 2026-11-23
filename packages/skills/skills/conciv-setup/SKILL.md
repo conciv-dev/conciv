@@ -170,7 +170,7 @@ opencode and Gemini CLI are supported; pi has no MCP support. Disconnect from th
 ## Minimal config surface
 
 `ConcivConfig` (the object passed to `conciv({...})`): every field optional, all default to sane
-values (`packages/protocol/src/config-types.ts:27-46`, `apps/site/content/docs/configuration.mdx:18-52`):
+values (`packages/protocol/src/config-types.ts:27-46`, `apps/site/content/docs/configuration.mdx:18-47`):
 
 | Field          | Default         | Use for                                                                       |
 | -------------- | --------------- | ----------------------------------------------------------------------------- |
@@ -200,7 +200,7 @@ conciv({widget: {quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}})
 conciv({widget: {quickTerminal: false}}) // corner modal only
 ```
 
-(`apps/site/content/docs/configuration.mdx:72-86`.)
+(`apps/site/content/docs/configuration.mdx:67-81`.)
 
 ## Red flags: stop and fix
 

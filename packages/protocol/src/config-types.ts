@@ -85,7 +85,6 @@ export const ConcivConfigSchema = z.object({
   harness: z.string().optional(),
   sessionId: z.string().optional(),
   port: z.number().optional(),
-  devEndpointDir: z.string().optional(),
   homeDir: z.string().optional(),
   hubAccess: HubAccessSchema.optional(),
   systemPrompt: z.union([z.string(), z.boolean()]).optional(),

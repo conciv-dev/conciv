@@ -15,7 +15,7 @@ import {
   tokenHash,
   type BrowserRequester,
 } from '@conciv/protocol/engine-trust'
-import {NATIVE_PAGE_PATH} from './api/native-page.js'
+import {WIDGET_PAGE_PATH} from './api/widget-page.js'
 import {os} from './api/rpc/mount.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import type {Log} from './lib/logging.js'
@@ -29,8 +29,8 @@ export const AUTH_PROCEDURE_PATHS: readonly string[] = [
 export const OPEN_PATHS: readonly string[] = [
   '/health',
   ...AUTH_PROCEDURE_PATHS,
-  NATIVE_PAGE_PATH,
-  `${NATIVE_PAGE_PATH}/*`,
+  WIDGET_PAGE_PATH,
+  `${WIDGET_PAGE_PATH}/*`,
 ]
 
 export const CODE_LIFETIME_MS = 5 * 60 * 1000

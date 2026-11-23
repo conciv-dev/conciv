@@ -58,7 +58,7 @@ final class BridgeRecoveryTests: XCTestCase {
     let (bridge, _) = makeBridge()
     bridge.setNegotiatedVersion(1)
     bridge.receive(.bridgeReady(BridgeReady(v: 1)))
-    bridge.sendHandshake(apiBase: "http://127.0.0.1:4599", token: nil)
+    bridge.sendHandshake(apiBase: "http://127.0.0.1:4599")
     XCTAssertEqual(handshakes(in: bridge).first?.v, 1)
   }
 
@@ -71,12 +71,12 @@ final class BridgeRecoveryTests: XCTestCase {
     let (bridge, webView) = makeBridge()
     bridge.setNegotiatedVersion(1)
     bridge.receive(.bridgeReady(BridgeReady(v: 1)))
-    bridge.sendHandshake(apiBase: "http://127.0.0.1:4599", token: nil)
+    bridge.sendHandshake(apiBase: "http://127.0.0.1:4599")
 
     bridge.webView(webView, didStartProvisionalNavigation: nil)
     bridge.receive(.bridgeReady(BridgeReady(v: 1)))
 
-    bridge.sendHandshake(apiBase: "http://127.0.0.1:5200", token: nil)
+    bridge.sendHandshake(apiBase: "http://127.0.0.1:5200")
 
     XCTAssertEqual(
       handshakes(in: bridge).map { $0.apiBase },
@@ -100,9 +100,9 @@ final class BridgeRecoveryTests: XCTestCase {
     let (bridge, webView) = makeBridge()
     bridge.setNegotiatedVersion(1)
     bridge.receive(.bridgeReady(BridgeReady(v: 1)))
-    bridge.sendHandshake(apiBase: "http://127.0.0.1:4599", token: nil)
+    bridge.sendHandshake(apiBase: "http://127.0.0.1:4599")
 
-    bridge.restageHandshake(apiBase: "http://127.0.0.1:5200", token: nil)
+    bridge.restageHandshake(apiBase: "http://127.0.0.1:5200")
     bridge.webView(webView, didStartProvisionalNavigation: nil)
     bridge.receive(.bridgeReady(BridgeReady(v: 1)))
 
@@ -191,7 +191,7 @@ final class BridgeRecoveryTests: XCTestCase {
   private func makeOverlay(pid: Int, port: Int) -> (OverlayController, UIWindow) {
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
     window.isHidden = false
-    let endpoint = ConcivEndpoint(apiBase: url("http://127.0.0.1:\(port)"), token: nil, pid: pid)
+    let endpoint = ConcivEndpoint(apiBase: url("http://127.0.0.1:\(port)"), pid: pid)
     let overlay = OverlayController(hostWindow: window, endpoint: endpoint, launcher: .native)
     overlay.recoveryDelays = [0.02, 0.02, 0.02]
     return (overlay, window)
@@ -235,7 +235,7 @@ final class BridgeRecoveryTests: XCTestCase {
     guard let bridge = overlay.webView.navigationDelegate as? BridgeHandler else {
       return XCTFail("expected the bridge to be the navigation delegate")
     }
-    let moved = ConcivEndpoint(apiBase: url("http://127.0.0.1:59991"), token: nil, pid: 100)
+    let moved = ConcivEndpoint(apiBase: url("http://127.0.0.1:59991"), pid: 100)
 
     overlay.rebind(to: moved)
     bridge.receive(.bridgeReady(BridgeReady(v: 1)))
@@ -250,7 +250,7 @@ final class BridgeRecoveryTests: XCTestCase {
 
   func testConnectionLossRediscoversAndRebindsSameCore() {
     let (overlay, _) = makeOverlay(pid: 100, port: 59990)
-    let moved = ConcivEndpoint(apiBase: url("http://127.0.0.1:59991"), token: nil, pid: 100)
+    let moved = ConcivEndpoint(apiBase: url("http://127.0.0.1:59991"), pid: 100)
     overlay.onDiscover = { completion in completion(moved) }
     overlay.onDifferentCore = { _ in XCTFail("same-core drift must rebind, never remount") }
 
@@ -263,7 +263,7 @@ final class BridgeRecoveryTests: XCTestCase {
 
   func testConnectionLossToADifferentCoreHandsOffForRemount() {
     let (overlay, _) = makeOverlay(pid: 100, port: 59990)
-    let replacement = ConcivEndpoint(apiBase: url("http://127.0.0.1:59992"), token: nil, pid: 200)
+    let replacement = ConcivEndpoint(apiBase: url("http://127.0.0.1:59992"), pid: 200)
     var handedOff: ConcivEndpoint?
     overlay.onDiscover = { completion in completion(replacement) }
     overlay.onDifferentCore = { handedOff = $0 }
@@ -362,7 +362,7 @@ final class BridgeRecoveryTests: XCTestCase {
 
     ConcivWidget.attach(to: window)
     ConcivWidget.detach()
-    pending?(ConcivEndpoint(apiBase: url("http://127.0.0.1:59990"), token: nil, pid: 1))
+    pending?(ConcivEndpoint(apiBase: url("http://127.0.0.1:59990"), pid: 1))
 
     XCTAssertNil(ConcivWidget.controller, "a discovery completion superseded by detach must not mount")
   }
@@ -374,7 +374,7 @@ final class BridgeRecoveryTests: XCTestCase {
     window.isHidden = false
 
     ConcivWidget.attach(to: window)
-    pending?(ConcivEndpoint(apiBase: url("http://127.0.0.1:59990"), token: nil, pid: 1))
+    pending?(ConcivEndpoint(apiBase: url("http://127.0.0.1:59990"), pid: 1))
 
     XCTAssertNotNil(ConcivWidget.controller, "an in-generation completion mounts the overlay")
     ConcivWidget.detach()
@@ -394,7 +394,7 @@ final class BridgeRecoveryTests: XCTestCase {
     var provided: UIWindow?
     ConcivWidget.keyWindowProvider = { provided }
     ConcivWidget.discoverDriver = { _, completion in
-      completion(ConcivEndpoint(apiBase: self.url("http://127.0.0.1:59990"), token: nil, pid: 1))
+      completion(ConcivEndpoint(apiBase: self.url("http://127.0.0.1:59990"), pid: 1))
     }
 
     ConcivWidget.attach()
@@ -414,7 +414,7 @@ final class BridgeRecoveryTests: XCTestCase {
     var provided: UIWindow?
     ConcivWidget.keyWindowProvider = { provided }
     ConcivWidget.discoverDriver = { _, completion in
-      completion(ConcivEndpoint(apiBase: self.url("http://127.0.0.1:59990"), token: nil, pid: 1))
+      completion(ConcivEndpoint(apiBase: self.url("http://127.0.0.1:59990"), pid: 1))
     }
 
     ConcivWidget.attach()

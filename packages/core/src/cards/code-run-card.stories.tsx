@@ -9,7 +9,7 @@ const meta: Meta = {title: 'core/cards/CodeRunCard'}
 export default meta
 type Story = StoryObj
 
-const CODE = `const drawn = await external_canvas_draw({elements})\nconsole.log('committed', drawn.ids)\nreturn drawn.ids`
+const CODE = `const picked = await external_conciv_ui(question)\nconsole.log('answered', picked.ids)\nreturn picked.ids`
 
 function part(state: ToolCallPart['state'] = 'complete'): ToolCallPart {
   return {
@@ -25,7 +25,7 @@ function result(payload: object): ToolResultPart {
   return {type: 'tool-result', toolCallId: 'c1', content: JSON.stringify(payload), state: 'complete'}
 }
 
-const okResult = result({success: true, result: ['el_9f2'], logs: ['committed ["el_9f2"]']})
+const okResult = result({success: true, result: ['el_9f2'], logs: ['answered ["el_9f2"]']})
 const failResult = result({
   success: false,
   error: {message: "Unexpected token '.'", name: 'SyntaxError', line: 2},
@@ -60,8 +60,8 @@ export const Running: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('exec')).toBeVisible()
-    await waitFor(async () => expect(await codeText(canvasElement)).toContain('external_canvas_draw'))
-    await expect(await codeText(canvasElement)).toContain('drawn')
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('external_conciv_ui'))
+    await expect(await codeText(canvasElement)).toContain('picked')
     await expect(c.queryByText('console')).toBeNull()
     await expect(c.queryByText(/SyntaxError/)).toBeNull()
     await expect(c.getByLabelText('running')).toBeInTheDocument()
@@ -74,7 +74,7 @@ export const Success: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
-    await waitFor(async () => expect(await codeText(canvasElement)).toContain('committed ["el_9f2"]'), {timeout: 5000})
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('answered ["el_9f2"]'), {timeout: 5000})
     await waitFor(() => expect(c.getByText('result')).toBeVisible())
     await waitFor(() => expect(c.getAllByText(/el_9f2/).length).toBeGreaterThan(0))
     await expect(c.queryByText(/SyntaxError/)).toBeNull()
@@ -178,9 +178,9 @@ export const EmbeddedSuccess: Story = {
     const c = within(canvasElement)
     await expect(c.getByText('exec')).toBeVisible()
     await expect(c.getByText('ok')).toBeVisible()
-    await expect(c.getByText('const drawn = await external_canvas_draw({elements})')).toBeVisible()
-    await expect(c.getByRole('button', {name: /external_canvas_draw/})).toBeVisible()
-    await waitFor(async () => expect(await codeText(canvasElement)).toContain('committed'))
+    await expect(c.getByText('const picked = await external_conciv_ui(question)')).toBeVisible()
+    await expect(c.getByRole('button', {name: /external_conciv_ui/})).toBeVisible()
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('answered'))
   },
 }
 
@@ -192,7 +192,7 @@ export const EmbeddedVoidResult: Story = {
     const c = within(canvasElement)
     await expect(c.getByText('exec')).toBeVisible()
     await expect(c.getByText('ok')).toBeVisible()
-    await expect(c.getByRole('button', {name: /external_canvas_draw/})).toBeDisabled()
+    await expect(c.getByRole('button', {name: /external_conciv_ui/})).toBeDisabled()
     await expect(c.queryByRole('group', {name: 'Output'})).toBeNull()
   },
 }

@@ -22,8 +22,7 @@ const isExternal = (id: string): boolean => {
 }
 
 const widgetEntries = {
-  'conciv-widget': fileURLToPath(new URL('test/fixtures/global-entry.ts', import.meta.url)),
-  'conciv-widget-native': fileURLToPath(new URL('src/native-entry.ts', import.meta.url)),
+  'conciv-widget': fileURLToPath(new URL('src/global-entry.ts', import.meta.url)),
 }
 
 function classicScriptLoaders(): Plugin {

@@ -20,11 +20,7 @@ const encodeRect = {x: 16, y: 232, width: 361, height: 72}
 const encodeLabelRect = {x: 28, y: 240, width: 180, height: 20}
 
 export const nativeEncodeFixtures: NativeEncodeFixture[] = [
-  {
-    file: 'n2p.encode.handshake-token',
-    json: {v: 1, seq: 1, type: 'handshake', apiBase: encodeApiBase, token: 'pair-xyz'},
-  },
-  {file: 'n2p.encode.handshake-tokenless', json: {v: 1, seq: 1, type: 'handshake', apiBase: encodeApiBase}},
+  {file: 'n2p.encode.handshake', json: {v: 1, seq: 1, type: 'handshake', apiBase: encodeApiBase}},
   {
     file: 'n2p.encode.bridge-incompatible',
     json: {v: 1, seq: 2, type: 'bridge.incompatible', nativeMinV: 2, nativeMaxV: 3},
@@ -204,14 +200,13 @@ export const bridgeFixtures: BridgeFixture[] = [
     direction: 'n2p',
     type: 'handshake',
     file: 'n2p.handshake',
-    valid: {v: 1, seq: 1, type: 'handshake', apiBase: 'http://127.0.0.1:5311', token: null},
-    invalid: {v: 1, seq: 1, type: 'handshake', token: null},
+    valid: {v: 1, seq: 1, type: 'handshake', apiBase: 'http://127.0.0.1:5311'},
+    invalid: {v: 1, seq: 1, type: 'handshake'},
     unknownKey: {
       v: 1,
       seq: 1,
       type: 'handshake',
       apiBase: 'http://127.0.0.1:5311',
-      token: 'pair-xyz',
       expiresAt: 1893456000,
     },
   },

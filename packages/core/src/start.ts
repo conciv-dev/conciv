@@ -30,7 +30,7 @@ import {requireHarness} from './lib/require-harness.js'
 import {defaultConfigProvider} from './lib/default-config-provider.js'
 import {readConcivHome, readProcessEnv, runWithProvider} from './lib/engine-env.js'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
-import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint, writePrivateFile} from './lib/dev-endpoint.js'
+import {writePrivateFile} from './lib/private-file.js'
 import {claudeConnectEndpointFile} from '@conciv/harness-init/claude/endpoint'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {BrowserRequester} from '@conciv/protocol/engine-trust'
@@ -114,8 +114,7 @@ export type StartOpts = {
   harness?: HarnessAdapter
   plugins?: readonly Plugin.Plugin[]
   builtins?: readonly EffectPlugin[]
-  nativePageDir?: string
-  devEndpointDir?: string
+  widgetPageDir?: string
   homeDir?: string
   configProvider?: ConfigProvider.ConfigProvider
   log?: LogOptions
@@ -361,7 +360,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
     onShutdown: opts.onShutdown,
-    nativePageDir: opts.nativePageDir,
+    widgetPageDir: opts.widgetPageDir,
     boundOrigin,
     plugins: opts.plugins,
     builtins: opts.builtins,
@@ -397,15 +396,11 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
   const {dispose, trustBrowser, awaitActivation} = made
   const log = logOnRuntime(made.pluginHost)
 
-  const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
   const origin = boundOrigin()
   try {
     if (origin) {
       const endpoint = claudeConnectEndpointFile({stateDir: paths.dir, mcpUrl: engineMcpUrl(origin, agentToken)})
       await writePrivateFile(endpoint.path, endpoint.contents)
-    }
-    if (opts.nativePageDir && origin) {
-      await writeDevEndpoint(endpointDir, {apiBase: origin, token: agentToken, pid: process.pid})
     }
   } catch (error) {
     await abandonStart([dispose])
@@ -424,18 +419,9 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
         log,
       )
     : () => {}
-  const clearEndpoint = async (): Promise<void> => {
-    if (!opts.nativePageDir) return
-    try {
-      await removeDevEndpoint(endpointDir, process.pid)
-    } catch (error) {
-      log(Effect.logError('conciv: failed to remove the dev endpoint file', {endpointDir, error}))
-    }
-  }
   try {
     await inSpan(tracer, 'Engine.awaitActivation', {}, awaitActivation)
   } catch (error) {
-    await clearEndpoint()
     retire()
     await abandonStart([dispose])
     throw error
@@ -449,7 +435,6 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
       stop: async () => {
         try {
           await inSpan(tracer, 'Engine.stop', {'conciv.engine.id': engineId}, async () => {
-            await clearEndpoint()
             retire()
             await runInOrder([close, dispose], 'conciv: stopping the engine failed')
           })

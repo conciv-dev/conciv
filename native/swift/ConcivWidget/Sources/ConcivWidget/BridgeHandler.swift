@@ -121,7 +121,6 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
   var onPanelToggled: ((HostPanelToggled) -> Void)?
   var onLog: ((HostLog) -> Void)?
   var onCrashRecovery: (() -> Void)?
-  var onStaleToken: (() -> Void)?
   // A provisional/committed navigation failed with a connection-refused/timeout class
   // error: the core stopped answering at the current base (same-core port drift or a
   // dead process). The owner starts bounded rediscovery (04 recovery loop).
@@ -156,10 +155,10 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
 
   // MARK: outbound helpers (set-state, seq-tagged)
 
-  func sendHandshake(apiBase: String, token: String?) {
+  func sendHandshake(apiBase: String) {
     handshakeEpoch += 1
     dropSupersededEpochs()
-    let message = Handshake(v: negotiatedVersion, seq: takeSeq(), apiBase: apiBase, token: token)
+    let message = Handshake(v: negotiatedVersion, seq: takeSeq(), apiBase: apiBase)
     latestHandshake = message
     enqueue(.handshake(message))
   }
@@ -171,10 +170,10 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
   // corrects it. Restage the stored handshake at the live base under a new epoch BEFORE the
   // load: the ready-time resend then carries the live base, and every prior-epoch queued or
   // unacked call is superseded so a lost-ack retry can never resurrect the dead base.
-  func restageHandshake(apiBase: String, token: String?) {
+  func restageHandshake(apiBase: String) {
     handshakeEpoch += 1
     dropSupersededEpochs()
-    latestHandshake = Handshake(v: negotiatedVersion, seq: takeSeq(), apiBase: apiBase, token: token)
+    latestHandshake = Handshake(v: negotiatedVersion, seq: takeSeq(), apiBase: apiBase)
   }
 
   // A new handshake supersedes the previous one: drop every queued/unacked call minted
@@ -362,26 +361,7 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     decisionHandler(originMatches(url: url) ? .allow : .cancel)
   }
 
-  // A 401/404 on the token-scoped native page = stale token (the core restarted onto
-  // a fresh /t/<newtoken> mount, 06 D13). CANCEL the response so the error page never
-  // commits over the live native bundle: the current bridge-capable document stays
-  // alive and the owner surfaces the re-pair prompt + rediscovery (04). The status
-  // never carries the token, so this path logs nothing.
-  func webView(
-    _ webView: WKWebView,
-    decidePolicyFor navigationResponse: WKNavigationResponse,
-    decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
-  ) {
-    guard let http = navigationResponse.response as? HTTPURLResponse, ConcivDiscovery.isStaleToken(status: http.statusCode) else {
-      decisionHandler(.allow)
-      return
-    }
-    decisionHandler(.cancel)
-    onStaleToken?()
-  }
-
-  // A connection refusal/timeout never produces the 401/404 response above: the core
-  // simply stopped answering at the current base (same-core port drift or a dead
+  // A connection refusal/timeout: the core stopped answering at the current base (same-core port drift or a dead
   // process). Provisional failures leave the committed document intact (no WKWebView
   // error page), so keep it and hand off to bounded rediscovery instead of reloading a
   // dead URL. Cancellations (our own .cancel policy, or a superseding load) are ignored.

@@ -31,11 +31,6 @@ conciv({
         'Preferred engine port. With no port, Next.js, webpack and Rspack prefer the port the project last used, else one picked from the project folder (one of 1000 from 24170 up), so two projects rarely ask for the same port. When it is taken, the engine falls back to a free port, so a second dev server still boots. The Vite dev server falls back when the engine starts; the Next.js integration and the webpack/Rspack plugin pick the free port before they build the widget, so the widget and the engine always use the same port.',
     },
     stateRoot: {type: 'string', default: 'process.cwd()', description: 'Root holding the .conciv state directory.'},
-    devEndpointDir: {
-      type: 'string',
-      default: '~/.conciv',
-      description: 'Directory holding dev-endpoint.json, the pairing file the iOS SDK reads.',
-    },
     widget: {
       type: 'object',
       default: 'both layouts on',

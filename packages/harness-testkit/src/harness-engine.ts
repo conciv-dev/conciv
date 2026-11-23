@@ -446,7 +446,7 @@ function engineHarnesses(
   }
 }
 
-const KIT_OWNED_FIELDS = ['stateRoot', 'homeDir', 'devEndpointDir'] as const
+const KIT_OWNED_FIELDS = ['stateRoot', 'homeDir'] as const
 
 function engineConfig(given: ConcivConfig): ConcivConfig {
   const config = ConcivConfigSchema.parse(given)
@@ -490,7 +490,6 @@ function bootApp(
     staleness: () => live.staleness,
     app: {version: () => live.version},
     homeDir: home,
-    devEndpointDir: join(home, 'dev-endpoint'),
     configProvider,
     clock: heldClock?.layer,
     launchEditor: (file, line, column) => {

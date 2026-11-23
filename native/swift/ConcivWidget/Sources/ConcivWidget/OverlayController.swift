@@ -137,20 +137,19 @@ final class OverlayController: NSObject {
     container.removeFromSuperview()
   }
 
-  // The launcher choice reaches the served page as a query param: the native page's
-  // entry reads ?launcher=mascot and renders the web ShellFab mascot instead of
-  // deferring to the native FAB. Native mode loads the page with no query.
+  // The launcher choice reaches the engine's widget page as a query param: the page
+  // copies ?launcher= into the widget settings, so native mode defers to the native FAB
+  // and mascot mode renders the web ShellFab mascot.
   private static func makePageURL(for apiBase: URL, launcher: ConcivLauncher) -> URL {
     let base = ConcivDiscovery.pageURL(for: apiBase)
-    guard launcher == .mascot else { return base }
     guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else { return base }
-    components.queryItems = [URLQueryItem(name: "launcher", value: "mascot")]
+    components.queryItems = [URLQueryItem(name: "launcher", value: launcher == .mascot ? "mascot" : "native")]
     return components.url ?? base
   }
 
   // Same-core port drift (06 D8): the core moved to a new base, so re-point the document
-  // plane at it. Recompute the page URL and re-pin the bridge origin to the new base (the
-  // base carries the /t/<token> prefix when token-scoped), then reload so the document is
+  // plane at it. Recompute the page URL and re-pin the bridge origin to the new base, then
+  // reload so the document is
   // served from, and its bridge messages are accepted at, the live origin. Restage the
   // stored handshake at the new base before the load so the reload's bridge.ready resend
   // carries the live base, not the dead one; the fresh hello then re-confirms it. A
@@ -160,15 +159,15 @@ final class OverlayController: NSObject {
     self.endpoint = endpoint
     self.pageUrl = OverlayController.makePageURL(for: endpoint.apiBase, launcher: launcher)
     bridge.rebind(to: endpoint.apiBase)
-    bridge.restageHandshake(apiBase: endpoint.apiBase.absoluteString, token: endpoint.token)
+    bridge.restageHandshake(apiBase: endpoint.apiBase.absoluteString)
     hideRepairPrompt()
     webView.load(URLRequest(url: pageUrl))
   }
 
-  // The handshake apiBase is the full base (origin plus any /t/<token> prefix), which
-  // equals the served page's own bound base so no spurious rebind fires.
+  // The handshake apiBase is the engine origin, which equals the served page's own bound
+  // base so no spurious rebind fires.
   private func sendHandshake() {
-    bridge.sendHandshake(apiBase: endpoint.apiBase.absoluteString, token: endpoint.token)
+    bridge.sendHandshake(apiBase: endpoint.apiBase.absoluteString)
   }
 
   // MARK: FAB (launcher: native)
@@ -220,7 +219,6 @@ final class OverlayController: NSObject {
     bridge.onGrabCancel = { [weak self] cancel in self?.cancelPick(cancel.requestId) }
     bridge.onPanelToggled = { [weak self] toggled in self?.handlePanelToggled(toggled) }
     bridge.onCrashRecovery = { [weak self] in self?.resolvePick(requestId: self?.pickRequestId, grab: nil, reason: .failed) }
-    bridge.onStaleToken = { [weak self] in self?.startRecoveryLoop() }
     bridge.onConnectionLost = { [weak self] in self?.startRecoveryLoop() }
     bridge.onReady = { [weak self] in self?.handleBridgeReady() }
     bridge.onLog = { log in Swift.print("[conciv] \(log.level.rawValue): \(log.message)") }
@@ -268,10 +266,10 @@ final class OverlayController: NSObject {
 
   var isRepairPromptVisible: Bool { repairPrompt != nil }
 
-  // A stale token (401/404) or a connection refusal means the current base is dead. Start
+  // A connection refusal means the current base is dead. Start
   // one bounded rediscovery loop: surface a visible prompt (never a silent brick) and
   // retry discovery on exponential backoff. A live loop is not restarted so overlapping
-  // triggers (stale token then a nav failure) collapse into one.
+  // triggers collapse into one.
   private func startRecoveryLoop() {
     guard !recovering else { return }
     recovering = true

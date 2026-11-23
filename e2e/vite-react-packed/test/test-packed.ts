@@ -1,7 +1,6 @@
 import {spawnSync} from 'node:child_process'
 import {cpSync, mkdirSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'
 import {WORKSPACE_ROOT, buildAndPack, installPacked, readManifest} from '@conciv/vitest-config/pack'
 import {PACKED_APP_DIR, PACKED_ROOT} from './packed-app-dir.ts'
 
@@ -11,17 +10,12 @@ const CONSUMER_PACKAGES = ['@conciv/it', 'react', 'react-dom']
 const VITE_TOOLING = ['vite', '@vitejs/plugin-react']
 const TARBALL_DIR = join(PACKED_ROOT, 'tarballs')
 const LOCK_PATH = join(import.meta.dirname, '..', 'fixture-lock.yaml')
-const PACKED_CONFIG_DIR = join(import.meta.dirname, '..')
-const DEV_ENDPOINT_ENV = 'CONCIV_E2E_DEV_ENDPOINT_DIR'
 const VITE_CONFIG = `import {defineConfig} from 'vite'
 import react from '@vitejs/plugin-react'
 import conciv from '@conciv/it/plugin/vite'
 
-const devEndpointDir = process.env.${DEV_ENDPOINT_ENV}
-if (!devEndpointDir) throw new Error('${DEV_ENDPOINT_ENV} is not set; run this app through test-packed.ts')
-
 export default defineConfig({
-  plugins: [react(), conciv({devEndpointDir})],
+  plugins: [react(), conciv()],
 })
 `
 
@@ -72,7 +66,6 @@ const playwright = spawnSync(
   {
     cwd: PACKED_APP_DIR,
     stdio: 'inherit',
-    env: {...process.env, [DEV_ENDPOINT_ENV]: e2eDevEndpointDir(PACKED_CONFIG_DIR)},
   },
 )
 if (playwright.error !== undefined) throw playwright.error

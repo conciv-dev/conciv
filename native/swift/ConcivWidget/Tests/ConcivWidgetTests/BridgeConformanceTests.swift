@@ -122,7 +122,7 @@ final class BridgeConformanceTests: XCTestCase {
   // built as a real struct, encoded with JSONEncoder, and its produced JSON object
   // asserted equal (key-set + values, order-independent) to the committed fixture the TS
   // NativeToPageSchema also validates. A nil Swift optional omits its key, so the
-  // tokenless handshake fixture pins that the omission is exactly what the page accepts.
+  // nil-field grab fixtures pin that the omission is exactly what the page accepts.
   private static func encodeVariants() -> [(file: String, message: BridgeMessage)] {
     let apiBase = "http://127.0.0.1:5311"
     let preview = ImagePreview(dataUrl: "data:image/jpeg;base64,/9j/4AAQSkZJRg==", width: 361, height: 72)
@@ -160,8 +160,7 @@ final class BridgeConformanceTests: XCTestCase {
       subtree: ViewNode(className: "UILabel", a11yId: nil, text: nil, rect: rect, children: [])
     )
     return [
-      ("n2p.encode.handshake-token", .handshake(Handshake(v: 1, seq: 1, apiBase: apiBase, token: "pair-xyz"))),
-      ("n2p.encode.handshake-tokenless", .handshake(Handshake(v: 1, seq: 1, apiBase: apiBase, token: nil))),
+      ("n2p.encode.handshake", .handshake(Handshake(v: 1, seq: 1, apiBase: apiBase))),
       ("n2p.encode.bridge-incompatible", .bridgeIncompatible(BridgeIncompatible(v: 1, seq: 2, nativeMinV: 2, nativeMaxV: 3))),
       ("n2p.encode.open", .open(Open(v: 1, seq: 3))),
       ("n2p.encode.close", .close(Close(v: 1, seq: 4))),

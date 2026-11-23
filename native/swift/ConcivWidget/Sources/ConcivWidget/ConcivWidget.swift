@@ -44,18 +44,16 @@ public enum ConcivWidget {
     }
   }
 
-  // Explicit endpoint, windowless. apiBase is the core-served native page origin
-  // (http://127.0.0.1:<port>, plus /t/<token> when the core minted a token); the SDK loads
-  // apiBase/native into a transparent overlay above the app's own UI once the key window
+  // Explicit endpoint, windowless. apiBase is the engine origin (http://127.0.0.1:<port>);
+  // the SDK loads apiBase/widget into a transparent overlay above the app's own UI once the key window
   // resolves.
   @MainActor
   public static func attach(
     apiBase: URL,
-    token: String? = nil,
     launcher: ConcivLauncher = .mascot
   ) {
     attachViaWindow { window, _ in
-      mount(to: window, endpoint: ConcivEndpoint(apiBase: apiBase, token: token, pid: nil), launcher: launcher)
+      mount(to: window, endpoint: ConcivEndpoint(apiBase: apiBase, pid: nil), launcher: launcher)
     }
   }
 
@@ -65,17 +63,15 @@ public enum ConcivWidget {
   public static func attach(
     to window: UIWindow,
     apiBase: URL,
-    token: String? = nil,
     launcher: ConcivLauncher = .mascot
   ) {
     attachGeneration += 1
-    mount(to: window, endpoint: ConcivEndpoint(apiBase: apiBase, token: token, pid: nil), launcher: launcher)
+    mount(to: window, endpoint: ConcivEndpoint(apiBase: apiBase, pid: nil), launcher: launcher)
   }
 
-  // Auto-discovery against a caller-supplied window. Reads the pairing file the core wrote
-  // (the simulator shares the host filesystem), falling back to probing the candidate ports
-  // on 127.0.0.1. The discovered apiBase already carries /t/<token> when the core is
-  // token-scoped.
+  // Auto-discovery against a caller-supplied window. Reads the pairing file the ios plugin
+  // wrote (the simulator shares the host filesystem), falling back to probing the candidate
+  // ports on 127.0.0.1.
   @MainActor
   public static func attach(
     to window: UIWindow,
@@ -117,7 +113,7 @@ public enum ConcivWidget {
   @MainActor
   private static func mountEnvOrDiscovered(to window: UIWindow, generation: Int, launcher: ConcivLauncher) {
     if let apiBase = ConcivDiscovery.envApiBase() {
-      mount(to: window, endpoint: ConcivEndpoint(apiBase: apiBase, token: nil, pid: nil), launcher: launcher)
+      mount(to: window, endpoint: ConcivEndpoint(apiBase: apiBase, pid: nil), launcher: launcher)
       return
     }
     discoverDriver(discoverer) { endpoint in
@@ -157,7 +153,6 @@ public enum ConcivWidget {
   @MainActor
   public static func attach(
     apiBase: URL,
-    token: String? = nil,
     launcher: ConcivLauncher = .mascot
   ) {}
 
@@ -165,7 +160,6 @@ public enum ConcivWidget {
   public static func attach(
     to window: UIWindow,
     apiBase: URL,
-    token: String? = nil,
     launcher: ConcivLauncher = .mascot
   ) {}
 

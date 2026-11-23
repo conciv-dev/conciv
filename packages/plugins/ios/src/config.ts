@@ -1,29 +1,30 @@
 import {join} from 'node:path'
 import {Schema} from 'effect'
+import {omit} from 'es-toolkit'
 import {z} from 'zod'
 
 const DEFAULT_SIMULATOR = 'iPhone 17 Pro'
 const DEFAULT_DEVELOPER_DIR = '/Applications/Xcode.app/Contents/Developer'
 
-const NATIVE_SUFFIX = '/native'
+const PAGE_SUFFIX = '/widget'
 
 const CONCIV_URL_RULE =
-  'concivUrl must be the core api base with no page path (an optional /t/<token> prefix is allowed): the swift sdk appends /native itself, see packages/plugins/ios/README.md'
+  'concivUrl must be the core api base with no page path: the swift sdk appends /widget itself, see packages/plugins/ios/README.md'
 
 function withoutTrailingSlashes(raw: string): string {
   return raw.replace(/\/+$/, '')
 }
 
-function stripNativeSuffix(raw: string): string {
+function stripPageSuffix(raw: string): string {
   const trimmed = withoutTrailingSlashes(raw)
-  return trimmed.endsWith(NATIVE_SUFFIX) ? withoutTrailingSlashes(trimmed.slice(0, -NATIVE_SUFFIX.length)) : trimmed
+  return trimmed.endsWith(PAGE_SUFFIX) ? withoutTrailingSlashes(trimmed.slice(0, -PAGE_SUFFIX.length)) : trimmed
 }
 
 function isBareApiBase(raw: string): boolean {
-  return URL.canParse(raw) && /^(\/t\/[^/]+)?$/.test(withoutTrailingSlashes(new URL(raw).pathname))
+  return URL.canParse(raw) && withoutTrailingSlashes(new URL(raw).pathname) === ''
 }
 
-const ConcivUrlSchema = z.string().url().transform(stripNativeSuffix).refine(isBareApiBase, {message: CONCIV_URL_RULE})
+const ConcivUrlSchema = z.string().url().transform(stripPageSuffix).refine(isBareApiBase, {message: CONCIV_URL_RULE})
 
 const FullIosConfigSchema = z.object({
   projectRoot: z.string().min(1),
@@ -36,14 +37,16 @@ const FullIosConfigSchema = z.object({
   concivUrl: ConcivUrlSchema.optional(),
 })
 
-function emptyToUndefined(raw: unknown): unknown {
-  if (raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length === 0) return undefined
-  return raw
+function appOptions(raw: unknown): unknown {
+  const record = z.record(z.string(), z.unknown()).safeParse(raw)
+  if (!record.success) return raw
+  const app = omit(record.data, ['devEndpointDir'])
+  return Object.keys(app).length === 0 ? undefined : app
 }
 
 export const InvalidOptions = Schema.TaggedStruct('InvalidOptions', {message: Schema.String})
 
-export const IosConfigSchema = z.preprocess(emptyToUndefined, FullIosConfigSchema.optional())
+export const IosConfigSchema = z.preprocess(appOptions, FullIosConfigSchema.optional())
 
 export type IosConfig = z.infer<typeof FullIosConfigSchema>
 

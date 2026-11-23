@@ -36,9 +36,9 @@
       "types": "./dist/rpc.d.ts",
       "import": "./dist/rpc.js"
     },
-    "./client": {
-      "types": "./dist/client.d.ts",
-      "import": "./dist/client.js"
+    "./plugin-experimental": {
+      "types": "./dist/plugin-experimental.d.cts",
+      "default": "./dist/plugin-experimental.cjs"
     },
     "./package.json": "./package.json"
   },
@@ -46,7 +46,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "build": "tsdown && tsc -p tsconfig.build.json && vite build",
     "gen:fixtures": "node test/fixtures/bridge/gen.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
@@ -62,11 +62,13 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/client": "workspace:^",
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@internal/plugin": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",

@@ -16,9 +16,10 @@ plugins: [['@conciv/plugin-ios', {projectRoot: 'ios/PayApp', bundleId: 'dev.conc
 - Invariant: with options, a session `context` hook adds the iOS rules (the native overlay, the served app, the
   build loop, no filesystem-wide searches) to the system prompt of every model request; without options it adds
   nothing.
-- Invariant: `concivUrl` is the engine api base with no page path (an optional `/t/<token>` prefix is allowed); a
-  trailing `/native` is stripped because the Swift SDK appends `/native` itself. Without it the app gets the url of
-  the engine's own server.
+- Invariant: `concivUrl` is the engine api base with no page path; the Swift SDK appends `/widget` itself. Without
+  it the app gets the url of the engine's own server.
+- Side effect: on activation the engine half writes the pairing file `dev-endpoint.json` (`{apiBase, pid}`, mode
+  `0600`) to the `devEndpointDir` option, `~/.conciv` by default, and removes it on shutdown when it is still its own.
 - Side effect: `ios_build` and `ios_run` start child processes and write the `build/<module>.app` bundle in swiftc
   mode; `ios_run` boots the simulator and installs and launches the app.
 
@@ -26,15 +27,13 @@ plugins: [['@conciv/plugin-ios', {projectRoot: 'ios/PayApp', bundleId: 'dev.conc
 
 - `./rpc`: the zod schemas of the versioned page and native messages (`PageToNativeSchema`, `NativeToPageSchema`,
   `BridgeMessageSchema`) and their types, the single source the Swift `BridgeMessages.swift` mirrors.
-- `./client`: `makeNativeService`, a scoped Effect that, on a page whose `window.webkit.messageHandlers.concivBridge`
-  exists, starts the bridge and returns the native service (`undefined` on any other page, which then gets nothing).
-  The service's `setup` is the browser part `@conciv/embed`'s native page composes in as the `ios` plugin: a
-  `page.overlay` `Slot` that alerts when the app speaks bridge versions this widget does not support. Its
-  `grabProvider` picks native views through the bridge. `nativePageBase` derives the engine api base from the native
-  page's location.
-- Side effect: the service's scope owns `window.__concivNative`, the `conciv:panel-toggled` listener, the panel
-  event-bus client and the fibers that follow the bridge; it posts to the app through the handler and dispatches
-  `conciv:rebind` when the app hands over a new api base. Closing the scope removes all of them.
+- `./plugin-experimental`: the app half. It always adds the `NoteCard` for grabbed views (origin `ios`). On a page
+  whose `window.webkit.messageHandlers.concivBridge` exists it also starts the bridge in its own runtime and adds the
+  `GrabPicker` that picks native views through it and a `page.overlay` `Slot` that alerts when the app speaks bridge
+  versions this widget does not support. It opens, closes and reads the panel through `ctx.widget`.
+- Side effect: the runtime owns `window.__concivNative`, the `conciv:panel-toggled` listener (for the mascot rect)
+  and the fibers that follow the bridge; it posts to the app through the handler and dispatches `conciv:rebind` when
+  the app hands over a new api base. Disposing it removes all of them.
 - `pnpm --filter @conciv/plugin-ios gen:fixtures` writes the bridge fixtures from `test/fixtures/bridge/bridge.fixtures.ts`
   to `test/fixtures/bridge/` and to the Swift test copy in `native/swift/ConcivWidget/Tests/ConcivWidgetTests/Fixtures/bridge`.
 
@@ -83,7 +82,7 @@ follow-on milestones.
 | iOS simulator           | `http://127.0.0.1:<port>` directly (shared host loopback)          | Shipped                         |
 | Android emulator        | `http://10.0.2.2:<port>` (emulator alias for the host loopback)    | Documented, sibling plugin      |
 | Android physical device | `adb reverse tcp:<port> tcp:<port>` then `http://127.0.0.1:<port>` | Documented, sibling plugin      |
-| iOS physical device     | LAN bind + token, or QR pairing, or Bonjour (all token-gated)      | Deferred (no code in this tier) |
+| iOS physical device     | LAN bind, or QR pairing, or Bonjour, behind the engine login       | Deferred (no code in this tier) |
 
 ## Dev loop and port
 
@@ -93,22 +92,25 @@ on any port is found. `ConcivConfig` accepts a `port`, and the ios dev loop docu
 
 `ios_run` injects the core API base into the launched app as
 `SIMCTL_CHILD_CONCIV_URL` (the app reads it as `CONCIV_URL`, which `ConcivWidget.attach()`
-picks up). The value is the core's own apiBase with no `/native` suffix: the SDK appends
-the `/native` route itself, so passing a URL that already ends in `/native` would load
-`/native/native`. It carries the `/t/<token>` prefix when the core minted an access
-token. Set `concivUrl` in this plugin's options to override it, again as the API base
-without `/native`.
+picks up). The value is the core's own apiBase with no page path: the SDK appends
+`/widget` itself. Set `concivUrl` in this plugin's options to override it, again as the
+API base with no page path.
+
+The engine the app talks to must turn the page plugin off with `'-conciv.page'` in its
+`plugins`, so the ios plugin's picker is the only grab picker in the app:
+
+```ts
+plugins: ['-conciv.page', ['@conciv/plugin-ios', {projectRoot, bundleId}]]
+```
 
 ## Pairing file and discovery
 
-On startup a dev core that serves the native page writes
-`~/.conciv/dev-endpoint.json` (`{apiBase, token, pid}`, mode `0600`, never logged)
-and removes it on shutdown. The simulator shares the host filesystem, so the Swift
+On activation the ios plugin writes `~/.conciv/dev-endpoint.json` (`{apiBase, pid}`,
+mode `0600`) and removes it on shutdown. The simulator shares the host filesystem, so the Swift
 SDK reads that file to discover the core deterministically, validates it with
 `GET <apiBase>/health`, and falls back to probing a short candidate port list on
-`127.0.0.1` (the pinned `4599` first). `apiBase` already carries `/t/<token>` when the
-core is token-scoped, so the WebView loads `<apiBase>/native` token-scoped with no
-extra work. The origin pin stays `scheme://host:port`.
+`127.0.0.1` (the pinned `4599` first). The WebView loads `<apiBase>/widget`. The origin
+pin stays `scheme://host:port`.
 
 The port probe runs whenever the pairing file does not yield a live core: the file is
 missing or unreadable, its JSON is malformed, or its `apiBase` fails the health check.
@@ -116,20 +118,15 @@ That last case is how a stale file from a crashed core recovers. It is the recov
 path, not the primary one: a core on any port is found through the file.
 
 The SDK reads the fixed path `SIMULATOR_HOST_HOME/.conciv/dev-endpoint.json`. A host
-whose plugin config sets `devEndpointDir` writes the file to that folder instead, so
+whose ios plugin options set `devEndpointDir` writes the file to that folder instead, so
 the app never sees that core's file: it drops to the
 port probe, and it pairs with a different dev core if that one left a healthy file at
 the global path. Set `CONCIV_URL` to pin the core explicitly.
 
 ## Auth and re-pair
 
-Pure loopback on the simulator needs no auth. Once the connection leaves the machine
-a token is required, and the core scopes the whole app under `/t/<token>` (path
-prefix, not a header). The token persists for the core process lifetime and is
-regenerated on restart, so a cached token that no longer resolves returns `401`/`404`
-on the token-scoped base. The SDK treats that as a stale token and surfaces a visible
-re-pair prompt; tapping it re-reads the pairing file and re-attaches. There is no
-silent token refresh, and the token never appears in any log line.
+The pairing file carries no secret. When the engine asks for a login, the `/widget`
+page shows it and the app signs in with the one-time code like a browser does.
 
 Same-core port drift self-heals without relaunch: when the current base stops
 responding, the SDK re-discovers and, if the pairing-file `pid` is unchanged (the same

@@ -79,7 +79,7 @@ import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {makeHubInstaller} from './api/rpc/hub.js'
 import {readConcivHome, readProcessEnv, runWithProvider} from './lib/engine-env.js'
-import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
+import {WIDGET_PAGE_PATH, makeWidgetPageApp} from './api/widget-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {createPersistentPtys} from './pty/persistent-ptys.js'
@@ -117,7 +117,7 @@ import {
   type TrustedBrowsers,
 } from './engine-login.js'
 import type {OpenInEditor} from './editor/open.js'
-import {writePrivateFile} from './lib/dev-endpoint.js'
+import {writePrivateFile} from './lib/private-file.js'
 import {logOnContext, logOnRuntime, type Log, type LogOptions} from './lib/logging.js'
 
 const NO_SESSION_MESSAGE = 'this tool needs a session; this call has none'
@@ -237,7 +237,7 @@ export type MakeAppOpts = {
 
   stopGraceMs?: number
 
-  nativePageDir?: string
+  widgetPageDir?: string
 
   boundOrigin?: () => string | undefined
 
@@ -925,7 +925,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
   )
 
-  if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))
+  if (opts.widgetPageDir) app.route(WIDGET_PAGE_PATH, makeWidgetPageApp(opts.widgetPageDir))
 
   const disposeStep =
     (name: string, step: () => unknown): ShutdownStep =>

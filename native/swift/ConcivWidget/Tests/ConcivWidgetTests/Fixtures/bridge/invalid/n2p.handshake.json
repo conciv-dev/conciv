@@ -1,6 +1,5 @@
 {
   "v": 1,
   "seq": 1,
-  "type": "handshake",
-  "token": null
+  "type": "handshake"
 }

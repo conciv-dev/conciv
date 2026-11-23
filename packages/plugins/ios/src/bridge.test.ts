@@ -20,7 +20,7 @@ describe('the native app talks to the widget', () => {
       clientId: 'page',
       bundleReady: true,
     })
-    await peer.send({v: 1, seq: 1, type: 'handshake', apiBase, token: null})
+    await peer.send({v: 1, seq: 1, type: 'handshake', apiBase})
     expect(await peer.receive('bridge.ack')).toEqual({v: 1, type: 'bridge.ack', seq: 1})
     expect(IosBridgeMachine.readIncompatible(await peer.state())).toBeNull()
 
@@ -92,12 +92,12 @@ describe('the native app talks to the widget', () => {
       clientId: 'newer',
       bundleReady: true,
     })
-    await newer.send({v: 2, seq: 1, type: 'handshake', apiBase, token: null})
+    await newer.send({v: 2, seq: 1, type: 'handshake', apiBase})
     expect(await newer.receive('bridge.ack')).toEqual({v: 1, type: 'bridge.ack', seq: 1})
     expect(IosBridgeMachine.readIncompatible(await newer.state())).toEqual({nativeMinV: 2, nativeMaxV: 2})
 
     const older = await nativePeer({clientId: 'older', apiBase})
-    await older.send({v: 0, seq: 1, type: 'handshake', apiBase, token: null})
+    await older.send({v: 0, seq: 1, type: 'handshake', apiBase})
     expect(await older.receive('bridge.ack')).toEqual({v: 1, type: 'bridge.ack', seq: 1})
     expect(IosBridgeMachine.readIncompatible(await older.state())).toEqual({nativeMinV: 0, nativeMaxV: 0})
   })

@@ -62,6 +62,8 @@ import {applySchemeClass, applySkinClass, createHostTheme, themeClasses} from '.
 import {createPreferences} from '../settings/create-preferences.js'
 import {DialogProvider} from '../runtime/plugin/dialog-stack.js'
 import {PluginAttachment, PluginRoot} from '../runtime/plugin/root.js'
+import type {Widget} from '@conciv/plugin/experimental'
+import {usePluginAttachment} from '../runtime/plugin/attachment.js'
 import type {ServerBinding} from '../runtime/plugin/servers.js'
 import {PluginOverlay, PluginPanelKeys} from '../shell/plugin-surfaces.js'
 import '../styles.css'
@@ -224,6 +226,10 @@ function AppRoot() {
   )
 }
 
+function bindWidgetControls(widget: Widget): void {
+  onCleanup(usePluginAttachment().bindWidget(widget))
+}
+
 function RootChrome(props: {
   fab: ReturnType<typeof createDraggablePosition>
   activeSession: () => string | null
@@ -342,6 +348,7 @@ function RootChrome(props: {
     })
   }
   const togglePanel = () => (panelOpen() ? closePanel() : showPanel())
+  bindWidgetControls({open: showPanel, close: closePanel, isOpen: panelOpen})
   const openStoredOnLoad = createReaction(() => {
     if (!settings.fromHost.defaultOpen && preferences.openOnLoad() && closedMatch()) showPanel()
   })
