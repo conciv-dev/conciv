@@ -784,7 +784,7 @@
   "entry": [
     "packages/plugin-host/src/core/database/**",
     "packages/brand/src/brand-guidelines.mdx",
-    "packages/embed/src/native-entry.ts",
+    "packages/embed/src/global-entry.ts",
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",
     "packages/db/drizzle-home.config.ts"
   ],

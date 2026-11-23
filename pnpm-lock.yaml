@@ -2745,9 +2745,6 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../plugin
-      '@conciv/plugin-ios':
-        specifier: workspace:^
-        version: link:../plugins/ios
       '@conciv/plugin-page':
         specifier: workspace:^
         version: link:../plugins/page
@@ -3579,6 +3576,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/client':
+        specifier: workspace:^
+        version: link:../../client
       '@conciv/harness-testkit':
         specifier: workspace:*
         version: link:../../harness-testkit

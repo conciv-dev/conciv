@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {Rpc} from '@conciv/plugin/rpc'
 import type {ElementRect, ElementSource, ImagePreview} from '@conciv/grab'
 
 export const BRIDGE_MIN_VERSION = 1
@@ -227,3 +228,41 @@ export type Open = z.infer<typeof OpenSchema>
 export type Close = z.infer<typeof CloseSchema>
 export type GrabResult = z.infer<typeof GrabResultSchema>
 export type GrabCapability = z.infer<typeof GrabCapabilitySchema>
+
+export const GRAB_NOTE_ORIGIN = 'ios'
+const GRAB_HREF_PREFIX = 'ios-grab:'
+const MAX_GRAB_TEXT = 100_000
+const MAX_PREVIEW_CHARACTERS = 1_400_000
+
+export const GrabId = z.string().regex(/^grab_[a-f0-9-]{36}$/u)
+export type GrabId = z.infer<typeof GrabId>
+
+export const StoredGrab = z.object({
+  text: z.string().max(MAX_GRAB_TEXT),
+  source: SourceSchema.nullable(),
+  rect: RectSchema.nullable(),
+  preview: GrabImagePreviewSchema.extend({
+    dataUrl: z.string().max(MAX_PREVIEW_CHARACTERS).startsWith('data:image/'),
+  }).nullable(),
+})
+export type StoredGrab = z.infer<typeof StoredGrab>
+
+export function grabHref(id: GrabId): string {
+  return `${GRAB_HREF_PREFIX}${id}`
+}
+
+export function readGrabId(href: string | undefined): GrabId[] {
+  const parsed = GrabId.safeParse(href?.startsWith(GRAB_HREF_PREFIX) ? href.slice(GRAB_HREF_PREFIX.length) : undefined)
+  return parsed.success ? [parsed.data] : []
+}
+
+const errors = {unavailable: z.object({})}
+
+export const Definition = Rpc.define({
+  id: 'experimental.ios',
+  methods: {
+    'grabs.save': {input: z.object({grab: StoredGrab}), output: z.object({id: GrabId}), errors},
+    'grabs.get': {input: z.object({id: GrabId}), output: StoredGrab.nullable(), errors},
+  },
+  events: {},
+})

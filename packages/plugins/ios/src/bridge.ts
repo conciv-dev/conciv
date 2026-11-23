@@ -5,14 +5,6 @@ import type {Grab} from '@conciv/grab'
 import {NativeToPageSchema, type GrabMode, type PageToNativeMessage} from './rpc.js'
 import {IosBridgeMachine} from './bridge-machine.js'
 
-const NATIVE_ROUTE = '/native'
-
-export function nativePageBase(location: {origin: string; pathname: string}): string {
-  const index = location.pathname.lastIndexOf(NATIVE_ROUTE)
-  const prefix = index >= 0 ? location.pathname.slice(0, index) : ''
-  return `${location.origin}${prefix}`
-}
-
 export const PickTimedOut = Schema.TaggedStruct('Ios.PickTimedOut', {requestId: Schema.String})
 export type PickTimedOut = typeof PickTimedOut.Type
 

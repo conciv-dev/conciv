@@ -183,7 +183,7 @@ async function bootEngine(
   server: ViteDevServer,
   options: ConcivConfig,
   agentPath: string,
-  nativePageDir: string | undefined,
+  widgetPageDir: string | undefined,
 ): Promise<Engine> {
   const {start} = await import('@conciv/core/start')
   return start({
@@ -193,7 +193,7 @@ async function bootEngine(
     bridge: await makeViteBridge(server),
     launchEditor: makeOpenInEditor(server.config.root),
     allowedOrigins: devOrigins(server),
-    nativePageDir,
+    widgetPageDir,
     homeDir: options.homeDir,
     log: {emit: (entry) => writeEngineLog(server, entry)},
     childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
@@ -408,7 +408,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         server,
         options,
         await installConcivBinShim(concivStateDir(cfg.stateRoot)),
-        builtins.nativePageDir,
+        builtins.widgetPageDir,
       )
       engines.push(stopWhenHttpServerCloses(server, booted))
       if (!server.config.server.middlewareMode) deadlines.push(installShutdownDeadline())

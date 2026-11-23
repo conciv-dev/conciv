@@ -46,7 +46,6 @@
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
     "@conciv/plugin": "workspace:^",
-    "@conciv/plugin-ios": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",

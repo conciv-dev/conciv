@@ -1,10 +1,17 @@
+import {readFile, stat} from 'node:fs/promises'
+import {homedir} from 'node:os'
+import {join} from 'node:path'
 import {describe, expect, test} from 'vitest'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 
 describe('the ios plugin with no options', () => {
-  test('every ios tool answers that the plugin is not configured, without an ask', async () => {
+  test('every ios tool answers that the plugin is not configured, without an ask, and the Swift SDK pairing file still names the engine', async () => {
     const engine = await createEngine({plugins: ['@conciv/plugin-ios']})
     const notConfigured = {ok: false, error: 'ios plugin not configured'}
+    const pairing = join(homedir(), '.conciv', 'dev-endpoint.json')
+
+    expect(JSON.parse(await readFile(pairing, 'utf8'))).toEqual({apiBase: engine.address.apiBase, pid: process.pid})
+    expect((await stat(pairing)).mode & 0o777).toBe(0o600)
 
     expect(await engine.session.tool('ios_build').call({})).toEqual(notConfigured)
     expect(await engine.session.tool('ios_run').call({})).toEqual(notConfigured)
@@ -76,17 +83,17 @@ describe('the ios plugin with bad options', () => {
     ],
     [
       'a concivUrl with a page path',
-      {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', concivUrl: 'http://127.0.0.1:4732/native/panel'},
+      {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', concivUrl: 'http://127.0.0.1:4732/widget/panel'},
       {
         status: 'failed',
         error: expect.stringContaining(
-          'concivUrl must be the core api base with no page path (an optional /t/<token> prefix is allowed): the swift sdk appends /native itself',
+          'concivUrl must be the core api base with no page path: the swift sdk appends /widget itself',
         ),
       },
     ],
     [
-      'a concivUrl that ends in /native',
-      {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', concivUrl: 'http://127.0.0.1:4732/native'},
+      'a concivUrl that ends in /widget',
+      {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', concivUrl: 'http://127.0.0.1:4732/widget'},
       {status: 'active'},
     ],
   ])('the engine lists the ios plugin state for %s', async (_case, options, state) => {

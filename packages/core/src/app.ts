@@ -79,7 +79,7 @@ import mcpApp, {type McpVars} from './api/mcp.js'
 import {makeHubInstaller} from './api/rpc/hub.js'
 import {readConcivHome, readProcessEnv, runWithProvider} from './lib/engine-env.js'
 import {createTabs} from './api/tabs.js'
-import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
+import {WIDGET_PAGE_PATH, makeWidgetPageApp} from './api/widget-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makePagePlugin, type QueueFinished} from './page/page-plugin.js'
 import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
@@ -254,7 +254,7 @@ export type MakeAppOpts = {
 
   queuedActionTimeoutMs?: number
 
-  nativePageDir?: string
+  widgetPageDir?: string
 
   boundOrigin?: () => string | undefined
 
@@ -1010,7 +1010,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
   )
 
-  if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))
+  if (opts.widgetPageDir) app.route(WIDGET_PAGE_PATH, makeWidgetPageApp(opts.widgetPageDir))
 
   const disposeStep =
     (name: string, step: () => unknown): ShutdownStep =>

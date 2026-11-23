@@ -111,7 +111,7 @@ export type StartOpts = {
 
   harness?: HarnessAdapter
   plugins?: readonly Plugin.Plugin[]
-  nativePageDir?: string
+  widgetPageDir?: string
   homeDir?: string
   configProvider?: ConfigProvider.ConfigProvider
   log?: LogOptions
@@ -359,7 +359,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
     onShutdown: opts.onShutdown,
-    nativePageDir: opts.nativePageDir,
+    widgetPageDir: opts.widgetPageDir,
     boundOrigin,
     plugins: opts.plugins,
     harnesses: opts.harnesses,

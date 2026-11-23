@@ -7,7 +7,7 @@ import {makeOpenInEditor} from './open-editor.js'
 
 export type Builtins = {
   embedEntry?: string
-  nativePageDir?: string
+  widgetPageDir?: string
 }
 
 function writeEngineLine(entry: LogEntry): void {
@@ -29,7 +29,7 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
         root,
         port: options.port === undefined ? undefined : {exact: options.port},
         launchEditor: makeOpenInEditor(root),
-        nativePageDir: builtins.nativePageDir,
+        widgetPageDir: builtins.widgetPageDir,
         homeDir: options.homeDir,
         log: {emit: writeEngineLine},
         childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),

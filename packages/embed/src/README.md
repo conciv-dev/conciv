@@ -2,7 +2,7 @@
 
 ## Overview
 
-Mounts the conciv widget into a shadow root on the host page. `createConciv` is the handle API used by the React wrapper and the plugin loader; `native-entry.ts` is the iOS native-page entry.
+Mounts the conciv widget into a shadow root on the host page. `createConciv` is the handle API used by the React wrapper and the plugin loader; `global-entry.ts` is the plain `<script src>` entry that mounts it with `mountConciv`.
 
 ## Interface
 
@@ -10,7 +10,7 @@ Mounts the conciv widget into a shadow root on the host page. `createConciv` is 
 - `mount.ts:ConcivInit` - `plugins`, `settings`, `apiBase`, `grabProvider`, `engineToken`, `timings` (forwarded to the app's `Platform.timings`).
 - `mount.ts:mountConciv` - appends a `[data-conciv-script-root]` div to `document.body` and mounts the widget with the given plugin entries.
 - `mount-impl.tsx:mountImpl` - creates the `[data-conciv-root]` element and shadow root, builds a `Platform` from `ConcivInit` (the api base from `init`, else `window.__CONCIV_API_BASE__`, the `conciv-api-base` meta tag or a loopback or same-origin `?core=`; servers mode when there is none and plugins are given) and renders `ConcivApp` from `@conciv/app`.
-- `native-entry.ts` - owns the scope of the `@conciv/plugin-ios` native service (`@conciv/plugin-ios/client` `makeNativeService`), composes its `setup` in as the `ios` plugin and hands its `grabProvider` to `createConciv`, mounts the widget on `[data-conciv-native-root]` (or `document.body`), and on a `pagehide` that is not kept in the back-forward cache unmounts the widget and closes the scope.
+- `global-entry.ts` - calls `mountConciv()`: the widget for a plain `<script src>` page, such as core's `/widget` page.
 
 ## Invariants
 
@@ -18,7 +18,6 @@ Mounts the conciv widget into a shadow root on the host page. `createConciv` is 
 - `mount.ts:createConciv.mount` - does nothing without a `document` or when the state is not `unmounted`; a failed mount resets to `unmounted` and rethrows.
 - `mount.ts:createConciv.rebind` - does nothing unless the state is `mounted`.
 - `mount.ts:mountConciv` - does nothing inside a `data-conciv-capture` frame or when a `[data-conciv-script-root]` already exists; removes its element if the mount fails.
-- `native-entry.ts:readLauncher` - the launcher is `mascot` only when the `launcher` query parameter says so, otherwise `native`.
 
 ## Side Effects
 
