@@ -523,7 +523,8 @@ describe('the user grabs an element for the agent', () => {
     await user.click(await screen.findByRole('menuitem', {name: 'Select an element from the page'}))
     // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
     await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
-    await user.click(await screen.findByRole('button', {name: 'Send message'}))
+    await expect.element(page.getByRole('button', {name: 'Open grabbed element'}).nth(1)).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByText('That is the same button')).toBeVisible()
     expect(screen.getByRole('article', {name: 'You: 1 attachment'})).toBeVisible()
   })
