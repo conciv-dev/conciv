@@ -89,10 +89,19 @@ const resolve = Effect.fn('PluginSupervisor.resolve')(function* (
     enabled.add(plugin.id)
   }
 
+  const configured = (plugin: Plugin.Generation): Plugin.Generation => {
+    const entry = operations.findLast((operation) => operation.type === 'add' && operation.target === plugin.id)
+    if (entry?.type !== 'add') return plugin
+    return {
+      ...plugin,
+      revision: JSON.stringify([plugin.revision, entry.options]),
+      effect: (host) => plugin.effect({...host, options: entry.options}),
+    }
+  }
   const ordered = [
-    ...pre.filter((plugin) => enabled.has(plugin.id)),
+    ...pre.filter((plugin) => enabled.has(plugin.id)).map(configured),
     ...[...packages.values()].filter((plugin) => enabled.has(plugin.id)),
-    ...post.filter((plugin) => enabled.has(plugin.id)),
+    ...post.filter((plugin) => enabled.has(plugin.id)).map(configured),
   ]
   const duplicate = (plugin: Plugin.Generation, index: number) =>
     ordered.findIndex((other) => other.id === plugin.id) !== index
