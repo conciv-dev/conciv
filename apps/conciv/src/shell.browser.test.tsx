@@ -457,9 +457,11 @@ describe('logging in', () => {
 })
 
 describe('a plugin tab, its dialogs and its overlay', () => {
-  test('a plugin tab that crashes says so and comes back on Retry', async () => {
+  test('a plugin tab that crashes says so and comes back on Retry, while the page plugin the config turns off stays off in the engine and the page', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: [['./test/fixtures/plugins/shell-board', {crash: true}]]})
+    const engine = await createEngine({
+      plugins: [['./test/fixtures/plugins/shell-board', {crash: true}], '-conciv.page'],
+    })
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     await user.click(await screen.findByRole('tab', {name: 'Desk'}))
@@ -470,6 +472,11 @@ describe('a plugin tab, its dialogs and its overlay', () => {
         page.getByRole('tabpanel', {name: 'Desk', exact: true}).getByRole('button', {name: 'Publish', exact: true}),
       )
       .toBeVisible()
+    const found = await engine.outside({tab: engine.session.id}).discover(['page_click'])
+    expect(found).toMatchObject({content: [{type: 'text', text: expect.stringContaining('Unknown tool')}]})
+    await user.keyboard('{Alt>}')
+    expect(page.getByText('Inspecting · click to open source · Esc to exit', {exact: true}).query()).toBeNull()
+    await user.keyboard('{/Alt}')
   })
 
   it.each([

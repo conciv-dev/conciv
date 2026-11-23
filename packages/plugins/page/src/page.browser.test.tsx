@@ -749,22 +749,6 @@ describe('the agent works on a page that is open', () => {
     expect(found).not.toMatchObject({content: [{type: 'text', text: expect.stringContaining('Unknown tool')}]})
   })
 
-  test('with the page plugin turned off in the config, the agent gets no page tools and the page no inspector', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['-conciv.page']})
-    await engine.reply(TestLLM.text('This is the plant shop'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
-
-    expect(await screen.findByText('This is the plant shop')).toBeVisible()
-    const [request] = await engine.requests()
-    expect(request?.system.join('\n')).not.toContain('external_page_click')
-    await user.keyboard('{Alt>}')
-    expect(page.getByText('Inspecting · click to open source · Esc to exit', {exact: true}).query()).toBeNull()
-    await user.keyboard('{/Alt}')
-  })
-
   test('the agent reads a plain attribute while a password and a one-time code stay masked in every read', async () => {
     const engine = await createEngine()
     const control = await engine.event('rpc.experimental.page.control')
