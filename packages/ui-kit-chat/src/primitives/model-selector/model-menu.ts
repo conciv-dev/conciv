@@ -98,7 +98,7 @@ export function menuEntry(models: ChatModels): HarnessMenuEntry {
     ...models.harness,
     models: models.models,
     defaultModel: models.defaultModel,
-    modelsFailed: false,
+    modelsFailed: models.modelsFailed,
     login: models.login,
   }
 }

@@ -3,7 +3,7 @@ import {ORPCError, withEventMeta, type Router} from '@orpc/server'
 import {asc, eq, sql} from 'drizzle-orm'
 import {isPageFailure, PAGE_ERROR_CODES, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isToolError, type RegistryCallGate} from '@conciv/protocol/tool-call-types'
-import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
+import type {HarnessAdapter} from '@conciv/harness'
 import {drafts, markers} from '@conciv/db'
 import {Cause, Effect, Exit, Option, Result, Schema, Stream, Queue} from 'effect'
 import type {TtySession} from '../../pty/pty-sessions.js'
@@ -20,7 +20,7 @@ import {
 } from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
 import {rowById} from '../../sessions/session-rows.js'
-import {buildHarnessMenuEntry, buildHarnessMeta, readHarnessLogin, sessionsRouter} from './sessions.js'
+import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './sessions.js'
 import {
   admitOutsideCall,
   makeHubAdmission,
@@ -631,16 +631,8 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     meta: {
       models: os.meta.models.handler(async ({input, signal = new AbortController().signal}) => {
         const harness = await chat.harnessFor(input.sessionId)
-        const [models, login] = await Promise.all([
-          resolveHarnessModels(harness, {signal}),
-          readHarnessLogin(harness, signal, chat.log),
-        ])
-        return {
-          models,
-          defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
-          harness: buildHarnessMeta(harness),
-          login,
-        }
+        const {models, defaultModel, modelsFailed, login} = await buildHarnessMenuEntry(harness, signal, chat.log)
+        return {models, defaultModel, modelsFailed, harness: buildHarnessMeta(harness), login}
       }),
       harnesses: os.meta.harnesses.handler(async ({signal = new AbortController().signal}) => ({
         harnesses: await Promise.all(chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, signal, chat.log))),

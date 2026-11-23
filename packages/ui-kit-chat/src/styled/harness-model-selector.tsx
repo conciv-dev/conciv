@@ -428,7 +428,7 @@ export function HarnessModelSelector(props: HarnessModelSelectorProps): JSX.Elem
       isItemDisabled: (item) => item.model.disabled === true || foreignDisabled(item),
     }),
   )
-  const unavailable = () => entries().filter((entry) => entry.modelsFailed && entry.id !== harness()?.id)
+  const unavailable = () => entries().filter((entry) => entry.modelsFailed)
   const close = () => props.menu.popover().setOpen(false)
   let content: HTMLDivElement | undefined
   const retry = () => {
@@ -570,7 +570,10 @@ export function HarnessModelSelector(props: HarnessModelSelectorProps): JSX.Elem
                 </Show>
                 <For each={unavailable()}>
                   {(entry) => (
-                    <RetryRow reason={`Couldn’t load ${entry.name} models`} onRetry={() => props.others?.retry()} />
+                    <RetryRow
+                      reason={`Couldn’t load ${entry.name} models`}
+                      onRetry={() => (entry.id === harness()?.id ? retry() : props.others?.retry())}
+                    />
                   )}
                 </For>
                 <Show when={props.others?.failed}>

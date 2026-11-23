@@ -178,7 +178,7 @@ export function buildHarnessMeta(harness: HarnessAdapter): HarnessMeta {
   }
 }
 
-export function readHarnessLogin(harness: HarnessAdapter, signal: AbortSignal, log: Log): Promise<HarnessLoginStatus> {
+function readHarnessLogin(harness: HarnessAdapter, signal: AbortSignal, log: Log): Promise<HarnessLoginStatus> {
   return resolveHarnessLogin(harness, {
     signal,
     refresh: true,

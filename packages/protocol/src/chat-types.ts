@@ -174,6 +174,7 @@ export type HarnessLoginStatus = z.infer<typeof HarnessLoginStatusSchema>
 export const ChatModelsSchema = z.object({
   models: z.array(HarnessModelSchema),
   defaultModel: z.string().nullable(),
+  modelsFailed: z.boolean(),
   harness: HarnessMetaSchema,
   login: HarnessLoginStatusSchema,
 })
