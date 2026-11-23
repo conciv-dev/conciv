@@ -65,7 +65,6 @@
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/uno-preset": "workspace:*",
     "@conciv/unplugin": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@internal/plugin": "workspace:*",
@@ -78,7 +77,6 @@
     "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "unocss": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"

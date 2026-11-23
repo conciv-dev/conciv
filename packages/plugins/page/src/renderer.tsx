@@ -3,7 +3,6 @@ import {z} from 'zod'
 import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {useQueryClient} from '@conciv/client'
-import utilities from 'virtual:uno.css?inline'
 import {createKeyed, Plugin, Slot, ToolRegistry} from '@conciv/plugin/experimental'
 import {Page, PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
 import {keepAttached, readTab, reportChanges} from './attachment.js'
@@ -18,13 +17,15 @@ import {makeSimulator} from './simulator.js'
 import {CONCIV_UI_SELECTOR} from './conciv-ui.js'
 import {addRef, type Refs} from './snapshot.js'
 import {dehydrate} from './dehydrate.js'
-import {describe, locate, makeTracker, reactBridge, rootFibers} from './react.js'
+import {describe, installReactBridge, locate, makeTracker, reactBridge, rootFibers} from './react.js'
 import {disposeReactGrab, grabApi} from './grab.js'
 import {capturePlugins} from './screenshot.js'
 
 const PageOptionsSchema = z.object({taskTimeoutMs: z.number().int().positive().optional()}).catch({})
 
 export default Plugin.define({
+  enforce: 'pre',
+  beforeRegister: installReactBridge,
   setup(ctx) {
     const {taskTimeoutMs} = PageOptionsSchema.parse(ctx.options)
     const connectionId = crypto.randomUUID()
@@ -114,7 +115,7 @@ export default Plugin.define({
       },
     )
 
-    onCleanup(highlight.mount(ctx.overlay({styles: [utilities]}).element))
+    onCleanup(highlight.mount(ctx.overlay().element))
 
     pageToolCards.forEach(({card, tools}) =>
       tools.forEach((name) =>
