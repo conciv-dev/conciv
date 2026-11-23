@@ -201,7 +201,7 @@ describe('engine spans', () => {
 
     const spans = stoppedRunSpans(collector.spans().slice(before))
     expectTree(spans, ENGINE_SPANS)
-    expect(spans[0]?.engine).toMatch(/^[0-9a-f-]{36}$/)
+    expect(spans[0]?.engine).toMatch(/^eng_[0-9A-Za-z]{26}$/)
   })
 
   test('a traced tool bridge answers a body that is not an object with a JSON-RPC error', async () => {
