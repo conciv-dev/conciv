@@ -1,7 +1,7 @@
-import {existsSync, readdirSync, type Dirent} from 'node:fs'
+import {readdirSync, type Dirent} from 'node:fs'
 import {stat} from 'node:fs/promises'
 import {join} from 'node:path'
-import {DatabaseSync, type SQLInputValue} from 'node:sqlite'
+import type {SQLInputValue} from 'node:sqlite'
 import {z} from 'zod'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -17,6 +17,7 @@ import type {
 import {sameCwd} from '../_shared/cwd.js'
 import {containedPath, containedRealPath, resolveRealPath} from '../_shared/contained-path.js'
 import {pageAfter} from '../_shared/page.js'
+import {withDatabase} from '../_shared/read-database.js'
 import {whenMissing} from '../_shared/when-missing.js'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
@@ -35,13 +36,7 @@ export function sessionsRoot(home: string): string {
 }
 
 function queryRows(dbPath: string, sql: string, params: SQLInputValue[]): unknown[] {
-  if (!existsSync(dbPath)) return []
-  const db = new DatabaseSync(dbPath, {readOnly: true})
-  try {
-    return db.prepare(sql).all(...params)
-  } finally {
-    db.close()
-  }
+  return withDatabase<unknown[]>(dbPath, [], (db) => db.prepare(sql).all(...params))
 }
 
 const ThreadRowSchema = z
