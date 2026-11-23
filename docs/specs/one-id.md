@@ -6,7 +6,7 @@ in the first commit.
 
 ## Ruling
 
-As opencode (`/Users/omrikatz/Public/reference/opencode/packages/opencode/src/id/id.ts`, `session/schema.ts`):
+As opencode (`packages/opencode/src/id/id.ts` and `packages/opencode/src/session/schema.ts` in the opencode repo):
 one id maker, one prefix table, every id a branded schema with a prefix check and a `create`/`ascending` static.
 No `crypto.randomUUID()` for an id, no hand-made formats (`conciv_<uuid>`, `q_<uuid>`, `${Date.now()}-...`,
 `.slice(0, 8)`), no second helper.
