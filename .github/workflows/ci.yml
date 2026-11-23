@@ -311,6 +311,7 @@ jobs:
       - run: pnpm exec conciv-publish check-changesets
       - run: pnpm exec conciv-publish check-catalog
       - run: pnpm exec conciv-publish check-typecheck-coverage
+      - run: pnpm exec conciv-publish check-test-budget
       - run: pnpm exec conciv-publish check-turbo-depends-on
       - run: pnpm exec conciv-publish check-dependency-loops
       - run: pnpm exec conciv-publish check-plugin-ui-kit

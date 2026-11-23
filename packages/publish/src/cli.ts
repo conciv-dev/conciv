@@ -17,6 +17,7 @@ import {
   assertVersioned,
   assertWorkspaceRoot,
 } from './guards.ts'
+import {assertTestsWithinBudget} from './test-budget.ts'
 import {assertTypecheckCoversTrackedFiles} from './typecheck-coverage.ts'
 import {
   assertBuildDependsOnCoversImports,
@@ -109,6 +110,18 @@ const checkTypecheckCoverage = defineCommand({
   async run() {
     const {cwd} = await atRoot()
     await assertTypecheckCoversTrackedFiles(cwd)
+  },
+})
+
+const checkTestBudget = defineCommand({
+  meta: {
+    name: 'check-test-budget',
+    description:
+      'Fail when a workspace package has more test cases than test-budget.json allows; a package under its budget prints a note to lower it',
+  },
+  async run() {
+    const {cwd} = await atRoot()
+    for (const note of await assertTestsWithinBudget(cwd)) console.log(note)
   },
 })
 
@@ -424,6 +437,7 @@ const main = defineCommand({
     'check-changesets': checkChangesets,
     'check-catalog': checkCatalog,
     'check-typecheck-coverage': checkTypecheckCoverage,
+    'check-test-budget': checkTestBudget,
     'check-turbo-depends-on': checkTurboDependsOn,
     'check-dependency-loops': checkDependencyLoops,
     'check-plugin-ui-kit': checkPluginUiKit,
