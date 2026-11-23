@@ -2,4 +2,4 @@
 '@conciv/core': patch
 ---
 
-An outside agent refused the session terminal is now told "open it in the conciv panel" instead of "use it in the tab".
+The refusals an outside agent gets for the session terminal, permission answers, connecting agents and plugin routes now point to the conciv panel instead of "the tab".

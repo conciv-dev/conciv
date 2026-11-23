@@ -162,11 +162,11 @@ export async function admitOutsideCall(
 
 const DECIDING_PROCEDURES = new Set(['chat.permissionDecision'])
 
-const OUTSIDE_DECISION_REFUSAL = "outside agents can't answer permission requests; decide it in the tab"
+const OUTSIDE_DECISION_REFUSAL = "outside agents can't answer permission requests; decide it in the conciv panel"
 
 const HUB_PROCEDURES = new Set(['meta.connectHub', 'meta.disconnectHub'])
 
-const OUTSIDE_HUB_REFUSAL = "outside agents can't connect or disconnect agents; do it in the tab"
+const OUTSIDE_HUB_REFUSAL = "outside agents can't connect or disconnect agents; do it in the conciv panel"
 
 const EVENT_PROCEDURES = new Set(['event.subscribe', 'chat.join'])
 
@@ -182,7 +182,7 @@ const PLUGIN_PROCEDURES = new Set([
   'fs.find',
 ])
 
-const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the tab"
+const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the conciv panel"
 
 const PTY_PROCEDURES = new Set([
   'experimental.persistentPty.create',

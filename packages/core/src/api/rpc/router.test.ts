@@ -96,16 +96,16 @@ describe.concurrent('outside agents', () => {
       content: [{type: 'text', text: expect.stringContaining('Codex is disconnected from conciv')}],
     })
     await expect(outside.chat.permissionDecision({approvalId: 'approval-1', reply: 'once'})).rejects.toMatchObject(
-      refused("outside agents can't answer permission requests; decide it in the tab"),
+      refused("outside agents can't answer permission requests; decide it in the conciv panel"),
     )
     await expect(outside.meta.connectHub({harness: 'claude'})).rejects.toMatchObject(
-      refused("outside agents can't connect or disconnect agents; do it in the tab"),
+      refused("outside agents can't connect or disconnect agents; do it in the conciv panel"),
     )
     await expect(outside.event.subscribe()).rejects.toMatchObject(
       refused("outside agents can't read the engine's event stream"),
     )
     await expect(outside.plugin.list()).rejects.toMatchObject(
-      refused("outside agents can't use plugin routes; use the plugin in the tab"),
+      refused("outside agents can't use plugin routes; use the plugin in the conciv panel"),
     )
     await expect(outside.experimental.persistentPty.create({sessionId: engine.session.id})).rejects.toMatchObject(
       refused("outside agents can't use the session terminal; open it in the conciv panel"),
