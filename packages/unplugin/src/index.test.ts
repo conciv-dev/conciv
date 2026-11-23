@@ -40,12 +40,13 @@ describe.concurrent('a vite server on a fixture project', () => {
     project,
     serve,
     expect,
+    webSocket,
   }) => {
     const root = project('app')
     const server = await serve({root, plugins: [conciv({homeDir: join(root, 'home')}), DevTools()]})
     const [local = ''] = server.resolvedUrls?.local ?? []
     await fetch(local)
-    const socket = new WebSocket(`${local.replace('http', 'ws')}__devtools/__ws`)
+    const socket = webSocket(`${local.replace('http', 'ws')}__devtools/__ws`)
     const answered = new Promise<string>((resolve, reject) => {
       socket.addEventListener('message', (event) => {
         if (String(event.data).includes('engine-token-probe')) resolve(String(event.data))
@@ -57,7 +58,6 @@ describe.concurrent('a vite server on a fixture project', () => {
     )
 
     const answer = await answered
-    socket.close()
 
     expect(answer).toContain('RPC call to \\"conciv:engine-token\\" was rejected: the caller is not authorized.')
   })
