@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {Clock, Effect, Fiber, FiberMap, Option, Ref} from 'effect'
 import {cappedText, type CodeReply} from '@conciv/contract'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {GoneQueue, OutsideQueues, PolledQueue, QueueHandle, QueueResult} from './page.js'
+import type {GoneQueue, OutsideQueues, PolledQueue, QueueHandle, WaitedResult} from './page.js'
 
 export const TASK_POLL_MS = 1000
 
@@ -24,12 +24,10 @@ export type QueueTask =
     }
   | {status: 'settled'; taskId: string; createdAt: string; answer: TaskAnswer}
 
-export type OwedCall = {tab: SessionId; toolCallIds: string[]; queueIds: string[]}
-
-export type QueuesState = {tasks: QueueTask[]; owed: OwedCall[]}
+export type QueuesState = {tasks: QueueTask[]}
 
 export type QueuesEvent =
-  | {type: 'replied'; tab: SessionId; toolCallIds: string[]; outside: OutsideQueues}
+  | {type: 'delivered'; queueIds: string[]}
   | {type: 'created'; task: Extract<QueueTask, {status: 'working'}>}
   | {type: 'polled'; taskId: string; polled: (PolledQueue | null)[]; now: string}
   | {type: 'expired'; now: number}
@@ -48,30 +46,22 @@ export type TaskReply = {
 type TextPart = {type: 'text'; text: string}
 
 export function transitionQueues(state: QueuesState, event: QueuesEvent): QueuesState {
-  if (event.type === 'replied') return replied(state, event)
-  if (event.type === 'created') return {...state, tasks: [...state.tasks, event.task]}
+  if (event.type === 'delivered') return delivered(state, event.queueIds)
+  if (event.type === 'created') return {tasks: [...state.tasks, event.task]}
   if (event.type === 'expired') {
-    return {...state, tasks: state.tasks.filter((task) => Date.parse(task.createdAt) >= event.now - TASK_TTL_MS)}
+    return {tasks: state.tasks.filter((task) => Date.parse(task.createdAt) >= event.now - TASK_TTL_MS)}
   }
-  return {...state, tasks: state.tasks.map((task) => (task.taskId === event.taskId ? polled(task, event) : task))}
+  return {tasks: state.tasks.map((task) => (task.taskId === event.taskId ? polled(task, event) : task))}
 }
 
-function replied(state: QueuesState, event: Extract<QueuesEvent, {type: 'replied'}>): QueuesState {
-  const queued = event.outside.queued.map((handle) => handle.queueId)
-  const delivered = event.outside.finished.map((finished) => finished.result.queueId)
-  const own = readOwnQueued(state, event.tab, event.outside.queued).map((handle) => handle.queueId)
-  const kept = state.owed.flatMap((call) => {
-    if (call.tab !== event.tab) return [call]
-    const queueIds = call.queueIds.filter((queueId) => queued.includes(queueId))
-    return queueIds.length === 0 ? [] : [{...call, queueIds}]
-  })
-  const tasks = state.tasks.flatMap((task): QueueTask[] => {
-    if (task.status === 'settled') return [task]
-    const pending = task.queued.filter((handle) => !delivered.includes(handle.queueId))
-    return pending.length === 0 ? [] : [{...task, queued: pending}]
-  })
-  const owed = own.length === 0 ? kept : [...kept, {tab: event.tab, toolCallIds: event.toolCallIds, queueIds: own}]
-  return {tasks, owed}
+function delivered(state: QueuesState, queueIds: string[]): QueuesState {
+  return {
+    tasks: state.tasks.flatMap((task): QueueTask[] => {
+      if (task.status === 'settled') return [task]
+      const pending = task.queued.filter((handle) => !queueIds.includes(handle.queueId))
+      return pending.length === 0 ? [] : [{...task, queued: pending}]
+    }),
+  }
 }
 
 function polled(task: QueueTask, event: Extract<QueuesEvent, {type: 'polled'}>): QueueTask {
@@ -88,15 +78,6 @@ function polled(task: QueueTask, event: Extract<QueuesEvent, {type: 'polled'}>):
     createdAt: task.createdAt,
     answer: settledAnswer(stamped, task.reply, settled, event.now),
   }
-}
-
-export function readOwedToolCalls(state: QueuesState, tab: SessionId): string[] {
-  return state.owed.flatMap((call) => (call.tab === tab ? call.toolCallIds : []))
-}
-
-export function readOwnQueued(state: QueuesState, tab: SessionId, queued: QueueHandle[]): QueueHandle[] {
-  const owed = state.owed.flatMap((call) => (call.tab === tab ? call.queueIds : []))
-  return queued.filter((handle) => !owed.includes(handle.queueId))
 }
 
 export function readTaskAnswer(state: QueuesState, taskId: string): TaskAnswer | null {
@@ -117,25 +98,18 @@ export function readTaskAnswer(state: QueuesState, taskId: string): TaskAnswer |
 function settledAnswer(
   stamped: {taskId: string; createdAt: string; ttlMs: number},
   reply: CodeReply,
-  settled: readonly (QueueResult | GoneQueue)[],
+  settled: readonly (WaitedResult | GoneQueue)[],
   lastUpdatedAt: string,
 ): TaskAnswer {
-  const notices = settled.map((state) => (state.status === 'gone' ? goneNotice(state) : queueNoticePart(state)))
+  const notices = settled.map((state): TextPart =>
+    state.status === 'gone' ? goneNotice(state) : {type: 'text', text: cappedText(state.notice)},
+  )
   if (settled.every((state) => state.status !== 'gone')) {
     const result = {...reply, content: [...reply.content, ...notices]}
     return {resultType: 'complete', ...stamped, status: 'completed', lastUpdatedAt, result}
   }
   const statusMessage = notices.map((notice) => notice.text).join('\n\n')
   return {resultType: 'complete', ...stamped, status: 'failed', lastUpdatedAt, statusMessage}
-}
-
-function queueNoticePart(result: QueueResult): TextPart {
-  return {
-    type: 'text',
-    text: cappedText(
-      `queue ${result.queueId} ${result.status}: ${result.played} played, ${result.failed} failed\n${JSON.stringify(result)}`,
-    ),
-  }
 }
 
 function goneNotice(gone: GoneQueue): TextPart {
@@ -148,7 +122,7 @@ function goneNotice(gone: GoneQueue): TextPart {
 export const makeQueues = Effect.fn('Queues.make')(function* (
   poll: (tab: SessionId, queueId: string) => Effect.Effect<PolledQueue | null>,
 ) {
-  const state = yield* Ref.make<QueuesState>({tasks: [], owed: []})
+  const state = yield* Ref.make<QueuesState>({tasks: []})
   const polls = yield* FiberMap.make<string, TaskAnswer, Error>()
   const dispatch = (event: QueuesEvent) => Ref.update(state, (current) => transitionQueues(current, event))
   const expire = Clock.currentTimeMillis.pipe(Effect.flatMap((now) => dispatch({type: 'expired', now})))
@@ -175,15 +149,9 @@ export const makeQueues = Effect.fn('Queues.make')(function* (
       return (yield* known(taskId)).answer
     })
   return {
-    owedToolCalls: (tab: SessionId) => Ref.get(state).pipe(Effect.map((current) => readOwedToolCalls(current, tab))),
-    replied: (tab: SessionId, toolCallIds: string[], outside: OutsideQueues) =>
+    delivered: (outside: OutsideQueues) =>
       expire.pipe(
-        Effect.andThen(
-          Ref.modify(state, (current): [QueueHandle[], QueuesState] => [
-            readOwnQueued(current, tab, outside.queued),
-            transitionQueues(current, {type: 'replied', tab, toolCallIds, outside}),
-          ]),
-        ),
+        Effect.andThen(dispatch({type: 'delivered', queueIds: outside.finished.map((each) => each.result.queueId)})),
       ),
     create: (tab: SessionId, queued: QueueHandle[], reply: CodeReply) =>
       Effect.gen(function* () {

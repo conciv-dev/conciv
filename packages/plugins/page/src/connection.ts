@@ -583,9 +583,10 @@ export const make = Effect.fn('PageConnection.make')(function* (
       'tabs.list': (input) => Effect.sync(() => selectTabs(machine.state, input.sessionId)),
       symbolicate: (input) => symbolicator.frames(input.frames),
       'queue.wait': (input, call) =>
-        queues
-          .wait(input.sessionId, input.queueId, input.waitMs)
-          .pipe(Effect.mapError((error) => call.error('unavailable', error.message, {}))),
+        queues.wait(input.sessionId, input.queueId, input.waitMs).pipe(
+          Effect.map((waited) => (waited.status === 'playing' ? waited : {...waited, notice: queueNotice(waited)})),
+          Effect.mapError((error) => call.error('unavailable', error.message, {})),
+        ),
       'queue.outside': (input) => queues.outside(input.sessionId, input.toolCallIds),
     })
     .pipe(Effect.orDie)

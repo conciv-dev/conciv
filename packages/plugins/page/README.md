@@ -92,7 +92,10 @@ finishes may not see that result in their terminal; it stays in the queue's jour
 which answers the kept result again (`src/queue.ts` `wait` returns the result whatever its delivery; the
 newest 200 delivered queues are kept). The delivered-once guarantee belongs to the session notice and `queue.outside`: a queue the session
 started reaches it once as a `Session.synthetic` message (`Queued page actions <status>`, `src/connection.ts`), and a
-queue an outside agent started (`ctx.agent` is `Agent.outsideId`) is handed over once by `queue.outside`.
+queue an outside agent started (`ctx.agent` is `Agent.outsideId`) is handed over once by `queue.outside({sessionId,
+toolCallIds})`, which answers `queued`, the still-playing queues those tool calls started, and `finished`, every finished
+queue an outside agent started in that session not handed over yet whatever call started it, each with its `notice`. A
+finished `queue.wait` answer carries the same `notice`.
 Deleting a session stops what its tabs are still playing: each request in flight gets the same `cancel` control a
 dropped request gets (`src/machine.ts` `cancelPending`), and the queue's next actions are never sent (the
 attachment is closed, so they settle `disconnected before dispatch`). The source only fails the request on delete

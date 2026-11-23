@@ -32,7 +32,9 @@ const QueueResultSchema = z.object({
   played: z.number().int(),
 })
 
-export type QueueResult = z.infer<typeof QueueResultSchema>
+const WaitedResultSchema = QueueResultSchema.extend({notice: z.string()})
+
+export type WaitedResult = z.infer<typeof WaitedResultSchema>
 
 const QueueHandleSchema = z.object({queueId: z.string(), actions: z.number().int()})
 
@@ -54,13 +56,13 @@ export type OutsideQueues = z.infer<typeof OutsideQueuesSchema>
 
 export type GoneQueue = {queueId: string; status: 'gone'}
 
-export type PolledQueue = QueueResult | z.infer<typeof QueueProgressSchema> | GoneQueue
+export type PolledQueue = WaitedResult | z.infer<typeof QueueProgressSchema> | GoneQueue
 
 type PageAnswer = {
   'sessions.attached': SessionId[]
   'tabs.list': PageState
   'queue.outside': OutsideQueues
-  'queue.wait': QueueResult | z.infer<typeof QueueProgressSchema>
+  'queue.wait': WaitedResult | z.infer<typeof QueueProgressSchema>
 }
 
 type PageInput = {
@@ -74,7 +76,7 @@ const PageAnswers: {[Method in keyof PageAnswer]: z.ZodType<PageAnswer[Method]>}
   'sessions.attached': z.array(SessionId),
   'tabs.list': PageStateSchema,
   'queue.outside': OutsideQueuesSchema,
-  'queue.wait': z.union([QueueResultSchema, QueueProgressSchema]),
+  'queue.wait': z.union([WaitedResultSchema, QueueProgressSchema]),
 }
 
 const UnavailableSchema = z.object({

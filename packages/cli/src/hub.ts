@@ -209,22 +209,23 @@ function executeCall(
       owner.rpc.code.execute({sessionId: tab, typescriptCode}, {signal}),
     )
     if (sent.value === null) return yield* machines.tabs.greet(tab, sent.target, sent.reply)
-    const toolCallIds = [...(yield* machines.queues.owedToolCalls(tab)), ...sent.value.toolCalls]
-    const outside = yield* outsideQueues(sent.target, tab, toolCallIds)
-    const own = yield* machines.queues.replied(tab, toolCallIds, outside)
+    const outside = yield* outsideQueues(machines, sent.target, tab, sent.value.toolCalls)
     const executed = codeExecuteReply(sent.value)
-    const notices = outside.finished.map((finished): TextPart => ({type: 'text', text: cappedText(finished.notice)}))
     const reply = yield* machines.tabs.greet(tab, sent.target, {
       ...executed,
-      content: [...notices, ...executed.content],
+      content: [...noticeParts(outside), ...executed.content],
     })
-    if (own.length === 0 || !tasksCapable) return reply
-    return yield* machines.queues.create(tab, own, reply)
+    if (outside.queued.length === 0 || !tasksCapable) return reply
+    return yield* machines.queues.create(tab, outside.queued, reply)
   }).pipe(Effect.catch((error) => Effect.succeed(failed(errorText(error)))))
 }
 
-function outsideQueues(owner: TabOwner, tab: SessionId, toolCallIds: string[]): Effect.Effect<OutsideQueues> {
-  if (toolCallIds.length === 0) return Effect.succeed(NOTHING_QUEUED)
+function outsideQueues(
+  machines: Machines,
+  owner: TabOwner,
+  tab: SessionId,
+  toolCallIds: string[],
+): Effect.Effect<OutsideQueues> {
   return Effect.tryPromise({
     try: (signal) => pageCall(owner.lookup, 'queue.outside', {sessionId: tab, toolCallIds}, signal),
     catch: (error) => error,
@@ -234,7 +235,12 @@ function outsideQueues(owner: TabOwner, tab: SessionId, toolCallIds: string[]): 
       logHub(`reading the queues of tab ${tab} failed; the reply goes without them`, error)
       return Effect.succeed(NOTHING_QUEUED)
     }),
+    Effect.tap((outside) => machines.queues.delivered(outside)),
   )
+}
+
+function noticeParts(outside: OutsideQueues): TextPart[] {
+  return outside.finished.map((finished) => ({type: 'text', text: cappedText(finished.notice)}))
 }
 
 function discoverCall(machines: Machines, input: z.infer<typeof DiscoverInputSchema>): Effect.Effect<Reply> {
@@ -249,14 +255,18 @@ function discoverCall(machines: Machines, input: z.infer<typeof DiscoverInputSch
       Effect.catch((error) => Effect.succeed(failed(errorText(error)))),
     )
   }
-  return sendCall(tabRoute(machines.tabs, tab), (owner, signal) =>
-    owner.rpc.code.discover({sessionId: tab, toolNames}, {signal}),
-  ).pipe(
-    Effect.flatMap((sent) =>
-      machines.tabs.greet(tab, sent.target, sent.value === null ? sent.reply : discovered(sent.value)),
-    ),
-    Effect.catch((error) => Effect.succeed(failed(errorText(error)))),
-  )
+  return Effect.gen(function* () {
+    const sent = yield* sendCall(tabRoute(machines.tabs, tab), (owner, signal) =>
+      owner.rpc.code.discover({sessionId: tab, toolNames}, {signal}),
+    )
+    if (sent.value === null) return yield* machines.tabs.greet(tab, sent.target, sent.reply)
+    const outside = yield* outsideQueues(machines, sent.target, tab, [])
+    const reply = discovered(sent.value)
+    return yield* machines.tabs.greet(tab, sent.target, {
+      ...reply,
+      content: [...noticeParts(outside), ...reply.content],
+    })
+  }).pipe(Effect.catch((error) => Effect.succeed(failed(errorText(error)))))
 }
 
 function toolDescriptions(described: CodeDescriptions | null): Record<ToolName, string> {

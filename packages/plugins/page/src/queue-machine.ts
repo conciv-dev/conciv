@@ -92,14 +92,14 @@ export function selectOutside(
   sessionId: SessionId,
   toolCallIds: readonly string[],
 ): {queued: PageQueueHandle[]; finished: PageQueueResult[]} {
-  const picked = state.entries.filter(
-    (entry) => entry.outside && entry.sessionId === sessionId && toolCallIds.includes(entry.toolCallId),
-  )
+  const outside = state.entries.filter((entry) => entry.outside && entry.sessionId === sessionId)
   return {
-    queued: picked.flatMap((entry) =>
-      entry.result === null ? [{queueId: entry.queueId, actions: entry.tools.length}] : [],
+    queued: outside.flatMap((entry) =>
+      entry.result === null && toolCallIds.includes(entry.toolCallId)
+        ? [{queueId: entry.queueId, actions: entry.tools.length}]
+        : [],
     ),
-    finished: picked.flatMap((entry) => (entry.result !== null && entry.delivery === 'owed' ? [entry.result] : [])),
+    finished: outside.flatMap((entry) => (entry.result !== null && entry.delivery === 'owed' ? [entry.result] : [])),
   }
 }
 

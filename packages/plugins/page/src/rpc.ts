@@ -646,7 +646,12 @@ export const Definition = Rpc.define({
     symbolicate: {input: SymbolicateSchema, output: SourceLocSchema.nullable(), errors},
     'queue.wait': {
       input: z.object({sessionId: SessionId, queueId: z.string().min(1), waitMs: z.number().int().min(0)}),
-      output: z.union([PageQueueResultSchema, PageQueueProgressSchema]),
+      output: z.union([
+        PageQueueResultSchema.extend({
+          notice: z.string().describe('the finished queue in one line plus its result, as the session would read it'),
+        }),
+        PageQueueProgressSchema,
+      ]),
       errors,
     },
     'queue.outside': {

@@ -76,7 +76,7 @@ describe('the agent reads the page in code mode', () => {
 })
 
 describe('a queue that finishes tells whoever started it', () => {
-  it('an outside agent reads its finished queue once through queue.outside and the session hears nothing of it, while a queue the session started reaches the session as one message', async () => {
+  it('an outside agent reads its finished queue once through queue.outside, asked with the ids of a later call or none, and the session hears nothing of it, while a queue the session started reaches the session as one message and its queue.wait answer carries the same notice', async () => {
     const engine = await createEngine({plugins: ['@conciv/plugin-page'], hubAccess: 'open'})
     const sessionId = engine.session.id
     const connectionId = 'checkout'
@@ -134,19 +134,21 @@ describe('a queue that finishes tells whoever started it', () => {
     const outsideQueueId = z.object({queueId: z.string()}).parse(outsideRun.ok ? outsideRun.result : null).queueId
     expect(outsideQueueId).toMatch(/^q_/)
     expect(outsideRun.toolCalls).toHaveLength(1)
-    const readOutside = async () =>
-      Outside.parse(
-        await engine.rpc.call('experimental.page', 'queue.outside', {sessionId, toolCallIds: outsideRun.toolCalls}),
-      )
+    const readOutside = async (toolCallIds: string[]) =>
+      Outside.parse(await engine.rpc.call('experimental.page', 'queue.outside', {sessionId, toolCallIds}))
     const outsideFinished = await engine.event('rpc.experimental.page.queue.finished', {
       data: {queueId: outsideQueueId},
     })
     const answerOutsideClick = await played(outsideAccepted)
-    expect(await readOutside()).toEqual({queued: [{queueId: outsideQueueId, actions: 1}], finished: []})
+    expect(await readOutside(outsideRun.toolCalls)).toEqual({
+      queued: [{queueId: outsideQueueId, actions: 1}],
+      finished: [],
+    })
+    expect(await readOutside(['call-later'])).toEqual({queued: [], finished: []})
     await answerOutsideClick()
     await outsideFinished.arrived
 
-    expect(await readOutside()).toEqual({
+    expect(await readOutside(['call-later'])).toEqual({
       queued: [],
       finished: [
         {
@@ -155,7 +157,8 @@ describe('a queue that finishes tells whoever started it', () => {
         },
       ],
     })
-    expect(await readOutside()).toEqual({queued: [], finished: []})
+    expect(await readOutside(outsideRun.toolCalls)).toEqual({queued: [], finished: []})
+    expect(await readOutside([])).toEqual({queued: [], finished: []})
 
     await engine.reply(TestLLM.text('The checkout click went through'))
     const woke = await engine.event('session.execution.succeeded')
@@ -184,7 +187,14 @@ describe('a queue that finishes tells whoever started it', () => {
     expect(requests).toHaveLength(1)
     expect(JSON.stringify(requests[0]?.messages)).toContain(`queue ${started.queueId} finished: 1 played, 0 failed`)
     expect(JSON.stringify(requests[0]?.messages)).not.toContain(`queue ${outsideQueueId} finished`)
-    expect(await readOutside()).toEqual({queued: [], finished: []})
+    expect(await readOutside([])).toEqual({queued: [], finished: []})
+    expect(
+      await engine.rpc.call('experimental.page', 'queue.wait', {sessionId, queueId: started.queueId, waitMs: 0}),
+    ).toMatchObject({
+      queueId: started.queueId,
+      status: 'finished',
+      notice: expect.stringMatching(new RegExp(`^queue ${started.queueId} finished: 1 played, 0 failed\n`)),
+    })
     await engine.restart()
     expect(await attachment).toBe('closed')
   })

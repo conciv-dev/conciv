@@ -9,7 +9,7 @@ import {createEngine} from '@conciv/plugin-testkit'
 import {test} from '../test/hub-test.js'
 
 describe('the hub', () => {
-  test('an outside agent lists the open tabs (none, then a tab with its project, branch and page), discovers and runs code with no tab on the engine registered in the home, is told to pass a tab for a tool that needs a session, then queues page actions on a tab and reads the result of the queue on its next call; a tasks client running two queueing calls at once gets a task per call holding only its own queue, and a task whose engine restarted ends failed naming the lost queue', async ({
+  test('an outside agent lists the open tabs (none, then a tab with its project, branch and page), discovers and runs code with no tab on the engine registered in the home, is told to pass a tab for a tool that needs a session, then queues page actions on a tab and reads the finished queue first thing in its next discover_tools reply, while a queue it started that finishes reaches a second hub on the same home with the next call that hub makes on the tab and never the first hub again; a tasks client running two queueing calls at once gets a task per call holding only its own queue, and a task whose engine restarted ends failed naming the lost queue', async ({
     hub,
     tasksHub,
   }) => {
@@ -94,37 +94,65 @@ describe('the hub', () => {
       unreachable: [],
     })
 
-    const command = await engine.event('rpc.experimental.page.control', {data: {type: 'command', connectionId}})
-    const played = await engine.event('rpc.experimental.page.queue.finished')
-    const queued = await agent.callTool('execute_typescript', {
-      tab: sessionId,
-      typescriptCode: "return await external_page_queue_async({actions: [{tool: 'page_click', selector: '#water'}]})",
+    const queueOnTab = async (client: typeof agent, selector: string) => {
+      const command = await engine.event('rpc.experimental.page.control', {data: {type: 'command', connectionId}})
+      const played = await engine.event('rpc.experimental.page.queue.finished')
+      const queued = await client.callTool('execute_typescript', {
+        tab: sessionId,
+        typescriptCode: `return await external_page_queue_async({actions: [{tool: 'page_click', selector: '${selector}'}]})`,
+      })
+      const queuedText = z
+        .array(z.object({text: z.string()}))
+        .parse(queued.content)
+        .map((part) => part.text)
+        .join('\n')
+      const queueId = /"queueId":"(q_[^"]+)","actions":1/.exec(queuedText)?.[1]
+      const answer = async (waited: Promise<{data: unknown}>, value: unknown) => {
+        const {requestId} = z.object({requestId: z.string()}).parse((await waited).data)
+        await engine.rpc.call('experimental.page', 'result', {
+          sessionId,
+          connectionId,
+          requestId,
+          outcome: {type: 'success', result: {value, files: []}},
+        })
+      }
+      const clicked = await engine.event('rpc.experimental.page.control', {data: {type: 'command', connectionId}})
+      await answer(command.arrived, null)
+      await answer(clicked.arrived, true)
+      await played.arrived
+      return {content: queued.content, queueId}
+    }
+    const playedNotice = (queueId: string | undefined) => ({
+      type: 'text',
+      text: expect.stringMatching(new RegExp(`^queue ${queueId} finished: 1 played, 0 failed\n`)),
     })
-    const queuedText = z
-      .array(z.object({text: z.string()}))
-      .parse(queued.content)
-      .map((part) => part.text)
-      .join('\n')
     const instructions = await makeRpcClient(engine.address.apiBase, {
       token: engine.address.token,
     }).sessions.instructions({sessionId})
-    expect(z.array(z.unknown()).parse(queued.content)[0]).toEqual({type: 'text', text: instructions.text})
-    const queueId = /"queueId":"(q_[^"]+)","actions":1/.exec(queuedText)?.[1]
-    expect(queueId).toBeDefined()
-    const {requestId} = z.object({requestId: z.string()}).parse((await command.arrived).data)
-    await engine.rpc.call('experimental.page', 'result', {
-      sessionId,
-      connectionId,
-      requestId,
-      outcome: {type: 'success', result: {value: null, files: []}},
-    })
-    await played.arrived
 
-    const after = await agent.callTool('execute_typescript', {tab: sessionId, typescriptCode: "return 'watered'"})
-    expect(after.content).toEqual([
-      {type: 'text', text: expect.stringMatching(new RegExp(`^queue ${queueId} lost: 0 played, 0 failed\n`))},
-      {type: 'text', text: JSON.stringify({result: 'watered', logs: []})},
+    const watered = await queueOnTab(agent, '#water')
+    expect(z.array(z.unknown()).parse(watered.content)[0]).toEqual({type: 'text', text: instructions.text})
+    expect(watered.queueId).toBeDefined()
+    const rediscovered = await agent.callTool('discover_tools', {tab: sessionId, toolNames: ['shelf_label']})
+    expect(rediscovered.content).toEqual([
+      playedNotice(watered.queueId),
+      {type: 'text', text: expect.stringContaining('Print a label for a plant on the shelf')},
     ])
+
+    const misted = await queueOnTab(agent, '#mist')
+    expect(misted.queueId).toBeDefined()
+    const secondAgent = await hub(engine.home)
+    const elsewhere = await secondAgent.callTool('execute_typescript', {
+      tab: sessionId,
+      typescriptCode: "return 'misted'",
+    })
+    expect(elsewhere.content).toEqual([
+      {type: 'text', text: instructions.text},
+      playedNotice(misted.queueId),
+      {type: 'text', text: JSON.stringify({result: 'misted', logs: []})},
+    ])
+    const after = await agent.callTool('execute_typescript', {tab: sessionId, typescriptCode: "return 'watered'"})
+    expect(after.content).toEqual([{type: 'text', text: JSON.stringify({result: 'watered', logs: []})}])
     const tasks = tasksHub(engine.home)
     const TaskSchema = z.object({resultType: z.literal('task'), taskId: z.string(), status: z.literal('working')})
     const CompletedSchema = z.object({

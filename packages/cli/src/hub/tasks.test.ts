@@ -1,15 +1,8 @@
 import {describe, expect, it} from 'vitest'
 import type {CodeReply} from '@conciv/contract'
 import {SessionId} from '@conciv/protocol/chat-types'
-import type {PolledQueue, QueueResult} from './page.js'
-import {
-  readOwedToolCalls,
-  readOwnQueued,
-  readTaskAnswer,
-  transitionQueues,
-  type QueueTask,
-  type QueuesState,
-} from './tasks.js'
+import type {PolledQueue, WaitedResult} from './page.js'
+import {readTaskAnswer, transitionQueues, type QueueTask, type QueuesState} from './tasks.js'
 
 describe('the hub turns queued page actions into MCP tasks', () => {
   const tab = SessionId.parse('conciv_shelf')
@@ -25,8 +18,9 @@ describe('the hub turns queued page actions into MCP tasks', () => {
     lastUpdatedAt: createdAt,
     reply,
   }
-  const finished: QueueResult = {queueId: 'q_water', status: 'finished', outcomes: [], failed: 0, played: 1}
-  const empty: QueuesState = {tasks: [], owed: []}
+  const notice = `queue q_water finished: 1 played, 0 failed\n{"queueId":"q_water"}`
+  const finished: WaitedResult = {queueId: 'q_water', status: 'finished', outcomes: [], failed: 0, played: 1, notice}
+  const empty: QueuesState = {tasks: []}
   const withTask = transitionQueues(empty, {type: 'created', task: working})
 
   it('answers working while a queue plays, then completed with its outcome on every later poll', () => {
@@ -52,10 +46,7 @@ describe('the hub turns queued page actions into MCP tasks', () => {
       status: 'completed',
       lastUpdatedAt: later,
       result: {
-        content: [
-          ...reply.content,
-          {type: 'text', text: `queue q_water finished: 1 played, 0 failed\n${JSON.stringify(finished)}`},
-        ],
+        content: [...reply.content, {type: 'text', text: notice}],
       },
     })
     expect(transitionQueues(settled, {type: 'polled', taskId: 'task-water', polled: [null], now: later})).toEqual(
@@ -88,23 +79,15 @@ describe('the hub turns queued page actions into MCP tasks', () => {
     expect(readTaskAnswer(transitionQueues(withTask, {type: 'expired', now: hour + 1}), 'task-water')).toBeNull()
   })
 
-  it('owes a call its queues until a later reply on the tab delivers them, and drops a task once all of its queues were delivered', () => {
-    const queued = {queued: [{queueId: 'q_water', actions: 1}], finished: []}
-    const owing = transitionQueues(withTask, {type: 'replied', tab, toolCallIds: ['call-water'], outside: queued})
-    expect(readOwedToolCalls(owing, tab)).toEqual(['call-water'])
-    expect(
-      readOwnQueued(owing, tab, [
-        {queueId: 'q_water', actions: 1},
-        {queueId: 'q_feed', actions: 2},
-      ]),
-    ).toEqual([{queueId: 'q_feed', actions: 2}])
-    const delivered = transitionQueues(owing, {
-      type: 'replied',
-      tab,
-      toolCallIds: ['call-water', 'call-later'],
-      outside: {queued: [], finished: [{result: finished, notice: 'queue q_water finished'}]},
+  it('drops a task once a later reply delivered every one of its queues', () => {
+    const twoQueues = transitionQueues(empty, {
+      type: 'created',
+      task: {...working, queued: [...working.queued, {queueId: 'q_feed', actions: 2}]},
     })
-    expect(delivered).toEqual({tasks: [], owed: []})
+    const halfDelivered = transitionQueues(twoQueues, {type: 'delivered', queueIds: ['q_water', 'q_other']})
+    expect(halfDelivered).toEqual({tasks: [{...working, queued: [{queueId: 'q_feed', actions: 2}]}]})
+    const delivered = transitionQueues(halfDelivered, {type: 'delivered', queueIds: ['q_feed']})
+    expect(delivered).toEqual({tasks: []})
     expect(readTaskAnswer(delivered, 'task-water')).toBeNull()
   })
 })
