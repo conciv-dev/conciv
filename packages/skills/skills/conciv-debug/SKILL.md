@@ -25,7 +25,7 @@ cause → fix:
 
 | Symptom                                    | Cause                                                                                                                                                                                                                                                                                                                                                                                                       | Fix                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No button in a Vite production build       | The Vite plugin only runs during `vite dev` (`apply: 'serve'`, `packages/unplugin/src/core/vite.ts:178`), so neither the engine boot nor the `<script>` injection ever happens at `vite build` time                                                                                                                                                                                                         | expected, not a bug: conciv is dev-only for Vite by construction and never ships to a Vite production build, `enabled` or not                                                                                                                                                                                                                                                                                                                                                                                     |
+| No button in a Vite production build       | The Vite plugin only runs during `vite dev` (`apply: 'serve'`, `packages/unplugin/src/core/vite.ts:242`), so neither the engine boot nor the `<script>` injection ever happens at `vite build` time                                                                                                                                                                                                         | expected, not a bug: conciv is dev-only for Vite by construction and never ships to a Vite production build, `enabled` or not                                                                                                                                                                                                                                                                                                                                                                                     |
 | No button, webpack/Rspack                  | A production build (`mode: 'production'` or no `mode`) gets no widget entry and no engine, or `enabled: false`; `mode: 'development'` and `mode: 'none'` get both                                                                                                                                                                                                                                           | run a development build (`mode: 'development'`) in watch mode or a dev server                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | No button, custom host (no bundler plugin) | `createConciv(...).mount(el)` never called, or called on an element removed before `impl.ready` resolves                                                                                                                                                                                                                                                                                                    | call `mount` on an element that stays in the DOM; `mount()` is a no-op if `state !== 'unmounted'` so a second call while `'mounting'` is silently dropped (`packages/embed/src/mount.ts:49-52`)                                                                                                                                                                                                                                                                                                                   |
 | Button appears, panel never opens          | `open()`/`close()`/`toggle()` do not touch the panel; they emit a named panel command onto the shared event bus (`emitPanelCommand`, `packages/embed/src/mount.ts:87-107`) and the widget root is the only subscriber, it starts the bus and binds `open`/`close`/`toggle` on mount (`apps/conciv/src/routes/__root.tsx:291-311`), so until it mounts there is no `panel` peer to acknowledge the handshake | a command emitted before the bus answers is QUEUED and flushed on connect (`packages/protocol/src/event-bus.ts:198-212`), with the embed client retrying the handshake every 500ms up to 60 times (`packages/embed/src/mount.ts:37-47`); only after those retries does the client go `failed` and drop what it queued (`packages/protocol/src/event-bus.ts:177-188`). A dead button therefore means the widget never mounted inside that ~30s window, not a lost event: and a later click opens a fresh handshake |
@@ -38,7 +38,7 @@ running engine, or the engine rejects the origin.
 - **Port mismatch.** The engine's actual bound port can differ from the one you configured. Pin it
   with `conciv({port: 7378})`. On the Vite integration a taken port is just a preference: the
   engine falls back to an OS-assigned port and logs `port ${preferred} is already in use, the engine
-  is listening on http://127.0.0.1:${serving.port} instead` (`packages/core/src/start.ts:84-92`), and
+  is listening on http://127.0.0.1:${serving.port} instead` (`packages/core/src/start.ts:180-190`), and
   the page picks up the port it actually bound. On Next.js and the generic webpack/Rspack plugin
   there is no such fallback path for the client: the client learns the port before the engine boots
   (Next inlines it into `next.config`'s env; webpack/Rspack build it into the widget entry they add,
@@ -66,15 +66,15 @@ stream and every `Replied` event into a settled card (`followPermissionCards`,
 user, not hung.
 
 - **Plugin tools** ask through their own `ctx.permission.assert`. In a chat turn the call runs
-  inside `settlingAsks` (`packages/core/src/app.ts:541`); from outside a turn (external MCP, the
+  inside `settlingAsks` (`packages/core/src/app.ts:768`); from outside a turn (external MCP, the
   `conciv` CLI, raw RPC) `registry.call` runs it the same way (`runPluginTool`,
-  `packages/core/src/api/rpc/router.ts:108-125`). Either way the call waits on the card: allow runs
+  `packages/core/src/api/rpc/router.ts:215-232`). Either way the call waits on the card: allow runs
   the tool. A reject in a chat turn becomes the tool result `The user denied running tool "<name>".
   Do not retry it; continue without it.` (`approvalDenied`, `packages/ai/src/server/chat-server.ts:196-198`,
   mapped in `packages/chat/src/code-mode.ts:109-119`); through `registry.call` it answers
-  `APPROVAL_DENIED` (`pluginToolError`, `packages/core/src/api/rpc/router.ts:72-86`).
+  `APPROVAL_DENIED` (`pluginToolError`, `packages/core/src/api/rpc/router.ts:179-193`).
 - **CLI commands** belong to the CLI's own permission mode first: Claude Code runs with
-  `permissionMode: 'auto'` (`packages/harness/src/claude/chat.ts:89`) plus the ask rules in
+  `permissionMode: 'auto'` (`packages/harness/src/claude/chat.ts:129`) plus the ask rules in
   `packages/harness/src/claude/ask-rules.ts`, so its classifier decides. What it escalates reaches
   conciv's tool bridge as a permission prompt (`answerPrompt`,
   `packages/ai/src/server/image-tool-results.ts:41-51`); an ACP CLI (Gemini) asks through
@@ -106,7 +106,7 @@ user, not hung.
   (`packages/core/src/runtime/permission-cards.ts:274-292`). `decidePermissionCard` drops a `gone` card
   and returns `false` for anything but `replied`
   (`packages/core/src/runtime/permission-cards.ts:312-319`), and the RPC turns that into
-  `UNKNOWN_REQUEST` (`packages/core/src/api/rpc/router.ts:64-74`), so a second click on an answered card
+  `UNKNOWN_REQUEST` (`packages/core/src/api/rpc/router.ts:64-75`), so a second click on an answered card
   surfaces as "no pending approval", not silence.
 - **A card lives exactly as long as its ask.** Pending cards are read from the permission service's
   pending list (`pendingPermissionCards`, `packages/core/src/runtime/permission-cards.ts:212-218`),
@@ -117,7 +117,7 @@ user, not hung.
   survives a reload is still answerable; one whose run stopped is gone.
 - **Approving resumes the waiting call.** `reply` completes the ask the tool call is waiting on, so the
   tool runs at the click (`packages/plugin-host/src/core/permission.ts:331-388`). The Claude harness
-  waits up to `MCP_TOOL_TIMEOUT` for that answer (`packages/harness/src/claude/chat.ts:14`).
+  waits up to `MCP_TOOL_TIMEOUT` for that answer (`packages/harness/src/claude/chat.ts:53`).
 - **Deny ends every ask of the session.** A `reject` fails the request and every other pending request
   of the same session (`packages/plugin-host/src/core/permission.ts:342-361`), and the harness answers
   the call with `The user rejected ...` (`packages/core/src/runtime/permission-cards.ts:268`).
@@ -136,7 +136,7 @@ rather than one subscribe call:
   run id or a `chat.join` with a resume offset REPLAYS the run from its durable log instead of starting
   one, which is how a reload rejoins a run already in flight.
 - **Out-of-band session events** ride the `chat.events` iterator: the session scope yields a catch-up and
-  then the session bus's `events` generator (`packages/core/src/runtime/core-runtime.ts:57`), which lives
+  then the session bus's `events` generator (`packages/core/src/runtime/core-runtime.ts:34`), which lives
   until its `AbortSignal` fires (`packages/core/src/runtime/primitives.ts:23-44`).
 
 Two consequences:
