@@ -6,10 +6,9 @@ import {
   measureCenter,
   MOUSE_POINTER,
   setNativeValue,
-  simulateClick,
-  simulateFill,
   typeByCommands,
   typeByEvents,
+  type Simulator,
 } from './simulator.js'
 
 const CODE_EDITORS = '.cm-editor, .CodeMirror, .monaco-editor'
@@ -106,9 +105,10 @@ async function fillEditor(options: {
   value: string
   agent: string
   halt: () => void
+  simulator: Simulator
 }): Promise<{value: string} | string> {
-  const {host, value, agent, halt} = options
-  simulateClick({element: host, agent})
+  const {host, value, agent, halt, simulator} = options
+  simulator.simulateClick({element: host, agent})
   typeByEvents({host, value})
   await pageTurn()
   halt()
@@ -124,18 +124,19 @@ export async function fill(options: {
   value: string
   agent: string
   halt: () => void
+  simulator: Simulator
 }): Promise<{value: string} | string> {
-  const {element, value, agent, halt} = options
+  const {element, value, agent, halt, simulator} = options
   if (element.closest(CODE_EDITORS)) return 'That is a code editor (CodeMirror or Monaco); fill cannot type into it.'
   const readOnly = element.closest('[aria-readonly]')?.getAttribute('aria-readonly') === 'true'
   if (!isInput(element) && !isTextArea(element)) {
     const host = editableHost(element)
     if (!host) return 'That element is not a text field.'
     if (readOnly || !host.isContentEditable) return 'That field is read-only.'
-    return fillEditor({host, value, agent, halt})
+    return fillEditor({host, value, agent, halt, simulator})
   }
   if (readOnly || element.readOnly) return 'That field is read-only.'
-  simulateFill({element, value, agent})
+  simulator.simulateFill({element, value, agent})
   await pageTurn()
   if (value !== '' && element.value === '') return `The field rejected ${shown({element, value})} and stayed empty.`
   return reported({element, value: element.value})
@@ -157,19 +158,20 @@ export async function setChecked(options: {
   element: Element
   checked: boolean
   agent: string
+  simulator: Simulator
 }): Promise<{checked: boolean} | string> {
-  const {element, checked, agent} = options
+  const {element, checked, agent, simulator} = options
   if (isInput(element) && (element.type === 'checkbox' || element.type === 'radio')) {
     if (element.checked === checked) return {checked}
     if (element.type === 'radio' && !checked) return 'A radio is unchecked by checking another one.'
-    simulateClick({element, agent})
+    simulator.simulateClick({element, agent})
     await pageTurn()
     return reached({now: element.checked, checked})
   }
   const aria = element.getAttribute('aria-checked')
   if (aria === null) return 'That element is not a checkbox.'
   if ((aria === 'true') === checked) return {checked}
-  simulateClick({element, agent})
+  simulator.simulateClick({element, agent})
   await pageTurn()
   return reached({now: element.getAttribute('aria-checked') === 'true', checked})
 }

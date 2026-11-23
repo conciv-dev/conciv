@@ -1,4 +1,4 @@
-import {Effect, Fiber} from 'effect'
+import {Effect, Exit, Fiber, Layer, ManagedRuntime, Scope} from 'effect'
 import {z} from 'zod'
 import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
@@ -12,7 +12,7 @@ import {makePageOperations} from './operations.js'
 import {pageToolCards} from './cards.js'
 import {SessionCaptures} from './captures.js'
 import {PageFailedTool} from './shared.js'
-import {endRun, endTask, mountSimulator} from './simulator.js'
+import {makeSimulator} from './simulator.js'
 import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 import {addRef, type Refs} from './snapshot.js'
 import {dehydrate} from './dehydrate.js'
@@ -36,7 +36,22 @@ export default Plugin.define({
       opener: {symbolicate, desktop: ctx.desktop},
       toast: (title, variant) => void ctx.toast.show({title, variant}),
     })
-    const operations = makePageOperations([highlight.effect])
+    const runtime = ManagedRuntime.make(Layer.empty)
+    const scope = runtime.runSync(Scope.make())
+    onCleanup(() => void runtime.runPromise(Scope.close(scope, Exit.void)).finally(() => runtime.dispose()))
+    const simulator = runtime.runSync(
+      makeSimulator({
+        session: () => routed()?.id ?? null,
+        running: (sessionId) => routed()?.id === sessionId && routed()?.run.status() === 'running',
+        taskTimeoutMs,
+        onStop: (sessionId) => {
+          const session = routed()
+
+          if (session?.id === sessionId) void session.run.interrupt()
+        },
+      }).pipe(Scope.provide(scope)),
+    )
+    const operations = makePageOperations([highlight.effect], simulator)
 
     const tab = () => readTab(tabId)
 
@@ -66,26 +81,7 @@ export default Plugin.define({
     ctx.add(Slot, {
       at: 'page.overlay',
       hides: false,
-      render: () => (
-        <div
-          ref={(element) =>
-            onCleanup(
-              mountSimulator({
-                root: element,
-                session: () => routed()?.id ?? null,
-                running: (sessionId) => routed()?.id === sessionId && routed()?.run.status() === 'running',
-                taskTimeoutMs,
-                onStop: (sessionId) => {
-                  const session = routed()
-
-                  if (session?.id === sessionId) void session.run.interrupt()
-                  endTask()
-                },
-              }),
-            )
-          }
-        />
-      ),
+      render: () => <div ref={(element) => onCleanup(simulator.mount(element))} />,
     })
 
     createKeyed(
@@ -94,7 +90,7 @@ export default Plugin.define({
 
         return session?.run.status() === 'running' ? session : undefined
       },
-      (session) => onCleanup(() => endRun(session.id)),
+      (session) => onCleanup(() => simulator.endRun(session.id)),
     )
 
     onCleanup(highlight.mount(ctx.overlay({styles: [utilities]}).element))
