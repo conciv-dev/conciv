@@ -10,7 +10,7 @@ import {
   type RunClockSource,
   type RunLifecycle,
 } from '@conciv/protocol/chat-event-types'
-import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import type {ChatMessage, ToolCallPart} from '@conciv/protocol/chat-message-types'
 import {chatBusy} from '@conciv/protocol/chat-busy'
 import {CHAT_HISTORY_PAGE_SIZE, type PermissionReply} from '@conciv/protocol/chat-types'
 
@@ -155,6 +155,16 @@ function overlaps(rendered: readonly ChatMessage[], hydration: ChatSessionHydrat
   return start === undefined || rendered.some((message) => message.id === start.id)
 }
 
+function settledCall(part: ToolCallPart): boolean {
+  return part.state === 'complete' || part.state === 'error' || part.output !== undefined
+}
+
+function cardStillRunning(messages: readonly ChatMessage[]): boolean {
+  const parts = messages.flatMap((message) => (message.role === 'assistant' ? message.parts : []))
+  const answeredIds = new Set(parts.flatMap((part) => (part.type === 'tool-result' ? [part.toolCallId] : [])))
+  return parts.some((part) => part.type === 'tool-call' && !settledCall(part) && !answeredIds.has(part.id))
+}
+
 function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
 }
@@ -219,6 +229,8 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     onLifecycle: (lifecycle) => {
       receive({lifecycle, receivedAt: Date.now()})
       if (lifecycle.phase === 'aborted' && lifecycle.runId === chat.runId() && chat.isLoading()) chat.stop()
+      if (isRunPhaseTerminal(lifecycle.phase) && !chat.isLoading() && cardStillRunning(chat.messages()))
+        void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
     onHydrated: (hydration) => {
       receive(newerRun(run().source, hydration))
