@@ -1,5 +1,7 @@
-import {children, createUniqueId, For, onCleanup, Show, splitProps, type JSX} from 'solid-js'
+import {children, createUniqueId, For, onCleanup, Show, splitProps, type Accessor, type JSX} from 'solid-js'
 import type {
+  Live,
+  Token,
   Ui,
   UiIconProps,
   UiMenuCheckbox,
@@ -7,12 +9,7 @@ import type {
   UiMenuRadioGroup,
   UiMenuSubProps,
 } from '@conciv/plugin/experimental'
-import {
-  isInternalPlugin,
-  readInternalPlugin,
-  type InternalStatusDotProps,
-  type InternalUi,
-} from '@conciv/plugin-internal'
+import {ConcivUi, OpaqueConcivContract, type ConcivStatusDotProps} from '@conciv/plugin-internal'
 import {Icon as KitIcon, Markdown} from '@conciv/ui-kit-chat'
 import {BasicTool, Chip, CodeBlock, ErrorBlock, JsonTree, ResultImage, StatusVisual} from '@conciv/ui-kit-chat/tools'
 import {MentionField} from '@conciv/ui-kit-tap'
@@ -87,7 +84,7 @@ const COLLAPSIBLE_TRIGGER =
 
 const subtitleTone = {default: '', muted: 'text-chat-text-3', warning: 'text-chat-warn', danger: 'text-chat-danger'}
 
-const stillDot: Record<InternalStatusDotProps['tone'], StatusDotTone | undefined> = {
+const stillDot: Record<ConcivStatusDotProps['tone'], StatusDotTone | undefined> = {
   neutral: 'idle',
   success: 'success',
   warning: 'warn',
@@ -420,7 +417,7 @@ export const ui: Ui = {
   ),
 }
 
-const internalUi: InternalUi = {
+const concivUi: ConcivUi = {
   ...ui,
   BasicTool: (props) => {
     const [local, tool] = splitProps(props, [
@@ -482,12 +479,16 @@ const internalUi: InternalUi = {
   ),
 }
 
-export function pluginUi(definition: object): Ui {
-  if (!isInternalPlugin(definition)) return ui
+const concivUiLive: Live<ConcivUi> = {status: 'active', value: concivUi, generation: 1}
 
-  readInternalPlugin(definition)
+export function answerConcivContract(token: Token): Accessor<Live<unknown>> | undefined {
+  if (!OpaqueConcivContract.isType(token)) return undefined
 
-  return internalUi
+  const {id} = OpaqueConcivContract.toInternal(token)
+
+  if (id !== ConcivUi.id) throw new Error(`conciv answers no private contract "${id}"`)
+
+  return () => concivUiLive
 }
 
 function treeable(value: unknown): object | undefined {

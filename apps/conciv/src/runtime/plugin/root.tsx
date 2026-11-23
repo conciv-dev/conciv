@@ -21,6 +21,7 @@ import {PluginExperimentalLoader, type PluginExperimental, type PluginExperiment
 import {PluginHostProvider, usePluginHost} from './host'
 import type {InstalledSource} from './startup'
 import {createPluginAttachment, createHostApis, PluginAttachmentProvider} from './host-apis'
+import {answerConcivContract} from './ui'
 import {HostApisProvider, useHostApis} from './host-apis-context'
 import {PluginServersProvider} from './servers'
 import {PluginStyles} from './render'
@@ -207,6 +208,7 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
           plugin={(id) => loaded().plugins.find((plugin) => plugin.definition.id === id)}
           unavailableClient={apis.unavailableClient}
           queryClient={apis.queryClient}
+          answer={answerConcivContract}
         >
           <PluginStyles root={environment.rootNode} />
           {PluginHotReload && (

@@ -28,6 +28,7 @@ import {
   type Entry,
 } from '@conciv/plugin/experimental/host'
 import {registerIcons} from '@conciv/ui-kit-chat'
+import {OpaqueRegistry} from '@conciv/plugin-internal'
 import {useDialog} from './dialog-stack'
 import {
   LinkHandler,
@@ -100,7 +101,6 @@ type HostApiFactory<T> = (
   context: Context,
   register: (fn: Cleanup) => Cleanup,
   builtin: boolean,
-  definition: Entry,
 ) => T
 
 export type HostApiFactories = {
@@ -147,6 +147,7 @@ type HostInput = {
   options?: (id: string) => PluginOptions | undefined
   unavailableClient: () => ConcivClient
   queryClient: QueryClient
+  answer: (token: Token) => Accessor<Live<unknown>> | undefined
 }
 
 export function PluginHostProvider(props: ParentProps<HostInput>) {
@@ -280,7 +281,8 @@ function createHost(input: HostInput) {
   }
 
   const items = <T,>(registry: Registry<T>) => {
-    const memo = memos.get(registry.id) ?? createItems(registry.id)
+    const id = registryKey(registry)
+    const memo = memos.get(id) ?? createItems(id)
 
     return memo() as readonly Item<T>[]
   }
@@ -572,6 +574,10 @@ function createHost(input: HostInput) {
     const lives = new Map<string, Accessor<Live<unknown>>>()
 
     const liveOf = (token: Token) => {
+      const answered = input.answer(token)
+
+      if (answered) return answered
+
       const existing = lives.get(token.id)
 
       if (existing) return existing
@@ -614,14 +620,14 @@ function createHost(input: HostInput) {
 
         const key = `${plugin}/${++sequence.value}`
 
-        setState('entries', registry.id, (entries = []) => [
+        const id = registryKey(registry)
+
+        setState('entries', id, (entries = []) => [
           ...entries,
-          {key, registry: registry.id, plugin, value: read ?? (() => undefined)},
+          {key, registry: id, plugin, value: read ?? (() => undefined)},
         ])
 
-        return register(() =>
-          setState('entries', registry.id, (entries = []) => entries.filter((entry) => entry.key !== key)),
-        )
+        return register(() => setState('entries', id, (entries = []) => entries.filter((entry) => entry.key !== key)))
       },
       list,
       provide<T>(token: Contract<T>, impl: T) {
@@ -660,8 +666,7 @@ function createHost(input: HostInput) {
           {
             enumerable: true,
             get() {
-              if (!created.has(name))
-                created.set(name, create(plugin, root, typed, register, !experimental, definition))
+              if (!created.has(name)) created.set(name, create(plugin, root, typed, register, !experimental))
 
               return created.get(name)
             },
@@ -783,6 +788,14 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
     'then' in value &&
     typeof value.then === 'function'
   )
+}
+
+function registryKey(registry: Registry<unknown>): string {
+  if (!OpaqueRegistry.isType(registry)) return `public:${registry.id}`
+
+  const {access, id} = OpaqueRegistry.toInternal(registry)
+
+  return `${access}:${id}`
 }
 
 function owns(plugin: string, id: string) {

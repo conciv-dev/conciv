@@ -4,12 +4,12 @@ import {
   ToolRegistry,
   type Context,
   type PanelTab,
-  type Plugin,
+  Plugin,
   type SessionRef,
   type SessionScreen,
   type ToolComponent,
 } from '@conciv/plugin/experimental'
-import {defineInternalPlugin, type InternalUi} from '@conciv/plugin-internal'
+import {readConcivUi, type ConcivUi} from '@conciv/plugin-internal'
 import type {Summary, TestError, TestRow} from './events.js'
 import {followRunView} from './follow.js'
 import {initialRunView, selectSummary, selectTests, type RunView} from './run-state.js'
@@ -32,7 +32,7 @@ import {
 } from './view.js'
 
 type Actions = {
-  readonly ui: InternalUi
+  readonly ui: ConcivUi
   readonly canOpen: boolean
   readonly onOpen: (error: TestError) => void
   readonly onFix: (error: TestError) => void
@@ -59,7 +59,7 @@ const TEST_RUNNER_TITLES: Record<string, {running: string; done: string}> = {
 }
 
 function Disclosure(props: {
-  ui: InternalUi
+  ui: ConcivUi
   level: keyof typeof LEVEL
   open?: boolean
   name?: string
@@ -282,7 +282,7 @@ function openFailure(ctx: Context, error: TestError): void {
   })
 }
 
-function testRunCard(ctx: Context, ui: InternalUi): ToolComponent {
+function testRunCard(ctx: Context, ui: ConcivUi): ToolComponent {
   const session = () => ctx.sessions.current()
   const client = () => session()?.server.client
   const actions: Actions = {
@@ -320,7 +320,7 @@ function testRunCard(ctx: Context, ui: InternalUi): ToolComponent {
   }
 }
 
-const runner: Plugin.Definition = defineInternalPlugin({
+const runner: Plugin.Definition = Plugin.define({
   setup(ctx) {
     const tab: PanelTab = {
       id: 'tests',
@@ -358,7 +358,7 @@ const runner: Plugin.Definition = defineInternalPlugin({
       },
     })
 
-    const render = testRunCard(ctx, ctx.ui)
+    const render = testRunCard(ctx, readConcivUi(ctx))
     ctx.add(ToolRegistry, {name: 'test_runner_run', render})
     ctx.add(ToolRegistry, {name: 'test_runner_status', render})
   },
