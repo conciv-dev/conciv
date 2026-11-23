@@ -6,13 +6,13 @@ import {
   Slot,
   ToolRegistry,
   type IconName,
-  Plugin,
+  type Plugin,
   type ToolComponent,
   type ToolProps,
   type Ui,
 } from '@conciv/plugin/experimental'
 import {PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
-import {readConcivUi, type ConcivUi} from '@conciv/plugin-internal'
+import {defineInternalPlugin, type InternalUi} from '@conciv/plugin-internal'
 import {tanstackToolMeta, tanstackToolName, type TanstackToolName} from './client.js'
 import {errorRingLayer} from './error-ring.js'
 import {execute} from './operations.js'
@@ -43,7 +43,7 @@ function InspectorChip(props: {readonly ui: Ui; readonly logo: IconName}): JSX.E
   )
 }
 
-type Card = (ui: ConcivUi, logo: IconName) => ToolComponent
+type Card = (ui: InternalUi, logo: IconName) => ToolComponent
 
 const COUNT_FORMAT = new Intl.NumberFormat()
 const COUNT_PLURAL = new Intl.PluralRules('en')
@@ -100,7 +100,7 @@ function tanstackTitle(tool: string, status: ToolProps['status']): string {
 
 function InspectionCard(
   props: ToolProps & {
-    ui: ConcivUi
+    ui: InternalUi
     logo: IconName
     summary: string
     failed?: boolean
@@ -207,7 +207,7 @@ function countRoutes(node: RouteBranchNode): number {
   return 1 + sumBy(node.children, countRoutes)
 }
 
-function RouteBranch(props: {ui: ConcivUi; node: RouteBranchNode; root: boolean}): JSX.Element {
+function RouteBranch(props: {ui: InternalUi; node: RouteBranchNode; root: boolean}): JSX.Element {
   return (
     <>
       <CardRow>
@@ -343,7 +343,7 @@ const QueryCacheSchema = z.object({
   mutations: z.array(CacheEntrySchema).default([]),
 })
 
-function CacheEntryRow(props: {ui: ConcivUi; entry: z.infer<typeof CacheEntrySchema>}): JSX.Element {
+function CacheEntryRow(props: {ui: InternalUi; entry: z.infer<typeof CacheEntrySchema>}): JSX.Element {
   return (
     <div class="flex flex-col gap-1">
       <CardRow>
@@ -542,7 +542,7 @@ const tanstackCards = {
   tanstack_server_fn_trace: serverFnTraceCard,
 } satisfies Record<TanstackToolName, Card>
 
-const tanstack: Plugin.Definition = Plugin.define({
+const tanstack: Plugin.Definition = defineInternalPlugin({
   icons: {logo: tanstackLogo},
   setup(ctx) {
     const tree = ctx.use(ReactTree)
@@ -560,7 +560,7 @@ const tanstack: Plugin.Definition = Plugin.define({
     ctx.add(Slot, {at: 'session.status', render: () => <InspectorChip ui={ctx.ui} logo={ctx.icons.logo} />})
 
     Object.entries(tanstackCards).forEach(([name, card]) =>
-      ctx.add(ToolRegistry, {name, render: card(readConcivUi(ctx), ctx.icons.logo)}),
+      ctx.add(ToolRegistry, {name, render: card(ctx.ui, ctx.icons.logo)}),
     )
   },
 })

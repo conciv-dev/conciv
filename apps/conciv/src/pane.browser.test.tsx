@@ -746,15 +746,6 @@ describe('a plugin fills the session header and status', () => {
   })
 })
 
-describe('a registry conciv keeps private', () => {
-  test('a public registry with the same id does not reach it', async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/private-registry']})
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    expect(await screen.findByText('Cars: first-party car')).toBeVisible()
-  })
-})
-
 describe('opening a tool card while the turn goes on', () => {
   test('the user opens the card of a tool with no card of its own, its body shows, and it stays open when the answer arrives', async () => {
     const user = userEvent.setup()

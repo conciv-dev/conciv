@@ -72,7 +72,7 @@ import {mountOverlay} from './overlay'
 import {isPluginView, panelKey} from './panel-keys'
 import type {Region} from './panels'
 import {deferredHandle, globalStoreTarget, persistedHandle, projectStoreTarget, storeImports, storeName} from './stores'
-import {ui} from './ui'
+import {pluginUi} from './ui'
 
 type Attached = {
   sessions: Accessor<readonly SessionRef[]>
@@ -389,7 +389,7 @@ export function createHostApis() {
       settings: (page) => write((value) => value.settings(plugin, page)),
       draft: (input) => write((value) => value.draft(plugin, input)),
     }),
-    ui: () => ui,
+    ui: (_plugin, _owner, _context, _register, _builtin, definition) => pluginUi(definition),
   }
 
   return {

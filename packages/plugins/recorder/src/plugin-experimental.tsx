@@ -1,7 +1,7 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {Panel, Plugin, ToolRegistry, type PanelTab, type ToolComponent} from '@conciv/plugin/experimental'
-import {NoteCard, readConcivUi, type ConcivUi} from '@conciv/plugin-internal'
+import {Panel, ToolRegistry, type PanelTab, type Plugin, type ToolComponent} from '@conciv/plugin/experimental'
+import {defineInternalPlugin, NoteCard, type InternalUi} from '@conciv/plugin-internal'
 import {bootCapture} from './page-capture.js'
 import {RecorderPanel} from './panel-view.js'
 import {RecordingCard} from './recording-card.js'
@@ -93,7 +93,7 @@ function readActions(recording: Recording): RecordingAction[] | undefined {
   return recording.kind === 'window' ? recording.actions : undefined
 }
 
-function ActionList(props: {ui: ConcivUi; actions: RecordingAction[]}): JSX.Element {
+function ActionList(props: {ui: InternalUi; actions: RecordingAction[]}): JSX.Element {
   return (
     <Show when={props.actions.length > 0} fallback={<span class={QUIET_CLASS}>no recorded activity</span>}>
       <div class="flex flex-col gap-0.5">
@@ -111,7 +111,7 @@ function ActionList(props: {ui: ConcivUi; actions: RecordingAction[]}): JSX.Elem
   )
 }
 
-function recordingToolCard(ui: ConcivUi): ToolComponent {
+function recordingToolCard(ui: InternalUi): ToolComponent {
   return (props) => {
     const recording = () => readRecording(props.output)
     return (
@@ -137,7 +137,7 @@ function recordingToolCard(ui: ConcivUi): ToolComponent {
   }
 }
 
-const recorder: Plugin.Definition = Plugin.define({
+const recorder: Plugin.Definition = defineInternalPlugin({
   setup(ctx) {
     const recorderTab: PanelTab = {
       id: 'recorder',
@@ -173,7 +173,7 @@ const recorder: Plugin.Definition = Plugin.define({
       origins: [ctx.id],
       render: (props) => <RecordingCard note={props.note} session={props.session} runtime={runtime} />,
     })
-    const render = recordingToolCard(readConcivUi(ctx))
+    const render = recordingToolCard(ctx.ui)
     RECORDING_TOOLS.forEach((name) => ctx.add(ToolRegistry, {name, render}))
   },
 })

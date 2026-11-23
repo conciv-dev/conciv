@@ -2,7 +2,7 @@
   "name": "@conciv/plugin-internal",
   "version": "0.0.22",
   "private": true,
-  "description": "Private to conciv's first-party plugins: the conciv opaque types and the private contracts the app answers, such as the conciv UI.",
+  "description": "Private to conciv's first-party plugins: the stamp that marks a plugin definition as first-party and the app components its setup gets for that.",
   "homepage": "https://conciv.dev",
   "license": "MIT",
   "repository": {
@@ -26,9 +26,9 @@
     "lint": "oxlint"
   },
   "dependencies": {
-    "@conciv/opaque": "workspace:*",
     "@conciv/plugin": "workspace:^",
-    "@conciv/ui-kit-tap": "workspace:^"
+    "@conciv/ui-kit-tap": "workspace:^",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",

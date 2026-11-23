@@ -8,6 +8,7 @@ import {
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
 import {CODE_MODE_EXTERNAL_PREFIX} from '@conciv/protocol/chat-types'
+import {isOutsideCallMessageId} from '@conciv/protocol/chat-message-types'
 
 type ShapeResult = (value: unknown) => unknown
 
@@ -37,13 +38,21 @@ function hasContent(message: ModelMessage): boolean {
   return message.content !== null && message.content.length > 0
 }
 
-export function withoutChildCalls(messages: ModelMessage[]): ModelMessage[] {
-  const children = messages.flatMap(childCallIds)
-  if (children.length === 0) return messages
+function unansweredOutsideCallIds(messages: ModelMessage[]): string[] {
+  const answered = messages.flatMap((message) => (message.role === 'tool' ? [message.toolCallId] : []))
+  return messages
+    .filter((message) => message.role === 'assistant' && isOutsideCallMessageId(message.id))
+    .flatMap((message) => (message.toolCalls ?? []).map((call) => call.id))
+    .filter((id) => !answered.includes(id))
+}
+
+export function withoutHiddenCalls(messages: ModelMessage[]): ModelMessage[] {
+  const hidden = [...messages.flatMap(childCallIds), ...unansweredOutsideCallIds(messages)]
+  if (hidden.length === 0) return messages
   return messages.flatMap((message) => {
     if (message.role === 'tool')
-      return message.toolCallId !== undefined && children.includes(message.toolCallId) ? [] : [message]
-    const toolCalls = (message.toolCalls ?? []).filter((call) => !children.includes(call.id))
+      return message.toolCallId !== undefined && hidden.includes(message.toolCallId) ? [] : [message]
+    const toolCalls = (message.toolCalls ?? []).filter((call) => !hidden.includes(call.id))
     if (toolCalls.length === (message.toolCalls ?? []).length) return [message]
     const {toolCalls: _dropped, ...rest} = message
     if (toolCalls.length > 0) return [{...rest, toolCalls}]

@@ -276,7 +276,7 @@ export async function assertPublishedChangesCovered(cwd: string, base: string): 
   )
 }
 
-const ALWAYS_PRIVATE_PACKAGES = ['@conciv/opaque', '@conciv/plugin-internal']
+const ALWAYS_PRIVATE_PACKAGES = ['@conciv/plugin-internal']
 
 export async function assertPublicSet(cwd: string): Promise<void> {
   const packages = await readWorkspacePackages(cwd)

@@ -4,8 +4,8 @@ import {render} from 'solid-js/web'
 import {Effect, Exit, Fiber, Scope, Stream, SubscriptionRef} from 'effect'
 import {z} from 'zod'
 import {useQuery} from '@conciv/client'
-import {ComposerPill, Plugin, SettingsPage, Slot, ToolRegistry, usePlugin} from '@conciv/plugin/experimental'
-import {readConcivUi} from '@conciv/plugin-internal'
+import {ComposerPill, SettingsPage, Slot, ToolRegistry, usePlugin, type Plugin} from '@conciv/plugin/experimental'
+import {defineInternalPlugin} from '@conciv/plugin-internal'
 import {Page} from '@conciv/plugin/experimental/page'
 import {whiteboardToolCards} from './cards.js'
 import {makeCommentCompose, type ComposePhase} from './comment-compose.js'
@@ -55,7 +55,7 @@ function refAccessor<A>(ref: SubscriptionRef.SubscriptionRef<A>, initial: A): Ac
   }, initial)
 }
 
-const whiteboard: Plugin.Definition<typeof whiteboardStores> = Plugin.define({
+const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlugin({
   stores: whiteboardStores,
   setup(ctx) {
     const [canvas, setCanvas] = createStore({open: false, engaged: false})
@@ -169,7 +169,7 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = Plugin.define({
       render: () => <CanvasBackgroundRow />,
     })
     ctx.add(ComposerPill, commentPill)
-    whiteboardToolCards(readConcivUi(ctx)).forEach((card) => ctx.add(ToolRegistry, card))
+    whiteboardToolCards(ctx.ui).forEach((card) => ctx.add(ToolRegistry, card))
     // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
     ctx.add(Slot, () => (visible() ? overlay : undefined))
     // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
