@@ -128,10 +128,11 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         : {nativeId: row.nativeId, cwd: row.cwd, harnessKind: row.harnessKind}
     },
   })
+  const turnContext = {ui, transcripts, codeMode: deps.driver !== null}
   const server = await createChatServer({
     stores,
     sandbox: {dir: deps.cwd, groupExitTimeoutMs: deps.groupExitTimeoutMs},
-    hooks: turnHooks(deps, {ui, transcripts, codeMode: deps.driver !== null}),
+    hooks: turnHooks(deps, turnContext),
     codeModeResult: cappedValue,
     startTimeoutMs: deps.firstStartTimeoutMs ?? FIRST_START_TIMEOUT_MS,
     firstOutputTimeoutMs: deps.firstOutputTimeoutMs ?? FIRST_OUTPUT_TIMEOUT_MS,
@@ -309,8 +310,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         buildCodeRunner(sessionId, publish, given, messageId),
       ),
     turnMessage: (sessionId) => server.turnMessage(sessionId),
-    instructions: async (sessionId, signal) =>
-      sessionInstructions(deps, sessionId, await stores.messages.loadThread(sessionId), deps.driver !== null, signal),
+    instructions: (sessionId, signal) =>
+      sessionInstructions(deps, turnContext, sessionId, server.requestContext, signal),
   }
 }
 

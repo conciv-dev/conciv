@@ -34,7 +34,10 @@ export default Plugin.define({
       })
       yield* ctx.session.hook('context', (input) =>
         Effect.sync(() => {
-          input.system.push({type: 'text', text: 'HOOKED'})
+          input.system.push(
+            {type: 'text', text: `TOOLS ${Object.keys(input.tools).join(' ')}`},
+            {type: 'text', text: 'HOOKED'},
+          )
         }),
       )
       yield* ctx.rpc

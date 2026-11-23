@@ -222,7 +222,7 @@ describe.concurrent('tool registry', () => {
 })
 
 describe.concurrent('session instructions', () => {
-  test("a session answers the system text its next turn sends: the base prompt, a plugin's instruction entry, and what the context hooks leave, until it is deleted", async ({
+  test("a session answers the system text its next turn sends: the base prompt, a plugin's instruction entry, the code-mode preface, and what the context hooks leave seeing the offered tools, until it is deleted", async ({
     connect,
     expect,
   }) => {
@@ -234,6 +234,8 @@ describe.concurrent('session instructions', () => {
     const {text} = await rpc.sessions.instructions({sessionId})
     expect(text).toContain(CHAT_SYSTEM_PROMPT.split('\n')[0])
     expect(text).toContain('<context key="desk">\nThe desk keeps the notes of this session.')
+    expect(text).toContain('## Code Execution Tool')
+    expect(text).toMatch(/^TOOLS .*execute_typescript/m)
     expect(text.endsWith('HOOKED')).toBe(true)
 
     await rpc.sessions.delete({sessionId})
