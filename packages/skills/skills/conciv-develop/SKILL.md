@@ -173,12 +173,12 @@ export default defineConfig({
 
 Registries for `ctx.add`: `Panel` (tabs in the session pane), `Slot` (`window.bottom`,
 `session.header`, `session.status`, `page.overlay`), `ComposerPill`, `Command`
-(keybind and slash command), `SettingsPage`, `CodeBlock`, `CodeBlockAction`, `NoteCard`,
+(keybind and slash command), `SettingsPage`, `CodeBlock`, `CodeBlockAction`,
 `LinkHandler`, and the page plugin's `PageOperation`. `ctx.add` takes an item or a function that
 returns one (or `undefined` for none). Everything added is withdrawn on reload.
 `Plugin.define({stores})` declares `Store.global`, `Store.project` and `Store.session` values.
 `ctx.provide`/`ctx.use` share contracts between plugins: `Page` and `ReactTree` from
-`@conciv/plugin/experimental/page`, `GrabApi` from `@conciv/plugin/experimental/grab`. Draw with
+`@conciv/plugin/experimental/page` (`Page.pick()` lets the user pick an element and returns the `Grab`). Draw with
 `ctx.ui` components.
 
 The widget provides `effect`, `zod`, `solid-js`, `solid-js/web`, `solid-js/store`,

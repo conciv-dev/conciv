@@ -1,15 +1,8 @@
 import {Layer, ManagedRuntime} from 'effect'
 import {For, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {
-  NoteCard,
-  Panel,
-  ToolRegistry,
-  type PanelTab,
-  type Plugin,
-  type ToolComponent,
-} from '@conciv/plugin/experimental'
-import {defineInternalPlugin, type InternalUi} from '@conciv/plugin-internal'
+import {NoteCard, Panel, Plugin, ToolRegistry, type PanelTab, type ToolComponent} from '@conciv/plugin/experimental'
+import {OpaqueNoteCard, OpaqueUi, type InternalUi} from '@internal/plugin'
 import {bootCapture} from './page-capture.js'
 import {RecorderPanel} from './panel-view.js'
 import {RecordingCard} from './recording-card.js'
@@ -145,7 +138,7 @@ function recordingToolCard(ui: InternalUi): ToolComponent {
   }
 }
 
-const recorder: Plugin.Definition = defineInternalPlugin({
+const recorder: Plugin.Definition = Plugin.define({
   setup(ctx) {
     const recorderTab: PanelTab = {
       id: 'recorder',
@@ -178,11 +171,11 @@ const recorder: Plugin.Definition = defineInternalPlugin({
         />
       ),
     })
-    ctx.add(NoteCard, {
+    ctx.add(OpaqueNoteCard.toInternal(NoteCard), {
       origins: [ctx.id],
       render: (props) => <RecordingCard note={props.note} session={props.session} runtime={runtime} />,
     })
-    const render = recordingToolCard(ctx.ui)
+    const render = recordingToolCard(OpaqueUi.toInternal(ctx.ui))
     RECORDING_TOOLS.forEach((name) => ctx.add(ToolRegistry, {name, render}))
   },
 })

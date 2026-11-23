@@ -10,7 +10,6 @@ import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/pr
 import {
   PromptPresentationSchema,
   SyntheticMetadataSchema,
-  type AttachmentDocumentPart,
   type ContentPart,
   type ModelMessage,
 } from '@conciv/protocol/chat-message-types'
@@ -69,8 +68,6 @@ export type SessionRequest = Omit<PluginHooks.Domains['session']['compaction'], 
 
 type PromptFile = NonNullable<SessionPrompt['prompt']['files']>[number]
 
-export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>>
-
 export type TurnDeps = {
   cwd: string
   harnessFor: (sessionId: SessionId) => Promise<HarnessAdapter>
@@ -79,7 +76,6 @@ export type TurnDeps = {
   sessions: SessionPort
   toolNames: (sessionId: SessionId) => Promise<ReadonlySet<string>>
   capabilities: (sessionId: SessionId) => Promise<CodeCapability[]>
-  attachmentExpanders: AttachmentExpanders
   prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
   promptHooked: () => Promise<boolean>
   context: (name: RequestHookName, request: SessionRequest, signal: AbortSignal) => Promise<SessionRequest>
@@ -157,32 +153,6 @@ function mintedSessionId(chunk: ChatEvent): HarnessSessionId | null {
   return isHarnessSessionId(value.sessionId) ? value.sessionId : null
 }
 
-const EXPAND_FAILURE_PART: ContentPart = {
-  type: 'text',
-  content: '[attachment could not be processed]',
-  metadata: {modelOnly: true},
-}
-
-async function expandedPart(part: ContentPart, expanders: AttachmentExpanders, log: TurnDeps['log']) {
-  if (part.type !== 'document' || part.source.type !== 'data') return [part]
-  const mimeType = part.source.mimeType
-  const expander = expanders[mimeType]
-  if (expander === undefined) return [part]
-  try {
-    const produced = await expander({type: 'document', source: {type: 'data', mimeType, value: part.source.value}})
-    return [part, ...produced.map((extra) => ({...extra, metadata: {modelOnly: true}}))]
-  } catch (error) {
-    log(`[chat] attachment expand failed (${mimeType}): ${String(error)}`)
-    return [part, EXPAND_FAILURE_PART]
-  }
-}
-
-async function expandedMessage(message: ModelMessage, deps: TurnDeps): Promise<ModelMessage> {
-  if (!Array.isArray(message.content)) return message
-  const parts = await Promise.all(message.content.map((part) => expandedPart(part, deps.attachmentExpanders, deps.log)))
-  return {...message, content: parts.flat()}
-}
-
 function promptFile(part: ContentPart): PromptFile[] {
   if (part.type !== 'image' && part.type !== 'document') return []
   if (part.source.type === 'data') return [{uri: `data:${part.source.mimeType};base64,${part.source.value}`}]
@@ -222,19 +192,11 @@ function promptedMessage(message: ModelMessage, event: SessionPrompt): ModelMess
 
 function askedMessages(turn: Turn, messages: ModelMessage[], harness: HarnessAdapter): ModelMessage[] {
   if (turn.kind === 'compact') return [...messages, compactPrompt(harness)]
-  if (turn.kind === 'page-queue') return [...messages, {role: 'user', content: turn.input}]
   return messages
 }
 
 function compactPrompt(harness: HarnessAdapter): ModelMessage {
   return {role: 'user', content: harness.capabilities.compaction ? '/compact' : COMPACT_FALLBACK_PROMPT}
-}
-
-async function expandedLastUser(messages: ModelMessage[], deps: TurnDeps): Promise<ModelMessage[]> {
-  const lastUser = messages.findLastIndex((message) => message.role === 'user')
-  const target = messages[lastUser]
-  if (target === undefined) return messages
-  return messages.with(lastUser, await expandedMessage(target, deps))
 }
 
 function contentParts(content: ModelMessage['content']): ContentPart[] {
@@ -312,7 +274,7 @@ export async function sessionDeleted(sessions: SessionPort, sessionId: SessionId
   return row !== null && row.deletedAt !== null
 }
 
-export function missingSession(sessionId: SessionId): string {
+function missingSession(sessionId: SessionId): string {
   return `session "${sessionId}" does not exist`
 }
 
@@ -409,7 +371,7 @@ export function turnHooks(
           if (turn.kind === 'chat' && lastUser !== undefined && isBlank(lastUser)) {
             throw new Error('the message is empty')
           }
-          return turn.kind === 'chat' ? expandedLastUser(messages, deps) : messages
+          return messages
         },
         providerMessages: async (messages) => {
           const asked = askedMessages(turn, messages, harness)

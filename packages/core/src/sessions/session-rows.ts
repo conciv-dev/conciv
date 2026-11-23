@@ -1,21 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {Effect} from 'effect'
-import {
-  and,
-  desc,
-  eq,
-  getTableColumns,
-  inArray,
-  isNotNull,
-  isNull,
-  lt,
-  max,
-  ne,
-  notExists,
-  notInArray,
-  or,
-  sql,
-} from 'drizzle-orm'
+import {and, desc, eq, getTableColumns, inArray, isNull, lt, max, ne, notExists, notInArray, or, sql} from 'drizzle-orm'
 import {keyBy, mapValues, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {SessionHit, SessionMeta} from '@conciv/contract'
@@ -100,17 +85,6 @@ export function storedSessionRules(db: ConcivDb, id: SessionId) {
 export async function rowById(db: ConcivDb, id: SessionId): Promise<SessionRecord | null> {
   const rows = await Effect.runPromise(db.select(sessionColumns).from(sessions).where(eq(sessions.id, id)))
   return rows[0] ? sessionRecord(rows[0]) : null
-}
-
-export async function isDeletedRow(db: ConcivDb, id: SessionId): Promise<boolean> {
-  const row = await Effect.runPromise(
-    db
-      .select({id: sessions.id})
-      .from(sessions)
-      .where(and(eq(sessions.id, id), isNotNull(sessions.deletedAt)))
-      .get(),
-  )
-  return row !== undefined
 }
 
 export async function currentRow(db: ConcivDb, id: SessionId): Promise<SessionRecord | null> {

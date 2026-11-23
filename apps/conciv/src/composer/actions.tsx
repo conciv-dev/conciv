@@ -3,10 +3,9 @@ import {ComposerActions as Action} from '@conciv/ui-kit-chat'
 import Crosshair from 'lucide-solid/icons/crosshair'
 import FoldVertical from 'lucide-solid/icons/fold-vertical'
 import SquarePen from 'lucide-solid/icons/square-pen'
-import {showToast} from '@conciv/plugin-page/client'
-import type {Grab} from '@conciv/grab'
-import {usePane} from '../app/pane-context.js'
-import {makePaneGrabApi} from '../pane/pane-grab.js'
+import {GrabPicker} from '@conciv/plugin/experimental/grab'
+import {usePluginHost} from '../runtime/plugin/host.js'
+import {useReportFailure} from '../shell/notice-context.js'
 import {Menu, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import Plug from 'lucide-solid/icons/plug'
 import {useHubConnections} from './hub-connections.js'
@@ -76,20 +75,24 @@ export function ComposerActions(props: {
   compacting: boolean
   onCompact: () => void
   onNewSession: () => void
-  onStageGrab: (grab: Grab) => void
+  onGrabbed: () => void
 }): JSX.Element {
-  const pane = usePane()
-  const grab = makePaneGrabApi(pane.grabStaging, pane.grabProvider)
-  const grabDisabled = () => (grab.grabbable ? !grab.grabbable() : false)
+  const host = usePluginHost()
+  const reportFailure = useReportFailure()
+  const picker = () => host.list(GrabPicker).at(0)
+  const grabDisabled = () => {
+    const current = picker()
+    return current ? !(current.grabbable?.() ?? true) : true
+  }
 
   const [picking, setPicking] = createSignal(false)
   const pick = async () => {
     setPicking(true)
     try {
-      const picked = await grab.pick()
-      if (picked) props.onStageGrab(picked)
-    } catch {
-      showToast('Couldn’t grab that element. Try again.', 'error')
+      const picked = await picker()?.pick()
+      if (picked) props.onGrabbed()
+    } catch (error) {
+      reportFailure('Couldn’t grab that element. Try again.', error)
     } finally {
       setPicking(false)
     }

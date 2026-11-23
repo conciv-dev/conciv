@@ -1,6 +1,5 @@
 import {render} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
-import {installReactBridge} from '@conciv/plugin-page/client'
 import {createMemoryHistory} from '@tanstack/solid-router'
 import {ConcivApp, WIDGET_LAYER, openBrowserDraftStore, type Platform} from '@conciv/app'
 import type {ConcivSettingsInit, ConcivSurface} from '@conciv/protocol/config-types'
@@ -134,7 +133,6 @@ export function mountImpl(
   init: ConcivInit,
   el: HTMLElement,
 ): {ready: Promise<void>; teardown: () => void; rebind: (apiBase: string) => Promise<void>} {
-  installReactBridge()
   const hostRouter = window.__TSR_ROUTER__
   const settings = init.settings ?? metaSettings()
   const host = document.createElement('div')

@@ -1,14 +1,23 @@
 import {Show, onCleanup, type JSX} from 'solid-js'
-import {createTanstackQueryUtils, useQuery} from '@conciv/client'
+import {useQuery} from '@conciv/client'
+import {OpaqueNoteCard} from '@internal/plugin'
 import {createStore, reconcile} from 'solid-js/store'
 import {Context, Effect, FiberSet, Layer, ManagedRuntime, Queue, Stream, SubscriptionRef} from 'effect'
-import {NoteCard, Plugin, Slot, type NoteCardProps, type Ui, type Widget} from '@conciv/plugin/experimental'
+import {
+  NoteCard,
+  Plugin,
+  Slot,
+  type MountedSession,
+  type NoteCardProps,
+  type Ui,
+  type Widget,
+} from '@conciv/plugin/experimental'
 import {GrabPicker} from '@conciv/plugin/experimental/grab'
 import type {ElementRect, Grab} from '@conciv/plugin/experimental/grab'
 import {IosBridge} from './bridge.js'
 import {IosBridgeMachine} from './bridge-machine.js'
 import {Definition, GRAB_NOTE_ORIGIN, readGrabId, type GrabId, type GrabMode} from './rpc.js'
-import {makeGrabNotePicker, readGrab, sourceLine} from './grab-note.js'
+import {makeGrabNotePicker, sourceLine} from './grab-note.js'
 
 type NativeCall = (message: Record<string, unknown>) => void
 
@@ -148,38 +157,40 @@ const startNativeLink = Effect.fn('ios.native.start')(function* (widget: Widget)
   return link
 })
 
-type GrabCall = {rpcId: typeof Definition.id; method: 'grabs.get'; input: {id: GrabId}}
+const UNREADABLE = (
+  <span class={AGENT_TEXT} role="status">
+    Grabbed view could not be read
+  </span>
+)
 
 function GrabNoteCard(props: NoteCardProps & {ui: Ui}): JSX.Element {
-  const id = () => readGrabId(props.note.href).at(0)
-  const pluginCall = createTanstackQueryUtils(
-    (call: GrabCall, options?: {signal?: AbortSignal}) => readGrab(props.session, call.input.id, options?.signal),
-    {path: ['plugin', 'call', 'ios-grab']},
+  return (
+    <Show when={props.session} fallback={UNREADABLE}>
+      {(session) => (
+        <Show when={readGrabId(props.note.href).at(0)} fallback={UNREADABLE}>
+          {(id) => (
+            <StoredGrabCard session={session()} id={id()} staged={props.note.commentId !== undefined} ui={props.ui} />
+          )}
+        </Show>
+      )}
+    </Show>
   )
-  const grab = useQuery(() => {
-    const grabId = id()
-    return {
-      ...pluginCall.queryOptions({input: {rpcId: Definition.id, method: 'grabs.get', input: {id: grabId ?? ''}}}),
-      enabled: grabId !== undefined,
-      retry: false,
-    }
-  })
+}
+
+function StoredGrabCard(props: {session: MountedSession; id: GrabId; staged: boolean; ui: Ui}): JSX.Element {
+  const grab = useQuery(() => ({
+    ...props.session.server.client.rpc(Definition)['grabs.get'].queryOptions({input: {id: props.id}}),
+    retry: false,
+  }))
   return (
     <Show when={!grab.isPending} fallback={<props.ui.Loader size="small" />}>
-      <Show
-        when={grab.data}
-        fallback={
-          <span class={AGENT_TEXT} role="status">
-            Grabbed view could not be read
-          </span>
-        }
-      >
+      <Show when={grab.data} fallback={UNREADABLE}>
         {(value) => (
           <div class={CARD} data-chat-grab>
             <Show when={value().preview} fallback={<pre class={AGENT_TEXT}>{value().text}</pre>}>
               {(preview) => (
                 <img
-                  class={props.note.commentId === undefined ? CARD_SNAPSHOT : STAGED_SNAPSHOT}
+                  class={props.staged ? STAGED_SNAPSHOT : CARD_SNAPSHOT}
                   src={preview().dataUrl}
                   width={preview().width}
                   height={preview().height}
@@ -213,7 +224,10 @@ function IncompatibleSdkAlert(props: {view: NativeView}): JSX.Element {
 
 const ios = Plugin.define({
   setup(ctx) {
-    ctx.add(NoteCard, {origins: [GRAB_NOTE_ORIGIN], render: (props) => <GrabNoteCard {...props} ui={ctx.ui} />})
+    ctx.add(OpaqueNoteCard.toInternal(NoteCard), {
+      origins: [GRAB_NOTE_ORIGIN],
+      render: (props) => <GrabNoteCard {...props} ui={ctx.ui} />,
+    })
     if (window.webkit?.messageHandlers?.concivBridge === undefined) return
     const runtime = ManagedRuntime.make(Layer.effect(NativeLinkService, startNativeLink(ctx.widget)))
     onCleanup(() => void runtime.dispose())

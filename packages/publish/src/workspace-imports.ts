@@ -37,7 +37,7 @@ export async function assertBuildDependsOnCoversImports(cwd: string): Promise<vo
   const buildable = new Set(packages.filter((pkg) => pkg.manifest.scripts?.build !== undefined).map(readName))
   const explicit = await Promise.all(
     packages
-      .filter((pkg) => !isTranspileOnly(pkg))
+      .filter((pkg) => !isTranspileOnly(pkg) && pkg.manifest.scripts?.build !== undefined)
       .map(async (pkg) => ({pkg, dependsOn: await readBuildDependsOn(pkg)})),
   )
   const violations = await Promise.all(
@@ -234,6 +234,6 @@ export async function assertPluginsDrawThroughContextUi(cwd: string): Promise<vo
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
   throw new Error(
-    `a plugin under packages/plugins draws through ctx.ui (public plugins through the plugin SDK, internal ones through @conciv/plugin-internal defineInternalPlugin), never with @conciv/ui-kit*; only the built-ins ${KIT_BUILT_INS.join(' and ')} draw with the kit directly, like opencode's gui plugins:\n${messages.join('\n')}`,
+    `a plugin under packages/plugins draws through ctx.ui (conciv's own plugins read conciv's members with OpaqueUi.toInternal), never with @conciv/ui-kit*; only the built-ins ${KIT_BUILT_INS.join(' and ')} draw with the kit directly, like opencode's gui plugins:\n${messages.join('\n')}`,
   )
 }

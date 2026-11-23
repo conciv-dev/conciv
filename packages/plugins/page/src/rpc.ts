@@ -32,6 +32,45 @@ const tab = {
   ),
 }
 
+export const GRAB_NOTE_ORIGIN = 'page'
+const GRAB_HREF_PREFIX = 'page-grab:'
+const MAX_PREVIEW_CHARACTERS = 1_400_000
+export const GrabId = z.string().regex(/^grab_[a-f0-9-]{36}$/u)
+export type GrabId = z.infer<typeof GrabId>
+const GrabSource = z.object({componentName: short.nullable(), filePath: text, lineNumber: z.number().int().nullable()})
+const GrabRect = z.object({x: z.number(), y: z.number(), width: z.number(), height: z.number()})
+const GrabPreview = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('dom'),
+    html: z.string().max(MAX_PREVIEW_CHARACTERS),
+    width: z.number(),
+    height: z.number(),
+  }),
+  z.object({
+    kind: z.literal('image'),
+    dataUrl: z.string().max(MAX_PREVIEW_CHARACTERS).startsWith('data:image/'),
+    width: z.number(),
+    height: z.number(),
+  }),
+])
+export const StoredGrab = z.object({
+  text,
+  snippet: text.optional(),
+  source: GrabSource.nullable(),
+  rect: GrabRect.nullable(),
+  preview: GrabPreview.nullable(),
+})
+export type StoredGrab = z.infer<typeof StoredGrab>
+
+export function grabHref(id: GrabId): string {
+  return `${GRAB_HREF_PREFIX}${id}`
+}
+
+export function readGrabId(href: string | undefined): GrabId[] {
+  const parsed = GrabId.safeParse(href?.startsWith(GRAB_HREF_PREFIX) ? href.slice(GRAB_HREF_PREFIX.length) : undefined)
+  return parsed.success ? [parsed.data] : []
+}
+
 export const Tab = z.object({
   id: TabId,
   url: z.string().max(16_384),
@@ -573,6 +612,8 @@ export const Definition = Rpc.define({
       errors,
     },
     'captures.list': {input: z.object({sessionId: SessionId}), output: SessionCapturesSchema, errors},
+    'grabs.save': {input: z.object({grab: StoredGrab}), output: z.object({id: GrabId}), errors},
+    'grabs.get': {input: z.object({id: GrabId}), output: StoredGrab.nullable(), errors},
     'sessions.attached': {input: z.object({}), output: z.array(SessionId), errors},
     'tabs.list': {input: z.object({sessionId: SessionId}), output: State, errors},
     symbolicate: {input: SymbolicateSchema, output: SourceLocSchema.nullable(), errors},
@@ -584,7 +625,7 @@ export const Definition = Rpc.define({
     'queue.claim': {
       input: z.object({sessionId: SessionId, queueId: z.string().min(1), waitMs: z.number().int().min(0)}),
       output: z.union([
-        z.object({result: PageQueueResultSchema, before: z.enum(['owed', 'nextReply']).nullable()}),
+        z.object({result: PageQueueResultSchema, before: z.literal('owed').nullable()}),
         PageQueueProgressSchema,
       ]),
       errors,
@@ -597,29 +638,21 @@ export const Definition = Rpc.define({
     'queue.undelivered': {
       input: z.object({
         sessionId: SessionId,
-        toolCallIds: z.array(z.string()).optional(),
-        excludeToolCallIds: z.array(z.string()).optional(),
+        toolCallIds: z.array(z.string()),
       }),
       output: z.array(PageQueueResultSchema),
       errors,
     },
     'queue.owed': {
-      input: z.object({sessionId: SessionId, excludeToolCallIds: z.array(z.string()), claim: z.boolean()}),
-      output: z.array(
-        z.object({
-          queueId: z.string(),
-          toolCallId: z.string(),
-          result: PageQueueResultSchema,
-          before: z.enum(['owed', 'nextReply']),
-        }),
-      ),
+      input: z.object({sessionId: SessionId}),
+      output: z.array(z.object({queueId: z.string(), toolCallId: z.string(), result: PageQueueResultSchema})),
       errors,
     },
     'queue.settle': {
       input: z.object({
         sessionId: SessionId,
         queueIds: z.array(z.string()),
-        delivery: z.enum(['owed', 'nextReply', 'delivered']),
+        delivery: z.enum(['owed', 'delivered']),
       }),
       output: OkResult,
       errors,

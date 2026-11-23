@@ -100,7 +100,6 @@ type HostApiFactory<T> = (
   context: Context,
   register: (fn: Cleanup) => Cleanup,
   builtin: boolean,
-  definition: Entry,
 ) => T
 
 export type HostApiFactories = {
@@ -451,6 +450,9 @@ function createHost(input: HostInput) {
         (cause: unknown) => dispatch({type: 'failed', id: effect.id, attempt: effect.attempt, cause}),
       )
 
+    if (effect.type === 'register')
+      return effect.definition.beforeRegister?.(input.plugin?.(effect.id)?.options ?? input.options?.(effect.id) ?? {})
+
     if (effect.type === 'create')
       return void runWithOwner(owner, () =>
         createRoot((dispose) => {
@@ -660,8 +662,7 @@ function createHost(input: HostInput) {
           {
             enumerable: true,
             get() {
-              if (!created.has(name))
-                created.set(name, create(plugin, root, typed, register, !experimental, definition))
+              if (!created.has(name)) created.set(name, create(plugin, root, typed, register, !experimental))
 
               return created.get(name)
             },

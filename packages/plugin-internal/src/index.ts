@@ -1,15 +1,6 @@
-import type {ComponentProps, JSX} from 'solid-js'
-import {z} from 'zod'
-import type {IconName, Plugin, SetupContext, ToolProps, Ui} from '@conciv/plugin/experimental'
-import type {MentionField} from '@conciv/ui-kit-tap'
-
-export type {MentionFieldApi, MentionItem, MentionSegment} from '@conciv/ui-kit-tap'
-
-const INTERNAL_PLUGIN = '@conciv/InternalPlugin' as const
-const VERSION = 'v1' as const
-
-const Tagged = z.object({$$type: z.literal(INTERNAL_PLUGIN)})
-const Stamped = z.object({$$type: z.literal(INTERNAL_PLUGIN), version: z.unknown()})
+import type {JSX} from 'solid-js'
+import {createOpaqueType, type OpaqueType} from '@internal/opaque'
+import type {IconName, NoteCard, NoteCardProps, Registry, ToolProps, Ui} from '@conciv/plugin/experimental'
 
 export interface InternalBasicToolProps extends ToolProps {
   readonly icon?: IconName
@@ -57,9 +48,23 @@ export interface InternalCollapsibleProps {
   readonly defaultOpen?: boolean
 }
 
-export type InternalMentionFieldProps = ComponentProps<typeof MentionField> & {readonly ariaLabel: string}
+export type MentionItem = {id: string; label: string}
 
-export interface InternalUi extends Ui {
+export type MentionSegment = {type: 'text'; text: string} | {type: 'mention'; id: string; label: string}
+
+export type MentionFieldApi = {focus: () => void; clear: () => void; submit: () => void; element: HTMLElement}
+
+export interface InternalMentionFieldProps {
+  items: (query: string) => MentionItem[]
+  onSubmit: (segments: MentionSegment[]) => void
+  onReady?: (api: MentionFieldApi) => void
+  onEmptyChange?: (empty: boolean) => void
+  placeholder?: string
+  readonly ariaLabel: string
+  class?: string
+}
+
+interface InternalUiMembers {
   BasicTool(props: InternalBasicToolProps): JSX.Element
   ErrorMessage(props: InternalErrorMessageProps): JSX.Element
   TruncatedText(props: InternalTruncatedTextProps): JSX.Element
@@ -71,35 +76,29 @@ export interface InternalUi extends Ui {
   Collapsible(props: InternalCollapsibleProps): JSX.Element
 }
 
-type Stores = NonNullable<Plugin.Declarations['stores']>
-
-type Icons = NonNullable<Plugin.Declarations['icons']>
-
-export type InternalSetupContext<D> = SetupContext<D> & {readonly ui: InternalUi}
-
-export type InternalPluginInput<S extends Stores, I extends Icons = {}> = Plugin.Declarations<S, I> & {
-  readonly setup: (ctx: InternalSetupContext<NoInfer<Plugin.Declarations<S, I>>>) => Plugin.Cleanup | void
+type OpaqueUiShape = {
+  public: Ui & {readonly $$type: '@conciv/Ui'}
+  versions: InternalUiMembers & {readonly version: 'v1'}
 }
 
-export function defineInternalPlugin<const S extends Stores = {}, const I extends Icons = {}>(
-  plugin: InternalPluginInput<S, I>,
-): Plugin.Definition<S, I> {
-  const setup = plugin.setup as Plugin.Setup<NoInfer<Plugin.Declarations<S, I>>>
-  const stamped = {...plugin, setup, $$type: INTERNAL_PLUGIN, version: VERSION}
-  return stamped
+export type InternalUi = OpaqueUiShape['public'] & OpaqueUiShape['versions']
+
+export const OpaqueUi: OpaqueType<OpaqueUiShape> = createOpaqueType<OpaqueUiShape>({
+  type: '@conciv/Ui',
+  versions: ['v1'],
+})
+
+export interface InternalNoteCard {
+  readonly origins: readonly string[]
+  render(props: NoteCardProps): JSX.Element | undefined
 }
 
-export function isInternalPlugin(value: unknown): boolean {
-  return Tagged.safeParse(value).success
+type OpaqueNoteCardShape = {
+  public: NoteCard
+  versions: Registry<InternalNoteCard> & {readonly version: 'v1'}
 }
 
-export function readInternalPlugin(value: unknown): typeof VERSION {
-  const stamp = Stamped.parse(value)
-
-  if (stamp.version !== VERSION)
-    throw new Error(
-      `An internal plugin definition is stamped for another app: got version '${String(stamp.version)}', expected '${VERSION}'`,
-    )
-
-  return VERSION
-}
+export const OpaqueNoteCard: OpaqueType<OpaqueNoteCardShape> = createOpaqueType<OpaqueNoteCardShape>({
+  type: '@conciv/NoteCard',
+  versions: ['v1'],
+})

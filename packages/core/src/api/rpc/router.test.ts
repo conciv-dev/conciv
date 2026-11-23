@@ -7,7 +7,7 @@ import {claude} from '@conciv/harness/claude'
 import {createHarnessEngine} from '@conciv/harness-testkit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {test} from '../../../test/engine-test.js'
 
@@ -23,7 +23,7 @@ describe.concurrent('outside agents', () => {
     return readThrough(events, last, [...read, next.value])
   }
 
-  test('a panel that opens while an outside call runs finds the call so far in history and the rest live', async ({
+  test('a panel that opens while an outside call runs, or while a reply waits on an ask, finds the work so far in history and the rest live, as one message', async ({
     connect,
     expect,
   }) => {
@@ -49,6 +49,31 @@ describe.concurrent('outside agents', () => {
     expect(after.messages).toEqual([expect.objectContaining({role: 'assistant'})])
     expect(seen).toContainEqual(
       expect.objectContaining({type: ChatEventType.TOOL_CALL_RESULT, content: expect.stringContaining('Launch plan')}),
+    )
+
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_notes_publish({title: 'Release notes'})",
+      }),
+      TestLLM.text('The release notes are out'),
+    )
+    const replied = engine.session.send('Publish the release notes')
+    await readThrough(early, (chunk) => approvalRequestedEvent.parse(chunk) !== null)
+    const midTurn = await rpc.chat.hydrate({sessionId: engine.session.id})
+    await engine.session.approve()
+    await replied
+    const turned = await rpc.chat.hydrate({sessionId: engine.session.id})
+    const replies = turned.messages.filter((message) => message.role === 'assistant')
+
+    expect(midTurn.messages.at(-1)).toEqual(
+      expect.objectContaining({
+        id: replies.at(-1)?.id,
+        parts: expect.arrayContaining([expect.objectContaining({type: 'tool-call', name: 'execute_typescript'})]),
+      }),
+    )
+    expect(replies).toHaveLength(2)
+    expect(replies.at(-1)?.parts).toEqual(
+      expect.arrayContaining([expect.objectContaining({type: 'text', content: 'The release notes are out'})]),
     )
   })
 

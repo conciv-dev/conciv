@@ -58,15 +58,6 @@ function grabNote(id: GrabId, grab: StoredGrab): ComposerNote {
   }
 }
 
-export function readGrab(
-  session: MountedSession | undefined,
-  id: GrabId,
-  signal: AbortSignal | undefined,
-): Promise<StoredGrab | null> {
-  if (session === undefined) return Promise.resolve(null)
-  return session.server.client.rpc(Definition)['grabs.get']({id}, signal ? {signal} : undefined)
-}
-
 export function makeGrabNotePicker(native: NativePicker, deps: Deps): GrabPicker {
   const pickAsNote = async (mode: GrabMode): Promise<Grab | null> => {
     const grab = await native.pick(mode)

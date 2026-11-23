@@ -102,7 +102,7 @@ export type HarnessChatDeps = {
   model?: string
   effort?: ReasoningEffort
   env: Record<string, string | undefined>
-  kind: 'chat' | 'compact' | 'page-queue'
+  kind: 'chat' | 'compact'
 }
 
 export type HarnessChatConfig = {
@@ -192,7 +192,7 @@ const stream = chat({
       provides: [ToolBridgeProvisionerCapability],
       setup: (ctx) => provideToolBridgeProvisioner(ctx, askingToolProvisioner(config.askPermission)),
     }),
-    withPersistence(persistence, {snapshotStreaming: true}),
+    withPersistence(persistence),
     withLocks(locks),
     defineChatMiddleware({
       name: 'conciv-thread-view',

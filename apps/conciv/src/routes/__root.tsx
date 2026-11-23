@@ -3,7 +3,9 @@ import {
   createRootRouteWithContext,
   retainSearchParams,
   stripSearchParams,
+  useLocation,
   useMatchRoute,
+  useRouterState,
   getRouteApi,
   useRouter,
   type AnyRouter,
@@ -60,6 +62,7 @@ import {applySchemeClass, applySkinClass, createHostTheme, themeClasses} from '.
 import {createPreferences} from '../settings/create-preferences.js'
 import {DialogProvider} from '../runtime/plugin/dialog-stack.js'
 import {PluginAttachment, PluginRoot} from '../runtime/plugin/root.js'
+import type {Widget} from '@conciv/plugin/experimental'
 import {usePluginAttachment} from '../runtime/plugin/attachment.js'
 import type {ServerBinding} from '../runtime/plugin/servers.js'
 import {PluginOverlay, PluginPanelKeys} from '../shell/plugin-surfaces.js'
@@ -223,6 +226,10 @@ function AppRoot() {
   )
 }
 
+function bindWidgetControls(widget: Widget): void {
+  onCleanup(usePluginAttachment().bindWidget(widget))
+}
+
 function RootChrome(props: {
   fab: ReturnType<typeof createDraggablePosition>
   activeSession: () => string | null
@@ -241,14 +248,24 @@ function RootChrome(props: {
   const preferences = usePreferences()
   const router = useRouter()
   const matchRoute = useMatchRoute()
-  const panelMatch = matchRoute({to: '/panel/$sessionId', fuzzy: true})
-  const settingsMatch = matchRoute({to: '/panel/$sessionId/settings', fuzzy: true})
-  const connectMatch = matchRoute({to: '/panel/connect'})
-  const quickMatch = matchRoute({to: '/quick'})
-  const closedMatch = matchRoute({to: '/'})
-  const rootSearch = Route.useSearch()
+  const routerPending = useRouterState({select: (state) => state.status === 'pending'})
+  const latest =
+    <T,>(pending: () => T, settled: () => T) =>
+    (): T =>
+      routerPending() ? pending() : settled()
+  const panelMatch = latest(
+    matchRoute({to: '/panel/$sessionId', fuzzy: true, pending: true}),
+    matchRoute({to: '/panel/$sessionId', fuzzy: true}),
+  )
+  const settingsMatch = latest(
+    matchRoute({to: '/panel/$sessionId/settings', fuzzy: true, pending: true}),
+    matchRoute({to: '/panel/$sessionId/settings', fuzzy: true}),
+  )
+  const connectMatch = latest(matchRoute({to: '/panel/connect', pending: true}), matchRoute({to: '/panel/connect'}))
+  const quickMatch = latest(matchRoute({to: '/quick', pending: true}), matchRoute({to: '/quick'}))
+  const closedMatch = latest(matchRoute({to: '/', pending: true}), matchRoute({to: '/'}))
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
-  const shutterOpen = () => rootSearch().open === true
+  const shutterOpen = useLocation({select: (location) => location.search.open === true})
   const locked = () => login !== undefined && engineLocked(login.status())
   const awaitingLogin = () => login !== undefined && !engineConnected(login.status())
   const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
@@ -331,7 +348,7 @@ function RootChrome(props: {
     })
   }
   const togglePanel = () => (panelOpen() ? closePanel() : showPanel())
-  onCleanup(usePluginAttachment().bindWidget({open: showPanel, close: () => closePanel(), isOpen: panelOpen}))
+  bindWidgetControls({open: showPanel, close: closePanel, isOpen: panelOpen})
   const openStoredOnLoad = createReaction(() => {
     if (!settings.fromHost.defaultOpen && preferences.openOnLoad() && closedMatch()) showPanel()
   })
@@ -384,7 +401,7 @@ function RootChrome(props: {
         showPanel()
       }),
       panelCommands.on('close', () => {
-        if (panelOpen()) closePanel()
+        if (panelOpen() || (closedMatch() && shutterOpen())) closePanel()
       }),
       panelCommands.on('toggle', () => {
         if (!revealDock()) return togglePanel()

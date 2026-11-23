@@ -447,6 +447,7 @@
     "@conciv/grab",
     "@conciv/mascot",
     "@conciv/plugin-ios",
+    "@conciv/plugin-page",
     "@conciv/plugin-try-it",
     "@conciv/skills",
     "@conciv/solid-diffs",

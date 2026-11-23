@@ -204,7 +204,7 @@ type McpDeps = {
   ) => Promise<CodeRunner | null>
   hubCall: (sessionId: SessionId, callId: string) => void
   hubReplied: (sessionId: SessionId, callIds: ReadonlySet<string>) => Promise<void>
-  finishedQueues: (sessionId: SessionId, hub: boolean) => Promise<PageQueueResult[]>
+  finishedQueues: (sessionId: SessionId) => Promise<PageQueueResult[]>
   startedQueues: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => Promise<PageQueueHandle[]>
   outsideCapabilities: (sessionId: SessionId) => Promise<CodeCapability[]>
   driving: ChatPlane['driving']
@@ -292,7 +292,7 @@ export async function openCodeSession(
     signal: caller.signal,
   }
   const finished = async (): Promise<PageQueueResult[]> =>
-    caller.signal.aborted ? [] : deps.finishedQueues(scope.id, hub)
+    caller.signal.aborted || !hub ? [] : deps.finishedQueues(scope.id)
   const hubRequest = async <Value>(work: () => Promise<Value>): Promise<Value> => {
     if (!hub) return work()
     deps.hubCall(scope.id, caller.trace.callId)
