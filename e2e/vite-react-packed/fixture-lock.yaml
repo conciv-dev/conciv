@@ -20,7 +20,6 @@ overrides:
   '@conciv/mascot': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-mascot-0.0.22.tgz
   '@conciv/plugin': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-plugin-0.0.22.tgz
   '@conciv/plugin-host': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-plugin-host-0.0.22.tgz
-  '@conciv/plugin-ios': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-plugin-ios-0.0.22.tgz
   '@conciv/plugin-page': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-plugin-page-0.0.22.tgz
   '@conciv/protocol': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-protocol-0.0.22.tgz
   '@conciv/serve': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-serve-0.0.22.tgz
@@ -304,13 +303,6 @@ packages:
     resolution: {tarball: file:../tarballs/conciv-plugin-host-0.0.22.tgz}
     version: 0.0.22
     engines: {node: '>=26.0.0'}
-
-  '@conciv/plugin-ios@file:../tarballs/conciv-plugin-ios-0.0.22.tgz':
-    resolution: {tarball: file:../tarballs/conciv-plugin-ios-0.0.22.tgz}
-    version: 0.0.22
-    peerDependencies:
-      '@conciv/plugin': ^0.0.22
-      solid-js: ^1.9.13
 
   '@conciv/plugin-page@file:../tarballs/conciv-plugin-page-0.0.22.tgz':
     resolution: {tarball: file:../tarballs/conciv-plugin-page-0.0.22.tgz}
@@ -5063,7 +5055,6 @@ snapshots:
       '@conciv/grab': file:../tarballs/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.9.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/mascot': file:../tarballs/conciv-mascot-0.0.22.tgz(solid-js@1.9.18)
       '@conciv/plugin': file:../tarballs/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.9.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/plugin-ios': file:../tarballs/conciv-plugin-ios-0.0.22.tgz(@conciv/plugin@file:../tarballs/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.9.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1)))(@opentelemetry/api@1.9.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/plugin-page': file:../tarballs/conciv-plugin-page-0.0.22.tgz(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.9.1)(@shikijs/themes@4.6.0)(crossws@0.4.17(srvx@1.0.8))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
       '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(solid-js@1.9.18)
       '@conciv/solid-diffs': file:../tarballs/conciv-solid-diffs-0.0.22.tgz(@shikijs/themes@4.6.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)
@@ -5076,9 +5067,7 @@ snapshots:
       '@conciv/ui-kit-terminal': file:../tarballs/conciv-ui-kit-terminal-0.0.22.tgz(@opentelemetry/api@1.9.1)(solid-js@1.9.18)
       '@solid-primitives/event-listener': 2.4.6(solid-js@1.9.18)
       '@tanstack/solid-router': 1.170.43(solid-js@1.9.18)
-      bippy: 0.6.1(react@19.3.1)
       effect: 4.1.0
-      react-grab: 0.2.0(react@19.3.1)
       solid-js: 1.9.18
     transitivePeerDependencies:
       - '@aws-sdk/client-rds-data'
@@ -5488,20 +5477,6 @@ snapshots:
       - typebox
       - utf-8-validate
       - valibot
-      - vite
-      - vite-plugin-solid
-
-  '@conciv/plugin-ios@file:../tarballs/conciv-plugin-ios-0.0.22.tgz(@conciv/plugin@file:../tarballs/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.9.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1)))(@opentelemetry/api@1.9.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
-    dependencies:
-      '@conciv/grab': file:../tarballs/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.9.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/plugin': file:../tarballs/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.9.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.9.1)(solid-js@1.9.18)
-      effect: 4.1.0
-      es-toolkit: 1.53.2
-      solid-js: 1.9.18
-      zod: 4.6.7
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
       - vite
       - vite-plugin-solid
 
