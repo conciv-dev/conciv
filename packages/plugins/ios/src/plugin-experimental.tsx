@@ -2,15 +2,17 @@ import {Show, onCleanup, type JSX} from 'solid-js'
 import {createTanstackQueryUtils, useQuery} from '@conciv/client'
 import {createStore, reconcile} from 'solid-js/store'
 import {Context, Effect, FiberSet, Layer, ManagedRuntime, Queue, Stream, SubscriptionRef} from 'effect'
-import {NoteCard, Plugin, Slot, type NoteCardProps, type Ui} from '@conciv/plugin/experimental'
-import {GrabPicker} from '@conciv/plugin/experimental/grab'
 import {
-  createEventBusClient,
-  PANEL_PLUGIN_ID,
-  type EventBusClient,
-  type PanelCommandEventMap,
-} from '@conciv/protocol/event-bus'
-import type {ElementRect, Grab} from '@conciv/grab'
+  NoteCard,
+  Plugin,
+  Slot,
+  type NoteCardProps,
+  type Router,
+  type Ui,
+  type Widget,
+} from '@conciv/plugin/experimental'
+import {GrabPicker} from '@conciv/plugin/experimental/grab'
+import type {ElementRect, Grab} from '@conciv/plugin/experimental/grab'
 import {IosBridge} from './bridge.js'
 import {IosBridgeMachine} from './bridge-machine.js'
 import {Definition, GRAB_NOTE_ORIGIN, readGrabId, type GrabId, type GrabMode} from './rpc.js'
@@ -27,7 +29,7 @@ type NativeApi = {
   grabCapability: NativeCall
 }
 
-type PanelToggledDetail = {open?: boolean; connected?: boolean; mascotRect?: ElementRect | null}
+type PanelToggledDetail = {connected?: boolean; mascotRect?: ElementRect | null}
 
 type NativeHandler = {postMessage: (message: unknown) => void}
 
@@ -45,7 +47,7 @@ type Incompatible = {nativeMinV: number; nativeMaxV: number}
 
 type NativeView = {incompatible: Incompatible | null; grabbable: boolean; picking: boolean}
 
-type PanelCommands = EventBusClient<PanelCommandEventMap>
+type Panel = {readonly widget: Widget; readonly router: Router}
 
 export type NativeLink = {
   readonly view: NativeView
@@ -88,27 +90,23 @@ const installTransport = Effect.acquireRelease(
   () => Effect.sync(() => Reflect.deleteProperty(window, '__concivNative')),
 )
 
-const openPanelCommands = Effect.acquireRelease(
-  Effect.sync(() =>
-    createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID, reconnectEveryMs: 500, maxRetries: 60}),
-  ),
-  (commands) => Effect.sync(() => commands.dispose()),
-)
-
 const listenPanelToggled = (listener: (event: WindowEventMap['conciv:panel-toggled']) => void) =>
   Effect.acquireRelease(
     Effect.sync(() => window.addEventListener('conciv:panel-toggled', listener)),
     () => Effect.sync(() => window.removeEventListener('conciv:panel-toggled', listener)),
   )
 
-function followSignal(commands: PanelCommands, signal: IosBridgeMachine.NativeSignal): void {
-  if (signal.type === 'open') return commands.emit('open', undefined)
-  if (signal.type === 'close') return commands.emit('close', undefined)
+function panelOpen(router: Router): boolean {
+  return router.path().startsWith('/panel')
+}
+
+function followSignal(widget: Widget, signal: IosBridgeMachine.NativeSignal): void {
+  if (signal.type === 'open') return widget.open()
+  if (signal.type === 'close') return widget.close()
   window.dispatchEvent(new CustomEvent('conciv:rebind', {detail: {apiBase: signal.apiBase}}))
 }
 
-const startNativeLink = Effect.fn('ios.native.start')(function* () {
-  const commands = yield* openPanelCommands
+const startNativeLink = Effect.fn('ios.native.start')(function* (panel: Panel) {
   const transport = yield* installTransport
   const client = yield* IosBridge.makeNativeClient({
     transport,
@@ -136,14 +134,14 @@ const startNativeLink = Effect.fn('ios.native.start')(function* () {
   )
   yield* FiberSet.run(
     followers,
-    Stream.runForEach(client.signals, (signal) => Effect.sync(() => followSignal(commands, signal))),
+    Stream.runForEach(client.signals, (signal) => Effect.sync(() => followSignal(panel.widget, signal))),
   )
   yield* listenPanelToggled((event) => {
     const detail = event.detail
     if (!detail) return
     run(
       client.panelToggled({
-        open: detail.open === true,
+        open: panelOpen(panel.router),
         connected: detail.connected === true,
         mascotRect: detail.mascotRect ?? null,
       }),
@@ -151,15 +149,13 @@ const startNativeLink = Effect.fn('ios.native.start')(function* () {
   })
 
   const reopenUnlessPicking = SubscriptionRef.get(client.state).pipe(
-    Effect.flatMap((state) =>
-      state.pick.status === 'picking' ? Effect.void : Effect.sync(() => commands.emit('open', undefined)),
-    ),
+    Effect.flatMap((state) => (state.pick.status === 'picking' ? Effect.void : Effect.sync(() => panel.widget.open()))),
   )
   const link: NativeLink = {
     view,
     pick: (mode) =>
       runPromise(
-        Effect.sync(() => commands.emit('close', undefined)).pipe(
+        Effect.sync(() => panel.widget.close()).pipe(
           Effect.andThen(client.pick(mode)),
           Effect.ensuring(reopenUnlessPicking),
         ),
@@ -236,7 +232,9 @@ const ios = Plugin.define({
   setup(ctx) {
     ctx.add(NoteCard, {origins: [GRAB_NOTE_ORIGIN], render: (props) => <GrabNoteCard {...props} ui={ctx.ui} />})
     if (window.webkit?.messageHandlers?.concivBridge === undefined) return
-    const runtime = ManagedRuntime.make(Layer.effect(NativeLinkService, startNativeLink()))
+    const runtime = ManagedRuntime.make(
+      Layer.effect(NativeLinkService, startNativeLink({widget: ctx.widget, router: ctx.router})),
+    )
     onCleanup(() => void runtime.dispose())
     const link = runtime.runSync(Effect.service(NativeLinkService))
 

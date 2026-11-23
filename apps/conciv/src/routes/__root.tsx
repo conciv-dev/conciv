@@ -60,6 +60,7 @@ import {applySchemeClass, applySkinClass, createHostTheme, themeClasses} from '.
 import {createPreferences} from '../settings/create-preferences.js'
 import {DialogProvider} from '../runtime/plugin/dialog-stack.js'
 import {PluginAttachment, PluginRoot} from '../runtime/plugin/root.js'
+import {usePluginAttachment} from '../runtime/plugin/attachment.js'
 import type {ServerBinding} from '../runtime/plugin/servers.js'
 import {PluginOverlay, PluginPanelKeys} from '../shell/plugin-surfaces.js'
 import '../styles.css'
@@ -330,6 +331,7 @@ function RootChrome(props: {
     })
   }
   const togglePanel = () => (panelOpen() ? closePanel() : showPanel())
+  onCleanup(usePluginAttachment().bindWidget({open: showPanel, close: () => closePanel()}))
   const openStoredOnLoad = createReaction(() => {
     if (!settings.fromHost.defaultOpen && preferences.openOnLoad() && closedMatch()) showPanel()
   })

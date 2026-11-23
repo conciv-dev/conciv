@@ -1,4 +1,4 @@
-import {sourceLabel, type Grab} from '@conciv/grab'
+import type {ElementSource, Grab} from '@conciv/plugin/experimental/grab'
 import type {ComposerNote, MountedSession, Screen} from '@conciv/plugin/experimental'
 import type {GrabPicker} from '@conciv/plugin/experimental/grab'
 import {Definition, GRAB_NOTE_ORIGIN, grabHref, StoredGrab, type GrabId, type GrabMode} from './rpc.js'
@@ -12,6 +12,19 @@ type NativePicker = {
 type Deps = {
   session: () => MountedSession | undefined
   screen: Screen
+}
+
+function whereLabel(source: ElementSource): string {
+  if (source.filePath === '') return ''
+  if (source.lineNumber === null) return source.filePath
+  return `${source.filePath}:${source.lineNumber}`
+}
+
+function sourceLabel(source: ElementSource): string {
+  const where = whereLabel(source)
+  if (!source.componentName) return where
+  if (where === '') return source.componentName
+  return `${source.componentName} at ${where}`
 }
 
 export function sourceLine(grab: StoredGrab): string {

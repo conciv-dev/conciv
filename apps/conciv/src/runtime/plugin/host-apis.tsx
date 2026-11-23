@@ -38,6 +38,7 @@ import type {
   StoreOptions,
   Tabs,
   ToastOptions,
+  Widget,
 } from '@conciv/plugin/experimental'
 import {Style} from '@conciv/plugin/experimental'
 import appManifest from '../../../package.json' with {type: 'json'}
@@ -89,6 +90,7 @@ type Attached = {
   mode: Accessor<'light' | 'dark'>
   routing: Accessor<boolean>
   path: Accessor<string>
+  widget: Accessor<Widget | undefined>
   servers: Accessor<readonly string[]>
   server: (id: string) => ServerRef | undefined
   directory: string
@@ -329,6 +331,10 @@ export function createHostApis() {
       routing: () => current()?.routing() ?? false,
       path: () => current()?.path() ?? '',
     }),
+    widget: () => ({
+      open: () => write((value) => value.widget()?.open()),
+      close: () => write((value) => value.widget()?.close()),
+    }),
     keybinds: () => ({
       keybind: () => [],
       keys: (bind) => (!bind || bind === 'none' ? [] : formatForDisplay(bind, {parts: true})),
@@ -461,6 +467,7 @@ export function createPluginAttachment(apis: HostApis) {
   const [routedView, setRoutedView] = createSignal<Accessor<MountedSession | undefined>>()
   const [composer, setComposer] = createSignal<ComposerBinder>()
   const [grab, setGrab] = createSignal<PaneGrab>()
+  const [widget, setWidget] = createSignal<Widget>()
   const refs = new Map<string, SessionRef>()
 
   const project = useQuery(() => ({...appData.utils.tabs.list.queryOptions(), enabled: connection()}))
@@ -601,6 +608,7 @@ export function createPluginAttachment(apis: HostApis) {
     mode: () => theme().scheme,
     screen,
     grab,
+    widget,
     draft,
     routing: useRouterState({select: (value) => value.status === 'pending'}),
     path: useLocation({select: (location) => `${location.pathname}${location.searchStr}`}),
@@ -689,6 +697,13 @@ export function createPluginAttachment(apis: HostApis) {
 
       return () => {
         if (grab() === value) setGrab(undefined)
+      }
+    },
+    bindWidget(value: Widget) {
+      setWidget(() => value)
+
+      return () => {
+        if (widget() === value) setWidget(undefined)
       }
     },
     region(value: Region) {

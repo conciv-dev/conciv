@@ -468,6 +468,28 @@ export interface Router {
   path(): string
 }
 
+export interface Widget {
+  /**
+   * Opens the widget's panel, as its launcher does: behind the login when the engine asks for one, on the routed or
+   * last session otherwise.
+   *
+   * @example
+   * ```ts
+   * ctx.widget.open()
+   * ```
+   */
+  open(): void
+  /**
+   * Closes the widget's panel, as its launcher does, and gives focus back to where it was. A docked widget stays open.
+   *
+   * @example
+   * ```ts
+   * ctx.widget.close()
+   * ```
+   */
+  close(): void
+}
+
 export interface Keybinds {
   /**
    * Display parts of a published command's effective keybind, e.g. ["Ctrl", "K"]. Empty when unbound. Reactive.
