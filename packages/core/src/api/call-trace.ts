@@ -1,6 +1,10 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import {generateMessageId, type OutsideCallMetadataSchema} from '@conciv/protocol/chat-message-types'
+import {
+  generateMessageId,
+  outsideCallMessageId,
+  type OutsideCallMetadataSchema,
+} from '@conciv/protocol/chat-message-types'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CONCIV_CLIENT_HEADER, CONCIV_NAMED_TAB_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
 import {safeStringify} from '@conciv/contract'
@@ -39,7 +43,14 @@ export function callTrace(header: (name: string) => string | null) {
       clock.startedAt = Date.now()
       return [
         ...(run.live ? [] : [runStarted(run.threadId, callId)]),
-        ...startChunks(callId, toolName, input, marker, clock.startedAt, run.live ? undefined : callMessageId(callId)),
+        ...startChunks(
+          callId,
+          toolName,
+          input,
+          marker,
+          clock.startedAt,
+          run.live ? undefined : outsideCallMessageId(callId),
+        ),
       ]
     },
     result: (run: CallRun, text: string, failed: boolean): ChatEvent[] => [
@@ -115,10 +126,6 @@ function runFinished(threadId: string, callId: string): ChatEvent {
 
 function mirrorRunId(callId: string): string {
   return `mirror-${callId}`
-}
-
-function callMessageId(callId: string): string {
-  return `call-${callId}`
 }
 
 function startChunks(
