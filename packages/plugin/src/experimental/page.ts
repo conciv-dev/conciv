@@ -30,7 +30,7 @@ export interface Page {
   pick(): Promise<Grab | null>
 }
 
-export const Page = Contract.define<Page, 'page'>('page')
+export const Page = Contract.define<Page, 'conciv.page'>('conciv.page')
 
 export interface PageOperation {
   readonly name: string
@@ -67,4 +67,4 @@ export interface ReactTree {
   frames(element: Element): Promise<readonly RawFrame[]>
 }
 
-export const ReactTree = Contract.define<ReactTree, 'page.react'>('page.react')
+export const ReactTree = Contract.define<ReactTree, 'conciv.page.react'>('conciv.page.react')

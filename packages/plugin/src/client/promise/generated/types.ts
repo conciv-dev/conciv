@@ -264,6 +264,7 @@ export interface PluginInfo {
   readonly source: PluginSource
   readonly features: PluginFeatures
   readonly state: PluginState
+  readonly options?: Readonly<Record<string, unknown>>
 }
 
 export interface PermissionRequest {

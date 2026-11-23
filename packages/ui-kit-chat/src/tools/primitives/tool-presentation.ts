@@ -75,11 +75,3 @@ export function clip(value: string, max = 64): string {
 export function cardPhase(status: ToolStatus): CardPhase {
   return status === 'running' || status === 'approval' ? 'running' : 'done'
 }
-
-export function cardTitle(
-  meta: {label?: {running: string; done: string}; summary?: string} | undefined,
-  phase: CardPhase,
-  fallbackName: string,
-): string {
-  return meta?.label?.[phase] || meta?.summary || fallbackName
-}

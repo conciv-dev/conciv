@@ -20,7 +20,6 @@ export type MountOptions = {
   history?: RouterHistory | EngineRouterHistory
   host?: ConcivSettingsInit
   login?: 'none'
-  timings?: {page?: {taskTimeoutMs?: number}}
 }
 
 const TIMINGS: NonNullable<Platform['timings']> = {
@@ -129,7 +128,7 @@ async function mountApp(options: MountOptions): Promise<void> {
     plugins,
     root: document,
     settings: options.host,
-    timings: {...TIMINGS, ...options.timings},
+    timings: TIMINGS,
     draftStore: () => memoryDraftStore(),
     onInteractive: () => interactive.resolve(),
   }

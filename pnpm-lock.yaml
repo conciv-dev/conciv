@@ -741,9 +741,6 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../../packages/plugin
-      '@conciv/plugin-tanstack':
-        specifier: workspace:^
-        version: link:../../packages/plugins/tanstack
       '@conciv/plugin-terminal':
         specifier: workspace:*
         version: link:../../packages/plugins/terminal

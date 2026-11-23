@@ -313,7 +313,7 @@ function AssistantTurn(props: {
     const summary = () => summaryLine(segmentRollup()) || REASONING_LABEL
     const compactLine = () => {
       const call = segmentActive() ? activeCall() : null
-      return call ? nowTitle(call, ctx.catalog) : summary()
+      return call ? nowTitle(call) : summary()
     }
     return (
       <Show when={segmentRollup().toolCalls > 0 || reasoned()}>

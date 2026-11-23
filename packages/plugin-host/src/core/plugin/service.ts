@@ -23,6 +23,7 @@ export type Generation = PluginDefinition<Services, TaggedError> & {
   readonly revision: string
   readonly source?: Plugin.Source
   readonly features?: Plugin.Features
+  readonly options?: typeof Plugin.Options.Type
   readonly experimental?: Omit<Plugin.ExperimentalBundle, 'chunks' | 'file'> & {
     readonly file: string
     readonly chunks: Chunks

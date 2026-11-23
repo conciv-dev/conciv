@@ -77,7 +77,7 @@ describe('the agent reads the page in code mode', () => {
 
 describe('the page never answers what the agent asked', () => {
   it('a queued action the page does not confirm in time comes back lost, as it may already have run', async () => {
-    const engine = await createEngine({}, {timeouts: {queuedActionTimeoutMs: 1}})
+    const engine = await createEngine({plugins: [['conciv.page', {queuedActionTimeoutMs: 1}]]})
     const connectionId = 'checkout'
     const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
     const attachment = engine.rpc
@@ -125,7 +125,7 @@ describe('the page never answers what the agent asked', () => {
   })
 
   it('a page call that outlasts the reply window comes back as a timeout', async () => {
-    const engine = await createEngine({}, {timeouts: {pageReplyTimeoutMs: 1}})
+    const engine = await createEngine({plugins: [['conciv.page', {pageReplyTimeoutMs: 1}]]})
     const connectionId = 'checkout'
     const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
     const attachment = engine.rpc

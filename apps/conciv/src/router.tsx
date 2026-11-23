@@ -57,7 +57,6 @@ export type ConcivTimings = {
   engine?: Partial<EngineConnectionTimings>
   chatRunReconnect?: ChatConnectionOptions['runReconnect']
   queryRetryDelayMs?: number
-  page?: {taskTimeoutMs?: number}
   picker?: {searchWaitMs?: number; previewWaitMs?: number}
 }
 

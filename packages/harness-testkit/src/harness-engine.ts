@@ -45,8 +45,6 @@ export type EngineStart = {
       | 'uiAnswerWaitMs'
       | 'eventHeartbeatIntervalMs'
       | 'stopGraceMs'
-      | 'pageReplyTimeoutMs'
-      | 'queuedActionTimeoutMs'
     >
   >
   harnesses?: ScriptedHarness[]

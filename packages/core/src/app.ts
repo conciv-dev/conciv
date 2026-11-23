@@ -54,7 +54,7 @@ import {
   type SessionPort,
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
-import {differenceBy, isNotNil, memoize, pickBy} from 'es-toolkit'
+import {differenceBy, memoize} from 'es-toolkit'
 import {
   Cause,
   Config,
@@ -237,10 +237,6 @@ export type MakeAppOpts = {
   eventHeartbeatIntervalMs?: number
 
   stopGraceMs?: number
-
-  pageReplyTimeoutMs?: number
-
-  queuedActionTimeoutMs?: number
 
   nativePageDir?: string
 
@@ -686,22 +682,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       engineId,
       config: opts.cfg,
       plugins: opts.plugins ?? [],
-      post: [
-        {
-          ...concivPage,
-          effect: (context) =>
-            concivPage.effect({
-              ...context,
-              options: pickBy(
-                {
-                  pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
-                  queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
-                },
-                isNotNil,
-              ),
-            }),
-        },
-      ],
+      post: [concivPage],
       harness,
       signal: engineLife.signal,
       bundler: opts.bridge,

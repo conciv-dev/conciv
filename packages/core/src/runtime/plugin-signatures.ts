@@ -5,7 +5,7 @@ import type {ToolCommandSignature} from '@conciv/contract'
 import {Agent, Permission, Plugin, SessionSchema, Tool, ToolRuntime} from '@conciv/plugin-host'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {currentToolDomain} from './permission-cards.js'
-import {CLI_HIDDEN_FIELDS, CliTools, Operations, PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
+import {CLI_HIDDEN_FIELDS, Operations, PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
 
 const ObjectSchema = z.looseObject({
   properties: z.record(z.string(), z.unknown()).optional(),
@@ -17,7 +17,7 @@ const pageOperations = keyBy(Operations, (operation) =>
 )
 
 export function isPageTool(name: string): boolean {
-  return CliTools[pageOperations[name]?.name ?? '']?.terminal === true
+  return pageOperations[name] !== undefined
 }
 
 function cliInput(schema: unknown) {
@@ -39,52 +39,27 @@ function stringPositional(input: ReturnType<typeof cliInput>): string | undefine
 
 function signature(
   tool: Parameters<typeof ToolRuntime.definition>[0] & {readonly id: string; readonly pluginId?: string},
-): ToolCommandSignature[] {
+): ToolCommandSignature {
   const definition = ToolRuntime.definition(tool)
-  const operation = pageOperations[tool.id]
-  const entry = operation === undefined ? undefined : CliTools[operation.name]
-  if (operation === undefined || entry === undefined) {
-    const inputSchema = cliInput(definition.inputSchema)
-    return [
-      {
-        name: tool.id,
-        path: [tool.id],
-        binding: 'server',
-        summary: tool.description,
-        category: tool.pluginId,
-        positional: stringPositional(inputSchema),
-        mutating: false,
-        reachable: true,
-        inputSchema,
-        outputSchema: definition.outputSchema,
-        errors: [],
-      },
-    ]
+  const inputSchema = cliInput(definition.inputSchema)
+  return {
+    name: tool.id,
+    path: [tool.id],
+    binding: 'server',
+    summary: tool.description,
+    category: tool.pluginId,
+    positional: stringPositional(inputSchema),
+    mutating: false,
+    reachable: true,
+    inputSchema,
+    outputSchema: definition.outputSchema,
+    errors: [],
   }
-  if (!entry.terminal) return []
-  return [
-    {
-      name: tool.id,
-      path: [tool.id],
-      binding: 'client',
-      summary: tool.description,
-      category: entry.category,
-      positional: entry.positional,
-      icon: entry.view.icon,
-      label: entry.view.label,
-      mutating: operation.mutating,
-      reachable: true,
-      approval: entry.asks === undefined ? undefined : 'ask',
-      inputSchema: cliInput(definition.inputSchema),
-      outputSchema: definition.outputSchema,
-      errors: [],
-    },
-  ]
 }
 
 export const pluginSignatures = Plugin.awaitActivation.pipe(
   Effect.andThen(Tool.Service.use((tools) => tools.list())),
-  Effect.map((tools) => tools.flatMap(signature)),
+  Effect.map((tools) => tools.map(signature)),
 )
 
 export function pluginSignature(name: string) {

@@ -1,6 +1,5 @@
 import type {Component} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from './chat-message-types.js'
-import type {ToolIconKey, ToolLabel} from './tool-icon-types.js'
 import type {PermissionReply} from './chat-types.js'
 import type {UiAnswerValue} from './ui-types.js'
 
@@ -11,8 +10,6 @@ export type ToolViewMeta = {
   category?: string
   hint?: string
   positional?: string
-  icon?: ToolIconKey
-  label?: ToolLabel
   mutating: boolean
   approval?: 'ask'
   inputSchema?: unknown
