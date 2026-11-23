@@ -64,7 +64,7 @@ describe('claude', () => {
 })
 
 describe('the claude login check', () => {
-  it('runs the claude on PATH, answers a check from the held login at once even while its CLI hangs, and a re-check started by a logged-out check or a refresh replaces the held answer', async () => {
+  it('answers not installed with no probe for a PATH with no claude, runs the claude on PATH, answers a check from the held login at once even while its CLI hangs, and a re-check started by a logged-out check or a refresh replaces the held answer', async () => {
     const signal = new AbortController().signal
     const notLoggedIn = {
       loggedIn: false,
@@ -72,6 +72,16 @@ describe('the claude login check', () => {
     }
     const claudeOnPath = recordedClaudeOnPath()
     const configDir = tempDir('claude-config-')
+    const notInstalled = {
+      loggedIn: false,
+      message: 'Claude Code is not installed. Install it, then run `claude auth login`.',
+    }
+    const missing = claude(ConfigProvider.fromEnvRecord({PATH: tempDir('no-claude-'), CLAUDE_CONFIG_DIR: configDir}))
+    expect(await missing.login({signal})).toEqual(notInstalled)
+    expect(await missing.login({signal, refresh: true})).toEqual(notInstalled)
+    await expect(missing.models()).rejects.toThrow(notInstalled.message)
+    expect(claudeOnPath.started()).toBe(false)
+
     expect(
       await claude(ConfigProvider.fromEnvRecord({PATH: claudeOnPath.path, CLAUDE_CONFIG_DIR: configDir})).login({
         signal,

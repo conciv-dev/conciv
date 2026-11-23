@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
-import {accessSync, constants, existsSync, readFileSync} from 'node:fs'
-import {delimiter, join} from 'node:path'
+import {existsSync, readFileSync} from 'node:fs'
+import {join} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
 import {Hono, type MiddlewareHandler} from 'hono'
 import {z} from 'zod'
@@ -21,7 +21,7 @@ import type {
 } from '@conciv/protocol/harness-types'
 import {assertToolName, toolError} from '@conciv/protocol/tool-call-types'
 import type {ResolvedConcivConfig} from './config.js'
-import {harnessRegistry, type HarnessRegistry, transcriptPathWithin} from '@conciv/harness'
+import {harnessRegistry, type HarnessRegistry, onPath, transcriptPathWithin} from '@conciv/harness'
 import {requireHarness} from './lib/require-harness.js'
 import {defaultConfigProvider} from './lib/default-config-provider.js'
 import {createSessionSearch} from './sessions/session-search.js'
@@ -270,15 +270,6 @@ export type MakeAppOpts = {
   observability?: EngineObservability
 }
 
-function executable(file: string): boolean {
-  try {
-    accessSync(file, constants.X_OK)
-    return true
-  } catch {
-    return false
-  }
-}
-
 const PathConfig = Config.String('PATH').pipe(Config.withDefault(''))
 
 const readAppEnv = Effect.fn('core.app.readEnv')(function* (homeDir: string | undefined, log: Log) {
@@ -286,11 +277,6 @@ const readAppEnv = Effect.fn('core.app.readEnv')(function* (homeDir: string | un
   const env = yield* readProcessEnv
   return {home, path: yield* PathConfig, env, hub: yield* makeHubInstaller(home, env, log)}
 })
-
-function onPath(path: string, bin: string): boolean {
-  const directories = path.split(delimiter).filter((entry) => entry.length > 0)
-  return directories.some((directory) => executable(join(directory, bin)))
-}
 
 function detectedHarnesses(registry: HarnessRegistry, path: string): HarnessAdapter[] {
   return registry.list().filter((adapter) => onPath(path, adapter.binName))

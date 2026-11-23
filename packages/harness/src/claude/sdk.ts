@@ -9,6 +9,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import type {HarnessLoginStatus} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessCommandsContext, HarnessModel} from '@conciv/protocol/harness-types'
+import {onPath} from '../_shared/on-path.js'
 import {CLAUDE_BIN, mcpServerConfig} from './args.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 
@@ -58,7 +59,14 @@ export function __commandsCacheSet(cwd: string, commands: HarnessCommand[]): voi
 
 const PROBE_START_TIMEOUT_MS = 30_000
 
-async function probe(options: Options): Promise<SDKControlInitializeResponse> {
+const NOT_INSTALLED = 'Claude Code is not installed. Install it, then run `claude auth login`.'
+
+function claudeInstalled(env: ClaudeProbeEnv): boolean {
+  return onPath(env.PATH ?? '', CLAUDE_BIN)
+}
+
+async function probe(options: Options & {env: ClaudeProbeEnv}): Promise<SDKControlInitializeResponse> {
+  if (!claudeInstalled(options.env)) throw new Error(NOT_INSTALLED)
   const {query} = await loadClaudeAgentSdk()
   const input = makeInputQueue()
   const abortController = followSignal(AbortSignal.timeout(PROBE_START_TIMEOUT_MS))
@@ -77,7 +85,7 @@ async function probe(options: Options): Promise<SDKControlInitializeResponse> {
 export type ClaudeProbeEnv = Record<string, string | undefined>
 
 async function probeCommands(ctx: HarnessCommandsContext, env: ClaudeProbeEnv): Promise<SlashCommand[]> {
-  const options: Options = {cwd: ctx.cwd, env, permissionMode: 'acceptEdits'}
+  const options: Options & {env: ClaudeProbeEnv} = {cwd: ctx.cwd, env, permissionMode: 'acceptEdits'}
   if (ctx.mcpUrl) options.mcpServers = mcpServerConfig(ctx.mcpUrl, ctx.sessionId)
   if (CONCIV_PLUGIN_DIR) options.plugins = [{type: 'local', path: CONCIV_PLUGIN_DIR}]
   const init = await probe(options)
@@ -200,6 +208,7 @@ export async function claudeSdkLogin({
   refresh,
   ...context
 }: ProbeContext & {refresh: boolean}): Promise<HarnessLoginStatus> {
+  if (!claudeInstalled(context.env)) return {loggedIn: false, message: NOT_INSTALLED}
   const current = probeState.current
   if (current.type !== 'held') return readLogin(await probed(context))
   const login = readLogin(current.init)
