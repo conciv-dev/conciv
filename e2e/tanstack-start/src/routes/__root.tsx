@@ -3,6 +3,7 @@ import {TanStackRouterDevtoolsPanel} from '@tanstack/react-router-devtools'
 import {TanStackDevtools} from '@tanstack/react-devtools'
 import Footer from '../components/Footer'
 import Header from '../components/Header'
+import HydrationHold from '../components/HydrationHold'
 
 import appCss from '../styles.css?url'
 
@@ -29,10 +30,12 @@ export const Route = createRootRoute({
       },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): {hold?: true} => (search['hold'] === true ? {hold: true} : {}),
   shellComponent: RootDocument,
 })
 
 function RootDocument({children}: {children: React.ReactNode}) {
+  const {hold} = Route.useSearch()
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -40,6 +43,7 @@ function RootDocument({children}: {children: React.ReactNode}) {
         <HeadContent />
       </head>
       <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[rgba(79,184,178,0.24)]">
+        <HydrationHold holding={hold === true} />
         <Header />
         {children}
         <Footer />

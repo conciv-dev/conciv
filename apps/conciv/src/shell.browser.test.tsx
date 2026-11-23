@@ -37,6 +37,7 @@ describe('the panel size', () => {
     ])
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     await expect.element(panel).not.toBeVisible()
+    await expect.element(screen.getByRole('button', {name: 'Open conciv chat'})).toHaveFocus()
   })
 
   test('the panel opens at the height and width the user left it', async () => {

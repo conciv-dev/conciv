@@ -463,6 +463,14 @@ function interruptedResults(thread: readonly ModelMessage[]): ModelMessage[] {
   )
 }
 
+function lastToolResults(thread: ModelMessage[]): ModelMessage[] {
+  return thread.filter(
+    (message, index) =>
+      message.role !== 'tool' ||
+      thread.findLastIndex((later) => later.role === 'tool' && later.toolCallId === message.toolCallId) === index,
+  )
+}
+
 async function saveShown(
   messages: MessageStore,
   threadId: string,
@@ -470,9 +478,10 @@ async function saveShown(
   finish: (message: ModelMessage) => ModelMessage,
   unshown: readonly ModelMessage[],
   seal: (thread: ModelMessage[]) => ModelMessage[],
+  alreadySaved: (stored: readonly ModelMessage[]) => ReadonlySet<string> = storedToolCallIds,
 ): Promise<void> {
   const stored = await messages.loadThread(threadId)
-  const saved = storedToolCallIds(stored)
+  const saved = alreadySaved(stored)
   const shown = processor
     .getMessages()
     .filter((message) => message.role === 'assistant')
@@ -982,7 +991,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         processor,
         (message) => message,
         [],
-        (thread) => thread,
+        lastToolResults,
+        () => new Set<string>(),
       ),
     )
   }
