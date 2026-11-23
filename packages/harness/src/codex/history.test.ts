@@ -8,7 +8,7 @@ import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {codex} from './index.js'
 
 describe('history', () => {
-  it('a session in the CLI store lists for its project with its title and preview, archived ones left out, and opening it reads back the whole conversation, tool calls and results included, with its context size', async () => {
+  it('a session in the CLI store lists for its project with its title and preview, archived ones and one whose rollout lies outside the CLI home left out, and opening it reads back the whole conversation, tool calls and results included, with its context size', async () => {
     const home = tempDir('codex-home-')
     const project = realpathSync(tempDir('codex-project-'))
     const sessionId = HarnessSessionId.parse('thread-1')
@@ -48,6 +48,9 @@ describe('history', () => {
       0,
     )
     insert.run('thread-2', rollout, project, 'Old work', null, null, 'gpt-5.5', 0, 0, 0, 500, 900, 1)
+    const outsideRollout = join(tempDir('codex-elsewhere-'), 'rollout-2026-11-21T11-00-00-thread-3.jsonl')
+    writeFileSync(outsideRollout, `${lines.join('\n')}\n`)
+    insert.run('thread-3', outsideRollout, project, 'Planted', null, null, 'gpt-5.5', 0, 0, 0, 3000, 3000, 0)
     db.close()
     const history = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: home})).history
 
