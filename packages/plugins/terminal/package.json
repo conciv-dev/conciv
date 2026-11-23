@@ -41,6 +41,7 @@
   "devDependencies": {
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@solidjs/testing-library": "catalog:",

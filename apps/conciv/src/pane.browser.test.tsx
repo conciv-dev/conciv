@@ -159,7 +159,7 @@ describe('a message with no words', () => {
   test('a grabbed element sent alone reads as an attachment, and a note sent alone as a note', async () => {
     await page.viewport(1280, 800)
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
+    const engine = await createEngine({plugins: ['@conciv/plugin-page', './test/fixtures/plugins/review-notes']})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(TestLLM.text('That button buys the fern'), TestLLM.text('The header is sticky now'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -257,7 +257,7 @@ describe('stopping and sending again', () => {
 describe('a reply that reads the page before it answers', () => {
   test('the trace the user hid while the reply waited stays hidden when the answer arrives', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {typescriptCode: 'return await external_page_route({})'}),
@@ -489,7 +489,7 @@ describe('the agent asks for permission', () => {
 
   test('an ask that cannot be saved offers no Allow always', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived

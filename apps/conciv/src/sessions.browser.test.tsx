@@ -390,7 +390,7 @@ describe('the launcher while a run works', () => {
 describe('the launcher while a run waits', () => {
   test('the launcher tells the user a run waits for their Allow', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
         typescriptCode: "return await external_page_eval({code: 'return 1 + 1'})",

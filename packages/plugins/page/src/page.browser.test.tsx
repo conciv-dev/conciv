@@ -9,7 +9,7 @@ import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 describe('the agent acts on the page during a reply', () => {
   test('the agent clicks, restyles, hovers, presses, scrolls and edits the page in one card, and the screenshot reaches the agent as an image', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
@@ -131,7 +131,7 @@ describe('the agent acts on the page during a reply', () => {
 describe('the user stops the agent from the page', () => {
   test('two clicks on the page while the agent works stop the reply', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
@@ -170,7 +170,7 @@ describe('the user stops the agent from the page', () => {
 describe('the agent leaves the page alone for a while', () => {
   test("with a short page task timeout the agent's mask goes away on its own while the reply still waits", async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
@@ -208,7 +208,7 @@ describe('the agent leaves the page alone for a while', () => {
 describe('the agent fills in a form on the page', () => {
   test('the agent reads the controls, types, picks, ticks, fills a whole form and a note, and submits by selector and by ref, and the page captures it keeps hold no card number, password or tracker url', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
@@ -360,7 +360,7 @@ describe('the agent fills in a form on the page', () => {
 describe('the agent plays a list of actions on the page', () => {
   test('a played list answers each action in the reply, and a queued list answers at once and its result wakes the agent after the page plays it', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
@@ -413,7 +413,7 @@ describe('the element inspector', () => {
   test('the user holds Alt to inspect the page and Esc leaves it', async () => {
     await page.viewport(1280, 800)
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
@@ -440,7 +440,7 @@ describe('the element inspector', () => {
 
   test('the agent turns the highlight effect on and the inspector opens on the page', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
@@ -465,7 +465,7 @@ describe('the element inspector', () => {
 describe('the page follows the session the user switches to', () => {
   test('after a switch the page answers the session the user picked and the old one is told it is gone', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const alpha = await engine.newSession('Alpha')
     const bravo = await engine.newSession('Bravo')
     const control = await engine.event('rpc.experimental.page.control')
@@ -491,7 +491,7 @@ describe('the user grabs an element for the agent', () => {
   test('the picked element is staged in the composer, which takes focus, and is sent with the message to the agent', async () => {
     await page.viewport(1280, 800)
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(TestLLM.text('That button buys the fern'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -520,7 +520,7 @@ describe('the user grabs an element for the agent', () => {
 
 describe('the agent reads a page with shadow roots of its own', () => {
   test('the agent reads into the host shadow root and never into the widget overlay', async () => {
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
@@ -546,7 +546,7 @@ describe('the agent reads a page with shadow roots of its own', () => {
 
 describe('the agent reads the address of a tab with secrets in it', () => {
   test('the tab list names the focused tab and the route reads its address, both hiding the token in the query and in the hash', async () => {
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const address = new URL(location.href)
     history.replaceState(null, '', `${address.pathname}?plant=fern&token=abc123#jwt=xyz789`)
     const control = await engine.event('rpc.experimental.page.control')
@@ -574,7 +574,7 @@ describe('the agent reads the address of a tab with secrets in it', () => {
 
 describe('a plugin adds its own page operation', () => {
   test('the operation reads the page, and a name no plugin registered is refused', async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/basket-reader']})
+    const engine = await createEngine({plugins: ['@conciv/plugin-page', './test/fixtures/plugins/basket-reader']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
@@ -607,7 +607,7 @@ describe('a plugin adds its own page operation', () => {
 
 describe('the agent reads a page with an element named after a built-in', () => {
   test('the snapshot lists only the real controls', async () => {
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
@@ -627,7 +627,7 @@ describe('the agent reads a page with an element named after a built-in', () => 
 
 describe('the agent picks an element on a page with the widget open on it', () => {
   test('a selector that also matches the widget picks the host element only', async () => {
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
@@ -640,7 +640,7 @@ describe('the agent picks an element on a page with the widget open on it', () =
 
 describe('the agent reads host content', () => {
   test('exists, query, text and markup answer for the host section', async () => {
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
@@ -672,7 +672,7 @@ describe('the agent reads host content', () => {
 describe('the agent runs code on the page', () => {
   test('the eval does not run when the user denies it', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
@@ -692,7 +692,7 @@ describe('the agent runs code on the page', () => {
 describe('the agent reads the page during a reply', () => {
   test('the thread shows a card for the read and one for the read that failed', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
@@ -729,7 +729,7 @@ describe('the agent reads the page during a reply', () => {
 describe('the agent works on a page that is open', () => {
   test('with a page open the page tools and the page skill reach the agent and an outside agent finds them', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(TestLLM.text('This is the plant shop'))
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
@@ -748,7 +748,7 @@ describe('the agent works on a page that is open', () => {
   })
 
   test('the agent reads a plain attribute while a password and a one-time code stay masked in every read', async () => {
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
@@ -789,7 +789,7 @@ describe('the agent works on a page that is open', () => {
 
   test('the agent reads what the page logged and waits for a toast the user brings up', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
@@ -823,7 +823,7 @@ describe('the agent works on a page that is open', () => {
 
 describe('the agent drives a page effect', () => {
   test('the highlight effect is listed off, turns on, reports itself on, and turns off again', async () => {
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived

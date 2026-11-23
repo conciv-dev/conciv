@@ -98,9 +98,9 @@ attachment is closed, so they settle `disconnected before dispatch`). The source
 (opencode `plugin-browser/src/machine.ts` `failPending`), without a cancel. A closed tab gets no cancel: nothing is
 left to receive it.
 
-The engine starters (`unplugin` `core/boot.ts`, `try` `connect.ts`, `harness-testkit` `harness-engine.ts`) list the
-engine half as the last entry of the config's `plugins` (this package's folder, after the user's entries), so it
-activates last, as the source activates its browser plugin last (opencode `core/src/plugin/internal.ts:290-294`,
+The engine starters (`unplugin` `core/boot.ts` and `core/vite.ts`, `try` `connect.ts`) pass the engine half in core `start`'s
+`builtins`, which fill the host's post slot (`InstancePlugins.bound(plugins, {post: builtins})`), so it is known
+before the config's entries run (`-conciv.page` turns it off) and activates last, as the source activates its browser plugin last (opencode `core/src/plugin/internal.ts:290-294`,
 `supervisor.ts:146-147`): the half pushes its page rules and the `page_eval` ask onto every agent, so it runs after
 every project plugin that adds one. Core lists no plugin of its own.
 A tool call that arrives while its plugin restarts after a reload meets the restart window, as in opencode: work

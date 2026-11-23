@@ -14,6 +14,7 @@ import {z} from 'zod'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {harnessRegistry, type HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
+import type {Plugin as EffectPlugin} from '@conciv/plugin/effect/plugin'
 import type {EngineStaleness} from '@conciv/contract'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {logOnContext, logOnRuntime, type Log, type LogEntry, type LogOptions} from './lib/logging.js'
@@ -111,6 +112,7 @@ export type StartOpts = {
 
   harness?: HarnessAdapter
   plugins?: readonly Plugin.Plugin[]
+  builtins?: readonly EffectPlugin[]
   nativePageDir?: string
   devEndpointDir?: string
   homeDir?: string
@@ -361,6 +363,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     nativePageDir: opts.nativePageDir,
     boundOrigin,
     plugins: opts.plugins,
+    builtins: opts.builtins,
     harnesses: opts.harnesses,
     firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
     firstStartTimeoutMs: opts.firstStartTimeoutMs,

@@ -62,7 +62,7 @@ describe('the calm chat plane', () => {
   })
 
   test('a long thread at the virtualization boundary streams a run without dropped frames', async ({task}) => {
-    const engine = await createEngine({}, {tokensPerSecond: 20})
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']}, {tokensPerSecond: 20})
     await engine.reply(...Array.from({length: 5}, (_, index) => TestLLM.text(`seeded answer ${index}`)))
     for (const index of [0, 1, 2, 3, 4]) {
       await engine.session.send(`seeded exchange ${index}`)

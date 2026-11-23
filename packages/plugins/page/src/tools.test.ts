@@ -4,7 +4,7 @@ import {createEngine, TestLLM} from '@conciv/plugin-testkit'
 
 describe('with no page open, the agent is offered no page tools', () => {
   it('leaves the page tools and the page skill out of the request and out of reach of a call', async () => {
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     await engine.reply(TestLLM.text('Open the page first'))
     await engine.session.send('Click the checkout button')
 
@@ -28,7 +28,7 @@ describe('with no page open, the agent is offered no page tools', () => {
 
 describe('the agent reads the page in code mode', () => {
   it('gives the model the page instructions once a page attaches, and tells it the exported page result is untrusted page data', async () => {
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
     const connectionId = 'checkout'
     const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
     const attachment = engine.rpc
@@ -75,7 +75,7 @@ describe('the agent reads the page in code mode', () => {
 
 describe('the page never answers what the agent asked', () => {
   it('a queued action the page does not confirm in time comes back lost, as it may already have run', async () => {
-    const engine = await createEngine({}, {timeouts: {queuedActionTimeoutMs: 1}})
+    const engine = await createEngine({plugins: [['@conciv/plugin-page', {queuedActionTimeoutMs: 1}]]})
     const connectionId = 'checkout'
     const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
     const attachment = engine.rpc
@@ -123,7 +123,7 @@ describe('the page never answers what the agent asked', () => {
   })
 
   it('a page call that outlasts the reply window comes back as a timeout', async () => {
-    const engine = await createEngine({}, {timeouts: {pageReplyTimeoutMs: 1}})
+    const engine = await createEngine({plugins: [['@conciv/plugin-page', {pageReplyTimeoutMs: 1}]]})
     const connectionId = 'checkout'
     const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
     const attachment = engine.rpc

@@ -1,5 +1,3 @@
-import {dirname} from 'node:path'
-import {fileURLToPath} from 'node:url'
 import type {Engine, LogEntry} from '@conciv/core/start'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -11,8 +9,6 @@ export type Builtins = {
   embedEntry?: string
   nativePageDir?: string
 }
-
-const PAGE_PLUGIN = dirname(fileURLToPath(import.meta.resolve('@conciv/plugin-page/package.json')))
 
 function writeEngineLine(entry: LogEntry): void {
   const line = readEngineLine(entry)
@@ -27,9 +23,13 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
     if (booting) return booting
     const stateRoot = options.stateRoot ?? root
     booting = Promise.try(() => installConcivBinShim(concivStateDir(stateRoot))).then(async (agentPath) => {
-      const {start} = await import('@conciv/core/start')
+      const [{start}, {default: page}] = await Promise.all([
+        import('@conciv/core/start'),
+        import('@conciv/plugin-page'),
+      ])
       return start({
-        options: {...options, plugins: [...(options.plugins ?? []), PAGE_PLUGIN]},
+        options,
+        builtins: [page],
         root,
         port: options.port === undefined ? undefined : {exact: options.port},
         launchEditor: makeOpenInEditor(root),

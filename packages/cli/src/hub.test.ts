@@ -11,7 +11,10 @@ describe('the hub', () => {
   test('an outside agent lists the open tabs (none, then a tab with its project, branch and page), discovers and runs code with no tab on the engine registered in the home, is told to pass a tab for a tool that needs a session, then queues page actions on a tab and reads the result of the queue on its next call', async ({
     hub,
   }) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']}, {git: true})
+    const engine = await createEngine(
+      {plugins: ['@conciv/plugin-page', './test/fixtures/plugins/plant-shelf']},
+      {git: true},
+    )
     await writeFile(join(engine.root, 'package.json'), JSON.stringify({name: 'plant-shop'}))
     withHomeDb(await prepareHome(engine.home), (db) => recordHubConnection(db, 'claude', Date.now()))
     const agent = await hub(engine.home)
