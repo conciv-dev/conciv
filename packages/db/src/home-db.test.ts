@@ -8,7 +8,7 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {isHomeFolderRefused, listEngines, prepareHome, registerEngine, withHomeDb} from './home-db.js'
 
 describe('home folder', () => {
-  it('a symlink, a file or a folder another user owns is refused', async () => {
+  it('prepareHome refuses a symlink, a file or a folder another user owns, and makes a new home folder private with its database and lock files readable by the owner only', async () => {
     const root = tempDir('home-')
     const folder = join(root, 'folder')
     const link = join(root, 'link')
@@ -28,10 +28,8 @@ describe('home folder', () => {
     const onRootOwned = prepareHome(rootOwned)
     await expect(onRootOwned).rejects.toThrow(`conciv refuses the home folder ${rootOwned}: it is owned by uid 0`)
     await expect(onRootOwned).rejects.toSatisfy(isHomeFolderRefused)
-  })
 
-  it('a new home folder is made private, with its database and lock files readable by the owner only', async () => {
-    const home = join(tempDir('home-'), 'conciv')
+    const home = join(root, 'conciv')
 
     const prepared = await prepareHome(home)
     withHomeDb(prepared, (db) =>
