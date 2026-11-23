@@ -33,7 +33,7 @@ import {
   isSandboxToolCall,
 } from '@tanstack/ai-sandbox'
 import {SessionMessage} from '@conciv/plugin/schema/session-message'
-import {isSubagentChunk, makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
+import {makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
 import {
   isRunPhaseTerminal,
   runLifecycleEvent,
@@ -385,6 +385,10 @@ type LiveRun = {
 }
 
 type RunMessages = {full: ModelMessage[]}
+
+function isSubagentChunk(chunk: ChatEvent): boolean {
+  return 'subagentRunId' in chunk && chunk.subagentRunId !== undefined
+}
 
 function followRun(processor: StreamProcessor, chunk: ChatEvent): void {
   if (isSubagentChunk(chunk) || chunk.type === EventType.MESSAGES_SNAPSHOT) return

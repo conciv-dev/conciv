@@ -38,10 +38,6 @@ export function makeTextAdapter(name: string, stream: ChatStreamFn): TextAdapter
   return new DelegatingTextAdapter(name, stream)
 }
 
-export function isSubagentChunk(chunk: ChatEvent): boolean {
-  return 'subagentRunId' in chunk && chunk.subagentRunId !== undefined
-}
-
 export type ClaudeCodeOptions = ClaudeCodeTextConfig
 
 export function claudeCode(model: string, options: ClaudeCodeOptions): TextAdapter {
