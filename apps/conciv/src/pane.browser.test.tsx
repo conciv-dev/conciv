@@ -420,24 +420,29 @@ describe('the agent asks for permission', () => {
     expect(screen.queryByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
   })
 
-  test('an ask answered from another window leaves this page without its buttons and the run goes on', async () => {
-    const user = userEvent.setup()
+  test('a panel opened while a reply waits on its ask shows the reply so far, and an ask answered from another window leaves it without its buttons and the whole reply once', async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
+    const asked = await engine.event('permission.asked')
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
         typescriptCode: "return await external_release_ship({branch: 'main'})",
       }),
       TestLLM.text('Main is shipped'),
     )
+    const replied = engine.session.send('Ship main')
+    await asked.arrived
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship main')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    const reply = await screen.findByRole('article', {name: 'Reply to: Ship main'})
+    expect(await within(reply).findByRole('img', {name: 'running'})).toBeVisible()
     expect(await screen.findByRole('button', {name: 'Allow once'})).toBeVisible()
 
     await engine.session.approve()
+    await replied
 
     expect(await screen.findByText('Main is shipped')).toBeVisible()
+    expect(screen.getAllByText('Main is shipped')).toHaveLength(1)
+    expect(screen.getAllByRole('article', {name: 'Reply to: Ship main'})).toHaveLength(1)
     expect(screen.queryByRole('button', {name: 'Allow once'})).not.toBeInTheDocument()
     expect(screen.queryByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
   })

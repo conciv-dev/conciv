@@ -229,7 +229,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     onLifecycle: (lifecycle) => {
       receive({lifecycle, receivedAt: Date.now()})
       if (lifecycle.phase === 'aborted' && lifecycle.runId === chat.runId() && chat.isLoading()) chat.stop()
-      if (isRunPhaseTerminal(lifecycle.phase) && !chat.isLoading() && cardStillRunning(chat.messages()))
+      if (isRunPhaseTerminal(lifecycle.phase) && cardStillRunning(chat.messages()))
         void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
     onHydrated: (hydration) => {
@@ -245,7 +245,6 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
     onLiveAgain: () => {
-      if (chat.isLoading()) return
       void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
     onApprovalAsk: (ask) => arrive({kind: 'ask', ask}),
