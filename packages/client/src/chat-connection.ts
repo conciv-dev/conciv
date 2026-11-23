@@ -409,8 +409,9 @@ async function* sessionEvents(
   link: EventsLink | undefined,
 ): AsyncGenerator<ChatEvent> {
   link?.watching()
+  let failures = 0
   try {
-    for (let failures = 0; !signal.aborted;) {
+    while (!signal.aborted) {
       try {
         const live = await rpc.chat.events({sessionId}, {signal, context: watchedContext(link)})
         link?.live()
