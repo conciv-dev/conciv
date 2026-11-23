@@ -1,4 +1,4 @@
-import {mkdtempSync, realpathSync} from 'node:fs'
+import {mkdtemp, realpath} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {inspect} from 'node:util'
@@ -27,12 +27,12 @@ export type ConnectOpts = {
   onShutdown?: () => void
 }
 
-function resolveWorkspace(workspace: string | undefined): string {
+async function resolveWorkspace(workspace: string | undefined): Promise<string> {
   if (workspace !== undefined) {
     if (workspace !== '.') throw new Error('workspace must be "." when provided')
-    return realpathSync(process.cwd())
+    return realpath(process.cwd())
   }
-  return realpathSync(mkdtempSync(join(tmpdir(), 'conciv-connect-')))
+  return realpath(await mkdtemp(join(tmpdir(), 'conciv-connect-')))
 }
 
 const shownLevels: readonly LogEntry['level'][] = ['warn', 'error', 'fatal']
@@ -75,7 +75,7 @@ function resolveAdapter(opts: ConnectOpts): HarnessAdapter {
 
 export async function runConnect(opts: ConnectOpts): Promise<Engine> {
   const adapter = resolveAdapter(opts)
-  const root = resolveWorkspace(opts.workspace)
+  const root = await resolveWorkspace(opts.workspace)
   const onEvent = opts.onEvent ?? (() => {})
   if (opts.workspace === undefined) {
     const seeded = await seedWorkspace(opts.origin ?? DEFAULT_ORIGIN, root)

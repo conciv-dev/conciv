@@ -11,7 +11,7 @@ import type {HarnessLoginStatus} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessCommandsContext, HarnessModel} from '@conciv/protocol/harness-types'
 import {onPath} from '../_shared/on-path.js'
 import {CLAUDE_BIN, mcpServerConfig} from './args.js'
-import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
+import {claudePluginDir} from './plugin-dir.js'
 
 let claudeAgentSdk: Promise<typeof ClaudeAgentSdk> | undefined
 
@@ -61,12 +61,12 @@ const PROBE_START_TIMEOUT_MS = 30_000
 
 const NOT_INSTALLED = 'Claude Code is not installed. Install it, then run `claude auth login`.'
 
-function claudeInstalled(env: ClaudeProbeEnv, cwd: string): boolean {
+async function claudeInstalled(env: ClaudeProbeEnv, cwd: string): Promise<boolean> {
   return onPath(env.PATH ?? '', CLAUDE_BIN, cwd)
 }
 
 async function probe(options: Options & {env: ClaudeProbeEnv}): Promise<SDKControlInitializeResponse> {
-  if (!claudeInstalled(options.env, options.cwd ?? process.cwd())) throw new Error(NOT_INSTALLED)
+  if (!(await claudeInstalled(options.env, options.cwd ?? process.cwd()))) throw new Error(NOT_INSTALLED)
   const {query} = await loadClaudeAgentSdk()
   const input = makeInputQueue()
   const abortController = followSignal(AbortSignal.timeout(PROBE_START_TIMEOUT_MS))
@@ -87,7 +87,8 @@ export type ClaudeProbeEnv = Record<string, string | undefined>
 async function probeCommands(ctx: HarnessCommandsContext, env: ClaudeProbeEnv): Promise<SlashCommand[]> {
   const options: Options & {env: ClaudeProbeEnv} = {cwd: ctx.cwd, env, permissionMode: 'acceptEdits'}
   if (ctx.mcpUrl) options.mcpServers = mcpServerConfig(ctx.mcpUrl, ctx.sessionId)
-  if (CONCIV_PLUGIN_DIR) options.plugins = [{type: 'local', path: CONCIV_PLUGIN_DIR}]
+  const pluginDir = await claudePluginDir()
+  if (pluginDir) options.plugins = [{type: 'local', path: pluginDir}]
   const init = await probe(options)
   rememberProbe(init)
   return init.commands
@@ -208,7 +209,7 @@ export async function claudeSdkLogin({
   refresh,
   ...context
 }: ProbeContext & {refresh: boolean}): Promise<HarnessLoginStatus> {
-  if (!claudeInstalled(context.env, process.cwd())) return {loggedIn: false, message: NOT_INSTALLED}
+  if (!(await claudeInstalled(context.env, process.cwd()))) return {loggedIn: false, message: NOT_INSTALLED}
   const current = probeState.current
   if (current.type !== 'held') return readLogin(await probed(context))
   const login = readLogin(current.init)

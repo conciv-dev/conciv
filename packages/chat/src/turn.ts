@@ -1,5 +1,4 @@
-import {existsSync, readFileSync} from 'node:fs'
-import {readFile} from 'node:fs/promises'
+import {access, readFile} from 'node:fs/promises'
 import {
   ChatEventType,
   SESSION_DELETED_CODE,
@@ -10,12 +9,13 @@ import {
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {
   PromptPresentationSchema,
+  SyntheticMetadataSchema,
   type AttachmentDocumentPart,
   type ContentPart,
   type ModelMessage,
 } from '@conciv/protocol/chat-message-types'
 import type {Turn, TurnHooks} from '@conciv/ai/server'
-import {resolveHarnessLogin, transcriptPathWithin} from '@conciv/harness'
+import {foldJsonlFile, resolveHarnessLogin, transcriptPathWithin} from '@conciv/harness'
 import {isEqual, once} from 'es-toolkit'
 import {
   ChatContentPartSchema,
@@ -101,15 +101,15 @@ export const COMPACT_FALLBACK_PROMPT =
 
 const TITLE_MAX_CHARS = 120
 
-export function buildSystemText(
+export async function buildSystemText(
   sources: SystemPromptSources,
   mode: HarnessAdapter['capabilities']['systemPrompt'],
   log: TurnDeps['log'],
-): string {
+): Promise<string> {
   if (mode === 'none') return ''
   if (mode !== 'file' || sources.systemPromptFile === undefined) return sources.systemPromptText ?? ''
   try {
-    return readFileSync(sources.systemPromptFile, 'utf8')
+    return await readFile(sources.systemPromptFile, 'utf8')
   } catch (error) {
     log(`[chat] system prompt file unreadable (${sources.systemPromptFile}), using inline text: ${String(error)}`)
     return sources.systemPromptText ?? ''
@@ -120,19 +120,34 @@ function ownRow(harness: HarnessAdapter, row: SessionRow | null): SessionRow | n
   return row?.harnessKind === harness.id ? row : null
 }
 
-function resumableToken(deps: TurnDeps, harness: HarnessAdapter, row: SessionRow | null): HarnessSessionId | null {
+async function resumableToken(
+  deps: TurnDeps,
+  harness: HarnessAdapter,
+  row: SessionRow | null,
+): Promise<HarnessSessionId | null> {
   if (row === null || row.harnessKind !== harness.id) return null
   return livingToken(deps, harness, row.nativeId)
 }
 
-function livingToken(deps: TurnDeps, harness: HarnessAdapter, token: HarnessSessionId | null): HarnessSessionId | null {
+function fileExists(path: string): Promise<boolean> {
+  return access(path).then(
+    () => true,
+    () => false,
+  )
+}
+
+async function livingToken(
+  deps: TurnDeps,
+  harness: HarnessAdapter,
+  token: HarnessSessionId | null,
+): Promise<HarnessSessionId | null> {
   if (token === null || !harness.capabilities.resume) return null
   const history = harness.history
   if (history === undefined) return token
-  if (history.withinProject && !history.withinProject(deps.cwd, token)) return null
+  if (history.withinProject && !(await history.withinProject(deps.cwd, token))) return null
   if (history.transcriptPath === undefined) return token
-  const path = transcriptPathWithin(history, deps.cwd, token)
-  return path !== null && existsSync(path) ? token : null
+  const path = await transcriptPathWithin(history, deps.cwd, token)
+  return path !== null && (await fileExists(path)) ? token : null
 }
 
 function mintedSessionId(chunk: ChatEvent): HarnessSessionId | null {
@@ -237,13 +252,16 @@ function withUpdate(messages: ModelMessage[], update: string): ModelMessage[] {
   })
 }
 
-function fromLastUser(messages: ModelMessage[]): ModelMessage[] {
-  return messages.slice(
-    Math.max(
-      messages.findLastIndex((message) => message.role === 'user'),
-      0,
-    ),
+function newToRun(turn: Turn, messages: ModelMessage[]): ModelMessage[] {
+  const lastUser = Math.max(
+    messages.findLastIndex((message) => message.role === 'user'),
+    0,
   )
+  const delivered = turn.kind === 'chat' ? turn.delivered : []
+  const promoted = messages
+    .slice(0, lastUser)
+    .filter((message) => message.id !== undefined && delivered.includes(message.id))
+  return [...promoted, ...messages.slice(lastUser)]
 }
 
 function readText(message: ModelMessage | undefined): string {
@@ -264,8 +282,12 @@ function titleText(message: ModelMessage | undefined): string {
   return display.data.displayText.trim() || display.data.comments[0]?.label.trim() || ''
 }
 
+function typedByUser(message: ModelMessage): boolean {
+  return message.role === 'user' && !SyntheticMetadataSchema.safeParse(message.metadata).success
+}
+
 export function firstUserTitle(messages: readonly ModelMessage[]): string {
-  return titleText(messages.find((message) => message.role === 'user')).slice(0, TITLE_MAX_CHARS)
+  return titleText(messages.find(typedByUser)).slice(0, TITLE_MAX_CHARS)
 }
 
 async function countContextTokens(deps: TurnDeps, sessionId: SessionId): Promise<number | undefined> {
@@ -274,9 +296,10 @@ async function countContextTokens(deps: TurnDeps, sessionId: SessionId): Promise
   const row = await deps.sessions.row(sessionId)
   const nativeId = row?.harnessKind === harness.id ? row.nativeId : null
   if (!history?.contextTokens || !history.transcriptPath || nativeId === null) return undefined
-  const path = transcriptPathWithin(history, deps.cwd, nativeId)
-  if (path === null || !existsSync(path)) return undefined
-  return history.contextTokens(await readFile(path, 'utf8'))
+  const lineTokens = history.contextTokens
+  const path = await transcriptPathWithin(history, deps.cwd, nativeId)
+  if (path === null || !(await fileExists(path))) return undefined
+  return foldJsonlFile<number | undefined>(path, undefined, (found, line) => lineTokens(line) ?? found)
 }
 
 async function recordContext(deps: TurnDeps, sessionId: SessionId): Promise<void> {
@@ -319,17 +342,17 @@ export function turnHooks(
       const sessionId = SessionId.parse(turn.threadId)
       const harness = await deps.harnessFor(sessionId)
       await refuseLoggedOut(harness, runSignal, deps.log)
-      const systemText = buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
+      const systemText = await buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
       const row = await deps.sessions.row(sessionId)
       const own = ownRow(harness, row)
       const model = own?.model ?? null
-      const resumeSessionId = resumableToken(deps, harness, row)
+      const resumeSessionId = await resumableToken(deps, harness, row)
       const reset: InstructionReset = turn.kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
       const instructions = Promise.withResolvers<PluginInstructions>()
       const normalizer = once(async () => toolNameNormalizer(await deps.toolNames(sessionId)))
       const toolSet = async () =>
         chatToolSet(await deps.capabilities(sessionId), {sessionId, agentId: sessionId, model}, context.codeMode)
-      const config = harness.chatConfig({
+      const config = await harness.chatConfig({
         cwd: deps.cwd,
         sessionId,
         askPermission: (ask) => deps.askPermission(sessionId, ask, runSignal),
@@ -390,9 +413,9 @@ export function turnHooks(
         },
         providerMessages: async (messages) => {
           const asked = askedMessages(turn, messages, harness)
-          const prepared = resumeSessionId === null ? asked : fromLastUser(asked)
+          const prepared = resumeSessionId === null ? asked : newToRun(turn, asked)
           const told = withUpdate(prepared, (await instructions.promise).update)
-          return config.prepareMessages?.(told) ?? told
+          return (await config.prepareMessages?.(told)) ?? told
         },
         chunk: async (chunk) => {
           const shaped =
@@ -415,7 +438,9 @@ export function turnHooks(
       const usage = toTokenUsage(reported)
       if (usage === undefined) return
       const modelId =
-        (await deps.sessions.row(sessionId))?.model ?? (await deps.harnessFor(sessionId)).defaultModel ?? null
+        (await deps.sessions.row(sessionId))?.model ??
+        (await (await deps.harnessFor(sessionId)).defaultModel?.()) ??
+        null
       await deps.sessions.recordUsage(sessionId, {
         ...tokenUsageToSnapshot(usage, modelId ?? undefined),
         ...(modelId === null ? {} : {modelId}),

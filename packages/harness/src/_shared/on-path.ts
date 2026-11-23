@@ -1,16 +1,16 @@
-import {accessSync, constants} from 'node:fs'
+import {constants} from 'node:fs'
+import {access} from 'node:fs/promises'
 import {delimiter, join, resolve} from 'node:path'
 
-function executable(file: string): boolean {
-  try {
-    accessSync(file, constants.X_OK)
-    return true
-  } catch {
-    return false
-  }
+async function executable(file: string): Promise<boolean> {
+  return access(file, constants.X_OK).then(
+    () => true,
+    () => false,
+  )
 }
 
-export function onPath(path: string, bin: string, cwd: string): boolean {
+export async function onPath(path: string, bin: string, cwd: string): Promise<boolean> {
   const directories = path.split(delimiter).map((entry) => resolve(cwd, entry))
-  return directories.some((directory) => executable(join(directory, bin)))
+  const found = await Promise.all(directories.map((directory) => executable(join(directory, bin))))
+  return found.includes(true)
 }

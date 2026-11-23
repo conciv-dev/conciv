@@ -1,6 +1,6 @@
 import {basename} from 'node:path'
 import {engineTooOld, makeRpcClient} from '@conciv/contract'
-import {checkEngines, listEngines, withHomeDb, type EngineRow} from '@conciv/db'
+import {checkEngines, listEngines, prepareHome, withHomeDb, type EngineRow, type PreparedHome} from '@conciv/db'
 import {Conciv} from '@conciv/plugin'
 import {PluginHost} from '@conciv/plugin-host'
 import {Context, Effect, Latch, Layer, Ref, Schedule, Semaphore, Stream} from 'effect'
@@ -34,23 +34,37 @@ function connect(row: EngineRow, tooOld: (apiBase: string) => void): ServerRef['
   return Conciv.make(client, {server: () => apiBase})
 }
 
-async function checked(home: string): Promise<Snapshot> {
+type HomeReach = {ok: true; home: PreparedHome} | {ok: false; error: Error}
+
+function reachHome(home: string): Promise<HomeReach> {
+  return prepareHome(home).then(
+    (prepared): HomeReach => ({ok: true, home: prepared}),
+    (error: unknown): HomeReach => ({ok: false, error: error instanceof Error ? error : new Error(String(error))}),
+  )
+}
+
+function listedIn(reach: HomeReach): ReadonlyArray<EngineRow> {
+  if (!reach.ok) throw reach.error
+  return withHomeDb(reach.home, listEngines)
+}
+
+async function checked(home: string, reach: HomeReach): Promise<Snapshot> {
   const engines = await checkEngines(home, {timeoutMs: PROBE_MS})
-  return {rows: withHomeDb(home, listEngines), reached: engines.live.map((row) => row.id)}
+  return {rows: listedIn(reach), reached: engines.live.map((row) => row.id)}
 }
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function watchHome(home: string, refresh: Effect.Effect<void>): Effect.Effect<void> {
+function watchHome(home: string, reach: HomeReach, refresh: Effect.Effect<void>): Effect.Effect<void> {
   return Effect.acquireRelease(
     Effect.sync(() => new AbortController()),
     (controller) => Effect.sync(() => controller.abort()),
   ).pipe(
     Effect.flatMap((controller) =>
       Stream.fromAsyncIterable(
-        homeDbReads(home, controller.signal, () => withHomeDb(home, listEngines)),
+        homeDbReads(home, controller.signal, async () => listedIn(reach)),
         errorText,
       ).pipe(Stream.runForEach(() => refresh)),
     ),
@@ -95,11 +109,12 @@ export function provideServersSource(input: ServersSourceInput) {
   return Layer.effect(
     PluginHost.ServersSource,
     Effect.gen(function* () {
+      const reach = yield* Effect.promise(() => reachHome(input.home))
       const snapshot = yield* Ref.make<Snapshot>({rows: [], reached: []})
       const read = yield* Latch.make()
       const serial = yield* Semaphore.make(1)
       const current = (): Snapshot => Ref.getUnsafe(snapshot)
-      const refresh = Effect.tryPromise(() => checked(input.home)).pipe(
+      const refresh = Effect.tryPromise(() => checked(input.home, reach)).pipe(
         Effect.flatMap((next) => Ref.set(snapshot, next)),
         Effect.catch((error) =>
           Effect.logError('[core] the conciv engines could not be listed').pipe(
@@ -111,13 +126,13 @@ export function provideServersSource(input: ServersSourceInput) {
       const pollHealth = refresh.pipe(Effect.schedule(Schedule.spaced(SERVER_HEALTH_POLL_MS)))
       yield* read.await.pipe(
         Effect.andThen(
-          Effect.all([watchHome(input.home, refresh), pollHealth], {concurrency: 'unbounded', discard: true}),
+          Effect.all([watchHome(input.home, reach, refresh), pollHealth], {concurrency: 'unbounded', discard: true}),
         ),
         Effect.forkScoped,
       )
       const listed = (): ReadonlyArray<EngineRow> => {
         Latch.openUnsafe(read)
-        return withHomeDb(input.home, listEngines)
+        return listedIn(reach)
       }
       const incompatible = yield* Ref.make<ReadonlyArray<EngineRow>>([])
       const markTooOld = (apiBase: string): void =>

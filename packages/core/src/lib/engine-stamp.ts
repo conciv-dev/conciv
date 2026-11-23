@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto'
-import {readFileSync} from 'node:fs'
+import {readFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import type {EngineStaleness} from '@conciv/contract'
 
@@ -21,9 +21,11 @@ const UNREADABLE = 'unreadable'
 
 const FINGERPRINT_CHARS = 12
 
-function computeDigest(path: string): string {
+async function computeDigest(path: string): Promise<string> {
   try {
-    return createHash('sha256').update(readFileSync(path)).digest('hex')
+    return createHash('sha256')
+      .update(await readFile(path))
+      .digest('hex')
   } catch {
     return UNREADABLE
   }
@@ -33,12 +35,18 @@ function computeFingerprint(digests: string[]): string {
   return createHash('sha256').update(digests.join('\n')).digest('hex').slice(0, FINGERPRINT_CHARS)
 }
 
-export function makeStalenessProbe(modules: TrackedModule[]): () => EngineStaleness {
-  const loaded = modules.map((module) => ({...module, digest: computeDigest(module.path)}))
-  const tracked = loaded.map((entry) => entry.label)
+export function makeStalenessProbe(modules: TrackedModule[]): () => Promise<EngineStaleness> {
+  const loaded = Promise.all(modules.map(async (module) => ({...module, digest: await computeDigest(module.path)})))
+  const tracked = modules.map((entry) => entry.label)
   const bootedAt = Date.now()
-  return () => {
-    const current = loaded.map((entry) => ({label: entry.label, was: entry.digest, now: computeDigest(entry.path)}))
+  return async () => {
+    const current = await Promise.all(
+      (await loaded).map(async (entry) => ({
+        label: entry.label,
+        was: entry.digest,
+        now: await computeDigest(entry.path),
+      })),
+    )
     const changed = current
       .filter((entry) => entry.now !== entry.was)
       .map((entry) => entry.label)
@@ -80,6 +88,6 @@ function resolveEntry(specifier: string): string | null {
 
 const probe = makeStalenessProbe(loadedModules())
 
-export function engineStaleness(): EngineStaleness {
+export function engineStaleness(): Promise<EngineStaleness> {
   return probe()
 }

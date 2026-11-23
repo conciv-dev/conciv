@@ -4,10 +4,10 @@ import {describe, expect, it} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {FILE_REF_PREFIX, type HarnessChatDeps} from '@conciv/protocol/harness-types'
-import {claudeChatConfig} from './chat.js'
+import {claudeChatConfig, claudeExecutable} from './chat.js'
 
 describe('preparing a turn', () => {
-  it('Compact sends /compact, and an image part becomes an @file ref to a file written in the project tmp', () => {
+  it('Compact sends /compact, an image part becomes an @file ref to a file written in the project tmp, the CLI only pre-allows the conciv bridge and never offers its own AskUserQuestion, MCP calls get an hour unless the caller says otherwise, and a CLI path with whitespace is refused', async () => {
     const project = tempDir('claude-chat-')
     const deps: HarnessChatDeps = {
       cwd: project,
@@ -19,12 +19,16 @@ describe('preparing a turn', () => {
     }
     const pixel = Buffer.from('a png pixel')
 
-    const compacted = claudeChatConfig({...deps, kind: 'compact'}).prepareMessages?.([
+    const compacted = await (
+      await claudeChatConfig({...deps, kind: 'compact'})
+    ).prepareMessages?.([
       {role: 'user', content: 'Fix the login button'},
       {role: 'assistant', content: 'The button now submits'},
       {role: 'user', content: 'Summarise'},
     ])
-    const attached = claudeChatConfig(deps).prepareMessages?.([
+    const attached = await (
+      await claudeChatConfig(deps)
+    ).prepareMessages?.([
       {
         role: 'user',
         content: [
@@ -51,5 +55,15 @@ describe('preparing a turn', () => {
       ),
     })
     expect(readFileSync(refPath)).toEqual(pixel)
+    expect(Reflect.get((await claudeChatConfig(deps)).adapter, 'adapterConfig')).toMatchObject({
+      allowedTools: ['mcp__tanstack'],
+      disallowedTools: ['AskUserQuestion'],
+      env: {MCP_TOOL_TIMEOUT: '3600000'},
+    })
+    expect(
+      Reflect.get((await claudeChatConfig({...deps, env: {MCP_TOOL_TIMEOUT: '999000'}})).adapter, 'adapterConfig'),
+    ).toMatchObject({env: {MCP_TOOL_TIMEOUT: '999000'}})
+    expect(() => claudeExecutable('/x/plug ins')).toThrow('contains whitespace')
+    expect(() => claudeExecutable(null, '/t/my settings.json')).toThrow('contains whitespace')
   })
 })

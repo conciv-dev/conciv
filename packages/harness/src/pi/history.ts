@@ -1,4 +1,4 @@
-import {createReadStream, readdirSync, type Dirent} from 'node:fs'
+import {createReadStream, type Dirent} from 'node:fs'
 import {open, readdir, stat} from 'node:fs/promises'
 import {createInterface} from 'node:readline'
 import {homedir} from 'node:os'
@@ -54,7 +54,7 @@ async function stampedFile(
   parseId: (name: string) => HarnessSessionId | null,
 ): Promise<TranscriptFile | null> {
   const id = parseId(name)
-  if (id === null || containedPath(dir, join(dir, name)) === null) return null
+  if (id === null || (await containedPath(dir, join(dir, name))) === null) return null
   const info = await stat(join(dir, name)).catch(whenMissing(null))
   return info === null ? null : {dir, name, id, updatedAt: Math.round(info.mtimeMs), sizeBytes: info.size}
 }
@@ -228,22 +228,15 @@ function sessionIdToken(fileName: string): string {
   return separator === -1 ? stem : stem.slice(separator + 1)
 }
 
-function namesIn(dir: string): string[] {
-  try {
-    return readdirSync(dir)
-  } catch (error) {
-    return whenMissing([])(error)
-  }
-}
-
-function transcriptPath(root: string, cwd: string, sessionId: string): string {
+async function transcriptPath(root: string, cwd: string, sessionId: string): Promise<string> {
   const dir = sessionsDir(root, cwd)
   const suffix = `_${sessionId}.jsonl`
-  return join(dir, namesIn(dir).find((name) => name.endsWith(suffix)) ?? `${sessionId}.jsonl`)
+  const names = await readdir(dir).catch(whenMissing<string[]>([]))
+  return join(dir, names.find((name) => name.endsWith(suffix)) ?? `${sessionId}.jsonl`)
 }
 
-function containedTranscript(root: string, cwd: string, sessionId: string): string | null {
-  return containedPath(sessionsDir(root, cwd), transcriptPath(root, cwd, sessionId))
+async function containedTranscript(root: string, cwd: string, sessionId: string): Promise<string | null> {
+  return containedPath(sessionsDir(root, cwd), await transcriptPath(root, cwd, sessionId))
 }
 
 async function transcriptMessages(
@@ -252,7 +245,7 @@ async function transcriptMessages(
   sessionId: string,
   options: {signal?: AbortSignal} = {},
 ): Promise<ChatMessage[]> {
-  const path = containedTranscript(root, cwd, sessionId)
+  const path = await containedTranscript(root, cwd, sessionId)
   if (path === null) return []
   const folded = await foldJsonlFile(path, emptyFold(), foldLine, options).catch(whenMissing(null))
   return folded === null ? [] : collectMessages(folded.entries)
@@ -344,9 +337,10 @@ async function listSessions(root: string, scope: HarnessListScope, page: Harness
 
 async function projectDirs(root: string): Promise<string[]> {
   const entries = await readdir(root, {withFileTypes: true}).catch(whenMissing<Dirent[]>([]))
-  return entries
-    .filter((entry) => entry.isDirectory())
-    .flatMap((entry) => containedPath(root, join(root, entry.name)) ?? [])
+  const contained = await Promise.all(
+    entries.filter((entry) => entry.isDirectory()).map((entry) => containedPath(root, join(root, entry.name))),
+  )
+  return contained.filter((dir) => dir !== null)
 }
 
 function transcriptId(name: string): HarnessSessionId | null {
@@ -356,7 +350,7 @@ function transcriptId(name: string): HarnessSessionId | null {
 }
 
 async function storedMeta(root: string, cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null> {
-  const path = containedTranscript(root, cwd, sessionId)
+  const path = await containedTranscript(root, cwd, sessionId)
   if (path === null) return null
   const info = await stat(path).catch(whenMissing(null))
   if (!info) return null
@@ -409,9 +403,10 @@ async function transcriptTail(
   options: TranscriptTailOptions,
 ): Promise<TranscriptPage> {
   const empty: TranscriptPage = {messages: [], earlier: null}
-  const path = containedTranscript(root, cwd, sessionId)
   const cursor = options.before === null ? null : ChainCursorSchema.safeParse(options.before)
-  if (path === null || cursor?.success === false) return empty
+  if (cursor?.success === false) return empty
+  const path = await containedTranscript(root, cwd, sessionId)
+  if (path === null) return empty
   const page = tailLines({
     path,
     end: cursor?.data.end ?? null,
@@ -429,7 +424,7 @@ export function piHistory(root: string): HarnessHistory {
     messages: (cwd, sessionId, options) => transcriptMessages(root, cwd, sessionId, options),
     tail: (cwd, sessionId, options) => transcriptTail(root, cwd, sessionId, options),
     transcriptPath: (cwd, sessionId) => transcriptPath(root, cwd, sessionId),
-    transcriptRoot: (cwd) => sessionsDir(root, cwd),
+    transcriptRoot: async (cwd) => sessionsDir(root, cwd),
     list: (scope, page) => listSessions(root, scope, page),
     meta: (cwd, sessionId) => storedMeta(root, cwd, sessionId),
   }

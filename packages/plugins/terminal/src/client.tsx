@@ -1,3 +1,5 @@
+import {Exit, Layer, ManagedRuntime, Scope} from 'effect'
+import {onCleanup} from 'solid-js'
 import TerminalIcon from 'lucide-solid/icons/terminal'
 import {Panel, Plugin, type PanelTab} from '@conciv/plugin/experimental'
 import {terminalDeclarations} from './stores.js'
@@ -21,7 +23,10 @@ const tab: PanelTab = {
 export default Plugin.define({
   ...terminalDeclarations,
   setup(ctx) {
-    const terminal = createTerminalState(ctx)
+    const runtime = ManagedRuntime.make(Layer.empty)
+    const scope = runtime.runSync(Scope.make())
+    onCleanup(() => void runtime.runPromise(Scope.close(scope, Exit.void)).finally(() => runtime.dispose()))
+    const terminal = createTerminalState(ctx, runtime, scope)
 
     ctx.add(Panel, {
       id: TAB_ID,

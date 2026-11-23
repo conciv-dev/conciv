@@ -1,6 +1,7 @@
-import {mkdirSync, readFileSync, realpathSync, writeFileSync} from 'node:fs'
+import {copyFileSync, mkdirSync, realpathSync, symlinkSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {ConfigProvider} from 'effect'
+import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
 import {describe, expect, it} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
@@ -8,7 +9,7 @@ import {listClaudeSessionsInChild} from '../../test/claude-sdk-env.js'
 import {claude} from './index.js'
 
 describe('history', () => {
-  it('a transcript in the CLAUDE_CONFIG_DIR lists for its project with its title, its tail reads back, and opening it reads back the whole conversation, tool calls and results included, with its context size', async () => {
+  it('a transcript in the CLAUDE_CONFIG_DIR lists for its project with its title, its tail reads back, and opening it reads back the whole conversation, tool calls and results included, with its context size, while a transcript linked in from outside the config dir reads back nothing', async () => {
     const configDir = tempDir('claude-config-')
     const project = realpathSync(tempDir('claude-project-'))
     const sessionId = HarnessSessionId.parse('5b1c2d3e-0000-4000-8000-000000000001')
@@ -83,6 +84,18 @@ describe('history', () => {
     })
     expect((await history.tail(project, sessionId, {limit: 10, before: null})).messages).toEqual(conversation)
     expect(await history.messages(project, sessionId)).toEqual(conversation)
-    expect(history.contextTokens?.(readFileSync(transcript, 'utf8'))).toBe(2400)
+    expect(
+      await foldJsonlFile(
+        transcript,
+        undefined,
+        (found: number | undefined, line) => history.contextTokens?.(line) ?? found,
+      ),
+    ).toBe(2400)
+
+    const outside = join(tempDir('claude-elsewhere-'), 'planted.jsonl')
+    copyFileSync(transcript, outside)
+    const linkedId = HarnessSessionId.parse('5b1c2d3e-0000-4000-8000-000000000002')
+    symlinkSync(outside, join(folder, `${linkedId}.jsonl`))
+    expect(await history.messages(project, linkedId)).toEqual([])
   })
 })

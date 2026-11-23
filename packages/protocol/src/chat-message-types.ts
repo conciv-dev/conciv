@@ -36,9 +36,28 @@ export type SendContent = {content: string | ContentPart[]; id?: string; metadat
 
 export const CompactionMetadataSchema = z.object({conciv: z.object({compaction: z.literal(true)})})
 
+export const SyntheticMetadataSchema = z.object({
+  conciv: z.object({
+    synthetic: z.object({
+      description: z.string().optional(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+    }),
+  }),
+})
+
 export const OutsideCallMetadataSchema = z.object({
   conciv: z.object({origin: z.literal('hub'), client: z.string().nullable(), run: z.string().optional()}),
 })
+
+const OUTSIDE_CALL_MESSAGE_PREFIX = 'call-'
+
+export function outsideCallMessageId(callId: string): string {
+  return `${OUTSIDE_CALL_MESSAGE_PREFIX}${callId}`
+}
+
+export function isOutsideCallMessageId(messageId: string | undefined): boolean {
+  return messageId?.startsWith(OUTSIDE_CALL_MESSAGE_PREFIX) ?? false
+}
 
 export const NoteCommentSchema = z.object({
   type: z.literal('note'),

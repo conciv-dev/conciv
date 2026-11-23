@@ -4,7 +4,7 @@ import {ConfigProvider} from 'effect'
 import {describe, expect, it} from 'vitest'
 import {codexModels} from '@conciv/ai/server'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {HarnessSessionId} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {codex} from './index.js'
 
 describe('codex', () => {
@@ -34,7 +34,16 @@ describe('codex', () => {
       {id: 'gpt-5.5', name: 'GPT-5.5', group: 'Codex'},
       {id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', group: 'Codex', efforts: ['low', 'high']},
     ])
-    expect(harness.defaultModel).toBe('gpt-5.6-sol')
+    expect(await harness.defaultModel()).toBe('gpt-5.6-sol')
+    const turn = await harness.chatConfig({
+      cwd: '/workspace',
+      sessionId: SessionId.parse('conciv_session_1'),
+      askPermission: async () => ({allowed: true}),
+      resumeSessionId: null,
+      env: {CODEX_HOME: home},
+      kind: 'chat',
+    })
+    expect(turn.adapter.model).toBe('gpt-5.6-sol')
     expect(harness.resume.command({cwd: '/workspace', nativeId: HarnessSessionId.parse('thread-1')})).toEqual({
       bin: 'codex',
       args: ['resume', 'thread-1'],
@@ -47,7 +56,7 @@ describe('codex', () => {
     const models = await harness.models()
 
     expect(models.map((model) => model.id)).toEqual([...codexModels])
-    expect(harness.defaultModel).toBe(codexModels[0])
+    expect(await harness.defaultModel()).toBe(codexModels[0])
   })
 
   it('a CODEX_HOME whose provider does not use the stored OpenAI login is not gated on it, and one that asks for it is', async () => {

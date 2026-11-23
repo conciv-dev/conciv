@@ -958,3 +958,42 @@ describe('the agent opens a file in the editor', () => {
     expect(await engine.opened()).toEqual([{file: 'src/app.ts', line: 12}])
   })
 })
+
+describe('a notice from a plugin', () => {
+  test('a notice shows in the thread: one with a description is its own row under that label and its turn answers, not a message from the user; one with no description, or only spaces, shows no row; and a failed one with no description shows its text as its row', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/build-notices']})
+    await engine.reply(TestLLM.text('The build is green'), TestLLM.text('Shipping it'), TestLLM.text('Looking into it'))
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
+    })
+    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+
+    await engine.session.tool('notice').call({text: 'The build finished in 42 s', description: 'Build finished'})
+
+    expect(await screen.findByRole('note', {name: 'Build finished'})).toBeVisible()
+    expect(await screen.findByText('The build is green')).toBeVisible()
+    expect(screen.queryByText('The build finished in 42 s')).not.toBeInTheDocument()
+    expect(screen.queryByRole('article', {name: /^You:/})).not.toBeInTheDocument()
+
+    await engine.session.tool('notice').call({text: 'Quiet note', resume: false})
+    await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Ship it')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+
+    expect(await screen.findByText('Shipping it')).toBeVisible()
+    expect(screen.getByRole('article', {name: 'You: Ship it'})).toBeVisible()
+    expect(screen.getAllByRole('article', {name: /^You:/})).toHaveLength(1)
+    expect(screen.queryByText('Quiet note')).not.toBeInTheDocument()
+    expect(screen.getByRole('note', {name: 'Build finished'})).toBeVisible()
+
+    await engine.session.tool('notice').call({text: 'Blank label', description: '   ', resume: false})
+    await engine.session.tool('notice').call({text: 'The deploy failed', metadata: {state: 'error'}})
+
+    expect(await screen.findByText('Looking into it')).toBeVisible()
+    expect(screen.getByRole('note', {name: 'The deploy failed'})).toBeVisible()
+    expect(screen.getByRole('note', {name: 'Build finished'})).toBeVisible()
+    expect(screen.getAllByRole('note')).toHaveLength(2)
+    expect(screen.queryByText('Blank label')).not.toBeInTheDocument()
+  })
+})

@@ -147,12 +147,22 @@ type UnpluginFixtures = {
   serve: (config: InlineConfig) => Promise<ViteDevServer>
   webpackBuild: (config: Configuration) => Promise<void>
   webpackWatch: (config: Configuration) => Promise<Stats>
+  webSocket: (url: string) => WebSocket
   holdPort: (port?: number) => Promise<number>
   nextEnv: {forget: () => void}
   nextConfigPort: (options: ConcivConfig) => Promise<number>
 }
 
 export const test = base.extend<UnpluginFixtures>({
+  webSocket: async ({task: _task}, use) => {
+    const sockets: WebSocket[] = []
+    await use((url) => {
+      const socket = new WebSocket(url)
+      sockets.push(socket)
+      return socket
+    })
+    for (const socket of sockets) socket.close()
+  },
   editor: async ({task: _task}, use) => {
     const folder = tempDir('editor-')
     const log = join(folder, 'opened.log')

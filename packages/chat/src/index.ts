@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {and, eq, isNotNull} from 'drizzle-orm'
 import {Effect} from 'effect'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import {type ChatMessage} from '@conciv/protocol/chat-message-types'
+import {type ChatMessage, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import {
   childCardChunks,
   createChatServer,
@@ -41,6 +41,7 @@ type ChatPlaneDeps = TurnDeps & {
   driver: CodeDriver | null
   pendingPermissions: (sessionId: SessionId) => Promise<ChatPendingApproval[]>
   tracer: Tracer | undefined
+  inbox: {promote: (sessionId: SessionId) => Promise<number | undefined>}
 }
 
 export type CodeTool = {
@@ -89,6 +90,7 @@ export type ChatPlane = {
     capabilities?: readonly CodeCapability[],
   ) => Promise<CodeRunner | null>
   followUp: (sessionId: SessionId, input: string) => Promise<FollowUpOutcome>
+  wake: (sessionId: SessionId) => Promise<void>
   catchUp: (sessionId: SessionId) => Promise<ChatEvent[]>
 }
 
@@ -175,6 +177,37 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     )
   }
 
+  const deliveredMessages = async (sessionId: SessionId, promoted: number | undefined): Promise<ModelMessage[]> =>
+    promoted === undefined || promoted === 0 ? [] : (await stores.messages.loadThread(sessionId)).slice(-promoted)
+
+  async function* send(request: ChatSend, signal?: AbortSignal): AsyncGenerator<ChatEvent> {
+    if (!isSessionId(request.threadId) || (await stores.runs.known(request.runId))) {
+      yield* server.send(request, signal)
+      return
+    }
+    const delivered = await deliveredMessages(request.threadId, await deps.inbox.promote(request.threadId))
+    yield* server.send(
+      {
+        ...request,
+        messages: [...request.messages.slice(0, -1), ...delivered, ...request.messages.slice(-1)],
+        delivered: deliveredIds(delivered),
+      },
+      signal,
+    )
+  }
+
+  const wake = async (sessionId: SessionId): Promise<void> => {
+    if (server.driving(sessionId) || (await stores.runs.findActiveRun(sessionId)) !== null) return
+    const delivered = await deliveredMessages(sessionId, await deps.inbox.promote(sessionId))
+    if (delivered.length === 0) return
+    const runId = randomUUID()
+    server
+      .drive({threadId: sessionId, runId, kind: 'chat', delivered: deliveredIds(delivered)}, [])
+      .catch((error: unknown) =>
+        deps.log(`[chat] the run ${runId} that delivers the session inbox failed: ${String(error)}`),
+      )
+  }
+
   const endRuns = async (sessionId: SessionId): Promise<void> => {
     const following = followingUp.get(sessionId)
     following?.ending.abort()
@@ -239,7 +272,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   }
 
   return {
-    send: (request, signal) => server.send(request, signal),
+    send,
     join: (request, signal) => server.join(request, signal),
     hydrate,
     history: async (sessionId) => (await hydrate(sessionId)).messages,
@@ -285,11 +318,19 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       followingUp.set(sessionId, {answered, ending})
       return answered
     },
+    wake: (sessionId) =>
+      wake(sessionId).catch((error: unknown) =>
+        deps.log(`[chat] waking session ${sessionId} for its inbox failed: ${String(error)}`),
+      ),
     codeRunner: (sessionId, publish, given) =>
       inSpan(deps.tracer, 'ChatPlane.codeRunner', {'conciv.session.id': sessionId}, () =>
         buildCodeRunner(sessionId, publish, given),
       ),
   }
+}
+
+function deliveredIds(messages: readonly ModelMessage[]): string[] {
+  return messages.flatMap((message) => (message.id === undefined ? [] : [message.id]))
 }
 
 type Emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => void

@@ -34,6 +34,7 @@
     "@conciv/ui-kit-terminal": "workspace:^",
     "@orpc/client": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
+    "effect": "catalog:",
     "lucide-solid": "catalog:",
     "zod": "catalog:"
   },

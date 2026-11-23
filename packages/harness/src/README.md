@@ -21,8 +21,8 @@
 
 ## Side Effects
 
-- `harnessRegistry(provider)` runs `codex(provider)`, which evaluates `codexDefaultModel(home)` and so reads `$CODEX_HOME` (default `~/.codex`) `config.toml` and `models_cache.json` synchronously.
-- Importing `registry.ts` imports every adapter, which probes the filesystem for `CONCIV_PLUGIN_DIR`.
+- `harnessRegistry(provider)` reads no file: codex reads `$CODEX_HOME` (default `~/.codex`) `config.toml` and `models_cache.json` only when its `models()` or `defaultModel()` is called.
+- Importing `registry.ts` touches no file; claude probes for its plugin dir (`claudePluginDir()`) only when a turn or a slash-command probe runs.
 
 ## Verification
 

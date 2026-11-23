@@ -60,7 +60,7 @@ const listCommand = command(
   name('list'),
   description('The agents connected to conciv.'),
   envelopeFlag,
-  handler(async () => ({report: 'json', data: (await connections()).list()})),
+  handler(async () => ({report: 'json', data: await (await connections()).list()})),
 )
 
 export const mcpRoute = route(

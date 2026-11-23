@@ -2,7 +2,8 @@ import {randomUUID} from 'node:crypto'
 import type {IPty} from '@lydell/node-pty'
 import {once} from 'es-toolkit'
 import type {TtyCommand, TtyServerControl} from '@conciv/protocol/terminal-types'
-import {accessSync, chmodSync, existsSync, constants} from 'node:fs'
+import {constants} from 'node:fs'
+import {access, chmod} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 import {createRequire} from 'node:module'
 
@@ -92,15 +93,16 @@ function createFrameInjector(write: (chunk: string) => void): FrameInjector {
   return {feed, inject}
 }
 
-function ensureSpawnHelperExecutable(): void {
+async function ensureSpawnHelperExecutable(): Promise<void> {
   if (process.platform !== 'darwin') return
   const helper = resolveSpawnHelper()
-  if (!helper || !existsSync(helper)) return
-  try {
-    accessSync(helper, constants.X_OK)
-  } catch {
-    chmodSync(helper, 0o755)
-  }
+  if (!helper) return
+  const present = await access(helper).then(
+    () => true,
+    () => false,
+  )
+  if (!present) return
+  await access(helper, constants.X_OK).catch(() => chmod(helper, 0o755))
 }
 
 function resolveSpawnHelper(): string | null {
@@ -131,12 +133,14 @@ declare module '@lydell/node-pty' {
 }
 
 const loadSpawn = once((): Promise<Spawn> =>
-  import('@lydell/node-pty').then(
-    (module) => module.spawn,
-    (error: unknown) => () => {
-      throw error
-    },
-  ),
+  ensureSpawnHelperExecutable()
+    .then(() => import('@lydell/node-pty'))
+    .then(
+      (module) => module.spawn,
+      (error: unknown) => () => {
+        throw error
+      },
+    ),
 )
 
 export type TtySink = {data(chunk: string, end: number): void; control(frame: TtyServerControl): void}
@@ -254,7 +258,6 @@ export function createTtySessions(opts: {env: Readonly<Record<string, string>>; 
 
   const spawnPty = (spawn: Spawn, command: TtyCommand, cwd: string, size: PtySize | undefined): PtyStatus => {
     try {
-      ensureSpawnHelperExecutable()
       const pty = spawn(command.bin, command.args, {
         name: 'xterm-256color',
         cols: size?.cols ?? DEFAULT_COLS,

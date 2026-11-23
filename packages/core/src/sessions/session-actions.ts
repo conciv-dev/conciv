@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {eq} from 'drizzle-orm'
 import {Effect, type ManagedRuntime} from 'effect'
 import type {ChatPlane} from '@conciv/chat'
-import {drafts, markers, sessions, type ConcivDb} from '@conciv/db'
+import {drafts, markers, SessionInboxTable, sessions, type ConcivDb} from '@conciv/db'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {Bus, KV, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import {runInOrder} from '../lib/shutdown.js'
@@ -86,7 +86,12 @@ export async function deleteSession(deletion: SessionDeletion, sessionId: Sessio
   await deletion.plane.endRuns(sessionId)
   await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
   await tombstoneRow(deletion.db, sessionId)
-  const draftFailures = await Effect.runPromise(deletion.db.delete(drafts).where(eq(drafts.sessionId, sessionId))).then(
+  const draftFailures = await Effect.runPromise(
+    Effect.all([
+      deletion.db.delete(drafts).where(eq(drafts.sessionId, sessionId)),
+      deletion.db.delete(SessionInboxTable).where(eq(SessionInboxTable.session_id, sessionId)),
+    ]),
+  ).then(
     (): unknown[] => [],
     (failure: unknown) => [failure],
   )
