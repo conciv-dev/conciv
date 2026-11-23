@@ -9,10 +9,10 @@ describe('resolving a plugin', () => {
     ['folder-of-files', {server: 'server.js', experimental: 'plugin-experimental.js'}],
     ['index-only', {server: 'index.js'}],
     ['unbuilt-browser-part', {server: 'server.js'}],
-  ])('a plugin laid out as %s has its built entries found', (layout, files) => {
+  ])('a plugin laid out as %s has its built entries found', async (layout, files) => {
     const directory = fileURLToPath(new URL(`../test/fixtures/host/${layout}`, import.meta.url))
 
-    expect(resolve({directory})).toEqual(
+    expect(await resolve({directory})).toEqual(
       Object.fromEntries(
         Object.entries(files).map(([entry, file]) => [entry, pathToFileURL(join(directory, file)).href]),
       ),

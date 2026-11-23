@@ -1,16 +1,16 @@
-import {closeSync, openSync, readSync} from 'node:fs'
+import {open} from 'node:fs/promises'
 
 const HEAD_BYTES = 65_536
 const NEWLINE = 0x0a
 
-export function readHead(path: string): string {
-  const file = openSync(path, 'r')
+export async function readHead(path: string): Promise<string> {
+  const file = await open(path, 'r')
   try {
     const head = Buffer.allocUnsafe(HEAD_BYTES)
-    const bytesRead = readSync(file, head, 0, HEAD_BYTES, null)
+    const {bytesRead} = await file.read(head, 0, HEAD_BYTES, null)
     const lastBreak = head.subarray(0, bytesRead).lastIndexOf(NEWLINE)
     return lastBreak < 0 ? '' : head.toString('utf8', 0, lastBreak + 1)
   } finally {
-    closeSync(file)
+    await file.close()
   }
 }

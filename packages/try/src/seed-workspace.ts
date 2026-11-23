@@ -1,4 +1,4 @@
-import {mkdirSync, writeFileSync} from 'node:fs'
+import {mkdir, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 
 const MAX_MANIFEST_BYTES = 8 * 1024 * 1024
@@ -51,12 +51,12 @@ export async function seedWorkspace(origin: string, root: string): Promise<boole
   for (const [path, content] of manifestEntries(parsed)) {
     try {
       const target = join(root, path)
-      mkdirSync(dirname(target), {recursive: true})
-      writeFileSync(target, content)
+      await mkdir(dirname(target), {recursive: true})
+      await writeFile(target, content)
     } catch {
       continue
     }
   }
-  writeFileSync(join(root, 'AGENTS.md'), AGENTS_TEXT)
+  await writeFile(join(root, 'AGENTS.md'), AGENTS_TEXT)
   return true
 }

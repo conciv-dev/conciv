@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto'
 import path from 'path'
-import {Context, Effect, Layer, Stream} from 'effect'
+import {Context, Effect, FileSystem, Layer, Stream} from 'effect'
 import {HttpClient, HttpClientRequest} from 'effect/http'
 import {ChildProcess} from 'effect/process'
 import {ChildProcessSpawner} from 'effect/process/ChildProcessSpawner'
@@ -77,7 +77,8 @@ export const layer = Layer.effect(
     const spawner = yield* ChildProcessSpawner
     const global = yield* Global.Service
     const bin = path.join(global.cache, 'bin')
-    const findExecutable = (name: string) => which(name, undefined, bin)
+    const findExecutable = (name: string) =>
+      which(name, undefined, bin).pipe(Effect.provideService(FileSystem.FileSystem, fs))
 
     const run = Effect.fnUntraced(function* (command: string, args: string[], cwd: string) {
       const handle = yield* spawner.spawn(ChildProcess.make(command, args, {cwd, extendEnv: true, stdin: 'ignore'}))
@@ -123,7 +124,7 @@ export const layer = Layer.effect(
     return Service.of({
       filepath: yield* Effect.cached(
         Effect.gen(function* () {
-          const system = yield* Effect.sync(() => findExecutable(process.platform === 'win32' ? 'rg.exe' : 'rg'))
+          const system = yield* findExecutable(process.platform === 'win32' ? 'rg.exe' : 'rg')
           if (system && (yield* fs.isFile(system))) return system
 
           const target = path.join(bin, `rg${process.platform === 'win32' ? '.exe' : ''}`)

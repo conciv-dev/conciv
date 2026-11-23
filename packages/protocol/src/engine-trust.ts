@@ -1,5 +1,5 @@
 import {createHash, randomBytes, randomUUID} from 'node:crypto'
-import {chmodSync, readFileSync, renameSync, rmSync, writeFileSync} from 'node:fs'
+import {chmod, readFile, rename, rm, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {z} from 'zod'
 import {createConcivStateDir} from './state-types.js'
@@ -32,9 +32,9 @@ export function isMissingFile(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
 }
 
-function readText(path: string): string | null {
+async function readText(path: string): Promise<string | null> {
   try {
-    return readFileSync(path, 'utf8')
+    return await readFile(path, 'utf8')
   } catch (error) {
     if (isMissingFile(error)) return null
     throw error
@@ -45,46 +45,46 @@ export function parseTrustedBrowsers(raw: string): TrustedBrowser[] {
   return TrustFileSchema.parse(JSON.parse(raw)).browsers
 }
 
-export function readTrustedBrowsers(stateDir: string): TrustedBrowser[] {
-  const raw = readText(trustFile(stateDir))
+export async function readTrustedBrowsers(stateDir: string): Promise<TrustedBrowser[]> {
+  const raw = await readText(trustFile(stateDir))
   if (raw === null) return []
   return parseTrustedBrowsers(raw)
 }
 
-export function writeTrustedBrowsers(stateDir: string, browsers: readonly TrustedBrowser[]): void {
+export async function writeTrustedBrowsers(stateDir: string, browsers: readonly TrustedBrowser[]): Promise<void> {
   const path = trustFile(stateDir)
-  createConcivStateDir(stateDir)
+  await createConcivStateDir(stateDir)
   const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`
   try {
-    writeFileSync(tempPath, `${JSON.stringify({browsers}, null, 2)}\n`, {mode: 0o600})
-    chmodSync(tempPath, 0o600)
-    renameSync(tempPath, path)
+    await writeFile(tempPath, `${JSON.stringify({browsers}, null, 2)}\n`, {mode: 0o600})
+    await chmod(tempPath, 0o600)
+    await rename(tempPath, path)
   } catch (error) {
-    rmSync(tempPath, {force: true})
+    await rm(tempPath, {force: true})
     throw error
   }
 }
 
-export function grantBrowser(stateDir: string, requester: BrowserRequester, grantedAt: number): string {
+export async function grantBrowser(stateDir: string, requester: BrowserRequester, grantedAt: number): Promise<string> {
   const token = randomBytes(32).toString('base64url')
   const hash = tokenHash(token)
-  writeTrustedBrowsers(stateDir, [
-    ...readTrustedBrowsers(stateDir),
+  await writeTrustedBrowsers(stateDir, [
+    ...(await readTrustedBrowsers(stateDir)),
     {id: hash.slice(0, 8), hash, browser: requester.browser, origin: requester.origin, grantedAt},
   ])
   return token
 }
 
-export function isTrustedBrowser(stateDir: string, token: string): boolean {
+export async function isTrustedBrowser(stateDir: string, token: string): Promise<boolean> {
   const hash = tokenHash(token)
-  return readTrustedBrowsers(stateDir).some((entry) => entry.hash === hash)
+  return (await readTrustedBrowsers(stateDir)).some((entry) => entry.hash === hash)
 }
 
-export function revokeBrowsers(stateDir: string, which: {id: string} | 'all'): TrustedBrowser[] {
-  const browsers = readTrustedBrowsers(stateDir)
+export async function revokeBrowsers(stateDir: string, which: {id: string} | 'all'): Promise<TrustedBrowser[]> {
+  const browsers = await readTrustedBrowsers(stateDir)
   const revoked = which === 'all' ? browsers : browsers.filter((entry) => entry.id === which.id)
   if (revoked.length === 0) return []
-  writeTrustedBrowsers(
+  await writeTrustedBrowsers(
     stateDir,
     browsers.filter((entry) => !revoked.includes(entry)),
   )

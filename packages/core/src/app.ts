@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {existsSync, readFileSync} from 'node:fs'
+import {access, readFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
 import {Hono, type MiddlewareHandler} from 'hono'
@@ -144,42 +144,42 @@ const SavedModelsSchema = z.array(HarnessModelSchema)
 
 type SavedModelsHarness = {harness: HarnessAdapter; settled: () => Promise<void>}
 
-function readSaved(path: string): HarnessModel[] | null {
+async function readSaved(path: string): Promise<HarnessModel[] | null> {
   try {
-    const parsed = SavedModelsSchema.safeParse(JSON.parse(readFileSync(path, 'utf8')))
+    const parsed = SavedModelsSchema.safeParse(JSON.parse(await readFile(path, 'utf8')))
     return parsed.success ? parsed.data : null
   } catch {
     return null
   }
 }
 
-function writeSaved(path: string, models: HarnessModel[], log: Log): void {
+async function writeSaved(path: string, models: HarnessModel[], log: Log): Promise<void> {
   try {
-    writePrivateFile(path, JSON.stringify(models))
+    await writePrivateFile(path, JSON.stringify(models))
   } catch (error) {
     log(Effect.logError('[core] the model list could not be saved', {path, error}))
   }
 }
 
-export function withSavedModels(
+export async function withSavedModels(
   adapter: HarnessAdapter,
   stateDir: string,
   signal: AbortSignal,
   log: Log,
-): SavedModelsHarness {
+): Promise<SavedModelsHarness> {
   if (typeof adapter.models !== 'function') return {harness: adapter, settled: () => Promise.resolve()}
   const path = join(stateDir, `${adapter.id}-models.json`)
-  const state: {saved: HarnessModel[] | null; refreshing?: Promise<HarnessModel[]>} = {saved: readSaved(path)}
+  const state: {saved: HarnessModel[] | null; refreshing?: Promise<HarnessModel[]>} = {saved: await readSaved(path)}
   async function listLive(): Promise<HarnessModel[]> {
     signal.throwIfAborted()
     return resolveHarnessModels(adapter, {signal})
   }
   function refresh(): Promise<HarnessModel[]> {
     state.refreshing ??= listLive()
-      .then((listed) => {
+      .then(async (listed) => {
         signal.throwIfAborted()
         state.saved = listed
-        writeSaved(path, listed, log)
+        await writeSaved(path, listed, log)
         return listed
       })
       .catch((error: unknown) => {
@@ -281,11 +281,13 @@ const readAppEnv = Effect.fn('core.app.readEnv')(function* (homeDir: string | un
   return {home, path: yield* PathConfig, env, hub: yield* makeHubInstaller(home, env, log)}
 })
 
-function detectedHarnesses(registry: HarnessRegistry, path: string, cwd: string): HarnessAdapter[] {
-  return registry.list().filter((adapter) => onPath(path, adapter.binName, cwd))
+async function detectedHarnesses(registry: HarnessRegistry, path: string, cwd: string): Promise<HarnessAdapter[]> {
+  const adapters = registry.list()
+  const found = await Promise.all(adapters.map((adapter) => onPath(path, adapter.binName, cwd)))
+  return adapters.filter((adapter, index) => found[index] === true)
 }
 
-function availableHarnesses(
+async function availableHarnesses(
   boot: SavedModelsHarness,
   opts: MakeAppOpts,
   registry: HarnessRegistry,
@@ -293,10 +295,11 @@ function availableHarnesses(
   signal: AbortSignal,
   path: string,
   log: Log,
-): SavedModelsHarness[] {
-  const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses(registry, path, opts.cwd)))
-    .filter((adapter) => adapter.id !== boot.harness.id)
-    .map((adapter) => withSavedModels(adapter, stateDir, signal, log))
+): Promise<SavedModelsHarness[]> {
+  const adapters = (opts.harnesses ?? (opts.harness ? [] : await detectedHarnesses(registry, path, opts.cwd))).filter(
+    (adapter) => adapter.id !== boot.harness.id,
+  )
+  const others = await Promise.all(adapters.map((adapter) => withSavedModels(adapter, stateDir, signal, log)))
   return [boot, ...others]
 }
 
@@ -365,7 +368,7 @@ function composeRoutes(
   rpc: ReturnType<typeof makeRpcRouter>,
   deps: {
     engineId: string
-    staleness: () => EngineStaleness
+    staleness: () => Promise<EngineStaleness>
     version: (() => string | undefined) | undefined
     onShutdown?: () => void
     trust: ConnectionTrust
@@ -388,8 +391,10 @@ function composeRoutes(
     .use(corsMiddleware(deps.version))
   if (deps.tracer !== undefined) app.use('/api/mcp', mcpSpan(deps.tracer))
   return app
-    .get('/health', (c) =>
-      c.json(HealthSchema.parse({ok: true, harness: vars.harnessId, engine: deps.staleness(), id: deps.engineId})),
+    .get('/health', async (c) =>
+      c.json(
+        HealthSchema.parse({ok: true, harness: vars.harnessId, engine: await deps.staleness(), id: deps.engineId}),
+      ),
     )
     .post('/api/shutdown', (c) => {
       if (!deps.onShutdown) return c.json({message: 'shutdown not supported'}, 404)
@@ -456,10 +461,16 @@ export type MadeApp = {
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
   const history = harness.history
-  const transcriptExists = (token: HarnessSessionId): boolean => {
+  const transcriptExists = async (token: HarnessSessionId): Promise<boolean> => {
     if (history === undefined) return false
-    const path = transcriptPathWithin(history, cwd, token)
-    return path !== null && existsSync(path)
+    const path = await transcriptPathWithin(history, cwd, token)
+    return (
+      path !== null &&
+      (await access(path).then(
+        () => true,
+        () => false,
+      ))
+    )
   }
   return {
     id: harness.id,
@@ -529,7 +540,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
   const engineLife = new AbortController()
   const registry = opts.harnessRegistry ?? harnessRegistry(configProvider)
-  const boot = withSavedModels(
+  const boot = await withSavedModels(
     opts.harness ?? requireHarness(registry, opts.cfg.harness),
     stateDir,
     engineLife.signal,
@@ -537,9 +548,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
   const harness = boot.harness
   const agentToken = opts.agentToken ?? randomUUID()
-  const browsers = watchTrustedBrowsers(stateDir, earlyLog)
+  const browsers = await watchTrustedBrowsers(stateDir, earlyLog).catch(async (error: unknown) => {
+    await releaseObservability()
+    throw error
+  })
   const trust = makeConnectionTrust(agentToken, browsers)
-  const listings = availableHarnesses(boot, opts, registry, stateDir, engineLife.signal, appEnv.path, earlyLog)
+  const listings = await availableHarnesses(boot, opts, registry, stateDir, engineLife.signal, appEnv.path, earlyLog)
   const harnesses = listings.map((listing) => listing.harness)
   const endListing = async (listing: SavedModelsHarness): Promise<void> => {
     const ended = listing.settled().then(() => true)
@@ -554,7 +568,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     engineLife.abort(new Error('conciv: the engine stopped'))
     await Promise.all(listings.map(endListing))
   }
-  const staleness = (): EngineStaleness => opts.staleness?.() ?? engineStaleness()
+  const staleness = async (): Promise<EngineStaleness> => opts.staleness?.() ?? engineStaleness()
   const dbScope = Effect.runSync(Scope.make())
   const closeDb = () => Effect.runPromise(Scope.close(dbScope, Exit.void))
   const failedStart =

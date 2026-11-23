@@ -2,10 +2,10 @@ export * as Database from './database.js'
 
 import {makeWithDefaults} from 'drizzle-orm/effect-sqlite-node'
 import {sqliteLayer, supportsForeignKeyToggle, supportsTuningPragmas} from './sqlite.node.js'
-import {Context, Effect, Layer, Schema} from 'effect'
+import {Context, Effect, FileSystem, Layer, Schema} from 'effect'
 import type {SqliteClient} from '@effect/sql-sqlite-node'
-import {closeSync, existsSync, openSync} from 'node:fs'
 import {chmod} from 'node:fs/promises'
+import {DatabaseSync} from 'node:sqlite'
 
 const makeDatabase = makeWithDefaults()
 type DatabaseShape = Effect.Success<typeof makeDatabase>
@@ -43,7 +43,9 @@ export function layer(options: Options = {path: ':memory:'}) {
     Effect.gen(function* () {
       const provide = (filename: string) => databaseLayer.pipe(Layer.provide(sqliteLayer({filename})))
       const filename = options.path ?? ':memory:'
-      if (filename === ':memory:' || existsSync(filename)) return provide(filename)
+      if (filename === ':memory:') return provide(filename)
+      const fs = yield* FileSystem.FileSystem
+      if (yield* fs.exists(filename).pipe(Effect.orElseSucceed(() => false))) return provide(filename)
       yield* Effect.promise(() => restrictToOwner(filename))
       return provide(filename)
     }),
@@ -52,7 +54,7 @@ export function layer(options: Options = {path: ':memory:'}) {
 
 async function restrictToOwner(filename: string) {
   if (process.platform === 'win32') return
-  closeSync(openSync(filename, 'a', 0o600))
+  new DatabaseSync(filename).close()
   await chmod(filename, 0o600)
   await Promise.all(
     [`${filename}-wal`, `${filename}-shm`].map((file) =>

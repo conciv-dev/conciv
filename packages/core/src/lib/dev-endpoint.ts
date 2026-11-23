@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync} from 'node:fs'
+import {chmod, mkdir, readFile, rename, rm, writeFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {z} from 'zod'
@@ -23,26 +23,26 @@ function endpointPath(dir: string): string {
   return join(dir, FILE_NAME)
 }
 
-export function writePrivateFile(path: string, contents: string): void {
-  mkdirSync(dirname(path), {recursive: true})
+export async function writePrivateFile(path: string, contents: string): Promise<void> {
+  await mkdir(dirname(path), {recursive: true})
   const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`
   try {
-    writeFileSync(tempPath, contents, {mode: FILE_MODE})
-    chmodSync(tempPath, FILE_MODE)
-    renameSync(tempPath, path)
+    await writeFile(tempPath, contents, {mode: FILE_MODE})
+    await chmod(tempPath, FILE_MODE)
+    await rename(tempPath, path)
   } catch (error) {
-    rmSync(tempPath, {force: true})
+    await rm(tempPath, {force: true})
     throw error
   }
 }
 
-export function writeDevEndpoint(dir: string, endpoint: DevEndpoint): void {
-  writePrivateFile(endpointPath(dir), JSON.stringify(DevEndpointSchema.parse(endpoint)))
+export async function writeDevEndpoint(dir: string, endpoint: DevEndpoint): Promise<void> {
+  await writePrivateFile(endpointPath(dir), JSON.stringify(DevEndpointSchema.parse(endpoint)))
 }
 
-export function readDevEndpoint(dir: string): DevEndpoint | null {
+export async function readDevEndpoint(dir: string): Promise<DevEndpoint | null> {
   try {
-    const raw = readFileSync(endpointPath(dir), 'utf8')
+    const raw = await readFile(endpointPath(dir), 'utf8')
     const parsed = DevEndpointSchema.safeParse(JSON.parse(raw))
     return parsed.success ? parsed.data : null
   } catch {
@@ -50,8 +50,8 @@ export function readDevEndpoint(dir: string): DevEndpoint | null {
   }
 }
 
-export function removeDevEndpoint(dir: string, pid: number): void {
-  const current = readDevEndpoint(dir)
+export async function removeDevEndpoint(dir: string, pid: number): Promise<void> {
+  const current = await readDevEndpoint(dir)
   if (current && current.pid !== pid) return
-  rmSync(endpointPath(dir), {force: true})
+  await rm(endpointPath(dir), {force: true})
 }

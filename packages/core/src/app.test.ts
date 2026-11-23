@@ -82,15 +82,15 @@ describe('the saved model list', () => {
     const signedOut = () => Promise.reject(new Error('the CLI is signed out'))
     const unlogged = () => {}
 
-    const first = withSavedModels({...adapter, models: () => Promise.resolve(listed)}, stateDir, signal, unlogged)
+    const first = await withSavedModels({...adapter, models: () => Promise.resolve(listed)}, stateDir, signal, unlogged)
     await expect(resolveHarnessModels(first.harness, {signal})).resolves.toEqual(listed)
     await first.settled()
 
-    const failing = withSavedModels({...adapter, models: signedOut}, stateDir, signal, unlogged)
+    const failing = await withSavedModels({...adapter, models: signedOut}, stateDir, signal, unlogged)
     await expect(resolveHarnessModels(failing.harness, {signal})).resolves.toEqual(listed)
     await failing.settled()
 
-    const afterFailure = withSavedModels({...adapter, models: signedOut}, stateDir, signal, unlogged)
+    const afterFailure = await withSavedModels({...adapter, models: signedOut}, stateDir, signal, unlogged)
     await expect(resolveHarnessModels(afterFailure.harness, {signal})).resolves.toEqual(listed)
     await afterFailure.settled()
   })
@@ -106,7 +106,7 @@ describe('the saved model list', () => {
       return listing.promise
     }
 
-    const warmed = withSavedModels({...adapter, models}, tempDir('saved-models-'), signal, () => {})
+    const warmed = await withSavedModels({...adapter, models}, tempDir('saved-models-'), signal, () => {})
     expect(started).toEqual(['listing'])
 
     const asked = resolveHarnessModels(warmed.harness, {signal})

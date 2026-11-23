@@ -1,22 +1,22 @@
-import {existsSync, mkdirSync, rmSync, symlinkSync} from 'node:fs'
+import {access, mkdir, rm, symlink} from 'node:fs/promises'
 import {join, delimiter} from 'node:path'
 import {createConcivStateDir} from '@conciv/protocol/state-types'
 import {fileURLToPath} from 'node:url'
 
-function linkConcivBin(binDir: string): void {
+async function linkConcivBin(binDir: string): Promise<void> {
   const target = fileURLToPath(import.meta.resolve('@conciv/cli/bin'))
-  if (!existsSync(target)) throw new Error(`${target} does not exist`)
+  await access(target)
   const shim = join(binDir, 'conciv')
-  rmSync(shim, {force: true})
-  symlinkSync(target, shim)
+  await rm(shim, {force: true})
+  await symlink(target, shim)
 }
 
-export function installConcivBinShim(stateDir: string): string {
+export async function installConcivBinShim(stateDir: string): Promise<string> {
   const binDir = join(stateDir, 'bin')
   try {
-    createConcivStateDir(stateDir)
-    mkdirSync(binDir, {recursive: true})
-    linkConcivBin(binDir)
+    await createConcivStateDir(stateDir)
+    await mkdir(binDir, {recursive: true})
+    await linkConcivBin(binDir)
   } catch (error) {
     console.error('conciv: could not link the conciv command into', binDir, error)
   }

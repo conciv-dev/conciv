@@ -1,6 +1,5 @@
 import {dirname, isAbsolute, join, posix, relative, resolve, sep} from 'node:path'
-import {readFileSync, existsSync} from 'node:fs'
-import {access, writeFile} from 'node:fs/promises'
+import {access, readFile, writeFile} from 'node:fs/promises'
 import type {Plugin, ViteDevServer} from 'vite'
 import {concivStateDir, createConcivStateDir} from '@conciv/protocol/state-types'
 import type {Engine, LogEntry} from '@conciv/core/start'
@@ -31,20 +30,23 @@ function readPackageName(id: string): string {
   return id.startsWith('@') ? segments.slice(0, 2).join('/') : (segments[0] ?? id)
 }
 
-function resolvableFrom(id: string, root: string): boolean {
-  let dir = root
-  while (true) {
-    if (existsSync(join(dir, 'node_modules', readPackageName(id), 'package.json'))) return true
-    const parent = dirname(dir)
-    if (parent === dir) return false
-    dir = parent
-  }
+async function resolvableFrom(id: string, dir: string): Promise<boolean> {
+  const found = await access(join(dir, 'node_modules', readPackageName(id), 'package.json')).then(
+    () => true,
+    () => false,
+  )
+  if (found) return true
+  const parent = dirname(dir)
+  if (parent === dir) return false
+  return resolvableFrom(id, parent)
 }
 
-function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly string[]} = {}) {
+async function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly string[]} = {}) {
   const root = opts.root
-  const singletons =
-    root === undefined ? [...SOLID_SINGLETONS] : SOLID_SINGLETONS.filter((id) => resolvableFrom(id, root))
+  const resolvable = await Promise.all(
+    SOLID_SINGLETONS.map(async (id) => (root === undefined || (await resolvableFrom(id, root)) ? id : null)),
+  )
+  const singletons = resolvable.filter((id) => id !== null)
   return {
     resolve: {dedupe: singletons},
     optimizeDeps: {
@@ -261,9 +263,9 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
 
 const EMBED_SOLID_RUNTIME = ['solid-js', 'solid-js/web', 'solid-js/store']
 
-function readMountChunk(embedEntry: string): string[] {
+async function readMountChunk(embedEntry: string): Promise<string[]> {
   try {
-    const chunk = /import\(\s*["']\.\/(mount-impl-[\w-]+\.js)["']\s*\)/.exec(readFileSync(embedEntry, 'utf8'))?.[1]
+    const chunk = /import\(\s*["']\.\/(mount-impl-[\w-]+\.js)["']\s*\)/.exec(await readFile(embedEntry, 'utf8'))?.[1]
     return chunk === undefined ? [] : [join(dirname(embedEntry), chunk)]
   } catch {
     return []
@@ -284,7 +286,7 @@ type DevToolsContext = {
     }) => void
   }
   rpc: {
-    register: (definition: {name: string; type: 'action'; handler: () => string}) => void
+    register: (definition: {name: string; type: 'action'; handler: () => Promise<string>}) => void
   }
 }
 
@@ -323,7 +325,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         context.rpc.register({
           name: 'conciv:engine-token',
           type: 'action',
-          handler: () => {
+          handler: async () => {
             const engine = engines.at(-1)
             if (!engine || !devServer) throw new Error('the conciv engine has not started yet')
             return engine.trustBrowser(
@@ -334,13 +336,13 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         })
       },
     },
-    config(userConfig, env) {
+    async config(userConfig, env) {
       if (env.mode === 'test') return {}
       const embedFiles =
-        builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...readMountChunk(builtins.embedEntry)]
+        builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...(await readMountChunk(builtins.embedEntry))]
       projectRoot = resolve(userConfig.root ?? process.cwd())
       widgetFiles = env.command === 'serve' ? embedFiles : []
-      const base = concivSolidConfig({
+      const base = await concivSolidConfig({
         root: projectRoot,
         warmupFiles: embedFiles,
       })
@@ -406,7 +408,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       const booted = await bootEngine(
         server,
         options,
-        installConcivBinShim(concivStateDir(cfg.stateRoot)),
+        await installConcivBinShim(concivStateDir(cfg.stateRoot)),
         builtins.nativePageDir,
       )
       engines.push(stopWhenHttpServerCloses(server, booted))

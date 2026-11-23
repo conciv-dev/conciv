@@ -6,7 +6,7 @@ import {defineHarness, type HarnessChatConfig} from '../_shared/contract.js'
 import {opencodeHistory, storagePath} from './history.js'
 import {opencodeModels} from './models.js'
 
-const opencodeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
+const opencodeChatConfig = async (deps: HarnessChatDeps): Promise<HarnessChatConfig> => ({
   adapter: opencodeAdapter(deps.model ?? 'opencode/claude-sonnet-4-5', {}),
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
 })
@@ -31,7 +31,7 @@ export function opencode(provider: ConfigProvider.ConfigProvider) {
     },
     chatConfig: opencodeChatConfig,
     models: opencodeModels,
-    defaultModel: 'opencode/claude-sonnet-4-5',
+    defaultModel: async () => 'opencode/claude-sonnet-4-5',
     history: opencodeHistory(dbPath),
     resume: {command: ({nativeId}) => ({bin: 'opencode', args: ['--session', nativeId]})},
   })
