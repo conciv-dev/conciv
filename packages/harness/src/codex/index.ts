@@ -8,7 +8,7 @@ import type {HarnessLoginStatus} from '@conciv/protocol/chat-types'
 import type {HarnessChatDeps, HarnessLogin} from '@conciv/protocol/harness-types'
 import {defineHarness, type HarnessChatConfig} from '../_shared/contract.js'
 import {codexHistory} from './history.js'
-import {codexDefaultModel, codexModels, codexHome} from './models.js'
+import {codexDefaultModel, codexModels, codexHome, codexUsesOpenaiLogin} from './models.js'
 import {definedEntries} from '../_shared/env.js'
 
 const TANSTACK_MCP_SERVER_NAME = 'tanstack'
@@ -82,7 +82,7 @@ function readLoginStatus(home: string, signal: AbortSignal): Promise<HarnessLogi
 function codexLogin(home: string): HarnessLogin {
   const seen = {loggedIn: false}
   return async ({signal}) => {
-    if (seen.loggedIn) return {loggedIn: true}
+    if (seen.loggedIn || !codexUsesOpenaiLogin(home)) return {loggedIn: true}
     const status = await readLoginStatus(home, signal)
     seen.loggedIn = status.loggedIn
     return status

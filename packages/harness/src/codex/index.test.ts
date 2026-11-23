@@ -49,4 +49,26 @@ describe('codex', () => {
     expect(models.map((model) => model.id)).toEqual([...codexModels])
     expect(harness.defaultModel).toBe(codexModels[0])
   })
+
+  it('a CODEX_HOME whose provider does not use the stored OpenAI login is not gated on it', async () => {
+    const home = tempDir('codex-home-')
+    writeFileSync(
+      join(home, 'config.toml'),
+      [
+        'model = "kimi-k3"',
+        'model_provider = "gateway"',
+        '',
+        '[model_providers.gateway]',
+        'name = "Gateway"',
+        'base_url = "https://gateway.example/v1"',
+        'env_key = "GATEWAY_API_KEY"',
+        'wire_api = "responses"',
+        '',
+      ].join('\n'),
+    )
+
+    const harness = codex(ConfigProvider.fromEnvRecord({CODEX_HOME: home}))
+
+    expect(await harness.login({signal: new AbortController().signal})).toEqual({loggedIn: true})
+  })
 })
