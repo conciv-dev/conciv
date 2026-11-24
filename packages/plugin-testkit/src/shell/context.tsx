@@ -21,6 +21,7 @@ import {
   type TokenValue,
 } from '@conciv/plugin/experimental'
 import {liveAccessor} from '@conciv/plugin/experimental/host'
+import {PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/ui-types'
 import {useQuery} from '@conciv/client'
 import {createUi} from '@internal/plugin/ui'
 import {shellClient, type ShellEngine} from './client.js'
@@ -361,6 +362,7 @@ export function createShell(input: {id: string; options: PluginOptions; engine: 
       appearance: {font: () => 'monospace', mode: () => 'light'},
       overlay: () => {
         const element = document.createElement('div')
+        element.setAttribute(PLUGIN_OVERLAY_ATTR, '')
         document.body.append(element)
         return {element, dispose: () => element.remove()}
       },

@@ -21,8 +21,6 @@ factory in `@conciv/contract` is the only place that picks the transport:
 - `vite.config.ts` - two Vite build environments, built in order by `builder.buildApp`.
   - `client`: the library build of `src/mount.ts` to `mount.js` (ES format, shared packages external). It bundles no plugin: the engine serves the page and terminal plugins' `./plugin-experimental` like any plugin's.
   - `widget`: one code-split ES build of `src/global-entry.ts` into chunks under `dist/widget/`, plus the classic-script loader `conciv-widget.global.js` that `import()`s its entry chunk relative to `document.currentScript.src`. Rolldown cannot code-split IIFE output, so the loader is what keeps a plain `<script src>` working. No source maps. Serving a loader means serving `dist/widget/` beside it, same origin (module chunks need CORS cross-origin).
-- `vite.handle.config.ts` - IIFE `ConcivHandle` test bundle `conciv-handle.global.js` into `test/dist`.
-- `playwright.config.ts:testDir` - `./test/e2e`.
 - Source: [src](./src/README.md).
 
 ## Invariants
@@ -35,5 +33,5 @@ factory in `@conciv/contract` is the only place that picks the transport:
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/embed` from the repo root (turbo builds the package and its dependencies first) (builds `vite.handle.config.ts`, then runs vitest and Playwright)
-- The embed IT (`test/e2e/embed.it.test.ts`) needs the handle fixture `test/dist/conciv-handle.global.js`, which only the package's own `test` script builds (`vite.handle.config.ts`): `turbo run build --filter=@conciv/embed` does not build it.
+- Run: `pnpm exec turbo run test --filter=@conciv/embed` from the repo root (turbo builds the package and its dependencies first): the node test of the built chunks.
+- The handle and `mountConciv` on a real host page against real engines: `e2e/vite-react-component` `test/mount-api.spec.ts` (`pnpm --filter conciv-e2e-vite-react-component test:e2e`).

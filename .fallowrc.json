@@ -802,6 +802,7 @@
     "packages/plugin-host/src/core/database/**",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/embed/src/global-entry.ts",
+    "e2e/vite-react-component/src/mount-api.ts",
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",
     "packages/db/drizzle-home.config.ts",
     "**/*.typecheck.ts"

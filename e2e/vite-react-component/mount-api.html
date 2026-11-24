@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>vite-react-component mount api</title>
+  </head>
+  <body>
+    <main>
+      <h1>A page that mounts conciv itself</h1>
+      <p>
+        <label>Engine address <input name="address" /></label>
+      </p>
+      <p>
+        <label>Engine token <input name="token" /></label>
+      </p>
+      <p><button type="button" name="mount">Mount</button></p>
+      <p><button type="button" name="send-token">Send token</button></p>
+      <p><button type="button" name="open">Open</button></p>
+      <p><button type="button" name="close">Close</button></p>
+      <p><button type="button" name="toggle">Toggle</button></p>
+      <p><button type="button" name="rebind">Rebind</button></p>
+      <p><button type="button" name="unmount">Unmount</button></p>
+      <p><button type="button" name="script">Mount the script widget twice</button></p>
+      <p role="status" aria-label="Page status"></p>
+      <div id="widget"></div>
+    </main>
+    <script type="module" src="/src/mount-api.ts"></script>
+  </body>
+</html>

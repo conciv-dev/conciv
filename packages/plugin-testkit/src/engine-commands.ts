@@ -1,6 +1,5 @@
-import {Effect, ManagedRuntime, Queue, Schema, Stream} from 'effect'
+import {Effect, ManagedRuntime, Queue, Stream} from 'effect'
 import type {BrowserCommandContext} from 'vitest/node'
-import {EventEnvelopeSchema} from '@conciv/contract'
 import {Bus, Event, EventManifest, Location, Rpc} from '@conciv/plugin-host'
 import {PluginEngine} from './plugin-engine.js'
 import type {EngineCommands, EngineEvent, EngineOutcome} from './browser-commands.js'
@@ -22,23 +21,16 @@ type EngineCommandHandlers = {
   ) => ReturnType<EngineCommands[Name]>
 }
 
-const ServerEvent = Schema.Union(EventManifest.ServerDefinitions)
-
 const isRpcType = (type: string): type is `rpc.${string}` => type.startsWith('rpc.')
 
 const isPublic = (event: Event.Payload) => EventManifest.isServer(event) || isRpcType(event.type)
-
-function encodeEvent(event: Event.Payload): EngineEvent {
-  const definition = isRpcType(event.type) ? Rpc.eventDefinition(event.type) : ServerEvent
-  return EventEnvelopeSchema.parse(Schema.encodeUnknownSync(definition)(event))
-}
 
 const publicEvents = Stream.unwrap(
   Effect.gen(function* () {
     const bus = yield* Bus.Service
     const queue = yield* Queue.unbounded<EngineEvent>()
     const stop = yield* bus.listen((event) =>
-      isPublic(event) ? Queue.offer(queue, encodeEvent(event)).pipe(Effect.asVoid) : Effect.void,
+      isPublic(event) ? Queue.offer(queue, Rpc.encodeEvent(event)).pipe(Effect.asVoid) : Effect.void,
     )
     yield* Effect.addFinalizer(() => stop)
     const connected: EngineEvent = {id: Event.Id.create(), type: 'server.connected', data: {}}

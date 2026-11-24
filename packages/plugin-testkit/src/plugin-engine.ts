@@ -1,8 +1,10 @@
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import {dirname, join, resolve} from 'node:path'
-import {openDb} from '@conciv/db'
+import {openDb, sessions as sessionRows, type ConcivDb} from '@conciv/db'
+import {eq} from 'drizzle-orm'
+import {SessionRecordSchema} from '@conciv/protocol/chat-types'
 import {SqliteClient} from '@effect/sql-sqlite-node'
-import {Effect, FileSystem, Layer, type PlatformError, Ref, Schema, Stream} from 'effect'
+import {Effect, FileSystem, Layer, Option, type PlatformError, Ref, Schema, Stream} from 'effect'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {Tool as ToolSchema} from '@conciv/plugin/schema/tool'
 import {
@@ -89,67 +91,98 @@ const models = Layer.succeed(
   HostModel.Service.of({available: () => Effect.succeed([MODEL]), default: () => Effect.succeed(MODEL)}),
 )
 
-const sessionsLayer = (directory: string) =>
+type SessionRow = typeof sessionRows.$inferSelect
+
+function sessionInfo(row: SessionRow): SessionInfo {
+  return {
+    id: SessionSchema.Id.make(row.id),
+    projectId: undefined,
+    agent: Agent.defaultId,
+    model: {
+      id: HostModel.Info.fields.id.make(row.model ?? MODEL.id),
+      providerId: HostModel.Info.fields.providerId.make(row.harnessKind),
+    },
+    cost: 0,
+    tokens: {input: 0, output: 0, reasoning: 0, cache: {read: 0, write: 0}},
+    time: {created: row.createdAt, updated: row.updatedAt},
+    location: {directory: AbsolutePath.make(row.cwd)},
+    title: row.title ?? undefined,
+    metadata: row.metadata ?? undefined,
+    permissions: row.permissions ?? undefined,
+  }
+}
+
+const sessionsLayer = (directory: string, db: ConcivDb) =>
   Layer.effect(
     Session.Service,
     Effect.gen(function* () {
       const bus = yield* Bus.Service
       const inbox = yield* SessionInbox.Service
-      const rows = yield* Ref.make<ReadonlyMap<SessionId, SessionInfo>>(new Map())
+      const rows = db.select().from(sessionRows).pipe(Effect.orDie)
       const get = (sessionId: SessionId) =>
-        Ref.get(rows).pipe(
-          Effect.flatMap((all) => {
-            const found = all.get(sessionId)
-            return found === undefined
-              ? Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
-              : Effect.succeed(found)
-          }),
-        )
-      const update = (sessionId: SessionId, change: (session: SessionInfo) => SessionInfo) =>
-        get(sessionId).pipe(
-          Effect.flatMap((session) =>
-            Ref.update(rows, (all) =>
-              new Map(all).set(sessionId, {...change(session), time: {...session.time, updated: Date.now()}}),
+        db
+          .select()
+          .from(sessionRows)
+          .where(eq(sessionRows.id, sessionId))
+          .pipe(
+            Effect.orDie,
+            Effect.flatMap(([row]) =>
+              row === undefined
+                ? Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
+                : Effect.succeed(sessionInfo(row)),
             ),
+          )
+      const update = (sessionId: SessionId, change: Partial<SessionRow>) =>
+        get(sessionId).pipe(
+          Effect.andThen(
+            db
+              .update(sessionRows)
+              .set({...change, updatedAt: Date.now()})
+              .where(eq(sessionRows.id, sessionId))
+              .pipe(Effect.orDie),
           ),
+          Effect.asVoid,
         )
       const synthetic = SessionSynthetic.make({get}, inbox, () => Effect.void)
       return Session.Service.of({
         get,
         list: (input) =>
-          Ref.get(rows).pipe(
+          rows.pipe(
             Effect.map((all) => {
               const term = input?.search?.trim().toLowerCase() ?? ''
-              const data = [...all.values()]
-                .filter((session) => term === '' || (session.title ?? '').toLowerCase().includes(term))
-                .toSorted((left, right) => right.time.updated - left.time.updated)
+              const data = all
+                .filter((row) => term === '' || (row.title ?? '').toLowerCase().includes(term))
+                .toSorted((left, right) => right.updatedAt - left.updatedAt)
                 .slice(0, input?.limit ?? DEFAULT_PAGE_SIZE)
+                .map(sessionInfo)
               return {data, cursor: {}}
             }),
           ),
         create: Effect.fn('PluginTest.sessions.create')(function* (input) {
           const id = input.id ?? SessionSchema.Id.create()
-          const known = (yield* Ref.get(rows)).get(id)
-          if (known !== undefined) return known
+          const known = yield* get(id).pipe(Effect.option)
+          if (Option.isSome(known)) return known.value
           if (input.agent !== undefined && input.agent !== null && input.agent !== Agent.defaultId)
             return yield* Effect.fail(
               SessionErrors.makeAgentNotFoundError({sessionId: id, agent: Agent.Id.make(input.agent)}),
             )
           const now = Date.now()
-          const session: SessionInfo = {
-            id,
-            projectId: undefined,
-            agent: Agent.defaultId,
-            model: {id: MODEL.id, providerId: MODEL.providerId},
-            cost: 0,
-            tokens: {input: 0, output: 0, reasoning: 0, cache: {read: 0, write: 0}},
-            time: {created: now, updated: now},
-            location: {directory: AbsolutePath.make(directory)},
-            ...(input.title === undefined || input.title === null ? {} : {title: input.title}),
-            ...(input.metadata === undefined || input.metadata === null ? {} : {metadata: input.metadata}),
-            ...(input.permissions === undefined || input.permissions === null ? {} : {permissions: input.permissions}),
-          }
-          yield* Ref.update(rows, (all) => new Map(all).set(id, session))
+          yield* db
+            .insert(sessionRows)
+            .values({
+              id,
+              harnessKind: MODEL.providerId,
+              origin: 'chat',
+              model: MODEL.id,
+              cwd: directory,
+              title: input.title ?? null,
+              metadata: SessionRecordSchema.shape.metadata.parse(input.metadata ?? null),
+              permissions: SessionRecordSchema.shape.permissions.parse(input.permissions ?? null),
+              createdAt: now,
+              updatedAt: now,
+            })
+            .pipe(Effect.orDie)
+          const session = yield* get(id).pipe(Effect.orDie)
           yield* bus.publish(
             SessionEvent.Created,
             session.title === undefined ? {sessionID: id} : {sessionID: id, title: session.title},
@@ -158,7 +191,7 @@ const sessionsLayer = (directory: string) =>
         }),
         remove: (sessionId) =>
           get(sessionId).pipe(
-            Effect.andThen(Ref.update(rows, (all) => new Map([...all].filter(([id]) => id !== sessionId)))),
+            Effect.andThen(db.delete(sessionRows).where(eq(sessionRows.id, sessionId)).pipe(Effect.orDie)),
             Effect.andThen(bus.publish(SessionEvent.Deleted, {sessionID: sessionId})),
             Effect.asVoid,
           ),
@@ -170,14 +203,16 @@ const sessionsLayer = (directory: string) =>
                 : Effect.fail(SessionErrors.makeAgentNotFoundError({sessionId, agent: Agent.Id.make(agent)})),
             ),
           ),
-        switchModel: ({sessionId, model}) => update(sessionId, (session) => ({...session, model})),
+        switchModel: ({sessionId, model}) => update(sessionId, {model: model.id, harnessKind: model.providerId}),
         rename: ({sessionId, title}) =>
-          update(sessionId, (session) => ({...session, title})).pipe(
+          update(sessionId, {title}).pipe(
             Effect.andThen(bus.publish(SessionEvent.Renamed, {sessionID: sessionId, title})),
             Effect.asVoid,
           ),
-        setMetadata: ({sessionId, metadata}) => update(sessionId, (session) => ({...session, metadata})),
-        setPermissions: ({sessionId, permissions}) => update(sessionId, (session) => ({...session, permissions})),
+        setMetadata: ({sessionId, metadata}) =>
+          update(sessionId, {metadata: SessionRecordSchema.shape.metadata.parse(metadata)}),
+        setPermissions: ({sessionId, permissions}) =>
+          update(sessionId, {permissions: SessionRecordSchema.shape.permissions.parse(permissions)}),
         compact: (input) =>
           get(input.sessionId).pipe(
             Effect.as<Compaction>({
@@ -196,10 +231,10 @@ const sessionsLayer = (directory: string) =>
     }),
   )
 
-const sessionsNode = (directory: string) =>
+const sessionsNode = (directory: string, db: ConcivDb) =>
   Node.makeLocationNode({
     service: Session.Service,
-    layer: sessionsLayer(directory),
+    layer: sessionsLayer(directory, db),
     deps: [Bus.node, SessionInbox.node],
   })
 
@@ -298,7 +333,7 @@ const instance = Effect.fn('PluginEngine.instance')(function* (options: Options)
       PluginHost.bundlerNode.replace(Layer.succeed(PluginHost.BundlerSource, undefined)),
       PluginHost.editorNode.replace(Layer.succeed(PluginHost.EditorSource, () => undefined)),
       HostModel.node.replace(models),
-      Session.node.replace(sessionsNode(directory)),
+      Session.node.replace(sessionsNode(directory, db)),
       Permission.sessionsNode.replace(permissionSessionsNode),
       InstructionEntry.node.replace(instructionEntriesNode),
     ],

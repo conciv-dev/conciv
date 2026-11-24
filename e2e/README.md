@@ -60,6 +60,12 @@ upgrade reminder. CI is not affected.
 | `vite-solid-component`  | copy of `vite-solid`       | `@conciv/solid` `<ConcivWidget/>` path, plugin `widget: false`  |
 | `vite-react-packed`     | copy of `vite-react`       | published-tarball pnpm install, catches dist/packaging bugs     |
 
+`vite-react-component` also serves `mount-api.html`, a host page that drives `@conciv/embed`'s public mount API
+(`createConciv`, `mountConciv`) from its own buttons. It lives there because the app runs the plugin with `widget: false`,
+so no script-tag widget is injected beside the page's own. Its `playwright.config.ts` starts two more engines with the
+`conciv-try` bin, one shared token (`CONCIV_E2E_MOUNT_API_TOKEN`) and the page's origin allowed, on the first two connect
+ports (`CONNECT_FIRST_PORT`), so the page can rebind the widget from one engine to the other.
+
 `vite-react-packed` installs conciv the way an npm user does, using the packing helpers in
 `packages/vitest-config/src/pack.ts` (`@conciv/vitest-config/pack`, shared with `nextjs/packed` and the
 packages' packed describes). Its `test:packed` runs `test/test-packed.ts`:
