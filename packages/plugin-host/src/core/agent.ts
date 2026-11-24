@@ -77,7 +77,7 @@ export const layer = Layer.effect(
           editor.default = id
         },
         update: (id, fn) => {
-          const current = editor.agents.get(id) ?? (Info.default(id) as Types.DeepMutable<Info>)
+          const current = editor.agents.get(id) ?? Info.default(id)
           if (!editor.agents.has(id)) editor.agents.set(id, current)
           fn(current)
           current.id = id

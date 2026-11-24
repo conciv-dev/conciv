@@ -8,6 +8,12 @@ import {Global} from './global.js'
 import {EffectFlock} from './effect-flock.js'
 import {NpmConfig} from './npm-config.js'
 
+const decodePackageBin = Schema.decodeUnknownOption(
+  Schema.Struct({
+    bin: Schema.optional(Schema.Union([Schema.String, Schema.Record(Schema.String, Schema.String)])),
+  }),
+)
+
 export const InstallFailedError = Schema.TaggedStruct('NpmInstallFailedError', {
   add: Schema.Array(Schema.String).pipe(Schema.optional),
   dir: Schema.String,
@@ -122,18 +128,6 @@ function gitSlug(pkg: string) {
   )
 }
 
-interface ArboristNode {
-  name: string
-  path: string
-  realpath: string
-  isLink: boolean
-}
-
-interface ArboristTree {
-  edgesOut: Map<string, {to?: ArboristNode}>
-  inventory: {values(): IterableIterator<ArboristNode>}
-}
-
 const PackageJson = Schema.Struct({
   dependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   version: Schema.optional(Schema.String),
@@ -156,7 +150,7 @@ export const layer = Layer.effect(
     const directory = (pkg: string, target: Target | undefined) => path.join(global.cache, 'npm', key(pkg, target))
     const generations = Effect.fnUntraced(function* (dir: string) {
       return yield* fs.readDirectory(dir).pipe(
-        Effect.orElseSucceed(() => [] as string[]),
+        Effect.orElseSucceed(() => []),
         Effect.map((entries) =>
           entries.filter((entry) => /^\d+$/.test(entry)).toSorted((a, b) => Number(a) - Number(b)),
         ),
@@ -253,7 +247,7 @@ export const layer = Layer.effect(
               add,
               dir: input.dir,
             }),
-        }) as Effect.Effect<ArboristTree, InstallFailedError>
+        })
       }).pipe(
         Effect.withSpan('Npm.reify', {
           attributes: input,
@@ -332,7 +326,7 @@ export const layer = Layer.effect(
       const now = yield* Clock.currentTimeMillis
       const completed = yield* generations(dir)
       const keep = new Set(completed.slice(-2))
-      const entries = yield* fs.readDirectory(dir).pipe(Effect.orElseSucceed(() => [] as string[]))
+      const entries = yield* fs.readDirectory(dir).pipe(Effect.orElseSucceed(() => []))
       yield* Effect.forEach(
         entries,
         (name) => {
@@ -427,7 +421,7 @@ export const layer = Layer.effect(
 
       const pick = Effect.fnUntraced(function* (dir: string) {
         const binDir = path.join(dir, 'node_modules', '.bin')
-        const files = yield* fs.readDirectory(binDir).pipe(Effect.orElseSucceed(() => [] as string[]))
+        const files = yield* fs.readDirectory(binDir).pipe(Effect.orElseSucceed((): string[] => []))
 
         const first = files[0]
         if (first === undefined) return Option.none<string>()
@@ -439,11 +433,11 @@ export const layer = Layer.effect(
           .readJson(path.join(dir, 'node_modules', packageName, 'package.json'))
           .pipe(Effect.option)
 
-        if (Option.isSome(pkgJson)) {
-          const parsed = pkgJson.value as {bin?: string | Record<string, string>}
-          if (parsed?.bin) {
+        const parsed = Option.flatMap(pkgJson, decodePackageBin)
+        if (Option.isSome(parsed)) {
+          if (parsed.value.bin) {
             const unscoped = packageName.startsWith('@') ? (packageName.split('/')[1] ?? packageName) : packageName
-            const parsedBin = parsed.bin
+            const parsedBin = parsed.value.bin
             if (typeof parsedBin === 'string') return Option.some(path.join(binDir, unscoped))
             const keys = Object.keys(parsedBin)
             const selected = parsedBin[unscoped] ? unscoped : keys[0]

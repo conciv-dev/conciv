@@ -12,7 +12,8 @@ import {isDeepStrictEqual} from 'node:util'
 import {Durable} from '../schema/durable-event-manifest.js'
 import {SessionEvent} from '@conciv/plugin/schema/session-event'
 import {SessionLegacy} from '../schema/session-legacy.js'
-import type {SessionId} from '@conciv/plugin/schema/session-id'
+import {SessionId} from '@conciv/plugin/schema/session-id'
+import {isRecord} from '../util/record.js'
 
 export type Subscriber<D extends Event.Definition = Event.Definition> = (event: Event.Payload<D>) => Effect.Effect<void>
 export type Unsubscribe = Effect.Effect<void>
@@ -75,10 +76,18 @@ const envelope = (aggregateId: string, seq: number, version: number) => ({
 })
 
 const requireAggregateId = (type: string, aggregate: string, data: unknown) => {
-  const aggregateId = (data as Record<string, unknown>)[aggregate]
+  const aggregateId = isRecord(data) ? data[aggregate] : undefined
   if (typeof aggregateId === 'string') return Effect.succeed(aggregateId)
   return Effect.die(makeInvalidDurableEventError({type, message: `Expected string aggregate field ${aggregate}`}))
 }
+
+const encodeData = (definition: Event.Definition, data: unknown): Record<string, unknown> => {
+  const encoded = Schema.encodeUnknownSync(definition.data)(data)
+  if (isRecord(encoded)) return encoded
+  throw makeInvalidDurableEventError({type: definition.type, message: 'Expected event data to encode to an object'})
+}
+
+const isSessionId = Schema.is(SessionId)
 
 const decodeStoredData = (definition: Event.DurableDefinition, data: unknown) =>
   Schema.decodeUnknownSync(definition.data)(SessionLegacy.event(definition.type, data))
@@ -285,8 +294,7 @@ export function configured(options?: Options) {
                       .get()
                       .pipe(Effect.orDie)
                     const latest = row?.seq ?? -1
-                    const encode = () =>
-                      Schema.encodeUnknownSync(definition.data)(event.data) as Record<string, unknown>
+                    const encode = () => encodeData(definition, event.data)
                     if (input?.strictOwner && row?.ownerID && row.ownerID !== input.ownerID) {
                       yield* Effect.die(
                         makeInvalidDurableEventError({
@@ -353,10 +361,10 @@ export function configured(options?: Options) {
                           }),
                         )
                     }
-                    const committed = {
+                    const committed: Event.Payload<Event.DurableDefinition> = {
                       ...event,
-                      durable: {aggregateID: aggregateId, seq, version: durable.version},
-                    } as Event.Payload
+                      durable: envelope(aggregateId, seq, durable.version),
+                    }
                     const route = yield* prepareRoutes([committed])
                     for (const projector of list) {
                       yield* projector(committed)
@@ -421,24 +429,22 @@ export function configured(options?: Options) {
               }),
             )
           if (definition.durable) {
-            const aggregateId = (event.data as Record<string, unknown>)[definition.durable.aggregate]
+            const aggregateId = isRecord(event.data) ? event.data[definition.durable.aggregate] : undefined
             if (typeof aggregateId !== 'string')
-              return yield* commitDurableEvent(definition, event as Event.Payload, undefined, commit).pipe(
-                Effect.as(event),
-              )
+              return yield* commitDurableEvent(definition, event, undefined, commit).pipe(Effect.as(event))
             return yield* durableLocks.withLock(aggregateId)(
               Effect.gen(function* () {
-                const committed = yield* commitDurableEvent(definition, event as Event.Payload, undefined, commit)
+                const committed = yield* commitDurableEvent(definition, event, undefined, commit)
                 if (!committed) return event
-                event = committed.event as Event.Payload<D>
-                yield* notify(event as Event.Payload, true)
+                event = {...event, durable: committed.event.durable}
+                yield* notify(event, true)
                 return event
               }),
             )
           }
-          const route = yield* prepareRoutes([event as Event.Payload])
+          const route = yield* prepareRoutes([event])
           route()
-          yield* notify(event as Event.Payload, false)
+          yield* notify(event, false)
           return event
         })
       }
@@ -480,7 +486,7 @@ export function configured(options?: Options) {
             type: definition.type,
             ...(location ? {location} : {}),
             data,
-          } as Event.Payload
+          }
         })
 
       function publish<D extends Event.Definition>(definition: D, data: Event.Data<D>, options?: PublishOptions) {
@@ -573,10 +579,7 @@ export function configured(options?: Options) {
                             seq,
                             created: event.created,
                             type: versionedType(item.definition.type, item.definition.durable.version),
-                            data: Schema.encodeUnknownSync(item.definition.data)(item.event.data) as Record<
-                              string,
-                              unknown
-                            >,
+                            data: encodeData(item.definition, item.event.data),
                           })
                       }
                       yield* db
@@ -623,7 +626,7 @@ export function configured(options?: Options) {
                 created: event.created ?? 0,
                 type: definition.type,
                 data: decodeStoredData(definition, event.data),
-              } as Event.Payload
+              }
               const committed = yield* commitDurableEvent(definition, payload, {
                 seq: event.seq,
                 aggregateID: event.aggregateID,
@@ -647,7 +650,7 @@ export function configured(options?: Options) {
             }),
           )
           .pipe(
-            Effect.tap(() => Effect.sync(() => sessions.delete(aggregateId as SessionId))),
+            Effect.tap(() => Effect.sync(() => isSessionId(aggregateId) && sessions.delete(aggregateId))),
             Effect.orDie,
           )
       }

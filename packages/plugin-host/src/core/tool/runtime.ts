@@ -16,7 +16,7 @@ const codecFor = (schema: JsonSchema.JsonSchema) => {
   return codec
 }
 
-export const definition = (tool: Tool.Info<any, any>): ToolDefinition => ({
+export const definition = (tool: Tool.Info): ToolDefinition => ({
   type: 'tool',
   name: effectiveName(tool),
   description: tool.description,
@@ -24,7 +24,7 @@ export const definition = (tool: Tool.Info<any, any>): ToolDefinition => ({
   ...(tool.output === undefined ? {} : {outputSchema: outputJsonSchema(tool.output)}),
 })
 
-export const execute = (tool: Tool.Info<any, any>, input: unknown, context: Tool.Context) =>
+export const execute = (tool: Tool.Info, input: unknown, context: Tool.Context) =>
   Effect.gen(function* () {
     const decoded = yield* decodeInput(tool, input)
     const result = yield* tool.execute(decoded, context).pipe(
@@ -54,7 +54,7 @@ export const execute = (tool: Tool.Info<any, any>, input: unknown, context: Tool
     }
   })
 
-const decodeInput = (tool: Tool.Info<any, any>, value: unknown) =>
+const decodeInput = (tool: Tool.Info, value: unknown) =>
   Effect.gen(function* () {
     const result = yield* validateInput(tool.input, value)
     if (result.issues)
@@ -62,10 +62,7 @@ const decodeInput = (tool: Tool.Info<any, any>, value: unknown) =>
     return result.value
   })
 
-const validateInput = (
-  schema: Tool.ValueSchema<any>,
-  value: unknown,
-): Effect.Effect<StandardSchemaV1.Result<unknown>> => {
+const validateInput = (schema: Tool.ValueSchema, value: unknown): Effect.Effect<StandardSchemaV1.Result<unknown>> => {
   if (isStandardSchema(schema)) return validateStandard(schema, value)
   return Effect.gen(function* () {
     const codec = Schema.isSchema(schema) ? schema : codecFor(schema)
@@ -101,7 +98,7 @@ const jsonSchema = (schema: JsonSchema.JsonSchema) => {
   return Schema.make<Schema.Codec<unknown>>(SchemaRepresentation.fromJsonSchemaDocument(draft).ast)
 }
 
-const encodeOutput = (schema: Tool.ValueSchema<any>, value: unknown) => {
+const encodeOutput = (schema: Tool.ValueSchema, value: unknown) => {
   if (Schema.isSchema(schema))
     return Schema.encodeEffect(schema)(value).pipe(
       Effect.mapError((error) =>
@@ -127,17 +124,13 @@ const encodeOutput = (schema: Tool.ValueSchema<any>, value: unknown) => {
   )
 }
 
-const isStandardSchema = (schema: Tool.ValueSchema<any>): schema is StandardSchemaV1<any, any> =>
+const isStandardSchema = (schema: Tool.ValueSchema): schema is StandardSchemaV1 =>
   typeof schema === 'object' && schema !== null && '~standard' in schema
 
-const isStandardJSONSchema = (
-  schema: StandardSchemaV1<any, any>,
-): schema is StandardSchemaV1<any, any> & StandardJSONSchemaV1<any, any> => 'jsonSchema' in schema['~standard']
+const isStandardJSONSchema = (schema: StandardSchemaV1): schema is StandardSchemaV1 & StandardJSONSchemaV1 =>
+  'jsonSchema' in schema['~standard']
 
-const validateStandard = (
-  schema: StandardSchemaV1<any, any>,
-  value: unknown,
-): Effect.Effect<StandardSchemaV1.Result<unknown>> =>
+const validateStandard = (schema: StandardSchemaV1, value: unknown): Effect.Effect<StandardSchemaV1.Result<unknown>> =>
   Effect.gen(function* () {
     const result = yield* Effect.try({try: () => schema['~standard'].validate(value), catch: (error) => error})
     return result instanceof Promise ? yield* Effect.tryPromise({try: () => result, catch: (error) => error}) : result
@@ -148,19 +141,19 @@ const validateStandard = (
     }),
   )
 
-const inputJsonSchema = (schema: Tool.ValueSchema<any>): JsonSchema.JsonSchema => {
+const inputJsonSchema = (schema: Tool.ValueSchema): JsonSchema.JsonSchema => {
   if (schema === undefined || schema === null) return {}
   if (isStandardSchema(schema)) return standardJsonSchema(schema, 'input')
   if (!Schema.isSchema(schema)) return schema
   return emptyInputJsonSchema(schema) ?? toJsonSchema(schema)
 }
 
-const outputJsonSchema = (schema: Tool.ValueSchema<any>): JsonSchema.JsonSchema => {
+const outputJsonSchema = (schema: Tool.ValueSchema): JsonSchema.JsonSchema => {
   if (isStandardSchema(schema)) return standardJsonSchema(schema, 'output')
   return Schema.isSchema(schema) ? toJsonSchema(schema) : schema
 }
 
-const standardJsonSchema = (schema: StandardSchemaV1<any, any>, io: 'input' | 'output'): JsonSchema.JsonSchema => {
+const standardJsonSchema = (schema: StandardSchemaV1, io: 'input' | 'output'): JsonSchema.JsonSchema => {
   if (isStandardJSONSchema(schema)) return schema['~standard'].jsonSchema[io]({target: 'draft-2020-12'})
   if (schema instanceof $ZodType) return toJSONSchema(schema, {target: 'draft-2020-12', io})
   throw new Error(`Schema vendor "${schema['~standard'].vendor}" does not support JSON Schema conversion`)
@@ -173,7 +166,9 @@ const toJsonSchema = (schema: Schema.Top): JsonSchema.JsonSchema => {
       ? document.schema
       : {...document.schema, $defs: document.definitions},
   )
-  return dropDefinitionsIfResolved(inlineLocalReferences(normalized)) as JsonSchema.JsonSchema
+  const resolved = dropDefinitionsIfResolved(inlineLocalReferences(normalized))
+  if (!isRecord(resolved)) throw new Error('the JSON Schema document is not an object')
+  return resolved
 }
 
 const flattenAllOf = (value: unknown): unknown => {

@@ -1,11 +1,8 @@
 export function lazy<T>(fn: () => T) {
-  let value: T | undefined
-  let loaded = false
+  let cell: {readonly value: T} | undefined
 
   return (): T => {
-    if (loaded) return value as T
-    loaded = true
-    value = fn()
-    return value as T
+    cell ??= {value: fn()}
+    return cell.value
   }
 }

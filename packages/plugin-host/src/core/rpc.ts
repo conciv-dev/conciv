@@ -94,7 +94,7 @@ export const layer = Layer.effect(
             const registered = events.get(args[0])
             if (!registered) return yield* Effect.fail(new Error(`Unknown RPC event: ${definition.id}.${args[0]}`))
             const event = registered.event
-            const data = (yield* encode(event.schema, args[1])) as Readonly<Record<string, unknown>>
+            const data = yield* encode(event.schema, args[1])
             return yield* bus
               .publish(registered.definition, data, {
                 location: ref,

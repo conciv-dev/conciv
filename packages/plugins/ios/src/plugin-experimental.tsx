@@ -1,17 +1,9 @@
 import {Show, onCleanup, type JSX} from 'solid-js'
 import {useQuery} from '@conciv/client'
-import {OpaqueNoteCard} from '@internal/plugin'
+import {NoteCard, OpaqueNoteCard, type NoteCardProps} from '@internal/plugin'
 import {createStore, reconcile} from 'solid-js/store'
 import {Context, Effect, FiberSet, Layer, ManagedRuntime, Queue, Stream, SubscriptionRef} from 'effect'
-import {
-  NoteCard,
-  Plugin,
-  Slot,
-  type MountedSession,
-  type NoteCardProps,
-  type Ui,
-  type Widget,
-} from '@conciv/plugin/experimental'
+import {Plugin, Slot, type MountedSession, type Ui, type Widget} from '@conciv/plugin/experimental'
 import {GrabPicker} from '@conciv/plugin/experimental/grab'
 import type {ElementRect, Grab} from '@conciv/plugin/experimental/grab'
 import {IosBridge} from './bridge.js'

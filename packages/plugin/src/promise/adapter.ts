@@ -248,7 +248,7 @@ const rpcFromEffect = Effect.fn('Plugin.Rpc.fromEffect')(function* (host: HostRp
                       error: (type: string, message: string, data?: unknown) =>
                         makeReturnedRpcError(type, message, data),
                     },
-                  ]) as Promise<unknown>
+                  ])
                 },
                 catch: (error) => hostRpcError(context, error),
               }).pipe(
@@ -491,7 +491,7 @@ const toolHook: {
   'execute.after': (run) => Effect.promise(run),
 }
 
-const executePromiseTool = (tool: Info, input: any, context: Tool.Context) =>
+const executePromiseTool = (tool: Info, input: unknown, context: Tool.Context) =>
   Effect.gen(function* () {
     const {cancel, ...rest} = context
     const runCancel = yield* FiberHandle.makeRuntime<never>()

@@ -17,7 +17,6 @@ import {Model} from '../model.js'
 import {Session} from '../session.js'
 import {InstructionEntry} from '../session/instruction-entry.js'
 import {Rpc} from '../rpc.js'
-import type {DeepMutable} from '../schema.js'
 import {Skill} from '../skill.js'
 import {Tool} from '../tool.js'
 import {Permission} from '../permission.js'
@@ -26,7 +25,6 @@ import {Global} from '../../util/global.js'
 import {FSUtil} from '../../util/fs-util.js'
 import type {Interface} from '../plugin.js'
 
-const mutable = <T>(value: T) => value as DeepMutable<T>
 type RpcEvent = Event.Payload & {
   readonly type: `rpc.${string}`
   readonly location: Location.Ref
@@ -160,7 +158,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
       transform: (callback) =>
         skill.transform((editor) => {
           callback({
-            list: () => mutable(editor.list()),
+            list: () => editor.list(),
             get: editor.get,
             add: (value) => editor.add(Schema.decodeUnknownSync(Skill.Info)(value)),
             update: editor.update,

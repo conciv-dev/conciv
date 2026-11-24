@@ -6,7 +6,7 @@ import type {Agent} from './agent.js'
 import type {Session} from './session.js'
 import type {SessionMessage} from './session-message.js'
 
-export type Metadata = Readonly<Record<string, any>>
+export type Metadata = Readonly<Record<string, unknown>>
 
 export const CallId = Schema.String.pipe(Schema.brand('Tool.CallID'))
 export type CallId = typeof CallId.Type
@@ -42,22 +42,17 @@ export type Options = BaseOptions &
       }
   )
 
-export type ValueSchema<A = unknown> = Schema.Codec<A, any> | StandardSchemaV1<any, A> | JsonSchema.JsonSchema
+export type ValueSchema<A = unknown> = Schema.Codec<A, unknown> | StandardSchemaV1<unknown, A> | JsonSchema.JsonSchema
 
-type InputValue<S> = 0 extends 1 & S
-  ? any
-  : S extends Schema.Codec<infer A, any>
-    ? A
-    : S extends StandardSchemaV1<any, infer A>
-      ? A
-      : unknown
+type InputValue<S> =
+  S extends Schema.Codec<infer A, unknown> ? A : S extends StandardSchemaV1<unknown, infer A> ? A : unknown
 type OutputValue<S> = S extends undefined
   ? never
-  : S extends Schema.Codec<infer A, any>
+  : S extends Schema.Codec<infer A, unknown>
     ? A
-    : S extends StandardSchemaV1<infer A, any>
+    : S extends StandardSchemaV1<infer A, unknown>
       ? A
-      : any
+      : unknown
 
 export const Error = Schema.TaggedStruct('Tool.Error', {
   message: Schema.String,
@@ -95,20 +90,20 @@ export const Content = Schema.Union([TextContent, FileContent])
   .annotate({identifier: 'Tool.Content'})
 export type Content = Schema.Schema.Type<typeof Content>
 
-export interface Result<Output extends ValueSchema<any> | undefined = ValueSchema<any> | undefined> {
+export interface Result<Output extends ValueSchema | undefined = ValueSchema | undefined> {
   readonly output?: OutputValue<Output>
   readonly content?: string | ReadonlyArray<Content>
   readonly metadata?: Metadata
 }
 
 export type Info<
-  Input extends ValueSchema<any> = ValueSchema<any>,
-  Output extends ValueSchema<any> | undefined = ValueSchema<any> | undefined,
+  Input extends ValueSchema = ValueSchema,
+  Output extends ValueSchema | undefined = ValueSchema | undefined,
 > = {
   readonly name: string
   readonly input: Input
   readonly description: string
-  readonly execute: (input: InputValue<Input>, context: Context) => Effect.Effect<Result<Output>, Error>
+  execute(input: InputValue<Input>, context: Context): Effect.Effect<Result<Output>, Error>
   readonly output?: Output
   readonly options?: Options
 }

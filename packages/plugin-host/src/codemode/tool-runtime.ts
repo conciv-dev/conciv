@@ -48,7 +48,13 @@ const fieldWeights: Record<SearchField, number> = {
   namespaceDescription: 0.4,
   parameters: 0.3,
 }
-const searchFields = Object.keys(fieldWeights) as ReadonlyArray<SearchField>
+const searchFields: ReadonlyArray<SearchField> = [
+  'name',
+  'namespace',
+  'description',
+  'namespaceDescription',
+  'parameters',
+]
 const k1 = 1.2
 const lengthNormalization = 0.75
 const brevityBoost = 0.5
@@ -152,12 +158,15 @@ const buildWordIndex = (texts: ReadonlyArray<Readonly<Record<SearchField, Readon
       namespaceDescription: words(text.namespaceDescription),
     }
   })
-  const averageLength = Object.fromEntries(
-    searchFields.map((field) => [
-      field,
-      fields.reduce((sum, entry) => sum + entry[field].length, 0) / texts.length || 1,
-    ]),
-  ) as Record<SearchField, number>
+  const average = (field: SearchField) =>
+    fields.reduce((sum, entry) => sum + entry[field].length, 0) / texts.length || 1
+  const averageLength: Record<SearchField, number> = {
+    name: average('name'),
+    namespace: average('namespace'),
+    description: average('description'),
+    namespaceDescription: average('namespaceDescription'),
+    parameters: average('parameters'),
+  }
   const building = new Map<string, {positions: Array<number>; weights: Array<number>}>()
   const weights = new Map<string, number>()
   fields.forEach((entry, position) => {
@@ -242,7 +251,7 @@ export type SearchTool = {
   readonly description: string
   readonly input: typeof SearchInput
   readonly output: typeof SearchOutput
-  readonly execute: (input: unknown) => Effect.Effect<typeof SearchOutput.Type>
+  readonly execute: (input: typeof SearchInput.Type) => Effect.Effect<typeof SearchOutput.Type>
 }
 
 export const makeSearchTool = (searchIndex: ReadonlyArray<SearchEntry>): SearchTool => ({
@@ -251,7 +260,7 @@ export const makeSearchTool = (searchIndex: ReadonlyArray<SearchEntry>): SearchT
   output: SearchOutput,
   execute: (input) =>
     Effect.sync(() => {
-      const request = input as typeof SearchInput.Type
+      const request = input
       const query = request.query ?? ''
       const offset = request.offset ?? 0
       let ns = request.namespace
