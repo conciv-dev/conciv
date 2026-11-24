@@ -102,7 +102,7 @@ describe('the run in the thread', () => {
     expect(within(discount).getByText('expected 11 to be 2 // Object.is equality')).not.toBeVisible()
     await user.click(within(discount).getByText('the spring discount takes 10 off'))
     expect(await within(discount).findByText('expected 11 to be 2 // Object.is equality')).toBeVisible()
-    await user.click(within(shell).getByRole('button', {name: 'Fix this'}))
+    await user.click(within(discount).getByRole('button', {name: 'Fix this'}))
     const input = screen.getByRole('textbox', {name: 'Message the conciv agent'})
     expect(input).toHaveValue(
       expect.stringContaining('The test "the spring discount takes 10 off" in discount.test.js is failing:'),

@@ -1,8 +1,9 @@
 import {For, Show, onCleanup, untrack, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
-import {mapKeys, mapValues} from 'es-toolkit'
+import {mapKeys, mapValues, sortBy} from 'es-toolkit'
 import {
+  ComposerPill,
   Panel,
   Server,
   SettingsPage,
@@ -50,20 +51,37 @@ function declaresAll<S extends Stores, I extends Icons>(
   )
 }
 
-function setUp<S extends Stores, I extends Icons>(shell: Shell, id: string, plugin: Plugin.Definition<S, I>): void {
+function declare<S extends Stores, I extends Icons>(
+  shell: Shell,
+  id: string,
+  plugin: Plugin.Definition<S, I>,
+): Declared {
   const icons: Icons = plugin.icons ?? {}
   const stores: Stores = plugin.stores ?? {}
   onCleanup(registerIcons(mapKeys(icons, (_source, name) => pluginIconName(id, name))))
-  const context: Declared = {
+  return {
     ...shell.context,
     stores: mapValues(stores, (declaration) =>
       declaration.scope === 'session' ? () => persistedCell(declaration.initial) : persistedCell(declaration.initial),
     ),
     icons: mapValues(icons, (_source, name) => pluginIconName(id, name)),
   }
-  if (!declaresAll(context, plugin)) throw new Error(`the plugin ${id} declares stores or icons the shell did not make`)
-  const cleanup = plugin.setup?.(context)
-  if (cleanup !== undefined) onCleanup(() => void cleanup())
+}
+
+function SetUp<S extends Stores, I extends Icons>(props: {
+  context: Declared
+  id: string
+  plugin: Plugin.Definition<S, I>
+  children: JSX.Element
+}): JSX.Element {
+  untrack(() => {
+    const {context, id, plugin} = props
+    if (!declaresAll(context, plugin))
+      throw new Error(`the plugin ${id} declares stores or icons the shell did not make`)
+    const cleanup = plugin.setup?.(context)
+    if (cleanup !== undefined) onCleanup(() => void cleanup())
+  })
+  return <>{props.children}</>
 }
 
 function ToolCard(props: {shell: Shell; tool: ShellTool}): JSX.Element {
@@ -79,7 +97,7 @@ function ToolCard(props: {shell: Shell; tool: ShellTool}): JSX.Element {
 
 function ShellView<S extends Stores, I extends Icons>(props: FakeAppProps<S, I> & {shell: Shell}): JSX.Element {
   const shell = untrack(() => props.shell)
-  untrack(() => setUp(shell, props.id, props.plugin))
+  const context = untrack(() => declare(shell, props.id, props.plugin))
   const [view, setView] = createStore<{tab?: string}>({})
   const screen = () => shell.context.screen.current()
   const tabs = () => {
@@ -95,61 +113,82 @@ function ShellView<S extends Stores, I extends Icons>(props: FakeAppProps<S, I> 
   }
   const selected = () => view.tab ?? tabs()[0]?.tab.id
   return (
-    <main aria-label="App shell" data-conciv-root class="flex flex-col gap-3">
-      <For each={shell.context.list(Slot)}>{(slot) => (slot.at === 'page.overlay' ? slot.render({}) : undefined)}</For>
-      <For each={shell.context.list(Server)}>
-        {(server) => <For each={server.entries}>{(entry) => entry.cover?.({tab: undefined})}</For>}
-      </For>
-      <Show when={tabs().length > 0}>
-        <div role="tablist" aria-label="Panels" class="flex gap-2">
-          <For each={tabs()}>
-            {(item) => (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={selected() === item.tab.id}
-                onClick={() => setView('tab', item.tab.id)}
-              >
-                {item.tab.title}
-              </button>
+    <PluginContext.Provider value={context}>
+      <SetUp context={context} id={props.id} plugin={props.plugin}>
+        <main aria-label="App shell" data-conciv-root class="flex flex-col gap-3">
+          <For each={shell.context.list(Slot)}>
+            {(slot) => (slot.at === 'page.overlay' ? slot.render({}) : undefined)}
+          </For>
+          <For each={shell.context.list(Server)}>
+            {(server) => <For each={server.entries}>{(entry) => entry.cover?.({tab: undefined})}</For>}
+          </For>
+          <Show when={tabs().length > 0}>
+            <div role="tablist" aria-label="Panels" class="flex gap-2">
+              <For each={tabs()}>
+                {(item) => (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={selected() === item.tab.id}
+                    onClick={() => setView('tab', item.tab.id)}
+                  >
+                    {item.tab.title}
+                  </button>
+                )}
+              </For>
+            </div>
+            <For each={tabs().filter((item) => item.tab.id === selected())}>
+              {(item) => (
+                <section role="tabpanel" aria-label={item.tab.title}>
+                  {item.panel.render({tab: item.tab, session: shell.session, screen: item.screen})}
+                </section>
+              )}
+            </For>
+          </Show>
+          <For each={shell.context.list(SettingsPage)}>
+            {(page) => <section aria-label={page.title}>{page.render({})}</section>}
+          </For>
+          <For each={props.tools}>{(tool) => <ToolCard shell={shell} tool={tool} />}</For>
+          {props.children}
+          <Show when={screen()}>
+            {(current) => (
+              <For each={sortBy(shell.context.list(ComposerPill), [(pill) => pill.order ?? 0])}>
+                {(pill) => (
+                  <Show when={pill.show({session: shell.session, screen: current()})}>
+                    {(shown) => (
+                      <button type="button" aria-label={shown().title ?? shown().label} onClick={() => shown().run?.()}>
+                        {shown().label}
+                      </button>
+                    )}
+                  </Show>
+                )}
+              </For>
+            )}
+          </Show>
+          <textarea
+            aria-label="Message the conciv agent"
+            value={shell.state.composer.text}
+            onInput={(event) => screen()?.composer.setText(event.currentTarget.value)}
+          />
+          <Show when={shell.state.composer.parts.length > 0}>
+            <ul aria-label="Composer attachments">
+              <For each={shell.state.composer.parts}>
+                {(part) => <li>{part.type === 'file' ? part.path : part.type === 'note' ? part.label : part.text}</li>}
+              </For>
+            </ul>
+          </Show>
+          <For each={shell.state.toasts}>
+            {(toast) => (
+              <div role="status">
+                {toast.title}
+                {toast.description}
+              </div>
             )}
           </For>
-        </div>
-        <For each={tabs().filter((item) => item.tab.id === selected())}>
-          {(item) => (
-            <section role="tabpanel" aria-label={item.tab.title}>
-              {item.panel.render({tab: item.tab, session: shell.session, screen: item.screen})}
-            </section>
-          )}
-        </For>
-      </Show>
-      <For each={shell.context.list(SettingsPage)}>
-        {(page) => <section aria-label={page.title}>{page.render({})}</section>}
-      </For>
-      <For each={props.tools}>{(tool) => <ToolCard shell={shell} tool={tool} />}</For>
-      {props.children}
-      <textarea
-        aria-label="Message the conciv agent"
-        value={shell.state.composer.text}
-        onInput={(event) => screen()?.composer.setText(event.currentTarget.value)}
-      />
-      <Show when={shell.state.composer.parts.length > 0}>
-        <ul aria-label="Composer attachments">
-          <For each={shell.state.composer.parts}>
-            {(part) => <li>{part.type === 'file' ? part.path : part.type === 'note' ? part.label : part.text}</li>}
-          </For>
-        </ul>
-      </Show>
-      <For each={shell.state.toasts}>
-        {(toast) => (
-          <div role="status">
-            {toast.title}
-            {toast.description}
-          </div>
-        )}
-      </For>
-      <For each={shell.state.dialogs}>{(dialog) => dialog.render()}</For>
-    </main>
+          <For each={shell.state.dialogs}>{(dialog) => dialog.render()}</For>
+        </main>
+      </SetUp>
+    </PluginContext.Provider>
   )
 }
 
