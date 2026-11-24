@@ -54,7 +54,7 @@
       "outputs": ["test-results.json", "coverage/coverage-summary.json", "coverage/lcov.info"]
     },
     "lint": {
-      "dependsOn": ["^build", "@conciv/uno-preset#build"],
+      "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json", "$TURBO_ROOT$/uno.config.ts"]
     },
     "publint": {
