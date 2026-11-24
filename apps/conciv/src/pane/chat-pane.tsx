@@ -27,8 +27,6 @@ import {
   useMessage,
   useThread,
   type ComposerDraft,
-  type GroupEntry,
-  type Grouping,
   type TurnItem,
   type TurnPrefixSource,
   useThreadViewport,
@@ -36,7 +34,6 @@ import {
 } from '@conciv/ui-kit-chat'
 import type {DraftItem, PermissionReply} from '@conciv/protocol/chat-types'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
-import {createPageSessionGrouper, pageSessionEntry} from '@conciv/plugin-page/client'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {codeRunTool} from './cards/code-run-card.js'
@@ -81,7 +78,6 @@ import {
   SessionStatusSlot,
 } from './plugin-session-parts.js'
 import {createToolRender} from './tool-registry-render.js'
-import {Contribution} from '../runtime/plugin/render'
 import {useEngineReachability} from '../app/reachability.js'
 import {StandingNotice} from '../shell/notices.js'
 import {Button} from '@conciv/ui-kit-system'
@@ -248,17 +244,6 @@ function DraftUnsavedNotice(props: {
     </Show>
   )
 }
-
-const PAGE_SESSION_ENTRIES: readonly GroupEntry[] = [
-  {
-    key: pageSessionEntry.key,
-    render: (props) => (
-      <Contribution plugin="conciv.page" fallback={() => props.children}>
-        {() => pageSessionEntry.render(props)}
-      </Contribution>
-    ),
-  },
-]
 
 type SyntheticTag = {description?: string; metadata?: Record<string, unknown>}
 
@@ -475,8 +460,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
 
   const toolRender = createToolRender()
   const tools = (): ToolCardEntry[] => [...concivToolCards, codeRunTool, ...builtinToolCards]
-  const pageSessionGrouper = createPageSessionGrouper()
-  const grouping = (): Grouping => ({grouper: pageSessionGrouper, context: {toolEntries: tools()}})
 
   const compacting = messaging.compacting
 
@@ -602,8 +585,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       renderPending={toolRender.pending()}
                       turnPrefix={renderTurnPrefix}
                       promptSuffix={renderPromptSuffix}
-                      grouping={grouping()}
-                      groupEntries={PAGE_SESSION_ENTRIES}
                       refreshDisabled={!messaging.resendAllowed()}
                     />
                     <Show when={lastTurnStopped()}>

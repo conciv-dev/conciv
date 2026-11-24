@@ -31,7 +31,7 @@ A built-in: it draws with the UI kits directly, like opencode's gui plugins, and
 - option `pageReplyTimeoutMs` (`connection.ts`, milliseconds, default 5 000): how long a tab has to answer an action that declares no timeout of its own, and to accept a queue
 - option `queuedActionTimeoutMs` (`connection.ts`, milliseconds, default 7 000): how long each queued action has to confirm once the tab reaches it
 - option `permissionSyncTimeoutMs` (`connection.ts`, milliseconds, default 10 000): how long granting or revoking a tab's page permissions on its session may take before the attach is refused (the tab retries on its back-off)
-- `client.ts` (`./client`): the DOM helpers, `reactBridge` as a namespace, `pageSessionEntry`, `PAGE_ACT_TOOL_NAMES`, `PAGE_TOOL_PREFIX`
+- `client.ts` (`./client`): `showToast`
 - `renderer.tsx` (`./renderer`): the window setup (default export) the built-ins load lazily
 - `grab.ts:getReactGrabAdapter` - creates the adapter once and returns `{activate(onGrab), comment(onGrab), deactivate(), isActive()}` (`ReactGrabAdapter`).
 - `grab.ts:GrabSink` - `(grab: Promise<Grab>) => void`: called as soon as an element is picked, before react-grab deactivates, so a pick never resolves before its capture ends.
@@ -153,7 +153,7 @@ A page failure is the plugin's own error, a `[page.<code>]` message; the old reg
 
 ## Cards
 
-Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTool` row (through `PageTool` in `shared.tsx`) with the page operation's own label as its title. `cards.tsx` binds the cards to the page tool names, the page plugin registers one render per name in its setup, and each render reads its element captures through the page plugin's own captures query (`captures.tsx`). `SessionCard` is the group entry for `PAGE_SESSION_GROUP_KEY` groups and reads the same captures. An errored call never reaches a card: the plugin registers `PageFailedTool` (`shared.tsx`) as each name's `errorComponent`, the error card titled with the page operation. `session-card.tsx` turns a run of page tool calls into `PageSessionStep` rows. `story.fixtures.tsx` holds the builders the stories use.
+Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTool` row (through `PageTool` in `shared.tsx`) with the page operation's own label as its title. `cards.tsx` binds the cards to the page tool names, the page plugin registers one render per name in its setup, and each render reads its element captures through the page plugin's own captures query (`captures.tsx`). `PageSessionCard` is the ToolRegistry entry registered under `PAGE_TOOL_PREFIX` with `acts` read from `PAGE_ACT_TOOL_NAMES`: the chat thread folds a run of page calls into it, with the run's parts and results in `ToolProps.metadata`, and it reads the same captures. An errored call never reaches a card: the plugin registers `PageFailedTool` (`shared.tsx`) as each name's `errorComponent`, the error card titled with the page operation. `session-card.tsx` turns a run of page tool calls into `PageSessionStep` rows. `story.fixtures.tsx` holds the builders the stories use.
 
 ## Invariants
 

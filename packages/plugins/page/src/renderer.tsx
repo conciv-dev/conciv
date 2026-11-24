@@ -14,7 +14,8 @@ import {symbolicateInSession} from './open-source.js'
 import {makePageOperations} from './operations.js'
 import {pageToolCards} from './cards.js'
 import {SessionCaptures} from './captures.js'
-import {Definition} from './rpc.js'
+import {Definition, PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from './rpc.js'
+import {PageSessionCard} from './session-card.js'
 import {PageFailedTool} from './shared.js'
 import {makeSimulator} from './simulator.js'
 import {CONCIV_UI_SELECTOR} from './conciv-ui.js'
@@ -141,6 +142,11 @@ export default Plugin.define({
         }),
       ),
     )
+    ctx.add(ToolRegistry, {
+      name: PAGE_TOOL_PREFIX,
+      acts: (name) => PAGE_ACT_TOOL_NAMES.has(name),
+      render: PageSessionCard,
+    })
     ctx.add(
       GrabPicker,
       makeGrabNotePicker(grabApi, {

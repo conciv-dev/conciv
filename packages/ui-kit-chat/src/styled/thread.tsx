@@ -79,6 +79,7 @@ import {HighlightedText, Markdown, warmHighlighter} from './markdown.js'
 import {codeTheme} from '../theme/code-theme.js'
 import {ToolPartRow, type ToolDisclosure} from './tool-part-row.js'
 import type {ToolRender} from '../tools/primitives/tool-props.js'
+import {createToolSessionGrouper, ToolSessionGroup} from '../store/tool-sessions.js'
 import {Trace, type TraceBranch, type TraceItem} from './trace/trace.js'
 import {TraceRunRow} from './trace/trace-row.js'
 import {TraceBodyFrame} from './trace/output-block.js'
@@ -223,7 +224,13 @@ function AssistantTurn(props: {
     open: (partId) => opened[partId],
     setOpen: (partId, open) => setOpened(partId, open),
   }
-  const grouping = createMemo(() => props.grouping ?? defaultGrouping(props.entries))
+  const grouping = createMemo((): Grouping => {
+    const base = props.grouping ?? defaultGrouping(props.entries)
+    const render = props.render
+    return render === undefined
+      ? base
+      : {grouper: createToolSessionGrouper(base.grouper, render), context: base.context}
+  })
   const lastPartIndex = createMemo(() => turnParts.items().length - 1)
   const runActive = () => thread.isRunning && message.isLast()
   const nodes = createMemo<readonly GroupNode[]>(
@@ -389,7 +396,22 @@ function AssistantTurn(props: {
     <Switch>
       <Match when={asGroupNode(nodeProps.node)}>
         {(group) => (
-          <Show when={entryFor(group().key)} fallback={<NodeListView nodes={group().children} />}>
+          <Show
+            when={entryFor(group().key)}
+            fallback={
+              <ToolSessionGroup
+                render={props.render}
+                node={group()}
+                parts={parts}
+                resultFor={turnParts.resultFor}
+                sessionID={config.sessionID()}
+                streaming={nodeLive(group())}
+                folded={folded()}
+              >
+                <NodeListView nodes={group().children} />
+              </ToolSessionGroup>
+            }
+          >
             {(entry) => (
               <Dynamic
                 component={entry().render}

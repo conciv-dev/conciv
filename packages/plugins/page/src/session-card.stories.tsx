@@ -3,8 +3,6 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Splitter} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ElementCapture, ToolCaptureView} from './element-capture-types.js'
-import type {GroupNodeGroup} from '@conciv/ui-kit-chat'
-import {PAGE_SESSION_GROUP_KEY} from './page-session.js'
 import {SessionCard} from './session-card.js'
 import {
   ELEMENT_CAPTURE_FIXTURE_CSS,
@@ -14,17 +12,6 @@ import {
   storyResult,
 } from './story.fixtures.js'
 import {CaptureContext} from './captures.js'
-
-function sessionNode(parts: readonly ToolCallPart[]): GroupNodeGroup {
-  return {
-    type: 'group',
-    key: PAGE_SESSION_GROUP_KEY,
-    nodeKey: '',
-    idKey: undefined,
-    indices: parts.map((_, index) => index),
-    children: [],
-  }
-}
 
 const STAGE = 'p-4 w-[40rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
 const RESIZE_TRIGGER =
@@ -116,10 +103,10 @@ function sessionFrame(
   return (
     <CaptureContext.Provider value={storyCaptures(captures)}>
       <SessionCard
-        node={sessionNode(parts)}
-        parts={() => parts}
-        resultFor={(id) => results[id]}
-        streaming={streaming}
+        tool="page_"
+        input={{}}
+        metadata={{parts, results: Object.values(results)}}
+        status={streaming ? 'running' : 'complete'}
       />
     </CaptureContext.Provider>
   )

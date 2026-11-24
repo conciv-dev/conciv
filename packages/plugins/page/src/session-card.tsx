@@ -2,8 +2,8 @@ import {z} from 'zod'
 import {createMemo, Index, Match, Show, Switch, useContext, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {MorphLabel, ReasoningText, type GroupRenderProps} from '@conciv/ui-kit-chat'
-import {pageSessionCallParts, pageSessionThinkingParts} from './page-session.js'
+import {MorphLabel, ReasoningText} from '@conciv/ui-kit-chat'
+import type {ToolProps} from '@internal/plugin'
 import {StatusDot, TruncatedText} from '@conciv/ui-kit-system'
 import {
   CARD_HEADLINE_TEXT,
@@ -247,7 +247,32 @@ function SessionHeader(props: {
   )
 }
 
-export function PageSessionCard(props: GroupRenderProps): JSX.Element {
+const ToolCallShape = z.looseObject({type: z.literal('tool-call'), id: z.string(), name: z.string()})
+
+const ToolResultShape = z.looseObject({type: z.literal('tool-result'), toolCallId: z.string()})
+
+const ThinkingShape = z.looseObject({type: z.literal('thinking'), content: z.string()})
+
+const SessionMetadata = z.looseObject({
+  parts: z.array(z.unknown()).catch([]),
+  results: z.array(z.unknown()).catch([]),
+  folded: z.boolean().catch(false),
+})
+
+function isToolCall(value: unknown): value is ToolCallPart {
+  return ToolCallShape.safeParse(value).success
+}
+
+function isToolResult(value: unknown): value is ToolResultPart {
+  return ToolResultShape.safeParse(value).success
+}
+
+function thinkingText(value: unknown): string[] {
+  const thinking = ThinkingShape.safeParse(value)
+  return thinking.success && thinking.data.content.trim().length > 0 ? [thinking.data.content] : []
+}
+
+export function PageSessionCard(props: ToolProps): JSX.Element {
   return (
     <SessionCaptures sessionID={props.sessionID}>
       <SessionCard {...props} />
@@ -255,18 +280,21 @@ export function PageSessionCard(props: GroupRenderProps): JSX.Element {
   )
 }
 
-export function SessionCard(props: GroupRenderProps): JSX.Element {
+export function SessionCard(props: ToolProps): JSX.Element {
   const captureFor = useContext(CaptureContext)
-  const parts = createMemo(() => pageSessionCallParts(props.parts(), props.node.indices))
-  const thinking = createMemo(() => pageSessionThinkingParts(props.parts(), props.node.indices))
-  const steps = createMemo(() =>
-    pageSessionSteps(parts(), props.resultFor, captureFor, PAGE_ACT_TOOL_NAMES, props.streaming),
-  )
-  const errorMessage = () => sessionErrorMessage(parts(), props.resultFor)
-  const status = () => sessionStatus(steps(), props.streaming, errorMessage() !== undefined)
+  const metadata = createMemo(() => SessionMetadata.parse(props.metadata))
+  const parts = createMemo(() => metadata().parts.filter(isToolCall))
+  const results = createMemo(() => metadata().results.filter(isToolResult))
+  const thinking = createMemo(() => metadata().parts.flatMap(thinkingText))
+  const resultFor = (toolCallId: string): ToolResultPart | undefined =>
+    results().find((result) => result.toolCallId === toolCallId)
+  const streaming = () => props.status === 'running'
+  const steps = createMemo(() => pageSessionSteps(parts(), resultFor, captureFor, PAGE_ACT_TOOL_NAMES, streaming()))
+  const errorMessage = () => sessionErrorMessage(parts(), resultFor)
+  const status = () => sessionStatus(steps(), streaming(), errorMessage() !== undefined)
   const title = () => {
     const labels = pageSessionScripted(steps()) ? SESSION_LABEL.script : SESSION_LABEL.edit
-    return props.streaming ? labels.running : labels.done
+    return streaming() ? labels.running : labels.done
   }
   const scripts = createMemo(() => sessionScripts(parts()))
   return (
@@ -276,18 +304,18 @@ export function SessionCard(props: GroupRenderProps): JSX.Element {
           title={title()}
           titleTooltip={SESSION_SUMMARY}
           part={anchor()}
-          result={props.resultFor(anchor().id)}
+          result={resultFor(anchor().id)}
           status={status()}
           autoOpen
-          folded={props.folded}
+          folded={metadata().folded}
           flushHeader
           class="@container"
           header={
             <SessionHeader
               title={title()}
               count={actionsLabel(steps().length)}
-              url={sessionLocation(parts(), props.resultFor, props.streaming)}
-              streaming={props.streaming}
+              url={sessionLocation(parts(), resultFor, streaming())}
+              streaming={streaming()}
               status={status()}
             />
           }
@@ -295,13 +323,13 @@ export function SessionCard(props: GroupRenderProps): JSX.Element {
           <div class="flex flex-col gap-1.5">
             <ul class={RAIL}>
               <Index each={steps()}>
-                {(step, index) => <StepRow step={step()} index={index} streaming={props.streaming} />}
+                {(step, index) => <StepRow step={step()} index={index} streaming={streaming()} />}
               </Index>
             </ul>
             <Show when={thinking().length > 0 || scripts().length > 0}>
               <CollapsibleSection header={<span>{contextLabel(thinking().length, scripts().length)}</span>}>
                 <div class="flex flex-col gap-2 min-w-0">
-                  <Index each={thinking()}>{(part) => <ReasoningText text={part().content} />}</Index>
+                  <Index each={thinking()}>{(text) => <ReasoningText text={text()} />}</Index>
                   <Index each={scripts()}>
                     {(script) => <CodeBlock file={{name: 'session.ts', lang: 'ts', contents: script()}} />}
                   </Index>

@@ -28,6 +28,7 @@ export interface ToolEntry {
   readonly name: string
   readonly render?: ToolComponent
   readonly errorComponent?: ToolComponent
+  readonly acts?: (name: string) => boolean
 }
 
 export type ToolRender = (name: string) => ToolEntry | undefined

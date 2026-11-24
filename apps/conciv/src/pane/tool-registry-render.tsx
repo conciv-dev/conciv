@@ -47,6 +47,7 @@ export function createToolRender(): ToolRender {
           item.value.errorComponent === undefined
             ? FailedTool
             : contributed(item, item.value.errorComponent, FailedTool),
+        acts: item.value.acts,
       }),
     ),
   )
