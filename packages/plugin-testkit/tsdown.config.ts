@@ -6,7 +6,6 @@ export default defineConfig({
   entry: [
     'src/index.ts',
     'src/browser.tsx',
-    'src/story.tsx',
     'src/happy-dom-setup.ts',
     'src/browser-setup.ts',
     'src/test-projects.ts',

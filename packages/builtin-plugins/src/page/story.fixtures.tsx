@@ -4,17 +4,8 @@ import type {ElementCapture, ToolCaptureView} from '@conciv/plugin-page/rpc'
 import {type ToolProps} from '@internal/plugin'
 import {ToolDisplay, Trace, type TraceItem} from '@conciv/ui-kit-chat/tools'
 import {pageToolCards} from './cards.js'
-import {PluginShell} from '@conciv/plugin-testkit/story'
 
 export type StoryCall = ToolProps & {id: string}
-
-export function inPageShell(Story: () => JSX.Element): JSX.Element {
-  return (
-    <PluginShell id="conciv.page">
-      <Story />
-    </PluginShell>
-  )
-}
 
 const TRACE_FRAME_CLASS = 'p-4 w-[28rem] [background:var(--chat-panel)] [font-family:var(--chat-font)]'
 

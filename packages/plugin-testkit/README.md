@@ -13,7 +13,6 @@ kits and the preset, never on core, the app, the harness kits or the CLI. Entrie
   `ctx.client` the SDK's `Conciv.make` over an oRPC link) and renders its server covers, panels, settings pages and
   the tool cards given in `tools`. `pluginEngine(options)` starts `PluginEngine` in the test's node process; the link
   sends `plugin.call` and `event.subscribe` there through browser commands.
-- `@conciv/plugin-testkit/story`: `PluginShell`, the same shell around a story's children, with no vitest import.
 - `@conciv/plugin-testkit/vitest`: `concivTest()`, the vite plugin that adds the four vitest projects below.
 
 A test that needs a real agent turn uses `@conciv/core/testing` from the plugin's own `test/engine.ts`. Real-app plus

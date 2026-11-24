@@ -35,10 +35,6 @@
       "types": "./dist/browser.d.ts",
       "import": "./dist/browser.js"
     },
-    "./story": {
-      "types": "./dist/story.d.ts",
-      "import": "./dist/story.js"
-    },
     "./vitest": {
       "types": "./dist/vitest.d.ts",
       "import": "./dist/vitest.js"

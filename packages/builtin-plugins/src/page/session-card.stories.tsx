@@ -10,7 +10,6 @@ import {
   storyCaptures,
   storyPart,
   storyResult,
-  inPageShell,
 } from './story.fixtures.js'
 import {CaptureContext} from './captures.js'
 
@@ -28,7 +27,6 @@ function readSplit(parameters: Record<string, unknown>): number[] {
 const meta: Meta = {
   title: 'Plugins/Page/tool/SessionCard',
   decorators: [
-    inPageShell,
     (Story, context) => (
       <div class={STAGE}>
         <Splitter.Root

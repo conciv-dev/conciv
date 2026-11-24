@@ -15,7 +15,6 @@ The in-memory engine half a plugin test runs, and the vitest projects that wire 
 - `effect.ts`: opencode's `testEffect`, ported to the vitest API.
 - `browser.tsx` (export `./browser`): `mount` and `pluginEngine`; a plugin named by package name loads through
   `virtual:conciv-test-plugins`, and one with an engine part is refused.
-- `story.tsx` (export `./story`): `PluginShell`.
 - `shell/`: the fake shell. `context.tsx` the fake `Context` (one store for registries, contracts, toasts, dialogs and
   the composer; `overlay()` hosts carry `PLUGIN_OVERLAY_ATTR`, as the app's do), `client.ts` the `ConcivClient` over the link, `engine.ts` the browser half of `pluginEngine`,
   `app.tsx` the rendered shell.
