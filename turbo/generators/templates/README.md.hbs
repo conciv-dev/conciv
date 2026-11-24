@@ -1,4 +1,4 @@
-# {{name}}
+# {{packageName}}
 
 ## Overview
 
@@ -6,7 +6,7 @@
 
 ## Invariants
 
-{{#if isInternal}}
+{{#if sourceOnly}}
 - Private to conciv and never published: its exports point at `src`, nothing builds it, and the packages that use it
   inline it into their own builds.
 {{else}}
@@ -17,7 +17,7 @@
 
 ## Side Effects
 
-{{#if isInternal}}
+{{#if sourceOnly}}
 - None: the package root holds configs and the manifest only.
 {{else}}
 - `build` script (`package.json`): writes dist/
