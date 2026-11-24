@@ -4,6 +4,7 @@ import {and, asc, eq, gt, gte, lt} from 'drizzle-orm'
 import {Context, Effect, Layer, Schema} from 'effect'
 import {Database} from './database/database.js'
 import {KVTable} from './kv/sql.js'
+import {makeGlobalNode} from './effect/app-node.js'
 
 export type Value = Schema.Json
 
@@ -87,3 +88,5 @@ function prefixEnd(prefix: string) {
   if (index < 0) return undefined
   return `${points.slice(0, index).join('')}${String.fromCodePoint((points[index]?.codePointAt(0) ?? 0) + 1)}`
 }
+
+export const node = makeGlobalNode({service: Service, layer, deps: [Database.node]})

@@ -24,6 +24,8 @@ import {PluginHooks} from './hooks.js'
 import {Global} from '../../util/global.js'
 import {FSUtil} from '../../util/fs-util.js'
 import type {Interface} from '../plugin.js'
+import {LayerNode} from '../effect/layer-node.js'
+import {tags} from '../effect/app-node.js'
 
 type RpcEvent = Event.Payload & {
   readonly type: `rpc.${string}`
@@ -283,3 +285,29 @@ export function storage(kv: KV.Interface, pluginId: string, directory: string): 
         ),
   }
 }
+
+export const serversNode = LayerNode.unbound(ServersSource, tags.values.location)
+
+export const bundlerNode = LayerNode.unbound(BundlerSource, tags.values.location)
+
+export const editorNode = LayerNode.unbound(EditorSource, tags.values.location)
+
+export const requirements = LayerNode.group([
+  Agent.node,
+  App.node,
+  bundlerNode,
+  Bus.node,
+  FSUtil.node,
+  Global.node,
+  InstructionEntry.node,
+  KV.node,
+  Location.node,
+  Model.node,
+  Permission.node,
+  PluginHooks.node,
+  Rpc.node,
+  serversNode,
+  Session.node,
+  Skill.node,
+  Tool.node,
+])

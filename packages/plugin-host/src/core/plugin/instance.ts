@@ -3,6 +3,7 @@ export * as InstancePlugins from './instance.js'
 import type {Plugin} from '@conciv/plugin/effect/plugin'
 import {Context, Layer} from 'effect'
 import type {Generation} from '../plugin.js'
+import {makeLocationNode} from '../effect/app-node.js'
 
 export type List = readonly Plugin[]
 
@@ -43,3 +44,5 @@ export function bound(plugins: List, builtin: Builtin = {}) {
     Service.of({all: () => stamped, builtin: {pre: () => builtinPre, post: () => builtinPost, served: () => served}}),
   )
 }
+
+export const node = makeLocationNode({service: Service, layer, deps: []})

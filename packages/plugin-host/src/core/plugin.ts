@@ -38,6 +38,7 @@ import {Bus} from './bus.js'
 import {PluginHost} from './plugin/host.js'
 import {type Chunks, type Failure, type Generation, Service} from './plugin/service.js'
 import {State} from './state.js'
+import {makeLocationNode} from './effect/app-node.js'
 
 export {awaitActivation, type Failure, type Generation, type Interface, Service} from './plugin/service.js'
 
@@ -388,3 +389,5 @@ function describeTaggedError(error: TaggedError) {
     return `failed to load plugin: ${error._tag}: ${error.message}`
   return `failed to load plugin: ${error._tag}`
 }
+
+export const node = makeLocationNode({service: Service, layer, deps: [PluginHost.requirements, Bus.node]})

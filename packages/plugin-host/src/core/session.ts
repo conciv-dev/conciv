@@ -20,6 +20,8 @@ import type {
 } from './session/error.js'
 import type {SessionInbox} from '@conciv/plugin/schema/session-inbox'
 import type {SessionSynthetic} from './session/synthetic.js'
+import {tags} from './effect/app-node.js'
+import {LayerNode} from './effect/layer-node.js'
 
 type SessionId = SessionInfo['id']
 type Metadata = NonNullable<SessionInfo['metadata']>
@@ -63,3 +65,5 @@ export interface Interface {
 }
 
 export const Service = Context.Service<Interface>('@conciv/Session')
+
+export const node = LayerNode.unbound(Service, tags.values.location)

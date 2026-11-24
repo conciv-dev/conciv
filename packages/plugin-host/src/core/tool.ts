@@ -14,6 +14,7 @@ import {Session as SessionSchema} from '@conciv/plugin/schema/session'
 import {State} from './state.js'
 import {definition, effectiveName, execute, normalizedName, normalizeContent} from './tool/runtime.js'
 import {Wildcard} from './util/wildcard.js'
+import {makeLocationNode} from './effect/app-node.js'
 
 export const RegistrationError = Schema.TaggedStruct('Tool.RegistrationError', {
   name: Schema.String,
@@ -355,3 +356,5 @@ function namespaceError(name: string) {
   if (name.split('.').every((segment) => /^[A-Za-z0-9_]+$/.test(segment))) return
   return makeRegistrationError({name, message: `Invalid tool namespace: ${JSON.stringify(name)}`})
 }
+
+export const node = makeLocationNode({service: Service, layer, deps: [PluginHooks.node, Image.node]})

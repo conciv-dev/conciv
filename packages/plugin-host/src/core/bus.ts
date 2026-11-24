@@ -14,6 +14,7 @@ import {SessionEvent} from '@conciv/plugin/schema/session-event'
 import {SessionLegacy} from '../schema/session-legacy.js'
 import {SessionId} from '@conciv/plugin/schema/session-id'
 import {isRecord} from '../util/record.js'
+import {makeGlobalNode} from './effect/app-node.js'
 
 export type Subscriber<D extends Event.Definition = Event.Definition> = (event: Event.Payload<D>) => Effect.Effect<void>
 export type Unsubscribe = Effect.Effect<void>
@@ -857,3 +858,5 @@ export function configured(options?: Options) {
 }
 
 export const layer = configured()
+
+export const node = makeGlobalNode({service: Service, layer, deps: [Database.node]})

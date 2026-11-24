@@ -2,6 +2,16 @@
 
 Internal to `@conciv/core`: the engine-side plugin host, in Effect.
 
+## The graph
+
+Each service has a `node` (`src/core/effect/layer-node.ts`, opencode's `util/src/effect/layer-node.ts`; the tags are
+opencode's `app-node.ts`). A service the embedder supplies (location, sessions, models, servers, bundler, editor,
+configured plugins, permissions and policies, instruction entries, permission sessions, `Global`) is an unbound node.
+`Instance.layer({replacements})` (`src/core/instance.ts`, as opencode's `core/src/instance.ts`) compiles the one graph
+with the given replacements (`X.node.replace(layer)`); building it fails on an unbound node nobody replaced. The
+supervisor is not in the graph: core builds `PluginSupervisor.layer` into its own scope, so it can start and close the
+plugins at its own point in the engine's start and stop.
+
 ## Observability
 
 The engine's Effect spans (`Effect.fn` and `Effect.withSpan`) and Effect logs are exported over OTLP/HTTP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, as opencode does (`src/util/observability.ts`). With it unset nothing is exported.

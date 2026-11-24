@@ -2,6 +2,8 @@ import path, {isAbsolute, relative, sep} from 'path'
 import {Context, Effect, FileSystem, Layer, Schema} from 'effect'
 import type {PlatformError} from 'effect/PlatformError'
 import * as Glob from './glob.js'
+import {makeGlobalNode} from '../core/effect/app-node.js'
+import {Platform} from '../core/effect/platform.js'
 
 export namespace FSUtil {
   export const FileSystemError = Schema.TaggedStruct('FileSystemError', {
@@ -139,4 +141,6 @@ export namespace FSUtil {
     const result = relative(parent, child)
     return result === '' || (!isAbsolute(result) && result !== '..' && !result.startsWith(`..${sep}`))
   }
+
+  export const node = makeGlobalNode({service: Service, layer, deps: [Platform.fileSystem]})
 }

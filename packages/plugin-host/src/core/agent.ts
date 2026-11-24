@@ -4,6 +4,7 @@ import {Array, Context, Effect, Layer, Types} from 'effect'
 import {Agent} from '@conciv/plugin/schema/agent'
 import {Bus} from './bus.js'
 import {State} from './state.js'
+import {makeLocationNode} from './effect/app-node.js'
 
 export const Id = Agent.Id
 export type Id = typeof Id.Type
@@ -110,3 +111,5 @@ export const layer = Layer.effect(
     })
   }),
 )
+
+export const node = makeLocationNode({service: Service, layer, deps: [Bus.node]})

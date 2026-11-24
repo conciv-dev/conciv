@@ -8,6 +8,7 @@ import type {Project} from '../../schema/project.js'
 import {Database} from '../database/database.js'
 import {PermissionTable} from './sql.js'
 import {PermissionSaved} from '../../schema/permission-saved.js'
+import {makeGlobalNode} from '../effect/app-node.js'
 
 export const Id = PermissionSaved.Id
 export type Id = typeof Id.Type
@@ -141,3 +142,5 @@ const info = (row: typeof PermissionTable.$inferSelect): Info => ({
     updated: DateTime.makeUnsafe(row.time_updated),
   },
 })
+
+export const node = makeGlobalNode({service: Service, layer, deps: [Database.node]})

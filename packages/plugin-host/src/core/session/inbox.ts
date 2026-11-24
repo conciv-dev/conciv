@@ -26,6 +26,7 @@ import {Database} from '../database/database.js'
 import {Bus} from '../bus.js'
 import {KeyedMutex} from '../effect/keyed-mutex.js'
 import {SessionInboxTable} from './sql.js'
+import {makeGlobalNode} from '../effect/app-node.js'
 
 type DatabaseService = Database.Interface['db']
 type InboxRow = typeof SessionInboxTable.$inferSelect
@@ -592,3 +593,5 @@ const pendingSteers = (db: DatabaseService, sessionID: SessionId) =>
         return rows
       }),
     )
+
+export const node = makeGlobalNode({service: Service, layer, deps: [Database.node, Bus.node]})

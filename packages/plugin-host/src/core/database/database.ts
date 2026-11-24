@@ -6,6 +6,8 @@ import {Context, Effect, FileSystem, Layer, Schema} from 'effect'
 import type {SqliteClient} from '@effect/sql-sqlite-node'
 import {chmod} from 'node:fs/promises'
 import {DatabaseSync} from 'node:sqlite'
+import {makeGlobalNode} from '../effect/app-node.js'
+import {Platform} from '../effect/platform.js'
 
 const makeDatabase = makeWithDefaults()
 type DatabaseShape = Effect.Success<typeof makeDatabase>
@@ -74,3 +76,5 @@ export function configured(options?: Options) {
 export function configuredClient(client: Layer.Layer<SqliteClient.SqliteClient>) {
   return layerFromClient.pipe(Layer.provide(client))
 }
+
+export const node = makeGlobalNode({service: Service, layer: configured(), deps: [Platform.fileSystem]})

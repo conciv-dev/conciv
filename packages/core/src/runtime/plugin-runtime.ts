@@ -4,10 +4,6 @@ import {Model} from '@conciv/plugin/schema/model'
 import type {createChatPlane} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
 import {dirname, join} from 'node:path'
-import * as NodeChildProcessSpawner from '@effect/platform-node/NodeChildProcessSpawner'
-import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
-import * as NodePath from '@effect/platform-node/NodePath'
-import {FetchHttpClient} from 'effect/http'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {SqliteClient} from '@effect/sql-sqlite-node'
 import {
@@ -15,33 +11,21 @@ import {
   Bus,
   ConfigPluginSource,
   Database,
-  EffectFlock,
-  FileSystem,
-  FileSystemSearch,
-  FSUtil,
   InstancePlugins,
+  InstructionEntry,
+  Instance,
   KV,
   Location,
-  Npm,
+  Node,
   Permission,
-  PermissionSaved,
+  Platform,
   Plugin,
-  Image,
   PluginHooks,
   PluginPromise,
   PluginSupervisor,
-  PluginUpdate,
-  Ripgrep,
-  RipgrepBinary,
   Rpc,
-  SdkPlugins,
   Session,
   SessionInbox,
-  SessionProjector,
-  Skill,
-  SkillInstructions,
-  Tool,
-  Watcher,
   Model as HostModel,
   App,
   ConfigAgentPlugin,
@@ -246,68 +230,49 @@ function locationLayer(cwd: string) {
 }
 
 function pluginHostLayer(input: PluginRuntimeInput) {
-  return Layer.mergeAll(
-    Plugin.layer,
-    SdkPlugins.layer,
-    InstancePlugins.bound(
-      input.plugins.map((plugin) => PluginPromise.fromPromise(plugin)),
-      {post: [outsideAgent], served: input.post},
-    ),
-    PluginUpdate.layer,
-    ConfigPluginSource.layer,
-  ).pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(
-        Tool.layer,
-        Permission.layer,
-        SkillInstructions.layer,
-        SessionProjector.layer,
-        provideInstructionEntries,
+  const instance = Instance.layer({
+    replacements: [
+      App.node.replace(provideApp()),
+      Location.node.replace(
+        Node.makeLocationNode({
+          service: Location.Service,
+          layer: locationLayer(input.cwd),
+          deps: [Platform.fileSystem],
+        }),
       ),
-    ),
-    Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(input.db), Skill.layer)),
-    Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
-    Layer.provideMerge(
-      Layer.mergeAll(
-        Rpc.layer,
-        KV.layer,
-        EventFeed.layer,
-        FileSystem.layer.pipe(
-          Layer.provide(FileSystemSearch.defaultLayer),
-          Layer.provide(Ripgrep.layer),
-          Layer.provide(RipgrepBinary.layer),
+      InstancePlugins.node.replace(
+        InstancePlugins.bound(
+          input.plugins.map((plugin) => PluginPromise.fromPromise(plugin)),
+          {post: [outsideAgent], served: input.post},
         ),
-        publishBundlerDiagnostics(input.bundler),
       ),
-    ),
-    Layer.provideMerge(provideSessions(input.sessions)),
-    Layer.provideMerge(SessionInbox.layer),
-    Layer.provideMerge(Bus.configured()),
-    Layer.provideMerge(
-      Layer.mergeAll(
-        locationLayer(input.cwd),
-        provideApp(),
-        provideServersSource({home: input.home, engineId: input.engineId}),
-        provideBundlerSource(input.bundler),
-        provideEditorSource(input.openInEditor),
-        provideConfiguredPolicies(input.config.policies),
-        provideConfiguredPermissions(input.config.permissions),
+      ConfigPluginSource.configuredNode.replace(
         Layer.succeed(ConfigPluginSource.ConfiguredPlugins, input.config.plugins),
-        provideHarnessModels(input.harness, input.signal),
-        Watcher.layer().pipe(Layer.orDie, Layer.provide(Watcher.nativeLayer)),
-        Npm.layer.pipe(Layer.provide(EffectFlock.layer)),
       ),
-    ),
-    Layer.provideMerge(FSUtil.layer),
-    Layer.provideMerge(
-      Layer.mergeAll(
-        Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, input.db.$client)),
-        NodeFileSystem.layer,
-        NodeChildProcessSpawner.layer.pipe(Layer.provide(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer))),
-        FetchHttpClient.layer,
-        ConfigProvider.layer(input.configProvider),
+      ConfigAgentPlugin.configuredNode.replace(provideConfiguredPermissions(input.config.permissions)),
+      ManagedPolicy.configuredNode.replace(provideConfiguredPolicies(input.config.policies)),
+      PluginHost.serversNode.replace(provideServersSource({home: input.home, engineId: input.engineId})),
+      PluginHost.bundlerNode.replace(provideBundlerSource(input.bundler)),
+      PluginHost.editorNode.replace(provideEditorSource(input.openInEditor)),
+      HostModel.node.replace(provideHarnessModels(input.harness, input.signal)),
+      Session.node.replace(
+        Node.makeLocationNode({
+          service: Session.Service,
+          layer: provideSessions(input.sessions),
+          deps: [SessionInbox.node],
+        }),
       ),
-    ),
+      InstructionEntry.node.replace(
+        Node.makeLocationNode({service: InstructionEntry.Service, layer: provideInstructionEntries, deps: [KV.node]}),
+      ),
+      Permission.sessionsNode.replace(permissionSessions(input.db)),
+      Database.node.replace(Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, input.db.$client))),
+      Global.node.replace(Layer.succeedContext(input.observability)),
+    ],
+  })
+  return Layer.mergeAll(EventFeed.layer, publishBundlerDiagnostics(input.bundler)).pipe(
+    Layer.provideMerge(instance),
+    Layer.provideMerge(ConfigProvider.layer(input.configProvider)),
     Layer.provideMerge(Layer.succeedContext(input.observability)),
   )
 }

@@ -1,6 +1,7 @@
 export * as App from './app.js'
 
-import {Context} from 'effect'
+import {Context, Layer} from 'effect'
+import {makeGlobalNode} from './effect/app-node.js'
 
 export interface Info {
   readonly name: string
@@ -17,3 +18,5 @@ export function make(input: Partial<Info> = {}): Info {
     channel: input.channel ?? 'unknown',
   }
 }
+
+export const node = makeGlobalNode({service: Service, layer: Layer.succeed(Service, make()), deps: []})

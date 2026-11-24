@@ -1,6 +1,8 @@
 import fs from 'fs'
 import {Context, Effect, Layer} from 'effect'
 import {Flock} from './flock.js'
+import {LayerNode} from '../core/effect/layer-node.js'
+import {tags} from '../core/effect/app-node.js'
 
 export const Service = Context.Service<Interface>('@conciv/Global')
 
@@ -28,3 +30,5 @@ const acquire = (input: Interface) =>
 export const layerWith = (input: Interface) => Layer.effect(Service, acquire(input))
 
 export * as Global from './global.js'
+
+export const node = LayerNode.unbound(Service, tags.values.global)

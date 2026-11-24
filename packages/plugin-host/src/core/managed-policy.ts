@@ -3,6 +3,8 @@ export * as ManagedPolicy from './managed-policy.js'
 import {Context} from 'effect'
 import {Wildcard} from './util/wildcard.js'
 import {ConfigPolicy} from '../schema/config/policy.js'
+import {tags} from './effect/app-node.js'
+import {LayerNode} from './effect/layer-node.js'
 
 export const ConfiguredPolicies = Context.Service<readonly ConfigPolicy.Info[]>('@conciv/ConfiguredPolicies')
 
@@ -24,3 +26,5 @@ export function match<Policy extends ConfigPolicy.Info>(
 export function decision(policies: readonly ConfigPolicy.Info[], action: ConfigPolicy.Action, resource: string) {
   return match(policies, action, resource)?.effect ?? 'allow'
 }
+
+export const configuredNode = LayerNode.unbound(ConfiguredPolicies, tags.values.location)

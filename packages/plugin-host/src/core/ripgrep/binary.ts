@@ -7,6 +7,8 @@ import {ChildProcessSpawner} from 'effect/process/ChildProcessSpawner'
 import {FSUtil} from '../../util/fs-util.js'
 import {Global} from '../../util/global.js'
 import {which} from '../util/which.js'
+import {makeGlobalNode} from '../effect/app-node.js'
+import {Platform} from '../effect/platform.js'
 
 const VERSION = '15.1.0'
 
@@ -156,3 +158,9 @@ export const layer = Layer.effect(
     })
   }),
 )
+
+export const node = makeGlobalNode({
+  service: Service,
+  layer,
+  deps: [FSUtil.node, Global.node, Platform.httpClient, Platform.spawner],
+})

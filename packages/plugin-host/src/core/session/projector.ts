@@ -11,6 +11,7 @@ import {Bus} from '../bus.js'
 import {SessionEvent} from '@conciv/plugin/schema/session-event'
 import {InstructionState} from './instruction-state.js'
 import {SessionInbox} from './inbox.js'
+import {makeGlobalNode} from '../effect/app-node.js'
 
 type DatabaseService = Database.Interface['db']
 
@@ -96,3 +97,9 @@ export const layer = Layer.effectDiscard(
     )
   }),
 )
+
+export const node = makeGlobalNode({
+  name: 'session-projector',
+  layer,
+  deps: [Bus.node, Database.node, SessionInbox.node],
+})

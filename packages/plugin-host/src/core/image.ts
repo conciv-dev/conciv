@@ -9,6 +9,7 @@ import {
   type ResizerUnavailableError,
   type SizeError,
 } from './image/error.js'
+import {makeLocationNode} from './effect/app-node.js'
 
 export {
   DecodeError,
@@ -78,3 +79,5 @@ export const layer = Layer.effect(
     return Service.of({transform: state.transform, reload: state.reload, normalize})
   }),
 )
+
+export const node = makeLocationNode({service: Service, layer, deps: []})

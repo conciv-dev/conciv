@@ -4,6 +4,7 @@ import type {Plugin} from '@conciv/plugin/effect/plugin'
 import {Context, Effect, Layer} from 'effect'
 import {Bus} from '../bus.js'
 import type {Generation} from '../plugin.js'
+import {makeGlobalNode} from '../effect/app-node.js'
 
 export const Updated = Bus.ephemeral({type: 'sdk.plugin.updated', schema: {}})
 
@@ -29,3 +30,5 @@ export const layer = Layer.effect(
     })
   }),
 )
+
+export const node = makeGlobalNode({service: Service, layer, deps: [Bus.node]})

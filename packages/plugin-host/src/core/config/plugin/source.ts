@@ -10,6 +10,8 @@ import {fileURLToPath, pathToFileURL} from 'url'
 import {Watcher} from '../../filesystem/watcher.js'
 import {Location} from '../../location.js'
 import {PluginSourceDirectory} from '../../plugin/source-directory.js'
+import {makeLocationNode, tags} from '../../effect/app-node.js'
+import {LayerNode} from '../../effect/layer-node.js'
 
 export type Operation =
   | {
@@ -255,4 +257,12 @@ const scan = Effect.fn('ConfigPluginSource.scan')(function* (
       return [{...operation, mtime: Math.max(...times)}]
     }),
   ).pipe(Effect.map((operations) => operations.flat()))
+})
+
+export const configuredNode = LayerNode.unbound(ConfiguredPlugins, tags.values.location)
+
+export const node = makeLocationNode({
+  service: Service,
+  layer,
+  deps: [configuredNode, FSUtil.node, Watcher.node, Location.node],
 })

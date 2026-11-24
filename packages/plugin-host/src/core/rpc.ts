@@ -11,6 +11,7 @@ import {Context, Deferred, Effect, JsonSchema, Layer, Schema, SchemaRepresentati
 import {Bus} from './bus.js'
 import {Location} from './location.js'
 import {optional, statics} from './schema.js'
+import {makeLocationNode} from './effect/app-node.js'
 
 export interface Interface {
   readonly register: RpcDomain['register']
@@ -280,3 +281,5 @@ const logicalEvent = Effect.fn('Rpc.logicalEvent')(function* <
     location: ref,
   } as Rpc.EventPayload<D, Name>
 })
+
+export const node = makeLocationNode({service: Service, layer, deps: [Bus.node, Location.node]})

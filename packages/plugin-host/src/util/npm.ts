@@ -7,6 +7,8 @@ import {FSUtil} from './fs-util.js'
 import {Global} from './global.js'
 import {EffectFlock} from './effect-flock.js'
 import {NpmConfig} from './npm-config.js'
+import {makeGlobalNode} from '../core/effect/app-node.js'
+import {Platform} from '../core/effect/platform.js'
 
 const decodePackageBin = Schema.decodeUnknownOption(
   Schema.Struct({
@@ -483,3 +485,9 @@ function gitRevision(resolved: string | undefined) {
 function isCommit(value: string | null | undefined) {
   return /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(value ?? '')
 }
+
+export const node = makeGlobalNode({
+  service: Service,
+  layer,
+  deps: [EffectFlock.node, FSUtil.node, Global.node, Platform.fileSystem],
+})

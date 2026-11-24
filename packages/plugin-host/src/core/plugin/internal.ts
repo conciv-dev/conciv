@@ -11,12 +11,13 @@ import {ConfigSkillPlugin} from '../config/plugin/skill.js'
 import {Watcher} from '../filesystem/watcher.js'
 import {Location} from '../location.js'
 import {Permission} from '../permission.js'
-import {BundlerSource, EditorSource} from './host.js'
+import {BundlerSource, EditorSource, PluginHost} from './host.js'
 import {Skill} from '../skill.js'
 import {SkillPlugin} from './skill.js'
 import {ServerTools} from '../tool/plugin/server.js'
 import {SkillTool} from '../tool/plugin/skill.js'
 import {Tool} from '../tool.js'
+import {LayerNode} from '../effect/layer-node.js'
 
 const services = [
   ConfigAgentPlugin.ConfiguredPermissions,
@@ -59,3 +60,17 @@ export const list = Effect.fn('PluginInternal.list')(function* () {
     post: resolve(post),
   }
 })
+
+export const requirements = LayerNode.group([
+  ConfigAgentPlugin.configuredNode,
+  ConfigPluginSource.configuredNode,
+  PluginHost.bundlerNode,
+  PluginHost.editorNode,
+  FSUtil.node,
+  Global.node,
+  Location.node,
+  Permission.node,
+  Skill.node,
+  Tool.node,
+  Watcher.node,
+])

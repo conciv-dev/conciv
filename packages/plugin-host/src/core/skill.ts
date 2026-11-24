@@ -7,6 +7,7 @@ import {Skill} from '@conciv/plugin/schema/skill'
 import {Bus} from './bus.js'
 import {Permission} from './permission.js'
 import {State} from './state.js'
+import {makeLocationNode} from './effect/app-node.js'
 
 export const DirectorySource = Skill.DirectorySource
 export type DirectorySource = Skill.DirectorySource
@@ -175,3 +176,5 @@ export const layer = Layer.effect(
     })
   }),
 )
+
+export const node = makeLocationNode({service: Service, layer, deps: [Bus.node, FSUtil.node]})

@@ -3,6 +3,7 @@ export * as FileSystem from './filesystem.js'
 import {Context, Effect, Layer, Schema} from 'effect'
 import {Entry, FindInput} from '../schema/filesystem.js'
 import * as FileSystemSearch from './filesystem/search.js'
+import {makeLocationNode} from './effect/app-node.js'
 
 export {Entry, Match, Submatch} from '../schema/filesystem.js'
 export {FindInput}
@@ -31,3 +32,5 @@ export const layer = Layer.effect(
     })
   }),
 )
+
+export const node = makeLocationNode({service: Service, layer, deps: [FileSystemSearch.node]})

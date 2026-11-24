@@ -7,6 +7,7 @@ import type {PlatformError} from 'effect/PlatformError'
 import {FSUtil} from './fs-util.js'
 import {Global} from './global.js'
 import {Hash} from './hash.js'
+import {makeGlobalNode} from '../core/effect/app-node.js'
 
 export namespace EffectFlock {
   export const LockTimeoutError = Schema.TaggedStruct('LockTimeoutError', {
@@ -281,4 +282,6 @@ export namespace EffectFlock {
       return Service.of({acquire, withLock})
     }),
   )
+
+  export const node = makeGlobalNode({service: Service, layer, deps: [FSUtil.node, Global.node]})
 }

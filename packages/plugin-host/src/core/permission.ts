@@ -11,6 +11,8 @@ import {SessionErrors} from './session/error.js'
 import {Wildcard} from './util/wildcard.js'
 import {PermissionSaved} from './permission/saved.js'
 import {PluginHooks} from './plugin/hooks.js'
+import {makeLocationNode, tags} from './effect/app-node.js'
+import {LayerNode} from './effect/layer-node.js'
 
 const PermissionEffect = Permission.Effect
 export {PermissionEffect as Effect}
@@ -407,3 +409,11 @@ export const layer = Layer.effect(
     return Service.of({ask, assert, assertNotDenied, allows, reply, get, forSession, list, close})
   }),
 )
+
+export const sessionsNode = LayerNode.unbound(PermissionSessions, tags.values.location)
+
+export const node = makeLocationNode({
+  service: Service,
+  layer,
+  deps: [Bus.node, Location.node, Agent.node, sessionsNode, PermissionSaved.node, PluginHooks.node],
+})

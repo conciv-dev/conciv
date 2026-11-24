@@ -3,6 +3,8 @@ export * as InstructionEntry from './instruction-entry.js'
 import {Context, type Effect, type Schema} from 'effect'
 import {InstructionEntry} from '@conciv/plugin/schema/instruction-entry'
 import type {Session} from '@conciv/plugin/schema/session'
+import {tags} from '../effect/app-node.js'
+import {LayerNode} from '../effect/layer-node.js'
 
 export const Key = InstructionEntry.Key
 export type Key = typeof Key.Type
@@ -20,3 +22,5 @@ export interface Interface {
 }
 
 export const Service = Context.Service<Interface>('@conciv/InstructionEntry')
+
+export const node = LayerNode.unbound(Service, tags.values.location)

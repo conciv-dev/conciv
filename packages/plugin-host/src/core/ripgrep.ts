@@ -5,6 +5,8 @@ import {NonNegativeInt, PositiveInt, RelativePath} from '@conciv/plugin/schema/s
 import {Entry, Match} from '../schema/filesystem.js'
 import {collectStream, waitForAbort} from '../util/process.js'
 import * as RipgrepBinary from './ripgrep/binary.js'
+import {makeLocationNode} from './effect/app-node.js'
+import {Platform} from './effect/platform.js'
 
 const ERROR_BYTES = 8 * 1024
 const MAX_SUBMATCHES = 100
@@ -277,3 +279,5 @@ export const layer = Layer.effect(
     })
   }),
 )
+
+export const node = makeLocationNode({service: Service, layer, deps: [RipgrepBinary.node, Platform.spawner]})

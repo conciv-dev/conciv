@@ -4,6 +4,7 @@ import {Clock, Context, Effect, Exit, Layer, Option, PubSub, Stream} from 'effec
 import {Npm} from '../../util/npm.js'
 import {EffectFlock} from '../../util/effect-flock.js'
 import {KeyedMutex} from '../effect/keyed-mutex.js'
+import {makeGlobalNode} from '../effect/app-node.js'
 
 const interval = 24 * 60 * 60 * 1_000
 
@@ -68,3 +69,5 @@ export const layer = Layer.effect(
     })
   }),
 )
+
+export const node = makeGlobalNode({service: Service, layer, deps: [Npm.node]})

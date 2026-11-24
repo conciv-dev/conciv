@@ -9,6 +9,7 @@ import {lazy} from '../util/lazy.js'
 import {watch} from 'node:fs'
 import path from 'path'
 import loadBinding from './watcher-binding.js'
+import {makeGlobalNode} from '../effect/app-node.js'
 
 const SUBSCRIBE_TIMEOUT_MS = 10_000
 
@@ -320,3 +321,9 @@ function subscribeDirectory(
     ),
   )
 }
+
+export const node = makeGlobalNode({
+  service: Service,
+  layer: layer().pipe(Layer.orDie, Layer.provide(nativeLayer)),
+  deps: [FSUtil.node],
+})

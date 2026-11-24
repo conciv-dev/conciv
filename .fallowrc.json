@@ -553,7 +553,14 @@
         "durable",
         "ephemeral",
         "versionedType",
-        "loggers"
+        "loggers",
+        "node",
+        "configuredNode",
+        "configured",
+        "requirements",
+        "tags",
+        "Error",
+        "makeError"
       ]
     },
     {

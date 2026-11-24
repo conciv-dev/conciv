@@ -4,6 +4,7 @@ import {Context, Effect, Layer, Schema} from 'effect'
 import {Permission} from '../permission.js'
 import {Skill} from '../skill.js'
 import {Instructions} from '../instructions/index.js'
+import {makeLocationNode} from '../effect/app-node.js'
 
 const Summary = Schema.Struct({
   id: Skill.Id,
@@ -78,3 +79,5 @@ export const layer = Layer.effect(
     })
   }),
 )
+
+export const node = makeLocationNode({service: Service, layer, deps: [Skill.node]})

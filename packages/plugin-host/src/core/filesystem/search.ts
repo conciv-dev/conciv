@@ -7,6 +7,7 @@ import * as FileSystem from '../../schema/filesystem.js'
 import {Location} from '../location.js'
 import * as Ripgrep from '../ripgrep.js'
 import * as Protected from './protected.js'
+import {makeLocationNode} from '../effect/app-node.js'
 
 export interface Interface {
   readonly find: (input: FileSystem.FindInput) => Effect.Effect<FileSystem.Entry[]>
@@ -237,3 +238,5 @@ export function configured(options?: Options) {
 }
 
 export const defaultLayer = configured()
+
+export const node = makeLocationNode({service: Service, layer: defaultLayer, deps: [Location.node, Ripgrep.node]})

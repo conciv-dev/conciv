@@ -5,6 +5,7 @@ import type {ToolFailures, ToolHooks} from '@conciv/plugin/effect/tool'
 import type {PermissionHooks} from '@conciv/plugin/effect/permission'
 import {Context, Effect, Layer, Scope} from 'effect'
 import {State} from '../state.js'
+import {makeLocationNode} from '../effect/app-node.js'
 
 export interface Domains {
   readonly session: SessionHooks
@@ -79,3 +80,5 @@ export const layer = Layer.effect(
     return Service.of({has, register, trigger})
   }),
 )
+
+export const node = makeLocationNode({service: Service, layer, deps: []})
