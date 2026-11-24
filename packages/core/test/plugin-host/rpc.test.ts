@@ -1,15 +1,17 @@
-import {describe, expect, test} from 'vitest'
-import {createEngine} from '../engine.js'
+import {describe, expect} from 'vitest'
+import {test} from '../../src/testing.js'
 
 describe('plugin rpc', () => {
-  test('an outside client calls a registered method and each call sees the state the last one left', async () => {
+  test('an outside client calls a registered method and each call sees the state the last one left', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/notes-rpc']})
 
     expect(await engine.rpc.call('notes', 'add', {text: 'Buy milk'})).toEqual({count: 1})
     expect(await engine.rpc.call('notes', 'add', {text: 'Call Ada'})).toEqual({count: 2})
   })
 
-  test.each([
+  test.for([
     {
       case: 'a declared error carries its type, message and data',
       rpc: 'notes',
@@ -45,7 +47,7 @@ describe('plugin rpc', () => {
       input: {},
       failure: {type: 'rpc.internal', message: 'RPC call failed'},
     },
-  ])('$case fails with that error', async ({rpc, method, input, failure}) => {
+  ])('$case fails with that error', async ({rpc, method, input, failure}, {createEngine}) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/notes-rpc']})
 
     expect(await engine.rpc.failure(rpc, method, input)).toEqual(failure)

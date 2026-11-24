@@ -1,12 +1,12 @@
 import {Effect, Stream} from 'effect'
-import {describe, expect, test} from 'vitest'
-import {createEngine} from '../test/engine.js'
+import {describe, expect} from 'vitest'
+import {test} from './testing.js'
 import type {Bus} from '@conciv/plugin-host'
 import {Event} from '@conciv/plugin/schema/event'
 import {make} from './event-feed.js'
 
 describe('event feed', () => {
-  test('a subscriber hears the heartbeat while nothing else happens', async () => {
+  test('a subscriber hears the heartbeat while nothing else happens', async ({createEngine}) => {
     const engine = await createEngine({}, {timeouts: {eventHeartbeatIntervalMs: 20}})
     const heartbeat = await engine.event('server.heartbeat')
 

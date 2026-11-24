@@ -1,11 +1,13 @@
-import {describe, expect, it} from 'vitest'
+import {describe, expect} from 'vitest'
+import {test as it} from '@conciv/core/testing'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
-import {createEngine} from '../test/engine.js'
 import {cli} from './testing.js'
 
 describe('auth', () => {
-  it('link prints a one-time login link, revoke lists and revokes, and an unknown id is a user error', async () => {
+  it('link prints a one-time login link, revoke lists and revokes, and an unknown id is a user error', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine()
 
     const linked = await cli(['auth', 'link', 'http://localhost:3001/shop#tab=cart'], {cwd: engine.root})

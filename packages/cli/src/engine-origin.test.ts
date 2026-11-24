@@ -1,10 +1,10 @@
 import {tmpdir} from 'node:os'
-import {describe, expect, it} from 'vitest'
-import {createEngine} from '../test/engine.js'
+import {describe, expect} from 'vitest'
+import {test as it} from '@conciv/core/testing'
 import {cli} from './testing.js'
 
 describe('discovery', () => {
-  it('with no environment and no server.json, the engine registered in the home is found', async () => {
+  it('with no environment and no server.json, the engine registered in the home is found', async ({createEngine}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
 
     const fromHome = await cli(['tools', '--help'], {cwd: tmpdir(), env: {CONCIV_HOME: engine.home}})

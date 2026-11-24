@@ -1,11 +1,10 @@
 import {ConfigProvider} from 'effect'
 import {describe, expect} from 'vitest'
-import {createEngine} from '../test/engine.js'
 import {test} from '../test/engine-test.js'
 import {resolveConfig} from './config.js'
 
 describe('config', () => {
-  test('an engine started for one session has that session from the start', async ({connect}) => {
+  test('an engine started for one session has that session from the start', async ({createEngine, connect}) => {
     const sessionId = 'ses_11111111-1111-4111-8111-111111111111'
     const engine = await createEngine({sessionId})
 

@@ -26,5 +26,6 @@ export default defineConfig([
     fixedExtension: false,
     clean: false,
     dts: {generator: 'oxc'},
+    deps: {neverBundle: [/^@conciv\/core(\/|$)/]},
   },
 ])

@@ -1,25 +1,27 @@
 import {join} from 'node:path'
 import {describe, expect} from 'vitest'
-import {createEngine} from '../../test/engine.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {test} from '../../test/engine-test.js'
 import {settingsOnDisk} from './settings-storage.js'
 
 describe('settings', () => {
-  test.each(['shortcuts/keys', 'shortcuts:keys'])('the engine refuses the namespace %s', async (namespace) => {
-    const engine = await createEngine()
+  test.for(['shortcuts/keys', 'shortcuts:keys'])(
+    'the engine refuses the namespace %s',
+    async (namespace, {createEngine}) => {
+      const engine = await createEngine()
 
-    await expect(engine.setting({scope: 'project', namespace, key: 'send', value: 'Enter'})).rejects.toMatchObject({
-      code: 'BAD_REQUEST',
-      data: {
-        issues: [
-          expect.objectContaining({
-            message: 'a settings namespace is one file name inside the settings folder, without / \\ : or ?',
-          }),
-        ],
-      },
-    })
-  })
+      await expect(engine.setting({scope: 'project', namespace, key: 'send', value: 'Enter'})).rejects.toMatchObject({
+        code: 'BAD_REQUEST',
+        data: {
+          issues: [
+            expect.objectContaining({
+              message: 'a settings namespace is one file name inside the settings folder, without / \\ : or ?',
+            }),
+          ],
+        },
+      })
+    },
+  )
 
   test('a value set in each scope is read back after the storage opens again', async ({settingsStorage}) => {
     const root = tempDir('settings-')

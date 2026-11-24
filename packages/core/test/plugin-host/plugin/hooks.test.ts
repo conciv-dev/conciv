@@ -1,9 +1,12 @@
-import {describe, test} from 'vitest'
+import {describe} from 'vitest'
+import {test} from '../../../src/testing.js'
 import {TestLLM} from '@conciv/harness-testkit'
-import {createEngine} from '../../engine.js'
 
 describe.concurrent('what the model is given', () => {
-  test('the code-mode preface with the plugin tools reaches the model as a system prompt', async ({expect}) => {
+  test('the code-mode preface with the plugin tools reaches the model as a system prompt', async ({
+    createEngine,
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/greeter-promise']})
     await engine.reply(TestLLM.text('Hello'))
 
@@ -15,6 +18,7 @@ describe.concurrent('what the model is given', () => {
   })
 
   test('a session instruction entry reaches the model, a changed value supersedes it and a removed one is dropped', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/instruction-notes']})
@@ -37,6 +41,7 @@ describe.concurrent('what the model is given', () => {
   })
 
   test('on a harness that resumes its own session, the first value stays in the system prompt, a change rides on the next message and a removal is taken back on the one after', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine(
@@ -77,6 +82,7 @@ describe.concurrent('what the model is given', () => {
   })
 
   test("the prompt hook changes the user's message, and the context hook edits the system prompts, messages, model options and tools the model gets", async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/request-shaper']})

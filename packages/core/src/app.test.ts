@@ -3,16 +3,18 @@ import {IncomingMessage, request as httpRequest} from 'node:http'
 import {text} from 'node:stream/consumers'
 import {ConfigProvider} from 'effect'
 import {z} from 'zod'
-import {describe, expect, test} from 'vitest'
+import {describe, expect} from 'vitest'
+import {test} from './testing.js'
 import {resolveHarnessModels} from '@conciv/harness'
 import {codex} from '@conciv/harness/codex'
-import {createEngine} from '../test/engine.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {makeApp, withSavedModels} from './app.js'
 import {resolveConfig} from './config.js'
 
 describe('http surface', () => {
-  test('health answers, an untokened route is refused, a foreign origin or a Host that is not loopback is refused, and every reply carries the version', async () => {
+  test('health answers, an untokened route is refused, a foreign origin or a Host that is not loopback is refused, and every reply carries the version', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({}, {harnesses: [{id: 'reviewer'}]})
     await engine.version('9.9.9')
     const origin = new URL(engine.address.apiBase).origin
@@ -55,7 +57,9 @@ describe('http surface', () => {
 })
 
 describe('staleness', () => {
-  test('a stale engine says so on health and at the top of the outside agent tool description', async () => {
+  test('a stale engine says so on health and at the top of the outside agent tool description', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine()
     await engine.stale({
       stale: true,

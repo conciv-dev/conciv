@@ -2,13 +2,17 @@ import {realpathSync, symlinkSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, vi} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {createEngine} from '../../../test/engine.js'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {test} from '../../../test/engine-test.js'
 
 describe('sessions', () => {
-  test('the list answers the newest session first, a page at a time', async ({connect, fakeTimers, expect}) => {
+  test('the list answers the newest session first, a page at a time', async ({
+    createEngine,
+    connect,
+    fakeTimers,
+    expect,
+  }) => {
     const engine = await createEngine()
     const client = connect(engine)
     const now = Date.now()
@@ -27,6 +31,7 @@ describe('sessions', () => {
   })
 
   test.concurrent('a rename reaches the event stream and get answers the title cleaned, and an unknown id is refused', async ({
+    createEngine,
     connect,
     expect,
   }) => {
@@ -49,6 +54,7 @@ describe('sessions', () => {
   })
 
   test.concurrent('a deleted session leaves the list and refuses a new turn and a compact, and restore brings it back', async ({
+    createEngine,
     connect,
     expect,
   }) => {
@@ -73,6 +79,7 @@ describe('sessions', () => {
   })
 
   test.concurrent('an empty session is swept when the engine starts again, and a session with a typed draft keeps it', async ({
+    createEngine,
     connect,
     expect,
   }) => {
@@ -100,6 +107,7 @@ describe('sessions', () => {
 
 describe.concurrent('native sessions', () => {
   test('a past CLI session is found by what was said in it, with the command that resumes it, and a folder spelled through a symlink or by a gone path, opened before the first search everywhere, is one folder', async ({
+    createEngine,
     connect,
     expect,
   }) => {

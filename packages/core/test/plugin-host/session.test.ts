@@ -1,9 +1,9 @@
-import {describe, test} from 'vitest'
+import {describe} from 'vitest'
+import {test} from '../../src/testing.js'
 import {TestLLM} from '@conciv/harness-testkit'
-import {createEngine} from '../engine.js'
 
 describe.concurrent('sessions and events', () => {
-  test('the experimental.idle hook runs once a turn has ended', async ({expect}) => {
+  test('the experimental.idle hook runs once a turn has ended', async ({createEngine, expect}) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/session-watcher']})
     await engine.reply(TestLLM.text('Done'))
 
@@ -13,6 +13,7 @@ describe.concurrent('sessions and events', () => {
   })
 
   test('a plugin receives the session-created event of a session the user made, creates a session and lists it beside the sessions the user made, and renames its own session and reads it back', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/session-watcher']})
@@ -34,7 +35,7 @@ describe.concurrent('sessions and events', () => {
     })
   })
 
-  test('a plugin hears each run start and end', async ({expect}) => {
+  test('a plugin hears each run start and end', async ({createEngine, expect}) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/session-watcher']})
 
     await engine.reply(TestLLM.text('First answer'))
@@ -63,6 +64,7 @@ describe.concurrent('sessions and events', () => {
 
 describe.concurrent('session.synthetic', () => {
   test('notices reach the model in order: an idle wake sends the notice text only, queued input goes one run at a time with steering before the next queued input, and a resume-false notice goes ahead of the next user message', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/inbox-notices']})
@@ -155,7 +157,7 @@ describe.concurrent('session.synthetic', () => {
     ])
   })
 
-  test('a stop keeps queued input for the next run', async ({expect}) => {
+  test('a stop keeps queued input for the next run', async ({createEngine, expect}) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/inbox-notices']})
     await engine.reply(TestLLM.hang(), TestLLM.text('Resumed'), TestLLM.text('Went on'))
     const notice = engine.session.tool('notice')
@@ -188,6 +190,7 @@ describe.concurrent('session.synthetic', () => {
   })
 
   test('admission: a retry gets the first admission, another session reusing the id is refused with the conflict, and a deleted session refuses with NotFoundError and its waiting notice is gone', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/inbox-notices']})
@@ -241,7 +244,7 @@ describe.concurrent('session.synthetic', () => {
 
   test.for([false, true])(
     'the idle hook runs only once the session would go idle, and a notice it admits continues the session (resume: %s)',
-    async (resume, {expect}) => {
+    async (resume, {createEngine, expect}) => {
       const engine = await createEngine({
         plugins: [['./test/plugin-host/fixtures/plugins/inbox-notices', {idleNotice: {resume}}]],
       })

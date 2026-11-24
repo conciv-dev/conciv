@@ -69,9 +69,13 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
+    "@conciv/core": "workspace:^",
     "vitest": "^5.1.0"
   },
   "peerDependenciesMeta": {
+    "@conciv/core": {
+      "optional": true
+    },
     "vitest": {
       "optional": true
     }
