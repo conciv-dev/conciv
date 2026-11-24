@@ -78,19 +78,23 @@ export const runTerminal = Effect.fn('terminal.run')(function* (input: TerminalD
   return driver
 })
 
-function followEvents<Event>(
-  events: AsyncIterable<Event>,
-  schedule: Schedule.Schedule<unknown>,
-): Stream.Stream<Event, unknown> {
-  return Stream.fromAsyncIterable(events, caught).pipe(
-    Stream.tapError((cause) => Effect.logWarning('[terminal] following engine events failed; following again', cause)),
-    Stream.retry(schedule),
-    Stream.repeat(schedule),
-  )
-}
-
 export function followDeletedSessions(client: EventClient, forget: (sessionId: string) => void): Effect.Effect<void> {
-  return followEvents(client.event.subscribe({types: ['session.deleted']}), FOLLOW_RETRY).pipe(
+  const events = Stream.unwrap(
+    Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    ).pipe(
+      Effect.map((controller) =>
+        Stream.fromAsyncIterable(
+          client.event.subscribe({types: ['session.deleted'], signal: controller.signal}),
+          caught,
+        ),
+      ),
+    ),
+  )
+  return events.pipe(
+    Stream.tapError((cause) => Effect.logWarning('[terminal] following deleted sessions failed', cause)),
+    Stream.retry(FOLLOW_RETRY),
     Stream.runForEach((event) =>
       Effect.sync(() => {
         if (event.type === 'session.deleted') forget(event.data.sessionID)

@@ -1,10 +1,9 @@
 import {describe, expect} from 'vitest'
 import {z} from 'zod'
-import {Effect, Fiber, Stream} from 'effect'
+import {Effect, Fiber} from 'effect'
 import {TestClock} from 'effect/testing'
 import {TestLLM} from '@conciv/core/testing'
 import {PluginEngine, testEffect} from '@conciv/plugin-testkit'
-import {FOLLOW_AGAIN, followEvents} from './player-follow.js'
 import {nextControl, RECORDER_PLUGIN, test} from '../test/engine.js'
 
 describe('the agent is told about the recorder', () => {
@@ -362,25 +361,4 @@ describe('the user sends and exports a recording', () => {
       })
     }),
   )
-})
-
-describe('the engine stream ends at a disconnect', () => {
-  test('the recorder follows its events again after the stream ends and after it fails', async () => {
-    let attempt = 0
-    const subscribe = async function* () {
-      attempt += 1
-      if (attempt === 2) throw new Error('the engine is down')
-      yield attempt === 1 ? 'start' : 'stop'
-    }
-    const followed = Effect.gen(function* () {
-      const fiber = yield* followEvents({[Symbol.asyncIterator]: subscribe}, FOLLOW_AGAIN).pipe(
-        Stream.take(2),
-        Stream.runCollect,
-        Effect.forkChild,
-      )
-      yield* TestClock.adjust('2 seconds')
-      return yield* Fiber.join(fiber)
-    }).pipe(Effect.provide(TestClock.layer()))
-    expect(await Effect.runPromise(followed)).toEqual(['start', 'stop'])
-  })
 })

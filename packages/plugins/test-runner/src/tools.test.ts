@@ -1,8 +1,6 @@
 import {describe, expect} from 'vitest'
 import {Effect, Fiber, Option, Schema, Stream} from 'effect'
-import {TestClock} from 'effect/testing'
 import {PluginEngine, testEffect} from '@conciv/plugin-testkit'
-import {FOLLOW_AGAIN, followEvents} from './follow-events.js'
 
 describe("the agent runs the project's tests", () => {
   const it = testEffect(
@@ -125,23 +123,6 @@ describe('the runner is stopped from outside', () => {
             {file: expect.stringContaining('/greenhouse/beds/pruning.test.js'), relPath: 'beds/pruning.test.js'},
           ]),
         })
-
-        let attempt = 0
-        const subscribe = async function* () {
-          attempt += 1
-          if (attempt === 2) throw new Error('the engine is down')
-          yield attempt === 1 ? 'before the restart' : 'after the restart'
-        }
-        const followed = Effect.gen(function* () {
-          const fiber = yield* followEvents({[Symbol.asyncIterator]: subscribe}, FOLLOW_AGAIN).pipe(
-            Stream.take(2),
-            Stream.runCollect,
-            Effect.forkChild,
-          )
-          yield* TestClock.adjust('2 seconds')
-          return yield* Fiber.join(fiber)
-        }).pipe(Effect.provide(TestClock.layer()))
-        expect(yield* followed).toEqual(['before the restart', 'after the restart'])
       }),
   )
 })

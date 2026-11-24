@@ -1,6 +1,7 @@
 export * as Conciv from './client.js'
 
-import type {z} from 'zod'
+import {Schedule, Stream} from 'effect'
+import {z} from 'zod'
 import {contract, type EventEnvelopeSchema, type RpcClient} from '@conciv/contract'
 import {SharedEvents} from '../shared-events.js'
 import type {EventSubscribeOutput} from './generated/types.js'
@@ -41,8 +42,24 @@ export function make(
   }
 }
 
-async function* received(raw: RpcClient, signal: AbortSignal, onActivity: () => void) {
-  for await (const event of await raw.event.subscribe(undefined, {signal, context: {retry: 0}})) {
+const UntrustedSchema = z.object({code: z.literal('UNAUTHORIZED')})
+
+const UNTIL_TRUSTED = Schedule.spaced('1 second')
+
+function received(raw: RpcClient, signal: AbortSignal, onActivity: () => void): AsyncIterable<EventSubscribeOutput> {
+  return Stream.toAsyncIterable(
+    Stream.fromAsyncIterable(
+      {[Symbol.asyncIterator]: () => subscribed(raw, signal, onActivity)},
+      (cause) => cause,
+    ).pipe(
+      Stream.catch((cause) => (UntrustedSchema.safeParse(cause).success ? Stream.fail(cause) : Stream.die(cause))),
+      Stream.retry(UNTIL_TRUSTED),
+    ),
+  )
+}
+
+async function* subscribed(raw: RpcClient, signal: AbortSignal, onActivity: () => void) {
+  for await (const event of await raw.event.subscribe(undefined, {signal})) {
     onActivity()
     if (isEvent(event)) yield event
   }

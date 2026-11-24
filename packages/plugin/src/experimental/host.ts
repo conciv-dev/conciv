@@ -6,12 +6,6 @@ import type {Declarations} from './declarations.js'
 
 export {Scope} from './scope.js'
 
-export {
-  createClientConnection,
-  type ClientConnectionOptions,
-  type ClientConnectionStatus,
-} from '../client/solid/connection.js'
-
 export {DrawerContext, LifetimeContext, liveAccessor, PanelContext, PluginContext} from './internal.js'
 
 export interface Entry extends Declarations {

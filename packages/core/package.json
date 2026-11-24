@@ -93,7 +93,6 @@
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
-    "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

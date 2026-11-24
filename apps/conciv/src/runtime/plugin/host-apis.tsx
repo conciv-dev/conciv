@@ -1,4 +1,15 @@
-import {batch, createMemo, createSignal, getOwner, on, onCleanup, runWithOwner, untrack, type Accessor} from 'solid-js'
+import {
+  batch,
+  createMemo,
+  createSignal,
+  from,
+  getOwner,
+  on,
+  onCleanup,
+  runWithOwner,
+  untrack,
+  type Accessor,
+} from 'solid-js'
 import {createStore, produce, type Store} from 'solid-js/store'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {createORPCClient} from '@orpc/client'
@@ -6,7 +17,7 @@ import {z} from 'zod'
 import {useLocation, useParams, useRouteContext, useRouter, useRouterState, useSearch} from '@tanstack/solid-router'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {useQuery} from '@conciv/client'
-import {browserRpcConnection, type EngineConnectionTimings, type RpcClient} from '@conciv/contract'
+import {subscribeRpcReachability, type RpcClient} from '@conciv/contract'
 import {writeClipboardText} from '@conciv/ui-kit-system'
 import type {ComposerContextValue} from '@conciv/ui-kit-chat'
 import {Conciv, type ConcivClient} from '@conciv/plugin'
@@ -28,7 +39,6 @@ import type {
   Widget,
 } from '@conciv/plugin/experimental'
 import {Style} from '@conciv/plugin/experimental'
-import {createClientConnection} from '@conciv/plugin/experimental/host'
 import appManifest from '../../../package.json' with {type: 'json'}
 import {
   useApiBase,
@@ -110,21 +120,8 @@ const UNAVAILABLE = 'The server that runs this plugin is unavailable'
 
 const HostSettingsTab = z.enum(['general', 'shortcuts', 'plugins', 'advanced'])
 
-function trusted(server: string, signal: AbortSignal, engineTimings: Partial<EngineConnectionTimings> | undefined) {
-  const {trust, release} = browserRpcConnection(server, undefined, engineTimings)
-  return new Promise<void>((resolve) => {
-    const settle = () => {
-      stopTrust()
-      signal.removeEventListener('abort', settle)
-      release()
-      resolve()
-    }
-    const stopTrust = trust.subscribe((status) => {
-      if (status === 'trusted') settle()
-    })
-    signal.addEventListener('abort', settle, {once: true})
-    if (trust.isTrusted() || signal.aborted) settle()
-  })
+async function followConnected(client: ConcivClient, signal: AbortSignal, connected: () => void) {
+  for await (const event of client.event.subscribe({signal})) if (event.type === 'server.connected') connected()
 }
 
 function openInput(file: string, position: {line: number; column?: number} | undefined) {
@@ -154,9 +151,26 @@ export function createHostApis() {
 
   const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase(), connected()))
   const timings = useRouteContext({strict: false, select: (context) => context.timings})
-  const connection = createClientConnection(client, {
-    reconnect: (signal) => trusted(apiBase(), signal, untrack(timings)?.engine).then(() => client),
-    onEvent: () => undefined,
+  const engineConnected = createMemo(() => {
+    const server = apiBase()
+    return from<boolean>((set) => {
+      const events = new AbortController()
+      const stopReachability = subscribeRpcReachability(
+        server,
+        (reachable) => {
+          if (!reachable) set(false)
+        },
+        untrack(timings)?.engine,
+      )
+      followConnected(client, events.signal, () => set(true)).catch((error: unknown) => {
+        set(false)
+        if (!events.signal.aborted) console.error('[conciv] the engine event stream failed', error)
+      })
+      return () => {
+        events.abort()
+        stopReachability()
+      }
+    }, false)
   })
 
   const engine: ServerRef = {
@@ -173,7 +187,7 @@ export function createHostApis() {
       return !(engineVersion.isSuccess && engineOlderThanWidget(engineVersion.data))
     },
     get connected() {
-      return connection.status() === 'connected'
+      return engineConnected()()
     },
   }
 
