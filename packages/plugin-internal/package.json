@@ -14,7 +14,8 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./ui": "./src/ui.tsx"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -25,7 +26,8 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/ui-kit-tap": "workspace:^",
-    "@internal/opaque": "workspace:*"
+    "@internal/opaque": "workspace:*",
+    "es-toolkit": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",

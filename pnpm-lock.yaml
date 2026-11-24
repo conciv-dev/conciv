@@ -3208,6 +3208,9 @@ importers:
       '@internal/opaque':
         specifier: workspace:*
         version: link:../opaque-internal
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
     devDependencies:
       '@conciv/tsconfig':
         specifier: workspace:*
