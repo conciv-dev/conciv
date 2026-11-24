@@ -8,7 +8,7 @@ import {followDeletedSessions, runTerminal} from './terminal-driver.js'
 import type {LiveTerminal, TerminalEvent} from './terminal-machine.js'
 import {rpcTerminalTransport, type HeldPty, type PtyClient} from './terminal-transport.js'
 
-export const PANEL_KEY = 'terminal:terminal'
+export const TAB_ID = 'terminal'
 
 export const OPEN_FAILED = 'Couldn’t open the terminal.'
 

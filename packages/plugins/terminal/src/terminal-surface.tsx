@@ -3,7 +3,7 @@ import {makeEventListener} from '@solid-primitives/event-listener'
 import {createTerminalModel, type TerminalTheme} from './screen/model.js'
 import {Terminal} from './screen/styled/terminal.js'
 import {createKeyed, usePlugin, type MountedSession, type ServerRef} from '@conciv/plugin/experimental'
-import {OPEN_FAILED, PANEL_KEY, type TerminalState} from './terminal-state.js'
+import {OPEN_FAILED, TAB_ID, type TerminalState} from './terminal-state.js'
 import type {HeldPty} from './terminal-transport.js'
 
 const ESCAPE_KEY = String.fromCharCode(27)
@@ -148,7 +148,11 @@ export default function TerminalSurface(props: {
   }
   return (
     <div ref={interruptOnEscape} class="flex flex-1 flex-col min-h-0">
-      <Terminal model={model} onBackToChat={() => ctx.layout.close(PANEL_KEY, props.session)} class="flex-1 min-h-0" />
+      <Terminal
+        model={model}
+        onBackToChat={() => ctx.layout.close(`${ctx.id}:${TAB_ID}`, props.session)}
+        class="flex-1 min-h-0"
+      />
     </div>
   )
 }

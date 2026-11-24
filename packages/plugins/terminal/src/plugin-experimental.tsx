@@ -4,9 +4,7 @@ import TerminalIcon from 'lucide-solid/icons/terminal'
 import {Panel, Plugin, type PanelTab} from '@conciv/plugin/experimental'
 import {terminalDeclarations} from './stores.js'
 import {TerminalPanel} from './terminal-panel.js'
-import {createTerminalState} from './terminal-state.js'
-
-const TAB_ID = 'terminal'
+import {createTerminalState, TAB_ID} from './terminal-state.js'
 
 const tab: PanelTab = {
   id: TAB_ID,
