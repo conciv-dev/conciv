@@ -32,7 +32,6 @@
     "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "gen-migrations": "node src/scripts/gen-migrations.ts",
-    "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
     "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"

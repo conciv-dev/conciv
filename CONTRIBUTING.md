@@ -49,14 +49,14 @@ in, so you get a live page with the widget attached.
 
 This is a pnpm + turbo monorepo.
 
-| Command             | What it does                                                                      |
-| ------------------- | --------------------------------------------------------------------------------- |
-| `pnpm build`        | Build all packages                                                                |
-| `pnpm typecheck`    | Typecheck all packages                                                            |
-| `pnpm test`         | Run all tests (this builds first, turbo caches, so it isn't a separate slow step) |
-| `pnpm lint`         | Lint with oxlint                                                                  |
-| `pnpm format`       | Format with oxfmt                                                                 |
-| `pnpm format:check` | Check formatting without writing                                                  |
+| Command           | What it does                                                                      |
+| ----------------- | --------------------------------------------------------------------------------- |
+| `pnpm build`      | Build all packages                                                                |
+| `pnpm typecheck`  | Typecheck all packages                                                            |
+| `pnpm test`       | Run all tests (this builds first, turbo caches, so it isn't a separate slow step) |
+| `pnpm lint`       | Lint the whole repo with oxlint (`pnpm lint:fix` applies autofixes)               |
+| `pnpm format`     | Check formatting with oxfmt without writing                                       |
+| `pnpm format:fix` | Format with oxfmt                                                                 |
 
 To scope a gate to a single package, filter it bare:
 
@@ -93,7 +93,7 @@ pnpm build:affected
   instead of explaining it in a comment.
 - TypeScript is strict. Avoid `any`, `as` casts, and `@ts-ignore`.
 - Formatting is handled by oxfmt (no semicolons, single quotes, trailing commas), so run
-  `pnpm format` rather than hand-formatting.
+  `pnpm format:fix` rather than hand-formatting.
 - File names are kebab-case.
 
 This list is the short version. See [`AGENTS.md`](./AGENTS.md) for the full set of conventions,
@@ -125,7 +125,7 @@ including router idioms, Solid/Ark landmines, and testing rules.
    unrelated fixes.
 
 If a large `git commit` fails with a `next-index-*.lock.lock` error, that's a file-lock race in
-the pre-commit hook, not a real problem: run `pnpm format` by hand, then `git commit --no-verify`.
+the pre-commit hook, not a real problem: run `pnpm format:fix` by hand, then `git commit --no-verify`.
 
 ## Project status
 

@@ -43,4 +43,4 @@ Site helpers: fumadocs source loader, SEO and JSON-LD, OG image rendering, brand
 
 ## Verification
 
-- Run: `pnpm exec turbo run typecheck lint test --filter=site` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck test --filter=site` and `pnpm lint` from the repo root (turbo builds the package and its dependencies first)

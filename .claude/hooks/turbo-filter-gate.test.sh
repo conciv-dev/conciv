@@ -153,8 +153,11 @@ run_case "quoted TURBO_CACHE_DIR value on pnpm test:affected blocked" \
 run_case "TURBO_CACHE_DIR on root pnpm build blocked" \
   "TURBO_CACHE_DIR=/tmp/c pnpm build" 2
 
-run_case "TURBO_CACHE_DIR on root pnpm lint blocked" \
-  "TURBO_CACHE_DIR=/tmp/c pnpm lint" 2
+run_case "TURBO_CACHE_DIR on root pnpm lint allowed (oxlint, not turbo)" \
+  "TURBO_CACHE_DIR=/tmp/c pnpm lint" 0
+
+run_case "TURBO_CACHE_DIR on turbo run quality blocked" \
+  "TURBO_CACHE_DIR=/tmp/c turbo run quality" 2
 
 run_case "TURBO_CACHE_DIR on root pnpm e2e blocked" \
   "TURBO_CACHE_DIR=/tmp/c pnpm e2e" 2

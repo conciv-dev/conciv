@@ -49,7 +49,6 @@
     "build": "tsdown && vite build && tsc -p tsconfig.build.json",
     "gen:fixtures": "node test/fixtures/bridge/gen.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
     "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"

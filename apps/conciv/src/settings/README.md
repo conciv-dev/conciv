@@ -33,4 +33,4 @@ The conciv preferences a user changes on the settings page: their schema, the tw
 
 ## Verification
 
-- Run: `pnpm exec turbo run typecheck lint test --filter=@conciv/app` from the repo root
+- Run: `pnpm exec turbo run typecheck test --filter=@conciv/app` and `pnpm lint` from the repo root

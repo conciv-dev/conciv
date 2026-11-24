@@ -31,4 +31,4 @@ Package root for @conciv/core, the engine that @conciv/it installs. Node entries
 
 ## Verification
 
-- Typecheck and lint: `cd packages/core && pnpm typecheck && pnpm lint`
+- Typecheck and lint: `cd packages/core && pnpm typecheck`, then `pnpm lint` at the repo root

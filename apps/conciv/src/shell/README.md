@@ -43,4 +43,4 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 
 ## Verification
 
-- Run: `pnpm exec turbo run typecheck lint test --filter=@conciv/app` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck test --filter=@conciv/app` and `pnpm lint` from the repo root (turbo builds the package and its dependencies first)

@@ -16,4 +16,4 @@ Landing page install snippets for `apps/site` and the generator that pre-highlig
 
 ## Verification
 
-- Run: `pnpm exec turbo run typecheck lint --filter=site-snippets` from the repo root, then regenerate after editing snippets
+- Run: `pnpm exec turbo run typecheck --filter=site-snippets` and `pnpm lint` from the repo root, then regenerate after editing snippets

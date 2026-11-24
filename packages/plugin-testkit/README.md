@@ -44,5 +44,5 @@ Source details: [src/README.md](./src/README.md).
 
 ## Verification
 
-- Typecheck and lint: `pnpm exec turbo run typecheck --filter=@conciv/plugin-testkit`, then `pnpm lint` in this folder.
+- Typecheck and lint: `pnpm exec turbo run typecheck --filter=@conciv/plugin-testkit`, then `pnpm lint` at the repo root.
 - Behaviour is proven by the plugin tests that use the kit.

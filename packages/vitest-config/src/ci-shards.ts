@@ -39,7 +39,7 @@ type TaskConfig = {
 
 const TASKS: Record<string, TaskConfig> = {
   test: {
-    turboTasks: ['typecheck', 'lint', 'test', '--continue=dependencies-successful'],
+    turboTasks: ['typecheck', 'test', '--continue=dependencies-successful'],
     reportRoots: ['packages', 'apps'],
     render: {},
     plan: (rootDir, timings) => planShards(plannedPackages(rootDir), timings),
