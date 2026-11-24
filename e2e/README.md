@@ -67,7 +67,7 @@ so no script-tag widget is injected beside the page's own. Its `playwright.confi
 ports (`CONNECT_FIRST_PORT`), so the page can rebind the widget from one engine to the other.
 
 `vite-react-packed` installs conciv the way an npm user does, using the packing helpers in
-`packages/vitest-config/src/pack.ts` (`@conciv/vitest-config/pack`, shared with `nextjs/packed` and the
+`packages/vitest-config/src/pack.ts` (`@internal/vitest-config/pack`, shared with `nextjs/packed` and the
 packages' packed describes). Its `test:packed` runs `test/test-packed.ts`:
 it builds and `pnpm pack`s `@conciv/it`'s workspace dependency closure, copies `index.html`, `src/` and
 `public/` from `vite-react` into a temp dir outside the workspace, generates the `package.json` and
@@ -94,7 +94,7 @@ CI planner, or on a laptop. Each suite is a `test:packed` script:
   several projects). Any other vitest run skips
   them (hooks too).
 
-Every pack helper in `@conciv/vitest-config/pack` (`packTarball`, `buildAndPack`, the firewalled install)
+Every pack helper in `@internal/vitest-config/pack` (`packTarball`, `buildAndPack`, the firewalled install)
 calls `assertPackAllowed()`, which throws outside GitHub Actions, so even a `vitest run <file>:<line>`
 that targets a packed test (a line filter overrides the tag skip) fails before anything is packed.
 Every fixture install goes through Socket Firewall (`sfw`) with the root `minimumReleaseAge`, and every

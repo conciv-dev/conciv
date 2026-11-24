@@ -3,7 +3,7 @@ import {join} from 'node:path'
 import {createInterface} from 'node:readline'
 import {pathToFileURL} from 'node:url'
 import {describe, expect} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {running, test} from '../../test/ai-test.js'
 
 describe('the local sandbox', () => {

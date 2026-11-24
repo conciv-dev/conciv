@@ -14,4 +14,4 @@ The globalSetup the shared vitest config carries. `ciTest()` (`../reporters.ts`)
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/vitest-config` from the repo root
+- Run: `pnpm exec turbo run test --filter=@internal/vitest-config` from the repo root

@@ -34,7 +34,7 @@
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/vitest-config/src/run-tests.ts"
+    "test": "node node_modules/@internal/vitest-config/src/run-tests.ts"
   },
   "dependencies": {
     "@ast-grep/napi": "^0.51.0"
@@ -49,7 +49,7 @@
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@orpc/client": "catalog:",
     "@tanstack/ai-mcp": "catalog:",
     "@types/node": "catalog:",

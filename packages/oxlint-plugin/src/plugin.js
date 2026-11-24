@@ -4,7 +4,7 @@ import noAwaitEffectQuery from './no-await-effect-query.js'
 import noComments from './no-comments.js'
 import noForcedClick from './no-forced-click.js'
 import noHandMadeTempDir from './no-hand-made-temp-dir.js'
-import {isDomTestFile} from '@conciv/vitest-config/new-layer'
+import {isDomTestFile} from '@internal/vitest-config/new-layer'
 import noLocatorPoll from './no-locator-poll.js'
 import maxTestTimeout from './max-test-timeout.js'
 import noMocks from './no-mocks.js'
@@ -209,7 +209,7 @@ const solidTestRender = {
     type: 'problem',
     messages: {
       solidWebRenderInTest:
-        "Test files mount Solid components with @solidjs/testing-library's render, not {{name}} from solid-js/web: the package's browser vitest project wires afterEach(cleanup) via @conciv/vitest-config's ciTestSolidBrowser() setupFiles, which is what removes hand-rolled disposer arrays and leaked roots.",
+        "Test files mount Solid components with @solidjs/testing-library's render, not {{name}} from solid-js/web: the kit's browser project wires afterEach(cleanup) in its setup file, which is what removes hand-rolled disposer arrays and leaked roots.",
     },
     schema: [],
   },

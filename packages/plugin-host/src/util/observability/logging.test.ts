@@ -3,7 +3,7 @@ import path from 'node:path'
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import {describe, expect, it} from '@effect/vitest'
 import {Effect, Layer, Logger} from 'effect'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {Global} from '../global.js'
 import {file, fileLogger} from './logging.js'
 

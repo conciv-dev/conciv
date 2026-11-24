@@ -1,7 +1,7 @@
 import {defineConfig} from 'vitest/config'
 import {experimental} from '@conciv/plugin/experimental/vite'
 import {concivTest} from '@conciv/plugin-testkit/vitest'
-import {ciReporting} from '@conciv/vitest-config'
+import {ciReporting} from '@internal/vitest-config'
 
 export default defineConfig({
   publicDir: false,

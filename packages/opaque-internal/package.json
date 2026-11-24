@@ -19,11 +19,11 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "node node_modules/@conciv/vitest-config/src/run-tests.ts"
+    "test": "node node_modules/@internal/vitest-config/src/run-tests.ts"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

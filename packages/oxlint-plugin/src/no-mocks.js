@@ -1,5 +1,5 @@
 import {readCalleeName, readMemberObjectName} from './ast-walk.js'
-import {isNewLayerTestFile} from '@conciv/vitest-config/new-layer'
+import {isNewLayerTestFile} from '@internal/vitest-config/new-layer'
 
 const STUB_NAMES = new Set([
   'mock',

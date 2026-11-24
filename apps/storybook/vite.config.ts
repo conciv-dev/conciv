@@ -2,7 +2,7 @@ import path from 'node:path'
 import {defineConfig} from 'vitest/config'
 import {storybookTest} from '@storybook/addon-vitest/vitest-plugin'
 import {playwright} from '@vitest/browser-playwright'
-import {browserOptimizeDeps, ciTest} from '@conciv/vitest-config'
+import {ciTest} from '@internal/vitest-config'
 
 export default defineConfig({
   test: {
@@ -12,7 +12,7 @@ export default defineConfig({
       {
         extends: true,
         plugins: [storybookTest({configDir: path.join(import.meta.dirname, 'src', 'storybook')})],
-        optimizeDeps: browserOptimizeDeps(['@testing-library/dom']),
+        optimizeDeps: {include: ['@testing-library/dom']},
         test: {
           name: 'storybook',
           maxWorkers: 2,

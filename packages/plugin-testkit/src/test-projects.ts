@@ -13,7 +13,8 @@ import {
   solidPlugins,
   VIEWPORT,
   type BrowserName,
-} from '@conciv/vitest-config/test-config'
+} from '@internal/vitest-config/test-config'
+import {POLL_TIMEOUT_MS} from '@internal/vitest-config'
 import type {BrowserCommandContext} from 'vitest/node'
 import type {Page} from 'playwright'
 import {createGenerator} from 'unocss'
@@ -26,7 +27,6 @@ import {engineCommands} from './engine-commands.js'
 const KIT_DIST = import.meta.dirname
 const NODE_ONLY_CONDITIONS = ['browser', 'solid']
 const SOLID_INJECTED_JEST_DOM = '@testing-library/jest-dom/vitest'
-const POLL_TIMEOUT_MS = 5_000
 const PERF_TESTS = ['src/**/*.perf.test.ts', 'src/**/*.perf.test.tsx']
 
 const TESTING_LIBRARIES = ['@solidjs/testing-library', '@testing-library/user-event']

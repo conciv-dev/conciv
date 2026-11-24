@@ -1,5 +1,5 @@
 import {describe, expect, vi} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {test} from '../../test/engine-test.js'
 
 describe('idle terminals', () => {

@@ -38,7 +38,7 @@
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints styles.css",
-    "test": "node node_modules/@conciv/vitest-config/src/run-tests.ts"
+    "test": "node node_modules/@internal/vitest-config/src/run-tests.ts"
   },
   "dependencies": {
     "@zag-js/highlight-word": "catalog:",
@@ -54,7 +54,7 @@
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",
     "storybook": "catalog:",

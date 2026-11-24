@@ -1,7 +1,7 @@
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {describe, expect, it} from '@effect/vitest'
 import {Effect} from 'effect'
 import {openDb} from './db.js'

@@ -3,7 +3,7 @@ import {delimiter, join} from 'node:path'
 import {ConfigProvider} from 'effect'
 import {describe, expect, it} from 'vitest'
 import {codexModels} from '@conciv/ai/server'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {codex} from './index.js'
 

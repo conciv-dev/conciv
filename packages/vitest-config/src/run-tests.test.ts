@@ -3,7 +3,7 @@ import {readdirSync, symlinkSync, writeFileSync} from 'node:fs'
 import {join, resolve} from 'node:path'
 import {promisify} from 'node:util'
 import {describe, expect, test} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 
 describe('profiling a test run', () => {
   test('with CONCIV_TEST_CPU_PROF set the run leaves a CPU profile in that folder, and without it none is written', async ({

@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite'
 import {ConfigProvider} from 'effect'
 import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
 import {describe, expect, it} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {codex} from './index.js'
 

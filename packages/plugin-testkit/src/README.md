@@ -7,7 +7,7 @@ The in-memory engine half a plugin test runs, and the vitest projects that wire 
 ## Files
 
 - `index.ts` (the package root): `PluginEngine`; its tests run on `@effect/vitest` (`layer(PluginEngine.layer(...))`).
-- `../bin/conciv-test.js`: the `conciv-test` bin; it starts `run-tests.ts`, which loads `@conciv/vitest-config/run-tests`.
+- `../bin/conciv-test.js`: the `conciv-test` bin; it starts `run-tests.ts`, which loads `@internal/vitest-config/run-tests`.
 - `plugin-engine.ts`: `PluginEngine.layer(options)`, `PluginSupervisor.layer` over `Instance.layer({replacements})` with
   fakes, and its helpers (`session`, `call`, `failure`, `write`, `skills`, `tools`, `events`). The fake sessions are
   rows in the migrated database's `sessions` table, so the session inbox and instruction state (which reference it)

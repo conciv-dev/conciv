@@ -38,7 +38,7 @@ import {
   type ScriptedHarness,
   type ToolClients,
 } from '@conciv/harness-testkit'
-import {isolatedEnv} from '@conciv/vitest-config/isolated-env'
+import {isolatedEnv} from '@internal/vitest-config/isolated-env'
 
 export {TestLLM} from '@conciv/harness-testkit'
 export type {

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Shared CI tooling for the monorepo: vitest config factories (reporters, coverage, timeouts, worker cap), a Solid cleanup setup file, a Solid library vite config, and the CLI logic that plans GitHub Actions shard matrices from package timings, runs turbo for a shard, and turns vitest / Playwright JSON reports and coverage into a Markdown job summary for the shards.
+Shared CI tooling for the monorepo: vitest config factories (reporters, coverage, timeouts, worker cap), a Solid library vite config, and the CLI logic that plans GitHub Actions shard matrices from package timings, runs turbo for a shard, and turns vitest / Playwright JSON reports and coverage into a Markdown job summary for the shards.
 
 ## Interface
 
@@ -10,13 +10,11 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 - `tempDir(prefix)` (`temp-dir.ts`, export `./temp-dir`): makes a folder inside one `conciv-test-*` folder per test file, which an `afterAll` registered when the module loads removes once that file is done, passed or failed. Every test that needs a temp folder takes it from here.
 - `ciReporting()` (`reporters.ts`): `{reporters: ciReporters(), coverage}`, the root-only part of `ciTest()` (vitest reads reporters and coverage only at the root). A package on `concivTest()` puts it at the root of its own `test`; `ciTest()` is not used there because its `globalSetup` sets a `CONCIV_HOME` the kit's engines never read (they get their home explicitly).
 - `ciReporters()` (`reporters.ts`): `['default']` locally; on CI adds `github-actions` (jobSummary off) and `json` -> `test-results.json`.
-- `ciTestSolidBrowser()` (`reporters.ts`): `ciTest()` plus `setupFiles: ['@conciv/vitest-config/solid-cleanup']`.
-- `browserOptimizeDeps(alsoInclude = [])`, `TANSTACK_AI_SOLID_DEPS` (`reporters.ts`).
-- `solid-cleanup-setup.ts` (export `./solid-cleanup`): registers `afterEach(cleanup)` from `@solidjs/testing-library`.
+- `TANSTACK_AI_SOLID_DEPS` (`reporters.ts`).
 - `solidLibConfig({entry, external})`, `SolidLibBuild` (`vite-lib.ts`, export `./vite-lib`): solid plugin, ES lib output `index.js`, sourcemaps, `emptyOutDir`.
 - CLI `conciv-ci-shards <plan|run|report|coverage|summarize> [--task test|e2e] [--timings F] [--output F] [--coverage DIR] [--untested DIR] [--coverage-output DIR]` (`ci-shards.ts`). `TASKS.test` runs turbo `typecheck lint test --continue=dependencies-successful` over `packages/` and `apps/`; `TASKS.e2e` runs `typecheck test:e2e --continue` over `e2e/` and `apps/site`.
-- `planShards(packages, timings, sizing?)`, `planE2eShards`, `discoverPackages(rootDir, groupDirs)`, `plannedPackages`, `e2ePackages`, `parseTimings`; constants `PACKAGE_GROUPS`, `PACKAGES_WITH_DEDICATED_JOBS` (`['conciv-storybook']`), `E2E_HARNESS_PACKAGE`, `TARGET_SHARD_MS` (150_000), `DEFAULT_PACKAGE_MS` (5_000), `E2E_SHARD_SIZING`; types `WorkspacePackage`, `ShardPlan`, `E2eShardPlan`, `ShardSizing` (`shards.ts`).
-- `parseReport`, `parseSummaries`, `mergeSummaries`, `mergeLcov(reports, keep?, untested?)`, `rebaseLcov`, `isWorkspaceSource`, `coverageByPackage(files, root)`, `coverageOnlySummary`, `loadSummaries(roots)`, `renderSummary(packages, options?)`; types `PackageSummary`, `CaseResult`, `CaseStatus`, `CaseAnnotation`, `Coverage`, `RenderOptions` (`summary.ts`).
+- `planShards(packages, timings, sizing?)`, `planE2eShards`, `plannedPackages`, `e2ePackages`, `parseTimings`; constant `E2E_SHARD_SIZING`; types `WorkspacePackage`, `ShardPlan`, `E2eShardPlan`, `ShardSizing` (`shards.ts`).
+- `parseSummaries`, `mergeSummaries`, `mergeLcov(reports, keep?, untested?)`, `rebaseLcov`, `isWorkspaceSource`, `coverageByPackage(files, root)`, `coverageOnlySummary`, `loadSummaries(roots)`, `renderSummary(packages, options?)`; types `PackageSummary`, `CaseResult`, `CaseStatus`, `CaseAnnotation`, `Coverage`, `RenderOptions` (`summary.ts`).
 - Subdirectories:
   - setup: [./setup/README.md](./setup/README.md) - the conciv home globalSetup `ciTest()` carries
 
@@ -34,11 +32,10 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 ## Side Effects
 
 - Reads `GITHUB_ACTIONS` and `VITEST_MAX_FORKS`; on CI the json reporter writes `test-results.json` and coverage goes to `coverage/` (`reporters.ts`).
-- Registers a global `afterEach(cleanup)` (`solid-cleanup-setup.ts`).
 - `temp-dir.ts` creates its `conciv-test-*` folder and registers its `afterAll` on import.
 - `plan` appends `matrix=<json>` to `$GITHUB_OUTPUT` and prints it; `run` spawns `pnpm exec turbo run <tasks> --filter=<pkg>...` with `execFileSync` and inherited stdio; `report` writes `--output` (default `shard-report.json`); `summarize` appends to `$GITHUB_STEP_SUMMARY` (or stdout) and writes measured timings to `--timings` and merged lcov files to `--coverage-output` (`ci-shards.ts`).
 - `summary.ts` walks directories, reads `test-results.json` and package.json files, and caches owner lookups in the module-level `packageByDir` map; `discoverPackages` reads workspace package.json files (`shards.ts`).
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/vitest-config` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run test --filter=@internal/vitest-config` from the repo root (turbo builds the package and its dependencies first)

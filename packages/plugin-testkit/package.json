@@ -74,10 +74,10 @@
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@effect/vitest": "catalog:",
     "@internal/opaque": "workspace:*",
     "@internal/plugin": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",

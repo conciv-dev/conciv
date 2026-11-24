@@ -9,7 +9,7 @@ import {join} from 'node:path'
 import {createEngineTest} from '@conciv/core/testing'
 import {createMCPClient, type MCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
-import {isolatedEnv} from '@conciv/vitest-config/isolated-env'
+import {isolatedEnv} from '@internal/vitest-config/isolated-env'
 
 const CLI_DEADLINE_MS = 60_000
 

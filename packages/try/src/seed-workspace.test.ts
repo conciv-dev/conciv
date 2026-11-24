@@ -3,7 +3,7 @@ import {once} from 'node:events'
 import {createServer} from 'node:http'
 import {join} from 'node:path'
 import {describe, expect, test} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {seedWorkspace} from './seed-workspace.js'
 
 describe('seeding the try workspace from the site', () => {

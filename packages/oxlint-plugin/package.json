@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "lucide-solid": "catalog:",
     "oxlint": "catalog:",

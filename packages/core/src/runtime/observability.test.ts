@@ -10,7 +10,7 @@ import {z} from 'zod'
 import {askingToolProvisioner} from '@conciv/ai/server'
 import {makeRpcClient} from '@conciv/contract'
 import {TestLLM} from '@conciv/harness-testkit'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {startObservability} from './observability.js'
 
 describe('engine spans', () => {

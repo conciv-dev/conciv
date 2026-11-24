@@ -42,7 +42,9 @@ describe('the CI summary of a package split into parts', () => {
     const merged = mergeLcov([fromChat, fromOwnRun], isWorkspaceSource)
 
     expect(merged.files).toEqual([{file: 'packages/vitest-config/src/shards.ts', covered: 2, total: 2}])
-    expect(coverageByPackage(merged.files, root)).toEqual(new Map([['@conciv/vitest-config', {covered: 2, total: 2}]]))
+    expect(coverageByPackage(merged.files, root)).toEqual(
+      new Map([['@internal/vitest-config', {covered: 2, total: 2}]]),
+    )
   })
   test('lists a source file no run loaded at 0 lines covered, and leaves a loaded file to the lines its run recorded', () => {
     const merged = mergeLcov(['SF:src/a.ts\nDA:1,1\nDA:2,0\nend_of_record\n'], () => true, [

@@ -3,7 +3,7 @@ import {cpSync, readdirSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {cli} from '../../test/cli.js'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 
 describe('dry run', () => {
   it.each([

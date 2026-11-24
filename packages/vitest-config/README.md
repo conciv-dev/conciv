@@ -1,4 +1,4 @@
-# @conciv/vitest-config
+# @internal/vitest-config
 
 ## Overview
 
@@ -6,9 +6,9 @@ Private workspace package (`private: true`) holding shared vitest CI settings, a
 
 ## Interface
 
-- [src/README.md](./src/README.md): `ciTest`, `ciReporters`, `ciTestSolidBrowser`, `solidLibConfig`, shard planning and report summaries.
+- [src/README.md](./src/README.md): `ciTest`, `ciReporters`, `solidLibConfig`, shard planning and report summaries.
 - `bin["conciv-ci-shards"]` -> `./src/ci-shards.ts` (`package.json`).
-- Exports: `.` -> `./src/reporters.ts`, `./solid-cleanup` -> `./src/solid-cleanup-setup.ts`, `./vite-lib` -> `./src/vite-lib.ts`. `summary.ts` and `shards.ts` are not exported.
+- Exports: `.` -> `./src/reporters.ts`, `./vite-lib` -> `./src/vite-lib.ts`. `summary.ts` and `shards.ts` are not exported.
 - Optional peers: `@solidjs/testing-library` ^0.8.10, `vite` ^8.0.16, `vite-plugin-solid` ^2.11.12.
 - Scripts: `typecheck`, `lint` (`oxlint`).
 

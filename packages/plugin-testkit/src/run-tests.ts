@@ -1,1 +1,1 @@
-import '@conciv/vitest-config/run-tests'
+import '@internal/vitest-config/run-tests'

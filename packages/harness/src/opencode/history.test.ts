@@ -5,7 +5,7 @@ import {DatabaseSync} from 'node:sqlite'
 import {Worker} from 'node:worker_threads'
 import {ConfigProvider} from 'effect'
 import {describe, expect, it} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {opencode} from './index.js'
 

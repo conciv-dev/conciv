@@ -1,4 +1,4 @@
-# @conciv/vitest-config
+# @internal/vitest-config
 
 ## 0.0.22
 

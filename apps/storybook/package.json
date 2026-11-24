@@ -21,7 +21,7 @@
     "@chromatic-com/storybook": "^5.6.0",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@shikijs/langs-precompiled": "catalog:",
     "@storybook/addon-a11y": "^10.6.4",
     "@storybook/addon-docs": "catalog:",

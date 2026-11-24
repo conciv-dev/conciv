@@ -1,5 +1,5 @@
 import type {StorybookConfig} from 'storybook-solidjs-vite'
-import {TANSTACK_AI_SOLID_DEPS} from '@conciv/vitest-config'
+import {TANSTACK_AI_SOLID_DEPS} from '@internal/vitest-config'
 
 const config: StorybookConfig = {
   stories: [

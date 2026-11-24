@@ -16,5 +16,5 @@ export default defineConfig({
   fixedExtension: false,
   dts: false,
   plugins: [solidPlugin()],
-  deps: {neverBundle: true, alwaysBundle: ['@conciv/vitest-config', '@internal/plugin', '@internal/opaque']},
+  deps: {neverBundle: true, alwaysBundle: ['@internal/vitest-config', '@internal/plugin', '@internal/opaque']},
 })

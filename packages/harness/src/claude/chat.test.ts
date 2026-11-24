@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {FILE_REF_PREFIX, type HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {claudeChatConfig, claudeExecutable} from './chat.js'

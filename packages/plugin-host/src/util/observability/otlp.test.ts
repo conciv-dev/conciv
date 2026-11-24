@@ -5,7 +5,7 @@ import path from 'node:path'
 import {text} from 'node:stream/consumers'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, test} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {resource} from './otlp.js'
 
 describe('resource', () => {

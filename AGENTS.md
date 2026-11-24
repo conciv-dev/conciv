@@ -141,7 +141,7 @@ A test may only use packages its own package can depend on without a cycle. A te
 up, to a package above it. Never hide a cycle with a package `turbo.json`, a task name or a `#build` entry.
 
 - **Packages below core never start an engine.** That covers protocol, contract, db, plugin, plugin-host, ai, harness,
-  chat, the UI kits, `@internal/*` and vitest-config. They test with `@conciv/vitest-config` only. They never
+  chat, the UI kits, `@internal/*` and vitest-config. They test with `@internal/vitest-config` only. They never
   devDepend on core, the app, cli, unplugin, embed, `@conciv/plugin-testkit` or any plugin.
 - **A test that starts a real engine** lives in core (`packages/core/test`) or in a package above core (cli, unplugin,
   a plugin's own `test/engine.ts`). It gets the engine from `@conciv/core/testing`.
@@ -164,7 +164,7 @@ up, to a package above it. Never hide a cycle with a package `turbo.json`, a tas
   `src/<area>.browser.test.tsx` per product area) runs in vitest browser mode (Chromium). Playwright Test exists
   only under `e2e/` (`conciv/playwright-test-in-e2e`). Never jsdom.
 - One `vite.config.ts` per package and no `vitest*.config` file. `concivTest()` adds the test projects:
-  - a package below the plugins uses `@conciv/vitest-config/test-config` (node, happy-dom and plain browser projects);
+  - a package below the plugins uses `@internal/vitest-config/test-config` (node, happy-dom and plain browser projects);
   - a plugin, `@internal/builtin-plugins` and the app use `@conciv/plugin-testkit/vitest`, which builds on the same
     defaults and adds the fake-shell browser projects.
 
@@ -198,9 +198,9 @@ up, to a package above it. Never hide a cycle with a package `turbo.json`, a tas
   `engine.gate()` holds a reply), used by core, cli, the app and a plugin's agent-turn journeys.
   `config` is the product's own `ConcivConfig`; `start` is only what is not product config.
   Nothing else is exported; a new kit export or option needs the maintainer's yes.
-- Tests run through one runner, `@conciv/vitest-config`'s `run-tests.ts`. It starts vitest with a home of its own
+- Tests run through one runner, `@internal/vitest-config`'s `run-tests.ts`. It starts vitest with a home of its own
   and none of the developer's secrets or `CONCIV_*` variables, and keeps the developer's Playwright browsers folder.
-  - Packages below the plugins run `node node_modules/@conciv/vitest-config/src/run-tests.ts`.
+  - Packages below the plugins run `node node_modules/@internal/vitest-config/src/run-tests.ts`.
   - Plugin-testkit users run its bundled copy, `node node_modules/@conciv/plugin-testkit/bin/conciv-test.js`.
 
   Always run the committed file, never a bin name: pnpm's repeat-install check skips relinking bins, so a bin added
@@ -233,7 +233,7 @@ up, to a package above it. Never hide a cycle with a package `turbo.json`, a tas
 - The calm perf gate (frame-gap budgets) is `pnpm --filter @conciv/app test:perf`, kept out of `pnpm test`;
   run it locally in Chromium and Firefox before merging a chat-plane change.
 - Flame graph of a slow test: run it through the bin with `CONCIV_TEST_CPU_PROF=<folder>`
-  (`CONCIV_TEST_CPU_PROF=/tmp/prof node node_modules/@conciv/vitest-config/src/run-tests.ts <file>`); every test process
+  (`CONCIV_TEST_CPU_PROF=/tmp/prof node node_modules/@internal/vitest-config/src/run-tests.ts <file>`); every test process
   writes a `.cpuprofile` there. Open it in Chrome DevTools (Performance, Load profile) or speedscope.
 - `e2e/` suites load the PREBUILT bundle (`packages/embed/dist/conciv-widget.global.js`): rebuild it
   (`pnpm turbo run build --filter=@conciv/embed`) before running them, or you test stale code. Use

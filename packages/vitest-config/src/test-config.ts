@@ -3,11 +3,10 @@ import solidPlugin from 'vite-plugin-solid'
 import {playwright} from '@vitest/browser-playwright'
 import {z} from 'zod'
 import {configDefaults, type TestProjectInlineConfiguration} from 'vitest/config'
-import {ciReporters} from '@conciv/vitest-config'
+import {ciReporters, POLL_TIMEOUT_MS} from '@internal/vitest-config'
 
 const TEST_TIMEOUT_MS = 30_000
 const HOOK_TIMEOUT_MS = 30_000
-const POLL_TIMEOUT_MS = 5_000
 const POLL_INTERVAL_MS = 50
 export const VIEWPORT = {width: 1280, height: 800}
 export const BROWSER_TESTS = ['src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx']

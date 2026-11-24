@@ -41,7 +41,7 @@
     "@conciv/publish": "workspace:*",
     "@conciv/skills": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@j178/prek": "^0.5.7",
     "@oxlint/plugins": "catalog:",
     "@types/node": "catalog:",

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {cli} from '../test/cli.js'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 
 describe('mcp', () => {
   it('on a machine with no claude CLI, connect claude says why it failed, list stays empty, and disconnect claude notes the entry it could not remove', async () => {

@@ -2,7 +2,7 @@ import {fileURLToPath} from 'node:url'
 import {defineConfig, type Plugin} from 'vite'
 import solid from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
-import {concivTest} from '@conciv/vitest-config/test-config'
+import {concivTest} from '@internal/vitest-config/test-config'
 
 const EXTERNAL_PREFIXES = ['solid-js/', 'effect/', '@ark-ui/', '@conciv/']
 

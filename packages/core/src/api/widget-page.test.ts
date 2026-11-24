@@ -1,7 +1,7 @@
 import {mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {expect, test} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {makeWidgetPageApp} from './widget-page.js'
 
 test('the widget page points the widget at its own origin, takes a known launcher only, and serves the loader and its chunks', async () => {

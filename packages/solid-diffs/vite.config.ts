@@ -1,5 +1,5 @@
 import {defineConfig} from 'vite'
-import {solidLibConfig} from '@conciv/vitest-config/vite-lib'
+import {solidLibConfig} from '@internal/vitest-config/vite-lib'
 
 export default defineConfig(
   solidLibConfig({

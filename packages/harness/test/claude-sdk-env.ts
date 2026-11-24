@@ -4,7 +4,7 @@ import {createRequire} from 'node:module'
 import {delimiter, dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {promisify} from 'node:util'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 
 const LIST_IN_CHILD = [
   "import {ConfigProvider} from 'effect'",

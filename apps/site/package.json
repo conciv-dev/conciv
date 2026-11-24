@@ -19,7 +19,7 @@
     "cf-typegen": "wrangler types",
     "typecheck": "fumadocs-mdx && tsc --noEmit",
     "lint": "oxlint",
-    "test": "node node_modules/@conciv/vitest-config/src/run-tests.ts"
+    "test": "node node_modules/@internal/vitest-config/src/run-tests.ts"
   },
   "dependencies": {
     "@conciv/brand": "workspace:*",
@@ -63,7 +63,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.69.1",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/devtools-bundler-core": "catalog:",
     "@types/mdx": "^2.0.14",

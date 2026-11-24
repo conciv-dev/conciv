@@ -4,7 +4,7 @@ import {join, parse} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {promisify} from 'node:util'
 import {describe, expect, it} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {isHomeFolderRefused, listEngines, prepareHome, registerEngine, withHomeDb} from './home-db.js'
 
 describe('home folder', () => {

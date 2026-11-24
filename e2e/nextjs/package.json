@@ -24,7 +24,7 @@
     "@conciv/e2e-utils": "workspace:*",
     "@conciv/protocol": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

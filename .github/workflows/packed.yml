@@ -3,7 +3,7 @@ name: Packed
 # The packed install suites build the @conciv closure, `pnpm pack` it and install the
 # tarballs into throwaway consumer fixtures, the way an npm user gets conciv. They are
 # the only place pack runs: `pnpm test`, `test:e2e` and the CI planner never select
-# them, and every pack helper (@conciv/vitest-config/pack) throws outside GitHub Actions.
+# them, and every pack helper (@internal/vitest-config/pack) throws outside GitHub Actions.
 # Each suite is a `test:packed` script:
 #   - e2e/nextjs: packed/test-packed.ts packs, installs the committed packed/app fixture twice
 #     (Turbopack and webpack) and runs its test/packed-*.spec.ts with playwright.packed.config.ts
@@ -132,7 +132,7 @@ jobs:
           if-no-files-found: warn
 
       # A drifted fixture install writes the lockfile it produced over the committed one
-      # (@conciv/vitest-config/pack assertLockNotDrifted), so a failed run carries the refresh.
+      # (@internal/vitest-config/pack assertLockNotDrifted), so a failed run carries the refresh.
       - name: Summarize fixture lockfile changes
         if: failure()
         run: |

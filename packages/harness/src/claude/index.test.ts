@@ -1,7 +1,7 @@
 import {delimiter} from 'node:path'
 import {ConfigProvider} from 'effect'
 import {describe, expect, it} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {hungClaudeOnPath, recordedClaudeOnPath} from '../../test/claude-sdk-env.js'
 import {claude, claudeTtyCommand} from './index.js'

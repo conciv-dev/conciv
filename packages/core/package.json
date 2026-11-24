@@ -57,7 +57,7 @@
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/vitest-config/src/run-tests.ts"
+    "test": "node node_modules/@internal/vitest-config/src/run-tests.ts"
   },
   "dependencies": {
     "@conciv/ai": "workspace:^",
@@ -90,8 +90,8 @@
   "devDependencies": {
     "@conciv/client": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@effect/vitest": "catalog:",
+    "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
     "tsdown": "catalog:",

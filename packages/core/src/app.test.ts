@@ -7,7 +7,7 @@ import {describe, expect} from 'vitest'
 import {test} from '../test/engine.js'
 import {resolveHarnessModels} from '@conciv/harness'
 import {codex} from '@conciv/harness/codex'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {makeApp, withSavedModels} from './app.js'
 import {resolveConfig} from './config.js'
 

@@ -258,7 +258,7 @@ function parsePlaywrightReport(reportPackage: string, report: Record<string, unk
   return [...named, summaryOfCases(reportPackage, crashes, 0)]
 }
 
-export function parseReport(reportPackage: string, raw: string): PackageSummary[] {
+function parseReport(reportPackage: string, raw: string): PackageSummary[] {
   const report: unknown = JSON.parse(raw)
   if (isRecord(report) && Array.isArray(report.suites)) return parsePlaywrightReport(reportPackage, report)
   const files = toRecords(isRecord(report) ? report.testResults : [])

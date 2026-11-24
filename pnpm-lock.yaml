@@ -636,7 +636,7 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:packages/uno-preset
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:packages/vitest-config
       '@j178/prek':
@@ -1153,7 +1153,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../../packages/vitest-config
       '@tailwindcss/vite':
@@ -1245,7 +1245,7 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../packages/uno-preset
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../../packages/vitest-config
       '@shikijs/langs-precompiled':
@@ -1516,7 +1516,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../../packages/vitest-config
       '@playwright/test':
@@ -1964,7 +1964,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../../packages/vitest-config
       '@playwright/test':
@@ -2182,7 +2182,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
@@ -2502,7 +2502,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@orpc/client':
@@ -2612,7 +2612,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
@@ -2718,12 +2718,12 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../vitest-config
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
+      '@internal/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -2770,12 +2770,12 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../vitest-config
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
+      '@internal/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -2861,7 +2861,7 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@testing-library/jest-dom':
@@ -2922,7 +2922,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
@@ -3046,7 +3046,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
@@ -3116,7 +3116,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       typescript:
@@ -3134,7 +3134,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
@@ -3180,7 +3180,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@testing-library/jest-dom':
@@ -3310,12 +3310,12 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../vitest-config
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
+      '@internal/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -3466,9 +3466,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../vitest-config
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
@@ -3478,6 +3475,9 @@ importers:
       '@internal/plugin':
         specifier: workspace:*
         version: link:../plugin-internal
+      '@internal/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
@@ -3560,15 +3560,15 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../../vitest-config
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
       '@internal/plugin':
         specifier: workspace:*
         version: link:../../plugin-internal
+      '@internal/vitest-config':
+        specifier: workspace:*
+        version: link:../../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -3682,15 +3682,15 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../../vitest-config
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
       '@internal/plugin':
         specifier: workspace:*
         version: link:../../plugin-internal
+      '@internal/vitest-config':
+        specifier: workspace:*
+        version: link:../../vitest-config
       '@rrweb/rrweb-plugin-console-record':
         specifier: 'catalog:'
         version: 2.2.0(@rrweb/utils@2.2.0)(rrweb@2.2.0)
@@ -3767,15 +3767,15 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../../vitest-config
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
       '@internal/plugin':
         specifier: workspace:*
         version: link:../../plugin-internal
+      '@internal/vitest-config':
+        specifier: workspace:*
+        version: link:../../vitest-config
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
@@ -3852,15 +3852,15 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../../vitest-config
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
       '@internal/plugin':
         specifier: workspace:*
         version: link:../../plugin-internal
+      '@internal/vitest-config':
+        specifier: workspace:*
+        version: link:../../vitest-config
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -3937,12 +3937,12 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../../vitest-config
       '@internal/plugin':
         specifier: workspace:*
         version: link:../../plugin-internal
+      '@internal/vitest-config':
+        specifier: workspace:*
+        version: link:../../vitest-config
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
@@ -4010,9 +4010,6 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../../vitest-config
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(vitest@5.1.0)
@@ -4025,6 +4022,9 @@ importers:
       '@internal/plugin':
         specifier: workspace:*
         version: link:../../plugin-internal
+      '@internal/vitest-config':
+        specifier: workspace:*
+        version: link:../../vitest-config
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
@@ -4160,7 +4160,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
@@ -4314,7 +4314,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
@@ -4375,7 +4375,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
@@ -4498,7 +4498,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
@@ -4667,7 +4667,7 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
@@ -4926,7 +4926,7 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/vitest-config':
+      '@internal/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@rspack/core':
@@ -4966,9 +4966,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@solidjs/testing-library':
-        specifier: 'catalog:'
-        version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6

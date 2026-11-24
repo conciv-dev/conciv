@@ -1,5 +1,5 @@
 import {isIdentifier, readCalleeName} from './ast-walk.js'
-import {isNewLayerTestFile} from '@conciv/vitest-config/new-layer'
+import {isNewLayerTestFile} from '@internal/vitest-config/new-layer'
 
 const HOOK_NAMES = new Set(['afterEach', 'onTestFinished'])
 

@@ -2,7 +2,7 @@ import {mkdir, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {execa} from 'execa'
 import {expect, test} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import {assertTestsWithinBudget} from './test-budget.ts'
 
 test('a package over its budget fails with its count and budget, at budget passes, under budget asks to lower it', async () => {

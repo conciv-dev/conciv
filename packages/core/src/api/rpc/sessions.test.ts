@@ -1,7 +1,7 @@
 import {realpathSync, symlinkSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, vi} from 'vitest'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {tempDir} from '@internal/vitest-config/temp-dir'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {test} from '../../../test/engine-test.js'
