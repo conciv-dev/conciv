@@ -1,5 +1,5 @@
-import {Match, Show, Switch, onCleanup, untrack, type JSX} from 'solid-js'
-import {Effect, SubscriptionRef} from 'effect'
+import {Match, Show, Switch, untrack, type JSX} from 'solid-js'
+import {Effect, Stream, SubscriptionRef} from 'effect'
 import {useMutation, useQuery, useQueryClient} from '@conciv/client'
 import {usePlugin, type PanelProps} from '@conciv/plugin/experimental'
 import {Page} from '@conciv/plugin/experimental/page'
@@ -8,7 +8,7 @@ import {saveFileToDisk, videoPieceReader} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {followClient} from './page-capture.js'
 import {openPanel, recorderPanelCalls} from './panel.js'
-import type {ReplaySource} from './player-follow.js'
+import {followEvents, type ReplaySource} from './player-follow.js'
 import {streamPlayer, type PlayerKit} from './player.js'
 import {PlayerKitSwitch, usePlayerKit} from './player-kit.js'
 import {runInOwnerScope, follow, type RecorderRuntime} from './solid-runtime.js'
@@ -82,16 +82,19 @@ export function RecorderPanel(props: {
   }))
   const retry = (): void => void recording.refetch()
 
-  const stopWatching = recorder().events.on(
-    'appended',
-    (event) =>
-      untrack(() => {
-        if (event.data.clientId !== props.clientId || recordingWithEnoughEvents(recording.data)) return
-        void refresh()
-      }),
-    {signal: ctx.signal},
+  runInOwnerScope(
+    runtime,
+    followEvents((signal) => recorder().events.subscribe('appended', {signal})).pipe(
+      Stream.runForEach((event) =>
+        untrack(() => {
+          if (event.data.clientId !== props.clientId || recordingWithEnoughEvents(recording.data)) return Effect.void
+          return Effect.promise(refresh)
+        }),
+      ),
+      Effect.ignore,
+      Effect.forkScoped,
+    ),
   )
-  onCleanup(stopWatching)
 
   const playerKit = usePlayerKit()
 

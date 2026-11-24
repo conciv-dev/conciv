@@ -1,6 +1,9 @@
 import {describe, test} from 'vitest'
 import {z} from 'zod'
+import {Effect, Fiber, Stream} from 'effect'
+import {TestClock} from 'effect/testing'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {followEvents} from './player-follow.js'
 
 describe.concurrent('the agent is told about the recorder', () => {
   test('the model request lists the recorder skill and the recording tool namespace', async ({expect}) => {
@@ -321,5 +324,22 @@ describe.concurrent('the user sends and exports a recording', () => {
       saved: false,
       error: 'too-large',
     })
+  })
+})
+
+describe('the engine stream ends at a disconnect', () => {
+  test('the recorder follows its events again after the stream ends and after it fails', async ({expect}) => {
+    let attempt = 0
+    const subscribe = async function* (_signal: AbortSignal) {
+      attempt += 1
+      if (attempt === 2) throw new Error('the engine is down')
+      yield attempt === 1 ? 'start' : 'stop'
+    }
+    const followed = Effect.gen(function* () {
+      const fiber = yield* followEvents(subscribe).pipe(Stream.take(2), Stream.runCollect, Effect.forkChild)
+      yield* TestClock.adjust('2 seconds')
+      return yield* Fiber.join(fiber)
+    }).pipe(Effect.provide(TestClock.layer()))
+    expect(await Effect.runPromise(followed)).toEqual(['start', 'stop'])
   })
 })

@@ -30,6 +30,8 @@ const STATE_RETRY = Schedule.max([Schedule.exponential(Duration.millis(250)), Sc
 
 const WAKE_EVENTS = ['focus', 'pointerdown', 'keydown']
 
+const FOLLOW_AGAIN = Schedule.spaced(Duration.seconds(1))
+
 const ControlHeader = z.object({type: z.string(), connectionId: z.string()})
 
 const RpcFailure = z.object({type: z.string()})
@@ -252,6 +254,21 @@ function drive(input: Attaching, transition: AttachmentTransition): Effect.Effec
       const event = events.find((next) => next !== undefined)
       return event ? drive(input, transitionAttachment(transition.state, event)) : Effect.void
     }),
+  )
+}
+
+export function followEvents<Event>(
+  subscribe: (signal: AbortSignal) => AsyncIterable<Event>,
+): Stream.Stream<Event, unknown> {
+  return Stream.unwrap(
+    Effect.acquireRelease(
+      Effect.sync(() => new AbortController()),
+      (controller) => Effect.sync(() => controller.abort()),
+    ).pipe(Effect.map((controller) => Stream.fromAsyncIterable(subscribe(controller.signal), caught))),
+  ).pipe(
+    Stream.tapError((cause) => Effect.logWarning('[page] following engine events failed; following again', cause)),
+    Stream.retry(FOLLOW_AGAIN),
+    Stream.repeat(FOLLOW_AGAIN),
   )
 }
 

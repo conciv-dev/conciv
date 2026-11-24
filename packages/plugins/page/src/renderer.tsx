@@ -1,4 +1,4 @@
-import {Effect, Exit, Fiber, Layer, ManagedRuntime, Scope} from 'effect'
+import {Effect, Exit, Fiber, Layer, ManagedRuntime, Scope, Stream} from 'effect'
 import {z} from 'zod'
 import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
@@ -8,7 +8,7 @@ import {NoteCard, OpaqueNoteCard, ToolRegistry} from '@internal/plugin'
 import {Page} from '@conciv/plugin/experimental/page'
 import {PageOperation, ReactTree} from './contract.js'
 import {GrabPicker} from '@conciv/plugin/experimental/grab'
-import {keepAttached, readTab, reportChanges} from './attachment.js'
+import {followEvents, keepAttached, readTab, reportChanges} from './attachment.js'
 import {makeHighlight} from './highlight.js'
 import {symbolicateInSession} from './open-source.js'
 import {makePageOperations} from './operations.js'
@@ -113,11 +113,16 @@ export default Plugin.define({
       () => routed()?.server.client,
       (client) => {
         const page = client.rpc(Definition)
-        onCleanup(
-          page.events.on('captures.saved', (event) =>
-            queryClient.invalidateQueries({queryKey: page['captures.list'].key({input: event.data})}),
+        const saved = Effect.runFork(
+          followEvents((signal) => page.events.subscribe('captures.saved', {signal})).pipe(
+            Stream.runForEach((event) =>
+              Effect.promise(() =>
+                queryClient.invalidateQueries({queryKey: page['captures.list'].key({input: event.data})}),
+              ),
+            ),
           ),
         )
+        onCleanup(() => void Effect.runFork(Fiber.interrupt(saved)))
       },
     )
 

@@ -12,7 +12,7 @@
   "@conciv/plugin-host": 10,
   "@conciv/plugin-ios": 5,
   "@conciv/plugin-page": 37,
-  "@conciv/plugin-recorder": 10,
+  "@conciv/plugin-recorder": 11,
   "@conciv/plugin-tanstack": 5,
   "@conciv/plugin-terminal": 5,
   "@conciv/plugin-test-runner": 9,
