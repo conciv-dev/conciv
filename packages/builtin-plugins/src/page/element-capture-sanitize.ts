@@ -47,7 +47,7 @@ function decodedCodePoint(digits: string, radix: number): string | undefined {
   return String.fromCodePoint(codePoint)
 }
 
-export function decodeEntities(value: string): string | undefined {
+function decodeEntities(value: string): string | undefined {
   let decodable = true
   const decoded = value
     .replace(HEX_ENTITY_PATTERN, (match, hex: string) => {
@@ -64,7 +64,7 @@ export function decodeEntities(value: string): string | undefined {
   return decodable ? decoded : undefined
 }
 
-export function isLocalReference(value: string): boolean {
+function isLocalReference(value: string): boolean {
   const decoded = decodeEntities(value)
   if (decoded === undefined) return false
   return LOCAL_REFERENCE_PATTERN.test(decoded.replace(CONTROL_AND_SPACE_PATTERN, ''))
@@ -81,7 +81,7 @@ function isRasterDataUrl(value: unknown): boolean {
   return RASTER_DATA_URL_PATTERN.test(decoded.replace(CONTROL_AND_SPACE_PATTERN, ''))
 }
 
-export function isDroppableAttribute(name: string, value: unknown): boolean {
+function isDroppableAttribute(name: string, value: unknown): boolean {
   const lowered = name.toLowerCase()
   if (lowered.startsWith('on')) return true
   if (lowered === 'style') return typeof value === 'string' && CSS_URL_PATTERN.test(value)

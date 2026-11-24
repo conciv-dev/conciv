@@ -15,7 +15,7 @@ const TerminalContext = createContext<TerminalModel>()
 
 const ROOT_CLASS = 'w-full min-w-0'
 
-export function useTerminal(): TerminalModel {
+function useTerminal(): TerminalModel {
   const model = useContext(TerminalContext)
   if (!model) throw new Error('useTerminal outside <TerminalPrimitive.Root>')
   return model

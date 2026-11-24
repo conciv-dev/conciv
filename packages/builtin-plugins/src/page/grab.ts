@@ -10,10 +10,10 @@ const [picking, setPicking] = createSignal(false)
 
 let cancelFn: (() => void) | null = null
 
-export function setCancelPick(fn: (() => void) | null): void {
+function setCancelPick(fn: (() => void) | null): void {
   cancelFn = fn
 }
-export function cancelPick(): void {
+function cancelPick(): void {
   cancelFn?.()
 }
 
@@ -106,7 +106,7 @@ type ReactGrabAdapter = {
 let adapterPromise: Promise<ReactGrabAdapter> | null = null
 let modulePromise: Promise<typeof import('react-grab')> | null = null
 
-export function loadReactGrab(): Promise<typeof import('react-grab')> {
+function loadReactGrab(): Promise<typeof import('react-grab')> {
   if (modulePromise) return modulePromise
   window.__REACT_GRAB_DISABLED__ = true
   modulePromise = import('react-grab')
@@ -248,7 +248,7 @@ function salientAttributes(element: Element): string {
   return parts.length > 0 ? ` ${parts.join(' ')}` : ''
 }
 
-export function elementSnippet(element: Element): string {
+function elementSnippet(element: Element): string {
   const tag = element.tagName.toLowerCase()
   const open = `<${tag}${salientAttributes(element)}>`
   if (VOID_TAGS.has(tag)) return open
@@ -257,10 +257,7 @@ export function elementSnippet(element: Element): string {
   return `${open}${text}</${tag}>`
 }
 
-export function groundGrabText(
-  element: Element,
-  fallback: string,
-): {snippet: string; source: SourceLoc | null; text: string} {
+function groundGrabText(element: Element, fallback: string): {snippet: string; source: SourceLoc | null; text: string} {
   const snippet = elementSnippet(element)
   const source = sourceFromAttr(element)
   return {snippet, source, text: composeGrabText(snippet, source, fallback)}

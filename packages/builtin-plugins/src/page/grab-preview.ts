@@ -192,7 +192,7 @@ const PROBE_STEP_PX = 1
 
 type StyledElement = HTMLElement | SVGElement
 
-export function isStyledElement(node: Node): node is StyledElement {
+function isStyledElement(node: Node): node is StyledElement {
   return node instanceof HTMLElement || node instanceof SVGElement
 }
 
@@ -276,7 +276,7 @@ function collectCandidates(runs: readonly TextRun[]): Candidate[] {
   })
 }
 
-export async function correctFallbackMetrics(runs: readonly TextRun[]): Promise<void> {
+async function correctFallbackMetrics(runs: readonly TextRun[]): Promise<void> {
   if (runs.length === 0 || document.fonts.size === 0) return
   const candidates = collectCandidates(runs)
   if (candidates.length === 0) return

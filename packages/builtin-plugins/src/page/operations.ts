@@ -805,11 +805,11 @@ export function makePageOperations(
   return {execute, dispose}
 }
 
-export function fail(message: string): never {
+function fail(message: string): never {
   throw pageFailure('handler-error', message)
 }
 
-export function badArgs(message: string): never {
+function badArgs(message: string): never {
   throw pageFailure('invalid-args', message)
 }
 
@@ -817,7 +817,7 @@ function isSchemaRejection(error: unknown): error is Error {
   return error instanceof Error && error.name === 'ZodError' && Array.isArray(Reflect.get(error, 'issues'))
 }
 
-export function toPageFailure(error: unknown): PageFailure {
+function toPageFailure(error: unknown): PageFailure {
   if (isPageFailure(error)) return error
   if (isSchemaRejection(error)) return pageFailure('invalid-args', error.message)
   if (!isToolError(error)) return pageFailure('handler-error', error instanceof Error ? error.message : String(error))
@@ -828,7 +828,7 @@ export function toPageFailure(error: unknown): PageFailure {
   })
 }
 
-export function isJsonSerializable(value: unknown): boolean {
+function isJsonSerializable(value: unknown): boolean {
   return isStructurallySerializable(value, new Set<object>())
 }
 
@@ -896,7 +896,7 @@ function listenWindow<Type extends keyof WindowEventMap>(
   )
 }
 
-export const consoleBuffer: Effect.Effect<ConsoleEntry[], never, Scope.Scope> = Effect.gen(function* () {
+const consoleBuffer: Effect.Effect<ConsoleEntry[], never, Scope.Scope> = Effect.gen(function* () {
   const buf: ConsoleEntry[] = []
   const push: Push = (level, args) => {
     const text = args.map((a) => String(a)).join(' ')
@@ -947,7 +947,7 @@ function outcome(last: Settled, waitedMs: number): HotUpdateWait {
   return {supported: true, applied: last.error === null, waitedMs, error: last.error}
 }
 
-export function watchHotUpdates(hot: HotSurface | undefined): (timeoutMs: number) => Promise<HotUpdateWait> {
+function watchHotUpdates(hot: HotSurface | undefined): (timeoutMs: number) => Promise<HotUpdateWait> {
   if (hot === undefined) return async () => ({supported: false, applied: false, waitedMs: 0, error: null})
   const state: {last: Settled | null} = {last: null}
   const settled = new EventTarget()

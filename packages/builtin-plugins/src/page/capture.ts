@@ -231,7 +231,7 @@ function collectCssText(doc: Document, stylesheetText: StylesheetText): string {
   return sheets.join('\n')
 }
 
-export function collectPendingCss(doc: Document, stylesheetText: StylesheetText): PendingCssText | null {
+function collectPendingCss(doc: Document, stylesheetText: StylesheetText): PendingCssText | null {
   const css = collectCssText(doc, stylesheetText)
   if (css === '' || new TextEncoder().encode(css).byteLength > CSS_BUNDLE_CAP) return null
   return {css}
@@ -280,7 +280,7 @@ function describeComponent(el: Element): {componentName?: string; sourceFile?: s
   }
 }
 
-export function elementDescriptor(el: Element): ElementDescriptor {
+function elementDescriptor(el: Element): ElementDescriptor {
   const rect = el.getBoundingClientRect()
   const name = readAccessibleName(el)
   const value = readValue(el)

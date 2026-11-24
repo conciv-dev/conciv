@@ -373,7 +373,7 @@ function firstMeaningfulLine(text: string): string | undefined {
   return undefined
 }
 
-export function pageSessionScripted(steps: ReadonlyArray<PageSessionStep>): boolean {
+function pageSessionScripted(steps: ReadonlyArray<PageSessionStep>): boolean {
   return steps.length > 0 && steps.every((step) => SCRIPT_VERBS.has(step.verb))
 }
 
@@ -432,7 +432,7 @@ function stepState(result: ToolResultPart | undefined, streaming: boolean): Page
   return streaming ? 'streaming' : 'aborted'
 }
 
-export function pageSessionSteps(
+function pageSessionSteps(
   parts: ReadonlyArray<ToolCallPart>,
   resultFor: (toolCallId: string) => ToolResultPart | undefined,
   captureFor: (toolCallId: string) => ToolCaptureView | undefined,

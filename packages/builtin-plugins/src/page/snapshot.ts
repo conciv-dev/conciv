@@ -146,7 +146,7 @@ export function selectDeep(selector: string): Element[] {
   return [document, ...openShadowRoots(document)].flatMap((root) => Array.from(root.querySelectorAll(selector)))
 }
 
-export function pageShadowRoot(element: Element): ShadowRoot | null {
+function pageShadowRoot(element: Element): ShadowRoot | null {
   if (element.shadowRoot === null) return null
   return isOurs(element) ? null : element.shadowRoot
 }

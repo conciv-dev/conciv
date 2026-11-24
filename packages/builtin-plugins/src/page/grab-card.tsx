@@ -192,7 +192,7 @@ function documentFor(html: string, surface: Surface): string {
   return `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${CSP}"><style>html{background:${surface.base}}body{margin:0;background:${surface.overlay}}</style></head><body>${html}</body></html>`
 }
 
-export function GrabSnapshotFrame(props: {html: string; width: number; height: number; class: string}): JSX.Element {
+function GrabSnapshotFrame(props: {html: string; width: number; height: number; class: string}): JSX.Element {
   const [surface, setSurface] = createSignal<Surface>(DEFAULT_SURFACE)
   let node: SVGSVGElement | undefined
   onMount(() => {

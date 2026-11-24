@@ -471,7 +471,7 @@ export function PageValueChip(props: {value: string}): JSX.Element {
   return <Chip kind="pill" tone="accent" value={props.value} />
 }
 
-export function formatHtml(src: string): string {
+function formatHtml(src: string): string {
   try {
     return html(src, {indent_size: 2, wrap_line_length: 0, preserve_newlines: false})
   } catch {

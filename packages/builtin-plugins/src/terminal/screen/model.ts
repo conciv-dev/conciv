@@ -47,16 +47,6 @@ type TerminalSession = {
   errorMessage: string | null
 }
 
-export function translateBuffer(terminal: Xterm): string {
-  const buffer = terminal.buffer.active
-  const lines: string[] = []
-  for (let i = 0; i < buffer.length; i += 1) {
-    const line = buffer.getLine(i)
-    if (line) lines.push(line.translateToString(true))
-  }
-  return lines.join('\n')
-}
-
 export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
   const [session, setSession] = createStore<TerminalSession>({
     status: 'idle',

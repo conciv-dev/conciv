@@ -795,6 +795,25 @@
     {
       "file": "packages/ui-kit-chat/src/tools/styled/tool-fallback.tsx",
       "exports": ["*"]
+    },
+    {
+      "file": "packages/builtin-plugins/src/page/cards.tsx",
+      "exports": [
+        "ActCard",
+        "ConsoleCard",
+        "EffectCard",
+        "ReactCard",
+        "ReadBulkCard",
+        "ReadValueCard",
+        "EditLiveCard",
+        "A11yNodeList",
+        "PageHtmlBlock",
+        "PageValueChip"
+      ]
+    },
+    {
+      "file": "packages/builtin-plugins/src/page/session-card.tsx",
+      "exports": ["SessionCard"]
     }
   ],
   "entry": [
