@@ -1,5 +1,8 @@
 import {describe, test} from 'vitest'
+import {Effect, Fiber, Stream} from 'effect'
+import {TestClock} from 'effect/testing'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {followEvents} from './follow-events.js'
 
 describe("the agent runs the project's tests", () => {
   test('the agent is told about the runner, lists the files, reads an empty status, runs everything, narrows a run with a pattern, reads the last run, and two runs asked at once each report their own tests', async ({
@@ -59,7 +62,7 @@ describe("the agent runs the project's tests", () => {
 })
 
 describe('the runner is stopped from outside', () => {
-  test('a client joining mid-run reads the run so far, a second run waits, stop ends the run that never finishes, and the waiting run then runs and is read back', async ({
+  test('a client joining mid-run reads the run so far, a second run waits, stop ends the run that never finishes, the waiting run then runs and is read back, and the panel follows the live events again after the engine stream ends and after it fails', async ({
     expect,
   }) => {
     const engine = await createEngine(
@@ -104,6 +107,23 @@ describe('the runner is stopped from outside', () => {
         {file: expect.stringContaining('/greenhouse/beds/pruning.test.js'), relPath: 'beds/pruning.test.js'},
       ]),
     })
+
+    let attempt = 0
+    const subscribe = async function* () {
+      attempt += 1
+      if (attempt === 2) throw new Error('the engine is down')
+      yield attempt === 1 ? 'before the restart' : 'after the restart'
+    }
+    const followed = Effect.gen(function* () {
+      const fiber = yield* followEvents({[Symbol.asyncIterator]: subscribe}).pipe(
+        Stream.take(2),
+        Stream.runCollect,
+        Effect.forkChild,
+      )
+      yield* TestClock.adjust('2 seconds')
+      return yield* Fiber.join(fiber)
+    }).pipe(Effect.provide(TestClock.layer()))
+    expect(await Effect.runPromise(followed)).toEqual(['before the restart', 'after the restart'])
   })
 })
 

@@ -5,6 +5,7 @@ import type {Context} from '@conciv/plugin/experimental'
 import {TestRunner} from './rpc.js'
 import {TestEventSchema} from './events.js'
 import {TestRunnerFollowMachine} from './follow-machine.js'
+import {followEvents} from './follow-events.js'
 import {initialRunView, transitionRunView, type RunView} from './run-state.js'
 
 type Client = Context['client']
@@ -15,11 +16,6 @@ const ReadFailed = Schema.TaggedStruct('TestRunner.ReadFailed', {cause: Schema.D
 type ReadFailed = typeof ReadFailed.Type & globalThis.Error
 const makeReadFailed = (fields: Omit<typeof ReadFailed.Type, '_tag'>): ReadFailed =>
   Object.assign(new globalThis.Error(), ReadFailed.make(fields), {name: 'TestRunner.ReadFailed'})
-
-const StreamFailed = Schema.TaggedStruct('TestRunner.StreamFailed', {cause: Schema.Defect()})
-type StreamFailed = typeof StreamFailed.Type & globalThis.Error
-const makeStreamFailed = (fields: Omit<typeof StreamFailed.Type, '_tag'>): StreamFailed =>
-  Object.assign(new globalThis.Error(), StreamFailed.make(fields), {name: 'TestRunner.StreamFailed'})
 
 const TEST_EVENT = 'rpc.test-runner.event'
 
@@ -78,9 +74,7 @@ const followTestRun = Effect.fn('TestRunner.follow')(function* (
 
   yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}))
 
-  yield* Stream.fromAsyncIterable(client.event.subscribe({types: [TEST_EVENT]}), (cause) =>
-    makeStreamFailed({cause}),
-  ).pipe(
+  yield* followEvents(client.event.subscribe({types: [TEST_EVENT]})).pipe(
     Stream.runForEach((event) => dispatch(decodeEvent(event))),
     Effect.catch((error) => dispatch({type: 'stream-failed', error: error.cause})),
   )
