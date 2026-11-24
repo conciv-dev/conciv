@@ -315,6 +315,10 @@ jobs:
       - run: pnpm exec conciv-publish check-turbo-depends-on
       - run: pnpm exec conciv-publish check-dependency-loops
       - run: pnpm exec conciv-publish check-plugin-ui-kit
+      # oxlint and oxfmt over the whole repo (apps/ too), as the turbo root tasks //#lint and //#format.
+      # Runs before any build step: the unocss lint rule loads uno.config.ts, which imports the preset's dist,
+      # so lint passes here only while //#lint itself depends on @conciv/uno-preset#build.
+      - run: pnpm exec turbo run quality
       # The browser jobs' container image must be one digest-pinned reference whose tag
       # is the playwright version the lockfile resolves, else Playwright looks for
       # browser builds the image does not have. Dependabot cannot bump container images
@@ -360,8 +364,6 @@ jobs:
         with:
           name: bundle-size-baseline
           path: bundle-size.json
-      # oxlint and oxfmt over the whole repo (apps/ too), as the turbo root tasks //#lint and //#format.
-      - run: pnpm exec turbo run quality
       - name: Skill format
         run: pnpm --filter @conciv/skills exec intent validate skills --check --github-summary
       - name: Skill references
