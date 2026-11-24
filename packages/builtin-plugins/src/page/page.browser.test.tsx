@@ -13,6 +13,7 @@ import pagePlugin from './renderer.js'
 
 describe('the page plugin in the app shell', () => {
   const PAGE = '@conciv/plugin-page'
+  const PAGE_ID = 'conciv.page'
 
   const INSPECTING = 'Inspecting · click to open source · Esc to exit'
 
@@ -24,7 +25,7 @@ describe('the page plugin in the app shell', () => {
     const engine = await pluginEngine({plugins: [[PAGE, options]]})
     const control = await engine.event('rpc.experimental.page.control')
     const [tools, setTools] = createStore<ShellTool[]>([])
-    await mount(pagePlugin, {id: PAGE, engine, options, tools})
+    await mount(pagePlugin, {id: PAGE_ID, engine, options, tools})
     await control.arrived
     return {engine, show: (...cards: ShellTool[]) => setTools(cards)}
   }
@@ -645,7 +646,7 @@ describe('the page plugin in the app shell', () => {
         permissions: [{action: 'page_eval', resource: '*', effect: 'deny'}],
       })
       const control = await engine.event('rpc.experimental.page.control')
-      await mount(pagePlugin, {id: PAGE, engine})
+      await mount(pagePlugin, {id: PAGE_ID, engine})
       await control.arrived
       render(() => <p id="price">12 euros</p>)
 

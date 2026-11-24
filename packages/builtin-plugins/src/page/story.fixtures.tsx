@@ -10,7 +10,7 @@ export type StoryCall = ToolProps & {id: string}
 
 export function inPageShell(Story: () => JSX.Element): JSX.Element {
   return (
-    <PluginShell id="@conciv/plugin-page">
+    <PluginShell id="conciv.page">
       <Story />
     </PluginShell>
   )

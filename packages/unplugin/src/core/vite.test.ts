@@ -76,21 +76,21 @@ describe.concurrent('the vite dev server', () => {
     expect(printed.join('\n')).not.toMatch(/watcher started|the engine started/)
   })
 
-  test("a second dev server whose engine port is taken still boots, with its engine on another port, and the page plugin the dev server builds in is on unless the config's '-@conciv/plugin-page' turns it off", async ({
+  test("a second dev server whose engine port is taken still boots, with its engine on another port, and the page plugin the dev server builds in is on unless the config's '-conciv.page' turns it off", async ({
     viteDev,
     browser,
     expect,
   }) => {
     const first = await viteDev({})
-    const second = await viteDev({port: first.port, plugins: ['-@conciv/plugin-page']})
+    const second = await viteDev({port: first.port, plugins: ['-conciv.page']})
 
     expect(second.port).not.toBe(first.port)
     expect((await fetch(`http://127.0.0.1:${first.port}/health`)).status).toBe(200)
     expect((await fetch(`http://127.0.0.1:${second.port}/health`)).status).toBe(200)
     const listed = async (engine: {port: number; token: string}) =>
       (await browser(`http://127.0.0.1:${engine.port}`, engine.token).rpc.plugin.list()).data.map((plugin) => plugin.id)
-    expect(await listed(first)).toContain('@conciv/plugin-page')
-    expect(await listed(second)).not.toContain('@conciv/plugin-page')
+    expect(await listed(first)).toContain('conciv.page')
+    expect(await listed(second)).not.toContain('conciv.page')
   })
   test.for([
     {name: 'a plain folder', folder: 'widget'},

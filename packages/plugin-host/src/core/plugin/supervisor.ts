@@ -133,9 +133,7 @@ const resolve = Effect.fn('PluginSupervisor.resolve')(function* (
   const ordered = [
     ...pre.filter((plugin) => enabled.has(plugin.id)).map(configured),
     ...[...packages.values()].filter((plugin) => enabled.has(plugin.id)),
-    ...post
-      .filter((plugin) => enabled.has(plugin.id))
-      .map((plugin) => (served.includes(plugin) ? plugin : configured(plugin))),
+    ...post.filter((plugin) => enabled.has(plugin.id)).map(configured),
   ]
   const duplicate = (plugin: Plugin.Generation, index: number) =>
     ordered.findIndex((other) => other.id === plugin.id) !== index

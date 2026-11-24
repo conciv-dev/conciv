@@ -612,7 +612,7 @@ describe('the served plugins in the real app', () => {
 
   test("with a short page task timeout the agent's mask goes away on its own while the reply still waits", async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: [['@conciv/plugin-page', {taskTimeoutMs: 50}]]}, {post: [PAGE]})
+    const engine = await createEngine({plugins: [['conciv.page', {taskTimeoutMs: 50}]]}, {post: [PAGE]})
     const control = await engine.event('rpc.experimental.page.control')
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {

@@ -6,7 +6,7 @@ import {PageTools} from './tools.js'
 import {makeSymbolicator} from './symbolicate.js'
 
 export default Plugin.define({
-  id: '@conciv/plugin-page',
+  id: 'conciv.page',
   effect: (ctx) =>
     Effect.gen(function* () {
       const symbolicator = yield* makeSymbolicator({root: ctx.location.directory})

@@ -96,11 +96,11 @@ picks up). The value is the core's own apiBase with no page path: the SDK append
 `/widget` itself. Set `concivUrl` in this plugin's options to override it, again as the
 API base with no page path.
 
-The engine the app talks to must turn the page plugin off with `'-@conciv/plugin-page'` in its
+The engine the app talks to must turn the page plugin off with `'-conciv.page'` in its
 `plugins`, so the ios plugin's picker is the only grab picker in the app:
 
 ```ts
-plugins: ['-@conciv/plugin-page', ['@conciv/plugin-ios', {projectRoot, bundleId}]]
+plugins: ['-conciv.page', ['@conciv/plugin-ios', {projectRoot, bundleId}]]
 ```
 
 ## Pairing file and discovery
