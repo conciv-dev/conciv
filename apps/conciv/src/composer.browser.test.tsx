@@ -2,8 +2,8 @@ import {describe, expect, it, test} from 'vitest'
 import {page, userEvent as realInput} from 'vitest/browser'
 import {fireEvent, render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+import {createEngine, TestLLM} from '../test/browser-engine.js'
+import {createEngineRouterHistory, mount} from '../test/mount.js'
 
 describe('the composer menus', () => {
   test('a pick from the slash list or the model menu, Escape and an outside click each close the menu and give the composer its focus back at once', async () => {

@@ -1,8 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {glob, readFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
-import {dirname, join, matchesGlob} from 'node:path'
-import {pathToFileURL} from 'node:url'
+import {join, matchesGlob} from 'node:path'
 import type {Plugin, UserConfig} from 'vite'
 import type {TestProjectInlineConfiguration} from 'vitest/config'
 import {
@@ -17,46 +16,20 @@ import {
 } from '@conciv/vitest-config/test-config'
 import type {BrowserCommandContext} from 'vitest/node'
 import type {Page} from 'playwright'
-import {createGenerator, type UserConfig as UnoConfig} from 'unocss'
+import {createGenerator} from 'unocss'
+import {presetConciv} from '@conciv/uno-preset'
 import {z} from 'zod'
-import type {TestLLM} from '@conciv/harness-testkit'
-import {hang} from '@conciv/harness-testkit/test-llm'
-import type {Engine, EngineSession, StartedEngine} from './engine.js'
 import {pluginDirectory} from './plugin-directory.js'
-import {disposeAll} from './dispose.js'
-import {engineCoverage} from './engine-coverage.js'
-import type {EngineCommands, PageCommands} from './browser-commands.js'
-
-type EngineCommandHandlers = {
-  [Name in keyof EngineCommands]: (
-    context: BrowserCommandContext,
-    ...args: Parameters<EngineCommands[Name]>
-  ) => ReturnType<EngineCommands[Name]>
-}
+import type {PageCommands} from './browser-commands.js'
+import {engineCommands} from './engine-commands.js'
 
 const KIT_DIST = import.meta.dirname
-const ENGINE_ENTRY = /^@conciv\/plugin-testkit$/
 const NODE_ONLY_CONDITIONS = ['browser', 'solid']
 const SOLID_INJECTED_JEST_DOM = '@testing-library/jest-dom/vitest'
-const APP_FROM_KIT = '@conciv/plugin-testkit > @conciv/app'
 const POLL_TIMEOUT_MS = 5_000
 const PERF_TESTS = ['src/**/*.perf.test.ts', 'src/**/*.perf.test.tsx']
 
-const BROWSER_PREBUNDLED = [
-  '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client',
-  '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client/byok',
-  '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client/devtools',
-  '@conciv/mascot > gsap',
-  '@conciv/mascot > gsap/MotionPathPlugin',
-  '@conciv/ui-kit-chat > mermaid',
-  '@tanstack/hotkeys',
-  '@tanstack/solid-hotkeys',
-  '@solid-primitives/mutation-observer',
-  'semver/functions/lt',
-  'semver/functions/valid',
-].map((dependency) => `${APP_FROM_KIT} > ${dependency}`)
-
-const TESTING_LIBRARIES = ['@testing-library/user-event']
+const TESTING_LIBRARIES = ['@solidjs/testing-library', '@testing-library/user-event']
 
 function installedTestingLibraries(): string[] {
   const packageRequire = createRequire(join(process.cwd(), 'package.json'))
@@ -70,19 +43,9 @@ function installedTestingLibraries(): string[] {
   })
 }
 
-const UTILITY_SHEETS = new Set(['virtual:uno.css', '/__uno.css'])
-const GENERATED_SHEET = '/__conciv-test-uno.css'
+const GENERATED_SHEET = 'virtual:conciv-test.css'
+const RESOLVED_SHEET = `\0${GENERATED_SHEET}`
 const PACKAGE_SOURCES = ['src/**/*.{ts,tsx}', '!src/**/*.{test,spec,stories}.*']
-
-const UnoConfigShapeSchema = z.object({content: z.object({filesystem: z.array(z.string())})})
-
-const UnoConfigModuleSchema = z.object({
-  default: z.custom<UnoConfig>((value) => UnoConfigShapeSchema.safeParse(value).success),
-})
-
-function appDirectory(): string {
-  return dirname(createRequire(import.meta.url).resolve('@conciv/app/package.json'))
-}
 
 async function scannedFiles(patterns: readonly string[]): Promise<string[]> {
   const included = patterns.filter((pattern) => !pattern.startsWith('!'))
@@ -99,13 +62,10 @@ function sourcePatterns(directory: string): string[] {
 }
 
 async function generateTestSheet(directories: readonly string[]): Promise<string> {
-  const loaded = UnoConfigModuleSchema.parse(await import(pathToFileURL(join(appDirectory(), 'uno.config.ts')).href))
-  const config = loaded.default
-  const appSources = config.content?.filesystem ?? []
   const packageSources = [...new Set(directories)].flatMap((directory) => sourcePatterns(directory))
-  const generator = await createGenerator(config)
+  const generator = await createGenerator({presets: [presetConciv()]})
   const tokens = new Set<string>()
-  const files = await scannedFiles([...appSources, ...packageSources])
+  const files = await scannedFiles([join(KIT_DIST, '**/*.js'), ...packageSources])
   await Promise.all(files.map(async (file) => generator.applyExtractors(await readFile(file, 'utf8'), file, tokens)))
   const {css} = await generator.generate(tokens)
   return css
@@ -113,23 +73,11 @@ async function generateTestSheet(directories: readonly string[]): Promise<string
 
 function generatedStyles(testable: readonly TestablePlugin[]): Plugin {
   let sheet: Promise<string> | undefined
-  let app: string | undefined
   return {
     name: 'conciv:test-generated-styles',
-    enforce: 'pre',
-    resolveId: {
-      order: 'pre',
-      handler(source, importer) {
-        const [path, query] = source.split('?')
-        if (path === GENERATED_SHEET) return source
-        if (path === undefined || !UTILITY_SHEETS.has(path) || importer === undefined) return null
-        app ??= join(appDirectory(), 'src')
-        if (!importer.startsWith(app)) return null
-        return query === undefined ? GENERATED_SHEET : `${GENERATED_SHEET}?${query}`
-      },
-    },
+    resolveId: (source) => (source === GENERATED_SHEET ? RESOLVED_SHEET : null),
     load(id) {
-      if (id.split('?')[0] !== GENERATED_SHEET) return null
+      if (id !== RESOLVED_SHEET) return null
       sheet ??= generateTestSheet([process.cwd(), ...testable.map((plugin) => plugin.directory)])
       return sheet
     },
@@ -235,149 +183,6 @@ function pluginsByName(testable: readonly TestablePlugin[]): Plugin {
   }
 }
 
-type BrowserEngine = {
-  started: StartedEngine
-  sessions: Record<string, EngineSession>
-  gates: Record<string, TestLLM.Gate>
-  waits: Record<string, Awaited<ReturnType<Engine['event']>>>
-  testPath: string | undefined
-  scope: 'test' | 'file'
-}
-
-function browserEngines(): {commands: EngineCommandHandlers; plugin: Plugin} {
-  const engines: Record<string, BrowserEngine> = {}
-  const counter = {next: 0}
-  const coverage = engineCoverage()
-  const engineFor = (engineId: string): BrowserEngine => {
-    const found = engines[engineId]
-    if (!found) throw new Error(`no engine ${engineId}: it was never made or has stopped`)
-    return found
-  }
-  const sessionFor = (engineId: string, sessionId: string): EngineSession => {
-    const found = engineFor(engineId).sessions[sessionId]
-    if (!found) throw new Error(`engine ${engineId} has no session ${sessionId}`)
-    return found
-  }
-  const gateFor = (engineId: string, gateId: string): TestLLM.Gate => {
-    const found = engineFor(engineId).gates[gateId]
-    if (!found) throw new Error(`engine ${engineId} has no gate ${gateId}`)
-    return found
-  }
-  const stop = async (engineId: string): Promise<void> => {
-    const found = engines[engineId]
-    delete engines[engineId]
-    await found?.started.stop()
-  }
-  const stopWhere = (keep: (engine: BrowserEngine) => boolean): Promise<void> =>
-    disposeAll(
-      Object.entries(engines).flatMap(([engineId, engine]) => (keep(engine) ? [() => stop(engineId)] : [])),
-      'sequential',
-      'an engine made in browser mode did not stop cleanly',
-    )
-  return {
-    commands: {
-      concivCreateEngine: async (context, config, options, scope) => {
-        await coverage.start(context)
-        const {startEngine} = await import('./engine.js')
-        const started = await startEngine(config, options)
-        counter.next += 1
-        const id = String(counter.next)
-        engines[id] = {
-          started,
-          sessions: {[started.engine.session.id]: started.engine.session},
-          gates: {},
-          waits: {},
-          testPath: context.testPath,
-          scope,
-        }
-        return {
-          id,
-          sessionId: started.engine.session.id,
-          address: started.engine.address,
-          root: started.engine.root,
-          home: started.engine.home,
-        }
-      },
-      concivStopEngine: (_context, engineId) => stop(engineId),
-      concivStopFileEngines: async (context) => {
-        await stopWhere((engine) => engine.testPath === context.testPath && engine.scope === 'file')
-        await coverage.hand(context)
-      },
-      concivNewSession: async (_context, engineId, title) => {
-        const engine = engineFor(engineId)
-        const session = await engine.started.engine.newSession(title)
-        engine.sessions[session.id] = session
-        return session.id
-      },
-      concivSetting: (_context, engineId, setting) => engineFor(engineId).started.engine.setting(setting),
-      concivGate: async (_context, engineId) => {
-        const engine = engineFor(engineId)
-        counter.next += 1
-        const gateId = String(counter.next)
-        engine.gates[gateId] = await engine.started.engine.gate()
-        return gateId
-      },
-      concivEvent: async (_context, engineId, type, match) => {
-        const engine = engineFor(engineId)
-        counter.next += 1
-        const waitId = String(counter.next)
-        engine.waits[waitId] = await engine.started.engine.event(type, match)
-        return waitId
-      },
-      concivEventArrived: (_context, engineId, waitId) => {
-        const engine = engineFor(engineId)
-        const wait = engine.waits[waitId]
-        if (!wait) throw new Error(`engine ${engineId} has no event wait ${waitId}`)
-        delete engine.waits[waitId]
-        return wait.arrived
-      },
-      concivRpcCall: (_context, engineId, rpcId, method, input) =>
-        engineFor(engineId).started.engine.rpc.call(rpcId, method, input),
-      concivRpcFailure: (_context, engineId, rpcId, method, input) =>
-        engineFor(engineId).started.engine.rpc.failure(rpcId, method, input),
-      concivLoginCode: (_context, engineId) => engineFor(engineId).started.engine.loginCode(),
-      concivRevokeBrowsers: (_context, engineId) => engineFor(engineId).started.engine.revokeBrowsers(),
-      concivRestart: (_context, engineId) => engineFor(engineId).started.engine.restart(),
-      concivClockTick: (_context, engineId) => engineFor(engineId).started.tick(),
-      concivClockDrain: (_context, engineId) => engineFor(engineId).started.engine.clock.drain(),
-      concivGateStarted: (_context, engineId, gateId) => gateFor(engineId, gateId).started,
-      concivGateRelease: async (_context, engineId, gateId) => {
-        const gate = gateFor(engineId, gateId)
-        delete engineFor(engineId).gates[gateId]
-        await gate.release()
-      },
-      concivSend: (_context, engineId, sessionId, text) => sessionFor(engineId, sessionId).send(text),
-      concivApprove: (_context, engineId, sessionId) => sessionFor(engineId, sessionId).approve(),
-      concivStop: (_context, engineId, sessionId) => sessionFor(engineId, sessionId).stop(),
-      concivRequests: (_context, engineId) => engineFor(engineId).started.engine.requests(),
-      concivOpened: (_context, engineId) => engineFor(engineId).started.engine.opened(),
-      concivToolCall: (_context, engineId, sessionId, name, input) =>
-        sessionFor(engineId, sessionId).tool(name).call(input),
-      concivToolFailure: (_context, engineId, sessionId, name, input) =>
-        sessionFor(engineId, sessionId).tool(name).failure(input),
-      concivOutsideDescribe: (_context, engineId, agent) =>
-        engineFor(engineId).started.engine.outside(agent).describe(),
-      concivOutsideDiscover: (_context, engineId, agent, toolNames) =>
-        engineFor(engineId).started.engine.outside(agent).discover(toolNames),
-      concivOutsideCall: (_context, engineId, agent, name, input) =>
-        engineFor(engineId).started.engine.outside(agent).call(name, input),
-      concivReply: (_context, engineId, replies) =>
-        engineFor(engineId).started.engine.reply(...replies.map((reply) => (reply === 'hang' ? hang() : reply))),
-      concivStale: (_context, engineId, staleness) => engineFor(engineId).started.engine.stale(staleness),
-      concivVersion: (_context, engineId, version) => engineFor(engineId).started.engine.version(version),
-      concivWrite: (_context, engineId, path, content) => engineFor(engineId).started.engine.write(path, content),
-      concivCommit: (_context, engineId, message) => engineFor(engineId).started.engine.commit(message),
-    },
-    plugin: {
-      name: 'conciv:test-browser-engines',
-      configureVitest({vitest}) {
-        vitest.onClose(() => stopWhere(() => true))
-        import('./engine.js').catch((error: unknown) => vitest.logger.error(error))
-      },
-    },
-  }
-}
-
 type PageCommandHandlers = {
   [Name in keyof PageCommands]: (context: BrowserCommandContext) => ReturnType<PageCommands[Name]>
 }
@@ -415,7 +220,6 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
   const styles = generatedStyles(testable)
   const solid = solidPlugins(authorPlugins)
   const byName = pluginsByName(testable)
-  const engines = browserEngines()
   const provide = {
     concivPollTimeoutMs: POLL_TIMEOUT_MS,
     concivViewport: VIEWPORT,
@@ -423,22 +227,20 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
   }
   const browserProject = (name: string, include: string[], browsers: BrowserName[]): TestProjectInlineConfiguration =>
     plainBrowserProject(name, include, browsers, {
-      plugins: [styles, ...solid, engines.plugin, byName],
+      plugins: [styles, ...solid, byName],
       server: {fs: {strict: false}},
-      resolve: {alias: [{find: ENGINE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
       optimizeDeps: {
         rolldownOptions: {plugins: [byName]},
-        entries: [join(KIT_DIST, 'browser.js')],
-        include: [...BROWSER_PREBUNDLED, ...installedTestingLibraries()],
+        include: installedTestingLibraries(),
       },
       test: {
         setupFiles: [join(KIT_DIST, 'browser-setup.js')],
         provide,
-        browser: {commands: {...engines.commands, ...pageErrorCommands()}},
+        browser: {commands: {...pageErrorCommands(), ...engineCommands()}},
       },
     })
   return [
-    nodeProject({plugins: [engineModulesInNode()], test: {setupFiles: [join(KIT_DIST, 'node-setup.js')]}}),
+    nodeProject({plugins: [engineModulesInNode()]}),
     domProject({
       plugins: [...solid, engineModulesInNode()],
       test: {setupFiles: [join(KIT_DIST, 'happy-dom-setup.js')], provide},

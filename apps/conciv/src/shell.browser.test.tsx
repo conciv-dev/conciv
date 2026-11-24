@@ -2,8 +2,8 @@ import {describe, expect, test, it} from 'vitest'
 import {page, userEvent as browserUserEvent, userEvent as browserInput} from 'vitest/browser'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent, {type UserEvent} from '@testing-library/user-event'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+import {createEngine, TestLLM} from '../test/browser-engine.js'
+import {createEngineRouterHistory, mount} from '../test/mount.js'
 
 describe('the panel size', () => {
   test('the user resizes the panel from the keyboard, and a drag below the floor closes it', async () => {

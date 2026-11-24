@@ -19,7 +19,7 @@ function failOnLeftoverBody(): void {
   document.body.replaceChildren()
   throw new Error(
     `this test left ${count} element(s) in document.body after cleanup, the first ${describeElement(first)}. ` +
-      'Render the app with mount from @conciv/plugin-testkit/browser, which removes it when the test ends. ' +
+      'Render through Testing Library render, which removes it when the test ends. ' +
       'The leftovers were removed so later files start on an empty page.',
   )
 }

@@ -1,13 +1,12 @@
 import {describe, expect, test} from 'vitest'
 import {screen, within} from '@solidjs/testing-library'
-import userEvent from '@testing-library/user-event'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+import {mount, pluginEngine} from '@conciv/plugin-testkit/browser'
+import tanstack from './plugin-experimental.js'
 
-describe('the agent reads the TanStack plugin during a reply', () => {
-  test('the thread shows a card for the route manifest and one for the server function calls with none yet', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']})
+describe('the agent reads the TanStack plugin', () => {
+  test('the route manifest card lists the routes the tool answered, and the server function card shows none yet', async () => {
+    const engine = await pluginEngine({plugins: [['@conciv/plugin-tanstack', {bundlerWaitMs: 1}]]})
+    await engine.write('src/routes/plants.$plantId.tsx', 'export const Route = {}\n')
     await engine.write(
       'src/routeTree.gen.ts',
       [
@@ -21,56 +20,38 @@ describe('the agent reads the TanStack plugin during a reply', () => {
         '',
       ].join('\n'),
     )
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {typescriptCode: 'return await external_tanstack_route_manifest()'}),
-      TestLLM.toolCall('c2', 'execute_typescript', {
-        typescriptCode: 'return await external_tanstack_server_fn_trace({})',
-      }),
-      TestLLM.text('Your app has a plant page'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const manifest = await engine.tool('tanstack_route_manifest').call()
+    const trace = await engine.tool('tanstack_server_fn_trace').call()
 
-    const finished = await engine.event('session.execution.succeeded')
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Which pages are there')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-    await finished.arrived
-
-    expect(await screen.findByText('Your app has a plant page')).toBeVisible()
-    const reply = screen.getByRole('article', {name: 'Reply to: Which pages are there'})
-    const manifest = within(reply).getByRole('button', {name: /Read the route manifest/, expanded: true})
-    expect(within(manifest).getByText('Read the route manifest')).toBeVisible()
-    expect(within(manifest).getByText('2 routes')).toBeVisible()
-    expect(within(reply).getByText('/plants/$plantId')).toBeVisible()
-    const calls = within(reply).getByRole('button', {name: /Read the server-function calls/, expanded: true})
-    expect(within(calls).getByText('Read the server-function calls')).toBeVisible()
-    expect(within(calls).getByText('no calls')).toBeVisible()
-    expect(within(reply).getByText('No server-fn calls')).toBeVisible()
-  })
-})
-
-describe('the TanStack plugin is configured', () => {
-  test('a wrong bundlerWaitMs shows the plugin failed in Settings with the option it refused', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine({plugins: [['@conciv/plugin-tanstack', {bundlerWaitMs: 0}]]})
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.click(await screen.findByRole('link', {name: 'Settings'}))
-    await user.click(await screen.findByRole('tab', {name: 'Plugins'}))
-
-    expect(await screen.findByText(/bundlerWaitMs/)).toBeVisible()
-    expect(screen.getByText('Failed')).toBeVisible()
-  })
-})
-
-describe('the agent finds the tab through the TanStack plugin', () => {
-  test('the TanStack tab list names the focused tab', async () => {
-    const engine = await createEngine({plugins: ['@conciv/plugin-page', '@conciv/plugin-tanstack']})
-    const control = await engine.event('rpc.experimental.page.control')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    await control.arrived
-
-    expect(await engine.session.tool('tanstack_tabs_list').call({})).toMatchObject({
-      tabs: [{focused: true, visible: true}],
+    await mount(tanstack, {
+      id: '@conciv/plugin-tanstack',
+      engine,
+      tools: [
+        {
+          tool: 'tanstack_route_manifest',
+          input: {},
+          metadata: {},
+          status: 'completed',
+          output: JSON.stringify(manifest),
+          defaultOpen: true,
+        },
+        {
+          tool: 'tanstack_server_fn_trace',
+          input: {},
+          metadata: {},
+          status: 'completed',
+          output: JSON.stringify(trace),
+          defaultOpen: true,
+        },
+      ],
     })
+
+    const shell = screen.getByRole('main', {name: 'App shell'})
+    const routes = await within(shell).findByRole('button', {name: /Read the route manifest/, expanded: true})
+    expect(within(routes).getByText('2 routes')).toBeVisible()
+    expect(within(shell).getByText('/plants/$plantId')).toBeVisible()
+    const calls = within(shell).getByRole('button', {name: /Read the server-function calls/, expanded: true})
+    expect(within(calls).getByText('no calls')).toBeVisible()
+    expect(within(shell).getByText('No server-fn calls')).toBeVisible()
   })
 })

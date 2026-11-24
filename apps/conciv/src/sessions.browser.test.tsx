@@ -3,8 +3,8 @@ import {page, userEvent as browserInput} from 'vitest/browser'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {resolveModifier} from '@tanstack/hotkeys'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+import {createEngine, TestLLM} from '../test/browser-engine.js'
+import {createEngineRouterHistory, mount} from '../test/mount.js'
 import {pastSessions} from '../test/fixtures/past-sessions.js'
 
 describe('find and switch sessions', () => {

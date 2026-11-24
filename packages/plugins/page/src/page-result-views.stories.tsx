@@ -1,9 +1,10 @@
 import type {JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, waitFor} from 'storybook/test'
+import {inPageShell} from './story.fixtures.js'
 import {A11yNodeList, PageHtmlBlock, PageValueChip} from './cards.js'
 
-const meta: Meta = {title: 'Plugins/Page/tool/PageResultViews'}
+const meta: Meta = {title: 'Plugins/Page/tool/PageResultViews', decorators: [inPageShell]}
 export default meta
 type Story = StoryObj
 

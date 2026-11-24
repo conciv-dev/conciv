@@ -1,8 +1,8 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {STORY_FRAME_CLASS, storyCall, StoryTool, traceGallery, traceRow} from './story.fixtures.js'
+import {STORY_FRAME_CLASS, storyCall, StoryTool, traceGallery, traceRow, inPageShell} from './story.fixtures.js'
 
-const meta: Meta = {title: 'Plugins/Page/tool/ReadBulkCard'}
+const meta: Meta = {title: 'Plugins/Page/tool/ReadBulkCard', decorators: [inPageShell]}
 export default meta
 type Story = StoryObj
 

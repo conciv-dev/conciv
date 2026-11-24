@@ -1,5 +1,6 @@
 import {describe, expect} from 'vitest'
 import {Effect} from 'effect'
+import {Plugin} from '@conciv/plugin-host'
 import {PluginEngine, testEffect} from '@conciv/plugin-testkit'
 
 describe('the agent reads the TanStack dev server', () => {
@@ -81,5 +82,21 @@ describe('the agent works with the TanStack plugin and no page open', () => {
           message: expect.stringContaining('[page.disconnected] No page is open in this session.'),
         })
       }),
+  )
+})
+
+describe('the TanStack plugin is configured', () => {
+  const it = testEffect(PluginEngine.layer({plugins: [['@conciv/plugin-tanstack', {bundlerWaitMs: 0}]]}))
+
+  it.live('a wrong bundlerWaitMs fails the plugin, and the failure names the option it refused', () =>
+    Effect.gen(function* () {
+      yield* Plugin.awaitActivation
+      const plugins = yield* Plugin.Service.use((registry) => registry.list())
+
+      expect(plugins.find((plugin) => plugin.id === 'tanstack')?.state).toMatchObject({
+        status: 'failed',
+        error: expect.stringContaining('bundlerWaitMs'),
+      })
+    }),
   )
 })

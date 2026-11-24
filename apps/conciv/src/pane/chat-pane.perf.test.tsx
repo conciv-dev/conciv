@@ -1,7 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+import {createEngine, TestLLM} from '../../test/browser-engine.js'
+import {createEngineRouterHistory, mount} from '../../test/mount.js'
 import {watchCalm} from '../../test/fixtures/calm-watch.js'
 
 describe('the calm chat plane', () => {

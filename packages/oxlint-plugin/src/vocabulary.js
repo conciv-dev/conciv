@@ -205,7 +205,10 @@ const PRE_REWRITE_BRIDGE_PATHS = ['packages/harness-init/src/']
 
 const HARNESS_CONNECT_ATTACH_PATHS = ['packages/harness/src/codex/history.ts']
 
-const COMPOSER_ATTACHMENT_INGRESS_PATHS = ['apps/conciv/src/pane/chat-pane.tsx']
+const COMPOSER_ATTACHMENT_INGRESS_PATHS = [
+  'apps/conciv/src/pane/chat-pane.tsx',
+  'packages/plugin-testkit/src/shell/context.tsx',
+]
 
 const PRE_REWRITE_ATTACH_PATHS = [
   'apps/site/src/components/landing/',

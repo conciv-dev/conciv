@@ -1,9 +1,10 @@
-import {afterAll, afterEach, beforeEach, inject} from 'vitest'
+import {afterEach, beforeEach, inject} from 'vitest'
 import {commands, page, server} from 'vitest/browser'
 import {cleanup, configure} from '@solidjs/testing-library'
 import {providePageErrors} from './page-errors.js'
 import {freshProfileAfter} from './fresh-profile.js'
 import type {} from './browser-commands.js'
+import 'virtual:conciv-test.css'
 
 configure({asyncUtilTimeout: inject('concivPollTimeoutMs')})
 
@@ -25,5 +26,3 @@ const viewport = inject('concivViewport')
 afterEach(() => page.viewport(viewport.width, viewport.height))
 
 providePageErrors({watch: () => commands.concivWatchPage(), read: () => commands.concivPageErrors()})
-
-afterAll(() => commands.concivStopFileEngines())

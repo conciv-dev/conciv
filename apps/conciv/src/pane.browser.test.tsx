@@ -2,8 +2,8 @@ import {describe, expect, test} from 'vitest'
 import {page, userEvent as browserInput} from 'vitest/browser'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+import {createEngine, TestLLM} from '../test/browser-engine.js'
+import {createEngineRouterHistory, mount} from '../test/mount.js'
 
 describe('a saved session that failed', () => {
   test('the run failure shows again when the user comes back to the session, with its Retry', async () => {

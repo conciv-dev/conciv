@@ -62,6 +62,7 @@
   "devDependencies": {
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-host": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

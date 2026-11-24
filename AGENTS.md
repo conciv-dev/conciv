@@ -138,8 +138,8 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
 - One `vite.config.ts` per package and no `vitest*.config` file: `concivTest()` (`@conciv/plugin-testkit/vitest`)
   adds the test projects; `conciv()` (`@conciv/unplugin`) adds nothing under vitest.
 - A behaviour lives in the cheapest place that proves it, and only there: node, then happy-dom, then browser mode,
-  then `e2e/` (the built bundle in a real host app, real harness CLIs). Mounted behaviour (anything that mounts the
-  app or a plugin) is tested in a real browser on the kit's browser `mount` (`@conciv/plugin-testkit/browser`);
+  then `e2e/` (the built bundle in a real host app, real harness CLIs). Mounted app behaviour is tested in a real browser on
+  the app's own test setup (`apps/conciv/test/mount.ts` and `test/browser-engine.ts`, on `@conciv/core/testing`);
   happy-dom is for tests that mount nothing (functions, models, reducers), as opencode
   (`_ref/opencode/packages/app/happydom.ts`).
 - A framework app under e2e/ holds ONE test: the user signs in and the widget opens with no error in that framework.
@@ -158,12 +158,12 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   the existing test or suite you checked and say why it does not already cover this; (3) fold it into an existing
   journey test when one fits (one journey, not one test per behaviour); (4) only a test that survives this gets a
   raised number, and the PR body carries this account, test by test, for the maintainer to approve.
-- The kits. `@conciv/plugin-testkit`: `createEngine(config, start)`, `TestLLM`. `@conciv/plugin-testkit/browser`:
-  `mount` and `createEngineRouterHistory`; `mount({engine, history})` opens the app on a tab's last screen (`createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})`, written to sessionStorage) or on any TanStack `RouterHistory`. `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. `config` is the product's own
-  `ConcivConfig`; `start` is only what is not product config (`directory`, `timeouts`, `harnesses`, `env`, `fs`,
-  `clock`, `tokensPerSecond`). The engine is real and its chat is TanStack AI's `fakeText`, scripted with
-  `engine.reply(...)`, which takes only `TestLLM` replies (`text`, `toolCall`, `failAfter`, `hang`);
-  `engine.gate()` holds a reply.
+- The kits. `@conciv/plugin-testkit` (plugin authors, no core): `PluginEngine` (the plugin's engine part in memory
+  through `plugin-host`) and `testEffect`. `@conciv/core/testing`: `engineFixture()` / `createHarnessEngine`, the real
+  engine with a scripted chat (`engine.reply(...)` with `TestLLM` replies: `text`, `toolCall`, `failAfter`, `hang`;
+  `engine.gate()` holds a reply), used by core, cli, the app and a plugin's agent-turn journeys (`test/engine.ts`).
+  `config` is the product's own `ConcivConfig`; `start` is only what is not product config. `@conciv/cli/testing`:
+  `cli()` and the hub fixture `test`.
   Nothing else is exported; a new kit export or option needs the maintainer's yes.
 - Kit tests run through `conciv-test`, which starts vitest with a home of its own and none of the developer's
   secrets or `CONCIV_*` variables; it keeps the developer's Playwright browsers folder. In-repo `test` scripts run

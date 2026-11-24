@@ -1,8 +1,8 @@
 import {describe, expect, test} from 'vitest'
 import {screen, within, render} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import {createEngine} from '@conciv/plugin-testkit'
-import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+import {createEngine, TestLLM} from '../test/browser-engine.js'
+import {createEngineRouterHistory, mount} from '../test/mount.js'
 import {userEvent as browserInput, userEvent as browserUserEvent} from 'vitest/browser'
 import {createMemoryHistory} from '@tanstack/solid-router'
 import {createEventBusClient, PANEL_PLUGIN_ID, type PanelCommandEventMap} from '@conciv/protocol/event-bus'
@@ -337,5 +337,35 @@ describe('recording keyboard shortcuts', () => {
     ).toHaveLength(2)
     expect(screen.getByRole('button', {name: /^Quick terminal/})).toBeDisabled()
     expect(screen.getByRole('button', {name: 'Open or close conciv'})).toBeEnabled()
+  })
+})
+
+describe('a scripted reply that hangs, in browser mode', () => {
+  test('TestLLM.hang() reaches the engine and holds the run open until the session stops it, then the next reply answers', async () => {
+    const engine = await createEngine()
+    await engine.reply(TestLLM.hang(), TestLLM.text('After the stop'))
+    const gate = await engine.gate()
+
+    const hung = engine.session.send('Wait for it')
+    await gate.started
+    await gate.release()
+    await engine.session.stop()
+    await hung
+
+    await expect(engine.session.send('Go on')).resolves.toBeUndefined()
+  })
+})
+
+describe('waiting for an engine event that matches, in browser mode', () => {
+  test('the data to match crosses to the engine, which passes over an earlier event and resolves with the one that matches', async () => {
+    const engine = await createEngine()
+    const other = await engine.newSession('Other')
+    const wait = await engine.event('session.execution.succeeded', {data: {sessionID: other.id}})
+    await engine.reply(TestLLM.text('First'), TestLLM.text('Second'))
+
+    await engine.session.send('In the first session')
+    await other.send('In the other session')
+
+    expect(await wait.arrived).toEqual({type: 'session.execution.succeeded', data: {sessionID: other.id}})
   })
 })
