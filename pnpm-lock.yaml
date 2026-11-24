@@ -2359,6 +2359,9 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@conciv/uno-preset':
+        specifier: workspace:*
+        version: link:../uno-preset
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
@@ -3378,6 +3381,9 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@conciv/uno-preset':
+        specifier: workspace:*
+        version: link:../uno-preset
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17

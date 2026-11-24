@@ -50,6 +50,7 @@
   "devDependencies": {
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/uno-preset": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@testing-library/user-event": "catalog:",
     "@types/js-beautify": "^1.14.3",
