@@ -19,3 +19,17 @@ reached over `experimental.persistentPty`.
   of `terminal/renderer.tsx` and keyed by the plugin id `terminal`.
 - Side effects: opens one persistent pty per session on the engine's rpc socket and removes it on restart; prunes the
   saved CLI session of a deleted conciv session.
+
+## page
+
+The page plugin's browser half, id `conciv.page`, the same id as its engine half (`@conciv/plugin-page`), so a
+`-conciv.page` config entry turns both off: the app disables this half when the engine lists no `conciv.page`, and
+hands it the options of a `['conciv.page', {...}]` entry from the engine's listing. It imports only the engine
+package's pure `./rpc` and `./contract`, and draws with the UI kits directly. Its behaviour, cards, invariants and side
+effects are documented with the engine half in `packages/plugins/page/README.md`.
+
+## Verification
+
+- `pnpm exec turbo run test --filter=@internal/builtin-plugins`: the page plugin's browser test on the light kit's fake
+  shell, with page's engine half in `pluginEngine`, and the node tests of its attachment, sanitizer and grab labels.
+- The terminal's journeys, and page's real-app journeys, run in `apps/conciv`'s browser tests.

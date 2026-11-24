@@ -2,21 +2,20 @@
 
 ## Overview
 
-conciv's built-in page plugin, both halves in one package (as opencode's `plugin-browser` and `gui-plugins/browser`):
-the engine part (`.`: the plugin `@conciv/plugin-page`, its connection, tools, skill and queue), the RPC contract (`./rpc`),
-the browser part the widget runs eagerly (`./client`: what the widget calls directly), the window
-setup loaded lazily by the built-ins (`./renderer`).
+conciv's built-in page plugin, split as opencode's `plugin-browser` and `gui-plugins/src/browser`: this package is
+the engine half (`.`: the plugin `conciv.page`, its connection, tools, skill and queue) and its pure shared modules,
+the RPC contract (`./rpc`, with the capture types) and the page's own contracts (`./contract`). Neither half imports
+the other's implementation.
 
-The engine part, the plugin `@conciv/plugin-page` (`.`), registers the RPC `experimental.page` (`./rpc`) and answers it: each
+The engine half, the plugin `conciv.page` (`.`), registers the RPC `experimental.page` (`./rpc`) and answers it: each
 tab's attachment and the commands it runs, page operations, live changes, captures, action queues and `symbolicate`.
-Core passes it to the plugin host as a post built-in and asks it over that RPC.
 
-The widget's entry (`./renderer`), inlined into the widget by `@conciv/embed`: the React bridge install, the element
-picker, the grab preview fit, the attachment and session cards and the page tool names.
-
-It draws only through `OpaqueUi.toInternal(ctx.ui)` (`usePageUi` in `shared.tsx` for components; `makeHighlight` and
-`makeSimulator` take the members they need), so its source imports no `@conciv/ui-kit*`; the kits are devDependencies
-for the stories alone. The app composes its `./renderer` in `apps/conciv/src/runtime/plugin/builtins.ts`.
+The browser half is a built-in compiled into the app: `packages/builtin-plugins/src/page/` in the private
+`@internal/builtin-plugins`, its window entry `renderer.tsx` listed as `conciv.page` in that package's `renderer.ts`.
+It imports `./rpc` and `./contract` from here and the UI kits directly. The sections "Browser part" and "Cards" below,
+and every entry naming a browser file (`renderer.tsx`, `grab*.ts`, `capture.ts`, `snapshot.ts`, `react.ts`,
+`highlight.tsx`, `operations.ts`, `act.ts`, `cards.tsx`, `session-card.tsx`, `shared.tsx`, `captures.tsx`), describe
+that folder.
 
 ## Interface
 
@@ -30,7 +29,7 @@ for the stories alone. The app composes its `./renderer` in `apps/conciv/src/run
 - option `pageReplyTimeoutMs` (`connection.ts`, milliseconds, default 5 000): how long a tab has to answer an action that declares no timeout of its own, and to accept a queue
 - option `queuedActionTimeoutMs` (`connection.ts`, milliseconds, default 7 000): how long each queued action has to confirm once the tab reaches it
 - option `permissionSyncTimeoutMs` (`connection.ts`, milliseconds, default 10 000): how long granting or revoking a tab's page permissions on its session may take before the attach is refused (the tab retries on its back-off)
-- `renderer.tsx` (`./renderer`): the window setup (default export) the built-ins load lazily
+- `renderer.tsx` (`@internal/builtin-plugins`, `src/page/`): the window setup (default export) the built-ins list
 - `grab.ts:getReactGrabAdapter` - creates the adapter once and returns `{activate(onGrab), comment(onGrab), deactivate(), isActive()}` (`ReactGrabAdapter`).
 - `grab.ts:GrabSink` - `(grab: Promise<Grab>) => void`: called as soon as an element is picked, before react-grab deactivates, so a pick never resolves before its capture ends.
 - `grab.ts:picking` / `setPicking` - Solid signal for pick mode; `setCancelPick` / `cancelPick`.
@@ -41,14 +40,13 @@ for the stories alone. The app composes its `./renderer` in `apps/conciv/src/run
 
 ## Browser part
 
-The browser part of `experimental.page`: one attachment per tab to its engine half (`@conciv/plugin-page`), the
+The browser part of `experimental.page`: one attachment per tab to its engine half (`conciv.page`), the
 operations it runs on the page, and the members other plugins read (`Page`, `ReactTree`). `src/contract.ts` (export
 `./contract`) holds the plugin's own contracts: `ReactTree`, the `PageOperation` registry and the React fiber, tree,
 `DehydrateOptions`, `LocateResult` and `Owner` types.
 
-The `highlight` page effect (`src/highlight.tsx`) draws in the plugin's `ctx.overlay` layer, under the widget: the
-overlay brings the widget sheet (reset, tokens, host rules) and the color scheme, and the plugin adds this package's own
-utilities (`virtual:uno.css?inline`) as the overlay's `styles`, since the widget sheet does not scan this package. The
+The `highlight` page effect (`src/page/highlight.tsx` in `@internal/builtin-plugins`) draws in the plugin's `ctx.overlay` layer, under the widget: the
+overlay brings the widget sheet (reset, tokens, host rules) and the color scheme. The
 capture layer opts back into pointer events, and `elementAt` skips the widget root and every `[data-conciv-overlay]`
 host. The layer sits under the widget, so the box is not drawn over the open panel. Holding Alt while focus is outside
 an input, textarea or contenteditable shows the inspector too, until Alt is released or Esc is pressed.
@@ -104,10 +102,10 @@ attachment is closed, so they settle `disconnected before dispatch`). The source
 left to receive it.
 
 The engine starters (`unplugin` `core/boot.ts` `SERVED_BUILT_INS` and `try` `connect.ts`) pass this package's folder as
-`start`'s `post`, so the plugin host loads it like a package plugin (its browser half served from the folder, the id
-`@conciv/plugin-page`) into the supervisor's `post` band, right after `conciv.config.agent`, where opencode puts its
-`BrowserPlugin`. `-@conciv/plugin-page` turns it off as it turns off any `post` plugin, and a config entry
-`['@conciv/plugin-page', {...}]` gives it options. The half pushes its page rules and the `page_eval` ask onto every
+`start`'s `post`, so the plugin host loads it like a package plugin (the engine half only, the id `conciv.page`) into the
+supervisor's `post` band, right after `conciv.config.agent`, where opencode puts its
+`BrowserPlugin`. `-conciv.page` turns it off as it turns off any `post` plugin (the app then disables the browser
+half too), and a config entry `['conciv.page', {...}]` gives both halves its options. The half pushes its page rules and the `page_eval` ask onto every
 agent after every project plugin and the config's permissions. Core lists no plugin of its own.
 A tool call that arrives while its plugin restarts after a reload meets the restart window, as in opencode: work
 started after the reload waits for activation (opencode `core/src/session/prompt.ts:40`; conciv

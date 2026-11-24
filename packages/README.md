@@ -26,7 +26,7 @@ Engine and plugin:
 
 Plugins (`plugins/*`, one plugin per package, each with its engine part and its browser part):
 
-- plugins/page: [plugins/page/README.md](./plugins/page/README.md) - `@conciv/plugin-page`, the built-in page plugin: the connection to the page, its tools, cards and DOM helpers.
+- plugins/page: [plugins/page/README.md](./plugins/page/README.md) - `@conciv/plugin-page`, the engine half of the built-in page plugin: the connection to the page, its tools, skill and the pure `./rpc` and `./contract`.
 - plugins/ios: [plugins/ios/README.md](./plugins/ios/README.md) - `@conciv/plugin-ios`, builds, runs and reads a native iOS app on the simulator.
 - plugins/recorder: [plugins/recorder/README.md](./plugins/recorder/README.md) - `@conciv/plugin-recorder`, the page's rrweb recording and a distilled action log for the agent.
 - plugins/tanstack: [plugins/tanstack/README.md](./plugins/tanstack/README.md) - `@conciv/plugin-tanstack`, build errors, route manifest and server-function calls of a TanStack app.
@@ -34,7 +34,7 @@ Plugins (`plugins/*`, one plugin per package, each with its engine part and its 
 - plugins/try-it: [plugins/try-it/README.md](./plugins/try-it/README.md) - `@conciv/plugin-try-it`, the plugin conciv.dev composes into its widget.
 - plugins/whiteboard: [plugins/whiteboard/README.md](./plugins/whiteboard/README.md) - `@conciv/plugin-whiteboard`, a canvas the user and the agent share.
 
-The page plugin's browser part is the one built-in the app still composes (`apps/conciv/src/runtime/plugin/builtins.ts`) and `embed` inlines; the terminal is served by the engine like every other plugin, listed by the dev server (`@conciv/unplugin`). Every plugin draws through `ctx.ui` and imports no `@conciv/ui-kit*` package (`conciv-publish check-plugin-ui-kit`).
+The built-ins (page's browser half and the terminal) live in `@internal/builtin-plugins`, which the app names in `apps/conciv/src/runtime/plugin/builtins.ts` and `embed` inlines with the app; they import the UI kits directly, as opencode's `gui-plugins` do. Page's engine half is served by the engine starter (`@conciv/unplugin`, `@conciv/try`) in the `post` band. Every plugin under `plugins/` draws through `ctx.ui` and imports no `@conciv/ui-kit*` package (`conciv-publish check-plugin-ui-kit`).
 
 Contracts:
 

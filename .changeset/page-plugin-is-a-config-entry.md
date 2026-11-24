@@ -7,4 +7,4 @@
 '@conciv/embed': patch
 ---
 
-Core no longer names the page plugin. The dev server (`@conciv/unplugin`) and `@conciv/try` list the page plugin's package folder in the config's `plugins`, so it is a served plugin with the id `@conciv/plugin-page`, and `-@conciv/plugin-page` turns it off. The engine options `pageReplyTimeoutMs` and `queuedActionTimeoutMs` are gone from core; they are the page plugin's own options. The test kits load no page plugin: a test that needs it names `@conciv/plugin-page` in its config's `plugins`, with those timeouts as that entry's options.
+Core no longer names the page plugin. The dev server (`@conciv/unplugin`) and `@conciv/try` pass the page plugin's package folder as `start`'s `post`, so its engine half keeps the id `conciv.page`, and `-conciv.page` turns it off. The engine options `pageReplyTimeoutMs` and `queuedActionTimeoutMs` are gone from core; they are the page plugin's own options. The test kits load no page plugin: a test that needs it loads `@conciv/plugin-page`, with those timeouts as a `conciv.page` entry's options.
