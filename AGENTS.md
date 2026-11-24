@@ -38,7 +38,7 @@ README.md; this file is the non-obvious operational rules.
   `@conciv/uno-preset#build` alone, because the `unocss/order` rule loads each folder's `uno.config.ts`, which
   imports the preset's `dist`; no other build is read. A root task's inputs are every file in the repo, so any
   edit misses its cache; that is the guide's stated trade-off. A `--filter` run never selects a root task.
-- New package: `turbo gen package` (non-interactive: `turbo gen package --args <published|private|internal> <kebab-name> "<description>" <node|browser|both>`). It lives in `packages/publish/turbo/generators/`.
+- New package: `turbo gen package` (non-interactive: `turbo gen package --args <published|private|internal> <kebab-name> "<description>" <node|browser|both> <install|skip>`; `skip` leaves out `pnpm install`, to make several packages and install once). It lives in `packages/publish/turbo/generators/`, and its test is `turbo/generators/config.test.ts` there.
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.
   So a green `test` already proves the build: don't run a separate `build` gate unless the package has
   no `test` script (`@conciv/serve`, `@conciv/ui-kit-tap`, the `conciv-e2e-*` apps).

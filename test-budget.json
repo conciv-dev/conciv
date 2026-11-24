@@ -22,7 +22,7 @@
   "@conciv/plugin-testkit": 6,
   "@conciv/plugin-try-it": 3,
   "@conciv/plugin-whiteboard": 19,
-  "@conciv/publish": 1,
+  "@conciv/publish": 2,
   "@conciv/solid-streamdown": 4,
   "@conciv/try": 1,
   "@conciv/ui-kit-chat-tools": 3,

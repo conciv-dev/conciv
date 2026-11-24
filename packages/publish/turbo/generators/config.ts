@@ -13,12 +13,14 @@ const REPOSITORY_URL = 'git+https://github.com/conciv-dev/conciv.git'
 
 const Kind = Schema.Literals(['published', 'private', 'internal'])
 const Runtime = Schema.Literals(['node', 'browser', 'both'])
+const Install = Schema.Literals(['install', 'skip'])
 
 const Answers = Schema.Struct({
   kind: Kind,
   name: Schema.String.check(Schema.isPattern(KEBAB)),
   description: Schema.String.check(Schema.isPattern(ONE_LINE)),
   runtime: Runtime,
+  install: Install,
   turbo: Schema.Struct({paths: Schema.Struct({root: Schema.String})}),
 })
 
@@ -287,9 +289,10 @@ const run = Effect.fn('run')(function* (root: string, command: string, args: str
 })
 
 const installAndFormat = Effect.fn('installAndFormat')(function* (context: GeneratorContext, spec: Spec) {
-  yield* run(context.root, 'pnpm', ['install'])
-  yield* run(context.root, 'pnpm', ['exec', 'oxfmt', '--write', ...writtenPaths(spec)])
-  return `${packageName(spec)}: pnpm install and oxfmt done`
+  const paths = yield* Path.Path
+  if (spec.install === 'install') yield* run(context.root, 'pnpm', ['install'])
+  yield* run(context.root, paths.join(context.root, 'node_modules/.bin/oxfmt'), ['--write', ...writtenPaths(spec)])
+  return `${packageName(spec)}: ${spec.install === 'install' ? 'pnpm install and oxfmt' : 'oxfmt'} done`
 })
 
 type Step<Failure> = (
@@ -340,6 +343,13 @@ export default function generator(plop: PlopTypes.NodePlopAPI): void {
       },
       {type: 'input', name: 'description', message: 'One-line description', validate: validateDescription},
       {type: 'list', name: 'runtime', message: 'Where its code runs', choices: [...Runtime.literals]},
+      {
+        type: 'list',
+        name: 'install',
+        message: 'Run pnpm install now, or skip it to make several packages and install once after',
+        choices: [...Install.literals],
+        default: 'install',
+      },
     ],
     actions: [action(writePackage), action(registerShared), action(installAndFormat)],
   })
