@@ -44,13 +44,12 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node bin/conciv-test.js",
-    "build:types": "tsdown -c tsdown.types.config.ts"
+    "test": "node bin/conciv-test.js"
   },
   "dependencies": {
     "@testing-library/jest-dom": "catalog:",

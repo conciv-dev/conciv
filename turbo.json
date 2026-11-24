@@ -29,27 +29,8 @@
         "!LICENSE"
       ]
     },
-    "build:types": {
-      "outputs": ["dist/**/*.d.ts"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!test/**",
-        "!e2e/**",
-        "!**/*.test.ts",
-        "!**/*.test.tsx",
-        "!**/*.spec.ts",
-        "!**/*.spec.tsx",
-        "!**/*.stories.ts",
-        "!**/*.stories.tsx",
-        "!vitest.config.ts",
-        "!playwright.config.ts",
-        "!README.md",
-        "!CHANGELOG.md",
-        "!LICENSE"
-      ]
-    },
     "dev": {
-      "dependsOn": ["^build", "@conciv/cli#build"],
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
@@ -63,29 +44,11 @@
       "outputs": ["storybook-static/**"]
     },
     "typecheck": {
-      "dependsOn": ["^build", "^build:types"],
+      "dependsOn": ["^build"],
       "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
     },
-    "kit-runtime": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!test/**",
-        "!e2e/**",
-        "!**/*.test.ts",
-        "!**/*.test.tsx",
-        "!**/*.spec.ts",
-        "!**/*.spec.tsx",
-        "!**/*.stories.ts",
-        "!**/*.stories.tsx",
-        "!vitest.config.ts",
-        "!playwright.config.ts",
-        "!README.md",
-        "!CHANGELOG.md",
-        "!LICENSE"
-      ]
-    },
     "test": {
-      "dependsOn": ["^build", "build", "^build:types", "^kit-runtime"],
+      "dependsOn": ["^build", "build"],
       "env": ["CI", "GITHUB_ACTIONS"],
       "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"],
       "outputs": ["test-results.json", "coverage/coverage-summary.json", "coverage/lcov.info"]
@@ -109,10 +72,320 @@
       "cache": false
     },
     "test:e2e": {
-      "dependsOn": ["^build", "@conciv/cli#build"],
+      "dependsOn": ["^build"],
       "cache": false,
       "env": ["CI", "GITHUB_ACTIONS"],
       "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"]
+    },
+    "@conciv/db#gen-migrations": {
+      "inputs": ["drizzle/**", "drizzle-home/**", "src/scripts/gen-migrations.ts"],
+      "outputs": ["src/migrations.gen.ts", "src/home-migrations.gen.ts"]
+    },
+    "@conciv/db#build": {
+      "dependsOn": ["^build", "gen-migrations"],
+      "outputs": ["dist/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE"
+      ]
+    },
+    "@conciv/db#typecheck": {
+      "dependsOn": ["^build", "gen-migrations"],
+      "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
+    },
+    "@conciv/mascot#typecheck": {
+      "dependsOn": ["^build", "build"],
+      "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
+    },
+    "@conciv/ui-kit-chat#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE",
+        "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{test,spec,stories}.*"
+      ]
+    },
+    "@conciv/ui-kit-tap#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE",
+        "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{test,spec,stories}.*"
+      ]
+    },
+    "@conciv/ui-kit-chat-tools#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE",
+        "$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{test,spec,stories}.*"
+      ]
+    },
+    "@conciv/app#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE",
+        "$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/ui-kit-chat-tools/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-chat-tools/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/ui-kit-terminal/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-terminal/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/ui-kit-tap/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-tap/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/tools/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/tools/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/plugins/*/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/plugins/*/src/**/*.{test,spec,stories}.*"
+      ]
+    },
+    "@conciv/embed#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE",
+        "$TURBO_ROOT$/apps/conciv/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/apps/conciv/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/ui-kit-chat-tools/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-chat-tools/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/ui-kit-terminal/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-terminal/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/ui-kit-tap/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/ui-kit-tap/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/tools/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/tools/src/**/*.{test,spec,stories}.*",
+        "$TURBO_ROOT$/packages/plugins/*/src/**/*.{ts,tsx}",
+        "!$TURBO_ROOT$/packages/plugins/*/src/**/*.{test,spec,stories}.*"
+      ]
+    },
+    "conciv-storybook#test": {
+      "dependsOn": ["^build", "build"],
+      "env": ["CI", "GITHUB_ACTIONS"],
+      "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"],
+      "outputs": ["test-results.json", "coverage/coverage-summary.json", "coverage/lcov.info"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/*/src/**/*.stories.{js,jsx,mjs,ts,tsx}",
+        "$TURBO_ROOT$/packages/brand/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-chat-tools/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-tap/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/tools/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/apps/conciv/src/pane/cards/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/plugins/*/src/**/*.{ts,tsx}"
+      ]
+    },
+    "conciv-storybook#build-storybook": {
+      "dependsOn": ["^build"],
+      "outputs": ["storybook-static/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/*/src/**/*.stories.{js,jsx,mjs,ts,tsx}",
+        "$TURBO_ROOT$/packages/brand/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-chat-tools/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-tap/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/tools/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/apps/conciv/src/pane/cards/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/plugins/*/src/**/*.{ts,tsx}"
+      ]
+    },
+    "site#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".wrangler/deploy/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE"
+      ]
+    },
+    "site#test:e2e": {
+      "dependsOn": ["^build", "build"],
+      "cache": false,
+      "env": ["CI", "GITHUB_ACTIONS"],
+      "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"]
+    },
+    "nextjs-app#build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE"
+      ]
+    },
+    "tanstack-start-example#build": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        "dist/**",
+        "conciv/plugins/deploy/plugin-experimental.cjs",
+        "conciv/plugins/deploy/plugin-experimental.cjs.manifest.json"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE"
+      ]
+    },
+    "conciv-e2e-nextjs#test:e2e": {
+      "dependsOn": ["^build", "^sync-injected"],
+      "cache": false,
+      "env": ["CI", "GITHUB_ACTIONS"],
+      "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"]
+    },
+    "conciv-e2e-nextjs-component#test:e2e": {
+      "dependsOn": ["^build", "^sync-injected"],
+      "cache": false,
+      "env": ["CI", "GITHUB_ACTIONS"],
+      "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"]
+    },
+    "conciv-e2e-svelte#build": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "conciv-e2e-nextjs-component#build": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "conciv-e2e-tanstack-start-redact#build": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "conciv-e2e-nextjs#build": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "conciv-e2e-solid-start#build": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "conciv-e2e-tanstack-start#build": {
+      "dependsOn": ["^build"],
+      "cache": false
     }
   }
 }

@@ -1,4 +1,3 @@
-import {existsSync} from 'node:fs'
 import {readFile, realpath} from 'node:fs/promises'
 import {isAbsolute, join, relative, resolve} from 'node:path'
 import {execa} from 'execa'
@@ -26,65 +25,16 @@ const DEPENDENCY_FIELDS: DependencyField[] = [
 
 type SourceImports = {path: string; imports: string[]}
 
-const TYPE_TASKS = ['typecheck', 'build:types']
-
-const turboSchema = z.looseObject({
-  tasks: z.record(z.string(), z.looseObject({dependsOn: z.array(z.string()).optional()})).optional(),
-})
-
-export async function assertBuildDependsOnCoversImports(cwd: string): Promise<void> {
-  const packages = await readWorkspacePackages(cwd)
-  const buildable = new Set(packages.filter((pkg) => pkg.manifest.scripts?.build !== undefined).map(readName))
-  const explicit = await Promise.all(
-    packages
-      .filter((pkg) => !isTranspileOnly(pkg) && pkg.manifest.scripts?.build !== undefined)
-      .map(async (pkg) => ({pkg, dependsOn: await readBuildDependsOn(pkg)})),
-  )
-  const violations = await Promise.all(
-    explicit
-      .filter((entry) => entry.dependsOn !== undefined && !entry.dependsOn.includes('^build'))
-      .map(async ({pkg, dependsOn}) => {
-        const sources = await readBuildSourceImports(cwd, packages, pkg)
-        return [...new Set(sources.flatMap((source) => source.imports))]
-          .filter((name) => name !== pkg.manifest.name && buildable.has(name))
-          .filter((name) => !dependsOn?.includes(`${name}#build`))
-          .map((name) => `${pkg.relativeDir}/turbo.json: build imports ${name} but does not depend on ${name}#build`)
-      }),
-  )
-  const messages = violations.flat().toSorted()
-  if (messages.length === 0) return
-  throw new Error(
-    `a turbo.json build.dependsOn without "^build" names the build of every workspace package its build sources import:\n${messages.join('\n')}`,
-  )
-}
-
-function readName(pkg: WorkspacePackage): string {
-  return pkg.manifest.name ?? pkg.relativeDir
-}
-
-function isTranspileOnly(pkg: WorkspacePackage): boolean {
-  return pkg.manifest.scripts?.build === 'tsdown' && pkg.manifest.scripts['build:types'] !== undefined
-}
-
-function readTypesTask(pkg: WorkspacePackage): string {
-  return pkg.manifest.scripts?.['build:types'] === undefined ? 'build' : 'build:types'
-}
-
-async function readBuildDependsOn(pkg: WorkspacePackage): Promise<string[] | undefined> {
-  const path = join(pkg.dir, 'turbo.json')
-  if (!existsSync(path)) return undefined
-  const text = await readFile(path, 'utf8')
-  const result = turboSchema.safeParse(parseJson(path, text))
-  if (!result.success) throw new Error(`${path}: invalid turbo.json\n${result.error.message}`)
-  return result.data.tasks?.build?.dependsOn
-}
-
 function parseJson(path: string, text: string): unknown {
   try {
     return JSON.parse(text)
   } catch (error: unknown) {
     throw new Error(`${path}: invalid JSON`, {cause: error})
   }
+}
+
+function readName(pkg: WorkspacePackage): string {
+  return pkg.manifest.name ?? pkg.relativeDir
 }
 
 async function readBuildSourceImports(
@@ -121,25 +71,22 @@ type ProgramFile = {path: string; owner: WorkspacePackage; built: boolean}
 export async function assertTypeTasksDependOnDistReads(cwd: string): Promise<void> {
   const root = await realpath(cwd)
   const packages = await readWorkspacePackages(root)
-  const violations = await mapInChunks(TYPE_TASKS, 1, async (taskName) => {
-    const ordered = await readTaskOrder(root, taskName)
-    const perPackage = await mapInChunks(packages, COMPILER_LIMIT, async (pkg) => {
-      const task = `${readName(pkg)}#${taskName}`
-      const before = ordered.get(task) ?? new Set<string>()
-      const reads = await readDistReads(root, packages, pkg, pkg.manifest.scripts?.[taskName])
-      return reads.flatMap((name) => {
-        const read = packages.find((other) => readName(other) === name && other.manifest.scripts?.build !== undefined)
-        if (read === undefined) return []
-        const needed = `${name}#${readTypesTask(read)}`
-        return before.has(needed) ? [] : [`${task} reads ${name} dist but does not depend on ${needed}`]
-      })
+  const ordered = await readTaskOrder(root, 'typecheck')
+  const violations = await mapInChunks(packages, COMPILER_LIMIT, async (pkg) => {
+    const task = `${readName(pkg)}#typecheck`
+    const before = ordered.get(task) ?? new Set<string>()
+    const reads = await readDistReads(root, packages, pkg, pkg.manifest.scripts?.typecheck)
+    return reads.flatMap((name) => {
+      const read = packages.find((other) => readName(other) === name && other.manifest.scripts?.build !== undefined)
+      if (read === undefined) return []
+      const needed = `${name}#build`
+      return before.has(needed) ? [] : [`${task} reads ${name} dist but does not depend on ${needed}`]
     })
-    return perPackage.flat()
   })
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
   throw new Error(
-    `a typecheck or build:types depends on the task that writes the types of every workspace package whose dist its program reads (build:types where a package has one, else build), directly or through a package it reads from source:\n${messages.join('\n')}`,
+    `a typecheck depends on the build of every workspace package whose dist its program reads, directly or through a package it reads from source:\n${messages.join('\n')}`,
   )
 }
 

@@ -10,11 +10,11 @@ export function track(label: string): () => void {
   }
 }
 
-export function pending(now = Date.now()): {label: string; ms: number}[] {
+export function pending(now: number = Date.now()): {label: string; ms: number}[] {
   return Array.from(entries, (entry) => ({label: entry.label, ms: now - entry.since}))
 }
 
-export function install(deadline = DEADLINE_MS): () => void {
+export function install(deadline: number = DEADLINE_MS): () => void {
   let started = false
   const expire = () => {
     setTimeout(
