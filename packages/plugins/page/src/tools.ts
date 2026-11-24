@@ -16,7 +16,7 @@ import {
   type Operation,
   type Result,
 } from './rpc.js'
-import {RawFrameSchema, SourceLocSchema} from '@conciv/contract'
+import {RawFrameSchema, SourceLocSchema} from '@conciv/plugin/experimental/page'
 import {toolFailure, type Connection} from './connection.js'
 import {PageFiles} from './files.js'
 import {PageSkill} from './skill.js'

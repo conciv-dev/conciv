@@ -4,7 +4,7 @@ import {keyBy, mapValues} from 'es-toolkit'
 import {Rpc} from '@conciv/plugin/rpc'
 import {CODE_MODE_TIMEOUT_MS, SessionId} from '@conciv/protocol/chat-types'
 import {PageCaptureBundleSchema, SessionCapturesSchema, type ToolCaptureMode} from './element-capture-types.js'
-import {SourceLocSchema} from '@conciv/contract'
+import {SourceLocSchema} from '@conciv/plugin/experimental/page'
 
 export const PAGE_QUEUE_SYNC_MS = CODE_MODE_TIMEOUT_MS - 30_000
 export const PAGE_QUEUE_MAX_ACTIONS = 50

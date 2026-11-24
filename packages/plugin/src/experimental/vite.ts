@@ -11,15 +11,14 @@ export interface ExperimentalOptions {
 
 const provided = new Set<string>([...pluginSharedModules, ...pluginWindowModules])
 
-const INLINED = /^@conciv\/(?:contract|protocol\/[^/]+|plugin-[^/]+\/contract)$/
+const INLINED = /^@conciv\/(?:protocol\/[^/]+|plugin-[^/]+\/contract)$/
 
 /**
  * Builds a plugin's `./plugin-experimental` bundle with Vite: compiles Solid JSX, writes a CommonJS entry plus one
  * chunk per dynamic `import()`, which the app loads on demand over its engine socket, with Vite's manifest beside the
  * entry, and keeps the modules the app provides external, with Node built-ins. Another module of Effect, Solid or
  * conciv fails the build: the app does not provide it, and a bundled copy would not share the app's instance. The
- * stateless schema modules `@conciv/contract`, the `@conciv/protocol` subpaths and another plugin's `contract` export
- * are inlined.
+ * stateless schema modules under `@conciv/protocol` and another plugin's `contract` export are inlined.
  *
  * @param options - The entry and the bundle to write.
  * @returns The Vite plugins.
@@ -67,7 +66,7 @@ export function experimental(options: ExperimentalOptions = {}): Plugin[] {
 
         if (/^(effect|solid-js|@conciv)\//.test(source))
           this.error(
-            `${source} is not a module the conciv app provides to plugins: ${[...provided].join(', ')}; a plugin inlines only @conciv/contract, @conciv/protocol/* and @conciv/plugin-*/contract`,
+            `${source} is not a module the conciv app provides to plugins: ${[...provided].join(', ')}; a plugin inlines only @conciv/protocol/* and @conciv/plugin-*/contract`,
           )
       },
     },

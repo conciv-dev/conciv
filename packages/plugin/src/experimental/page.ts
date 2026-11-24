@@ -4,6 +4,7 @@ import {Contract} from './core.js'
 import type {Grab, GrabFrame} from './grab.js'
 
 export type {RawFrame, SourceLoc}
+export {RawFrameSchema, SourceLocSchema} from '@conciv/contract'
 
 export type PageToastTone = 'info' | 'success' | 'error'
 

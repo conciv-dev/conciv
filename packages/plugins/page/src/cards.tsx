@@ -17,7 +17,7 @@ import {
 } from './shared.js'
 import {z} from 'zod'
 import type {TrackReport} from './react.js'
-import {RawFrameSchema} from '@conciv/contract'
+import {RawFrameSchema} from '@conciv/plugin/experimental/page'
 import type {buildSnapshot} from './snapshot.js'
 import {html} from 'js-beautify'
 
