@@ -2,11 +2,14 @@ export * as Rpc from './rpc.js'
 export {define} from '@conciv/plugin/schema/rpc'
 export type {Definition, EventPayload, Failure} from '@conciv/plugin/schema/rpc'
 
+import {EventEnvelopeSchema} from '@conciv/contract'
 import type {RpcClient, RpcDomain, RpcHandlers} from '@conciv/plugin/effect/rpc'
 import type {Rpc} from '@conciv/plugin/schema/rpc'
 import {Event} from '@conciv/plugin/schema/event'
+import * as EventManifest from '@conciv/plugin/schema/event-manifest'
 import type {Tool} from '@conciv/plugin/schema/tool'
 import type {StandardSchemaV1} from '@standard-schema/spec'
+import type {z} from 'zod'
 import {Context, Deferred, Effect, JsonSchema, Layer, Schema, SchemaRepresentation, Stream} from 'effect'
 import {Bus} from './bus.js'
 import {Location} from './location.js'
@@ -192,6 +195,15 @@ export function eventDefinition(type: `rpc.${string}`): Event.Definition & Schem
   return Schema.Struct({...fields, type: Schema.Literal(type), data}).pipe(
     statics(() => ({type, durability: 'ephemeral' as const, durable: undefined, data})),
   ) satisfies Event.EphemeralDefinition<string, typeof data>
+}
+
+const ServerEvent = Schema.Union(EventManifest.ServerDefinitions)
+
+const isEventType = (type: string): type is `rpc.${string}` => type.startsWith('rpc.')
+
+export function encodeEvent(event: Event.Payload): z.output<typeof EventEnvelopeSchema> {
+  const definition = isEventType(event.type) ? eventDefinition(event.type) : ServerEvent
+  return EventEnvelopeSchema.parse(Schema.encodeUnknownSync(definition)(event))
 }
 
 function parse(schema: Tool.ValueSchema, value: unknown): Effect.Effect<unknown, unknown> {

@@ -1,5 +1,5 @@
 import {Bus, Event, EventManifest, Rpc} from '@conciv/plugin-host'
-import {EventEnvelopeSchema} from '@conciv/contract'
+import type {EventEnvelopeSchema} from '@conciv/contract'
 import {Cause, Context, Effect, Layer, Queue, Schema, Scope, Stream} from 'effect'
 import type {z} from 'zod'
 
@@ -35,24 +35,17 @@ export interface Interface {
 
 export const Service = Context.Service<Interface>('@conciv/server/EventFeed')
 
-const ServerEvent = Schema.Union(EventManifest.ServerDefinitions)
-
 const isRpcType = (type: string): type is `rpc.${string}` => type.startsWith('rpc.')
 
 const isConcivEvent = (event: {readonly type: string}) =>
   event.type === 'server.connected' || EventManifest.isServer(event) || isRpcType(event.type)
-
-export function encode(event: Event.Payload): ConcivEvent {
-  const definition = isRpcType(event.type) ? Rpc.eventDefinition(event.type) : ServerEvent
-  return EventEnvelopeSchema.parse(Schema.encodeUnknownSync(definition)(event))
-}
 
 export const make = Effect.fn('core.eventFeed.make')(function* (
   observe: (subscriber: Bus.Subscriber) => Effect.Effect<Bus.Unsubscribe>,
   options?: {readonly capacity?: number; readonly encode?: (event: Event.Payload) => ConcivEvent},
 ) {
   const capacity = options?.capacity ?? SubscriberCapacity
-  const render = options?.encode ?? encode
+  const render = options?.encode ?? Rpc.encodeEvent
   const subscribers = new Map<Queue.Queue<ConcivEvent, Error>, ReadonlySet<string> | undefined>()
 
   const fail = (error: Error) =>

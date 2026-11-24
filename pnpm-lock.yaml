@@ -3044,6 +3044,9 @@ importers:
 
   packages/plugin-host:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
