@@ -12,7 +12,6 @@ const WORKSPACE_IMPORT =
   /(?:\bfrom|\bimport|\bimport\.meta\.resolve\(|\bimport\(|\brequire\()\s*['"](@conciv\/[a-z0-9-]+)(?:\/[^'"]*)?['"]/g
 
 const PLUGIN_ROOT = 'packages/plugins/'
-const KIT_BUILT_INS = ['@conciv/plugin-page']
 const UI_KIT = /^@conciv\/ui-kit(?:-|$)/
 
 type ShippedDependencyField = 'dependencies' | 'optionalDependencies' | 'peerDependencies'
@@ -156,9 +155,7 @@ function readProgramFile(root: string, packages: WorkspacePackage[], file: strin
 
 export async function assertPluginsDrawThroughContextUi(cwd: string): Promise<void> {
   const packages = await readWorkspacePackages(cwd)
-  const plugins = packages.filter(
-    (pkg) => pkg.relativeDir.startsWith(PLUGIN_ROOT) && !KIT_BUILT_INS.includes(readName(pkg)),
-  )
+  const plugins = packages.filter((pkg) => pkg.relativeDir.startsWith(PLUGIN_ROOT))
   const violations = await Promise.all(
     plugins.map(async (pkg) => {
       const sources = await readBuildSourceImports(cwd, packages, pkg)
@@ -176,6 +173,6 @@ export async function assertPluginsDrawThroughContextUi(cwd: string): Promise<vo
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
   throw new Error(
-    `a plugin under packages/plugins draws through ctx.ui (conciv's own plugins read conciv's members with OpaqueUi.toInternal), never with @conciv/ui-kit* in a build source or in dependencies, optionalDependencies or peerDependencies (stories may use a kit from devDependencies); only the built-in ${KIT_BUILT_INS.join(' and ')} draws with the kit directly, like opencode's gui plugins:\n${messages.join('\n')}`,
+    `a plugin under packages/plugins draws through ctx.ui (conciv's own plugins read conciv's members with OpaqueUi.toInternal), never with @conciv/ui-kit* in a build source or in dependencies, optionalDependencies or peerDependencies (stories may use a kit from devDependencies):\n${messages.join('\n')}`,
   )
 }

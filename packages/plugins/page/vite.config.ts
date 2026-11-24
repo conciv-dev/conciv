@@ -19,10 +19,7 @@ export default defineConfig({
   plugins: [rpcFromPackage, solid(), concivTest()],
   build: {
     lib: {
-      entry: {
-        client: fileURLToPath(new URL('src/client.ts', import.meta.url)),
-        renderer: fileURLToPath(new URL('src/renderer.tsx', import.meta.url)),
-      },
+      entry: {renderer: fileURLToPath(new URL('src/renderer.tsx', import.meta.url))},
       formats: ['es'],
     },
     rollupOptions: {

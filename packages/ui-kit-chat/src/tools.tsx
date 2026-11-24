@@ -25,7 +25,6 @@ export {humanToolName, nowTitle} from './tools/primitives/now-title.js'
 export {
   DANGER_TEXT_CLASS,
   FILE_HEADER_CSS,
-  MUTATING_BADGE,
   QUIET_TEXT_CLASS,
   displayValue,
   clip,
@@ -66,7 +65,6 @@ export {Trace, type TraceBranch, type TraceItem} from './styled/trace/trace.js'
 export {Chip, ChipRow, ChipGroup, CHIP} from './tools/styled/chip.js'
 export {CodeBlock, DiffBlock, diffBlockClass, SUNKEN_SURFACE} from './tools/styled/code-block.js'
 export {ErrorBlock} from './tools/styled/error-block.js'
-export {parseResultMedia} from './tools/primitives/result-media.js'
 export {ResultImage} from './tools/styled/result-image.js'
 export {ActionRow, ActionButton} from './tools/styled/action-row.js'
 export {CollapsibleSection} from './tools/styled/collapsible-section.js'

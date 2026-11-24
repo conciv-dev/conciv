@@ -3394,12 +3394,6 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
-      '@conciv/ui-kit-chat':
-        specifier: workspace:^
-        version: link:../../ui-kit-chat
-      '@conciv/ui-kit-system':
-        specifier: workspace:^
-        version: link:../../ui-kit-system
       '@jridgewell/trace-mapping':
         specifier: 'catalog:'
         version: 0.3.31
@@ -3458,6 +3452,12 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@conciv/ui-kit-chat':
+        specifier: workspace:*
+        version: link:../../ui-kit-chat
+      '@conciv/ui-kit-system':
+        specifier: workspace:*
+        version: link:../../ui-kit-system
       '@internal/plugin':
         specifier: workspace:*
         version: link:../../plugin-internal

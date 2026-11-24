@@ -7,7 +7,6 @@ import {concivTest} from '@conciv/plugin-testkit/vitest'
 const EXTERNAL_PREFIXES = ['solid-js/', 'effect/', '@ark-ui/', '@conciv/']
 
 const INLINED_PREFIXES = [
-  '@conciv/plugin-page/client',
   '@conciv/plugin-page/renderer',
   '@conciv/app',
   '@conciv/plugin-terminal',

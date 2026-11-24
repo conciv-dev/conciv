@@ -11,13 +11,12 @@ The engine part, the plugin `conciv.page` (`.`), registers the RPC `experimental
 tab's attachment and the commands it runs, page operations, live changes, captures, action queues and `symbolicate`.
 Core passes it to the plugin host as a post built-in and asks it over that RPC.
 
-The widget's entry (`./client`), inlined into the widget by `@conciv/embed`: the React bridge install, the element
-picker, the grab preview fit, a toast, the attachment and session cards and the page tool names. They hold no
-connection to the engine themselves.
+The widget's entry (`./renderer`), inlined into the widget by `@conciv/embed`: the React bridge install, the element
+picker, the grab preview fit, the attachment and session cards and the page tool names.
 
-A built-in: it draws with the UI kits directly, like opencode's gui plugins, and is one of the two plugin packages
-`conciv-publish check-plugin-ui-kit` lets import `@conciv/ui-kit*`. The app composes its `./renderer` in
-`apps/conciv/src/runtime/plugin/builtins.ts`.
+It draws only through `OpaqueUi.toInternal(ctx.ui)` (`usePageUi` in `shared.tsx` for components; `makeHighlight` and
+`makeSimulator` take the members they need), so its source imports no `@conciv/ui-kit*`; the kits are devDependencies
+for the stories alone. The app composes its `./renderer` in `apps/conciv/src/runtime/plugin/builtins.ts`.
 
 ## Interface
 
@@ -31,7 +30,6 @@ A built-in: it draws with the UI kits directly, like opencode's gui plugins, and
 - option `pageReplyTimeoutMs` (`connection.ts`, milliseconds, default 5 000): how long a tab has to answer an action that declares no timeout of its own, and to accept a queue
 - option `queuedActionTimeoutMs` (`connection.ts`, milliseconds, default 7 000): how long each queued action has to confirm once the tab reaches it
 - option `permissionSyncTimeoutMs` (`connection.ts`, milliseconds, default 10 000): how long granting or revoking a tab's page permissions on its session may take before the attach is refused (the tab retries on its back-off)
-- `client.ts` (`./client`): `showToast`
 - `renderer.tsx` (`./renderer`): the window setup (default export) the built-ins load lazily
 - `grab.ts:getReactGrabAdapter` - creates the adapter once and returns `{activate(onGrab), comment(onGrab), deactivate(), isActive()}` (`ReactGrabAdapter`).
 - `grab.ts:GrabSink` - `(grab: Promise<Grab>) => void`: called as soon as an element is picked, before react-grab deactivates, so a pick never resolves before its capture ends.
@@ -197,7 +195,6 @@ Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTo
 - `grabs.ts` writes one file per saved grab under `<project>/.conciv/page/grabs/`; nothing removes them.
 - `symbolicate.ts`: reads files and fetches source maps over loopback HTTP
 - `react.ts:installTracker` - instruments React through `bippy` `instrument({onCommitFiberRoot})`.
-- `toast.ts:showToast` - appends overlay elements to the page.
 - `capture.ts:makeSnapshotLoader` - imports `rrweb-snapshot` through `cacheImport` (`Effect.cachedWithTTL`: a success is kept, a failure is retried on the next call) and shows an error toast through the host `ctx.toast` once if it fails. `operations.ts` makes one per page operations instance and loads `@zumer/snapdom` the same way.
 
 - `grab.ts:create` - sets `window.__REACT_GRAB_DISABLED__ = true`, dynamically imports `react-grab` and registers the `conciv` react-grab plugin.

@@ -1,7 +1,8 @@
 import {z} from 'zod'
 import {lowerCase} from 'es-toolkit'
 import {For, Show, splitProps, type JSX} from 'solid-js'
-import {type ToolProps} from '@internal/plugin'
+import {usePlugin} from '@conciv/plugin/experimental'
+import {OpaqueUi, type CardChip, type InternalUi, type ToolProps} from '@internal/plugin'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import Clock from 'lucide-solid/icons/clock'
 import Code from 'lucide-solid/icons/code'
@@ -10,20 +11,13 @@ import Keyboard from 'lucide-solid/icons/keyboard'
 import MousePointerClick from 'lucide-solid/icons/mouse-pointer-click'
 import ScanSearch from 'lucide-solid/icons/scan-search'
 import Wand2 from 'lucide-solid/icons/wand-sparkles'
-import {
-  BasicTool,
-  Chip,
-  ChipRow as ChipRowShell,
-  clip,
-  displayValue,
-  MUTATING_BADGE,
-  parseInput,
-  parseResultMedia,
-  resultText,
-  ToolErrorCard,
-  type CardChip,
-} from '@conciv/ui-kit-chat/tools'
 import {Operations, PAGE_TOOL_PREFIX, pageVerbOfTool, type Method} from './rpc.js'
+
+const MUTATING_BADGE = 'page edit'
+
+export function usePageUi(): InternalUi {
+  return OpaqueUi.toInternal(usePlugin().ui)
+}
 
 type StepView = {
   readonly icon: (props: {size: number}) => JSX.Element
@@ -111,8 +105,8 @@ export function countLabel(count: number, one: string, other: string): string {
 
 const InputRecord = z.record(z.string(), z.unknown())
 
-export function toolInput(part: ToolCallPart): Record<string, unknown> {
-  return parseInput(InputRecord, part) ?? {}
+export function toolInput(ui: InternalUi, part: ToolCallPart): Record<string, unknown> {
+  return ui.parseInput(InputRecord, part) ?? {}
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -128,25 +122,35 @@ export function outputPayload(output: string | undefined): unknown {
   }
 }
 
+const ImagePartSchema = z
+  .object({
+    type: z.literal('image'),
+    source: z.object({type: z.literal('data'), value: z.string(), mimeType: z.string()}).loose(),
+  })
+  .loose()
+
 export function outputImageUrl(output: string | undefined): string | undefined {
-  if (!output) return undefined
-  return parseResultMedia({type: 'tool-result', toolCallId: '', content: output, state: 'complete'}).imageUrl
+  const raw = outputPayload(output)
+  if (!Array.isArray(raw)) return undefined
+  const image = raw.map((part) => ImagePartSchema.safeParse(part)).find((parsed) => parsed.success)?.data
+  return image === undefined ? undefined : `data:${image.source.mimeType};base64,${image.source.value}`
 }
 
-export function outputChips(output: string | undefined): Array<CardChip> {
+export function outputChips(ui: InternalUi, output: string | undefined): Array<CardChip> {
   const payload = outputPayload(output)
   if (!isPlainRecord(payload)) return []
   return Object.entries(payload)
     .filter(([, value]) => value !== undefined)
-    .map(([name, value]) => ({name, value: clip(displayValue(value))}))
+    .map(([name, value]) => ({name, value: ui.clip(ui.displayValue(value))}))
 }
 
 export function ChipRow(props: {chips: ReadonlyArray<CardChip>}): JSX.Element {
+  const ui = usePageUi()
   return (
     <Show when={props.chips.length > 0}>
-      <ChipRowShell>
-        <For each={props.chips}>{(chip) => <Chip name={chip.name} value={chip.value} />}</For>
-      </ChipRowShell>
+      <ui.ChipRow>
+        <For each={props.chips}>{(chip) => <ui.KitChip name={chip.name} value={chip.value} />}</For>
+      </ui.ChipRow>
     </Show>
   )
 }
@@ -167,10 +171,10 @@ export function elementTarget(input: Record<string, unknown>): string | undefine
 
 const NO_SKIP: ReadonlySet<string> = new Set()
 
-function inputArgs(input: Record<string, unknown>, skip: ReadonlySet<string>): string[] {
+function inputArgs(ui: InternalUi, input: Record<string, unknown>, skip: ReadonlySet<string>): string[] {
   return Object.entries(input)
     .filter(([name, value]) => !skip.has(name) && value !== undefined)
-    .map(([name, value]) => `${name}=${clip(displayValue(value))}`)
+    .map(([name, value]) => `${name}=${ui.clip(ui.displayValue(value))}`)
 }
 
 export function pageTitle(tool: string, running: boolean): string {
@@ -188,37 +192,41 @@ export function PageTool(
     children?: JSX.Element
   },
 ): JSX.Element {
+  const ui = usePageUi()
   const [local, tool] = splitProps(props, ['subtitle', 'skip', 'failed', 'hasContent', 'children'])
   const running = () => tool.status === 'pending' || tool.status === 'running' || tool.status === 'streaming'
   const args = () => {
     const badge = mutatingBadge(pageToolMutating(tool.tool))
-    const values = inputArgs(tool.input, local.skip ?? NO_SKIP)
+    const values = inputArgs(ui, tool.input, local.skip ?? NO_SKIP)
     return badge === undefined ? values : [...values, badge]
   }
   return (
-    <BasicTool
+    <ui.BasicTool
       {...tool}
       icon="app-window"
-      status={local.failed === true ? 'error' : tool.status}
-      trigger={{title: pageTitle(tool.tool, running()), subtitle: local.subtitle, args: args()}}
-      hasContent={!running() && local.hasContent}
+      failed={local.failed === true}
+      title={pageTitle(tool.tool, running())}
+      subtitle={local.subtitle}
+      args={args()}
+      expandable={!running() && local.hasContent}
     >
       {local.children}
-    </BasicTool>
+    </ui.BasicTool>
   )
 }
 
-export function cardErrorMessage(result: ToolResultPart | undefined): string | undefined {
+export function cardErrorMessage(ui: InternalUi, result: ToolResultPart | undefined): string | undefined {
   if (result?.state !== 'error') return undefined
   const direct = result.error
   if (typeof direct === 'string' && direct.length > 0) return direct
-  const text = resultText(result)
+  const text = ui.resultText(result)
   return text.length > 0 ? text : undefined
 }
 
 export function PageFailedTool(props: ToolProps): JSX.Element {
+  const ui = usePageUi()
   return (
-    <ToolErrorCard
+    <ui.ToolErrorCard
       tool={props.tool}
       error={props.error ?? ''}
       title={`Page ${lowerCase(pageVerbOfTool(props.tool))}`}

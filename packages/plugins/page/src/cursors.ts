@@ -1,5 +1,4 @@
 import {ReactiveMap} from '@solid-primitives/map'
-import {prefersReducedMotion} from '@conciv/ui-kit-system'
 
 export type Point = {x: number; y: number}
 
@@ -83,7 +82,7 @@ function toTop(options: {doc: Document; point: Point}): Located {
   return {point: at, visible: climb.visible}
 }
 
-export function cannotAnimate(): boolean {
+export function cannotAnimate(prefersReducedMotion: () => boolean): boolean {
   return document.visibilityState === 'hidden' || prefersReducedMotion()
 }
 
@@ -233,7 +232,7 @@ export type Cursors = {
   dispose: () => void
 }
 
-export function makeCursors(): Cursors {
+export function makeCursors(prefersReducedMotion: () => boolean): Cursors {
   const aims = new Map<string, Aim>()
   const placed = new Map<string, Placed>()
   const aimedLooks = new ReactiveMap<string, CursorLook>()
@@ -319,7 +318,7 @@ export function makeCursors(): Cursors {
       watchLayout(at)
       pass.dirty = true
       request()
-      if (cannotAnimate()) arrival.resolve()
+      if (cannotAnimate(prefersReducedMotion)) arrival.resolve()
       return arrival.promise
     },
     drop: (id) => {

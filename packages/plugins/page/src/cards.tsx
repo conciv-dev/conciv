@@ -1,7 +1,6 @@
-import {type ToolComponent, type ToolProps} from '@internal/plugin'
+import {type InternalStatusDotProps, type InternalUi, type ToolComponent, type ToolProps} from '@internal/plugin'
 import {PAGE_TOOL_PREFIX, pageOperation, pageVerbOfTool} from './rpc.js'
 import {Show, type JSX, For, Match, Switch} from 'solid-js'
-import {DANGER_TEXT_CLASS, JsonTree, SUNKEN_SURFACE, ResultImage, CodeBlock, Chip} from '@conciv/ui-kit-chat/tools'
 import {
   ELEMENT_TARGET_KEYS,
   PageTool,
@@ -14,9 +13,9 @@ import {
   outputChips,
   outputImageUrl,
   pageTitle,
+  usePageUi,
 } from './shared.js'
 import {z} from 'zod'
-import {StatusDot, type StatusDotTone, TruncatedText} from '@conciv/ui-kit-system'
 import type {TrackReport} from './react.js'
 import {RawFrameSchema} from '@conciv/contract'
 import type {buildSnapshot} from './snapshot.js'
@@ -34,14 +33,14 @@ const ConsolePayload = pageOperation('console').output
 
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', second: '2-digit'})
 
-const CONSOLE_LIST = `m-0 p-0 list-none block w-full max-h-[13.75rem] overflow-auto text-[length:var(--chat-text-xs)] ${SUNKEN_SURFACE}`
+const CONSOLE_LIST = 'm-0 p-0 list-none block w-full max-h-[13.75rem] overflow-auto text-[length:var(--chat-text-xs)]'
 const LEVEL = 'text-[length:var(--chat-text-xs)] flex-none w-10 uppercase [font-family:var(--chat-mono)]'
 const LEVEL_QUIET = `${LEVEL} text-chat-text-3`
 const LEVEL_DANGER = `${LEVEL} text-chat-danger`
 const TIME = 'text-[length:var(--chat-text-xs)] flex-none text-chat-text-3 [font-family:var(--chat-mono)] tabular-nums'
 const TEXT =
   'text-[length:var(--chat-text-sm)] flex-1 min-w-0 whitespace-pre-wrap [color:var(--chat-text)] [font-family:var(--chat-mono)] [overflow-wrap:anywhere]'
-const TEXT_DANGER = `${DANGER_TEXT_CLASS} flex-1 min-w-0 [overflow-wrap:anywhere]`
+const TEXT_DANGER = 'flex-1 min-w-0 [overflow-wrap:anywhere]'
 
 const ERROR_LEVELS: ReadonlySet<string> = new Set(['error', 'uncaught', 'unhandled'])
 
@@ -60,8 +59,8 @@ function isErrorLevel(level: string): boolean {
   return ERROR_LEVELS.has(level)
 }
 
-function pickTextClass(level: string): string {
-  return isErrorLevel(level) ? TEXT_DANGER : TEXT
+function pickTextClass(ui: InternalUi, level: string): string {
+  return isErrorLevel(level) ? `${ui.DANGER_TEXT_CLASS} ${TEXT_DANGER}` : TEXT
 }
 
 function pickLevelClass(level: string): string {
@@ -69,6 +68,7 @@ function pickLevelClass(level: string): string {
 }
 
 export function ConsoleCard(props: ToolProps): JSX.Element {
+  const ui = usePageUi()
   const payload = () => outputPayload(props.output)
   const lines = () => readLines(payload())
   const failed = () => (lines() ?? []).some((entry) => isErrorLevel(entry.level))
@@ -85,13 +85,13 @@ export function ConsoleCard(props: ToolProps): JSX.Element {
                 <p class="m-0">
                   <PageValueChip value={lineLabel(entries().length)} />
                 </p>
-                <ul class={CONSOLE_LIST}>
+                <ul class={`${CONSOLE_LIST}  ${ui.SUNKEN_SURFACE}`}>
                   <For each={entries()}>
                     {(entry) => (
                       <li class={LIST_ROW_CLASS}>
                         <span class={TIME}>{TIME_FORMAT.format(entry.ts)}</span>
                         <span class={pickLevelClass(entry.level)}>{entry.level}</span>
-                        <span class={pickTextClass(entry.level)}>{entry.text}</span>
+                        <span class={pickTextClass(ui, entry.level)}>{entry.text}</span>
                       </li>
                     )}
                   </For>
@@ -100,7 +100,7 @@ export function ConsoleCard(props: ToolProps): JSX.Element {
             )}
           </Match>
           <Match when={payload() !== undefined}>
-            <JsonTree data={payload()} />
+            <ui.JsonTree data={payload()} />
           </Match>
         </Switch>
       </div>
@@ -120,8 +120,8 @@ const STATE = 'text-[length:var(--chat-text-xs)] flex-none text-chat-text-2'
 
 type EffectRow = {name: string; description: string | undefined; enabled: boolean}
 
-function pickTone(enabled: boolean): StatusDotTone {
-  return enabled ? 'success' : 'idle'
+function pickTone(enabled: boolean): InternalStatusDotProps['tone'] {
+  return enabled ? 'success' : 'neutral'
 }
 
 function stateLabel(enabled: boolean): string {
@@ -141,9 +141,10 @@ function readRows(payload: unknown): readonly EffectRow[] | undefined {
 }
 
 function EffectRowView(props: {row: EffectRow}): JSX.Element {
+  const ui = usePageUi()
   return (
     <p class={ROW}>
-      <StatusDot tone={pickTone(props.row.enabled)} />
+      <ui.StatusDot tone={pickTone(props.row.enabled)} />
       <span class={EFFECT_NAME}>{props.row.name}</span>
       <Show when={props.row.description}>{(description) => <span class={DESCRIPTION}>{description()}</span>}</Show>
       <span class={STATE}>{stateLabel(props.row.enabled)}</span>
@@ -152,6 +153,7 @@ function EffectRowView(props: {row: EffectRow}): JSX.Element {
 }
 
 export function EffectCard(props: ToolProps): JSX.Element {
+  const ui = usePageUi()
   const payload = () => outputPayload(props.output)
   const rows = () => readRows(payload())
   const skip = () => (rows() === undefined ? undefined : EFFECT_NAME_KEYS)
@@ -175,7 +177,7 @@ export function EffectCard(props: ToolProps): JSX.Element {
             )}
           </Match>
           <Match when={payload() !== undefined}>
-            <JsonTree data={payload()} />
+            <ui.JsonTree data={payload()} />
           </Match>
         </Switch>
       </div>
@@ -235,6 +237,7 @@ function readTrack(payload: unknown): TrackReportView | undefined {
 }
 
 export function ReactCard(props: ToolProps): JSX.Element {
+  const ui = usePageUi()
   const payload = () => outputPayload(props.output)
   const descriptor = () => readSource(payload())
   const track = () => readTrack(payload())
@@ -267,7 +270,7 @@ export function ReactCard(props: ToolProps): JSX.Element {
             )}
           </Match>
           <Match when={payload() !== undefined}>
-            <JsonTree data={payload()} />
+            <ui.JsonTree data={payload()} />
           </Match>
         </Switch>
       </div>
@@ -311,6 +314,7 @@ function readMatches(payload: unknown): {count: number; elements: readonly unkno
 }
 
 export function ReadBulkCard(props: ToolProps): JSX.Element {
+  const ui = usePageUi()
   const payload = () => outputPayload(props.output)
   const markup = () => readHtml(payload())
   const nodes = () => readNodes(payload())
@@ -346,13 +350,13 @@ export function ReadBulkCard(props: ToolProps): JSX.Element {
                   <PageValueChip value={matchLabel(found().count)} />
                 </p>
                 <Show when={found().elements.length > 0}>
-                  <JsonTree data={found().elements} />
+                  <ui.JsonTree data={found().elements} />
                 </Show>
               </>
             )}
           </Match>
           <Match when={payload() !== undefined}>
-            <JsonTree data={payload()} />
+            <ui.JsonTree data={payload()} />
           </Match>
         </Switch>
       </div>
@@ -365,9 +369,10 @@ function payloadIsStructured(payload: unknown): boolean {
 }
 
 export function ReadValueCard(props: ToolProps): JSX.Element {
+  const ui = usePageUi()
   const payload = () => outputPayload(props.output)
   const nested = () => payloadIsStructured(payload())
-  const values = () => outputChips(props.output)
+  const values = () => outputChips(ui, props.output)
   const imageUrl = () => outputImageUrl(props.output)
   return (
     <PageTool
@@ -378,9 +383,9 @@ export function ReadValueCard(props: ToolProps): JSX.Element {
     >
       <div class="flex flex-col gap-1.5">
         <Switch>
-          <Match when={imageUrl()}>{(url) => <ResultImage src={url()} alt={pageTitle(props.tool, false)} />}</Match>
+          <Match when={imageUrl()}>{(url) => <ui.Image src={url()} alt={pageTitle(props.tool, false)} />}</Match>
           <Match when={nested()}>
-            <JsonTree data={payload()} />
+            <ui.JsonTree data={payload()} />
           </Match>
           <Match when={values().length > 0}>
             <ChipRow chips={values()} />
@@ -409,12 +414,13 @@ function codeContents(input: Record<string, unknown>): string {
 }
 
 export function EditLiveCard(props: ToolProps): JSX.Element {
+  const ui = usePageUi()
   const verb = () => pageVerbOfTool(props.tool)
   const isCode = () => CODE_VERBS.has(verb())
   return (
     <PageTool {...props} skip={isCode() ? CODE_INPUT_KEYS : undefined} hasContent={isCode()}>
       <Show when={isCode()}>
-        <CodeBlock
+        <ui.CodeBlock
           file={{
             name: codeFileName(verb()),
             lang: codeLanguage(verb()),
@@ -427,7 +433,7 @@ export function EditLiveCard(props: ToolProps): JSX.Element {
 }
 
 const HTML_CLASS = 'max-w-full'
-const A11Y_LIST = `m-0 p-0 list-none max-h-[13.75rem] w-full ${SUNKEN_SURFACE} overflow-auto`
+const A11Y_LIST = 'm-0 p-0 list-none max-h-[13.75rem] w-full overflow-auto'
 const LIST_ITEM = `text-[length:var(--chat-text-xs)] ${LIST_ROW_CLASS}`
 const ROLE =
   'text-[length:var(--chat-text-xs)] flex-none [color:var(--chat-accent-link)] [font-family:var(--chat-mono)]'
@@ -437,15 +443,16 @@ const REF = 'text-[length:var(--chat-text-xs)] flex-none text-chat-text-3 [font-
 export type A11yNode = Partial<ReturnType<typeof buildSnapshot>[number]>
 
 export function A11yNodeList(props: {nodes: readonly A11yNode[]}): JSX.Element {
+  const ui = usePageUi()
   return (
-    <ul class={A11Y_LIST}>
+    <ul class={`${A11Y_LIST}  ${ui.SUNKEN_SURFACE}`}>
       <For each={props.nodes}>
         {(node) => (
           <li class={LIST_ITEM}>
             <Show when={node.role}>
               <span class={ROLE}>{node.role}</span>
             </Show>
-            <Show when={node.name}>{(name) => <TruncatedText class={A11Y_NAME} text={name()} />}</Show>
+            <Show when={node.name}>{(name) => <ui.TruncatedText class={A11Y_NAME} text={name()} />}</Show>
             <Show when={node.ref}>
               <span class={REF}>{node.ref}</span>
             </Show>
@@ -457,8 +464,9 @@ export function A11yNodeList(props: {nodes: readonly A11yNode[]}): JSX.Element {
 }
 
 export function PageHtmlBlock(props: {markup: string}): JSX.Element {
+  const ui = usePageUi()
   return (
-    <CodeBlock
+    <ui.CodeBlock
       class={HTML_CLASS}
       maxHeight="log"
       chrome="file"
@@ -468,7 +476,8 @@ export function PageHtmlBlock(props: {markup: string}): JSX.Element {
 }
 
 export function PageValueChip(props: {value: string}): JSX.Element {
-  return <Chip kind="pill" tone="accent" value={props.value} />
+  const ui = usePageUi()
+  return <ui.KitChip kind="pill" tone="accent" value={props.value} />
 }
 
 export function formatHtml(src: string): string {

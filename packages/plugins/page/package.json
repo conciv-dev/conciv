@@ -32,10 +32,6 @@
       "types": "./dist/contract.d.ts",
       "import": "./dist/contract.js"
     },
-    "./client": {
-      "types": "./dist/client.d.ts",
-      "import": "./dist/client.js"
-    },
     "./renderer": {
       "types": "./dist/renderer.d.ts",
       "import": "./dist/renderer.js"
@@ -58,8 +54,6 @@
     "@conciv/contract": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@conciv/ui-kit-chat": "workspace:^",
-    "@conciv/ui-kit-system": "workspace:^",
     "@jridgewell/trace-mapping": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/map": "catalog:",
@@ -81,6 +75,8 @@
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/ui-kit-chat": "workspace:*",
+    "@conciv/ui-kit-system": "workspace:*",
     "@internal/plugin": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/react-router": "catalog:",

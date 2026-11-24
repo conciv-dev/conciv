@@ -19,7 +19,7 @@ factory in `@conciv/contract` is the only place that picks the transport:
 
 - `package.json:exports["."]` - `dist/mount.js` with types in `dist/mount.d.ts`.
 - `vite.config.ts` - two Vite build environments, built in order by `builder.buildApp`.
-  - `client`: the library build of `src/mount.ts` to `mount.js` (ES format, shared packages external). The page plugin's browser entries (`@conciv/plugin-page/client`, `@conciv/plugin-page/renderer`) and the private `@conciv/plugin-terminal` are bundled into the published widget (`INLINED_PREFIXES`), as opencode's app bundles `@opencode/gui-plugins`.
+  - `client`: the library build of `src/mount.ts` to `mount.js` (ES format, shared packages external). The page plugin's browser entry (`@conciv/plugin-page/renderer`) and the private `@conciv/plugin-terminal` are bundled into the published widget (`INLINED_PREFIXES`), as opencode's app bundles `@opencode/gui-plugins`.
   - `widget`: one code-split ES build of `src/global-entry.ts` into chunks under `dist/widget/`, plus the classic-script loader `conciv-widget.global.js` that `import()`s its entry chunk relative to `document.currentScript.src`. Rolldown cannot code-split IIFE output, so the loader is what keeps a plain `<script src>` working. No source maps. Serving a loader means serving `dist/widget/` beside it, same origin (module chunks need CORS cross-origin).
 - `vite.handle.config.ts` - IIFE `ConcivHandle` test bundle `conciv-handle.global.js` into `test/dist`.
 - `playwright.config.ts:testDir` - `./test/e2e`.

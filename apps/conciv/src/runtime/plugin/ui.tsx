@@ -8,8 +8,38 @@ import {
   type UiMenuSubProps,
 } from '@conciv/plugin/experimental'
 import {OpaqueUi, type InternalStatusDotProps} from '@internal/plugin'
-import {HarnessModelSelector, Icon as KitIcon, Markdown, useModelMenu} from '@conciv/ui-kit-chat'
-import {BasicTool, Chip, CodeBlock, ErrorBlock, JsonTree, ResultImage, StatusVisual} from '@conciv/ui-kit-chat/tools'
+import {
+  HarnessModelSelector,
+  Icon as KitIcon,
+  Markdown,
+  MorphLabel,
+  ReasoningText,
+  useModelMenu,
+} from '@conciv/ui-kit-chat'
+import {
+  BasicTool,
+  CARD_HEADLINE_TEXT,
+  CardHeadline,
+  Chip,
+  ChipRow,
+  clip,
+  CodeBlock,
+  CollapsibleSection,
+  DANGER_TEXT_CLASS,
+  displayValue,
+  ErrorBlock,
+  GENERIC_TOOL_ICON,
+  JsonTree,
+  parseInput,
+  parseResultPayload,
+  ResultImage,
+  resultText,
+  SHIMMER,
+  StatusVisual,
+  SUNKEN_SURFACE,
+  ToolCard,
+  ToolErrorCard,
+} from '@conciv/ui-kit-chat/tools'
 import {MentionField} from '@conciv/ui-kit-tap'
 import {isPlainObject} from 'es-toolkit'
 import {
@@ -21,6 +51,7 @@ import {
   Dialog,
   Kbd,
   LIST_PANEL_ITEM,
+  prefersReducedMotion,
   Loader,
   Menu,
   Popover,
@@ -425,6 +456,7 @@ export const ui = OpaqueUi.createInstance('v1', {
       'failed',
       'expandable',
       'openWhileRunning',
+      'args',
       'children',
     ])
 
@@ -436,6 +468,7 @@ export const ui = OpaqueUi.createInstance('v1', {
           title: local.title,
           subtitle: local.subtitle,
           subtitleClass: subtitleTone[local.subtitleTone ?? 'default'],
+          args: local.args,
         }}
         hasContent={local.expandable ?? false}
         allowOpenWhilePending={local.openWhileRunning}
@@ -477,6 +510,32 @@ export const ui = OpaqueUi.createInstance('v1', {
       <Collapsible.Content>{props.children}</Collapsible.Content>
     </Collapsible.Root>
   ),
+  ToolCard,
+  CardHeadline,
+  CodeBlock,
+  CollapsibleSection,
+  StatusVisual,
+  JsonTree,
+  ToolErrorCard,
+  ChipRow,
+  MorphLabel,
+  ReasoningText,
+  Kbd,
+  KitChip: Chip,
+  KitButton: Button,
+  KitDialog: Dialog,
+  KitLoader: Loader,
+  clip,
+  displayValue,
+  parseInput,
+  resultText,
+  parseResultPayload,
+  prefersReducedMotion,
+  CARD_HEADLINE_TEXT,
+  SHIMMER,
+  SUNKEN_SURFACE,
+  DANGER_TEXT_CLASS,
+  GENERIC_TOOL_ICON,
 })
 
 function treeable(value: unknown): object | undefined {
