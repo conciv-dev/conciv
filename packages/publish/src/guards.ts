@@ -117,7 +117,6 @@ export const PUBLIC_PACKAGES = [
   '@conciv/ui-kit-chat',
   '@conciv/ui-kit-chat-tools',
   '@conciv/ui-kit-tap',
-  '@conciv/ui-kit-terminal',
   '@conciv/mascot',
   '@conciv/mascot-react',
   '@conciv/embed',

@@ -1,6 +1,7 @@
 import {onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
-import {createTerminalModel, Terminal, type TerminalTheme} from '@conciv/ui-kit-terminal'
+import {createTerminalModel, type TerminalTheme} from './screen/model.js'
+import {Terminal} from './screen/styled/terminal.js'
 import {createKeyed, usePlugin, type MountedSession, type ServerRef} from '@conciv/plugin/experimental'
 import {OPEN_FAILED, PANEL_KEY, type TerminalState} from './terminal-state.js'
 import type {HeldPty} from './terminal-transport.js'

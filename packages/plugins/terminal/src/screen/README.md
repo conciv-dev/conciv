@@ -1,12 +1,11 @@
-# ui-kit-terminal/src
+# plugins/terminal/src/screen
 
 ## Overview
 
-Package entry and the headless terminal model. `createTerminalModel` wraps an xterm instance and a session over the transport it is given with exponential-backoff reconnects and a reactive status store, and parses JSON control frames from the server.
+The terminal screen the plugin draws: the headless terminal model and its components. `createTerminalModel` wraps an xterm instance and a session over the transport it is given with exponential-backoff reconnects and a reactive status store, and parses JSON control frames from the server.
 
 ## Interface
 
-- `index.tsx`: re-exports `createTerminalModel`, `translateBuffer`, `TerminalModel`, `TerminalModelOpts`, `TerminalStatus`, `TerminalTheme`, the transport types, `TerminalPrimitive`, `useTerminal`, `Terminal`
 - `createTerminalModel(opts)` (`model.ts`): xterm (scrollback 5000) plus FitAddon plus a session over `opts.transport`
 - `TerminalTransport` (`transport.ts`): `(terminal, listener) => link`; the listener hears open, data, control and closed, the link writes, resizes and closes
 - `TerminalModel` (`model.ts`): terminal, status, busy, exitCode, errorMessage, connect, disconnect, fit, focus, paste, sendInput
@@ -33,5 +32,5 @@ Package entry and the headless terminal model. `createTerminalModel` wraps an xt
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-terminal` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/ui-kit-terminal && pnpm typecheck && pnpm lint`
+- Run: `pnpm exec turbo run test --filter=@conciv/plugin-terminal` from the repo root
+- Typecheck and lint: `cd packages/plugins/terminal && pnpm typecheck && pnpm lint`

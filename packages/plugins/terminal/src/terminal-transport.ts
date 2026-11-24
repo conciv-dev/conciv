@@ -1,6 +1,6 @@
 import {Effect, Fiber, Stream, type ManagedRuntime} from 'effect'
 import {getEventMeta} from '@orpc/client'
-import type {TerminalListener, TerminalTransport} from '@conciv/ui-kit-terminal'
+import type {TerminalListener, TerminalTransport} from './screen/transport.js'
 import type {ServerRef} from '@conciv/plugin/experimental'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
 

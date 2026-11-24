@@ -55,7 +55,6 @@
     "@conciv/ui-kit-chat-tools": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/ui-kit-tap": "workspace:^",
-    "@conciv/ui-kit-terminal": "workspace:^",
     "@solid-primitives/event-listener": "catalog:",
     "@tanstack/solid-router": "catalog:",
     "effect": "catalog:",

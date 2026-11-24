@@ -56,7 +56,6 @@ Browser widget:
 - ui-kit-chat: [ui-kit-chat/README.md](./ui-kit-chat/README.md) - Solid chat UI kit on the assistant-ui API: headless primitives and a styled set.
 - ui-kit-chat-tools: [ui-kit-chat-tools/README.md](./ui-kit-chat-tools/README.md) - Headless per-tool primitives and styled tool cards.
 - ui-kit-tap: [ui-kit-tap/README.md](./ui-kit-tap/README.md) - TipTap editors for Solid: `RichTextField` and `MentionField`.
-- ui-kit-terminal: [ui-kit-terminal/README.md](./ui-kit-terminal/README.md) - Solid terminal components on xterm.js with a reconnecting WebSocket model.
 - solid-diffs: [solid-diffs/README.md](./solid-diffs/README.md) - Solid wrappers around `@pierre/diffs`.
 - solid-streamdown: [solid-streamdown/README.md](./solid-streamdown/README.md) - Streaming markdown renderer for Solid, derived from Vercel's Streamdown.
 - mascot: [mascot/README.md](./mascot/README.md) - The animated mascot: GSAP core service with Solid and React wrappers.

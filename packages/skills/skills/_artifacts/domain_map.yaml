@@ -248,8 +248,6 @@ coverage:
       reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/ui-kit-tap'
       reason: 'internal to @conciv/it, not installed directly'
-    - name: '@conciv/ui-kit-terminal'
-      reason: 'internal to @conciv/it, not installed directly'
       reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/mascot'
       reason: 'internal to @conciv/it, not installed directly'

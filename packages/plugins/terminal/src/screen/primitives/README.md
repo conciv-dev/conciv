@@ -1,4 +1,4 @@
-# ui-kit-terminal/src/primitives
+# plugins/terminal/src/screen/primitives
 
 ## Overview
 
@@ -24,5 +24,5 @@ Headless Solid compound components for the terminal: a Root that provides the mo
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-terminal` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/ui-kit-terminal && pnpm typecheck && pnpm lint`
+- Run: `pnpm exec turbo run test --filter=@conciv/plugin-terminal` from the repo root
+- Typecheck and lint: `cd packages/plugins/terminal && pnpm typecheck && pnpm lint`

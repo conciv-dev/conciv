@@ -10,7 +10,6 @@ export default defineConfig({
       '../ui-kit-chat/src',
       '../ui-kit-chat-tools/src',
       '../ui-kit-system/src',
-      '../ui-kit-terminal/src',
       '../ui-kit-tap/src',
       '../tools/src',
       '../plugins/*/src',

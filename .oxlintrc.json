@@ -381,7 +381,7 @@
       }
     },
     {
-      "files": ["packages/core/src/pty/**", "packages/ui-kit-terminal/**"],
+      "files": ["packages/core/src/pty/**", "packages/plugins/terminal/src/screen/**"],
       "rules": {
         "no-control-regex": "off"
       }

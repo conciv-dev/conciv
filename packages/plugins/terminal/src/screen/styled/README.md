@@ -1,4 +1,4 @@
-# ui-kit-terminal/src/styled
+# plugins/terminal/src/screen/styled
 
 ## Overview
 
@@ -19,5 +19,5 @@ Styled `Terminal` component combining the primitives with chat-theme CSS variabl
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-terminal` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/ui-kit-terminal && pnpm typecheck && pnpm lint`
+- Run: `pnpm exec turbo run test --filter=@conciv/plugin-terminal` from the repo root
+- Typecheck and lint: `cd packages/plugins/terminal && pnpm typecheck && pnpm lint`
