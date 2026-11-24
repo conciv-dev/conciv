@@ -2,7 +2,7 @@ import {describe, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {screen} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import {mount} from '@conciv/plugin-testkit/browser'
+import {mount} from './browser.js'
 
 describe('mounting a plugin by its package name', () => {
   test('a window plugin named in mount shows its part, with the options given to it, and its store updates in place', async () => {

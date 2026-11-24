@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {glob, readFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
-import {join, matchesGlob} from 'node:path'
+import {extname, join, matchesGlob} from 'node:path'
 import type {Plugin, UserConfig} from 'vite'
 import type {TestProjectInlineConfiguration} from 'vitest/config'
 import {
@@ -24,7 +24,8 @@ import {pluginDirectory} from './plugin-directory.js'
 import type {PageCommands} from './browser-commands.js'
 import {engineCommands} from './engine-commands.js'
 
-const KIT_DIST = import.meta.dirname
+const KIT_DIRECTORY = import.meta.dirname
+const KIT_EXTENSION = extname(import.meta.filename)
 const NODE_ONLY_CONDITIONS = ['browser', 'solid']
 const SOLID_INJECTED_JEST_DOM = '@testing-library/jest-dom/vitest'
 const PERF_TESTS = ['src/**/*.perf.test.ts', 'src/**/*.perf.test.tsx']
@@ -65,7 +66,7 @@ async function generateTestSheet(directories: readonly string[]): Promise<string
   const packageSources = [...new Set(directories)].flatMap((directory) => sourcePatterns(directory))
   const generator = await createGenerator({presets: [presetConciv()]})
   const tokens = new Set<string>()
-  const files = await scannedFiles([join(KIT_DIST, '**/*.js'), ...packageSources])
+  const files = await scannedFiles([join(KIT_DIRECTORY, `**/*${KIT_EXTENSION}`), ...packageSources])
   await Promise.all(files.map(async (file) => generator.applyExtractors(await readFile(file, 'utf8'), file, tokens)))
   const {css} = await generator.generate(tokens)
   return css
@@ -234,7 +235,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
         include: installedTestingLibraries(),
       },
       test: {
-        setupFiles: [join(KIT_DIST, 'browser-setup.js')],
+        setupFiles: [join(KIT_DIRECTORY, `browser-setup${KIT_EXTENSION}`)],
         provide,
         browser: {commands: {...pageErrorCommands(), ...engineCommands()}},
       },
@@ -243,7 +244,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
     nodeProject({plugins: [engineModulesInNode()]}),
     domProject({
       plugins: [...solid, engineModulesInNode()],
-      test: {setupFiles: [join(KIT_DIST, 'happy-dom-setup.js')], provide},
+      test: {setupFiles: [join(KIT_DIRECTORY, `happy-dom-setup${KIT_EXTENSION}`)], provide},
     }),
     browserProject('browser', BROWSER_TESTS, ['chromium']),
     browserProject('perf', PERF_TESTS, ['chromium', 'firefox']),

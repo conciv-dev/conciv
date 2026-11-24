@@ -18,10 +18,12 @@ kits and the preset, never on core, the app, the harness kits or the CLI. Entrie
 A test that needs a real agent turn uses `@conciv/core/testing` from the plugin's own `test/engine.ts`. Real-app plus
 real-engine browser journeys live in the app's own tests (`apps/conciv/test/`) and the e2e consumer apps.
 
+The kit's own `vite.config.ts` loads `concivTest()` from `src/vitest.ts`, so the kit typechecks without its own build; the projects find their setup files and scanned files beside the module that built them, in `dist` for every other package.
+
 The author adds `@conciv/plugin-testkit` to devDependencies and `concivTest()` from `@conciv/plugin-testkit/vitest` to the plugins of the package's one `vite.config.ts`. Under vitest (vite's mode `test`) it adds four test projects: node (`*.test.ts`), happy-dom (`*.dom.test.ts(x)`), vitest browser mode (`*.browser.test.ts(x)`, Chromium) and perf (`*.perf.test.ts(x)`, browser mode in Chromium and Firefox). The perf project holds measurements with budgets, such as frame gaps; it runs only when `--project perf` asks for it, never in a run without `--project`.
 
 Outside vitest (`vite build`, `vite dev`) `concivTest()` does nothing and loads nothing of the test stack. The browser
-project serves `virtual:conciv-test.css`, a UnoCSS sheet built with `@conciv/uno-preset` from the kit's `dist` and the
+project serves `virtual:conciv-test.css`, a UnoCSS sheet built with `@conciv/uno-preset` from the kit's own files and the
 sources of the package under test and its conciv plugins; `browser-setup.ts` imports it.
 
 Coverage: in GitHub Actions `concivTest()` turns on V8 coverage for every project of the run (node, happy-dom and the Chromium browser project) and writes `coverage/coverage-summary.json` and `coverage/lcov.info` under the package, also when a test fails, next to the CI reporters (`test-results.json`). A run counts every workspace source file it executes, in any package: code loaded from a package's built `dist` maps back to that package's `src` through the source maps every package builds with, the CLI child that `cli()` starts is counted too (vitest's `autoAttachSubprocess`). Tests and stories are left out. CI merges every run's lcov by source file and credits each file to the package that owns it. The same numbers on request, locally: `node node_modules/@conciv/plugin-testkit/bin/conciv-test.js --coverage.enabled` from the package folder (add test files to narrow it).
