@@ -4,8 +4,8 @@ import CornerDownRight from 'lucide-solid/icons/corner-down-right'
 import {useQuery} from '@conciv/client'
 import {type MountedSession} from '@conciv/plugin/experimental'
 import {type NoteCardProps} from '@internal/plugin'
+import {Button, Dialog, Loader} from '@conciv/ui-kit-system'
 import {sourceLabel} from './grab-label.js'
-import {usePageUi} from './shared.js'
 import {Definition, readGrabId, type GrabId, type StoredGrab} from '@conciv/plugin-page/rpc'
 
 type GrabPreview = NonNullable<StoredGrab['preview']>
@@ -62,7 +62,6 @@ function Preview(props: {preview: GrabPreview; class: string}): JSX.Element {
 }
 
 function GrabBody(props: {payload: StoredGrab; staged: boolean}): JSX.Element {
-  const ui = usePageUi()
   const [view, setView] = createStore({open: false, agentText: false})
   return (
     <div class={CARD} data-chat-grab>
@@ -70,7 +69,7 @@ function GrabBody(props: {payload: StoredGrab; staged: boolean}): JSX.Element {
         {(preview) => (
           <div class={PREVIEW_SLOT}>
             <Preview preview={preview()} class={props.staged ? STAGED_SNAPSHOT : CARD_SNAPSHOT} />
-            <ui.KitButton
+            <Button
               variant="plain"
               size="none"
               class={OPEN_BUTTON}
@@ -92,16 +91,16 @@ function GrabBody(props: {payload: StoredGrab; staged: boolean}): JSX.Element {
           </Show>
         )}
       </Show>
-      <ui.KitDialog
+      <Dialog
         open={view.open}
         onOpenChange={(open) => setView('open', open)}
         title="Grabbed element"
         size="xl"
         dismissable
         footer={
-          <ui.KitButton variant="link" size="bare" onClick={() => setView('agentText', (shown) => !shown)}>
+          <Button variant="link" size="bare" onClick={() => setView('agentText', (shown) => !shown)}>
             {view.agentText ? 'Show snapshot' : 'What the agent sees'}
-          </ui.KitButton>
+          </Button>
         }
       >
         <Show when={view.open}>
@@ -112,7 +111,7 @@ function GrabBody(props: {payload: StoredGrab; staged: boolean}): JSX.Element {
             {(preview) => <Preview preview={preview()} class={DIALOG_SNAPSHOT} />}
           </Show>
         </Show>
-      </ui.KitDialog>
+      </Dialog>
     </div>
   )
 }
@@ -139,7 +138,6 @@ export function GrabNoteCard(props: NoteCardProps): JSX.Element {
 }
 
 function StoredGrabCard(props: {session: MountedSession; id: GrabId; staged: boolean}): JSX.Element {
-  const ui = usePageUi()
   const grab = useQuery(() => ({
     ...props.session.server.client.rpc(Definition)['grabs.get'].queryOptions({input: {id: props.id}}),
     retry: false,
@@ -149,9 +147,9 @@ function StoredGrabCard(props: {session: MountedSession; id: GrabId; staged: boo
       when={!grab.isPending}
       fallback={
         <div class={LOADING_ROW} aria-busy="true">
-          <ui.KitLoader.Root size="sm" bare translations={{value: () => READING_LABEL}}>
-            <ui.KitLoader.Indicator class="text-chat-text-3 size-4" />
-          </ui.KitLoader.Root>
+          <Loader.Root size="sm" bare translations={{value: () => READING_LABEL}}>
+            <Loader.Indicator class="text-chat-text-3 size-4" />
+          </Loader.Root>
           <span class={AGENT_TEXT}>{`${READING_LABEL}…`}</span>
         </div>
       }

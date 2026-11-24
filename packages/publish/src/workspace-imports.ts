@@ -14,8 +14,13 @@ const WORKSPACE_IMPORT =
 const PLUGIN_ROOT = 'packages/plugins/'
 const UI_KIT = /^@conciv\/ui-kit(?:-|$)/
 
-type ShippedDependencyField = 'dependencies' | 'optionalDependencies' | 'peerDependencies'
-const SHIPPED_DEPENDENCY_FIELDS: ShippedDependencyField[] = ['dependencies', 'optionalDependencies', 'peerDependencies']
+type ManifestDependencyField = 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'peerDependencies'
+const DEPENDENCY_FIELDS: ManifestDependencyField[] = [
+  'dependencies',
+  'devDependencies',
+  'optionalDependencies',
+  'peerDependencies',
+]
 
 type SourceImports = {path: string; imports: string[]}
 
@@ -162,7 +167,7 @@ export async function assertPluginsDrawThroughContextUi(cwd: string): Promise<vo
       const imported = sources.flatMap(({path, imports}) =>
         [...new Set(imports)].filter((name) => UI_KIT.test(name)).map((name) => `${path}: imports ${name}`),
       )
-      const declared = SHIPPED_DEPENDENCY_FIELDS.flatMap((field) =>
+      const declared = DEPENDENCY_FIELDS.flatMap((field) =>
         Object.keys(pkg.manifest[field] ?? {})
           .filter((name) => UI_KIT.test(name))
           .map((name) => `${pkg.relativeDir}/package.json: ${field} names ${name}`),
@@ -173,6 +178,6 @@ export async function assertPluginsDrawThroughContextUi(cwd: string): Promise<vo
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
   throw new Error(
-    `a plugin under packages/plugins draws through ctx.ui (conciv's own plugins read conciv's members with OpaqueUi.toInternal), never with @conciv/ui-kit* in a build source or in dependencies, optionalDependencies or peerDependencies (stories may use a kit from devDependencies):\n${messages.join('\n')}`,
+    `a plugin under packages/plugins draws through ctx.ui (conciv's own plugins read conciv's members with OpaqueUi.toInternal), never with @conciv/ui-kit* in a build source or in any dependency field; only the built-ins in @internal/builtin-plugins, outside packages/plugins, import the kits:\n${messages.join('\n')}`,
   )
 }

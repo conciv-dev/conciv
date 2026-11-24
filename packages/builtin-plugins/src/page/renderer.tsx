@@ -4,7 +4,7 @@ import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {useQueryClient} from '@conciv/client'
 import {createKeyed, Plugin, Slot} from '@conciv/plugin/experimental'
-import {NoteCard, OpaqueNoteCard, OpaqueUi, ToolRegistry} from '@internal/plugin'
+import {NoteCard, OpaqueNoteCard, ToolRegistry} from '@internal/plugin'
 import {Page} from '@conciv/plugin/experimental/page'
 import {PageOperation, ReactTree} from '@conciv/plugin-page/contract'
 import {GrabPicker} from '@conciv/plugin/experimental/grab'
@@ -37,7 +37,6 @@ export default Plugin.define({
     const connectionId = crypto.randomUUID()
     const tabId = `tab_${crypto.randomUUID()}`
     const routed = () => ctx.sessions.current()
-    const ui = OpaqueUi.toInternal(ctx.ui)
 
     const queryClient = useQueryClient()
     const symbolicate = symbolicateInSession(routed, queryClient)
@@ -45,7 +44,6 @@ export default Plugin.define({
     const highlight = makeHighlight({
       opener: {symbolicate, desktop: ctx.desktop},
       toast: (title, variant) => void ctx.toast.show({title, variant}),
-      ui,
     })
     const runtime = ManagedRuntime.make(Layer.empty)
     const scope = runtime.runSync(Scope.make())
@@ -55,7 +53,6 @@ export default Plugin.define({
         session: () => routed()?.id ?? null,
         running: (sessionId) => routed()?.id === sessionId && routed()?.run.status() === 'running',
         taskTimeoutMs,
-        prefersReducedMotion: ui.prefersReducedMotion,
         onStop: (sessionId) => {
           const session = routed()
 

@@ -2286,6 +2286,12 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/ui-kit-chat':
+        specifier: workspace:^
+        version: link:../ui-kit-chat
+      '@conciv/ui-kit-system':
+        specifier: workspace:^
+        version: link:../ui-kit-system
       '@internal/plugin':
         specifier: workspace:*
         version: link:../plugin-internal
@@ -2353,12 +2359,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/ui-kit-chat':
-        specifier: workspace:*
-        version: link:../ui-kit-chat
-      '@conciv/ui-kit-system':
-        specifier: workspace:*
-        version: link:../ui-kit-system
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)

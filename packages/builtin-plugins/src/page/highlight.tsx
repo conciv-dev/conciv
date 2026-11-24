@@ -4,7 +4,7 @@ import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {createKeyHold} from '@tanstack/solid-hotkeys'
 import {render} from 'solid-js/web'
-import type {InternalUi} from '@internal/plugin'
+import {Kbd, prefersReducedMotion} from '@conciv/ui-kit-system'
 import {addRef, type Refs} from './snapshot.js'
 import {describe, locate} from './react.js'
 import type {PageEffect} from './operations.js'
@@ -14,7 +14,6 @@ import {openSource, type OpenedSource, type SourceOpener} from './open-source.js
 export type HighlightOptions = {
   opener: Omit<SourceOpener, 'locate'>
   toast: (title: string, variant: 'success' | 'error') => void
-  ui: InternalUi
 }
 
 type Hovered = {rect: DOMRect; tag: string; file: string | null; host: Element}
@@ -92,20 +91,20 @@ function HighlightInspector(props: HighlightOptions & {onExit: () => void}): JSX
   makeEventListener(window, 'resize', reposition)
   onCleanup(() => cancelAnimationFrame(frame.id))
 
-  const glide = () => (props.ui.prefersReducedMotion() ? '' : GLIDE)
+  const glide = prefersReducedMotion() ? '' : GLIDE
 
   return (
     <>
       <div aria-hidden="true" data-conciv-capture class="cursor-crosshair pointer-events-auto inset-0 fixed" />
       <div role="status" class={HINT}>
-        Inspecting · click to open source · <props.ui.Kbd>Esc</props.ui.Kbd> to exit
+        Inspecting · click to open source · <Kbd>Esc</Kbd> to exit
       </div>
       <div aria-hidden="true" class="contents">
         <Show when={state.hovered}>
           {(hovered) => (
             <>
               <div
-                class={`${BOX}  ${glide()}`}
+                class={`${BOX}  ${glide}`}
                 style={{
                   transform: `translate(${hovered().rect.left}px, ${hovered().rect.top}px)`,
                   width: `${hovered().rect.width}px`,
@@ -113,7 +112,7 @@ function HighlightInspector(props: HighlightOptions & {onExit: () => void}): JSX
                 }}
               />
               <div
-                class={`${LABEL}  ${glide()}`}
+                class={`${LABEL}  ${glide}`}
                 style={{transform: `translate(${hovered().rect.left}px, ${hovered().rect.top}px) translateY(-100%)`}}
               >
                 <span class="text-[0.6875rem] text-chat-accent font-chat-mono font-semibold">{`<${hovered().tag}>`}</span>
@@ -154,7 +153,7 @@ export function makeHighlight(options: HighlightOptions): {
 
     return (
       <Show when={state.driven || inspecting()}>
-        <HighlightInspector opener={options.opener} toast={options.toast} ui={options.ui} onExit={exit} />
+        <HighlightInspector opener={options.opener} toast={options.toast} onExit={exit} />
       </Show>
     )
   }

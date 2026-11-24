@@ -2,6 +2,7 @@ import {Motion, type CSSRgbString} from 'ai-motion'
 import {Effect, FiberMap, Option, type Scope} from 'effect'
 import {createComponent} from 'solid-js'
 import {render} from 'solid-js/web'
+import {prefersReducedMotion} from '@conciv/ui-kit-system'
 import {
   AGENT_BLUE,
   AGENT_PURPLE,
@@ -82,7 +83,6 @@ type SimulatorOptions = {
   onStop: (sessionId: string) => void
   running: (sessionId: string) => boolean
   taskTimeoutMs?: number | undefined
-  prefersReducedMotion: () => boolean
 }
 
 export type Simulator = {
@@ -139,12 +139,7 @@ function interrupt<Key>(fibers: FiberMap.FiberMap<Key>, key: Key): void {
   Option.getOrUndefined(FiberMap.getUnsafe(fibers, key))?.interruptUnsafe()
 }
 
-function mountRun(options: {
-  root: ParentNode
-  cursors: Cursors
-  onClick: () => void
-  prefersReducedMotion: () => boolean
-}): Run {
+function mountRun(options: {root: ParentNode; cursors: Cursors; onClick: () => void}): Run {
   const style = document.createElement('style')
   style.textContent = SIMULATOR_CSS
   const layer = div(MASK_CLASS)
@@ -154,7 +149,7 @@ function mountRun(options: {
   layer.addEventListener('click', options.onClick)
   options.root.prepend(style, layer)
   const dispose = render(() => createComponent(AimedCursors, {look: CursorLook.AGENT, cursors: options.cursors}), layer)
-  return {style, layer, glow: options.prefersReducedMotion() ? null : createGlow(layer), dispose, cursors: new Set()}
+  return {style, layer, glow: createGlow(layer), dispose, cursors: new Set()}
 }
 
 function unmountRun(options: {run: Run; cursors: Cursors}): void {
@@ -167,6 +162,7 @@ function unmountRun(options: {run: Run; cursors: Cursors}): void {
 }
 
 function createGlow(layer: HTMLElement): Motion | null {
+  if (prefersReducedMotion()) return null
   try {
     const glow = new Motion({
       mode: isPageDark() ? 'dark' : 'light',
@@ -200,6 +196,10 @@ function aborted(plane: AbortSignal | undefined): Effect.Effect<void> {
   })
 }
 
+function pace(ms: number): Effect.Effect<void> {
+  return Effect.suspend(() => (cannotAnimate() ? Effect.void : Effect.sleep(ms)))
+}
+
 export function makeSimulator(options: SimulatorOptions): Effect.Effect<Simulator, never, Scope.Scope> {
   return Effect.gen(function* () {
     const timers = yield* FiberMap.make<Timer>()
@@ -209,9 +209,7 @@ export function makeSimulator(options: SimulatorOptions): Effect.Effect<Simulato
     const taskTimeoutMs = options.taskTimeoutMs ?? TASK_TIMEOUT_MS
     const machine = {state: initialSimulatorState}
     const handles: Handles = {root: null, run: null, cursor: '', lastClicked: null, pacing: false}
-    const cursors = makeCursors(options.prefersReducedMotion)
-    const pace = (ms: number): Effect.Effect<void> =>
-      Effect.suspend(() => (cannotAnimate(options.prefersReducedMotion) ? Effect.void : Effect.sleep(ms)))
+    const cursors = makeCursors()
     yield* Effect.addFinalizer(() => Effect.sync(cursors.dispose))
 
     const dispatch = (event: SimulatorEvent): void => {
@@ -229,16 +227,9 @@ export function makeSimulator(options: SimulatorOptions): Effect.Effect<Simulato
       if (!root) return
       handles.cursor = agent
       interrupt(timers, 'hide')
-      const run =
-        handles.run ??
-        mountRun({
-          root,
-          cursors,
-          onClick: () => dispatch({type: 'mask.clicked'}),
-          prefersReducedMotion: options.prefersReducedMotion,
-        })
+      const run = handles.run ?? mountRun({root, cursors, onClick: () => dispatch({type: 'mask.clicked'})})
       handles.run = run
-      if (!options.prefersReducedMotion()) {
+      if (!prefersReducedMotion()) {
         run.glow?.start()
         run.glow?.fadeIn().catch(warnUnlessCanceled)
       }
@@ -256,7 +247,7 @@ export function makeSimulator(options: SimulatorOptions): Effect.Effect<Simulato
       if (!run) return
       run.glow?.fadeOut().catch(warnUnlessCanceled)
       run.glow?.pause()
-      if (cannotAnimate(options.prefersReducedMotion)) return dispatch({type: 'hide.done'})
+      if (cannotAnimate()) return dispatch({type: 'hide.done'})
       later('hide', HIDE_MS, {type: 'hide.done'})
     }
 
