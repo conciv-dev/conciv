@@ -2,10 +2,13 @@ import {describe, expect} from 'vitest'
 import {cli, test as it} from '../test/cli.js'
 
 describe('tools', () => {
-  it("the plugin's group is listed, its verb runs with flags spelled from its schema, and a mistyped verb gets a fix", async ({
+  it("the plugin's group is listed, its verb runs with flags spelled from its schema, a mistyped verb gets a fix, and a tool the config denies is listed but not available", async ({
     createEngine,
   }) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
+    const engine = await createEngine({
+      plugins: ['./test/fixtures/plugins/plant-shelf'],
+      permission: {shelf_restock: 'deny'},
+    })
 
     const help = await cli(['tools', '--help'], {engine})
     expect(help.exitCode).toBe(0)
@@ -35,6 +38,18 @@ describe('tools', () => {
         kind: 'user',
         message: "Unknown command 'lable' for conciv tools shelf. Did you mean 'label'?",
         hint: 'run conciv tools shelf --help to list its commands',
+      },
+    })
+
+    const denied = await cli(['tools', 'shelf', 'restock', 'fern'], {engine})
+    expect(denied.exitCode).toBe(1)
+    expect(JSON.parse(denied.stdout)).toEqual({
+      ok: false,
+      error: {
+        kind: 'user',
+        message:
+          'No tool named "shelf_restock" is currently available. Please use a tool from the available tool list.',
+        code: 'HANDLER_ERROR',
       },
     })
   })
