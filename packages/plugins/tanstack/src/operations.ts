@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {Effect, Schema} from 'effect'
 import type {Live} from '@conciv/plugin/experimental'
-import type {ReactTree} from '@conciv/plugin/experimental/page'
+import type {ReactTree} from '@conciv/plugin-page/contract'
 import {ErrorRingService, type ErrorRing} from './error-ring.js'
 import {invalidateQuery, readQueryCache, refetchQuery, type QueryClientNotFound} from './query-adapter.js'
 import {Action, SHORT_MAX, type Method, type Reply} from './rpc.js'

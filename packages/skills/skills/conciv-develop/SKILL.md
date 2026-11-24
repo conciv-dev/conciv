@@ -177,8 +177,9 @@ Registries for `ctx.add`: `Panel` (tabs in the session pane), `Slot` (`window.bo
 `LinkHandler`, and the page plugin's `PageOperation`. `ctx.add` takes an item or a function that
 returns one (or `undefined` for none). Everything added is withdrawn on reload.
 `Plugin.define({stores})` declares `Store.global`, `Store.project` and `Store.session` values.
-`ctx.provide`/`ctx.use` share contracts between plugins: `Page` and `ReactTree` from
-`@conciv/plugin/experimental/page` (`Page.pick()` lets the user pick an element and returns the `Grab`). Draw with
+`ctx.provide`/`ctx.use` share contracts between plugins: `Page` from
+`@conciv/plugin/experimental/page` (`Page.pick()` lets the user pick an element and returns the `Grab`), and
+`ReactTree` and `PageOperation` from `@conciv/plugin-page/contract`. Draw with
 `ctx.ui` components.
 
 The widget provides `effect`, `zod`, `solid-js`, `solid-js/web`, `solid-js/store`,

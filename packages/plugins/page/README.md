@@ -44,7 +44,9 @@ A built-in: it draws with the UI kits directly, like opencode's gui plugins, and
 ## Browser part
 
 The browser part of `experimental.page`: one attachment per tab to its engine half (`@conciv/plugin-page`), the
-operations it runs on the page, and the members other plugins read (`Page`, `ReactTree`).
+operations it runs on the page, and the members other plugins read (`Page`, `ReactTree`). `src/contract.ts` (export
+`./contract`) holds the plugin's own contracts: `ReactTree`, the `PageOperation` registry and the React fiber, tree,
+`DehydrateOptions`, `LocateResult` and `Owner` types.
 
 The `highlight` page effect (`src/highlight.tsx`) draws in the plugin's `ctx.overlay` layer, under the widget: the
 overlay brings the widget sheet (reset, tokens, host rules) and the color scheme, and the plugin adds this package's own

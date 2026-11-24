@@ -16,7 +16,8 @@ import {
 } from 'bippy'
 import {parseStack, hasDebugStack, getParentStack, formatOwnerStack} from 'bippy/source'
 import type {RefAdder} from './snapshot.js'
-import type {RawFrame, Owner, LocateResult, SourceLoc} from '@conciv/plugin/experimental/page'
+import type {RawFrame, SourceLoc} from '@conciv/plugin/experimental/page'
+import type {Owner, LocateResult} from './contract.js'
 import type {TreeNode, HookNode, InspectResult, TreeResult} from './page-introspect-types.js'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals

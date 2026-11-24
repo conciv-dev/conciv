@@ -1,7 +1,7 @@
 import {Cause, Deferred, Duration, Effect, Exit, Fiber, FiberMap, Option, Schedule, Semaphore, Stream} from 'effect'
 import {z} from 'zod'
 import type {MountedSession} from '@conciv/plugin/experimental'
-import type {PageOperation} from '@conciv/plugin/experimental/page'
+import type {PageOperation} from './contract.js'
 import {Command, Control, Definition, Outcome, Tab} from './rpc.js'
 import type {PageOperations} from './operations.js'
 import {redactedUrl} from './redacted-url.js'

@@ -1,5 +1,6 @@
-const {Plugin} = require('@conciv/plugin/experimental')
-const {PageOperation} = require('@conciv/plugin/experimental/page')
+const {Plugin, Registry} = require('@conciv/plugin/experimental')
+
+const PageOperation = Registry.define('page.operation')
 
 module.exports = {
   default: Plugin.define({

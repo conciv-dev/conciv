@@ -59,6 +59,8 @@ export function experimental(options: ExperimentalOptions = {}): Plugin[] {
       resolveId(source) {
         if (provided.has(source) || isBuiltin(source)) return {id: source, external: true}
 
+        if (/^@conciv\/plugin-[^/]+\/contract$/.test(source)) return null
+
         if (/^(effect|solid-js|@conciv)\//.test(source))
           this.error(`${source} is not a module the conciv app provides to plugins: ${[...provided].join(', ')}`)
       },

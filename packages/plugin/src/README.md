@@ -123,10 +123,8 @@ plugins.
 
 ### `@conciv/plugin/experimental/page` (`experimental/page.ts`)
 
-What the built-in page plugin offers other plugins' browser parts, shaped as opencode's `gui/browser.ts` (interface and
-const of one name): the `Page` contract (`symbolicate`, `toast`, `capture` with `exclude` and `plugins`, snapdom's own `SnapdomPlugin` type, so `@zumer/snapdom` is a dependency, and `pick`, which lets the user pick an element in grab's quiet comment mode and resolves the whole `Grab`, attaching nothing, or `null` when the user cancels; a second `pick` cancels the one in flight), the `ReactTree` contract
-(`page.react`: `rootFibers`, `dehydrate`, `describe`, `locate`, `frames`), the `PageOperation` registry (`page.operation`: a
-named `run(input, signal)` a plugin adds for the page plugin to run as one of its operations), with `PageToastTone`, `PageCapture`, `DehydrateOptions`, `ReactFiber` and `ReactComponentInfo`.
+The shared page contract other plugins' browser parts use, shaped as opencode's `gui/browser.ts` (interface and
+const of one name): the `Page` contract (`symbolicate`, `toast`, `capture` with `exclude` and `plugins`, snapdom's own `SnapdomPlugin` type, so `@zumer/snapdom` is a dependency, and `pick`, which lets the user pick an element in grab's quiet comment mode and resolves the whole `Grab`, attaching nothing, or `null` when the user cancels; a second `pick` cancels the one in flight), with `PageToastTone` and `PageCapture`. The page plugin's private contracts (`ReactTree`, the `PageOperation` registry and their types) live in `@conciv/plugin-page/contract`, as opencode's `review/contract.ts`.
 
 ### `@conciv/plugin/experimental/grab` (`experimental/grab.ts`)
 
@@ -220,7 +218,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
   closure on demand (`plugin.experimentalChunk`), so a large part such as the whiteboard island is not loaded at every
   page load. The engine serves only the files the manifest lists and refuses a file whose bytes changed since the
   plugin loaded (`PLUGIN_CHUNK_NOT_FOUND`).
-- The build fails on `effect/*`, `@conciv/*` and `solid-js/*` modules outside the provided list, as source. So every `@conciv/ui-kit*` module fails here.
+- The build fails on `effect/*`, `@conciv/*` and `solid-js/*` modules outside the provided list, as source. So every `@conciv/ui-kit*` module fails here. One `@conciv/*` pattern is inlined instead: another plugin's `@conciv/plugin-<name>/contract` export, which holds only types and `Registry.define` / `Contract.define` tokens (plain `{kind, id}`), so an inlined copy is the same token (in the source the same import is a relative one inside the one `gui-plugins` package; rulings ledger call 8).
 - An installable plugin imports no UI kit module; it uses `ctx.ui`. The SDK's `ctx.ui` type is `Ui` and nothing more; this SDK exports no opaque definition. The app makes `ctx.ui` with `OpaqueUi.createInstance` from the private `@internal/plugin`, and conciv's own plugins read conciv's members with `OpaqueUi.toInternal(ctx.ui)` from there; their builds inline `@internal/plugin`, which is not a provided module. `experimental()` has no first-party mode: any `@conciv/*` import outside the provided list fails the build, as in opencode. Only the built-in plugins compiled into the app import `@conciv/ui-kit*` directly.
 - The error reads "<module> is not a module the conciv app provides to plugins: <list>" (source: "<module> is not a module the OpenCode app provides to plugin GUIs: <list>").
 - The `//` comment above `provided` is dropped.
