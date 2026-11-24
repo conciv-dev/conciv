@@ -48,7 +48,7 @@ README.md; this file is the non-obvious operational rules.
   `lint` and no dependent and no build, a `src` edit reruns every dependent through `^build`, and a file another
   package's build scans (the UnoCSS `$TURBO_ROOT$/...` build inputs in `packages/embed`, `apps/conciv`,
   `packages/ui-kit-chat`, `packages/ui-kit-chat-tools` and `packages/ui-kit-tap`) reruns that build. That holds
-  only while every task `test` and `typecheck` depend on (`build`, `build:types`, `kit-runtime`) excludes tests,
+  only while every task `test` and `typecheck` depend on (`build`) excludes tests,
   specs and stories from its `inputs`, and while each `$TURBO_ROOT$` build input carries the same exclusion as
   the `content.filesystem` globs in that package's `uno.config.ts`. `--filter=...[ref]` ignores the flag and
   still selects whole packages plus manifest dependents.
