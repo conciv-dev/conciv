@@ -31,13 +31,13 @@ function frame(children: JSX.Element): JSX.Element {
 }
 
 const settledMessages: ChatMessage[] = [
-  user('u1', 'please draw an eagle'),
+  user('u1', 'please write a note'),
   assistant('a1', [
     {type: 'thinking', content: 'Sketch style, layered SVG paths.'},
-    call('t1', 'mcp__tanstack__canvas_svg', 'complete'),
+    call('t1', 'mcp__tanstack__notes_write', 'complete'),
     result('t1', 'complete'),
-    call('t2', 'mcp__tanstack__canvas_commit', 'complete'),
-    {type: 'text', content: 'Eagle drawn, committed to canvas.'},
+    call('t2', 'mcp__tanstack__notes_save', 'complete'),
+    {type: 'text', content: 'Note written and saved.'},
   ]),
   assistant('a2', [result('t2', 'complete')]),
 ]
@@ -51,24 +51,24 @@ export const SettledTurn: Story = {
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await waitFor(() => expect(c.getByText('please draw an eagle')).toBeVisible())
-    await expect(c.getByText('Eagle drawn, committed to canvas.')).toBeVisible()
+    await waitFor(() => expect(c.getByText('please write a note')).toBeVisible())
+    await expect(c.getByText('Note written and saved.')).toBeVisible()
     const trigger = c.getByRole('button', {name: '3 steps'})
     await expect(trigger).toBeVisible()
     await userEvent.click(trigger)
-    await waitFor(() => expect(c.getByRole('button', {name: 'canvas svg'})).toBeVisible())
-    await expect(c.getByRole('button', {name: 'canvas commit'})).toBeVisible()
+    await waitFor(() => expect(c.getByRole('button', {name: 'notes write'})).toBeVisible())
+    await expect(c.getByRole('button', {name: 'notes save'})).toBeVisible()
     await expect(c.getByRole('button', {name: 'Reasoning'})).toBeVisible()
     await expect(c.queryByRole('button', {name: '0 steps'})).toBeNull()
   },
 }
 
 const liveMessages: ChatMessage[] = [
-  user('u1', 'please draw an eagle'),
+  user('u1', 'please write a note'),
   assistant('a1', [
-    call('t1', 'mcp__tanstack__canvas_svg', 'complete'),
+    call('t1', 'mcp__tanstack__notes_write', 'complete'),
     result('t1', 'complete'),
-    call('t2', 'mcp__tanstack__canvas_preview', 'input-complete'),
+    call('t2', 'mcp__tanstack__notes_preview', 'input-complete'),
   ]),
 ]
 
@@ -81,8 +81,8 @@ export const LiveTurn: Story = {
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await waitFor(() => expect(c.getByRole('button', {name: 'canvas svg'})).toBeVisible())
-    await waitFor(() => expect(c.getAllByRole('button', {name: 'canvas preview'})).toHaveLength(2))
+    await waitFor(() => expect(c.getByRole('button', {name: 'notes write'})).toBeVisible())
+    await waitFor(() => expect(c.getAllByRole('button', {name: 'notes preview'})).toHaveLength(2))
   },
 }
 
@@ -99,12 +99,12 @@ function subCall(id: string, name: string, parent: string, state: ToolCallPart['
 }
 
 const nestedMessages: ChatMessage[] = [
-  user('u1', 'draw and commit via script'),
+  user('u1', 'write and save via script'),
   assistant('a1', [
     call('p1', 'execute_typescript', 'complete'),
-    subCall('c1', 'canvas_svg', 'p1', 'complete'),
+    subCall('c1', 'notes_write', 'p1', 'complete'),
     result('c1', 'complete'),
-    subCall('c2', 'canvas_commit', 'p1', 'complete'),
+    subCall('c2', 'notes_save', 'p1', 'complete'),
     result('c2', 'complete'),
     result('p1', 'complete'),
     {type: 'text', content: 'Script ran.'},
@@ -123,12 +123,12 @@ export const NestedSubCalls: Story = {
     const chain = await waitFor(() => c.getByRole('button', {name: '1 step'}))
     await userEvent.click(chain)
     const parent = await waitFor(() => c.getByRole('button', {name: 'execute typescript'}))
-    await expect(c.queryByRole('button', {name: 'canvas svg'})).toBeNull()
+    await expect(c.queryByRole('button', {name: 'notes write'})).toBeNull()
     await userEvent.click(parent)
     const group = await waitFor(() => c.getByRole('button', {name: '2 tool calls'}))
     await userEvent.click(group)
-    await waitFor(() => expect(c.getByRole('button', {name: 'canvas svg'})).toBeVisible())
-    await expect(c.getByRole('button', {name: 'canvas commit'})).toBeVisible()
+    await waitFor(() => expect(c.getByRole('button', {name: 'notes write'})).toBeVisible())
+    await expect(c.getByRole('button', {name: 'notes save'})).toBeVisible()
   },
 }
 

@@ -20,7 +20,6 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 - `classifyRpcError(error, transportMessage, genericMessage)` (`rpc-error-message.ts`)
 - `rpcErrorCode(error)` (`rpc-error-message.ts`): the string `code` of an rpc error, else null
 - `SESSION_NOT_FOUND_MESSAGE` (`rpc-error-message.ts`): the sentence `This session no longer exists.` that any `NOT_FOUND` answer for a session shows (model switch, compaction)
-- `escapeInTerminal(scopeEl)` (`routes/__root.tsx`): true when focus is inside `[data-terminal-screen]`
 
 ## Invariants
 
