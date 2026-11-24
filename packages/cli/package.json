@@ -23,7 +23,11 @@
   ],
   "type": "module",
   "exports": {
-    "./bin": "./dist/bin.js"
+    "./bin": "./dist/bin.js",
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    }
   },
   "publishConfig": {
     "access": "public"
@@ -34,7 +38,7 @@
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "test": "node node_modules/@conciv/vitest-config/src/run-tests.ts"
   },
   "dependencies": {
     "@ast-grep/napi": "^0.51.0"
@@ -47,8 +51,6 @@
     "@conciv/db": "workspace:^",
     "@conciv/harness-init": "workspace:^",
     "@conciv/plugin": "workspace:^",
-    "@conciv/plugin-page": "workspace:^",
-    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
@@ -65,5 +67,13 @@
     "vite": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "vitest": "^5.1.0"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
   }
 }

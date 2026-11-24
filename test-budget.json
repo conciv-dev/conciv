@@ -1,7 +1,7 @@
 {
   "@conciv/ai": 10,
   "@conciv/app": 122,
-  "@conciv/cli": 19,
+  "@conciv/cli": 18,
   "@conciv/contract": 7,
   "@conciv/core": 120,
   "@conciv/db": 6,
@@ -11,7 +11,7 @@
   "@conciv/plugin": 6,
   "@conciv/plugin-host": 10,
   "@conciv/plugin-ios": 5,
-  "@conciv/plugin-page": 38,
+  "@conciv/plugin-page": 40,
   "@conciv/plugin-recorder": 11,
   "@conciv/plugin-tanstack": 5,
   "@conciv/plugin-terminal": 5,

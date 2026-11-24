@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
 import {createEngine} from '../test/engine.js'
-import {cli} from '../test/cli.js'
+import {cli} from './testing.js'
 
 describe('auth', () => {
   it('link prints a one-time login link, revoke lists and revokes, and an unknown id is a user error', async () => {

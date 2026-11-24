@@ -1,29 +1,18 @@
 import {realpathSync} from 'node:fs'
-import {writeFile} from 'node:fs/promises'
-import {join} from 'node:path'
 import {describe, expect} from 'vitest'
 import {z} from 'zod'
-import {makeRpcClient} from '@conciv/contract'
 import {prepareHome, recordHubConnection, withHomeDb} from '@conciv/db'
-import {createEngine} from '@conciv/plugin-testkit'
-import {test} from '../test/hub-test.js'
+import {createEngine} from '../test/engine.js'
+import {test} from './testing.js'
 
 describe('the hub', () => {
-  test('an outside agent lists the open tabs (none, then a tab with its project, branch and page), discovers and runs code with no tab on the engine registered in the home, is told to pass a tab for a tool that needs a session, then queues page actions on a tab and reads the finished queue first thing in its next discover_tools reply, while a queue it started that finishes reaches a second hub on the same home with the next call that hub makes on the tab and never the first hub again; a tasks client running two queueing calls at once gets a task per call holding only its own queue, and a task whose engine restarted ends failed naming the lost queue; an engine without the page plugin lists no tabs and says a tab is not open, an engine whose page plugin answers outside the expected shape is named too old, and a session whose tabs cannot be read is listed with none', async ({
+  test('on the engine registered in the home, with no tab, an outside agent discovers and runs code and is told to pass a tab for a tool that needs a session; an engine without the page plugin lists no tabs and says a tab is not open, an engine whose page plugin answers outside the expected shape is named too old, and a session whose tabs cannot be read is listed with none', async ({
     hub,
-    tasksHub,
   }) => {
-    const engine = await createEngine(
-      {plugins: ['@conciv/plugin-page', './test/fixtures/plugins/plant-shelf']},
-      {git: true},
-    )
-    await writeFile(join(engine.root, 'package.json'), JSON.stringify({name: 'plant-shop'}))
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
     withHomeDb(await prepareHome(engine.home), (db) => recordHubConnection(db, 'claude', Date.now()))
     const agent = await hub(engine.home)
-
-    const tabs = await agent.callTool('list_tabs', {})
-    expect(tabs.isError).toBeUndefined()
-    expect(tabs.content).toEqual([{type: 'text', text: JSON.stringify({tabs: [], unreachable: []})}])
+    const tab = engine.session.id
 
     const discovered = await agent.callTool('discover_tools', {toolNames: ['shelf_label']})
     expect(discovered.isError).toBeUndefined()
@@ -44,202 +33,16 @@ describe('the hub', () => {
       {type: 'text', text: 'pass tab to execute_typescript; list_tabs lists the open tabs'},
     ])
 
-    const sessionId = engine.session.id
-    const connectionId = 'shelf'
-    const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
-    const attachment = engine.rpc
-      .call('experimental.page', 'attach', {sessionId, connectionId, version: 1})
-      .catch(() => 'closed')
-    await attached.arrived
-    await engine.rpc.call('experimental.page', 'state', {
-      sessionId,
-      connectionId,
-      state: {
-        id: 'tab_22222222-2222-4222-8222-222222222222',
-        url: 'http://localhost:3000/shelf',
-        title: 'Shelf',
-        focused: true,
-        visible: true,
-      },
-    })
-    const listed = await agent.callTool('list_tabs', {})
-    const listing = z
-      .object({tabs: z.array(z.object({root: z.string()}).loose()), unreachable: z.array(z.unknown())})
-      .parse(JSON.parse(z.tuple([z.object({text: z.string()})]).parse(listed.content)[0].text))
-    expect(listing.tabs.map((row) => realpathSync(row.root))).toEqual([engine.root])
-    expect(listing).toEqual({
-      tabs: [
-        {
-          tab: sessionId,
-          project: 'plant-shop',
-          branch: 'main',
-          root: expect.any(String),
-          href: 'http://localhost:3000/shelf',
-          pageTitle: 'Shelf',
-          state: 'visible',
-          sessionTitle: expect.any(String),
-          lastActive: expect.any(String),
-          running: false,
-          harness: expect.any(String),
-          browserTabs: [
-            {
-              id: 'tab_22222222-2222-4222-8222-222222222222',
-              href: 'http://localhost:3000/shelf',
-              pageTitle: 'Shelf',
-              state: 'visible',
-            },
-          ],
-        },
-      ],
-      unreachable: [],
-    })
-
-    const queueOnTab = async (client: typeof agent, selector: string) => {
-      const command = await engine.event('rpc.experimental.page.control', {data: {type: 'command', connectionId}})
-      const played = await engine.event('rpc.experimental.page.queue.finished')
-      const queued = await client.callTool('execute_typescript', {
-        tab: sessionId,
-        typescriptCode: `return await external_page_queue_async({actions: [{tool: 'page_click', selector: '${selector}'}]})`,
-      })
-      const queuedText = z
-        .array(z.object({text: z.string()}))
-        .parse(queued.content)
-        .map((part) => part.text)
-        .join('\n')
-      const queueId = /"queueId":"(q_[^"]+)","actions":1/.exec(queuedText)?.[1]
-      const answer = async (waited: Promise<{data: unknown}>, value: unknown) => {
-        const {requestId} = z.object({requestId: z.string()}).parse((await waited).data)
-        await engine.rpc.call('experimental.page', 'result', {
-          sessionId,
-          connectionId,
-          requestId,
-          outcome: {type: 'success', result: {value, files: []}},
-        })
-      }
-      const clicked = await engine.event('rpc.experimental.page.control', {data: {type: 'command', connectionId}})
-      await answer(command.arrived, null)
-      await answer(clicked.arrived, true)
-      await played.arrived
-      return {content: queued.content, queueId}
-    }
-    const playedNotice = (queueId: string | undefined) => ({
-      type: 'text',
-      text: expect.stringMatching(new RegExp(`^queue ${queueId} finished: 1 played, 0 failed\n`)),
-    })
-    const instructions = await makeRpcClient(engine.address.apiBase, {
-      token: engine.address.token,
-    }).sessions.instructions({sessionId})
-
-    const watered = await queueOnTab(agent, '#water')
-    expect(z.array(z.unknown()).parse(watered.content)[0]).toEqual({type: 'text', text: instructions.text})
-    expect(watered.queueId).toBeDefined()
-    const rediscovered = await agent.callTool('discover_tools', {tab: sessionId, toolNames: ['shelf_label']})
-    expect(rediscovered.content).toEqual([
-      playedNotice(watered.queueId),
-      {type: 'text', text: expect.stringContaining('Print a label for a plant on the shelf')},
-    ])
-
-    const misted = await queueOnTab(agent, '#mist')
-    expect(misted.queueId).toBeDefined()
-    const secondAgent = await hub(engine.home)
-    const elsewhere = await secondAgent.callTool('execute_typescript', {
-      tab: sessionId,
-      typescriptCode: "return 'misted'",
-    })
-    expect(elsewhere.content).toEqual([
-      {type: 'text', text: instructions.text},
-      playedNotice(misted.queueId),
-      {type: 'text', text: JSON.stringify({result: 'misted', logs: []})},
-    ])
-    const after = await agent.callTool('execute_typescript', {tab: sessionId, typescriptCode: "return 'watered'"})
-    expect(after.content).toEqual([{type: 'text', text: JSON.stringify({result: 'watered', logs: []})}])
-    const tasks = tasksHub(engine.home)
-    const TaskSchema = z.object({resultType: z.literal('task'), taskId: z.string(), status: z.literal('working')})
-    const CompletedSchema = z.object({
-      status: z.literal('completed'),
-      result: z.object({content: z.array(z.object({text: z.string()}))}),
-    })
-    const queueTask = async (selector: string) =>
-      TaskSchema.parse(
-        await tasks.request('tools/call', {
-          name: 'execute_typescript',
-          arguments: {
-            tab: sessionId,
-            typescriptCode: `return await external_page_queue_async({actions: [{tool: 'page_click', selector: '${selector}'}]})`,
-          },
-        }),
-      )
-    const pollTask = (taskId: string) => tasks.request('tasks/get', {taskId})
-    const refuse = async (waited: Promise<{data: unknown}>) => {
-      const refused = z.object({requestId: z.string()}).parse((await waited).data)
-      await engine.rpc.call('experimental.page', 'result', {
-        sessionId,
-        connectionId,
-        requestId: refused.requestId,
-        outcome: {type: 'failure', code: 'closed', message: 'the shelf is closed'},
-      })
-    }
-    const ownQueues = (completed: unknown) => {
-      const texts = CompletedSchema.parse(completed).result.content.map((part) => part.text)
-      const handed = texts.flatMap((text) => /"queueId":"(q_[^"]+)","actions":1/.exec(text)?.[1] ?? [])
-      const noticed = texts.flatMap((text) => /^queue (q_\S+) lost: 0 played, 0 failed\n/.exec(text)?.[1] ?? [])
-      return {handed, noticed}
-    }
-
-    const firstCommand = await engine.event('rpc.experimental.page.control', {data: {type: 'command', connectionId}})
-    const [feed, prune] = await Promise.all([queueTask('#feed'), queueTask('#prune')])
-    const firstFinished = await engine.event('rpc.experimental.page.queue.finished')
-    const secondCommand = await engine.event('rpc.experimental.page.control', {data: {type: 'command', connectionId}})
-    await refuse(firstCommand.arrived)
-    await firstFinished.arrived
-    const secondFinished = await engine.event('rpc.experimental.page.queue.finished')
-    await refuse(secondCommand.arrived)
-    await secondFinished.arrived
-    const fed = ownQueues(await pollTask(feed.taskId))
-    const pruned = ownQueues(await pollTask(prune.taskId))
-    expect(fed.handed).toHaveLength(1)
-    expect(pruned.handed).toHaveLength(1)
-    expect(fed.noticed).toEqual(fed.handed)
-    expect(pruned.noticed).toEqual(pruned.handed)
-    expect(fed.handed).not.toEqual(pruned.handed)
-
-    const stranded = await queueTask('#water')
-    expect(await pollTask(stranded.taskId)).toMatchObject({taskId: stranded.taskId, status: 'working'})
-    await engine.restart()
-    expect(await attachment).toBe('closed')
-    const lost = await pollTask(stranded.taskId)
-    expect(lost).toEqual({
-      _meta: {'io.modelcontextprotocol/serverInfo': {name: 'conciv-hub', version: expect.any(String)}},
-      resultType: 'complete',
-      taskId: stranded.taskId,
-      createdAt: expect.any(String),
-      ttlMs: 3_600_000,
-      status: 'failed',
-      lastUpdatedAt: expect.any(String),
-      statusMessage: expect.stringMatching(
-        /^queue q_\S+ was lost: the engine holding the tab no longer has it \(it restarted\), so its actions may have partly run$/,
-      ),
-    })
-    expect(await pollTask(stranded.taskId)).toEqual(lost)
-
-    const bare = await createEngine({plugins: ['-@conciv/plugin-page', './test/fixtures/plugins/plant-shelf']})
-    withHomeDb(await prepareHome(bare.home), (db) => recordHubConnection(db, 'claude', Date.now()))
-    const bareAgent = await hub(bare.home)
-    const tab = bare.session.id
-
-    const none = await bareAgent.callTool('list_tabs', {})
+    const none = await agent.callTool('list_tabs', {})
     expect(none.isError).toBeUndefined()
     expect(none.content).toEqual([{type: 'text', text: JSON.stringify({tabs: [], unreachable: []})}])
 
-    const notOpen = await bareAgent.callTool('execute_typescript', {tab, typescriptCode: "return 'fern'"})
+    const notOpen = await agent.callTool('execute_typescript', {tab, typescriptCode: "return 'fern'"})
     expect(notOpen.isError).toBe(true)
     expect(notOpen.content).toEqual([{type: 'text', text: `TAB_NOT_OPEN: tab ${tab} is not open; call list_tabs`}])
 
-    const old = await createEngine(
-      {plugins: ['-@conciv/plugin-page', './test/fixtures/plugins/old-page']},
-      {home: bare.home},
-    )
-    const oldListed = await bareAgent.callTool('list_tabs', {})
+    const old = await createEngine({plugins: ['./test/fixtures/plugins/old-page']}, {home: engine.home})
+    const oldListed = await agent.callTool('list_tabs', {})
     const oldListing = z
       .object({tabs: z.array(z.unknown()), unreachable: z.array(z.object({root: z.string(), error: z.string()}))})
       .parse(JSON.parse(z.tuple([z.object({text: z.string()})]).parse(oldListed.content)[0].text))
@@ -250,7 +53,7 @@ describe('the hub', () => {
       unreachable: [{root: tooOld?.root, error: 'engine too old; upgrade its @conciv packages'}],
     })
 
-    const unknown = await bareAgent.callTool('execute_typescript', {tab, typescriptCode: "return 'fern'"})
+    const unknown = await agent.callTool('execute_typescript', {tab, typescriptCode: "return 'fern'"})
     expect(unknown.isError).toBe(true)
     expect(unknown.content).toEqual([
       {
@@ -259,12 +62,9 @@ describe('the hub', () => {
       },
     ])
 
-    const broken = await createEngine(
-      {plugins: ['-@conciv/plugin-page', './test/fixtures/plugins/broken-page']},
-      {home: bare.home},
-    )
+    const broken = await createEngine({plugins: ['./test/fixtures/plugins/broken-page']}, {home: engine.home})
     await broken.rpc.call('experimental.page', 'attach', {sessionId: broken.session.id})
-    const withBroken = await bareAgent.callTool('list_tabs', {})
+    const withBroken = await agent.callTool('list_tabs', {})
     const brokenListing = z
       .object({tabs: z.array(z.object({root: z.string()}).loose()), unreachable: z.array(z.unknown())})
       .parse(JSON.parse(z.tuple([z.object({text: z.string()})]).parse(withBroken.content)[0].text))

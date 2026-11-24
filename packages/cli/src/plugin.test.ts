@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {createEngine} from '../test/engine.js'
-import {cli} from '../test/cli.js'
+import {cli} from './testing.js'
 
 describe('plugin call', () => {
   it('the output prints, bad JSON sends nothing, and a failing method prints its code, type and data', async () => {

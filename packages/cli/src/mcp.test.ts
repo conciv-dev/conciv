@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {cli} from '../test/cli.js'
+import {cli} from './testing.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('mcp', () => {

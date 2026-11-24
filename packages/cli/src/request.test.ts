@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {createEngine} from '../test/engine.js'
-import {cli} from '../test/cli.js'
+import {cli} from './testing.js'
 
 describe('session', () => {
   it('a bad CONCIV_SESSION_ID is refused, and an asking tool run in the named session waits until it is approved', async () => {

@@ -72,7 +72,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/cli": "workspace:*",
     "@conciv/core": "workspace:*",
+    "@conciv/db": "workspace:*",
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
