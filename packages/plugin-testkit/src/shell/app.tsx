@@ -6,6 +6,7 @@ import {
   Panel,
   Server,
   SettingsPage,
+  Slot,
   type Context,
   type Plugin,
   type PluginOptions,
@@ -76,11 +77,9 @@ function ToolCard(props: {shell: Shell; tool: ShellTool}): JSX.Element {
   )
 }
 
-export function FakeApp<S extends Stores, I extends Icons>(props: FakeAppProps<S, I>): JSX.Element {
-  const shell = untrack(() => createShell({id: props.id, options: props.options, engine: props.engine}))
-  onCleanup(shell.dispose)
+function ShellView<S extends Stores, I extends Icons>(props: FakeAppProps<S, I> & {shell: Shell}): JSX.Element {
+  const shell = untrack(() => props.shell)
   untrack(() => setUp(shell, props.id, props.plugin))
-  const queries = new QueryClient({defaultOptions: {queries: {retry: false}}})
   const [view, setView] = createStore<{tab?: string}>({})
   const screen = () => shell.context.screen.current()
   const tabs = () => {
@@ -96,57 +95,67 @@ export function FakeApp<S extends Stores, I extends Icons>(props: FakeAppProps<S
   }
   const selected = () => view.tab ?? tabs()[0]?.tab.id
   return (
-    <QueryClientProvider client={queries}>
-      <PluginContext.Provider value={shell.context}>
-        <main aria-label="App shell" class="flex flex-col gap-3">
-          <For each={shell.context.list(Server)}>
-            {(server) => <For each={server.entries}>{(entry) => entry.cover?.({tab: undefined})}</For>}
-          </For>
-          <Show when={tabs().length > 0}>
-            <div role="tablist" aria-label="Panels" class="flex gap-2">
-              <For each={tabs()}>
-                {(item) => (
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={selected() === item.tab.id}
-                    onClick={() => setView('tab', item.tab.id)}
-                  >
-                    {item.tab.title}
-                  </button>
-                )}
-              </For>
-            </div>
-            <For each={tabs().filter((item) => item.tab.id === selected())}>
-              {(item) => (
-                <section role="tabpanel" aria-label={item.tab.title}>
-                  {item.panel.render({tab: item.tab, session: shell.session, screen: item.screen})}
-                </section>
-              )}
-            </For>
-          </Show>
-          <For each={shell.context.list(SettingsPage)}>
-            {(page) => <section aria-label={page.title}>{page.render({})}</section>}
-          </For>
-          <For each={props.tools}>{(tool) => <ToolCard shell={shell} tool={tool} />}</For>
-          {props.children}
-          <Show when={shell.state.composer.parts.length > 0}>
-            <ul aria-label="Composer attachments">
-              <For each={shell.state.composer.parts}>
-                {(part) => <li>{part.type === 'file' ? part.path : part.type === 'note' ? part.label : part.text}</li>}
-              </For>
-            </ul>
-          </Show>
-          <For each={shell.state.toasts}>
-            {(toast) => (
-              <div role="status">
-                {toast.title}
-                {toast.description}
-              </div>
+    <main aria-label="App shell" data-conciv-root class="flex flex-col gap-3">
+      <For each={shell.context.list(Slot)}>{(slot) => (slot.at === 'page.overlay' ? slot.render({}) : undefined)}</For>
+      <For each={shell.context.list(Server)}>
+        {(server) => <For each={server.entries}>{(entry) => entry.cover?.({tab: undefined})}</For>}
+      </For>
+      <Show when={tabs().length > 0}>
+        <div role="tablist" aria-label="Panels" class="flex gap-2">
+          <For each={tabs()}>
+            {(item) => (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={selected() === item.tab.id}
+                onClick={() => setView('tab', item.tab.id)}
+              >
+                {item.tab.title}
+              </button>
             )}
           </For>
-          <For each={shell.state.dialogs}>{(dialog) => dialog.render()}</For>
-        </main>
+        </div>
+        <For each={tabs().filter((item) => item.tab.id === selected())}>
+          {(item) => (
+            <section role="tabpanel" aria-label={item.tab.title}>
+              {item.panel.render({tab: item.tab, session: shell.session, screen: item.screen})}
+            </section>
+          )}
+        </For>
+      </Show>
+      <For each={shell.context.list(SettingsPage)}>
+        {(page) => <section aria-label={page.title}>{page.render({})}</section>}
+      </For>
+      <For each={props.tools}>{(tool) => <ToolCard shell={shell} tool={tool} />}</For>
+      {props.children}
+      <Show when={shell.state.composer.parts.length > 0}>
+        <ul aria-label="Composer attachments">
+          <For each={shell.state.composer.parts}>
+            {(part) => <li>{part.type === 'file' ? part.path : part.type === 'note' ? part.label : part.text}</li>}
+          </For>
+        </ul>
+      </Show>
+      <For each={shell.state.toasts}>
+        {(toast) => (
+          <div role="status">
+            {toast.title}
+            {toast.description}
+          </div>
+        )}
+      </For>
+      <For each={shell.state.dialogs}>{(dialog) => dialog.render()}</For>
+    </main>
+  )
+}
+
+export function FakeApp<S extends Stores, I extends Icons>(props: FakeAppProps<S, I>): JSX.Element {
+  const shell = untrack(() => createShell({id: props.id, options: props.options, engine: props.engine}))
+  onCleanup(shell.dispose)
+  const queries = new QueryClient({defaultOptions: {queries: {retry: false}}})
+  return (
+    <QueryClientProvider client={queries}>
+      <PluginContext.Provider value={shell.context}>
+        <ShellView {...props} shell={shell} />
       </PluginContext.Provider>
     </QueryClientProvider>
   )

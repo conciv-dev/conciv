@@ -54,7 +54,7 @@ describe('with no page open, the agent is offered no page tools', () => {
 })
 
 describe('the agent reads the page in code mode', () => {
-  it('gives the model the page instructions once a page attaches, and tells it the exported page result is untrusted page data; a queue that finishes tells whoever started it: an outside agent reads its finished queue once through queue.outside, asked with the ids of a later call or none, and the session hears nothing of it, while a queue the session started reaches the session as one message and its queue.wait answer carries the same notice', async () => {
+  it('gives the model the page tools, the page skill and the page instructions once a page attaches, an outside agent finds the page tools, and tells it the exported page result is untrusted page data; a queue that finishes tells whoever started it: an outside agent reads its finished queue once through queue.outside, asked with the ids of a later call or none, and the session hears nothing of it, while a queue the session started reaches the session as one message and its queue.wait answer carries the same notice', async () => {
     const engine = await createEngine({plugins: [PAGE_PLUGIN], hubAccess: 'open'})
     const sessionId = engine.session.id
     const connectionId = 'checkout'
@@ -91,6 +91,11 @@ describe('the agent reads the page in code mode', () => {
     expect(first?.system.join('\n')).toContain(
       'Live DOM, CSS and React tweaks made through the page capabilities are EPHEMERAL',
     )
+    expect(first?.system.join('\n')).toContain('external_page_click')
+    expect(first?.system.join('\n')).toContain('    <id>page</id>')
+    const found = await engine.outside({tab: sessionId}).discover(['page_click'])
+    expect(found).toMatchObject({content: [{type: 'text', text: expect.stringContaining('page_click')}]})
+    expect(found).not.toMatchObject({content: [{type: 'text', text: expect.stringContaining('Unknown tool')}]})
     expect(second?.messages.at(-1)).toMatchObject({
       role: 'tool',
       toolCallId: 'c1',
@@ -197,6 +202,17 @@ describe('the agent reads the page in code mode', () => {
     })
     await engine.restart()
     expect(await attachment).toBe('closed')
+  })
+})
+
+describe('the page plugin the engine starter lists after the config plugins', () => {
+  it("its deny rules come after the config's permissions, so with no page open a config allow for page grants nothing", async () => {
+    const engine = await createEngine({permission: {page: 'allow'}}, {post: [PAGE_PLUGIN]})
+
+    expect(await engine.session.tool('page_tabs_list').failure({})).toMatchObject({
+      tool: 'page_tabs_list',
+      message: expect.stringContaining("'external_page_tabs_list' is not defined"),
+    })
   })
 })
 
