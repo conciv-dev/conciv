@@ -1,6 +1,6 @@
 import {useRef, type ReactNode} from 'react'
-import AnimatedContent from '@/components/AnimatedContent'
-import VariableProximity from '@/components/VariableProximity'
+import AnimatedContent from '../AnimatedContent'
+import VariableProximity from '../VariableProximity'
 import {RobotFab} from './robot-fab'
 import {ConcivMark} from '@conciv/brand-react'
 import {FrameworkTabs} from './framework-tabs'

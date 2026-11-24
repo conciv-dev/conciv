@@ -1,13 +1,13 @@
 import {useSyncExternalStore} from 'react'
 import {Link} from '@tanstack/react-router'
-import {Button} from '@/components/ui/button'
+import {Button} from '../ui/button'
 import {
   CONNECTION_CHANGED_EVENT,
   type EventBusClientState,
   type WidgetConnectionChangedDetail,
 } from '@conciv/protocol/event-bus'
-import {panelCommands} from '@/lib/panel-commands'
-import {tryButtonLabel} from '@/lib/try-state'
+import {panelCommands} from '../../lib/panel-commands'
+import {tryButtonLabel} from '../../lib/try-state'
 
 declare global {
   interface WindowEventMap {

@@ -1,4 +1,4 @@
-import {LogoLoop, type LogoItem} from '@/components/LogoLoop'
+import {LogoLoop, type LogoItem} from '../LogoLoop'
 
 const BUNDLERS = [
   {icon: '/icons/vite.svg', name: 'Vite', href: '/docs/quick-start/vite'},

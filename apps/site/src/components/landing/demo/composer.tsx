@@ -1,8 +1,8 @@
 import {type RefObject} from 'react'
 import {ArrowUp, Crosshair} from 'lucide-react'
-import {Button} from '@/components/ui/button'
-import {Input} from '@/components/ui/input'
-import {cn} from '@/lib/utils'
+import {Button} from '../../ui/button'
+import {Input} from '../../ui/input'
+import {cn} from '../../../lib/utils'
 import {GrabReference} from './grab-reference'
 import type {Pickable} from './demo-data'
 

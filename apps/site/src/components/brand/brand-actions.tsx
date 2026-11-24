@@ -1,8 +1,8 @@
 import {useEffect} from 'react'
 import {useMutation, type MutationStatus} from '@tanstack/react-query'
 import {Check, Copy, Download, TriangleAlert} from 'lucide-react'
-import {Button} from '@/components/ui/button'
-import {brandAssetUrl} from '@/lib/brand-assets'
+import {Button} from '../ui/button'
+import {brandAssetUrl} from '../../lib/brand-assets'
 
 const RESET_DELAY = 1400
 

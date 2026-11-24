@@ -1,4 +1,4 @@
-import {createUnplugin, type UnpluginInstance, type UnpluginOptions} from 'unplugin'
+import {createUnplugin, type UnpluginInstance} from 'unplugin'
 import type {Engine} from '@conciv/core/start'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {makeEngineBooter, type Builtins} from './core/boot.js'
@@ -151,7 +151,7 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
     return {
       name: 'conciv',
 
-      vite: makeViteHook(options, builtins) as UnpluginOptions['vite'],
+      vite: makeViteHook(options, builtins),
       webpack: serveWidgetInDevelopment,
       rspack: serveWidgetInDevelopment,
       rollup: {},

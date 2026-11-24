@@ -1,7 +1,7 @@
 import {Suspense, lazy} from 'react'
 import {ClientOnly, Link} from '@tanstack/react-router'
-import {Badge} from '@/components/ui/badge'
-import {useIsMobile} from '@/lib/use-is-mobile'
+import {Badge} from '../ui/badge'
+import {useIsMobile} from '../../lib/use-is-mobile'
 import {TryLiveButton} from './try-live-button'
 import {InstallChip} from './install-chip'
 

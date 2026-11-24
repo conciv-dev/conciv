@@ -1,5 +1,5 @@
 import {X} from 'lucide-react'
-import {Button} from '@/components/ui/button'
+import {Button} from '../../ui/button'
 import type {Pickable} from './demo-data'
 
 export function GrabReference({pickable, onUngrab}: {pickable: Pickable; onUngrab: () => void}) {

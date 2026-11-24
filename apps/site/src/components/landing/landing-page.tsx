@@ -1,4 +1,4 @@
-import ClickSpark from '@/components/ClickSpark'
+import ClickSpark from '../ClickSpark'
 import {SiteNav} from './site-nav'
 import {Hero} from './hero'
 import {LandingMotion} from './lazy-motion'

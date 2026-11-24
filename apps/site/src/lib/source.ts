@@ -1,6 +1,6 @@
 import {createElement} from 'react'
 import {loader} from 'fumadocs-core/source'
-import {docs} from 'collections/server'
+import {docs} from '../../.source/server'
 import {
   Bot,
   Boxes,

@@ -39,6 +39,7 @@ const SplitText: React.FC<SplitTextProps> = ({
 }) => {
   const ref = useRef<HTMLParagraphElement>(null)
   const animationCompletedRef = useRef(false)
+  const splitRef = useRef<GSAPSplitText | undefined>(undefined)
   const onCompleteRef = useRef(onLetterAnimationComplete)
   const [fontsLoaded, setFontsLoaded] = useState<boolean>(false)
 
@@ -55,15 +56,13 @@ const SplitText: React.FC<SplitTextProps> = ({
       if (!ref.current || !text || !fontsLoaded) return
 
       if (animationCompletedRef.current) return
-      const el = ref.current as HTMLElement & {
-        _rbsplitInstance?: GSAPSplitText
-      }
+      const el = ref.current
 
-      if (el._rbsplitInstance) {
+      if (splitRef.current) {
         try {
-          el._rbsplitInstance.revert()
+          splitRef.current.revert()
         } catch {}
-        el._rbsplitInstance = undefined
+        splitRef.current = undefined
       }
 
       const startPct = (1 - threshold) * 100
@@ -79,8 +78,7 @@ const SplitText: React.FC<SplitTextProps> = ({
       const start = `top ${startPct}%${sign}`
       let targets: Element[] = []
       const assignTargets = (self: GSAPSplitText) => {
-        if (splitType.includes('chars') && (self as GSAPSplitText).chars?.length)
-          targets = (self as GSAPSplitText).chars
+        if (splitType.includes('chars') && self.chars?.length) targets = self.chars
         if (!targets.length && splitType.includes('words') && self.words.length) targets = self.words
         if (!targets.length && splitType.includes('lines') && self.lines.length) targets = self.lines
         if (!targets.length) targets = self.chars || self.words || self.lines
@@ -120,7 +118,7 @@ const SplitText: React.FC<SplitTextProps> = ({
           )
         },
       })
-      el._rbsplitInstance = splitInstance
+      splitRef.current = splitInstance
       return () => {
         ScrollTrigger.getAll().forEach((st) => {
           if (st.trigger === el) st.kill()
@@ -128,7 +126,7 @@ const SplitText: React.FC<SplitTextProps> = ({
         try {
           splitInstance.revert()
         } catch {}
-        el._rbsplitInstance = undefined
+        splitRef.current = undefined
       }
     },
     {
@@ -155,7 +153,7 @@ const SplitText: React.FC<SplitTextProps> = ({
       willChange: 'transform, opacity',
     }
     const classes = `split-parent overflow-hidden inline-block whitespace-normal ${className}`
-    const Tag = (tag || 'p') as React.ElementType
+    const Tag = tag || 'p'
 
     return (
       <Tag ref={ref} style={style} className={classes}>

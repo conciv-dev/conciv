@@ -1,7 +1,7 @@
 import {Link} from '@tanstack/react-router'
 import {ConcivLockup} from '@conciv/brand-react'
 import {GitHubStarLink} from './github-star-link'
-import {repoUrl} from '@/lib/shared'
+import {repoUrl} from '../../lib/shared'
 
 const PRODUCT = [
   {label: 'Docs', splat: ''},

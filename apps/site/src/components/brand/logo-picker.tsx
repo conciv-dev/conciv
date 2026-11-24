@@ -1,5 +1,5 @@
 import {useState} from 'react'
-import {Button} from '@/components/ui/button'
+import {Button} from '../ui/button'
 import {
   downloadFiles,
   humanLabel,
@@ -10,7 +10,7 @@ import {
   resolveTone,
   type LogoFormat,
   type LogoLayout,
-} from '@/lib/brand-assets'
+} from '../../lib/brand-assets'
 import {BrandBackdrop, BrandImage} from './brand-preview'
 import {CopySvgButton, DownloadButton} from './brand-actions'
 

@@ -1,8 +1,8 @@
 import {useSyncExternalStore} from 'react'
-import {cn} from '@/lib/utils'
-import {repoUrl} from '@/lib/shared'
-import {formatStarCount} from '@/lib/star-count'
-import {getServerStarCountSnapshot, getStarCountSnapshot, subscribeStarCount} from '@/lib/star-count-store'
+import {cn} from '../../lib/utils'
+import {repoUrl} from '../../lib/shared'
+import {formatStarCount} from '../../lib/star-count'
+import {getServerStarCountSnapshot, getStarCountSnapshot, subscribeStarCount} from '../../lib/star-count-store'
 
 function GithubMark({className}: {className?: string}) {
   return (

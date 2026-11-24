@@ -1,6 +1,6 @@
 import {createFileRoute} from '@tanstack/react-router'
-import {source} from '@/lib/source'
-import {brandPageUrl, buildSitemapXml, landingPageUrl, SITE} from '@/lib/site-urls'
+import {source} from '../lib/source'
+import {brandPageUrl, buildSitemapXml, landingPageUrl, SITE} from '../lib/site-urls'
 
 export const Route = createFileRoute('/sitemap.xml')({
   server: {

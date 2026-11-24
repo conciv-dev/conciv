@@ -18,9 +18,8 @@ export function navigatePath(root: unknown, path: string): {found: boolean; valu
   let cur: unknown = root
   for (const seg of path.split('.')) {
     if (cur === null || typeof cur !== 'object') return {found: false, value: undefined}
-    const obj = cur as Record<string, unknown>
-    if (!(seg in obj)) return {found: false, value: undefined}
-    cur = obj[seg]
+    if (!Reflect.has(cur, seg)) return {found: false, value: undefined}
+    cur = Reflect.get(cur, seg)
   }
   return {found: true, value: cur}
 }
@@ -111,10 +110,16 @@ function collectionPreview(value: object): unknown {
   return binaryPreview(value)
 }
 
+function binarySize(value: ArrayBufferView | ArrayBuffer): number {
+  if (value instanceof ArrayBuffer) return value.byteLength
+  const length: unknown = Reflect.get(value, 'length')
+  return typeof length === 'number' ? length : value.byteLength
+}
+
 function binaryPreview(value: object): unknown {
   if (!ArrayBuffer.isView(value) && !(value instanceof ArrayBuffer)) return undefined
   const name = ctorName(value) || 'ArrayBuffer'
-  const size = 'length' in value ? (value as {length: number}).length : (value as ArrayBuffer).byteLength
+  const size = binarySize(value)
   return {__conciv: 'binary', size, preview: `${name}(${size})`}
 }
 
@@ -140,7 +145,7 @@ function walk(
   const special = specialPreview(value, opts.stringCap)
   if (special !== undefined) return special
   if (Array.isArray(value)) return walkArray(value, depth, seen, budget, opts)
-  return classPreview(value) ?? walkObject(value as Record<string, unknown>, depth, seen, budget, opts)
+  return classPreview(value) ?? walkObject(value, depth, seen, budget, opts)
 }
 
 function countKeys(v: object): number {
@@ -172,7 +177,7 @@ function walkArray(
 }
 
 function walkObject(
-  obj: Record<string, unknown>,
+  obj: object,
   depth: number,
   seen: WeakSet<object>,
   budget: Budget,
@@ -185,9 +190,8 @@ function walkObject(
   budget.nodes -= 1
   const out: Record<string, unknown> = {}
   const limit = Math.min(keys.length, opts.maxItems)
-  for (let i = 0; i < limit; i++) {
+  for (const key of keys.slice(0, limit)) {
     if (budget.nodes <= 0) break
-    const key = keys[i] as string
     if (opts.redact && opts.redact.test(key)) {
       out[key] = '[redacted]'
       continue
@@ -200,7 +204,7 @@ function walkObject(
 }
 
 function readKey(
-  obj: Record<string, unknown>,
+  obj: object,
   key: string,
   depth: number,
   seen: WeakSet<object>,
@@ -208,7 +212,7 @@ function readKey(
   opts: Required<Omit<DehydrateOptions, 'redact'>> & {redact: RegExp | null},
 ): unknown {
   try {
-    return walk(obj[key], depth + 1, seen, budget, opts)
+    return walk(Reflect.get(obj, key), depth + 1, seen, budget, opts)
   } catch {
     return '[getter threw]'
   }

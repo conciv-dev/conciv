@@ -1,6 +1,6 @@
 import {createFileRoute} from '@tanstack/react-router'
-import {gitConfig} from '@/lib/shared'
-import {parseStarCount} from '@/lib/star-count'
+import {gitConfig} from '../../lib/shared'
+import {parseStarCount} from '../../lib/star-count'
 
 const SUCCESS_CACHE_CONTROL = 'public, max-age=1800, s-maxage=3600, stale-while-revalidate=86400'
 const FAILURE_CACHE_CONTROL = 'public, max-age=60'

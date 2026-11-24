@@ -1,5 +1,5 @@
 import {createFileRoute} from '@tanstack/react-router'
-import {markdownPathToSlugs, source} from '@/lib/source'
+import {markdownPathToSlugs, source} from '../../lib/source'
 
 export const Route = createFileRoute('/og/{$}.png')({
   server: {
@@ -10,7 +10,7 @@ export const Route = createFileRoute('/og/{$}.png')({
         const page = source.getPage(slugs)
         if (!page) return new Response('Not found', {status: 404})
 
-        const {renderOgImageResponse, OG_IMAGE_CACHE_HEADERS} = await import('@/lib/og-render.server')
+        const {renderOgImageResponse, OG_IMAGE_CACHE_HEADERS} = await import('../../lib/og-render.server')
         return renderOgImageResponse({title: page.data.title, description: page.data.description}, request.url, {
           headers: OG_IMAGE_CACHE_HEADERS,
         })

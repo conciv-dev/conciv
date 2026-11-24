@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import {pipeline, env, type TextGenerationPipeline} from '@huggingface/transformers'
 import {DEFAULT_MODEL, type CssPatch, type LoadProgress, type RunResult} from './models'
 
@@ -135,21 +136,25 @@ const repair = (key: string, value: unknown): string | number | null => {
   return String(value)
 }
 
-const sanitize = (raw: unknown): CssPatch =>
-  Object.entries(raw as Record<string, unknown>)
+const ModelOutputSchema = z.record(z.string(), z.unknown())
+
+type ModelOutput = z.infer<typeof ModelOutputSchema>
+
+const sanitize = (raw: ModelOutput): CssPatch =>
+  Object.entries(raw)
     .filter(([key]) => ALLOWED.has(key))
     .reduce<CssPatch>((acc, [key, value]) => {
       const fixed = repair(key, value)
       return fixed === null ? acc : {...acc, [key]: fixed}
     }, {})
 
-const extractText = (raw: unknown): string | undefined => {
-  const text = (raw as Record<string, unknown>).text
+const extractText = (raw: ModelOutput): string | undefined => {
+  const text = raw.text
   return typeof text === 'string' && text.trim().length > 0 && text.length <= 120 ? text : undefined
 }
 
 const parse = (raw: string): {patch: CssPatch; text?: string} => {
-  const parsed = extractJson(raw)
+  const parsed = ModelOutputSchema.parse(extractJson(raw))
   return {patch: sanitize(parsed), text: extractText(parsed)}
 }
 

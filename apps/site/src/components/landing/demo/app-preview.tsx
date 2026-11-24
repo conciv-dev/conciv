@@ -1,5 +1,5 @@
-import {Badge} from '@/components/ui/badge'
-import {cn} from '@/lib/utils'
+import {Badge} from '../../ui/badge'
+import {cn} from '../../../lib/utils'
 
 export function AppPreview({picking, onPick}: {picking: boolean; onPick: (id: string) => void}) {
   return (

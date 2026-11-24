@@ -1,5 +1,5 @@
 import {Link} from '@tanstack/react-router'
-import Magnet from '@/components/Magnet'
+import Magnet from '../Magnet'
 import {CopyButton} from './copy-button'
 
 const COMMAND = 'npm i -D @conciv/it'

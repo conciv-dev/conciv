@@ -1,5 +1,5 @@
 import {type RefObject} from 'react'
-import {ScrollArea} from '@/components/ui/scroll-area'
+import {ScrollArea} from '../../ui/scroll-area'
 import {MessageRow} from './message-row'
 import type {Message} from './demo-data'
 

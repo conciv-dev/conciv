@@ -1,21 +1,27 @@
 import {use, useId} from 'react'
 import {useTheme} from 'next-themes'
+import type {RenderResult} from 'mermaid'
 
-const cache = new Map<string, Promise<unknown>>()
+function promiseCache<T>(): (key: string, setPromise: () => Promise<T>) => Promise<T> {
+  const cache = new Map<string, Promise<T>>()
+  return (key, setPromise) => {
+    const cached = cache.get(key)
+    if (cached) return cached
 
-function cachePromise<T>(key: string, setPromise: () => Promise<T>): Promise<T> {
-  const cached = cache.get(key)
-  if (cached) return cached as Promise<T>
-
-  const promise = setPromise()
-  cache.set(key, promise)
-  return promise
+    const promise = setPromise()
+    cache.set(key, promise)
+    return promise
+  }
 }
+
+const cachedModule = promiseCache<typeof import('mermaid')>()
+
+const cachedRender = promiseCache<RenderResult>()
 
 export function MermaidContent({chart}: {chart: string}) {
   const id = useId()
   const {resolvedTheme} = useTheme()
-  const {default: mermaid} = use(cachePromise('mermaid', () => import('mermaid')))
+  const {default: mermaid} = use(cachedModule('mermaid', () => import('mermaid')))
 
   mermaid.initialize({
     startOnLoad: false,
@@ -26,7 +32,7 @@ export function MermaidContent({chart}: {chart: string}) {
   })
 
   const {svg, bindFunctions} = use(
-    cachePromise(`${chart}-${resolvedTheme}`, () => {
+    cachedRender(`${chart}-${resolvedTheme}`, () => {
       return mermaid.render(id, chart.replaceAll('\\n', '\n'))
     }),
   )

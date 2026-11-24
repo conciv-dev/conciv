@@ -1,8 +1,8 @@
 import React, {useRef, useEffect} from 'react'
 import {gsap} from 'gsap'
 import {ScrollTrigger} from 'gsap/ScrollTrigger'
-import {useReducedMotion} from '@/lib/use-reduced-motion'
-import {gsapEaseOut} from '@/lib/motion-tokens'
+import {useReducedMotion} from '../lib/use-reduced-motion'
+import {gsapEaseOut} from '../lib/motion-tokens'
 
 if (!import.meta.env.SSR) gsap.registerPlugin(ScrollTrigger)
 

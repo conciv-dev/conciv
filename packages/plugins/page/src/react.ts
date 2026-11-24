@@ -166,17 +166,24 @@ type OverrideTarget = 'props' | 'state' | 'hooks' | 'context'
 type OverrideResult = {ok: true} | {error: string}
 
 function copyWithSet(obj: unknown, path: (string | number)[], value: unknown): unknown {
-  if (path.length === 0) return value
   const [head, ...rest] = path
-  const base = (Array.isArray(obj) ? [...obj] : {...(obj as object)}) as Record<string | number, unknown>
-  base[head as string] = copyWithSet(base[head as string], rest, value)
+  if (head === undefined) return value
+  const base: object = Array.isArray(obj) ? [...obj] : {...Object(obj)}
+  Reflect.set(base, head, copyWithSet(Reflect.get(base, head), rest, value))
   return base
 }
 
+function propertyHolder(value: unknown, key: string | number): object {
+  if (value === null || (typeof value !== 'object' && typeof value !== 'function'))
+    throw new TypeError(`Cannot reach '${String(key)}' of ${String(value)}`)
+  return value
+}
+
 function setInPlace(obj: Record<string, unknown>, path: (string | number)[], value: unknown): void {
-  let cur: Record<string, unknown> = obj
-  for (let i = 0; i < path.length - 1; i++) cur = cur[path[i] as string] as Record<string, unknown>
-  cur[path[path.length - 1] as string] = value
+  const [last] = path.slice(-1)
+  if (last === undefined) return
+  const parent = path.slice(0, -1).reduce<unknown>((cur, key) => Reflect.get(propertyHolder(cur, key), key), obj)
+  Reflect.set(propertyHolder(parent, last), last, value)
 }
 
 function composedFiber(fiber: Fiber): Fiber | undefined {
@@ -320,7 +327,7 @@ function attachTreeNode(byFiber: Map<Fiber, TreeNode>, out: TreeNode[], node: Fi
 function knownRootFibers(): Fiber[] {
   const roots: Fiber[] = []
   try {
-    for (const r of _fiberRoots as Iterable<{current?: Fiber}>) if (r?.current) roots.push(r.current)
+    for (const r of _fiberRoots) if (r?.current) roots.push(r.current)
   } catch {}
   return roots
 }
@@ -331,7 +338,7 @@ function scannedRootFibers(): Fiber[] {
   for (const el of Array.from(document.querySelectorAll('*'))) {
     const key = Object.keys(el).find(isReactDomKey)
     if (!key) continue
-    const fiber = (el as unknown as Record<string, Fiber>)[key]
+    const fiber: Fiber = Reflect.get(el, key)
     return [getLatestFiber(getFiberStack(fiber).at(-1)?.return ?? fiber)]
   }
   return []
@@ -349,7 +356,7 @@ export function rootFibers(): Fiber[] {
 const isNamedComposite = (node: Fiber, name: string): boolean => isCompositeFiber(node) && getDisplayName(node) === name
 
 export function elementByName(name: string): Element | null {
-  const found = {el: null as Element | null}
+  const found: {el: Element | null} = {el: null}
   for (const root of reactRootFibers()) {
     traverseFiber(root, (node: Fiber) => {
       if (found.el || !isNamedComposite(node, name)) return false

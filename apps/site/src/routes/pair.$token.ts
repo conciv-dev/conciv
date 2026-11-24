@@ -1,5 +1,5 @@
 import {createFileRoute} from '@tanstack/react-router'
-import {pairResponse} from '@/lib/pair-text'
+import {pairResponse} from '../lib/pair-text'
 
 export const Route = createFileRoute('/pair/$token')({
   server: {

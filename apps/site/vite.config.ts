@@ -50,7 +50,6 @@ export default defineConfig(({mode}) => ({
     noExternal: ['gsap', '@gsap/react'],
   },
   resolve: {
-    tsconfigPaths: true,
     alias: {
       tslib: 'tslib/tslib.es6.js',
       ...brandAssetsAlias,

@@ -69,14 +69,14 @@ export default function VariableProximity({
           .join(', ')
       })
     }
-    const onPointerMove = (event: PointerEvent) => {
-      if (frame) return
+    const onPointerMove = (event: Event) => {
+      if (frame || !(event instanceof PointerEvent)) return
       frame = requestAnimationFrame(() => update(event.clientX, event.clientY))
     }
     const target = containerRef.current ?? window
-    target.addEventListener('pointermove', onPointerMove as EventListener)
+    target.addEventListener('pointermove', onPointerMove)
     return () => {
-      target.removeEventListener('pointermove', onPointerMove as EventListener)
+      target.removeEventListener('pointermove', onPointerMove)
       if (frame) cancelAnimationFrame(frame)
     }
   }, [axes, containerRef, falloff, fromFontVariationSettings, radius])

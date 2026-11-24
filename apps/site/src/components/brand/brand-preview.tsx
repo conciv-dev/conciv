@@ -1,6 +1,6 @@
 import type {ReactNode} from 'react'
-import {cn} from '@/lib/utils'
-import {brandAssetUrl, isDarkBackdrop} from '@/lib/brand-assets'
+import {cn} from '../../lib/utils'
+import {brandAssetUrl, isDarkBackdrop} from '../../lib/brand-assets'
 
 const LIGHT_BACKDROP = 'bg-[#F3EEE4] ring-foreground/10'
 const DARK_BACKDROP = 'bg-[#15161A] ring-white/10'

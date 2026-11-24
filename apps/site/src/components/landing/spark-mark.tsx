@@ -1,6 +1,6 @@
 import {m} from 'motion/react'
 import {Sparkle} from 'lucide-react'
-import {cn} from '@/lib/utils'
+import {cn} from '../../lib/utils'
 
 export function SparkMark({className}: {className?: string}) {
   return (

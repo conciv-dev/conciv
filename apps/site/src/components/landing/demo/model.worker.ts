@@ -2,7 +2,9 @@
 import {loadModel, instructionToPatch, getDevice} from './local-model'
 import type {ModelWorkerRequest, ModelWorkerResponse} from './models'
 
-const post = (message: ModelWorkerResponse) => (self as DedicatedWorkerGlobalScope).postMessage(message)
+const post = (message: ModelWorkerResponse) => {
+  if (self instanceof DedicatedWorkerGlobalScope) self.postMessage(message)
+}
 
 self.addEventListener('message', async (event: MessageEvent<ModelWorkerRequest>) => {
   const message = event.data

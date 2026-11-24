@@ -11,11 +11,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import {Badge} from '@/components/ui/badge'
-import {Button} from '@/components/ui/button'
-import {Card} from '@/components/ui/card'
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select'
+} from '../../ui/alert-dialog'
+import {Badge} from '../../ui/badge'
+import {Button} from '../../ui/button'
+import {Card} from '../../ui/card'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../../ui/select'
 import {Transcript} from './transcript'
 import {Composer} from './composer'
 import {AppPreview} from './app-preview'
@@ -62,15 +62,17 @@ export function Demo() {
 
   const active = useRef<{id: string; scenario: Scenario} | null>(null)
 
-  const grabbedEl = (id: string) =>
-    scope.current?.querySelector(`[data-pickable="${id}"]`)?.firstElementChild as HTMLElement | null
+  const grabbedEl = (id: string): HTMLElement | null => {
+    const element = scope.current?.querySelector(`[data-pickable="${id}"]`)?.firstElementChild
+    return element instanceof HTMLElement ? element : null
+  }
 
   const reduced = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   useGSAP(
     () => {
-      if (reduced() || !ghostRef.current || !grabRef.current) return
-      const root = scope.current!.getBoundingClientRect()
+      if (reduced() || !ghostRef.current || !grabRef.current || !scope.current) return
+      const root = scope.current.getBoundingClientRect()
       const pill = grabRef.current.getBoundingClientRect()
       const x = pill.left - root.left + pill.width / 2
       const y = pill.top - root.top + pill.height / 2
@@ -88,7 +90,8 @@ export function Demo() {
   useGSAP(
     () => {
       if (!viewportRef.current) return
-      const viewport = viewportRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null
+      const closest = viewportRef.current.closest('[data-slot="scroll-area-viewport"]')
+      const viewport = closest instanceof HTMLElement ? closest : null
       if (!reduced()) {
         const rows = viewportRef.current.querySelectorAll('.od-msg')
         const last = rows[rows.length - 1]

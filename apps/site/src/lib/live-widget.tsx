@@ -1,6 +1,6 @@
 import {useEffect} from 'react'
 import {useRouter} from '@tanstack/react-router'
-import {mountLiveWidget} from '@/lib/mount-live-widget'
+import {mountLiveWidget} from './mount-live-widget'
 
 export default function LiveWidget({open}: {open: boolean}) {
   const router = useRouter()

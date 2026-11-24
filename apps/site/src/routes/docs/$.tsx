@@ -1,8 +1,8 @@
 import {createFileRoute, notFound} from '@tanstack/react-router'
 import {DocsLayout} from 'fumadocs-ui/layouts/docs'
 import {createServerFn} from '@tanstack/react-start'
-import {slugsToMarkdownPath, source} from '@/lib/source'
-import browserCollections from 'collections/browser'
+import {slugsToMarkdownPath, source} from '../../lib/source'
+import browserCollections from '../../../.source/browser'
 import {
   DocsBody,
   DocsDescription,
@@ -11,13 +11,13 @@ import {
   MarkdownCopyButton,
   ViewOptionsPopover,
 } from 'fumadocs-ui/layouts/docs/page'
-import {baseOptions} from '@/lib/layout.shared'
-import {gitConfig} from '@/lib/shared'
-import {GitHubStarLink} from '@/components/landing/github-star-link'
-import {buildDocsHead} from '@/lib/docs-head'
+import {baseOptions} from '../../lib/layout.shared'
+import {gitConfig} from '../../lib/shared'
+import {GitHubStarLink} from '../../components/landing/github-star-link'
+import {buildDocsHead} from '../../lib/docs-head'
 import {useFumadocsLoader} from 'fumadocs-core/source/client'
 import {Suspense} from 'react'
-import {useMDXComponents} from '@/components/mdx'
+import {useMDXComponents} from '../../components/mdx'
 
 export const Route = createFileRoute('/docs/$')({
   component: Page,

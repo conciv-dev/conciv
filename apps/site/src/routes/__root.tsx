@@ -1,13 +1,13 @@
 import {createRootRoute, HeadContent, Outlet, retainSearchParams, Scripts} from '@tanstack/react-router'
 import * as React from 'react'
-import appCss from '@/styles/app.css?url'
+import appCss from '../styles/app.css?url'
 import {RootProvider} from 'fumadocs-ui/provider/tanstack'
-import {LiveWidgetMount} from '@/components/live-widget-mount'
-import {rootSearchSchema} from '@/lib/search-schemas'
-import {APPLE_TOUCH_ICON_URL, FAVICON_SVG_URL, OG_DEFAULT_URL, TWITTER_CARD_URL} from '@/lib/brand-assets'
-import {canonicalHeadTags, DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE} from '@/lib/site-urls'
-import {seo} from '@/lib/seo'
-import {buildRootJsonLd} from '@/lib/structured-data'
+import {LiveWidgetMount} from '../components/live-widget-mount'
+import {rootSearchSchema} from '../lib/search-schemas'
+import {APPLE_TOUCH_ICON_URL, FAVICON_SVG_URL, OG_DEFAULT_URL, TWITTER_CARD_URL} from '../lib/brand-assets'
+import {canonicalHeadTags, DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE} from '../lib/site-urls'
+import {seo} from '../lib/seo'
+import {buildRootJsonLd} from '../lib/structured-data'
 
 const OG_IMAGE = `${SITE}${OG_DEFAULT_URL}`
 const TWITTER_IMAGE = `${SITE}${TWITTER_CARD_URL}`

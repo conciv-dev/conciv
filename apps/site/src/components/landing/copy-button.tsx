@@ -1,6 +1,6 @@
 import {Check, Copy} from 'lucide-react'
 import {createContext, useContext, useRef, useState, type ReactNode} from 'react'
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from '@/components/ui/tooltip'
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from '../ui/tooltip'
 
 type CopyButtonContextValue = {copied: boolean}
 
