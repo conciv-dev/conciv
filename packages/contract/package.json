@@ -33,8 +33,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@internal/vitest-config/src/run-tests.ts"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
@@ -42,16 +41,13 @@
     "@orpc/contract": "catalog:",
     "@orpc/standard-server-peer": "catalog:",
     "defu": "catalog:",
-    "effect": "catalog:",
+    "partysocket": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
-    "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
-    "typescript": "catalog:",
-    "vite": "catalog:",
-    "vitest": "catalog:"
+    "typescript": "catalog:"
   }
 }

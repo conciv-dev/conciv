@@ -5,9 +5,9 @@ import {ResponseValidationPlugin} from '@orpc/contract/plugins'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM, CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import {contract} from './contract.js'
 import contractManifest from '../package.json' with {type: 'json'}
-import type {EngineConnectionTimings} from './engine-connection-machine.js'
 import {
   heldBrowserRpcLink,
+  type EngineConnectionTimings,
   RPC_UNBOUND_MESSAGE,
   type RpcClientContext,
   type SessionAccessor,
