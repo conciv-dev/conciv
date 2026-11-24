@@ -107,6 +107,9 @@ check "a refused package writes nothing" refuses ls "$COPY/packages/Bad" "$COPY/
 
 check "the generated packages and edited shared files are formatted" bash -c "cd '$COPY' && pnpm exec oxfmt --check \
   packages/gen-check-node packages/gen-check-web packages/gen-check-both-internal packages/publish/src/guards.ts .fallowrc.json"
+check "pnpm format leaves the handlebars templates as written" bash -c "cd '$COPY' &&
+  { pnpm exec oxfmt --write turbo/generators/templates >/dev/null 2>&1; true; } &&
+  diff -r '$REPO/turbo/generators/templates' '$COPY/turbo/generators/templates'"
 check "the generated packages typecheck, lint and build" bash -c "cd '$COPY' && pnpm exec turbo run typecheck lint build \
   --filter=@conciv/gen-check-node --filter=@conciv/gen-check-web --filter=@internal/gen-check-both"
 check "the published package passes publint and attw" bash -c "cd '$COPY' && pnpm exec turbo run publint attw \
