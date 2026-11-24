@@ -1,26 +1,15 @@
-import {
-  batch,
-  createMemo,
-  createSignal,
-  from,
-  getOwner,
-  on,
-  onCleanup,
-  runWithOwner,
-  untrack,
-  type Accessor,
-} from 'solid-js'
+import {batch, createMemo, createSignal, getOwner, on, onCleanup, runWithOwner, untrack, type Accessor} from 'solid-js'
 import {createStore, produce, type Store} from 'solid-js/store'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {createORPCClient} from '@orpc/client'
 import {z} from 'zod'
-import {useLocation, useParams, useRouter, useRouterState, useSearch} from '@tanstack/solid-router'
+import {useLocation, useParams, useRouteContext, useRouter, useRouterState, useSearch} from '@tanstack/solid-router'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {useQuery} from '@conciv/client'
-import type {RpcClient} from '@conciv/contract'
+import {browserRpcConnection, type EngineConnectionTimings, type RpcClient} from '@conciv/contract'
 import {writeClipboardText} from '@conciv/ui-kit-system'
 import type {ComposerContextValue} from '@conciv/ui-kit-chat'
-import {Conciv, type ClientConnectionStatus, type ConcivClient} from '@conciv/plugin'
+import {Conciv, type ConcivClient} from '@conciv/plugin'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import type {
   Layout,
@@ -39,6 +28,7 @@ import type {
   Widget,
 } from '@conciv/plugin/experimental'
 import {Style} from '@conciv/plugin/experimental'
+import {createClientConnection} from '@conciv/plugin/experimental/host'
 import appManifest from '../../../package.json' with {type: 'json'}
 import {
   useApiBase,
@@ -120,6 +110,23 @@ const UNAVAILABLE = 'The server that runs this plugin is unavailable'
 
 const HostSettingsTab = z.enum(['general', 'shortcuts', 'plugins', 'advanced'])
 
+function trusted(server: string, signal: AbortSignal, engineTimings: Partial<EngineConnectionTimings> | undefined) {
+  const {trust, release} = browserRpcConnection(server, undefined, engineTimings)
+  return new Promise<void>((resolve) => {
+    const settle = () => {
+      stopTrust()
+      signal.removeEventListener('abort', settle)
+      release()
+      resolve()
+    }
+    const stopTrust = trust.subscribe((status) => {
+      if (status === 'trusted') settle()
+    })
+    signal.addEventListener('abort', settle, {once: true})
+    if (trust.isTrusted() || signal.aborted) settle()
+  })
+}
+
 function openInput(file: string, position: {line: number; column?: number} | undefined) {
   if (position === undefined) return {file}
   if (position.column === undefined) return {file, line: position.line}
@@ -146,9 +153,10 @@ export function createHostApis() {
   })
 
   const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase(), connected()))
-  const engineStream = from<ClientConnectionStatus>((set) => {
-    set(client.connection.status())
-    return client.connection.on(set)
+  const timings = useRouteContext({strict: false, select: (context) => context.timings})
+  const connection = createClientConnection(client, {
+    reconnect: (signal) => trusted(apiBase(), signal, untrack(timings)?.engine).then(() => client),
+    onEvent: () => undefined,
   })
 
   const engine: ServerRef = {
@@ -165,7 +173,7 @@ export function createHostApis() {
       return !(engineVersion.isSuccess && engineOlderThanWidget(engineVersion.data))
     },
     get connected() {
-      return engineStream() === 'connected'
+      return connection.status() === 'connected'
     },
   }
 

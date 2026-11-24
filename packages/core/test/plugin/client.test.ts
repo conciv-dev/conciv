@@ -1,59 +1,54 @@
 import {makeRpcClient} from '@conciv/contract'
+import {createRoot} from 'solid-js'
 import {createEngine} from '../engine.js'
 import {describe, expect, it} from 'vitest'
-import {Conciv, type ClientConnectionStatus} from '@conciv/plugin'
+import {Conciv, type ConcivEvent} from '@conciv/plugin'
+import {createClientConnection} from '@conciv/plugin/experimental/host'
 
-describe('the SDK client keeps its event stream open', () => {
-  it('the stream connects, comes back after the engine restarts, reopens when it goes silent, and is connecting again once the last reader leaves', async () => {
+describe('the SDK client connection keeps its event stream open', () => {
+  function connect(client: ReturnType<typeof Conciv.make>, idleTimeout?: number) {
+    const arrivals: ((event: ConcivEvent) => void)[] = []
+    const next = () => new Promise<ConcivEvent>((resolve) => arrivals.push(resolve))
+    const root = createRoot((dispose) => ({
+      dispose,
+      connection: createClientConnection(client, {
+        idleTimeout,
+        flushInterval: 0,
+        reconnect: () => Promise.resolve(client),
+        onEvent: (event) => arrivals.shift()?.(event),
+      }),
+    }))
+    return {...root, next}
+  }
+
+  it('the stream connects, comes back after the engine restarts, reopens when it goes silent, and is connecting again once stopped', async () => {
     const engine = await createEngine({}, {timeouts: {eventHeartbeatIntervalMs: 60_000}})
     const server = () => engine.address.apiBase
-    const steady = Conciv.make(makeRpcClient(engine.address.apiBase, {token: engine.address.token}), {
-      server,
-      reconnectDelay: 0,
-    })
-    const steadyReading = new AbortController()
-    const steadyStream = steady.event.subscribe({types: ['permission.asked'], signal: steadyReading.signal})
-    const steadyEvents = steadyStream[Symbol.asyncIterator]()
+    const steady = connect(Conciv.make(makeRpcClient(engine.address.apiBase, {token: engine.address.token}), {server}))
     expect(steady.connection.status()).toBe('connecting')
 
-    expect((await steadyEvents.next()).value).toMatchObject({type: 'server.connected'})
+    expect(await steady.next()).toMatchObject({type: 'server.connected'})
     expect(steady.connection.status()).toBe('connected')
 
-    const dropped = new Promise<ClientConnectionStatus>((resolve) => {
-      const off = steady.connection.on((status) => {
-        off()
-        resolve(status)
-      })
-    })
+    const restarted = steady.next()
     await engine.restart()
-    expect(await dropped).toBe('reconnecting')
-    expect((await steadyEvents.next()).value).toMatchObject({type: 'server.connected'})
+    expect(await restarted).toMatchObject({type: 'server.connected'})
     expect(steady.connection.status()).toBe('connected')
+    expect(steady.connection.internal.history().map((item) => item.data.status)).toContain('disconnected')
 
-    steadyReading.abort()
+    steady.dispose()
     expect(steady.connection.status()).toBe('connecting')
 
-    const watched = Conciv.make(makeRpcClient(engine.address.apiBase, {token: engine.address.token}), {
-      server,
-      idleTimeout: 50,
-      reconnectDelay: 0,
-    })
-    const watchedReading = new AbortController()
-    const watchedStream = watched.event.subscribe({types: ['permission.asked'], signal: watchedReading.signal})
-    const watchedEvents = watchedStream[Symbol.asyncIterator]()
-    expect((await watchedEvents.next()).value).toMatchObject({type: 'server.connected'})
-
-    const stalled = new Promise<ClientConnectionStatus>((resolve) => {
-      const off = watched.connection.on((status) => {
-        off()
-        resolve(status)
-      })
-    })
-    expect(await stalled).toBe('reconnecting')
-    expect((await watchedEvents.next()).value).toMatchObject({type: 'server.connected'})
+    const watched = connect(
+      Conciv.make(makeRpcClient(engine.address.apiBase, {token: engine.address.token}), {server}),
+      50,
+    )
+    expect(await watched.next()).toMatchObject({type: 'server.connected'})
+    expect(await watched.next()).toMatchObject({type: 'server.connected'})
+    expect(watched.connection.internal.history().map((item) => item.data.error)).toContain('Event stream stalled')
     expect(watched.connection.status()).toBe('connected')
 
-    watchedReading.abort()
+    watched.dispose()
     expect(watched.connection.status()).toBe('connecting')
   })
 })

@@ -43,7 +43,10 @@
       }
     ],
     "rules": [
-      {"from": "core-tests", "allow": ["core-callers", "session-facade", "core-shared-leaf"]},
+      {
+        "from": "core-tests",
+        "allow": ["core-callers", "session-facade", "core-shared-leaf"]
+      },
       {
         "from": "core-callers",
         "allow": ["session-facade", "core-shared-leaf"]
@@ -399,6 +402,14 @@
         ],
         "maxCognitive": 24,
         "reason": "resolve and the oxc visitors walk the source in one pass each, as the whiteboard anchors were first written"
+      },
+      {
+        "files": ["packages/plugin/src/client/solid/connection.ts"],
+        "functions": ["connect", "runStream"],
+        "maxCognitive": 25,
+        "maxCrap": 97,
+        "maxUnitSize": 68,
+        "reason": "copied from opencode packages/client/src/solid/connection.ts: connect and runStream keep the source's shape; rulings ledger call 7"
       }
     ]
   },

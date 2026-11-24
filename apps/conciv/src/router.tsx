@@ -175,14 +175,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const apiBase = config.apiBase ?? (() => '')
   const engine = wireEngine(apiBase, timings.engine)
   const lockedOut = (): boolean => engine.locked()
-  const data = makeAppData(
-    config.rpc,
-    queryClient,
-    config.draftStore?.(() => !lockedOut()) ?? null,
-    lockedOut,
-    apiBase,
-    timings.engine,
-  )
+  const data = makeAppData(config.rpc, queryClient, config.draftStore?.(() => !lockedOut()) ?? null, lockedOut, apiBase)
   const connected = config.connected ?? (() => true)
   const dispose = once(() => {
     engine.dispose()

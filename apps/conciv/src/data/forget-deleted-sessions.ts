@@ -1,10 +1,12 @@
 import {observable, type Accessor} from 'solid-js'
-import {Cause, Effect, Fiber, Queue, Schema, Stream} from 'effect'
+import {Cause, Duration, Effect, Fiber, Queue, Schedule, Schema, Stream} from 'effect'
 import type {ConcivClient} from '@conciv/plugin'
 
 type EngineEvent = ReturnType<ConcivClient['event']['subscribe']> extends AsyncIterable<infer Event> ? Event : never
 
 type SessionDeletedEvent = Extract<EngineEvent, {type: 'session.deleted'}>
+
+const FOLLOW_AGAIN = Schedule.spaced(Duration.seconds(1))
 
 const SessionEventsFailed = Schema.TaggedStruct('SessionEventsFailed', {cause: Schema.Unknown})
 
@@ -54,6 +56,11 @@ const readDeletedSessions = Effect.fn('app.sessions.readDeleted')(
     yield* Stream.fromAsyncIterable(input.client.event.subscribe({signal: subscription.signal}), (cause) =>
       SessionEventsFailed.make({cause}),
     ).pipe(
+      Stream.tapError((failure) =>
+        Effect.logWarning('[conciv] the session deletions stream failed; following again', failure),
+      ),
+      Stream.retry(FOLLOW_AGAIN),
+      Stream.repeat(FOLLOW_AGAIN),
       Stream.filter(isSessionDeleted),
       Stream.runForEach((event) => forgetDeletedSession(event.data.sessionID, input.forget)),
     )
