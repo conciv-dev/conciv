@@ -2324,6 +2324,9 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
+      '@conciv/core':
+        specifier: workspace:^
+        version: link:../core
       '@conciv/db':
         specifier: workspace:^
         version: link:../db

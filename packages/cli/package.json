@@ -43,6 +43,7 @@
     "@bomb.sh/router": "catalog:",
     "@clack/prompts": "catalog:",
     "@conciv/contract": "workspace:^",
+    "@conciv/core": "workspace:^",
     "@conciv/db": "workspace:^",
     "@conciv/harness-init": "workspace:^",
     "@conciv/plugin": "workspace:^",

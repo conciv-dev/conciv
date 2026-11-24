@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '@conciv/core/testing'
 import {cli} from '../test/cli.js'
 
 describe('auth', () => {

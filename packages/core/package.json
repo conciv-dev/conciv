@@ -99,5 +99,13 @@
     "vite": "catalog:",
     "vitest": "catalog:",
     "ws": "catalog:"
+  },
+  "peerDependencies": {
+    "vitest": "^5.1.0"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
   }
 }

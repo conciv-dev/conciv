@@ -17,6 +17,7 @@ import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-po
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {z} from 'zod'
+import {onTestFinished} from 'vitest'
 import {
   commitAll,
   holdTestClock,
@@ -703,4 +704,16 @@ export async function createHarnessEngine(
     },
     stop,
   }
+}
+
+export function createEngine(config: ConcivConfig = {}, options: HarnessEngineStart = {}): Promise<HarnessEngine> {
+  const started = Promise.withResolvers<HarnessEngine>()
+  onTestFinished(() =>
+    started.promise.then(
+      (engine) => engine.stop(),
+      () => undefined,
+    ),
+  )
+  createHarnessEngine(config, options).then(started.resolve, started.reject)
+  return started.promise
 }
