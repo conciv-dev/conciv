@@ -22,6 +22,13 @@ describe('cases', () => {
   test.describe('a playwright group is not a case', () => {})
   test.use({})
 })
+const effect = testEffect(layer)
+describe('effect cases', () => {
+  effect.live('live', () => Effect.void)
+  effect.effect('effect', () => Effect.void)
+  effect.live.skip('live skipped', () => Effect.void)
+  effect.layer('not a case')
+})
 `
   const scaffoldWorkspace = async (budget: Record<string, number>) => {
     const root = tempDir('test-budget-')
@@ -40,11 +47,11 @@ describe('cases', () => {
     return root
   }
 
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 7}))).rejects.toThrow(
-    '@conciv/a: 8 tests, budget 7\n\nThe budget is a review gate, not a counter to bump.',
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 10}))).rejects.toThrow(
+    '@conciv/a: 11 tests, budget 10\n\nThe budget is a review gate, not a counter to bump.',
   )
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 8}))).resolves.toEqual([])
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 9}))).resolves.toEqual([
-    '@conciv/a: 8 tests, budget 9: lower it to 8 in test-budget.json',
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 11}))).resolves.toEqual([])
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 12}))).resolves.toEqual([
+    '@conciv/a: 11 tests, budget 12: lower it to 11 in test-budget.json',
   ])
 })

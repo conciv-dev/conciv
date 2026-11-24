@@ -9,6 +9,8 @@ const BUDGET_FILE = 'test-budget.json'
 const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/
 const FIXTURE_SEGMENT = /(^|\/)fixtures\//
 const TEST_FUNCTIONS = ['test', 'it']
+const EFFECT_TEST_FACTORY = 'testEffect'
+const EFFECT_RUNNERS = new Set(['live', 'effect'])
 const CASE_MODIFIERS = new Set([
   'concurrent',
   'sequential',
@@ -48,11 +50,14 @@ function countTestCases(filename: string, source: string): number {
   const [error] = parsed.errors
   if (error) throw new Error(`${filename}: cannot parse - ${error.message}`)
   const testNames = new Set(TEST_FUNCTIONS)
+  const effectTests = new Set<string>()
   const curried = new Set<CallExpression>()
   let count = 0
   const visitor = new Visitor({
     VariableDeclarator(node) {
       if (node.id.type !== 'Identifier' || node.init?.type !== 'CallExpression') return
+      if (node.init.callee.type === 'Identifier' && node.init.callee.name === EFFECT_TEST_FACTORY)
+        effectTests.add(node.id.name)
       const chain = readTestChain(node.init.callee)
       if (chain && testNames.has(chain.name) && chain.members.includes('extend')) testNames.add(node.id.name)
     },
@@ -60,7 +65,13 @@ function countTestCases(filename: string, source: string): number {
       if (node.callee.type === 'CallExpression') curried.add(node.callee)
       if (curried.has(node)) return
       const chain = readTestChain(node.callee)
-      if (chain && testNames.has(chain.name) && chain.members.every((member) => CASE_MODIFIERS.has(member))) count++
+      if (!chain) return
+      if (effectTests.has(chain.name)) {
+        const [runner, ...modifiers] = chain.members.toReversed()
+        if (runner && EFFECT_RUNNERS.has(runner) && modifiers.every((member) => CASE_MODIFIERS.has(member))) count++
+        return
+      }
+      if (testNames.has(chain.name) && chain.members.every((member) => CASE_MODIFIERS.has(member))) count++
     },
   })
   visitor.visit(parsed.program)
