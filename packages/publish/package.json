@@ -31,7 +31,10 @@
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@effect/platform-node": "catalog:",
+    "@turbo/gen": "catalog:",
     "@types/node": "catalog:",
+    "effect": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

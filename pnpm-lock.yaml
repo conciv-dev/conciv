@@ -672,9 +672,6 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:packages/vitest-config
-      '@effect/platform-node':
-        specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@j178/prek':
         specifier: ^0.5.7
         version: 0.5.7
@@ -693,9 +690,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
-      effect:
-        specifier: 'catalog:'
-        version: 4.1.0
       eslint-plugin-playwright:
         specifier: 'catalog:'
         version: 2.12.1(eslint@10.13.0(jiti@2.7.0))
@@ -4372,9 +4366,18 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
+      '@effect/platform-node':
+        specifier: 'catalog:'
+        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
+      '@turbo/gen':
+        specifier: 'catalog:'
+        version: 2.11.10(@types/node@26.6.6)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

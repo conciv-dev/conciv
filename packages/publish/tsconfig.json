@@ -3,5 +3,6 @@
   "compilerOptions": {
     "types": ["node"],
     "allowImportingTsExtensions": true
-  }
+  },
+  "include": ["src/**/*", "turbo/**/*.ts", "*.ts"]
 }
