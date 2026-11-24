@@ -105,10 +105,6 @@
       "dependsOn": ["^build", "gen-migrations"],
       "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
     },
-    "@conciv/mascot#typecheck": {
-      "dependsOn": ["^build", "build"],
-      "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
-    },
     "@conciv/ui-kit-chat#build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],
