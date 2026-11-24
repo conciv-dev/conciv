@@ -45,6 +45,14 @@ function readTestChain(callee: Expression | Super): TestChain | undefined {
   return node.type === 'Identifier' ? {name: node.name, members} : undefined
 }
 
+const onlyModifiers = (members: readonly string[]) => members.every((member) => CASE_MODIFIERS.has(member))
+
+function isTestCase(chain: TestChain, testNames: Set<string>, effectTests: Set<string>): boolean {
+  if (!effectTests.has(chain.name)) return testNames.has(chain.name) && onlyModifiers(chain.members)
+  const [runner, ...modifiers] = chain.members.toReversed()
+  return runner !== undefined && EFFECT_RUNNERS.has(runner) && onlyModifiers(modifiers)
+}
+
 function countTestCases(filename: string, source: string): number {
   const parsed = parseSync(filename, source)
   const [error] = parsed.errors
@@ -65,13 +73,7 @@ function countTestCases(filename: string, source: string): number {
       if (node.callee.type === 'CallExpression') curried.add(node.callee)
       if (curried.has(node)) return
       const chain = readTestChain(node.callee)
-      if (!chain) return
-      if (effectTests.has(chain.name)) {
-        const [runner, ...modifiers] = chain.members.toReversed()
-        if (runner && EFFECT_RUNNERS.has(runner) && modifiers.every((member) => CASE_MODIFIERS.has(member))) count++
-        return
-      }
-      if (testNames.has(chain.name) && chain.members.every((member) => CASE_MODIFIERS.has(member))) count++
+      if (chain && isTestCase(chain, testNames, effectTests)) count++
     },
   })
   visitor.visit(parsed.program)
