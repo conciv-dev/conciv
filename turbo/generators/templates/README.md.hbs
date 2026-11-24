@@ -1,0 +1,28 @@
+# {{name}}
+
+## Overview
+
+{{{description}}}
+
+## Invariants
+
+{{#if isInternal}}
+- Private to conciv and never published: its exports point at `src`, nothing builds it, and the packages that use it
+  inline it into their own builds.
+{{else}}
+- tsdown emits the JavaScript (`dts: false`); `tsc -p tsconfig.build.json` emits the declarations.
+{{/if}}
+- Tests live in `test/unit` (node and happy-dom), `test/it` (real engine, files and CLIs), `test/e2e` (vitest browser
+  mode) and `test/fixtures`; the folder picks the runner.
+
+## Side Effects
+
+{{#if isInternal}}
+- None: the package root holds configs and the manifest only.
+{{else}}
+- `build` script (`package.json`): writes dist/
+{{/if}}
+
+## Verification
+
+- Typecheck and lint: run the `typecheck` and `lint` scripts in `{{directory}}`.

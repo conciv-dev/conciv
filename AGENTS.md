@@ -32,6 +32,7 @@ README.md; this file is the non-obvious operational rules.
   `TURBO_CONCURRENCY=70%` and are not niced; test gates stay serial (`TURBO_CONCURRENCY=1 VITEST_MAX_FORKS=1`).
 - Build: `pnpm build`. Typecheck: `pnpm typecheck`. Test: `pnpm test`. Lint: `pnpm lint`
   (oxlint). Format: `pnpm format:check` / `pnpm format` (oxfmt).
+- New package: `turbo gen package` (non-interactive: `turbo gen package --args <name> "<description>" <public|private> <node|browser|both>`).
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.
   So a green `test` already proves the build: don't run a separate `build` gate unless the package has
   no `test` script (`@conciv/serve`, `@conciv/ui-kit-tap`, the `conciv-e2e-*` apps).

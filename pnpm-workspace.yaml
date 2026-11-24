@@ -136,6 +136,7 @@ catalog:
   '@tiptap/extension-paragraph': '^3.32.1'
   '@tiptap/extension-text': '^3.32.1'
   '@tiptap/pm': '^3.32.1'
+  '@turbo/gen': 2.11.10
   '@types/culori': ^4.0.1
   '@types/node': '^26.6.6'
   '@types/pngjs': ^6.0.5

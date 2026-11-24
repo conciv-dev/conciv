@@ -14,6 +14,7 @@
     "packages/ui-kit-system/src/tokens.css",
     "packages/ui-kit-system/docs/**",
     "e2e/nextjs/packed/fixture-lock.yaml",
-    "e2e/vite-react-packed/fixture-lock.yaml"
+    "e2e/vite-react-packed/fixture-lock.yaml",
+    "turbo/generators/templates/**"
   ]
 }
