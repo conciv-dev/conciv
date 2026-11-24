@@ -1,6 +1,6 @@
 import {resolve} from 'node:path'
-import {engineFixture} from '@conciv/core/testing'
+import {createEngineTest} from '@conciv/core/testing'
 
-export const createEngine = engineFixture()
+export const test = createEngineTest()
 
 export const PAGE_PLUGIN = resolve(import.meta.dirname, '..')

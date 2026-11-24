@@ -1,7 +1,7 @@
 import {realpathSync} from 'node:fs'
 import {writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
-import {describe, expect, it} from 'vitest'
+import {describe, expect} from 'vitest'
 import {Effect, Fiber, Option, Schema, Stream} from 'effect'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
@@ -10,10 +10,12 @@ import {TestLLM} from '@conciv/core/testing'
 import {PluginEngine, testEffect} from '@conciv/plugin-testkit'
 import {cli, test} from '@conciv/cli/testing'
 import {prepareHome, recordHubConnection, withHomeDb} from '@conciv/db'
-import {createEngine, PAGE_PLUGIN} from '../test/engine.js'
+import {PAGE_PLUGIN, test as it} from '../test/engine.js'
 
 describe('with no page open, the agent is offered no page tools', () => {
-  it('leaves the page tools and the page skill out of the request and out of reach of a call, and the CLI lists the page group, which holds every page tool, but a page tool is not available', async () => {
+  it('leaves the page tools and the page skill out of the request and out of reach of a call, and the CLI lists the page group, which holds every page tool, but a page tool is not available', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({plugins: [PAGE_PLUGIN]})
     await engine.reply(TestLLM.text('Open the page first'))
     await engine.session.send('Click the checkout button')
@@ -54,7 +56,9 @@ describe('with no page open, the agent is offered no page tools', () => {
 })
 
 describe('the agent reads the page in code mode', () => {
-  it('gives the model the page tools, the page skill and the page instructions once a page attaches, an outside agent finds the page tools, and tells it the exported page result is untrusted page data; a queue that finishes tells whoever started it: an outside agent reads its finished queue once through queue.outside, asked with the ids of a later call or none, and the session hears nothing of it, while a queue the session started reaches the session as one message and its queue.wait answer carries the same notice', async () => {
+  it('gives the model the page tools, the page skill and the page instructions once a page attaches, an outside agent finds the page tools, and tells it the exported page result is untrusted page data; a queue that finishes tells whoever started it: an outside agent reads its finished queue once through queue.outside, asked with the ids of a later call or none, and the session hears nothing of it, while a queue the session started reaches the session as one message and its queue.wait answer carries the same notice', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({plugins: [PAGE_PLUGIN], hubAccess: 'open'})
     const sessionId = engine.session.id
     const connectionId = 'checkout'
@@ -206,7 +210,9 @@ describe('the agent reads the page in code mode', () => {
 })
 
 describe('the page plugin the engine starter lists after the config plugins', () => {
-  it("its deny rules come after the config's permissions, so with no page open a config allow for page grants nothing", async () => {
+  it("its deny rules come after the config's permissions, so with no page open a config allow for page grants nothing", async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({permission: {page: 'allow'}}, {post: [PAGE_PLUGIN]})
 
     expect(await engine.session.tool('page_tabs_list').failure({})).toMatchObject({
@@ -302,7 +308,9 @@ describe('the page never answers what the agent asked', () => {
 })
 
 describe('the conciv CLI and hub find the engine that serves the page tools', () => {
-  it('the engine in the environment wins, then server.json found from a subfolder, else the no-server hint', async () => {
+  it('the engine in the environment wins, then server.json found from a subfolder, else the no-server hint', async ({
+    createEngine,
+  }) => {
     const project = await createEngine({plugins: [PAGE_PLUGIN]})
     const other = await createEngine()
     await project.write('src/app/main.ts', 'export {}\n')
@@ -328,6 +336,7 @@ describe('the conciv CLI and hub find the engine that serves the page tools', ()
   })
 
   test('an outside agent lists the open tabs (none, then a tab with its project, branch and page), then queues page actions on a tab and reads the finished queue first thing in its next discover_tools reply, while a queue it started that finishes reaches a second hub on the same home with the next call that hub makes on the tab and never the first hub again; a tasks client running two queueing calls at once gets a task per call holding only its own queue, and a task whose engine restarted ends failed naming the lost queue', async ({
+    createEngine,
     hub,
     tasksHub,
   }) => {
