@@ -20,7 +20,7 @@ import {
   EXECUTE_TOOL_NAME,
   type ExecuteError,
   type ExecuteResult,
-} from '../api/execute-schemas.js'
+} from '@conciv/contract'
 
 function parseOutput(result: ToolCardProps['result']): ExecuteResult | null {
   const parsed = ExecuteResultSchema.safeParse(parseResultPayload(result))

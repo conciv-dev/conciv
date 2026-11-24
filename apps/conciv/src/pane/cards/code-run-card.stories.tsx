@@ -5,7 +5,7 @@ import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-t
 import {INERT_ADD_RESULT, INERT_TOOL_CTX, Trace, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {CodeRunCard, codeRunTool} from './code-run-card.js'
 
-const meta: Meta = {title: 'core/cards/CodeRunCard'}
+const meta: Meta = {title: 'app/cards/CodeRunCard'}
 export default meta
 type Story = StoryObj
 

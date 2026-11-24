@@ -1,4 +1,4 @@
-# core/src/cards
+# apps/conciv/src/pane/cards
 
 ## Overview
 
@@ -21,5 +21,5 @@ Solid tool card for `execute_typescript` calls: code, console logs, result and e
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/core` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/core && pnpm typecheck && pnpm lint`
+- Run: `pnpm exec turbo run test --filter=@conciv/app` from the repo root (turbo builds the package and its dependencies first)
+- Typecheck and lint: `cd apps/conciv && pnpm typecheck && pnpm lint`

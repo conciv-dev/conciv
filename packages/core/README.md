@@ -12,22 +12,17 @@ Package root for @conciv/core, the engine that @conciv/it installs. Node entries
 
 - Exports `.` and `./start` (`package.json`): dist/start.js
 - Exports `./app`, `./config`, `./runtime` (`package.json`)
-- Export `./cards` (`package.json`): dist/cards.js with `browser` and `import` conditions
-- `peerDependencies` (`package.json`): solid-js
-- `scripts` (`package.json`): build (`tsdown && vite build && tsc -p tsconfig.build.json`), typecheck (`tsconfig.json`, which covers the Solid card `.tsx` too), lint, publint, attw
+- `scripts` (`package.json`): build (`tsdown && tsc -p tsconfig.build.json`), typecheck (`tsconfig.json`), lint, publint, attw
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - engine entry and app composition
 
 ## Invariants
 
 - `entry` (`tsdown.config.ts`): only src/start.ts, config.ts, app.ts and runtime.ts are Node entries, plus src/sessions/search-index-worker.ts built as dist/search-index-worker.js, the session search index's `node:worker_threads` entry
-- `build.lib` (`vite.config.ts`): src/cards.tsx builds to cards.js with `emptyOutDir: false` so it does not wipe tsdown output
-- `rollupOptions.external` (`vite.config.ts`): solid-js, zod, @conciv/_, @tanstack/* and @orpc/* stay external
 
 ## Side Effects
 
 - `build` (`package.json`): writes dist/
-- `uno.config.ts`: scans src/**/*.{ts,tsx} with `presetConciv` (read by the lint's UnoCSS plugin; the widget's CSS comes from the app's own config)
 
 ## Verification
 

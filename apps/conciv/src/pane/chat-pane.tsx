@@ -39,7 +39,7 @@ import {nowTitle} from '@conciv/ui-kit-chat-tools'
 import {createPageSessionGrouper, pageSessionEntry} from '@conciv/plugin-page/client'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
-import {coreToolCards} from '@conciv/core/cards'
+import {codeRunTool} from './cards/code-run-card.js'
 import type {ToolCardEntry, ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {type MarkerRow, DraftRowSchema} from '@conciv/contract'
 import {
@@ -474,7 +474,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   })
 
   const toolRender = createToolRender()
-  const tools = (): ToolCardEntry[] => [...concivToolCards, ...coreToolCards, ...builtinToolCards]
+  const tools = (): ToolCardEntry[] => [...concivToolCards, codeRunTool, ...builtinToolCards]
   const pageSessionGrouper = createPageSessionGrouper()
   const grouping = (): Grouping => ({grouper: pageSessionGrouper, context: {toolEntries: tools()}})
 

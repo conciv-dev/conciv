@@ -33,7 +33,7 @@ import {createMCPServer} from '@conciv/ai/server'
 import {CodeModeCatalog, CodeModeInstructions} from '@conciv/plugin-host'
 import {loopbackHostAllowlist} from '../lib/cors.js'
 import {callTrace} from './call-trace.js'
-import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema, type ExecuteResult} from './execute-schemas.js'
+import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema, type ExecuteResult} from '@conciv/contract'
 
 export function sessionIdFromHeaders(headers: Headers): SessionId | null {
   const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()

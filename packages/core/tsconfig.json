@@ -1,5 +1,5 @@
 {
-  "extends": "@conciv/tsconfig/tsconfig.solid.json",
+  "extends": "@conciv/tsconfig/tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"]
   }

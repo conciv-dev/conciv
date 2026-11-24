@@ -42,23 +42,13 @@
       "types": "./dist/runtime.d.ts",
       "import": "./dist/runtime.js"
     },
-    "./cards": {
-      "browser": {
-        "types": "./dist/cards.d.ts",
-        "default": "./dist/cards.js"
-      },
-      "import": {
-        "types": "./dist/cards.d.ts",
-        "default": "./dist/cards.js"
-      }
-    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
@@ -77,7 +67,6 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@conciv/tools": "workspace:^",
-    "@conciv/ui-kit-chat": "workspace:^",
     "@effect/platform-node": "catalog:",
     "@effect/sql-sqlite-node": "catalog:",
     "@lydell/node-pty": "catalog:",
@@ -98,22 +87,13 @@
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
-    "solid-js": "catalog:",
-    "storybook": "catalog:",
-    "storybook-solidjs-vite": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "unocss": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
     "vitest": "catalog:",
     "ws": "catalog:"
-  },
-  "peerDependencies": {
-    "solid-js": "^1.9.13"
   }
 }
