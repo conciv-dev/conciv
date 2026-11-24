@@ -1,5 +1,6 @@
 import {createFileRoute, useRouter} from '@tanstack/solid-router'
 import {useMutation} from '@conciv/client'
+import {resetBrowserRpcConnection} from '@conciv/contract'
 import {Show, type JSX} from 'solid-js'
 import {createKeyed} from '@conciv/plugin/experimental'
 import {useConnectBinding} from '../app/context.js'
@@ -26,12 +27,18 @@ function ConnectRoute(): JSX.Element {
     equals: (previous, next) => previous.apiBase === next.apiBase && previous.token === next.token,
   })
 
+  const retry = (server: ServerBinding): void => {
+    if (classifyRpcError(bind.error, BIND_FAILED_MESSAGE, GENERIC_ERROR_MESSAGE).transportFailure)
+      resetBrowserRpcConnection(server.apiBase)
+    bind.mutate(server)
+  }
+
   return (
     <Show when={bind.isError ? bind.variables : undefined} keyed>
       {(server) => (
         <ErrorScreen
           message={classifyRpcError(bind.error, BIND_FAILED_MESSAGE, GENERIC_ERROR_MESSAGE).message}
-          onRetry={() => bind.mutate(server)}
+          onRetry={() => retry(server)}
         />
       )}
     </Show>

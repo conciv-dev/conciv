@@ -4,7 +4,13 @@ import {z} from 'zod'
 import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient, setupEngineReachability, type ChatConnectionOptions} from '@conciv/client'
 import {createRoot, getOwner, onCleanup, runWithOwner, untrack, type JSX, createMemo, onMount} from 'solid-js'
-import {browserRpcConnection, type EngineConnectionTimings, type RpcClient, type TrustListener} from '@conciv/contract'
+import {
+  browserRpcConnection,
+  type EngineConnectionTimings,
+  type RpcClient,
+  resetBrowserRpcConnection,
+  type TrustListener,
+} from '@conciv/contract'
 import {routeTree} from './routeTree.gen'
 import {QuickSearchSchema, quickPaneIds} from './lib/quick-search.js'
 import {makeAppData, type AppData} from './data/app-data.js'
@@ -28,6 +34,7 @@ function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
     classifyRpcError(props.error, ENGINE_UNREACHABLE_MESSAGE, GENERIC_ERROR_MESSAGE),
   )
   const retry = async (): Promise<void> => {
+    if (classification().transportFailure) resetBrowserRpcConnection(apiBase()?.() ?? '')
     await login()?.requestTrust()
     await router.invalidate()
   }

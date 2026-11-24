@@ -4,6 +4,7 @@ export const SESSION_NOT_FOUND_MESSAGE = 'This session no longer exists.'
 
 export type RpcErrorClassification = {
   message: string
+  transportFailure: boolean
 }
 
 export function classifyRpcError(
@@ -11,8 +12,10 @@ export function classifyRpcError(
   transportMessage: string,
   genericMessage: string,
 ): RpcErrorClassification {
-  if (isReachabilityError(error)) return {message: transportMessage}
-  return {message: error instanceof Error && error.message.length > 0 ? error.message : genericMessage}
+  const transportFailure = isReachabilityError(error)
+  if (transportFailure) return {message: transportMessage, transportFailure}
+  const message = error instanceof Error && error.message.length > 0 ? error.message : genericMessage
+  return {message, transportFailure}
 }
 
 export function rpcErrorCode(error: unknown): string | null {

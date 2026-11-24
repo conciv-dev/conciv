@@ -120,6 +120,7 @@ type ConnectionEntry = {
   link: ClientLink<RpcClientContext>
   trust: EngineTrust
   state: TrustState
+  reconnect: () => void
   close: () => void
   holders: Set<object>
 }
@@ -290,7 +291,7 @@ function frame(encoded: EncodedMessage): string | Uint8Array<ArrayBuffer> {
 }
 
 function attemptSettled(socket: ReconnectingWebSocket, ended: AbortSignal): Promise<void> {
-  if (socket.readyState === socket.OPEN || ended.aborted) return Promise.resolve()
+  if (socket.readyState === socket.OPEN || !socket.shouldReconnect || ended.aborted) return Promise.resolve()
   return new Promise((resolve) => {
     const settle = (): void => {
       socket.removeEventListener('open', settle)
@@ -480,6 +481,7 @@ function socketConnection(id: string, key: ConnectionKey, state: TrustState): Co
     reconnectionDelayGrowFactor: timings.reconnectDelayGrowth,
     minUptime: MIN_UPTIME_MS,
     connectionTimeout: timings.openTimeoutMs,
+    shouldReconnectOnClose: (event) => event.code !== REVOKED_SOCKET_CLOSE_CODE,
   })
   const vote = (reachable: boolean): void => {
     if (!lifetime.signal.aborted) state.events.dispatchEvent(new CustomEvent(REACHABILITY_EVENT, {detail: reachable}))
@@ -498,6 +500,7 @@ function socketConnection(id: string, key: ConnectionKey, state: TrustState): Co
   const rpc = socketLink(socket, state, lifetime.signal, timings)
   const link: ClientLink<RpcClientContext> = {
     call: (path, input, options) => {
+      if (!socket.shouldReconnect && !lifetime.signal.aborted) socket.reconnect()
       if (isStreamingCall(path)) return rpc.call(path, input, options)
       const deadline = performance.now() + timings.callDeadlineMs
       const asked = options.context.shouldRetry
@@ -520,6 +523,9 @@ function socketConnection(id: string, key: ConnectionKey, state: TrustState): Co
     state,
     trust,
     holders: new Set(),
+    reconnect: () => {
+      if (socket.shouldReconnect && socket.readyState !== socket.OPEN && !lifetime.signal.aborted) socket.reconnect()
+    },
     close: () => {
       lifetime.abort()
       socket.close()
@@ -593,6 +599,13 @@ export function browserRpcConnection(
   const {entry, release} = holdConnection(connectionKey(apiBase, timings))
   if (tokenSource !== undefined) entry.state.tokenSource = tokenSource
   return {link: entry.link, trust: entry.trust, release}
+}
+
+export function resetBrowserRpcConnection(apiBase: string): void {
+  const key = normalizeApiBase(apiBase)
+  connections().forEach((entry) => {
+    if (entry.state.key === key) entry.reconnect()
+  })
 }
 
 export const RPC_UNBOUND_MESSAGE = 'conciv core not connected yet'

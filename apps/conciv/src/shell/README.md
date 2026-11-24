@@ -29,7 +29,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 - `notices.tsx:createNoticeStore`: a success notice with no icon shows the lucide `check`; a loading notice shows the kit `Loader` in the icon slot
 - `notice-context.tsx:useNotices`: throws outside `NoticeContextProvider`
 - `engine-notice.tsx:EngineStaleNotice`: one standing notice per engine `fingerprint`; cleared when the engine reports not stale and when the component unmounts
-- `engine-notice.tsx:EngineUnreachableNotice`: shown only while `sustainedOffline()`, and removed when the component unmounts; Retry re-runs the login check and `router.invalidate()`, and the socket comes back on its own (partysocket reconnects it)
+- `engine-notice.tsx:EngineUnreachableNotice`: shown only while `sustainedOffline()`, and removed when the component unmounts; Retry calls `resetBrowserRpcConnection` at once, then re-runs the login check and `router.invalidate()`
 - `router.tsx:defaultErrorComponent`: runs its Retry when it mounts on a refused (`UNAUTHORIZED`) error while the engine already trusts this browser, and on a trust flip from untrusted or revoked to trusted while it is shown
 - `rpc-error-message.ts:classifyRpcError`: reachability errors map to the transport message, otherwise the error message or the generic one
 - `refresh-button.tsx:RefreshButton`: disabled while a run is in progress or a refresh is running
@@ -38,7 +38,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 
 - `pip.ts:openPipWindow`: `window.open('', 'conciv-pip', 'width=480,height=620,popup')`, writes the popup document, attaches a shadow root and delegates events to it
 - `engine-notice.tsx:EngineStaleNotice`: reads `meta.engine` while connected and again on window refocus and on every reconnect of the engine socket (`refetchOnReconnect: 'always'`), never on a timer; reachability itself comes from the socket's open and close
-- `engine-notice.tsx:EngineUnreachableNotice`: Retry re-runs the login check
+- `engine-notice.tsx:EngineUnreachableNotice`: Retry re-runs the login check and resets the browser rpc connection
 
 ## Verification
 

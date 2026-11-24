@@ -2,6 +2,7 @@ import {Show, createEffect, onCleanup, onMount, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {isReachabilityError, useQuery} from '@conciv/client'
 import {useChildMatches, useRouteContext, useRouter} from '@tanstack/solid-router'
+import {resetBrowserRpcConnection} from '@conciv/contract'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import lt from 'semver/functions/lt'
 import valid from 'semver/functions/valid'
@@ -81,12 +82,14 @@ export function engineOlderThanWidget(version: string | null): boolean {
 export function EngineUnreachableNotice(): JSX.Element {
   const reachability = useEngineReachability()
   const notices = useNotices()
+  const apiBase = useApiBase()
   const router = useRouter()
   const login = useRouteContext({strict: false, select: (context) => context.login})
   const errorScreenShowsUnreachable = useChildMatches({
     select: (matches) => matches.some((match) => match.status === 'error' && isReachabilityError(match.error)),
   })
   const retry = async (): Promise<void> => {
+    resetBrowserRpcConnection(apiBase())
     await login()?.requestTrust()
     await router.invalidate()
   }

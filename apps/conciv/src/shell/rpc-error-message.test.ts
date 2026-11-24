@@ -6,21 +6,21 @@ import {classifyRpcError} from './rpc-error-message.js'
 describe('an error screen picks what to tell the user', () => {
   const unreachable = "conciv couldn't reach the engine. Check that the dev server is still running."
   const generic = 'Something went wrong. Try again.'
-  test.each<[string, unknown, {message: string}]>([
+  test.each<[string, unknown, {message: string; transportFailure: boolean}]>([
     [
       'the engine cannot be reached',
       engineUnreachable('Cannot send message, WebSocket is not open.'),
-      {message: unreachable},
+      {message: unreachable, transportFailure: true},
     ],
     [
       'the pane throws while it renders',
       new Error('Text measurement requires OffscreenCanvas or a DOM canvas context.'),
-      {message: 'Text measurement requires OffscreenCanvas or a DOM canvas context.'},
+      {message: 'Text measurement requires OffscreenCanvas or a DOM canvas context.', transportFailure: false},
     ],
     [
       'the engine answers with its own message',
       new ORPCError('NOT_FOUND', {message: 'Session ses_1 was not found'}),
-      {message: 'Session ses_1 was not found'},
+      {message: 'Session ses_1 was not found', transportFailure: false},
     ],
   ])('when %s', (_situation, error, shown) => {
     expect(classifyRpcError(error, unreachable, generic)).toEqual(shown)
