@@ -128,6 +128,11 @@ function ShellView<S extends Stores, I extends Icons>(props: FakeAppProps<S, I> 
       </For>
       <For each={props.tools}>{(tool) => <ToolCard shell={shell} tool={tool} />}</For>
       {props.children}
+      <textarea
+        aria-label="Message the conciv agent"
+        value={shell.state.composer.text}
+        onInput={(event) => screen()?.composer.setText(event.currentTarget.value)}
+      />
       <Show when={shell.state.composer.parts.length > 0}>
         <ul aria-label="Composer attachments">
           <For each={shell.state.composer.parts}>

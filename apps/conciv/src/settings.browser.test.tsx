@@ -129,7 +129,7 @@ describe('plugins in settings', () => {
   test('a plugin page joins the sections and its section shows in General, an unknown plugin page opens General, and a plugin under a built-in ID is not loaded', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({
-      plugins: ['./test/fixtures/plugins/shell-board', './test/fixtures/plugins/terminal'],
+      plugins: ['./test/fixtures/plugins/shell-board', './test/fixtures/plugins/conciv'],
     })
     await mount({
       engine,

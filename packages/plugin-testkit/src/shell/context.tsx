@@ -10,6 +10,7 @@ import {
   type Context,
   type Contract,
   type Live,
+  type Mutable,
   type MountedSession,
   type Persisted,
   type PluginOptions,
@@ -77,9 +78,13 @@ export function persistedCell<T extends object>(initial: T): Persisted<T, T> {
       return cell.value
     },
     ready: () => true,
-    update: () => {
-      throw new Error('the fake app shell has no Persisted.update: use set(next)')
-    },
+    update: (mutate) =>
+      setCell(
+        produce((draft) => {
+          if (mutate(draft.value as Mutable<T>) !== undefined)
+            throw new Error('Persisted.update must not return a value. Use set(next) to replace the value.')
+        }),
+      ),
     set: (next) => setCell('value', reconcile(next)),
   }
 }
@@ -160,7 +165,7 @@ export function createShell(input: {id: string; options: PluginOptions; engine: 
     const session: MountedSession = {
       ...sessionRef,
       visit: {},
-      directory: '/workspace',
+      directory: input.engine?.directory ?? '/workspace',
       local: true,
       run: {status: () => 'idle', interrupt: async () => ({interrupted: false})},
     }

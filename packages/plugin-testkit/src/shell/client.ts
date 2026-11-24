@@ -7,6 +7,7 @@ import type {EngineEvent} from '../browser-commands.js'
 
 export interface ShellEngine {
   readonly sessionId: string
+  readonly directory: string
   call(rpcId: string, method: string, input?: unknown): Promise<unknown>
   events(signal: AbortSignal): AsyncGenerator<EngineEvent>
 }
