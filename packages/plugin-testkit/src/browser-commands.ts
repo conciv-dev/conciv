@@ -8,10 +8,10 @@ export type EngineFailure = {readonly type: string; readonly message: string; re
 
 export type EngineOutcome = {ok: true; value: unknown} | {ok: false; failure: EngineFailure}
 
-export type EngineStartOptions = Pick<PluginEngine.Options, 'plugins' | 'permissions' | 'policies'>
+export type EngineStartOptions = Pick<PluginEngine.Options, 'plugins' | 'permissions' | 'policies' | 'directory'>
 
 export type EngineCommands = {
-  concivPluginEngineStart: (options: EngineStartOptions) => Promise<{id: string; sessionId: string}>
+  concivPluginEngineStart: (options: EngineStartOptions) => Promise<{id: string; sessionId: string; directory: string}>
   concivPluginEngineStop: (engineId: string) => Promise<void>
   concivPluginEngineCall: (engineId: string, rpcId: string, method: string, input: unknown) => Promise<EngineOutcome>
   concivPluginEngineTool: (

@@ -59,13 +59,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/ai": "workspace:*",
-    "@conciv/core": "workspace:*",
-    "@conciv/harness": "workspace:*",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/unplugin": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@internal/plugin": "workspace:*",
     "@playwright/test": "catalog:",

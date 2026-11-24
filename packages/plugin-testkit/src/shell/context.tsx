@@ -165,7 +165,7 @@ export function createShell(input: {id: string; options: PluginOptions; engine: 
     const session: MountedSession = {
       ...sessionRef,
       visit: {},
-      directory: '/workspace',
+      directory: input.engine?.directory ?? '/workspace',
       local: true,
       run: {status: () => 'idle', interrupt: async () => ({interrupted: false})},
     }

@@ -77,6 +77,7 @@ export async function pluginEngine(options: EngineStartOptions = {}): Promise<Te
   return {
     id: started.id,
     sessionId: started.sessionId,
+    directory: started.directory,
     call,
     failure,
     tool: (name) => ({

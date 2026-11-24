@@ -1,7 +1,7 @@
 import {Effect, ManagedRuntime, Queue, Schema, Stream} from 'effect'
 import type {BrowserCommandContext} from 'vitest/node'
 import {EventEnvelopeSchema} from '@conciv/contract'
-import {Bus, Event, EventManifest, Rpc} from '@conciv/plugin-host'
+import {Bus, Event, EventManifest, Location, Rpc} from '@conciv/plugin-host'
 import {PluginEngine} from './plugin-engine.js'
 import type {EngineCommands, EngineEvent, EngineOutcome} from './browser-commands.js'
 
@@ -78,9 +78,10 @@ export function engineCommands(): EngineCommandHandlers {
     concivPluginEngineStart: async (_context, options) => {
       const runtime = makeRuntime(options)
       const session = await runtime.runPromise(PluginEngine.session({title: 'Test session'}))
+      const location = await runtime.runPromise(Effect.service(Location.Service))
       const id = nextId()
       engines[id] = {runtime, sessions: {[session.id]: session}, feeds: {}}
-      return {id, sessionId: session.id}
+      return {id, sessionId: session.id, directory: location.directory}
     },
     concivPluginEngineStop: async (_context, engineId) => {
       const found = engines[engineId]
