@@ -13,15 +13,13 @@ import {
   traverseRenderedFibers,
   getFiberId,
   getTimings,
+  type Fiber,
 } from 'bippy'
 import {parseStack, hasDebugStack, getParentStack, formatOwnerStack} from 'bippy/source'
 import type {RefAdder} from './snapshot.js'
 import type {RawFrame, SourceLoc} from '@conciv/plugin/experimental/page'
 import type {Owner, LocateResult} from './contract.js'
 import type {TreeNode, HookNode, InspectResult, TreeResult} from './page-introspect-types.js'
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
-type Fiber = any
 
 type Renderer = {
   overrideProps?: (fiber: Fiber, path: (string | number)[], value: unknown) => void
@@ -46,7 +44,7 @@ function getRenderer(): Renderer | null {
 function readHooks(fiber: Fiber): HookNode[] {
   const types: string[] = Array.isArray(fiber._debugHookTypes) ? fiber._debugHookTypes : []
   const out: HookNode[] = []
-  let node = fiber.memoizedState
+  let node: Fiber['memoizedState'] | null = fiber.memoizedState
   let i = 0
   while (node && i < 100) {
     out.push({id: i, name: types[i] ?? 'hook', value: node.memoizedState, editable: !!node.queue})
@@ -173,6 +171,14 @@ function copyWithSet(obj: unknown, path: (string | number)[], value: unknown): u
   return base
 }
 
+function propsWithSet(props: unknown, path: (string | number)[], value: unknown): Record<string, unknown> {
+  const [head, ...rest] = path
+  if (head === undefined) return {...Object(value)}
+  const base: Record<string, unknown> = {...Object(props)}
+  base[String(head)] = copyWithSet(base[String(head)], rest, value)
+  return base
+}
+
 function propertyHolder(value: unknown, key: string | number): object {
   if (value === null || (typeof value !== 'object' && typeof value !== 'function'))
     throw new TypeError(`Cannot reach '${String(key)}' of ${String(value)}`)
@@ -208,7 +214,7 @@ function findProvider(fiber: Fiber): Fiber | null {
 function overridePropsOn(composite: Fiber, path: (string | number)[], value: unknown): OverrideResult {
   const inst = composite.stateNode
   if (isClassComponent(composite)) {
-    composite.pendingProps = copyWithSet(inst.props, path, value)
+    composite.pendingProps = propsWithSet(inst.props, path, value)
     inst.forceUpdate()
     return {ok: true}
   }
@@ -293,7 +299,7 @@ export async function tree(
   return {nodes: out, truncated: counters.truncated}
 }
 
-function nearestCompositeAncestor(f: Fiber): Fiber | null {
+function nearestCompositeAncestor(f: Fiber | null): Fiber | null {
   if (!f) return null
   return isCompositeFiber(f) ? f : nearestCompositeAncestor(f.return)
 }
@@ -303,7 +309,7 @@ function compositeDepth(depthByFiber: Map<Fiber, number>, node: Fiber): number {
   return comp ? (depthByFiber.get(comp) ?? 0) + 1 : 0
 }
 
-function nearestRecordedAncestor(byFiber: Map<Fiber, TreeNode>, f: Fiber): TreeNode | undefined {
+function nearestRecordedAncestor(byFiber: Map<Fiber, TreeNode>, f: Fiber | null): TreeNode | undefined {
   if (!f) return undefined
   return byFiber.has(f) ? byFiber.get(f) : nearestRecordedAncestor(byFiber, f.return)
 }
@@ -411,13 +417,10 @@ export type Tracker = {
   dispose: () => void
 }
 
-const isRecordPair = (prev: unknown, next: unknown): boolean =>
-  Boolean(prev) && Boolean(next) && typeof next === 'object' && typeof prev === 'object'
-
 function changedProps(fiber: Fiber): string[] {
   const next = fiber.memoizedProps
   const prev = fiber.alternate?.memoizedProps
-  if (!isRecordPair(prev, next)) return []
+  if (!prev || !next) return []
   return [...new Set([...Object.keys(prev), ...Object.keys(next)])].filter((k) => prev[k] !== next[k])
 }
 
