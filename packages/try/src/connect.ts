@@ -1,9 +1,9 @@
 import {mkdtemp, realpath} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {inspect} from 'node:util'
 import {start, type Engine, type LogEntry} from '@conciv/core/start'
-import page from '@conciv/plugin-page'
 import {ConfigProvider} from 'effect'
 import {harnessRegistry} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -74,6 +74,8 @@ function resolveAdapter(opts: ConnectOpts): HarnessAdapter {
   throw new Error(`conciv: unknown harness "${id}". Known harnesses: ${known}.`)
 }
 
+const PAGE_PLUGIN = dirname(fileURLToPath(import.meta.resolve('@conciv/plugin-page/package.json')))
+
 export async function runConnect(opts: ConnectOpts): Promise<Engine> {
   const adapter = resolveAdapter(opts)
   const root = await resolveWorkspace(opts.workspace)
@@ -86,8 +88,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
   for (let port = CONNECT_FIRST_PORT; port <= CONNECT_LAST_PORT; port += 1) {
     try {
       const engine = await start({
-        options: {harness: adapter.id, stateRoot: root, systemPrompt: CONNECT_SYSTEM_PROMPT},
-        builtins: [page],
+        options: {harness: adapter.id, stateRoot: root, systemPrompt: CONNECT_SYSTEM_PROMPT, plugins: [PAGE_PLUGIN]},
         root,
         port: {exact: port},
         launchEditor: () => {},

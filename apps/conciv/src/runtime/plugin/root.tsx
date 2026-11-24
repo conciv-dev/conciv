@@ -4,7 +4,6 @@ import type {PluginOptions} from '@conciv/plugin/experimental'
 import type {ConcivClient} from '@conciv/plugin'
 import {useRouteContext} from '@tanstack/solid-router'
 import {useApiBase, useAppData, useEnvironment} from '../../app/context'
-import {builtins} from './builtins'
 import {createBundleSource, type BundleSource, type PluginManager} from './bundle-source'
 import {PluginExperimentalLoader, type PluginExperimental, type PluginExperimentalSource} from './plugins'
 import {PluginHostProvider, usePluginHost} from './host'
@@ -63,7 +62,7 @@ export function reserveComposedPlugins(composed: readonly ComposedPlugin[]): rea
     if (!pluginIdAvailable(plugin.id, taken)) throw new Error(`The plugin id "${plugin.id}" is already taken`)
 
     return [...taken, plugin]
-  }, builtins)
+  }, [])
 
   return composed
 }
@@ -77,7 +76,7 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
   const login = useRouteContext({strict: false, select: (context) => context.login})
   const timings = useRouteContext({strict: false, select: (context) => context.timings})
   const composed = untrack(() => props.composed)
-  const local = [...builtins, ...composed.map(([plugin]) => plugin)]
+  const local = composed.map(([plugin]) => plugin)
   const trusted = createMemo(() => {
     const engine = login()
 
@@ -188,7 +187,7 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
           installed={installed}
           builtins={builtinIds}
           servers={props.servers}
-          options={(id) => composed.find(([plugin]) => plugin.id === id)?.[1] ?? untrack(bundle)?.builtinOptions(id)}
+          options={(id) => composed.find(([plugin]) => plugin.id === id)?.[1]}
           apis={apis.apis}
           whenMounted={apis.whenMounted}
           plugin={(id) => loaded().plugins.find((plugin) => plugin.definition.id === id)}

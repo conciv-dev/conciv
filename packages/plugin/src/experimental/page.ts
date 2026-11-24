@@ -20,4 +20,4 @@ export interface Page {
   pick(): Promise<Grab | null>
 }
 
-export const Page = Contract.define<Page, 'conciv.page'>('conciv.page')
+export const Page = Contract.define<Page, '@conciv/plugin-page'>('@conciv/plugin-page')

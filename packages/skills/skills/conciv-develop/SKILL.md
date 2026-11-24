@@ -31,7 +31,7 @@ conciv finds plugins two ways:
   project root, with no config; the engine watches the folder and reloads a plugin when it changes;
 - the `plugins` option of `conciv()`: a package name, a `./` path, or `[name, options]`. The engine
   installs a package name with npm into its own cache. `'-<id>'` turns off an earlier plugin,
-  built-ins included (`'-conciv.page'`); `'-*'` turns off all of them.
+  built-ins included (`'-@conciv/plugin-page'`); `'-*'` turns off all of them.
 
 Node imports the engine part as source, with types stripped: write it as `.ts`, `.js`, `.mts`,
 `.mjs`, `.cts` or `.cjs`, use only erasable syntax (no `enum`, no parameter properties), and import

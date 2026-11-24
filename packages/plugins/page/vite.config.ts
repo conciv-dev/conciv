@@ -1,32 +1,9 @@
-import {fileURLToPath} from 'node:url'
-import {defineConfig, type Plugin} from 'vite'
-import solid from 'vite-plugin-solid'
+import {defineConfig} from 'vite'
+import {experimental} from '@conciv/plugin/experimental/vite'
 import {concivTest} from '@conciv/plugin-testkit/vitest'
 
-const sourceDir = fileURLToPath(new URL('src/', import.meta.url))
-
-const rpcFromPackage: Plugin = {
-  name: 'page-rpc-from-package',
-  enforce: 'pre',
-  apply: 'build',
-  resolveId(source, importer) {
-    if (source === './rpc.js' && importer?.startsWith(sourceDir)) return {id: '@conciv/plugin-page/rpc', external: true}
-    return null
-  },
-}
-
-export default defineConfig({
-  plugins: [rpcFromPackage, solid(), concivTest()],
-  build: {
-    lib: {
-      entry: {renderer: fileURLToPath(new URL('src/renderer.tsx', import.meta.url))},
-      formats: ['es'],
-    },
-    rollupOptions: {
-      external:
-        /^(@conciv\/|solid-js|effect|zod|es-toolkit|rrweb-snapshot|@zumer\/snapdom|lucide-solid|@tanstack\/|@solid-primitives\/)/,
-    },
-    emptyOutDir: false,
-    sourcemap: true,
-  },
-})
+export default defineConfig(({command}) => ({
+  publicDir: false,
+  plugins: [experimental(), concivTest()],
+  define: command === 'build' ? {'process.env.NODE_ENV': JSON.stringify('production')} : {},
+}))

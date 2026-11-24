@@ -71,7 +71,6 @@ import {
 } from 'effect'
 import {Bus, Database, Permission, PluginHooks, SessionEvent, SessionInbox, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
-import type {Plugin as EffectPlugin} from '@conciv/plugin/effect/plugin'
 import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
 import {readModel, openDb, sessions, type ConcivDb} from '@conciv/db'
 import {createSettingsStorage, settingsOnDisk} from './settings/settings-storage.js'
@@ -242,8 +241,6 @@ export type MakeAppOpts = {
   boundOrigin?: () => string | undefined
 
   plugins?: readonly Plugin.Plugin[]
-
-  builtins?: readonly EffectPlugin[]
 
   staleness?: () => EngineStaleness | undefined
 
@@ -682,7 +679,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       engineId,
       config: opts.cfg,
       plugins: opts.plugins ?? [],
-      builtins: opts.builtins ?? [],
       harness,
       signal: engineLife.signal,
       bundler: opts.bridge,

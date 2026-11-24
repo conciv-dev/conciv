@@ -3,11 +3,11 @@
 ## Overview
 
 conciv's built-in page plugin, both halves in one package (as opencode's `plugin-browser` and `gui-plugins/browser`):
-the engine part (`.`: the plugin `conciv.page`, its connection, tools, skill and queue), the RPC contract (`./rpc`),
+the engine part (`.`: the plugin `@conciv/plugin-page`, its connection, tools, skill and queue), the RPC contract (`./rpc`),
 the browser part the widget runs eagerly (`./client`: what the widget calls directly), the window
 setup loaded lazily by the built-ins (`./renderer`).
 
-The engine part, the plugin `conciv.page` (`.`), registers the RPC `experimental.page` (`./rpc`) and answers it: each
+The engine part, the plugin `@conciv/plugin-page` (`.`), registers the RPC `experimental.page` (`./rpc`) and answers it: each
 tab's attachment and the commands it runs, page operations, live changes, captures, action queues and `symbolicate`.
 Core passes it to the plugin host as a post built-in and asks it over that RPC.
 
@@ -20,7 +20,7 @@ for the stories alone. The app composes its `./renderer` in `apps/conciv/src/run
 
 ## Interface
 
-- default export (`index.ts`): the engine plugin `conciv.page`
+- default export (`index.ts`): the engine plugin `@conciv/plugin-page`
 - `symbolicateFrames` (`symbolicate.ts`, internal): an Effect that maps frames (`RawFrame`) to original source
   (`SourceLoc`, both from `@conciv/contract`) with @jridgewell/trace-mapping; the `symbolicate`
   method answers with `symbolicateFrames`
@@ -103,11 +103,10 @@ attachment is closed, so they settle `disconnected before dispatch`). The source
 (opencode `plugin-browser/src/machine.ts` `failPending`), without a cancel. A closed tab gets no cancel: nothing is
 left to receive it.
 
-The engine starters (`unplugin` `core/boot.ts` and `core/vite.ts`, `try` `connect.ts`) pass the engine half in core `start`'s
-`builtins`, which fill the host's post slot (`InstancePlugins.bound(plugins, {post: builtins})`), so it is known
-before the config's entries run (`-conciv.page` turns it off) and activates last, as the source activates its browser plugin last (opencode `core/src/plugin/internal.ts:290-294`,
-`supervisor.ts:146-147`): the half pushes its page rules and the `page_eval` ask onto every agent, so it runs after
-every project plugin that adds one. Core lists no plugin of its own.
+The engine starters (`unplugin` `core/boot.ts` `withServedBuiltIns` and `try` `connect.ts`) list this package's folder in
+the config's `plugins`, after the project's own entries, so the plugin is served like any package plugin, with the id
+`@conciv/plugin-page` (`-@conciv/plugin-page` turns it off). The half pushes its page rules and the `page_eval` ask onto
+every agent, so it activates after every project plugin that adds one. Core lists no plugin of its own.
 A tool call that arrives while its plugin restarts after a reload meets the restart window, as in opencode: work
 started after the reload waits for activation (opencode `core/src/session/prompt.ts:40`; conciv
 `core/src/runtime/plugin-runtime.ts` `Plugin.awaitActivation`), a call already in flight does not.

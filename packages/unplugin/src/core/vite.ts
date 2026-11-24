@@ -185,10 +185,9 @@ async function bootEngine(
   agentPath: string,
   widgetPageDir: string | undefined,
 ): Promise<Engine> {
-  const [{start}, {default: page}] = await Promise.all([import('@conciv/core/start'), import('@conciv/plugin-page')])
+  const {start} = await import('@conciv/core/start')
   return start({
     options: withServedBuiltIns(options),
-    builtins: [page],
     root: server.config.root,
     port: options.port === undefined ? undefined : {preferred: options.port},
     bridge: await makeViteBridge(server),

@@ -32,9 +32,9 @@
       "types": "./dist/contract.d.ts",
       "import": "./dist/contract.js"
     },
-    "./renderer": {
-      "types": "./dist/renderer.d.ts",
-      "import": "./dist/renderer.js"
+    "./plugin-experimental": {
+      "types": "./dist/plugin-experimental.d.cts",
+      "default": "./dist/plugin-experimental.cjs"
     },
     "./package.json": "./package.json"
   },
@@ -42,7 +42,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "build": "tsdown && tsc -p tsconfig.build.json && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",

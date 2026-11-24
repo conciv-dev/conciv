@@ -453,7 +453,7 @@ describe('a plugin tab, its dialogs and its overlay', () => {
   test('a plugin tab that crashes says so and comes back on Retry, while the page plugin the config turns off stays off in the engine and the page', async () => {
     const user = userEvent.setup()
     const engine = await createEngine({
-      plugins: [['./test/fixtures/plugins/shell-board', {crash: true}], '-conciv.page'],
+      plugins: [['./test/fixtures/plugins/shell-board', {crash: true}], '-@conciv/plugin-page'],
     })
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 

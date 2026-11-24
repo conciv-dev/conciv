@@ -47,4 +47,4 @@ export interface ReactTree {
   frames(element: Element): Promise<readonly RawFrame[]>
 }
 
-export const ReactTree = Contract.define<ReactTree, 'conciv.page.react'>('conciv.page.react')
+export const ReactTree = Contract.define<ReactTree, '@conciv/plugin-page.react'>('@conciv/plugin-page.react')

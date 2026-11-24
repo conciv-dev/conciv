@@ -111,7 +111,7 @@ export default defineConfig({
     conciv({
       port: 4599,
       plugins: [
-        '-conciv.page',
+        '-@conciv/plugin-page',
         [
           '@conciv/plugin-ios',
           {
@@ -126,7 +126,7 @@ export default defineConfig({
 })
 ```
 
-`'-conciv.page'` turns the page plugin off, so grabbing picks native views only. `port` is optional. The app finds a core on any port through the pairing file below; pinning it only
+`'-@conciv/plugin-page'` turns the page plugin off, so grabbing picks native views only. `port` is optional. The app finds a core on any port through the pairing file below; pinning it only
 keeps the URL stable across restarts, which matters if you launch the app by hand with `CONCIV_URL`.
 From the agent panel you then run `ios_build` and `ios_run` to build and launch the app. Without this
 block the widget still works; only the `ios_*` build tools are unavailable.

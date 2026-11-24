@@ -12,7 +12,10 @@ export type Builtins = {
   widgetPageDir?: string
 }
 
-const SERVED_BUILT_INS = [import.meta.resolve('@conciv/plugin-terminal/package.json')]
+const SERVED_BUILT_INS = [
+  import.meta.resolve('@conciv/plugin-page/package.json'),
+  import.meta.resolve('@conciv/plugin-terminal/package.json'),
+]
 
 function packageDirectory(manifest: string): string {
   return path.dirname(fileURLToPath(manifest))
@@ -37,13 +40,9 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
     if (booting) return booting
     const stateRoot = options.stateRoot ?? root
     booting = Promise.try(() => installConcivBinShim(concivStateDir(stateRoot))).then(async (agentPath) => {
-      const [{start}, {default: page}] = await Promise.all([
-        import('@conciv/core/start'),
-        import('@conciv/plugin-page'),
-      ])
+      const {start} = await import('@conciv/core/start')
       return start({
         options: withServedBuiltIns(options),
-        builtins: [page],
         root,
         port: options.port === undefined ? undefined : {exact: options.port},
         launchEditor: makeOpenInEditor(root),

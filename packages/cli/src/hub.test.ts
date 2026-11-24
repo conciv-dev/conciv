@@ -222,7 +222,7 @@ describe('the hub', () => {
     })
     expect(await pollTask(stranded.taskId)).toEqual(lost)
 
-    const bare = await createEngine({plugins: ['-conciv.page', './test/fixtures/plugins/plant-shelf']})
+    const bare = await createEngine({plugins: ['-@conciv/plugin-page', './test/fixtures/plugins/plant-shelf']})
     withHomeDb(await prepareHome(bare.home), (db) => recordHubConnection(db, 'claude', Date.now()))
     const bareAgent = await hub(bare.home)
     const tab = bare.session.id
@@ -235,7 +235,10 @@ describe('the hub', () => {
     expect(notOpen.isError).toBe(true)
     expect(notOpen.content).toEqual([{type: 'text', text: `TAB_NOT_OPEN: tab ${tab} is not open; call list_tabs`}])
 
-    const old = await createEngine({plugins: ['-conciv.page', './test/fixtures/plugins/old-page']}, {home: bare.home})
+    const old = await createEngine(
+      {plugins: ['-@conciv/plugin-page', './test/fixtures/plugins/old-page']},
+      {home: bare.home},
+    )
     const oldListed = await bareAgent.callTool('list_tabs', {})
     const oldListing = z
       .object({tabs: z.array(z.unknown()), unreachable: z.array(z.object({root: z.string(), error: z.string()}))})
@@ -257,7 +260,7 @@ describe('the hub', () => {
     ])
 
     const broken = await createEngine(
-      {plugins: ['-conciv.page', './test/fixtures/plugins/broken-page']},
+      {plugins: ['-@conciv/plugin-page', './test/fixtures/plugins/broken-page']},
       {home: bare.home},
     )
     await broken.rpc.call('experimental.page', 'attach', {sessionId: broken.session.id})
