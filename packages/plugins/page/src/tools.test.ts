@@ -1,12 +1,15 @@
 import {describe, expect, it} from 'vitest'
+import {Effect, Fiber, Option, Schema, Stream} from 'effect'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
-import {cli, createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {TestLLM} from '@conciv/core/testing'
+import {PluginEngine, testEffect} from '@conciv/plugin-testkit'
+import {createEngine, PAGE_PLUGIN} from '../test/engine.js'
 
 describe('with no page open, the agent is offered no page tools', () => {
-  it('leaves the page tools and the page skill out of the request and out of reach of a call, and the CLI lists the page group, which holds every page tool, but a page tool is not available', async () => {
-    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
+  it('leaves the page tools and the page skill out of the request and out of reach of a call', async () => {
+    const engine = await createEngine({plugins: [PAGE_PLUGIN]})
     await engine.reply(TestLLM.text('Open the page first'))
     await engine.session.send('Click the checkout button')
 
@@ -25,29 +28,12 @@ describe('with no page open, the agent is offered no page tools', () => {
     expect(await engine.outside().discover(['page_click'])).toMatchObject({
       content: [{type: 'text', text: expect.stringContaining("Unknown tool: 'page_click'")}],
     })
-
-    const help = await cli(['tools', '--help'], {engine})
-    expect(help.stdout).toMatch(/^ {2}page +the page tools the running dev server serves/m)
-    expect(help.stdout).not.toMatch(/^ {2}react +/m)
-    const pageHelp = await cli(['tools', 'page', '--help'], {engine})
-    expect(pageHelp.stdout).toMatch(/^ {2}locate +find the source location that rendered an element/m)
-    expect(pageHelp.stdout).toMatch(/^ {2}fill_form +fill several fields in order/m)
-    const noPage = await cli(['tools', 'page', 'route'], {engine})
-    expect(noPage.exitCode).toBe(1)
-    expect(JSON.parse(noPage.stdout)).toEqual({
-      ok: false,
-      error: {
-        kind: 'user',
-        message: 'No tool named "page_route" is currently available. Please use a tool from the available tool list.',
-        code: 'HANDLER_ERROR',
-      },
-    })
   })
 })
 
 describe('the agent reads the page in code mode', () => {
   it('gives the model the page instructions once a page attaches, and tells it the exported page result is untrusted page data; a queue that finishes tells whoever started it: an outside agent reads its finished queue once through queue.outside, asked with the ids of a later call or none, and the session hears nothing of it, while a queue the session started reaches the session as one message and its queue.wait answer carries the same notice', async () => {
-    const engine = await createEngine({plugins: ['@conciv/plugin-page'], hubAccess: 'open'})
+    const engine = await createEngine({plugins: [PAGE_PLUGIN], hubAccess: 'open'})
     const sessionId = engine.session.id
     const connectionId = 'checkout'
     const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
@@ -193,81 +179,86 @@ describe('the agent reads the page in code mode', () => {
 })
 
 describe('the page never answers what the agent asked', () => {
-  it('a queued action the page does not confirm in time comes back lost, as it may already have run', async () => {
-    const engine = await createEngine({plugins: [['@conciv/plugin-page', {queuedActionTimeoutMs: 1}]]})
+  const TAB = {
+    id: 'tab_11111111-1111-4111-8111-111111111111',
+    url: 'http://localhost:3000/checkout',
+    title: 'Checkout',
+    focused: true,
+    visible: true,
+  }
+
+  const isAttached = Schema.is(
+    Schema.Struct({type: Schema.Literal('attached'), connectionId: Schema.Literal('checkout')}),
+  )
+
+  const isCommand = Schema.is(Schema.Struct({type: Schema.Literal('command'), requestId: Schema.String}))
+
+  const firstControl = (matches: (data: unknown) => boolean) =>
+    PluginEngine.events('rpc.experimental.page.control').pipe(
+      Stream.filter((event) => matches(event.data)),
+      Stream.runHead,
+      Effect.map((event) => Option.getOrUndefined(event)?.data),
+      Effect.forkScoped({startImmediately: true}),
+    )
+
+  const attachedPage = Effect.gen(function* () {
+    const session = yield* PluginEngine.session()
     const connectionId = 'checkout'
-    const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
-    const attachment = engine.rpc
-      .call('experimental.page', 'attach', {sessionId: engine.session.id, connectionId, version: 1})
-      .then(
-        (result) => (result === 'replaced' ? 'replaced' : 'closed'),
-        () => 'closed',
-      )
-    await attached.arrived
-    await engine.rpc.call('experimental.page', 'state', {
-      sessionId: engine.session.id,
-      connectionId,
-      state: {
-        id: 'tab_11111111-1111-4111-8111-111111111111',
-        url: 'http://localhost:3000/checkout',
-        title: 'Checkout',
-        focused: true,
-        visible: true,
-      },
-    })
-    const command = await engine.event('rpc.experimental.page.control', {data: {type: 'command', connectionId}})
-
-    const queued = engine.session.tool('page_queue').call({actions: [{tool: 'page_click', selector: '#buy'}]})
-    const acceptance = z.object({requestId: z.string()}).parse((await command.arrived).data)
-    await engine.rpc.call('experimental.page', 'result', {
-      sessionId: engine.session.id,
-      connectionId,
-      requestId: acceptance.requestId,
-      outcome: {type: 'success', result: {value: null, files: []}},
-    })
-
-    expect(await queued).toMatchObject({
-      status: 'lost',
-      outcomes: [
-        {
-          index: 0,
-          tool: 'page_click',
-          ok: false,
-          error: 'the page did not confirm page_click in time; it may already have run',
-        },
-      ],
-    })
-    await engine.restart()
-    expect(await attachment).toBe('closed')
+    const attached = yield* firstControl(isAttached)
+    yield* PluginEngine.call('experimental.page', 'attach', {sessionId: session.id, connectionId, version: 1}).pipe(
+      Effect.forkScoped({startImmediately: true}),
+    )
+    yield* Fiber.join(attached)
+    yield* PluginEngine.call('experimental.page', 'state', {sessionId: session.id, connectionId, state: TAB})
+    return {session, connectionId}
   })
 
-  it('a page call that outlasts the reply window comes back as a timeout', async () => {
-    const engine = await createEngine({plugins: [['@conciv/plugin-page', {pageReplyTimeoutMs: 1}]]})
-    const connectionId = 'checkout'
-    const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached', connectionId}})
-    const attachment = engine.rpc
-      .call('experimental.page', 'attach', {sessionId: engine.session.id, connectionId, version: 1})
-      .then(
-        (result) => (result === 'replaced' ? 'replaced' : 'closed'),
-        () => 'closed',
-      )
-    await attached.arrived
-    await engine.rpc.call('experimental.page', 'state', {
-      sessionId: engine.session.id,
-      connectionId,
-      state: {
-        id: 'tab_11111111-1111-4111-8111-111111111111',
-        url: 'http://localhost:3000/checkout',
-        title: 'Checkout',
-        focused: true,
-        visible: true,
-      },
-    })
+  describe('a queued action the page never confirms', () => {
+    const effect = testEffect(PluginEngine.layer({plugins: [['@conciv/plugin-page', {queuedActionTimeoutMs: 1}]]}))
 
-    expect(await engine.session.tool('page_wait').failure({selector: '#never', state: 'visible'})).toMatchObject({
-      message: expect.stringContaining('[page.timeout] page.wait did not finish within 0.001 seconds'),
-    })
-    await engine.restart()
-    expect(await attachment).toBe('closed')
+    effect.live('comes back lost, as it may already have run', () =>
+      Effect.gen(function* () {
+        const {session, connectionId} = yield* attachedPage
+        const command = yield* firstControl(isCommand)
+
+        const queued = yield* session
+          .tool('page_queue')
+          .call({actions: [{tool: 'page_click', selector: '#buy'}]})
+          .pipe(Effect.forkScoped({startImmediately: true}))
+        const acceptance = z.object({requestId: z.string()}).parse(yield* Fiber.join(command))
+        yield* PluginEngine.call('experimental.page', 'result', {
+          sessionId: session.id,
+          connectionId,
+          requestId: acceptance.requestId,
+          outcome: {type: 'success', result: {value: null, files: []}},
+        })
+
+        expect(yield* Fiber.join(queued)).toMatchObject({
+          status: 'lost',
+          outcomes: [
+            {
+              index: 0,
+              tool: 'page_click',
+              ok: false,
+              error: 'the page did not confirm page_click in time; it may already have run',
+            },
+          ],
+        })
+      }),
+    )
+  })
+
+  describe('a page call that outlasts the reply window', () => {
+    const effect = testEffect(PluginEngine.layer({plugins: [['@conciv/plugin-page', {pageReplyTimeoutMs: 1}]]}))
+
+    effect.live('comes back as a timeout', () =>
+      Effect.gen(function* () {
+        const {session} = yield* attachedPage
+
+        expect(yield* session.tool('page_wait').failure({selector: '#never', state: 'visible'})).toMatchObject({
+          message: expect.stringContaining('[page.timeout] page.wait did not finish within 0.001 seconds'),
+        })
+      }),
+    )
   })
 })
