@@ -90,9 +90,23 @@
       "passThroughEnv": ["VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"],
       "outputs": ["test-results.json", "coverage/coverage-summary.json", "coverage/lcov.info"]
     },
-    "lint": {
-      "dependsOn": ["^build", "@conciv/uno-preset#build"],
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json", "$TURBO_ROOT$/uno.config.ts"]
+    "//#quality": {
+      "dependsOn": ["//#lint", "//#format"]
+    },
+    "//#quality:fix": {
+      "dependsOn": ["//#lint:fix", "//#format:fix"]
+    },
+    "//#lint": {
+      "dependsOn": ["@conciv/uno-preset#build"]
+    },
+    "//#lint:fix": {
+      "dependsOn": ["@conciv/uno-preset#build"],
+      "cache": false
+    },
+    "//#format": {},
+    "//#format:fix": {
+      "dependsOn": ["//#lint:fix"],
+      "cache": false
     },
     "publint": {
       "dependsOn": ["build"]

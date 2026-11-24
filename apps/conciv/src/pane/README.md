@@ -64,7 +64,7 @@ The composer draft has two copies. The first is in this browser: the IndexedDB d
 
 ## Verification
 
-- Run: `pnpm exec turbo run typecheck lint test --filter=@conciv/app` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck test --filter=@conciv/app` and `pnpm lint` from the repo root (turbo builds the package and its dependencies first)
 - Calm perf gate: `pnpm --filter @conciv/app test:perf` runs `chat-pane.perf.test.tsx` in Chromium and Firefox (the kit's `perf` project, never in `test`). Budgets: frame-gap p95 at most 20 ms, at most 2 gaps over 33 ms, at least 300 ms sampled; the frame watch is `test/fixtures/calm-watch.ts`
 - The streamed code block is paced at 100 tokens per second, a real model's rate. The kit's fake model sends one 4-character token per update, so this is 100 updates per second. 450 tokens per second would match the old gate's characters per second, but that gate sent 33 updates of 56 characters per second; at 450 the pane gets 14 times its updates and the gate measures an update rate no model sends. The 40-line block streams for about 8 s, so the test asserts its way along the stream through the collapsed block's `N more lines` button (any count, then 20 or more), each step under 4 s, inside the 5 s assert wait
 - The multi-tool run scripts 60 tool steps. The kit runs tool steps unpaced (the old gate paced results every 50 ms), so the step count sets the sampled window: 20 steps gave 300 to 800 ms, where p95 is one slow frame; 60 give about 2.4 s

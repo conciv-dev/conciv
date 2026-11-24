@@ -34,7 +34,6 @@
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },

@@ -106,7 +106,6 @@
   "scripts": {
     "build": "tsdown && tsdown --config tsdown.solid-source.config.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
     "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"

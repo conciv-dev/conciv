@@ -31,7 +31,6 @@
   "scripts": {
     "build": "tsdown && chmod +x dist/bin.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
     "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"

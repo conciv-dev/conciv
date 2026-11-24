@@ -25,4 +25,4 @@ Shared React components for the site: MDX component map, client-only Mermaid, th
 
 ## Verification
 
-- Run: `pnpm exec turbo run typecheck lint test --filter=site` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck test --filter=site` and `pnpm lint` from the repo root (turbo builds the package and its dependencies first)

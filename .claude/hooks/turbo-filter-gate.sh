@@ -43,7 +43,7 @@ set -euo pipefail
 # Rule 5 (separate cache store): turbo already shares the main checkout's
 # `.turbo/cache` with every git worktree, so a second store only makes runs
 # miss each other's results. An invocation that runs turbo, directly or through
-# a root script that expands to it (build, test, typecheck, lint, e2e, dev,
+# a root script that expands to it (build, test, typecheck, e2e, dev,
 # storybook and their variants), is blocked when it assigns `TURBO_CACHE_DIR=`
 # inline or via `env`, or passes `--cache-dir`/`--cache-dir=`, including as a
 # quoted argument (`"--cache-dir=x"`); a quoted message that merely mentions
@@ -125,14 +125,14 @@ CMD="$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || true)"
 [ -n "$CMD" ] || exit 0
 
 STRIPPED_CMD="$(printf '%s\n' "$CMD" | strip_quoted)"
-TURBO_RE='(^|[[:space:];|&()])(turbo|pnpm[[:space:]]+(run[[:space:]]+)?(build(:affected)?|test(:affected)?|typecheck(:affected)?|lint|e2e|dev(:watch|:site)?|storybook))([[:space:]]|$)'
+TURBO_RE='(^|[[:space:];|&()])(turbo|pnpm[[:space:]]+(run[[:space:]]+)?(build(:affected)?|test(:affected)?|typecheck(:affected)?|e2e|dev(:watch|:site)?|storybook))([[:space:]]|$)'
 CACHE_ENV_RE='(^|[[:space:];|&()])TURBO_CACHE_DIR='
 QUOTED_CACHE_ENV_RE="[[:space:]][\"']TURBO_CACHE_DIR="
 CACHE_FLAG_RE='(^|[[:space:]])--cache-dir([=[:space:]]|$)'
 QUOTED_CACHE_FLAG_RE="[[:space:]][\"']--cache-dir([=[:space:]\"']|\$)"
 UNSET_RE='(^|[[:space:];|&()])unset([[:space:]]+[^[:space:]]+)*[[:space:]]+TURBO_CACHE_DIR([[:space:]]|$)'
 ENV_UNSET_RE='(^|[[:space:]])env[[:space:]]+([^[:space:]]+[[:space:]]+)*(-u[[:space:]]*|--unset[=[:space:]]+)TURBO_CACHE_DIR([[:space:]]|$)'
-EARLY_RE='(^|[[:space:];|&()])(turbo([[:space:]]|$)|pnpm[[:space:]]+(run[[:space:]]+)?(build(:affected)?|lint|e2e|dev(:watch|:site)?|storybook)([[:space:]]|$)|pnpm[[:space:]]+(run[[:space:]]+)?(test|typecheck)(:affected)?([[:space:]]|$)|(pnpm[[:space:]]+(exec|dlx)[[:space:]]+|npx[[:space:]]+)?vitest([[:space:]]|$))'
+EARLY_RE='(^|[[:space:];|&()])(turbo([[:space:]]|$)|pnpm[[:space:]]+(run[[:space:]]+)?(build(:affected)?|e2e|dev(:watch|:site)?|storybook)([[:space:]]|$)|pnpm[[:space:]]+(run[[:space:]]+)?(test|typecheck)(:affected)?([[:space:]]|$)|(pnpm[[:space:]]+(exec|dlx)[[:space:]]+|npx[[:space:]]+)?vitest([[:space:]]|$))'
 printf '%s\n' "$STRIPPED_CMD" | grep -Eq "$EARLY_RE" || exit 0
 
 TRAILING_DOTS_OFFENDERS=""

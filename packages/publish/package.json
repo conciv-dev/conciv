@@ -16,7 +16,6 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
     "test": "vitest run"
   },
   "dependencies": {

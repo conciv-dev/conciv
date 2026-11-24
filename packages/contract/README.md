@@ -22,4 +22,4 @@ The oRPC contract (procedures plus zod schemas) shared by conciv core and its cl
 
 ## Verification
 
-- Also: `pnpm typecheck`, `pnpm lint`
+- Also: `pnpm typecheck`, and `pnpm lint` at the repo root

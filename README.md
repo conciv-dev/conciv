@@ -179,7 +179,7 @@ Every package, app and source directory carries a `README.md` with its interface
 
 ### System Verification
 
-- Run: `pnpm typecheck && pnpm lint && pnpm test` at the repo root (turbo runs every package), or `pnpm test:affected` for packages changed since `origin/main`.
+- Run: `pnpm typecheck && pnpm lint && pnpm test` at the repo root (turbo runs every package; `pnpm lint` is one oxlint over the repo), or `pnpm test:affected` for packages changed since `origin/main`.
 
 ## Contributing
 

@@ -44,4 +44,4 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 ## Verification
 
 - Run: `pnpm exec turbo run test --filter=@conciv/protocol` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/protocol && pnpm typecheck && pnpm lint`
+- Typecheck and lint: `cd packages/protocol && pnpm typecheck`, then `pnpm lint` at the repo root

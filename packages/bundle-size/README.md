@@ -23,4 +23,4 @@ Private CI tool that measures the gzip size of published package dists and the a
 
 ## Verification
 
-- Typecheck and lint: `cd packages/bundle-size && pnpm typecheck && pnpm lint`
+- Typecheck and lint: `cd packages/bundle-size && pnpm typecheck`, then `pnpm lint` at the repo root

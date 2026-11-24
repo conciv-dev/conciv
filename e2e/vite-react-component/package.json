@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint",
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "typecheck": "tsc -p tsconfig.e2e.json --noEmit"

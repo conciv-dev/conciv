@@ -14,8 +14,7 @@
     "generate-routes": "tsr generate",
     "build": "pnpm run plugin:build && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p conciv/plugins/deploy/tsconfig.json --noEmit",
-    "lint": "oxlint"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p conciv/plugins/deploy/tsconfig.json --noEmit"
   },
   "dependencies": {
     "@conciv/cli": "workspace:*",

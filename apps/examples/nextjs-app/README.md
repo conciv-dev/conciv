@@ -61,4 +61,4 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Verification
 
-- Run: `pnpm exec turbo run lint build --filter=nextjs-app` from the repo root (turbo builds the package and its dependencies first) (the package has no `test` or `typecheck` script)
+- Run: `pnpm exec turbo run build --filter=nextjs-app` and `pnpm lint` from the repo root (turbo builds the package and its dependencies first) (the package has no `test` or `typecheck` script)

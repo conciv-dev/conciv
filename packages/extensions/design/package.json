@@ -44,7 +44,6 @@
   "scripts": {
     "build": "tsdown && vite build && vite build --config vite.xray.config.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
     "dev:xray": "vite --config vite.xray.config.ts"

@@ -13,7 +13,6 @@
     "generate-routes": "tsr generate",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
     "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js",
     "test:perf": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js --project perf"
   },

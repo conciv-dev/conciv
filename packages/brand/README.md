@@ -24,4 +24,4 @@ Private package (`"private": true`, `"sideEffects": false`) that ships the conci
 
 ## Verification
 
-- Also: `pnpm typecheck`, `pnpm lint`
+- Also: `pnpm typecheck`, and `pnpm lint` at the repo root

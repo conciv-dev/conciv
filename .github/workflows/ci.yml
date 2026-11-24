@@ -269,7 +269,7 @@ jobs:
 
   # Whole-repo gates that don't belong to any one shard. Bundle size measures
   # every published dist, so it builds the full package graph itself (warm turbo
-  # cache makes this cheap); the no-comments oxlint pass covers apps/ too.
+  # cache makes this cheap); oxlint and oxfmt run once over the whole repo as turbo root tasks.
   repo-checks:
     name: repo checks
     runs-on: ubuntu-latest
@@ -315,6 +315,10 @@ jobs:
       - run: pnpm exec conciv-publish check-turbo-depends-on
       - run: pnpm exec conciv-publish check-dependency-loops
       - run: pnpm exec conciv-publish check-plugin-ui-kit
+      # oxlint and oxfmt over the whole repo (apps/ too), as the turbo root tasks //#lint and //#format.
+      # Runs before any build step: the unocss lint rule loads uno.config.ts, which imports the preset's dist,
+      # so lint passes here only while //#lint itself depends on @conciv/uno-preset#build.
+      - run: pnpm exec turbo run quality
       # The browser jobs' container image must be one digest-pinned reference whose tag
       # is the playwright version the lockfile resolves, else Playwright looks for
       # browser builds the image does not have. Dependabot cannot bump container images
@@ -360,8 +364,6 @@ jobs:
         with:
           name: bundle-size-baseline
           path: bundle-size.json
-      # Enforce the no-comments rule everywhere (incl. apps/), without pulling the private apps into the build/test gate.
-      - run: pnpm exec oxlint -A all -D conciv/no-comments --ignore-pattern 'packages/extensions/design/**'
       - name: Skill format
         run: pnpm --filter @conciv/skills exec intent validate skills --check --github-summary
       - name: Skill references
@@ -421,7 +423,7 @@ jobs:
           mode: firewall-free
           firewall-version: 1.16.0 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook'
+      - run: pnpm exec turbo run typecheck test --filter='./apps/storybook'
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always()
         with:

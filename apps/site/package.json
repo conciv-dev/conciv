@@ -18,7 +18,6 @@
     "deploy": "pnpm run build && wrangler deploy",
     "cf-typegen": "wrangler types",
     "typecheck": "fumadocs-mdx && tsc --noEmit",
-    "lint": "oxlint",
     "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {

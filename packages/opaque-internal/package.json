@@ -18,7 +18,6 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
     "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "devDependencies": {
