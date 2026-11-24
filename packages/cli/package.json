@@ -23,11 +23,7 @@
   ],
   "type": "module",
   "exports": {
-    "./bin": "./dist/bin.js",
-    "./testing": {
-      "types": "./dist/testing.d.ts",
-      "import": "./dist/testing.js"
-    }
+    "./bin": "./dist/bin.js"
   },
   "publishConfig": {
     "access": "public"
@@ -67,17 +63,5 @@
     "vite": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
-  },
-  "peerDependencies": {
-    "@conciv/core": "workspace:^",
-    "vitest": "^5.1.0"
-  },
-  "peerDependenciesMeta": {
-    "@conciv/core": {
-      "optional": true
-    },
-    "vitest": {
-      "optional": true
-    }
   }
 }

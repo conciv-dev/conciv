@@ -1,7 +1,7 @@
 import {describe, expect} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
-import {cli, test as it} from './testing.js'
+import {cli, test as it} from '../test/cli.js'
 
 describe('auth', () => {
   it('link prints a one-time login link, revoke lists and revokes, and an unknown id is a user error', async ({

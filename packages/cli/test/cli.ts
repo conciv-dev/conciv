@@ -1,4 +1,4 @@
-import {spawn, type ChildProcessByStdio} from 'node:child_process'
+import {spawn} from 'node:child_process'
 import {once} from 'node:events'
 import {mkdirSync, mkdtempSync} from 'node:fs'
 import {rm} from 'node:fs/promises'
@@ -6,11 +6,7 @@ import {createRequire} from 'node:module'
 import {createServer} from 'node:net'
 import {constants, tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {createInterface} from 'node:readline'
-import type {Readable, Writable} from 'node:stream'
-import type {TestAPI} from 'vitest'
 import {createEngineTest} from '@conciv/core/testing'
-import {z} from 'zod'
 import {createMCPClient, type MCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 import {isolatedEnv} from '@conciv/vitest-config/isolated-env'
@@ -19,11 +15,11 @@ const CLI_DEADLINE_MS = 60_000
 
 const CLI_BIN = createRequire(import.meta.url).resolve('@conciv/cli/bin')
 
-export type CliEngine = {address: {apiBase: string; token: string}; home: string}
+type CliEngine = {address: {apiBase: string; token: string}; home: string}
 
-export type CliOptions = {cwd?: string; env?: Record<string, string>; engine?: CliEngine}
+type CliOptions = {cwd?: string; env?: Record<string, string>; engine?: CliEngine}
 
-export type CliRun = {stdout: string; stderr: string; exitCode: number}
+type CliRun = {stdout: string; stderr: string; exitCode: number}
 
 function exitCode(code: number | null, signal: NodeJS.Signals | null): number {
   if (code !== null) return code
@@ -92,30 +88,11 @@ export async function cli(args: string[], options: CliOptions = {}): Promise<Cli
 
 const HUB_ARGS = [CLI_BIN, 'mcp', 'serve', '--agent', 'claude']
 
-const TASKS_ENVELOPE = {
-  'io.modelcontextprotocol/protocolVersion': '2026-07-28',
-  'io.modelcontextprotocol/clientInfo': {name: 'hub-test', version: '1.0.0'},
-  'io.modelcontextprotocol/clientCapabilities': {extensions: {'io.modelcontextprotocol/tasks': {}}},
-}
-
-const ReplySchema = z.object({id: z.number(), result: z.looseObject({})})
-
-export type TasksClient = {
-  request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>
-}
-
-export type HubFixtures = {
+type HubFixtures = {
   hub: (home: string) => Promise<MCPClient>
-  tasksHub: (home: string) => TasksClient
 }
 
-type EngineTest = ReturnType<typeof createEngineTest>
-
-type EngineFixtures = EngineTest extends TestAPI<infer Fixtures> ? Fixtures : never
-
-const base: EngineTest = createEngineTest()
-
-export const test: TestAPI<EngineFixtures & HubFixtures> = base.extend<HubFixtures>({
+export const test = createEngineTest().extend<HubFixtures>({
   hub: async ({task: _task}, use) => {
     const clients: MCPClient[] = []
     await use(async (home) => {
@@ -126,37 +103,5 @@ export const test: TestAPI<EngineFixtures & HubFixtures> = base.extend<HubFixtur
       return client
     })
     await Promise.all(clients.map((client) => client.close()))
-  },
-  tasksHub: async ({task: _task}, use) => {
-    const children: ChildProcessByStdio<Writable, Readable, null>[] = []
-    await use((home) => {
-      const child = spawn(process.execPath, HUB_ARGS, {
-        env: {...process.env, CONCIV_HOME: home, HOME: home},
-        stdio: ['pipe', 'pipe', 'inherit'],
-      })
-      children.push(child)
-      const waiting = new Map<number, (result: Record<string, unknown>) => void>()
-      createInterface({input: child.stdout}).on('line', (line) => {
-        const reply = ReplySchema.safeParse(JSON.parse(line))
-        if (reply.success) waiting.get(reply.data.id)?.(reply.data.result)
-      })
-      const sent = {next: 1}
-      return {
-        request: (method, params) => {
-          const id = sent.next++
-          const replied = new Promise<Record<string, unknown>>((resolve) => waiting.set(id, resolve))
-          child.stdin.write(
-            `${JSON.stringify({jsonrpc: '2.0', id, method, params: {...params, _meta: TASKS_ENVELOPE}})}\n`,
-          )
-          return replied
-        },
-      }
-    })
-    await Promise.all(
-      children.map(async (child) => {
-        child.stdin.end()
-        await once(child, 'exit')
-      }),
-    )
   },
 })

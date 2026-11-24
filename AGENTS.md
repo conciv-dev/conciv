@@ -195,8 +195,7 @@ up, to a package above it. Never hide a cycle with a package `turbo.json`, a tas
   through `plugin-host`) and `testEffect`. `@conciv/core/testing`: `createEngineTest()` (a vitest `test.extend` fixture handing out `createEngine`) and `createHarnessEngine`, the real
   engine with a scripted chat (`engine.reply(...)` with `TestLLM` replies: `text`, `toolCall`, `failAfter`, `hang`;
   `engine.gate()` holds a reply), used by core, cli, the app and a plugin's agent-turn journeys.
-  `config` is the product's own `ConcivConfig`; `start` is only what is not product config. `@conciv/cli/testing`:
-  `cli()` and the hub fixture `test`.
+  `config` is the product's own `ConcivConfig`; `start` is only what is not product config.
   Nothing else is exported; a new kit export or option needs the maintainer's yes.
 - Tests run through one runner, `@conciv/vitest-config`'s `run-tests.ts`. It starts vitest with a home of its own
   and none of the developer's secrets or `CONCIV_*` variables, and keeps the developer's Playwright browsers folder.

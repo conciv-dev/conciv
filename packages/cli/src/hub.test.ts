@@ -1,11 +1,13 @@
 import {realpathSync} from 'node:fs'
+import {writeFile} from 'node:fs/promises'
+import {join} from 'node:path'
 import {describe, expect} from 'vitest'
 import {z} from 'zod'
 import {prepareHome, recordHubConnection, withHomeDb} from '@conciv/db'
-import {test} from './testing.js'
+import {test} from '../test/cli.js'
 
 describe('the hub', () => {
-  test('on the engine registered in the home, with no tab, an outside agent discovers and runs code and is told to pass a tab for a tool that needs a session; an engine without the page plugin lists no tabs and says a tab is not open, an engine whose page plugin answers outside the expected shape is named too old, and a session whose tabs cannot be read is listed with none', async ({
+  test('on the engine registered in the home, with no tab, an outside agent discovers and runs code and is told to pass a tab for a tool that needs a session; an engine without the page plugin lists no tabs and says a tab is not open, an engine whose page plugin answers outside the expected shape is named too old, and a session whose tabs cannot be read is listed with none, under the name in its package.json and its git branch', async ({
     createEngine,
     hub,
   }) => {
@@ -62,7 +64,11 @@ describe('the hub', () => {
       },
     ])
 
-    const broken = await createEngine({plugins: ['./test/fixtures/plugins/broken-page']}, {home: engine.home})
+    const broken = await createEngine(
+      {plugins: ['./test/fixtures/plugins/broken-page']},
+      {home: engine.home, git: true},
+    )
+    await writeFile(join(broken.root, 'package.json'), JSON.stringify({name: 'plant-shop'}))
     await broken.rpc.call('experimental.page', 'attach', {sessionId: broken.session.id})
     const withBroken = await agent.callTool('list_tabs', {})
     const brokenListing = z
@@ -73,6 +79,8 @@ describe('the hub', () => {
       tabs: [
         {
           tab: broken.session.id,
+          project: 'plant-shop',
+          branch: 'main',
           root: expect.any(String),
           sessionTitle: expect.any(String),
           lastActive: expect.any(String),
