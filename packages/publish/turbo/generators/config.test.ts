@@ -6,7 +6,7 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('turbo gen package', () => {
   const GENERATORS = 'packages/publish/turbo/generators'
-  const TEST_FOLDERS = ['test/e2e/.gitkeep', 'test/fixtures/.gitkeep', 'test/it/.gitkeep', 'test/unit/.gitkeep']
+  const LINKED_DEPENDENCIES = ['node_modules', 'packages/publish/node_modules']
   const BUILT_FILES = [
     'README.md',
     'package.json',
@@ -56,16 +56,9 @@ describe('turbo gen package', () => {
     )
     yield* fs.remove(path.join(copy, GENERATORS), {recursive: true})
     yield* fs.copy(path.join(repo, GENERATORS), path.join(copy, GENERATORS))
-    yield* succeed(copy, 'pnpm', [
-      'install',
-      '--frozen-lockfile',
-      '--prefer-offline',
-      '--ignore-scripts',
-      '--filter',
-      '.',
-      '--filter',
-      '@conciv/publish',
-    ])
+    for (const dependencies of LINKED_DEPENDENCIES) {
+      yield* fs.symlink(path.join(repo, dependencies), path.join(copy, dependencies))
+    }
     return copy
   })
 
@@ -81,7 +74,15 @@ describe('turbo gen package', () => {
         const generate = (...answers: string[]) =>
           output(copy, path.join(copy, 'node_modules/.bin/turbo'), ['gen', 'package', '--args', ...answers])
 
-        const [publishedOutput, privateOutput, internalOutput, unknownKindOutput, badNameOutput] = yield* Effect.all(
+        const [
+          publishedOutput,
+          privateOutput,
+          internalOutput,
+          unknownKindOutput,
+          badNameOutput,
+          declaredNameOutput,
+          existingFolderOutput,
+        ] = yield* Effect.all(
           [
             generate(
               'published',
@@ -100,6 +101,8 @@ describe('turbo gen package', () => {
             generate('internal', 'gen-check-both', 'An internal package the generator test made.', 'both', 'skip'),
             generate('public', 'gen-check-bad', 'x', 'node', 'skip'),
             generate('published', 'Bad', 'x', 'node', 'skip'),
+            generate('published', 'plugin-page', 'x', 'node', 'skip'),
+            generate('private', 'opaque-internal', 'x', 'node', 'skip'),
           ],
           {concurrency: 'unbounded'},
         )
@@ -111,25 +114,33 @@ describe('turbo gen package', () => {
         ])
         expect(badNameOutput).toContain('use kebab-case')
         expect(unknownKindOutput).toContain('did not recognize')
-        expect(yield* fs.readDirectory(packages)).not.toEqual(
-          expect.arrayContaining([expect.stringMatching(/^(Bad|gen-check-bad)/)]),
-        )
+        expect(declaredNameOutput).toContain('@conciv/plugin-page is already declared by packages/plugins/page')
+        expect(existingFolderOutput).toContain('packages/opaque-internal already exists')
+        const changed = yield* output(copy, 'git', [
+          'status',
+          '--porcelain',
+          '--',
+          '.',
+          ...LINKED_DEPENDENCIES.map((dependencies) => `:!${dependencies}`),
+          `:!${GENERATORS}`,
+        ])
+        expect(changed.split('\n').filter(Boolean).toSorted()).toEqual([
+          ' M .fallowrc.json',
+          ' M packages/publish/src/guards.ts',
+          '?? .changeset/add-gen-check-node-package.md',
+          '?? packages/gen-check-both-internal/',
+          '?? packages/gen-check-node/',
+          '?? packages/gen-check-web/',
+        ])
 
         expect(yield* listFiles(path.join(packages, 'gen-check-node'))).toEqual(
-          [...BUILT_FILES, 'src/gen-check-node.ts', ...TEST_FOLDERS].toSorted(),
+          [...BUILT_FILES, 'src/gen-check-node.ts'].toSorted(),
         )
         expect(yield* listFiles(path.join(packages, 'gen-check-web'))).toEqual(
-          [...BUILT_FILES, 'src/gen-check-web.ts', ...TEST_FOLDERS].toSorted(),
+          [...BUILT_FILES, 'src/gen-check-web.ts'].toSorted(),
         )
         expect(yield* listFiles(path.join(packages, 'gen-check-both-internal'))).toEqual(
-          [
-            'README.md',
-            'package.json',
-            'src/gen-check-both.ts',
-            'tsconfig.json',
-            'vite.config.ts',
-            ...TEST_FOLDERS,
-          ].toSorted(),
+          ['README.md', 'package.json', 'src/gen-check-both.ts', 'tsconfig.json', 'vite.config.ts'].toSorted(),
         )
 
         const publishedManifest = yield* readJson(path.join(packages, 'gen-check-node/package.json'))
@@ -175,11 +186,7 @@ describe('turbo gen package', () => {
         expect(fallow).toContain('"@conciv/gen-check-node"')
         expect(`${guards}${fallow}`).not.toMatch(/gen-check-(web|both)/)
         expect(yield* read('.changeset/add-gen-check-node-package.md')).toContain("'@conciv/gen-check-node': patch")
-        expect(
-          (yield* fs.readDirectory(path.join(copy, '.changeset'))).filter((file) => file.startsWith('add-gen-check-')),
-        ).toEqual(['add-gen-check-node-package.md'])
 
-        expect(yield* output(copy, 'git', ['status', '--porcelain', 'pnpm-lock.yaml'])).toBe('')
         yield* succeed(copy, path.join(copy, 'node_modules/.bin/oxfmt'), [
           '--check',
           'packages/gen-check-node',

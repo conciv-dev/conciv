@@ -5,7 +5,6 @@ import {ChildProcess, ChildProcessSpawner} from 'effect/process'
 
 const KEBAB = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
 const ONE_LINE = /^[^\n]*\S[^\n]*$/
-const TEST_KINDS = ['unit', 'it', 'e2e', 'fixtures']
 const VERSION_SOURCE = 'packages/it/package.json'
 const GUARDS = 'packages/publish/src/guards.ts'
 const FALLOW_CONFIG = '.fallowrc.json'
@@ -26,9 +25,17 @@ const Answers = Schema.Struct({
 
 const SharedVersion = Schema.fromJsonString(Schema.Struct({version: Schema.String}))
 
+const WorkspacePackages = Schema.fromJsonString(
+  Schema.Struct({
+    packages: Schema.Struct({items: Schema.Array(Schema.Struct({name: Schema.String, path: Schema.String}))}),
+  }),
+)
+
 const CommandFailed = Schema.TaggedStruct('CommandFailed', {command: Schema.String, exitCode: Schema.Number})
 
 const ListNotFound = Schema.TaggedStruct('ListNotFound', {path: Schema.String, marker: Schema.String})
+
+const PackageExists = Schema.TaggedStruct('PackageExists', {reason: Schema.String})
 
 type Spec = Omit<typeof Answers.Type, 'turbo'>
 
@@ -223,10 +230,31 @@ const renderTemplate = Effect.fn('renderTemplate')(function* (context: Generator
   return context.render(source, templateData(spec))
 })
 
+const assertNewPackage = Effect.fn('assertNewPackage')(function* (context: GeneratorContext, spec: Spec) {
+  const fs = yield* FileSystem.FileSystem
+  const paths = yield* Path.Path
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+  const listing = yield* spawner.string(
+    ChildProcess.make(paths.join(context.root, 'node_modules/.bin/turbo'), ['ls', '--output=json'], {
+      cwd: context.root,
+      extendEnv: true,
+    }),
+  )
+  const {packages} = yield* Schema.decodeUnknownEffect(WorkspacePackages)(listing)
+  const owner = packages.items.find((item) => item.name === packageName(spec))
+  if (owner) {
+    return yield* Effect.fail(PackageExists.make({reason: `${packageName(spec)} is already declared by ${owner.path}`}))
+  }
+  if (yield* fs.exists(paths.join(context.root, directory(spec)))) {
+    return yield* Effect.fail(PackageExists.make({reason: `${directory(spec)} already exists`}))
+  }
+})
+
 const writePackage = Effect.fn('writePackage')(function* (context: GeneratorContext, spec: Spec) {
   const fs = yield* FileSystem.FileSystem
   const paths = yield* Path.Path
   const folder = paths.join(context.root, directory(spec))
+  yield* assertNewPackage(context, spec)
   const {version} = yield* Schema.decodeUnknownEffect(SharedVersion)(
     yield* fs.readFileString(paths.join(context.root, VERSION_SOURCE)),
   )
@@ -235,9 +263,6 @@ const writePackage = Effect.fn('writePackage')(function* (context: GeneratorCont
   }
   for (const [file, value] of jsonFiles(spec, version)) {
     yield* writeFile(paths.join(folder, file), `${JSON.stringify(value, null, 2)}\n`)
-  }
-  for (const kind of TEST_KINDS) {
-    yield* writeFile(paths.join(folder, 'test', kind, '.gitkeep'), '')
   }
   return `${directory(spec)}: written`
 })
