@@ -32,6 +32,7 @@
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@effect/platform-node": "catalog:",
+    "@effect/vitest": "catalog:",
     "@turbo/gen": "catalog:",
     "@types/node": "catalog:",
     "effect": "catalog:",

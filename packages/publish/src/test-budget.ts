@@ -10,6 +10,8 @@ const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/
 const FIXTURE_SEGMENT = /(^|\/)fixtures\//
 const TEST_FUNCTIONS = ['test', 'it']
 const CASE_MODIFIERS = new Set([
+  'effect',
+  'live',
   'concurrent',
   'sequential',
   'skip',

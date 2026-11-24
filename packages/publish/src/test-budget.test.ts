@@ -19,6 +19,8 @@ describe('cases', () => {
   test.each([1, 2])('each %i', () => {})
   test.skipIf(false)('skip if', () => {})
   withUser('extended', () => {})
+  it.effect('an effect test', () => {})
+  it.live('a live effect test', () => {})
   test.describe('a playwright group is not a case', () => {})
   test.use({})
 })
@@ -40,11 +42,11 @@ describe('cases', () => {
     return root
   }
 
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 7}))).rejects.toThrow(
-    '@conciv/a: 8 tests, budget 7\n\nThe budget is a review gate, not a counter to bump.',
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 9}))).rejects.toThrow(
+    '@conciv/a: 10 tests, budget 9\n\nThe budget is a review gate, not a counter to bump.',
   )
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 8}))).resolves.toEqual([])
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 9}))).resolves.toEqual([
-    '@conciv/a: 8 tests, budget 9: lower it to 8 in test-budget.json',
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 10}))).resolves.toEqual([])
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 11}))).resolves.toEqual([
+    '@conciv/a: 10 tests, budget 11: lower it to 10 in test-budget.json',
   ])
 })
