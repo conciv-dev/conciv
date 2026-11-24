@@ -1,8 +1,8 @@
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
-import {join} from 'node:path'
+import {dirname, join, resolve} from 'node:path'
 import {openDb} from '@conciv/db'
 import {SqliteClient} from '@effect/sql-sqlite-node'
-import {Effect, FileSystem, Layer, Ref, Schema} from 'effect'
+import {Effect, FileSystem, Layer, type PlatformError, Ref, Schema, Stream} from 'effect'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {Tool as ToolSchema} from '@conciv/plugin/schema/tool'
 import {
@@ -13,8 +13,11 @@ import {
   ConfigPluginSource,
   ConfigPolicy,
   Database,
+  type Event,
   Global,
   Instance,
+  Instructions,
+  type LayerNode,
   InstructionEntry,
   Location,
   ManagedPolicy,
@@ -31,6 +34,7 @@ import {
   SessionInbox,
   SessionSchema,
   SessionSynthetic,
+  SkillInstructions,
   Tool,
 } from '@conciv/plugin-host'
 import {pluginDirectory} from './plugin-directory.js'
@@ -41,6 +45,7 @@ export interface Options {
   readonly plugins?: readonly ConfigPlugin.Plugin[]
   readonly permissions?: Permission.Ruleset
   readonly policies?: readonly ConfigPolicy.Info[]
+  readonly directory?: string
 }
 
 type CreateInput = Omit<Parameters<Session.Interface['create']>[0], 'location' | 'parentId'>
@@ -48,6 +53,16 @@ type CreateInput = Omit<Parameters<Session.Interface['create']>[0], 'location' |
 export interface ToolFailure {
   readonly tool: string
   readonly message: string
+}
+
+export interface EngineTool {
+  readonly call: (input?: unknown) => Effect.Effect<unknown, ToolSchema.Error, Instance.Services>
+  readonly failure: (input?: unknown) => Effect.Effect<ToolFailure, never, Instance.Services>
+}
+
+export interface EngineSession {
+  readonly id: SessionId
+  readonly tool: (name: string) => EngineTool
 }
 
 type SessionInfo = Effect.Success<ReturnType<Session.Interface['get']>>
@@ -251,7 +266,7 @@ const locationNode = (directory: string) =>
 const instance = Effect.fn('PluginEngine.instance')(function* (options: Options) {
   const files = yield* FileSystem.FileSystem
   const root = yield* files.makeTempDirectoryScoped({prefix: 'conciv-plugin-test-'})
-  const directory = join(root, 'project')
+  const directory = options.directory === undefined ? join(root, 'project') : resolve(options.directory)
   yield* files.makeDirectory(directory, {recursive: true})
   const db = yield* openDb(join(root, 'state'))
   return Instance.layer({
@@ -284,7 +299,7 @@ const instance = Effect.fn('PluginEngine.instance')(function* (options: Options)
   })
 })
 
-export function layer(options: Options = {}) {
+export function layer(options: Options = {}): Layer.Layer<Instance.Services, LayerNode.Error<typeof Instance.graph>> {
   return PluginSupervisor.layer.pipe(
     Layer.provideMerge(Layer.unwrap(instance(options).pipe(Effect.orDie, Effect.provide(NodeFileSystem.layer)))),
   )
@@ -313,7 +328,9 @@ const failedTool = <R>(name: string, call: Effect.Effect<unknown, ToolSchema.Err
     }),
   )
 
-export const session = Effect.fn('PluginEngine.session')(function* (input: CreateInput = {}) {
+export const session: (input?: CreateInput) => Effect.Effect<EngineSession, never, Instance.Services> = Effect.fn(
+  'PluginEngine.session',
+)(function* (input: CreateInput = {}) {
   const sessions = yield* Session.Service
   const location = yield* Location.Service
   const created = yield* sessions.create({...input, location: {directory: location.directory}}).pipe(Effect.orDie)
@@ -326,13 +343,25 @@ export const session = Effect.fn('PluginEngine.session')(function* (input: Creat
   }
 })
 
-export const call = Effect.fn('PluginEngine.rpc')(function* (rpcId: string, method: string, input?: unknown) {
+export const call: (
+  rpcId: string,
+  method: string,
+  input?: unknown,
+) => Effect.Effect<unknown, Rpc.Failure, Instance.Services> = Effect.fn('PluginEngine.rpc')(function* (
+  rpcId: string,
+  method: string,
+  input?: unknown,
+) {
   yield* Plugin.awaitActivation
   const rpc = yield* Rpc.Service
   return yield* rpc.call(rpcId, method, input)
 })
 
-export const failure = (rpcId: string, method: string, input?: unknown) =>
+export const failure = (
+  rpcId: string,
+  method: string,
+  input?: unknown,
+): Effect.Effect<Rpc.Failure, never, Instance.Services> =>
   call(rpcId, method, input).pipe(
     Effect.matchEffect({
       onSuccess: (output) =>
@@ -340,3 +369,41 @@ export const failure = (rpcId: string, method: string, input?: unknown) =>
       onFailure: (error) => Effect.succeed(error),
     }),
   )
+
+export const write: (
+  path: string,
+  content: string,
+) => Effect.Effect<string, PlatformError.PlatformError, Instance.Services> = Effect.fn('PluginEngine.write')(function* (
+  path: string,
+  content: string,
+) {
+  const files = yield* FileSystem.FileSystem
+  const location = yield* Location.Service
+  const target = join(location.directory, path)
+  yield* files.makeDirectory(dirname(target), {recursive: true})
+  yield* files.writeFileString(target, content)
+  return target
+})
+
+const isMarker = (value: unknown) => value === Instructions.unavailable || value === Instructions.removed
+
+export const skills: () => Effect.Effect<string, never, Instance.Services> = Effect.fn('PluginEngine.skills')(
+  function* () {
+    yield* Plugin.awaitActivation
+    const sources = yield* (yield* SkillInstructions.Service).load([])
+    const read = yield* Instructions.read(sources).pipe(Effect.orDie)
+    const values = Object.fromEntries(read.flatMap(({key, value}) => (isMarker(value) ? [] : [[key, value]])))
+    return Instructions.join(Instructions.renderInitial(sources, values))
+  },
+)
+
+export const events = (type: `rpc.${string}`): Stream.Stream<Event.Payload, never, Instance.Services> =>
+  Stream.unwrap(Bus.Service.use((bus) => Effect.succeed(bus.subscribe(Rpc.eventDefinition(type)))))
+
+export const tools: () => Effect.Effect<readonly string[], never, Instance.Services> = Effect.fn('PluginEngine.tools')(
+  function* () {
+    yield* Plugin.awaitActivation
+    const registered = yield* (yield* Tool.Service).list()
+    return registered.map((tool) => tool.id)
+  },
+)

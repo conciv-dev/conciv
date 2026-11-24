@@ -47,24 +47,40 @@ const run = <A, E, R, E2>(value: Body<A, E, R | Scope.Scope>, layer: Layer.Layer
 
 const collector = (opts: Options | undefined) => (typeof opts === 'number' ? {timeout: opts} : (opts ?? {}))
 
-const make = <R, E>(testLayer: Layer.Layer<R, E>, liveLayer: Layer.Layer<R, E>) => {
-  const effect = <A, E2>(name: string, value: Body<A, E2, R | Scope.Scope>, opts?: Options) =>
-    test(name, collector(opts), () => run(value, testLayer))
+type Run<R> = <A, E2>(name: string, value: Body<A, E2, R | Scope.Scope>, opts?: Options) => void
 
-  effect.only = <A, E2>(name: string, value: Body<A, E2, R | Scope.Scope>, opts?: Options) =>
-    test.only(name, collector(opts), () => run(value, testLayer))
+export interface Runner<R> extends Run<R> {
+  readonly only: Run<R>
+  readonly skip: Run<R>
+}
 
-  effect.skip = <A, E2>(name: string, value: Body<A, E2, R | Scope.Scope>, opts?: Options) =>
-    test.skip(name, collector(opts), () => run(value, testLayer))
+export interface TestEffect<R> {
+  readonly effect: Runner<R>
+  readonly live: Runner<R>
+}
 
-  const live = <A, E2>(name: string, value: Body<A, E2, R | Scope.Scope>, opts?: Options) =>
-    test(name, collector(opts), () => run(value, liveLayer))
+const make = <R, E>(testLayer: Layer.Layer<R, E>, liveLayer: Layer.Layer<R, E>): TestEffect<R> => {
+  const effect = Object.assign(
+    <A, E2>(name: string, value: Body<A, E2, R | Scope.Scope>, opts?: Options) =>
+      test(name, collector(opts), () => run(value, testLayer)),
+    {
+      only: <A, E2>(name: string, value: Body<A, E2, R | Scope.Scope>, opts?: Options) =>
+        test.only(name, collector(opts), () => run(value, testLayer)),
+      skip: <A, E2>(name: string, value: Body<A, E2, R | Scope.Scope>, opts?: Options) =>
+        test.skip(name, collector(opts), () => run(value, testLayer)),
+    },
+  )
 
-  live.only = <A, E2>(name: string, value: Body<A, E2, R | Scope.Scope>, opts?: Options) =>
-    test.only(name, collector(opts), () => run(value, liveLayer))
-
-  live.skip = <A, E2>(name: string, value: Body<A, E2, R | Scope.Scope>, opts?: Options) =>
-    test.skip(name, collector(opts), () => run(value, liveLayer))
+  const live = Object.assign(
+    <A, E2>(name: string, value: Body<A, E2, R | Scope.Scope>, opts?: Options) =>
+      test(name, collector(opts), () => run(value, liveLayer)),
+    {
+      only: <A, E2>(name: string, value: Body<A, E2, R | Scope.Scope>, opts?: Options) =>
+        test.only(name, collector(opts), () => run(value, liveLayer)),
+      skip: <A, E2>(name: string, value: Body<A, E2, R | Scope.Scope>, opts?: Options) =>
+        test.skip(name, collector(opts), () => run(value, liveLayer)),
+    },
+  )
 
   return {effect, live}
 }
@@ -73,5 +89,5 @@ const testEnv = Layer.mergeAll(TestConsole.layer, TestClock.layer())
 
 const liveEnv = TestConsole.layer
 
-export const testEffect = <R, E>(layer: Layer.Layer<R, E>) =>
+export const testEffect = <R, E>(layer: Layer.Layer<R, E>): TestEffect<R> =>
   make(Layer.provideMerge(layer, testEnv), Layer.provideMerge(layer, liveEnv))
