@@ -43,7 +43,7 @@ import {
   type HostEndpoint,
   type HostEvent,
 } from './host-machine'
-import {builtins} from './builtins'
+import {builtins as builtinEntries} from './builtins'
 import {pluginError} from './error'
 import {createManager} from './manager'
 import type {PluginExperimentalSource} from './plugins'
@@ -95,7 +95,9 @@ type ListedPlugin = Parameters<typeof shipsPluginExperimental>[0]
 
 const BuiltinOptionsSchema = z.record(z.string(), z.json())
 
-const ENGINE_HALVES: ReadonlySet<string> = new Set(builtins.flatMap((entry) => (entry.engineHalf ? [entry.id] : [])))
+const ENGINE_HALVES: ReadonlySet<string> = new Set(
+  builtinEntries.flatMap((entry) => (entry.engineHalf ? [entry.id] : [])),
+)
 
 type BundleData = Awaited<ReturnType<ConcivClient['plugin']['experimental']>>['data']
 

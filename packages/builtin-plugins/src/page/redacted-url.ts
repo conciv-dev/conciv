@@ -1,7 +1,7 @@
 import {Predicate} from 'effect'
 import {z} from 'zod'
 import {isEqual} from 'es-toolkit'
-import type {ReactFiber} from './contract.js'
+import type {ReactFiber} from '@conciv/plugin-page/contract'
 import {dehydrate} from './dehydrate.js'
 import {rootFibers} from './react.js'
 

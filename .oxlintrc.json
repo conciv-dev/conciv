@@ -395,14 +395,12 @@
     {
       "files": [
         "packages/solid-streamdown/**",
-        "packages/plugins/page/src/react.ts",
-        "packages/plugins/page/src/snapshot.ts",
-        "packages/plugins/page/src/capture.ts",
-        "packages/plugins/page/src/dehydrate.ts",
-        "packages/plugins/page/src/toast.ts",
-        "packages/plugins/page/src/grab.ts",
-        "packages/plugins/page/src/grab-preview.ts",
-        "packages/plugins/page/src/client.ts"
+        "packages/builtin-plugins/src/page/react.ts",
+        "packages/builtin-plugins/src/page/snapshot.ts",
+        "packages/builtin-plugins/src/page/capture.ts",
+        "packages/builtin-plugins/src/page/dehydrate.ts",
+        "packages/builtin-plugins/src/page/grab.ts",
+        "packages/builtin-plugins/src/page/grab-preview.ts"
       ],
       "rules": {
         "unocss/order": "off"

@@ -1,8 +1,7 @@
 import {Show, createContext, createMemo, type JSX} from 'solid-js'
 import {useQuery} from '@conciv/client'
 import {usePlugin, type ServerRef} from '@conciv/plugin/experimental'
-import {Definition} from './rpc.js'
-import {toolCaptureViews, type ToolCaptureView} from './element-capture-types.js'
+import {Definition, toolCaptureViews, type ToolCaptureView} from '@conciv/plugin-page/rpc'
 
 export type CaptureLookup = (toolCallId: string) => ToolCaptureView | undefined
 

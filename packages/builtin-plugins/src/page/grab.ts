@@ -95,7 +95,7 @@ async function unresolvedFrames(element: Element, source: SourceLoc | null): Pro
   return frames.length > 0 ? {frames} : {}
 }
 
-export type ReactGrabAdapter = {
+type ReactGrabAdapter = {
   activate: (onGrab: GrabSink) => void
   comment: (onGrab: GrabSink) => void
   deactivate: () => void

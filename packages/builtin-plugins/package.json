@@ -16,27 +16,52 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {
     "@conciv/client": "workspace:^",
     "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@internal/plugin": "workspace:*",
     "@orpc/client": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/map": "catalog:",
+    "@tanstack/hotkeys": "catalog:",
     "@tanstack/pacer": "catalog:",
+    "@tanstack/solid-hotkeys": "catalog:",
+    "@tanstack/solid-pacer": "catalog:",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "@zumer/snapdom": "catalog:",
+    "ai-motion": "catalog:",
+    "bippy": "catalog:",
     "effect": "catalog:",
+    "es-toolkit": "catalog:",
+    "js-beautify": "^2.0.3",
     "lucide-solid": "catalog:",
+    "react-grab": "catalog:",
+    "rrweb-snapshot": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/ui-kit-chat": "workspace:*",
+    "@conciv/ui-kit-system": "workspace:*",
+    "@solidjs/testing-library": "catalog:",
+    "@testing-library/user-event": "catalog:",
+    "@types/js-beautify": "^1.14.3",
     "@types/node": "catalog:",
+    "playwright": "catalog:",
     "solid-js": "catalog:",
-    "typescript": "catalog:"
+    "storybook": "catalog:",
+    "storybook-solidjs-vite": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

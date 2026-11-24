@@ -11,7 +11,7 @@ import Keyboard from 'lucide-solid/icons/keyboard'
 import MousePointerClick from 'lucide-solid/icons/mouse-pointer-click'
 import ScanSearch from 'lucide-solid/icons/scan-search'
 import Wand2 from 'lucide-solid/icons/wand-sparkles'
-import {Operations, PAGE_TOOL_PREFIX, pageVerbOfTool, type Method} from './rpc.js'
+import {Operations, PAGE_TOOL_PREFIX, pageVerbOfTool, type Method} from '@conciv/plugin-page/rpc'
 
 const MUTATING_BADGE = 'page edit'
 

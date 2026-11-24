@@ -6,7 +6,7 @@ import {useQueryClient} from '@conciv/client'
 import {createKeyed, Plugin, Slot} from '@conciv/plugin/experimental'
 import {NoteCard, OpaqueNoteCard, OpaqueUi, ToolRegistry} from '@internal/plugin'
 import {Page} from '@conciv/plugin/experimental/page'
-import {PageOperation, ReactTree} from './contract.js'
+import {PageOperation, ReactTree} from '@conciv/plugin-page/contract'
 import {GrabPicker} from '@conciv/plugin/experimental/grab'
 import {FOLLOW_AGAIN, followEvents, keepAttached, readTab, reportChanges} from './attachment.js'
 import {makeHighlight} from './highlight.js'
@@ -14,7 +14,7 @@ import {symbolicateInSession} from './open-source.js'
 import {makePageOperations} from './operations.js'
 import {pageToolCards} from './cards.js'
 import {SessionCaptures} from './captures.js'
-import {Definition, PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from './rpc.js'
+import {Definition, GRAB_NOTE_ORIGIN, PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from '@conciv/plugin-page/rpc'
 import {PageSessionCard} from './session-card.js'
 import {PageFailedTool} from './shared.js'
 import {makeSimulator} from './simulator.js'
@@ -25,7 +25,6 @@ import {describe, installReactBridge, locate, makeTracker, reactBridge, rootFibe
 import {disposeReactGrab, grabApi} from './grab.js'
 import {makeGrabNotePicker} from './grab-note.js'
 import {GrabNoteCard} from './grab-card.js'
-import {GRAB_NOTE_ORIGIN} from './rpc.js'
 import {capturePlugins} from './screenshot.js'
 
 const PageOptionsSchema = z.object({taskTimeoutMs: z.number().int().positive().optional()}).catch({})
@@ -178,7 +177,7 @@ export default Plugin.define({
   },
 })
 
-export function makeReactTree(): ReactTree {
+function makeReactTree(): ReactTree {
   const refs: Refs = {map: new Map(), n: 0}
   return {
     rootFibers,

@@ -1,7 +1,7 @@
 {
   "name": "@conciv/plugin-page",
   "version": "0.0.22",
-  "description": "conciv's page plugin: the engine part (the connection to the page, its tools, skill and RPC contract) and the browser part the widget runs (DOM helpers, page operations, cards).",
+  "description": "conciv's page plugin, the engine half: the connection to the page, its tools, skill and RPC contract. Its browser half is a built-in the app compiles in (@internal/builtin-plugins).",
   "keywords": [
     "conciv",
     "page",
@@ -32,17 +32,13 @@
       "types": "./dist/contract.d.ts",
       "import": "./dist/contract.js"
     },
-    "./plugin-experimental": {
-      "types": "./dist/plugin-experimental.d.cts",
-      "default": "./dist/plugin-experimental.cjs"
-    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json && vite build",
+    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
@@ -50,25 +46,12 @@
     "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {
-    "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@jridgewell/trace-mapping": "catalog:",
-    "@solid-primitives/event-listener": "catalog:",
-    "@solid-primitives/map": "catalog:",
-    "@tanstack/hotkeys": "catalog:",
-    "@tanstack/solid-hotkeys": "catalog:",
-    "@tanstack/solid-pacer": "catalog:",
-    "@zumer/snapdom": "catalog:",
-    "ai-motion": "catalog:",
-    "bippy": "catalog:",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
-    "js-beautify": "^2.0.3",
-    "lucide-solid": "catalog:",
-    "react-grab": "catalog:",
-    "rrweb-snapshot": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -78,34 +61,10 @@
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/ui-kit-chat": "workspace:*",
-    "@conciv/ui-kit-system": "workspace:*",
-    "@internal/plugin": "workspace:*",
-    "@solidjs/testing-library": "catalog:",
-    "@tanstack/react-router": "catalog:",
-    "@testing-library/user-event": "catalog:",
-    "@tiptap/core": "catalog:",
-    "@tiptap/extension-document": "catalog:",
-    "@tiptap/extension-paragraph": "catalog:",
-    "@tiptap/extension-text": "catalog:",
-    "@tiptap/pm": "catalog:",
-    "@types/js-beautify": "^1.14.3",
     "@types/node": "catalog:",
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
-    "playwright": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
-    "solid-js": "catalog:",
-    "storybook": "catalog:",
-    "storybook-solidjs-vite": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"
-  },
-  "peerDependencies": {
-    "solid-js": "^1.9.13"
   }
 }

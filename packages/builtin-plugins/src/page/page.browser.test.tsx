@@ -9,7 +9,7 @@ import {z} from 'zod'
 import {mount, pluginEngine, type ShellTool, type TestEngine} from '@conciv/plugin-testkit/browser'
 import type {PluginOptions} from '@conciv/plugin/experimental'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import pagePlugin from './plugin-experimental.js'
+import pagePlugin from './renderer.js'
 
 describe('the page plugin in the app shell', () => {
   const PAGE = '@conciv/plugin-page'

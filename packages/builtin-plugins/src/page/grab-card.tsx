@@ -6,7 +6,7 @@ import {type MountedSession} from '@conciv/plugin/experimental'
 import {type NoteCardProps} from '@internal/plugin'
 import {sourceLabel} from './grab-label.js'
 import {usePageUi} from './shared.js'
-import {Definition, readGrabId, type GrabId, type StoredGrab} from './rpc.js'
+import {Definition, readGrabId, type GrabId, type StoredGrab} from '@conciv/plugin-page/rpc'
 
 type GrabPreview = NonNullable<StoredGrab['preview']>
 

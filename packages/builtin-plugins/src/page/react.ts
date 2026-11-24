@@ -18,7 +18,7 @@ import {
 import {parseStack, hasDebugStack, getParentStack, formatOwnerStack} from 'bippy/source'
 import type {RefAdder} from './snapshot.js'
 import type {RawFrame, SourceLoc} from '@conciv/plugin/experimental/page'
-import type {Owner, LocateResult} from './contract.js'
+import type {Owner, LocateResult} from '@conciv/plugin-page/contract'
 import type {TreeNode, HookNode, InspectResult, TreeResult} from './page-introspect-types.js'
 
 type Renderer = {

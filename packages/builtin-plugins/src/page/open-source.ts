@@ -3,8 +3,8 @@ import type {QueryClient} from '@conciv/client'
 import type {Desktop, MountedSession} from '@conciv/plugin/experimental'
 import type {GrabFrame} from '@conciv/plugin/experimental/grab'
 import type {Page, SourceLoc} from '@conciv/plugin/experimental/page'
-import type {LocateResult} from './contract.js'
-import {Definition} from './rpc.js'
+import type {LocateResult} from '@conciv/plugin-page/contract'
+import {Definition} from '@conciv/plugin-page/rpc'
 
 export type OpenedSource = 'opened' | 'no-source' | 'failed'
 

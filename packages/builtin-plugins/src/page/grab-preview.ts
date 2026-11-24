@@ -190,13 +190,13 @@ const EPSILON_PX = 0.5
 
 const PROBE_STEP_PX = 1
 
-export type StyledElement = HTMLElement | SVGElement
+type StyledElement = HTMLElement | SVGElement
 
 export function isStyledElement(node: Node): node is StyledElement {
   return node instanceof HTMLElement || node instanceof SVGElement
 }
 
-export type TextRun = {source: StyledElement; clone: StyledElement}
+type TextRun = {source: StyledElement; clone: StyledElement}
 
 type Candidate = {run: TextRun; base: number; css: string; steppedCss: string; text: string}
 

@@ -1,4 +1,4 @@
-import type {DehydrateOptions} from './contract.js'
+import type {DehydrateOptions} from '@conciv/plugin-page/contract'
 
 const REACT_ELEMENT = Symbol.for('react.element')
 const REACT_TRANSITIONAL_ELEMENT = Symbol.for('react.transitional.element')

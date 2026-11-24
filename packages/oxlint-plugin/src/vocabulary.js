@@ -193,11 +193,10 @@ const NATIVE_AND_REACT_BRIDGE_PATHS = [
   'packages/plugins/ios/src/plugin-experimental.tsx',
   'packages/publish/src/cli.ts',
   'packages/publish/src/swift-mirror.ts',
-  'packages/plugins/page/src/react.ts',
-  'packages/plugins/page/src/client.ts',
-  'packages/plugins/page/src/renderer.tsx',
-  'packages/plugins/page/src/operations.ts',
-  'packages/plugins/page/src/grab.ts',
+  'packages/builtin-plugins/src/page/react.ts',
+  'packages/builtin-plugins/src/page/renderer.tsx',
+  'packages/builtin-plugins/src/page/operations.ts',
+  'packages/builtin-plugins/src/page/grab.ts',
   'packages/embed/src/mount-impl.tsx',
 ]
 
@@ -213,7 +212,7 @@ const COMPOSER_ATTACHMENT_INGRESS_PATHS = [
 const PRE_REWRITE_ATTACH_PATHS = [
   'apps/site/src/components/landing/',
   'packages/core/src/pty/pty-sessions.ts',
-  'packages/plugins/page/src/react.ts',
+  'packages/builtin-plugins/src/page/react.ts',
   'packages/try/src/cli.ts',
   'packages/vitest-config/src/summary.ts',
 ]

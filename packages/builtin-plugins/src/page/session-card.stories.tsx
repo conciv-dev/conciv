@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Splitter} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import type {ElementCapture, ToolCaptureView} from './element-capture-types.js'
+import type {ElementCapture, ToolCaptureView} from '@conciv/plugin-page/rpc'
 import {SessionCard} from './session-card.js'
 import {
   ELEMENT_CAPTURE_FIXTURE_CSS,

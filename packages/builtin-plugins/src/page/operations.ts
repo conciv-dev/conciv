@@ -16,14 +16,12 @@ import {
   type Outcome,
   type PageCommand,
   type Operation,
-} from './rpc.js'
-import type {
-  CssBundle,
-  ElementCapture,
-  ElementCaptureKind,
-  PageCaptureBundle,
-  ToolCaptureMode,
-} from './element-capture-types.js'
+  type CssBundle,
+  type ElementCapture,
+  type ElementCaptureKind,
+  type PageCaptureBundle,
+  type ToolCaptureMode,
+} from '@conciv/plugin-page/rpc'
 import {toolError, isToolError} from '@conciv/protocol/tool-call-types'
 import {
   addRef,
@@ -860,7 +858,7 @@ function transmittedValues(value: object): unknown[] | null {
   return values
 }
 
-export type ConsoleEntry = z.output<Extract<Operation, {readonly name: 'console'}>['output']>['entries'][number]
+type ConsoleEntry = z.output<Extract<Operation, {readonly name: 'console'}>['output']>['entries'][number]
 
 type Push = (level: string, args: unknown[]) => string
 
@@ -924,7 +922,7 @@ type HotUpdateWait = z.output<Extract<Operation, {readonly name: 'hmr'}>['output
 
 type HotEvent = 'vite:beforeUpdate' | 'vite:afterUpdate' | 'vite:error'
 
-export type HotSurface = {on: (event: HotEvent, listener: (payload: unknown) => void) => void}
+type HotSurface = {on: (event: HotEvent, listener: (payload: unknown) => void) => void}
 
 type Settled = {at: number; error: string | null}
 

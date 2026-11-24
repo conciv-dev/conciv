@@ -1,5 +1,5 @@
 import {type InternalStatusDotProps, type InternalUi, type ToolComponent, type ToolProps} from '@internal/plugin'
-import {PAGE_TOOL_PREFIX, pageOperation, pageVerbOfTool} from './rpc.js'
+import {PAGE_TOOL_PREFIX, pageOperation, pageVerbOfTool} from '@conciv/plugin-page/rpc'
 import {Show, type JSX, For, Match, Switch} from 'solid-js'
 import {
   ELEMENT_TARGET_KEYS,
@@ -440,7 +440,7 @@ const ROLE =
 const A11Y_NAME = 'flex-1 min-w-0 whitespace-nowrap text-ellipsis [color:var(--chat-text)] overflow-hidden'
 const REF = 'text-[length:var(--chat-text-xs)] flex-none text-chat-text-3 [font-family:var(--chat-mono)]'
 
-export type A11yNode = Partial<ReturnType<typeof buildSnapshot>[number]>
+type A11yNode = Partial<ReturnType<typeof buildSnapshot>[number]>
 
 export function A11yNodeList(props: {nodes: readonly A11yNode[]}): JSX.Element {
   const ui = usePageUi()

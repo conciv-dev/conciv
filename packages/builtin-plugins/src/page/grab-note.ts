@@ -3,7 +3,7 @@ import type {ComposerNote, MountedSession, Screen} from '@conciv/plugin/experime
 import type {Grab, GrabPicker} from '@conciv/plugin/experimental/grab'
 import type {Page} from '@conciv/plugin/experimental/page'
 import {fitImagePreview} from './grab-preview.js'
-import {Definition, GRAB_NOTE_ORIGIN, grabHref, type GrabId, type StoredGrab} from './rpc.js'
+import {Definition, GRAB_NOTE_ORIGIN, grabHref, type GrabId, type StoredGrab} from '@conciv/plugin-page/rpc'
 
 const PREVIEW_BYTES = 750_000
 

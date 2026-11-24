@@ -3,7 +3,13 @@ import {createMemo, Index, Match, Show, Switch, useContext, type JSX} from 'soli
 import {Dynamic} from 'solid-js/web'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {InternalUi, ToolProps, ToolStatus} from '@internal/plugin'
-import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageOperation, pageVerbOfTool} from './rpc.js'
+import {
+  PAGE_ACT_TOOL_NAMES,
+  PAGE_TOOL_PREFIX,
+  pageOperation,
+  pageVerbOfTool,
+  type ToolCaptureView,
+} from '@conciv/plugin-page/rpc'
 import {
   cardErrorMessage,
   countLabel,
@@ -14,7 +20,6 @@ import {
   usePageUi,
 } from './shared.js'
 import {CaptureContext, SessionCaptures} from './captures.js'
-import type {ToolCaptureView} from './element-capture-types.js'
 
 const SESSION_LABEL = {
   edit: {running: 'Editing the page', done: 'Edited the page'},
@@ -341,7 +346,7 @@ export function SessionCard(props: ToolProps): JSX.Element {
   )
 }
 
-export type PageSessionStep = {
+type PageSessionStep = {
   verb: string
   target: string
   namedTarget: boolean
