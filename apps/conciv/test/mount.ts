@@ -12,6 +12,7 @@ export type MountOptions = {
   history?: RouterHistory | EngineRouterHistory
   host?: ConcivSettingsInit
   login?: 'none'
+  plugins?: Platform['plugins']
 }
 
 const TIMINGS: NonNullable<Platform['timings']> = {
@@ -84,6 +85,7 @@ export async function mount(options: MountOptions): Promise<void> {
   const platform: Platform = {
     engine: () => mountedEngine(options.engine, options.login),
     navigation: mountedNavigation(options),
+    plugins: options.plugins,
     root: document,
     settings: options.host,
     timings: TIMINGS,

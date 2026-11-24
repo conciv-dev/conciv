@@ -35,8 +35,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@conciv/client": "workspace:^",
@@ -51,21 +50,14 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin": "workspace:^",
-    "@conciv/plugin-page": "workspace:^",
-    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@internal/plugin": "workspace:*",
-    "@solidjs/testing-library": "catalog:",
-    "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
-    "playwright": "catalog:",
     "solid-js": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:"
+    "vite-plugin-solid": "catalog:"
   },
   "peerDependencies": {
     "@conciv/plugin": "workspace:^",

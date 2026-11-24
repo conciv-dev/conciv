@@ -59,7 +59,13 @@
   "devDependencies": {
     "@conciv/core": "workspace:*",
     "@conciv/harness-testkit": "workspace:*",
+    "@conciv/plugin-page": "workspace:*",
+    "@conciv/plugin-recorder": "workspace:*",
+    "@conciv/plugin-tanstack": "workspace:*",
+    "@conciv/plugin-terminal": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
+    "@conciv/plugin-try-it": "workspace:*",
+    "@conciv/plugin-whiteboard": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@solidjs/testing-library": "catalog:",

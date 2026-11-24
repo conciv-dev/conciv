@@ -1,7 +1,10 @@
 import {describe, expect, test, it} from 'vitest'
 import {page, userEvent as browserUserEvent, userEvent as browserInput} from 'vitest/browser'
-import {screen, within} from '@solidjs/testing-library'
+import {render, screen, within} from '@solidjs/testing-library'
 import userEvent, {type UserEvent} from '@testing-library/user-event'
+import {z} from 'zod'
+import type {Entry} from '@conciv/plugin/experimental/host'
+import tryIt from '@conciv/plugin-try-it'
 import {createEngine, TestLLM} from '../test/browser-engine.js'
 import {createEngineRouterHistory, mount} from '../test/mount.js'
 
@@ -561,5 +564,363 @@ describe('a plugin opens local files from a reply', () => {
     expect(desk).toHaveFocus()
     await browserInput.keyboard('{Enter}')
     expect(await screen.findByText('Opened src/desk.ts')).toBeVisible()
+  })
+})
+
+describe('the served plugins in the real app', () => {
+  const PAGE = '@conciv/plugin-page'
+  const tryItSetup = tryIt.setup
+  if (tryItSetup === undefined) throw new Error('the try-it plugin has no setup')
+  const TRY_IT: Entry = {...tryIt, id: '@conciv/plugin-try-it', windowEntry: async () => ({default: tryItSetup})}
+
+  test('two clicks on the page while the agent works stop the reply', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({}, {post: [PAGE]})
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_page_click({selector: '#buy'})",
+      }),
+      TestLLM.text('Never shown'),
+    )
+    const click = await engine.gate()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <button type="button" id="buy">
+        Buy the fern
+      </button>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+    await click.started
+    const answer = await engine.gate()
+    await click.release()
+    await answer.started
+    const mask = await screen.findByRole('status', {name: 'Agent is using this page'})
+    await user.click(mask)
+    await user.click(mask)
+
+    expect(await screen.findByRole('separator', {name: 'Stopped'})).toBeVisible()
+    await answer.release()
+    await engine.reply(TestLLM.text('Back at it'))
+    await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Go on')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('Back at it')).toBeVisible()
+    expect(screen.queryByText('Never shown')).not.toBeInTheDocument()
+  })
+
+  test("with a short page task timeout the agent's mask goes away on its own while the reply still waits", async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: [['@conciv/plugin-page', {taskTimeoutMs: 50}]]}, {post: [PAGE]})
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {
+        typescriptCode: "return await external_page_click({selector: '#buy'})",
+      }),
+      TestLLM.text('The fern is in the cart'),
+    )
+    const click = await engine.gate()
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <button type="button" id="buy">
+        Buy the fern
+      </button>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'Explain this page'}))
+    await click.started
+    const answer = await engine.gate()
+    const masked = screen.findByRole('status', {name: 'Agent is using this page'})
+    await click.release()
+    const mask = await masked
+    await answer.started
+
+    await expect.element(mask).not.toBeInTheDocument()
+    await answer.release()
+    const reply = await screen.findByRole('article', {name: /^Reply to:/})
+    expect(await within(reply).findByText('The fern is in the cart')).toBeVisible()
+  })
+
+  test('after a switch the page answers the session the user picked and the old one is told it is gone', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({}, {post: [PAGE]})
+    const alpha = await engine.newSession('Alpha')
+    const bravo = await engine.newSession('Bravo')
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    expect(await bravo.tool('page_route').call({})).toMatchObject({pathname: '/'})
+
+    const again = await engine.event('rpc.experimental.page.control')
+    await user.click(await screen.findByRole('button', {name: 'Bravo, session options'}))
+    await user.click(await screen.findByRole('button', {name: 'Session: Bravo'}))
+    await user.click(await screen.findByRole('option', {name: /^Alpha, Edited/}))
+    expect(await screen.findByText('Switched to Alpha')).toBeVisible()
+    await again.arrived
+
+    expect(await alpha.tool('page_route').call({})).toMatchObject({pathname: '/'})
+    expect(await bravo.tool('page_route').failure({})).toMatchObject({
+      message: expect.stringContaining("'external_page_route' is not defined"),
+    })
+  })
+
+  test('the picked element is a note drawn with its picture in the composer, which takes focus, the agent gets its sentence and its picture with the message, and one sent alone reads as a note', async () => {
+    await page.viewport(1280, 800)
+    const user = userEvent.setup()
+    const engine = await createEngine({}, {post: [PAGE]})
+    const control = await engine.event('rpc.experimental.page.control')
+    await engine.reply(TestLLM.text('That button buys the fern'), TestLLM.text('That is the same button'))
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => (
+      <button type="button" id="buy">
+        Buy the fern
+      </button>
+    ))
+
+    await user.click(await screen.findByRole('button', {name: 'More composer actions'}))
+    await user.click(await screen.findByRole('menuitem', {name: 'Select an element from the page'}))
+    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
+    await browserInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
+    const notes = await screen.findByRole('list', {name: 'Notes'})
+    expect(await within(notes).findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
+    await expect.element(screen.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveFocus()
+    await user.keyboard('What does this do?')
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+
+    expect(await screen.findByText('That button buys the fern')).toBeVisible()
+    const sent = screen.getByRole('list', {name: 'Notes on this message'})
+    expect(await within(sent).findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
+    const [request] = await engine.requests()
+    expect(request?.messages.at(-1)).toMatchObject({
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          content: expect.stringMatching(
+            /^What does this do\?\n+The user referenced the grabbed element \[<button id="buy" type="button">Buy the fern<\/button>/,
+          ),
+        },
+        {type: 'image', source: {type: 'data', mimeType: 'image/webp'}},
+      ],
+    })
+
+    await user.click(screen.getByRole('button', {name: 'More composer actions'}))
+    await user.click(await screen.findByRole('menuitem', {name: 'Select an element from the page'}))
+    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
+    await browserInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
+    const staged = await screen.findByRole('list', {name: 'Notes'})
+    expect(await within(staged).findByRole('button', {name: 'Open grabbed element'})).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Send message'}))
+    expect(await screen.findByText('That is the same button')).toBeVisible()
+    expect(screen.getByRole('article', {name: 'You: 1 note'})).toBeVisible()
+  })
+
+  test('the operation another plugin adds reads the page, and a name no plugin registered is refused', async () => {
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/basket-reader']}, {post: [PAGE]})
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    expect(await screen.findByText('Basket reader ready')).toBeVisible()
+    render(() => (
+      <ul id="basket">
+        <li>Boston fern</li>
+        <li>Snake plant</li>
+      </ul>
+    ))
+
+    expect(
+      await engine.rpc.call('experimental.page', 'operate', {
+        sessionId: engine.session.id,
+        name: 'basket.read',
+        input: {},
+        reading: true,
+      }),
+    ).toEqual({plants: ['Boston fern', 'Snake plant']})
+    expect(
+      await engine.rpc.failure('experimental.page', 'operate', {
+        sessionId: engine.session.id,
+        name: 'basket.empty',
+        input: {},
+        reading: false,
+      }),
+    ).toMatchObject({message: expect.stringContaining('This page does not support the requested page operation')})
+  })
+
+  test('the eval does not run when the user denies it', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({}, {post: [PAGE]})
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+    render(() => <p id="price">12 euros</p>)
+
+    const result = engine.session
+      .tool('page_eval')
+      .failure({code: "document.querySelector('#price').textContent = 'free'"})
+    const ask = await screen.findByRole('group', {name: 'Permission request'})
+    await user.click(within(ask).getByRole('button', {name: 'Deny'}))
+
+    expect(await result).toMatchObject({message: expect.stringMatching(/denied/)})
+    expect(screen.getByText('12 euros')).toBeVisible()
+  })
+
+  test('the TanStack tab list names the focused tab', async () => {
+    const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']}, {post: [PAGE]})
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await control.arrived
+
+    expect(await engine.session.tool('tanstack_tabs_list').call({})).toMatchObject({
+      tabs: [{focused: true, visible: true}],
+    })
+  })
+
+  test('the Recorder tab replays the page live with the widget left out and typing masked, sends a screen recording note, and the note replays from the thread', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: [['@conciv/plugin-recorder', {masking: 'inputs'}]]}, {post: [PAGE]})
+    await engine.reply(TestLLM.text('You typed a card number and paid'))
+    render(() => (
+      <form>
+        <label>
+          Card number
+          <input />
+        </label>
+        <button type="button">Pay now</button>
+      </form>
+    ))
+    const cardNumber = screen.getByRole('textbox', {name: 'Card number'})
+    await browserInput.click(cardNumber)
+    expect(cardNumber).toHaveFocus()
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}/recorder:recorder?open=true`]}),
+    })
+
+    expect(await screen.findByRole('tab', {name: 'Recorder', selected: true})).toBeVisible()
+    expect(await screen.findByText('LIVE')).toBeVisible()
+    expect(cardNumber).toHaveFocus()
+    await browserInput.type(cardNumber, '4242')
+    await browserInput.click(screen.getByRole('button', {name: 'Pay now'}))
+    await user.click(screen.getByRole('button', {name: 'Send to agent'}))
+
+    expect(await screen.findByText('Screen recording')).toBeVisible()
+    const input = screen.getByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(input, 'What did I do on the page?')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(await screen.findByText('You typed a card number and paid')).toBeVisible()
+
+    const [request] = await engine.requests()
+    const recordingId = z
+      .string()
+      .parse(
+        /The user referenced the screen recording (\S+) \(Screen recording · /.exec(
+          JSON.stringify(request?.messages),
+        )?.[1],
+      )
+    const log = z.string().parse(await engine.session.tool('recording_get').call({recordingId, keyframes: 0}))
+    expect(log).toContain('[input] typed "****" into input')
+    expect(log).toContain('[click] clicked button "Pay now"')
+    expect(log).not.toContain('Send to agent')
+
+    await user.click(screen.getByRole('button', {name: 'Play'}))
+    const replay = await screen.findByRole('dialog', {name: 'Screen recording replay'})
+    expect(within(replay).getByText(/^\d+ actions? · \d+s$/)).toBeVisible()
+    await user.click(within(replay).getByRole('button', {name: 'Close'}))
+
+    await engine.write(`.conciv/recorder/recordings/${recordingId}.json`, '{"events": []}')
+    await user.click(screen.getByRole('button', {name: 'Play'}))
+    expect(await screen.findByText('Nothing to replay in this recording.')).toBeVisible()
+    const empty = await screen.findByRole('dialog', {name: 'Screen recording replay'})
+    expect(replay).not.toBeInTheDocument()
+    expect(within(empty).getByText('Nothing to replay in this recording.')).toBeVisible()
+    await user.click(within(empty).getByRole('button', {name: 'Close'}))
+
+    await engine.write(`.conciv/recorder/recordings/${recordingId}.json`, 'not a recording')
+    await user.click(screen.getByRole('button', {name: 'Play'}))
+    expect(await screen.findByText('Recording not found: it is no longer saved in this project.')).toBeVisible()
+    const gone = await screen.findByRole('dialog', {name: 'Screen recording replay'})
+    expect(empty).not.toBeInTheDocument()
+    expect(within(gone).getByText('Recording not found: it is no longer saved in this project.')).toBeVisible()
+  })
+
+  test('the agent starts, stops and pulls a recording with a card for each, and reading a saved recording shows on the default card', async () => {
+    const user = userEvent.setup()
+    const engine = await createEngine({plugins: ['@conciv/plugin-recorder']}, {post: [PAGE]})
+    const control = await engine.event('rpc.experimental.page.control')
+    await mount({
+      engine,
+      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
+    })
+    await control.arrived
+    render(() => <button type="button">Pay now</button>)
+    const {captureId} = z.object({captureId: z.string()}).parse(await engine.session.tool('recording_start').call({}))
+    await engine.reply(
+      TestLLM.toolCall('c1', 'execute_typescript', {typescriptCode: 'return await external_recording_start({})'}),
+      TestLLM.toolCall('c2', 'execute_typescript', {
+        typescriptCode: `return await external_recording_stop({captureId: '${captureId}', keyframes: 0})`,
+      }),
+      TestLLM.toolCall('c3', 'execute_typescript', {
+        typescriptCode: 'return await external_recording_pull({secondsBack: 30, keyframes: 0})',
+      }),
+      TestLLM.toolCall('c4', 'execute_typescript', {
+        typescriptCode: "return await external_recording_get({recordingId: 'no-such-recording'})",
+      }),
+      TestLLM.text('The page recorded nothing unusual'),
+    )
+
+    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    await user.type(input, 'Record the checkout')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    expect(await screen.findByText('The page recorded nothing unusual')).toBeVisible()
+    const reply = screen.getByRole('article', {name: 'Reply to: Record the checkout'})
+    expect(within(reply).getByText('recording_start')).toBeVisible()
+    expect(within(reply).getByText('capture started')).toBeVisible()
+    expect(within(reply).getByText('recording_stop')).toBeVisible()
+    expect(within(reply).getByText(/^\d+ actions? · 0 keyframes$/)).toBeVisible()
+    expect(within(reply).getByText('recording_pull')).toBeVisible()
+    expect(within(reply).getByText(/^last 30s · \d+ actions? · 0 keyframes$/)).toBeVisible()
+    expect(within(reply).getByText('recording_get')).toBeVisible()
+  })
+
+  test('a visitor starts the engine beside one paired to another visitor, sees Agent connected, and the widget binds, trusted, to a session that greets them as connected', async () => {
+    const user = userEvent.setup({delay: null})
+    const token = crypto.randomUUID()
+    await mount({plugins: [[TRY_IT, {token, probeMs: 100, holdMs: 1_000}]]})
+
+    expect(await screen.findByRole('heading', {name: 'Drive this page with your agent.'})).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Copy connect command'}))
+    expect(await navigator.clipboard.readText()).toBe(`npx @conciv/try --token ${token}`)
+
+    await createEngine({}, {port: 'connect', token: crypto.randomUUID()})
+    await createEngine({}, {port: 'connect', token})
+    expect(await screen.findByText('Agent connected')).toBeVisible()
+    expect(screen.queryByText('2')).not.toBeInTheDocument()
+    expect(screen.queryByText('3')).not.toBeInTheDocument()
+    expect(screen.queryByText('Waiting for your agent…')).not.toBeInTheDocument()
+
+    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    expect(screen.queryByRole('heading', {name: 'Drive this page with your agent.'})).not.toBeInTheDocument()
+    expect(await screen.findByText('Agent connected. It’s driving this page from your machine.')).toBeVisible()
+    expect(screen.queryByText('How can I help you today?')).not.toBeInTheDocument()
+    expect(screen.queryByText(/conciv couldn't connect to that workspace/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', {name: 'Authorize conciv'})).not.toBeInTheDocument()
+  })
+
+  test('an engine already running on a connect port binds the widget at once, with no connect steps on screen, and the session greets the user as connected', async () => {
+    const token = crypto.randomUUID()
+    await createEngine({}, {port: 'connect', token})
+    await mount({plugins: [[TRY_IT, {token}]]})
+
+    expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    expect(screen.queryByRole('heading', {name: 'Drive this page with your agent.'})).not.toBeInTheDocument()
+    expect(screen.queryByText('Agent connected')).not.toBeInTheDocument()
+    expect(await screen.findByText('Agent connected. It’s driving this page from your machine.')).toBeVisible()
+    expect(screen.queryByText('How can I help you today?')).not.toBeInTheDocument()
   })
 })
