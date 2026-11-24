@@ -6,7 +6,6 @@
     "**/.turbo/**",
     "**/*.d.ts",
     "**/*.generated.ts",
-    "packages/extensions/design/**",
     "apps/examples/**",
     "native/swift/**",
     "e2e/astro/**",

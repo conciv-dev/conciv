@@ -26,7 +26,7 @@ set -euo pipefail
 # scripts `pnpm test`/`pnpm typecheck`/`pnpm run test`/`pnpm run typecheck`
 # expand to unfiltered `turbo run test`/`turbo run typecheck` and are blocked
 # the same way; `pnpm test:affected`/`pnpm typecheck:affected` expand to
-# `TURBO_SCM_BASE=origin/main turbo run <task> --affected --filter=!@conciv/extension-design`
+# `TURBO_SCM_BASE=origin/main turbo run <task> --affected`
 # and are allowed.
 #
 # Rule 3 (--force): the turbo cache hash already covers source and deps, so
@@ -82,8 +82,8 @@ strip_quoted() {
 
 map_pnpm_script() {
   sed -E \
-    -e "s#(^|[[:space:];|&()])pnpm[[:space:]]+(run[[:space:]]+)?test:affected#\\1turbo run test --affected --filter=!@conciv/extension-design#" \
-    -e "s#(^|[[:space:];|&()])pnpm[[:space:]]+(run[[:space:]]+)?typecheck:affected#\\1turbo run typecheck --affected --filter=!@conciv/extension-design#" \
+    -e "s#(^|[[:space:];|&()])pnpm[[:space:]]+(run[[:space:]]+)?test:affected#\\1turbo run test --affected#" \
+    -e "s#(^|[[:space:];|&()])pnpm[[:space:]]+(run[[:space:]]+)?typecheck:affected#\\1turbo run typecheck --affected#" \
     -e "s#(^|[[:space:];|&()])pnpm[[:space:]]+(run[[:space:]]+)?test([[:space:]]|\$)#\\1turbo run test\\3#" \
     -e "s#(^|[[:space:];|&()])pnpm[[:space:]]+(run[[:space:]]+)?typecheck([[:space:]]|\$)#\\1turbo run typecheck\\3#"
 }

@@ -329,7 +329,7 @@ jobs:
             exit 1
           fi
       # Build the site too so bundle-size can measure the Cloudflare worker and gate it below.
-      - run: pnpm exec turbo run build --filter='./packages/**' --filter='!@conciv/extension-design' --filter=site --filter='./apps/examples/*'
+      - run: pnpm exec turbo run build --filter='./packages/**' --filter=site --filter='./apps/examples/*'
       # Token codegen drift: the base token sheet, every class-scoped skin block and both
       # generated contract docs come from the typed skin definitions and are committed.
       # Regenerate them in memory and fail if the committed files disagree.
@@ -361,7 +361,7 @@ jobs:
           name: bundle-size-baseline
           path: bundle-size.json
       # Enforce the no-comments rule everywhere (incl. apps/), without pulling the private apps into the build/test gate.
-      - run: pnpm exec oxlint -A all -D conciv/no-comments --ignore-pattern 'packages/extensions/design/**'
+      - run: pnpm exec oxlint -A all -D conciv/no-comments
       - name: Skill format
         run: pnpm --filter @conciv/skills exec intent validate skills --check --github-summary
       - name: Skill references
