@@ -55,8 +55,14 @@ export interface ToolFailure {
   readonly message: string
 }
 
+export interface ToolAnswer {
+  readonly output: unknown
+  readonly content: unknown
+}
+
 export interface EngineTool {
   readonly call: (input?: unknown) => Effect.Effect<unknown, ToolSchema.Error, Instance.Services>
+  readonly answer: (input?: unknown) => Effect.Effect<ToolAnswer, ToolSchema.Error, Instance.Services>
   readonly failure: (input?: unknown) => Effect.Effect<ToolFailure, never, Instance.Services>
 }
 
@@ -316,7 +322,7 @@ const callTool = Effect.fn('PluginEngine.tool')(function* (sessionId: SessionId,
     snapshot.codeMode?.tools.has(name) === true
       ? yield* snapshot.codeMode.execute(name, input, context)
       : yield* snapshot.execute({sessionId, agent, messageId: undefined, call: {type: 'tool-call', id, name, input}})
-  return result.output ?? result.content
+  return {output: result.output, content: result.content}
 })
 
 const failedTool = <R>(name: string, call: Effect.Effect<unknown, ToolSchema.Error, R>) =>
@@ -337,7 +343,9 @@ export const session: (input?: CreateInput) => Effect.Effect<EngineSession, neve
   return {
     id: created.id,
     tool: (name: string) => ({
-      call: (toolInput: unknown = {}) => callTool(created.id, name, toolInput),
+      call: (toolInput: unknown = {}) =>
+        callTool(created.id, name, toolInput).pipe(Effect.map((answer) => answer.output ?? answer.content)),
+      answer: (toolInput: unknown = {}) => callTool(created.id, name, toolInput),
       failure: (toolInput: unknown = {}) => failedTool(name, callTool(created.id, name, toolInput)),
     }),
   }

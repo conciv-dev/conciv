@@ -2,11 +2,12 @@ import {readFile, stat} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, test} from 'vitest'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {TestLLM} from '@conciv/core/testing'
+import {createEngine, IOS_PLUGIN} from '../test/engine.js'
 
 describe('the ios plugin with no options', () => {
   test('every ios tool answers that the plugin is not configured, without an ask, and the Swift SDK pairing file still names the engine', async () => {
-    const engine = await createEngine({plugins: ['@conciv/plugin-ios']})
+    const engine = await createEngine({plugins: [IOS_PLUGIN]})
     const notConfigured = {ok: false, error: 'ios plugin not configured'}
     const pairing = join(homedir(), '.conciv', 'dev-endpoint.json')
 
@@ -23,7 +24,7 @@ describe('the ios plugin with no options', () => {
 describe('the ios rules in the system prompt', () => {
   test('a configured app adds the overlay and app rules to the model request, and no options add none', async () => {
     const configured = await createEngine({
-      plugins: [['@conciv/plugin-ios', {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}]],
+      plugins: [[IOS_PLUGIN, {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}]],
     })
     await configured.reply(TestLLM.text('The button is on the native screen'))
     await configured.session.send('Where is the pay button?')
@@ -37,7 +38,7 @@ describe('the ios rules in the system prompt', () => {
       'bundle id dev.conciv.pay, built in swiftc mode with the default scheme for the iPhone 17 Pro simulator.',
     )
 
-    const unconfigured = await createEngine({plugins: ['@conciv/plugin-ios']})
+    const unconfigured = await createEngine({plugins: [IOS_PLUGIN]})
     await unconfigured.reply(TestLLM.text('I see a web page'))
     await unconfigured.session.send('Where is the pay button?')
 
@@ -53,7 +54,7 @@ describe('the ios rules in the system prompt', () => {
 describe('building and running a configured app', () => {
   test('the agent asks before ios_build and before ios_run, and a stopped turn runs neither', async () => {
     const engine = await createEngine({
-      plugins: [['@conciv/plugin-ios', {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}]],
+      plugins: [[IOS_PLUGIN, {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}]],
     })
 
     await engine.reply(TestLLM.toolCall('c1', 'ios_build', {}))
@@ -97,7 +98,7 @@ describe('the ios plugin with bad options', () => {
       {status: 'active'},
     ],
   ])('the engine lists the ios plugin state for %s', async (_case, options, state) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/lister', ['@conciv/plugin-ios', options]]})
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/lister', [IOS_PLUGIN, options]]})
 
     expect(await engine.session.tool('list_plugins').call({})).toEqual({
       plugins: expect.arrayContaining([expect.objectContaining({id: 'ios', state})]),

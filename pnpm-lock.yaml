@@ -3346,6 +3346,9 @@ importers:
       '@conciv/client':
         specifier: workspace:^
         version: link:../../client
+      '@conciv/core':
+        specifier: workspace:*
+        version: link:../../core
       '@conciv/harness-testkit':
         specifier: workspace:*
         version: link:../../harness-testkit
@@ -3561,6 +3564,9 @@ importers:
       '@conciv/client':
         specifier: workspace:^
         version: link:../../client
+      '@conciv/core':
+        specifier: workspace:*
+        version: link:../../core
       '@conciv/harness-testkit':
         specifier: workspace:*
         version: link:../../harness-testkit
