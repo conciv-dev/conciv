@@ -8,7 +8,7 @@ import {
   PUBLIC_PACKAGES,
   assertBootstrappable,
   assertChangesetsResolve,
-  assertNoRuntimeDependencyLoop,
+  assertNoDependencyLoop,
   assertPublicDepsPublic,
   assertPublicTypesPublic,
   assertPublicSet,
@@ -137,11 +137,11 @@ const checkDependencyLoops = defineCommand({
   meta: {
     name: 'check-dependency-loops',
     description:
-      'Fail when workspace packages form a loop through dependencies and optionalDependencies alone; a loop that needs a devDependency or a peerDependency passes',
+      'Fail when workspace packages form a loop through dependencies, devDependencies, optionalDependencies or peerDependencies, every field turbo ^build follows',
   },
   async run() {
     const {cwd} = await atRoot()
-    await assertNoRuntimeDependencyLoop(cwd)
+    await assertNoDependencyLoop(cwd)
   },
 })
 

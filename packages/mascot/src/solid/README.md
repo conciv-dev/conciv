@@ -25,4 +25,4 @@ The Solid compound component over the core service, with the same slots as the R
 ## Verification
 
 - Run: `pnpm exec turbo run test --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first) (vitest, then Playwright on `test/e2e`)
-- Run: `pnpm exec turbo run typecheck --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/mascot` from the repo root (turbo builds its dependencies first, not the package)
