@@ -1,3 +1,4 @@
+import {AsyncLocalStorage} from 'node:async_hooks'
 import {randomUUID} from 'node:crypto'
 import {mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync} from 'node:fs'
 import {rm} from 'node:fs/promises'
@@ -17,7 +18,7 @@ import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-po
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {z} from 'zod'
-import {onTestFinished} from 'vitest'
+import {aroundEach, type TestContext} from 'vitest'
 import {
   commitAll,
   holdTestClock,
@@ -706,14 +707,14 @@ export async function createHarnessEngine(
   }
 }
 
-export function createEngine(config: ConcivConfig = {}, options: HarnessEngineStart = {}): Promise<HarnessEngine> {
-  const started = Promise.withResolvers<HarnessEngine>()
-  onTestFinished(() =>
-    started.promise.then(
-      (engine) => engine.stop(),
-      () => undefined,
-    ),
-  )
-  createHarnessEngine(config, options).then(started.resolve, started.reject)
-  return started.promise
+export function engineFixture(): (config?: ConcivConfig, options?: HarnessEngineStart) => Promise<HarnessEngine> {
+  const runningTests = new AsyncLocalStorage<TestContext['onTestFinished']>()
+  aroundEach((runTest, {onTestFinished}) => runningTests.run(onTestFinished, runTest))
+  return async (config = {}, options = {}) => {
+    const onTestFinished = runningTests.getStore()
+    if (onTestFinished === undefined) throw new Error('createEngine starts an engine inside a test, which stops it')
+    const engine = await createHarnessEngine(config, options)
+    onTestFinished(() => engine.stop())
+    return engine
+  }
 }

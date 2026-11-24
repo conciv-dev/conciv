@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {createEngine} from '@conciv/core/testing'
+import {createEngine} from '../test/engine.js'
 import {cli} from '../test/cli.js'
 
 describe('session', () => {
