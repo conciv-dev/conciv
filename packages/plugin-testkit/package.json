@@ -52,14 +52,19 @@
     "test": "node bin/conciv-test.js"
   },
   "dependencies": {
+    "@conciv/db": "workspace:^",
+    "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-host": "workspace:^",
+    "@effect/platform-node": "catalog:",
+    "@effect/sql-sqlite-node": "catalog:",
     "@testing-library/jest-dom": "catalog:",
+    "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/app": "workspace:*",
     "@conciv/core": "workspace:*",
     "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

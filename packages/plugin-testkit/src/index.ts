@@ -10,3 +10,5 @@ export type {
   ToolFailure,
 } from './engine.js'
 export * as TestLLM from '@conciv/harness-testkit/test-llm'
+export {PluginEngine} from './plugin-engine.js'
+export {testEffect} from './effect.js'
