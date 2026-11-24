@@ -131,7 +131,7 @@ named `run(input, signal)` a plugin adds for the page plugin to run as one of it
 ### `@conciv/plugin/experimental/grab` (`experimental/grab.ts`)
 
 The `GrabPicker` registry (`grab.picker`, opencode's `FileViewer` way for one plugin to supply another's
-operation) and the element grab types, which `@conciv/grab` re-exports.
+operation) and the element grab types. The registry is the only way a picker is supplied; the page plugin adds its own.
 
 ### `@conciv/plugin/host` (`host.ts`)
 

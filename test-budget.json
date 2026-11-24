@@ -7,7 +7,6 @@
   "@conciv/core": 44,
   "@conciv/db": 6,
   "@conciv/embed": 3,
-  "@conciv/grab": 6,
   "@conciv/harness": 12,
   "@conciv/harness-testkit": 13,
   "@conciv/mascot": 9,

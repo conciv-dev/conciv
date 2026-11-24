@@ -52,7 +52,6 @@
   "dependencies": {
     "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
-    "@conciv/grab": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",

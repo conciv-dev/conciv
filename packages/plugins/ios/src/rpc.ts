@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {Rpc} from '@conciv/plugin/rpc'
-import type {ElementRect, ElementSource, ImagePreview} from '@conciv/grab'
+import type {ElementRect, ElementSource, ImagePreview} from '@conciv/plugin/experimental/grab'
 
 export const BRIDGE_MIN_VERSION = 1
 export const BRIDGE_MAX_VERSION = 1

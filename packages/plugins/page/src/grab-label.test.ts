@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {composeGrabText, sourceLabel} from './grab.js'
+import {composeGrabText, sourceLabel} from './grab-label.js'
 
 describe('grab labels', () => {
   test.each([

@@ -1,14 +1,4 @@
-import type {ElementSource, Grab} from '@conciv/plugin/experimental/grab'
-
-export type {
-  DomPreview,
-  ElementRect,
-  ElementSource,
-  Grab,
-  GrabFrame,
-  GrabPreview,
-  ImagePreview,
-} from '@conciv/plugin/experimental/grab'
+import type {ElementSource} from '@conciv/plugin/experimental/grab'
 
 function whereLabel(source: ElementSource): string {
   if (source.filePath === '') return ''
@@ -33,13 +23,3 @@ export function composeGrabText(snippet: string, source: GrabSourceLoc | null, f
   if (!source || !snippet) return fallback
   return `${snippet} at ${source.file}:${source.line}:${source.column}`
 }
-
-export type GrabActions = {
-  pick: () => Promise<Grab | null>
-  comment: () => Promise<Grab | null>
-  cancel: () => void
-  isActive: () => boolean
-  grabbable?: () => boolean
-}
-
-export type GrabProvider = () => GrabActions

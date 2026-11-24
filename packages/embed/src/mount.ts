@@ -1,6 +1,5 @@
 import type {ChatConnectionOptions} from '@conciv/client'
 import type {EngineConnectionTimings} from '@conciv/contract'
-import type {GrabProvider} from '@conciv/grab'
 import type {PluginOptions} from '@conciv/plugin/experimental'
 import type {Entry} from '@conciv/plugin/experimental/host'
 import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
@@ -14,7 +13,6 @@ export type ConcivInit = {
   plugins?: readonly PluginEntry[]
   settings?: ConcivSettingsInit
   apiBase?: string
-  grabProvider?: GrabProvider
   engineToken?: () => Promise<string>
   timings?: {
     engine?: Partial<EngineConnectionTimings>

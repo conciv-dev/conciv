@@ -38,6 +38,7 @@ A built-in: it draws with the UI kits directly, like opencode's gui plugins, and
 - `grab.ts:picking` / `setPicking` - Solid signal for pick mode; `setCancelPick` / `cancelPick`.
 - `grab-preview.ts:capturePreview` - returns an `ImagePreview` (`kind: 'image'`, a WebP data URL drawn by snapdom, as `page_screenshot` draws) for an element, or a `DomPreview` (`kind: 'dom'`, html, width, height) when drawing fails.
 - `grab.ts:elementSnippet` / `groundGrabText` - an element's opening tag and text, with its source location from `sourceFromAttr`.
+- `grab-label.ts:sourceLabel` / `composeGrabText` - a grabbed element's source as `Component at file:line`, and the text the agent is told for it.
 - `grab-preview.ts:correctFallbackMetrics` / `isStyledElement` - adjust cloned text runs whose web fonts fall back.
 
 ## Browser part

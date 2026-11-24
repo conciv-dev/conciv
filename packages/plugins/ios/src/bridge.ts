@@ -1,7 +1,7 @@
 export * as IosBridge from './bridge.js'
 import {Effect, FiberHandle, Option, PubSub, Schedule, Schema, Semaphore, Stream, SubscriptionRef} from 'effect'
 import {z} from 'zod'
-import type {Grab} from '@conciv/grab'
+import type {Grab} from '@conciv/plugin/experimental/grab'
 import {NativeToPageSchema, type GrabMode, type PageToNativeMessage} from './rpc.js'
 import {IosBridgeMachine} from './bridge-machine.js'
 

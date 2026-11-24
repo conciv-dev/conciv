@@ -2,7 +2,7 @@
 
 ## Overview
 
-The npm packages that make up conciv. `@conciv/it` is the one users install; it pulls in the engine (`core`), the bundler plugin, the browser widget (`embed` and the `ui-kit-*` packages), the agent harness adapters and the built-in plugins. The rest are contracts shared between those halves (`protocol`, `contract`, `plugin`, `grab`), published SDKs for host frameworks (`react`, `preact`, `solid`), and private tooling for this repo (`publish`, `vitest-config`, `oxlint-plugin`, `bundle-size`, `uno-preset`).
+The npm packages that make up conciv. `@conciv/it` is the one users install; it pulls in the engine (`core`), the bundler plugin, the browser widget (`embed` and the `ui-kit-*` packages), the agent harness adapters and the built-in plugins. The rest are contracts shared between those halves (`protocol`, `contract`, `plugin`), published SDKs for host frameworks (`react`, `preact`, `solid`), and private tooling for this repo (`publish`, `vitest-config`, `oxlint-plugin`, `bundle-size`, `uno-preset`).
 
 ## Subdirectories & Boundaries
 
@@ -41,7 +41,6 @@ Contracts:
 
 - protocol: [protocol/README.md](./protocol/README.md) - Zod schemas and types for the wire protocol; zero-runtime apart from small helpers.
 - contract: [contract/README.md](./contract/README.md) - The oRPC contract between core and its clients, with fetch and browser RPC clients.
-- grab: [grab/README.md](./grab/README.md) - Element-grab types and label helpers.
 - plugin: [plugin/README.md](./plugin/README.md) - `@conciv/plugin`, the plugin SDK: `Plugin.define` for a plugin's engine and browser parts, RPC contracts, registries and stores.
 - opaque-internal: `@internal/opaque`, private, source-only: `createOpaqueType`, which makes a type with a public shape and versioned internal fields that only conciv's own packages read.
 - plugin-internal: [plugin-internal/README.md](./plugin-internal/README.md) - `@internal/plugin`, private, source-only: the opaque definitions (`OpaqueUi`) the app and conciv's own plugins share, inlined into their builds.

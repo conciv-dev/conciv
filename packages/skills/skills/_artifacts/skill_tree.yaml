@@ -120,8 +120,6 @@ coverage:
       reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/client'
       reason: 'internal to @conciv/it, not installed directly'
-    - name: '@conciv/grab'
-      reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/tools'
       reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/solid-diffs'

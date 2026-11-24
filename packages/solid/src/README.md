@@ -2,7 +2,7 @@
 
 ## Overview
 
-Exports the `ConcivWidget` Solid component. It creates a detached div, creates and mounts a conciv embed handle into it, and remounts whenever any `ConcivInit` field (apiBase, settings, plugins, grabProvider, engineToken) changes. It re-exports the embed init types.
+Exports the `ConcivWidget` Solid component. It creates a detached div, creates and mounts a conciv embed handle into it, and remounts whenever any `ConcivInit` field (apiBase, settings, plugins, engineToken) changes. It re-exports the embed init types.
 
 ## Interface
 

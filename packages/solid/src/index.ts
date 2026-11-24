@@ -15,7 +15,6 @@ export function ConcivWidget(props: ConcivWidgetProps): JSX.Element {
       apiBase: props.apiBase,
       settings: props.settings,
       plugins: props.plugins,
-      grabProvider: props.grabProvider,
       engineToken: props.engineToken,
     }
     handle?.unmount()

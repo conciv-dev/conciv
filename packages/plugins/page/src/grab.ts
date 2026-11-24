@@ -1,5 +1,6 @@
 import {createEffect, createResource, createRoot, type Accessor, createSignal} from 'solid-js'
-import {type Grab, type GrabActions, type ElementSource, type GrabFrame, composeGrabText} from '@conciv/grab'
+import type {Grab, GrabPicker, ElementSource, GrabFrame} from '@conciv/plugin/experimental/grab'
+import {composeGrabText} from './grab-label.js'
 import type {SourceInfo} from 'react-grab'
 import {capturePreview} from './grab-preview.js'
 import {framesForElement, sourceFromAttr} from './react.js'
@@ -61,7 +62,7 @@ function pickerReady(): boolean {
   return pickerLoaded()
 }
 
-export const grabApi: GrabActions = {
+export const grabApi: GrabPicker = {
   pick: () => startPick('activate'),
   comment: () => startPick('comment'),
   cancel: cancelPick,

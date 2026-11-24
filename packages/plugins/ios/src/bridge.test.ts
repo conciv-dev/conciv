@@ -1,6 +1,6 @@
 import {describe, expect} from 'vitest'
 import {Effect} from 'effect'
-import type {ImagePreview} from '@conciv/grab'
+import type {ImagePreview} from '@conciv/plugin/experimental/grab'
 import {test} from '../test/ios-test.js'
 import {IosBridgeMachine} from './bridge-machine.js'
 

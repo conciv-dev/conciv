@@ -45,7 +45,6 @@ import {
   useAppData,
   useAppQueryClient,
   useConnected,
-  useGrabProvider,
   useHostTheme,
   useLiveSessions,
   useRpc,
@@ -406,7 +405,6 @@ export function createHostApis() {
   return {
     apis,
     engine,
-    grabProvider: useGrabProvider(),
     unavailableClient: (): ConcivClient => unavailable,
     queryClient: useAppQueryClient(),
     whenMounted: (run: () => void) => write(() => run()),

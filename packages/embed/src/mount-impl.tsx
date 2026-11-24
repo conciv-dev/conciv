@@ -148,7 +148,6 @@ export function mountImpl(
     root: shadow.root,
     settings,
     plugins: init.plugins,
-    grabProvider: init.grabProvider,
     onInteractive: interactive.resolve,
     timings: init.timings,
     draftStore: openBrowserDraftStore,

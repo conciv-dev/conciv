@@ -11,7 +11,6 @@ import {
   resetBrowserRpcConnection,
   type TrustListener,
 } from '@conciv/contract'
-import type {GrabProvider} from '@conciv/grab'
 import {routeTree} from './routeTree.gen'
 import {QuickSearchSchema, quickPaneIds} from './lib/quick-search.js'
 import {makeAppData, type AppData} from './data/app-data.js'
@@ -76,7 +75,6 @@ export type ConcivRouterContext = {
   plugins: readonly ComposedPlugin[]
   servers: boolean
   bindApiBase?: (apiBase: string, token: string | undefined) => void
-  grabProvider?: GrabProvider
   apiBase: () => string
   connectionGeneration: () => number
   bindActiveSession?: (read: () => string | null) => void
@@ -99,7 +97,6 @@ export type ConcivRouterConfig = {
   plugins?: readonly ComposedPlugin[]
   servers?: boolean
   bindApiBase?: (apiBase: string, token: string | undefined) => void
-  grabProvider?: GrabProvider
   apiBase?: () => string
   connectionGeneration?: () => number
   bindActiveSession?: (read: () => string | null) => void
@@ -214,7 +211,6 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       plugins: config.plugins ?? [],
       servers: config.servers ?? false,
       bindApiBase: config.bindApiBase,
-      grabProvider: config.grabProvider,
       apiBase,
       connectionGeneration: config.connectionGeneration ?? (() => 0),
       bindActiveSession: config.bindActiveSession,

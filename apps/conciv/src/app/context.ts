@@ -1,7 +1,6 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
 import type {QueryClient, ChatSession} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
-import type {GrabProvider} from '@conciv/grab'
 import type {AppData} from '../data/app-data.js'
 import type {ConcivSettings} from '../data/settings.js'
 import type {ConcivEnvironment} from '../router.js'
@@ -29,7 +28,6 @@ export type AppContextValue = {
   connected: () => boolean
   arrivedFromConnect: () => boolean
   connectBind: (server: ServerBinding) => Promise<string>
-  grabProvider?: GrabProvider
   connectionGeneration: () => number
   apiBase: () => string
   notifyInteractive: () => void
@@ -107,10 +105,6 @@ export function useArrivedFromConnect(): () => boolean {
 
 export function useConnectBinding(): {bind: (server: ServerBinding) => Promise<string>} {
   return useAppScope('useConnectBinding', (app) => ({bind: app.connectBind}))
-}
-
-export function useGrabProvider(): GrabProvider | undefined {
-  return useAppScope('useGrabProvider', (app) => app.grabProvider)
 }
 
 export function useConnectionGeneration(): () => number {

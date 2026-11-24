@@ -1,5 +1,5 @@
 export * as IosBridgeMachine from './bridge-machine.js'
-import type {ElementRect, Grab} from '@conciv/grab'
+import type {ElementRect, Grab} from '@conciv/plugin/experimental/grab'
 import {
   BRIDGE_MAX_VERSION,
   BRIDGE_MIN_VERSION,

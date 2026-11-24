@@ -3,7 +3,6 @@ import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {RouterProvider, createBrowserHistory, createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
 import {makeBrowserRpcClient, normalizeApiBase, type BrowserRpcClient} from '@conciv/contract'
-import type {GrabProvider} from '@conciv/grab'
 import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {createConcivRouter, disposeConcivRouter, type ConcivRouterConfig, type ConcivTimings} from './router.js'
 import {parseConcivSettings, type ConcivSettings} from './data/settings.js'
@@ -23,7 +22,6 @@ export type Platform = {
   root: ShadowRoot | Document
   settings?: ConcivSettingsInit
   plugins?: readonly ComposedPlugin[]
-  grabProvider?: GrabProvider
   onInteractive?: () => void
   timings?: ConcivTimings
   draftStore?: (writable: () => boolean) => DraftStore | undefined
@@ -73,7 +71,6 @@ function routerConfig(
     environment: {rootNode: parts.platform.root, document},
     settings: parts.settings,
     plugins: parts.plugins,
-    grabProvider: parts.platform.grabProvider,
     notifyInteractive: parts.platform.onInteractive,
     timings: parts.platform.timings,
     draftStore: parts.platform.draftStore,

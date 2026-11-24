@@ -55,7 +55,6 @@
     "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
   },
   "dependencies": {
-    "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "effect": "catalog:",
     "es-toolkit": "catalog:",

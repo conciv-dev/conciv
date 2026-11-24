@@ -1,4 +1,4 @@
-import type {ImagePreview, DomPreview} from '@conciv/grab'
+import type {ImagePreview, DomPreview} from '@conciv/plugin/experimental/grab'
 import {capturePlugins} from './screenshot.js'
 
 const FIT_MIME = 'image/webp'

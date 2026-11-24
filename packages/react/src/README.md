@@ -11,7 +11,7 @@ The `ConcivWidget` React component, which mounts the conciv widget from `@conciv
 
 ## Invariants
 
-- `index.ts:ConcivWidget` - remounts when `apiBase`/`settings` change by value (`JSON.stringify` key) or `plugins`/`grabProvider`/`engineToken` change by reference.
+- `index.ts:ConcivWidget` - remounts when `apiBase`/`settings` change by value (`JSON.stringify` key) or `plugins`/`engineToken` change by reference.
 - `index.ts:ConcivWidget` - the effect cleanup calls `handle.unmount()`.
 
 ## Side Effects

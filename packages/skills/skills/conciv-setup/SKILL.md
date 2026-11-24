@@ -119,7 +119,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 `ConcivInit` fields: `plugins` (browser plugin entries, each `[plugin, options]`), `settings` (`ConcivSettingsInit`),
 `apiBase` (engine origin: required whenever the engine isn't served from the same origin/port the
-page loads from), `grabProvider`, `engineToken` (`packages/embed/src/mount.ts:14-21`). The handle also exposes
+page loads from), `engineToken` (`packages/embed/src/mount.ts`). The handle also exposes
 `open()`/`close()`/`toggle()` (dispatch DOM `CustomEvent`s the widget listens for) and
 `rebind(apiBase)` to repoint an already-mounted widget at a different engine
 (`packages/embed/src/mount.ts:23-30`).

@@ -2,20 +2,12 @@ import {compose, type Entry} from '@conciv/plugin/experimental/host'
 import page from '@conciv/plugin-page/renderer'
 import terminal from '@conciv/plugin-terminal/client'
 import type {Plugin} from '@conciv/plugin/experimental'
-import {GrabPicker} from '@conciv/plugin/experimental/grab'
-import {useHostApis} from './host-apis-context'
-
-const provideGrab: Plugin.Setup = (ctx) => {
-  const provider = useHostApis().grabProvider
-  if (provider) ctx.add(GrabPicker, provider())
-}
 
 function staticEntry({setup, ...declarations}: Plugin.Definition): Omit<Entry, 'id'> {
   return {...declarations, windowEntry: setup && (() => Promise.resolve({default: setup}))}
 }
 
 export const builtins = compose({
-  grab: {windowEntry: () => Promise.resolve({default: provideGrab})},
   terminal: staticEntry(terminal),
   'conciv.page': staticEntry(page),
 })

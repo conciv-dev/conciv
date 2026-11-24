@@ -1,6 +1,6 @@
-import {composeGrabText, sourceLabel, type Grab, type GrabActions} from '@conciv/grab'
+import {composeGrabText, sourceLabel} from './grab-label.js'
 import type {ComposerNote, MountedSession, Screen} from '@conciv/plugin/experimental'
-import type {GrabPicker} from '@conciv/plugin/experimental/grab'
+import type {Grab, GrabPicker} from '@conciv/plugin/experimental/grab'
 import type {Page} from '@conciv/plugin/experimental/page'
 import {fitImagePreview} from './grab-preview.js'
 import {Definition, GRAB_NOTE_ORIGIN, grabHref, type GrabId, type StoredGrab} from './rpc.js'
@@ -53,7 +53,7 @@ function grabNote(id: GrabId, grab: StoredGrab): ComposerNote {
   }
 }
 
-export function makeGrabNotePicker(actions: GrabActions, deps: Deps): GrabPicker {
+export function makeGrabNotePicker(actions: GrabPicker, deps: Deps): GrabPicker {
   const pickAsNote = async (picking: () => Promise<Grab | null>): Promise<Grab | null> => {
     const grab = await picking()
     const session = deps.session()

@@ -22,7 +22,6 @@
     "@conciv/ai": "workspace:^",
     "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
-    "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-terminal": "workspace:*",

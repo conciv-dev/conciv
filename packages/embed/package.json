@@ -43,7 +43,6 @@
     "@ark-ui/solid": "catalog:",
     "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
-    "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page": "workspace:^",

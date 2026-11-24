@@ -5,11 +5,7 @@ export type {ConcivInit, ConcivSettingsInit} from '@conciv/embed'
 
 export type ConcivWidgetProps = ConcivInit
 
-const REFERENCE_FIELDS: ReadonlyArray<'plugins' | 'grabProvider' | 'engineToken'> = [
-  'plugins',
-  'grabProvider',
-  'engineToken',
-]
+const REFERENCE_FIELDS: ReadonlyArray<'plugins' | 'engineToken'> = ['plugins', 'engineToken']
 
 export function ConcivWidget(props: ConcivWidgetProps): ReactElement {
   const [host, setHost] = useState<HTMLDivElement | null>(null)
@@ -18,7 +14,6 @@ export function ConcivWidget(props: ConcivWidgetProps): ReactElement {
     apiBase: props.apiBase,
     settings: props.settings,
     plugins: props.plugins,
-    grabProvider: props.grabProvider,
     engineToken: props.engineToken,
   }
   const [config, setConfig] = useState({key: configKey, init})

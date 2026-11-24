@@ -7,7 +7,7 @@ Mounts the conciv widget into a shadow root on the host page. `createConciv` is 
 ## Interface
 
 - `mount.ts:createConciv` - returns a `ConcivHandle` with `mount(el)`, `unmount()`, `open()`, `close()`, `toggle()`, `rebind(apiBase)`.
-- `mount.ts:ConcivInit` - `plugins`, `settings`, `apiBase`, `grabProvider`, `engineToken`, `timings` (forwarded to the app's `Platform.timings`).
+- `mount.ts:ConcivInit` - `plugins`, `settings`, `apiBase`, `engineToken`, `timings` (forwarded to the app's `Platform.timings`).
 - `mount.ts:mountConciv` - appends a `[data-conciv-script-root]` div to `document.body` and mounts the widget with the given plugin entries.
 - `mount-impl.tsx:mountImpl` - creates the `[data-conciv-root]` element and shadow root, builds a `Platform` from `ConcivInit` (the api base from `init`, else `window.__CONCIV_API_BASE__`, the `conciv-api-base` meta tag or a loopback or same-origin `?core=`; servers mode when there is none and plugins are given) and renders `ConcivApp` from `@conciv/app`.
 - `global-entry.ts` - calls `mountConciv()`: the widget for a plain `<script src>` page, such as core's `/widget` page.

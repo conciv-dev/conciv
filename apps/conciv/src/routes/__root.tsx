@@ -178,7 +178,6 @@ function AppRoot() {
     connected: app.connected,
     arrivedFromConnect,
     connectBind,
-    grabProvider: app.grabProvider,
     connectionGeneration: app.connectionGeneration,
     apiBase: app.apiBase,
     notifyInteractive: app.notifyInteractive,

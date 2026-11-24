@@ -5,7 +5,7 @@ import {useQuery} from '@conciv/client'
 import {type MountedSession} from '@conciv/plugin/experimental'
 import {type NoteCardProps} from '@internal/plugin'
 import {Button, Dialog, Loader} from '@conciv/ui-kit-system'
-import {sourceLabel} from '@conciv/grab'
+import {sourceLabel} from './grab-label.js'
 import {Definition, readGrabId, type GrabId, type StoredGrab} from './rpc.js'
 
 type GrabPreview = NonNullable<StoredGrab['preview']>
