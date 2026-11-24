@@ -1,13 +1,17 @@
 import {describe, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {screen} from '@solidjs/testing-library'
+import userEvent from '@testing-library/user-event'
 import {mount} from '@conciv/plugin-testkit/browser'
 
 describe('mounting a plugin by its package name', () => {
-  test('a window plugin named in mount shows its part, with the options given to it', async () => {
+  test('a window plugin named in mount shows its part, with the options given to it, and its store updates in place', async () => {
+    const user = userEvent.setup()
     await mount('conciv-greeting', {options: {greeting: 'Hello from the greeting plugin'}})
 
     expect(await screen.findByRole('heading', {name: 'Hello from the greeting plugin'})).toBeVisible()
+    await user.click(screen.getByRole('button', {name: 'Waved 0 times'}))
+    expect(await screen.findByRole('button', {name: 'Waved 1 times'})).toBeVisible()
   })
 
   test('a plugin with an engine part is refused, and the error says where it goes', async () => {
