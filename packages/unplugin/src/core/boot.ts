@@ -12,10 +12,10 @@ export type Builtins = {
   widgetPageDir?: string
 }
 
-const SERVED_BUILT_INS = ['@conciv/plugin-terminal'] as const
+const SERVED_BUILT_INS = [import.meta.resolve('@conciv/plugin-terminal/package.json')]
 
-function packageDirectory(name: string): string {
-  return path.dirname(fileURLToPath(import.meta.resolve(`${name}/package.json`)))
+function packageDirectory(manifest: string): string {
+  return path.dirname(fileURLToPath(manifest))
 }
 
 export function withServedBuiltIns(options: ConcivConfig): ConcivConfig {
