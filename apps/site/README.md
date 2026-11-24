@@ -43,4 +43,4 @@ Deploys to [conciv.dev](https://conciv.dev) via Cloudflare Workers Builds on pus
 
 ## Verification
 
-- Run: `pnpm exec turbo run typecheck lint --filter=site` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck --filter=site` and `pnpm lint` from the repo root (turbo builds the package and its dependencies first)

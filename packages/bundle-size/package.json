@@ -15,8 +15,7 @@
   },
   "type": "module",
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",

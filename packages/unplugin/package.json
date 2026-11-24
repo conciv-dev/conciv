@@ -69,7 +69,6 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
     "build:types": "tsdown -c tsdown.types.config.ts",

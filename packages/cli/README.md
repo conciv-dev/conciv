@@ -137,4 +137,4 @@ Package root of @conciv/cli, the `conciv` binary, built by tsdown from src/bin.t
 
 ## Verification
 
-- Typecheck and lint: `cd packages/cli && pnpm typecheck && pnpm lint`
+- Typecheck and lint: `cd packages/cli && pnpm typecheck`, then `pnpm lint` at the repo root

@@ -36,7 +36,6 @@
     "build": "tsdown && tsc -p tsconfig.build.json",
     "sync-injected": "true",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },

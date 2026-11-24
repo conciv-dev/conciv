@@ -40,7 +40,6 @@
     "gen:check": "node src/scripts/check-tokens.ts",
     "build": "pnpm gen:tokens && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints tokens.css host.css"
   },

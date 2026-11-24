@@ -23,7 +23,6 @@
     "access": "public"
   },
   "scripts": {
-    "lint": "oxlint",
     "intent:validate": "intent validate skills --check",
     "intent:stale": "intent stale --json",
     "check:refs": "node --experimental-strip-types src/cli.ts",

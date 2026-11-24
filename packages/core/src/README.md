@@ -58,4 +58,4 @@ Top-level engine modules. `start` resolves config, binds a port (persisted, pref
 ## Verification
 
 - Run: `pnpm exec turbo run test --filter=@conciv/core` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/core && pnpm typecheck && pnpm lint`
+- Typecheck and lint: `cd packages/core && pnpm typecheck`, then `pnpm lint` at the repo root

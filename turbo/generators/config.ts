@@ -112,7 +112,7 @@ function sourceOnlyManifest(spec: Spec, version: string): object {
     main: entry,
     types: entry,
     exports: {'.': `./${entry}`},
-    scripts: {typecheck: 'tsc -p tsconfig.json --noEmit', lint: 'oxlint'},
+    scripts: {typecheck: 'tsc -p tsconfig.json --noEmit'},
     devDependencies: devDependencies(spec, {}),
   }
 }
@@ -150,7 +150,6 @@ function builtManifest(spec: Spec, version: string, fields: BuiltFields): object
     scripts: {
       build: 'tsdown && tsc -p tsconfig.build.json',
       typecheck: 'tsc -p tsconfig.json --noEmit',
-      lint: 'oxlint',
       ...fields.publishScripts,
     },
     devDependencies: devDependencies(spec, {tsdown: 'catalog:'}),

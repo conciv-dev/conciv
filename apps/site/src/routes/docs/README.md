@@ -19,4 +19,4 @@ Docs page route rendered from fumadocs MDX, and a markdown variant for each page
 
 ## Verification
 
-- Run: `pnpm exec turbo run typecheck lint test --filter=site` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck test --filter=site` and `pnpm lint` from the repo root (turbo builds the package and its dependencies first)

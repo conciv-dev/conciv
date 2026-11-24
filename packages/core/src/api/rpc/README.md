@@ -63,4 +63,4 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 ## Verification
 
 - Run: `pnpm exec turbo run test --filter=@conciv/core` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/core && pnpm typecheck && pnpm lint`
+- Typecheck and lint: `cd packages/core && pnpm typecheck`, then `pnpm lint` at the repo root

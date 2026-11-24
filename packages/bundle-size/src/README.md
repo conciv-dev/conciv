@@ -42,4 +42,4 @@ CLI and library that gzip-measure every non-private package's dist JS/CSS, the e
 ## Verification
 
 - Run: `pnpm exec turbo run test --filter=@conciv/bundle-size` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/bundle-size && pnpm typecheck && pnpm lint`
+- Typecheck and lint: `cd packages/bundle-size && pnpm typecheck`, then `pnpm lint` at the repo root

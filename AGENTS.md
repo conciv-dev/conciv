@@ -30,8 +30,14 @@ README.md; this file is the non-obvious operational rules.
 - Local turbo runs default to 50% concurrency (`turbo.json`) so builds don't saturate the workstation;
   CI re-uncaps with `TURBO_CONCURRENCY=100%` per workflow. Agent/background gate runs use
   `TURBO_CONCURRENCY=70%` and are not niced; test gates stay serial (`TURBO_CONCURRENCY=1 VITEST_MAX_FORKS=1`).
-- Build: `pnpm build`. Typecheck: `pnpm typecheck`. Test: `pnpm test`. Lint: `pnpm lint`
-  (oxlint). Format: `pnpm format:check` / `pnpm format` (oxfmt).
+- Build: `pnpm build`. Typecheck: `pnpm typecheck`. Test: `pnpm test`. Lint: `pnpm lint` / `pnpm lint:fix`
+  (oxlint). Format: `pnpm format` (check) / `pnpm format:fix` (oxfmt). Both: `turbo run quality` /
+  `turbo run quality:fix`.
+- Lint and format are turbo ROOT tasks (`//#lint`, `//#format`, `//#quality` in `turbo.json`), as Turborepo's
+  Oxc guide: one oxlint and one oxfmt over the whole repo, no per-package `lint` script. `//#lint` depends on
+  `@conciv/uno-preset#build` alone, because the `unocss/order` rule loads each folder's `uno.config.ts`, which
+  imports the preset's `dist`; no other build is read. A root task's inputs are every file in the repo, so any
+  edit misses its cache; that is the guide's stated trade-off. A `--filter` run never selects a root task.
 - New package: `turbo gen package` (non-interactive: `turbo gen package --args <published|private|internal> <kebab-name> "<description>" <node|browser|both>`). Its test: `bash turbo/generators/config.test.sh`.
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.
   So a green `test` already proves the build: don't run a separate `build` gate unless the package has
@@ -45,16 +51,15 @@ README.md; this file is the non-obvious operational rules.
 - Affected-only shortcuts for a branch: `pnpm test:affected` / `typecheck:affected` / `build:affected`
   (`TURBO_SCM_BASE=origin/main turbo run <task> --affected`). `turbo.json` sets
   `futureFlags.affectedUsingTaskInputs`, so `--affected` selects a TASK when a changed file is one of its
-  inputs or a task it depends on is selected: a test-only edit reruns that package's `test`, `typecheck` and
-  `lint` and no dependent and no build, a `src` edit reruns every dependent through `^build`, and a file another
+  inputs or a task it depends on is selected: a test-only edit reruns that package's `test` and `typecheck`
+  and no dependent and no build, a `src` edit reruns every dependent through `^build`, and a file another
   package's build scans (the UnoCSS `$TURBO_ROOT$/...` build inputs in `packages/embed`, `apps/conciv`,
   `packages/ui-kit-chat`, `packages/ui-kit-chat-tools` and `packages/ui-kit-tap`) reruns that build. That holds
   only while every task `test` and `typecheck` depend on (`build`, `build:types`, `kit-runtime`) excludes tests,
   specs and stories from its `inputs`, and while each `$TURBO_ROOT$` build input carries the same exclusion as
   the `content.filesystem` globs in that package's `uno.config.ts`. `--filter=...[ref]` ignores the flag and
   still selects whole packages plus manifest dependents.
-  A root file in `globalDependencies` (`pnpm-workspace.yaml`) selects every task; `.oxlintrc.json` is a
-  `lint` input only.
+  A root file in `globalDependencies` (`pnpm-workspace.yaml`) selects every task.
 - Gates run with the turbo cache on. `turbo run --force` is banned by `.claude/hooks/turbo-filter-gate.sh`
   (the cache hash already covers source and deps); if a dist looks stale, delete that package's dist
   (`rm -rf packages/<pkg>/dist`) and rerun without `--force`. `turbo.json` pins no `cacheDir`, so turbo
@@ -85,7 +90,7 @@ README.md; this file is the non-obvious operational rules.
   unconditionally for every host wired through the conciv vite plugin, so scrubbing agent env vars
   before starting a dev server is no longer load-bearing.
 - On large commits the prek hook can abort with a `next-index-*.lock.lock` error (file-lock race).
-  Recover by running `pnpm format` manually, then `git commit --no-verify`.
+  Recover by running `pnpm format:fix` manually, then `git commit --no-verify`.
 - Never kill a dev server with `kill $(lsof -ti tcp:PORT)`. That also matches the user's connected
   browser and kills their tab. Use `lsof -ti tcp:PORT -sTCP:LISTEN` (or `pkill -f vite`).
 

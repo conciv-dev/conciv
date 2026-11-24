@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "typecheck": "tsc --noEmit",
-    "lint": "oxlint"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@conciv/it": "workspace:*",

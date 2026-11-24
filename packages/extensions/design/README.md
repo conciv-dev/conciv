@@ -34,7 +34,7 @@ The package.json describes this as the design built-in extension, internal to @c
 
 ## Verification
 
-- Run: `pnpm exec turbo run typecheck lint --filter=@conciv/extension-design` from the repo root (turbo builds the package and its dependencies first). The package has no `test` script.
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/extension-design` and `pnpm lint` from the repo root (turbo builds the package and its dependencies first). The package has no `test` script.
 
 ## Tools
 

@@ -54,5 +54,5 @@ edit both the demo app and the SDK sources.
 
 ## Verification
 
-- Run: `pnpm exec turbo run typecheck lint --filter=ios-example` from the repo root (the package has no
+- Run: `pnpm exec turbo run typecheck --filter=ios-example` and `pnpm lint` from the repo root (the package has no
   `test` script)
