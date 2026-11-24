@@ -119,7 +119,7 @@ export default Plugin.define({
 (`dist/plugin-experimental.cjs.manifest.json`). An `import()` in the part gives an on-demand chunk: the app loads the
 entry with the chunks it requires at start, and each `import()`ed chunk the first time it runs, over the engine
 socket. The build fails on an import of a `@conciv/*` or `solid-js/*` module the conciv app does not provide to
-plugins.
+plugins, except `@conciv/contract`, `@conciv/protocol/*` and another plugin's `@conciv/plugin-*/contract`, which are inlined.
 
 ### `@conciv/plugin/experimental/page` (`experimental/page.ts`)
 
@@ -218,7 +218,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
   closure on demand (`plugin.experimentalChunk`), so a large part such as the whiteboard island is not loaded at every
   page load. The engine serves only the files the manifest lists and refuses a file whose bytes changed since the
   plugin loaded (`PLUGIN_CHUNK_NOT_FOUND`).
-- The build fails on `effect/*`, `@conciv/*` and `solid-js/*` modules outside the provided list, as source. So every `@conciv/ui-kit*` module fails here. One `@conciv/*` pattern is inlined instead: another plugin's `@conciv/plugin-<name>/contract` export, which holds only types and `Registry.define` / `Contract.define` tokens (plain `{kind, id}`), so an inlined copy is the same token (in the source the same import is a relative one inside the one `gui-plugins` package; rulings ledger call 8).
+- The build fails on `effect/*`, `@conciv/*` and `solid-js/*` modules outside the provided list, as source. So every `@conciv/ui-kit*` module fails here. Three `@conciv/*` patterns are inlined instead: another plugin's `@conciv/plugin-<name>/contract` export, which holds only types and `Registry.define` / `Contract.define` tokens (plain `{kind, id}`), so an inlined copy is the same token (in the source the same import is a relative one inside the one `gui-plugins` package; rulings ledger call 8), and `@conciv/contract` and the `@conciv/protocol/*` subpaths, stateless schema and constant modules whose zod stays the app's provided copy (as opencode's built-in gui plugins import `@opencode/schema/*`; rulings ledger call 25).
 - An installable plugin imports no UI kit module; it uses `ctx.ui`. The SDK's `ctx.ui` type is `Ui` and nothing more; this SDK exports no opaque definition. The app makes `ctx.ui` with `OpaqueUi.createInstance` from the private `@internal/plugin`, and conciv's own plugins read conciv's members with `OpaqueUi.toInternal(ctx.ui)` from there; their builds inline `@internal/plugin`, which is not a provided module. `experimental()` has no first-party mode: any `@conciv/*` import outside the provided list fails the build, as in opencode. Only the built-in plugins compiled into the app import `@conciv/ui-kit*` directly.
 - The error reads "<module> is not a module the conciv app provides to plugins: <list>" (source: "<module> is not a module the OpenCode app provides to plugin GUIs: <list>").
 - The `//` comment above `provided` is dropped.
