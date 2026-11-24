@@ -13,24 +13,24 @@ export const CONCIV_DEFAULT_PORT = 24170
 export const WIDGET_START_SPECIFIER = '@conciv/widget-start'
 const WIDGET_PORT_KEY = 'NEXT_PUBLIC_CONCIV_PORT'
 
-type TurbopackConfig = {resolveAlias?: Record<string, unknown>; [key: string]: unknown}
+type TurbopackConfig = {resolveAlias?: Record<string, unknown>}
 type WebpackEntry = () => Promise<Record<string, unknown>>
 type WebpackConfig = {entry?: WebpackEntry; resolve?: {alias?: Record<string, string | false>}}
 type WebpackContext = {nextRuntime?: string; dev?: boolean; dir?: string; config?: {pageExtensions?: string[]}}
-type WebpackHook = (config: WebpackConfig, context: WebpackContext) => WebpackConfig
+type WebpackHook = {hook(config: WebpackConfig, context: WebpackContext): WebpackConfig}['hook']
 
 type ConfigWithEnv = {
   env?: Record<string, string | undefined>
   serverExternalPackages?: string[]
   turbopack?: TurbopackConfig
-  webpack?: WebpackHook
+  webpack?: WebpackHook | null
 }
 
 type WithConcivResult<T> = Omit<T, 'env' | 'serverExternalPackages' | 'turbopack' | 'webpack'> & {
   env: Record<string, string | undefined>
   serverExternalPackages: string[]
   turbopack?: TurbopackConfig
-  webpack?: WebpackHook
+  webpack?: WebpackHook | null
 }
 
 const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/unplugin', '@conciv/core', '@conciv/db', '@conciv/harness']
@@ -88,10 +88,10 @@ function loadedEnginePort(): number | undefined {
 }
 
 export async function withConciv<T extends object>(
-  nextConfig: T = {} as T,
+  nextConfig: T & ConfigWithEnv,
   options: ConcivConfig = {},
 ): Promise<WithConcivResult<T>> {
-  const base = nextConfig as ConfigWithEnv
+  const base: ConfigWithEnv = nextConfig
   const baseEnv = base.env ?? {}
   const baseExternals = base.serverExternalPackages ?? []
   const serverExternalPackages = [...new Set([...baseExternals, ...ENGINE_EXTERNALS])]
