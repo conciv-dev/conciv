@@ -1,6 +1,6 @@
 import {defineConfig, mergeConfig} from 'vite'
 import {solidLibConfig} from '@conciv/vitest-config/vite-lib'
-import {concivTest} from '@conciv/plugin-testkit/vitest'
+import {concivTest} from '@conciv/vitest-config/test-config'
 
 export default defineConfig(
   mergeConfig(

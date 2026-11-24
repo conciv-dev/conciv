@@ -58,6 +58,7 @@
   },
   "devDependencies": {
     "@conciv/app": "workspace:*",
+    "@conciv/core": "workspace:*",
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
@@ -83,6 +84,7 @@
   },
   "peerDependencies": {
     "@conciv/contract": "workspace:^",
+    "@conciv/core": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@tanstack/solid-router": "^1.170.43",

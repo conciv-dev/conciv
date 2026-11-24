@@ -8,7 +8,7 @@ import {
   type HarnessEngineSetting,
   type HarnessEngineTool,
   type HarnessEngineToolFailure,
-} from '@conciv/harness-testkit'
+} from '@conciv/core/testing'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {engineTests} from './engine-tests.js'
 import {fileEngines} from './file-engines.js'

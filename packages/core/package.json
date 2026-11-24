@@ -42,6 +42,10 @@
       "types": "./dist/runtime.d.ts",
       "import": "./dist/runtime.js"
     },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -62,6 +66,7 @@
     "@conciv/db": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/harness-init": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-host": "workspace:^",
     "@conciv/protocol": "workspace:^",
@@ -84,7 +89,6 @@
   },
   "devDependencies": {
     "@conciv/client": "workspace:^",
-    "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

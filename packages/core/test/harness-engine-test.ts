@@ -1,7 +1,7 @@
 import {test as base, type TestAPI} from 'vitest'
 import {makeBrowserRpcClient, type BrowserRpcClient, type RpcClient} from '@conciv/contract'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
-import {createHarnessEngine, type HarnessEngine, type HarnessEngineStart} from '../src/harness-engine.js'
+import {createHarnessEngine, type HarnessEngine, type HarnessEngineStart} from '../src/testing.js'
 
 type Launched = {engine: HarnessEngine; client: RpcClient}
 

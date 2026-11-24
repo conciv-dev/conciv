@@ -33,15 +33,14 @@
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "test": "node node_modules/@conciv/vitest-config/src/run-tests.ts"
   },
   "dependencies": {
     "@conciv/plugin": "workspace:^"
   },
   "devDependencies": {
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

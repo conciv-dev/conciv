@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import {cli, createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '@conciv/plugin-testkit'
+import {cli} from '../test/cli.js'
 
 describe('tools', () => {
   it("the plugin's group is listed, its verb runs with flags spelled from its schema, and a mistyped verb gets a fix", async () => {

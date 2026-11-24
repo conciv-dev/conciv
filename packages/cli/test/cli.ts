@@ -6,7 +6,7 @@ import {createRequire} from 'node:module'
 import {createServer} from 'node:net'
 import {constants, tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {isolatedEnv} from './isolated-env.js'
+import {isolatedEnv} from '@conciv/vitest-config/isolated-env'
 
 const CLI_DEADLINE_MS = 60_000
 

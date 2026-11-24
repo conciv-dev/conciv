@@ -1,6 +1,6 @@
-import {defineConfig} from 'vitest/config'
-import {ciTest} from './src/reporters.ts'
+import {defineConfig} from 'vite'
+import {concivTest} from './src/test-config.ts'
 
 export default defineConfig({
-  test: {...ciTest(), environment: 'node', include: ['src/**/*.test.ts']},
+  plugins: [concivTest()],
 })

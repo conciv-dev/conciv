@@ -11,7 +11,8 @@
     "directory": "packages/vitest-config"
   },
   "bin": {
-    "conciv-ci-shards": "./src/ci-shards.ts"
+    "conciv-ci-shards": "./src/ci-shards.ts",
+    "conciv-test": "./src/run-tests.ts"
   },
   "type": "module",
   "exports": {
@@ -20,18 +21,26 @@
     "./pack": "./src/pack.ts",
     "./solid-cleanup": "./src/solid-cleanup-setup.ts",
     "./temp-dir": "./src/temp-dir.ts",
-    "./vite-lib": "./src/vite-lib.ts"
+    "./vite-lib": "./src/vite-lib.ts",
+    "./run-tests": "./src/run-tests.ts",
+    "./isolated-env": "./src/isolated-env.ts",
+    "./test-config": "./src/test-config.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "node src/run-tests.ts"
+  },
+  "dependencies": {
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "playwright": "catalog:",
     "solid-js": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

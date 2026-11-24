@@ -11,9 +11,10 @@ export default defineConfig({
     'src/browser-setup.ts',
     'src/test-projects.ts',
     'src/vitest.ts',
+    'src/run-tests.ts',
   ],
   format: 'esm',
   fixedExtension: false,
   dts: false,
-  deps: {neverBundle: true},
+  deps: {neverBundle: true, alwaysBundle: ['@conciv/vitest-config']},
 })

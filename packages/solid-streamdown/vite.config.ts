@@ -1,7 +1,7 @@
 import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
-import {concivTest} from '@conciv/plugin-testkit/vitest'
+import {concivTest} from '@conciv/vitest-config/test-config'
 
 export default defineConfig({
   plugins: [solid(), concivTest()],

@@ -8,7 +8,7 @@ import {isMatch} from 'es-toolkit/compat'
 import {rpcStream} from '@conciv/ai/client'
 import {readFinishReason} from '@conciv/ai/server'
 import {makeBrowserRpcClient, makeRpcClient, type EngineStaleness, type RpcClient} from '@conciv/contract'
-import {start, type StartOpts} from '@conciv/core/start'
+import {start, type StartOpts} from './start.js'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, runLifecycleEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -17,20 +17,37 @@ import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-po
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {z} from 'zod'
-import {toolClients, type ToolClients} from './call-tool.js'
-import {holdTestClock, realClock, type HarnessEngineClock, type HeldClock} from './clock.js'
-import {outsideAgent, type Outside, type OutsideAgent} from './outside.js'
-import {replyScript, type ReplyScript, type ScriptedHarness} from './scripted-harness.js'
-import type {Gate, ModelRequest, Reply} from './test-llm.js'
-import {isolatedEnv} from './isolated-env.js'
-import {commitAll, initGitProject} from './git-project.js'
-import {until} from './until.js'
+import {
+  commitAll,
+  holdTestClock,
+  initGitProject,
+  outsideAgent,
+  realClock,
+  replyScript,
+  toolClients,
+  until,
+  type Gate,
+  type HarnessEngineClock,
+  type HeldClock,
+  type ModelRequest,
+  type Outside,
+  type OutsideAgent,
+  type Reply,
+  type ReplyScript,
+  type ScriptedHarness,
+  type ToolClients,
+} from '@conciv/harness-testkit'
+import {isolatedEnv} from '@conciv/vitest-config/isolated-env'
 
-export * as TestLLM from './test-llm.js'
-export {cli, type CliOptions, type CliRun} from './cli.js'
-export type {HarnessEngineClock} from './clock.js'
-export type {Outside, OutsideAgent, OutsideReply} from './outside.js'
-export type {ScriptedHarness, ScriptedSession} from './scripted-harness.js'
+export {TestLLM} from '@conciv/harness-testkit'
+export type {
+  HarnessEngineClock,
+  Outside,
+  OutsideAgent,
+  OutsideReply,
+  ScriptedHarness,
+  ScriptedSession,
+} from '@conciv/harness-testkit'
 
 export type HarnessEngineSetting = {scope: 'project' | 'global'; namespace: string; key: string; value: unknown}
 

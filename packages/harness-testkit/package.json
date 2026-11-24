@@ -22,12 +22,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/harness-engine.d.ts",
-      "import": "./dist/harness-engine.js"
-    },
-    "./run-tests": {
-      "types": "./dist/run-tests.d.ts",
-      "import": "./dist/run-tests.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./test-llm": {
       "types": "./dist/test-llm.d.ts",
@@ -42,13 +38,11 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only",
-    "test": "node dist/run-tests.js",
-    "build:types": "tsdown -c tsdown.types.config.ts"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "catalog:",
@@ -57,20 +51,18 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/plugin-testkit": "workspace:*",
+    "@conciv/ai": "workspace:*",
+    "@conciv/contract": "workspace:*",
+    "@conciv/harness": "workspace:*",
+    "@conciv/protocol": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
-    "typescript": "catalog:",
-    "vite": "catalog:",
-    "vitest": "catalog:"
+    "typescript": "catalog:"
   },
   "peerDependencies": {
     "@conciv/ai": "workspace:^",
-    "@conciv/cli": "workspace:^",
     "@conciv/contract": "workspace:^",
-    "@conciv/core": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^"
   }

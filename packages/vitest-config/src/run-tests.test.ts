@@ -15,7 +15,7 @@ describe('profiling a test run', () => {
     writeFileSync(join(workdir, 'package.json'), '{}')
     symlinkSync(resolve('node_modules'), join(workdir, 'node_modules'))
     const command = [
-      resolve('dist/run-tests.js'),
+      resolve('src/run-tests.ts'),
       '--root',
       process.cwd(),
       'src/run-tests.test.ts',

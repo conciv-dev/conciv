@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import {cli, createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '@conciv/plugin-testkit'
+import {cli} from '../test/cli.js'
 
 describe('plugin call', () => {
   it('the output prints, bad JSON sends nothing, and a failing method prints its code, type and data', async () => {

@@ -4,12 +4,19 @@ import {createRequire} from 'node:module'
 import {dirname, join, matchesGlob} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import type {Plugin, UserConfig} from 'vite'
-import {configDefaults, type TestProjectInlineConfiguration} from 'vitest/config'
+import type {TestProjectInlineConfiguration} from 'vitest/config'
+import {
+  BROWSER_TESTS,
+  browserProject as plainBrowserProject,
+  kitDefaults,
+  nodeProject,
+  solidPlugins,
+  VIEWPORT,
+  type BrowserName,
+} from '@conciv/vitest-config/test-config'
 import type {BrowserCommandContext} from 'vitest/node'
 import type {Page} from 'playwright'
-import solidPlugin from 'vite-plugin-solid'
 import {createGenerator, type UserConfig as UnoConfig} from 'unocss'
-import {playwright} from '@vitest/browser-playwright'
 import {z} from 'zod'
 import type {TestLLM} from '@conciv/harness-testkit'
 import {hang} from '@conciv/harness-testkit/test-llm'
@@ -31,16 +38,8 @@ const ENGINE_ENTRY = /^@conciv\/plugin-testkit$/
 const NODE_ONLY_CONDITIONS = ['browser', 'solid']
 const SOLID_INJECTED_JEST_DOM = '@testing-library/jest-dom/vitest'
 const APP_FROM_KIT = '@conciv/plugin-testkit > @conciv/app'
-const TEST_TIMEOUT_MS = 30_000
-const HOOK_TIMEOUT_MS = 30_000
 const POLL_TIMEOUT_MS = 5_000
-const POLL_INTERVAL_MS = 50
-const VIEWPORT = {width: 1280, height: 800}
-const BROWSER_TESTS = ['src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx']
 const PERF_TESTS = ['src/**/*.perf.test.ts', 'src/**/*.perf.test.tsx']
-const WORKSPACE_DIST = /^(?!.*\/node_modules\/).*\/dist\/.*\.m?js$/
-
-type BrowserName = 'chromium' | 'firefox'
 
 const BROWSER_PREBUNDLED = [
   '@conciv/ai > @tanstack/ai-solid > @tanstack/ai-client',
@@ -68,50 +67,6 @@ function installedTestingLibraries(): string[] {
       return false
     }
   })
-}
-
-function workerCap(): number | undefined {
-  const cap = Number(process.env.VITEST_MAX_FORKS)
-  return Number.isInteger(cap) && cap >= 1 ? cap : undefined
-}
-
-type AuthorTest = NonNullable<UserConfig['test']>
-
-function pollDefaults(expect: AuthorTest['expect'] = {}): {timeout: number; interval: number} {
-  return {timeout: expect.poll?.timeout ?? POLL_TIMEOUT_MS, interval: expect.poll?.interval ?? POLL_INTERVAL_MS}
-}
-
-function ciReporters(): NonNullable<AuthorTest['reporters']> {
-  if (!process.env.GITHUB_ACTIONS) return ['default']
-  return ['default', ['github-actions', {jobSummary: {enabled: false}}], ['json', {outputFile: 'test-results.json'}]]
-}
-
-const WORKSPACE_COVERAGE = ['packages', 'packages/plugins', 'packages/extensions', 'apps'].flatMap((group) => [
-  `**/${group}/*/src/**/*.{ts,tsx}`,
-  `**/${group}/*/dist/**/*.js`,
-])
-
-function kitDefaults(test: AuthorTest = {}): AuthorTest {
-  return {
-    reporters: test.reporters ?? ciReporters(),
-    coverage: {
-      enabled: test.coverage?.enabled ?? Boolean(process.env.GITHUB_ACTIONS),
-      provider: 'v8',
-      reporter: ['json-summary', 'lcovonly'],
-      reportsDirectory: 'coverage',
-      reportOnFailure: true,
-      include: ['src/**/*.{ts,tsx}', 'dist/**/*.js', ...WORKSPACE_COVERAGE],
-      exclude: ['**/*.test.*', '**/*.stories.*', '**/node_modules/**'],
-      allowExternal: true,
-      excludeAfterRemap: true,
-      // oxlint-disable-next-line conciv/banned-vocabulary -- vitest's own option name: coverage of the CLI child process
-      autoAttachSubprocess: true,
-    },
-    testTimeout: TEST_TIMEOUT_MS,
-    hookTimeout: HOOK_TIMEOUT_MS,
-    expect: {poll: pollDefaults(test.expect)},
-    maxWorkers: test.maxWorkers ?? workerCap(),
-  }
 }
 
 const UTILITY_SHEETS = new Set(['virtual:uno.css', '/__uno.css'])
@@ -454,21 +409,10 @@ function pageErrorCommands(): PageCommandHandlers {
   }
 }
 
-const PluginListSchema = z.array(z.unknown())
-
-const NamedPluginSchema = z.object({name: z.string(), apply: z.unknown().optional()})
-
-function hasServingPlugin(option: unknown, name: string): boolean {
-  const list = PluginListSchema.safeParse(option)
-  if (list.success) return list.data.some((item) => hasServingPlugin(item, name))
-  const plugin = NamedPluginSchema.safeParse(option).data
-  return plugin?.name === name && (plugin.apply === undefined || plugin.apply === 'serve')
-}
-
 function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineConfiguration[] {
   const testable = testablePlugins()
   const styles = generatedStyles(testable)
-  const solid = hasServingPlugin(authorPlugins, 'solid') ? [] : [solidPlugin()]
+  const solid = solidPlugins(authorPlugins)
   const byName = pluginsByName(testable)
   const engines = browserEngines()
   const provide = {
@@ -476,49 +420,24 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
     concivViewport: VIEWPORT,
     concivTestPlugins: testable.map(({name, id, engine}) => ({name, id, kind: engine ? 'engine' : 'host'}) as const),
   }
-  const browserProject = (
-    name: string,
-    include: string[],
-    browsers: BrowserName[],
-  ): TestProjectInlineConfiguration => ({
-    extends: true,
-    plugins: [styles, ...solid, engines.plugin, byName],
-    server: {fs: {strict: false}},
-    resolve: {alias: [{find: ENGINE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
-    optimizeDeps: {
-      rolldownOptions: {plugins: [byName]},
-      entries: [join(KIT_DIST, 'browser.js')],
-      include: [...BROWSER_PREBUNDLED, ...installedTestingLibraries()],
-    },
-    test: {
-      name,
-      include,
-      setupFiles: [join(KIT_DIST, 'browser-setup.js')],
-      provide,
-      browser: {
-        enabled: true,
-        headless: true,
-        screenshotFailures: false,
-        provider: playwright({contextOptions: {reducedMotion: 'reduce'}}),
-        instances: browsers.map((browser) => ({browser})),
-        viewport: VIEWPORT,
-        commands: {...engines.commands, ...pageErrorCommands()},
+  const browserProject = (name: string, include: string[], browsers: BrowserName[]): TestProjectInlineConfiguration =>
+    plainBrowserProject(name, include, browsers, {
+      plugins: [styles, ...solid, engines.plugin, byName],
+      server: {fs: {strict: false}},
+      resolve: {alias: [{find: ENGINE_ENTRY, replacement: join(KIT_DIST, 'browser-engine.js')}]},
+      optimizeDeps: {
+        rolldownOptions: {plugins: [byName]},
+        entries: [join(KIT_DIST, 'browser.js')],
+        include: [...BROWSER_PREBUNDLED, ...installedTestingLibraries()],
       },
-    },
-  })
-  return [
-    {
-      extends: true,
-      plugins: [engineModulesInNode()],
       test: {
-        name: 'node',
-        environment: 'node',
-        include: ['src/**/*.test.ts'],
-        setupFiles: [join(KIT_DIST, 'node-setup.js')],
-        server: {deps: {external: [WORKSPACE_DIST]}},
-        exclude: [...configDefaults.exclude, '**/*.dom.test.*', '**/*.browser.test.*', '**/*.perf.test.*'],
+        setupFiles: [join(KIT_DIST, 'browser-setup.js')],
+        provide,
+        browser: {commands: {...engines.commands, ...pageErrorCommands()}},
       },
-    },
+    })
+  return [
+    nodeProject({plugins: [engineModulesInNode()], test: {setupFiles: [join(KIT_DIST, 'node-setup.js')]}}),
     {
       extends: true,
       plugins: [...solid, engineModulesInNode()],

@@ -80,6 +80,7 @@
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/npm-package-arg": "catalog:",
     "@types/npmcli__arborist": "catalog:",

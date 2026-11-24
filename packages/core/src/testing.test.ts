@@ -2,8 +2,8 @@ import {execFile} from 'node:child_process'
 import {promisify} from 'node:util'
 import {describe, expect} from 'vitest'
 import {CONTEXT_OVERFLOW_CODE} from '@conciv/protocol/chat-event-types'
-import {TestLLM} from './harness-engine.js'
-import {test} from '../test/engine-test.js'
+import {TestLLM} from './testing.js'
+import {test} from '../test/harness-engine-test.js'
 
 describe('scripted replies', () => {
   test('each model request takes the next reply in order, and a request with none left fails its turn', async ({

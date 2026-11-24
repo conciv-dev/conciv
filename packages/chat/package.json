@@ -54,6 +54,7 @@
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@effect/sql-sqlite-node": "catalog:",
     "@types/node": "catalog:",
     "tsdown": "catalog:",

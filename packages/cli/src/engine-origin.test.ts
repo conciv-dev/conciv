@@ -1,7 +1,8 @@
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {cli, createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '@conciv/plugin-testkit'
+import {cli} from '../test/cli.js'
 
 describe('discovery', () => {
   it('the engine in the environment wins, then server.json found from a subfolder, else the no-server hint', async () => {
