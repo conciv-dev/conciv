@@ -6,7 +6,6 @@
 '@conciv/core': patch
 '@conciv/db': patch
 '@conciv/embed': patch
-'@conciv/grab': patch
 '@conciv/harness': patch
 '@conciv/harness-init': patch
 '@conciv/mascot': patch

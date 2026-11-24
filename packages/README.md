@@ -35,7 +35,7 @@ Plugins (`plugins/*`, one plugin per package, each with its engine part and its 
 - plugins/try-it: [plugins/try-it/README.md](./plugins/try-it/README.md) - `@conciv/plugin-try-it`, the plugin conciv.dev composes into its widget.
 - plugins/whiteboard: [plugins/whiteboard/README.md](./plugins/whiteboard/README.md) - `@conciv/plugin-whiteboard`, a canvas the user and the agent share.
 
-The built-ins page and terminal draw with the UI kits directly; the app composes them (`apps/conciv/src/runtime/plugin/builtins.ts`) and `embed` inlines them. Every other plugin draws through `ctx.ui` and imports no `@conciv/ui-kit*` package (`conciv-publish check-plugin-ui-kit`).
+The page plugin's browser part is the one built-in the app still composes (`apps/conciv/src/runtime/plugin/builtins.ts`) and `embed` inlines; the terminal is served by the engine like every other plugin, listed by the dev server (`@conciv/unplugin`). Every plugin draws through `ctx.ui` and imports no `@conciv/ui-kit*` package (`conciv-publish check-plugin-ui-kit`).
 
 Contracts:
 

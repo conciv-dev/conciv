@@ -8,7 +8,7 @@ import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
 describe('the terminal', () => {
   test('the CLI starts on first open, is locked and interrupted while busy, restarts fresh, and replays after a reload', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-terminal']})
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
@@ -52,7 +52,7 @@ describe('the terminal', () => {
 
   test('a picked CLI model restarts the pty, is the default for the next session, and stays with the session it was picked in', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-terminal']})
     const alpha = await engine.newSession('Alpha')
     await engine.newSession('Beta')
     await mount({engine, history: createEngineRouterHistory({initialEntries: [`/panel/${alpha.id}?open=true`]})})
@@ -88,7 +88,7 @@ describe('the terminal', () => {
 
   test('a press on the terminal toolbar leaves focus in the terminal, and the next keys still reach the CLI', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-terminal']})
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
@@ -105,7 +105,7 @@ describe('the terminal', () => {
 
   test('a grab picked from the toolbar is held as a chip, pasted into the CLI on Enter and never sent to the chat, and Back to chat leaves an ended CLI', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['@conciv/plugin-page']})
+    const engine = await createEngine({plugins: ['@conciv/plugin-page', '@conciv/plugin-terminal']})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
@@ -138,9 +138,9 @@ describe('the terminal', () => {
 })
 
 describe('view tabs', () => {
-  test('the user switches from the chat to the built-in Terminal tab and back, and hears each switch', async () => {
+  test('the user switches from the chat to the Terminal tab and back, and hears each switch', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
+    const engine = await createEngine({plugins: ['@conciv/plugin-terminal']})
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     expect(await screen.findByRole('tab', {name: 'Chat', selected: true})).toBeVisible()

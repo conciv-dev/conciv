@@ -1,3 +1,5 @@
+import path from 'node:path'
+import {fileURLToPath} from 'node:url'
 import type {Engine, LogEntry} from '@conciv/core/start'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -8,6 +10,18 @@ import {makeOpenInEditor} from './open-editor.js'
 export type Builtins = {
   embedEntry?: string
   widgetPageDir?: string
+}
+
+const SERVED_BUILT_INS = ['@conciv/plugin-terminal'] as const
+
+function packageDirectory(name: string): string {
+  return path.dirname(fileURLToPath(import.meta.resolve(`${name}/package.json`)))
+}
+
+export function withServedBuiltIns(options: ConcivConfig): ConcivConfig {
+  const listed = options.plugins ?? []
+  const removals = listed.filter((entry) => typeof entry === 'string' && entry.startsWith('-'))
+  return {...options, plugins: [...listed, ...SERVED_BUILT_INS.map(packageDirectory), ...removals]}
 }
 
 function writeEngineLine(entry: LogEntry): void {
@@ -28,7 +42,7 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
         import('@conciv/plugin-page'),
       ])
       return start({
-        options,
+        options: withServedBuiltIns(options),
         builtins: [page],
         root,
         port: options.port === undefined ? undefined : {exact: options.port},

@@ -1,5 +1,5 @@
 ---
-'@conciv/ui-kit-terminal': patch
+'@conciv/plugin-terminal': patch
 '@conciv/core': patch
 ---
 

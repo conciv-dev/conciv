@@ -106,6 +106,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/plugin-page',
   '@conciv/plugin-recorder',
   '@conciv/plugin-tanstack',
+  '@conciv/plugin-terminal',
   '@conciv/plugin-test-runner',
   '@conciv/plugin-try-it',
   '@conciv/plugin-testkit',

@@ -24,7 +24,6 @@
     "@conciv/contract": "workspace:^",
     "@conciv/mascot": "workspace:^",
     "@conciv/plugin": "workspace:^",
-    "@conciv/plugin-terminal": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
     "@conciv/storage-history": "workspace:^",

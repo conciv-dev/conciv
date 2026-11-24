@@ -103,19 +103,12 @@ describe('the launcher corner sets where the panel grows', () => {
 })
 
 describe('Escape keeps its place', () => {
-  test('Escape in the terminal leaves the panel open, and Escape on settings goes back to the chat with focus on Settings', async () => {
+  test('Escape on settings goes back to the chat with focus on Settings', async () => {
     const user = userEvent.setup()
     const engine = await createEngine()
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
-    await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
-    const terminalInput = await screen.findByRole('textbox', {name: 'Terminal input'})
-    await expect.element(terminalInput).toHaveFocus()
-    await user.keyboard('{Escape}')
-    await user.click(screen.getByRole('tab', {name: 'Chat'}))
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
-    expect(screen.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
-
     await user.click(screen.getByRole('link', {name: 'Settings'}))
     const general = await screen.findByRole('tab', {name: 'General', selected: true})
     await user.click(general)

@@ -1,15 +1,4 @@
-import {
-  createMemo,
-  createResource,
-  createSignal,
-  lazy,
-  on,
-  onCleanup,
-  Show,
-  Suspense,
-  untrack,
-  type ParentProps,
-} from 'solid-js'
+import {createMemo, createResource, createSignal, on, onCleanup, Show, untrack, type ParentProps} from 'solid-js'
 import {pluginIdAvailable, type Entry} from '@conciv/plugin/experimental/host'
 import type {PluginOptions} from '@conciv/plugin/experimental'
 import type {ConcivClient} from '@conciv/plugin'
@@ -35,8 +24,6 @@ const PluginsContext = createContext<{
   reserved: () => readonly string[]
   reported: () => readonly string[] | undefined
 }>()
-
-const PluginHotReload = import.meta.env.DEV ? lazy(() => import('./hmr')) : undefined
 
 export function useReservedPlugins() {
   const plugins = useContext(PluginsContext)
@@ -209,11 +196,6 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
           queryClient={apis.queryClient}
         >
           <PluginStyles root={environment.rootNode} />
-          {PluginHotReload && (
-            <Suspense>
-              <PluginHotReload />
-            </Suspense>
-          )}
           <PluginServersProvider servers={props.servers}>{props.children}</PluginServersProvider>
         </PluginHostProvider>
       </PluginsContext.Provider>

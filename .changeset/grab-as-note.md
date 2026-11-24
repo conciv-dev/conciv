@@ -1,7 +1,6 @@
 ---
 '@conciv/plugin-page': patch
 '@conciv/plugin': patch
-'@conciv/grab': patch
 '@conciv/embed': patch
 ---
 

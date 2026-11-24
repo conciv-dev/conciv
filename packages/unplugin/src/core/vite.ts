@@ -11,7 +11,7 @@ import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE, loadWidgetModule, resolveWidgetModule} 
 import {makeOpenInEditor} from './open-editor.js'
 import {makeViteBridge} from './vite-bridge.js'
 import {install as installShutdownDeadline, track} from './shutdown-deadline.js'
-import type {Builtins} from './boot.js'
+import {withServedBuiltIns, type Builtins} from './boot.js'
 import {addSourceToJsx} from '@tanstack/devtools-bundler-core'
 
 const UNSTAMPED_PATHS = ['?raw', '/dist/', '/build/', 'node_modules']
@@ -187,7 +187,7 @@ async function bootEngine(
 ): Promise<Engine> {
   const [{start}, {default: page}] = await Promise.all([import('@conciv/core/start'), import('@conciv/plugin-page')])
   return start({
-    options,
+    options: withServedBuiltIns(options),
     builtins: [page],
     root: server.config.root,
     port: options.port === undefined ? undefined : {preferred: options.port},
