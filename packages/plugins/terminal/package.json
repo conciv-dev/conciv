@@ -30,7 +30,6 @@
   "dependencies": {
     "@conciv/client": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@conciv/ui-kit-chat": "workspace:*",
     "@orpc/client": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@tanstack/pacer": "catalog:",
@@ -46,6 +45,7 @@
     "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
+    "@internal/plugin": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",

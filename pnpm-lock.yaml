@@ -3700,9 +3700,6 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
-      '@conciv/ui-kit-chat':
-        specifier: workspace:*
-        version: link:../../ui-kit-chat
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
@@ -3743,6 +3740,9 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@internal/plugin':
+        specifier: workspace:*
+        version: link:../../plugin-internal
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)

@@ -1,13 +1,14 @@
 import {createMemo, For, onCleanup, Show, type JSX} from 'solid-js'
-import {HarnessModelSelector, useModelMenu} from '@conciv/ui-kit-chat'
 import {usePlugin, type MountedSession} from '@conciv/plugin/experimental'
 import type {Grab} from '@conciv/plugin/experimental/grab'
 import {Page} from '@conciv/plugin/experimental/page'
+import {OpaqueUi} from '@internal/plugin'
 import type {TerminalState} from './terminal-state.js'
 
 export function TerminalToolbar(props: {session: MountedSession; terminal: TerminalState}): JSX.Element {
   const ctx = usePlugin()
-  const menu = useModelMenu()
+  const internal = OpaqueUi.toInternal(ctx.ui)
+  const menu = internal.useModelMenu()
   const locked = () => props.terminal.locked(props.session.id)
   const live = ctx.use(Page)
   const page = createMemo(() => {
@@ -37,7 +38,7 @@ export function TerminalToolbar(props: {session: MountedSession; terminal: Termi
           onClick={() => void props.terminal.restart(props.session)}
         />
       </ctx.ui.Tooltip>
-      <HarnessModelSelector
+      <internal.HarnessModelSelector
         menu={menu}
         status={status()}
         models={props.terminal.meta(props.session.id)}

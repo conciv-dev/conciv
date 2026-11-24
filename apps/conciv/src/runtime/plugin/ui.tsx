@@ -8,7 +8,7 @@ import {
   type UiMenuSubProps,
 } from '@conciv/plugin/experimental'
 import {OpaqueUi, type InternalStatusDotProps} from '@internal/plugin'
-import {Icon as KitIcon, Markdown} from '@conciv/ui-kit-chat'
+import {HarnessModelSelector, Icon as KitIcon, Markdown, useModelMenu} from '@conciv/ui-kit-chat'
 import {BasicTool, Chip, CodeBlock, ErrorBlock, JsonTree, ResultImage, StatusVisual} from '@conciv/ui-kit-chat/tools'
 import {MentionField} from '@conciv/ui-kit-tap'
 import {isPlainObject} from 'es-toolkit'
@@ -466,6 +466,8 @@ export const ui = OpaqueUi.createInstance('v1', {
   ),
   Image: ResultImage,
   MentionField,
+  HarnessModelSelector,
+  useModelMenu,
   CopyButton: (props) => (
     <ClipboardCopyButton text={props.text} tooltips={{idle: props.label}} onCopied={() => props.onCopied?.()} />
   ),

@@ -1,6 +1,7 @@
 import type {ComponentProps, JSX} from 'solid-js'
 import {createOpaqueType, type OpaqueType} from '@internal/opaque'
 import {Registry, type ComposerNote, type IconName, type MountedSession, type Ui} from '@conciv/plugin/experimental'
+import type {HarnessModelSelector, useModelMenu} from '@conciv/ui-kit-chat'
 import type {ErrorBlock, ResultImage, ToolEntry, ToolProps} from '@conciv/ui-kit-chat/tools'
 import type {TruncatedTextProps} from '@conciv/ui-kit-system'
 import type {MentionField} from '@conciv/ui-kit-tap'
@@ -49,6 +50,8 @@ interface InternalUiMembers {
   MentionField(props: ComponentProps<typeof MentionField>): JSX.Element
   CopyButton(props: InternalCopyButtonProps): JSX.Element
   Collapsible(props: InternalCollapsibleProps): JSX.Element
+  HarnessModelSelector(props: ComponentProps<typeof HarnessModelSelector>): JSX.Element
+  useModelMenu: typeof useModelMenu
 }
 
 type OpaqueUiShape = {
