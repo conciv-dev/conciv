@@ -29,4 +29,4 @@ Mounts the conciv widget into a shadow root on the host page. `createConciv` is 
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/embed` from the repo root (turbo builds the package and its dependencies first) (builds `vite.handle.config.ts`, then runs vitest and Playwright)
+- Run: `pnpm exec turbo run test --filter=@conciv/embed` from the repo root (turbo builds the package and its dependencies first). The handle journey runs in `e2e/vite-react-component` (`test/mount-api.spec.ts`).

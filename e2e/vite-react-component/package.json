@@ -12,13 +12,17 @@
     "typecheck": "tsc -p tsconfig.e2e.json --noEmit"
   },
   "dependencies": {
+    "@conciv/embed": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/react": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@conciv/contract": "workspace:*",
     "@conciv/e2e-utils": "workspace:*",
+    "@conciv/protocol": "workspace:*",
+    "@conciv/try": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",

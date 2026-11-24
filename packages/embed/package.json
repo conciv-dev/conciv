@@ -37,7 +37,7 @@
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "test": "node node_modules/@conciv/vitest-config/src/run-tests.ts"
   },
   "dependencies": {
     "@ark-ui/solid": "catalog:",
@@ -60,10 +60,10 @@
   },
   "devDependencies": {
     "@conciv/app": "workspace:*",
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
+    "@testing-library/jest-dom": "catalog:",
     "@types/node": "catalog:",
     "@unocss/reset": "catalog:",
     "publint": "catalog:",
