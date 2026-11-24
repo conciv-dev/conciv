@@ -1,6 +1,6 @@
-import {test as base} from 'vitest'
 import {makeBrowserRpcClient, type BrowserRpcClient, type RpcClient} from '@conciv/contract'
 import type {HarnessEngine as Engine} from '../../src/testing.js'
+import {test as base} from '../engine.js'
 
 export const test = base.extend<{
   connect: (engine: Engine) => RpcClient

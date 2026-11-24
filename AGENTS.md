@@ -192,9 +192,9 @@ up, to a package above it. Never hide a cycle with a package `turbo.json`, a tas
   journey test when one fits (one journey, not one test per behaviour); (4) only a test that survives this gets a
   raised number, and the PR body carries this account, test by test, for the maintainer to approve.
 - The kits. `@conciv/plugin-testkit` (plugin authors, no core): `PluginEngine` (the plugin's engine part in memory
-  through `plugin-host`) and `testEffect`. `@conciv/core/testing`: the engine fixture (vitest `test.extend`) and `createHarnessEngine`, the real
+  through `plugin-host`) and `testEffect`. `@conciv/core/testing`: `createEngineTest()` (a vitest `test.extend` fixture handing out `createEngine`) and `createHarnessEngine`, the real
   engine with a scripted chat (`engine.reply(...)` with `TestLLM` replies: `text`, `toolCall`, `failAfter`, `hang`;
-  `engine.gate()` holds a reply), used by core, cli, the app and a plugin's agent-turn journeys (`test/engine.ts`).
+  `engine.gate()` holds a reply), used by core, cli, the app and a plugin's agent-turn journeys.
   `config` is the product's own `ConcivConfig`; `start` is only what is not product config. `@conciv/cli/testing`:
   `cli()` and the hub fixture `test`.
   Nothing else is exported; a new kit export or option needs the maintainer's yes.

@@ -1,5 +1,5 @@
-import {describe, test} from 'vitest'
-import {createEngine} from '../engine.js'
+import {describe} from 'vitest'
+import {test} from '../engine.js'
 
 describe.concurrent('model list', () => {
   test.for([
@@ -23,7 +23,7 @@ describe.concurrent('model list', () => {
       harnesses: [{id: 'engine', models: []}],
       models: [],
     },
-  ])('a plugin reads $case from model.list', async ({harnesses, models}, {expect}) => {
+  ])('a plugin reads $case from model.list', async ({harnesses, models}, {createEngine, expect}) => {
     const engine = await createEngine(
       {plugins: ['./test/plugin-host/fixtures/plugins/model-lister']},
       harnesses === undefined ? {} : {harnesses},

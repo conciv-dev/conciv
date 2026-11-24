@@ -1,3 +1,3 @@
-import {engineFixture} from '../src/testing.js'
+import {createEngineTest} from '../src/testing.js'
 
-export const createEngine = engineFixture()
+export const test = createEngineTest()

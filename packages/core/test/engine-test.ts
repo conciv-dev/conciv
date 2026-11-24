@@ -1,6 +1,7 @@
 import {writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {test as base, vi, type TestAPI} from 'vitest'
+import {vi} from 'vitest'
+import {test as base} from './engine.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {makeBrowserRpcClient, type BrowserRpcClient, type RpcClient} from '@conciv/contract'
 import type {HarnessEngine as KitEngine} from '../src/testing.js'
@@ -18,7 +19,7 @@ type EngineFixtures = {
   settingsStorage: (storages: SettingsStorages) => SettingsStorage
 }
 
-export const test: TestAPI<EngineFixtures> = base.extend<EngineFixtures>({
+export const test = base.extend<EngineFixtures>({
   connect: async ({task: _task}, use) => {
     const clients: BrowserRpcClient[] = []
     await use((engine) => {

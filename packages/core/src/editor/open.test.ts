@@ -1,9 +1,11 @@
-import {describe, expect, test} from 'vitest'
-import {createEngine} from '../../test/engine.js'
+import {describe, expect} from 'vitest'
+import {test} from '../../test/engine.js'
 import {makeEditorOpener} from './open.js'
 
 describe('editor', () => {
-  test('the agent opens a file at a line once, a repeat click is dropped, another line opens', async () => {
+  test('the agent opens a file at a line once, a repeat click is dropped, another line opens', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine()
     const open = engine.session.tool('open')
 

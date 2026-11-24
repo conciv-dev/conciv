@@ -1,12 +1,12 @@
-import {describe, test} from 'vitest'
+import {describe} from 'vitest'
+import {test} from '../engine.js'
 import {TestLLM} from '@conciv/harness-testkit'
-import {createEngine} from '../engine.js'
 
 describe.concurrent('plugin tools', () => {
   test.for([
     {input: {length: 'two', unit: 'cm'}, field: 'length'},
     {input: {length: 2, unit: 'mm'}, field: 'unit'},
-  ])('a call with input $input fails and names the field $field', async ({input, field}, {expect}) => {
+  ])('a call with input $input fails and names the field $field', async ({input, field}, {createEngine, expect}) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/toolbox']})
 
     const failure = await engine.session.tool('measure').failure(input)
@@ -21,6 +21,7 @@ describe.concurrent('plugin tools', () => {
   })
 
   test('a tool with an invalid name or the reserved name execute is refused at load and the other tools still answer', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/toolbox']})
@@ -40,6 +41,7 @@ describe.concurrent('plugin tools', () => {
   })
 
   test('an outside agent calls a tool that is not in code mode by its own name, and code mode does not have it', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/toolbox']})
@@ -49,6 +51,7 @@ describe.concurrent('plugin tools', () => {
   })
 
   test('a tool that adds a note for the model answers a test call with its result, in code mode and by its own name', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/toolbox']})
@@ -59,7 +62,10 @@ describe.concurrent('plugin tools', () => {
 })
 
 describe.concurrent('the model calls a plugin tool', () => {
-  test('the tool is offered by its own name and its result reaches the next request', async ({expect}) => {
+  test('the tool is offered by its own name and its result reaches the next request', async ({
+    createEngine,
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/toolbox']})
     await engine.reply(TestLLM.toolCall('c1', 'measure_direct', {length: 2}), TestLLM.text('It is 2 cm'))
 
@@ -74,7 +80,7 @@ describe.concurrent('the model calls a plugin tool', () => {
     )
   })
 
-  test('a tool that throws hands its error text to the model', async ({expect}) => {
+  test('a tool that throws hands its error text to the model', async ({createEngine, expect}) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/toolbox']})
     await engine.reply(TestLLM.toolCall('c1', 'explode', {}), TestLLM.text('Sorry'))
 
@@ -91,7 +97,10 @@ describe.concurrent('the model calls a plugin tool', () => {
     )
   })
 
-  test('the execute.before hook changes the input and the execute.after hook changes the result', async ({expect}) => {
+  test('the execute.before hook changes the input and the execute.after hook changes the result', async ({
+    createEngine,
+    expect,
+  }) => {
     const engine = await createEngine({
       plugins: ['./test/plugin-host/fixtures/plugins/toolbox', './test/plugin-host/fixtures/plugins/tool-hooks'],
     })
@@ -110,7 +119,7 @@ describe.concurrent('the model calls a plugin tool', () => {
     )
   })
 
-  test('Stop aborts a running tool and the model is not asked again', async ({expect}) => {
+  test('Stop aborts a running tool and the model is not asked again', async ({createEngine, expect}) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/slow-tool']})
     await engine.reply(TestLLM.toolCall('c1', 'wait_for_stop', {}), TestLLM.text('Never asked'))
     const started = await engine.event('rpc.slow.started')

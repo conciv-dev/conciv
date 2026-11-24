@@ -94,10 +94,13 @@ describe('the run in the thread', () => {
     })
 
     const shell = screen.getByRole('main', {name: 'App shell'})
+    const tab = await screen.findByRole('tabpanel', {name: 'Tests'})
+    expect(await within(tab).findByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toBeVisible()
     await user.click(await within(shell).findByRole('button', {name: /Ran the tests/}))
-    expect(within(shell).getByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toBeVisible()
-    expect(within(shell).getByText('plant-shop/cart.test.js')).toBeVisible()
-    expect(within(shell).getByText('a fern in the cart costs 12')).toBeVisible()
+    expect(within(shell).getAllByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toHaveLength(2)
+    const cart = within(shell).getByRole('group', {name: 'plant-shop/cart.test.js'})
+    expect(cart).toBeVisible()
+    expect(within(cart).getByText('a fern in the cart costs 12')).toBeVisible()
     const discount = within(shell).getByRole('group', {name: 'the spring discount takes 10 off'})
     expect(within(discount).getByText('expected 11 to be 2 // Object.is equality')).not.toBeVisible()
     await user.click(within(discount).getByText('the spring discount takes 10 off'))
@@ -110,7 +113,8 @@ describe('the run in the thread', () => {
     expect(input).toHaveValue(expect.stringContaining('expected 11 to be 2 // Object.is equality'))
 
     await user.click(within(shell).getByRole('button', {name: /Read the last test run/}))
-    expect(within(shell).getAllByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toHaveLength(2)
+    expect(within(shell).getAllByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toHaveLength(3)
+    expect(within(shell).getAllByRole('group', {name: 'plant-shop/cart.test.js'})).toHaveLength(2)
   })
 })
 

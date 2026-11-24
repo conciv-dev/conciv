@@ -1,11 +1,11 @@
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {describe, expect, test} from 'vitest'
+import {describe, expect} from 'vitest'
+import {test} from '../test/engine.js'
 import {makeBrowserRpcClient, makeRpcClient} from '@conciv/contract'
-import {createEngine} from '../test/engine.js'
 
 describe('start', () => {
-  test('a malformed access token is refused at start', async () => {
+  test('a malformed access token is refused at start', async ({createEngine}) => {
     await expect(createEngine({}, {port: 'connect', token: 'not-a-uuid'})).rejects.toThrow(
       'conciv: accessToken must be a UUID pairing token',
     )
@@ -37,7 +37,7 @@ describe('start', () => {
 })
 
 describe('engine logs', () => {
-  test("an engine's Effect logs land in the log file in its home once it stops", async () => {
+  test("an engine's Effect logs land in the log file in its home once it stops", async ({createEngine}) => {
     const engine = await createEngine({}, {fs: {filewatcher: true}})
 
     await engine.restart()

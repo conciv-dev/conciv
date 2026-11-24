@@ -2,11 +2,11 @@ import {realpathSync} from 'node:fs'
 import {describe, expect} from 'vitest'
 import {z} from 'zod'
 import {prepareHome, recordHubConnection, withHomeDb} from '@conciv/db'
-import {createEngine} from '../test/engine.js'
 import {test} from './testing.js'
 
 describe('the hub', () => {
   test('on the engine registered in the home, with no tab, an outside agent discovers and runs code and is told to pass a tab for a tool that needs a session; an engine without the page plugin lists no tabs and says a tab is not open, an engine whose page plugin answers outside the expected shape is named too old, and a session whose tabs cannot be read is listed with none', async ({
+    createEngine,
     hub,
   }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})

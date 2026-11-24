@@ -9,7 +9,6 @@ import {createHarnessEngine} from '../../testing.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {TestLLM} from '@conciv/harness-testkit'
-import {createEngine} from '../../../test/engine.js'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {test} from '../../../test/engine-test.js'
 import {CHAT_SYSTEM_PROMPT} from '../../lib/chat-system-prompt.js'
@@ -27,6 +26,7 @@ describe.concurrent('outside agents', () => {
   }
 
   test('a panel that opens while an outside call runs, or while a reply waits on an ask, finds the work so far in history and the rest live, as one message', async ({
+    createEngine,
     connect,
     expect,
   }) => {
@@ -81,6 +81,7 @@ describe.concurrent('outside agents', () => {
   })
 
   test("an outside agent that is disconnected from conciv is refused, and a connected one can't answer an ask, connect agents, read the event stream, use plugin routes or the session terminal", async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']})
@@ -115,7 +116,7 @@ describe.concurrent('outside agents', () => {
     )
   })
 
-  test('with project access a call into a session waits until the user allows it', async ({expect}) => {
+  test('with project access a call into a session waits until the user allows it', async ({createEngine, expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk'], hubAccess: 'project'})
 
     const called = engine.outside({tab: engine.session.id}).call('desk_echo', {text: 'Hello'})
@@ -127,6 +128,7 @@ describe.concurrent('outside agents', () => {
   })
 
   test('with open access a call into a session runs without asking, as the outside agent, while the panel calls as the session agent', async ({
+    createEngine,
     connect,
     expect,
   }) => {
@@ -161,6 +163,7 @@ describe.concurrent('outside agents', () => {
 
 describe.concurrent('harness listing', () => {
   test('the harness menu lists every harness of the engine with its models, the default first', async ({
+    createEngine,
     connect,
     expect,
   }) => {
@@ -212,6 +215,7 @@ describe('a harness whose CLI fails its model list', () => {
 
 describe.concurrent('tool registry', () => {
   test("a call naming no registered tool is refused with UNKNOWN_TOOL, and a session answers the system text its next turn sends: the base prompt, a plugin's instruction entry, the code-mode preface, and what the context hooks leave seeing the offered tools, until it is deleted", async ({
+    createEngine,
     connect,
     expect,
   }) => {
@@ -239,6 +243,7 @@ describe.concurrent('tool registry', () => {
 
 describe.concurrent('outside agent CLIs', () => {
   test("an agent CLI on the engine's PATH is offered, connects to conciv, and disconnects", async ({
+    createEngine,
     connect,
     agentPath,
     expect,
@@ -265,7 +270,10 @@ describe.concurrent('outside agent CLIs', () => {
 })
 
 describe.concurrent('terminal access', () => {
-  test('a terminal opened from one origin answers that origin and is unknown to another', async ({expect}) => {
+  test('a terminal opened from one origin answers that origin and is unknown to another', async ({
+    createEngine,
+    expect,
+  }) => {
     const engine = await createEngine()
     const opener = makeRpcClient(engine.address.apiBase, {
       token: engine.address.token,

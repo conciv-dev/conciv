@@ -67,6 +67,7 @@
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@excalidraw/excalidraw": "catalog:",
     "@excalidraw/mermaid-to-excalidraw": "catalog:",

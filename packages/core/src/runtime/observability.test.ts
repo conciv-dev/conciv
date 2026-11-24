@@ -4,12 +4,12 @@ import {join} from 'node:path'
 import {text} from 'node:stream/consumers'
 import {countBy} from 'es-toolkit'
 import {ConfigProvider} from 'effect'
-import {afterAll, beforeAll, describe, expect, test} from 'vitest'
+import {afterAll, beforeAll, describe, expect} from 'vitest'
+import {test} from '../../test/engine.js'
 import {z} from 'zod'
 import {askingToolProvisioner} from '@conciv/ai/server'
 import {makeRpcClient} from '@conciv/contract'
 import {TestLLM} from '@conciv/harness-testkit'
-import {createEngine} from '../../test/engine.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {startObservability} from './observability.js'
 
@@ -176,7 +176,9 @@ describe('engine spans', () => {
 
   afterAll(() => collector.close())
 
-  test('a start that fails sends no span, and without an OTLP endpoint the engine has no tracer', async () => {
+  test('a start that fails sends no span, and without an OTLP endpoint the engine has no tracer', async ({
+    createEngine,
+  }) => {
     const before = collector.spans().length
     await expect(createEngine({}, {port: 'connect', token: 'short', env})).rejects.toThrow(
       'conciv: accessToken must be a UUID pairing token',
@@ -194,7 +196,9 @@ describe('engine spans', () => {
     expect(untracedTracer).toBeUndefined()
   })
 
-  test('an engine start, one rpc call and the stop send each span once, in its tree, under one engine id', async () => {
+  test('an engine start, one rpc call and the stop send each span once, in its tree, under one engine id', async ({
+    createEngine,
+  }) => {
     const before = collector.spans().length
     const engine = await createEngine({}, {env})
     await makeRpcClient(engine.address.apiBase, {token: engine.address.token}).meta.harnesses()
@@ -230,7 +234,7 @@ describe('engine spans', () => {
     }
   })
 
-  test('one turn with one code mode tool call is one span tree under ChatServer.turn', async () => {
+  test('one turn with one code mode tool call is one span tree under ChatServer.turn', async ({createEngine}) => {
     const before = collector.spans().length
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/desk']}, {env})
     await engine.reply(

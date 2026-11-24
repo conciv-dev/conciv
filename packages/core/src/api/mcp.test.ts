@@ -1,10 +1,10 @@
 import {describe} from 'vitest'
-import {createEngine} from '../../test/engine.js'
 import {test} from '../../test/engine-test.js'
 import {engineMcpUrl} from '../engine-login.js'
 
 describe.concurrent('agent tools', () => {
   test('a capability answers, an oversized answer is truncated, a photo comes back as an image, and a direct tool is called by name', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/shelf']})
@@ -27,6 +27,7 @@ describe.concurrent('agent tools', () => {
   })
 
   test('the outside agent reads the tool description and catalog, discovers a capability, a call with no tab fails with its declared code, and a call on an unknown session is not found', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/shelf'], hubAccess: 'open'})
@@ -71,7 +72,7 @@ describe.concurrent('agent tools', () => {
     })
   })
 
-  test('a malformed session header is refused', async ({expect}) => {
+  test('a malformed session header is refused', async ({createEngine, expect}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/shelf']})
 
     const refused = await fetch(engineMcpUrl(engine.address.apiBase, engine.address.token), {

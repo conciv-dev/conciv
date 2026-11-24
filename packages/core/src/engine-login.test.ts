@@ -1,5 +1,4 @@
 import {describe, expect, test} from 'vitest'
-import {createEngine} from '../test/engine.js'
 import {test as engineTest} from '../test/engine-test.js'
 import {CODE_LIFETIME_MS, makeCodeStore} from './engine-login.js'
 
@@ -37,7 +36,7 @@ describe('login code', () => {
 describe('untrusted socket', () => {
   engineTest(
     'a browser that has not logged in may call only the login procedures, and everything once it logs in',
-    async ({untrusted}) => {
+    async ({createEngine, untrusted}) => {
       const engine = await createEngine()
       const rpc = untrusted(engine)
 

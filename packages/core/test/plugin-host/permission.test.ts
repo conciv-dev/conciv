@@ -1,9 +1,12 @@
-import {describe, test} from 'vitest'
+import {describe} from 'vitest'
+import {test} from '../engine.js'
 import {z} from 'zod'
-import {createEngine} from '../engine.js'
 
 describe.concurrent('asks', () => {
-  test('a permission rule that denies the action fails the call and says it is denied', async ({expect}) => {
+  test('a permission rule that denies the action fails the call and says it is denied', async ({
+    createEngine,
+    expect,
+  }) => {
     const engine = await createEngine({
       plugins: ['./test/plugin-host/fixtures/plugins/guarded'],
       permission: {'guarded.write': 'deny'},
@@ -18,7 +21,10 @@ describe.concurrent('asks', () => {
     )
   })
 
-  test("a tool's fallback ask makes the call wait for approval even when every action is allowed", async ({expect}) => {
+  test("a tool's fallback ask makes the call wait for approval even when every action is allowed", async ({
+    createEngine,
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/guarded'], permission: 'allow'})
 
     const call = engine.session.tool('guarded_read').call({file: 'notes.txt'})
@@ -28,6 +34,7 @@ describe.concurrent('asks', () => {
   })
 
   test("a plugin lists, reads and answers the session's pending ask, another session can neither read nor answer it: once lets the call finish, always is saved for that file so the next call does not ask, and reject fails the call", async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({

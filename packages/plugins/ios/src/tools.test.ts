@@ -1,12 +1,14 @@
 import {readFile, stat} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
-import {describe, expect, test} from 'vitest'
+import {describe, expect} from 'vitest'
 import {TestLLM} from '@conciv/core/testing'
-import {createEngine, IOS_PLUGIN} from '../test/engine.js'
+import {IOS_PLUGIN, test} from '../test/engine.js'
 
 describe('the ios plugin with no options', () => {
-  test('every ios tool answers that the plugin is not configured, without an ask, and the Swift SDK pairing file still names the engine', async () => {
+  test('every ios tool answers that the plugin is not configured, without an ask, and the Swift SDK pairing file still names the engine', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({plugins: [IOS_PLUGIN]})
     const notConfigured = {ok: false, error: 'ios plugin not configured'}
     const pairing = join(homedir(), '.conciv', 'dev-endpoint.json')
@@ -22,7 +24,9 @@ describe('the ios plugin with no options', () => {
 })
 
 describe('the ios rules in the system prompt', () => {
-  test('a configured app adds the overlay and app rules to the model request, and no options add none', async () => {
+  test('a configured app adds the overlay and app rules to the model request, and no options add none', async ({
+    createEngine,
+  }) => {
     const configured = await createEngine({
       plugins: [[IOS_PLUGIN, {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}]],
     })
@@ -52,7 +56,9 @@ describe('the ios rules in the system prompt', () => {
 })
 
 describe('building and running a configured app', () => {
-  test('the agent asks before ios_build and before ios_run, and a stopped turn runs neither', async () => {
+  test('the agent asks before ios_build and before ios_run, and a stopped turn runs neither', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({
       plugins: [[IOS_PLUGIN, {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}]],
     })
@@ -76,28 +82,28 @@ describe('building and running a configured app', () => {
 })
 
 describe('the ios plugin with bad options', () => {
-  test.each([
-    [
-      'a missing bundle id',
-      {projectRoot: 'PayApp'},
-      {status: 'failed', error: expect.stringMatching(/^failed to load plugin: InvalidOptions: .*bundleId/s)},
-    ],
-    [
-      'a concivUrl with a page path',
-      {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', concivUrl: 'http://127.0.0.1:4732/widget/panel'},
-      {
+  test.for<{problem: string; options: Record<string, string>; state: unknown}>([
+    {
+      problem: 'a missing bundle id',
+      options: {projectRoot: 'PayApp'},
+      state: {status: 'failed', error: expect.stringMatching(/^failed to load plugin: InvalidOptions: .*bundleId/s)},
+    },
+    {
+      problem: 'a concivUrl with a page path',
+      options: {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', concivUrl: 'http://127.0.0.1:4732/widget/panel'},
+      state: {
         status: 'failed',
         error: expect.stringContaining(
           'concivUrl must be the core api base with no page path: the swift sdk appends /widget itself',
         ),
       },
-    ],
-    [
-      'a concivUrl that ends in /widget',
-      {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', concivUrl: 'http://127.0.0.1:4732/widget'},
-      {status: 'active'},
-    ],
-  ])('the engine lists the ios plugin state for %s', async (_case, options, state) => {
+    },
+    {
+      problem: 'a concivUrl that ends in /widget',
+      options: {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', concivUrl: 'http://127.0.0.1:4732/widget'},
+      state: {status: 'active'},
+    },
+  ])('the engine lists the ios plugin state for $problem', async ({options, state}, {createEngine}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/lister', [IOS_PLUGIN, options]]})
 
     expect(await engine.session.tool('list_plugins').call({})).toEqual({

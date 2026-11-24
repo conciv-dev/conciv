@@ -2,16 +2,16 @@ import {execFile} from 'node:child_process'
 import {dirname, relative} from 'node:path'
 import {promisify} from 'node:util'
 import {fileURLToPath} from 'node:url'
-import {describe, expect, test} from 'vitest'
+import {describe, expect} from 'vitest'
 import {z} from 'zod'
 import {Effect, Fiber} from 'effect'
 import {TestLLM} from '@conciv/core/testing'
 import {PluginEngine, testEffect} from '@conciv/plugin-testkit'
 import {humanSourceComment} from '../test/human-source-comment.js'
-import {createEngine, nextEvent, WHITEBOARD_PLUGIN} from '../test/engine.js'
+import {nextEvent, WHITEBOARD_PLUGIN, test} from '../test/engine.js'
 
 describe('the agent is told about the whiteboard', () => {
-  test('the model request lists the whiteboard skill and the whiteboard tool namespace', async () => {
+  test('the model request lists the whiteboard skill and the whiteboard tool namespace', async ({createEngine}) => {
     const engine = await createEngine({plugins: [WHITEBOARD_PLUGIN]})
     await engine.reply(TestLLM.text('I can draw that on the whiteboard'))
     await engine.session.send('Sketch the login flow')
@@ -30,7 +30,9 @@ describe('the agent is told about the whiteboard', () => {
 })
 
 describe('the agent works a comment thread on the board', () => {
-  test('a comment takes a reply, reads back with its thread, lists alone, its pin moves and floats, and resolving and deleting ask the user first; deleting a reply keeps the thread, deleting the root takes its pin', async () => {
+  test('a comment takes a reply, reads back with its thread, lists alone, its pin moves and floats, and resolving and deleting ask the user first; deleting a reply keeps the thread, deleting the root takes its pin', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({plugins: [WHITEBOARD_PLUGIN]})
     const room = engine.session.id
 
@@ -283,7 +285,9 @@ describe('a source-linked comment follows its element as the code changes', () =
 })
 
 describe('in a git project a source-linked comment records the commit it was made on', () => {
-  test('the anchor records HEAD, and after a committed edit moves the element it reads moved at its new line', async () => {
+  test('the anchor records HEAD, and after a committed edit moves the element it reads moved at its new line', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({plugins: [WHITEBOARD_PLUGIN]}, {git: true})
     const cart = [
       'export function Cart() {',
@@ -387,7 +391,9 @@ describe('a human comment on a source element gets its source details from the e
 })
 
 describe('a draft left when a turn ends is sent to be published', () => {
-  test('the turn ends with a draft on the board and the engine queues one commit for the canvas, never a second', async () => {
+  test('the turn ends with a draft on the board and the engine queues one commit for the canvas, never a second', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({plugins: [WHITEBOARD_PLUGIN]})
     const room = engine.session.id
     await engine.rpc.call('whiteboard', 'elements.upsert', {
@@ -536,7 +542,7 @@ describe('with no canvas open, the canvas tools answer without waiting on one', 
 })
 
 describe('the board lives in the engine state', () => {
-  test('comments and canvas elements are still there after the engine restarts', async () => {
+  test('comments and canvas elements are still there after the engine restarts', async ({createEngine}) => {
     const engine = await createEngine({plugins: [WHITEBOARD_PLUGIN]})
     const room = engine.session.id
     await engine.session.tool('whiteboard_comment_create').call({

@@ -8,7 +8,8 @@ import {constants, tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {createInterface} from 'node:readline'
 import type {Readable, Writable} from 'node:stream'
-import {test as base, type TestAPI} from 'vitest'
+import type {TestAPI} from 'vitest'
+import {createEngineTest} from '@conciv/core/testing'
 import {z} from 'zod'
 import {createMCPClient, type MCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
@@ -108,7 +109,13 @@ export type HubFixtures = {
   tasksHub: (home: string) => TasksClient
 }
 
-export const test: TestAPI<HubFixtures> = base.extend<HubFixtures>({
+type EngineTest = ReturnType<typeof createEngineTest>
+
+type EngineFixtures = EngineTest extends TestAPI<infer Fixtures> ? Fixtures : never
+
+const base: EngineTest = createEngineTest()
+
+export const test: TestAPI<EngineFixtures & HubFixtures> = base.extend<HubFixtures>({
   hub: async ({task: _task}, use) => {
     const clients: MCPClient[] = []
     await use(async (home) => {

@@ -1,9 +1,10 @@
-import {describe, expect, it} from 'vitest'
-import {createEngine} from '../test/engine.js'
-import {cli} from './testing.js'
+import {describe, expect} from 'vitest'
+import {cli, test as it} from './testing.js'
 
 describe('plugin call', () => {
-  it('the output prints, bad JSON sends nothing, and a failing method prints its code, type and data', async () => {
+  it('the output prints, bad JSON sends nothing, and a failing method prints its code, type and data', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
 
     const counted = await cli(['plugin', 'call', 'plant-shelf', 'count', '--data', '{"plant": "fern"}'], {engine})
