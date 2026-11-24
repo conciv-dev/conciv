@@ -8,6 +8,7 @@ import type {TestProjectInlineConfiguration} from 'vitest/config'
 import {
   BROWSER_TESTS,
   browserProject as plainBrowserProject,
+  domProject,
   kitDefaults,
   nodeProject,
   solidPlugins,
@@ -438,18 +439,10 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
     })
   return [
     nodeProject({plugins: [engineModulesInNode()], test: {setupFiles: [join(KIT_DIST, 'node-setup.js')]}}),
-    {
-      extends: true,
+    domProject({
       plugins: [...solid, engineModulesInNode()],
-      test: {
-        name: 'happy-dom',
-        include: ['src/**/*.dom.test.ts', 'src/**/*.dom.test.tsx'],
-        environment: 'happy-dom',
-        environmentOptions: {happyDOM: VIEWPORT},
-        setupFiles: [join(KIT_DIST, 'happy-dom-setup.js')],
-        provide,
-      },
-    },
+      test: {setupFiles: [join(KIT_DIST, 'happy-dom-setup.js')], provide},
+    }),
     browserProject('browser', BROWSER_TESTS, ['chromium']),
     browserProject('perf', PERF_TESTS, ['chromium', 'firefox']),
   ]

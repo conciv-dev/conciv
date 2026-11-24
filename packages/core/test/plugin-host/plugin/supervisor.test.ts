@@ -1,15 +1,15 @@
 import {describe, test} from 'vitest'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../../engine.js'
 
 describe.concurrent('loading plugins', () => {
   test.for([
     {
-      folder: './test/fixtures/plugins/greeter-promise',
+      folder: './test/plugin-host/fixtures/plugins/greeter-promise',
       tool: 'greet_promise',
       greeting: 'Hello Ada, from the Promise entry',
     },
     {
-      folder: './test/fixtures/plugins/greeter-effect',
+      folder: './test/plugin-host/fixtures/plugins/greeter-effect',
       tool: 'greet_effect',
       greeting: 'Hello Ada, from the Effect entry',
     },
@@ -21,7 +21,7 @@ describe.concurrent('loading plugins', () => {
 
   test('a plugin given with options reads them in its tool', async ({expect}) => {
     const engine = await createEngine({
-      plugins: [['./test/fixtures/plugins/echo-options', {greeting: 'Shalom', times: 2}]],
+      plugins: [['./test/plugin-host/fixtures/plugins/echo-options', {greeting: 'Shalom', times: 2}]],
     })
 
     expect(await engine.session.tool('echo_options').call({})).toEqual({options: {greeting: 'Shalom', times: 2}})
@@ -30,7 +30,7 @@ describe.concurrent('loading plugins', () => {
   test("a plugin dropped into the project's conciv/plugins folder loads with no plugins in the config", async ({
     expect,
   }) => {
-    const engine = await createEngine({}, {directory: './test/fixtures/projects/dropped-plugin'})
+    const engine = await createEngine({}, {directory: './test/plugin-host/fixtures/projects/dropped-plugin'})
 
     expect(await engine.session.tool('greet_dropped').call({name: 'Ada'})).toEqual({
       greeting: 'Hello Ada, from conciv/plugins',
@@ -40,7 +40,7 @@ describe.concurrent('loading plugins', () => {
   test('a ./ plugin path resolves against the project folder, and a path to a file is skipped', async ({expect}) => {
     const engine = await createEngine(
       {plugins: ['./tools/greeter-local', './tools/greeter-file/server.ts']},
-      {directory: './test/fixtures/projects/local-plugins'},
+      {directory: './test/plugin-host/fixtures/projects/local-plugins'},
     )
 
     expect(await engine.session.tool('greet_local').call({name: 'Ada'})).toEqual({
@@ -55,7 +55,7 @@ describe.concurrent('loading plugins', () => {
     expect,
   }) => {
     const engine = await createEngine({
-      plugins: ['./test/fixtures/plugins/lister', './test/fixtures/plugins/greeter-promise'],
+      plugins: ['./test/plugin-host/fixtures/plugins/lister', './test/plugin-host/fixtures/plugins/greeter-promise'],
       policies: [{action: 'plugin.use', resource: '*/greeter-promise', effect: 'deny'}],
     })
 
@@ -76,7 +76,7 @@ describe.concurrent('loading plugins', () => {
 })
 
 describe.concurrent('a plugin that fails to load', () => {
-  const lister = './test/fixtures/plugins/lister'
+  const lister = './test/plugin-host/fixtures/plugins/lister'
   const active = {id: 'lister', state: {status: 'active'}}
 
   test.for([
@@ -87,13 +87,13 @@ describe.concurrent('a plugin that fails to load', () => {
     {name: 'setup-throws', error: /setup exploded/},
     {name: 'does-not-strip', error: /^Plugin failed to load$/},
   ])('the plugin $name fails alone and the engine lists why', async ({name, error}, {expect}) => {
-    const engine = await createEngine({plugins: [lister, `./test/fixtures/plugins/${name}`]})
+    const engine = await createEngine({plugins: [lister, `./test/plugin-host/fixtures/plugins/${name}`]})
 
     expect(await engine.session.tool('list_plugins').call({})).toEqual({
       plugins: expect.arrayContaining([
         expect.objectContaining(active),
         expect.objectContaining({
-          source: {type: 'local', path: expect.stringContaining(`/test/fixtures/plugins/${name}`)},
+          source: {type: 'local', path: expect.stringContaining(`/test/plugin-host/fixtures/plugins/${name}`)},
           state: expect.objectContaining({status: 'failed', error: expect.stringMatching(error)}),
         }),
       ]),
@@ -101,7 +101,7 @@ describe.concurrent('a plugin that fails to load', () => {
   })
 
   test('a plugin folder with no entry is skipped and not listed', async ({expect}) => {
-    const engine = await createEngine({plugins: [lister, './test/fixtures/plugins/no-entry']})
+    const engine = await createEngine({plugins: [lister, './test/plugin-host/fixtures/plugins/no-entry']})
 
     const listed = await engine.session.tool('list_plugins').call({})
 
@@ -114,7 +114,7 @@ describe.concurrent('a plugin that fails to load', () => {
   })
 
   test('a second plugin with the same id is refused and the first keeps answering', async ({expect}) => {
-    const engine = await createEngine({plugins: [lister, './test/fixtures/plugins/lister-twin']})
+    const engine = await createEngine({plugins: [lister, './test/plugin-host/fixtures/plugins/lister-twin']})
 
     expect(await engine.session.tool('list_plugins').call({})).toEqual({
       plugins: expect.arrayContaining([
@@ -134,8 +134,8 @@ describe.concurrent('a plugin that fails to load', () => {
 })
 
 describe.concurrent('remove entries in the config', () => {
-  const lister = './test/fixtures/plugins/lister'
-  const greeter = './test/fixtures/plugins/greeter-promise'
+  const lister = './test/plugin-host/fixtures/plugins/lister'
+  const greeter = './test/plugin-host/fixtures/plugins/greeter-promise'
   const active = {id: 'lister', state: {status: 'active'}}
 
   test.for([

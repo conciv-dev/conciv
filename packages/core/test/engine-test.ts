@@ -3,7 +3,7 @@ import {join} from 'node:path'
 import {test as base, vi, type TestAPI} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {makeBrowserRpcClient, type BrowserRpcClient, type RpcClient} from '@conciv/contract'
-import type {Engine as KitEngine} from '@conciv/plugin-testkit'
+import type {HarnessEngine as KitEngine} from '../src/testing.js'
 import {createTtySessions, type TtySessions} from '../src/pty/pty-sessions.js'
 import {createSettingsStorage, type SettingsStorages} from '../src/settings/settings-storage.js'
 

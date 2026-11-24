@@ -1,6 +1,7 @@
 import {describe, expect} from 'vitest'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {test} from '../test/rpc-test.js'
+import {TestLLM} from '@conciv/harness-testkit'
+import {createEngine} from '../engine.js'
+import {test} from './rpc-test.js'
 
 describe('offered tools', () => {
   test.each<{effect: 'allow' | 'deny'; offered: boolean}>([
@@ -8,7 +9,7 @@ describe('offered tools', () => {
     {effect: 'deny', offered: false},
   ])('a plugin tool the permission rules $effect is offered to the agent: $offered', async ({effect, offered}) => {
     const engine = await createEngine({
-      plugins: ['./test/fixtures/plugins/weather'],
+      plugins: ['./test/chat/fixtures/plugins/weather'],
       permission: {weather_alerts: effect},
     })
     await engine.reply(TestLLM.text('No alerts today'))
@@ -27,7 +28,7 @@ describe('the agent program', () => {
   test("the agent's program calls a plugin tool, the agent gets the result and the call shows under the program", async ({
     connect,
   }) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/weather']})
+    const engine = await createEngine({plugins: ['./test/chat/fixtures/plugins/weather']})
     const rpc = connect(engine)
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {

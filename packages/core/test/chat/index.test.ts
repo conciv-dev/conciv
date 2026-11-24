@@ -1,6 +1,7 @@
 import {describe} from 'vitest'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {test} from '../test/rpc-test.js'
+import {TestLLM} from '@conciv/harness-testkit'
+import {createEngine} from '../engine.js'
+import {test} from './rpc-test.js'
 
 describe.concurrent('stopping', () => {
   test('the user stops a held reply and the turn ends', async ({expect}) => {
@@ -21,7 +22,7 @@ describe.concurrent('stopping', () => {
   test('a stop sent while the turn still prepares its prompt, before its run is recorded, ends it, the message is taken back and the agent is never asked', async ({
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/turn-holder']})
+    const engine = await createEngine({plugins: ['./test/chat/fixtures/plugins/turn-holder']})
     await engine.reply(TestLLM.text('Never shown'))
 
     const sent = engine.session.send('Hello').then(
@@ -55,7 +56,7 @@ describe.concurrent('two turns', () => {
   test('a turn still preparing its prompt when a new message comes ends without ending the new one', async ({
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/turn-holder']})
+    const engine = await createEngine({plugins: ['./test/chat/fixtures/plugins/turn-holder']})
     await engine.reply(TestLLM.text('Here is the second answer'))
     const ended = await engine.event('session.execution.interrupted')
     const held = engine.session.tool('turn_held')
@@ -92,7 +93,7 @@ describe.concurrent('compacting', () => {
     connect,
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/request-shaper']})
+    const engine = await createEngine({plugins: ['./test/chat/fixtures/plugins/request-shaper']})
     const rpc = connect(engine)
     await engine.reply(TestLLM.text('Bonjour'), TestLLM.text('We said hello'))
 
@@ -113,7 +114,7 @@ describe.concurrent('compacting', () => {
   })
 
   test("a plugin's compaction hook answers the summary and the agent is not asked", async ({connect, expect}) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/compaction-answer']})
+    const engine = await createEngine({plugins: ['./test/chat/fixtures/plugins/compaction-answer']})
     const rpc = connect(engine)
     await engine.reply(TestLLM.text('Hi'))
 

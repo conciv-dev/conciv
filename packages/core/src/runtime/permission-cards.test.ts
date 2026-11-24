@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../../test/engine.js'
 
 describe('asking tools', () => {
   test('a config rule that allows the tool runs it without an ask', async () => {

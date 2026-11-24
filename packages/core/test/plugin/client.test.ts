@@ -1,13 +1,13 @@
 import {makeRpcClient} from '@conciv/contract'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../engine.js'
 import {describe, expect, it} from 'vitest'
-import {make, type ClientConnectionStatus} from './client.js'
+import {Conciv, type ClientConnectionStatus} from '@conciv/plugin'
 
 describe('the SDK client keeps its event stream open', () => {
   it('the stream connects, comes back after the engine restarts, reopens when it goes silent, and is connecting again once the last reader leaves', async () => {
     const engine = await createEngine({}, {timeouts: {eventHeartbeatIntervalMs: 60_000}})
     const server = () => engine.address.apiBase
-    const steady = make(makeRpcClient(engine.address.apiBase, {token: engine.address.token}), {
+    const steady = Conciv.make(makeRpcClient(engine.address.apiBase, {token: engine.address.token}), {
       server,
       reconnectDelay: 0,
     })
@@ -33,7 +33,7 @@ describe('the SDK client keeps its event stream open', () => {
     steadyReading.abort()
     expect(steady.connection.status()).toBe('connecting')
 
-    const watched = make(makeRpcClient(engine.address.apiBase, {token: engine.address.token}), {
+    const watched = Conciv.make(makeRpcClient(engine.address.apiBase, {token: engine.address.token}), {
       server,
       idleTimeout: 50,
       reconnectDelay: 0,

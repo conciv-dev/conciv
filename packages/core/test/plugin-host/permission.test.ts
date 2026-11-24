@@ -1,11 +1,11 @@
 import {describe, test} from 'vitest'
 import {z} from 'zod'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../engine.js'
 
 describe.concurrent('asks', () => {
   test('a permission rule that denies the action fails the call and says it is denied', async ({expect}) => {
     const engine = await createEngine({
-      plugins: ['./test/fixtures/plugins/guarded'],
+      plugins: ['./test/plugin-host/fixtures/plugins/guarded'],
       permission: {'guarded.write': 'deny'},
     })
 
@@ -19,7 +19,7 @@ describe.concurrent('asks', () => {
   })
 
   test("a tool's fallback ask makes the call wait for approval even when every action is allowed", async ({expect}) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/guarded'], permission: 'allow'})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/guarded'], permission: 'allow'})
 
     const call = engine.session.tool('guarded_read').call({file: 'notes.txt'})
     await engine.session.approve()
@@ -31,7 +31,7 @@ describe.concurrent('asks', () => {
     expect,
   }) => {
     const engine = await createEngine({
-      plugins: ['./test/fixtures/plugins/guarded'],
+      plugins: ['./test/plugin-host/fixtures/plugins/guarded'],
       permission: {'guarded.write': 'ask'},
     })
     const sessionId = engine.session.id

@@ -1,5 +1,5 @@
 import {describe, test} from 'vitest'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../../../engine.js'
 
 describe.concurrent('server tools', () => {
   test.for([

@@ -1,9 +1,10 @@
 import {describe, test} from 'vitest'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {TestLLM} from '@conciv/harness-testkit'
+import {createEngine} from '../../engine.js'
 
 describe.concurrent('what the model is given', () => {
   test('the code-mode preface with the plugin tools reaches the model as a system prompt', async ({expect}) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/greeter-promise']})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/greeter-promise']})
     await engine.reply(TestLLM.text('Hello'))
 
     await engine.session.send('Hi')
@@ -16,7 +17,7 @@ describe.concurrent('what the model is given', () => {
   test('a session instruction entry reaches the model, a changed value supersedes it and a removed one is dropped', async ({
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/instruction-notes']})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/instruction-notes']})
     await engine.reply(TestLLM.text('Noted'), TestLLM.text('Noted again'), TestLLM.text('Dropped'))
     const metric = '<context key="units">\nUse metric units\n</context>'
     const imperial = '<context key="units">\nUse imperial units\n</context>'
@@ -39,7 +40,7 @@ describe.concurrent('what the model is given', () => {
     expect,
   }) => {
     const engine = await createEngine(
-      {plugins: ['./test/fixtures/plugins/instruction-notes']},
+      {plugins: ['./test/plugin-host/fixtures/plugins/instruction-notes']},
       {harnesses: [{id: 'engine', sessions: []}]},
     )
     await engine.reply(TestLLM.text('Noted'), TestLLM.text('Noted again'), TestLLM.text('Dropped'))
@@ -78,7 +79,7 @@ describe.concurrent('what the model is given', () => {
   test("the prompt hook changes the user's message, and the context hook edits the system prompts, messages, model options and tools the model gets", async ({
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/request-shaper']})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/request-shaper']})
     await engine.reply(TestLLM.text('Hello'))
 
     await engine.session.send('Hello')

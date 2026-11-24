@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../../test/engine.js'
 
 describe('other engines', () => {
   test('a plugin lists every engine running on the machine on its first read', async () => {

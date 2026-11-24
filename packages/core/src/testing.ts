@@ -465,13 +465,25 @@ function engineHarnesses(
 
 const KIT_OWNED_FIELDS = ['stateRoot', 'homeDir'] as const
 
-function engineConfig(given: ConcivConfig): ConcivConfig {
+type PluginEntry = NonNullable<ConcivConfig['plugins']>[number]
+
+function fromWorkingFolder(target: string): string {
+  return target.startsWith('./') || target.startsWith('../') ? resolve(target) : target
+}
+
+function locatePlugin(entry: PluginEntry): PluginEntry {
+  if (typeof entry === 'string') return fromWorkingFolder(entry)
+  return [fromWorkingFolder(entry[0]), entry[1]]
+}
+
+function engineConfig(given: ConcivConfig, options: HarnessEngineStart): ConcivConfig {
   const config = ConcivConfigSchema.parse(given)
   const owned = KIT_OWNED_FIELDS.find((field) => config[field] !== undefined)
   if (owned !== undefined) {
     throw new Error(`the kit sets ${owned} itself, inside the engine's temp root: leave ${owned} out of the config`)
   }
-  return config
+  if (options.directory !== undefined || config.plugins === undefined) return config
+  return {...config, plugins: config.plugins.map(locatePlugin)}
 }
 
 function fixtureFolder(options: HarnessEngineStart): string | undefined {
@@ -587,7 +599,7 @@ export async function createHarnessEngine(
   given: ConcivConfig = {},
   options: HarnessEngineStart = {},
 ): Promise<HarnessEngine> {
-  const config = engineConfig(given)
+  const config = engineConfig(given, options)
   const script = replyScript(options.tokensPerSecond)
   const fixture = fixtureFolder(options)
   const root = mkdtempSync(join(tmpdir(), 'conciv-kit-'))

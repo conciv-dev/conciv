@@ -1,6 +1,6 @@
 import {ConfigProvider} from 'effect'
 import {describe, expect} from 'vitest'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../test/engine.js'
 import {test} from '../test/engine-test.js'
 import {resolveConfig} from './config.js'
 

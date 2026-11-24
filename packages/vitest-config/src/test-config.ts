@@ -3,7 +3,7 @@ import solidPlugin from 'vite-plugin-solid'
 import {playwright} from '@vitest/browser-playwright'
 import {z} from 'zod'
 import {configDefaults, type TestProjectInlineConfiguration} from 'vitest/config'
-import {ciReporters} from './reporters.ts'
+import {ciReporters} from '@conciv/vitest-config'
 
 const TEST_TIMEOUT_MS = 30_000
 const HOOK_TIMEOUT_MS = 30_000
@@ -67,6 +67,20 @@ export function nodeProject(extra: TestProjectInlineConfiguration = {}): TestPro
   }
 }
 
+export function domProject(extra: TestProjectInlineConfiguration = {}): TestProjectInlineConfiguration {
+  return {
+    extends: true,
+    ...extra,
+    test: {
+      name: 'happy-dom',
+      include: ['src/**/*.dom.test.ts', 'src/**/*.dom.test.tsx'],
+      environment: 'happy-dom',
+      environmentOptions: {happyDOM: VIEWPORT},
+      ...extra.test,
+    },
+  }
+}
+
 const PluginListSchema = z.array(z.unknown())
 
 const NamedPluginSchema = z.object({name: z.string(), apply: z.unknown().optional()})
@@ -122,6 +136,7 @@ export function concivTest(): Plugin {
           ...defaults,
           projects: [
             nodeProject(),
+            domProject({plugins: solidPlugins(config.plugins)}),
             browserProject('browser', BROWSER_TESTS, ['chromium'], {plugins: solidPlugins(config.plugins)}),
           ],
         },

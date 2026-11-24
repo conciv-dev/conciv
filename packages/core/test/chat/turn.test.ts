@@ -1,7 +1,8 @@
 import {describe} from 'vitest'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {TestLLM} from '@conciv/harness-testkit'
+import {createEngine} from '../engine.js'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
-import {test} from '../test/rpc-test.js'
+import {test} from './rpc-test.js'
 
 describe.concurrent('a conversation', () => {
   test('an empty message is refused', async ({expect}) => {
@@ -28,7 +29,7 @@ describe.concurrent('a conversation', () => {
 
 describe.concurrent('plugin hooks', () => {
   test("a plugin's prompt and context hooks change the request the agent gets", async ({expect}) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/request-shaper']})
+    const engine = await createEngine({plugins: ['./test/chat/fixtures/plugins/request-shaper']})
     await engine.reply(TestLLM.text('Bonjour'))
 
     await engine.session.send('Hello')

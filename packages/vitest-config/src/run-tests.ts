@@ -5,7 +5,7 @@ import {homedir, tmpdir} from 'node:os'
 import {dirname, join, resolve} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
 import {z} from 'zod'
-import {isolatedEnv} from './isolated-env.js'
+import {isolatedEnv} from '@conciv/vitest-config/isolated-env'
 
 const GoneSchema = z.object({code: z.enum(['ESRCH', 'EPERM'])})
 

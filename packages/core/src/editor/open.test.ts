@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../../test/engine.js'
 import {makeEditorOpener} from './open.js'
 
 describe('editor', () => {

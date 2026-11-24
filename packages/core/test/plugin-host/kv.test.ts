@@ -1,11 +1,11 @@
 import {realpathSync} from 'node:fs'
 import {describe, expect, test} from 'vitest'
 import {z} from 'zod'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../engine.js'
 
 describe('plugin storage', () => {
   test("a plugin reads back what it stored, a missing key reads as nothing, its folder lives in the engine's state, and what it stored survives an engine restart", async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/notebook']})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/notebook']})
 
     expect(await engine.session.tool('note_write').call({key: 'greeting', value: 'Shalom'})).toEqual({
       kept: 'greeting',

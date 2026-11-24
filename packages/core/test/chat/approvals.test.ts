@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'vitest'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {TestLLM} from '@conciv/harness-testkit'
+import {createEngine} from '../engine.js'
 
 describe('ui questions', () => {
   test('a question nobody answers tells the agent it is not answered yet', async () => {

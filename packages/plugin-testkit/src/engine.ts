@@ -34,26 +34,21 @@ export type StartedEngine = {engine: Engine; stop: () => Promise<void>; tick: ()
 
 type PluginEntry = NonNullable<ConcivConfig['plugins']>[number]
 
-function isSelector(target: string): boolean {
-  return target.startsWith('-') || target.includes('*') || target.startsWith('conciv.')
+function isPackageName(target: string): boolean {
+  return !(target.startsWith('-') || target.includes('*') || target.startsWith('conciv.') || target.startsWith('.'))
 }
 
-function isProjectPath(target: string): boolean {
-  return target.startsWith('./') || target.startsWith('../')
+function locateTarget(target: string): string {
+  return isPackageName(target) ? pluginDirectory(target) : target
 }
 
-function locateTarget(target: string, inProject: boolean): string {
-  if (isSelector(target) || (inProject && isProjectPath(target))) return target
-  return pluginDirectory(target)
-}
-
-function locatePlugin(entry: PluginEntry, inProject: boolean): PluginEntry {
-  if (typeof entry === 'string') return locateTarget(entry, inProject)
-  return [locateTarget(entry[0], inProject), entry[1]]
+function locatePlugin(entry: PluginEntry): PluginEntry {
+  if (typeof entry === 'string') return locateTarget(entry)
+  return [locateTarget(entry[0]), entry[1]]
 }
 
 export async function startEngine(config: ConcivConfig = {}, options: EngineStart = {}): Promise<StartedEngine> {
-  const plugins = config.plugins?.map((entry) => locatePlugin(entry, options.directory !== undefined))
+  const plugins = config.plugins?.map(locatePlugin)
   const {stop, clock, ...engine} = await createHarnessEngine(
     plugins === undefined ? config : {...config, plugins},
     options,

@@ -1,6 +1,6 @@
-import {defineConfig} from 'vite'
-import {concivTest} from '@conciv/plugin-testkit/vitest'
+import {defineConfig} from 'vitest/config'
+import {kitDefaults, nodeProject} from '@conciv/vitest-config/test-config'
 
 export default defineConfig({
-  plugins: [concivTest()],
+  test: {...kitDefaults(), projects: [nodeProject({test: {include: ['src/**/*.test.ts', 'test/**/*.test.ts']}})]},
 })

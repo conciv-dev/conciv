@@ -1,9 +1,10 @@
 import {describe, test} from 'vitest'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {TestLLM} from '@conciv/harness-testkit'
+import {createEngine} from '../engine.js'
 
 describe.concurrent('sessions and events', () => {
   test('the experimental.idle hook runs once a turn has ended', async ({expect}) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/session-watcher']})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/session-watcher']})
     await engine.reply(TestLLM.text('Done'))
 
     await engine.session.send('Do it')
@@ -14,7 +15,7 @@ describe.concurrent('sessions and events', () => {
   test('a plugin receives the session-created event of a session the user made, creates a session and lists it beside the sessions the user made, and renames its own session and reads it back', async ({
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/session-watcher']})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/session-watcher']})
     const other = await engine.newSession('Second')
     expect(await engine.session.tool('created_session').call({sessionID: other.id})).toEqual({
       event: {sessionID: other.id},
@@ -34,7 +35,7 @@ describe.concurrent('sessions and events', () => {
   })
 
   test('a plugin hears each run start and end', async ({expect}) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/session-watcher']})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/session-watcher']})
 
     await engine.reply(TestLLM.text('First answer'))
     await engine.session.send('one')
@@ -64,7 +65,7 @@ describe.concurrent('session.synthetic', () => {
   test('notices reach the model in order: an idle wake sends the notice text only, queued input goes one run at a time with steering before the next queued input, and a resume-false notice goes ahead of the next user message', async ({
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/inbox-notices']})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/inbox-notices']})
     await engine.reply(
       TestLLM.text('Read them'),
       TestLLM.text('One'),
@@ -155,7 +156,7 @@ describe.concurrent('session.synthetic', () => {
   })
 
   test('a stop keeps queued input for the next run', async ({expect}) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/inbox-notices']})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/inbox-notices']})
     await engine.reply(TestLLM.hang(), TestLLM.text('Resumed'), TestLLM.text('Went on'))
     const notice = engine.session.tool('notice')
     const stream = await engine.gate()
@@ -189,7 +190,7 @@ describe.concurrent('session.synthetic', () => {
   test('admission: a retry gets the first admission, another session reusing the id is refused with the conflict, and a deleted session refuses with NotFoundError and its waiting notice is gone', async ({
     expect,
   }) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/inbox-notices']})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/inbox-notices']})
     await engine.reply(TestLLM.text('Seen'))
     const other = await engine.newSession('Other')
     const doomed = await engine.newSession('Doomed')
@@ -242,7 +243,7 @@ describe.concurrent('session.synthetic', () => {
     'the idle hook runs only once the session would go idle, and a notice it admits continues the session (resume: %s)',
     async (resume, {expect}) => {
       const engine = await createEngine({
-        plugins: [['./test/fixtures/plugins/inbox-notices', {idleNotice: {resume}}]],
+        plugins: [['./test/plugin-host/fixtures/plugins/inbox-notices', {idleNotice: {resume}}]],
       })
       await engine.reply(TestLLM.text('Background started'), TestLLM.text('Done'), TestLLM.text('Went on'))
       const idles = engine.session.tool('idles_heard')

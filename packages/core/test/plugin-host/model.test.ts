@@ -1,5 +1,5 @@
 import {describe, test} from 'vitest'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../engine.js'
 
 describe.concurrent('model list', () => {
   test.for([
@@ -25,7 +25,7 @@ describe.concurrent('model list', () => {
     },
   ])('a plugin reads $case from model.list', async ({harnesses, models}, {expect}) => {
     const engine = await createEngine(
-      {plugins: ['./test/fixtures/plugins/model-lister']},
+      {plugins: ['./test/plugin-host/fixtures/plugins/model-lister']},
       harnesses === undefined ? {} : {harnesses},
     )
 

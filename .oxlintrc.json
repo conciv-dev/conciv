@@ -188,6 +188,12 @@
       }
     },
     {
+      "files": ["packages/core/test/**"],
+      "rules": {
+        "conciv/test-file-budget": "off"
+      }
+    },
+    {
       "files": ["packages/ui-kit-system/**"],
       "rules": {
         "no-restricted-imports": "off"

@@ -1,9 +1,10 @@
 import {describe, test} from 'vitest'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {TestLLM} from '@conciv/harness-testkit'
+import {createEngine} from '../engine.js'
 
 describe.concurrent('skills', () => {
   test("the model loads a skill a plugin's skill.transform rewrote and gets the rewritten body", async ({expect}) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/skill-shaper']})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/skill-shaper']})
     await engine.reply(TestLLM.toolCall('c1', 'skill', {id: 'conciv'}), TestLLM.text('Loaded'))
 
     await engine.session.send('Tell me about conciv')
@@ -58,7 +59,7 @@ describe.concurrent('skills', () => {
   test("skills the model may invoke on its own are listed in its system prompt, the others are not, and the skill tool loads one from the project's conciv/skills folder", async ({
     expect,
   }) => {
-    const engine = await createEngine({}, {directory: './test/fixtures/projects/skilled'})
+    const engine = await createEngine({}, {directory: './test/plugin-host/fixtures/projects/skilled'})
     await engine.reply(TestLLM.text('Hello'))
 
     await engine.session.send('Hi')
@@ -74,7 +75,7 @@ describe.concurrent('skills', () => {
     expect(system).toEqual(expect.not.arrayContaining([expect.stringContaining('<id>manual-only</id>')]))
     expect(await engine.session.tool('skill').call({id: 'house-style'})).toEqual({
       name: 'House style',
-      directory: expect.stringContaining('/test/fixtures/projects/skilled/conciv/skills/house-style'),
+      directory: expect.stringContaining('/test/plugin-host/fixtures/projects/skilled/conciv/skills/house-style'),
       output: expect.stringContaining('Write every heading in sentence case.'),
     })
   })

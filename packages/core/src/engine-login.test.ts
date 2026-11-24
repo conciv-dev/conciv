@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../test/engine.js'
 import {test as engineTest} from '../test/engine-test.js'
 import {CODE_LIFETIME_MS, makeCodeStore} from './engine-login.js'
 

@@ -1,6 +1,6 @@
 import {join} from 'node:path'
 import {describe, expect} from 'vitest'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../../test/engine.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {test} from '../../test/engine-test.js'
 import {settingsOnDisk} from './settings-storage.js'

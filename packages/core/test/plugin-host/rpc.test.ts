@@ -1,9 +1,9 @@
 import {describe, expect, test} from 'vitest'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../engine.js'
 
 describe('plugin rpc', () => {
   test('an outside client calls a registered method and each call sees the state the last one left', async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/notes-rpc']})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/notes-rpc']})
 
     expect(await engine.rpc.call('notes', 'add', {text: 'Buy milk'})).toEqual({count: 1})
     expect(await engine.rpc.call('notes', 'add', {text: 'Call Ada'})).toEqual({count: 2})
@@ -46,7 +46,7 @@ describe('plugin rpc', () => {
       failure: {type: 'rpc.internal', message: 'RPC call failed'},
     },
   ])('$case fails with that error', async ({rpc, method, input, failure}) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/notes-rpc']})
+    const engine = await createEngine({plugins: ['./test/plugin-host/fixtures/plugins/notes-rpc']})
 
     expect(await engine.rpc.failure(rpc, method, input)).toEqual(failure)
   })

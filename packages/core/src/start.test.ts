@@ -2,7 +2,7 @@ import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect, test} from 'vitest'
 import {makeBrowserRpcClient, makeRpcClient} from '@conciv/contract'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../test/engine.js'
 
 describe('start', () => {
   test('a malformed access token is refused at start', async () => {

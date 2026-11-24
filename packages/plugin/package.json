@@ -179,7 +179,7 @@
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "test": "node node_modules/@conciv/vitest-config/src/run-tests.ts"
   },
   "dependencies": {
     "@conciv/contract": "workspace:^",
@@ -191,11 +191,11 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin-testkit": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@testing-library/jest-dom": "catalog:",
     "@types/node": "catalog:",
+    "happy-dom": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

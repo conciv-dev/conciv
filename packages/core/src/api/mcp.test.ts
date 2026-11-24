@@ -1,5 +1,5 @@
 import {describe} from 'vitest'
-import {createEngine} from '@conciv/plugin-testkit'
+import {createEngine} from '../../test/engine.js'
 import {test} from '../../test/engine-test.js'
 import {engineMcpUrl} from '../engine-login.js'
 
@@ -60,13 +60,13 @@ describe.concurrent('agent tools', () => {
       }),
     )
 
-    const unknown = engine.outside({tab: 'conciv_unknown'})
+    const unknown = engine.outside({tab: 'ses_unknown'})
     expect(await unknown.call('shelf_count', {shelf: 'poetry'})).toEqual({
-      content: [{type: 'text', text: 'session conciv_unknown not found'}],
+      content: [{type: 'text', text: 'session ses_unknown not found'}],
       isError: true,
     })
     expect(await unknown.discover(['shelf_count'])).toEqual({
-      content: [{type: 'text', text: 'session conciv_unknown not found'}],
+      content: [{type: 'text', text: 'session ses_unknown not found'}],
       isError: true,
     })
   })
