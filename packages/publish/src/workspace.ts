@@ -114,7 +114,7 @@ export function findOwner(packages: WorkspacePackage[], path: string): Workspace
     .at(0)
 }
 
-type DependencyField = 'dependencies' | 'devDependencies' | 'optionalDependencies'
+type DependencyField = 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'peerDependencies'
 
 function workspaceDependencyNames(manifest: Manifest, fields: DependencyField[]): string[] {
   const deps = Object.assign({}, ...fields.map((field) => manifest[field]))

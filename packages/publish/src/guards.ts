@@ -393,12 +393,17 @@ function findLoop(graph: Map<string, string[]>): string[] | undefined {
   return undefined
 }
 
-export async function assertNoRuntimeDependencyLoop(cwd: string): Promise<void> {
-  const graph = buildDependencyGraph(await readWorkspacePackages(cwd), ['dependencies', 'optionalDependencies'])
+export async function assertNoDependencyLoop(cwd: string): Promise<void> {
+  const graph = buildDependencyGraph(await readWorkspacePackages(cwd), [
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+    'peerDependencies',
+  ])
   const loop = findLoop(graph)
   if (loop !== undefined) {
     throw new Error(
-      `workspace packages form a loop through dependencies and optionalDependencies alone: ${loop.join(' -> ')}. A loop may only close through a devDependency or a peerDependency, never through an edge a build or an install follows.`,
+      `workspace packages form a loop: ${loop.join(' -> ')}. Every edge counts, dependencies, devDependencies, optionalDependencies and peerDependencies, because turbo's ^build follows all four.`,
     )
   }
 }

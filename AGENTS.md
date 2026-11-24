@@ -207,7 +207,8 @@ up, to a package above it. Never hide a cycle with a package `turbo.json`, a tas
   after a checkout's install is never linked there.
 
 - A package that runs kit tests lists the kit in its own `devDependencies`. The kits never depend on a package that
-  depends on them, through `dependencies`, `devDependencies` or peers: there is no loop to allow. See "Where a test
+  depends on them, through `dependencies`, `devDependencies`, `optionalDependencies` or peers: turbo's `^build` follows
+  all four, so there is no loop to allow, and `conciv-publish check-dependency-loops` fails CI on any. See "Where a test
   lives" above.
 - Who mounts the real app. Only `apps/conciv`'s own browser tests, through `apps/conciv/test/mount.ts`. A plugin or
   built-in mounts its own browser half in the light kit's fake shell (`@conciv/plugin-testkit/browser` `mount`), never
