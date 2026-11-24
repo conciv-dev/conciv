@@ -257,15 +257,8 @@ function drive(input: Attaching, transition: AttachmentTransition): Effect.Effec
   )
 }
 
-export function followEvents<Event>(
-  subscribe: (signal: AbortSignal) => AsyncIterable<Event>,
-): Stream.Stream<Event, unknown> {
-  return Stream.unwrap(
-    Effect.acquireRelease(
-      Effect.sync(() => new AbortController()),
-      (controller) => Effect.sync(() => controller.abort()),
-    ).pipe(Effect.map((controller) => Stream.fromAsyncIterable(subscribe(controller.signal), caught))),
-  ).pipe(
+export function followEvents<Event>(events: AsyncIterable<Event>): Stream.Stream<Event, unknown> {
+  return Stream.fromAsyncIterable(events, caught).pipe(
     Stream.tapError((cause) => Effect.logWarning('[page] following engine events failed; following again', cause)),
     Stream.retry(FOLLOW_AGAIN),
     Stream.repeat(FOLLOW_AGAIN),

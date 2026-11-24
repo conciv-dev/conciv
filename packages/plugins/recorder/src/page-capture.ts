@@ -35,9 +35,7 @@ export function bootCapture(
     const current = page()
     return current.status === 'active' ? current.value.capture.exclude : undefined
   })
-  const controls: Stream.Stream<RecorderControl> = followEvents((signal) =>
-    recorder.events.subscribe('control', {signal}),
-  ).pipe(
+  const controls: Stream.Stream<RecorderControl> = followEvents(recorder.events.subscribe('control')).pipe(
     Stream.map((event) => event.data),
     Stream.catchCause(() => Stream.empty),
   )
@@ -101,7 +99,7 @@ const AppendedHere = z.object({clientId: z.string()})
 
 export function followClient(ctx: Context, clientId: string): (cursor: number) => Stream.Stream<ReplaySource> {
   const recorder = ctx.client.rpc(Recorder)
-  const cues = followEvents((signal) => ctx.client.event.subscribe({types: [APPENDED_EVENT], signal})).pipe(
+  const cues = followEvents(ctx.client.event.subscribe({types: [APPENDED_EVENT]})).pipe(
     Stream.filter(
       (event) => event.type === 'server.connected' || AppendedHere.safeParse(event.data).data?.clientId === clientId,
     ),

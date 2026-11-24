@@ -114,7 +114,7 @@ export default Plugin.define({
       (client) => {
         const page = client.rpc(Definition)
         const saved = Effect.runFork(
-          followEvents((signal) => page.events.subscribe('captures.saved', {signal})).pipe(
+          followEvents(page.events.subscribe('captures.saved')).pipe(
             Stream.runForEach((event) =>
               Effect.promise(() =>
                 queryClient.invalidateQueries({queryKey: page['captures.list'].key({input: event.data})}),

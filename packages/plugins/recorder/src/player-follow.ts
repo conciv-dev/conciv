@@ -10,19 +10,8 @@ const FOLLOW_BACKOFF = Schedule.min([Schedule.exponential('1 second'), Schedule.
 
 const FOLLOW_AGAIN = Schedule.spaced('1 second')
 
-export function followEvents<Event>(
-  subscribe: (signal: AbortSignal) => AsyncIterable<Event>,
-): Stream.Stream<Event, FollowFailed> {
-  return Stream.unwrap(
-    Effect.acquireRelease(
-      Effect.sync(() => new AbortController()),
-      (controller) => Effect.sync(() => controller.abort()),
-    ).pipe(
-      Effect.map((controller) =>
-        Stream.fromAsyncIterable(subscribe(controller.signal), (cause) => FollowFailed.make({cause})),
-      ),
-    ),
-  ).pipe(
+export function followEvents<Event>(events: AsyncIterable<Event>): Stream.Stream<Event, FollowFailed> {
+  return Stream.fromAsyncIterable(events, (cause) => FollowFailed.make({cause})).pipe(
     Stream.tapError((error) =>
       Effect.logWarning('recorder: following engine events failed; following again', error.cause),
     ),

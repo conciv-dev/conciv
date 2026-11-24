@@ -330,13 +330,17 @@ describe.concurrent('the user sends and exports a recording', () => {
 describe('the engine stream ends at a disconnect', () => {
   test('the recorder follows its events again after the stream ends and after it fails', async ({expect}) => {
     let attempt = 0
-    const subscribe = async function* (_signal: AbortSignal) {
+    const subscribe = async function* () {
       attempt += 1
       if (attempt === 2) throw new Error('the engine is down')
       yield attempt === 1 ? 'start' : 'stop'
     }
     const followed = Effect.gen(function* () {
-      const fiber = yield* followEvents(subscribe).pipe(Stream.take(2), Stream.runCollect, Effect.forkChild)
+      const fiber = yield* followEvents({[Symbol.asyncIterator]: subscribe}).pipe(
+        Stream.take(2),
+        Stream.runCollect,
+        Effect.forkChild,
+      )
       yield* TestClock.adjust('2 seconds')
       return yield* Fiber.join(fiber)
     }).pipe(Effect.provide(TestClock.layer()))

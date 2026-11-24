@@ -84,7 +84,7 @@ export function RecorderPanel(props: {
 
   runInOwnerScope(
     runtime,
-    followEvents((signal) => recorder().events.subscribe('appended', {signal})).pipe(
+    followEvents(recorder().events.subscribe('appended')).pipe(
       Stream.runForEach((event) =>
         untrack(() => {
           if (event.data.clientId !== props.clientId || recordingWithEnoughEvents(recording.data)) return Effect.void

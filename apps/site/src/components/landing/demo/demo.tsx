@@ -48,6 +48,17 @@ const cleanHtml = (el: HTMLElement | null, fallback: string) => {
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+function asHtmlElement(element: Element | null | undefined): HTMLElement | null {
+  return element instanceof HTMLElement ? element : null
+}
+
+function pillCenter(root: HTMLElement | null, pill: HTMLElement | null): {x: number; y: number} | undefined {
+  if (!root || !pill) return undefined
+  const rootBox = root.getBoundingClientRect()
+  const pillBox = pill.getBoundingClientRect()
+  return {x: pillBox.left - rootBox.left + pillBox.width / 2, y: pillBox.top - rootBox.top + pillBox.height / 2}
+}
+
 export function Demo() {
   const [state, dispatch] = useDemo()
   const [input, setInput] = useState('')
@@ -62,20 +73,16 @@ export function Demo() {
 
   const active = useRef<{id: string; scenario: Scenario} | null>(null)
 
-  const grabbedEl = (id: string): HTMLElement | null => {
-    const element = scope.current?.querySelector(`[data-pickable="${id}"]`)?.firstElementChild
-    return element instanceof HTMLElement ? element : null
-  }
+  const grabbedEl = (id: string): HTMLElement | null =>
+    asHtmlElement(scope.current?.querySelector(`[data-pickable="${id}"]`)?.firstElementChild)
 
   const reduced = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   useGSAP(
     () => {
-      if (reduced() || !ghostRef.current || !grabRef.current || !scope.current) return
-      const root = scope.current.getBoundingClientRect()
-      const pill = grabRef.current.getBoundingClientRect()
-      const x = pill.left - root.left + pill.width / 2
-      const y = pill.top - root.top + pill.height / 2
+      const center = pillCenter(scope.current, grabRef.current)
+      if (reduced() || !ghostRef.current || !center) return
+      const {x, y} = center
       gsap
         .timeline({delay: 0.8})
         .set(ghostRef.current, {x: x - 60, y: y - 50})
@@ -90,8 +97,7 @@ export function Demo() {
   useGSAP(
     () => {
       if (!viewportRef.current) return
-      const closest = viewportRef.current.closest('[data-slot="scroll-area-viewport"]')
-      const viewport = closest instanceof HTMLElement ? closest : null
+      const viewport = asHtmlElement(viewportRef.current.closest('[data-slot="scroll-area-viewport"]'))
       if (!reduced()) {
         const rows = viewportRef.current.querySelectorAll('.od-msg')
         const last = rows[rows.length - 1]
