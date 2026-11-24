@@ -1,0 +1,44 @@
+{
+  "name": "@internal/builtin-plugins",
+  "version": "0.0.22",
+  "private": true,
+  "description": "Private to conciv: the browser halves of the built-in plugins (page, terminal), compiled into the app. Never published.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/builtin-plugins"
+  },
+  "type": "module",
+  "exports": {
+    "./renderer": "./src/renderer.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint"
+  },
+  "dependencies": {
+    "@conciv/client": "workspace:^",
+    "@conciv/plugin": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@internal/plugin": "workspace:*",
+    "@orpc/client": "catalog:",
+    "@solid-primitives/event-listener": "catalog:",
+    "@tanstack/pacer": "catalog:",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "effect": "catalog:",
+    "lucide-solid": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "solid-js": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
+  }
+}

@@ -12,6 +12,7 @@ export default defineConfig({
       '../../packages/tools/src/**/*.{ts,tsx}',
       '../../apps/conciv/src/pane/cards/**/*.{ts,tsx}',
       '../../packages/plugins/*/src/**/*.{ts,tsx}',
+      '../../packages/builtin-plugins/src/**/*.{ts,tsx}',
     ],
   },
   presets: [presetConciv()],

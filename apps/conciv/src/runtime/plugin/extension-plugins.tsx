@@ -6,6 +6,7 @@ import Box from 'lucide-solid/icons/box'
 import {pluginLabel} from './plugin-label'
 import {ActionRow, Badge, Group} from '../../settings/settings-ui'
 import {useNotices} from '../../shell/notice-context'
+import {builtins} from './builtins'
 import {usePluginHost} from './host'
 import {usePluginManager, useReservedPlugins} from './root'
 
@@ -21,25 +22,38 @@ function createPluginRows(plugins: () => readonly PluginInfo[]) {
   const host = usePluginHost()
   const reserved = useReservedPlugins()
 
-  const listed = createMemo(() => plugins().filter((plugin) => plugin.source.type !== 'builtin'))
+  const builtin = (id: string) => builtins.some((definition) => definition.id === id)
 
-  const itemOf = (id: string) => host.installed().find((item) => item.id === id && !item.builtin)
+  const listed = createMemo(() =>
+    plugins().filter((plugin) => plugin.source.type !== 'builtin' && (plugin.id === undefined || !builtin(plugin.id))),
+  )
+
+  const itemOf = (id: string, kind: 'builtin' | 'config') =>
+    host.installed().find((item) => item.id === id && item.builtin === (kind === 'builtin'))
 
   const unnamed = createMemo(() => {
     const named = new Set(listed().flatMap((plugin) => (plugin.id ? [plugin.id] : [])))
 
     return [
       ...new Set([
-        ...host.definitions().map((definition) => definition.id),
+        ...host.definitions().flatMap((definition) => (builtin(definition.id) ? [] : [definition.id])),
         ...host.installed().flatMap((item) => (item.builtin ? [] : [item.id])),
         ...reserved(),
       ]),
     ].filter((id) => !named.has(id))
   })
 
-  const errorOf = (id: string) => host.failure(id)?.error ?? itemOf(id)?.error
+  const errorOf = (id: string, kind: 'builtin' | 'config') => host.failure(id)?.error ?? itemOf(id, kind)?.error
 
-  return {listed, unnamed, itemOf, errorOf}
+  const failedBuiltins = createMemo(() =>
+    host
+      .definitions()
+      .flatMap((definition) =>
+        builtin(definition.id) && errorOf(definition.id, 'builtin') !== undefined ? [definition.id] : [],
+      ),
+  )
+
+  return {listed, unnamed, failedBuiltins, builtin, itemOf, errorOf}
 }
 
 export function ExtensionPlugins(props: {plugins: readonly PluginInfo[]}) {
@@ -52,13 +66,14 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
   const plugins = usePluginManager()
   const reserved = useReservedPlugins()
 
-  const defined = (id: string) => host.definitions().some((definition) => definition.id === id)
+  const defined = (id: string) =>
+    !props.rows.builtin(id) && host.definitions().some((definition) => definition.id === id)
 
   const kind = (id: string | undefined) => {
     if (!id) return undefined
 
     if (reserved().includes(id)) return 'reserved'
-    const item = props.rows.itemOf(id)
+    const item = props.rows.itemOf(id, 'config')
 
     if (item?.error !== undefined && !defined(id)) return 'unreadable'
 
@@ -67,10 +82,10 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
     return undefined
   }
 
-  const status = (id: string) => {
+  const status = (id: string, part: 'builtin' | 'config') => {
     const value = host.status(id) ?? 'loading'
 
-    if (value === 'failed' || (value === 'active' && props.rows.itemOf(id)?.error)) return 'Failed'
+    if (value === 'failed' || (value === 'active' && props.rows.itemOf(id, part)?.error)) return 'Failed'
 
     if (value === 'active' || value === 'disabled') return undefined
 
@@ -91,8 +106,9 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
     run(plugins()?.reload(id))
   }
 
-  const row = (input: {id: string | undefined; name: string; plugin?: PluginInfo}) => {
-    const state = () => kind(input.id)
+  const row = (input: {id: string | undefined; name: string; builtin?: boolean; plugin?: PluginInfo}) => {
+    const state = () => (input.builtin ? 'loaded' : kind(input.id))
+    const part = input.builtin ? 'builtin' : 'config'
     const live = () => (state() === 'loaded' ? input.id : undefined)
     const failure = () => {
       const listedState = input.plugin?.state
@@ -101,12 +117,12 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
     const label = () => {
       const id = live()
       if (failure()) return 'Failed'
-      return id ? status(id) : undefined
+      return id ? status(id, part) : undefined
     }
     const error = () => {
       const id = input.id
-      if (id && live()) return props.rows.errorOf(id) ?? failure()?.error
-      if (id && state() === 'unreadable') return props.rows.itemOf(id)?.error ?? failure()?.error
+      if (id && live()) return props.rows.errorOf(id, part) ?? failure()?.error
+      if (id && state() === 'unreadable') return props.rows.itemOf(id, part)?.error ?? failure()?.error
       return failure()?.error
     }
 
@@ -120,9 +136,14 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
             </bdi>
             <Show when={live()}>
               {(id) => (
-                <Show when={props.rows.itemOf(id())?.server}>
-                  <Badge>Server</Badge>
-                </Show>
+                <>
+                  <Show when={input.builtin}>
+                    <Badge>Built-in</Badge>
+                  </Show>
+                  <Show when={props.rows.itemOf(id(), part)?.server}>
+                    <Badge>Server</Badge>
+                  </Show>
+                </>
               )}
             </Show>
             <Show when={label()}>{(text) => <span class={STATUS}>{text()}</span>}</Show>
@@ -143,16 +164,18 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
               <Button size="sm" variant="ghost" onClick={() => reload(id())}>
                 Reload
               </Button>
-              <Switch.Root
-                checked={props.rows.itemOf(id())?.enabled ?? true}
-                onCheckedChange={(details) => toggle(id(), details.checked)}
-              >
-                <Switch.Label class="sr-only">{id()}</Switch.Label>
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-                <Switch.HiddenInput />
-              </Switch.Root>
+              <Show when={!input.builtin} fallback={<span class="w-8 shrink-0" aria-hidden="true" />}>
+                <Switch.Root
+                  checked={props.rows.itemOf(id(), part)?.enabled ?? true}
+                  onCheckedChange={(details) => toggle(id(), details.checked)}
+                >
+                  <Switch.Label class="sr-only">{id()}</Switch.Label>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  <Switch.HiddenInput />
+                </Switch.Root>
+              </Show>
             </div>
           )}
         </Show>
@@ -165,6 +188,7 @@ function OwnServerPlugins(props: {rows: PluginRows}) {
       <Group>
         <For each={props.rows.listed()}>{(plugin) => row({id: plugin.id, name: pluginLabel(plugin), plugin})}</For>
         <For each={props.rows.unnamed()}>{(id) => row({id, name: id})}</For>
+        <For each={props.rows.failedBuiltins()}>{(id) => row({id, name: id, builtin: true})}</For>
       </Group>
       <Show when={host.installed().some((item) => !item.builtin)}>
         <p class={NOTE}>

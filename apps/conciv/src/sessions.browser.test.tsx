@@ -652,13 +652,12 @@ describe('pop out', () => {
   })
 })
 
-describe('the served terminal in the real app', () => {
+describe('the built-in terminal in the real app', () => {
   const PAGE = '@conciv/plugin-page'
-  const TERMINAL = '@conciv/plugin-terminal'
 
   test('the CLI starts on first open, is locked and interrupted while busy, restarts fresh, and replays after a reload', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({}, {post: [TERMINAL]})
+    const engine = await createEngine({})
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
@@ -702,7 +701,7 @@ describe('the served terminal in the real app', () => {
 
   test('a picked CLI model restarts the pty, is the default for the next session, and stays with the session it was picked in', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({}, {post: [TERMINAL]})
+    const engine = await createEngine({})
     const alpha = await engine.newSession('Alpha')
     await engine.newSession('Beta')
     await mount({engine, history: createEngineRouterHistory({initialEntries: [`/panel/${alpha.id}?open=true`]})})
@@ -738,7 +737,7 @@ describe('the served terminal in the real app', () => {
 
   test('a press on the terminal toolbar leaves focus in the terminal, and the next keys still reach the CLI', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({}, {post: [TERMINAL]})
+    const engine = await createEngine({})
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     await user.click(await screen.findByRole('tab', {name: 'Terminal'}))
@@ -755,7 +754,7 @@ describe('the served terminal in the real app', () => {
 
   test('a grab picked from the toolbar is held as a chip, pasted into the CLI on Enter and never sent to the chat, and Back to chat leaves an ended CLI', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({}, {post: [PAGE, TERMINAL]})
+    const engine = await createEngine({}, {post: [PAGE]})
     const control = await engine.event('rpc.experimental.page.control')
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await control.arrived
@@ -788,7 +787,7 @@ describe('the served terminal in the real app', () => {
 
   test('the user switches from the chat to the Terminal tab and back, and hears each switch', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({}, {post: [TERMINAL]})
+    const engine = await createEngine({})
     await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
 
     expect(await screen.findByRole('tab', {name: 'Chat', selected: true})).toBeVisible()

@@ -44,7 +44,6 @@
     "@conciv/core": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
-    "@conciv/plugin-terminal": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "citty": "catalog:",
     "effect": "catalog:"

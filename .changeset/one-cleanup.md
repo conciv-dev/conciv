@@ -2,7 +2,6 @@
 '@conciv/plugin': patch
 '@conciv/core': patch
 '@conciv/plugin-page': patch
-'@conciv/plugin-terminal': patch
 '@conciv/unplugin': patch
 '@conciv/try': patch
 '@conciv/app': patch

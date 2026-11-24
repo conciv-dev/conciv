@@ -1,5 +1,4 @@
 ---
-'@conciv/plugin-terminal': patch
 '@conciv/embed': patch
 ---
 

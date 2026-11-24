@@ -2,7 +2,6 @@
 '@conciv/contract': patch
 '@conciv/core': patch
 '@conciv/serve': patch
-'@conciv/plugin-terminal': patch
 '@conciv/embed': patch
 ---
 

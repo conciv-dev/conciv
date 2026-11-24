@@ -1,7 +1,6 @@
 ---
 '@conciv/ui-kit-chat': patch
 '@conciv/ui-kit-chat-tools': patch
-'@conciv/plugin-terminal': patch
 '@conciv/ui-kit-system': patch
 '@conciv/embed': patch
 ---

@@ -34,7 +34,6 @@ const PLUGIN_FOLDERS: Readonly<Record<string, string>> = {
   '@conciv/plugin-page': import.meta.resolve('@conciv/plugin-page/package.json'),
   '@conciv/plugin-recorder': import.meta.resolve('@conciv/plugin-recorder/package.json'),
   '@conciv/plugin-tanstack': import.meta.resolve('@conciv/plugin-tanstack/package.json'),
-  '@conciv/plugin-terminal': import.meta.resolve('@conciv/plugin-terminal/package.json'),
   '@conciv/plugin-whiteboard': import.meta.resolve('@conciv/plugin-whiteboard/package.json'),
 }
 

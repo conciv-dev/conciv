@@ -13,6 +13,7 @@ export default defineConfig({
       '../ui-kit-tap/src',
       '../tools/src',
       '../plugins/*/src',
+      '../builtin-plugins/src',
     ].flatMap((source) => [`${source}/**/*.{ts,tsx}`, `!${source}/**/*.{test,spec,stories}.*`]),
   },
 

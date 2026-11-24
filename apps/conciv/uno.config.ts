@@ -13,6 +13,7 @@ export default defineConfig({
       '../../packages/ui-kit-tap/src',
       '../../packages/tools/src',
       '../../packages/plugins/*/src',
+      '../../packages/builtin-plugins/src',
     ]
       .map((source) => fileURLToPath(new URL(source, import.meta.url)))
       .flatMap((source) => [`${source}/**/*.{ts,tsx}`, `!${source}/**/*.{test,spec,stories}.*`]),

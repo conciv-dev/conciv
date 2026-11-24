@@ -280,7 +280,7 @@
       }
     },
     {
-      "files": ["packages/plugin/**", "packages/plugins/*/src/**"],
+      "files": ["packages/plugin/**", "packages/plugins/*/src/**", "packages/builtin-plugins/src/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -326,7 +326,7 @@
       }
     },
     {
-      "files": ["packages/plugins/*/src/**/*.tsx"],
+      "files": ["packages/plugins/*/src/**/*.tsx", "packages/builtin-plugins/src/**/*.tsx"],
       "rules": {
         "conciv/plugin-view-reads-through-query": "error"
       }
@@ -381,7 +381,7 @@
       }
     },
     {
-      "files": ["packages/core/src/pty/**", "packages/plugins/terminal/src/screen/**"],
+      "files": ["packages/core/src/pty/**", "packages/builtin-plugins/src/terminal/screen/**"],
       "rules": {
         "no-control-regex": "off"
       }

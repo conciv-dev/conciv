@@ -1,4 +1,4 @@
-# plugins/terminal/src/screen
+# builtin-plugins/src/terminal/screen
 
 ## Overview
 
@@ -32,5 +32,5 @@ The terminal screen the plugin draws: the headless terminal model and its compon
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/plugin-terminal` from the repo root
-- Typecheck and lint: `cd packages/plugins/terminal && pnpm typecheck && pnpm lint`
+- Run: `pnpm exec turbo run typecheck --filter=@internal/builtin-plugins` from the repo root
+- Typecheck and lint: `cd packages/builtin-plugins && pnpm typecheck && pnpm lint`

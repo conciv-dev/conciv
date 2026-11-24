@@ -1,9 +1,21 @@
-import {createMemo, createResource, createSignal, on, onCleanup, Show, untrack, type ParentProps} from 'solid-js'
+import {
+  createMemo,
+  createResource,
+  createSignal,
+  lazy,
+  on,
+  onCleanup,
+  Show,
+  Suspense,
+  untrack,
+  type ParentProps,
+} from 'solid-js'
 import {pluginIdAvailable, type Entry} from '@conciv/plugin/experimental/host'
 import type {PluginOptions} from '@conciv/plugin/experimental'
 import type {ConcivClient} from '@conciv/plugin'
 import {useRouteContext} from '@tanstack/solid-router'
 import {useApiBase, useAppData, useEnvironment} from '../../app/context'
+import {builtins} from './builtins'
 import {createBundleSource, type BundleSource, type PluginManager} from './bundle-source'
 import {PluginExperimentalLoader, type PluginExperimental, type PluginExperimentalSource} from './plugins'
 import {PluginHostProvider, usePluginHost} from './host'
@@ -23,6 +35,8 @@ const PluginsContext = createContext<{
   reserved: () => readonly string[]
   reported: () => readonly string[] | undefined
 }>()
+
+const PluginHotReload = import.meta.env.DEV ? lazy(() => import('./hmr')) : undefined
 
 export function useReservedPlugins() {
   const plugins = useContext(PluginsContext)
@@ -62,7 +76,7 @@ export function reserveComposedPlugins(composed: readonly ComposedPlugin[]): rea
     if (!pluginIdAvailable(plugin.id, taken)) throw new Error(`The plugin id "${plugin.id}" is already taken`)
 
     return [...taken, plugin]
-  }, [])
+  }, builtins)
 
   return composed
 }
@@ -76,7 +90,7 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
   const login = useRouteContext({strict: false, select: (context) => context.login})
   const timings = useRouteContext({strict: false, select: (context) => context.timings})
   const composed = untrack(() => props.composed)
-  const local = composed.map(([plugin]) => plugin)
+  const local = [...builtins, ...composed.map(([plugin]) => plugin)]
   const trusted = createMemo(() => {
     const engine = login()
 
@@ -187,7 +201,7 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
           installed={installed}
           builtins={builtinIds}
           servers={props.servers}
-          options={(id) => composed.find(([plugin]) => plugin.id === id)?.[1]}
+          options={(id) => composed.find(([plugin]) => plugin.id === id)?.[1] ?? untrack(bundle)?.builtinOptions(id)}
           apis={apis.apis}
           whenMounted={apis.whenMounted}
           plugin={(id) => loaded().plugins.find((plugin) => plugin.definition.id === id)}
@@ -195,6 +209,11 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
           queryClient={apis.queryClient}
         >
           <PluginStyles root={environment.rootNode} />
+          {PluginHotReload && (
+            <Suspense>
+              <PluginHotReload />
+            </Suspense>
+          )}
           <PluginServersProvider servers={props.servers}>{props.children}</PluginServersProvider>
         </PluginHostProvider>
       </PluginsContext.Provider>

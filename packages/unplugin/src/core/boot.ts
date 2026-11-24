@@ -12,10 +12,9 @@ export type Builtins = {
   widgetPageDir?: string
 }
 
-export const SERVED_BUILT_INS: readonly string[] = [
-  import.meta.resolve('@conciv/plugin-page/package.json'),
-  import.meta.resolve('@conciv/plugin-terminal/package.json'),
-].map((manifest) => path.dirname(fileURLToPath(manifest)))
+export const SERVED_BUILT_INS: readonly string[] = [import.meta.resolve('@conciv/plugin-page/package.json')].map(
+  (manifest) => path.dirname(fileURLToPath(manifest)),
+)
 
 function writeEngineLine(entry: LogEntry): void {
   const line = readEngineLine(entry)

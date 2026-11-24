@@ -74,10 +74,9 @@ function resolveAdapter(opts: ConnectOpts): HarnessAdapter {
   throw new Error(`conciv: unknown harness "${id}". Known harnesses: ${known}.`)
 }
 
-const SERVED_PLUGINS = [
-  import.meta.resolve('@conciv/plugin-page/package.json'),
-  import.meta.resolve('@conciv/plugin-terminal/package.json'),
-].map((manifest) => dirname(fileURLToPath(manifest)))
+const SERVED_PLUGINS = [import.meta.resolve('@conciv/plugin-page/package.json')].map((manifest) =>
+  dirname(fileURLToPath(manifest)),
+)
 
 export async function runConnect(opts: ConnectOpts): Promise<Engine> {
   const adapter = resolveAdapter(opts)

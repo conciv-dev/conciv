@@ -27,7 +27,6 @@ Engine and plugin:
 Plugins (`plugins/*`, one plugin per package, each with its engine part and its browser part):
 
 - plugins/page: [plugins/page/README.md](./plugins/page/README.md) - `@conciv/plugin-page`, the built-in page plugin: the connection to the page, its tools, cards and DOM helpers.
-- plugins/terminal: [plugins/terminal/README.md](./plugins/terminal/README.md) - `@conciv/plugin-terminal`, the built-in terminal tab over core's persistent pty.
 - plugins/ios: [plugins/ios/README.md](./plugins/ios/README.md) - `@conciv/plugin-ios`, builds, runs and reads a native iOS app on the simulator.
 - plugins/recorder: [plugins/recorder/README.md](./plugins/recorder/README.md) - `@conciv/plugin-recorder`, the page's rrweb recording and a distilled action log for the agent.
 - plugins/tanstack: [plugins/tanstack/README.md](./plugins/tanstack/README.md) - `@conciv/plugin-tanstack`, build errors, route manifest and server-function calls of a TanStack app.
@@ -43,6 +42,7 @@ Contracts:
 - contract: [contract/README.md](./contract/README.md) - The oRPC contract between core and its clients, with fetch and browser RPC clients.
 - plugin: [plugin/README.md](./plugin/README.md) - `@conciv/plugin`, the plugin SDK: `Plugin.define` for a plugin's engine and browser parts, RPC contracts, registries and stores.
 - opaque-internal: `@internal/opaque`, private, source-only: `createOpaqueType`, which makes a type with a public shape and versioned internal fields that only conciv's own packages read.
+- builtin-plugins: [builtin-plugins/README.md](./builtin-plugins/README.md) - `@internal/builtin-plugins`, private, source-only: the browser halves of the built-in plugins (page, terminal) the app compiles in.
 - plugin-internal: [plugin-internal/README.md](./plugin-internal/README.md) - `@internal/plugin`, private, source-only: the opaque definitions (`OpaqueUi`) the app and conciv's own plugins share, inlined into their builds.
 - plugin-testkit: [plugin-testkit/README.md](./plugin-testkit/README.md) - Boots the real engine and widget with the fake model chat for widget and plugin tests: core kit, wire observers and fault injectors.
 

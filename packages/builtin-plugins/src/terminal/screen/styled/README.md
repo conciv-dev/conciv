@@ -1,4 +1,4 @@
-# plugins/terminal/src/screen/styled
+# builtin-plugins/src/terminal/screen/styled
 
 ## Overview
 
@@ -19,5 +19,5 @@ Styled `Terminal` component combining the primitives with chat-theme CSS variabl
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/plugin-terminal` from the repo root
-- Typecheck and lint: `cd packages/plugins/terminal && pnpm typecheck && pnpm lint`
+- Run: `pnpm exec turbo run typecheck --filter=@internal/builtin-plugins` from the repo root
+- Typecheck and lint: `cd packages/builtin-plugins && pnpm typecheck && pnpm lint`

@@ -1,4 +1,4 @@
-# plugins/terminal/src/screen/primitives
+# builtin-plugins/src/terminal/screen/primitives
 
 ## Overview
 
@@ -24,5 +24,5 @@ Headless Solid compound components for the terminal: a Root that provides the mo
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/plugin-terminal` from the repo root
-- Typecheck and lint: `cd packages/plugins/terminal && pnpm typecheck && pnpm lint`
+- Run: `pnpm exec turbo run typecheck --filter=@internal/builtin-plugins` from the repo root
+- Typecheck and lint: `cd packages/builtin-plugins && pnpm typecheck && pnpm lint`
