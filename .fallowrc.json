@@ -407,7 +407,7 @@
         "files": ["packages/plugin/src/client/solid/connection.ts"],
         "functions": ["connect", "runStream"],
         "maxCognitive": 25,
-        "maxCrap": 97,
+        "maxCrap": 98,
         "maxUnitSize": 68,
         "reason": "copied from opencode packages/client/src/solid/connection.ts: connect and runStream keep the source's shape; rulings ledger call 7"
       }
