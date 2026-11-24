@@ -4425,6 +4425,9 @@ importers:
       '@conciv/plugin-page':
         specifier: workspace:^
         version: link:../plugins/page
+      '@conciv/plugin-terminal':
+        specifier: workspace:^
+        version: link:../plugins/terminal
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

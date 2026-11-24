@@ -74,7 +74,10 @@ function resolveAdapter(opts: ConnectOpts): HarnessAdapter {
   throw new Error(`conciv: unknown harness "${id}". Known harnesses: ${known}.`)
 }
 
-const PAGE_PLUGIN = dirname(fileURLToPath(import.meta.resolve('@conciv/plugin-page/package.json')))
+const SERVED_PLUGINS = [
+  import.meta.resolve('@conciv/plugin-page/package.json'),
+  import.meta.resolve('@conciv/plugin-terminal/package.json'),
+].map((manifest) => dirname(fileURLToPath(manifest)))
 
 export async function runConnect(opts: ConnectOpts): Promise<Engine> {
   const adapter = resolveAdapter(opts)
@@ -88,7 +91,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
   for (let port = CONNECT_FIRST_PORT; port <= CONNECT_LAST_PORT; port += 1) {
     try {
       const engine = await start({
-        options: {harness: adapter.id, stateRoot: root, systemPrompt: CONNECT_SYSTEM_PROMPT, plugins: [PAGE_PLUGIN]},
+        options: {harness: adapter.id, stateRoot: root, systemPrompt: CONNECT_SYSTEM_PROMPT, plugins: SERVED_PLUGINS},
         root,
         port: {exact: port},
         launchEditor: () => {},

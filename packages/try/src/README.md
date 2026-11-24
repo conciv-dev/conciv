@@ -2,7 +2,7 @@
 
 ## Overview
 
-Source of the `conciv-try` CLI. `cli.ts` parses arguments with citty and reports progress with `@clack/prompts` on a TTY, or plain lines otherwise. `connect.ts` resolves a harness adapter and a workspace, seeds a temporary workspace with the landing-page source fetched from `<origin>/site-source.json`, and starts `@conciv/core` on the first free port in the connect range.
+Source of the `conciv-try` CLI. `cli.ts` parses arguments with citty and reports progress with `@clack/prompts` on a TTY, or plain lines otherwise. `connect.ts` resolves a harness adapter and a workspace, seeds a temporary workspace with the landing-page source fetched from `<origin>/site-source.json`, and starts `@conciv/core` on the first free port in the connect range, with the page and terminal plugins' package folders in its `plugins`.
 
 ## Interface
 
