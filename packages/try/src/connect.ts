@@ -91,7 +91,8 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
   for (let port = CONNECT_FIRST_PORT; port <= CONNECT_LAST_PORT; port += 1) {
     try {
       const engine = await start({
-        options: {harness: adapter.id, stateRoot: root, systemPrompt: CONNECT_SYSTEM_PROMPT, plugins: SERVED_PLUGINS},
+        options: {harness: adapter.id, stateRoot: root, systemPrompt: CONNECT_SYSTEM_PROMPT},
+        post: SERVED_PLUGINS,
         root,
         port: {exact: port},
         launchEditor: () => {},

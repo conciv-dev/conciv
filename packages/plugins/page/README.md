@@ -103,10 +103,12 @@ attachment is closed, so they settle `disconnected before dispatch`). The source
 (opencode `plugin-browser/src/machine.ts` `failPending`), without a cancel. A closed tab gets no cancel: nothing is
 left to receive it.
 
-The engine starters (`unplugin` `core/boot.ts` `withServedBuiltIns` and `try` `connect.ts`) list this package's folder in
-the config's `plugins`, after the project's own entries, so the plugin is served like any package plugin, with the id
-`@conciv/plugin-page` (`-@conciv/plugin-page` turns it off). The half pushes its page rules and the `page_eval` ask onto
-every agent, so it activates after every project plugin that adds one. Core lists no plugin of its own.
+The engine starters (`unplugin` `core/boot.ts` `SERVED_BUILT_INS` and `try` `connect.ts`) pass this package's folder as
+`start`'s `post`, so the plugin host loads it like a package plugin (its browser half served from the folder, the id
+`@conciv/plugin-page`) into the supervisor's `post` band, right after `conciv.config.agent`, where opencode puts its
+`BrowserPlugin`. `-@conciv/plugin-page` turns it off as it turns off any `post` plugin, and a config entry
+`['@conciv/plugin-page', {...}]` gives it options. The half pushes its page rules and the `page_eval` ask onto every
+agent after every project plugin and the config's permissions. Core lists no plugin of its own.
 A tool call that arrives while its plugin restarts after a reload meets the restart window, as in opencode: work
 started after the reload waits for activation (opencode `core/src/session/prompt.ts:40`; conciv
 `core/src/runtime/plugin-runtime.ts` `Plugin.awaitActivation`), a call already in flight does not.

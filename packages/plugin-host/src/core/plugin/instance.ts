@@ -9,6 +9,7 @@ export type List = readonly Plugin[]
 export type Builtin = {
   readonly pre?: List
   readonly post?: List
+  readonly served?: readonly string[]
 }
 
 export interface Interface {
@@ -16,6 +17,7 @@ export interface Interface {
   readonly builtin: {
     readonly pre: () => readonly Generation[]
     readonly post: () => readonly Generation[]
+    readonly served: () => readonly string[]
   }
 }
 
@@ -35,8 +37,9 @@ export function bound(plugins: List, builtin: Builtin = {}) {
   const stampBuiltin = (plugin: Plugin): Generation => ({...plugin, revision: 'internal', source: {type: 'builtin'}})
   const builtinPre = pre.map(stampBuiltin)
   const builtinPost = post.map(stampBuiltin)
+  const served = builtin.served ?? []
   return Layer.succeed(
     Service,
-    Service.of({all: () => stamped, builtin: {pre: () => builtinPre, post: () => builtinPost}}),
+    Service.of({all: () => stamped, builtin: {pre: () => builtinPre, post: () => builtinPost, served: () => served}}),
   )
 }

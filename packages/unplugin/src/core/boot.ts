@@ -12,20 +12,10 @@ export type Builtins = {
   widgetPageDir?: string
 }
 
-const SERVED_BUILT_INS = [
+export const SERVED_BUILT_INS: readonly string[] = [
   import.meta.resolve('@conciv/plugin-page/package.json'),
   import.meta.resolve('@conciv/plugin-terminal/package.json'),
-]
-
-function packageDirectory(manifest: string): string {
-  return path.dirname(fileURLToPath(manifest))
-}
-
-export function withServedBuiltIns(options: ConcivConfig): ConcivConfig {
-  const listed = options.plugins ?? []
-  const removals = listed.filter((entry) => typeof entry === 'string' && entry.startsWith('-'))
-  return {...options, plugins: [...listed, ...SERVED_BUILT_INS.map(packageDirectory), ...removals]}
-}
+].map((manifest) => path.dirname(fileURLToPath(manifest)))
 
 function writeEngineLine(entry: LogEntry): void {
   const line = readEngineLine(entry)
@@ -42,7 +32,8 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
     booting = Promise.try(() => installConcivBinShim(concivStateDir(stateRoot))).then(async (agentPath) => {
       const {start} = await import('@conciv/core/start')
       return start({
-        options: withServedBuiltIns(options),
+        options,
+        post: SERVED_BUILT_INS,
         root,
         port: options.port === undefined ? undefined : {exact: options.port},
         launchEditor: makeOpenInEditor(root),

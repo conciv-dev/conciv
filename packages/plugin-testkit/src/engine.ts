@@ -49,9 +49,10 @@ function locatePlugin(entry: PluginEntry): PluginEntry {
 
 export async function startEngine(config: ConcivConfig = {}, options: EngineStart = {}): Promise<StartedEngine> {
   const plugins = config.plugins?.map(locatePlugin)
+  const post = options.post?.map(locateTarget)
   const {stop, clock, ...engine} = await createHarnessEngine(
     plugins === undefined ? config : {...config, plugins},
-    options,
+    post === undefined ? options : {...options, post},
   )
   return {engine: {...engine, clock: {advance: clock.advance, drain: clock.drain}}, stop, tick: clock.tick}
 }

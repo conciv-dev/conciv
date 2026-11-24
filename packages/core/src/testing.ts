@@ -55,6 +55,7 @@ export type HarnessEngineSetting = {scope: 'project' | 'global'; namespace: stri
 
 export type EngineStart = {
   directory?: string
+  post?: readonly string[]
   timeouts?: Partial<
     Pick<
       StartOpts,
@@ -515,6 +516,7 @@ function bootApp(
       ...(previous === undefined ? {} : {sessionId: previous.sessionId}),
     },
     root: project,
+    post: options.post?.map(fromWorkingFolder),
     harness,
     harnesses: others,
     ...options.timeouts,

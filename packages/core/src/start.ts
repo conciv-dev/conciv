@@ -112,6 +112,7 @@ export type StartOpts = {
 
   harness?: HarnessAdapter
   plugins?: readonly Plugin.Plugin[]
+  post?: readonly string[]
   widgetPageDir?: string
   homeDir?: string
   configProvider?: ConfigProvider.ConfigProvider
@@ -361,6 +362,7 @@ async function startEngine(engine: EngineStart): Promise<Engine> {
     widgetPageDir: opts.widgetPageDir,
     boundOrigin,
     plugins: opts.plugins,
+    post: opts.post,
     harnesses: opts.harnesses,
     firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
     firstStartTimeoutMs: opts.firstStartTimeoutMs,

@@ -1,6 +1,7 @@
 export * as PluginSupervisor from './supervisor.js'
 
 import {Cause, Effect, Layer, Option, Predicate, Queue, Schema, Stream} from 'effect'
+import type {PluginOptions} from '@conciv/plugin'
 import {Plugin as PluginSchema} from '@conciv/plugin/schema/plugin'
 import {ConfigPluginSource} from '../config/plugin/source.js'
 import {Bus} from '../bus.js'
@@ -17,18 +18,47 @@ const isLoadError = (error: unknown): error is PluginModule.LoadError =>
 const resolve = Effect.fn('PluginSupervisor.resolve')(function* (
   modules: Effect.Success<ReturnType<typeof PluginModule.make>>,
   pre: readonly Plugin.Generation[],
-  post: readonly Plugin.Generation[],
+  bands: {
+    readonly post: readonly Plugin.Generation[]
+    readonly served: readonly string[]
+    readonly last: readonly Plugin.Generation[]
+  },
   operations: readonly ConfigPluginSource.Operation[],
   install: boolean,
   running: ReadonlyMap<string, Plugin.Generation>,
 ) {
   const matches = (selector: string, target: string) =>
     selector === '*' || (selector.endsWith('.*') ? target.startsWith(selector.slice(0, -1)) : selector === target)
+  const failures = new Map<string, Plugin.Failure>()
+  const loadServed = (target: string, options: PluginOptions) =>
+    modules
+      .load({type: 'add', target, options}, {install})
+      .pipe(Effect.map((plugin): Plugin.Generation[] => (Predicate.hasProperty(plugin, 'id') ? [plugin] : [])))
+  const served = yield* Effect.forEach(bands.served, (target) =>
+    loadServed(target, {}).pipe(
+      Effect.flatMap((loaded) => {
+        const entry = operations.findLast(
+          (operation) => operation.type === 'add' && loaded.some((plugin) => plugin.id === operation.target),
+        )
+        return entry?.type === 'add' ? loadServed(target, entry.options) : Effect.succeed(loaded)
+      }),
+      Effect.catchCause((cause) => {
+        const ref = `err_${crypto.randomUUID().slice(0, 8)}`
+        const error = Cause.squash(cause)
+        failures.set(target, {
+          source: PluginModule.source(target),
+          state: {status: 'failed', error: isLoadError(error) ? error.message : 'Plugin failed to load', ref},
+          features: {server: true},
+        })
+        return Effect.logWarning('failed to load plugin', {target, ref, cause}).pipe(Effect.as([]))
+      }),
+    ),
+  ).pipe(Effect.map((loaded) => loaded.flat()))
+  const post = [...bands.post, ...served, ...bands.last]
   const definitions = [...pre, ...post]
   const enabled = new Set(definitions.map((plugin) => plugin.id))
   const packages = new Map<string, Plugin.Generation>()
   const pending = new Set<string>()
-  const failures = new Map<string, Plugin.Failure>()
   const plugins = () => [...definitions, ...packages.values()]
 
   for (const operation of operations) {
@@ -103,7 +133,9 @@ const resolve = Effect.fn('PluginSupervisor.resolve')(function* (
   const ordered = [
     ...pre.filter((plugin) => enabled.has(plugin.id)).map(configured),
     ...[...packages.values()].filter((plugin) => enabled.has(plugin.id)),
-    ...post.filter((plugin) => enabled.has(plugin.id)).map(configured),
+    ...post
+      .filter((plugin) => enabled.has(plugin.id))
+      .map((plugin) => (served.includes(plugin) ? plugin : configured(plugin))),
   ]
   const duplicate = (plugin: Plugin.Generation, index: number) =>
     ordered.findIndex((other) => other.id === plugin.id) !== index
@@ -146,7 +178,7 @@ export const layer = Layer.effectDiscard(
     const activate = Effect.fn('PluginSupervisor.activate')(function* () {
       const current = ++generation
       const pre = [...internal.pre, ...instance.builtin.pre(), ...sdk.all(), ...instance.all()]
-      const post = [...internal.post, ...instance.builtin.post()]
+      const post = {post: internal.post, served: instance.builtin.served(), last: instance.builtin.post()}
       const operations = yield* sources.operations()
       const immediate = yield* resolve(modules, pre, post, operations, false, running)
       const source = (source: Plugin.Source) =>

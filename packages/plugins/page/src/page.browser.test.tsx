@@ -879,3 +879,14 @@ describe('the agent drives a page effect', () => {
     })
   })
 })
+
+describe('the page plugin the engine starter lists after the config plugins', () => {
+  test("its deny rules come after the config's permissions, so with no page open a config allow for page grants nothing", async () => {
+    const engine = await createEngine({permission: {page: 'allow'}}, {post: ['@conciv/plugin-page']})
+
+    expect(await engine.session.tool('page_tabs_list').failure({})).toMatchObject({
+      tool: 'page_tabs_list',
+      message: expect.stringContaining("'external_page_tabs_list' is not defined"),
+    })
+  })
+})

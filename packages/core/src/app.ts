@@ -242,6 +242,8 @@ export type MakeAppOpts = {
 
   plugins?: readonly Plugin.Plugin[]
 
+  post?: readonly string[]
+
   staleness?: () => EngineStaleness | undefined
 
   app?: {version?: () => string | undefined}
@@ -679,6 +681,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       engineId,
       config: opts.cfg,
       plugins: opts.plugins ?? [],
+      post: opts.post ?? [],
       harness,
       signal: engineLife.signal,
       bundler: opts.bridge,

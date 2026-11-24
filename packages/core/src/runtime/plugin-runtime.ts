@@ -207,6 +207,7 @@ export type PluginRuntimeInput = {
   engineId: string
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies' | 'permissions'>
   plugins: readonly PluginDefinition.Plugin[]
+  post: readonly string[]
   harness: HarnessAdapter
   signal: AbortSignal
   bundler: Bundler.BundlerBridge | undefined
@@ -250,7 +251,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     SdkPlugins.layer,
     InstancePlugins.bound(
       input.plugins.map((plugin) => PluginPromise.fromPromise(plugin)),
-      {post: [outsideAgent]},
+      {post: [outsideAgent], served: input.post},
     ),
     PluginUpdate.layer,
     ConfigPluginSource.layer,

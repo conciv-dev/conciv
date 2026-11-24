@@ -1,8 +1,8 @@
 # @conciv/plugin-terminal
 
 The browser part of the session's CLI terminal, a served plugin with only a `./plugin-experimental` (built with the
-SDK's `experimental()`). The dev server (`@conciv/unplugin` `core/boot.ts` `withServedBuiltIns`) lists its package
-folder in every engine's plugins, so the engine serves it and its id is the package name. The shell process stays in
+SDK's `experimental()`). The dev server (`@conciv/unplugin` `core/boot.ts` `SERVED_BUILT_INS`) passes its package
+folder as every engine's `post`, so the engine serves it and its id is the package name. The shell process stays in
 core (`packages/core/src/pty`), reached over `experimental.persistentPty`.
 
 - A pinned Terminal tab in the session's pane, listed for a session whose harness has a terminal. The CLI starts only
