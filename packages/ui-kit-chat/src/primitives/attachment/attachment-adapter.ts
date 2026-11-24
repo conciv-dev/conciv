@@ -49,12 +49,6 @@ export function attachmentId(): string {
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
-  const nodeBuffer = (
-    globalThis as {
-      Buffer?: {from: (value: Uint8Array) => {toString: (encoding: string) => string}}
-    }
-  ).Buffer
-  if (nodeBuffer) return nodeBuffer.from(bytes).toString('base64')
   let binary = ''
   const chunkSize = 0x8000
   for (let index = 0; index < bytes.length; index += chunkSize) {
