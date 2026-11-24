@@ -8,7 +8,7 @@ import {saveFileToDisk, videoPieceReader} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {followClient} from './page-capture.js'
 import {openPanel, recorderPanelCalls} from './panel.js'
-import {followEvents, type ReplaySource} from './player-follow.js'
+import {FOLLOW_AGAIN, followEvents, type ReplaySource} from './player-follow.js'
 import {streamPlayer, type PlayerKit} from './player.js'
 import {PlayerKitSwitch, usePlayerKit} from './player-kit.js'
 import {runInOwnerScope, follow, type RecorderRuntime} from './solid-runtime.js'
@@ -84,7 +84,7 @@ export function RecorderPanel(props: {
 
   runInOwnerScope(
     runtime,
-    followEvents(recorder().events.subscribe('appended')).pipe(
+    followEvents(recorder().events.subscribe('appended'), FOLLOW_AGAIN).pipe(
       Stream.runForEach((event) =>
         untrack(() => {
           if (event.data.clientId !== props.clientId || recordingWithEnoughEvents(recording.data)) return Effect.void

@@ -8,7 +8,7 @@ import {NoteCard, OpaqueNoteCard, ToolRegistry} from '@internal/plugin'
 import {Page} from '@conciv/plugin/experimental/page'
 import {PageOperation, ReactTree} from './contract.js'
 import {GrabPicker} from '@conciv/plugin/experimental/grab'
-import {followEvents, keepAttached, readTab, reportChanges} from './attachment.js'
+import {FOLLOW_AGAIN, followEvents, keepAttached, readTab, reportChanges} from './attachment.js'
 import {makeHighlight} from './highlight.js'
 import {symbolicateInSession} from './open-source.js'
 import {makePageOperations} from './operations.js'
@@ -115,7 +115,7 @@ export default Plugin.define({
       (client) => {
         const page = client.rpc(Definition)
         const saved = Effect.runFork(
-          followEvents(page.events.subscribe('captures.saved')).pipe(
+          followEvents(page.events.subscribe('captures.saved'), FOLLOW_AGAIN).pipe(
             Stream.runForEach((event) =>
               Effect.promise(() =>
                 queryClient.invalidateQueries({queryKey: page['captures.list'].key({input: event.data})}),

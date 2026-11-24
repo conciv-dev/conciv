@@ -5,7 +5,7 @@ import type {Context} from '@conciv/plugin/experimental'
 import {TestRunner} from './rpc.js'
 import {TestEventSchema} from './events.js'
 import {TestRunnerFollowMachine} from './follow-machine.js'
-import {followEvents} from './follow-events.js'
+import {FOLLOW_AGAIN, followEvents} from './follow-events.js'
 import {initialRunView, transitionRunView, type RunView} from './run-state.js'
 
 type Client = Context['client']
@@ -74,7 +74,7 @@ const followTestRun = Effect.fn('TestRunner.follow')(function* (
 
   yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}))
 
-  yield* followEvents(client.event.subscribe({types: [TEST_EVENT]})).pipe(
+  yield* followEvents(client.event.subscribe({types: [TEST_EVENT]}), FOLLOW_AGAIN).pipe(
     Stream.runForEach((event) => dispatch(decodeEvent(event))),
     Effect.catch((error) => dispatch({type: 'stream-failed', error: error.cause})),
   )

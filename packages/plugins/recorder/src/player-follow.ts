@@ -8,15 +8,18 @@ export type ReplaySource = {readonly events: RrwebEvent[]; readonly cursor: numb
 
 const FOLLOW_BACKOFF = Schedule.min([Schedule.exponential('1 second'), Schedule.spaced('30 seconds')])
 
-const FOLLOW_AGAIN = Schedule.spaced('1 second')
+export const FOLLOW_AGAIN = Schedule.spaced('1 second')
 
-export function followEvents<Event>(events: AsyncIterable<Event>): Stream.Stream<Event, FollowFailed> {
+export function followEvents<Event>(
+  events: AsyncIterable<Event>,
+  schedule: Schedule.Schedule<unknown>,
+): Stream.Stream<Event, FollowFailed> {
   return Stream.fromAsyncIterable(events, (cause) => FollowFailed.make({cause})).pipe(
     Stream.tapError((error) =>
       Effect.logWarning('recorder: following engine events failed; following again', error.cause),
     ),
-    Stream.retry(FOLLOW_AGAIN),
-    Stream.repeat(FOLLOW_AGAIN),
+    Stream.retry(schedule),
+    Stream.repeat(schedule),
   )
 }
 

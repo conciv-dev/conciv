@@ -40,11 +40,14 @@ const FOLLOW_AGAIN = Schedule.spaced('1 second')
 
 const failureMessage = (cause: unknown): string => (cause instanceof Error ? cause.message : String(cause))
 
-function followEvents<Event>(events: AsyncIterable<Event>): Stream.Stream<Event, EventsStopped> {
+function followEvents<Event>(
+  events: AsyncIterable<Event>,
+  schedule: Schedule.Schedule<unknown>,
+): Stream.Stream<Event, EventsStopped> {
   return Stream.fromAsyncIterable(events, (cause) => EventsStopped.make({message: failureMessage(cause)})).pipe(
     Stream.tapError((stopped) => Effect.logWarning('the change events failed; following them again', stopped.message)),
-    Stream.retry(FOLLOW_AGAIN),
-    Stream.repeat(FOLLOW_AGAIN),
+    Stream.retry(schedule),
+    Stream.repeat(schedule),
   )
 }
 
@@ -64,7 +67,7 @@ export function rpcChangeSource(client: Context['client'], room: string): Change
         try: (signal) => whiteboard.since({room, cursor}, {signal}),
         catch: (cause) => SinceFailed.make({message: failureMessage(cause)}),
       }),
-    events: followEvents(client.event.subscribe({types: ['rpc.whiteboard.changed']})).pipe(
+    events: followEvents(client.event.subscribe({types: ['rpc.whiteboard.changed']}), FOLLOW_AGAIN).pipe(
       Stream.mapEffect(decode),
       Stream.flattenIterable,
     ),

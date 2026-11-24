@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {Effect, Fiber, Stream} from 'effect'
 import {TestClock} from 'effect/testing'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {followEvents} from './player-follow.js'
+import {FOLLOW_AGAIN, followEvents} from './player-follow.js'
 
 describe.concurrent('the agent is told about the recorder', () => {
   test('the model request lists the recorder skill and the recording tool namespace', async ({expect}) => {
@@ -336,7 +336,7 @@ describe('the engine stream ends at a disconnect', () => {
       yield attempt === 1 ? 'start' : 'stop'
     }
     const followed = Effect.gen(function* () {
-      const fiber = yield* followEvents({[Symbol.asyncIterator]: subscribe}).pipe(
+      const fiber = yield* followEvents({[Symbol.asyncIterator]: subscribe}, FOLLOW_AGAIN).pipe(
         Stream.take(2),
         Stream.runCollect,
         Effect.forkChild,

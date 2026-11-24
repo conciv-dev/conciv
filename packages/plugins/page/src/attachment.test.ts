@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {Effect, Fiber, Stream} from 'effect'
 import {TestClock} from 'effect/testing'
-import {followEvents, reportRouteChanges} from './attachment.js'
+import {FOLLOW_AGAIN, followEvents, reportRouteChanges} from './attachment.js'
 
 describe('the tab stays attached', () => {
   it('subscribes to route changes without the Navigation API, and follows the engine again after its stream ends or fails', async () => {
@@ -14,7 +14,7 @@ describe('the tab stays attached', () => {
       yield attempt === 1 ? 'before the restart' : 'after the restart'
     }
     const followed = Effect.gen(function* () {
-      const fiber = yield* followEvents({[Symbol.asyncIterator]: subscribe}).pipe(
+      const fiber = yield* followEvents({[Symbol.asyncIterator]: subscribe}, FOLLOW_AGAIN).pipe(
         Stream.take(2),
         Stream.runCollect,
         Effect.forkChild,

@@ -8,7 +8,7 @@ import {ConfigReadFailed, StateReadFailed, runBoot} from './boot.js'
 import {loadCaptureLibrary, recordPage, takeFreshSnapshot} from './capture.js'
 import {ConfigReloadFailed, openCaptureSession} from './capture-session.js'
 import {FlushFailed, makeFlusher} from './flusher.js'
-import {FollowFailed, followEvents, followRecording, type ReplaySource} from './player-follow.js'
+import {FOLLOW_AGAIN, FollowFailed, followEvents, followRecording, type ReplaySource} from './player-follow.js'
 import {accessorStream, type RecorderRuntime} from './solid-runtime.js'
 
 const FLUSH_CUES: readonly [Window | Document, string][] = [
@@ -35,7 +35,10 @@ export function bootCapture(
     const current = page()
     return current.status === 'active' ? current.value.capture.exclude : undefined
   })
-  const controls: Stream.Stream<RecorderControl> = followEvents(recorder.events.subscribe('control')).pipe(
+  const controls: Stream.Stream<RecorderControl> = followEvents(
+    recorder.events.subscribe('control'),
+    FOLLOW_AGAIN,
+  ).pipe(
     Stream.map((event) => event.data),
     Stream.catchCause(() => Stream.empty),
   )
@@ -99,7 +102,7 @@ const AppendedHere = z.object({clientId: z.string()})
 
 export function followClient(ctx: Context, clientId: string): (cursor: number) => Stream.Stream<ReplaySource> {
   const recorder = ctx.client.rpc(Recorder)
-  const cues = followEvents(ctx.client.event.subscribe({types: [APPENDED_EVENT]})).pipe(
+  const cues = followEvents(ctx.client.event.subscribe({types: [APPENDED_EVENT]}), FOLLOW_AGAIN).pipe(
     Stream.filter(
       (event) => event.type === 'server.connected' || AppendedHere.safeParse(event.data).data?.clientId === clientId,
     ),

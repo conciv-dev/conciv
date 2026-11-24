@@ -2,7 +2,7 @@ import {describe, test} from 'vitest'
 import {Effect, Fiber, Stream} from 'effect'
 import {TestClock} from 'effect/testing'
 import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {followEvents} from './follow-events.js'
+import {FOLLOW_AGAIN, followEvents} from './follow-events.js'
 
 describe("the agent runs the project's tests", () => {
   test('the agent is told about the runner, lists the files, reads an empty status, runs everything, narrows a run with a pattern, reads the last run, and two runs asked at once each report their own tests', async ({
@@ -115,7 +115,7 @@ describe('the runner is stopped from outside', () => {
       yield attempt === 1 ? 'before the restart' : 'after the restart'
     }
     const followed = Effect.gen(function* () {
-      const fiber = yield* followEvents({[Symbol.asyncIterator]: subscribe}).pipe(
+      const fiber = yield* followEvents({[Symbol.asyncIterator]: subscribe}, FOLLOW_AGAIN).pipe(
         Stream.take(2),
         Stream.runCollect,
         Effect.forkChild,
