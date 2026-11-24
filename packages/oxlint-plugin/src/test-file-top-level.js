@@ -1,7 +1,7 @@
 import {isIdentifier, isNode} from './ast-walk.js'
 
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/
-const TEST_NAMES = new Set(['describe', 'test', 'it'])
+const TEST_NAMES = new Set(['describe', 'test', 'it', 'layer'])
 const MODIFIER_NAMES = new Set([
   'describe',
   'each',
@@ -17,6 +17,9 @@ const MODIFIER_NAMES = new Set([
   'fixme',
   'serial',
   'parallel',
+  'effect',
+  'live',
+  'layer',
 ])
 const RULE_TESTER_NAME = 'RuleTester'
 const RUN_NAME = 'run'
@@ -72,7 +75,7 @@ export default {
     type: 'problem',
     messages: {
       topLevel:
-        "A test file's top level holds only imports and describe, test or it calls. Move this into the test that uses it, or into its describe when several of that describe's tests use it; a fixture several files share lives once in a module in the package's test folder that each test file imports.",
+        "A test file's top level holds only imports and describe, test or it calls (with @effect/vitest's it.effect, it.live and layer). Move this into the test that uses it, or into its describe when several of that describe's tests use it; a fixture several files share lives once in a module in the package's test folder that each test file imports.",
     },
     schema: [],
   },

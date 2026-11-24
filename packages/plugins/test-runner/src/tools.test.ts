@@ -1,13 +1,11 @@
-import {describe, expect} from 'vitest'
+import {describe, expect, layer} from '@effect/vitest'
 import {Effect, Fiber, Option, Schema, Stream} from 'effect'
-import {PluginEngine, testEffect} from '@conciv/plugin-testkit'
+import {PluginEngine} from '@conciv/plugin-testkit'
 
-describe("the agent runs the project's tests", () => {
-  const it = testEffect(
-    PluginEngine.layer({plugins: ['@conciv/plugin-test-runner'], directory: 'test/fixtures/plant-shop'}),
-  )
-
-  it.live(
+layer(PluginEngine.layer({plugins: ['@conciv/plugin-test-runner'], directory: 'test/fixtures/plant-shop'}), {
+  excludeTestServices: true,
+})("the agent runs the project's tests", (it) => {
+  it.effect(
     'the agent is told about the runner, lists the files, reads an empty status, runs everything, narrows a run with a pattern, reads the last run, and two runs asked at once each report their own tests',
     () =>
       Effect.gen(function* () {
@@ -60,13 +58,12 @@ describe("the agent runs the project's tests", () => {
   )
 })
 
-describe('the runner is stopped from outside', () => {
-  const it = testEffect(
-    PluginEngine.layer({plugins: ['@conciv/plugin-test-runner'], directory: 'test/fixtures/greenhouse'}),
-  )
+layer(PluginEngine.layer({plugins: ['@conciv/plugin-test-runner'], directory: 'test/fixtures/greenhouse'}), {
+  excludeTestServices: true,
+})('the runner is stopped from outside', (it) => {
   const isRunStart = Schema.is(Schema.Struct({type: Schema.Literal('run-start'), runId: Schema.Literal('r1')}))
 
-  it.live(
+  it.effect(
     'a client joining mid-run reads the run so far, a second run waits, stop ends the run that never finishes, the waiting run then runs and is read back, and the panel follows the live events again after the engine stream ends and after it fails',
     () =>
       Effect.gen(function* () {
@@ -128,27 +125,27 @@ describe('the runner is stopped from outside', () => {
 })
 
 describe.for(['jest', 'node-test'])('a runner the plugin does not implement: %s', (runner) => {
-  const it = testEffect(
+  layer(
     PluginEngine.layer({plugins: [['@conciv/plugin-test-runner', {runner}]], directory: 'test/fixtures/plant-shop'}),
-  )
-
-  it.live('the plugin does not start, so the agent is offered neither its skill nor its tools', () =>
-    Effect.gen(function* () {
-      expect(yield* PluginEngine.skills()).not.toContain('    <id>test-runner</id>')
-      expect(yield* PluginEngine.tools()).not.toContain('test_runner_run')
-    }),
-  )
+    {excludeTestServices: true},
+  )((it) => {
+    it.effect('the plugin does not start, so the agent is offered neither its skill nor its tools', () =>
+      Effect.gen(function* () {
+        expect(yield* PluginEngine.skills()).not.toContain('    <id>test-runner</id>')
+        expect(yield* PluginEngine.tools()).not.toContain('test_runner_run')
+      }),
+    )
+  })
 })
 
-describe('a playwright project', () => {
-  const it = testEffect(
-    PluginEngine.layer({
-      plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]],
-      directory: 'test/fixtures/seed-catalog',
-    }),
-  )
-
-  it.live('the agent lists the spec files, runs them all and narrows a run to one file', () =>
+layer(
+  PluginEngine.layer({
+    plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]],
+    directory: 'test/fixtures/seed-catalog',
+  }),
+  {excludeTestServices: true},
+)('a playwright project', (it) => {
+  it.effect('the agent lists the spec files, runs them all and narrows a run to one file', () =>
     Effect.gen(function* () {
       const session = yield* PluginEngine.session()
 

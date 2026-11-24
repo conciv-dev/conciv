@@ -48,6 +48,7 @@
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@effect/vitest": "catalog:",
     "@types/node": "catalog:",
     "drizzle-kit": "catalog:",
     "tsdown": "catalog:",

@@ -21,6 +21,10 @@ tester.run('test-file-top-level', rule, {
     {name: 'describe.each', code: "describe.each([1])('a %s', () => {})", filename: testFile},
     {name: 'test.each', code: "test.each([1])('a %s', () => {})", filename: testFile},
     {name: 'test.concurrent', code: "test.concurrent('a', () => {})", filename: testFile},
+    {name: 'an @effect/vitest it.effect', code: "it.effect('a', () => Effect.void)", filename: testFile},
+    {name: 'an @effect/vitest it.live.each', code: "it.live.each([1])('a %s', () => Effect.void)", filename: testFile},
+    {name: 'an @effect/vitest layer block', code: "layer(engine)('a', (it) => {})", filename: testFile},
+    {name: 'an @effect/vitest it.layer block', code: "it.layer(engine)('a', (it) => {})", filename: testFile},
     {
       name: 'a Playwright test.describe in an e2e spec',
       code: "test.describe('a', () => {})",

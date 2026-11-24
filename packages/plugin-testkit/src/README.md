@@ -6,13 +6,12 @@ The in-memory engine half a plugin test runs, and the vitest projects that wire 
 
 ## Files
 
-- `index.ts` (the package root): `PluginEngine` and `testEffect`.
+- `index.ts` (the package root): `PluginEngine`; its tests run on `@effect/vitest` (`layer(PluginEngine.layer(...))`).
 - `../bin/conciv-test.js`: the `conciv-test` bin; it starts `run-tests.ts`, which loads `@conciv/vitest-config/run-tests`.
 - `plugin-engine.ts`: `PluginEngine.layer(options)`, `PluginSupervisor.layer` over `Instance.layer({replacements})` with
   fakes, and its helpers (`session`, `call`, `failure`, `write`, `skills`, `tools`, `events`). The fake sessions are
   rows in the migrated database's `sessions` table, so the session inbox and instruction state (which reference it)
   accept their writes.
-- `effect.ts`: opencode's `testEffect`, ported to the vitest API.
 - `browser.tsx` (export `./browser`): `mount` and `pluginEngine`; a plugin named by package name loads through
   `virtual:conciv-test-plugins`, and one with an engine part is refused.
 - `shell/`: the fake shell. `context.tsx` the fake `Context` (one store for registries, contracts, toasts, dialogs and

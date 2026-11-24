@@ -91,6 +91,7 @@
     "@conciv/client": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@effect/vitest": "catalog:",
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
     "tsdown": "catalog:",

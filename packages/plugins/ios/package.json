@@ -69,6 +69,7 @@
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@effect/vitest": "catalog:",
     "@internal/plugin": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",

@@ -6,7 +6,7 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {assertTestsWithinBudget} from './test-budget.ts'
 
 test('a package over its budget fails with its count and budget, at budget passes, under budget asks to lower it', async () => {
-  const spec = `import {describe, expect, it, test} from 'vitest'
+  const spec = `import {describe, expect, it, layer, test} from '@effect/vitest'
 // test('a comment never counts', () => {})
 const note = "it('a string never counts', () => {})"
 const withUser = test.extend({user: async ({}, use) => use('ada')})
@@ -22,12 +22,11 @@ describe('cases', () => {
   test.describe('a playwright group is not a case', () => {})
   test.use({})
 })
-const effect = testEffect(layer)
-describe('effect cases', () => {
-  effect.live('live', () => Effect.void)
-  effect.effect('effect', () => Effect.void)
-  effect.live.skip('live skipped', () => Effect.void)
-  effect.layer('not a case')
+layer(engine)('effect cases', (it) => {
+  it.live('live', () => Effect.void)
+  it.effect('effect', () => Effect.void)
+  it.live.skip('live skipped', () => Effect.void)
+  it.layer(other)('not a case', () => {})
 })
 `
   const scaffoldWorkspace = async (budget: Record<string, number>) => {

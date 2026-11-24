@@ -2,11 +2,11 @@ import {execFile} from 'node:child_process'
 import {dirname, relative} from 'node:path'
 import {promisify} from 'node:util'
 import {fileURLToPath} from 'node:url'
-import {describe, expect} from 'vitest'
+import {describe, expect, layer} from '@effect/vitest'
 import {z} from 'zod'
 import {Effect, Fiber} from 'effect'
 import {TestLLM} from '@conciv/core/testing'
-import {PluginEngine, testEffect} from '@conciv/plugin-testkit'
+import {PluginEngine} from '@conciv/plugin-testkit'
 import {humanSourceComment} from '../test/human-source-comment.js'
 import {nextEvent, WHITEBOARD_PLUGIN, test} from '../test/engine.js'
 
@@ -131,158 +131,159 @@ describe('the agent works a comment thread on the board', () => {
   })
 })
 
-describe('a source-linked comment follows its element as the code changes', () => {
-  const it = testEffect(PluginEngine.layer({plugins: ['@conciv/plugin-whiteboard']}))
+layer(PluginEngine.layer({plugins: ['@conciv/plugin-whiteboard']}), {excludeTestServices: true})(
+  'a source-linked comment follows its element as the code changes',
+  (it) => {
+    it.effect(
+      'the agent finds a component, anchors a comment to it, and the anchor reads fresh, moved, ambiguous, then orphaned or drifted',
+      () =>
+        Effect.gen(function* () {
+          const session = yield* PluginEngine.session()
+          const room = session.id
+          yield* PluginEngine.write(
+            'src/Cart.tsx',
+            [
+              'export function Cart() {',
+              '  return (',
+              '    <section>',
+              '      <h2>Your cart</h2>',
+              '      <button>Checkout</button>',
+              '    </section>',
+              '  )',
+              '}',
+              '',
+            ].join('\n'),
+          )
 
-  it.live(
-    'the agent finds a component, anchors a comment to it, and the anchor reads fresh, moved, ambiguous, then orphaned or drifted',
-    () =>
-      Effect.gen(function* () {
-        const session = yield* PluginEngine.session()
-        const room = session.id
-        yield* PluginEngine.write(
-          'src/Cart.tsx',
-          [
-            'export function Cart() {',
-            '  return (',
-            '    <section>',
-            '      <h2>Your cart</h2>',
-            '      <button>Checkout</button>',
-            '    </section>',
-            '  )',
-            '}',
-            '',
-          ].join('\n'),
-        )
+          expect(
+            yield* session.tool('whiteboard_element_reference').call({file: 'src/Cart.tsx', component: 'Cart'}),
+          ).toEqual({found: true, file: 'src/Cart.tsx', line: 3, column: 5})
+          expect(
+            yield* session.tool('whiteboard_element_reference').call({file: 'src/Cart.tsx', component: 'button'}),
+          ).toEqual({found: true, file: 'src/Cart.tsx', line: 5, column: 7})
+          expect(
+            yield* session.tool('whiteboard_element_reference').call({file: 'src/Cart.tsx', component: 'Wishlist'}),
+          ).toEqual({found: false})
 
-        expect(
-          yield* session.tool('whiteboard_element_reference').call({file: 'src/Cart.tsx', component: 'Cart'}),
-        ).toEqual({found: true, file: 'src/Cart.tsx', line: 3, column: 5})
-        expect(
-          yield* session.tool('whiteboard_element_reference').call({file: 'src/Cart.tsx', component: 'button'}),
-        ).toEqual({found: true, file: 'src/Cart.tsx', line: 5, column: 7})
-        expect(
-          yield* session.tool('whiteboard_element_reference').call({file: 'src/Cart.tsx', component: 'Wishlist'}),
-        ).toEqual({found: false})
-
-        yield* session.tool('whiteboard_comment_create').call({
-          cid: 'checkout-note',
-          kind: 'source-linked',
-          parts: [{type: 'text', text: 'Make checkout the primary action'}],
-          anchor: {source: {file: 'src/Cart.tsx', line: 5, column: 7}},
-          x: 10,
-          y: 10,
-          authorKind: 'ai',
-        })
-        const fresh = yield* session.tool('whiteboard_anchor_resolve').call({cid: 'checkout-note'})
-        expect(fresh).toMatchObject({
-          status: 'fresh',
-          anchor: {
-            source: {
-              file: 'src/Cart.tsx',
-              line: 5,
-              column: 7,
-              component: 'Cart',
-              snippet: '<button>Checkout</button>',
-              commit: null,
+          yield* session.tool('whiteboard_comment_create').call({
+            cid: 'checkout-note',
+            kind: 'source-linked',
+            parts: [{type: 'text', text: 'Make checkout the primary action'}],
+            anchor: {source: {file: 'src/Cart.tsx', line: 5, column: 7}},
+            x: 10,
+            y: 10,
+            authorKind: 'ai',
+          })
+          const fresh = yield* session.tool('whiteboard_anchor_resolve').call({cid: 'checkout-note'})
+          expect(fresh).toMatchObject({
+            status: 'fresh',
+            anchor: {
+              source: {
+                file: 'src/Cart.tsx',
+                line: 5,
+                column: 7,
+                component: 'Cart',
+                snippet: '<button>Checkout</button>',
+                commit: null,
+              },
             },
-          },
-        })
-        const placed = z
-          .object({anchor: z.object({source: z.object({hash: z.string()}).catchall(z.json())})})
-          .parse(fresh)
-        yield* PluginEngine.call('whiteboard', 'comments.insert', {
-          room,
-          row: humanSourceComment('checkout-human', {
-            anchor: {source: placed.anchor.source, instance: {selector: 'main > section > button'}},
-            anchorFile: 'src/Cart.tsx',
-            anchorComponent: 'Cart',
-            anchorHash: placed.anchor.source.hash,
-          }),
-        })
+          })
+          const placed = z
+            .object({anchor: z.object({source: z.object({hash: z.string()}).catchall(z.json())})})
+            .parse(fresh)
+          yield* PluginEngine.call('whiteboard', 'comments.insert', {
+            room,
+            row: humanSourceComment('checkout-human', {
+              anchor: {source: placed.anchor.source, instance: {selector: 'main > section > button'}},
+              anchorFile: 'src/Cart.tsx',
+              anchorComponent: 'Cart',
+              anchorHash: placed.anchor.source.hash,
+            }),
+          })
 
-        yield* PluginEngine.write(
-          'src/Cart.tsx',
-          [
-            'export function Cart() {',
-            '  return (',
-            '    <section>',
-            '      <p>Free shipping</p>',
-            '      <h2>Your cart</h2>',
-            '      <button>Checkout</button>',
-            '    </section>',
-            '  )',
-            '}',
-            '',
-          ].join('\n'),
-        )
-        expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'checkout-note'})).toMatchObject({
-          status: 'moved',
-          anchor: {source: {file: 'src/Cart.tsx', line: 6, column: 7, snippet: '<button>Checkout</button>'}},
-        })
+          yield* PluginEngine.write(
+            'src/Cart.tsx',
+            [
+              'export function Cart() {',
+              '  return (',
+              '    <section>',
+              '      <p>Free shipping</p>',
+              '      <h2>Your cart</h2>',
+              '      <button>Checkout</button>',
+              '    </section>',
+              '  )',
+              '}',
+              '',
+            ].join('\n'),
+          )
+          expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'checkout-note'})).toMatchObject({
+            status: 'moved',
+            anchor: {source: {file: 'src/Cart.tsx', line: 6, column: 7, snippet: '<button>Checkout</button>'}},
+          })
 
-        yield* PluginEngine.write(
-          'src/Cart.tsx',
-          [
-            'export function Cart() {',
-            '  return (',
-            '    <section>',
-            '      <p>Free shipping</p>',
-            '      <h2>Your cart</h2>',
-            '      <button>Checkout</button>',
-            '      <button>Save for later</button>',
-            '    </section>',
-            '  )',
-            '}',
-            '',
-          ].join('\n'),
-        )
-        expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'checkout-note'})).toMatchObject({
-          status: 'ambiguous',
-          candidates: [
-            {source: {line: 6, column: 7, snippet: '<button>Checkout</button>'}},
-            {source: {line: 7, column: 7, snippet: '<button>Save for later</button>'}},
-          ],
-        })
+          yield* PluginEngine.write(
+            'src/Cart.tsx',
+            [
+              'export function Cart() {',
+              '  return (',
+              '    <section>',
+              '      <p>Free shipping</p>',
+              '      <h2>Your cart</h2>',
+              '      <button>Checkout</button>',
+              '      <button>Save for later</button>',
+              '    </section>',
+              '  )',
+              '}',
+              '',
+            ].join('\n'),
+          )
+          expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'checkout-note'})).toMatchObject({
+            status: 'ambiguous',
+            candidates: [
+              {source: {line: 6, column: 7, snippet: '<button>Checkout</button>'}},
+              {source: {line: 7, column: 7, snippet: '<button>Save for later</button>'}},
+            ],
+          })
 
-        yield* PluginEngine.write(
-          'src/Cart.tsx',
-          [
-            'export function Cart() {',
-            '  return (',
-            '    <section>',
-            '      <h2>Your cart</h2>',
-            '      <a href="/checkout">Checkout</a>',
-            '    </section>',
-            '  )',
-            '}',
-            '',
-          ].join('\n'),
-        )
-        const diff = {before: '<button>Checkout</button>', after: '<a href="/checkout">Checkout</a>'}
-        expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'checkout-note'})).toEqual({
-          status: 'orphaned',
-          diff,
-        })
-        expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'checkout-human'})).toEqual({
-          status: 'drifted',
-          diff,
-        })
+          yield* PluginEngine.write(
+            'src/Cart.tsx',
+            [
+              'export function Cart() {',
+              '  return (',
+              '    <section>',
+              '      <h2>Your cart</h2>',
+              '      <a href="/checkout">Checkout</a>',
+              '    </section>',
+              '  )',
+              '}',
+              '',
+            ].join('\n'),
+          )
+          const diff = {before: '<button>Checkout</button>', after: '<a href="/checkout">Checkout</a>'}
+          expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'checkout-note'})).toEqual({
+            status: 'orphaned',
+            diff,
+          })
+          expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'checkout-human'})).toEqual({
+            status: 'drifted',
+            diff,
+          })
 
-        yield* session.tool('whiteboard_comment_create').call({
-          cid: 'loose-note',
-          kind: 'floating',
-          parts: [{type: 'text', text: 'Not tied to any code'}],
-          x: 0,
-          y: 0,
-          authorKind: 'ai',
-        })
-        expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'loose-note'})).toEqual({
-          status: 'orphaned',
-        })
-      }),
-  )
-})
+          yield* session.tool('whiteboard_comment_create').call({
+            cid: 'loose-note',
+            kind: 'floating',
+            parts: [{type: 'text', text: 'Not tied to any code'}],
+            x: 0,
+            y: 0,
+            authorKind: 'ai',
+          })
+          expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'loose-note'})).toEqual({
+            status: 'orphaned',
+          })
+        }),
+    )
+  },
+)
 
 describe('in a git project a source-linked comment records the commit it was made on', () => {
   test('the anchor records HEAD, and after a committed edit moves the element it reads moved at its new line', async ({
@@ -333,62 +334,66 @@ describe('in a git project a source-linked comment records the commit it was mad
   })
 })
 
-describe('a human comment on a source element gets its source details from the engine', () => {
-  const it = testEffect(PluginEngine.layer({plugins: ['@conciv/plugin-whiteboard']}))
+layer(PluginEngine.layer({plugins: ['@conciv/plugin-whiteboard']}), {excludeTestServices: true})(
+  'a human comment on a source element gets its source details from the engine',
+  (it) => {
+    it.effect('a human comment that names only a file and line is given its component, snippet and hash', () =>
+      Effect.gen(function* () {
+        const session = yield* PluginEngine.session()
+        const room = session.id
+        yield* PluginEngine.write(
+          'src/Cart.tsx',
+          [
+            'export function Cart() {',
+            '  return (',
+            '    <section>',
+            '      <button>Checkout</button>',
+            '    </section>',
+            '  )',
+            '}',
+            '',
+          ].join('\n'),
+        )
 
-  it.live('a human comment that names only a file and line is given its component, snippet and hash', () =>
-    Effect.gen(function* () {
-      const session = yield* PluginEngine.session()
-      const room = session.id
-      yield* PluginEngine.write(
-        'src/Cart.tsx',
-        [
-          'export function Cart() {',
-          '  return (',
-          '    <section>',
-          '      <button>Checkout</button>',
-          '    </section>',
-          '  )',
-          '}',
-          '',
-        ].join('\n'),
-      )
+        const enriched = yield* nextEvent(
+          'rpc.whiteboard.changed',
+          z.object({
+            room: z.literal(room),
+            table: z.literal('comments'),
+            key: z.literal('button-human-row'),
+            cursor: z.literal(2),
+          }),
+        )
+        yield* PluginEngine.call('whiteboard', 'comments.insert', {
+          room,
+          row: humanSourceComment('button-human', {
+            anchor: {
+              source: {file: 'src/Cart.tsx', line: 4, column: 7},
+              instance: {selector: 'main > section > button'},
+            },
+            anchorFile: null,
+            anchorComponent: null,
+            anchorHash: null,
+          }),
+        })
+        yield* Fiber.join(enriched)
 
-      const enriched = yield* nextEvent(
-        'rpc.whiteboard.changed',
-        z.object({
-          room: z.literal(room),
-          table: z.literal('comments'),
-          key: z.literal('button-human-row'),
-          cursor: z.literal(2),
-        }),
-      )
-      yield* PluginEngine.call('whiteboard', 'comments.insert', {
-        room,
-        row: humanSourceComment('button-human', {
-          anchor: {source: {file: 'src/Cart.tsx', line: 4, column: 7}, instance: {selector: 'main > section > button'}},
-          anchorFile: null,
-          anchorComponent: null,
-          anchorHash: null,
-        }),
-      })
-      yield* Fiber.join(enriched)
-
-      expect(yield* PluginEngine.call('whiteboard', 'comments.get', {room, id: 'button-human-row'})).toMatchObject({
-        anchorFile: 'src/Cart.tsx',
-        anchorComponent: 'Cart',
-        anchorHash: expect.stringMatching(/^[0-9a-f]{8}$/),
-        anchor: {
-          source: {file: 'src/Cart.tsx', line: 4, column: 7, component: 'Cart', snippet: '<button>Checkout</button>'},
-          instance: {selector: 'main > section > button'},
-        },
-      })
-      expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'button-human'})).toMatchObject({
-        status: 'fresh',
-      })
-    }),
-  )
-})
+        expect(yield* PluginEngine.call('whiteboard', 'comments.get', {room, id: 'button-human-row'})).toMatchObject({
+          anchorFile: 'src/Cart.tsx',
+          anchorComponent: 'Cart',
+          anchorHash: expect.stringMatching(/^[0-9a-f]{8}$/),
+          anchor: {
+            source: {file: 'src/Cart.tsx', line: 4, column: 7, component: 'Cart', snippet: '<button>Checkout</button>'},
+            instance: {selector: 'main > section > button'},
+          },
+        })
+        expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'button-human'})).toMatchObject({
+          status: 'fresh',
+        })
+      }),
+    )
+  },
+)
 
 describe('a draft left when a turn ends is sent to be published', () => {
   test('the turn ends with a draft on the board and the engine queues one commit for the canvas, never a second', async ({
@@ -415,83 +420,86 @@ describe('a draft left when a turn ends is sent to be published', () => {
   })
 })
 
-describe('anchors never leak secrets or reach outside the project', () => {
-  const it = testEffect(PluginEngine.layer({plugins: ['@conciv/plugin-whiteboard']}))
+layer(PluginEngine.layer({plugins: ['@conciv/plugin-whiteboard']}), {excludeTestServices: true})(
+  'anchors never leak secrets or reach outside the project',
+  (it) => {
+    it.effect(
+      'a snippet has its secrets redacted, a secret file keeps no snippet, and a file outside the project is not read',
+      () =>
+        Effect.gen(function* () {
+          const session = yield* PluginEngine.session()
+          const billing = yield* PluginEngine.write(
+            'src/Billing.tsx',
+            [
+              'export function Billing() {',
+              '  return <div data-key="sk_live_abcdefgh1234">Pay now</div>',
+              '}',
+              '',
+            ].join('\n'),
+          )
+          yield* PluginEngine.write(
+            'config/.env.tsx',
+            ['export const Env = () => <p>API_TOKEN=abc123</p>', ''].join('\n'),
+          )
 
-  it.live(
-    'a snippet has its secrets redacted, a secret file keeps no snippet, and a file outside the project is not read',
-    () =>
-      Effect.gen(function* () {
-        const session = yield* PluginEngine.session()
-        const billing = yield* PluginEngine.write(
-          'src/Billing.tsx',
-          ['export function Billing() {', '  return <div data-key="sk_live_abcdefgh1234">Pay now</div>', '}', ''].join(
-            '\n',
-          ),
-        )
-        yield* PluginEngine.write(
-          'config/.env.tsx',
-          ['export const Env = () => <p>API_TOKEN=abc123</p>', ''].join('\n'),
-        )
+          yield* session.tool('whiteboard_comment_create').call({
+            cid: 'billing-note',
+            kind: 'source-linked',
+            parts: [{type: 'text', text: 'Pay now needs a total'}],
+            anchor: {source: {file: 'src/Billing.tsx', line: 2, column: 10}},
+            x: 0,
+            y: 0,
+            authorKind: 'ai',
+          })
+          expect(yield* session.tool('whiteboard_comment_read').call({cid: 'billing-note'})).toMatchObject({
+            comment: {anchor: {source: {file: 'src/Billing.tsx', snippet: '<div data-key="[redacted]">Pay now</div>'}}},
+          })
 
-        yield* session.tool('whiteboard_comment_create').call({
-          cid: 'billing-note',
-          kind: 'source-linked',
-          parts: [{type: 'text', text: 'Pay now needs a total'}],
-          anchor: {source: {file: 'src/Billing.tsx', line: 2, column: 10}},
-          x: 0,
-          y: 0,
-          authorKind: 'ai',
-        })
-        expect(yield* session.tool('whiteboard_comment_read').call({cid: 'billing-note'})).toMatchObject({
-          comment: {anchor: {source: {file: 'src/Billing.tsx', snippet: '<div data-key="[redacted]">Pay now</div>'}}},
-        })
+          yield* session.tool('whiteboard_comment_create').call({
+            cid: 'env-note',
+            kind: 'source-linked',
+            parts: [{type: 'text', text: 'Why is this rendered?'}],
+            anchor: {source: {file: 'config/.env.tsx', line: 1, column: 26}},
+            x: 0,
+            y: 0,
+            authorKind: 'ai',
+          })
+          expect(yield* session.tool('whiteboard_comment_read').call({cid: 'env-note'})).toMatchObject({
+            comment: {anchor: {source: {file: 'config/.env.tsx', component: 'Env', snippet: ''}}},
+          })
 
-        yield* session.tool('whiteboard_comment_create').call({
-          cid: 'env-note',
-          kind: 'source-linked',
-          parts: [{type: 'text', text: 'Why is this rendered?'}],
-          anchor: {source: {file: 'config/.env.tsx', line: 1, column: 26}},
-          x: 0,
-          y: 0,
-          authorKind: 'ai',
-        })
-        expect(yield* session.tool('whiteboard_comment_read').call({cid: 'env-note'})).toMatchObject({
-          comment: {anchor: {source: {file: 'config/.env.tsx', component: 'Env', snippet: ''}}},
-        })
+          const outside = fileURLToPath(new URL('../test/fixtures/outside-project/billing.jsx', import.meta.url))
+          const climbing = relative(dirname(dirname(billing)), outside)
+          expect(
+            yield* session.tool('whiteboard_element_reference').call({file: outside, component: 'Billing'}),
+          ).toEqual({found: false})
+          expect(
+            yield* session.tool('whiteboard_element_reference').call({file: climbing, component: 'Billing'}),
+          ).toEqual({found: false})
+          yield* session.tool('whiteboard_comment_create').call({
+            cid: 'outside-note',
+            kind: 'source-linked',
+            parts: [{type: 'text', text: 'Look at this form'}],
+            anchor: {source: {file: climbing, line: 2, column: 10}},
+            x: 0,
+            y: 0,
+            authorKind: 'ai',
+          })
+          expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'outside-note'})).toEqual({
+            status: 'orphaned',
+          })
+        }),
+    )
+  },
+)
 
-        const outside = fileURLToPath(new URL('../test/fixtures/outside-project/billing.jsx', import.meta.url))
-        const climbing = relative(dirname(dirname(billing)), outside)
-        expect(yield* session.tool('whiteboard_element_reference').call({file: outside, component: 'Billing'})).toEqual(
-          {found: false},
-        )
-        expect(
-          yield* session.tool('whiteboard_element_reference').call({file: climbing, component: 'Billing'}),
-        ).toEqual({found: false})
-        yield* session.tool('whiteboard_comment_create').call({
-          cid: 'outside-note',
-          kind: 'source-linked',
-          parts: [{type: 'text', text: 'Look at this form'}],
-          anchor: {source: {file: climbing, line: 2, column: 10}},
-          x: 0,
-          y: 0,
-          authorKind: 'ai',
-        })
-        expect(yield* session.tool('whiteboard_anchor_resolve').call({cid: 'outside-note'})).toEqual({
-          status: 'orphaned',
-        })
-      }),
-  )
-})
-
-describe('with no canvas open, the canvas tools answer without waiting on one', () => {
-  const it = testEffect(
-    PluginEngine.layer({
-      plugins: [['@conciv/plugin-whiteboard', {drawDeadlineMs: 50, exportDeadlineMs: 50, commitDeadlineMs: 50}]],
-    }),
-  )
-
-  it.live(
+layer(
+  PluginEngine.layer({
+    plugins: [['@conciv/plugin-whiteboard', {drawDeadlineMs: 50, exportDeadlineMs: 50, commitDeadlineMs: 50}]],
+  }),
+  {excludeTestServices: true},
+)('with no canvas open, the canvas tools answer without waiting on one', (it) => {
+  it.effect(
     'preview and commit have nothing to work on, drawing and png export fail, bad svg and oversized diagrams are refused',
     () =>
       Effect.gen(function* () {
@@ -571,109 +579,110 @@ describe('the board lives in the engine state', () => {
   })
 })
 
-describe("a canvas tab keeps the board through the plugin's rpc", () => {
-  const it = testEffect(PluginEngine.layer({plugins: ['@conciv/plugin-whiteboard']}))
+layer(PluginEngine.layer({plugins: ['@conciv/plugin-whiteboard']}), {excludeTestServices: true})(
+  "a canvas tab keeps the board through the plugin's rpc",
+  (it) => {
+    it.effect(
+      'rows are written, read, conflicted, claimed and removed, each change is announced and since replays them',
+      () =>
+        Effect.gen(function* () {
+          const session = yield* PluginEngine.session()
+          const room = session.id
+          const pin = {
+            id: 'pin-1',
+            cid: 'hero-note',
+            x: 10,
+            y: 20,
+            elementId: null,
+            pinState: 'locked',
+            anchorX: null,
+            anchorY: null,
+          }
 
-  it.live(
-    'rows are written, read, conflicted, claimed and removed, each change is announced and since replays them',
-    () =>
-      Effect.gen(function* () {
-        const session = yield* PluginEngine.session()
-        const room = session.id
-        const pin = {
-          id: 'pin-1',
-          cid: 'hero-note',
-          x: 10,
-          y: 20,
-          elementId: null,
-          pinState: 'locked',
-          anchorX: null,
-          anchorY: null,
-        }
-
-        const changed = yield* nextEvent('rpc.whiteboard.changed')
-        expect(yield* PluginEngine.call('whiteboard', 'pins.insert', {room, row: pin})).toEqual({...pin, room})
-        expect(yield* Fiber.join(changed)).toMatchObject({
-          type: 'rpc.whiteboard.changed',
-          data: {room, table: 'pins', key: 'pin-1', type: 'upsert', cursor: 1},
-        })
-        expect(yield* PluginEngine.call('whiteboard', 'pins.update', {room, id: 'pin-1', patch: {x: 40}})).toEqual({
-          ...pin,
-          room,
-          x: 40,
-        })
-        expect(yield* PluginEngine.call('whiteboard', 'pins.get', {room, id: 'pin-1'})).toEqual({...pin, room, x: 40})
-        expect(yield* PluginEngine.failure('whiteboard', 'pins.get', {room, id: 'missing'})).toEqual({
-          type: 'NOT_FOUND',
-          message: 'no pin missing in this room',
-          data: {id: 'missing'},
-        })
-
-        const box = {elementId: 'box-1', data: {type: 'rectangle', x: 0, y: 0}, version: 1}
-        expect(yield* PluginEngine.call('whiteboard', 'elements.upsert', {room, scope: 'live', row: box})).toEqual({
-          ...box,
-          room,
-        })
-        expect(
-          yield* PluginEngine.failure('whiteboard', 'elements.upsert', {
+          const changed = yield* nextEvent('rpc.whiteboard.changed')
+          expect(yield* PluginEngine.call('whiteboard', 'pins.insert', {room, row: pin})).toEqual({...pin, room})
+          expect(yield* Fiber.join(changed)).toMatchObject({
+            type: 'rpc.whiteboard.changed',
+            data: {room, table: 'pins', key: 'pin-1', type: 'upsert', cursor: 1},
+          })
+          expect(yield* PluginEngine.call('whiteboard', 'pins.update', {room, id: 'pin-1', patch: {x: 40}})).toEqual({
+            ...pin,
             room,
-            scope: 'live',
-            row: {...box, data: {type: 'ellipse', x: 0, y: 0}},
-          }),
-        ).toEqual({type: 'CONFLICT', message: 'element version conflict', data: {current: {...box, room}}})
+            x: 40,
+          })
+          expect(yield* PluginEngine.call('whiteboard', 'pins.get', {room, id: 'pin-1'})).toEqual({...pin, room, x: 40})
+          expect(yield* PluginEngine.failure('whiteboard', 'pins.get', {room, id: 'missing'})).toEqual({
+            type: 'NOT_FOUND',
+            message: 'no pin missing in this room',
+            data: {id: 'missing'},
+          })
 
-        const drafts = [
-          {elementId: 'draft-1', data: {type: 'text', x: 0, y: 0}, version: 1},
-          {elementId: 'draft-2', data: {type: 'arrow', x: 0, y: 0}, version: 1},
-        ]
-        expect(
-          yield* PluginEngine.call('whiteboard', 'elements.bulkUpsert', {room, scope: 'draft', rows: drafts}),
-        ).toEqual({
-          rows: drafts.map((row) => ({...row, room})),
-        })
-        expect(
-          yield* PluginEngine.call('whiteboard', 'elements.bulkDelete', {
+          const box = {elementId: 'box-1', data: {type: 'rectangle', x: 0, y: 0}, version: 1}
+          expect(yield* PluginEngine.call('whiteboard', 'elements.upsert', {room, scope: 'live', row: box})).toEqual({
+            ...box,
             room,
-            scope: 'draft',
-            elementIds: ['draft-1', 'draft-2', 'never-drawn'],
-          }),
-        ).toEqual({deleted: 2})
+          })
+          expect(
+            yield* PluginEngine.failure('whiteboard', 'elements.upsert', {
+              room,
+              scope: 'live',
+              row: {...box, data: {type: 'ellipse', x: 0, y: 0}},
+            }),
+          ).toEqual({type: 'CONFLICT', message: 'element version conflict', data: {current: {...box, room}}})
 
-        yield* PluginEngine.call('whiteboard', 'canvasPending.insert', {
-          room,
-          row: {id: 'commit-1', kind: 'commit', stage: 'live', payload: {}},
-        })
-        expect(yield* PluginEngine.call('whiteboard', 'canvasPending.claim', {room, id: 'commit-1'})).toEqual({
-          claimed: true,
-        })
-        expect(yield* PluginEngine.call('whiteboard', 'canvasPending.claim', {room, id: 'commit-1'})).toEqual({
-          claimed: false,
-        })
+          const drafts = [
+            {elementId: 'draft-1', data: {type: 'text', x: 0, y: 0}, version: 1},
+            {elementId: 'draft-2', data: {type: 'arrow', x: 0, y: 0}, version: 1},
+          ]
+          expect(
+            yield* PluginEngine.call('whiteboard', 'elements.bulkUpsert', {room, scope: 'draft', rows: drafts}),
+          ).toEqual({
+            rows: drafts.map((row) => ({...row, room})),
+          })
+          expect(
+            yield* PluginEngine.call('whiteboard', 'elements.bulkDelete', {
+              room,
+              scope: 'draft',
+              elementIds: ['draft-1', 'draft-2', 'never-drawn'],
+            }),
+          ).toEqual({deleted: 2})
 
-        expect(yield* PluginEngine.call('whiteboard', 'pins.remove', {room, id: 'pin-1'})).toEqual({deleted: true})
-        expect(yield* PluginEngine.call('whiteboard', 'pins.remove', {room, id: 'pin-1'})).toEqual({deleted: false})
-
-        expect(yield* PluginEngine.call('whiteboard', 'since', {room, cursor: 5})).toEqual({
-          changes: [
-            {table: 'canvasDraftElements', key: 'draft-1', type: 'delete', cursor: 6},
-            {table: 'canvasDraftElements', key: 'draft-2', type: 'delete', cursor: 7},
-            {table: 'canvasPending', key: 'commit-1', type: 'upsert', cursor: 8},
-            {table: 'pins', key: 'pin-1', type: 'delete', cursor: 9},
-          ],
-          cursor: 9,
-        })
-
-        const cursorMoved = yield* nextEvent('rpc.whiteboard.cursor')
-        expect(
-          yield* PluginEngine.call('whiteboard', 'cursor.move', {
+          yield* PluginEngine.call('whiteboard', 'canvasPending.insert', {
             room,
-            cursor: {peerId: 'peer-ada', kind: 'human', x: 5, y: 6, name: 'Ada', color: '#ff0000', lastSeen: 0},
-          }),
-        ).toEqual({ok: true})
-        expect(yield* Fiber.join(cursorMoved)).toMatchObject({
-          type: 'rpc.whiteboard.cursor',
-          data: {room, peerId: 'peer-ada', kind: 'human', x: 5, y: 6, name: 'Ada'},
-        })
-      }),
-  )
-})
+            row: {id: 'commit-1', kind: 'commit', stage: 'live', payload: {}},
+          })
+          expect(yield* PluginEngine.call('whiteboard', 'canvasPending.claim', {room, id: 'commit-1'})).toEqual({
+            claimed: true,
+          })
+          expect(yield* PluginEngine.call('whiteboard', 'canvasPending.claim', {room, id: 'commit-1'})).toEqual({
+            claimed: false,
+          })
+
+          expect(yield* PluginEngine.call('whiteboard', 'pins.remove', {room, id: 'pin-1'})).toEqual({deleted: true})
+          expect(yield* PluginEngine.call('whiteboard', 'pins.remove', {room, id: 'pin-1'})).toEqual({deleted: false})
+
+          expect(yield* PluginEngine.call('whiteboard', 'since', {room, cursor: 5})).toEqual({
+            changes: [
+              {table: 'canvasDraftElements', key: 'draft-1', type: 'delete', cursor: 6},
+              {table: 'canvasDraftElements', key: 'draft-2', type: 'delete', cursor: 7},
+              {table: 'canvasPending', key: 'commit-1', type: 'upsert', cursor: 8},
+              {table: 'pins', key: 'pin-1', type: 'delete', cursor: 9},
+            ],
+            cursor: 9,
+          })
+
+          const cursorMoved = yield* nextEvent('rpc.whiteboard.cursor')
+          expect(
+            yield* PluginEngine.call('whiteboard', 'cursor.move', {
+              room,
+              cursor: {peerId: 'peer-ada', kind: 'human', x: 5, y: 6, name: 'Ada', color: '#ff0000', lastSeen: 0},
+            }),
+          ).toEqual({ok: true})
+          expect(yield* Fiber.join(cursorMoved)).toMatchObject({
+            type: 'rpc.whiteboard.cursor',
+            data: {room, peerId: 'peer-ada', kind: 'human', x: 5, y: 6, name: 'Ada'},
+          })
+        }),
+    )
+  },
+)

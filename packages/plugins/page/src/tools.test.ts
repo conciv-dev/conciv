@@ -1,14 +1,14 @@
-import {describe, expect} from 'vitest'
+import {describe, expect, layer} from '@effect/vitest'
 import {Effect, Fiber, Option, Schema, Stream} from 'effect'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
 import {TestLLM} from '@conciv/core/testing'
-import {PluginEngine, testEffect} from '@conciv/plugin-testkit'
-import {PAGE_PLUGIN, test as it} from '../test/engine.js'
+import {PluginEngine} from '@conciv/plugin-testkit'
+import {PAGE_PLUGIN, test} from '../test/engine.js'
 
 describe('with no page open, the agent is offered no page tools', () => {
-  it('leaves the page tools and the page skill out of the request and out of reach of a call', async ({
+  test('leaves the page tools and the page skill out of the request and out of reach of a call', async ({
     createEngine,
   }) => {
     const engine = await createEngine({plugins: [PAGE_PLUGIN]})
@@ -34,7 +34,7 @@ describe('with no page open, the agent is offered no page tools', () => {
 })
 
 describe('the agent reads the page in code mode', () => {
-  it('gives the model the page tools, the page skill and the page instructions once a page attaches, an outside agent finds the page tools, and tells it the exported page result is untrusted page data; a queue that finishes tells whoever started it: an outside agent reads its finished queue once through queue.outside, asked with the ids of a later call or none, and the session hears nothing of it, while a queue the session started reaches the session as one message and its queue.wait answer carries the same notice', async ({
+  test('gives the model the page tools, the page skill and the page instructions once a page attaches, an outside agent finds the page tools, and tells it the exported page result is untrusted page data; a queue that finishes tells whoever started it: an outside agent reads its finished queue once through queue.outside, asked with the ids of a later call or none, and the session hears nothing of it, while a queue the session started reaches the session as one message and its queue.wait answer carries the same notice', async ({
     createEngine,
   }) => {
     const engine = await createEngine({plugins: [PAGE_PLUGIN], hubAccess: 'open'})
@@ -188,7 +188,7 @@ describe('the agent reads the page in code mode', () => {
 })
 
 describe('the page plugin the engine starter lists after the config plugins', () => {
-  it("its deny rules come after the config's permissions, so with no page open a config allow for page grants nothing", async ({
+  test("its deny rules come after the config's permissions, so with no page open a config allow for page grants nothing", async ({
     createEngine,
   }) => {
     const engine = await createEngine({permission: {page: 'allow'}}, {post: [PAGE_PLUGIN]})
@@ -235,26 +235,27 @@ describe('the page never answers what the agent asked', () => {
     return {session, connectionId}
   })
 
-  describe('with no page open', () => {
-    const effect = testEffect(PluginEngine.layer({plugins: ['@conciv/plugin-page']}))
+  layer(PluginEngine.layer({plugins: ['@conciv/plugin-page']}), {excludeTestServices: true})(
+    'with no page open',
+    (it) => {
+      it.effect("serves every page tool, and a page call fails with page's message", () =>
+        Effect.gen(function* () {
+          expect(yield* PluginEngine.tools()).toEqual(expect.arrayContaining(['page_locate', 'page_fill_form']))
+          const session = yield* PluginEngine.session()
+          expect(yield* session.tool('page_route').failure({})).toEqual({
+            tool: 'page_route',
+            message:
+              '[page.disconnected] No page is open in this session. Ask the user to open the page with the conciv panel and wait for it to connect. Then call page.tabs.list({}). Repeating page actions while disconnected will not help.',
+          })
+        }),
+      )
+    },
+  )
 
-    effect.live("serves every page tool, and a page call fails with page's message", () =>
-      Effect.gen(function* () {
-        expect(yield* PluginEngine.tools()).toEqual(expect.arrayContaining(['page_locate', 'page_fill_form']))
-        const session = yield* PluginEngine.session()
-        expect(yield* session.tool('page_route').failure({})).toEqual({
-          tool: 'page_route',
-          message:
-            '[page.disconnected] No page is open in this session. Ask the user to open the page with the conciv panel and wait for it to connect. Then call page.tabs.list({}). Repeating page actions while disconnected will not help.',
-        })
-      }),
-    )
-  })
-
-  describe('a queued action the page never confirms', () => {
-    const effect = testEffect(PluginEngine.layer({plugins: [['@conciv/plugin-page', {queuedActionTimeoutMs: 1}]]}))
-
-    effect.live('comes back lost, as it may already have run', () =>
+  layer(PluginEngine.layer({plugins: [['@conciv/plugin-page', {queuedActionTimeoutMs: 1}]]}), {
+    excludeTestServices: true,
+  })('a queued action the page never confirms', (it) => {
+    it.effect('comes back lost, as it may already have run', () =>
       Effect.gen(function* () {
         const {session, connectionId} = yield* attachedPage
         const command = yield* firstControl(isCommand)
@@ -286,23 +287,24 @@ describe('the page never answers what the agent asked', () => {
     )
   })
 
-  describe('a page call that outlasts the reply window', () => {
-    const effect = testEffect(PluginEngine.layer({plugins: [['@conciv/plugin-page', {pageReplyTimeoutMs: 1}]]}))
+  layer(PluginEngine.layer({plugins: [['@conciv/plugin-page', {pageReplyTimeoutMs: 1}]]}), {excludeTestServices: true})(
+    'a page call that outlasts the reply window',
+    (it) => {
+      it.effect('comes back as a timeout', () =>
+        Effect.gen(function* () {
+          const {session} = yield* attachedPage
 
-    effect.live('comes back as a timeout', () =>
-      Effect.gen(function* () {
-        const {session} = yield* attachedPage
-
-        expect(yield* session.tool('page_wait').failure({selector: '#never', state: 'visible'})).toMatchObject({
-          message: expect.stringContaining('[page.timeout] page.wait did not finish within 0.001 seconds'),
-        })
-      }),
-    )
-  })
+          expect(yield* session.tool('page_wait').failure({selector: '#never', state: 'visible'})).toMatchObject({
+            message: expect.stringContaining('[page.timeout] page.wait did not finish within 0.001 seconds'),
+          })
+        }),
+      )
+    },
+  )
 })
 
 describe('what the hub reads from the page plugin', () => {
-  it('the attached sessions, a tab with its state, a queue per outside call, each still playing while the page holds its first action, and both gone once the engine restarts', async ({
+  test('the attached sessions, a tab with its state, a queue per outside call, each still playing while the page holds its first action, and both gone once the engine restarts', async ({
     createEngine,
   }) => {
     const engine = await createEngine({plugins: [PAGE_PLUGIN], hubAccess: 'open'})

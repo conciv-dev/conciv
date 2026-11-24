@@ -9,7 +9,6 @@ const BUDGET_FILE = 'test-budget.json'
 const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/
 const FIXTURE_SEGMENT = /(^|\/)fixtures\//
 const TEST_FUNCTIONS = ['test', 'it']
-const EFFECT_TEST_FACTORY = 'testEffect'
 const EFFECT_RUNNERS = new Set(['live', 'effect'])
 const CASE_MODIFIERS = new Set([
   'concurrent',
@@ -47,10 +46,11 @@ function readTestChain(callee: Expression | Super): TestChain | undefined {
 
 const onlyModifiers = (members: readonly string[]) => members.every((member) => CASE_MODIFIERS.has(member))
 
-function isTestCase(chain: TestChain, testNames: Set<string>, effectTests: Set<string>): boolean {
-  if (!effectTests.has(chain.name)) return testNames.has(chain.name) && onlyModifiers(chain.members)
+function isTestCase(chain: TestChain, testNames: Set<string>): boolean {
+  if (!testNames.has(chain.name)) return false
   const [runner, ...modifiers] = chain.members.toReversed()
-  return runner !== undefined && EFFECT_RUNNERS.has(runner) && onlyModifiers(modifiers)
+  if (runner !== undefined && EFFECT_RUNNERS.has(runner)) return onlyModifiers(modifiers)
+  return onlyModifiers(chain.members)
 }
 
 function countTestCases(filename: string, source: string): number {
@@ -58,14 +58,11 @@ function countTestCases(filename: string, source: string): number {
   const [error] = parsed.errors
   if (error) throw new Error(`${filename}: cannot parse - ${error.message}`)
   const testNames = new Set(TEST_FUNCTIONS)
-  const effectTests = new Set<string>()
   const curried = new Set<CallExpression>()
   let count = 0
   const visitor = new Visitor({
     VariableDeclarator(node) {
       if (node.id.type !== 'Identifier' || node.init?.type !== 'CallExpression') return
-      if (node.init.callee.type === 'Identifier' && node.init.callee.name === EFFECT_TEST_FACTORY)
-        effectTests.add(node.id.name)
       const chain = readTestChain(node.init.callee)
       if (chain && testNames.has(chain.name) && chain.members.includes('extend')) testNames.add(node.id.name)
     },
@@ -73,7 +70,7 @@ function countTestCases(filename: string, source: string): number {
       if (node.callee.type === 'CallExpression') curried.add(node.callee)
       if (curried.has(node)) return
       const chain = readTestChain(node.callee)
-      if (chain && isTestCase(chain, testNames, effectTests)) count++
+      if (chain && isTestCase(chain, testNames)) count++
     },
   })
   visitor.visit(parsed.program)

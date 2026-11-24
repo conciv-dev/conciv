@@ -6,8 +6,8 @@ Published test package for plugin authors. It depends on the plugin SDK, `@conci
 kits and the preset, never on core, the app, the harness kits or the CLI. Entries:
 
 - `@conciv/plugin-testkit` (the package root): `PluginEngine`, the plugin's engine part run in memory through
-  `plugin-host` (`PluginEngine.layer(options)` over `Instance.layer` with fakes), and `testEffect`, opencode's Effect test
-  helper. Tests call tools and rpc on it.
+  `plugin-host` (`PluginEngine.layer(options)` over `Instance.layer` with fakes). Tests call tools and rpc on it from
+  `@effect/vitest`: `layer(PluginEngine.layer(options))` hands each `it.effect` the engine.
 - `@conciv/plugin-testkit/browser`: the fake app shell for browser tests. `mount(plugin, {engine, options, tools})`
   runs a plugin's window part with a fake `ctx` (`ctx.ui` from `@internal/plugin/ui` `createUi` with plain parts,
   `ctx.client` the SDK's `Conciv.make` over an oRPC link) and renders its server covers, panels, settings pages and
