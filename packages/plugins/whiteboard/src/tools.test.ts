@@ -5,10 +5,10 @@ import {fileURLToPath} from 'node:url'
 import {describe, expect} from 'vitest'
 import {z} from 'zod'
 import {Effect, Fiber} from 'effect'
-import {TestLLM, test} from '@conciv/core/testing'
+import {TestLLM} from '@conciv/core/testing'
 import {PluginEngine, testEffect} from '@conciv/plugin-testkit'
 import {humanSourceComment} from '../test/human-source-comment.js'
-import {nextEvent, WHITEBOARD_PLUGIN} from '../test/engine.js'
+import {nextEvent, WHITEBOARD_PLUGIN, test} from '../test/engine.js'
 
 describe('the agent is told about the whiteboard', () => {
   test('the model request lists the whiteboard skill and the whiteboard tool namespace', async ({createEngine}) => {

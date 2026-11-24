@@ -1,5 +1,5 @@
 import {describe} from 'vitest'
-import {test} from '../../../src/testing.js'
+import {test} from '../../engine.js'
 
 describe.concurrent('loading plugins', () => {
   test.for([

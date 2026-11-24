@@ -1,5 +1,5 @@
 import {describe, expect} from 'vitest'
-import {test} from '../testing.js'
+import {test} from '../../test/engine.js'
 
 describe('other engines', () => {
   test('a plugin lists every engine running on the machine on its first read', async ({createEngine}) => {

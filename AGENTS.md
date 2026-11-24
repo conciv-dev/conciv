@@ -159,7 +159,7 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   journey test when one fits (one journey, not one test per behaviour); (4) only a test that survives this gets a
   raised number, and the PR body carries this account, test by test, for the maintainer to approve.
 - The kits. `@conciv/plugin-testkit` (plugin authors, no core): `PluginEngine` (the plugin's engine part in memory
-  through `plugin-host`) and `testEffect`. `@conciv/core/testing`: `test` (a `test.extend` fixture handing out `createEngine`) / `createHarnessEngine`, the real
+  through `plugin-host`) and `testEffect`. `@conciv/core/testing`: `createEngineTest()` (a `test.extend` fixture handing out `createEngine`) / `createHarnessEngine`, the real
   engine with a scripted chat (`engine.reply(...)` with `TestLLM` replies: `text`, `toolCall`, `failAfter`, `hang`;
   `engine.gate()` holds a reply), used by core, cli, the app and a plugin's agent-turn journeys.
   `config` is the product's own `ConcivConfig`; `start` is only what is not product config. `@conciv/cli/testing`:

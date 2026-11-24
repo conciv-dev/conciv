@@ -1,7 +1,6 @@
 import {tmpdir} from 'node:os'
 import {describe, expect} from 'vitest'
-import {test as it} from '@conciv/core/testing'
-import {cli} from './testing.js'
+import {cli, test as it} from './testing.js'
 
 describe('discovery', () => {
   it('with no environment and no server.json, the engine registered in the home is found', async ({createEngine}) => {

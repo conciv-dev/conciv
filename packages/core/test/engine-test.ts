@@ -1,7 +1,7 @@
 import {writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {vi} from 'vitest'
-import {test as base} from '../src/testing.js'
+import {test as base} from './engine.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {makeBrowserRpcClient, type BrowserRpcClient, type RpcClient} from '@conciv/contract'
 import type {HarnessEngine as KitEngine} from '../src/testing.js'

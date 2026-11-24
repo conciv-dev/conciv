@@ -1,5 +1,5 @@
 import {describe, expect} from 'vitest'
-import {test} from '../../src/testing.js'
+import {test} from '../engine.js'
 
 describe('plugin rpc', () => {
   test('an outside client calls a registered method and each call sees the state the last one left', async ({

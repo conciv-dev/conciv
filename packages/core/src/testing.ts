@@ -708,10 +708,12 @@ export async function createHarnessEngine(
   }
 }
 
-export const test = baseTest.extend('createEngine', ({onTestFinished}) => {
-  return async (config: ConcivConfig = {}, options: HarnessEngineStart = {}): Promise<HarnessEngine> => {
-    const engine = await createHarnessEngine(config, options)
-    onTestFinished(() => engine.stop())
-    return engine
-  }
-})
+export function createEngineTest() {
+  return baseTest.extend('createEngine', ({onTestFinished}) => {
+    return async (config: ConcivConfig = {}, options: HarnessEngineStart = {}): Promise<HarnessEngine> => {
+      const engine = await createHarnessEngine(config, options)
+      onTestFinished(() => engine.stop())
+      return engine
+    }
+  })
+}

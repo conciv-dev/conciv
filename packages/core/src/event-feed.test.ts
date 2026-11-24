@@ -1,6 +1,6 @@
 import {Effect, Stream} from 'effect'
 import {describe, expect} from 'vitest'
-import {test} from './testing.js'
+import {test} from '../test/engine.js'
 import type {Bus} from '@conciv/plugin-host'
 import {Event} from '@conciv/plugin/schema/event'
 import {make} from './event-feed.js'

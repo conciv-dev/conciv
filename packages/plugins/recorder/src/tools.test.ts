@@ -2,10 +2,10 @@ import {describe, expect} from 'vitest'
 import {z} from 'zod'
 import {Effect, Fiber, Stream} from 'effect'
 import {TestClock} from 'effect/testing'
-import {TestLLM, test} from '@conciv/core/testing'
+import {TestLLM} from '@conciv/core/testing'
 import {PluginEngine, testEffect} from '@conciv/plugin-testkit'
 import {FOLLOW_AGAIN, followEvents} from './player-follow.js'
-import {nextControl, RECORDER_PLUGIN} from '../test/engine.js'
+import {nextControl, RECORDER_PLUGIN, test} from '../test/engine.js'
 
 describe('the agent is told about the recorder', () => {
   test('the model request lists the recorder skill and the recording tool namespace, and the recorded page content is untrusted page data in code mode and in a direct call', async ({

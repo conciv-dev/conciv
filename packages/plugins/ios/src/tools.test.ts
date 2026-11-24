@@ -2,8 +2,8 @@ import {readFile, stat} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect} from 'vitest'
-import {TestLLM, test} from '@conciv/core/testing'
-import {IOS_PLUGIN} from '../test/engine.js'
+import {TestLLM} from '@conciv/core/testing'
+import {IOS_PLUGIN, test} from '../test/engine.js'
 
 describe('the ios plugin with no options', () => {
   test('every ios tool answers that the plugin is not configured, without an ask, and the Swift SDK pairing file still names the engine', async ({

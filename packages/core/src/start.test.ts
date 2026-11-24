@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {describe, expect} from 'vitest'
-import {test} from './testing.js'
+import {test} from '../test/engine.js'
 import {makeBrowserRpcClient, makeRpcClient} from '@conciv/contract'
 
 describe('start', () => {

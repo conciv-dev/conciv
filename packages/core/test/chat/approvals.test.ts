@@ -1,5 +1,5 @@
 import {describe, expect} from 'vitest'
-import {test} from '../../src/testing.js'
+import {test} from '../engine.js'
 import {TestLLM} from '@conciv/harness-testkit'
 
 describe('ui questions', () => {

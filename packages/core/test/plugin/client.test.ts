@@ -1,7 +1,7 @@
 import {makeRpcClient} from '@conciv/contract'
 import {createRoot} from 'solid-js'
 import {describe, expect} from 'vitest'
-import {test as it} from '../../src/testing.js'
+import {test as it} from '../engine.js'
 import {Conciv, type ConcivEvent} from '@conciv/plugin'
 import {createClientConnection} from '@conciv/plugin/experimental/host'
 

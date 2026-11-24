@@ -1,5 +1,5 @@
 import {describe, expect} from 'vitest'
-import {test} from '../testing.js'
+import {test} from '../../test/engine.js'
 import {makeEditorOpener} from './open.js'
 
 describe('editor', () => {

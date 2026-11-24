@@ -1,5 +1,5 @@
 import {describe, expect} from 'vitest'
-import {test} from '../testing.js'
+import {test} from '../../test/engine.js'
 
 describe('asking tools', () => {
   test('a config rule that allows the tool runs it without an ask', async ({createEngine}) => {

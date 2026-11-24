@@ -1,5 +1,5 @@
 import {describe} from 'vitest'
-import {test} from '../../src/testing.js'
+import {test} from '../engine.js'
 
 describe.concurrent('model list', () => {
   test.for([
