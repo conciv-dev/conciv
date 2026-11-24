@@ -3,7 +3,7 @@ import {screen, within, render} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createEngine, TestLLM} from '../test/browser-engine.js'
 import {createEngineRouterHistory, mount} from '../test/mount.js'
-import {userEvent as browserInput, userEvent as browserUserEvent} from 'vitest/browser'
+import {page, userEvent as browserInput, userEvent as browserUserEvent} from 'vitest/browser'
 import {createMemoryHistory} from '@tanstack/solid-router'
 import {createEventBusClient, PANEL_PLUGIN_ID, type PanelCommandEventMap} from '@conciv/protocol/event-bus'
 
@@ -124,6 +124,17 @@ describe('plugins in settings', () => {
 
     expect(await screen.findByText('desk-notes')).toBeVisible()
     expect(screen.getByRole('switch', {name: 'release-train'})).toBeVisible()
+
+    const schedule = screen.getByRole('tab', {name: 'Release schedule'})
+    const href = schedule.querySelector('use')?.getAttribute('href') ?? ''
+    expect(href).toMatch(/^#/)
+    expect(document.querySelector(`symbol${href}`)).toHaveAttribute('viewBox', '0 0 16 16')
+    const sprite = document.querySelector(`symbol${href}`)?.parentElement
+    await user.click(screen.getByRole('switch', {name: 'release-train'}))
+
+    await expect.element(page.getByRole('tab', {name: 'Release schedule'})).not.toBeInTheDocument()
+    expect(document.querySelector(`symbol${href}`)).not.toBeInTheDocument()
+    expect(sprite?.isConnected).toBe(false)
   })
 
   test('a plugin page joins the sections and its section shows in General, an unknown plugin page opens General, and a plugin under a built-in ID is not loaded', async () => {

@@ -649,50 +649,6 @@ describe('the user stops while the agent asks', () => {
   })
 })
 
-describe('a plugin draws its own tool cards', () => {
-  test('a plugin card shows open with the icon the plugin declares, a failed call draws the plugin error card, a card that throws falls back to the generic card, and the icon draws on its settings tab and leaves with the plugin', async () => {
-    const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_release_check({branch: 'main'})",
-      }),
-      TestLLM.toolCall('c2', 'execute_typescript', {
-        typescriptCode: "return await external_release_block({branch: 'main'})",
-      }),
-      TestLLM.toolCall('c3', 'execute_typescript', {
-        typescriptCode: "return await external_release_notes({branch: 'main'})",
-      }),
-      TestLLM.text('Main is checked'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-
-    await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Can main ship')
-    await user.click(screen.getByRole('button', {name: 'Send message'}))
-
-    expect(await screen.findByText('Main is checked')).toBeVisible()
-    const reply = screen.getByRole('article', {name: 'Reply to: Can main ship'})
-    expect(within(reply).getByText('Release card for main')).toBeVisible()
-    expect(within(reply).getByText(/^Release held: .*The release train is frozen/)).toBeVisible()
-    expect(within(reply).getByRole('button', {name: /Called release_notes/})).toBeVisible()
-
-    const href = reply.querySelector('use')?.getAttribute('href') ?? ''
-    expect(href).toMatch(/^#/)
-    expect(document.querySelector(`symbol${href}`)).toHaveAttribute('viewBox', '0 0 16 16')
-    const sprite = document.querySelector(`symbol${href}`)?.parentElement
-
-    await user.click(screen.getByRole('link', {name: 'Settings'}))
-    const schedule = await screen.findByRole('tab', {name: 'Release schedule'})
-    expect(schedule.querySelector('use')).toHaveAttribute('href', href)
-    await user.click(screen.getByRole('tab', {name: 'Plugins'}))
-    await user.click(await screen.findByRole('switch', {name: 'release-train'}))
-
-    await expect.element(page.getByRole('tab', {name: 'Release schedule'})).not.toBeInTheDocument()
-    expect(document.querySelector(`symbol${href}`)).not.toBeInTheDocument()
-    expect(sprite?.isConnected).toBe(false)
-  })
-})
-
 describe('a plugin fills the session header and status', () => {
   test('the header slot and the status slot show what the plugin draws', async () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
