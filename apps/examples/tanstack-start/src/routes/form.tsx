@@ -148,7 +148,7 @@ function FormDemo() {
                 }}
               >
                 {(field) => {
-                  const errors = field.state.meta.errors.filter(Boolean) as string[]
+                  const errors = field.state.meta.errors.filter((error) => typeof error === 'string')
                   return (
                     <FieldShell htmlFor={field.name} label="Full name">
                       <input
@@ -175,7 +175,7 @@ function FormDemo() {
                 }}
               >
                 {(field) => {
-                  const errors = field.state.meta.errors.filter(Boolean) as string[]
+                  const errors = field.state.meta.errors.filter((error) => typeof error === 'string')
                   return (
                     <FieldShell htmlFor={field.name} label="Email">
                       <input
@@ -215,7 +215,7 @@ function FormDemo() {
 
               <form.Field name="role" validators={{onChange: ({value}) => (value ? undefined : 'Pick a role')}}>
                 {(field) => {
-                  const errors = field.state.meta.errors.filter(Boolean) as string[]
+                  const errors = field.state.meta.errors.filter((error) => typeof error === 'string')
                   return (
                     <FieldShell htmlFor={field.name} label="Role">
                       <select
@@ -423,7 +423,7 @@ function FormDemo() {
                         <span className="choice-sub">Required. Validation runs as soon as you touch the field.</span>
                       </span>
                     </label>
-                    <FieldError errors={field.state.meta.errors.filter(Boolean) as string[]} />
+                    <FieldError errors={field.state.meta.errors.filter((error) => typeof error === 'string')} />
                   </div>
                 )}
               </form.Field>

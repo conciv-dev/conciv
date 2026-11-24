@@ -83,9 +83,9 @@ export function parseMarkdownIntoBlocks(markdown: string): string[] {
     const currentBlock = token.raw
     const mergedBlocksLen = mergedBlocks.length
 
-    if (htmlStack.length > 0) {
+    const trackedTag = htmlStack.at(-1)
+    if (trackedTag !== undefined) {
       mergedBlocks[mergedBlocksLen - 1] += currentBlock
-      const trackedTag = htmlStack.at(-1) as string
       const newOpenTags = countNonSelfClosingOpenTags(currentBlock, trackedTag)
       const newCloseTags = countClosingTags(currentBlock, trackedTag)
       for (let i = 0; i < newOpenTags; i += 1) htmlStack.push(trackedTag)

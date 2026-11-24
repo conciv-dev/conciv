@@ -245,9 +245,9 @@ export async function assertPublishedChangesCovered(cwd: string, base: string): 
   const [packages, entries] = await Promise.all([readWorkspacePackages(cwd), diffEntries(cwd, base)])
   const graph = buildDependencyGraph(packages)
   const publishedByName = new Map(
-    packages
-      .filter((pkg) => !pkg.manifest.private && typeof pkg.manifest.name === 'string')
-      .map((pkg) => [pkg.manifest.name as string, pkg]),
+    packages.flatMap((pkg) =>
+      !pkg.manifest.private && typeof pkg.manifest.name === 'string' ? [[pkg.manifest.name, pkg] as const] : [],
+    ),
   )
 
   const touchedPackageNames = new Set<string>()

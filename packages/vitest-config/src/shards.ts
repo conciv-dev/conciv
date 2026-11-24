@@ -142,11 +142,14 @@ export function planShards(
   const weighted = measured
     .flatMap((entry) => splitHeavy(entry, partCount(entry, sizing, shardCount)))
     .toSorted((a, b) => b.weightMs - a.weightMs || a.name.localeCompare(b.name))
-  const bins = Array.from({length: shardCount}, (_, index) => ({
-    shard: `shard-${index + 1}`,
-    loadMs: 0,
-    members: [] as WorkspacePackage[],
-  }))
+  const bins = Array.from(
+    {length: shardCount},
+    (_, index): {shard: string; loadMs: number; members: WorkspacePackage[]} => ({
+      shard: `shard-${index + 1}`,
+      loadMs: 0,
+      members: [],
+    }),
+  )
   for (const entry of weighted) {
     const owner = readPackagePart(entry.name).name
     const free = bins.filter((bin) => !bin.members.some((member) => readPackagePart(member.name).name === owner))

@@ -69,7 +69,9 @@ export const SteerInterruptsWithSelectedContent: Story = {
     await userEvent.type(input, 'selected direction{enter}')
     await userEvent.type(input, 'remaining work{enter}')
     await waitFor(() => expect(c.getByText('selected direction')).toBeVisible())
-    await userEvent.click(c.getAllByRole('button', {name: 'Steer'})[0]!)
+    const [steer] = c.getAllByRole('button', {name: 'Steer'})
+    if (!steer) throw new Error('no Steer button')
+    await userEvent.click(steer)
     await waitFor(() => expect(c.queryByText('selected direction')).toBeNull())
     await expect(c.getByText('remaining work')).toBeVisible()
   },

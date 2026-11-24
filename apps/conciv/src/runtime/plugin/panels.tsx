@@ -256,15 +256,19 @@ export function RegionContent(props: {
                     }}
                   >
                     <Contribution plugin={plugin} crashed={(retry) => props.crashed?.(plugin, retry)}>
-                      {() =>
-                        member()!.provider.render(
-                          panelInput(() => props.view, props.screen, {
-                            get tab() {
-                              return member()!.tab
-                            },
-                          }),
-                        )
-                      }
+                      {() => (
+                        <Show when={member()}>
+                          {(current) =>
+                            current().provider.render(
+                              panelInput(() => props.view, props.screen, {
+                                get tab() {
+                                  return current().tab
+                                },
+                              }),
+                            )
+                          }
+                        </Show>
+                      )}
                     </Contribution>
                   </PanelContext.Provider>
                 </div>
@@ -297,15 +301,19 @@ export function RegionContent(props: {
                     }}
                   >
                     <Contribution plugin={plugin} crashed={(retry) => props.crashed?.(plugin, retry)}>
-                      {() =>
-                        entry()!.provider.render(
-                          panelInput(() => props.view, props.screen, {
-                            get tab() {
-                              return entry()!.tab
-                            },
-                          }),
-                        )
-                      }
+                      {() => (
+                        <Show when={entry()}>
+                          {(current) =>
+                            current().provider.render(
+                              panelInput(() => props.view, props.screen, {
+                                get tab() {
+                                  return current().tab
+                                },
+                              }),
+                            )
+                          }
+                        </Show>
+                      )}
                     </Contribution>
                   </PanelContext.Provider>
                 </div>

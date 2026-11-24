@@ -444,7 +444,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     panelFocus?.register(handle)
     onCleanup(() => panelFocus?.release(handle))
   })
-  const composerApi = {current: null as ComposerApi | null}
+  const composerApi: {current: ComposerApi | null} = {current: null}
   const pluginSession = createPaneSession(sessionId)
   const restored = Promise.withResolvers<unknown>()
   restored.promise.catch(() => undefined)

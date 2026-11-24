@@ -32,7 +32,7 @@ export function EngineStaleNotice(): JSX.Element {
     enabled: connected(),
     refetchOnReconnect: 'always',
   }))
-  const standing = {fingerprint: null as string | null}
+  const standing: {fingerprint: string | null} = {fingerprint: null}
   const clear = (): void => {
     if (standing.fingerprint === null) return
     notices.remove(standing.fingerprint)

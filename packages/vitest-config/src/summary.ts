@@ -498,7 +498,13 @@ function detailsSection(summary: PackageSummary): string {
 }
 
 function headline(packages: PackageSummary[]): string {
-  const totals = packages.reduce(
+  const totals = packages.reduce<{
+    passed: number
+    failed: number
+    flaky: number
+    timeMs: number
+    coverage: Coverage | null
+  }>(
     (sum, entry) => ({
       passed: sum.passed + entry.passed,
       failed: sum.failed + entry.failed,
@@ -506,7 +512,7 @@ function headline(packages: PackageSummary[]): string {
       timeMs: sum.timeMs + entry.timeMs,
       coverage: mergeCoverage(sum.coverage, entry.coverage),
     }),
-    {passed: 0, failed: 0, flaky: 0, timeMs: 0, coverage: null as Coverage | null},
+    {passed: 0, failed: 0, flaky: 0, timeMs: 0, coverage: null},
   )
   const flakyNote = totals.flaky > 0 ? ` · ${totals.flaky} flaky` : ''
   const coverageNote = totals.coverage === null ? '' : ` · ${coveragePct(totals.coverage)} line coverage`
