@@ -18,7 +18,7 @@ import {
 import {z} from 'zod'
 import {StatusDot, type StatusDotTone, TruncatedText} from '@conciv/ui-kit-system'
 import type {TrackReport} from './react.js'
-import {RawFrameSchema} from '@conciv/plugin/experimental/page'
+import {RawFrameSchema} from '@conciv/contract'
 import type {buildSnapshot} from './snapshot.js'
 import {html} from 'js-beautify'
 

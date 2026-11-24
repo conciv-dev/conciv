@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@conciv/client": "workspace:^",
+    "@conciv/contract": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
     "@conciv/protocol": "workspace:^",

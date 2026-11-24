@@ -15,7 +15,7 @@ export {
   type ToolCaptureMode,
   type ToolCaptureView,
 } from './element-capture-types.js'
-import {SourceLocSchema} from '@conciv/plugin/experimental/page'
+import {SourceLocSchema} from '@conciv/contract'
 
 export const PAGE_QUEUE_SYNC_MS = CODE_MODE_TIMEOUT_MS - 30_000
 export const PAGE_QUEUE_MAX_ACTIONS = 50
