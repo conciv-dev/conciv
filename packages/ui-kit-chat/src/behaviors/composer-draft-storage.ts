@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {uniqBy} from 'es-toolkit'
 import type {WebStorage} from '@conciv/storage-history'
-import {DraftItemSchema} from '@conciv/protocol/chat-types'
+import {DraftItemSchema} from '@conciv/types/chat-types'
 import {
   fileToDataSource,
   type BaseAttachment,

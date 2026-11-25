@@ -1,8 +1,8 @@
 import {createStore} from 'solid-js/store'
 import {groupBy, partition} from 'es-toolkit'
 import {usePopover, type PopoverMachine} from '@conciv/ui-kit-system'
-import type {ChatModels, HarnessMenuEntry, HarnessModelInfo, ReasoningEffort} from '@conciv/protocol/chat-types'
-import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import type {ChatModels, HarnessMenuEntry, HarnessModelInfo, ReasoningEffort} from '@conciv/types/chat-types'
+import type {ChatMessage} from '@conciv/types/chat-message-types'
 
 const MAIN_ROWS = 4
 const CHARACTERS_PER_TOKEN = 4

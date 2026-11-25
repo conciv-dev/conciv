@@ -1,0 +1,7 @@
+{
+  "extends": "@internal/tsconfig/tsconfig.solid.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "types": ["vite/client", "node"]
+  }
+}

@@ -1,6 +1,6 @@
 import {and, eq, isNull} from 'drizzle-orm'
 import {Effect} from 'effect'
-import type {ConcivDb} from './db.js'
+import type {ConcivDb} from './connection.js'
 import {chatRuns} from './run-schema.js'
 
 export const markRunningRunsDetached = Effect.fn('db.runs.markDetached')(function* (db: ConcivDb, now: number) {

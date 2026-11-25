@@ -35,24 +35,22 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
     "@solid-primitives/autofocus": "catalog:",
     "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/ai": "workspace:*",
-    "@conciv/core": "workspace:*",
+    "@conciv/backend": "workspace:*",
+    "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/harness": "workspace:*",
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin": "workspace:^",
     "@conciv/plugin-testkit": "workspace:*",
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
-    "@internal/plugin": "workspace:*",
+    "@internal/frontend-app-api": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
@@ -63,7 +61,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@conciv/plugin": "workspace:^",
+    "@conciv/frontend-plugin-api": "workspace:^",
     "solid-js": "^1.9.13"
   }
 }

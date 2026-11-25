@@ -1,10 +1,10 @@
 ---
-'@conciv/core': patch
-'@conciv/chat': patch
-'@conciv/embed': patch
-'@conciv/plugin': patch
-'@conciv/protocol': patch
-'@conciv/plugin-host': patch
+'@conciv/backend': patch
+'@conciv/backend-defaults': patch
+'@conciv/app': patch
+'@conciv/backend-plugin-api': patch
+'@conciv/types': patch
+'@conciv/backend-app-api': patch
 '@conciv/plugin-testkit': patch
 ---
 

@@ -1,5 +1,5 @@
 {
-  "name": "@conciv/plugin-terminal",
+  "name": "@internal/plugin-terminal",
   "version": "0.0.22",
   "private": true,
   "description": "The conciv terminal plugin: the browser part of the session's CLI terminal, a pinned Terminal tab in the session's pane over core's persistent pty.",
@@ -16,7 +16,7 @@
   "type": "module",
   "exports": {
     "./client": {
-      "types": "./dist/client.d.ts",
+      "types": "./src/client.tsx",
       "import": "./dist/client.js"
     },
     "./package.json": "./package.json"
@@ -24,11 +24,11 @@
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "test": "vitest run"
   },
   "dependencies": {
     "@conciv/client": "workspace:^",
-    "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/ui-kit-terminal": "workspace:^",
     "@orpc/client": "catalog:",
@@ -38,10 +38,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin": "workspace:^",
+    "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/plugin-testkit": "workspace:*",
-    "@conciv/tsconfig": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
@@ -53,7 +53,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@conciv/plugin": "workspace:^",
+    "@conciv/frontend-plugin-api": "workspace:^",
     "solid-js": "catalog:"
   }
 }

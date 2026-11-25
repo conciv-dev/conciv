@@ -1,5 +1,5 @@
-import type {Context} from '@conciv/plugin/effect/plugin'
-import {Tool} from '@conciv/plugin/schema/tool'
+import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
+import {Tool} from '@conciv/protocol/schema/tool'
 import {Clock, Effect} from 'effect'
 import {z} from 'zod'
 import {CaptureControl} from './capture-control.js'

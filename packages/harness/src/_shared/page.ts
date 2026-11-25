@@ -1,4 +1,4 @@
-import type {HarnessListCursor, HarnessListPage} from '@conciv/protocol/harness-types'
+import type {HarnessListCursor, HarnessListPage} from '@conciv/types/harness-types'
 
 export function pageAfter<T>(
   items: T[],

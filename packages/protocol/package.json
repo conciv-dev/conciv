@@ -1,12 +1,11 @@
 {
   "name": "@conciv/protocol",
   "version": "0.0.22",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). Wire types shared by the conciv vite-plugin and widget.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). conciv oRPC contract: procedures and zod schemas shared by core and clients.",
   "keywords": [
-    "ag-ui",
     "conciv",
-    "protocol",
-    "types"
+    "contract",
+    "orpc"
   ],
   "homepage": "https://conciv.dev",
   "bugs": "https://github.com/conciv-dev/conciv/issues",
@@ -21,81 +20,117 @@
   ],
   "type": "module",
   "exports": {
-    "./chat-types": {
-      "types": "./dist/chat-types.d.ts",
-      "import": "./dist/chat-types.js"
+    ".": {
+      "types": "./dist/protocol.d.ts",
+      "import": "./dist/protocol.js"
     },
-    "./chat-busy": {
-      "types": "./dist/chat-busy.d.ts",
-      "import": "./dist/chat-busy.js"
+    "./schema/agent": {
+      "types": "./dist/schema/agent.d.ts",
+      "import": "./dist/schema/agent.js"
     },
-    "./chat-message-types": {
-      "types": "./dist/chat-message-types.d.ts",
-      "import": "./dist/chat-message-types.js"
+    "./schema/bundler": {
+      "types": "./dist/schema/bundler.d.ts",
+      "import": "./dist/schema/bundler.js"
     },
-    "./chat-event-types": {
-      "types": "./dist/chat-event-types.d.ts",
-      "import": "./dist/chat-event-types.js"
+    "./schema/event": {
+      "types": "./dist/schema/event.d.ts",
+      "import": "./dist/schema/event.js"
     },
-    "./chat-tool-types": {
-      "types": "./dist/chat-tool-types.d.ts",
-      "import": "./dist/chat-tool-types.js"
+    "./schema/event-manifest": {
+      "types": "./dist/schema/event-manifest.d.ts",
+      "import": "./dist/schema/event-manifest.js"
     },
-    "./usage-types": {
-      "types": "./dist/usage-types.d.ts",
-      "import": "./dist/usage-types.js"
+    "./schema/identifier": {
+      "types": "./dist/schema/identifier.d.ts",
+      "import": "./dist/schema/identifier.js"
     },
-    "./ui-types": {
-      "types": "./dist/ui-types.d.ts",
-      "import": "./dist/ui-types.js"
+    "./schema/instruction-entry": {
+      "types": "./dist/schema/instruction-entry.d.ts",
+      "import": "./dist/schema/instruction-entry.js"
     },
-    "./harness-types": {
-      "types": "./dist/harness-types.d.ts",
-      "import": "./dist/harness-types.js"
+    "./schema/instruction": {
+      "types": "./dist/schema/instruction.d.ts",
+      "import": "./dist/schema/instruction.js"
     },
-    "./rpc-types": {
-      "types": "./dist/rpc-types.d.ts",
-      "import": "./dist/rpc-types.js"
+    "./schema/location": {
+      "types": "./dist/schema/location.d.ts",
+      "import": "./dist/schema/location.js"
     },
-    "./terminal-types": {
-      "types": "./dist/terminal-types.d.ts",
-      "import": "./dist/terminal-types.js"
+    "./schema/model": {
+      "types": "./dist/schema/model.d.ts",
+      "import": "./dist/schema/model.js"
     },
-    "./bundler-types": {
-      "types": "./dist/bundler-types.d.ts",
-      "import": "./dist/bundler-types.js"
+    "./schema/permission": {
+      "types": "./dist/schema/permission.d.ts",
+      "import": "./dist/schema/permission.js"
     },
-    "./config-types": {
-      "types": "./dist/config-types.d.ts",
-      "import": "./dist/config-types.js"
+    "./schema/plugin": {
+      "types": "./dist/schema/plugin.d.ts",
+      "import": "./dist/schema/plugin.js"
     },
-    "./page-types": {
-      "types": "./dist/page-types.d.ts",
-      "import": "./dist/page-types.js"
+    "./schema/project-id": {
+      "types": "./dist/schema/project-id.d.ts",
+      "import": "./dist/schema/project-id.js"
     },
-    "./tool-view-types": {
-      "types": "./dist/tool-view-types.d.ts",
-      "import": "./dist/tool-view-types.js"
+    "./schema/rpc": {
+      "types": "./dist/schema/rpc.d.ts",
+      "import": "./dist/schema/rpc.js"
     },
-    "./connect-ports": {
-      "types": "./dist/connect-ports.d.ts",
-      "import": "./dist/connect-ports.js"
+    "./schema/schema": {
+      "types": "./dist/schema/schema.d.ts",
+      "import": "./dist/schema/schema.js"
     },
-    "./state-types": {
-      "types": "./dist/state-types.d.ts",
-      "import": "./dist/state-types.js"
+    "./schema/session": {
+      "types": "./dist/schema/session.d.ts",
+      "import": "./dist/schema/session.js"
     },
-    "./engine-trust": {
-      "types": "./dist/engine-trust.d.ts",
-      "import": "./dist/engine-trust.js"
+    "./schema/session-event": {
+      "types": "./dist/schema/session-event.d.ts",
+      "import": "./dist/schema/session-event.js"
     },
-    "./event-bus": {
-      "types": "./dist/event-bus.d.ts",
-      "import": "./dist/event-bus.js"
+    "./schema/session-inbox": {
+      "types": "./dist/schema/session-inbox.d.ts",
+      "import": "./dist/schema/session-inbox.js"
     },
-    "./tool-call-types": {
-      "types": "./dist/tool-call-types.d.ts",
-      "import": "./dist/tool-call-types.js"
+    "./schema/session-id": {
+      "types": "./dist/schema/session-id.d.ts",
+      "import": "./dist/schema/session-id.js"
+    },
+    "./schema/session-message": {
+      "types": "./dist/schema/session-message.d.ts",
+      "import": "./dist/schema/session-message.js"
+    },
+    "./schema/skill": {
+      "types": "./dist/schema/skill.d.ts",
+      "import": "./dist/schema/skill.js"
+    },
+    "./schema/tool": {
+      "types": "./dist/schema/tool.d.ts",
+      "import": "./dist/schema/tool.js"
+    },
+    "./schema/workspace-id": {
+      "types": "./dist/schema/workspace-id.d.ts",
+      "import": "./dist/schema/workspace-id.js"
+    },
+    "./execute-schemas": {
+      "types": "./dist/execute-schemas.d.ts",
+      "import": "./dist/execute-schemas.js"
+    },
+    "./schema/provider": {
+      "types": "./dist/schema/provider.d.ts",
+      "import": "./dist/schema/provider.js"
+    },
+    "./options": {
+      "types": "./dist/options.d.ts",
+      "import": "./dist/options.js"
+    },
+    "./schema": {
+      "types": "./dist/schema/schema.d.ts",
+      "import": "./dist/schema/schema.js"
+    },
+    "./simulation": {
+      "types": "./dist/simulation.d.ts",
+      "import": "./dist/simulation.js"
     }
   },
   "publishConfig": {
@@ -108,18 +143,20 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@tanstack/ai": "catalog:",
+    "@conciv/types": "workspace:^",
+    "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
+    "@standard-schema/spec": "catalog:",
     "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/tsconfig": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
-    "solid-js": "catalog:",
     "tsdown": "catalog:",
-    "typescript": "catalog:"
-  },
-  "peerDependencies": {
-    "solid-js": "^1.9.13"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

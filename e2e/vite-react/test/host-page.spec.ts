@@ -1,6 +1,6 @@
 import {stat} from 'node:fs/promises'
-import {expect, test} from '@conciv/e2e-utils/fixtures'
-import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
+import {expect, test} from '@internal/e2e-utils/fixtures'
+import {collectFailures, expectWidgetBoots, loginWidget} from '@internal/e2e-utils/widget'
 
 test.describe('grabbing an element of the vite react host page', () => {
   test('the user picks a heading of the host page, the composer stages it with its source file and line, and the user removes it', async ({

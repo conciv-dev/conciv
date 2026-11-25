@@ -1,5 +1,5 @@
 {
-  "name": "@conciv/bundle-size",
+  "name": "@internal/bundle-size",
   "version": "0.0.22",
   "private": true,
   "description": "Internal CI tooling: measure gzip size of published package dists and diff against the main baseline.",
@@ -18,7 +18,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "@conciv/tsconfig": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }

@@ -1,4 +1,4 @@
-import type * as Bundler from '@conciv/plugin/schema/bundler'
+import type * as Bundler from '@conciv/protocol/schema/bundler'
 import {Context, Effect, Layer, Option, Ref, Schema} from 'effect'
 import {uniqBy} from 'es-toolkit'
 import type {ServerFnTrace, ServerFnTraces} from './rpc.js'

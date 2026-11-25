@@ -1,8 +1,8 @@
 ---
 '@conciv/plugin-page': patch
 '@conciv/client': patch
-'@conciv/core': patch
-'@conciv/embed': patch
+'@conciv/backend': patch
+'@conciv/app': patch
 ---
 
 The page plugin is one package, `@conciv/plugin-page`: `@conciv/page` (the DOM helpers) is merged into it as

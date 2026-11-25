@@ -1,5 +1,5 @@
 ---
-'@conciv/core': patch
+'@conciv/backend': patch
 '@conciv/unplugin': patch
 '@conciv/try': patch
 '@conciv/plugin-testkit': patch

@@ -1,6 +1,6 @@
 import {z} from 'zod'
-import {Plugin} from '@conciv/plugin'
-import {Rpc} from '@conciv/plugin/rpc'
+import {Plugin} from '@conciv/backend-plugin-api'
+import {Rpc} from '@conciv/backend-plugin-api/rpc'
 
 const Plant = z.object({plant: z.string()})
 

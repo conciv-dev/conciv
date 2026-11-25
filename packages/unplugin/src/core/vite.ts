@@ -1,9 +1,9 @@
 import {dirname, isAbsolute, join, posix, relative, resolve, sep} from 'node:path'
 import {access, readFile, writeFile} from 'node:fs/promises'
 import type {Plugin, ViteDevServer} from 'vite'
-import {concivStateDir, createConcivStateDir} from '@conciv/protocol/state-types'
-import type {Engine, LogEntry} from '@conciv/core/start'
-import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
+import {concivStateDir, createConcivStateDir} from '@conciv/types/state-types'
+import type {Engine, LogEntry} from '@conciv/backend/start'
+import type {ConcivConfig, ConcivSettingsInit} from '@conciv/types/config-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {readEngineLine} from './engine-log.js'
 import {htmlTags, makeWidgetInject} from './widget-middleware.js'
@@ -22,7 +22,7 @@ const SOLID_SINGLETONS = [
   'solid-js/store',
   '@tanstack/solid-router',
   '@ark-ui/solid',
-  '@conciv/plugin',
+  '@conciv/backend-plugin-api',
 ]
 
 function readPackageName(id: string): string {
@@ -185,7 +185,7 @@ async function bootEngine(
   agentPath: string,
   nativePageDir: string | undefined,
 ): Promise<Engine> {
-  const {start} = await import('@conciv/core/start')
+  const {start} = await import('@conciv/backend/start')
   return start({
     options,
     root: server.config.root,
@@ -256,7 +256,7 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
   '@conciv/solid-diffs > @tanstack/solid-pacer',
   '@conciv/mascot > gsap',
   '@conciv/mascot > gsap/MotionPathPlugin',
-].map((chain) => `@conciv/it > @conciv/embed > ${chain}`)
+].map((chain) => `@conciv/it > @conciv/app > ${chain}`)
 
 const EMBED_SOLID_RUNTIME = ['solid-js', 'solid-js/web', 'solid-js/store']
 
@@ -343,7 +343,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         root: projectRoot,
         warmupFiles: embedFiles,
       })
-      base.optimizeDeps.exclude.push('@conciv/embed')
+      base.optimizeDeps.exclude.push('@conciv/app')
       managedExcludes = [...base.optimizeDeps.exclude]
       return {
         ...base,
@@ -352,7 +352,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
           include: [
             ...base.optimizeDeps.include,
             ...EMBED_SOLID_RUNTIME.filter((id) => !base.optimizeDeps.exclude.includes(id)).map(
-              (id) => `@conciv/it > @conciv/embed > ${id}`,
+              (id) => `@conciv/it > @conciv/app > ${id}`,
             ),
             ...EMBED_LATE_DISCOVERED_DEPENDENCIES,
           ],
@@ -368,7 +368,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
     async configResolved(config) {
       testing = config.mode === 'test'
       if (testing) return
-      const {resolveConfig} = await import('@conciv/core/config')
+      const {resolveConfig} = await import('@conciv/backend/config')
       docked =
         options.widget !== false &&
         resolveConfig(options, config.root).enabled &&
@@ -387,7 +387,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
     transformIndexHtml: {
       order: 'pre',
       async handler(_html, ctx) {
-        const {resolveConfig} = await import('@conciv/core/config')
+        const {resolveConfig} = await import('@conciv/backend/config')
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
         const engine = engines.at(-1)
         if (!cfg.enabled || !engine) return []
@@ -399,7 +399,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
     },
     async configureServer(server: ViteDevServer) {
       if (testing) return
-      const {resolveConfig} = await import('@conciv/core/config')
+      const {resolveConfig} = await import('@conciv/backend/config')
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
       const booted = await bootEngine(

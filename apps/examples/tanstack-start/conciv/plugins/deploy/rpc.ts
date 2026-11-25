@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {Rpc} from '@conciv/plugin/rpc'
+import {Rpc} from '@conciv/backend-plugin-api/rpc'
 
 export const Deploy = Rpc.define({
   id: 'deploy',

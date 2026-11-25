@@ -8,7 +8,7 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import {nitro} from 'nitro/vite'
 import conciv from '@conciv/it/plugin/vite'
-import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'
+import {e2eDevEndpointDir} from '@internal/e2e-utils/dev-endpoint'
 
 const tanstackPlugin = fileURLToPath(new URL('.', import.meta.resolve('@conciv/plugin-tanstack/package.json')))
 

@@ -1,4 +1,4 @@
-import {Store} from '@conciv/plugin/experimental'
+import {Store} from '@conciv/frontend-plugin-api'
 import {z} from 'zod'
 
 export const whiteboardStores = {

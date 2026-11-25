@@ -1,4 +1,4 @@
-import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
 
 export type ToolStatus = 'running' | 'complete' | 'error' | 'approval' | NonNullable<ToolResultPart['outcome']>
 

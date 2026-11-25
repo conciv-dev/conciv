@@ -1,5 +1,5 @@
 import {range, uniqBy} from 'es-toolkit'
-import type {ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
+import type {ChatPart, ToolCallPart} from '@conciv/types/chat-message-types'
 import {
   defaultGrouper,
   isReplyText,

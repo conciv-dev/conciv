@@ -1,5 +1,5 @@
-import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
-import type {ToolCardEntry, ToolCardView} from '@conciv/protocol/tool-view-types'
+import type {ToolCallPart} from '@conciv/types/chat-message-types'
+import type {ToolCardEntry, ToolCardView} from '@conciv/types/tool-view-types'
 
 type ToolkitEntry = ToolCardView & {display?: 'standalone'}
 

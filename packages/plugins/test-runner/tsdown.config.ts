@@ -3,7 +3,7 @@ import {defineConfig} from 'tsdown'
 export default defineConfig({
   sourcemap: true,
   entry: [
-    'src/index.ts',
+    'src/test-runner.ts',
     'src/rpc.ts',
     'src/vitest.ts',
     'src/vitest-child.ts',

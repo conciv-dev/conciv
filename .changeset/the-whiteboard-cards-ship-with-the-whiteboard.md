@@ -1,6 +1,6 @@
 ---
-'@conciv/plugin-whiteboard': patch
-'@conciv/embed': patch
+'@internal/plugin-whiteboard': patch
+'@conciv/app': patch
 ---
 
 The thread cards for the whiteboard tools (canvas, comment, element and anchor) now ship with the whiteboard plugin and

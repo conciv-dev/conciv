@@ -1,6 +1,6 @@
 ---
-'@conciv/plugin': patch
-'@conciv/app': patch
+'@conciv/backend-plugin-api': patch
+'@internal/frontend-defaults': patch
 '@conciv/ui-kit-chat': patch
 ---
 

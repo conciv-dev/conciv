@@ -2,8 +2,8 @@ import {spawn, type ChildProcess} from 'node:child_process'
 import {once} from 'node:events'
 import type {Readable} from 'node:stream'
 import {z} from 'zod'
-import {killLeftovers} from '@conciv/ai/server'
-import type {HarnessModel} from '@conciv/protocol/harness-types'
+import {killLeftovers} from '../local-sandbox.js'
+import type {HarnessModel} from '@conciv/types/harness-types'
 
 const LISTING_TIMEOUT_MS = 30_000
 

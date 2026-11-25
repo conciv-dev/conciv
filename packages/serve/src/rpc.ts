@@ -7,8 +7,8 @@ import type {WSContext, WSEvents, WSMessageReceive} from 'hono/ws'
 import type {StandardRPCHandlerOptions} from '@orpc/server/standard'
 import {valid} from 'semver'
 import {z} from 'zod'
-import {SOCKET_TRUST_FRAME, SocketTrustFrameSchema} from '@conciv/contract'
-import {CONCIV_VERSION_HEADER, type RpcContext, type RpcHeaders, type RpcSocketTrust} from '@conciv/protocol/rpc-types'
+import {SOCKET_TRUST_FRAME, SocketTrustFrameSchema} from '@conciv/protocol'
+import {CONCIV_VERSION_HEADER, type RpcContext, type RpcHeaders, type RpcSocketTrust} from '@conciv/types/rpc-types'
 
 const ADAPTER_REFUSED_STATUS = 500
 

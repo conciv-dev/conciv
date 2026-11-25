@@ -220,13 +220,13 @@ export default {
     type: 'problem',
     messages: {
       e2eTempDir:
-        'An e2e helper or spec that makes a folder or file under the OS temp dir leaves it behind when the run ends. Put it under the app run state folder e2e/.conciv-e2e/<app> (e2eDevEndpointDir in @conciv/e2e-utils/dev-endpoint shows the path), which the e2e web server empties at start and the shared state cleanup reporter removes when the run ends; a folder that must stay outside the repo goes in the runFolders the same reporter removes.',
+        'An e2e helper or spec that makes a folder or file under the OS temp dir leaves it behind when the run ends. Put it under the app run state folder e2e/.conciv-e2e/<app> (e2eDevEndpointDir in @internal/e2e-utils/dev-endpoint shows the path), which the e2e web server empties at start and the shared state cleanup reporter removes when the run ends; a folder that must stay outside the repo goes in the runFolders the same reporter removes.',
       testkitTempDir:
         'A testkit that makes its own folder or file under the OS temp dir leaks it when setup throws or the caller never cleans up. Take a folder the caller owns and removes: pass it in.',
       handMadeTempDir:
-        'A test that makes its own folder under the OS temp dir leaks it when the test fails before removing it. Take it from tempDir(prefix) (@conciv/vitest-config/temp-dir: one folder per test file, removed after the file) or, in a vitest config or browser command, a folder under test-results/conciv-home beside the config (the CONCIV_HOME of the run, emptied at the start and removed at the end of every run by the globalSetup ciTest() carries).',
+        'A test that makes its own folder under the OS temp dir leaks it when the test fails before removing it. Take it from tempDir(prefix) (@internal/vitest-config/temp-dir: one folder per test file, removed after the file) or, in a vitest config or browser command, a folder under the HOME of the run (the isolated home the globalSetup concivTest() carries makes at the start and removes at the end of every run).',
       exitHook:
-        'A process exit hook is cleanup that a crashed or killed run can skip, and the folder it removes is usually under the OS temp dir. In a test take the folder from tempDir(prefix) (@conciv/vitest-config/temp-dir); in a vitest config or browser command put it under test-results/conciv-home beside the config, which the globalSetup ciTest() carries empties at the start and removes at the end of every run.',
+        'A process exit hook is cleanup that a crashed or killed run can skip, and the folder it removes is usually under the OS temp dir. In a test take the folder from tempDir(prefix) (@internal/vitest-config/temp-dir); in a vitest config or browser command put it under the HOME of the run, the isolated home the globalSetup concivTest() carries makes at the start and removes at the end of every run.',
     },
     schema: [],
   },

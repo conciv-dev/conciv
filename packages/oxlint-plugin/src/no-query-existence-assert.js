@@ -1,3 +1,5 @@
+import {readTestKind} from '@internal/vitest-config/test-layout'
+
 const QUERY_PREFIXES = ['findAllBy', 'findBy', 'getAllBy', 'getBy', 'queryAllBy', 'queryBy']
 const QUERY_SUFFIXES = ['AltText', 'DisplayValue', 'LabelText', 'PlaceholderText', 'Role', 'TestId', 'Text', 'Title']
 const QUERY_NAMES = new Set(QUERY_PREFIXES.flatMap((prefix) => QUERY_SUFFIXES.map((suffix) => prefix + suffix)))
@@ -15,7 +17,7 @@ const NULL_ARGUMENT_MATCHERS = new Set(['toBe', 'toEqual', 'toStrictEqual'])
 const LENGTH_MATCHER = 'toHaveLength'
 const IN_DOCUMENT_MATCHER = 'toBeInTheDocument'
 
-const DOM_OR_BROWSER_TEST_FILE = /\.(?:dom|browser)\.test\.[cm]?[jt]sx?$/
+const DOM_TEST_KINDS = new Set(['unit', 'e2e'])
 const SOLID_TESTING_LIBRARY = '@solidjs/testing-library'
 const TESTING_LIBRARY_SCOPE = '@testing-library/'
 
@@ -128,7 +130,7 @@ export default {
     const file = {checked: false}
     return {
       Program(node) {
-        file.checked = DOM_OR_BROWSER_TEST_FILE.test(context.filename) || importsTestingLibrary(node)
+        file.checked = DOM_TEST_KINDS.has(readTestKind(context.filename)) || importsTestingLibrary(node)
       },
       CallExpression(node) {
         if (!file.checked) return

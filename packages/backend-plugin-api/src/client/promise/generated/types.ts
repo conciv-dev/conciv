@@ -1,0 +1,484 @@
+import type {SessionId} from '@conciv/types/chat-types'
+import type {Json} from '@conciv/types/json'
+import type * as Bundler from '@conciv/protocol/schema/bundler'
+import type {PublicRef, Ref as LocationRef} from '@conciv/protocol/schema/location'
+import type {Ref} from '@conciv/protocol/schema/model'
+import type {Ruleset, Source} from '@conciv/protocol/schema/permission'
+
+export interface GenerateUsage {
+  input?: number
+  output?: number
+}
+
+export type GenerateNative = {[key: string]: Json}
+
+export interface GenerateTextInput {
+  readonly prompt: string
+  readonly model?: Ref | null | undefined
+}
+
+export interface GenerateImageInput {
+  readonly model: Ref
+  readonly prompt: string
+  readonly images?: ReadonlyArray<{readonly data: string; readonly mime: string; readonly name?: string}> | undefined
+  readonly n?: number | undefined
+  readonly aspect?: `${number}${':'}${number}` | undefined
+  readonly resolution?: ('1K' | '2K' | '4K' | (string & {})) | undefined
+}
+
+export interface GenerateImageResult {
+  images: Array<{type: 'image'; data: string; mime: string; name?: string}>
+  cost?: number
+  tokens?: GenerateUsage
+  native?: GenerateNative
+}
+
+export interface GenerateDecisionsInput {
+  readonly model: Ref
+  readonly input: ReadonlyArray<
+    | {readonly type: 'text'; readonly text: string}
+    | {readonly type: 'json'; readonly value: Json}
+    | {readonly type: 'file'; readonly data: string; readonly mime: string; readonly name?: string}
+  >
+  readonly questions: ReadonlyArray<
+    | {
+        readonly type: 'predicate'
+        readonly name: string
+        readonly instructions: string
+        readonly criteria?: {readonly true?: string; readonly false?: string}
+      }
+    | {
+        readonly type: 'choice'
+        readonly name: string
+        readonly instructions: string
+        readonly choices: ReadonlyArray<{readonly value: string | boolean; readonly description?: string}>
+      }
+    | {
+        readonly type: 'score'
+        readonly name: string
+        readonly instructions: string
+        readonly levels: ReadonlyArray<{readonly label: string; readonly description?: string}>
+      }
+  >
+}
+
+export type GenerateChoiceValue = string | boolean
+
+export type GenerateDecisionAnswer =
+  | {type: 'predicate'; name: string; probability: number}
+  | {
+      type: 'choice'
+      name: string
+      choice: GenerateChoiceValue
+      probabilities: Array<{value: GenerateChoiceValue; probability: number}>
+      confidence: number
+    }
+  | {
+      type: 'score'
+      name: string
+      score: number
+      probabilities: Array<{value: number; label: string; probability: number}>
+      confidence: number
+    }
+  | {type: 'error'; name: string; reason: string; message?: string}
+
+export interface GenerateDecisionResult {
+  answers: Array<GenerateDecisionAnswer>
+  cost?: number
+  tokens?: GenerateUsage
+  native?: GenerateNative
+}
+
+export type SessionInboxDelivery = 'steer' | 'queue'
+
+export interface TokenUsageInfo {
+  input: number
+  output: number
+  reasoning: number
+  cache: {read: number; write: number}
+}
+
+export interface SessionInfo {
+  id: SessionId
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  parentId?: SessionId
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  fork?: {sessionId: SessionId; boundary: {type: 'before'; messageId: string} | {type: 'through'; messageId: string}}
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  projectId: string | undefined
+  agent?: string
+  model?: Ref
+  cost: number
+  tokens: TokenUsageInfo
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  outcome?: 'succeeded' | 'failed' | 'interrupted'
+  time: {
+    created: number
+    updated: number
+    /** @remarks Not implemented yet. Always undefined in this version. */
+    busy?: number
+    /** @remarks Not implemented yet. Always undefined in this version. */
+    idle?: number
+    /** @remarks Not implemented yet. Always undefined in this version. */
+    viewed?: number
+    /** @remarks Not implemented yet. Always undefined in this version. */
+    archived?: number
+  }
+  title?: string
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  subpath?: string
+  metadata?: {[key: string]: Json}
+  permissions?: Ruleset
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  revert?: {
+    messageId: string
+    partId?: string
+    snapshot?: string
+    files?: Array<{
+      file: string
+      patch: string
+      additions: number
+      deletions: number
+      status: 'added' | 'deleted' | 'modified'
+      more?: true
+    }>
+  }
+  location: PublicRef
+}
+
+export interface SessionListInput {
+  readonly limit?: number | undefined
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  readonly order?: 'asc' | 'desc' | undefined
+  readonly search?: string | undefined
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  readonly parentId?: string | null | undefined
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  readonly archived?: boolean | undefined
+  readonly cursor?: string | undefined
+}
+
+export interface SessionCreateInput {
+  readonly id?: string | undefined
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  readonly parentId?: string | null | undefined
+  readonly title?: string | null | undefined
+  readonly agent?: string | null | undefined
+  readonly model?: Ref | null | undefined
+  readonly metadata?: {readonly [key: string]: Json} | null | undefined
+  readonly permissions?: Ruleset | null | undefined
+}
+
+export interface SessionUpdateInput {
+  readonly sessionId: SessionId
+  readonly title?: string | undefined
+  readonly metadata?: {readonly [key: string]: Json} | undefined
+  readonly permissions?: Ruleset | undefined
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  readonly archived?: boolean | undefined
+}
+
+export interface SessionInboxCompaction {
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  id: string | undefined
+  sessionId: SessionId
+  time: {created: number}
+  type: 'compaction'
+  payload: {}
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  delivery: SessionInboxDelivery | undefined
+}
+
+export interface SessionInboxSynthetic {
+  id: string
+  sessionID: SessionId
+  time: {created: number}
+  type: 'synthetic'
+  payload: {text: string; description?: string; metadata?: {[key: string]: Json}}
+  delivery: SessionInboxDelivery
+}
+
+export interface PromptMention {
+  readonly start: number
+  readonly end: number
+  readonly text: string
+}
+
+export interface SessionCommandInput {
+  readonly sessionId: SessionId
+  readonly name: string
+  readonly text: string
+  readonly files?:
+    | ReadonlyArray<{
+        readonly uri: string
+        readonly source?: {readonly type: 'inline'} | {readonly type: 'uri'; readonly uri: string}
+        readonly name?: string
+        readonly description?: string
+        readonly mention?: PromptMention
+      }>
+    | undefined
+  readonly agents?: ReadonlyArray<{readonly name: string; readonly mention?: PromptMention}> | undefined
+  readonly skills?: ReadonlyArray<{readonly id: string; readonly mention?: PromptMention}> | undefined
+  readonly delivery?: SessionInboxDelivery | null | undefined
+}
+
+export interface SessionSyntheticInput {
+  readonly sessionID: SessionId
+  readonly id?: string | null | undefined
+  readonly text: string
+  readonly description?: string | null | undefined
+  readonly metadata?: {readonly [key: string]: Json} | undefined
+  readonly delivery?: SessionInboxDelivery | null | undefined
+  readonly resume?: boolean | null | undefined
+}
+
+export interface InstructionEntryInfo {
+  key: string
+  value: Json
+}
+
+export type PluginSource =
+  | {readonly type: 'builtin'}
+  | {
+      readonly type: 'package'
+      readonly target: string
+      readonly version?: string
+      readonly outdated?: true
+      readonly updating?: true
+    }
+  | {readonly type: 'local'; readonly path: string}
+  | {readonly type: 'sdk'}
+
+export interface PluginFeatures {
+  readonly server?: true
+  readonly rpc?: true
+  readonly experimental?: true
+}
+
+export type PluginState =
+  | {readonly status: 'active'}
+  | {readonly status: 'failed'; readonly error: string; readonly ref?: string}
+
+export interface PluginInfo {
+  readonly id?: string
+  readonly source: PluginSource
+  readonly features: PluginFeatures
+  readonly state: PluginState
+  readonly options?: Readonly<Record<string, unknown>>
+}
+
+export interface PermissionRequest {
+  readonly id: string
+  readonly sessionId: SessionId
+  readonly action: string
+  readonly resources: ReadonlyArray<string>
+  readonly save?: ReadonlyArray<string>
+  readonly metadata?: Readonly<Record<string, unknown>>
+  readonly source?: Source
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  readonly message?: string
+}
+
+export interface PermissionReplyInput {
+  readonly sessionId: SessionId
+  readonly requestId: string
+  readonly decision: 'once' | 'always' | 'reject'
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  readonly message?: string | undefined
+}
+
+export interface ModelListInput {
+  readonly types?: ReadonlyArray<'chat' | 'decision' | 'image' | (string & {})> | undefined
+}
+
+type InstructionHash = string
+
+type PermissionReply = 'once' | 'always' | 'reject'
+
+type AgentUpdated = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'agent.updated'
+  location?: LocationRef
+  data: {}
+}
+
+type SkillUpdated = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'skill.updated'
+  location?: LocationRef
+  data: {}
+}
+
+type PluginUpdated = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'plugin.updated'
+  location?: LocationRef
+  data: {}
+}
+
+type BundlerDiagnostic = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'bundler.diagnostic'
+  location?: LocationRef
+  data: {diagnostic: typeof Bundler.Diagnostic.Type}
+}
+
+type BundlerStatus = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'bundler.status'
+  location?: LocationRef
+  data: {status: typeof Bundler.Status.Type}
+}
+
+type PermissionAsked = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'permission.asked'
+  location?: LocationRef
+  data: {
+    id: string
+    sessionId: SessionId
+    action: string
+    resources: Array<string>
+    save?: Array<string>
+    metadata?: Record<string, unknown>
+    source?: Source
+    message?: string
+  }
+}
+
+type PermissionReplied = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'permission.replied'
+  location?: LocationRef
+  data: {sessionId: SessionId; requestId: string; reply: PermissionReply}
+}
+
+type SessionCreated = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.created'
+  durable: {aggregateID: string; seq: number; version: 1}
+  location?: LocationRef
+  data: {sessionID: SessionId; title?: string}
+}
+
+type SessionRenamed = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.renamed'
+  durable: {aggregateID: string; seq: number; version: 1}
+  location?: LocationRef
+  data: {sessionID: SessionId; title: string}
+}
+
+export type SessionDeleted = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.deleted'
+  durable: {aggregateID: string; seq: number; version: 2}
+  location?: LocationRef
+  data: {sessionID: SessionId}
+}
+
+type SessionExecutionStarted = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.execution.started'
+  durable: {aggregateID: string; seq: number; version: 1}
+  location?: LocationRef
+  data: {sessionID: SessionId}
+}
+
+type SessionExecutionSucceeded = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.execution.succeeded'
+  durable: {aggregateID: string; seq: number; version: 1}
+  location?: LocationRef
+  data: {sessionID: SessionId}
+}
+
+type SessionExecutionFailed = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.execution.failed'
+  durable: {aggregateID: string; seq: number; version: 1}
+  location?: LocationRef
+  data: {sessionID: SessionId; error: string}
+}
+
+type SessionExecutionInterrupted = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.execution.interrupted'
+  durable: {aggregateID: string; seq: number; version: 1}
+  location?: LocationRef
+  data: {sessionID: SessionId; reason: 'user' | 'shutdown' | 'superseded' | 'inactivity'}
+}
+
+type SessionInstructionsUpdated = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.instructions.updated'
+  durable: {aggregateID: string; seq: number; version: 2}
+  location?: LocationRef
+  data: {sessionID: SessionId; delta: {[key: string]: InstructionHash | 'removed'}; text?: string}
+}
+
+type V2EventRpc = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown> | undefined
+  type: `rpc.${string}`
+  location: PublicRef
+  data: Record<string, unknown>
+}
+
+type V2EventServerConnected = {
+  id: string
+  metadata?: Record<string, unknown> | undefined
+  location?: PublicRef | undefined
+  type: 'server.connected'
+  data: {}
+}
+
+export type EventSubscribeOutput =
+  | AgentUpdated
+  | SkillUpdated
+  | PluginUpdated
+  | BundlerDiagnostic
+  | BundlerStatus
+  | PermissionAsked
+  | PermissionReplied
+  | SessionCreated
+  | SessionRenamed
+  | SessionDeleted
+  | SessionExecutionStarted
+  | SessionExecutionSucceeded
+  | SessionExecutionFailed
+  | SessionExecutionInterrupted
+  | SessionInstructionsUpdated
+  | V2EventRpc
+  | V2EventServerConnected

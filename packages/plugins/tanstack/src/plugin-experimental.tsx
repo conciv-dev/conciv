@@ -10,9 +10,9 @@ import {
   type ToolComponent,
   type ToolProps,
   type Ui,
-} from '@conciv/plugin/experimental'
-import {OpaqueUi, type InternalUi} from '@internal/plugin'
-import {PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
+} from '@conciv/frontend-plugin-api'
+import {OpaqueUi, type InternalUi} from '@internal/frontend-app-api'
+import {PageOperation, ReactTree} from '@conciv/frontend-plugin-api/page'
 import {tanstackToolLabel, tanstackToolName, type TanstackToolName} from './tool-labels.js'
 import {errorRingLayer} from './error-ring.js'
 import {execute} from './operations.js'

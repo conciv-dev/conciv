@@ -3,14 +3,15 @@
   "tasks": {
     "build": {
       "dependsOn": [
-        "@conciv/plugin#build",
+        "@conciv/backend-plugin-api#build",
+        "@conciv/frontend-plugin-api#build",
         "@conciv/plugin-page#build",
         "@conciv/plugin-testkit#build",
-        "@conciv/protocol#build"
+        "@conciv/types#build"
       ]
     },
     "typecheck": {
-      "dependsOn": ["^build", "^build:types", "@conciv/core#build", "@conciv/harness#build"]
+      "dependsOn": ["^build", "^build:types", "@conciv/backend#build", "@conciv/harness#build"]
     }
   }
 }

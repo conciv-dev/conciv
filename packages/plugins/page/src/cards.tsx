@@ -1,4 +1,4 @@
-import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import type {ToolComponent, ToolProps} from '@conciv/frontend-plugin-api'
 import type {GroupEntry} from '@conciv/ui-kit-chat'
 import {PageSessionCard} from './session-card.js'
 import {PAGE_SESSION_GROUP_KEY} from './page-session.js'
@@ -21,7 +21,7 @@ import {
 import {z} from 'zod'
 import {StatusDot, type StatusDotTone, TruncatedText} from '@conciv/ui-kit-system'
 import type {TrackReport} from './react.js'
-import {RawFrameSchema} from '@conciv/contract'
+import {RawFrameSchema} from '@conciv/protocol'
 import type {buildSnapshot} from './snapshot.js'
 import {html} from 'js-beautify'
 

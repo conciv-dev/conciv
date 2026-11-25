@@ -26,8 +26,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/ui-kit-system.d.ts",
+      "import": "./dist/ui-kit-system.js"
     },
     "./tokens.css": "./src/tokens.css",
     "./host.css": "./src/host.css"
@@ -59,8 +59,8 @@
     "lucide-solid": "catalog:"
   },
   "devDependencies": {
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/uno-preset": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/uno-preset": "workspace:*",
     "@types/node": "catalog:",
     "@unocss/postcss": "catalog:",
     "postcss": "catalog:",

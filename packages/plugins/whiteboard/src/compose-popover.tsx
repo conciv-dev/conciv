@@ -1,7 +1,7 @@
 import type {JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
-import type {Context} from '@conciv/plugin/experimental'
-import type {ElementRect} from '@conciv/plugin/experimental/grab'
+import type {Context} from '@conciv/frontend-plugin-api'
+import type {ElementRect} from '@conciv/frontend-plugin-api/grab'
 
 export function ComposePopover(props: {
   ui: Context['ui']

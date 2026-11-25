@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {argument, cli, command, description, name, option, route, schema} from '@bomb.sh/router'
-import {makeRpcClient} from '@conciv/contract'
+import {makeRpcClient} from '@conciv/client'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {engineOrigin} from './engine-origin.js'
 import {userFailure} from './failure.js'

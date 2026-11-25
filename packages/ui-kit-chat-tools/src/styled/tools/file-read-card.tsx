@@ -1,6 +1,6 @@
 import type {JSX} from 'solid-js'
 import FileText from 'lucide-solid/icons/file-text'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/types/tool-view-types'
 import {FileRead, useFileRead} from '../../primitives/tools/file-read.js'
 import {Chip, CodeBlock, countLabel, QUIET_TEXT_CLASS, ToolCard} from '@conciv/ui-kit-chat/tools'
 

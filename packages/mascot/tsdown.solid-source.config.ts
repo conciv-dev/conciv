@@ -1,7 +1,7 @@
 import {defineConfig} from 'tsdown'
 
 export default defineConfig({
-  entry: ['src/solid/index.ts'],
+  entry: ['src/solid/solid.ts'],
   outDir: 'dist/solid',
   format: 'esm',
   fixedExtension: false,

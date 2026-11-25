@@ -7,10 +7,10 @@ import {
   CONCIV_SESSION_HEADER,
   isSessionId,
   type SessionId,
-} from '@conciv/protocol/chat-types'
-import {makeRpcClient, type RpcClient} from '@conciv/contract'
-import {initContributions} from '@conciv/harness-init/registry'
-import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
+} from '@conciv/types/chat-types'
+import {makeRpcClient, type RpcClient} from '@conciv/client'
+import {initContributions} from '@conciv/harness/init/registry'
+import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
 import type {CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {engineOrigin} from './engine-origin.js'

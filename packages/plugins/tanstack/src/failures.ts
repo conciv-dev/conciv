@@ -1,5 +1,5 @@
 import {Schema} from 'effect'
-import {Tool} from '@conciv/plugin/schema/tool'
+import {Tool} from '@conciv/protocol/schema/tool'
 
 export const BundlerUnavailable = Schema.TaggedStruct('Tanstack.BundlerUnavailable', {message: Schema.String})
 export type BundlerUnavailable = typeof BundlerUnavailable.Type

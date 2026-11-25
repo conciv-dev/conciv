@@ -1,8 +1,8 @@
 ---
-'@conciv/plugin': patch
+'@conciv/backend-plugin-api': patch
 '@conciv/ui-kit-chat': patch
 '@conciv/ui-kit-system': patch
-'@conciv/embed': patch
+'@conciv/app': patch
 '@conciv/plugin-tanstack': patch
 '@conciv/plugin-page': patch
 '@conciv/plugin-test-runner': patch

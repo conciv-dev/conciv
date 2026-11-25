@@ -1,8 +1,8 @@
 export * as Page from './rpc.js'
 import {z} from 'zod'
 import {keyBy, mapValues} from 'es-toolkit'
-import {Rpc} from '@conciv/plugin/rpc'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {Rpc} from '@conciv/backend-plugin-api/rpc'
+import {SessionId} from '@conciv/types/chat-types'
 import {PageCaptureBundleSchema, SessionCapturesSchema, type ToolCaptureMode} from './element-capture-types.js'
 import {
   PAGE_QUEUE_MAX_ACTIONS,
@@ -11,8 +11,8 @@ import {
   PageQueueResultSchema,
   PageRaisedErrorSchema,
   SymbolicateSchema,
-} from '@conciv/protocol/page-types'
-import {SourceLocSchema} from '@conciv/contract'
+} from '@conciv/types/page-types'
+import {SourceLocSchema} from '@conciv/protocol'
 
 export const PAGE_NAMESPACE = 'page'
 export const MAX_FILE_BYTES = 5 * 1024 * 1024

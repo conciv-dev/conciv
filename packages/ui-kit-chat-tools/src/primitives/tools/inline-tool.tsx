@@ -1,5 +1,5 @@
 import {isPlainObject} from 'es-toolkit'
-import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
+import type {ToolCallPart} from '@conciv/types/chat-message-types'
 
 export function truncate(value: string, max = 80): string {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value

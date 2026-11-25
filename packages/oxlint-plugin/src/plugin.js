@@ -4,7 +4,7 @@ import noAwaitEffectQuery from './no-await-effect-query.js'
 import noComments from './no-comments.js'
 import noForcedClick from './no-forced-click.js'
 import noHandMadeTempDir from './no-hand-made-temp-dir.js'
-import {isDomTestFile} from '@conciv/vitest-config/new-layer'
+import {isDomTestFile} from '@internal/vitest-config/test-layout'
 import noLocatorPoll from './no-locator-poll.js'
 import maxTestTimeout from './max-test-timeout.js'
 import noMocks from './no-mocks.js'
@@ -209,7 +209,7 @@ const solidTestRender = {
     type: 'problem',
     messages: {
       solidWebRenderInTest:
-        "Test files mount Solid components with @solidjs/testing-library's render, not {{name}} from solid-js/web: the package's browser vitest project wires afterEach(cleanup) via @conciv/vitest-config's ciTestSolidBrowser() setupFiles, which is what removes hand-rolled disposer arrays and leaked roots.",
+        "Test files mount Solid components with @solidjs/testing-library's render, not {{name}} from solid-js/web: the unit project of concivTest() and the kit's browser project run its cleanup after each test, which is what removes hand-rolled disposer arrays and leaked roots.",
     },
     schema: [],
   },
@@ -227,7 +227,7 @@ const userEventOnly = {
     type: 'problem',
     messages: {
       fireEvent:
-        'Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces. The one exception is fireEvent.keyDown(target, {isComposing: true}) for an IME guard, which user-event cannot produce.',
+        'Act like a user: drive unit dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces. The one exception is fireEvent.keyDown(target, {isComposing: true}) for an IME guard, which user-event cannot produce.',
     },
     schema: [],
   },

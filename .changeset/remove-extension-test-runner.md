@@ -1,5 +1,5 @@
 ---
-'@conciv/embed': patch
+'@conciv/app': patch
 ---
 
 The old `@conciv/extension-test-runner` package is removed. Use `@conciv/plugin-test-runner` instead: load it with

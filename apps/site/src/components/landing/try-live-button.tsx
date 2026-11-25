@@ -5,7 +5,7 @@ import {
   CONNECTION_CHANGED_EVENT,
   type EventBusClientState,
   type WidgetConnectionChangedDetail,
-} from '@conciv/protocol/event-bus'
+} from '@conciv/types/event-bus'
 import {panelCommands} from '@/lib/panel-commands'
 import {tryButtonLabel} from '@/lib/try-state'
 

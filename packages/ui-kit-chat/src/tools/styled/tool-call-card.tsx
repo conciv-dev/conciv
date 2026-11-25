@@ -1,14 +1,14 @@
 import {createMemo, createSignal, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {isEqual} from 'es-toolkit'
-import {OutsideCallMetadataSchema, type ToolCallPart, type ToolResultPart} from '@conciv/protocol/chat-message-types'
+import {OutsideCallMetadataSchema, type ToolCallPart, type ToolResultPart} from '@conciv/types/chat-message-types'
 import type {
   ToolCardEntry,
   ToolCardProps,
   ToolCardView,
   ToolUIComponent,
   ToolViewCtx,
-} from '@conciv/protocol/tool-view-types'
+} from '@conciv/types/tool-view-types'
 import {ToolFallback} from './tool-fallback.js'
 import {findToolEntry} from '../primitives/define-toolkit.js'
 import {

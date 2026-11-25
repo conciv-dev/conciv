@@ -1,0 +1,103 @@
+{
+  "name": "@conciv/backend-defaults",
+  "version": "0.0.22",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv chat plane: turns, hydrate, transcript import, stop, compaction, boot recovery, the permission gate and the chat stores, built on @conciv/ai.",
+  "keywords": [
+    "ai",
+    "chat",
+    "conciv"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/backend-defaults"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "imports": {
+    "#fff": {
+      "types": "./dist/core/filesystem/fff.node.d.ts",
+      "workerd": "./dist/core/filesystem/fff.workerd.js",
+      "node": "./dist/core/filesystem/fff.node.js",
+      "default": "./dist/core/filesystem/fff.node.js"
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/backend-defaults.d.ts",
+      "import": "./dist/backend-defaults.js"
+    },
+    "./ai": {
+      "types": "./dist/ai.d.ts",
+      "import": "./dist/ai.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@conciv/backend-app-api": "workspace:^",
+    "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/db": "workspace:^",
+    "@conciv/harness": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
+    "@effect/opentelemetry": "catalog:",
+    "@effect/platform-node": "catalog:",
+    "@ff-labs/fff-node": "catalog:",
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/context-async-hooks": "catalog:",
+    "@opentelemetry/exporter-trace-otlp-http": "catalog:",
+    "@opentelemetry/sdk-trace-base": "catalog:",
+    "@orpc/client": "catalog:",
+    "@orpc/server": "catalog:",
+    "@silvia-odwyer/photon-node": "catalog:",
+    "@tanstack/ai": "catalog:",
+    "@tanstack/ai-code-mode": "catalog:",
+    "@tanstack/ai-isolate-quickjs": "catalog:",
+    "@tanstack/ai-mcp": "catalog:",
+    "@tanstack/ai-persistence": "catalog:",
+    "@tanstack/ai-sandbox": "catalog:",
+    "drizzle-orm": "catalog:",
+    "effect": "catalog:",
+    "es-toolkit": "catalog:",
+    "fuzzysort": "catalog:",
+    "js-yaml": "catalog:",
+    "piscina": "catalog:",
+    "which": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/client": "workspace:^",
+    "@conciv/plugin-testkit": "workspace:*",
+    "@conciv/simulation": "workspace:*",
+    "@effect/sql-sqlite-node": "catalog:",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/which": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=26.0.0"
+  }
+}

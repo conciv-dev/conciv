@@ -4,8 +4,8 @@ import {mkdir, writeFile} from 'node:fs/promises'
 import {extname, join} from 'node:path'
 import {Data, Effect} from 'effect'
 import {z} from 'zod'
-import {CONCIV_STATE_DIR} from '@conciv/protocol/state-types'
-import {Tool} from '@conciv/plugin/schema/tool'
+import {CONCIV_STATE_DIR} from '@conciv/types/state-types'
+import {Tool} from '@conciv/protocol/schema/tool'
 import {MAX_FILE_BYTES, type File} from './rpc.js'
 
 const Coded = z.object({code: z.string()})

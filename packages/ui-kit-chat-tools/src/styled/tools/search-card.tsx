@@ -1,6 +1,6 @@
 import {createMemo, Show, type JSX} from 'solid-js'
 import SearchIcon from 'lucide-solid/icons/search'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/types/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolStatus} from '@conciv/ui-kit-chat/tools'
 import {Search, useSearch} from '../../primitives/tools/search.js'

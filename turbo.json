@@ -97,10 +97,10 @@
       "dependsOn": ["//#lint:fix", "//#format:fix"]
     },
     "//#lint": {
-      "dependsOn": ["@conciv/uno-preset#build"]
+      "dependsOn": ["@internal/uno-preset#build"]
     },
     "//#lint:fix": {
-      "dependsOn": ["@conciv/uno-preset#build"],
+      "dependsOn": ["@internal/uno-preset#build"],
       "cache": false
     },
     "//#format": {},

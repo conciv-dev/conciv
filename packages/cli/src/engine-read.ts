@@ -1,6 +1,6 @@
 import {checkEngines, type EngineRow} from '@conciv/db'
-import {engineTooOld, makeRpcClient} from '@conciv/contract'
-import type {SessionId, TabOpen, Tabs, TabsListing} from '@conciv/protocol/chat-types'
+import {engineTooOld, makeRpcClient} from '@conciv/client'
+import type {SessionId, TabOpen, Tabs, TabsListing} from '@conciv/types/chat-types'
 
 export const ENGINE_READ_MS = 2_000
 

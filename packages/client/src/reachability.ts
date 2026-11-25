@@ -6,7 +6,7 @@ import {
   isEngineUnreachable,
   subscribeRpcReachability,
   type EngineConnectionTimings,
-} from '@conciv/contract'
+} from './browser-transport.js'
 
 export function isReachabilityError(error: unknown): boolean {
   return isEngineUnreachable(error)

@@ -1,0 +1,390 @@
+import type {HarnessAdapter} from '@conciv/harness'
+import type {Plugin as PluginDefinition} from '@conciv/backend-plugin-api'
+import type {Plugin as EffectPlugin} from '@conciv/backend-plugin-api/effect/plugin'
+import {Model} from '@conciv/protocol/schema/model'
+import type {createChatPlane} from '@conciv/backend-defaults'
+import type {ConcivDb} from '@conciv/db'
+import {dirname, join} from 'node:path'
+import * as NodeChildProcessSpawner from '@effect/platform-node/NodeChildProcessSpawner'
+import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
+import * as NodePath from '@effect/platform-node/NodePath'
+import {FetchHttpClient, type HttpClient} from 'effect/http'
+import {AbsolutePath} from '@conciv/protocol/schema/schema'
+import {SqliteClient} from '@effect/sql-sqlite-node'
+import {
+  Agent,
+  Bus,
+  ConfigPluginSource,
+  EffectFlock,
+  FSUtil,
+  InstancePlugins,
+  KV,
+  Location,
+  Npm,
+  Permission,
+  PermissionSaved,
+  Plugin,
+  PluginHooks,
+  PluginPromise,
+  PluginSupervisor,
+  PluginUpdate,
+  Rpc,
+  SdkPlugins,
+  Session,
+  Skill,
+  Tool,
+  Watcher,
+  Model as HostModel,
+  App,
+  ConfigPolicy,
+  Global,
+  ManagedPolicy,
+  PluginHost,
+} from '@conciv/backend-app-api'
+import {
+  FileSystem,
+  FileSystemSearch,
+  Ripgrep,
+  RipgrepBinary,
+  SessionInbox,
+  SessionProjector,
+  SkillInstructions,
+  ConfigAgentPlugin,
+  DatabaseLayer,
+  ImageLayer,
+  PluginInternal,
+} from '@conciv/backend-defaults'
+import {
+  ConfigProvider,
+  Effect,
+  Exit,
+  FileSystem as PlatformFileSystem,
+  Layer,
+  ManagedRuntime,
+  PlatformError,
+  Schedule,
+  Schema,
+  Scope,
+  Queue,
+  Stream,
+} from 'effect'
+import type {PluginHost as PluginHostRuntime} from '../api/rpc/mount.js'
+import type {ResolvedConcivConfig} from '../config.js'
+import * as EventFeed from '../event-feed.js'
+import {provideInstructionEntries} from './instruction-entries.js'
+import {permissionSessions} from './permission-cards.js'
+import {provideSessions} from './plugin-sessions.js'
+import {provideServersSource} from './servers-source.js'
+import type {HarnessModel} from '@conciv/types/harness-types'
+import {uniq} from 'es-toolkit'
+import {buildHarnessMenuEntry} from '../api/rpc/sessions.js'
+import type {ConcivConfig} from '@conciv/types/config-types'
+import * as Bundler from '@conciv/protocol/schema/bundler'
+import corePackage from '../../package.json' with {type: 'json'}
+import type {EngineObservability} from './observability.js'
+
+export function provideBundlerSource(bundler: Bundler.BundlerBridge | undefined) {
+  return Layer.succeed(PluginHost.BundlerSource, bundler)
+}
+
+function diagnostics(subscribe: NonNullable<Bundler.BundlerBridge['subscribe']>) {
+  return Stream.callback<Bundler.Diagnostic>((queue) =>
+    Effect.acquireRelease(
+      Effect.sync(() => subscribe((diagnostic) => Queue.offerUnsafe(queue, diagnostic))),
+      (unsubscribe) => Effect.sync(unsubscribe),
+    ),
+  )
+}
+
+const followDiagnostics = Effect.fn('core.bundler.followDiagnostics')(function* (
+  bundler: Bundler.BundlerBridge | undefined,
+) {
+  const subscribe = bundler?.subscribe?.bind(bundler)
+  if (subscribe === undefined) return
+  const bus = yield* Bus.Service
+  yield* diagnostics(subscribe).pipe(
+    Stream.runForEach((diagnostic) => bus.publish(Bundler.Event.Diagnostic, {diagnostic})),
+    Effect.forkScoped,
+  )
+})
+
+export function publishBundlerDiagnostics(bundler: Bundler.BundlerBridge | undefined) {
+  return Layer.effectDiscard(followDiagnostics(bundler))
+}
+
+export function provideEditorSource(openInEditor: (file: string, line?: number, column?: number) => void) {
+  return Layer.succeed(PluginHost.EditorSource, openInEditor)
+}
+
+export function provideApp() {
+  return Layer.succeed(App.Service, App.make({version: corePackage.version}))
+}
+
+export function provideConfiguredPolicies(policies: ConcivConfig['policies']) {
+  return Layer.effect(
+    ManagedPolicy.ConfiguredPolicies,
+    Schema.decodeUnknownEffect(Schema.Array(ConfigPolicy.Info))(policies ?? []).pipe(Effect.orDie),
+  )
+}
+
+export function provideConfiguredPermissions(permissions: ResolvedConcivConfig['permissions']) {
+  return Layer.succeed(ConfigAgentPlugin.ConfiguredPermissions, permissions)
+}
+
+const isTransientErrno = Schema.is(Schema.Struct({code: Schema.Literals(['EMFILE', 'ENFILE', 'EAGAIN', 'EBUSY'])}))
+
+const isTransientMkdirError = (error: PlatformError.PlatformError): boolean => isTransientErrno(error.reason.cause)
+
+const makeRoots = Effect.fn('core.globalRoots.make')(function* (roots: Global.Interface) {
+  const files = yield* PlatformFileSystem.FileSystem
+  yield* Effect.forEach(
+    [roots.cache, roots.config, roots.state, roots.log],
+    (directory) =>
+      files
+        .makeDirectory(directory, {recursive: true})
+        .pipe(Effect.retry({while: isTransientMkdirError, schedule: Schedule.exponential('50 millis'), times: 5})),
+    {discard: true},
+  )
+}, Effect.orDie)
+
+export function provideGlobalRoots(home: string) {
+  const roots = {cache: join(home, 'cache'), config: home, state: join(home, 'state'), log: join(home, 'log')}
+  return Layer.unwrap(makeRoots(roots).pipe(Effect.as(Global.layerWith(roots))))
+}
+
+function harnessModelInfo(harnessId: string, model: HarnessModel): HostModel.Info {
+  const defaults = HostModel.Info.default(
+    HostModel.Info.fields.providerId.make(harnessId),
+    HostModel.Info.fields.id.make(model.id),
+  )
+  return {
+    ...defaults,
+    name: model.name,
+    enabled: model.disabled !== true,
+    limit: {context: model.contextWindow ?? defaults.limit.context, output: 0},
+    variants: (model.efforts ?? []).map((effort) => ({
+      id: HostModel.Info.fields.variants.value.fields.id.make(effort),
+      settings: {effort},
+    })),
+  }
+}
+
+const listedModels = Effect.fn('core.models.list')(function* (harness: HarnessAdapter, signal: AbortSignal) {
+  yield* Effect.annotateCurrentSpan({harness: harness.id})
+  const context = yield* Effect.context<never>()
+  const entry = yield* Effect.promise(() =>
+    buildHarnessMenuEntry(harness, signal, (logged) => {
+      Effect.runForkWith(context)(logged)
+    }),
+  )
+  const all = entry.models.map((model) => harnessModelInfo(harness.id, model))
+  return {all, available: all.filter((model) => model.enabled), defaultModel: entry.defaultModel}
+})
+
+export function provideHarnessModels(harness: HarnessAdapter, signal: AbortSignal) {
+  return Layer.succeed(
+    HostModel.Service,
+    HostModel.Service.of({
+      available: (types) =>
+        listedModels(harness, signal).pipe(
+          Effect.map(({available}) =>
+            types === undefined || types.length === 0
+              ? available
+              : uniq(types).flatMap((type) => available.filter((model) => (model.type ?? 'chat') === type)),
+          ),
+        ),
+      default: () =>
+        listedModels(harness, signal).pipe(
+          Effect.map(({all, available, defaultModel}) => {
+            const requested = all.find((model) => model.id === defaultModel)
+            return requested?.enabled ? requested : available[0]
+          }),
+        ),
+    }),
+  )
+}
+
+export type PluginRuntimeInput = {
+  db: ConcivDb
+  cwd: string
+  home: string
+  engineId: string
+  config: Pick<ResolvedConcivConfig, 'plugins' | 'policies' | 'permissions'>
+  plugins: readonly PluginDefinition.Plugin[]
+  post: readonly EffectPlugin[]
+  httpClient: Layer.Layer<HttpClient.HttpClient> | undefined
+  harness: HarnessAdapter
+  signal: AbortSignal
+  bundler: Bundler.BundlerBridge | undefined
+  openInEditor: (file: string, line?: number, column?: number) => void
+  sessions: Parameters<typeof provideSessions>[0]
+  configProvider: ConfigProvider.ConfigProvider
+  clock: Layer.Layer<never> | undefined
+  observability: EngineObservability['context']
+}
+
+const VCS_MARKERS = [
+  {type: 'git', marker: '.git'},
+  {type: 'hg', marker: '.hg'},
+]
+
+function ancestors(directory: string): string[] {
+  const parent = dirname(directory)
+  return parent === directory ? [directory] : [directory, ...ancestors(parent)]
+}
+
+const detectVcs = Effect.fn('core.location.detectVcs')(function* (directory: string) {
+  const files = yield* PlatformFileSystem.FileSystem
+  const candidates = ancestors(directory).flatMap((folder) =>
+    VCS_MARKERS.map((candidate) => ({type: candidate.type, store: join(folder, candidate.marker)})),
+  )
+  for (const candidate of candidates) {
+    if (yield* files.exists(candidate.store).pipe(Effect.orElseSucceed(() => false)))
+      return {type: candidate.type, store: AbsolutePath.make(candidate.store)}
+  }
+  return undefined
+})
+
+function locationLayer(cwd: string) {
+  const info = Schema.decodeSync(Location.Info)({directory: cwd, project: {id: cwd, directory: cwd, canonical: cwd}})
+  return Layer.effect(Location.Service, detectVcs(cwd).pipe(Effect.map((vcs) => Location.Service.of({...info, vcs}))))
+}
+
+function pluginHostLayer(input: PluginRuntimeInput) {
+  return Layer.mergeAll(
+    Plugin.layer,
+    SdkPlugins.layer,
+    InstancePlugins.bound(
+      input.plugins.map((plugin) => PluginPromise.fromPromise(plugin)),
+      {
+        post: input.post,
+      },
+    ),
+    PluginUpdate.layer,
+    ConfigPluginSource.layer,
+  ).pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(
+        Tool.layer,
+        Permission.layer,
+        SkillInstructions.layer,
+        SessionProjector.layer,
+        provideInstructionEntries,
+      ),
+    ),
+    Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(input.db), Skill.layer)),
+    Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, ImageLayer.layer)),
+    Layer.provideMerge(
+      Layer.mergeAll(
+        Rpc.layer,
+        KV.layer,
+        EventFeed.layer,
+        FileSystem.layer.pipe(
+          Layer.provide(FileSystemSearch.defaultLayer),
+          Layer.provide(Ripgrep.layer),
+          Layer.provide(RipgrepBinary.layer),
+        ),
+        publishBundlerDiagnostics(input.bundler),
+      ),
+    ),
+    Layer.provideMerge(provideSessions(input.sessions)),
+    Layer.provideMerge(SessionInbox.layer),
+    Layer.provideMerge(Bus.configured()),
+    Layer.provideMerge(
+      Layer.mergeAll(
+        locationLayer(input.cwd),
+        provideApp(),
+        provideServersSource({home: input.home, engineId: input.engineId}),
+        provideBundlerSource(input.bundler),
+        provideEditorSource(input.openInEditor),
+        provideConfiguredPolicies(input.config.policies),
+        provideConfiguredPermissions(input.config.permissions),
+        Layer.succeed(ConfigPluginSource.ConfiguredPlugins, input.config.plugins),
+        provideHarnessModels(input.harness, input.signal),
+        Watcher.layer().pipe(Layer.orDie, Layer.provide(Watcher.nativeLayer)),
+        Npm.layer.pipe(Layer.provide(EffectFlock.layer)),
+      ),
+    ),
+    Layer.provideMerge(FSUtil.layer),
+    Layer.provideMerge(
+      Layer.mergeAll(
+        DatabaseLayer.configuredClient(Layer.succeed(SqliteClient.SqliteClient, input.db.$client)),
+        NodeFileSystem.layer,
+        NodeChildProcessSpawner.layer.pipe(Layer.provide(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer))),
+        input.httpClient ?? FetchHttpClient.layer,
+        ConfigProvider.layer(input.configProvider),
+      ),
+    ),
+    Layer.provideMerge(Layer.succeedContext(input.observability)),
+  )
+}
+
+type SessionPrompt = PluginHooks.Domains['session']['prompt']
+type RequestHook = Parameters<typeof createChatPlane>[0]['context']
+type SessionRequest = Parameters<RequestHook>[1]
+
+function modelRef(model: SessionRequest['model']): Model.Ref {
+  return {
+    id: Model.Id.make(model.id),
+    providerId: Model.Ref.fields.providerId.make(model.providerId),
+    ...(model.variant === undefined ? {} : {variant: Model.VariantId.make(model.variant)}),
+  }
+}
+
+export type PluginRuntime = {
+  runtime: PluginHostRuntime
+  supervise: () => Promise<void>
+  awaitActivation: () => Promise<void>
+  prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
+  promptHooked: () => Promise<boolean>
+  context: RequestHook
+  closeRpc: () => Promise<void>
+  closePlugins: () => Promise<void>
+  closePermissions: () => Promise<void>
+}
+
+export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
+  const runtime = ManagedRuntime.make(pluginHostLayer(input).pipe(Layer.provideMerge(input.clock ?? Layer.empty)))
+  const supervised = Scope.forkUnsafe(runtime.scope, 'sequential')
+  return {
+    runtime,
+    supervise: () =>
+      runtime.runPromise(
+        Layer.buildWithScope(PluginSupervisor.layer.pipe(Layer.provide(PluginInternal.layer)), supervised).pipe(
+          Effect.asVoid,
+        ),
+      ),
+    awaitActivation: () => runtime.runPromise(Plugin.awaitActivation),
+    prompt: (event, signal) =>
+      runtime.runPromise(
+        Plugin.awaitActivation.pipe(
+          Effect.andThen(PluginHooks.Service.use((hooks) => hooks.trigger('session', 'prompt', event))),
+        ),
+        {signal},
+      ),
+    promptHooked: () =>
+      runtime.runPromise(
+        Plugin.awaitActivation.pipe(Effect.andThen(PluginHooks.Service.use((hooks) => hooks.has('session', 'prompt')))),
+      ),
+    context: (name, request, signal) =>
+      runtime.runPromise(
+        Plugin.awaitActivation.pipe(
+          Effect.andThen(Session.Service.use((sessions) => sessions.get(request.sessionId))),
+          Effect.flatMap((session) =>
+            PluginHooks.Service.use((hooks) =>
+              hooks.trigger('session', name, {
+                ...request,
+                sessionId: session.id,
+                model: modelRef(request.model),
+                agent: Agent.Id.make(session.agent ?? Agent.defaultId),
+              }),
+            ),
+          ),
+        ),
+        {signal},
+      ),
+    closeRpc: () => runtime.runPromise(Rpc.Service.use((rpc) => rpc.close)),
+    closePlugins: () => runtime.runPromise(Scope.close(supervised, Exit.void)),
+    closePermissions: () => runtime.runPromise(Permission.Service.use((permission) => permission.close)),
+  }
+}

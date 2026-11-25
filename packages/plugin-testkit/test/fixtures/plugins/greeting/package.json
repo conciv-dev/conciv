@@ -9,5 +9,8 @@
   "type": "module",
   "exports": {
     ".": "./plugin-experimental.tsx"
+  },
+  "devDependencies": {
+    "@conciv/frontend-plugin-api": "workspace:^"
   }
 }

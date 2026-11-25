@@ -1,5 +1,5 @@
 import {defineConfig} from 'vite'
-import {concivTest} from '@conciv/plugin-testkit/vitest'
+import {concivTest} from '@internal/vitest-config/conciv-test'
 
 export default defineConfig({
   plugins: [concivTest()],

@@ -17,14 +17,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p conciv/plugins/deploy/tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@conciv/app": "workspace:*",
     "@conciv/cli": "workspace:*",
-    "@conciv/embed": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/plugin-recorder": "workspace:*",
     "@conciv/plugin-tanstack": "workspace:*",
     "@conciv/plugin-test-runner": "workspace:*",
-    "@conciv/plugin-whiteboard": "workspace:*",
-    "@conciv/protocol": "workspace:*",
+    "@conciv/types": "workspace:*",
+    "@internal/plugin-whiteboard": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-devtools": "catalog:",
     "@tanstack/react-form": "^1.33.5",
@@ -39,7 +39,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/plugin": "workspace:*",
+    "@conciv/backend-plugin-api": "workspace:*",
+    "@conciv/frontend-plugin-api": "workspace:*",
+    "@conciv/protocol": "workspace:^",
     "@tailwindcss/typography": "catalog:",
     "@tanstack/devtools-vite": "catalog:",
     "@tanstack/router-cli": "catalog:",

@@ -3,9 +3,9 @@ import {
   StreamReconnectLimitError,
   type ConnectConnectionAdapter,
   type SubscribeConnectionAdapter,
-} from '@conciv/ai/client'
+} from './chat.js'
 import {ORPCError} from '@orpc/client'
-import {type ModelMessage, type ChatMessage} from '@conciv/protocol/chat-message-types'
+import {type ModelMessage, type ChatMessage} from '@conciv/types/chat-message-types'
 import {
   type ChatEvent,
   ChatEventType,
@@ -16,16 +16,11 @@ import {
   readApprovalAsk,
   readApprovalSettled,
   type ApprovalAsk,
-} from '@conciv/protocol/chat-event-types'
-import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/protocol/chat-types'
-import {
-  browserRpcConnection,
-  type EngineConnectionTimings,
-  type ChatHistoryWindow,
-  type ChatHydration,
-  type RpcClient,
-  type RpcClientContext,
-} from '@conciv/contract'
+} from '@conciv/types/chat-event-types'
+import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/types/chat-types'
+import {browserRpcConnection, type EngineConnectionTimings, type RpcClientContext} from './browser-transport.js'
+import {type RpcClient} from './rpc-client.js'
+import {type ChatHistoryWindow, type ChatHydration} from '@conciv/protocol'
 
 export async function* readingValues<T>(readable: ReadableStream<T>): AsyncGenerator<T> {
   const reader = readable.getReader()

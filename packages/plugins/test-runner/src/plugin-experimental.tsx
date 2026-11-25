@@ -9,8 +9,8 @@ import {
   type SessionRef,
   type SessionScreen,
   type ToolComponent,
-} from '@conciv/plugin/experimental'
-import {OpaqueUi, type InternalUi} from '@internal/plugin'
+} from '@conciv/frontend-plugin-api'
+import {OpaqueUi, type InternalUi} from '@internal/frontend-app-api'
 import type {Summary, TestError, TestRow} from './events.js'
 import {followRunView, type TestRunnerRuntime} from './follow.js'
 import {initialRunView, selectSummary, selectTests, type RunView} from './run-state.js'

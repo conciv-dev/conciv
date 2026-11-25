@@ -1,8 +1,8 @@
 import {createSignal, onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {createChat, type Chat} from '@conciv/ai/client'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {createChat, type Chat} from '@conciv/client/chat'
+import type {ToolCardProps} from '@conciv/types/tool-view-types'
 import {ChatProvider} from '../../store/chat-context.js'
 import {
   storyConnection,
@@ -10,7 +10,7 @@ import {
   createReasoningChunks,
   createToolCallChunks,
   type StoryConnectionOptions,
-} from '@conciv/ai/testkit'
+} from '@conciv/client/testing'
 import {Thread} from './thread.js'
 import {Message} from '../message/message.js'
 import {Suggestion, type SuggestionData} from '../suggestion/suggestion.js'

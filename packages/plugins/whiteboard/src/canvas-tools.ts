@@ -1,4 +1,4 @@
-import type {ToolEditor} from '@conciv/plugin/effect/tool'
+import type {ToolEditor} from '@conciv/backend-plugin-api/effect/tool'
 import type {Renderer} from '@takumi-rs/core'
 import {isPlainObject} from 'es-toolkit'
 import {Effect, Option, Stream} from 'effect'

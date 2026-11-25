@@ -3,7 +3,7 @@ import {createStore} from 'solid-js/store'
 import {Terminal as Xterm, type ITheme} from '@xterm/xterm'
 import {FitAddon} from '@xterm/addon-fit'
 import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
-import type {TtyServerControl} from '@conciv/protocol/terminal-types'
+import type {TtyServerControl} from '@conciv/types/terminal-types'
 import type {TerminalLink, TerminalListener, TerminalTransport} from './transport.js'
 
 const RETRY_BASE_MS = 500

@@ -1,0 +1,106 @@
+{
+  "name": "@conciv/backend-plugin-api",
+  "version": "0.0.22",
+  "description": "The conciv plugin SDK: Plugin.define for a plugin's engine and browser parts, RPC contracts, registries and stores.",
+  "keywords": [
+    "conciv",
+    "plugin",
+    "plugins"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/backend-plugin-api"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/promise/promise.d.ts",
+      "import": "./dist/promise/promise.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc.d.ts",
+      "import": "./dist/rpc.js"
+    },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "import": "./dist/host.js"
+    },
+    "./effect": {
+      "types": "./dist/effect/effect.d.ts",
+      "import": "./dist/effect/effect.js"
+    },
+    "./effect/permission": {
+      "types": "./dist/effect/permission.d.ts",
+      "import": "./dist/effect/permission.js"
+    },
+    "./effect/plugin": {
+      "types": "./dist/effect/plugin.d.ts",
+      "import": "./dist/effect/plugin.js"
+    },
+    "./effect/rpc": {
+      "types": "./dist/effect/rpc.d.ts",
+      "import": "./dist/effect/rpc.js"
+    },
+    "./effect/session": {
+      "types": "./dist/effect/session.d.ts",
+      "import": "./dist/effect/session.js"
+    },
+    "./effect/tool": {
+      "types": "./dist/effect/tool.d.ts",
+      "import": "./dist/effect/tool.js"
+    },
+    "./promise/adapter": {
+      "types": "./dist/promise/adapter.d.ts",
+      "import": "./dist/promise/adapter.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@conciv/client": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
+    "effect": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/plugin-testkit": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "solid-js": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13",
+    "vite": ">=8",
+    "vite-plugin-solid": "^2.11.14"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    },
+    "vite-plugin-solid": {
+      "optional": true
+    }
+  }
+}

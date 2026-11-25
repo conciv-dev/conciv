@@ -11,8 +11,8 @@ import solidPlugin from 'vite-plugin-solid'
 import {createGenerator, type UserConfig as UnoConfig} from 'unocss'
 import {playwright} from '@vitest/browser-playwright'
 import {z} from 'zod'
-import type {TestLLM} from '@conciv/harness-testkit'
-import {hang} from '@conciv/harness-testkit/test-llm'
+import type {TestLLM} from '@conciv/simulation'
+import {hang} from '@conciv/simulation/test-llm'
 import type {Engine, EngineSession, StartedEngine} from './engine.js'
 import {pluginDirectory} from './plugin-directory.js'
 import {disposeAll} from './dispose.js'
@@ -28,17 +28,11 @@ type EngineCommandHandlers = {
 
 const KIT_DIST = import.meta.dirname
 const ENGINE_ENTRY = /^@conciv\/plugin-testkit$/
-const NODE_ONLY_CONDITIONS = ['browser', 'solid']
-const SOLID_INJECTED_JEST_DOM = '@testing-library/jest-dom/vitest'
-const APP_FROM_KIT = '@conciv/plugin-testkit > @conciv/app'
-const TEST_TIMEOUT_MS = 30_000
-const HOOK_TIMEOUT_MS = 30_000
+const APP_FROM_KIT = '@conciv/plugin-testkit > @internal/frontend-defaults'
 const POLL_TIMEOUT_MS = 5_000
-const POLL_INTERVAL_MS = 50
 const VIEWPORT = {width: 1280, height: 800}
-const BROWSER_TESTS = ['src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx']
-const PERF_TESTS = ['src/**/*.perf.test.ts', 'src/**/*.perf.test.tsx']
-const WORKSPACE_DIST = /^(?!.*\/node_modules\/).*\/dist\/.*\.m?js$/
+const BROWSER_TESTS = ['test/e2e/**/*.e2e.test.{ts,tsx}']
+const PERF_TESTS = ['test/e2e/**/*.perf.e2e.test.{ts,tsx}']
 
 type BrowserName = 'chromium' | 'firefox'
 
@@ -70,50 +64,6 @@ function installedTestingLibraries(): string[] {
   })
 }
 
-function workerCap(): number | undefined {
-  const cap = Number(process.env.VITEST_MAX_FORKS)
-  return Number.isInteger(cap) && cap >= 1 ? cap : undefined
-}
-
-type AuthorTest = NonNullable<UserConfig['test']>
-
-function pollDefaults(expect: AuthorTest['expect'] = {}): {timeout: number; interval: number} {
-  return {timeout: expect.poll?.timeout ?? POLL_TIMEOUT_MS, interval: expect.poll?.interval ?? POLL_INTERVAL_MS}
-}
-
-function ciReporters(): NonNullable<AuthorTest['reporters']> {
-  if (!process.env.GITHUB_ACTIONS) return ['default']
-  return ['default', ['github-actions', {jobSummary: {enabled: false}}], ['json', {outputFile: 'test-results.json'}]]
-}
-
-const WORKSPACE_COVERAGE = ['packages', 'packages/plugins', 'packages/extensions', 'apps'].flatMap((group) => [
-  `**/${group}/*/src/**/*.{ts,tsx}`,
-  `**/${group}/*/dist/**/*.js`,
-])
-
-function kitDefaults(test: AuthorTest = {}): AuthorTest {
-  return {
-    reporters: test.reporters ?? ciReporters(),
-    coverage: {
-      enabled: test.coverage?.enabled ?? Boolean(process.env.GITHUB_ACTIONS),
-      provider: 'v8',
-      reporter: ['json-summary', 'lcovonly'],
-      reportsDirectory: 'coverage',
-      reportOnFailure: true,
-      include: ['src/**/*.{ts,tsx}', 'dist/**/*.js', ...WORKSPACE_COVERAGE],
-      exclude: ['**/*.test.*', '**/*.stories.*', '**/node_modules/**'],
-      allowExternal: true,
-      excludeAfterRemap: true,
-      // oxlint-disable-next-line conciv/banned-vocabulary -- vitest's own option name: coverage of the CLI child process
-      autoAttachSubprocess: true,
-    },
-    testTimeout: TEST_TIMEOUT_MS,
-    hookTimeout: HOOK_TIMEOUT_MS,
-    expect: {poll: pollDefaults(test.expect)},
-    maxWorkers: test.maxWorkers ?? workerCap(),
-  }
-}
-
 const UTILITY_SHEETS = new Set(['virtual:uno.css', '/__uno.css'])
 const GENERATED_SHEET = '/__conciv-test-uno.css'
 const PACKAGE_SOURCES = ['src/**/*.{ts,tsx}', '!src/**/*.{test,spec,stories}.*']
@@ -125,7 +75,7 @@ const UnoConfigModuleSchema = z.object({
 })
 
 function appDirectory(): string {
-  return dirname(createRequire(import.meta.url).resolve('@conciv/app/package.json'))
+  return dirname(createRequire(import.meta.url).resolve('@internal/frontend-defaults/package.json'))
 }
 
 async function scannedFiles(patterns: readonly string[]): Promise<string[]> {
@@ -176,25 +126,6 @@ function generatedStyles(testable: readonly TestablePlugin[]): Plugin {
       if (id.split('?')[0] !== GENERATED_SHEET) return null
       sheet ??= generateTestSheet([process.cwd(), ...testable.map((plugin) => plugin.directory)])
       return sheet
-    },
-  }
-}
-
-function engineModulesInNode(): Plugin {
-  return {
-    name: 'conciv:test-engine-conditions',
-    enforce: 'post',
-    config(config) {
-      const setupFiles = config.test?.setupFiles
-      if (!Array.isArray(setupFiles)) return
-      const kept = setupFiles.filter((file) => file !== SOLID_INJECTED_JEST_DOM)
-      setupFiles.splice(0, setupFiles.length, ...kept)
-    },
-    configResolved(config) {
-      const conditions = config.ssr.resolve?.conditions
-      if (!conditions) return
-      const kept = conditions.filter((condition) => !NODE_ONLY_CONDITIONS.includes(condition))
-      conditions.splice(0, conditions.length, ...kept)
     },
   }
 }
@@ -479,6 +410,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
   const browserProject = (
     name: string,
     include: string[],
+    exclude: string[],
     browsers: BrowserName[],
   ): TestProjectInlineConfiguration => ({
     extends: true,
@@ -493,6 +425,7 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
     test: {
       name,
       include,
+      exclude: [...configDefaults.exclude, ...exclude],
       setupFiles: [join(KIT_DIST, 'browser-setup.js')],
       provide,
       browser: {
@@ -507,48 +440,31 @@ function testProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineCo
     },
   })
   return [
-    {
-      extends: true,
-      plugins: [engineModulesInNode()],
-      test: {
-        name: 'node',
-        environment: 'node',
-        include: ['src/**/*.test.ts'],
-        setupFiles: [join(KIT_DIST, 'node-setup.js')],
-        server: {deps: {external: [WORKSPACE_DIST]}},
-        exclude: [...configDefaults.exclude, '**/*.dom.test.*', '**/*.browser.test.*', '**/*.perf.test.*'],
-      },
-    },
-    {
-      extends: true,
-      plugins: [...solid, engineModulesInNode()],
-      test: {
-        name: 'happy-dom',
-        include: ['src/**/*.dom.test.ts', 'src/**/*.dom.test.tsx'],
-        environment: 'happy-dom',
-        environmentOptions: {happyDOM: VIEWPORT},
-        setupFiles: [join(KIT_DIST, 'happy-dom-setup.js')],
-        provide,
-      },
-    },
-    browserProject('browser', BROWSER_TESTS, ['chromium']),
-    browserProject('perf', PERF_TESTS, ['chromium', 'firefox']),
+    browserProject('browser', BROWSER_TESTS, PERF_TESTS, ['chromium']),
+    browserProject('perf', PERF_TESTS, [], ['chromium', 'firefox']),
   ]
 }
 
-const KIT_PROJECTS = ['node', 'happy-dom', 'browser', 'perf']
+const NODE_SETUP = join(KIT_DIST, 'node-setup.js')
 
 const ProjectFilterSchema = z.object({project: z.union([z.string(), z.array(z.string())]).optional()})
+
+const NodeProjectSchema = z.object({
+  test: z.object({name: z.enum(['unit', 'it']), setupFiles: z.array(z.string()).optional()}),
+})
 
 function selectedProjects(projects: TestProjectInlineConfiguration[], test: unknown): TestProjectInlineConfiguration[] {
   const names = [ProjectFilterSchema.safeParse(test).data?.project ?? []].flat()
   if (names.length === 0) return projects.filter((project) => project.test?.name !== 'perf')
-  if (!names.every((name) => KIT_PROJECTS.includes(name))) return projects
   return projects.filter((project) => typeof project.test?.name === 'string' && names.includes(project.test.name))
 }
 
 export function kitTestConfig(config: UserConfig): UserConfig {
-  const defaults = kitDefaults(config.test)
-  if (config.test?.name !== undefined) return {test: defaults}
-  return {test: {...defaults, projects: selectedProjects(testProjects(config.plugins), config.test)}}
+  const projects = config.test?.projects ?? []
+  for (const project of projects) {
+    const node = NodeProjectSchema.safeParse(project)
+    if (node.success) node.data.test.setupFiles = [...(node.data.test.setupFiles ?? []), NODE_SETUP]
+  }
+  if (config.test?.name !== undefined) return {}
+  return {test: {projects: selectedProjects(testProjects(config.plugins), config.test)}}
 }

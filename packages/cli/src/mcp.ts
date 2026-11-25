@@ -5,8 +5,8 @@ import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {handler} from './router/handler.js'
 import {serveArgv} from './serve-argv.js'
-import {initContributions} from '@conciv/harness-init/registry'
-import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
+import {initContributions} from '@conciv/harness/init/registry'
+import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
 
 const HubAgentSchema = z
   .enum(INIT_HARNESS_IDS)
@@ -74,7 +74,7 @@ export const mcpRoute = route(
 )
 
 async function connections() {
-  const {createHubConnections} = await import('@conciv/harness-init/hub')
+  const {createHubConnections} = await import('@conciv/harness/init/hub')
   return createHubConnections(concivHome({env: process.env}))
 }
 

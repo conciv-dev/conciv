@@ -1,4 +1,4 @@
-import type {Context} from '@conciv/plugin/experimental'
+import type {Context} from '@conciv/frontend-plugin-api'
 import {Deferred, Effect, FiberHandle, PubSub, Queue, Schedule, Schema, Stream} from 'effect'
 import {z} from 'zod'
 import {Whiteboard} from './rpc.js'

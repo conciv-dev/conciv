@@ -21,8 +21,8 @@ import {
   type ChatModels,
   type HarnessMenuEntry,
   type ReasoningEffort,
-} from '@conciv/protocol/chat-types'
-import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+} from '@conciv/types/chat-types'
+import type {ChatMessage} from '@conciv/types/chat-message-types'
 import {
   effortLevels,
   harnessSection,

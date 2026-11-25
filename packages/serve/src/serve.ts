@@ -1,7 +1,7 @@
 import {once} from 'node:events'
 import {serve, upgradeWebSocket, type Http2Bindings, type HttpBindings, type ServerType} from '@hono/node-server'
 import {WebSocketServer} from 'ws'
-import {WS_MAX_PAYLOAD_BYTES} from '@conciv/protocol/rpc-types'
+import {WS_MAX_PAYLOAD_BYTES} from '@conciv/types/rpc-types'
 
 export {upgradeWebSocket}
 const GRACEFUL_SOCKET_CLOSE_MS = 2_000

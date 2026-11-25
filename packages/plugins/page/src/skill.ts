@@ -1,6 +1,6 @@
 export * as PageSkill from './skill.js'
-import {Skill} from '@conciv/plugin'
-import {AbsolutePath} from '@conciv/plugin/schema/schema'
+import {Skill} from '@conciv/backend-plugin-api'
+import {AbsolutePath} from '@conciv/protocol/schema/schema'
 import {Operations} from './rpc.js'
 
 export const id = 'page'

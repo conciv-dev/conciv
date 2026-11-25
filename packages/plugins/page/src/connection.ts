@@ -20,11 +20,11 @@ import {
   Stream,
 } from 'effect'
 import {z} from 'zod'
-import type {Context} from '@conciv/plugin/effect/plugin'
-import type {RpcRegistration} from '@conciv/plugin/effect/rpc'
-import {Tool} from '@conciv/plugin/schema/tool'
-import type {SessionId} from '@conciv/protocol/chat-types'
-import {PAGE_QUEUE_REFUSED, PAGE_QUEUE_STOPPED, PageRaisedErrorSchema} from '@conciv/protocol/page-types'
+import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
+import type {RpcRegistration} from '@conciv/backend-plugin-api/effect/rpc'
+import {Tool} from '@conciv/protocol/schema/tool'
+import type {SessionId} from '@conciv/types/chat-types'
+import {PAGE_QUEUE_REFUSED, PAGE_QUEUE_STOPPED, PageRaisedErrorSchema} from '@conciv/types/page-types'
 import {
   ACCESS,
   createConnectionState,
@@ -54,7 +54,7 @@ import {
 } from './rpc.js'
 import type {Symbolicator} from './symbolicate.js'
 import {PageCaptureBundleSchema, type PageCaptureBundle, type SessionCaptures} from './element-capture-types.js'
-import type {StorageEntry} from '@conciv/plugin/effect'
+import type {StorageEntry} from '@conciv/backend-plugin-api/effect'
 
 const TAB_RETURN_MS = 5000
 

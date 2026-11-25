@@ -1,8 +1,8 @@
 import {Data, Effect} from 'effect'
 import type {QueryClient} from '@conciv/client'
-import type {Desktop, MountedSession} from '@conciv/plugin/experimental'
-import type {GrabFrame} from '@conciv/plugin/experimental/grab'
-import type {LocateResult, Page, SourceLoc} from '@conciv/plugin/experimental/page'
+import type {Desktop, MountedSession} from '@conciv/frontend-plugin-api'
+import type {GrabFrame} from '@conciv/frontend-plugin-api/grab'
+import type {LocateResult, Page, SourceLoc} from '@conciv/frontend-plugin-api/page'
 import {Definition} from './rpc.js'
 
 export type OpenedSource = 'opened' | 'no-source' | 'failed'

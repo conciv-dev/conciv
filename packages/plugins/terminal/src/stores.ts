@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {Store} from '@conciv/plugin/experimental'
+import {Store} from '@conciv/frontend-plugin-api'
 
 export const terminalDeclarations = {
   stores: {

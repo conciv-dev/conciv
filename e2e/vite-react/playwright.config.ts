@@ -1,5 +1,5 @@
 import {defineConfig} from '@playwright/test'
-import {e2eConfig, e2ePort} from '@conciv/e2e-utils/config'
+import {e2eConfig, e2ePort} from '@internal/e2e-utils/config'
 
 const standalonePort = await e2ePort('standalone')
 
@@ -13,7 +13,7 @@ export default defineConfig(
   }),
   {
     webServer: {
-      command: `pnpm --filter @conciv/app exec vite preview --port ${standalonePort} --strictPort`,
+      command: `pnpm --filter @internal/frontend-defaults exec vite preview --port ${standalonePort} --strictPort`,
       url: `http://localhost:${standalonePort}`,
       reuseExistingServer: false,
       timeout: 180_000,

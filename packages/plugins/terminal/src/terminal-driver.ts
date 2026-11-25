@@ -1,6 +1,6 @@
 import {Duration, Effect, FiberHandle, Schedule, Semaphore, Stream, SubscriptionRef} from 'effect'
 import {ORPCError} from '@orpc/client'
-import type {MountedSession} from '@conciv/plugin/experimental'
+import type {MountedSession} from '@conciv/frontend-plugin-api'
 import {initialTerminalRun, transitionTerminal} from './terminal-machine.js'
 import type {LiveTerminal, TerminalEffect, TerminalEvent, TerminalRun} from './terminal-machine.js'
 

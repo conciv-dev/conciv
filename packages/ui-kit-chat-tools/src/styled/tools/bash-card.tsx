@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import Terminal from 'lucide-solid/icons/terminal'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/types/tool-view-types'
 import {Bash, useBash} from '../../primitives/tools/bash.js'
 import {cardPhase, CodeBlock, ErrorBlock, ToolCard} from '@conciv/ui-kit-chat/tools'
 

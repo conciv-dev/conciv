@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {ToolResultPart} from '@conciv/types/chat-message-types'
 import {resultText} from './tool-util.js'
 
 const ImagePartSchema = z

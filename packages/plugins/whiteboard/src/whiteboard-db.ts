@@ -1,5 +1,5 @@
 import {createCollection} from '@tanstack/solid-db'
-import {usePlugin, type Context} from '@conciv/plugin/experimental'
+import {usePlugin, type Context} from '@conciv/frontend-plugin-api'
 import {Effect} from 'effect'
 import {Whiteboard} from './rpc.js'
 import {

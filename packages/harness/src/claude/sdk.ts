@@ -7,8 +7,8 @@ import type {
   SlashCommand,
   Options,
 } from '@anthropic-ai/claude-agent-sdk'
-import type {HarnessLoginStatus} from '@conciv/protocol/chat-types'
-import type {HarnessCommand, HarnessCommandsContext, HarnessModel} from '@conciv/protocol/harness-types'
+import type {HarnessLoginStatus} from '@conciv/types/chat-types'
+import type {HarnessCommand, HarnessCommandsContext, HarnessModel} from '@conciv/types/harness-types'
 import {onPath} from '../_shared/on-path.js'
 import {CLAUDE_BIN, mcpServerConfig} from './args.js'
 import {claudePluginDir} from './plugin-dir.js'

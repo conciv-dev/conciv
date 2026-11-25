@@ -1,5 +1,5 @@
 import {defineConfig} from 'vite'
-import {experimental} from '@conciv/plugin/experimental/vite'
+import {experimental} from '@conciv/frontend-plugin-api/vite'
 
 export default defineConfig({
   publicDir: false,

@@ -9,5 +9,8 @@
   "type": "module",
   "exports": {
     "./server": "./server.ts"
+  },
+  "devDependencies": {
+    "@conciv/backend-plugin-api": "workspace:^"
   }
 }

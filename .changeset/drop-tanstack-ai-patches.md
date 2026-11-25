@@ -1,7 +1,7 @@
 ---
-'@conciv/ai': patch
-'@conciv/protocol': patch
-'@conciv/chat': patch
+'@conciv/backend': patch
+'@conciv/types': patch
+'@conciv/backend-defaults': patch
 '@conciv/harness': patch
 ---
 

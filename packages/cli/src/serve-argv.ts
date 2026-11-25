@@ -1,4 +1,4 @@
-import type {InitHarnessId} from '@conciv/protocol/harness-types'
+import type {InitHarnessId} from '@conciv/types/harness-types'
 import cliManifest from '../package.json' with {type: 'json'}
 
 export function serveArgv(agent: InitHarnessId): string[] {

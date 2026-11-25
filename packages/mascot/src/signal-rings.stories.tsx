@@ -1,7 +1,7 @@
 import {createEffect, onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {signalRingsEffect} from './core/effects/signal-rings.js'
-import {createMascot, robotLayers, type MascotConfig, type MascotState} from './core/index.js'
+import {createMascot, robotLayers, type MascotConfig, type MascotState} from './core/core.js'
 
 const STAGE_SIZE_PX = 120
 

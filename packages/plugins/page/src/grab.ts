@@ -3,7 +3,7 @@ import {type Grab, type GrabActions, type ElementSource, type GrabFrame, compose
 import type {SourceInfo} from 'react-grab'
 import {capturePreview} from './grab-preview.js'
 import {framesForElement, sourceFromAttr} from './react.js'
-import type {SourceLoc} from '@conciv/plugin/experimental/page'
+import type {SourceLoc} from '@conciv/frontend-plugin-api/page'
 
 const [picking, setPicking] = createSignal(false)
 

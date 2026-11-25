@@ -1,6 +1,6 @@
 ---
 '@conciv/plugin-recorder': patch
-'@conciv/embed': patch
+'@conciv/app': patch
 ---
 
 The thread card for the recorder tools now ships with the recorder plugin and draws through `ctx.ui`, so it shows only

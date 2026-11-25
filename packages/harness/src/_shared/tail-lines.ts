@@ -1,5 +1,5 @@
-import type {ChatMessage} from '@conciv/protocol/chat-message-types'
-import type {TranscriptCursor, TranscriptPage} from '@conciv/protocol/harness-types'
+import type {ChatMessage} from '@conciv/types/chat-message-types'
+import type {TranscriptCursor, TranscriptPage} from '@conciv/types/harness-types'
 import {open} from 'node:fs/promises'
 
 const CHUNK_BYTES = 262_144

@@ -1,7 +1,7 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
 import {toolStatus, type ToolStatus} from '../primitives/tool-status.js'
 import {formatDuration} from '../primitives/tool-util.js'
 import {StatusVisual} from '../primitives/status-visual.js'

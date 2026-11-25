@@ -1,5 +1,5 @@
 ---
-'@conciv/core': patch
+'@conciv/backend': patch
 ---
 
-`@conciv/core` no longer lists `@hono/node-server` as a dependency, since it reaches the Node server only through `@conciv/serve`.
+`@conciv/backend` no longer lists `@hono/node-server` as a dependency, since it reaches the Node server only through `@conciv/serve`.

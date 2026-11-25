@@ -1,4 +1,4 @@
-import {Plugin, Server, type ServerEntry} from '@conciv/plugin/experimental'
+import {Plugin, Server, type ServerEntry} from '@conciv/frontend-plugin-api'
 import {z} from 'zod'
 
 const GreetingOptions = z.object({greeting: z.string()})

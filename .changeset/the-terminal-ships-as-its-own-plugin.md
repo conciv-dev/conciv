@@ -1,6 +1,6 @@
 ---
-'@conciv/embed': patch
+'@conciv/app': patch
 ---
 
-The Terminal tab now lives in its own private package, `@conciv/plugin-terminal`, listed by the widget as the
+The Terminal tab now lives in its own private package, `@internal/plugin-terminal`, listed by the widget as the
 built-in `terminal` plugin and bundled into the widget. Nothing changes for the user.

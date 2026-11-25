@@ -1,4 +1,4 @@
-import {expect, test} from '@conciv/e2e-utils/fixtures'
+import {expect, test} from '@internal/e2e-utils/fixtures'
 
 test.describe('a session renamed in another browser', () => {
   test('the user renames the open session in a second browser, and the first browser shows the new title in its open rail', async ({

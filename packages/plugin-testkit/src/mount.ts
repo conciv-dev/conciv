@@ -2,8 +2,15 @@ import {inject, onTestFinished} from 'vitest'
 import {createComponent} from 'solid-js'
 import {cleanup, render} from '@solidjs/testing-library'
 import {createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
-import {ConcivApp, WIDGET_LAYER, createDraftStore, keepLastScreen, type DraftStore, type Platform} from '@conciv/app'
-import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
+import {
+  ConcivApp,
+  WIDGET_LAYER,
+  createDraftStore,
+  keepLastScreen,
+  type DraftStore,
+  type Platform,
+} from '@internal/frontend-defaults'
+import type {ConcivConfig, ConcivSettingsInit} from '@conciv/types/config-types'
 import {loaders} from 'virtual:conciv-test-plugins'
 import type {Engine} from './engine.js'
 

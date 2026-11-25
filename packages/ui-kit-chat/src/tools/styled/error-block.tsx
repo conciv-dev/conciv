@@ -1,5 +1,5 @@
 import {Show, splitProps, type JSX} from 'solid-js'
-import type {ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {ToolResultPart} from '@conciv/types/chat-message-types'
 import {DANGER_TEXT_CLASS, OUTCOME_LABEL, OUTCOME_TONE} from '../primitives/tool-presentation.js'
 
 const LABEL_CLASS =

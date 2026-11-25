@@ -1,7 +1,7 @@
 import {index, integer, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
 import type {Brand, Schema} from 'effect'
-import type {DraftItem, PermissionRule, ReasoningEffort, SessionId, SessionMetadata} from '@conciv/protocol/chat-types'
-import type {UsageSnapshot} from '@conciv/protocol/usage-types'
+import type {DraftItem, PermissionRule, ReasoningEffort, SessionId, SessionMetadata} from '@conciv/types/chat-types'
+import type {UsageSnapshot} from '@conciv/types/usage-types'
 
 export const sessions = sqliteTable(
   'sessions',

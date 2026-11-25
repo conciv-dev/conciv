@@ -12,19 +12,19 @@
     },
     "typecheck": {
       "dependsOn": [
-        "@conciv/harness-testkit#build:types",
-        "@conciv/ai#build",
+        "@conciv/simulation#build",
         "@conciv/client#build",
-        "@conciv/contract#build",
-        "@conciv/core#build",
+        "@conciv/backend-defaults#build",
+        "@conciv/protocol#build",
+        "@conciv/backend#build",
         "@conciv/grab#build",
         "@conciv/mascot#build",
-        "@conciv/plugin#build",
-        "@conciv/plugin-terminal#build",
-        "@conciv/protocol#build",
+        "@conciv/backend-plugin-api#build",
+        "@conciv/frontend-plugin-api#build",
+        "@internal/plugin-terminal#build",
+        "@conciv/types#build",
         "@conciv/solid-streamdown#build",
         "@conciv/storage-history#build",
-        "@conciv/tools#build",
         "@conciv/ui-kit-chat#build",
         "@conciv/ui-kit-chat-tools#build",
         "@conciv/ui-kit-system#build",
@@ -32,10 +32,14 @@
       ]
     },
     "kit-runtime": {
-      "dependsOn": ["@conciv/core#build", "@conciv/app#kit-runtime", "@conciv/harness-testkit#kit-runtime"]
+      "dependsOn": [
+        "@conciv/backend#build",
+        "@internal/frontend-defaults#kit-runtime",
+        "@conciv/simulation#kit-runtime"
+      ]
     },
     "test": {
-      "dependsOn": ["^build", "build", "build:types", "@conciv/harness-testkit#build", "kit-runtime"]
+      "dependsOn": ["^build", "build", "build:types", "@conciv/simulation#build", "kit-runtime"]
     },
     "publint": {
       "dependsOn": ["build", "build:types"]

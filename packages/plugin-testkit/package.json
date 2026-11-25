@@ -18,9 +18,6 @@
     "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/plugin-testkit"
   },
-  "bin": {
-    "conciv-test": "./bin/conciv-test.js"
-  },
   "files": [
     "bin",
     "dist"
@@ -28,8 +25,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/plugin-testkit.d.ts",
+      "import": "./dist/plugin-testkit.js"
     },
     "./browser": {
       "types": "./dist/browser.d.ts",
@@ -48,7 +45,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node bin/conciv-test.js",
+    "test": "vitest run",
     "build:types": "tsdown -c tsdown.types.config.ts"
   },
   "dependencies": {
@@ -56,12 +53,14 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/app": "workspace:*",
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin": "workspace:*",
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/uno-preset": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@conciv/backend": "workspace:*",
+    "@conciv/backend-plugin-api": "workspace:*",
+    "@conciv/frontend-plugin-api": "workspace:^",
+    "@conciv/simulation": "workspace:*",
+    "@internal/frontend-defaults": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/uno-preset": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/solid-router": "catalog:",
     "@testing-library/user-event": "catalog:",
@@ -81,9 +80,10 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@conciv/contract": "workspace:^",
-    "@conciv/harness-testkit": "workspace:^",
+    "@conciv/backend": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/simulation": "workspace:^",
+    "@conciv/types": "workspace:^",
     "@tanstack/solid-router": "^1.170.43",
     "playwright": "^1.64.1",
     "vitest": "^5.1.0"

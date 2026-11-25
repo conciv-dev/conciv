@@ -1,6 +1,6 @@
 import {createEffect, onCleanup, Show, splitProps, type ComponentProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {AppIconName} from '@conciv/plugin/experimental'
+import type {AppIconName} from '@conciv/frontend-plugin-api'
 import {isDocument, isShadowRoot} from '@conciv/ui-kit-system'
 import {getIcon, isIconName} from './catalog.js'
 import {isRegisteredIconName, mountRegisteredIcon, registeredIconSymbol, type RegisteredIconName} from './registry.js'

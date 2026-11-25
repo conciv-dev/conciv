@@ -1,6 +1,6 @@
 export * as PageMachine from './machine.js'
-import type {SessionId} from '@conciv/protocol/chat-types'
-import {Tool, type Rule} from '@conciv/plugin'
+import type {SessionId} from '@conciv/types/chat-types'
+import {Tool, type Rule} from '@conciv/backend-plugin-api'
 import type {Control, State, Tab} from './rpc.js'
 import {id as skillId} from './skill.js'
 

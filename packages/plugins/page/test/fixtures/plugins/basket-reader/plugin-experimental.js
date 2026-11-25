@@ -1,5 +1,5 @@
-const {Plugin} = require('@conciv/plugin/experimental')
-const {PageOperation} = require('@conciv/plugin/experimental/page')
+const {Plugin} = require('@conciv/frontend-plugin-api')
+const {PageOperation} = require('@conciv/frontend-plugin-api/page')
 
 module.exports = {
   default: Plugin.define({

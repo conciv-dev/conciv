@@ -1,4 +1,4 @@
-import {ComposerPill, Plugin, Slot, type ComposerPillView} from '@conciv/plugin/experimental'
+import {ComposerPill, Plugin, Slot, type ComposerPillView} from '@conciv/frontend-plugin-api'
 
 export default Plugin.define({
   setup(ctx) {

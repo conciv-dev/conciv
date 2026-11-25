@@ -1,4 +1,4 @@
-import {Rpc} from '@conciv/plugin/rpc'
+import {Rpc} from '@conciv/backend-plugin-api/rpc'
 import {z} from 'zod'
 
 export const recorderConfig = z.object({

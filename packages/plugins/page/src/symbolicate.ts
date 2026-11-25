@@ -3,7 +3,7 @@ import {fileURLToPath} from 'node:url'
 import {resolve, sep} from 'node:path'
 import {AnyMap, originalPositionFor, type TraceMap} from '@jridgewell/trace-mapping'
 import {Cache, Duration, Effect, Exit} from 'effect'
-import type {RawFrame, SourceLoc} from '@conciv/contract'
+import type {RawFrame, SourceLoc} from '@conciv/protocol'
 
 const SERVER_PREFIX = /^about:\/\/React\/Server\//
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])

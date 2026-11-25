@@ -1,8 +1,8 @@
 ---
+'@conciv/types': patch
 '@conciv/protocol': patch
-'@conciv/contract': patch
-'@conciv/chat': patch
-'@conciv/ai': patch
+'@conciv/backend-defaults': patch
+'@conciv/backend': patch
 ---
 
 The `approval-requested` chat event may carry `permission: {always: boolean}`, which marks the card as a plugin permission request, and `readApprovalAsk` passes it through. A new `approval-settled` chat event (`approvalSettledEvent`, read with `readApprovalSettled`) names an approval whose card should go away on every client.

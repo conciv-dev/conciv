@@ -4,8 +4,8 @@ import {createInterface} from 'node:readline'
 import {homedir} from 'node:os'
 import {join, resolve} from 'node:path'
 import {z} from 'zod'
-import {HarnessSessionId} from '@conciv/protocol/chat-types'
-import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
+import {HarnessSessionId} from '@conciv/types/chat-types'
+import type {ChatPart, ChatMessage} from '@conciv/types/chat-message-types'
 import type {
   HarnessHistory,
   HarnessListPage,
@@ -14,8 +14,8 @@ import type {
   HarnessSessionPage,
   TranscriptPage,
   TranscriptTailOptions,
-} from '@conciv/protocol/harness-types'
-import {parseJsonOrNull} from '@conciv/harness-init/json'
+} from '@conciv/types/harness-types'
+import {parseJsonOrNull} from '../init/json.js'
 import {containedPath} from '../_shared/contained-path.js'
 import {whenMissing} from '../_shared/when-missing.js'
 import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'

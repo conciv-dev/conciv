@@ -30,10 +30,10 @@ run_case() {
 
 # --- trailing '...' filter (pre-existing behavior) ---
 run_case "trailing dots on test filter blocked" \
-  "pnpm exec turbo run test --filter=@conciv/app..." 2
+  "pnpm exec turbo run test --filter=@internal/frontend-defaults..." 2
 
 run_case "trailing dots on typecheck filter blocked" \
-  "pnpm exec turbo run typecheck --filter=@conciv/app..." 2
+  "pnpm exec turbo run typecheck --filter=@internal/frontend-defaults..." 2
 
 run_case "leading dots dependents form allowed" \
   "pnpm exec turbo run test --filter=...@conciv/app" 0
@@ -42,16 +42,16 @@ run_case "leading and trailing dots still blocked" \
   "pnpm exec turbo run test --filter=...@conciv/app..." 2
 
 run_case "bare filter without dots allowed" \
-  "pnpm exec turbo run test --filter=@conciv/app" 0
+  "pnpm exec turbo run test --filter=@internal/frontend-defaults" 0
 
 run_case "build with trailing dots allowed" \
-  "pnpm exec turbo run build --filter=@conciv/app..." 0
+  "pnpm exec turbo run build --filter=@internal/frontend-defaults..." 0
 
 run_case "dry run with trailing dots allowed" \
-  "pnpm exec turbo run test --filter=@conciv/app... --dry=json" 0
+  "pnpm exec turbo run test --filter=@internal/frontend-defaults... --dry=json" 0
 
 run_case "quoted trailing dots false positive allowed" \
-  "echo 'run: turbo run test --filter=@conciv/app...'" 0
+  "echo 'run: turbo run test --filter=@internal/frontend-defaults...'" 0
 
 # --- rule 2: no filter at all ---
 run_case "unfiltered turbo run test blocked" \
@@ -95,22 +95,22 @@ run_case "quoted unfiltered turbo test false positive allowed" \
 
 # --- rule 3: --force ---
 run_case "turbo run build with --force blocked" \
-  "pnpm exec turbo run build --filter=@conciv/app --force" 2
+  "pnpm exec turbo run build --filter=@internal/frontend-defaults --force" 2
 
 run_case "turbo run test with --force=true blocked" \
-  "pnpm exec turbo run test --filter=@conciv/app --force=true" 2
+  "pnpm exec turbo run test --filter=@internal/frontend-defaults --force=true" 2
 
 run_case "turbo run build with --force=false allowed" \
-  "pnpm exec turbo run build --filter=@conciv/app --force=false" 0
+  "pnpm exec turbo run build --filter=@internal/frontend-defaults --force=false" 0
 
 run_case "turbo run build without --force allowed" \
-  "pnpm exec turbo run build --filter=@conciv/app" 0
+  "pnpm exec turbo run build --filter=@internal/frontend-defaults" 0
 
 run_case "quoted --force false positive allowed" \
   "echo 'never pass turbo run build --force'" 0
 
 run_case "compound command with one forced turbo run blocked" \
-  "pnpm install && pnpm exec turbo run build --filter=@conciv/app --force" 2
+  "pnpm install && pnpm exec turbo run build --filter=@internal/frontend-defaults --force" 2
 
 # --- rule 4: bare vitest ---
 run_case "bare vitest run blocked" \

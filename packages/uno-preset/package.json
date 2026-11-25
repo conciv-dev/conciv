@@ -1,5 +1,5 @@
 {
-  "name": "@conciv/uno-preset",
+  "name": "@internal/uno-preset",
   "version": "0.0.22",
   "private": true,
   "description": "Shared conciv UnoCSS preset: presetMini + presetTypography (themed to the --chat-* tokens) + the sr-only shortcut. One source of truth reused by every package's uno.config so spacing/prose/shortcuts never drift.",
@@ -16,9 +16,9 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "types": "./src/uno-preset.ts",
+      "import": "./dist/uno-preset.js",
+      "default": "./dist/uno-preset.js"
     }
   },
   "scripts": {
@@ -30,7 +30,7 @@
     "@unocss/preset-wind4": "^66.13.0"
   },
   "devDependencies": {
-    "@conciv/tsconfig": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:"

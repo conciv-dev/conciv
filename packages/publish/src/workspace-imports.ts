@@ -13,7 +13,7 @@ const WORKSPACE_IMPORT =
   /(?:\bfrom|\bimport|\bimport\.meta\.resolve\(|\bimport\(|\brequire\()\s*['"](@conciv\/[a-z0-9-]+)(?:\/[^'"]*)?['"]/g
 
 const PLUGIN_ROOT = 'packages/plugins/'
-const KIT_BUILT_INS = ['@conciv/plugin-page', '@conciv/plugin-terminal']
+const KIT_BUILT_INS = ['@conciv/plugin-page', '@internal/plugin-terminal']
 const UI_KIT = /^@conciv\/ui-kit(?:-|$)/
 
 type DependencyField = 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'peerDependencies'

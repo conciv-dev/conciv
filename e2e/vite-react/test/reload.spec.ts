@@ -1,5 +1,5 @@
-import {expect, test} from '@conciv/e2e-utils/fixtures'
-import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
+import {expect, test} from '@internal/e2e-utils/fixtures'
+import {collectFailures, expectWidgetBoots, loginWidget} from '@internal/e2e-utils/widget'
 
 test('after one reload the panel reopens on the settings section the user left, the typed draft is still in the composer, and the quick terminal opens at the height the user left it', async ({
   page,

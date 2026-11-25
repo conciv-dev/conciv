@@ -1,4 +1,4 @@
 {
-  "extends": ["./tsconfig.json", "@conciv/tsconfig/tsconfig.build.json"],
+  "extends": ["./tsconfig.json", "@internal/tsconfig/tsconfig.build.json"],
   "compilerOptions": {"isolatedDeclarations": true}
 }

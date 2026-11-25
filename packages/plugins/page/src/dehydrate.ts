@@ -1,4 +1,4 @@
-import type {DehydrateOptions} from '@conciv/plugin/experimental/page'
+import type {DehydrateOptions} from '@conciv/frontend-plugin-api/page'
 
 const REACT_ELEMENT = Symbol.for('react.element')
 const REACT_TRANSITIONAL_ELEMENT = Symbol.for('react.transitional.element')

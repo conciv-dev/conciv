@@ -1,7 +1,7 @@
 export * as PageQueue from './queue.js'
 import {Clock, Deferred, Effect} from 'effect'
 import {z} from 'zod'
-import type {SessionId} from '@conciv/protocol/chat-types'
+import type {SessionId} from '@conciv/types/chat-types'
 import {
   PAGE_QUEUE_REFUSED,
   PAGE_QUEUE_STOPPED,
@@ -10,8 +10,8 @@ import {
   type PageQueueProgress,
   type PageQueueResult,
   PageRaisedErrorSchema as Raised,
-} from '@conciv/protocol/page-types'
-import type {Tool} from '@conciv/plugin/schema/tool'
+} from '@conciv/types/page-types'
+import type {Tool} from '@conciv/protocol/schema/tool'
 import {
   awaitsDelivery,
   createQueueState,

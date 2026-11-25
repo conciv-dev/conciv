@@ -1,5 +1,5 @@
 import type {JSX} from 'solid-js'
-import {usePlugin} from '@conciv/plugin/experimental'
+import {usePlugin} from '@conciv/frontend-plugin-api'
 
 export function RecorderNotice(props: {text: string}): JSX.Element {
   return <div class="text-chat-md text-chat-text-2 font-chat">{props.text}</div>

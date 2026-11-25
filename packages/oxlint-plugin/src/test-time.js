@@ -1,5 +1,5 @@
 import {isIdentifier, readCalleeName, readMemberObjectName} from './ast-walk.js'
-import {isNewLayerTestFile} from '@conciv/vitest-config/new-layer'
+import {isNewLayerTestFile} from '@internal/vitest-config/test-layout'
 
 const TIMER_NAMES = new Set(['setTimeout', 'setInterval', 'setImmediate'])
 const BARE_SLEEPS = new Set(['wait', 'sleep', 'delay'])

@@ -1,7 +1,7 @@
 import {createMemo, createSelector, untrack, type Accessor} from 'solid-js'
 import {keyArray} from '@solid-primitives/keyed'
 import {keyBy} from 'es-toolkit'
-import type {ChatPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {ChatPart, ToolResultPart} from '@conciv/types/chat-message-types'
 import type {Turn} from './grouping.js'
 
 const CALL_PREFIX = 'call:'

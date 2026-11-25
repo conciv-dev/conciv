@@ -1,10 +1,10 @@
 ---
-'@conciv/uno-preset': patch
+'@internal/uno-preset': patch
 '@conciv/ui-kit-chat': patch
 '@conciv/solid-diffs': patch
 '@conciv/ui-kit-chat-tools': patch
 '@conciv/ui-kit-system': patch
-'@conciv/core': patch
+'@conciv/backend': patch
 ---
 
 Code in tool cards sits on the same sunken surface as the JSON and console bodies. The preset gains a `rounded-chat-sm` radius token for the small chat corner.

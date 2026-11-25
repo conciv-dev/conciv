@@ -1,4 +1,4 @@
-import type {MountedSession} from '@conciv/plugin/experimental'
+import type {MountedSession} from '@conciv/frontend-plugin-api'
 
 export type LiveTerminal = {
   readonly key: string

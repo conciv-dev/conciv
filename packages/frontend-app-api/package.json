@@ -1,0 +1,75 @@
+{
+  "name": "@internal/frontend-app-api",
+  "version": "0.0.22",
+  "private": true,
+  "description": "Private to conciv: the opaque definitions conciv's SDK, app and own plugins share. Inlined into its users' builds, never published.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/frontend-app-api"
+  },
+  "type": "module",
+  "main": "src/opaque.ts",
+  "types": "src/opaque.ts",
+  "exports": {
+    ".": "./src/frontend-app-api.ts",
+    "./lib/layers": "./src/lib/layers.ts",
+    "./plugin/servers": "./src/plugin/servers.tsx",
+    "./plugin/host": "./src/plugin/host.tsx",
+    "./plugin/render": "./src/plugin/render.tsx",
+    "./lib/media-query": "./src/lib/media-query.ts",
+    "./lib/view-tab-ids": "./src/lib/view-tab-ids.ts",
+    "./persistence/persist": "./src/persistence/persist.ts",
+    "./plugin/dialog-stack": "./src/plugin/dialog-stack.tsx",
+    "./plugin/panel-keys": "./src/plugin/panel-keys.ts",
+    "./plugin/settings-pages": "./src/plugin/settings-pages.ts",
+    "./persistence/storage": "./src/persistence/storage.ts",
+    "./plugin/located": "./src/plugin/located.ts",
+    "./plugin/panels": "./src/plugin/panels.tsx",
+    "./plugin/stores": "./src/plugin/stores.ts",
+    "./plugin/ui": "./src/plugin/ui.tsx",
+    "./plugin/bundle-source": "./src/plugin/bundle-source.ts",
+    "./plugin/plugins": "./src/plugin/plugins.tsx",
+    "./plugin/startup": "./src/plugin/startup.ts",
+    "./plugin/hmr": "./src/plugin/hmr.tsx",
+    "./plugin/panel-trigger": "./src/plugin/panel-trigger.tsx",
+    "./opaque": "./src/opaque.ts",
+    "./lib/style-sheet": "./src/lib/style-sheet.ts",
+    "./plugin/installed": "./src/plugin/installed.ts",
+    "./plugin/settings-layout": "./src/plugin/settings-layout.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/client": "workspace:^",
+    "@conciv/frontend-plugin-api": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
+    "@conciv/ui-kit-tap": "workspace:^",
+    "@orpc/client": "catalog:",
+    "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/storage": "catalog:",
+    "@standard-schema/spec": "catalog:",
+    "effect": "catalog:",
+    "es-toolkit": "catalog:",
+    "fuzzysort": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
+    "solid-js": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
+  }
+}

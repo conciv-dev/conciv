@@ -33,7 +33,7 @@ export default {
     type: 'problem',
     messages: {
       outsideE2e:
-        "Import @playwright/test only under the workspace's e2e/ apps. Everything else tests with vitest: node, happy-dom or vitest browser mode through @conciv/plugin-testkit.",
+        "Import @playwright/test only under the repo-root e2e/ apps, never in a package's test/e2e. Everything else tests with vitest: test/unit, test/it, or test/e2e in vitest browser mode through @conciv/plugin-testkit.",
     },
     schema: [],
   },

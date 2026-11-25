@@ -1,5 +1,5 @@
 ---
-'@conciv/contract': patch
+'@conciv/protocol': patch
 '@conciv/client': patch
 ---
 

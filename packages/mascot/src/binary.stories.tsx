@@ -8,7 +8,7 @@ import {
   type MascotConfig,
   type MascotFollow,
   type MascotState,
-} from './core/index.js'
+} from './core/core.js'
 
 const PRODUCT_FAB_ANTENNA_PX = 44
 

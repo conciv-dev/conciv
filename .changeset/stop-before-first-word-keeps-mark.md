@@ -1,5 +1,5 @@
 ---
-'@conciv/ai': patch
+'@conciv/backend': patch
 '@conciv/ui-kit-chat': patch
 ---
 

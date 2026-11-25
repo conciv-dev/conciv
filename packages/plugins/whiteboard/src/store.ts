@@ -1,4 +1,4 @@
-import type {Context as PluginContext} from '@conciv/plugin/effect/plugin'
+import type {Context as PluginContext} from '@conciv/backend-plugin-api/effect/plugin'
 import {sortBy} from 'es-toolkit'
 import {Clock, Context, Effect, Layer, Option, PubSub, Schema, Semaphore, Stream} from 'effect'
 import {z} from 'zod'
@@ -294,6 +294,6 @@ export function makeWhiteboardStore(storage: PluginContext['storage']) {
 
 export type Store = Effect.Success<ReturnType<typeof makeWhiteboardStore>>
 
-export const WhiteboardStore = Context.Service<Store>('@conciv/plugin-whiteboard/WhiteboardStore')
+export const WhiteboardStore = Context.Service<Store>('@internal/plugin-whiteboard/WhiteboardStore')
 
 export const layer = (storage: PluginContext['storage']) => Layer.effect(WhiteboardStore, makeWhiteboardStore(storage))

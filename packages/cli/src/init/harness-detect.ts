@@ -1,5 +1,5 @@
-import {INIT_HARNESS_IDS, type HarnessInit, type InitHarnessId} from '@conciv/protocol/harness-types'
-import {initContributions} from '@conciv/harness-init/registry'
+import {INIT_HARNESS_IDS, type HarnessInit, type InitHarnessId} from '@conciv/types/harness-types'
+import {initContributions} from '@conciv/harness/init/registry'
 
 export type HarnessId = InitHarnessId
 

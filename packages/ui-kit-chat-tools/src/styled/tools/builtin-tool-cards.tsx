@@ -1,4 +1,4 @@
-import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/types/tool-view-types'
 import {bashTool} from './bash-card.js'
 import {applyPatchTool} from './apply-patch-diff.js'
 import {discoveredApisTool} from './discovered-apis-card.js'

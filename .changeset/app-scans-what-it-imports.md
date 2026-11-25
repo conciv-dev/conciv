@@ -1,5 +1,5 @@
 ---
-'@conciv/app': patch
+'@internal/frontend-defaults': patch
 '@conciv/plugin-testkit': patch
 ---
 

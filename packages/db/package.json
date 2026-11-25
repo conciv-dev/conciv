@@ -21,8 +21,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/db.d.ts",
+      "import": "./dist/db.js"
     }
   },
   "publishConfig": {
@@ -34,10 +34,10 @@
     "gen-migrations": "node src/scripts/gen-migrations.ts",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
     "@effect/sql-sqlite-node": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
@@ -45,10 +45,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin-testkit": "workspace:*",
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "drizzle-kit": "catalog:",
     "tsdown": "catalog:",

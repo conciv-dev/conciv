@@ -29,7 +29,7 @@ README.md; this file is the non-obvious operational rules.
   masks the problem. `pnpm install` in the worktree is the whole fix; nothing in `intent.skills` needs changing.
 - Local turbo runs default to 50% concurrency (`turbo.json`) so builds don't saturate the workstation;
   CI re-uncaps with `TURBO_CONCURRENCY=100%` per workflow. Agent/background gate runs use
-  `TURBO_CONCURRENCY=70%` and are not niced; test gates stay serial (`TURBO_CONCURRENCY=1 VITEST_MAX_FORKS=1`).
+  `TURBO_CONCURRENCY=70%` and are not niced.
 - Build: `pnpm build`. Typecheck: `pnpm typecheck`. Test: `pnpm test`. Lint: `pnpm lint` / `pnpm lint:fix`
   (oxlint). Format: `pnpm format` (check) / `pnpm format:fix` (oxfmt). Both: `turbo run quality` /
   `turbo run quality:fix`.
@@ -136,12 +136,20 @@ README.md; this file is the non-obvious operational rules.
 
 The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test plan is `docs/specs/test-split/`.
 
-- The file name picks the runner. `src/x.test.ts` beside `src/x.ts` runs in node; `src/x.dom.test.tsx` beside
-  `src/x.tsx` runs in happy-dom; one browser-mode file per package (`*.browser.test.tsx`; `apps/conciv`: one
-  `src/<area>.browser.test.tsx` per product area) runs in vitest browser mode (Chromium). Playwright Test exists
-  only under `e2e/` (`conciv/playwright-test-in-e2e`). Never jsdom.
-- One `vite.config.ts` per package and no `vitest*.config` file: `concivTest()` (`@conciv/plugin-testkit/vitest`)
-  adds the test projects; `conciv()` (`@conciv/unplugin`) adds nothing under vitest.
+- Layout: every package and app has `test/unit`, `test/it`, `test/e2e`, `test/fixtures` and `test/utils` (an empty one
+  holds a `.gitkeep`). The name carries the kind of its folder: `test/unit/x.unit.test.ts` is plain vitest in node or
+  happy-dom that starts nothing; `test/it/x.it.test.ts` runs in node and starts real things (an engine, files, CLIs);
+  `test/e2e/x.e2e.test.tsx` runs in vitest browser mode (Chromium, the kit's `mount`), and a perf file is
+  `test/e2e/x.perf.e2e.test.tsx`. Helpers and fakes live in `test/utils`, fixture files in `test/fixtures`. Playwright
+  Test exists only in the repo-root `e2e/` apps, never in a package's `test/e2e` (`conciv/playwright-test-in-e2e`).
+  Never jsdom.
+- vitest collects tests only from those folders: the `unit` and `it` projects of `concivTest()` and the kit's `browser`
+  and `perf` projects include `test/{unit,it,e2e}/**` alone, and no `vite.config.ts` points `include` anywhere else.
+  A test file anywhere else never runs, so `conciv/test-file-budget` fails it.
+- One `vite.config.ts` per package and no `vitest*.config` file: `concivTest()` (`@internal/vitest-config/conciv-test`)
+  adds the `unit` and `it` projects and `concivKitTest()` (`@conciv/plugin-testkit/vitest`) the `browser` and `perf`
+  ones; `conciv()` (`@conciv/unplugin`) adds nothing under vitest. `test/unit` runs in node unless the package passes
+  `concivTest({environment: 'happy-dom'})`; one file may override it with a first-line `// @vitest-environment happy-dom`.
 - A behaviour lives in the cheapest place that proves it, and only there: node, then happy-dom, then browser mode,
   then `e2e/` (the built bundle in a real host app, real harness CLIs). Mounted behaviour (anything that mounts the
   app or a plugin) is tested in a real browser on the kit's browser `mount` (`@conciv/plugin-testkit/browser`);
@@ -152,13 +160,11 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   what broke. Behaviour that needs the real built widget in a real browser but is not about a framework (reload, real
   windows and downloads, the file chooser, focus between the host page and the widget, real CLIs, the CLI binary) is
   tested once, in one host app, never per framework.
-- Budgets (`conciv/test-file-budget`): never more test files than source files in a package; a node or happy-dom
-  test lives beside the source it tests; one browser-mode file per package (add a `describe`, never a second file);
-  a test file is at most 1,000 lines. The app is the one exception, as opencode's keeper suites
-  (`_ref/opencode/packages/app/e2e/regression/`): `apps/conciv` has one browser-mode file per product area
-  (`src/<area>.browser.test.tsx`), and a new case goes into its area's file.
+- Layout and budgets (`conciv/test-file-budget`): a package lacking one of the five folders fails; a `*.test.*` or
+  `*.spec.*` file outside `test/unit`, `test/it` and `test/e2e` (fixtures aside) fails; a name whose kind is not its
+  folder fails; never more test files than source files in a package; a test file is at most 1,000 lines.
 - Test budget (`test-budget.json`, `conciv-publish check-test-budget`, CI repo checks): it counts test cases in every
-  test file, beside the source or not. The budget is a review gate, not a counter to bump. Before you raise any
+  test file. The budget is a review gate, not a counter to bump. Before you raise any
   number: (1) list every new test case in the package over its budget, by file and test name; (2) for each one, name
   the existing test or suite you checked and say why it does not already cover this; (3) fold it into an existing
   journey test when one fits (one journey, not one test per behaviour); (4) only a test that survives this gets a
@@ -170,10 +176,9 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   `engine.reply(...)`, which takes only `TestLLM` replies (`text`, `toolCall`, `failAfter`, `hang`);
   `engine.gate()` holds a reply.
   Nothing else is exported; a new kit export or option needs the maintainer's yes.
-- Kit tests run through `conciv-test`, which starts vitest with a home of its own and none of the developer's
-  secrets or `CONCIV_*` variables; it keeps the developer's Playwright browsers folder. In-repo `test` scripts run
-  the committed file `node node_modules/@conciv/plugin-testkit/bin/conciv-test.js`, never the bin name: pnpm's
-  repeat-install check skips relinking bins, so a bin added after a checkout's install is never linked there.
+- Every package's `test` script is plain `vitest run`. `concivTest()` adds `@internal/vitest-config/isolated-home` as a vitest
+  `globalSetup`: the run gets a home of its own (removed after the run) and none of the developer's secrets or `CONCIV_*`
+  variables; it keeps the developer's Playwright browsers folder.
 - A package that runs kit tests lists the kit in its own `devDependencies`. The kits' builds are leaves: they depend on
   no workspace package's build and name what they need as `peerDependencies`, except the private `@conciv/app` and
   `@conciv/uno-preset`, which `@conciv/plugin-testkit` lists as `devDependencies` (`mount` works in this repo only
@@ -203,8 +208,7 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
   the kit cleans up.
 - The calm perf gate (frame-gap budgets) is `pnpm --filter @conciv/app test:perf`, kept out of `pnpm test`;
   run it locally in Chromium and Firefox before merging a chat-plane change.
-- Flame graph of a slow test: run it through the bin with `CONCIV_TEST_CPU_PROF=<folder>`
-  (`CONCIV_TEST_CPU_PROF=/tmp/prof node node_modules/@conciv/plugin-testkit/bin/conciv-test.js <file>`); every test process
+- Flame graph of a slow test: `NODE_OPTIONS='--cpu-prof --cpu-prof-dir=/tmp/prof' pnpm exec vitest run <file>`; every test process
   writes a `.cpuprofile` there. Open it in Chrome DevTools (Performance, Load profile) or speedscope.
 - `e2e/` suites load the PREBUILT bundle (`packages/embed/dist/conciv-widget.global.js`): rebuild it
   (`pnpm turbo run build --filter=@conciv/embed`) before running them, or you test stale code. Use

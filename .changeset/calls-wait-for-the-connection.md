@@ -1,6 +1,6 @@
 ---
-'@conciv/contract': patch
-'@conciv/embed': patch
+'@conciv/protocol': patch
+'@conciv/app': patch
 ---
 
 Reloading while the dev server is still starting no longer leaves conciv cut off until another reload; logging in again after a revoke works on the first try. During a dev-server restart the panel may show the "couldn't reach the engine" screen sooner than before, and it now recovers on its own once the server is back. Logging in while conciv is still checking the connection no longer logs the page out a moment later. If the dev server never answers the login check, or a request for a login code, conciv now stops waiting after a few seconds: the chat still opens, and the login dialog says the request failed instead of staying silent.

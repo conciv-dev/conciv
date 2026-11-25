@@ -11,8 +11,8 @@
         "$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{ts,tsx}",
         "$TURBO_ROOT$/packages/ui-kit-chat-tools/src/**/*.{ts,tsx}",
         "$TURBO_ROOT$/packages/ui-kit-tap/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/tools/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/core/src/cards/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/frontend-app-api/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-chat-tools/src/core-cards/**/*.{ts,tsx}",
         "$TURBO_ROOT$/packages/plugins/page/src/**/*.{ts,tsx}"
       ]
     },
@@ -25,8 +25,8 @@
         "$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{ts,tsx}",
         "$TURBO_ROOT$/packages/ui-kit-chat-tools/src/**/*.{ts,tsx}",
         "$TURBO_ROOT$/packages/ui-kit-tap/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/tools/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/core/src/cards/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/frontend-app-api/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-chat-tools/src/core-cards/**/*.{ts,tsx}",
         "$TURBO_ROOT$/packages/plugins/page/src/**/*.{ts,tsx}"
       ]
     }

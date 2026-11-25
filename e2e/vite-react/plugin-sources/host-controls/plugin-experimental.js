@@ -1,4 +1,4 @@
-const {Slot} = require('@conciv/plugin/experimental')
+const {Slot} = require('@conciv/frontend-plugin-api')
 
 const choiceSchema = {
   '~standard': {

@@ -1,10 +1,10 @@
 import {onMount, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {createChat} from '@conciv/ai/client'
-import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import {createChat} from '@conciv/client/chat'
+import type {ChatMessage} from '@conciv/types/chat-message-types'
 import {ChatProvider} from '../store/chat-context.js'
-import {storyConnection, createTextChunks} from '@conciv/ai/testkit'
+import {storyConnection, createTextChunks} from '@conciv/client/testing'
 import type {SuggestionData} from '../primitives/suggestion/suggestion.js'
 import {FollowUpSuggestions} from './follow-up-suggestions.js'
 

@@ -1,13 +1,13 @@
 import {Show, type JSX} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import {Effect, FiberSet, Queue, Stream, SubscriptionRef} from 'effect'
-import {Plugin, Slot} from '@conciv/plugin/experimental'
+import {Plugin, Slot} from '@conciv/frontend-plugin-api'
 import {
   createEventBusClient,
   PANEL_PLUGIN_ID,
   type EventBusClient,
   type PanelCommandEventMap,
-} from '@conciv/protocol/event-bus'
+} from '@conciv/types/event-bus'
 import type {ElementRect, GrabActions, GrabProvider} from '@conciv/grab'
 import type {GrabMode} from './rpc.js'
 import {IosBridge} from './bridge.js'

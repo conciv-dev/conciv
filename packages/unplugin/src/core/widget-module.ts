@@ -1,4 +1,4 @@
-import {DOCK_REVEAL_EVENT} from '@conciv/protocol/event-bus'
+import {DOCK_REVEAL_EVENT} from '@conciv/types/event-bus'
 
 export const WIDGET_ROUTE = '/@conciv/widget.js'
 export const WIDGET_DOCK_ROUTE = '/@conciv/widget-dock.js'
@@ -69,7 +69,7 @@ export function resolveWidgetModule(id: string): string | null {
   return bareId === WIDGET_ROUTE ? WIDGET_RESOLVED_ID : null
 }
 
-export function loadWidgetModule(id: string, apiBase: string | undefined, embedEntry = '@conciv/embed'): string | null {
+export function loadWidgetModule(id: string, apiBase: string | undefined, embedEntry = '@conciv/app'): string | null {
   if (id === WIDGET_DOCK_RESOLVED_ID) return widgetModuleSource('dock', apiBase, embedEntry)
   return id === WIDGET_RESOLVED_ID ? widgetModuleSource('page', apiBase, embedEntry) : null
 }

@@ -1,7 +1,7 @@
 import {Exit, Layer, ManagedRuntime, Scope} from 'effect'
 import {onCleanup} from 'solid-js'
 import TerminalIcon from 'lucide-solid/icons/terminal'
-import {Panel, Plugin, type PanelTab} from '@conciv/plugin/experimental'
+import {Panel, Plugin, type PanelTab} from '@conciv/frontend-plugin-api'
 import {terminalDeclarations} from './stores.js'
 import {TerminalPanel} from './terminal-panel.js'
 import {createTerminalState} from './terminal-state.js'

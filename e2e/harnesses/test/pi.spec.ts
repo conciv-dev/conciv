@@ -1,4 +1,4 @@
-import {expect, test} from '@conciv/e2e-utils/fixtures'
+import {expect, test} from '@internal/e2e-utils/fixtures'
 
 test('a message to Pi ends in a visible error that says Pi is not installed or not yet supported, never a hang', async ({
   page,

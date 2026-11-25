@@ -8,11 +8,11 @@
     "start": "next start"
   },
   "dependencies": {
-    "@conciv/embed": "workspace:*",
+    "@conciv/app": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/plugin-tanstack": "workspace:*",
     "@conciv/plugin-test-runner": "workspace:*",
-    "@conciv/plugin-whiteboard": "workspace:*",
+    "@internal/plugin-whiteboard": "workspace:*",
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"

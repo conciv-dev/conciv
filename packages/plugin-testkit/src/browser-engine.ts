@@ -1,13 +1,13 @@
 import {expect, onTestFinished} from 'vitest'
 import {commands} from 'vitest/browser'
-import type {TestLLM} from '@conciv/harness-testkit'
-import {advanceUntil, refuseRealClock} from '@conciv/harness-testkit/clock'
-import {hang} from '@conciv/harness-testkit/test-llm'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
+import type {TestLLM} from '@conciv/simulation'
+import {advanceUntil, refuseRealClock} from '@conciv/simulation/clock'
+import {hang} from '@conciv/simulation/test-llm'
+import type {ConcivConfig} from '@conciv/types/config-types'
 import type {Engine, EngineClock, EngineSession, EngineStart} from './engine.js'
 import type {} from './browser-commands.js'
 
-export * as TestLLM from '@conciv/harness-testkit/test-llm'
+export * as TestLLM from '@conciv/simulation/test-llm'
 
 function crossing(reply: TestLLM.Reply): TestLLM.Reply | 'hang' {
   if (reply === hang()) return 'hang'

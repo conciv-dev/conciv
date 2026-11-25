@@ -1,6 +1,6 @@
 ---
 '@conciv/plugin-test-runner': patch
-'@conciv/embed': patch
+'@conciv/app': patch
 ---
 
 The thread card for the test-runner tools now ships with the test-runner plugin and draws through `ctx.ui`, so it shows

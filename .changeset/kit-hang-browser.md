@@ -1,5 +1,5 @@
 ---
-'@conciv/harness-testkit': patch
+'@conciv/simulation': patch
 '@conciv/plugin-testkit': patch
 ---
 

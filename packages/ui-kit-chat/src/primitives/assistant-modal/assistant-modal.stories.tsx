@@ -1,9 +1,9 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {createChat} from '@conciv/ai/client'
+import {createChat} from '@conciv/client/chat'
 import {ChatProvider} from '../../store/chat-context.js'
-import {storyConnection, createTextChunks} from '@conciv/ai/testkit'
+import {storyConnection, createTextChunks} from '@conciv/client/testing'
 import {AssistantModal} from './assistant-modal.js'
 
 const meta: Meta = {title: 'ui-kit-chat/primitives/AssistantModal'}

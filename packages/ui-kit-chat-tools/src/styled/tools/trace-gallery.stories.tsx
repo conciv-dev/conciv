@@ -1,7 +1,7 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
+import type {ToolViewCtx} from '@conciv/types/tool-view-types'
 import {INERT_TOOL_CTX, Trace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from './builtin-tool-cards.js'
 
@@ -319,7 +319,7 @@ export const PermissionBlockLast: Story = {
         key: 'ask',
         render: (branch) => (
           <ToolTraceRow
-            part={askingCall('rm -rf apps/conciv/dist')}
+            part={askingCall('rm -rf packages/frontend-defaults/dist')}
             result={undefined}
             ctx={askingCtx()}
             tools={() => builtinToolCards}

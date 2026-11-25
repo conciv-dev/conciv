@@ -1,63 +1,91 @@
-import {join} from 'node:path'
-import {SqliteClient} from '@effect/sql-sqlite-node'
-import {concivStateDir, createConcivStateDir} from '@conciv/protocol/state-types'
-import {sql} from 'drizzle-orm'
-import {makeWithDefaults} from 'drizzle-orm/effect-sqlite-node'
-import {migrate} from 'drizzle-orm/sqlite-core/effect/session'
-import {Effect, Layer, Schema} from 'effect'
-import {migrations} from './migrations.gen.js'
-import {takeMigrationLock} from './open/migrated-db.js'
-import {markRunningRunsDetached} from './run-migrations.js'
+export * from './connection.js'
+export * from './run-migrations.js'
+export * from './run-schema.js'
+export * from './schema.js'
+export {migrations} from './migrations.gen.js'
+export * from './home-db.js'
+import {eq} from 'drizzle-orm'
+import {Effect} from 'effect'
+import type {ConcivDb} from './connection.js'
+import {sessions} from './schema.js'
+import {access} from 'node:fs/promises'
+import {z} from 'zod'
+import {listEngines, prepareHome, retireEngine, withHomeDb, type EngineRow} from './home-db.js'
 
-const makeConcivDb = makeWithDefaults()
+const HealthSchema = z.object({ok: z.literal(true), id: z.string()})
+const RefusedSchema = z.object({cause: z.object({code: z.literal('ECONNREFUSED')})})
+const SignalErrorSchema = z.object({code: z.enum(['ESRCH', 'EPERM'])})
 
-export type ConcivDb = Effect.Success<typeof makeConcivDb>
+type Verdict = {row: EngineRow; kind: 'live' | 'retire'} | {row: EngineRow; kind: 'unreachable'; error: string}
 
-export const MigrationLockError = Schema.TaggedStruct('ConcivDb.MigrationLockError', {
-  lockFile: Schema.String,
-  cause: Schema.Defect(),
-})
-export type MigrationLockError = typeof MigrationLockError.Type
+export async function checkEngines(
+  home: string,
+  options: {timeoutMs: number; roots?: string[]},
+): Promise<{live: EngineRow[]; unreachable: Array<{root: string; error: string}>}> {
+  const prepared = await prepareHome(home)
+  const listed = withHomeDb(prepared, listEngines)
+  const roots = options.roots
+  const rows = roots === undefined ? listed : listed.filter((row) => roots.includes(row.root))
+  const verdicts = await Promise.all(rows.map((row) => probe(row, options.timeoutMs)))
+  const retired = verdicts.filter((verdict) => verdict.kind === 'retire')
+  if (retired.length > 0) {
+    const now = Date.now()
+    withHomeDb(prepared, (db) => retired.forEach((verdict) => retireEngine(db, verdict.row.id, now)))
+  }
+  return {
+    live: verdicts.filter((verdict) => verdict.kind === 'live').map((verdict) => verdict.row),
+    unreachable: verdicts.flatMap((verdict) =>
+      verdict.kind === 'unreachable' ? [{root: verdict.row.root, error: verdict.error}] : [],
+    ),
+  }
+}
 
-function whileMigrationLockHeld<A, E, R>(
-  lockFile: string,
-  busyTimeoutMs: number | undefined,
-  run: Effect.Effect<A, E, R>,
-) {
-  return Effect.acquireUseRelease(
-    Effect.try({
-      try: () => takeMigrationLock(lockFile, busyTimeoutMs),
-      catch: (cause) => MigrationLockError.make({lockFile, cause}),
-    }),
-    () => run,
-    (lock) => Effect.sync(() => lock.close()),
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    const signalled = SignalErrorSchema.safeParse(error)
+    if (!signalled.success) throw error
+    return signalled.data.code === 'EPERM'
+  }
+}
+
+function parsedJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch (error) {
+    if (error instanceof SyntaxError) return null
+    throw error
+  }
+}
+
+function healthVerdict(row: EngineRow, status: number, text: string): Verdict {
+  const health = HealthSchema.safeParse(parsedJson(text))
+  if (!health.success) return {row, kind: 'unreachable', error: `/health answered HTTP ${status} without an engine id`}
+  return {row, kind: health.data.id === row.id ? 'live' : 'retire'}
+}
+
+function rootExists(root: string): Promise<boolean> {
+  return access(root).then(
+    () => true,
+    () => false,
   )
 }
 
-const movedMigration = {from: '20261115164723_draft_items', to: '20261119142244_draft_items'}
+async function probe(row: EngineRow, timeoutMs: number): Promise<Verdict> {
+  const origin = URL.parse(row.apiBase)?.origin
+  if (origin === undefined || !processAlive(row.pid) || !(await rootExists(row.root))) return {row, kind: 'retire'}
+  try {
+    const response = await fetch(`${origin}/health`, {signal: AbortSignal.timeout(timeoutMs)})
+    return healthVerdict(row, response.status, await response.text())
+  } catch (error) {
+    if (RefusedSchema.safeParse(error).success) return {row, kind: 'retire'}
+    return {row, kind: 'unreachable', error: error instanceof Error ? error.message : String(error)}
+  }
+}
 
-const renameMovedMigration = Effect.fn('db.migrations.renameMoved')(function* (db: ConcivDb) {
-  const named = yield* db._.session.objects(
-    sql`SELECT 1 FROM pragma_table_info('__drizzle_migrations') WHERE name = 'name'`,
-  )
-  if (named.length === 0) return
-  yield* db._.session.run(
-    sql`UPDATE __drizzle_migrations SET name = ${movedMigration.to} WHERE name = ${movedMigration.from}`,
-  )
-})
-
-const migrateConcivDb = Effect.fn('db.migrations.migrate')(function* (db: ConcivDb) {
-  yield* renameMovedMigration(db)
-  yield* migrate(migrations, db._.session)
-  yield* markRunningRunsDetached(db, Date.now())
-})
-
-export type OpenDbOptions = {busyTimeoutMs?: number}
-
-export const openDb = Effect.fn('db.conciv.open')(function* (stateRoot: string, options: OpenDbOptions = {}) {
-  const stateDir = yield* Effect.promise(() => createConcivStateDir(concivStateDir(stateRoot)))
-  const client = yield* Layer.build(SqliteClient.layer({filename: join(stateDir, 'conciv.db')}))
-  const db = yield* makeConcivDb.pipe(Effect.provide(client))
-  yield* whileMigrationLockHeld(join(stateDir, 'conciv.lock'), options.busyTimeoutMs, migrateConcivDb(db))
-  return db
-})
+export async function readModel(db: ConcivDb, id: string): Promise<string | null> {
+  const rows = await Effect.runPromise(db.select({model: sessions.model}).from(sessions).where(eq(sessions.id, id)))
+  return rows[0]?.model ?? null
+}

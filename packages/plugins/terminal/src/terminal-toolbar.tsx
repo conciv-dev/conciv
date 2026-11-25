@@ -1,8 +1,8 @@
 import {createMemo, For, onCleanup, Show, type JSX} from 'solid-js'
 import {HarnessModelSelector, useModelMenu} from '@conciv/ui-kit-chat'
-import {usePlugin, type MountedSession} from '@conciv/plugin/experimental'
-import type {Grab} from '@conciv/plugin/experimental/grab'
-import {Page} from '@conciv/plugin/experimental/page'
+import {usePlugin, type MountedSession} from '@conciv/frontend-plugin-api'
+import type {Grab} from '@conciv/frontend-plugin-api/grab'
+import {Page} from '@conciv/frontend-plugin-api/page'
 import type {TerminalState} from './terminal-state.js'
 
 export function TerminalToolbar(props: {session: MountedSession; terminal: TerminalState}): JSX.Element {

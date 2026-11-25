@@ -24,12 +24,12 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/recorder.d.ts",
+      "import": "./dist/recorder.js"
     },
     "./server": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/recorder.d.ts",
+      "import": "./dist/recorder.js"
     },
     "./rpc": {
       "types": "./dist/rpc.d.ts",
@@ -49,9 +49,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/protocol": "workspace:^",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
     "playwright-core": "catalog:",
@@ -59,13 +60,13 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/client": "workspace:^",
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin": "workspace:^",
+    "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/plugin-testkit": "workspace:*",
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
-    "@internal/plugin": "workspace:*",
+    "@internal/frontend-app-api": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@rrweb/rrweb-plugin-console-record": "catalog:",
     "@rrweb/types": "catalog:",
     "@solidjs/testing-library": "catalog:",
@@ -81,6 +82,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@conciv/plugin": "workspace:^"
+    "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/frontend-plugin-api": "workspace:^"
   }
 }

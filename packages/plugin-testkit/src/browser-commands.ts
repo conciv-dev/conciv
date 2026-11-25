@@ -1,5 +1,5 @@
-import type {Outside, OutsideAgent, OutsideReply, TestLLM} from '@conciv/harness-testkit'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
+import type {Outside, OutsideAgent, OutsideReply, TestLLM} from '@conciv/simulation'
+import type {ConcivConfig} from '@conciv/types/config-types'
 import type {Engine, EngineAddress, EngineSetting, EngineStart, ToolFailure} from './engine.js'
 
 export type EngineHandle = {id: string; sessionId: string; address: EngineAddress; root: string; home: string}

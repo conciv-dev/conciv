@@ -1,7 +1,7 @@
 import {command, description, dynamic, extend, name, route, type AnyRoute} from '@bomb.sh/router'
 import {groupBy, partition} from 'es-toolkit'
 import {z} from 'zod'
-import {ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/contract'
+import {ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/protocol'
 import {concivHome} from '@conciv/db'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {listTabs} from './engine-read.js'

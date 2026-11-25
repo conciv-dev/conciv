@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {Plugin} from '@conciv/plugin'
+import {Plugin} from '@conciv/backend-plugin-api'
 
 export default Plugin.define({
   id: 'engine-tool',

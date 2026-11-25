@@ -1,5 +1,5 @@
 import {defineConfig} from '@playwright/test'
-import {e2eConfig} from '@conciv/e2e-utils/config'
+import {e2eConfig} from '@internal/e2e-utils/config'
 import {PACKED_APP_DIR, PACKED_ROOT} from './test/packed-app-dir.ts'
 
 export default defineConfig(

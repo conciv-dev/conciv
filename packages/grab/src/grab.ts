@@ -1,4 +1,4 @@
-import type {ElementSource, Grab} from '@conciv/plugin/experimental/grab'
+import type {ElementSource, Grab} from '@conciv/frontend-plugin-api/grab'
 
 export type {
   DomPreview,
@@ -8,7 +8,7 @@ export type {
   GrabFrame,
   GrabPreview,
   ImagePreview,
-} from '@conciv/plugin/experimental/grab'
+} from '@conciv/frontend-plugin-api/grab'
 
 function whereLabel(source: ElementSource): string {
   if (source.filePath === '') return ''

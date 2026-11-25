@@ -1,7 +1,7 @@
 import {realpath} from 'node:fs/promises'
 import {basename, dirname, isAbsolute, join, relative, resolve} from 'node:path'
-import type {HarnessHistory} from '@conciv/protocol/harness-types'
-import type {HarnessSessionId} from '@conciv/protocol/chat-types'
+import type {HarnessHistory} from '@conciv/types/harness-types'
+import type {HarnessSessionId} from '@conciv/types/chat-types'
 
 export async function resolveRealPath(path: string): Promise<string> {
   return realpath(path).catch(() => resolve(path))

@@ -1,5 +1,5 @@
-import {expect, test} from '@conciv/e2e-utils/fixtures'
-import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
+import {expect, test} from '@internal/e2e-utils/fixtures'
+import {collectFailures, expectWidgetBoots, loginWidget} from '@internal/e2e-utils/widget'
 
 test.describe('signing in to the widget', () => {
   test.use({signedIn: false})

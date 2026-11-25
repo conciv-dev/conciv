@@ -8,8 +8,9 @@ import {
   type HarnessEngineSetting,
   type HarnessEngineTool,
   type HarnessEngineToolFailure,
-} from '@conciv/harness-testkit'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
+} from '@conciv/simulation'
+import {start} from '@conciv/backend/start'
+import type {ConcivConfig} from '@conciv/types/config-types'
 import {engineTests} from './engine-tests.js'
 import {fileEngines} from './file-engines.js'
 import {pluginDirectory} from './plugin-directory.js'
@@ -55,6 +56,7 @@ function locatePlugin(entry: PluginEntry, inProject: boolean): PluginEntry {
 export async function startEngine(config: ConcivConfig = {}, options: EngineStart = {}): Promise<StartedEngine> {
   const plugins = config.plugins?.map((entry) => locatePlugin(entry, options.directory !== undefined))
   const {stop, clock, ...engine} = await createHarnessEngine(
+    start,
     plugins === undefined ? config : {...config, plugins},
     options,
   )

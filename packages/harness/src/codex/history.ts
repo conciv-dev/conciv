@@ -3,8 +3,8 @@ import {readdir, stat} from 'node:fs/promises'
 import {join} from 'node:path'
 import type {SQLInputValue} from 'node:sqlite'
 import {z} from 'zod'
-import {HarnessSessionId} from '@conciv/protocol/chat-types'
-import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
+import {HarnessSessionId} from '@conciv/types/chat-types'
+import type {ChatPart, ChatMessage} from '@conciv/types/chat-message-types'
 import type {
   HarnessHistory,
   HarnessListPage,
@@ -13,13 +13,13 @@ import type {
   HarnessSessionPage,
   TranscriptPage,
   TranscriptTailOptions,
-} from '@conciv/protocol/harness-types'
+} from '@conciv/types/harness-types'
 import {sameCwd} from '../_shared/cwd.js'
 import {containedPath, containedRealPath, resolveRealPath} from '../_shared/contained-path.js'
 import {pageAfter} from '../_shared/page.js'
 import {withDatabase} from '../_shared/read-database.js'
 import {whenMissing} from '../_shared/when-missing.js'
-import {parseJsonOrNull} from '@conciv/harness-init/json'
+import {parseJsonOrNull} from '../init/json.js'
 import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
 import {tailLines} from '../_shared/tail-lines.js'
 import {readHead} from '../_shared/read-head.js'

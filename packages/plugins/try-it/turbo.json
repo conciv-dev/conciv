@@ -2,13 +2,18 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "dependsOn": ["@conciv/plugin#build", "@conciv/protocol#build", "@conciv/plugin-testkit#build"]
+      "dependsOn": [
+        "@conciv/backend-plugin-api#build",
+        "@conciv/frontend-plugin-api#build",
+        "@conciv/types#build",
+        "@conciv/plugin-testkit#build"
+      ]
     },
     "test": {
-      "dependsOn": ["^build", "build", "^build:types", "^kit-runtime", "@conciv/harness-testkit#build"]
+      "dependsOn": ["^build", "build", "^build:types", "^kit-runtime", "@conciv/simulation#build"]
     },
     "typecheck": {
-      "dependsOn": ["^build", "^build:types", "@conciv/harness-testkit#build:types"]
+      "dependsOn": ["^build", "^build:types", "@conciv/simulation#build"]
     }
   }
 }

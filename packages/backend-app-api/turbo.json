@@ -1,0 +1,16 @@
+{
+  "$schema": "https://v2-10-3.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "typecheck": {
+      "dependsOn": [
+        "^build",
+        "^build:types",
+        "@conciv/client#build",
+        "@conciv/backend-defaults#build",
+        "@conciv/backend#build",
+        "@conciv/harness#build"
+      ]
+    }
+  }
+}

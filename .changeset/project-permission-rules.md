@@ -1,7 +1,7 @@
 ---
-'@conciv/protocol': patch
-'@conciv/plugin-host': patch
-'@conciv/core': patch
+'@conciv/types': patch
+'@conciv/backend-app-api': patch
+'@conciv/backend': patch
 '@conciv/cli': patch
 '@conciv/plugin-testkit': patch
 ---

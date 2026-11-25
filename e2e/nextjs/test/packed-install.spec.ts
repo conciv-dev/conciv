@@ -2,8 +2,8 @@ import {execFile, execFileSync} from 'node:child_process'
 import {mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {promisify} from 'node:util'
-import {expect, test} from '@conciv/e2e-utils/fixtures'
-import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
+import {expect, test} from '@internal/e2e-utils/fixtures'
+import {collectFailures, expectWidgetBoots, loginWidget} from '@internal/e2e-utils/widget'
 import {PACKED_ROOT} from '../packed/packed-app-dir.ts'
 
 test.describe('installing conciv in a next app from its packed tarballs', () => {

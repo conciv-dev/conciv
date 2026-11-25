@@ -1,16 +1,15 @@
 ---
-'@conciv/core': patch
-'@conciv/chat': patch
-'@conciv/ai': patch
-'@conciv/plugin-host': patch
-'@conciv/harness-testkit': patch
+'@conciv/backend': patch
+'@conciv/backend-defaults': patch
+'@conciv/backend-app-api': patch
+'@conciv/simulation': patch
 '@conciv/cli': patch
 '@conciv/skills': patch
+'@conciv/types': patch
 '@conciv/protocol': patch
-'@conciv/contract': patch
 '@conciv/client': patch
 '@conciv/ui-kit-chat': patch
-'@conciv/embed': patch
+'@conciv/app': patch
 ---
 
 A page tool that asks, called from outside the widget, now waits on its card until the user answers it instead of being refused with a retry; a widget call runs with the click as its approval, and `Permission.Unattended` settles asks that nobody is present to answer.

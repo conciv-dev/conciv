@@ -1,7 +1,7 @@
 import type {Deferred} from 'effect'
-import {RESULT_CAP_CHARS} from '@conciv/contract'
-import type {SessionId} from '@conciv/protocol/chat-types'
-import type {PageQueueHandle, PageQueueOutcome, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
+import {RESULT_CAP_CHARS} from '@conciv/protocol'
+import type {SessionId} from '@conciv/types/chat-types'
+import type {PageQueueHandle, PageQueueOutcome, PageQueueProgress, PageQueueResult} from '@conciv/types/page-types'
 
 export type Landed = 'played' | 'stopped' | 'lost'
 

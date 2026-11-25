@@ -9,25 +9,23 @@ import {
   cappedText,
   codeDiscoverReply,
   codeExecuteReply,
-  engineTooOld,
-  makeRpcClient,
   queueNotice,
   type CodeDescriptions,
   type CodeDiscoverResult,
   type CodeReply,
-  type RpcClient,
-} from '@conciv/contract'
+} from '@conciv/protocol'
+import {engineTooOld, makeRpcClient, type RpcClient} from '@conciv/client'
 import {
   CODE_MODE_EXTERNAL_PREFIX,
   CONCIV_CLIENT_HEADER,
   CONCIV_ORIGIN_HEADER,
   SessionId,
   type TabOpen,
-} from '@conciv/protocol/chat-types'
-import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
-import type {InitHarnessId} from '@conciv/protocol/harness-types'
+} from '@conciv/types/chat-types'
+import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/types/page-types'
+import type {InitHarnessId} from '@conciv/types/harness-types'
 import {PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
-import {ascending} from '@conciv/plugin/schema/identifier'
+import {ascending} from '@conciv/protocol/schema/identifier'
 import cliManifest from '../package.json' with {type: 'json'}
 import type {CliOutcome} from './envelope.js'
 import {

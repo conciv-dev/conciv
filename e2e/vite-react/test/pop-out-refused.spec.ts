@@ -1,4 +1,4 @@
-import {expect, test} from '@conciv/e2e-utils/fixtures'
+import {expect, test} from '@internal/e2e-utils/fixtures'
 
 test.describe('popping the chat out in a browser that refuses new windows', () => {
   test('the user pops the chat out, the browser refuses the window, and the chat stays inline with a notice that offers to pop out again', async ({

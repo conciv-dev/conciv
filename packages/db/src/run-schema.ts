@@ -1,7 +1,7 @@
 import {index, integer, sqliteTable, text, primaryKey} from 'drizzle-orm/sqlite-core'
-import type {RunStatus} from '@conciv/protocol/chat-event-types'
-import type {ModelMessage} from '@conciv/protocol/chat-message-types'
-import type {TokenUsage} from '@conciv/protocol/usage-types'
+import type {RunStatus} from '@conciv/types/chat-event-types'
+import type {ModelMessage} from '@conciv/types/chat-message-types'
+import type {TokenUsage} from '@conciv/types/usage-types'
 
 export const chatRuns = sqliteTable(
   'chat_runs',

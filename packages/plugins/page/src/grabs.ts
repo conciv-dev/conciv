@@ -1,9 +1,9 @@
 import {mkdir, readFile, rename, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {Effect} from 'effect'
-import {CONCIV_STATE_DIR} from '@conciv/protocol/state-types'
-import {PromptPresentationSchema} from '@conciv/protocol/chat-message-types'
-import type {SessionPrompt} from '@conciv/plugin/effect/session'
+import {CONCIV_STATE_DIR} from '@conciv/types/state-types'
+import {PromptPresentationSchema} from '@conciv/types/chat-message-types'
+import type {SessionPrompt} from '@conciv/backend-plugin-api/effect/session'
 import {GRAB_NOTE_ORIGIN, GrabId, readGrabId, StoredGrab} from './rpc.js'
 
 export type GrabStore = ReturnType<typeof makeGrabStore>

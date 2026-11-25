@@ -2,8 +2,8 @@ import {spawn} from 'node:child_process'
 import {readFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {text} from 'node:stream/consumers'
-import {expect, test} from '@conciv/e2e-utils/fixtures'
-import {collectFailures, expectWidgetBoots, loginWidget, openLoginFromLockedLauncher} from '@conciv/e2e-utils/widget'
+import {expect, test} from '@internal/e2e-utils/fixtures'
+import {collectFailures, expectWidgetBoots, loginWidget, openLoginFromLockedLauncher} from '@internal/e2e-utils/widget'
 
 test.describe('signing in to the widget on a vite react page', () => {
   test.use({signedIn: false})
