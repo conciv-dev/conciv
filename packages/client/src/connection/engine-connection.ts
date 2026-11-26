@@ -1,5 +1,5 @@
 import {createORPCClient, mapEventIterator, ORPCError, type ClientLink, type ClientOptions} from '@orpc/client'
-import {StandardRPCLink, type StandardLinkClient} from '@orpc/client/standard'
+import {StandardRPCLink, type StandardLinkClient, type StandardLinkPlugin} from '@orpc/client/standard'
 import {
   ClientRetryPlugin,
   type ClientRetryPluginAttemptOptions,
@@ -88,6 +88,9 @@ const SOCKET_LINK_URL = 'http://orpc'
 const WEBSOCKET_OPEN = 1
 const SOCKET_NOT_OPEN_MESSAGE = 'Cannot send message, WebSocket is not open.'
 const CONNECTION_CLOSED_MESSAGE = 'The engine connection closed before the call was answered.'
+const EVENT_STREAM_ENDED_MESSAGE = 'The engine ended the event stream.'
+const EVENT_STREAM_PATH = 'event.subscribe'
+const INSIDE_RETRY_ORDER = 2_000_000
 const TOKEN_STORAGE_PREFIX = 'conciv:engine-token:'
 
 export type EngineUnreachable = Error & {readonly isEngineUnreachable: true}
@@ -449,6 +452,27 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     return run(reopened(options.signal).pipe(Effect.as(0)))
   }
 
+  async function* endedAsDrop(output: AsyncIteratorObject<unknown, unknown, void>, signal: AbortSignal | undefined) {
+    yield* output
+    if (signal?.aborted === true) return
+    await run(dispatch({type: 'stream-ended'}))
+    throw engineUnreachable(EVENT_STREAM_ENDED_MESSAGE)
+  }
+
+  const eventStreamEnd: StandardLinkPlugin<RpcClientContext> = {
+    order: INSIDE_RETRY_ORDER,
+    init: (options) => {
+      options.interceptors = [
+        ...(options.interceptors ?? []),
+        async (call) => {
+          const output = await call.next()
+          if (call.path.join('.') !== EVENT_STREAM_PATH || !isEventIterator(output)) return output
+          return endedAsDrop(output, call.signal)
+        },
+      ]
+    },
+  }
+
   const socketClient: StandardLinkClient<RpcClientContext> = {
     call: async (request) => {
       await run(settled(request.signal))
@@ -479,6 +503,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
       new ClientRetryPlugin<RpcClientContext>({
         default: {retry: Number.POSITIVE_INFINITY, retryDelay, shouldRetry: retriable},
       }),
+      eventStreamEnd,
     ],
   })
 

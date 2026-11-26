@@ -45,6 +45,7 @@ export type ConnectionEvent =
   | {readonly type: 'call-started'}
   | {readonly type: 'reset-requested'}
   | {readonly type: 'stalled'}
+  | {readonly type: 'stream-ended'}
   | {readonly type: 'retry-due'; readonly attempt: number}
   | {readonly type: 'socket-opened'; readonly attempt: number}
   | {readonly type: 'socket-closed'; readonly attempt: number; readonly code: number}
@@ -128,6 +129,19 @@ function dropAndReconnect(state: ConnectionState): ConnectionTransition {
   }
 }
 
+function endAndReconnect(state: ConnectionState): ConnectionTransition {
+  const next = connect(state)
+  return {
+    state: next.state,
+    effects: [
+      {type: 'close-socket'},
+      ...next.effects,
+      {type: 'publish', signal: {type: 'reachable', reachable: false}},
+      {type: 'close-peer'},
+    ],
+  }
+}
+
 function distrust(state: ConnectionState, refused: string | undefined): ConnectionTransition {
   if (state.trust === 'checking' || refused !== state.token) return unchanged(state)
   if (refused === undefined && state.trust === 'revoked') return unchanged(state)
@@ -198,6 +212,7 @@ export function transitionConnection(state: ConnectionState, event: ConnectionEv
       'call-started': () => (state.socket === 'closed' ? reconnect(state) : unchanged(state)),
       'reset-requested': () => resetSocket(state),
       stalled: () => (state.socket === 'open' ? dropAndReconnect(state) : unchanged(state)),
+      'stream-ended': () => (state.socket === 'open' ? endAndReconnect(state) : unchanged(state)),
       'retry-due': (due) => retryDue(state, due.attempt),
       'socket-opened': (opened) => (current(state, opened.attempt, 'connecting') ? open(state) : unchanged(state)),
       'socket-closed': (closed) =>

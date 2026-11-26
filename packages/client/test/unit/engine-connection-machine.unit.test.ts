@@ -164,7 +164,7 @@ describe('the connection machine', () => {
     expect(closed.state).toMatchObject({socket: 'closed', trust: 'revoked', token: undefined})
   })
 
-  it("a stalled socket is closed and opened again and the old socket's events are ignored", () => {
+  it("a stalled socket is closed and opened again, the old socket's events are ignored, and an event stream the engine ends backs off", () => {
     const toOpen: ConnectionEvent[] = [
       {type: 'call-started'},
       {type: 'retry-due', attempt: 1},
@@ -204,6 +204,27 @@ describe('the connection machine', () => {
     expect(transitionConnection(stalled.state, {type: 'retry-due', attempt: 2}).effects).toEqual([
       {type: 'open-socket', attempt: 2},
     ])
+
+    const opened = (state: typeof open, attempt: number) => {
+      const steps: ConnectionEvent[] = [
+        {type: 'retry-due', attempt},
+        {type: 'socket-opened', attempt},
+      ]
+      return steps.reduce((held, event) => transitionConnection(held, event).state, state)
+    }
+    const ended = (attempt: number, delayMs: number) => [
+      {type: 'close-socket'},
+      {type: 'schedule-retry', attempt, delayMs},
+      {type: 'publish', signal: {type: 'reachable', reachable: false}},
+      {type: 'close-peer'},
+    ]
+    const first = transitionConnection(opened(stalled.state, 2), {type: 'stream-ended'})
+    expect(first.effects).toEqual(ended(3, 100))
+    const second = transitionConnection(opened(first.state, 3), {type: 'stream-ended'})
+    expect(second.effects).toEqual(ended(4, 200))
+    const steady = transitionConnection(opened(second.state, 4), {type: 'uptime-reached', attempt: 4}).state
+    expect(transitionConnection(steady, {type: 'stream-ended'}).effects).toEqual(ended(5, 100))
+    expect(transitionConnection(stalled.state, {type: 'stream-ended'})).toEqual({state: stalled.state, effects: []})
   })
 
   it('a trust check with no answer turns unreachable and the next open asks again', () => {

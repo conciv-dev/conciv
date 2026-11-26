@@ -80,13 +80,10 @@ async function* received(
   signal.addEventListener('abort', () => setStatus('connecting'), {once: true})
   const onRetry = ({error}: {error: unknown}): void =>
     setStatus(UntrustedSchema.safeParse(error).success ? 'connecting' : 'reconnecting')
-  while (!signal.aborted) {
-    for await (const event of await raw.event.subscribe(undefined, {signal, context: {onRetry}})) {
-      onActivity()
-      if (event.type === 'server.heartbeat') continue
-      if (event.type === 'server.connected') setStatus('connected')
-      yield event as ConcivEvent
-    }
-    if (!signal.aborted) setStatus('reconnecting')
+  for await (const event of await raw.event.subscribe(undefined, {signal, context: {onRetry}})) {
+    onActivity()
+    if (event.type === 'server.heartbeat') continue
+    if (event.type === 'server.connected') setStatus('connected')
+    yield event as ConcivEvent
   }
 }
