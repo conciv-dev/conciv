@@ -80,6 +80,7 @@
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "effect": "catalog:",
+    "next": "catalog:",
     "solid-js": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",

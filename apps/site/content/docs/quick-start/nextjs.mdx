@@ -3,127 +3,135 @@ title: Next.js
 description: Add conciv to a Next.js app.
 ---
 
-Next.js needs three pieces: `withConciv` around your config, an `instrumentation.ts` that starts the engine, and an
-`instrumentation-client.ts` that adds the widget.
+Copy this prompt into your coding agent. It sets conciv up in your Next.js app:
 
-<Tabs items={['init', 'By hand']}>
+<SetupPrompt framework="nextjs" />
 
-<Tab value="init">
+What you get:
 
-```bash
-npx @conciv/cli@latest init
-```
+- conciv starts with `next dev`, and adds a conciv button to your pages.
+- Your next config is wrapped with `withConciv`.
+- Two new files: `instrumentation.ts` and `instrumentation-client.ts`.
+- `next build` and `next start` leave conciv out.
 
-init finds Next.js in your `package.json`, installs `@conciv/it`, wraps the default export of your next config with
-`withConciv`, and creates `instrumentation.ts` and `instrumentation-client.ts` in the project folder. It does not
-overwrite an instrumentation file that already holds something else. If it cannot read the shape of your config, it
-prints the snippet to paste instead. See [Quick start](/docs/quick-start) for what it asks.
+## Set up by hand
 
-</Tab>
-
-<Tab value="By hand">
+<Accordions>
+<Accordion id="by-hand" title="Install and wire conciv yourself">
 
 <Steps>
 <Step>
 
 ### Install
 
-<Tabs items={['pnpm', 'npm', 'yarn']}>
-
-<Tab value="pnpm">
-
-```bash
-pnpm add -D @conciv/it
-```
-
-</Tab>
-
-<Tab value="npm">
-
-```bash
+```package-install
 npm install -D @conciv/it
 ```
-
-</Tab>
-
-<Tab value="yarn">
-
-```bash
-yarn add -D @conciv/it
-```
-
-</Tab>
-
-</Tabs>
 
 </Step>
 <Step>
 
 ### Wrap your config
 
-```ts title="next.config.ts"
+Wrap the default export with `withConciv`:
+
+```ts twoslash title="next.config.ts"
 import type {NextConfig} from 'next'
-import {withConciv} from '@conciv/it/plugin/nextjs'
+import {withConciv} from '@conciv/it/plugin/nextjs' // [!code ++]
 
-const nextConfig: NextConfig = {}
+const nextConfig: NextConfig = {
+  reactStrictMode: true,
+}
 
-export default withConciv(nextConfig)
+export default withConciv(nextConfig) // [!code ++]
 ```
 
-Options go in the second argument of `withConciv`. See [Configuration](/docs/configuration).
+- `withConciv` picks the engine port when Next.js loads your config.
+- Options go in its second argument: `withConciv(nextConfig, {harness: 'codex'})`. See
+  [Configuration](/docs/configuration).
 
 </Step>
 <Step>
 
 ### Add the instrumentation files
 
-```ts title="instrumentation.ts"
+Create both files next to your `app` or `pages` folder:
+
+```ts twoslash title="instrumentation.ts"
 export {register} from '@conciv/it/plugin/nextjs'
 ```
 
-```ts title="instrumentation-client.ts"
+```ts twoslash title="instrumentation-client.ts"
 import '@conciv/it/plugin/nextjs/widget'
 ```
 
-Put them in the folder that holds your `app` or `pages` folder: the project root, or `src/`.
+- `register` starts the engine when the dev server starts.
+- The client file adds the conciv button to your pages.
 
 </Step>
-</Steps>
-
-<Files>
-  <File name="next.config.ts" />
-  <File name="instrumentation.ts" />
-  <File name="instrumentation-client.ts" />
-  <Folder name="app" />
-</Files>
-
-</Tab>
-
-</Tabs>
-
-<Steps>
 <Step>
 
 ### Start your dev server
 
 ```bash
-next dev
+npm run dev
 ```
-
-`withConciv` picks the engine port when Next.js loads your config, and `register` starts the engine on it. See
-[Configuration](/docs/configuration#port) for how the port is chosen.
 
 </Step>
 <Step>
 
 ### Open your app and log in
 
-Click the conciv button. The first time, it asks for the 6-digit code your dev server just printed in its terminal.
-See [Logging in](/docs/usage/logging-in).
+Click the conciv button in the corner. Type the 6-digit code your dev server prints in its terminal. See
+[Logging in](/docs/usage/logging-in).
 
 </Step>
 </Steps>
 
-`next build` and `next start` do not start the engine, and the widget does not start in a production build.
+</Accordion>
+</Accordions>
 
-Next: [Usage](/docs/usage) to see what the agent can do.
+## Edge cases
+
+<Accordions>
+<Accordion id="src" title="Your routes live in src/">
+
+Next.js reads the instrumentation files from the folder that holds `app` or `pages`. init writes them to the project
+root. With `src/app` or `src/pages`, move both into `src/`:
+
+<Files>
+  <File name="next.config.ts" />
+  <Folder name="src" defaultOpen>
+    <File name="instrumentation.ts" />
+    <File name="instrumentation-client.ts" />
+    <Folder name="app" />
+  </Folder>
+</Files>
+
+</Accordion>
+<Accordion id="existing" title="You already have an instrumentation file">
+
+init does not overwrite an instrumentation file that holds something else. It prints a card instead. Add the line
+from the card to your file. In `instrumentation.ts`, call conciv's `register` from your own:
+
+```ts twoslash title="instrumentation.ts"
+import {register as registerConciv} from '@conciv/it/plugin/nextjs'
+
+export async function register() {
+  await registerConciv()
+}
+```
+
+</Accordion>
+<Accordion id="card" title="init printed a snippet instead of editing the config">
+
+init edits only a config shape it can read. Otherwise it prints the snippet to paste. Add it as in the manual steps
+above.
+
+</Accordion>
+</Accordions>
+
+## Next
+
+- [Usage](/docs/usage): what the agent can do in your app.
+- [Configuration](/docs/configuration): the options `withConciv` takes.
