@@ -13,9 +13,13 @@
   "type": "module",
   "exports": {
     ".": "./src/frontend-test-utils.tsx",
-    "./app": "./src/render-test-app.tsx"
+    "./app": {
+      "types": "./dist/render-test-app.d.ts",
+      "default": "./src/render-test-app.tsx"
+    }
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

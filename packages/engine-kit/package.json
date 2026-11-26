@@ -12,7 +12,8 @@
   },
   "type": "module",
   "exports": {
-    ".": "./src/engine.ts"
+    ".": "./src/engine.ts",
+    "./clock-steps": "./src/clock-steps.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

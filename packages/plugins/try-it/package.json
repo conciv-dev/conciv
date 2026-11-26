@@ -44,6 +44,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/backend-test-utils": "workspace:*",
     "@conciv/frontend-plugin-api": "workspace:^",
     "@conciv/harness": "workspace:*",
     "@internal/frontend-app-api": "workspace:*",

@@ -23,7 +23,12 @@
   "exports": {
     ".": {
       "types": "./dist/backend-test-utils.d.ts",
+      "browser": "./dist/browser.js",
       "import": "./dist/backend-test-utils.js"
+    },
+    "./vitest": {
+      "types": "./dist/vitest.d.ts",
+      "default": "./dist/vitest.js"
     }
   },
   "publishConfig": {

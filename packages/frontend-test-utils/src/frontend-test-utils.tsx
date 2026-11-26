@@ -4,7 +4,14 @@ import {createStore, produce} from 'solid-js/store'
 import {render} from '@solidjs/testing-library'
 import {Dynamic} from 'solid-js/web'
 import {onTestFinished} from 'vitest'
-import {makeEngineRpcClient, QueryClient, QueryClientProvider, useQuery} from '@conciv/client'
+import {
+  makeBrowserEngineConnection,
+  makeEngineRpcClient,
+  type EngineConnection,
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from '@conciv/client'
 import {createFakeEngine, type FakeEngine} from '@conciv/client/testing'
 import {Conciv, type ConcivClient} from '@conciv/backend-plugin-api'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
@@ -42,7 +49,7 @@ export type TestPlugin = {
 }
 
 export type RenderInTestAppOptions = {
-  readonly engine?: FakeEngine
+  readonly engine?: FakeEngine | RealEngine
   readonly plugins: readonly TestPlugin[]
   readonly open?: readonly string[]
 }
@@ -90,14 +97,36 @@ export function useFakeEngine(engine: FakeEngine = createFakeEngine()): FakeEngi
   return engine
 }
 
-function engineClient(engine: FakeEngine): ConcivClient {
+export type RealEngine = {
+  readonly address: {readonly apiBase: string; readonly token: string}
+  readonly root: string
+}
+
+export type BoundEngine = {
+  readonly apiBase: string
+  readonly directory: string
+  readonly connection: EngineConnection
+}
+
+export function engineToken(engine: RealEngine): () => Promise<string> {
+  return () => Promise.resolve(engine.address.token)
+}
+
+export function bindEngine(engine: FakeEngine | RealEngine): BoundEngine {
+  if ('connection' in engine) return engine
+  const connection = makeBrowserEngineConnection(engine.address.apiBase, {tokenSource: engineToken(engine)})
+  onTestFinished(() => connection.dispose())
+  return {apiBase: engine.address.apiBase, directory: engine.root, connection}
+}
+
+function engineClient(engine: BoundEngine): ConcivClient {
   return Conciv.make(
     makeEngineRpcClient(() => engine.connection),
     {server: () => engine.apiBase, reconnectDelay: 0, trust: () => engine.connection.trust},
   )
 }
 
-function testServer(engine: FakeEngine, client: ConcivClient): ServerRef {
+function testServer(engine: BoundEngine, client: ConcivClient): ServerRef {
   return {
     id: 'engine',
     name: 'conciv',
@@ -121,7 +150,7 @@ function testServer(engine: FakeEngine, client: ConcivClient): ServerRef {
   }
 }
 
-function createTestApp(engine: FakeEngine, client: ConcivClient, open: readonly string[]) {
+function createTestApp(engine: BoundEngine, client: ConcivClient, open: readonly string[]) {
   const [state, setState] = createStore<AppState>({
     open: [...open],
     active: open[0],
@@ -376,8 +405,8 @@ function Started(props: ParentProps<{ids: readonly string[]; started: () => void
   )
 }
 
-async function trusted(engine: FakeEngine): Promise<void> {
-  if (!(await engine.connection.trust.requestTrust())) throw new Error('the fake engine did not trust the test browser')
+async function trusted(engine: BoundEngine): Promise<void> {
+  if (!(await engine.connection.trust.requestTrust())) throw new Error('the engine did not trust the test browser')
 }
 
 export function renderInTestApp(options: RenderInTestAppOptions): Promise<TestApp> {
@@ -386,7 +415,7 @@ export function renderInTestApp(options: RenderInTestAppOptions): Promise<TestAp
 
 async function renderPlugins(options: RenderInTestAppOptions & AppElement): Promise<TestApp> {
   const plugins = options.plugins
-  const engine = options.engine ?? useFakeEngine()
+  const engine = bindEngine(options.engine ?? useFakeEngine())
   await trusted(engine)
   const client = engineClient(engine)
   const app = createTestApp(engine, client, options.open ?? [])

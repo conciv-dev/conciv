@@ -1,6 +1,8 @@
 import {existsSync, readFileSync} from 'node:fs'
 import {dirname, isAbsolute, join, resolve} from 'node:path'
+import {pathToFileURL} from 'node:url'
 import {z} from 'zod'
+import type {Plugin} from '@conciv/backend-plugin-api/effect/plugin'
 
 const ManifestNameSchema = z.object({name: z.string().optional()})
 
@@ -23,4 +25,17 @@ export function pluginDirectory(target: string): string {
   if (isAbsolute(target)) return target
   if (target.startsWith('.')) return resolve(target)
   return installedPlugin(target, process.cwd())
+}
+
+const ServerExportSchema = z.object({exports: z.object({'.': z.object({import: z.string()})})})
+
+const ServerModuleSchema = z.object({
+  default: z.custom<Plugin>((value) => z.object({id: z.string()}).safeParse(value).success),
+})
+
+export async function serverPlugin(name: string): Promise<Plugin> {
+  const directory = pluginDirectory(name)
+  const manifest = ServerExportSchema.parse(JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')))
+  const loaded: unknown = await import(pathToFileURL(join(directory, manifest.exports['.'].import)).href)
+  return ServerModuleSchema.parse(loaded).default
 }

@@ -5,9 +5,16 @@ import {z} from 'zod'
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
 import type {FakeEngine, FakeEngineOptions} from '@conciv/client/testing'
 import type {ConcivSettingsInit} from '@conciv/types/config-types'
-import {ConcivApp, createDraftStore, WIDGET_LAYER, type DraftStore, type Platform} from '@internal/frontend-defaults'
+import {
+  ConcivApp,
+  createBrowserEngine,
+  createDraftStore,
+  WIDGET_LAYER,
+  type DraftStore,
+  type Platform,
+} from '@internal/frontend-defaults'
 import {pluginIdAvailable} from '@internal/frontend-app-api/plugin/installed'
-import {testEntry, useFakeEngine, type TestPlugin} from './frontend-test-utils.js'
+import {engineToken, testEntry, useFakeEngine, type RealEngine, type TestPlugin} from './frontend-test-utils.js'
 
 const SHELL_TIMINGS: NonNullable<Platform['timings']> = {
   engine: {offlineGraceMs: 10},
@@ -43,7 +50,7 @@ function memoryDraftStore(): DraftStore {
 }
 
 export type RenderTestAppOptions = {
-  readonly engine?: FakeEngine | 'none'
+  readonly engine?: FakeEngine | RealEngine | 'none'
   readonly plugins?: readonly TestPlugin[]
   readonly initialEntries?: readonly string[]
   readonly settings?: ConcivSettingsInit
@@ -53,9 +60,21 @@ function isBuiltin(plugin: TestPlugin): boolean {
   return plugin.builtin === true || !pluginIdAvailable(plugin.id, [])
 }
 
-function shellEngine(engine: FakeEngine | undefined): ReturnType<Platform['engine']> {
-  if (engine === undefined) return {kind: 'servers'}
-  return {kind: 'bound', apiBase: engine.apiBase, connection: engine.connection}
+function shellEngine(engine: FakeEngine | RealEngine | undefined): Pick<Platform, 'engine' | 'connect'> {
+  if (engine !== undefined && 'connection' in engine) {
+    const bound: ReturnType<Platform['engine']> = {
+      kind: 'bound',
+      apiBase: engine.apiBase,
+      connection: engine.connection,
+    }
+    return {engine: () => bound}
+  }
+  const browser = createBrowserEngine({
+    apiBase: engine?.address.apiBase,
+    tokenSource: engine === undefined ? undefined : engineToken(engine),
+  })
+  onTestFinished(browser.dispose)
+  return {engine: browser.engine, connect: browser.connect}
 }
 
 export async function renderTestApp(options: RenderTestAppOptions = {}): Promise<void> {
@@ -65,7 +84,7 @@ export async function renderTestApp(options: RenderTestAppOptions = {}): Promise
   const plugins = options.plugins ?? []
   const builtins = plugins.filter(isBuiltin)
   const platform: Platform = {
-    engine: () => shellEngine(engine),
+    ...shellEngine(engine),
     navigation: {history: createMemoryHistory({initialEntries: [...(options.initialEntries ?? [start])]})},
     root: document,
     settings: options.settings,

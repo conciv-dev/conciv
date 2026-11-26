@@ -21,3 +21,5 @@
 - A tool call gives up after 60000 ms; a tool error rejects with its text, which `failure` returns.
 - A `cli` call gives up after 60000 ms: the child is killed and the call rejects with "the conciv CLI gave no result within 60000ms". Its temp home is removed after the child has closed, on every path.
 - `stop` ends open turns, stops the engine (`start`'s stop: the dev endpoint, the home database row, the server, the app) and removes the project root; every step runs even when an earlier one fails, and the failures are rethrown as one `AggregateError`. A failed start undoes what it did the same way.
+
+- `browser-commands.ts`: `engineCommands(start, createBackend)`, the node side of browser mode: one handler per command, over the engines, sessions, gates and event waits it holds in its own closure. `plugin-directory.ts`'s `serverPlugin(name)` loads a package's `.` export, so `start.plugins` can name a plugin.

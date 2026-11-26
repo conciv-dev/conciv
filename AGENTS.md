@@ -207,8 +207,9 @@ Tests are laid out as Backstage's and run as opencode's. The plan and its rules 
 - A framework app under `e2e/` holds ONE test: the user signs in and the widget opens with no error in that framework.
   It gets a second test only for something that broke in that framework, named in its title. Behaviour that needs the
   real built widget in a real browser but is not about a framework (reload, real windows and downloads, the file
-  chooser, focus between host page and widget, real CLIs, real pty) is tested once, in the one e2e host app.
-  `e2e/host-app-pending/` holds the journeys waiting for that app (see its README); nothing runs them yet.
+  chooser, focus between host page and widget, real CLIs) is tested once, in the one e2e host app. A plugin's own
+  journeys, a real engine or a real pty included, stay in that plugin's `test/e2e`: nothing plugin-related goes in
+  the root `e2e/`.
 - Never add tests under `apps/examples/*` (demos). Exception: `apps/examples/tanstack-start` carries demo tests so the
   in-chat test runner has something to run.
 
@@ -237,7 +238,13 @@ Nothing else is exported; a new export or option on any of them needs the mainta
   `fs`, `clock`, `tokensPerSecond`). The engine ships no plugin: a test passes the plugins it needs in
   `start.plugins`. Replies are scripted with `engine.reply(...)`, which takes only `TestLLM` replies (`text`,
   `toolCall`, `failAfter`, `hang`); `engine.gate()` holds a reply. The fixture stops every engine its test started when
-  the test ends, pass or fail; a test never stops one itself.
+  the test ends, pass or fail; a test never stops one itself. `start.plugins` takes plugin objects or package names
+  (a name loads that package's `.` export from the package under test).
+  The same `test` works in browser mode: the package's `browser` export condition gives a fixture whose engine lives
+  in node and is reached through vitest browser commands (`concivCreateEngine`, `concivSend`, `concivToolCall`,
+  `concivEvent`, `concivClockTick`, ...), which `concivTest({browser: true})` registers from
+  `@conciv/backend-test-utils/vitest` when the package under test has it. In browser mode only data crosses: a
+  function reply (other than `hang()`), a `start.harness` or a plugin object is refused; plugins go by package name.
 
 - `@internal/engine-kit` (private): the engine kit itself, taking `createBackend` as an argument so it depends on
   neither backend-defaults nor backend-test-utils. `backend-test-utils` bundles it; `backend-defaults` uses it from its
@@ -247,7 +254,9 @@ Nothing else is exported; a new export or option on any of them needs the mainta
   - `renderInTestApp({plugins, engine})`: a minimal host with one plugin's parts and the shell's chrome off, for a
     plugin's own screens.
   - `renderTestApp({plugins, engine})` (`@internal/frontend-test-utils/app`): the full shell from frontend-defaults
-    with the given plugins, for journeys through the chat.
+    with the given plugins, for journeys through the chat. `engine` is the fake engine, a real engine from
+    `createEngine` (bound to its address and token over the real `@conciv/client` connection), or `'none'`;
+    `renderInTestApp` takes the same two.
   - `createExtensionTester(...)`: one extension (a tool card, a tab) on its own.
   - `useFakeEngine(engine?)`: the fake engine the render uses.
 - `@conciv/client/testing`: `createFakeEngine()` and `FakeLLM`. The fake engine is built with oRPC's

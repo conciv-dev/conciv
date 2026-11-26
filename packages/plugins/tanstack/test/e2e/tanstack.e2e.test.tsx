@@ -1,6 +1,10 @@
-import {describe, expect, test} from 'vitest'
+import {describe, expect} from 'vitest'
+import {test} from '@conciv/backend-test-utils'
 import {screen, within} from '@solidjs/testing-library'
 import {createExtensionTester} from '@internal/frontend-test-utils'
+import {renderTestApp} from '@internal/frontend-test-utils/app'
+import pageRenderer from '@conciv/plugin-page/renderer'
+import {createPageSessionGrouper, pageSessionEntry} from '@conciv/plugin-page/client'
 import tanstack from '../../src/plugin-experimental.js'
 
 describe('the TanStack cards', () => {
@@ -29,5 +33,29 @@ describe('the TanStack cards', () => {
     expect(within(calls).getByText('Read the server-function calls')).toBeVisible()
     expect(within(calls).getByText('no calls')).toBeVisible()
     expect(within(cards).getByText('No server-fn calls')).toBeVisible()
+  })
+})
+
+describe('the agent finds the tab through the TanStack plugin', () => {
+  test('the TanStack tab list names the focused tab', async ({createEngine}) => {
+    const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']}, {plugins: ['@conciv/plugin-page']})
+    const control = await engine.event('rpc.experimental.page.control')
+    await renderTestApp({
+      engine,
+      plugins: [
+        {
+          id: 'conciv.page',
+          plugin: pageRenderer,
+          builtin: true,
+          engineHalf: true,
+          toolGroup: {entry: pageSessionEntry, createGrouper: createPageSessionGrouper},
+        },
+      ],
+    })
+    await control.arrived
+
+    expect(await engine.session.tool('tanstack_tabs_list').call({})).toMatchObject({
+      tabs: [{focused: true, visible: true}],
+    })
   })
 })

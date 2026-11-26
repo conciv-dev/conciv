@@ -17,7 +17,6 @@
     "e2e/vite-react/**",
     "e2e/vite-solid/**",
     "e2e/vite-vanilla/**",
-    "e2e/host-app-pending/**",
     "**/vitest.config.ts",
     "packages/backend/vite.config.ts",
     "packages/tools/vite.config.ts",

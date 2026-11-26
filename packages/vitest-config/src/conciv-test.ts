@@ -120,7 +120,7 @@ async function testProjects(
   browser: boolean,
 ): Promise<TestProjectInlineConfiguration[]> {
   const browserProjects = browser
-    ? (await import('@internal/vitest-config/browser-project')).browserProjects(authorPlugins)
+    ? await (await import('@internal/vitest-config/browser-project')).browserProjects(authorPlugins)
     : []
   return [
     ...browserProjects,

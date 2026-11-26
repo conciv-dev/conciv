@@ -3771,9 +3771,15 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/backend-test-utils':
+        specifier: workspace:*
+        version: link:../../backend-test-utils
       '@conciv/frontend-plugin-api':
         specifier: workspace:^
         version: link:../../frontend-plugin-api
+      '@conciv/plugin-page':
+        specifier: workspace:*
+        version: link:../page
       '@internal/frontend-test-utils':
         specifier: workspace:*
         version: link:../../frontend-test-utils
@@ -3911,6 +3917,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/backend-test-utils':
+        specifier: workspace:*
+        version: link:../../backend-test-utils
       '@conciv/frontend-plugin-api':
         specifier: workspace:^
         version: link:../../frontend-plugin-api

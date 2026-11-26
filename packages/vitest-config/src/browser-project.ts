@@ -1,9 +1,11 @@
+import {existsSync, realpathSync} from 'node:fs'
 import {readFile, glob} from 'node:fs/promises'
 import {createRequire} from 'node:module'
-import {dirname, join, matchesGlob} from 'node:path'
+import {join, matchesGlob} from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import type {Plugin, UserConfig} from 'vite'
 import {configDefaults, type TestProjectInlineConfiguration} from 'vitest/config'
+import type {BrowserCommand} from 'vitest/node'
 import {playwright} from '@vitest/browser-playwright'
 import {createGenerator, type UserConfig as UnoConfig} from 'unocss'
 import solidPlugin from 'vite-plugin-solid'
@@ -42,12 +44,44 @@ const UnoConfigModuleSchema = z.object({
 
 const ManifestNameSchema = z.object({name: z.string().optional()})
 
-function packageDirectory(name: string, from: string): string | undefined {
+const ENGINE_COMMANDS = '@conciv/backend-test-utils/vitest'
+
+type EngineCommandSet = {
+  commands: Record<string, BrowserCommand<never[]>>
+  close: () => Promise<void>
+}
+
+const EngineCommandsModuleSchema = z.object({
+  engineCommands: z.custom<() => EngineCommandSet>((value) => typeof value === 'function'),
+})
+
+function engineCommandsFile(): string | undefined {
   try {
-    return dirname(createRequire(join(from, 'package.json')).resolve(`${name}/package.json`))
+    return createRequire(join(process.cwd(), 'package.json')).resolve(ENGINE_COMMANDS)
   } catch {
     return undefined
   }
+}
+
+async function engineCommands(): Promise<EngineCommandSet | undefined> {
+  const file = engineCommandsFile()
+  if (file === undefined) return undefined
+  const loaded = EngineCommandsModuleSchema.parse(await import(pathToFileURL(file).href))
+  return loaded.engineCommands()
+}
+
+function closeEngines(engines: EngineCommandSet | undefined): Plugin {
+  return {
+    name: 'conciv:test-browser-engines',
+    configureVitest({vitest}) {
+      vitest.onClose(async () => engines?.close())
+    },
+  }
+}
+
+function packageDirectory(name: string, from: string): string | undefined {
+  const linked = join(from, 'node_modules', name)
+  return existsSync(linked) ? realpathSync(linked) : undefined
 }
 
 const TEST_UTILS = '@internal/frontend-test-utils'
@@ -137,7 +171,8 @@ function hasServingPlugin(option: unknown, name: string): boolean {
   return plugin?.name === name && (plugin.apply === undefined || plugin.apply === 'serve')
 }
 
-export function browserProjects(authorPlugins: UserConfig['plugins']): TestProjectInlineConfiguration[] {
+export async function browserProjects(authorPlugins: UserConfig['plugins']): Promise<TestProjectInlineConfiguration[]> {
+  const engines = await engineCommands()
   const styles = generatedStyles()
   const solid = hasServingPlugin(authorPlugins, 'solid') ? [] : [solidPlugin()]
   const project = (
@@ -147,7 +182,7 @@ export function browserProjects(authorPlugins: UserConfig['plugins']): TestProje
     browsers: BrowserName[],
   ): TestProjectInlineConfiguration => ({
     extends: true,
-    plugins: [styles, shellDependencies(), ...solid],
+    plugins: [styles, shellDependencies(), closeEngines(engines), ...solid],
     server: {fs: {strict: false}},
     test: {
       name,
@@ -162,6 +197,7 @@ export function browserProjects(authorPlugins: UserConfig['plugins']): TestProje
         provider: playwright({contextOptions: {reducedMotion: 'reduce'}}),
         instances: browsers.map((browser) => ({browser})),
         viewport: VIEWPORT,
+        commands: engines?.commands,
       },
     },
   })
