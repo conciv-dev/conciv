@@ -6,7 +6,7 @@ import {makeWithDefaults} from 'drizzle-orm/effect-sqlite-node'
 import {migrate} from 'drizzle-orm/sqlite-core/effect/session'
 import {Effect, Layer, Schema} from 'effect'
 import {migrations} from './migrations.gen.js'
-import {takeMigrationLock} from '@conciv/home/migrated-db'
+import {takeMigrationLock} from '@conciv/types/migration-lock'
 import {markRunningRunsDetached} from './run-migrations.js'
 
 const makeConcivDb = makeWithDefaults()

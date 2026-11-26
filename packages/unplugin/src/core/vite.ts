@@ -5,7 +5,6 @@ import {concivStateDir, createConcivStateDir} from '@conciv/types/state-types'
 import type {Engine, LogEntry} from '@conciv/backend/start'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/types/config-types'
 import {installConcivBinShim} from './bin-shim.js'
-import {driveEndpoint} from './drive-endpoint.js'
 import {readEngineLine} from './engine-log.js'
 import {htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE, loadWidgetModule, resolveWidgetModule} from './widget-module.js'
@@ -300,7 +299,6 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
   const deadlines: (() => void)[] = []
   const shutdown = createShutdownTracker()
   let apiBase: string | undefined
-  let drive: string | undefined
 
   let managedExcludes: string[] = []
   let widgetFiles: string[] = []
@@ -381,7 +379,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       return resolveWidgetModule(id)
     },
     load(id) {
-      return loadWidgetModule(id, {apiBase, drive}, builtins.embedEntry)
+      return loadWidgetModule(id, apiBase, builtins.embedEntry)
     },
     transform(code, id) {
       if (options.enabled === false || testing) return null
@@ -414,7 +412,6 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
       engines.push(stopWhenHttpServerCloses(server, booted))
       if (!server.config.server.middlewareMode) deadlines.push(installShutdownDeadline(shutdown))
       apiBase = `http://127.0.0.1:${booted.port}`
-      drive = await driveEndpoint()
       devServer = server
       mountWidget(server, apiBase, options.widget)
     },

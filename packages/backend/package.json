@@ -44,9 +44,7 @@
   "dependencies": {
     "@conciv/backend-defaults": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
-    "@conciv/simulation": "workspace:^",
-    "@effect/platform-node": "catalog:",
-    "effect": "catalog:"
+    "@conciv/simulation": "workspace:^"
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",

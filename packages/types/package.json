@@ -81,6 +81,10 @@
       "types": "./dist/state-types.d.ts",
       "import": "./dist/state-types.js"
     },
+    "./migration-lock": {
+      "types": "./dist/migration-lock.d.ts",
+      "import": "./dist/migration-lock.js"
+    },
     "./engine-trust": {
       "types": "./dist/engine-trust.d.ts",
       "import": "./dist/engine-trust.js"

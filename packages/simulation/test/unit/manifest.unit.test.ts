@@ -1,5 +1,6 @@
+import {it} from '@effect/vitest'
 import {ConfigProvider, Effect, FileSystem, Layer} from 'effect'
-import {describe, expect, it} from 'vitest'
+import {describe, expect} from 'vitest'
 import * as DriveManifest from '../../src/manifest.js'
 
 describe('drive manifest', () => {
@@ -12,29 +13,33 @@ describe('drive manifest', () => {
 
   const endpoints = {ui: 'ws://127.0.0.1:41000', backend: 'ws://127.0.0.1:41050'}
 
-  it('loads and validates a Drive manifest through Effect services, with both endpoints', async () => {
-    const manifest = await Effect.runPromise(
-      DriveManifest.resolve().pipe(Effect.provide(driveFiles({endpoints, viewport: {cols: 120, rows: 40}}))),
-    )
+  it.effect('loads and validates a Drive manifest through Effect services, with both endpoints', () =>
+    Effect.gen(function* () {
+      const manifest = yield* DriveManifest.resolve().pipe(
+        Effect.provide(driveFiles({endpoints, viewport: {cols: 120, rows: 40}})),
+      )
 
-    expect(manifest).toEqual({endpoints, viewport: {cols: 120, rows: 40}})
-  })
+      expect(manifest).toEqual({endpoints, viewport: {cols: 120, rows: 40}})
+    }),
+  )
 
-  it('answers the default endpoints for the instance name 1 without reading a file', async () => {
-    const manifest = await Effect.runPromise(DriveManifest.resolve().pipe(Effect.provide(driveFiles({}, '1'))))
+  it.effect('answers the default endpoints for the instance name 1 without reading a file', () =>
+    Effect.gen(function* () {
+      const manifest = yield* DriveManifest.resolve().pipe(Effect.provide(driveFiles({}, '1')))
 
-    expect(manifest).toEqual(DriveManifest.defaults)
-  })
+      expect(manifest).toEqual(DriveManifest.defaults)
+    }),
+  )
 
-  it.each([
+  it.effect.each([
     {name: 'a non-loopback endpoint', contents: {endpoints: {...endpoints, backend: 'https://example.com'}}},
     {name: 'a missing ui endpoint', contents: {endpoints: {backend: endpoints.backend}}},
     {name: 'a relative recording path', contents: {endpoints, recording: {timeline: 'timeline.jsonl'}}},
-  ])('reports $name as a typed decode failure', async ({contents}) => {
-    const error = await Effect.runPromise(
-      DriveManifest.resolve().pipe(Effect.flip, Effect.provide(driveFiles(contents))),
-    )
+  ])('reports $name as a typed decode failure', ({contents}) =>
+    Effect.gen(function* () {
+      const error = yield* DriveManifest.resolve().pipe(Effect.flip, Effect.provide(driveFiles(contents)))
 
-    expect(error).toMatchObject({_tag: 'DriveManifest.ResolveError', reason: 'decode'})
-  })
+      expect(error).toMatchObject({_tag: 'DriveManifest.ResolveError', reason: 'decode'})
+    }),
+  )
 })

@@ -43,4 +43,4 @@ The `conciv-publish` citty command tree. It runs release guards (workspace root,
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/publish` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run test --filter=@internal/publish` from the repo root (turbo builds the package and its dependencies first)

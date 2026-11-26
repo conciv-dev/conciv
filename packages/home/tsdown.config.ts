@@ -2,7 +2,7 @@ import {defineConfig} from 'tsdown'
 
 export default defineConfig({
   sourcemap: true,
-  entry: ['src/home.ts', 'src/migrated-db.ts'],
+  entry: ['src/home.ts'],
   format: 'esm',
   fixedExtension: false,
   dts: false,

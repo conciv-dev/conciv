@@ -7,13 +7,11 @@ import {z} from 'zod'
 import {ConcivConfigSchema, type ConcivConfig} from '@conciv/types/config-types'
 import {concivStateDir} from '@conciv/types/state-types'
 import type * as Boot from './boot.js'
-import {driveEndpoint} from './drive-endpoint.js'
 
 export const CONCIV_DEFAULT_PORT = 24170
 
 export const WIDGET_START_SPECIFIER = '@conciv/widget-start'
 const WIDGET_PORT_KEY = 'NEXT_PUBLIC_CONCIV_PORT'
-const WIDGET_DRIVE_KEY = 'NEXT_PUBLIC_CONCIV_DRIVE'
 
 type TurbopackConfig = {resolveAlias?: Record<string, unknown>; [key: string]: unknown}
 type WebpackEntry = () => Promise<Record<string, unknown>>
@@ -101,10 +99,7 @@ export async function withConciv<T extends object>(
   const port = loadedEnginePort() ?? (await chooseEnginePort(options.port, options.stateRoot ?? process.cwd()))
   const resolved: ConcivConfig = {...options, port}
   const widgetOff = options.widget === false
-  const drive = widgetOff ? undefined : await driveEndpoint()
-  const widgetEnv = widgetOff
-    ? {}
-    : {[WIDGET_PORT_KEY]: String(port), ...(drive === undefined ? {} : {[WIDGET_DRIVE_KEY]: drive})}
+  const widgetEnv = widgetOff ? {} : {[WIDGET_PORT_KEY]: String(port)}
   const concivEnv = {...widgetEnv, CONCIV_OPTIONS: JSON.stringify(resolved)}
   const userEnv = widgetOff
     ? Object.fromEntries(Object.entries(baseEnv).filter(([key]) => key !== WIDGET_PORT_KEY))

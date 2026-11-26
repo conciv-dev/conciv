@@ -60,12 +60,18 @@ describe('the agent draws on the open canvas', () => {
 
     await user.type(input, 'Remove the pay step and clear the rest')
     await expect.element(input).toHaveFocus()
+    const removeAsked = await engine.event('permission.asked')
     await user.keyboard('{Enter}')
+    await removeAsked.arrived
+    const clearAsked = await engine.event('permission.asked')
     await user.click(await screen.findByRole('button', {name: 'Allow once'}))
+    await clearAsked.arrived
     const tidy = await screen.findByRole('article', {name: 'Reply to: Remove the pay step and clear the rest'})
     expect(await within(tidy).findByText('pay')).toBeVisible()
+    const tidied = await engine.event('session.execution.succeeded')
     await user.click(await screen.findByRole('button', {name: 'Deny'}))
 
+    await tidied.arrived
     expect(await screen.findByText('I removed the pay step and kept the rest')).toBeVisible()
     expect(within(tidy).getByText('whiteboard_canvas_clear')).toBeVisible()
   })

@@ -1,7 +1,7 @@
 import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/websocket'
 import type {ContractRouterClient} from '@orpc/contract'
-import {WebSocketServer, type WebSocket} from 'ws'
+import {WebSocket} from 'ws'
 import {
   PROTOCOL_VERSION,
   uiContract,
@@ -14,47 +14,56 @@ export type UiClient = ContractRouterClient<typeof uiContract>
 
 export type UiDriver = {
   readonly client: UiClient
-  readonly close: () => Promise<void>
+  readonly close: () => void
 }
 
 const REQUIRED_CAPABILITIES = ['ui.snapshot', 'ui.state', 'ui.click.semantic', 'ui.focus', 'ui.type', 'ui.press']
 
-function listening(endpoint: URL): Promise<WebSocketServer> {
+function opened(endpoint: string, signal: AbortSignal | undefined): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
-    const server = new WebSocketServer({host: endpoint.hostname, port: Number(endpoint.port)})
-    server.once('listening', () => {
-      server.off('error', reject)
-      resolve(server)
-    })
-    server.once('error', reject)
+    const socket = new WebSocket(endpoint)
+    const settle = (): void => {
+      socket.off('open', open)
+      socket.off('error', failed)
+      signal?.removeEventListener('abort', aborted)
+    }
+    const open = (): void => {
+      settle()
+      resolve(socket)
+    }
+    const failed = (error: Error): void => {
+      settle()
+      reject(new Error(`the driver could not reach the engine's ui endpoint at ${endpoint}`, {cause: error}))
+    }
+    const aborted = (): void => {
+      settle()
+      socket.terminate()
+      reject(signal?.reason)
+    }
+    socket.once('open', open)
+    socket.once('error', failed)
+    signal?.addEventListener('abort', aborted, {once: true})
   })
 }
 
-function closeServer(server: WebSocketServer): Promise<void> {
-  server.clients.forEach((socket) => socket.terminate())
-  return new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
-}
-
-function firstWidget(server: WebSocketServer): Promise<WebSocket> {
-  return new Promise((resolve) => server.once('connection', resolve))
-}
-
-export async function listenUi(endpoint: string): Promise<UiDriver> {
-  const server = await listening(new URL(endpoint))
-  const close = (): Promise<void> => closeServer(server)
+export async function connectUi(endpoint: string, signal?: AbortSignal): Promise<UiDriver> {
+  const socket = await opened(endpoint, signal)
+  const close = (): void => socket.close()
   try {
-    const socket = await firstWidget(server)
     const client: UiClient = createORPCClient(new RPCLink({websocket: socket}))
-    await client.handshake({
-      client: {name: 'conciv-simulation-driver', version: String(PROTOCOL_VERSION)},
-      expectedRole: 'ui',
-      offeredVersions: [PROTOCOL_VERSION],
-      requiredCapabilities: REQUIRED_CAPABILITIES,
-      optionalCapabilities: [],
-    })
+    await client.handshake(
+      {
+        client: {name: 'conciv-simulation-driver', version: String(PROTOCOL_VERSION)},
+        expectedRole: 'ui',
+        offeredVersions: [PROTOCOL_VERSION],
+        requiredCapabilities: REQUIRED_CAPABILITIES,
+        optionalCapabilities: [],
+      },
+      {signal},
+    )
     return {client, close}
   } catch (error) {
-    await close()
+    close()
     throw error
   }
 }

@@ -22,10 +22,6 @@
     ".": {
       "types": "./dist/home.d.ts",
       "import": "./dist/home.js"
-    },
-    "./migrated-db": {
-      "types": "./dist/migrated-db.d.ts",
-      "import": "./dist/migrated-db.js"
     }
   },
   "publishConfig": {
@@ -40,6 +36,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/types": "workspace:^",
     "drizzle-orm": "catalog:",
     "env-paths": "catalog:",
     "zod": "catalog:"

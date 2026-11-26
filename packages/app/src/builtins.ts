@@ -10,9 +10,16 @@ function staticEntry({setup, ...declarations}: Plugin.Definition): Omit<Entry, '
   return {...declarations, windowEntry: setup && (() => Promise.resolve({default: setup}))}
 }
 
+const DRIVE = 'conciv.simulation.ui'
+
+const driveEntries: Readonly<Record<string, Omit<Entry, 'id'>>> =
+  process.env.NODE_ENV === 'production'
+    ? {}
+    : {[DRIVE]: {windowEntry: () => import('@internal/frontend-defaults/drive')}}
+
 export const builtins: BuiltinPlugins = {
-  entries: compose({terminal: staticEntry(terminal), 'conciv.page': staticEntry(page)}),
-  engineHalf: ['conciv.page'],
+  entries: compose({terminal: staticEntry(terminal), 'conciv.page': staticEntry(page), ...driveEntries}),
+  engineHalf: process.env.NODE_ENV === 'production' ? ['conciv.page'] : ['conciv.page', DRIVE],
   toolGroups: [{plugin: 'conciv.page', entry: pageSessionEntry, createGrouper: createPageSessionGrouper}],
 }
 

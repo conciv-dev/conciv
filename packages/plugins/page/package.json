@@ -80,6 +80,7 @@
   },
   "devDependencies": {
     "@conciv/backend-test-utils": "workspace:*",
+    "@effect/vitest": "catalog:",
     "@internal/frontend-app-api": "workspace:*",
     "@internal/frontend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",

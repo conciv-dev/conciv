@@ -6,7 +6,7 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 
 ## Interface
 
-- One file per concern, one `package.json` subpath per file: chat (`chat-*.ts`), harness contracts (`harness-types.ts`), rpc paths and headers (`rpc-types.ts`, `RPC_WS_PATH` is `'/rpc-ws'`), engine trust (`engine-trust.ts`), the CustomEvent event bus (`event-bus.ts`), config (`config-types.ts`), terminal control (`terminal-types.ts`), UI input and markers (`ui-types.ts`), ports and the state dir (`connect-ports.ts`, `state-types.ts`).
+- One file per concern, one `package.json` subpath per file: chat (`chat-*.ts`), harness contracts (`harness-types.ts`), rpc paths and headers (`rpc-types.ts`, `RPC_WS_PATH` is `'/rpc-ws'`), engine trust (`engine-trust.ts`), the CustomEvent event bus (`event-bus.ts`), config (`config-types.ts`), terminal control (`terminal-types.ts`), UI input and markers (`ui-types.ts`), ports and the state dir (`connect-ports.ts`, `state-types.ts`), the migration lock (`migration-lock.ts`, node only: `openDatabase` and `takeMigrationLock`, the one lock `home.db` and the engine's `conciv.db` migrate under; it lives here because both openers depend on this package and it depends on no workspace package).
 
 ## Invariants
 

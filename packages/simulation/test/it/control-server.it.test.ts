@@ -11,8 +11,8 @@ import {
   type UiState,
 } from '@conciv/protocol/simulation'
 import {implement} from '@orpc/server'
-import {RPCHandler} from '@orpc/server/websocket'
-import {byRole, clickByRole, listenUi, typeInto} from '../../src/frontend.js'
+import {byRole, clickByRole, connectUi, typeInto} from '../../src/frontend.js'
+import * as SimulationControlServer from '../../src/control-server.js'
 import {connectDriver, text} from '../../src/driver.js'
 import {request} from '../utils/model-request.js'
 import {availableEndpoint, connect, driven} from '../utils/websocket.js'
@@ -168,11 +168,11 @@ describe('simulation ui protocol', () => {
   })
 })
 
-describe('the widget drive ui endpoint', () => {
+describe('the driver on the engine ui endpoint', () => {
   const button: SemanticNode = {id: 'node-7', role: 'button', label: 'Send message', element: 7}
   const textbox: SemanticNode = {id: 'node-3', role: 'textbox', label: 'Message the conciv agent', element: 3}
 
-  function fakeWidget(endpoint: string, capabilities: readonly string[]) {
+  function fakeUiEndpoint(endpoint: string, capabilities: readonly string[]) {
     const typed: string[] = []
     const focus = {target: 0}
     const shown = (): UiState => ({focused: {renderable: focus.target, editor: focus.target === 3}, elements: []})
@@ -216,39 +216,42 @@ describe('the widget drive ui endpoint', () => {
         resize: os.ui.resize.handler(refuse),
       },
     })
-    const join = (): void => {
-      const socket = new WebSocket(endpoint)
-      socket.addEventListener('open', () => new RPCHandler(router).upgrade(socket), {once: true})
-      socket.addEventListener('error', join, {once: true})
-    }
-    join()
-  }
-
-  function widgetJoins(endpoint: string, capabilities: readonly string[]) {
-    const driving = listenUi(endpoint)
-    fakeWidget(endpoint, capabilities)
-    return driving
-  }
-
-  it('waits for the widget, types into the composer by its label and clicks send by its role, then refuses a widget without the ui actions', async () => {
-    const endpoint = await availableEndpoint()
-    const driver = await widgetJoins(endpoint, UI_CAPABILITIES)
-
-    const snapshot = await driver.client.ui.snapshot()
-    expect(byRole(snapshot, 'button', 'Send message')).toEqual(button)
-    expect(() => byRole(snapshot, 'button', 'Stop generating')).toThrow(
-      'the widget shows no button named Stop generating',
-    )
-    expect(await typeInto(driver.client, 'textbox', 'Message the conciv agent', 'Hello')).toMatchObject({
-      focused: {renderable: 3, editor: true},
+    return SimulationControlServer.start({
+      endpoint: new URL(endpoint),
+      label: 'fake ui endpoint',
+      router,
+      close: () => Effect.void,
     })
-    expect(await driver.client.ui.matches({text: 'Hello'})).toBe(true)
-    expect(await clickByRole(driver.client, 'button', 'Send message')).toMatchObject({focused: {renderable: 7}})
-    await driver.close()
+  }
 
-    await expect(widgetJoins(endpoint, ['ui.state', 'ui.snapshot'])).rejects.toMatchObject({
-      code: 'MISSING_CAPABILITY',
-      data: {missing: ['ui.click.semantic', 'ui.focus', 'ui.type', 'ui.press']},
+  function whileServed(endpoint: string, capabilities: readonly string[], drive: () => Promise<void>) {
+    return Effect.runPromise(
+      Effect.scoped(fakeUiEndpoint(endpoint, capabilities).pipe(Effect.andThen(Effect.promise(drive)))),
+    )
+  }
+
+  it('dials the ui endpoint, types into the composer by its label and clicks send by its role, then refuses an endpoint without the ui actions', async () => {
+    const endpoint = await availableEndpoint()
+    await whileServed(endpoint, UI_CAPABILITIES, async () => {
+      const driver = await connectUi(endpoint)
+      const snapshot = await driver.client.ui.snapshot()
+      expect(byRole(snapshot, 'button', 'Send message')).toEqual(button)
+      expect(() => byRole(snapshot, 'button', 'Stop generating')).toThrow(
+        'the widget shows no button named Stop generating',
+      )
+      expect(await typeInto(driver.client, 'textbox', 'Message the conciv agent', 'Hello')).toMatchObject({
+        focused: {renderable: 3, editor: true},
+      })
+      expect(await driver.client.ui.matches({text: 'Hello'})).toBe(true)
+      expect(await clickByRole(driver.client, 'button', 'Send message')).toMatchObject({focused: {renderable: 7}})
+      driver.close()
+    })
+
+    await whileServed(endpoint, ['ui.state', 'ui.snapshot'], async () => {
+      await expect(connectUi(endpoint)).rejects.toMatchObject({
+        code: 'MISSING_CAPABILITY',
+        data: {missing: ['ui.click.semantic', 'ui.focus', 'ui.type', 'ui.press']},
+      })
     })
   })
 })

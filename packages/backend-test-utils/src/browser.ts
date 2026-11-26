@@ -114,6 +114,12 @@ function engineOn(handle: EngineHandle, options: EngineStart): Engine {
     version: (version) => commands.concivVersion(id, version),
     write: (path, content) => commands.concivWrite(id, path, content),
     commit: (message) => commands.concivCommit(id, message),
+    drive: async () => ({
+      answer: (value) => commands.concivDriveAnswer(id, value),
+      typeInto: (role, label, value) => commands.concivDriveTypeInto(id, role, label, value),
+      clickByRole: (role, label) => commands.concivDriveClickByRole(id, role, label),
+      snapshot: () => commands.concivDriveSnapshot(id),
+    }),
     address: handle.address,
     root: handle.root,
     home: handle.home,

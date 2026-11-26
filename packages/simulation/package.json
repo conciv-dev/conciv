@@ -67,6 +67,7 @@
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/types": "workspace:^",
+    "@effect/platform-node": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
@@ -78,6 +79,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@internal/tsconfig": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",

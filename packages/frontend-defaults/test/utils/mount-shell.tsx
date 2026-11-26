@@ -67,7 +67,7 @@ export type ShellPlugin = {
 }
 
 export type MountShellOptions = {
-  readonly engine: FakeEngine
+  readonly engine: Pick<FakeEngine, 'apiBase' | 'connection'>
   readonly plugins?: readonly ShellPlugin[]
   readonly initialEntries?: readonly string[]
   readonly settings?: ConcivSettingsInit

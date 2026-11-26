@@ -1,16 +1,17 @@
+import {it} from '@effect/vitest'
 import {Effect, Stream} from 'effect'
-import {describe, expect, test} from 'vitest'
+import {describe, expect} from 'vitest'
 import type {Bus} from '@conciv/backend-app-api'
 import * as Event from '@conciv/protocol/schema/event'
 import {makeMaker} from '@conciv/protocol/schema/identifier'
 import {make} from '../../src/engine/event-feed.js'
 
 describe('event feed', () => {
-  test('a subscriber that falls a full queue behind is ended with an overflow', async () => {
-    const heard: Bus.Subscriber[] = []
-    const ids = makeMaker()
-    const overflow = await Effect.runPromise(
-      Effect.scoped(
+  it.effect('a subscriber that falls a full queue behind is ended with an overflow', () =>
+    Effect.gen(function* () {
+      const heard: Bus.Subscriber[] = []
+      const ids = makeMaker()
+      const overflow = yield* Effect.scoped(
         Effect.gen(function* () {
           const feed = yield* make(
             (subscriber) =>
@@ -28,9 +29,9 @@ describe('event feed', () => {
           )
           return yield* Effect.flip(Stream.runCollect(stream))
         }),
-      ),
-    )
+      )
 
-    expect(overflow).toMatchObject({_tag: 'EventFeed.SubscriberOverflow', capacity: 2})
-  })
+      expect(overflow).toMatchObject({_tag: 'EventFeed.SubscriberOverflow', capacity: 2})
+    }),
+  )
 })

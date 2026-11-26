@@ -1,25 +1,12 @@
-import {implement} from '@orpc/server'
-import {RPCHandler} from '@orpc/server/websocket'
-import {AsyncRetryer} from '@tanstack/pacer'
-import {dispatchHandshake, PROTOCOL_VERSION, uiContract, type UiCapability} from '@conciv/protocol/simulation'
-import {createWidgetDom, type DriveRoot, type WidgetDom} from './widget-dom.js'
+import {z} from 'zod'
+import type {Plugin} from '@conciv/frontend-plugin-api'
+import {WidgetDrive, WidgetRequestSchema, type WidgetOutcome, type WidgetRequest} from '@conciv/protocol/simulation'
+import {useAppData, useEnvironment} from '../app/context.js'
+import {createWidgetDom, type WidgetDom} from './widget-dom.js'
 
-export type {DriveRoot} from './widget-dom.js'
+const CALL: `rpc.${typeof WidgetDrive.id}.call` = `rpc.${WidgetDrive.id}.call`
 
-export type Drive = {readonly close: () => void}
-
-const WIDGET_CAPABILITIES: readonly UiCapability[] = [
-  'ui.type',
-  'ui.press',
-  'ui.enter',
-  'ui.arrow',
-  'ui.focus',
-  'ui.click',
-  'ui.click.semantic',
-  'ui.matches',
-  'ui.state',
-  'ui.snapshot',
-]
+const CallSchema = z.object({requestId: z.string(), request: WidgetRequestSchema})
 
 const ARROW_KEYS = {up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight'} as const
 
@@ -27,94 +14,49 @@ function painted(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()))
 }
 
-function makeRouter(dom: WidgetDom) {
-  const os = implement(uiContract)
-  const act = (errors: {UI_ACTION_FAILED: (options: {message: string}) => Error}, action: () => void) => {
-    try {
-      action()
-    } catch (error) {
-      throw errors.UI_ACTION_FAILED({message: error instanceof Error ? error.message : String(error)})
-    }
-    return painted().then(dom.state)
+async function acted(dom: WidgetDom, action: () => void): Promise<unknown> {
+  action()
+  await painted()
+  return dom.state()
+}
+
+function perform(dom: WidgetDom, request: WidgetRequest): Promise<unknown> {
+  if (request.type === 'ui.state') return Promise.resolve(dom.state())
+  if (request.type === 'ui.snapshot') return Promise.resolve(dom.snapshot())
+  if (request.type === 'ui.matches') return Promise.resolve(dom.matches(request.text))
+  if (request.type === 'ui.type') return acted(dom, () => dom.type(request.text))
+  if (request.type === 'ui.press') return acted(dom, () => dom.press(request.key, request.modifiers))
+  if (request.type === 'ui.enter') return acted(dom, () => dom.press('enter'))
+  if (request.type === 'ui.arrow') return acted(dom, () => dom.press(ARROW_KEYS[request.direction]))
+  if (request.type === 'ui.focus') return acted(dom, () => dom.focus(request.target))
+  return acted(dom, () => dom.click(request))
+}
+
+async function answer(dom: WidgetDom, request: WidgetRequest): Promise<WidgetOutcome> {
+  try {
+    return {type: 'success', value: z.json().parse(await perform(dom, request))}
+  } catch (error) {
+    return {type: 'failure', message: error instanceof Error ? error.message : String(error)}
   }
-  const unsupported = (errors: {UI_ACTION_FAILED: (options: {message: string}) => Error}, name: string): never => {
-    throw errors.UI_ACTION_FAILED({message: `the widget does not support ${name}`})
-  }
-  return os.router({
-    handshake: os.handshake.handler(({input, errors}) => {
-      const outcome = dispatchHandshake(
-        {
-          role: 'ui',
-          server: {name: 'conciv-widget', version: String(PROTOCOL_VERSION)},
-          capabilities: WIDGET_CAPABILITIES,
-        },
-        input,
+}
+
+const drive: Plugin.Setup = (ctx) => {
+  const dom = createWidgetDom(useEnvironment().rootNode)
+  const client = useAppData().client
+  const result = client.rpc(WidgetDrive).result
+  const serve = async (): Promise<void> => {
+    for await (const event of client.event.subscribe({types: [CALL], signal: ctx.signal})) {
+      const call = CallSchema.safeParse(event.data)
+      if (!call.success) continue
+      const outcome = await answer(dom, call.data.request)
+      await result({requestId: call.data.requestId, outcome}).catch((error: unknown) =>
+        console.warn('[conciv] drive could not answer the engine', error),
       )
-      if (outcome.type === 'accepted') return outcome.response
-      const refused = outcome.refusal
-      if (refused.code === 'ROLE_MISMATCH') throw errors.ROLE_MISMATCH(refused)
-      if (refused.code === 'UNSUPPORTED_PROTOCOL') throw errors.UNSUPPORTED_PROTOCOL(refused)
-      throw errors.MISSING_CAPABILITY(refused)
-    }),
-    ui: {
-      state: os.ui.state.handler(() => dom.state()),
-      snapshot: os.ui.snapshot.handler(() => dom.snapshot()),
-      matches: os.ui.matches.handler(({input}) => dom.matches(input.text)),
-      type: os.ui.type.handler(({input, errors}) => act(errors, () => dom.type(input.text))),
-      press: os.ui.press.handler(({input, errors}) => act(errors, () => dom.press(input.key, input.modifiers))),
-      enter: os.ui.enter.handler(({errors}) => act(errors, () => dom.press('enter'))),
-      arrow: os.ui.arrow.handler(({input, errors}) => act(errors, () => dom.press(ARROW_KEYS[input.direction]))),
-      focus: os.ui.focus.handler(({input, errors}) => act(errors, () => dom.focus(input.target))),
-      click: os.ui.click.handler(({input, errors}) => act(errors, () => dom.click(input))),
-      capture: os.ui.capture.handler(({errors}) => unsupported(errors, 'ui.capture')),
-      recording: {finish: os.ui.recording.finish.handler(({errors}) => unsupported(errors, 'ui.recording.finish'))},
-      mouse: os.ui.mouse.handler(({errors}) => unsupported(errors, 'ui.mouse')),
-      resize: os.ui.resize.handler(({errors}) => unsupported(errors, 'ui.resize')),
-    },
-  })
-}
-
-function opened(socket: WebSocket): Promise<WebSocket> {
-  return new Promise((resolve, reject) => {
-    socket.addEventListener('open', () => resolve(socket), {once: true})
-    socket.addEventListener(
-      'error',
-      () => reject(new Error(`the widget could not reach the driver at ${socket.url}`)),
-      {
-        once: true,
-      },
-    )
-  })
-}
-
-export function startDrive(endpoint: string, root: DriveRoot): Drive {
-  const handler = new RPCHandler(makeRouter(createWidgetDom(root)))
-  const connection: {closed: boolean; socket: WebSocket | undefined} = {closed: false, socket: undefined}
-  const joinDriver = async (): Promise<void> => {
-    const socket = await opened(new WebSocket(endpoint))
-    if (connection.closed) {
-      socket.close()
-      return
     }
-    connection.socket = socket
-    handler.upgrade(socket)
-    socket.addEventListener('close', () => {
-      if (!connection.closed) void retryer.execute()
-    })
   }
-  const retryer = new AsyncRetryer(joinDriver, {
-    maxAttempts: Number.POSITIVE_INFINITY,
-    backoff: 'exponential',
-    baseWait: 250,
-    maxWait: 5000,
-    throwOnError: false,
+  serve().catch((error: unknown) => {
+    if (!ctx.signal.aborted) console.error('[conciv] drive stopped answering the engine', error)
   })
-  void retryer.execute()
-  return {
-    close: () => {
-      connection.closed = true
-      retryer.abort()
-      connection.socket?.close()
-    },
-  }
 }
+
+export default drive

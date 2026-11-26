@@ -29,6 +29,8 @@ export type {BackendStart, StartedBackend} from './harness-engine.js'
 
 export type {Outside, OutsideAgent, OutsideReply} from './outside.js'
 
+export type {EngineDrive} from './drive.js'
+
 export {browserClient, type BrowserClient} from './browser-client.js'
 
 export {pluginDirectory}

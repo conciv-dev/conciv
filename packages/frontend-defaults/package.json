@@ -34,7 +34,6 @@
     "@conciv/ui-kit-tap": "workspace:^",
     "@internal/frontend-app-api": "workspace:*",
     "@orpc/client": "catalog:",
-    "@orpc/server": "catalog:",
     "@solid-primitives/active-element": "^2.1.6",
     "@solid-primitives/date": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
@@ -59,7 +58,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/simulation": "workspace:*",
+    "@conciv/backend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
     "@internal/vitest-config": "workspace:*",
@@ -72,7 +71,6 @@
     "@types/react-dom": "catalog:",
     "@types/semver": "catalog:",
     "@unocss/reset": "catalog:",
-    "get-port": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "storybook-solidjs-vite": "catalog:",

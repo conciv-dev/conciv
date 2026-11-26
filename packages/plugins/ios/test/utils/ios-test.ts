@@ -1,5 +1,4 @@
-import {test as base, type TestAPI} from 'vitest'
-import {Effect, Exit, Queue, Scope, Stream, SubscriptionRef} from 'effect'
+import {Effect, Queue, Stream, SubscriptionRef} from 'effect'
 import {IosBridge} from '../../src/bridge.js'
 import type {IosBridgeMachine} from '../../src/bridge-machine.js'
 import {
@@ -11,14 +10,10 @@ import {
 
 type NativePeer = {
   readonly client: IosBridge.NativeClient
-  readonly send: (message: NativeToPageMessage) => Promise<void>
-  readonly receive: (type: PageToNativeMessage['type']) => Promise<PageToNativeMessage>
-  readonly signal: () => Promise<IosBridgeMachine.NativeSignal>
-  readonly state: () => Promise<IosBridgeMachine.NativeState>
-}
-
-type IosFixtures = {
-  nativePeer: (options: {clientId: string; apiBase: string}) => Promise<NativePeer>
+  readonly send: (message: NativeToPageMessage) => Effect.Effect<void>
+  readonly receive: (type: PageToNativeMessage['type']) => Effect.Effect<PageToNativeMessage, Error>
+  readonly signal: Effect.Effect<IosBridgeMachine.NativeSignal>
+  readonly state: Effect.Effect<IosBridgeMachine.NativeState>
 }
 
 function isAnnouncement(message: PageToNativeMessage): boolean {
@@ -38,7 +33,7 @@ function takeOfType(
   )
 }
 
-const connectPeer = Effect.fn('ios.test.connectPeer')(function* (options: {clientId: string; apiBase: string}) {
+export const connectPeer = Effect.fn('ios.test.connectPeer')(function* (options: {clientId: string; apiBase: string}) {
   const calls = yield* Queue.unbounded<unknown>()
   const posted = yield* Queue.unbounded<PageToNativeMessage>()
   const signals = yield* Queue.unbounded<IosBridgeMachine.NativeSignal>()
@@ -50,18 +45,10 @@ const connectPeer = Effect.fn('ios.test.connectPeer')(function* (options: {clien
   yield* Effect.forkScoped(Stream.runForEach(client.signals, (signal) => Queue.offer(signals, signal)))
   const peer: NativePeer = {
     client,
-    send: (message) => Effect.runPromise(Queue.offer(calls, NativeToPageSchema.parse(message)).pipe(Effect.asVoid)),
-    receive: (type) => Effect.runPromise(takeOfType(posted, type)),
-    signal: () => Effect.runPromise(Queue.take(signals)),
-    state: () => Effect.runPromise(SubscriptionRef.get(client.state)),
+    send: (message) => Queue.offer(calls, NativeToPageSchema.parse(message)).pipe(Effect.asVoid),
+    receive: (type) => takeOfType(posted, type),
+    signal: Queue.take(signals),
+    state: SubscriptionRef.get(client.state),
   }
   return peer
-})
-
-export const test: TestAPI<IosFixtures> = base.extend<IosFixtures>({
-  nativePeer: async ({task: _task}, use) => {
-    const scope = await Effect.runPromise(Scope.make())
-    await use((options) => Effect.runPromise(Scope.provide(scope)(connectPeer(options))))
-    await Effect.runPromise(Scope.close(scope, Exit.void))
-  },
 })

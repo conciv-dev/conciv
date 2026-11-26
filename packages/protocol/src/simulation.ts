@@ -2,6 +2,7 @@ import {eventIterator, oc} from '@orpc/contract'
 import {z} from 'zod'
 import type {ModelMessage} from '@conciv/types/chat-message-types'
 import {ReasoningEffortSchema} from '@conciv/types/chat-types'
+import {define as defineRpc} from './schema/rpc.js'
 
 export const PROTOCOL_VERSION = 1
 
@@ -494,3 +495,36 @@ export const uiContract = {
     resize: oc.errors(uiErrors).input(ResizeParamsSchema).output(UiStateSchema),
   },
 }
+
+export const WidgetRequestSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('ui.state')}),
+  z.object({type: z.literal('ui.snapshot')}),
+  z.object({type: z.literal('ui.matches'), ...MatchesParamsSchema.shape}),
+  z.object({type: z.literal('ui.type'), ...TypeParamsSchema.shape}),
+  z.object({type: z.literal('ui.press'), ...PressParamsSchema.shape}),
+  z.object({type: z.literal('ui.enter')}),
+  z.object({type: z.literal('ui.arrow'), ...ArrowParamsSchema.shape}),
+  z.object({type: z.literal('ui.focus'), ...FocusParamsSchema.shape}),
+  z.object({type: z.literal('ui.click'), ...ClickParamsSchema.shape}),
+])
+export type WidgetRequest = z.infer<typeof WidgetRequestSchema>
+
+export const WidgetOutcomeSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('success'), value: z.json()}),
+  z.object({type: z.literal('failure'), message: z.string()}),
+])
+export type WidgetOutcome = z.infer<typeof WidgetOutcomeSchema>
+
+export const WidgetDrive = defineRpc({
+  id: 'conciv.simulation.ui',
+  methods: {
+    result: {
+      input: z.object({requestId: z.string(), outcome: WidgetOutcomeSchema}),
+      output: z.void(),
+      errors: {},
+    },
+  },
+  events: {
+    call: {schema: z.object({requestId: z.string(), request: WidgetRequestSchema})},
+  },
+})

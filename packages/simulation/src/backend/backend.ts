@@ -1,4 +1,5 @@
-import {Config, Effect, type FileSystem, type Layer, type Scope} from 'effect'
+import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
+import {Config, ConfigProvider, Effect, Exit, Layer, Scope, type FileSystem} from 'effect'
 import type {HttpClient} from 'effect/http'
 import type {Plugin} from '@conciv/backend-plugin-api/effect/plugin'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -7,6 +8,7 @@ import * as SimulationNetwork from './network.js'
 import {ENGINE_HARNESS, scriptedHarness} from './scripted-harness.js'
 import {refusedHarness, simulatedHarness} from './simulated-harness.js'
 import * as SimulatedProvider from './simulated-provider.js'
+import {widgetDrivePlugin} from './simulated-ui.js'
 
 const UNDRIVEN = 'the simulation has no driver: CONCIV_DRIVE is not set, so every model call is refused'
 
@@ -45,6 +47,24 @@ export const simulationReplacements: (
     if (!drive) return replaced(app, refusedHarness(UNDRIVEN), [])
     const manifest = yield* DriveManifest.resolve()
     const driven = yield* SimulatedProvider.drive({endpoint: manifest.endpoints.backend, version: app.version})
-    return replaced(app, simulatedHarness(driven.provider), [driven.plugin])
+    return replaced(app, simulatedHarness(driven.provider), [
+      driven.plugin,
+      widgetDrivePlugin({endpoint: manifest.endpoints.ui, version: app.version}),
+    ])
   },
 )
+
+export type Simulation = Replacements & {readonly close: () => Promise<void>}
+
+export async function startSimulation(app: App, configProvider: ConfigProvider.ConfigProvider): Promise<Simulation> {
+  const scope = Effect.runSync(Scope.make())
+  const close = (): Promise<void> => Effect.runPromise(Scope.close(scope, Exit.void))
+  const services = Layer.mergeAll(NodeFileSystem.layer, ConfigProvider.layer(configProvider))
+  const replacements = await Effect.runPromise(
+    simulationReplacements(app).pipe(Scope.provide(scope), Effect.provide(services)),
+  ).catch(async (error: unknown) => {
+    await close()
+    throw error
+  })
+  return {...replacements, close}
+}
