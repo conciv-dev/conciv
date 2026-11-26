@@ -3,8 +3,11 @@ title: Quick terminal
 description: Drop the chat down from the top of the page on a hotkey, and split it into panes.
 ---
 
-The quick terminal is a full-width sheet that drops from the top of the page, over your app, without dimming it. You
-can split it into panes, each with its own session. It is part of conciv itself, not a plugin.
+Press `Mod+backtick` to drop the chat from the top of the page. `Mod` is Cmd on macOS and Ctrl elsewhere. Press it
+again, or Escape, to close it.
+
+The quick terminal is a full-width sheet over your app. The app stays visible and usable below it. Use it when you
+want the chat wide, or several chats side by side.
 
 <ImageZoom
   src="/screenshots/quick-terminal.png"
@@ -13,47 +16,18 @@ can split it into panes, each with its own session. It is part of conciv itself,
   height={1080}
 />
 
-## Open and close
-
-<TypeTable
-  type={{
-    'Mod+`': {required: true, type: 'default', description: 'Opens the quick terminal, or closes it.'},
-    Escape: {required: true, type: 'key', description: 'Closes it.'},
-    'Mod+D': {required: true, type: 'default', description: 'Adds a pane.'},
-  }}
-/>
-
-`Mod` is Cmd on macOS and Ctrl elsewhere. Change these in **Settings > Shortcuts**, where `Mod+.` opens or closes the
-corner panel too. The corner panel and the quick terminal show one at a time: opening one closes the other.
-
-## Set it in your config
-
-It is on by default. Set the hotkey, or turn it off. This is the TanStack Start example's config:
-
-```ts title="apps/examples/tanstack-start/vite.config.ts"
-conciv({
-  widget: {quickTerminal: {hotkey: 'Alt+k'}},
-  plugins: [testRunnerPlugin, tanstackPlugin, recorderPlugin, whiteboardPlugin],
-}),
-```
-
-`hotkey` takes one binding or a list of them. `widget: {quickTerminal: false}` turns the quick terminal off. A hotkey
-set in the config locks the shortcut in **Settings > Shortcuts**, with the note "Set in conciv(\{quickTerminal:
-\{hotkey\}\}) by this project."
-
-## Panes
+## Split it into panes
 
 <Steps>
   <Step>The first pane opens your latest session.</Step>
-  <Step>
-    **Split pane** in the header, or `Mod+D`, adds a pane with a new session. Drag the gutter between panes to resize
-    them.
-  </Step>
-  <Step>Each pane has its own session picker, usage, refresh and **Close pane**.</Step>
+  <Step>Click **Split pane** in the header, or press `Mod+D`. The new pane starts a new session.</Step>
+  <Step>Drag the gutter between two panes to resize them.</Step>
 </Steps>
 
+Each pane has its own session picker, usage, refresh and **Close pane** button.
+
 <Callout type="warn">
-  Closing a pane deletes its session, with its draft. Closing the last pane closes the quick terminal.
+  Closing a pane deletes its session and its draft. Closing the last pane closes the quick terminal.
 </Callout>
 
 <ImageZoom
@@ -63,10 +37,69 @@ set in the config locks the shortcut in **Settings > Shortcuts**, with the note 
   height={1080}
 />
 
-## Resize and pop out
+## Resize it
 
-Drag the grip on the bottom edge to set the height; it is remembered. Drag it almost to the top to close the quick
-terminal.
+Drag the grip on the bottom edge to set the height. conciv remembers it. Drag the grip almost to the top to close the
+quick terminal.
 
-**Pop out to a window** opens the focused pane's session in its own browser window. If the browser blocks the window,
-the session opens in the corner panel instead.
+## Pop a pane out
+
+Click **Pop out to a window** to open the focused pane's session in its own browser window. If the browser blocks the
+window, the session opens in the corner panel instead.
+
+## Change the hotkey
+
+Open **Settings > Shortcuts**, click **Quick terminal** and press the new keys. The same list holds **New quick terminal
+pane** and **Open or close conciv**, the corner panel's key (`Mod+.` by default).
+
+To set the hotkey for everyone on the project, add it to your conciv options:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      widget: {quickTerminal: {hotkey: 'Alt+k'}}, // [!code ++]
+    }),
+  ],
+})
+```
+
+- `hotkey` takes one key, or a list of keys.
+- A key set here is locked in **Settings > Shortcuts**. The row says it is set by this project.
+
+## Turn it off
+
+Set `quickTerminal` to `false`. The hotkey then does nothing, and only the corner panel opens:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      widget: {quickTerminal: false}, // [!code ++]
+    }),
+  ],
+})
+```
+
+## Details
+
+<Accordions type="single">
+  <Accordion title="One layout at a time">
+    The corner panel and the quick terminal never show together. Opening one closes the other.
+  </Accordion>
+  <Accordion title="Other bundlers">
+    The `widget` option is the same on every bundler. On Next.js, webpack or Rspack, pass it in the conciv options of
+    that bundler's setup. See [Quick start](/docs/quick-start).
+  </Accordion>
+</Accordions>
+
+## Next
+
+- [Chat](/docs/usage/chat): what each pane's composer does.
+- [Configuration](/docs/configuration): every conciv option.
