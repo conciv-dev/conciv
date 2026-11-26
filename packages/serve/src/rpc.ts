@@ -110,11 +110,16 @@ function endedOnRevoke(signal: AbortSignal | undefined, streams: SocketStreams |
   return AbortSignal.any(signal === undefined ? [streams.revoked] : [signal, streams.revoked])
 }
 
-function rpcHandlerOptions(traceCall: TraceRpcCall | undefined, streams?: SocketStreams): RpcHandlerOptions {
+type RpcCallContext = () => Promise<object>
+
+type RpcHandlerSetup = {traceCall?: TraceRpcCall; callContext?: RpcCallContext}
+
+function rpcHandlerOptions(setup: RpcHandlerSetup, streams?: SocketStreams): RpcHandlerOptions {
+  const {traceCall, callContext} = setup
   return {
     errorStatusMap: ERROR_STATUS_MAP,
     routingInterceptors: [
-      (options) =>
+      async (options) =>
         options.next({
           ...options,
           request: {...options.request, signal: endedOnRevoke(options.request.signal, streams)},
@@ -122,6 +127,7 @@ function rpcHandlerOptions(traceCall: TraceRpcCall | undefined, streams?: Socket
             ...options.context,
             headers: {...options.context.headers, ...options.request.headers},
             clientVersion: readClientVersion(options.request.headers),
+            ...(await callContext?.()),
           },
         }),
     ],
@@ -154,9 +160,9 @@ function readClientVersion(headers: RpcHeaders): string | undefined {
 
 export function rpcFetchMiddleware(
   router: AnyRouter,
-  options: {traceCall?: TraceRpcCall; engineCaller?: (c: Context) => boolean} = {},
+  options: RpcHandlerSetup & {engineCaller?: (c: Context) => boolean} = {},
 ): MiddlewareHandler {
-  const handler = new RPCHandler<RpcContext>(router, rpcHandlerOptions(options.traceCall))
+  const handler = new RPCHandler<RpcContext>(router, rpcHandlerOptions(options))
   return async (c, next) => {
     const {matched, response} = await handler.handle(c.req.raw, {
       prefix: RPC_PREFIX,
@@ -217,11 +223,10 @@ function splitAdapterError(): Error {
 
 export function rpcWebsocketRoute(
   router: AnyRouter,
-  options: {
+  options: RpcHandlerSetup & {
     upgrade: UpgradeWebSocket
     onError?: (message: string) => void
     gate?: (c: Context) => RpcSocketGate
-    traceCall?: TraceRpcCall
   },
 ): MiddlewareHandler {
   const route = options.upgrade((c) => {
@@ -232,7 +237,7 @@ export function rpcWebsocketRoute(
       replies: new Set(),
       unsent: () => unsentBytes(held.socket),
     }
-    const handler = new WebsocketRPCHandler<RpcContext>(router, rpcHandlerOptions(options.traceCall, streams))
+    const handler = new WebsocketRPCHandler<RpcContext>(router, rpcHandlerOptions(options, streams))
     const gate = options.gate?.(c)
     const connection = rpcConnectionContext(
       c.req.url,

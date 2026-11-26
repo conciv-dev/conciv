@@ -70,6 +70,7 @@
     "@effect/platform-node": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
+    "@orpc/effect": "catalog:",
     "@orpc/server": "catalog:",
     "@tanstack/ai": "catalog:",
     "@tanstack/ai-client": "catalog:",

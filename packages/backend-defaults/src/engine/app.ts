@@ -73,7 +73,7 @@ import {
 import {Bus, Database, Permission, PluginHooks, SessionEvent, SessionSchema} from '@conciv/backend-app-api'
 import {SessionInbox} from '../backend-defaults.js'
 import type {Plugin as EffectPlugin} from '@conciv/backend-plugin-api/effect/plugin'
-import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
+import {makeCallContext, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
 import {readModel} from '../db/read-model.js'
 import {openDb, type ConcivDb} from '../db/connection.js'
 import {sessions} from '@conciv/backend-app-api/core/session/sql'
@@ -365,6 +365,7 @@ function composeRoutes(
     trust: ConnectionTrust
     log: Log
     tracer: Tracer | undefined
+    callContext: () => Promise<object>
   },
 ) {
   const traceCall = deps.tracer === undefined ? undefined : rpcSpan(deps.tracer)
@@ -399,11 +400,16 @@ function composeRoutes(
         onError: (message) => deps.log(Effect.logError(message)),
         gate: (c) => rpcSocketGate(deps.trust, c.req.url),
         traceCall,
+        callContext: deps.callContext,
       }),
     )
     .use(
       `${RPC_PREFIX}/*`,
-      rpcFetchMiddleware(rpc, {traceCall, engineCaller: (c) => deps.trust.isEngine(connectToken(c.req.url))}),
+      rpcFetchMiddleware(rpc, {
+        traceCall,
+        callContext: deps.callContext,
+        engineCaller: (c) => deps.trust.isEngine(connectToken(c.req.url)),
+      }),
     )
     .route('/api/mcp', mcpApp)
 }
@@ -930,6 +936,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       trust,
       log,
       tracer,
+      callContext: makeCallContext(pluginHost),
     },
   )
 
