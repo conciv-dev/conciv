@@ -68,6 +68,7 @@
     "@internal/frontend-app-api": "workspace:*",
     "@internal/frontend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
+    "@internal/uno-preset": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@rrweb/rrweb-plugin-console-record": "catalog:",
     "@rrweb/types": "catalog:",
@@ -79,6 +80,7 @@
     "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
+    "unocss": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"

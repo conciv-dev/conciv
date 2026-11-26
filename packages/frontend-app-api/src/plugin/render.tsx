@@ -87,17 +87,34 @@ export function PluginSlot<At extends keyof SlotMap>(props: {at: At; input: Slot
 
 export function AdoptedStyle(props: {root: ShadowRoot | Document; css: string}) {
   const root = untrack(() => props.root)
+  const doc = isShadowRoot(root) ? root.ownerDocument : root
   const sheet = createStyleSheet(
     untrack(() => props.css),
-    isShadowRoot(root) ? root.ownerDocument : root,
+    doc,
   )
 
+  addSheet(root, sheet)
+  if (isShadowRoot(root)) addSheet(doc, createStyleSheet(readPropertyRules(sheet, doc), doc))
+
+  return null
+}
+
+function addSheet(root: ShadowRoot | Document, sheet: CSSStyleSheet) {
   root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet]
   onCleanup(() => {
     root.adoptedStyleSheets = root.adoptedStyleSheets.filter((adopted) => adopted !== sheet)
   })
+}
 
-  return null
+function readPropertyRules(sheet: CSSStyleSheet, doc: Document): string {
+  const view = doc.defaultView
+
+  if (!view) throw new Error('The document has no window to register CSS properties in')
+
+  return Array.from(sheet.cssRules)
+    .filter((rule) => rule instanceof view.CSSPropertyRule)
+    .map((rule) => rule.cssText)
+    .join('\n')
 }
 
 export function PluginStyles(props: {root: ShadowRoot | Document}) {

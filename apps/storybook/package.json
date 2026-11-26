@@ -19,6 +19,11 @@
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^5.6.0",
+    "@conciv/plugin-page": "workspace:^",
+    "@conciv/solid-diffs": "workspace:^",
+    "@conciv/ui-kit-chat-tools": "workspace:^",
+    "@conciv/ui-kit-tap": "workspace:^",
+    "@internal/brand": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
     "@internal/vitest-config": "workspace:*",

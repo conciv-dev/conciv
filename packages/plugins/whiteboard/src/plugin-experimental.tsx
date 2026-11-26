@@ -4,7 +4,7 @@ import {render} from 'solid-js/web'
 import {Layer, ManagedRuntime, SubscriptionRef} from 'effect'
 import {z} from 'zod'
 import {useQuery} from '@conciv/client'
-import {ComposerPill, Plugin, SettingsPage, Slot, ToolRegistry, usePlugin} from '@conciv/frontend-plugin-api'
+import {ComposerPill, Plugin, SettingsPage, Slot, Style, ToolRegistry, usePlugin} from '@conciv/frontend-plugin-api'
 import {Page} from '@conciv/frontend-plugin-api/page'
 import {OpaqueUi} from '@internal/frontend-app-api'
 import {whiteboardToolCards} from './cards.js'
@@ -16,6 +16,7 @@ import {WhiteboardCanvas, WhiteboardNotices} from './overlay.js'
 import {readCanvasBackground, whiteboardStores, type CanvasBackground} from './stores.js'
 import type {ChatCover} from './comments-model.js'
 import {follow, runInOwnerScope} from './solid-runtime.js'
+import pluginCss from 'virtual:uno.css?inline'
 
 const COMMENT_BIND_DEADLINE_MS = 5_000
 const ComposeOptions = z.object({
@@ -52,6 +53,7 @@ function CanvasBackgroundRow(): JSX.Element {
 const whiteboard: Plugin.Definition<typeof whiteboardStores> = Plugin.define({
   stores: whiteboardStores,
   setup(ctx) {
+    ctx.add(Style, pluginCss)
     const runtime = ManagedRuntime.make(Layer.empty)
     onCleanup(() => void runtime.dispose())
     const [canvas, setCanvas] = createStore<WhiteboardCanvasMachine.CanvasState>({

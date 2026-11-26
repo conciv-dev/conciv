@@ -1,12 +1,13 @@
 import {Layer, ManagedRuntime} from 'effect'
 import {For, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {Panel, Plugin, ToolRegistry, type PanelTab, type ToolComponent} from '@conciv/frontend-plugin-api'
+import {Panel, Plugin, Style, ToolRegistry, type PanelTab, type ToolComponent} from '@conciv/frontend-plugin-api'
 import {NoteCard, OpaqueNoteCard, OpaqueUi, type InternalUi} from '@internal/frontend-app-api'
 import {bootCapture} from './page-capture.js'
 import {RecorderPanel} from './panel-view.js'
 import {RecordingCard} from './recording-card.js'
 import {follow, runInOwnerScope} from './solid-runtime.js'
+import pluginCss from 'virtual:uno.css?inline'
 
 const RECORDING_TOOLS = ['recording_start', 'recording_stop', 'recording_pull'] as const
 
@@ -140,6 +141,7 @@ function recordingToolCard(ui: InternalUi): ToolComponent {
 
 const recorder: Plugin.Definition = Plugin.define({
   setup(ctx) {
+    ctx.add(Style, pluginCss)
     const recorderTab: PanelTab = {
       id: 'recorder',
       title: 'Recorder',

@@ -1,6 +1,6 @@
 import {Effect, Fiber, Layer, type ManagedRuntime, Scope, Stream, SubscriptionRef} from 'effect'
 import {from, type Accessor} from 'solid-js'
-import {createScopedRuntime, Plugin, Server, type ServerEntry} from '@conciv/frontend-plugin-api'
+import {createScopedRuntime, Plugin, Server, Style, type ServerEntry} from '@conciv/frontend-plugin-api'
 import {connectPorts} from '@conciv/types/connect-ports'
 import {connect} from './connect.js'
 import {TryItConnectMachine} from './connect-machine.js'
@@ -8,6 +8,7 @@ import {ConnectPane} from './connect-pane.js'
 import {localNetworkAccess} from './local-network-access.js'
 import {probeCore, TryItProbe} from './probe.js'
 import {z} from 'zod'
+import pluginCss from 'virtual:uno.css?inline'
 
 const Milliseconds = z.number().int().positive()
 
@@ -39,6 +40,7 @@ function entry(state: TryItConnectMachine.ConnectState, token: string, cover: Se
 
 const tryIt: Plugin.Definition = Plugin.define({
   setup(ctx) {
+    ctx.add(Style, pluginCss)
     const options = TryItOptions.parse(ctx.options)
     const {runtime, scope} = createScopedRuntime(
       Layer.succeed(TryItProbe, {probe: probeCore(options.token, connectPorts(), options.probeMs)}),

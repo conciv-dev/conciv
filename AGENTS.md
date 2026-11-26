@@ -59,7 +59,8 @@ Rules that hold the layout:
   Backstage's own `plugin-app` dev-depends on `frontend-test-utils`, a dev loop; ours may not.
 - Turbo order comes from real dependencies alone: every package task depends on `^build`, with no cross-package
   `pkg#task`, no `build:types` and no `kit-runtime` task. A build-order problem is fixed by a real dependency, never
-  by a turbo edge. The one root edge is `//#lint` on `@internal/uno-preset#build` (see Toolchain).
+  by a turbo edge. The root package depends on no workspace package: root scripts run a tool by its file
+  (`pnpm conciv-publish`, `pnpm conciv-ci-shards`, `pnpm conciv-bundle-size`), so editing a tool selects only it.
 - No module-level state anywhere, product or test code: no module-level `Map`/`Set`/`WeakMap`/`WeakSet`, no
   module-level `let`, no module-level engine, connection, store, queue or registry, no `globalThis` writes
   (`conciv/no-module-state`). State is created by its owner and passed in: an id maker made once at engine start
@@ -87,8 +88,8 @@ Rules that hold the layout:
   `turbo run quality:fix`.
 - Lint and format are turbo ROOT tasks (`//#lint`, `//#format`, `//#quality` in `turbo.json`), as Turborepo's
   Oxc guide: one oxlint and one oxfmt over the whole repo, no per-package `lint` script. `//#lint` depends on
-  `@internal/uno-preset#build` alone, because the `unocss/order` rule loads each folder's `uno.config.ts`, which
-  imports the preset's `dist`; no other build is read. A root task's inputs are every file in the repo, so any
+  nothing: the `unocss/order` rule reads the one root `uno.config.ts` (`.oxlintrc.json` `settings.unocss.configPath`),
+  which loads the preset from its source, and the order the preset gives is the same in every package. A root task's inputs are every file in the repo, so any
   edit misses its cache; that is the guide's stated trade-off. A `--filter` run never selects a root task.
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.
   So a green `test` already proves the build: don't run a separate `build` gate unless the package has
@@ -103,12 +104,12 @@ Rules that hold the layout:
   (`TURBO_SCM_BASE=origin/main turbo run <task> --affected`). `turbo.json` sets
   `futureFlags.affectedUsingTaskInputs`, so `--affected` selects a TASK when a changed file is one of its
   inputs or a task it depends on is selected: a test-only edit reruns that package's `test` and `typecheck`
-  and no dependent and no build, a `src` edit reruns every dependent through `^build`, and a file another
-  package's build scans (the UnoCSS `$TURBO_ROOT$/...` build inputs in `packages/app`, `packages/frontend-defaults`,
-  `packages/ui-kit-chat`, `packages/ui-kit-chat-tools` and `packages/ui-kit-tap`) reruns that build. That holds
-  only while every task `test` and `typecheck` depend on (`build`) excludes tests,
-  specs and stories from its `inputs`, and while each `$TURBO_ROOT$` build input carries the same exclusion as
-  the `content.filesystem` globs in that package's `uno.config.ts`. `--filter=...[ref]` ignores the flag and
+  and no dependent and no build, and a `src` edit reruns every dependent through `^build`. A UnoCSS config scans
+  only its own package and packages it depends on (the app: its kits and the built-in plugins page, terminal and
+  ios); any other plugin builds its own utilities-only sheet (`presetConciv({sheet: 'plugin'})`) and adds it with
+  `ctx.add(Style, css)`. That holds only while every task `test` and `typecheck` depend on (`build`) excludes tests,
+  specs and stories from its `inputs`, as the `content.filesystem` globs do. `apps/storybook` keeps one root input:
+  the story files it reads, which no build reads. `--filter=...[ref]` ignores the flag and
   still selects whole packages plus manifest dependents.
   A root file in `globalDependencies` (`pnpm-workspace.yaml`) selects every task.
 - Gates run with the turbo cache on. `turbo run --force` is banned by `.claude/hooks/turbo-filter-gate.sh`
@@ -363,7 +364,7 @@ maintainer's yes.
 - EVERY PR that changes published packages (including `@internal/frontend-defaults`, which ships inside the `@conciv/app` widget bundle)
   needs a changeset or the `no-changeset` label — CI `check-changesets --require-coverage` blocks
   otherwise. Verify locally before handoff:
-  `pnpm exec conciv-publish check-changesets --require-coverage --base origin/main`.
+  `pnpm conciv-publish check-changesets --require-coverage --base origin/main`.
 - Adding a new PUBLISHED package (`private` unset/false)? Add its name to `PUBLIC_PACKAGES` in
   `packages/publish/src/guards.ts` or `assertPublicSet` aborts the release on drift; give it
   `homepage: https://conciv.dev` + a `repository` block with its `directory` (matches every public manifest).

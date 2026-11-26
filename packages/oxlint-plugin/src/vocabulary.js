@@ -245,6 +245,7 @@ const PREEXISTING_TERM_SITES = [
       'packages/ui-kit-chat/uno.config.ts',
       'packages/ui-kit-chat-tools/uno.config.ts',
       'packages/ui-kit-system/uno.config.ts',
+      'packages/uno-preset/src/uno-preset.ts',
     ],
   },
   {

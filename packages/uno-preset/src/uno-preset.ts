@@ -1,5 +1,6 @@
 import presetWind4 from '@unocss/preset-wind4'
-import type {Preset} from 'unocss'
+import {fileURLToPath} from 'node:url'
+import type {Preset, UserConfig} from 'unocss'
 import {colors} from './colors.js'
 import {radius} from './radius.js'
 import {shadows} from './shadow.js'
@@ -23,15 +24,38 @@ export {radius as chatRadius} from './radius.js'
 export {font as chatFont} from './fonts.js'
 export {ease as chatEase} from './easing.js'
 
-export function presetConciv(): Preset {
+export interface PresetConcivOptions {
+  readonly sheet?: 'app' | 'plugin'
+}
+
+export function presetConciv(options: PresetConcivOptions = {}): Preset {
+  const plugin = options.sheet === 'plugin'
+
   return {
     name: '@internal/uno-preset',
 
-    presets: [presetWind4({preflights: {reset: false}, variablePrefix: 'unx-', dark: 'class'}), typography],
+    presets: [
+      presetWind4({preflights: {reset: false, theme: !plugin}, variablePrefix: 'unx-', dark: 'class'}),
+      typography,
+    ],
     rules: [jsonTree, ...densityRules, ...loaderRules],
-    preflights: [loaderPreflight],
+    preflights: plugin ? [] : [loaderPreflight],
     separators: [':'],
     theme: {colors, radius, font, ease, animation, text, duration, spacing},
     shortcuts: {...shortcuts, ...motion, ...effects, ...shadows, ...loaderShortcuts},
+  }
+}
+
+export function pluginSheetConfig(packageUrl: string): UserConfig {
+  const source = fileURLToPath(new URL('src', packageUrl))
+  const include = `${source}/**/*.{ts,tsx}`
+  const exclude = `${source}/**/*.{test,spec,stories}.*`
+
+  return {
+    content: {
+      pipeline: {include: [include], exclude: [exclude]},
+      filesystem: [include, `!${exclude}`],
+    },
+    presets: [presetConciv({sheet: 'plugin'})],
   }
 }

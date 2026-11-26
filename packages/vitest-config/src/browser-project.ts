@@ -125,12 +125,26 @@ function sourcePatterns(directory: string): string[] {
   )
 }
 
+async function loadUnoConfig(directory: string): Promise<UnoConfig> {
+  const loaded = UnoConfigModuleSchema.parse(await import(pathToFileURL(join(directory, 'uno.config.ts')).href))
+  return loaded.default
+}
+
+async function ownFilesystem(): Promise<string[]> {
+  if (!existsSync(join(process.cwd(), 'uno.config.ts'))) return []
+  const own = await loadUnoConfig(process.cwd())
+  return own.content?.filesystem ?? []
+}
+
 async function generateTestSheet(shell: string): Promise<string> {
-  const loaded = UnoConfigModuleSchema.parse(await import(pathToFileURL(join(shell, 'uno.config.ts')).href))
-  const config = loaded.default
+  const config = await loadUnoConfig(shell)
   const generator = await createGenerator(config)
   const tokens = new Set<string>()
-  const files = await scannedFiles([...(config.content?.filesystem ?? []), ...sourcePatterns(process.cwd())])
+  const files = await scannedFiles([
+    ...(config.content?.filesystem ?? []),
+    ...(shell === process.cwd() ? [] : await ownFilesystem()),
+    ...sourcePatterns(process.cwd()),
+  ])
   await Promise.all(files.map(async (file) => generator.applyExtractors(await readFile(file, 'utf8'), file, tokens)))
   const {css} = await generator.generate(tokens)
   return css

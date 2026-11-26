@@ -1,8 +1,12 @@
+import {glob, readFile} from 'node:fs/promises'
+import {fileURLToPath} from 'node:url'
+import {createGenerator} from 'unocss'
 import {describe, expect} from 'vitest'
 import {test} from '@conciv/backend-test-utils'
 import {TestLLM} from '@conciv/backend-test-utils'
 import page from '@conciv/plugin-page'
 import {listerPlugin} from '@internal/engine-kit'
+import pluginUnoConfig from '../../uno.config.js'
 
 describe('the agent reads the TanStack dev server', () => {
   test('the route manifest is unreadable until routeTree.gen exists, build errors need the dev server, and the server function trace starts empty, through the tools and the rpc', async ({
@@ -96,5 +100,19 @@ describe('the TanStack plugin is configured', () => {
         }),
       ]),
     })
+  })
+})
+
+describe('the plugin brings a stylesheet of its own utilities, merged into the app sheet', () => {
+  test('the sheet holds a rule for each class the plugin source uses, and no reset, theme block or loader preflight of the app', async () => {
+    const generator = await createGenerator(pluginUnoConfig)
+    const tokens = new Set<string>()
+    const pattern = fileURLToPath(new URL('../../src/**/*.{ts,tsx}', import.meta.url))
+    for await (const file of glob(pattern)) await generator.applyExtractors(await readFile(file, 'utf8'), file, tokens)
+    const {css} = await generator.generate(tokens)
+
+    expect(css).toContain('.whitespace-nowrap{')
+    expect(css).toContain('@property --unx-ring-shadow')
+    expect(css).not.toMatch(/:root|:host|box-sizing|@keyframes chat-loader/)
   })
 })

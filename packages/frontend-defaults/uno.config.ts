@@ -10,11 +10,9 @@ export default defineConfig({
       '../ui-kit-chat/src',
       '../ui-kit-chat-tools/src',
       '../ui-kit-system/src',
-      '../ui-kit-terminal/src',
       '../ui-kit-tap/src',
       '../frontend-app-api/src',
       '../ui-kit-chat-tools/src/core-cards',
-      '../plugins/*/src',
     ]
       .map((source) => fileURLToPath(new URL(source, import.meta.url)))
       .flatMap((source) => [`${source}/**/*.{ts,tsx}`, `!${source}/**/*.{test,spec,stories}.*`])

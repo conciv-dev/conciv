@@ -59,11 +59,8 @@
     "//#quality:fix": {
       "dependsOn": ["//#lint:fix", "//#format:fix"]
     },
-    "//#lint": {
-      "dependsOn": ["@internal/uno-preset#build"]
-    },
+    "//#lint": {},
     "//#lint:fix": {
-      "dependsOn": ["@internal/uno-preset#build"],
       "cache": false
     },
     "//#format": {},

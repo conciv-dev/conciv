@@ -3,6 +3,7 @@ import {createMemo, createUniqueId, For, Match, onCleanup, Show, Switch, type JS
 import {
   Panel,
   Plugin,
+  Style,
   ToolRegistry,
   type Context,
   type PanelTab,
@@ -31,6 +32,7 @@ import {
   testFiles,
   type FileGroup,
 } from './view.js'
+import pluginCss from 'virtual:uno.css?inline'
 
 type Actions = {
   readonly ui: InternalUi
@@ -330,6 +332,7 @@ function testRunCard(ctx: Context, runtime: TestRunnerRuntime, ui: InternalUi): 
 
 const runner: Plugin.Definition = Plugin.define({
   setup(ctx) {
+    ctx.add(Style, pluginCss)
     const runtime = ManagedRuntime.make(Layer.empty)
     onCleanup(() => void runtime.dispose())
     const tab: PanelTab = {

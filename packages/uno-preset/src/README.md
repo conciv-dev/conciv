@@ -6,7 +6,8 @@ Builds the conciv UnoCSS preset: presetWind4 plus a typography preset themed wit
 
 ## Interface
 
-- `presetConciv()` (`index.ts`): Preset '@conciv/uno-preset'; presetWind4 with reset preflight off, variablePrefix `unx-`, class-based dark mode
+- `presetConciv({sheet})` (`index.ts`): Preset '@conciv/uno-preset'; presetWind4 with reset preflight off, variablePrefix `unx-`, class-based dark mode. `sheet: 'app'` (default) emits every theme variable and the loader preflight; `sheet: 'plugin'` emits utilities only, for a plugin sheet merged into the app's
+- `pluginSheetConfig(packageUrl)` (`index.ts`): a plugin package's whole UnoCSS config: its own `src` only, `sheet: 'plugin'`
 - `chatColors` / `chatRadius` / `chatFont` / `chatEase` (`index.ts`): re-exports of `colors`, `radius`, `font`, `ease`
 - `DENSITY_CLASS` = 'chat-density' / `densityRules` (`density.ts`)
 - `colors` (`colors.ts`), `radius` (`radius.ts`), `font` (`fonts.ts`), `ease` (`easing.ts`), `animation` (`animation.ts`): theme tokens

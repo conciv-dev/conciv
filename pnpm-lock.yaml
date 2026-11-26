@@ -618,21 +618,6 @@ importers:
       '@changesets/cli':
         specifier: ^3.0.3
         version: 3.0.3
-      '@conciv/skills':
-        specifier: workspace:*
-        version: link:packages/skills
-      '@internal/bundle-size':
-        specifier: workspace:*
-        version: link:packages/bundle-size
-      '@internal/publish':
-        specifier: workspace:*
-        version: link:packages/publish
-      '@internal/uno-preset':
-        specifier: workspace:*
-        version: link:packages/uno-preset
-      '@internal/vitest-config':
-        specifier: workspace:*
-        version: link:packages/vitest-config
       '@j178/prek':
         specifier: ^0.5.7
         version: 0.5.7
@@ -1040,6 +1025,21 @@ importers:
       '@chromatic-com/storybook':
         specifier: ^5.6.0
         version: 5.6.0(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))
+      '@conciv/plugin-page':
+        specifier: workspace:^
+        version: link:../../packages/plugins/page
+      '@conciv/solid-diffs':
+        specifier: workspace:^
+        version: link:../../packages/solid-diffs
+      '@conciv/ui-kit-chat-tools':
+        specifier: workspace:^
+        version: link:../../packages/ui-kit-chat-tools
+      '@conciv/ui-kit-tap':
+        specifier: workspace:^
+        version: link:../../packages/ui-kit-tap
+      '@internal/brand':
+        specifier: workspace:*
+        version: link:../../packages/brand
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
@@ -3595,6 +3595,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@internal/uno-preset':
+        specifier: workspace:*
+        version: link:../../uno-preset
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -3628,6 +3631,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      unocss:
+        specifier: 'catalog:'
+        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -3680,6 +3686,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@internal/uno-preset':
+        specifier: workspace:*
+        version: link:../../uno-preset
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -3722,6 +3731,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      unocss:
+        specifier: 'catalog:'
+        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -3853,6 +3865,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@internal/uno-preset':
+        specifier: workspace:*
+        version: link:../../uno-preset
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -3883,6 +3898,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      unocss:
+        specifier: 'catalog:'
+        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -3926,6 +3944,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@internal/uno-preset':
+        specifier: workspace:*
+        version: link:../../uno-preset
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -3944,6 +3965,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      unocss:
+        specifier: 'catalog:'
+        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -4014,6 +4038,9 @@ importers:
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@internal/uno-preset':
+        specifier: workspace:*
+        version: link:../../uno-preset
       '@internal/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -4056,6 +4083,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      unocss:
+        specifier: 'catalog:'
+        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)

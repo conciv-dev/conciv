@@ -5,6 +5,7 @@ import {z} from 'zod'
 import {
   Plugin,
   Slot,
+  Style,
   ToolRegistry,
   type IconName,
   type ToolComponent,
@@ -29,6 +30,7 @@ import {
   type Operation,
 } from './rpc.js'
 import {tanstackLogo} from './tanstack-logo.js'
+import pluginCss from 'virtual:uno.css?inline'
 
 const LABEL = 'TanStack inspector active'
 
@@ -545,6 +547,7 @@ const tanstackCards = {
 const tanstack: Plugin.Definition = Plugin.define({
   icons: {logo: tanstackLogo},
   setup(ctx) {
+    ctx.add(Style, pluginCss)
     const tree = ctx.use(ReactTree)
     const runtime = ManagedRuntime.make(errorRingLayer)
     runtime.runSync(runtime.contextEffect)

@@ -179,7 +179,7 @@ jobs:
       # Regenerate the mirror tree from the release commit's native/swift, tag it with the
       # @conciv/plugin-ios version, and push (skipped when that tag already exists; on an
       # existing tag it re-asserts the assembled tree matches what was published).
-      - run: pnpm exec conciv-publish swift-mirror
+      - run: pnpm conciv-publish swift-mirror
         if: steps.detect.outputs.run == 'true'
         env:
           GH_MIRROR_TOKEN: ${{ secrets.GH_MIRROR_TOKEN }}

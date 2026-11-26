@@ -150,7 +150,7 @@ jobs:
           mode: firewall-free
           firewall-version: 1.16.0 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      - run: pnpm exec conciv-ci-shards run
+      - run: pnpm conciv-ci-shards run
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}
       # Playwright keeps a trace.zip per failed embed IT (trace: retain-on-failure);
@@ -186,7 +186,7 @@ jobs:
       # upload action would walk every node_modules in the workspace — minutes of
       # directory traversal to ship a few KB. Our own walker skips node_modules.
       # Inline failure annotations still come from vitest's github-actions reporter.
-      - run: pnpm exec conciv-ci-shards report --output "shard-report-${SHARD_NAME}.json"
+      - run: pnpm conciv-ci-shards report --output "shard-report-${SHARD_NAME}.json"
         if: always()
         env:
           SHARD_NAME: ${{ matrix.shard }}
@@ -198,7 +198,7 @@ jobs:
       # Each package run's V8 lcov (it holds every workspace source file the run
       # executed, in any package), with its paths made repo-relative, copied into
       # one folder per shard and uploaded by literal path: same no-glob rule as above.
-      - run: pnpm exec conciv-ci-shards coverage --output "coverage-${SHARD_NAME}"
+      - run: pnpm conciv-ci-shards coverage --output "coverage-${SHARD_NAME}"
         if: always()
         env:
           SHARD_NAME: ${{ matrix.shard }}
@@ -312,16 +312,15 @@ jobs:
       # This is the name-only check on push/main and every PR; the PR-only
       # --require-coverage check runs in verify-changesets.yml, which can also
       # retrigger on label changes (pull_request's default types can't).
-      - run: pnpm exec conciv-publish check-changesets
-      - run: pnpm exec conciv-publish check-catalog
-      - run: pnpm exec conciv-publish check-typecheck-coverage
-      - run: pnpm exec conciv-publish check-test-budget
-      - run: pnpm exec conciv-publish check-turbo-depends-on
-      - run: pnpm exec conciv-publish check-dependency-loops
-      - run: pnpm exec conciv-publish check-plugin-ui-kit
+      - run: pnpm conciv-publish check-changesets
+      - run: pnpm conciv-publish check-catalog
+      - run: pnpm conciv-publish check-typecheck-coverage
+      - run: pnpm conciv-publish check-test-budget
+      - run: pnpm conciv-publish check-turbo-depends-on
+      - run: pnpm conciv-publish check-dependency-loops
+      - run: pnpm conciv-publish check-plugin-ui-kit
       # oxlint and oxfmt over the whole repo (apps/ too), as the turbo root tasks //#lint and //#format.
-      # Runs before any build step: the unocss lint rule loads uno.config.ts, which imports the preset's dist,
-      # so lint passes here only while //#lint itself depends on @internal/uno-preset#build.
+      # Runs before any build step: the unocss lint rule loads the root uno.config.ts, which reads the preset's source.
       - run: pnpm exec turbo run quality
       # The browser jobs' container image must be one digest-pinned reference whose tag
       # is the playwright version the lockfile resolves, else Playwright looks for
@@ -362,7 +361,7 @@ jobs:
           [ -s bundle-size-baseline.json ] || rm -f bundle-size-baseline.json
       # Reports every package + the conciv.dev Cloudflare worker (Δ vs main), and fails only if the
       # worker exceeds its 3 MiB gzip free-plan limit (over it `wrangler deploy` fails with 10027).
-      - run: pnpm exec conciv-bundle-size --output bundle-size.json --baseline bundle-size-baseline.json
+      - run: pnpm conciv-bundle-size --output bundle-size.json --baseline bundle-size-baseline.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'push'
         with:
@@ -561,7 +560,7 @@ jobs:
       # Consumer-shape suites: dist widget in CLI-scaffolded apps (root e2e/).
       # test:e2e is cache:false in turbo.json, so every run
       # exercises the real servers; each app takes a free port (e2ePort), so a shard's apps run side by side.
-      - run: pnpm exec conciv-ci-shards run --task e2e
+      - run: pnpm conciv-ci-shards run --task e2e
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -590,7 +589,7 @@ jobs:
       # Collapse this shard's playwright/vitest reports into ONE file and upload it by
       # literal name; never glob e2e/** here, the upload action would walk every
       # node_modules in the workspace.
-      - run: pnpm exec conciv-ci-shards report --task e2e --output "e2e-report-${SHARD_NAME}.json"
+      - run: pnpm conciv-ci-shards report --task e2e --output "e2e-report-${SHARD_NAME}.json"
         if: always()
         env:
           SHARD_NAME: ${{ matrix.shard }}
