@@ -46,6 +46,14 @@ export async function addSession(engine: FakeEngine, title: string): Promise<Ses
   return sessionId
 }
 
+export async function renameFromElsewhere(engine: FakeEngine, from: string, to: string): Promise<void> {
+  const client = engineClient(engine)
+  const {sessions} = await client.sessions.list()
+  const open = sessions.find((session) => session.title === from)
+  if (open === undefined) throw new Error(`no session is titled ${from}`)
+  await client.sessions.rename({sessionId: SessionId.parse(open.id), title: to})
+}
+
 export async function browserTabsOnceCounted(engine: FakeEngine, sessionId: SessionId, count: number) {
   const client = engineClient(engine)
   const watching = new AbortController()

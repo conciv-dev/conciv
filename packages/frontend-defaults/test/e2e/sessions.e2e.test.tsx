@@ -6,7 +6,7 @@ import {resolveModifier} from '@tanstack/hotkeys'
 import {ORPCError} from '@orpc/client'
 import {createFakeEngine, FakeLLM, type FakeSession} from '@internal/test-utils'
 import {pastSessions} from '../fixtures/past-sessions.js'
-import {addSession, browserTabsOnceCounted, titleSentSession} from '../utils/engine-client.js'
+import {addSession, browserTabsOnceCounted, renameFromElsewhere, titleSentSession} from '../utils/engine-client.js'
 import {forgetQuickHeight, mountShell, shellEngine} from '../utils/mount-shell.js'
 import {harness, MODEL, textMessage} from '../utils/sample-data.js'
 
@@ -587,9 +587,10 @@ describe('quick pane context usage', () => {
 })
 
 describe('rename a session', () => {
-  test('the user hears a rename fail, then renames the session', async () => {
+  test('the user hears a rename fail, then renames the session, and a rename made in another browser shows in the open rail', async () => {
     const user = userEvent.setup()
-    await mountShell({engine: shellEngine()})
+    const engine = shellEngine()
+    await mountShell({engine})
 
     expect(await screen.findByRole('button', {name: 'New session, session options'})).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Rename session'}))
@@ -611,6 +612,9 @@ describe('rename a session', () => {
 
     expect(await screen.findByText('Renamed to Release notes')).toBeVisible()
     expect(await screen.findByRole('button', {name: 'Release notes, session options'})).toBeVisible()
+
+    await renameFromElsewhere(engine, 'Release notes', 'Renamed in the other browser')
+    expect(await screen.findByRole('button', {name: 'Renamed in the other browser, session options'})).toBeVisible()
   })
 })
 
