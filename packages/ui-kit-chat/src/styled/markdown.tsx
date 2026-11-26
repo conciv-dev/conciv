@@ -3,17 +3,14 @@ import {
   createMemo,
   createSignal,
   createUniqueId,
-  For,
-  Match,
+  Index,
   onCleanup,
   onMount,
   Show,
-  Switch,
   useContext,
   type JSX,
   type ParentProps,
 } from 'solid-js'
-import {Dynamic} from 'solid-js/web'
 import {mapValues, memoize, once} from 'es-toolkit'
 import {bundledLanguages, bundledLanguagesInfo} from 'shiki/langs'
 import CodeXml from 'lucide-solid/icons/code-xml'
@@ -251,93 +248,106 @@ function MermaidDiagram(props: {code: string}): JSX.Element {
   )
 }
 
-function withStreamedTail(pre: HastElement, tail: string): HastElement {
-  if (!tail) return pre
-  return {
-    ...pre,
-    children: pre.children.map((child) =>
-      child.type === 'element' && child.tagName === 'code'
-        ? {...child, children: [...child.children, {type: 'text', value: tail}]}
-        : child,
-    ),
-  }
-}
+type HastChild = HastElement['children'][number]
 
-function highlightedWithTail(language: string, highlighted: string, fenceText: string): HastElement | undefined {
-  const cached = highlights.entries.get(cacheKey(language, highlighted))
-  return cached && withStreamedTail(cached, fenceText.slice(highlighted.length))
-}
+type CodeToken = {content: string; style?: string}
 
-function streamedPrefix(language: string, fenceText: string): HastElement | undefined {
-  const prefix = latestStreamedCode.entries.get(language)
-  if (prefix === undefined || !fenceText.startsWith(prefix)) return undefined
-  return highlightedWithTail(language, prefix, fenceText)
-}
+type CodeLine = readonly CodeToken[]
 
-function streamedHighlight(language: string, fenceText: string): HastElement | undefined {
+type HighlightResult = {style?: string; lines: readonly CodeLine[]}
+
+function cachedHighlight(language: string, code: string): HastElement | undefined {
   backendReadyTick()
   const active = ensureBackend()
   if (!active || !active.isSupported(language)) return undefined
-  const code = fenceCode(fenceText)
-  const highlighted = highlightedWithTail(language, code, fenceText)
-  if (highlighted) return highlighted
+  const exact = highlights.entries.get(cacheKey(language, code))
+  if (exact) return exact
   active.requestHighlight(cacheKey(language, code), language, code, true)
-  return streamedPrefix(language, fenceText)
+  const prefix = latestStreamedCode.entries.get(language)
+  if (prefix === undefined || !code.startsWith(prefix)) return undefined
+  return highlights.entries.get(cacheKey(language, prefix))
 }
 
-type HastChild = HastElement['children'][number]
-
-function hastClass(value: unknown): string | undefined {
-  if (typeof value === 'string') return value
-  return Array.isArray(value) ? value.join(' ') : undefined
+function trimTrailingNewlines(text: string): string {
+  return text.replace(/\n+$/, '')
 }
 
-function hastStyle(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined
+function hastStyle(element: HastElement): string | undefined {
+  const style = element.properties.style
+  return typeof style === 'string' ? style : undefined
 }
 
-function HastElementView(props: {element: HastElement}): JSX.Element {
-  return (
-    <Dynamic
-      component={props.element.tagName}
-      class={hastClass(props.element.properties.class ?? props.element.properties.className)}
-      style={hastStyle(props.element.properties.style)}
-    >
-      <For each={props.element.children}>{(child) => <HastNodeView node={child} />}</For>
-    </Dynamic>
-  )
+function hastText(node: HastChild): string {
+  if (node.type === 'text') return node.value
+  if (node.type !== 'element') return ''
+  return node.children.map(hastText).join('')
 }
 
-function HastNodeView(props: {node: HastChild}): JSX.Element {
-  return (
-    <Switch>
-      <Match when={props.node.type === 'text' ? props.node : undefined}>{(text) => text().value}</Match>
-      <Match when={props.node.type === 'element' ? props.node : undefined}>
-        {(element) => <HastElementView element={element()} />}
-      </Match>
-    </Switch>
-  )
+function lineTokens(line: HastElement): CodeLine {
+  return line.children.map((child) => ({
+    content: hastText(child),
+    ...(child.type === 'element' ? {style: hastStyle(child)} : {}),
+  }))
+}
+
+function highlightedLines(pre: HastElement): readonly CodeLine[] {
+  const code = pre.children.find((child): child is HastElement => child.type === 'element' && child.tagName === 'code')
+  return (code?.children ?? []).flatMap((child) => (child.type === 'element' ? [lineTokens(child)] : []))
+}
+
+function rawLines(code: string): readonly CodeLine[] {
+  return code.split('\n').map((line) => [{content: line}])
+}
+
+function lineText(line: CodeLine): string {
+  return line.map((token) => token.content).join('')
+}
+
+function withRawRest(highlighted: readonly CodeLine[], raw: readonly CodeLine[]): readonly CodeLine[] {
+  const shared = Math.min(highlighted.length, raw.length)
+  const open = highlighted[shared - 1]
+  const typed = raw[shared - 1]
+  if (open === undefined || typed === undefined) return raw
+  const rest = lineText(typed).slice(lineText(open).length)
+  return [...highlighted.slice(0, shared - 1), rest ? [...open, {content: rest}] : open, ...raw.slice(shared)]
 }
 
 const STREAMED_CODE =
   'not-prose min-w-0 [--shiki-background:transparent] [&_pre]:m-0 [&_pre]:p-2 [&_pre]:whitespace-pre-wrap [&_pre]:[overflow-wrap:anywhere] [&_pre]:[font-family:var(--chat-mono)]'
 
-function StreamedCode(props: {language: string; code: string}): JSX.Element {
-  const highlighted = createMemo(() => streamedHighlight(props.language, props.code))
+function StreamedCodeRows(props: {result: HighlightResult}): JSX.Element {
   return (
     <div class={STREAMED_CODE}>
-      <Show
-        when={highlighted()}
-        fallback={
-          <pre>
-            <code>{fenceCode(props.code)}</code>
-          </pre>
-        }
-      >
-        {(element) => <HastElementView element={element()} />}
-      </Show>
+      <pre style={props.result.style}>
+        <code>
+          <Index each={props.result.lines}>
+            {(line) => (
+              <span class="block">
+                <Show when={lineText(line()) !== ''} fallback={'\n'}>
+                  <Index each={line()}>{(token) => <span style={token().style}>{token().content}</span>}</Index>
+                </Show>
+              </span>
+            )}
+          </Index>
+        </code>
+      </pre>
     </div>
   )
+}
+
+function StreamedCodeBody(props: {language: string; code: string}): JSX.Element {
+  const code = createMemo(() => trimTrailingNewlines(props.code))
+  const raw = createMemo(() => rawLines(code()))
+  const cached = createMemo(() => cachedHighlight(props.language, code()))
+  const highlighted = createMemo(() => {
+    const pre = cached()
+    return pre && {style: hastStyle(pre), lines: highlightedLines(pre)}
+  })
+  const result = createMemo((): HighlightResult => {
+    const current = highlighted()
+    return current ? {style: current.style, lines: withRawRest(current.lines, raw())} : {lines: raw()}
+  })
+  return <StreamedCodeRows result={result()} />
 }
 
 export type MarkdownProps = {
@@ -479,7 +489,7 @@ function FenceCard(props: {language: string; code: string}): JSX.Element {
         }
       >
         <CodeBlockViewport>
-          <StreamedCode language={props.language} code={props.code} />
+          <StreamedCodeBody language={props.language} code={props.code} />
         </CodeBlockViewport>
       </Show>
     </CodeBlock>
