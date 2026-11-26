@@ -1886,6 +1886,9 @@ importers:
       '@ark-ui/solid':
         specifier: 'catalog:'
         version: 5.40.0(solid-js@1.9.17)
+      '@conciv/backend-plugin-api':
+        specifier: workspace:^
+        version: link:../backend-plugin-api
       '@conciv/client':
         specifier: workspace:^
         version: link:../client

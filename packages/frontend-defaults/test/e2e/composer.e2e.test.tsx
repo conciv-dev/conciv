@@ -862,7 +862,7 @@ describe('drive mode', () => {
 
       await finished.arrived
       const reply = await screen.findByRole('article', {name: 'Reply to: Hello from the driver'})
-      expect(within(reply).getByText('Driven answer')).toBeVisible()
+      expect(await within(reply).findByText('Driven answer')).toBeVisible()
     },
   )
 })

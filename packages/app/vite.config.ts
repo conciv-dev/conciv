@@ -11,7 +11,6 @@ const INLINED_PREFIXES = [
   '@conciv/plugin-page/renderer',
   '@internal/frontend-defaults',
   '@internal/plugin-terminal',
-  '@conciv/backend',
 ]
 
 const isExternal = (id: string): boolean => {
