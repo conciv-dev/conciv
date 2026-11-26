@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import type {Maker} from '@conciv/protocol/schema/identifier'
-import {ORPCError, withEventMeta, type Router} from '@orpc/server'
+import {ORPCError, withEventMeta, type ContractedRouter} from '@orpc/server'
 import {asc, eq, sql} from 'drizzle-orm'
 import {isToolError, type RegistryCallGate} from '@conciv/types/tool-call-types'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -46,7 +46,7 @@ import {settlingAsks, decidePermissionCard} from '../../runtime/permission-cards
 import type {SessionId, ChatCommand, ChatCommands} from '@conciv/types/chat-types'
 import type {TtyServerControl} from '@conciv/types/terminal-types'
 
-function chatRouter(deps: RpcDeps, sessionOs: SessionOs): Router<typeof contract.chat, RpcContext> {
+function chatRouter(deps: RpcDeps, sessionOs: SessionOs): ContractedRouter<typeof contract.chat, RpcContext> {
   return {
     events: os.chat.events.handler(({input, signal}) =>
       deps.runtime.forSession(input.sessionId).stream.events(signal ?? new AbortController().signal),
@@ -381,7 +381,7 @@ async function pluginCall(
   )
 }
 
-export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext> {
+export function makeRpcRouter(deps: RpcDeps): ContractedRouter<typeof contract, RpcContext> {
   const chat = deps.chat
   const db = chat.db
   const engine = deps.runtime.engine

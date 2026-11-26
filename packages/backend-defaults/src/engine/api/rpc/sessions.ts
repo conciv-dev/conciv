@@ -2,7 +2,7 @@ import {platform} from 'node:os'
 import {Effect} from 'effect'
 import {and, eq, isNull} from 'drizzle-orm'
 import {uniqBy} from 'es-toolkit'
-import type {Router} from '@orpc/server'
+import type {ContractedRouter} from '@orpc/server'
 import type {contract, SessionHit, SessionMeta} from '@conciv/protocol'
 import type {RpcContext} from '@conciv/types/rpc-types'
 import {
@@ -292,7 +292,7 @@ export function searchedSessionPage(
   return sessionPage(chat, input, input.term, (cursorPage) => search.pages(input.term, cursorPage, input.everywhere))
 }
 
-export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, RpcContext> {
+export function sessionsRouter(deps: RpcDeps): ContractedRouter<typeof contract.sessions, RpcContext> {
   const chat = deps.chat
   const db = chat.db
   const scope = chat.rows

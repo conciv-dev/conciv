@@ -105,7 +105,7 @@ export type RpcDeps = {
   ptys: PersistentPtys
 }
 
-export const os: Implementer<typeof contract, RpcContext, RpcContext> = implement(contract).$context<RpcContext>()
+export const os: Implementer<typeof contract, RpcContext> = implement(contract).$context<RpcContext>()
 
 function headerSessionId(context: RpcContext): SessionId | null {
   const raw = rpcHeader(context, CONCIV_SESSION_HEADER)?.trim()

@@ -307,7 +307,7 @@ describe.concurrent('session.synthetic', () => {
       visible: true,
     })
     const widget = makeRpcClient(engine.address.apiBase, {token: engine.address.token})
-    const {sessionId} = await widget.sessions.create({})
+    const {sessionId} = await widget.sessions.create()
     await widget.sessions.rename({sessionId, title: 'Plant shelf'})
     const changes = (await widget.tabs.changes())[Symbol.asyncIterator]()
     await changes.next()

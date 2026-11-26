@@ -1,4 +1,4 @@
-import type {Router} from '@orpc/server'
+import type {ContractedRouter} from '@orpc/server'
 import {Effect} from 'effect'
 import type {contract} from '@conciv/protocol'
 import type {RpcContext} from '@conciv/types/rpc-types'
@@ -42,7 +42,7 @@ const waitOne = Effect.fn('JobsRpc.wait')(function* (jobs: Job.Interface, id: st
   ]
 })
 
-export function jobsRouter(deps: RpcDeps): Router<typeof contract.jobs, RpcContext> {
+export function jobsRouter(deps: RpcDeps): ContractedRouter<typeof contract.jobs, RpcContext> {
   const host = deps.pluginHost
   return {
     list: os.jobs.list.handler(({input, signal}) =>

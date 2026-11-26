@@ -1,7 +1,7 @@
 import {once} from 'node:events'
 import {setImmediate as nextTurn} from 'node:timers/promises'
 import {MessageChannel, Worker} from 'node:worker_threads'
-import {Effect} from 'effect'
+import {Effect, PubSub, Stream} from 'effect'
 import {realpath} from 'node:fs/promises'
 import {extname, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -9,7 +9,7 @@ import {and, eq, inArray, isNotNull} from 'drizzle-orm'
 import {difference, keyBy, sortBy, uniq, xor, zipObject} from 'es-toolkit'
 import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/message-port'
-import {EventPublisher, type RouterClient} from '@orpc/server'
+import type {RouterClient} from '@orpc/server'
 import {AsyncQueuer} from '@tanstack/pacer'
 import {inSpan, type Tracer} from '../../ai.js'
 import {HarnessSessionId} from '@conciv/types/chat-types'
@@ -87,11 +87,11 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     scopes: [{cwd: deps.cwd}],
     everywhere: null,
   }
-  const publisher = new EventPublisher<{indexed: SessionsChange}>()
+  const indexedChanges = Effect.runSync(PubSub.unbounded<SessionsChange>())
 
   const indexedChanged = (): void => {
     state.version += 1
-    publisher.publish('indexed', {version: state.version})
+    PubSub.publishUnsafe(indexedChanges, {version: state.version})
   }
 
   const rebuild = async (): Promise<void> => {
@@ -272,9 +272,13 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       setImmediate(refresh)
     },
     async *changes(signal) {
-      const later = publisher.subscribe('indexed', {signal})
-      yield {version: state.version}
-      yield* later
+      const current = Stream.sync((): SessionsChange => ({version: state.version}))
+      const feed = Stream.unwrap(
+        Effect.map(PubSub.subscribe(indexedChanges), (subscription) =>
+          Stream.concat(current, Stream.fromSubscription(subscription)),
+        ),
+      )
+      yield* Stream.toAsyncIterable(Stream.interruptWhen(feed, aborted(signal)))
     },
     async pages(term, page, everywhere) {
       const running = state.running
@@ -425,4 +429,14 @@ function typoTolerance(term: string): number {
 
 function formatDocumentId(harnessKind: string, nativeId: string): string {
   return `${harnessKind}:${nativeId}`
+}
+
+function aborted(signal: AbortSignal | undefined): Effect.Effect<void> {
+  if (signal === undefined) return Effect.never
+  return Effect.callback<void>((resume) => {
+    if (signal.aborted) return resume(Effect.void)
+    const onAbort = () => resume(Effect.void)
+    signal.addEventListener('abort', onAbort, {once: true})
+    return Effect.sync(() => signal.removeEventListener('abort', onAbort))
+  })
 }

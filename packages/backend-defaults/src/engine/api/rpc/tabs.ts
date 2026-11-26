@@ -1,4 +1,4 @@
-import type {Router} from '@orpc/server'
+import type {ContractedRouter} from '@orpc/server'
 import {Effect, Result, Stream} from 'effect'
 import type {contract} from '@conciv/protocol'
 import type {RpcContext} from '@conciv/types/rpc-types'
@@ -6,7 +6,7 @@ import * as Tab from '@conciv/backend-app-api/core/tab'
 import {os, type RpcDeps} from './mount.js'
 import {relayEvents} from './relay-events.js'
 
-export function tabsRouter(deps: RpcDeps): Router<typeof contract.tabs, RpcContext> {
+export function tabsRouter(deps: RpcDeps): ContractedRouter<typeof contract.tabs, RpcContext> {
   const host = deps.pluginHost
   return {
     open: os.tabs.open.handler(async ({input, errors, signal}) => {
