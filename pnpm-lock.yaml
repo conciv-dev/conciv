@@ -2538,9 +2538,6 @@ importers:
       '@conciv/plugin-page':
         specifier: workspace:^
         version: link:../plugins/page
-      '@conciv/plugin-tanstack':
-        specifier: workspace:^
-        version: link:../plugins/tanstack
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

@@ -50,28 +50,9 @@ describe('tools', () => {
       error: {message: expect.stringContaining('No tool named "page_route" is currently available')},
     })
 
-    const routed = await createEngine({plugins: ['@conciv/plugin-tanstack']})
-    await routed.write('src/routes/plants.$plantId.tsx', 'export const Route = {}\n')
-    await routed.write(
-      'src/routeTree.gen.ts',
-      [
-        "import { Route as rootRouteImport } from './routes/__root'",
-        "import { Route as PlantsPlantIdRouteImport } from './routes/plants.$plantId'",
-        'const PlantsPlantIdRoute = PlantsPlantIdRouteImport.update({',
-        "  id: '/plants/$plantId',",
-        "  path: '/plants/$plantId',",
-        '  getParentRoute: () => rootRouteImport,',
-        '} as any)',
-        '',
-      ].join('\n'),
-    )
-    const manifest = await routed.rpc.call('experimental.tanstack', 'routeManifest')
-    const called = await cli(['plugin', 'call', 'experimental.tanstack', 'routeManifest'], {engine: routed})
+    const counted = await engine.rpc.call('plant-shelf', 'count', {plant: 'fern'})
+    const called = await cli(['plugin', 'call', 'plant-shelf', 'count', '--data', '{"plant": "fern"}'], {engine})
     expect(called.exitCode).toBe(0)
-    expect(JSON.parse(called.stdout)).toEqual({ok: true, data: manifest})
-    expect(manifest).toMatchObject([
-      {path: '/', kind: 'layout'},
-      {path: '/plants/$plantId', kind: 'page', dynamic: true},
-    ])
+    expect(JSON.parse(called.stdout)).toEqual({ok: true, data: counted})
   })
 })
