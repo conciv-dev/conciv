@@ -38,6 +38,14 @@ describe('a reply with a diagram', () => {
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     const reply = await screen.findByRole('article', {name: 'Reply to: Draw both'})
 
+    expect(
+      await within(reply).findByText(
+        (_, element) =>
+          element?.tagName === 'PRE' &&
+          element.getAttribute('aria-busy') === null &&
+          element.textContent?.trim() === 'this is not a diagram',
+      ),
+    ).toBeVisible()
     expect(await within(reply).findByRole('graphics-document')).toBeVisible()
     expect(within(reply).getByText('Start')).toBeVisible()
     expect(within(reply).getByText('Done')).toBeVisible()

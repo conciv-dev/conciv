@@ -188,31 +188,38 @@ async function renderDiagram(id: string, source: string, style: DiagramStyle): P
   return svg
 }
 
+type DiagramState = {status: 'drawing'} | {status: 'drawn'; svg: string} | {status: 'source'}
+
 function MermaidDiagram(props: {code: string}): JSX.Element {
   const id = `conciv-diagram-${createUniqueId()}`
-  const [svg, setSvg] = createSignal<string>()
+  const [diagram, setDiagram] = createSignal<DiagramState>({status: 'drawing'})
+  const drawn = createMemo(() => {
+    const current = diagram()
+    return current.status === 'drawn' ? current.svg : undefined
+  })
   let source: HTMLPreElement | undefined
   onMount(() => {
-    if (!source) return
+    if (!source) return setDiagram({status: 'source'})
     const style = diagramStyle(source)
     const key = cacheKey(`mermaid:${JSON.stringify(style)}`, props.code)
     const cached = diagrams.entries.get(key)
-    if (cached !== undefined) return setSvg(cached)
+    if (cached !== undefined) return setDiagram({status: 'drawn', svg: cached})
     void renderDiagram(id, props.code, style)
       .then((markup) => {
         diagrams.remember(key, markup)
-        setSvg(markup)
+        setDiagram({status: 'drawn', svg: markup})
       })
-      .catch(() => undefined)
+      .catch(() => setDiagram({status: 'source'}))
   })
   return (
     <Show
-      when={svg()}
+      when={drawn()}
       fallback={
         <pre
           ref={(element) => {
             source = element
           }}
+          aria-busy={diagram().status === 'drawing' ? 'true' : undefined}
         >
           <code>{props.code}</code>
         </pre>
