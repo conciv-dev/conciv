@@ -500,18 +500,24 @@ iterator (`router.ts:54`). The doc's client side passes an oRPC call as `useChat
   the doc says (we already do: `threadId: input.sessionId, runId: input.runId`).
 - **Tests:** `client/test/e2e/session.e2e.test.ts`, `client.it.test.ts`.
 
-### Task 17: Logging and tracing (answer to "how do we log on the server in oRPC")
+### Task 17: Logging and tracing (maintainer: `@orpc/opentelemetry` approved; logging through `@orpc/evlog`)
 
-Today: server logs go through Effect's `Logger` (`backend-defaults/src/engine/lib/logging.ts`, `LogWriter`), and every
-rpc call gets a root span from our hand-written interceptor `rpcSpan` (`engine/app.ts:411`) through `traceCall` in
-`serve/rpc.ts:55-138`.
+Today: engine logs go through Effect's `Logger` into our sink (`backend-defaults/src/engine/lib/logging.ts`: `layer`
+turns each Effect log into a `LogEntry` and calls the host's `emit`). Every rpc call gets a root span from the
+hand-written interceptor `rpcSpan` (`engine/app.ts:411`) through `traceCall` (`serve/rpc.ts:55-138`). No per-call log.
 
-- With Task 11, `Effect.log*` and `Effect.withSpan` inside handlers run on the engine's runtime context, so they reach
-  the same `Logger` and tracer with the request's fiber annotations. Annotate each handler with
-  `Effect.annotateLogs({'rpc.procedure': path})` in the Task 11 wrap (once, from `opts.path`), so every log line from a
-  call names its procedure.
-- oRPC's `@orpc/opentelemetry` (`ORPCInstrumentation`) would replace `rpcSpan` and `traceCall` with oRPC's own client
-  and server spans, and `@effect/opentelemetry` `OtelTracer.layerGlobal` nests Effect spans under them (effect.mdx,
-  "OpenTelemetry Integration"). That is a new dependency: **decision for the maintainer** before Task 17 removes
-  `rpcSpan`. Without a yes, Task 17 stops at the annotation.
-- **Tests:** none new; `backend-defaults` suite.
+- **Tracing:** add `@orpc/opentelemetry` at exactly 2.0.0-beta.53 to the catalog. Register `ORPCInstrumentation` where
+  the engine sets up its tracer (read `inSpan`/`Tracer` in `backend-defaults/src/ai.js` exports to find it). Delete
+  `rpcSpan`, `traceCall`, `TraceRpcCall` and `tracedCall`. Add `@effect/opentelemetry` `OtelTracer.layerGlobal` to the
+  engine runtime's layer (catalog version matching our `@effect/opentelemetry` 4.1.0) so Effect spans inside handlers
+  nest under oRPC's server span (effect.mdx, "OpenTelemetry Integration").
+- **Request logging (orpc.dev/docs/integrations/evlog):** add `@orpc/evlog` at exactly 2.0.0-beta.53 and `evlog` at the
+  exact version it peers, to the catalog. Add `new EvlogHandlerPlugin({drain, logAbort: true})` to both handlers'
+  `plugins` in `serve/rpc.ts`. One wide event per call: procedure path, outcome, duration, error at its level (abort
+  `info`, `ORPCError` `warn`, other and `INTERNAL_SERVER_ERROR` `error`, the plugin's defaults). `drain` writes each
+  wide event into the engine's existing `emit` sink as one `LogEntry`, so there is one log output.
+- **Logs inside a call:** `RpcContext` also extends `EvlogLoggerContext`; handlers enrich the call's wide event with
+  `getEvlogLogger(context)?.set({session: ..., plugin: ...})` (the context form, not `useLogger`: Effect fibers do not
+  carry AsyncLocalStorage). The Task 11 wrap sets the session id and caller on every call once.
+  `Effect.log*` keeps working for engine logs outside a call, unchanged.
+- **Tests:** none new. `backend-defaults` suite; `http.it.test.ts` keeps its assertions.
