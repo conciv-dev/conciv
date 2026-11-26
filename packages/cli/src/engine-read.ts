@@ -1,6 +1,10 @@
 import {checkEngines, type EngineRow} from '@conciv/db'
-import {engineTooOld, makeRpcClient} from '@conciv/client'
-import type {SessionId, TabOpen, Tabs, TabsListing} from '@conciv/types/chat-types'
+import {z} from 'zod'
+import {ORPCError} from '@orpc/client'
+import {engineTooOld, makeRpcClient, type RpcClient} from '@conciv/client'
+import type {Project, SessionMeta} from '@conciv/protocol'
+import {SessionId} from '@conciv/types/chat-types'
+import {Definition as Page, type State} from '@conciv/plugin-page/rpc'
 
 export const ENGINE_READ_MS = 2_000
 
@@ -12,9 +16,44 @@ export type Checked = Awaited<ReturnType<typeof checkEngines>>
 
 export type Silent = Checked['unreachable']
 
+export type TabOpen = {open: boolean; instructions: string | null}
+
 export type TabAsk<Row = EngineRow> = {row: Row; answer: TabOpen | null; failure: unknown}
 
+const TabsListingSchema = z.object({
+  tabs: z.array(
+    z.object({
+      tab: SessionId,
+      project: z.string().optional(),
+      branch: z.string().optional(),
+      root: z.string(),
+      href: z.string().optional(),
+      pageTitle: z.string().optional(),
+      sessionTitle: z.string(),
+      lastActive: z.string(),
+      running: z.boolean(),
+      state: z.enum(['visible', 'hidden']).optional(),
+      harness: z.string(),
+      browserTabs: z.array(
+        z.object({
+          id: z.string(),
+          href: z.string().optional(),
+          pageTitle: z.string().optional(),
+          state: z.enum(['visible', 'hidden']).optional(),
+        }),
+      ),
+    }),
+  ),
+  unreachable: z.array(z.object({root: z.string(), error: z.string()})),
+})
+
+export type TabsListing = z.infer<typeof TabsListingSchema>
+
 type TabRow = TabsListing['tabs'][number]
+
+type PageMethods = typeof Page.methods
+
+type Signal = {signal: AbortSignal}
 
 export function askAgain(home: string, silent: Silent): Promise<Checked> {
   return checkEngines(home, {timeoutMs: ENGINE_READ_MS, roots: silent.map((entry) => entry.root)})
@@ -40,17 +79,34 @@ export function homeRead(home: string, reading: Promise<Checked>): Promise<Check
   })
 }
 
+export function pageCall<const Method extends keyof PageMethods & string>(
+  rpc: RpcClient,
+  method: Method,
+  input: z.input<PageMethods[Method]['input']>,
+  options: Signal,
+): Promise<unknown> {
+  return rpc.plugin.call({rpcId: Page.id, method, input}, options)
+}
+
+async function readState(rpc: RpcClient, sessionId: SessionId, options: Signal): Promise<State> {
+  return Page.methods['tabs.list'].output.parse(await pageCall(rpc, 'tabs.list', {sessionId}, options))
+}
+
 export function askTab<Row extends {apiBase: string; token: string}>(
   row: Row,
   tab: SessionId,
   timeoutMs: number,
 ): Promise<TabAsk<Row>> {
-  return makeRpcClient(row.apiBase, {token: row.token})
-    .tabs.get({sessionId: tab}, {signal: AbortSignal.timeout(timeoutMs)})
-    .then(
-      (answer): TabAsk<Row> => ({row, answer, failure: null}),
-      (failure: unknown): TabAsk<Row> => ({row, answer: null, failure}),
-    )
+  const rpc = makeRpcClient(row.apiBase, {token: row.token})
+  const options = {signal: AbortSignal.timeout(timeoutMs)}
+  return Promise.all([readState(rpc, tab, options), rpc.meta.project(undefined, options)]).then(
+    ([state, project]): TabAsk<Row> => ({
+      row,
+      answer: {open: state.tabs.length > 0, instructions: project.instructions},
+      failure: null,
+    }),
+    (failure: unknown): TabAsk<Row> => ({row, answer: null, failure}),
+  )
 }
 
 export function askTabs(rows: EngineRow[], tab: SessionId, timeoutMs: number): Promise<TabAsk[]> {
@@ -67,33 +123,56 @@ export async function listTabs(home: string): Promise<TabsListing> {
 }
 
 async function engineTabs(row: EngineRow): Promise<TabsListing> {
+  const rpc = makeRpcClient(row.apiBase, {token: row.token})
+  const options = {signal: AbortSignal.timeout(ENGINE_READ_MS)}
   try {
-    const listed = await makeRpcClient(row.apiBase, {token: row.token}).tabs.list(undefined, {
-      signal: AbortSignal.timeout(ENGINE_READ_MS),
-    })
-    return {tabs: listed.tabs.map(tabRow(listed)), unreachable: []}
+    const [project, attached] = await Promise.all([
+      rpc.meta.project(undefined, options),
+      pageCall(rpc, 'sessions.attached', {}, options).then((listed) =>
+        Page.methods['sessions.attached'].output.parse(listed),
+      ),
+    ])
+    const rows = await Promise.all(attached.map((sessionId) => sessionTab(rpc, project, sessionId, options)))
+    return {tabs: rows.flat(), unreachable: []}
   } catch (error) {
     return {tabs: [], unreachable: [{root: row.root, error: engineTooOld(error) ? TOO_OLD : errorText(error)}]}
   }
 }
 
-function tabRow(listing: Tabs) {
-  return (tab: Tabs['tabs'][number]): TabRow => ({
-    tab: tab.sessionId,
-    ...(listing.project.name === null ? {} : {project: listing.project.name}),
-    ...(listing.project.branch === null ? {} : {branch: listing.project.branch}),
-    root: listing.project.root,
-    ...(tab.page === null ? {} : {href: tab.page.href, pageTitle: tab.page.title, state: tab.page.state}),
-    sessionTitle: tab.session.title,
-    lastActive: new Date(tab.session.updatedAt).toISOString(),
-    running: tab.session.running,
-    harness: tab.harness,
-    browserTabs: tab.browserTabs.map((browserTab) => ({
-      id: browserTab.id,
-      ...(browserTab.page === null
-        ? {}
-        : {href: browserTab.page.href, pageTitle: browserTab.page.title, state: browserTab.page.state}),
-    })),
+async function sessionTab(rpc: RpcClient, project: Project, sessionId: SessionId, options: Signal): Promise<TabRow[]> {
+  const [meta, state] = await Promise.all([readMeta(rpc, sessionId, options), readState(rpc, sessionId, options)])
+  if (meta === null || meta.hidden) return []
+  const focusedFirst = [
+    ...state.tabs.filter((tab) => tab.id === state.focusedTabId),
+    ...state.tabs.filter((tab) => tab.id !== state.focusedTabId),
+  ]
+  const browserTabs = focusedFirst.map((tab) => ({
+    id: tab.id,
+    href: tab.url,
+    pageTitle: tab.title,
+    state: tab.visible ? ('visible' as const) : ('hidden' as const),
+  }))
+  const [first] = browserTabs
+  return [
+    {
+      tab: sessionId,
+      ...(project.name === null ? {} : {project: project.name}),
+      ...(project.branch === null ? {} : {branch: project.branch}),
+      root: project.root,
+      ...(first === undefined ? {} : {href: first.href, pageTitle: first.pageTitle, state: first.state}),
+      sessionTitle: meta.title,
+      lastActive: new Date(meta.updatedAt).toISOString(),
+      running: meta.running,
+      harness: meta.harnessKind,
+      browserTabs,
+    },
+  ]
+}
+
+function readMeta(rpc: RpcClient, sessionId: SessionId, options: Signal): Promise<SessionMeta | null> {
+  return rpc.sessions.get({sessionId}, options).catch((error: unknown) => {
+    if (error instanceof ORPCError && error.code === 'NOT_FOUND') return null
+    throw error
   })
 }
 

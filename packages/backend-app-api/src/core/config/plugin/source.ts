@@ -1,15 +1,13 @@
-export * as ConfigPluginSource from './source.js'
-
 import type {PluginOptions} from '@conciv/backend-plugin-api'
-import {ConfigPlugin} from '../../../schema/config/plugin.js'
+import * as ConfigPlugin from '../../../schema/config/plugin.js'
 import {FSUtil} from '../../../util/fs-util.js'
 import * as Host from '@conciv/backend-plugin-api/host'
 import {Context, Effect, FiberMap, Layer, Option, PubSub, Schedule, Scope, Semaphore, Stream} from 'effect'
 import path from 'path'
 import {fileURLToPath, pathToFileURL} from 'url'
-import {Watcher} from '../../filesystem/watcher.js'
-import {Location} from '../../location.js'
-import {PluginSourceDirectory} from '../../plugin/source-directory.js'
+import * as Watcher from '../../filesystem/watcher.js'
+import * as Location from '../../location.js'
+import * as PluginSourceDirectory from '../../plugin/source-directory.js'
 
 export type Operation =
   | {

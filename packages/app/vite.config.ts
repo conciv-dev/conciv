@@ -3,7 +3,6 @@ import {defineConfig, type Plugin} from 'vite'
 import solid from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 import {concivTest} from '@internal/vitest-config/conciv-test'
-import {concivKitTest} from '@conciv/plugin-testkit/vitest'
 
 const EXTERNAL_PREFIXES = ['solid-js/', 'effect/', '@ark-ui/', '@conciv/']
 
@@ -44,7 +43,7 @@ function classicScriptLoaders(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [UnoCSS(), solid(), classicScriptLoaders(), concivTest(), concivKitTest()],
+  plugins: [UnoCSS(), solid(), classicScriptLoaders(), concivTest({browser: true})],
 
   define: {'define.amd': 'false'},
   server: {warmup: {clientFiles: ['./src/mount-impl.tsx']}},

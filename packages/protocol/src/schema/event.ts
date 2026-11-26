@@ -1,15 +1,13 @@
-export * as Event from './event.js'
-
 import {Schema, SchemaTransformation} from 'effect'
 import {optional} from './schema.js'
-import {ascending} from './identifier.js'
-import {Location} from './location.js'
+import type {Maker} from './identifier.js'
+import * as Location from './location.js'
 import {statics} from './schema.js'
 
 export const Id = Schema.String.check(Schema.isStartingWith('evt_')).pipe(
   Schema.brand('Event.ID'),
   Schema.annotate({identifier: 'Event.ID'}),
-  statics((schema) => ({create: () => schema.make('evt_' + ascending())})),
+  statics((schema) => ({create: (ids: Maker) => schema.make('evt_' + ids.ascending())})),
 )
 export type Id = typeof Id.Type
 

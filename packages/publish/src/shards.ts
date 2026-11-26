@@ -16,16 +16,16 @@ export type ShardSizing = {
   splitHeavy: boolean
 }
 
-export const PACKAGE_GROUPS = ['packages', 'packages/plugins', 'apps']
+const PACKAGE_GROUPS = ['packages', 'packages/plugins', 'apps']
 
 const E2E_GROUPS = ['e2e', 'apps']
 
-export const PACKAGES_WITH_DEDICATED_JOBS = ['conciv-storybook']
+const PACKAGES_WITH_DEDICATED_JOBS = ['conciv-storybook']
 
-export const E2E_HARNESS_PACKAGE = 'conciv-e2e-harnesses'
+const E2E_HARNESS_PACKAGE = 'conciv-e2e-harnesses'
 
-export const TARGET_SHARD_MS = 150_000
-export const DEFAULT_PACKAGE_MS = 5_000
+const TARGET_SHARD_MS = 150_000
+const DEFAULT_PACKAGE_MS = 5_000
 
 const PACKAGE_SHARD_SIZING: ShardSizing = {
   targetMs: TARGET_SHARD_MS,
@@ -67,7 +67,7 @@ function readPackage(dir: string): WorkspacePackage | null {
   return {name: manifest.name, e2e: hasE2eScript(manifest)}
 }
 
-export function discoverPackages(rootDir: string, groupDirs: string[]): WorkspacePackage[] {
+function discoverPackages(rootDir: string, groupDirs: string[]): WorkspacePackage[] {
   const found = groupDirs.flatMap((group) => {
     const groupPath = join(rootDir, group)
     if (!existsSync(groupPath)) return []

@@ -90,7 +90,7 @@ export async function pluginDefinition(
   return {...bundle.value.definition, id, windowEntry: async () => ({default: (ctx: never) => setup?.(ctx)})}
 }
 
-const nodeBuiltins = new Set([
+const nodeBuiltins: readonly string[] = [
   'assert',
   'assert/strict',
   'async_hooks',
@@ -145,10 +145,10 @@ const nodeBuiltins = new Set([
   'wasi',
   'worker_threads',
   'zlib',
-])
+]
 
 function mainOnlyModule(name: string) {
-  return name.startsWith('node:') || nodeBuiltins.has(name)
+  return name.startsWith('node:') || nodeBuiltins.includes(name)
 }
 
 type InertModule = () => void

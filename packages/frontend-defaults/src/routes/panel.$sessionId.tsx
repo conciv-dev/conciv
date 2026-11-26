@@ -15,7 +15,7 @@ import {
   createRunClock,
   createSessionStatus,
   formatElapsed,
-  sessionTotals,
+  createSessionTotals,
   turnRollup,
   type TurnRollup,
 } from '@conciv/ui-kit-chat'
@@ -338,8 +338,7 @@ function PanelSession(): JSX.Element {
     stopped: chat().stopped(),
     ran: (row()?.lastRunAt ?? null) !== null || chat().runSource() !== null,
   }))
-  // oxlint-disable-next-line solid/reactivity
-  const diff = sessionTotals(() => turns())
+  const diff = createSessionTotals(turns)
   const clock = createRunClock(() => chat().runSource())
   const elapsedLabel = () => {
     const state = clock()

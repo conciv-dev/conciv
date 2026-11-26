@@ -1,5 +1,3 @@
-export * as ImageLayer from './layer.js'
-
 import {Effect, Layer} from 'effect'
 import {Image, State} from '@conciv/backend-app-api'
 

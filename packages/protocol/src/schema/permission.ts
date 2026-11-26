@@ -1,16 +1,14 @@
-export * as Permission from './permission.js'
-
 import {Schema} from 'effect'
 import {optional} from './schema.js'
 import {ephemeral, inventory} from './event.js'
-import {ascending} from './identifier.js'
+import type {Maker} from './identifier.js'
 import {SessionId} from './session-id.js'
 import {statics} from './schema.js'
 
 export const Id = Schema.String.check(Schema.isStartingWith('per')).pipe(
   Schema.brand('Permission.ID'),
   Schema.annotate({identifier: 'Permission.ID'}),
-  statics((schema) => ({create: (id?: string) => schema.make(id ?? 'per_' + ascending())})),
+  statics((schema) => ({create: (ids: Maker) => schema.make('per_' + ids.ascending())})),
 )
 export type Id = typeof Id.Type
 

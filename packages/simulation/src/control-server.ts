@@ -173,5 +173,3 @@ export function start(options: StartOptions): Effect.Effect<Server, Error, Scope
     Effect.map(() => ({url: `${options.endpoint.protocol}//${options.endpoint.host}`})),
   )
 }
-
-export * as SimulationControlServer from './control-server.js'

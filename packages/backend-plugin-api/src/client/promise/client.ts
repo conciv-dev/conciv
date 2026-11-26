@@ -1,9 +1,7 @@
-export * as Conciv from './client.js'
-
 import {z} from 'zod'
-import {browserRpcConnection, type EngineConnectionTimings, type RpcClient} from '@conciv/client'
+import type {EngineTrust, RpcClient} from '@conciv/client'
 import {contract} from '@conciv/protocol'
-import {SharedEvents} from '../shared-events.js'
+import * as SharedEvents from '../shared-events.js'
 import type {EventSubscribeOutput} from './generated/types.js'
 import {makeRpc, type RpcApi} from './rpc.js'
 
@@ -15,7 +13,7 @@ export type ClientConnectionOptions = {
   readonly server: () => string
   readonly idleTimeout?: number
   readonly reconnectDelay?: number
-  readonly engineTimings?: Partial<EngineConnectionTimings>
+  readonly trust?: () => EngineTrust | undefined
 }
 
 type ClientConnection = {
@@ -35,14 +33,11 @@ export function make(
   const idleTimeout = options.idleTimeout ?? defaultIdleTimeout
   const reconnectDelay = options.reconnectDelay ?? defaultReconnectDelay
   const events = SharedEvents.make((signal, onActivity) =>
-    received(
-      raw,
-      signal,
-      onActivity,
-      connection.set,
-      {idleTimeout, reconnectDelay, engineTimings: options.engineTimings},
-      options.server,
-    ),
+    received(raw, signal, onActivity, connection.set, {
+      idleTimeout,
+      reconnectDelay,
+      trust: options.trust ?? (() => undefined),
+    }),
   )
   const groups = {
     auth: raw.auth,
@@ -52,9 +47,7 @@ export function make(
     markers: raw.markers,
     chat: raw.chat,
     registry: raw.registry,
-    tabs: raw.tabs,
     code: raw.code,
-    page: raw.page,
     meta: raw.meta,
     skill: raw.skill,
     agent: raw.agent,
@@ -102,9 +95,8 @@ async function* received(
   {
     idleTimeout,
     reconnectDelay,
-    engineTimings,
-  }: {idleTimeout: number; reconnectDelay: number; engineTimings: Partial<EngineConnectionTimings> | undefined},
-  server: () => string,
+    trust,
+  }: {idleTimeout: number; reconnectDelay: number; trust: () => EngineTrust | undefined},
 ) {
   signal.addEventListener('abort', () => setStatus('connecting'), {once: true})
   while (!signal.aborted) {
@@ -112,7 +104,7 @@ async function* received(
     if (signal.aborted) return
     if (outcome === 'untrusted') {
       setStatus('connecting')
-      await trusted(server(), signal, engineTimings)
+      await trusted(trust(), signal)
       continue
     }
     setStatus('reconnecting')
@@ -161,20 +153,19 @@ async function* attempted(
   }
 }
 
-function trusted(server: string, signal: AbortSignal, engineTimings: Partial<EngineConnectionTimings> | undefined) {
-  const {trust, release} = browserRpcConnection(server, undefined, engineTimings)
+function trusted(trust: EngineTrust | undefined, signal: AbortSignal) {
   return new Promise<void>((resolve) => {
     const settle = () => {
       stopTrust()
       signal.removeEventListener('abort', settle)
-      release()
       resolve()
     }
-    const stopTrust = trust.subscribe((status) => {
-      if (status === 'trusted') settle()
-    })
+    const stopTrust =
+      trust?.subscribe((status) => {
+        if (status === 'trusted') settle()
+      }) ?? (() => undefined)
     signal.addEventListener('abort', settle, {once: true})
-    if (trust.isTrusted() || signal.aborted) settle()
+    if (trust?.isTrusted() === true || signal.aborted) settle()
   })
 }
 

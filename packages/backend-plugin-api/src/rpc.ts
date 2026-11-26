@@ -1,1 +1,1 @@
-export {Rpc} from '@conciv/protocol/schema/rpc'
+export * as Rpc from '@conciv/protocol/schema/rpc'

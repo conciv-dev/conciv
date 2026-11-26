@@ -2,7 +2,7 @@ import {Effect, Exit} from 'effect'
 import {HttpClientRequest} from 'effect/http'
 import {TestClock} from 'effect/testing'
 import {describe, expect, it} from 'vitest'
-import {SimulationNetwork} from '../../src/backend/network.js'
+import * as SimulationNetwork from '../../src/backend/network.js'
 
 describe('simulation network', () => {
   it('keeps routes and request logs local to each network', async () => {

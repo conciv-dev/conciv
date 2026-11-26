@@ -3,7 +3,7 @@ import {RPCLink} from '@orpc/client/websocket'
 import {Effect, type Scope} from 'effect'
 import getPort from 'get-port'
 import type {HandshakeParams, LlmNotification} from '@conciv/protocol/simulation'
-import {SimulatedProvider} from '../../src/backend/simulated-provider.js'
+import * as SimulatedProvider from '../../src/backend/simulated-provider.js'
 import type {DriveClient} from '../../src/driver.js'
 
 export type RawDriver = {

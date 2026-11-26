@@ -1,49 +1,48 @@
-import type {EngineStart} from '@conciv/plugin-testkit'
+import type {FakeEngineOptions} from '@conciv/client/testing'
+import {pastSessionHandlers, sessionRow, textMessage} from '../utils/sessions-engine.js'
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
+const ALPHA_ID = 'ses_pastalpha'
 
-export function pastSessions(): EngineStart {
+export function pastSessions(): FakeEngineOptions {
   const startOfToday = new Date().setHours(0, 0, 0, 0)
   return {
-    harnesses: [
-      {
-        id: 'engine',
-        sessions: [
+    sessions: [{id: ALPHA_ID, title: 'Alpha'}],
+    handlers: {
+      sessions: pastSessionHandlers(
+        [sessionRow(ALPHA_ID, 'Alpha', Date.now())],
+        [
           {
-            id: 'past-login',
-            derivedTitle: 'Fix the login form',
+            nativeId: 'past-login',
+            title: 'Fix the login form',
             updatedAt: startOfToday - 12 * HOUR_MS,
             messages: [
-              {id: 'login-1', role: 'user', parts: [{type: 'text', content: 'why does login fail'}]},
-              {
-                id: 'login-2',
-                role: 'assistant',
-                parts: [{type: 'text', content: 'The session cookie expires too early'}],
-              },
+              textMessage('login-1', 'user', 'why does login fail'),
+              textMessage('login-2', 'assistant', 'The session cookie expires too early'),
             ],
           },
           {
-            id: 'past-footer',
-            derivedTitle: 'Tidy the footer',
+            nativeId: 'past-footer',
+            title: 'Tidy the footer',
             updatedAt: startOfToday - 30 * DAY_MS,
             messages: [
-              {id: 'footer-1', role: 'user', parts: [{type: 'text', content: 'make the footer smaller'}]},
-              {id: 'footer-2', role: 'assistant', parts: [{type: 'text', content: 'Moved the links into one row'}]},
+              textMessage('footer-1', 'user', 'make the footer smaller'),
+              textMessage('footer-2', 'assistant', 'Moved the links into one row'),
             ],
           },
           {
-            id: 'past-checkout',
+            nativeId: 'past-checkout',
             cwd: '/elsewhere/storefront',
-            derivedTitle: 'Ship the checkout page',
+            title: 'Ship the checkout page',
             updatedAt: startOfToday - 20 * DAY_MS,
             messages: [
-              {id: 'checkout-1', role: 'user', parts: [{type: 'text', content: 'where does the order start'}]},
-              {id: 'checkout-2', role: 'assistant', parts: [{type: 'text', content: 'In the cart page'}]},
+              textMessage('checkout-1', 'user', 'where does the order start'),
+              textMessage('checkout-2', 'assistant', 'In the cart page'),
             ],
           },
         ],
-      },
-    ],
+      ),
+    },
   }
 }

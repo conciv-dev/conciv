@@ -112,7 +112,7 @@ const ScriptInput = z.looseObject({typescriptCode: z.string()})
 
 function sessionScripts(parts: ReadonlyArray<ToolCallPart>): string[] {
   return parts.flatMap((part) => {
-    if (PAGE_ACT_TOOL_NAMES.has(part.name) || part.name.startsWith(PAGE_TOOL_PREFIX)) return []
+    if (PAGE_ACT_TOOL_NAMES.includes(part.name) || part.name.startsWith(PAGE_TOOL_PREFIX)) return []
     const input = parseInput(ScriptInput, part)
     return input ? [input.typescriptCode] : []
   })
@@ -326,7 +326,7 @@ export type PageSessionStep = {
 
 const FIXED_TARGETS: Record<string, string> = {css: 'stylesheet', eval: 'script', effect: 'effect'}
 
-const SCRIPT_VERBS = new Set(['eval', 'css', 'effect'])
+const SCRIPT_VERBS: readonly string[] = ['eval', 'css', 'effect']
 
 const CODE_TARGET_KEYS: Record<string, string> = {eval: 'code'}
 
@@ -341,7 +341,7 @@ function firstMeaningfulLine(text: string): string | undefined {
 }
 
 export function pageSessionScripted(steps: ReadonlyArray<PageSessionStep>): boolean {
-  return steps.length > 0 && steps.every((step) => SCRIPT_VERBS.has(step.verb))
+  return steps.length > 0 && steps.every((step) => SCRIPT_VERBS.includes(step.verb))
 }
 
 function nonEmpty(value: unknown): string | undefined {
@@ -403,11 +403,11 @@ export function pageSessionSteps(
   parts: ReadonlyArray<ToolCallPart>,
   resultFor: (toolCallId: string) => ToolResultPart | undefined,
   captureFor: (toolCallId: string) => ToolCaptureView | undefined,
-  actNames: ReadonlySet<string>,
+  actNames: readonly string[],
   streaming: boolean,
 ): PageSessionStep[] {
   return parts
-    .filter((part) => actNames.has(part.name))
+    .filter((part) => actNames.includes(part.name))
     .map((part) => {
       const verb = pageVerbOfTool(part.name)
       const input = toolInput(part)

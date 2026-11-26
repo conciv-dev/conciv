@@ -49,6 +49,7 @@ type Driver = {
 
 export type DraftStore = AsyncStorage & {
   putBlob(blob: Blob): Promise<BlobReference>
+  resolveBlobUrl(blob: {id: string; url?: string}): Promise<string | undefined>
   setDocument(key: string, document: unknown): Promise<void>
   keys(): Promise<string[]>
   clear(): Promise<void>
@@ -61,54 +62,6 @@ const textCacheLimit = 64
 
 const retainedBlobGrace = RETAINED_BLOB_GRACE_MS
 
-let retention = createDraftRetentionState()
-
-const timers = new Map<string, ReturnType<typeof setTimeout>>()
-const storeLoaders = new Map<number, (id: string) => Promise<string | undefined>>()
-
-function dispatch(event: DraftRetentionEvent) {
-  const result = transitionDraftRetention(retention, event)
-  retention = result.state
-  result.effects.forEach((effect) => {
-    if (effect.type === 'url.revoke') return URL.revokeObjectURL(effect.url)
-
-    clearTimeout(timers.get(effect.id))
-    timers.delete(effect.id)
-
-    if (effect.type === 'timer.cancel') return
-
-    timers.set(
-      effect.id,
-      setTimeout(() => {
-        timers.delete(effect.id)
-        dispatch({type: 'grace.expired', id: effect.id, attempt: effect.attempt})
-      }, effect.delayMs),
-    )
-  })
-}
-
-export function resolveBlobUrl(blob: {id: string; url?: string}) {
-  if (blob.url) return Promise.resolve(blob.url)
-  const existing = selectRetainedBlob(retention, blob.id)
-
-  if (existing) return Promise.resolve(existing.url)
-
-  return storeLoaders.get(selectBlobStoreId(retention, blob.id) ?? 0)?.(blob.id) ?? Promise.resolve(undefined)
-}
-function blobUrl(id: string, blob: Blob, graceMs?: number) {
-  const existing = retention.blobs.get(id)
-
-  if (existing) {
-    dispatch({type: 'blob.touched', id, graceMs})
-
-    return existing.url
-  }
-
-  const url = URL.createObjectURL(blob)
-  dispatch({type: 'blob.materialized', id, blob, url, graceMs})
-
-  return url
-}
 function imageIDs(value: unknown, into = new Set<string>()): Set<string> {
   if (Array.isArray(value)) {
     value.forEach((entry) => imageIDs(entry, into))
@@ -150,6 +103,45 @@ async function detach(blob: Blob) {
 
 export function createDraftStore(driver: Driver, options: {grace?: number} = {}): DraftStore {
   const grace = options.grace ?? retainedBlobGrace
+  let retention = createDraftRetentionState()
+  const timers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  const dispatch = (event: DraftRetentionEvent) => {
+    const result = transitionDraftRetention(retention, event)
+    retention = result.state
+    result.effects.forEach((effect) => {
+      if (effect.type === 'url.revoke') return URL.revokeObjectURL(effect.url)
+
+      clearTimeout(timers.get(effect.id))
+      timers.delete(effect.id)
+
+      if (effect.type === 'timer.cancel') return
+
+      timers.set(
+        effect.id,
+        setTimeout(() => {
+          timers.delete(effect.id)
+          dispatch({type: 'grace.expired', id: effect.id, attempt: effect.attempt})
+        }, effect.delayMs),
+      )
+    })
+  }
+
+  const blobUrl = (id: string, blob: Blob, graceMs?: number) => {
+    const existing = retention.blobs.get(id)
+
+    if (existing) {
+      dispatch({type: 'blob.touched', id, graceMs})
+
+      return existing.url
+    }
+
+    const url = URL.createObjectURL(blob)
+    dispatch({type: 'blob.materialized', id, blob, url, graceMs})
+
+    return url
+  }
+
   const storeId = retention.nextStoreId
   dispatch({type: 'store.registered'})
   const loading = new Map<string, Promise<string | undefined>>()
@@ -172,7 +164,14 @@ export function createDraftStore(driver: Driver, options: {grace?: number} = {})
     return next
   }
 
-  storeLoaders.set(storeId, loadBlobUrl)
+  const resolveBlobUrl = (blob: {id: string; url?: string}) => {
+    if (blob.url) return Promise.resolve(blob.url)
+    const existing = selectRetainedBlob(retention, blob.id)
+
+    if (existing) return Promise.resolve(existing.url)
+
+    return selectBlobStoreId(retention, blob.id) === storeId ? loadBlobUrl(blob.id) : Promise.resolve(undefined)
+  }
 
   const putBlob = async (source: Blob) => {
     const blob = await detach(source)
@@ -417,6 +416,7 @@ export function createDraftStore(driver: Driver, options: {grace?: number} = {})
       chunkIds.clear()
     },
     putBlob,
+    resolveBlobUrl,
   }
 }
 function split(text: string) {

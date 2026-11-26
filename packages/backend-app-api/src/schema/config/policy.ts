@@ -1,5 +1,3 @@
-export * as ConfigPolicy from './policy.js'
-
 import {Schema, SchemaGetter} from 'effect'
 
 export const Effect = Schema.Literals(['allow', 'deny'])
@@ -23,18 +21,19 @@ const Statement = Schema.Struct({
   effect: Effect,
 })
 
-const legacy = new Map<string, Action>([
+const legacy: ReadonlyArray<readonly [string, Action]> = [
   ['mcp', 'mcp.use'],
   ['skill', 'skill.use'],
   ['plugin', 'plugin.use'],
-])
+]
 
 export const Info = Statement.pipe(
   Schema.decodeTo(Schema.toType(Statement), {
     decode: SchemaGetter.transform((policy) => {
       if (policy.action !== 'integration.use') return policy
       const separator = policy.resource.indexOf(':')
-      const action = separator === -1 ? undefined : legacy.get(policy.resource.slice(0, separator))
+      const action =
+        separator === -1 ? undefined : legacy.find(([prefix]) => prefix === policy.resource.slice(0, separator))?.[1]
       if (!action) return policy
       return {...policy, action, resource: policy.resource.slice(separator + 1)}
     }),

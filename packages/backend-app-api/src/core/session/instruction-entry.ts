@@ -1,8 +1,6 @@
-export * as InstructionEntry from './instruction-entry.js'
-
 import {Context, type Effect, type Schema} from 'effect'
-import {InstructionEntry} from '@conciv/protocol/schema/instruction-entry'
-import type {Session} from '@conciv/protocol/schema/session'
+import * as InstructionEntry from '@conciv/protocol/schema/instruction-entry'
+import type * as Session from '@conciv/protocol/schema/session'
 
 export const Key = InstructionEntry.Key
 export type Key = typeof Key.Type

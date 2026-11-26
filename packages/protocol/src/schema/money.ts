@@ -1,5 +1,3 @@
-export * as Money from './money.js'
-
 import {Schema} from 'effect'
 import {statics} from './schema.js'
 

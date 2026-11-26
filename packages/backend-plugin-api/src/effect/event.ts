@@ -1,6 +1,6 @@
-import type {Event} from '@conciv/protocol/schema/event'
-import type {EventManifest} from '@conciv/protocol/schema/event-manifest'
-import type {Location} from '@conciv/protocol/schema/location'
+import type * as Event from '@conciv/protocol/schema/event'
+import type * as EventManifest from '@conciv/protocol/schema/event-manifest'
+import type * as Location from '@conciv/protocol/schema/location'
 import type {Stream} from 'effect'
 
 type RpcEvent = {

@@ -1,28 +1,27 @@
-export * as PluginHost from './host.js'
-
 import path from 'node:path'
 import {Plugin} from '@conciv/backend-plugin-api/effect'
 import * as Bundler from '@conciv/protocol/schema/bundler'
-import {EventManifest} from '@conciv/protocol/schema/event-manifest'
-import {Event} from '@conciv/protocol/schema/event'
-import {SessionMessage} from '@conciv/protocol/schema/session-message'
-import {App} from '../app.js'
+import * as EventManifest from '@conciv/protocol/schema/event-manifest'
+import * as Event from '@conciv/protocol/schema/event'
+import * as Identifier from '@conciv/protocol/schema/identifier'
+import * as SessionMessage from '@conciv/protocol/schema/session-message'
+import * as App from '../app.js'
 import {Context, Effect, Schema, Stream} from 'effect'
 import type {Servers} from '@conciv/backend-plugin-api'
-import {Agent} from '../agent.js'
-import {Bus} from '../bus.js'
-import {KV} from '../kv.js'
-import {Location} from '../location.js'
-import {Model} from '../model.js'
-import {Session} from '../session.js'
-import {InstructionEntry} from '../session/instruction-entry.js'
-import {Rpc} from '../rpc.js'
+import * as Agent from '../agent.js'
+import * as Bus from '../bus.js'
+import * as KV from '../kv.js'
+import * as Location from '../location.js'
+import * as Model from '../model.js'
+import * as Session from '../session.js'
+import * as InstructionEntry from '../session/instruction-entry.js'
+import * as Rpc from '../rpc.js'
 import type {DeepMutable} from '../schema.js'
-import {Skill} from '../skill.js'
-import {Tool} from '../tool.js'
-import {Permission} from '../permission.js'
-import {PluginHooks} from './hooks.js'
-import {Global} from '../../util/global.js'
+import * as Skill from '../skill.js'
+import * as Tool from '../tool.js'
+import * as Permission from '../permission.js'
+import * as PluginHooks from './hooks.js'
+import * as Global from '../../util/global.js'
 import {FSUtil} from '../../util/fs-util.js'
 import type {Interface} from '../plugin.js'
 
@@ -48,6 +47,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
   const agents = yield* Agent.Service
   const models = yield* Model.Service
   const bus = yield* Bus.Service
+  const ids = yield* Identifier.Service
   const kv = yield* KV.Service
   const location = yield* Location.Service
   const rpc = yield* Rpc.Service
@@ -107,7 +107,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
     event: {
       subscribe: ((input?: {readonly types?: ReadonlyArray<string>}) => {
         const status = Stream.sync((): Event.Payload<typeof Bundler.Event.Status> => ({
-          id: Event.Id.create(),
+          id: Event.Id.create(ids),
           created: Date.now(),
           type: Bundler.Event.Status.type,
           data: {status: bundler === undefined ? 'disconnected' : 'connected'},

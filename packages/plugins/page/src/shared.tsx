@@ -95,7 +95,7 @@ function pageToolMutating(tool: string): boolean {
   return Operations.some((operation) => `${PAGE_TOOL_PREFIX}${operation.name}` === tool && operation.mutating)
 }
 
-export const ELEMENT_TARGET_KEYS = new Set(['selector', 'ref', 'name'])
+export const ELEMENT_TARGET_KEYS: readonly string[] = ['selector', 'ref', 'name']
 
 export const QUIET_TEXT_CLASS = 'text-[length:var(--chat-text-xs)] m-0 text-chat-text-3'
 
@@ -165,11 +165,11 @@ export function elementTarget(input: Record<string, unknown>): string | undefine
   return undefined
 }
 
-const NO_SKIP: ReadonlySet<string> = new Set()
+const NO_SKIP: readonly string[] = []
 
-function inputArgs(input: Record<string, unknown>, skip: ReadonlySet<string>): string[] {
+function inputArgs(input: Record<string, unknown>, skip: readonly string[]): string[] {
   return Object.entries(input)
-    .filter(([name, value]) => !skip.has(name) && value !== undefined)
+    .filter(([name, value]) => !skip.includes(name) && value !== undefined)
     .map(([name, value]) => `${name}=${clip(displayValue(value))}`)
 }
 
@@ -182,7 +182,7 @@ export function pageTitle(tool: string, running: boolean): string {
 export function PageTool(
   props: ToolProps & {
     subtitle?: string
-    skip?: ReadonlySet<string>
+    skip?: readonly string[]
     failed?: boolean
     hasContent: boolean
     children?: JSX.Element

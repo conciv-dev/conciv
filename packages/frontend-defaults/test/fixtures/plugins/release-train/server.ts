@@ -1,7 +1,7 @@
 import {Effect} from 'effect'
 import {z} from 'zod'
 import {Plugin} from '@conciv/backend-plugin-api/effect'
-import {Tool} from '@conciv/protocol/schema/tool'
+import * as Tool from '@conciv/protocol/schema/tool'
 
 export default Plugin.define({
   id: 'release-train',

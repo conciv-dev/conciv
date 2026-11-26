@@ -1,11 +1,13 @@
 import {z} from 'zod'
 import {Cause, Effect, Exit, Option, Result, Schema} from 'effect'
 import {partition} from 'es-toolkit'
-import {ascending} from '@conciv/protocol/schema/identifier'
+import type {Maker} from '@conciv/protocol/schema/identifier'
 import {approvalDenied, CodeFilesCapability, describeSchemas} from './ai.js'
 import {cappedValue, safeStringify} from '@conciv/protocol'
 import {Agent, Permission, SessionSchema, Tool, ToolRuntime} from '@conciv/backend-app-api'
-import {CodeMode, CodeModeCatalog, CodeModeToolRuntime} from './backend-defaults.js'
+import * as CodeMode from './codemode/codemode.js'
+import * as CodeModeCatalog from './core/codemode/catalog.js'
+import * as CodeModeToolRuntime from './codemode/tool-runtime.js'
 import {defineTool, type ChatTool} from '@conciv/types/chat-tool-types'
 import type {ChatContentPart} from '@conciv/types/chat-types'
 import type {ToolRequest} from '@conciv/types/tool-call-types'
@@ -30,7 +32,7 @@ export type CodeCapability = {
 
 export type CapabilityResult = {value: unknown; files: ChatContentPart[]; text: string[]}
 
-export type ToolDomain = {snapshot: Tool.Snapshot; agent: Agent.Id}
+export type ToolDomain = {snapshot: Tool.Snapshot; agent: Agent.Id; ids: Maker}
 
 const ATTACHED_FILE_TEXT = 'Attached document or image follows.'
 
@@ -69,12 +71,13 @@ function waitForCancel(signal: AbortSignal): Effect.Effect<void> {
   })
 }
 
-function toolContext(request: ToolRequest, agent: Agent.Id): Tool.Context {
+function toolContext(request: ToolRequest, agent: Agent.Id, ids: Maker): Tool.Context {
   return {
     sessionId: SessionSchema.Id.make(request.sessionId),
     agent,
     messageId: undefined,
-    id: Tool.CallId.make(request.toolCallId ?? 'call_' + ascending()),
+    id: Tool.CallId.make(request.toolCallId ?? 'call_' + ids.ascending()),
+    origin: request.origin,
     progress: () => Effect.void,
     ...(request.signal === undefined ? {} : {cancel: waitForCancel(request.signal)}),
   }
@@ -169,12 +172,12 @@ function enclosingNamespaces(namespaces: CodeModeSnapshot['namespaces'], path: s
 }
 
 function currentExecute(
-  {snapshot, agent}: ToolDomain,
+  {snapshot, agent, ids}: ToolDomain,
   name: string,
   input: unknown,
   request: ToolRequest,
 ): Effect.Effect<Tool.NormalizedResult, Tool.Error> {
-  const context = toolContext(request, agent)
+  const context = toolContext(request, agent, ids)
   return snapshot.codeMode?.execute(name, input, context) ?? snapshot.execute(directCall(name, input, context))
 }
 
@@ -227,7 +230,7 @@ function directCapabilities<R>(
         definition.name,
         run,
         Effect.flatMap(current, (domain) =>
-          domain.snapshot.execute(directCall(definition.name, input, toolContext(request, domain.agent))),
+          domain.snapshot.execute(directCall(definition.name, input, toolContext(request, domain.agent, domain.ids))),
         ),
         request.signal,
       ),
@@ -258,6 +261,7 @@ function directCall(name: string, input: unknown, context: Tool.Context): Parame
     agent: context.agent,
     messageId: context.messageId,
     call: {type: 'tool-call', id: context.id, name, input},
+    origin: context.origin,
     ...(context.cancel === undefined ? {} : {cancel: context.cancel}),
   }
 }

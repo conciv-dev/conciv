@@ -1,13 +1,14 @@
 import {describe, expect} from 'vitest'
 import {prepareHome, recordHubConnection, withHomeDb} from '@conciv/db'
-import {createEngine} from '@conciv/plugin-testkit'
+import page from '@conciv/plugin-page'
 import {test} from '../utils/hub-test.js'
 
 describe('the hub', () => {
   test('an outside agent lists the open tabs, then discovers and runs a tool with no tab on the engine registered in the home', async ({
+    createEngine,
     hub,
   }) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
+    const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']}, {plugins: [page]})
     withHomeDb(await prepareHome(engine.home), (db) => recordHubConnection(db, 'claude', Date.now()))
     const agent = await hub(engine.home)
 

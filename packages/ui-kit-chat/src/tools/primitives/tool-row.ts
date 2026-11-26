@@ -113,7 +113,7 @@ const TARGET_KEYS = [
   'prompt',
 ]
 
-const PATH_TARGET_KEYS = new Set(['file_path', 'filePath', 'path', 'file'])
+const PATH_TARGET_KEYS = ['file_path', 'filePath', 'path', 'file']
 
 function shortPath(path: string): string {
   const segments = path.split('/').filter(Boolean)
@@ -156,7 +156,7 @@ export function namedArgument(part: ToolCallPart): string | undefined {
     (entry): entry is {key: string; value: string} => entry.value !== undefined,
   )
   if (!matched) return undefined
-  const target = PATH_TARGET_KEYS.has(matched.key) ? pathTarget(matched.value, input.line) : matched.value
+  const target = PATH_TARGET_KEYS.includes(matched.key) ? pathTarget(matched.value, input.line) : matched.value
   return clipTarget(target)
 }
 

@@ -14,7 +14,11 @@ tester.run('banned-vocabulary', bannedVocabulary, {
     {name: 'a plural before the last segment', code: 'const forcesSend = 1', filename: appFile},
     {name: 'a use that declares nothing', code: 'call(bridge)', filename: appFile},
     {name: 'a computed key', code: 'const value = {[bridge]: 1}', filename: appFile},
-    {name: 'a term allowed at its path', code: 'const bridge = 1', filename: '/repo/packages/backend/src/app.ts'},
+    {
+      name: 'a term allowed at its path',
+      code: 'const bridge = 1',
+      filename: '/repo/packages/backend-defaults/src/engine/app.ts',
+    },
     {name: 'an exempt file', code: 'const bridge = 1', filename: '/repo/packages/oxlint-plugin/src/rule.js'},
     {
       name: 'an exempt file, Windows',

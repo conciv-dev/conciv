@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {cli} from '@conciv/plugin-testkit'
+import {cli} from '../utils/cli.js'
 import cliManifest from '../../package.json' with {type: 'json'}
 
 describe('help', () => {

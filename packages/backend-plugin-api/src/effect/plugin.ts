@@ -1,5 +1,5 @@
-import type {Location} from '@conciv/protocol/schema/location'
-import type {Plugin as PluginSchema} from '@conciv/protocol/schema/plugin'
+import type * as Location from '@conciv/protocol/schema/location'
+import type * as PluginSchema from '@conciv/protocol/schema/plugin'
 import type {Effect, FileSystem, Path, Scope} from 'effect'
 import type {ChildProcessSpawner} from 'effect/process'
 import type {App} from '../app.js'

@@ -22,7 +22,7 @@ import {
   Semaphore,
   Stream,
 } from 'effect'
-import {subscribeRpcReachability, type EngineConnectionTimings} from '@conciv/client'
+import type {EngineConnection} from '@conciv/client'
 import type {ConcivClient} from '@conciv/backend-plugin-api'
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
 import type {Entry} from '@conciv/frontend-plugin-api/host'
@@ -163,17 +163,17 @@ function callbackStream<A>(subscribe: (emit: (value: A) => void, fail: (cause: u
 function livePluginEngine(
   client: ConcivClient,
   builtins: readonly string[],
-  engineTimings: Partial<EngineConnectionTimings> | undefined,
+  connection: () => EngineConnection | undefined,
 ) {
   const enableStore = createManager(client, builtins)
 
   return Layer.succeed(PluginEngine, {
-    reachability: (url) =>
+    reachability: () =>
       Effect.gen(function* () {
         const votes = yield* Queue.unbounded<boolean>()
         yield* Effect.acquireRelease(
-          Effect.sync(() =>
-            subscribeRpcReachability(url, (reachable) => Queue.offerUnsafe(votes, reachable), engineTimings),
+          Effect.sync(
+            () => connection()?.subscribeReachability((reachable) => Queue.offerUnsafe(votes, reachable)) ?? (() => {}),
           ),
           (unsubscribe) => Effect.sync(unsubscribe),
         )
@@ -203,7 +203,7 @@ const makeBundleSource = Effect.fn('BundleSource.make')(function* (input: {
   readonly address: string
   readonly addresses: Stream.Stream<string>
   readonly builtins: readonly Entry[]
-  readonly engineHalf: ReadonlySet<string>
+  readonly engineHalf: readonly string[]
 }) {
   const engine = yield* PluginEngine
   const local = input.builtins.map((definition) => definition.id)
@@ -466,7 +466,7 @@ const makeBundleSource = Effect.fn('BundleSource.make')(function* (input: {
       id: pluginId,
       builtin: true,
       enabled: enabled(pluginId),
-      ...(input.engineHalf.has(pluginId) && inventory.builtinsListed
+      ...(input.engineHalf.includes(pluginId) && inventory.builtinsListed
         ? {server: inventory.builtinsListed.has(pluginId)}
         : {}),
     })),
@@ -572,8 +572,8 @@ export function createBundleSource(input: {
   readonly client: ConcivClient
   readonly apiBase: Accessor<string>
   readonly builtins: readonly Entry[]
-  readonly engineHalf: ReadonlySet<string>
-  readonly engineTimings?: Partial<EngineConnectionTimings>
+  readonly engineHalf: readonly string[]
+  readonly connection: () => EngineConnection | undefined
 }): BundleSource {
   const runtime = ManagedRuntime.make(
     Layer.effect(
@@ -589,7 +589,7 @@ export function createBundleSource(input: {
         livePluginEngine(
           input.client,
           input.builtins.map((definition) => definition.id),
-          input.engineTimings,
+          input.connection,
         ),
       ),
     ),

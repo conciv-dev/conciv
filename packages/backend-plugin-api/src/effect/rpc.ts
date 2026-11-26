@@ -1,6 +1,6 @@
 import type {RpcApi} from '../client/effect/rpc.js'
 export type {RpcClient} from '../client/effect/rpc.js'
-import type {Rpc} from '@conciv/protocol/schema/rpc'
+import type * as Rpc from '@conciv/protocol/schema/rpc'
 import type {Effect, Scope} from 'effect'
 import type {Registration} from './registration.js'
 

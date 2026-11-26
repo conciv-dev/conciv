@@ -16,7 +16,7 @@ Site helpers: fumadocs source loader, SEO and JSON-LD, OG image rendering, brand
 - `seo` (`seo.ts`), `buildRootJsonLd`, `buildDocsBreadcrumb`, `buildDocsPageJsonLd` (`structured-data.ts`), `buildDocsHead` (`docs-head.ts`)
 - `SITE`, `DEFAULT_TITLE`, `DEFAULT_DESCRIPTION`, `docsPageUrl`, `docsOgImageUrl`, `canonicalHeadTags`, `buildSitemapXml` (`site-urls.ts`)
 - `brandAssetUrl`, `BRAND_COLOURS`, `LOGO_LAYOUTS`, `LOGO_FORMATS`, `downloadFiles`, `resolveTone` and related (`brand-assets.ts`)
-- `parseStarCount`, `formatStarCount`, `starsResponseSchema` (`star-count.ts`); `subscribeStarCount`, `getStarCountSnapshot` (`star-count-store.ts`)
+- `parseStarCount`, `formatStarCount`, `starsResponseSchema` (`star-count.ts`); `useStarCount` (`star-count-store.ts`)
 - `rootSearchSchema` (`search-schemas.ts`): `widget?: boolean`, `try?: 1`
 - `sourceAnnotations(root)`, `annotateSiteFile` (`source-annotations.ts`): build-only Vite plugin adding source locations to JSX under `src/`
 - `docsRoute`, `gitConfig`, `repoUrl` (`shared.ts`), `baseOptions` (`layout.shared.tsx`), `cn` (`utils.ts`), `useIsMobile`, `useMediaQuery`, `useReducedMotion`, `easeOut`, `gsapEaseOut`
@@ -37,7 +37,7 @@ Site helpers: fumadocs source loader, SEO and JSON-LD, OG image rendering, brand
 
 - `try-session.functions.ts`: sets the `conciv-try-token` and `conciv-try-dismissed` cookies
 - `mount-live-widget.ts:mountLiveWidget`: appends `<meta name="conciv-widget">` to `document.head`, mounts the widget, subscribes to the router's `onResolved`, listens to `PANEL_TOGGLED_EVENT` on `window`, calls `dismissTry` and navigates to drop `?try`
-- `star-count-store.ts`: `fetch('/api/stars')` once per page
+- `star-count-store.ts`: `fetch('/api/stars')` once per page, cached in the router's query client
 - `og-fonts.server.ts:loadOgFonts`: `env.ASSETS.fetch` from `cloudflare:workers`
 - `use-media-query.ts`, `use-reduced-motion.ts`: `matchMedia` change listeners
 

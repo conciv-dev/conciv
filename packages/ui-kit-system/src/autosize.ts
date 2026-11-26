@@ -41,11 +41,18 @@ const HIDDEN_STYLE: [string, string][] = [
   ['display', 'block'],
 ]
 
-let clone: HTMLTextAreaElement | undefined
+const CLONE_MARK = 'data-autosize-clone'
+
+function findClone(): HTMLTextAreaElement {
+  const existing = document.body.querySelector(`:scope > textarea[${CLONE_MARK}]`)
+  if (existing instanceof HTMLTextAreaElement) return existing
+  const created = document.createElement('textarea')
+  created.setAttribute(CLONE_MARK, '')
+  return created
+}
 
 function hiddenClone(styles: CSSStyleDeclaration): HTMLTextAreaElement {
-  const node = clone ?? document.createElement('textarea')
-  clone = node
+  const node = findClone()
   node.setAttribute('tabindex', '-1')
   node.setAttribute('aria-hidden', 'true')
   for (const name of CLONE_STYLE) node.style.setProperty(name, styles.getPropertyValue(name))

@@ -1,13 +1,11 @@
-export * as EventManifest from './event-manifest.js'
-
 import {Schema} from 'effect'
-import {Agent} from './agent.js'
+import * as Agent from './agent.js'
 import * as Bundler from './bundler.js'
-import {Event} from './event.js'
-import {Permission} from './permission.js'
-import {Plugin} from './plugin.js'
-import {Skill} from './skill.js'
-import {SessionEvent} from './session-event.js'
+import * as Event from './event.js'
+import * as Permission from './permission.js'
+import * as Plugin from './plugin.js'
+import * as Skill from './skill.js'
+import * as SessionEvent from './session-event.js'
 
 const coreDefinitions = Event.inventory(...SessionEvent.Definitions)
 

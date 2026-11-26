@@ -5,7 +5,7 @@ import {Context, Effect, Function, Layer, Option, Schedule, Schema} from 'effect
 import type {FileSystem, Scope} from 'effect'
 import type {PlatformError} from 'effect/PlatformError'
 import {FSUtil} from './fs-util.js'
-import {Global} from './global.js'
+import * as Global from './global.js'
 import {Hash} from './hash.js'
 
 export namespace EffectFlock {

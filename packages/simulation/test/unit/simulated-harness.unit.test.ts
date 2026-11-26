@@ -4,8 +4,9 @@ import {runAdapterTurn} from '../../src/ai-testkit.js'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
 import {SessionId} from '@conciv/types/chat-types'
 import {scriptedHarness} from '../../src/backend/scripted-harness.js'
-import {SimulatedHarness} from '../../src/backend/simulated-harness.js'
-import type {ProviderResponseEvent, SimulatedProvider} from '../../src/backend/simulated-provider.js'
+import * as SimulatedHarness from '../../src/backend/simulated-harness.js'
+import type {ProviderResponseEvent} from '../../src/backend/simulated-provider.js'
+import type * as SimulatedProvider from '../../src/backend/simulated-provider.js'
 
 describe('simulated harness', () => {
   function encoded(events: readonly ProviderResponseEvent[]): ChatEvent[] {

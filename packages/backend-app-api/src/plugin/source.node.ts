@@ -5,10 +5,8 @@ import {fileURLToPath, pathToFileURL} from 'node:url'
 import {missingPackageTarget} from './source.package.js'
 import * as Host from '@conciv/backend-plugin-api/host'
 
-let generation = Date.now()
-
 export async function prepareSource(entrypoint: string, track: (file: string, directory?: boolean) => void) {
-  const version = String(++generation)
+  const version = crypto.randomUUID()
   const fresh = (specifier: string) => {
     const url = new URL(specifier)
     url.searchParams.set('__conciv_reload', version)

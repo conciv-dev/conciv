@@ -9,7 +9,7 @@ import {claudeChatConfig} from './chat.js'
 import {claudeHistory} from './history.js'
 import {claudeSdkCommands, claudeSdkLogin, claudeSdkModels, type ClaudeProbeEnv} from './sdk.js'
 import {definedEntries} from '../_shared/env.js'
-import type {HarnessConnectContext} from '@conciv/types/harness-types'
+import type {HarnessCommand, HarnessConnectContext} from '@conciv/types/harness-types'
 import type {TtyCommand} from '@conciv/types/terminal-types'
 
 const NESTED_SESSION_MARKERS = ['CLAUDECODE', 'CLAUDE_CODE_', 'CLAUDE_EFFORT', 'AI_AGENT']
@@ -31,6 +31,7 @@ function readProbeEnv(provider: ConfigProvider.ConfigProvider): ClaudeProbeEnv {
 }
 
 export function claude(provider: ConfigProvider.ConfigProvider) {
+  const commandsByCwd = new Map<string, HarnessCommand[]>()
   const configDir = claudeConfigDir({home: homedir(), override: readOptionalConfig(provider, 'CLAUDE_CONFIG_DIR')})
   return defineHarness({
     id: 'claude',
@@ -52,7 +53,7 @@ export function claude(provider: ConfigProvider.ConfigProvider) {
     },
     init: claudeInit,
     chatConfig: claudeChatConfig,
-    commands: (ctx) => claudeSdkCommands(ctx, readProbeEnv(provider)),
+    commands: (ctx) => claudeSdkCommands(ctx, readProbeEnv(provider), commandsByCwd),
     login: ({refresh}) => claudeSdkLogin({refresh: refresh ?? false, env: readProbeEnv(provider)}),
     history: claudeHistory(configDir),
     tty: {command: claudeTtyCommand},

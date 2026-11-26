@@ -1,8 +1,10 @@
-import {describe, test} from 'vitest'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {describe} from 'vitest'
+import {test} from '@conciv/backend-test-utils'
+import {TestLLM} from '@conciv/backend-test-utils'
 
 describe("the agent runs the project's tests", () => {
   test('the agent is told about the runner, lists the files, reads an empty status, runs everything, narrows a run with a pattern, reads the last run, and two runs asked at once each report their own tests', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine(
@@ -59,7 +61,8 @@ describe("the agent runs the project's tests", () => {
 })
 
 describe('the runner is stopped from outside', () => {
-  test('a client joining mid-run reads the run so far, a second run waits, stop ends the run that never finishes, and the waiting run then runs and is read back', async ({
+  test('a client joining mid-run reads the run so far, a second run waits, stop ends the run that never finishes with the results it had, the waiting run then runs and is read back, and a restarted engine has no run', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine(
@@ -68,26 +71,34 @@ describe('the runner is stopped from outside', () => {
     )
     const started = await engine.event('rpc.test-runner.event', {data: {type: 'run-start', runId: 'r1'}})
 
-    const endless = engine.rpc.call('test-runner', 'run', {patterns: ['watering']})
+    const endless = engine.rpc.call('test-runner', 'run', {})
     expect((await started.arrived).data).toMatchObject({
       type: 'run-start',
-      files: [expect.stringContaining('watering.test.js')],
+      files: expect.arrayContaining([expect.stringContaining('watering.test.js')]),
     })
-    expect(await engine.rpc.call('test-runner', 'current')).toMatchObject({
-      events: expect.arrayContaining([expect.objectContaining({type: 'run-start'})]),
-      unavailable: null,
-    })
+    await expect
+      .poll(() => engine.rpc.call('test-runner', 'current'))
+      .toMatchObject({
+        events: expect.arrayContaining([
+          expect.objectContaining({type: 'run-start'}),
+          expect.objectContaining({type: 'test', name: 'the seeds sprout', state: 'pass'}),
+          expect.objectContaining({type: 'test', name: 'the pruned rose blooms', state: 'fail'}),
+        ]),
+        unavailable: null,
+      })
     const next = await engine.event('rpc.test-runner.event')
     const waiting = engine.rpc.call('test-runner', 'run', {patterns: ['beds']})
     expect(await engine.rpc.call('test-runner', 'stop')).toEqual({ok: true})
-    expect((await next.arrived).data).toEqual({
+    expect((await next.arrived).data).toMatchObject({
       type: 'run-end',
       runId: 'r1',
-      summary: {passed: 0, failed: 0, skipped: 0, durationMs: 0},
-      failures: [],
-      tests: [],
+      summary: {passed: 1, failed: 1, skipped: 0},
+      failures: [{name: 'the pruned rose blooms'}],
     })
-    await endless
+    expect(await endless).toMatchObject({
+      summary: {passed: 1, failed: 1, skipped: 0},
+      failures: [{name: 'the pruned rose blooms'}],
+    })
 
     expect(await waiting).toMatchObject({
       summary: {passed: 1, failed: 1, skipped: 0},
@@ -104,13 +115,21 @@ describe('the runner is stopped from outside', () => {
         {file: expect.stringContaining('/greenhouse/beds/pruning.test.js'), relPath: 'beds/pruning.test.js'},
       ]),
     })
+
+    await engine.restart()
+    expect(await engine.rpc.call('test-runner', 'status')).toEqual({
+      summary: {passed: 0, failed: 0, skipped: 0, durationMs: 0},
+      failures: [],
+      tests: [],
+    })
+    expect(await engine.rpc.call('test-runner', 'current')).toEqual({events: null, unavailable: null})
   })
 })
 
 describe.concurrent('a runner the plugin does not implement', () => {
   test.for(['jest', 'node-test'])(
     'with runner %s the plugin does not start, so the agent is offered neither its skill nor its tools',
-    async (runner, {expect}) => {
+    async (runner, {createEngine, expect}) => {
       const engine = await createEngine(
         {plugins: [['@conciv/plugin-test-runner', {runner}]]},
         {directory: 'test/fixtures/plant-shop'},
@@ -126,7 +145,10 @@ describe.concurrent('a runner the plugin does not implement', () => {
 })
 
 describe('a playwright project', () => {
-  test('the agent lists the spec files, runs them all and narrows a run to one file', async ({expect}) => {
+  test('the agent lists the spec files, runs them all and narrows a run to one file', async ({
+    createEngine,
+    expect,
+  }) => {
     const engine = await createEngine(
       {plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]},
       {directory: 'test/fixtures/seed-catalog'},
@@ -146,6 +168,23 @@ describe('a playwright project', () => {
       summary: {passed: 1, failed: 0, skipped: 0},
       failures: [],
       tests: [{name: 'the catalog lists basil', state: 'pass'}],
+    })
+  })
+})
+
+describe('a project with no vitest', () => {
+  test('the run fails telling the agent vitest is missing, and the plugin rpc answers that the runner is unavailable', async ({
+    createEngine,
+    expect,
+  }) => {
+    const engine = await createEngine({plugins: ['@conciv/plugin-test-runner']})
+
+    expect(await engine.session.tool('test_runner_run').failure({})).toMatchObject({
+      message: expect.stringContaining("vitest unavailable: Cannot find module 'vitest/node'"),
+    })
+    expect(await engine.rpc.failure('test-runner', 'run', {})).toMatchObject({
+      type: 'UNAVAILABLE',
+      data: {available: false, error: expect.stringContaining("vitest unavailable: Cannot find module 'vitest/node'")},
     })
   })
 })

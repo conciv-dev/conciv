@@ -1,18 +1,17 @@
-export * as Bus from './bus.js'
-
 import {Cause, Clock, Context, Effect, Layer, Option, PubSub, Schema, Stream} from 'effect'
-import {Event} from '@conciv/protocol/schema/event'
-import type {EventLog} from '../schema/event-log.js'
+import * as Event from '@conciv/protocol/schema/event'
+import * as Identifier from '@conciv/protocol/schema/identifier'
+import type * as EventLog from '../schema/event-log.js'
 import {and, asc, eq, gt, isNull, lte, sql} from 'drizzle-orm'
-import {Database} from './database/database.js'
+import * as Database from './database/database.js'
 import {EventSequenceTable, EventTable} from './event/sql.js'
 import {sessions as SessionTable} from '@conciv/db'
-import type {Location} from '@conciv/protocol/schema/location'
-import {KeyedMutex} from './effect/keyed-mutex.js'
+import type * as Location from '@conciv/protocol/schema/location'
+import * as KeyedMutex from './effect/keyed-mutex.js'
 import {isDeepStrictEqual} from 'node:util'
 import {Durable} from '../schema/durable-event-manifest.js'
-import {SessionEvent} from '@conciv/protocol/schema/session-event'
-import {SessionLegacy} from '../schema/session-legacy.js'
+import * as SessionEvent from '@conciv/protocol/schema/session-event'
+import * as SessionLegacy from '../schema/session-legacy.js'
 import type {SessionId} from '@conciv/protocol/schema/session-id'
 
 export type Subscriber<D extends Event.Definition = Event.Definition> = (event: Event.Payload<D>) => Effect.Effect<void>
@@ -178,8 +177,9 @@ export function configured(options?: Options) {
   return Layer.effect(
     Service,
     Effect.gen(function* () {
-      const {Location} = yield* Effect.promise(() => import('./location.js'))
-      const engine = Option.getOrUndefined(yield* Effect.serviceOption(Location.Service))
+      const EngineLocation = yield* Effect.promise(() => import('./location.js'))
+      const engine = Option.getOrUndefined(yield* Effect.serviceOption(EngineLocation.Service))
+      const ids = yield* Identifier.Service
       const pubsub = {
         live: yield* PubSub.unbounded<Event.Payload>(),
         durable: new Map<string, Set<PubSub.PubSub<void>>>(),
@@ -466,7 +466,7 @@ export function configured(options?: Options) {
 
       const makePayload = (definition: Event.Definition, data: unknown, options: PublishOptions | undefined) =>
         Effect.gen(function* () {
-          const serviceLocation = Option.getOrUndefined(yield* Effect.serviceOption(Location.Service))
+          const serviceLocation = Option.getOrUndefined(yield* Effect.serviceOption(EngineLocation.Service))
           const location = options?.global
             ? undefined
             : (options?.location ??
@@ -474,7 +474,7 @@ export function configured(options?: Options) {
                 ? {directory: serviceLocation.directory, workspaceId: serviceLocation.workspaceId}
                 : undefined))
           return {
-            id: options?.id ?? Event.Id.create(),
+            id: options?.id ?? Event.Id.create(ids),
             created: yield* Clock.currentTimeMillis,
             ...(options?.metadata ? {metadata: options.metadata} : {}),
             type: definition.type,
@@ -663,7 +663,7 @@ export function configured(options?: Options) {
 
       const local = <A extends Event.Payload>(stream: Stream.Stream<A>) =>
         Stream.unwrap(
-          Effect.serviceOption(Location.Service).pipe(
+          Effect.serviceOption(EngineLocation.Service).pipe(
             Effect.map((location) =>
               Option.match(location, {
                 onNone: () => stream,

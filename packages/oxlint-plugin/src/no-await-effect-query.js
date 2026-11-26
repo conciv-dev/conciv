@@ -1,7 +1,7 @@
 import {isIdentifier, isNode} from './ast-walk.js'
 
 const DATABASE_NAME = 'db'
-const QUERY_METHODS = new Set([
+const QUERY_METHODS = [
   'select',
   'selectDistinct',
   'selectDistinctOn',
@@ -16,7 +16,7 @@ const QUERY_METHODS = new Set([
   'query',
   'execute',
   '$count',
-])
+]
 
 function isPlainMember(node) {
   return isNode(node) && node.type === 'MemberExpression' && !node.computed && isIdentifier(node.property)
@@ -28,14 +28,14 @@ function isDatabase(node) {
 }
 
 function isQueryMember(node) {
-  return isPlainMember(node) && QUERY_METHODS.has(node.property.name) && isDatabase(node.object)
+  return isPlainMember(node) && QUERY_METHODS.includes(node.property.name) && isDatabase(node.object)
 }
 
-const PROMISE_RUNNERS = new Set(['runPromise', 'runPromiseExit', 'runPromiseWith', 'runPromiseExitWith'])
+const PROMISE_RUNNERS = ['runPromise', 'runPromiseExit', 'runPromiseWith', 'runPromiseExitWith']
 
 function isPromiseRunner(node) {
   if (isNode(node) && node.type === 'CallExpression') return isPromiseRunner(node.callee)
-  return isPlainMember(node) && PROMISE_RUNNERS.has(node.property.name)
+  return isPlainMember(node) && PROMISE_RUNNERS.includes(node.property.name)
 }
 
 function isPipedToPromise(node) {

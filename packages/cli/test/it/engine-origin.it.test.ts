@@ -1,11 +1,15 @@
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {describe, expect, it} from 'vitest'
-import {cli, createEngine} from '@conciv/plugin-testkit'
+import {describe, expect} from 'vitest'
+import {test as it} from '@conciv/backend-test-utils'
+import page from '@conciv/plugin-page'
+import {cli} from '../utils/cli.js'
 
 describe('discovery', () => {
-  it('the engine in the environment wins, then server.json found from a subfolder, else the no-server hint', async () => {
-    const project = await createEngine()
+  it('the engine in the environment wins, then server.json found from a subfolder, else the no-server hint', async ({
+    createEngine,
+  }) => {
+    const project = await createEngine({}, {plugins: [page]})
     const other = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
     await project.write('src/app/main.ts', 'export {}\n')
 
@@ -30,7 +34,7 @@ describe('discovery', () => {
     })
   })
 
-  it('with no environment and no server.json, the engine registered in the home is found', async () => {
+  it('with no environment and no server.json, the engine registered in the home is found', async ({createEngine}) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
 
     const fromHome = await cli(['tools', '--help'], {cwd: tmpdir(), env: {CONCIV_HOME: engine.home}})

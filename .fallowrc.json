@@ -6,6 +6,7 @@
     "**/.turbo/**",
     "**/*.d.ts",
     "**/*.generated.ts",
+    "**/routeTree.gen.ts",
     "apps/examples/**",
     "native/swift/**",
     "e2e/astro/**",
@@ -16,6 +17,7 @@
     "e2e/vite-react/**",
     "e2e/vite-solid/**",
     "e2e/vite-vanilla/**",
+    "e2e/host-app-pending/**",
     "**/vitest.config.ts",
     "packages/backend/vite.config.ts",
     "packages/tools/vite.config.ts",
@@ -27,11 +29,11 @@
     "zones": [
       {
         "name": "session-facade",
-        "patterns": ["packages/backend/src/runtime/**", "packages/backend/src/runtime.ts"]
+        "patterns": ["packages/backend-defaults/src/engine/runtime/**"]
       },
       {
         "name": "core-shared-leaf",
-        "patterns": ["packages/backend/src/lib/debug.ts"]
+        "patterns": ["packages/backend-defaults/src/engine/lib/debug.ts"]
       },
       {
         "name": "core-tests",
@@ -39,7 +41,7 @@
       },
       {
         "name": "core-callers",
-        "patterns": ["packages/backend/src/**"]
+        "patterns": ["packages/backend-defaults/src/engine/**"]
       }
     ],
     "rules": [
@@ -421,8 +423,7 @@
     "@parcel/watcher-linux-x64-musl",
     "@parcel/watcher-win32-arm64",
     "@parcel/watcher-win32-x64",
-    "@tanstack/ai-event-client",
-    "@tanstack/store",
+    "@conciv/plugin-tanstack",
     "@oxlint/plugins",
     "@tanstack/solid-virtual",
     "@tiptap/core",
@@ -488,6 +489,7 @@
     "@conciv/ui-kit-system",
     "@conciv/ui-kit-tap",
     "@conciv/backend-defaults",
+    "@conciv/backend-test-utils",
     "@conciv/protocol",
     "@conciv/frontend-plugin-api"
   ],
@@ -860,11 +862,11 @@
       "exports": ["default"]
     },
     {
-      "file": "packages/backend/src/event-feed.ts",
+      "file": "packages/backend-defaults/src/engine/event-feed.ts",
       "exports": ["layer"]
     },
     {
-      "file": "packages/backend/src/lib/logging.ts",
+      "file": "packages/backend-defaults/src/engine/lib/logging.ts",
       "exports": ["layer"]
     },
     {

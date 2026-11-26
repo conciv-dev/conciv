@@ -1,5 +1,3 @@
-export * as Watcher from './watcher.js'
-
 import {hasMagic} from 'glob'
 import picomatch from 'picomatch'
 import {FSUtil} from '../../util/fs-util.js'

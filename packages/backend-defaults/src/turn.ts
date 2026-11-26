@@ -25,7 +25,7 @@ import {
 } from '@conciv/types/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {HarnessPermissionAsk, HarnessPermissionVerdict} from '@conciv/types/harness-types'
-import type {CodeModeCatalog} from './backend-defaults.js'
+import type * as CodeModeCatalog from './core/codemode/catalog.js'
 import type {PluginHooks} from '@conciv/backend-app-api'
 import type {UiChannel} from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
@@ -314,7 +314,11 @@ export function turnHooks(
       const instructions = Promise.withResolvers<PluginInstructions>()
       const normalizer = once(async () => toolNameNormalizer(await deps.toolNames(sessionId)))
       const toolSet = async () =>
-        chatToolSet(await deps.capabilities(sessionId), {sessionId, agentId: sessionId, model}, context.codeMode)
+        chatToolSet(
+          await deps.capabilities(sessionId),
+          {sessionId, agentId: sessionId, model, origin: 'chat'},
+          context.codeMode,
+        )
       const config = await harness.chatConfig({
         cwd: deps.cwd,
         sessionId,

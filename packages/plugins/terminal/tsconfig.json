@@ -1,6 +1,6 @@
 {
   "extends": "@internal/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
-    "types": ["node"]
+    "types": ["node", "vite/client"]
   }
 }

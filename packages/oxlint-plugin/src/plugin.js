@@ -8,6 +8,7 @@ import {isDomTestFile} from '@internal/vitest-config/test-layout'
 import noLocatorPoll from './no-locator-poll.js'
 import maxTestTimeout from './max-test-timeout.js'
 import noMocks from './no-mocks.js'
+import noModuleState from './no-module-state.js'
 import noPredicateWaits from './no-predicate-waits.js'
 import noQueryExistenceAssert from './no-query-existence-assert.js'
 import noSignalRef from './no-signal-ref.js'
@@ -20,7 +21,7 @@ import testFileTopLevel from './test-file-top-level.js'
 import {noInlineTimeouts, noTimersInTests} from './test-time.js'
 import {bannedVocabulary, corePurity, noOfSuffix} from './vocabulary.js'
 
-const DELEGATED_FOCUS = new Set(['onfocusin', 'onfocusout'])
+const DELEGATED_FOCUS = ['onfocusin', 'onfocusout']
 
 const KIT_FILE = /(^|[\\/])packages[\\/]ui-kit-chat[\\/]/
 const KIT_INTERNAL_NAME = 'CollapsibleCard'
@@ -32,9 +33,9 @@ const TEST_DIRECTORY = /(?:^|[\\/])test[\\/]/
 const LINE_TERMINATORS = ['\n', '\r', '\u2028', '\u2029']
 const RENDER_EXEMPT_FILE = /[\\/]test[\\/]fixtures[\\/]host[\\/]main\.tsx$/
 const SOLID_WEB_SOURCE = 'solid-js/web'
-const SOLID_WEB_RENDER_NAMES = new Set(['render', 'hydrate'])
+const SOLID_WEB_RENDER_NAMES = ['render', 'hydrate']
 
-const TESTING_LIBRARY_SOURCES = new Set(['@solidjs/testing-library', '@testing-library/dom'])
+const TESTING_LIBRARY_SOURCES = ['@solidjs/testing-library', '@testing-library/dom']
 const FIRE_EVENT_NAME = 'fireEvent'
 const KEY_DOWN_NAME = 'keyDown'
 const COMPOSING_NAME = 'isComposing'
@@ -47,7 +48,7 @@ function importedName(specifier) {
 
 function checkDelegatedFocus(node, context) {
   if (node.name.type !== 'JSXIdentifier') return
-  if (!DELEGATED_FOCUS.has(node.name.name.toLowerCase())) return
+  if (!DELEGATED_FOCUS.includes(node.name.name.toLowerCase())) return
   context.report({node, messageId: 'delegatedFocus', data: {name: node.name.name}})
 }
 
@@ -76,7 +77,7 @@ function rendersInTestFile(filename) {
 
 function reportSolidWebSpecifier(specifier, context) {
   const name = importedName(specifier)
-  if (name === undefined || !SOLID_WEB_RENDER_NAMES.has(name)) return
+  if (name === undefined || !SOLID_WEB_RENDER_NAMES.includes(name)) return
   context.report({node: specifier, messageId: 'solidWebRenderInTest', data: {name}})
 }
 
@@ -141,7 +142,7 @@ function reportFireEventSpecifier(specifier, context) {
 
 function checkTestingLibraryImport(node, context) {
   if (!isDomTestFile(context.filename)) return
-  if (!TESTING_LIBRARY_SOURCES.has(node.source.value)) return
+  if (!TESTING_LIBRARY_SOURCES.includes(node.source.value)) return
   for (const specifier of node.specifiers) reportFireEventSpecifier(specifier, context)
 }
 
@@ -150,7 +151,7 @@ function isTestingLibraryModuleObject(identifier, sourceCode) {
   const definition = reference?.resolved?.defs[0]
   if (definition?.type !== 'ImportBinding') return false
   if (definition.node.type === 'ImportSpecifier') return false
-  return TESTING_LIBRARY_SOURCES.has(definition.parent.source.value)
+  return TESTING_LIBRARY_SOURCES.includes(definition.parent.source.value)
 }
 
 function isTestingLibraryFireEvent(node, sourceCode) {
@@ -259,6 +260,7 @@ export default {
     'no-inline-timeouts': noInlineTimeouts,
     'no-locator-poll': noLocatorPoll,
     'no-mocks': noMocks,
+    'no-module-state': noModuleState,
     'no-of-suffix': noOfSuffix,
     'no-predicate-waits': noPredicateWaits,
     'no-query-existence-assert': noQueryExistenceAssert,

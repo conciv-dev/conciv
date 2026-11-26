@@ -1,13 +1,12 @@
-export * as PermissionSaved from './saved.js'
-
 import {eq} from 'drizzle-orm'
 import {Cause, Context, DateTime, Effect, Layer, Schema} from 'effect'
 import {isSqlError} from 'effect/sql/SqlError'
 import type {EffectDrizzleQueryError} from 'drizzle-orm/effect-core/errors'
-import type {Project} from '../../schema/project.js'
-import {Database} from '../database/database.js'
+import type * as Project from '../../schema/project.js'
+import * as Database from '../database/database.js'
 import {PermissionTable} from './sql.js'
-import {PermissionSaved} from '../../schema/permission-saved.js'
+import * as PermissionSaved from '../../schema/permission-saved.js'
+import * as Identifier from '@conciv/protocol/schema/identifier'
 
 export const Id = PermissionSaved.Id
 export type Id = typeof Id.Type
@@ -62,6 +61,7 @@ export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const db = (yield* Database.Service).db
+    const ids = yield* Identifier.Service
 
     const list = Effect.fnUntraced(function* (input?: ListInput) {
       const rows = yield* db
@@ -79,7 +79,7 @@ export const layer = Layer.effect(
         .insert(PermissionTable)
         .values(
           input.resources.map((resource) => ({
-            id: Id.create(),
+            id: Id.create(ids),
             project_id: input.projectId,
             action: input.action,
             resource,

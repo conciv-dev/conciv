@@ -1,10 +1,8 @@
-export * as Photon from './photon.js'
-
 import {Effect, Exit, Schema, Semaphore} from 'effect'
 import type {Worker} from 'node:worker_threads'
 import type {Content as ImageContent, Limits} from '@conciv/backend-app-api/core/image'
 import {makeDecodeError, makeResizerUnavailableError, makeSizeError} from '@conciv/backend-app-api/core/image/error'
-import {PhotonNormalize} from './photon-normalize.js'
+import * as PhotonNormalize from './photon-normalize.js'
 import type {Reply, Request} from './photon-worker.js'
 
 const WORKER_IDLE_MILLIS = 10_000

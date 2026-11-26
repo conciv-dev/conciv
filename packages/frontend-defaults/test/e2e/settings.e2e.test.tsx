@@ -1,8 +1,16 @@
 import {describe, expect, test} from 'vitest'
 import {screen, within, render} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import {createEngine} from '@conciv/plugin-testkit'
-import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+import {createORPCClient} from '@orpc/client'
+import {createFakeEngine} from '@conciv/client/testing'
+import type {RpcClient} from '@conciv/client'
+import {Plugin} from '@conciv/frontend-plugin-api'
+import type {PluginInfo} from '@conciv/backend-plugin-api'
+import {mountShell, shellEngine} from '../utils/mount-shell.js'
+import {pluginBundles, pluginUpdates, type FakeBundle} from '../utils/fake-plugins.js'
+import releaseTrain from '../fixtures/plugins/release-train/plugin-experimental.js?raw'
+import shellBoard from '../fixtures/plugins/shell-board/plugin-experimental.js?raw'
+import terminal from '../fixtures/plugins/terminal/plugin-experimental.js?raw'
 import {userEvent as browserInput, userEvent as browserUserEvent} from 'vitest/browser'
 import {createMemoryHistory} from '@tanstack/solid-router'
 import {createEventBusClient, PANEL_PLUGIN_ID, type PanelCommandEventMap} from '@conciv/types/event-bus'
@@ -10,8 +18,7 @@ import {createEventBusClient, PANEL_PLUGIN_ID, type PanelCommandEventMap} from '
 describe('moving around settings', () => {
   test('settings open on General, then on the last section the user left', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine: shellEngine()})
 
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     expect(await screen.findByRole('tab', {name: 'General', selected: true})).toBeVisible()
@@ -31,12 +38,9 @@ describe('moving around settings', () => {
 describe('settings for this project and for all projects', () => {
   test('a value saved for all projects shows here until this project overrides it, also when another client writes it', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.setting({scope: 'global', namespace: 'conciv', key: 'colorScheme', value: 'dark'})
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']}),
-    })
+    const engine = shellEngine(createFakeEngine({settings: {'global:conciv': {colorScheme: 'dark'}}}))
+    const otherClient = createORPCClient<RpcClient>(engine.connect().link)
+    await mountShell({engine})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
 
     expect(await screen.findByRole('radio', {name: 'Dark'})).toBeChecked()
@@ -47,7 +51,7 @@ describe('settings for this project and for all projects', () => {
     expect(screen.getByRole('radio', {name: 'Dark'})).toBeChecked()
     expect(screen.queryByText('From all projects')).not.toBeInTheDocument()
 
-    await engine.setting({scope: 'project', namespace: 'conciv', key: 'colorScheme', value: 'light'})
+    await otherClient.settings.set({scope: 'project', namespace: 'conciv', key: 'colorScheme', value: 'light'})
     expect(await screen.findByText('This project overrides it')).toBeVisible()
     expect(screen.getByRole('radio', {name: 'Dark'})).toBeChecked()
 
@@ -60,15 +64,13 @@ describe('settings for this project and for all projects', () => {
 describe('resetting settings', () => {
   test('the user resets the shortcuts, then every setting of this project', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.setting({
-      scope: 'project',
-      namespace: 'conciv',
-      key: 'commandShortcuts',
-      value: {togglePanel: ['Mod+K']},
+    await mountShell({
+      engine: shellEngine(
+        createFakeEngine({
+          settings: {'project:conciv': {commandShortcuts: {togglePanel: ['Mod+K']}, colorScheme: 'dark'}},
+        }),
+      ),
     })
-    await engine.setting({scope: 'project', namespace: 'conciv', key: 'colorScheme', value: 'dark'})
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     expect(await screen.findByRole('radio', {name: 'Dark', checked: true})).toBeVisible()
 
@@ -93,9 +95,15 @@ describe('resetting settings', () => {
 describe('plugins in settings', () => {
   test('a server plugin turned off elsewhere shows off in its settings row, and the user turns it on', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    await engine.setting({scope: 'global', namespace: 'plugin-enable', key: 'release-train', value: false})
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const bundles = [{id: 'release-train', code: releaseTrain, server: true}]
+    await mountShell({
+      engine: shellEngine(
+        createFakeEngine({
+          settings: {'global:plugin-enable': {'release-train': false}},
+          handlers: {plugin: pluginBundles(() => bundles)},
+        }),
+      ),
+    })
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     await user.click(await screen.findByRole('tab', {name: 'Plugins'}))
     expect(await screen.findByRole('switch', {name: 'release-train', checked: false})).toBeVisible()
@@ -113,29 +121,44 @@ describe('plugins in settings', () => {
 
   test('a plugin added to the project while the Plugins section is open joins the list', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']}, {fs: {filewatcher: true}})
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const bundles: FakeBundle[] = [{id: 'release-train', code: releaseTrain, server: true}]
+    const updates = pluginUpdates()
+    await mountShell({
+      engine: shellEngine(createFakeEngine({handlers: {plugin: pluginBundles(() => bundles), event: updates.event}})),
+    })
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     await user.click(await screen.findByRole('tab', {name: 'Plugins'}))
     expect(await screen.findByRole('switch', {name: 'release-train'})).toBeVisible()
     expect(screen.queryByText('desk-notes')).not.toBeInTheDocument()
 
-    await engine.write('conciv/plugins/desk-notes.js', "export default {id: 'desk-notes', setup: () => undefined}\n")
+    bundles.push({id: 'desk-notes', code: terminal})
+    updates.announce()
 
     expect(await screen.findByText('desk-notes')).toBeVisible()
     expect(screen.getByRole('switch', {name: 'release-train'})).toBeVisible()
   })
 
-  test('a plugin page joins the sections and its section shows in General, an unknown plugin page opens General, and a plugin under a built-in ID is not loaded', async () => {
+  test('a plugin page joins the sections and its section shows in General, an unknown plugin page opens General, a plugin under a built-in ID is not loaded, and a plugin the engine failed to set up shows the option it refused', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({
-      plugins: ['./test/fixtures/plugins/shell-board', './test/fixtures/plugins/terminal'],
-    })
-    await mount({
-      engine,
-      history: createEngineRouterHistory({
-        initialEntries: [`/panel/${engine.session.id}/settings/plugins/nowhere?open=true`],
-      }),
+    const bundles = [
+      {id: 'shell-board', code: shellBoard},
+      {id: 'terminal', code: terminal},
+    ]
+    const tanstack: PluginInfo = {
+      source: {type: 'package', target: '@conciv/plugin-tanstack'},
+      features: {server: true},
+      state: {status: 'failed', error: 'Invalid option bundlerWaitMs: expected a number of at least 1, received 0'},
+      options: {bundlerWaitMs: 0},
+    }
+    await mountShell({
+      engine: shellEngine(
+        createFakeEngine({
+          sessions: [{id: 'ses_desk', title: 'Desk'}],
+          handlers: {plugin: pluginBundles(() => bundles, [tanstack])},
+        }),
+      ),
+      plugins: [{id: 'terminal', plugin: Plugin.define({setup: () => undefined}), builtin: true}],
+      initialEntries: ['/panel/ses_desk/settings/plugins/nowhere?open=true'],
     })
 
     expect(await screen.findByRole('tab', {name: 'General', selected: true})).toBeVisible()
@@ -147,15 +170,16 @@ describe('plugins in settings', () => {
 
     await user.click(screen.getByRole('tab', {name: 'Plugins'}))
     expect(await screen.findByText('Not loaded. A built-in plugin already uses this ID.')).toBeVisible()
+    expect(await screen.findByText(/bundlerWaitMs/)).toBeVisible()
+    expect(screen.getByText('Failed')).toBeVisible()
   })
 })
 
 describe('the general settings change the panel', () => {
   test('the user picks a colour mode, a skin, hides the launcher and brings it back, and closes the panel with a page click, and the host closes it while it opens', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
     const history = createMemoryHistory({initialEntries: ['/panel/latest?open=true']})
-    await mount({engine, history})
+    await mountShell({engine: shellEngine(), history})
     const panel = await screen.findByRole('dialog', {name: 'conciv chat agent'})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
 
@@ -185,7 +209,7 @@ describe('the general settings change the panel', () => {
     const unsubscribe = history.subscribe(({location}) => {
       if (!location.search.includes('open=true')) closed.resolve(location.pathname)
     })
-    const panelCommands = createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID})
+    const panelCommands = createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID, target: () => window})
     panelCommands.emit('open', undefined)
     panelCommands.emit('close', undefined)
     expect(await closed.promise).toMatch(/^\/panel\//)
@@ -196,17 +220,17 @@ describe('the general settings change the panel', () => {
   })
 
   test('a project that chose to open on page load shows the panel when the page loads', async () => {
-    const engine = await createEngine()
-    await engine.setting({scope: 'project', namespace: 'conciv', key: 'openOnLoad', value: true})
-    await mount({engine})
+    await mountShell({
+      engine: shellEngine(createFakeEngine({settings: {'project:conciv': {openOnLoad: true}}})),
+      initialEntries: ['/'],
+    })
 
     expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
   })
 
   test('a launcher and an open on load set by the page are shown locked in settings', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({engine, host: {launcher: 'native', defaultOpen: true}})
+    await mountShell({engine: shellEngine(), settings: {launcher: 'native', defaultOpen: true}, initialEntries: ['/']})
 
     expect(await screen.findByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
@@ -220,8 +244,7 @@ describe('dragging a settings switch', () => {
   test('a drag cancelled with Escape leaves the switch as it was, and a drag past the middle turns the setting on', async () => {
     const user = userEvent.setup()
     render(() => <p>The host page</p>)
-    const engine = await createEngine()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine: shellEngine()})
     const panel = await screen.findByRole('dialog', {name: 'conciv chat agent'})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     const outsideClick = await screen.findByRole<HTMLInputElement>('switch', {name: 'Close on outside click'})
@@ -254,8 +277,7 @@ describe('the host page declares a skin in --conciv-skin', () => {
   test('a skin conciv ships is taken from the page and the Skin row says the page set it', async () => {
     const user = userEvent.setup()
     render(() => <style>{'body { --conciv-skin: terminal; }'}</style>)
-    const engine = await createEngine()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine: shellEngine()})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
 
     expect(await screen.findByText('Set by the page in --conciv-skin')).toBeVisible()
@@ -265,8 +287,7 @@ describe('the host page declares a skin in --conciv-skin', () => {
   test('a page skin neon that conciv does not ship is not taken, and the Skin row keeps the user choice', async () => {
     const user = userEvent.setup()
     render(() => <style>{'body { --conciv-skin: neon; }'}</style>)
-    const engine = await createEngine()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine: shellEngine()})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
 
     expect(await screen.findByRole('radio', {name: 'Conciv'})).toBeChecked()
@@ -277,8 +298,7 @@ describe('the host page declares a skin in --conciv-skin', () => {
 describe('recording keyboard shortcuts', () => {
   test('the user records a new panel key that then works, clears one, cancels one and moves a clashing one', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine: shellEngine()})
     const panel = await screen.findByRole('dialog', {name: 'conciv chat agent'})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     await user.click(await screen.findByRole('tab', {name: 'Shortcuts'}))
@@ -323,12 +343,7 @@ describe('recording keyboard shortcuts', () => {
 
   test('a page that turns the quick terminal off locks its shortcut rows', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({
-      engine,
-      host: {quickTerminal: false},
-      history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']}),
-    })
+    await mountShell({engine: shellEngine(), settings: {quickTerminal: false}})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     await user.click(await screen.findByRole('tab', {name: 'Shortcuts'}))
 

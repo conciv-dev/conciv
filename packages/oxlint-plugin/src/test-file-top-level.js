@@ -1,8 +1,8 @@
 import {isIdentifier, isNode} from './ast-walk.js'
 
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/
-const TEST_NAMES = new Set(['describe', 'test', 'it'])
-const MODIFIER_NAMES = new Set([
+const TEST_NAMES = ['describe', 'test', 'it']
+const MODIFIER_NAMES = [
   'describe',
   'each',
   'for',
@@ -17,7 +17,7 @@ const MODIFIER_NAMES = new Set([
   'fixme',
   'serial',
   'parallel',
-])
+]
 const RULE_TESTER_NAME = 'RuleTester'
 const RUN_NAME = 'run'
 
@@ -26,9 +26,9 @@ function isStaticMember(node) {
 }
 
 function isTestCallee(callee) {
-  if (isIdentifier(callee)) return TEST_NAMES.has(callee.name)
+  if (isIdentifier(callee)) return TEST_NAMES.includes(callee.name)
   if (isNode(callee) && callee.type === 'CallExpression') return isTestCallee(callee.callee)
-  if (!isStaticMember(callee) || !MODIFIER_NAMES.has(callee.property.name)) return false
+  if (!isStaticMember(callee) || !MODIFIER_NAMES.includes(callee.property.name)) return false
   return isTestCallee(callee.object)
 }
 

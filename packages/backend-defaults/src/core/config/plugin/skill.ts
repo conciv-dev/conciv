@@ -1,16 +1,14 @@
-export * as ConfigSkillPlugin from './skill.js'
-
 import {define} from '@conciv/backend-plugin-api/effect/plugin'
 import {FSUtil} from '@conciv/backend-app-api/util/fs-util'
-import {Global} from '@conciv/backend-app-api/util/global'
+import * as Global from '@conciv/backend-app-api/util/global'
 import path from 'path'
 import {Effect, FiberMap, PubSub, Semaphore, Stream} from 'effect'
-import {Watcher} from '@conciv/backend-app-api/core/filesystem/watcher'
-import {Location} from '@conciv/backend-app-api/core/location'
+import * as Watcher from '@conciv/backend-app-api/core/filesystem/watcher'
+import * as Location from '@conciv/backend-app-api/core/location'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
-import {Skill} from '@conciv/backend-app-api/core/skill'
-import {SkillFile} from './skill-file.js'
-import {SkillScan} from './skill-scan.js'
+import * as Skill from '@conciv/backend-app-api/core/skill'
+import * as SkillFile from './skill-file.js'
+import * as SkillScan from './skill-scan.js'
 
 type Source = Skill.DirectorySource
 

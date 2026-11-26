@@ -94,12 +94,10 @@ function recordVideo(browser: Browser, assets: {script: string; style: string}) 
     const lastTs = events.at(-1)?.timestamp ?? firstTs
     const timeout = Math.min(lastTs - firstTs, VIDEO_DURATION_CAP_MS) + VIDEO_FINISH_MARGIN_MS
     const videoPath = yield* attemptRender(async () => {
-      const finished = page
+      await page.evaluate(playReplayToEnd, {events})
+      await page
         .waitForFunction(() => document.documentElement.hasAttribute('data-replay-finished'), null, {timeout})
         .catch(() => undefined)
-      const crashed = page.waitForEvent('pageerror', {timeout}).catch(() => undefined)
-      await page.evaluate(playReplayToEnd, {events})
-      await Promise.race([finished, crashed])
       const video = page.video()
       await page.close()
       return video?.path()

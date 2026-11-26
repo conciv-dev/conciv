@@ -1,6 +1,6 @@
 import {Effect, Layer, Scope} from 'effect'
 import {OtlpLogger} from 'effect/observability'
-import {runID} from './shared.js'
+import {makeRunId} from './shared.js'
 
 export interface Options {
   readonly endpoint?: string
@@ -41,7 +41,10 @@ function resourceAttributes() {
   }
 }
 
-export function resource(app: App = {client: 'conciv', version: 'unknown', channel: 'local'}): {
+export function resource(
+  app: App = {client: 'conciv', version: 'unknown', channel: 'local'},
+  run: string = makeRunId(),
+): {
   serviceName: string
   serviceVersion: string
   attributes: Record<string, string>
@@ -53,25 +56,25 @@ export function resource(app: App = {client: 'conciv', version: 'unknown', chann
       ...resourceAttributes(),
       'deployment.environment.name': app.channel,
       'conciv.client': app.client,
-      'conciv.run': runID(),
-      'service.instance.id': runID(),
+      'conciv.run': run,
+      'service.instance.id': run,
       ...(app.instance === undefined ? {} : {'conciv.engine.id': app.instance}),
     },
   }
 }
 
-export function loggers(options: Options | undefined, app: App) {
+export function loggers(options: Options | undefined, app: App, run: string) {
   if (!options?.endpoint) return []
   return [
     OtlpLogger.make({
       url: `${options.endpoint}/v1/logs`,
-      resource: resource(app),
+      resource: resource(app, run),
       headers: parseHeaders(options.headers),
     }),
   ]
 }
 
-export const tracingLayer = Effect.fnUntraced(function* (options: Options | undefined, app: App) {
+export const tracingLayer = Effect.fnUntraced(function* (options: Options | undefined, app: App, run: string) {
   if (!options?.endpoint) return Layer.empty
   const [{layer}, {OTLPTraceExporter}, {BatchSpanProcessor}, contextHooks, {context}] = yield* Effect.all(
     [
@@ -89,7 +92,7 @@ export const tracingLayer = Effect.fnUntraced(function* (options: Options | unde
   context.setGlobalContextManager(asyncContext)
 
   const tracing = layer(() => ({
-    resource: resource(app),
+    resource: resource(app, run),
     spanProcessor: new BatchSpanProcessor(
       new OTLPTraceExporter({
         url: `${options.endpoint}/v1/traces`,

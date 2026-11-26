@@ -16,6 +16,55 @@ Before substantial work:
 Conventions for agents and contributors working in this repo. Product/architecture overview lives in
 README.md; this file is the non-obvious operational rules.
 
+## Packages: what goes where, and why
+
+The repo is laid out as Backstage lays out its packages (`_ref/backstage/packages`), and its engine, simulation and
+tests follow opencode (`_ref/opencode/packages`). When a question of where something goes is not answered here, the
+answer is what those two do.
+
+Each side of conciv has the same four kinds of package:
+
+| Kind       | Backend (the engine, node)   | Frontend (the widget, browser) | Holds                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------- | ---------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plugin API | `@conciv/backend-plugin-api` | `@conciv/frontend-plugin-api`  | what a plugin author imports: `Plugin.define`, the rpc contract helpers, the tool and context types. Public, stable, no implementation.                                                                                                                                                                                                                                                                        |
+| App API    | `@conciv/backend-app-api`    | `@internal/frontend-app-api`   | the machinery behind the plugin API: the plugin host, the tool service, permissions, hooks (backend); the opaque definitions, plugin loading, persistence (frontend). Plugins never import these.                                                                                                                                                                                                              |
+| Defaults   | `@conciv/backend-defaults`   | `@internal/frontend-defaults`  | the product with no plugin in it: the engine and its HTTP, rpc, MCP and login surface (`src/engine`), chat, code mode (backend); the shell, router, pane, composer, sessions and settings (frontend). Defaults ship NO plugin.                                                                                                                                                                                 |
+| App        | `@conciv/backend`            | `@conciv/app`                  | the shipped product: the defaults plus the plugins conciv ships, listed in one place (`backend/src` passes `plugins: [page]` to `createBackend`; `app/src/builtins.ts` lists the page and terminal renderers), as Backstage's `packages/backend` (`backend.add(...)`) and `packages/app` (`createApp({features})`). `@conciv/app` also builds the widget bundle (`packages/app/dist/conciv-widget.global.js`). |
+
+The rest:
+
+- `packages/plugins/*`: one package per plugin (page, terminal, tanstack, ios, recorder, test-runner, try-it,
+  whiteboard). A plugin's code lives only in its own package, engine part and browser part together, never in core,
+  defaults or app. The page plugin's tools, rpc, connection and tab handling are in `@conciv/plugin-page`; the engine
+  knows nothing about tabs. pty is the exception that stays in the engine (`backend-defaults`), as opencode keeps it in
+  `packages/core/src/pty`.
+- `@conciv/protocol` (the oRPC contract and shared schemas), `@conciv/types` (wire types), `@conciv/client` (the
+  browser's engine connection and rpc client, plus the fake engine in `@conciv/client/testing`), `@conciv/db`,
+  `@conciv/harness` (harness adapters), `@conciv/serve` (the node HTTP server), `@conciv/simulation` (opencode's
+  simulation: the scripted agent and fixed network table), `@conciv/cli`, `@conciv/unplugin` and `@conciv/it` (the
+  host-side install), the `ui-kit-*` packages, `@conciv/mascot`.
+- Test utilities, as Backstage's `backend-test-utils` and `frontend-test-utils` (see Testing): `@conciv/backend-test-utils`,
+  `@internal/frontend-test-utils`, `@internal/engine-kit` (the engine kit both backend-defaults' own tests and
+  backend-test-utils use), `@internal/vitest-config`.
+- `@internal/*` is private (never published, inlined where it is used); `@conciv/*` is published. A new published
+  package goes into `PUBLIC_PACKAGES` (`packages/publish/src/guards.ts`).
+
+Rules that hold the layout:
+
+- No dependency loop between workspace packages through ANY field: `dependencies`, `devDependencies`,
+  `peerDependencies` and `optionalDependencies` all count (`conciv-publish check-dependency-loops`, CI repo checks).
+  Backstage's own `plugin-app` dev-depends on `frontend-test-utils`, a dev loop; ours may not.
+- Turbo order comes from real dependencies alone: every package task depends on `^build`, with no cross-package
+  `pkg#task`, no `build:types` and no `kit-runtime` task. A build-order problem is fixed by a real dependency, never
+  by a turbo edge. The one root edge is `//#lint` on `@internal/uno-preset#build` (see Toolchain).
+- No module-level state anywhere, product or test code: no module-level `Map`/`Set`/`WeakMap`/`WeakSet`, no
+  module-level `let`, no module-level engine, connection, store, queue or registry, no `globalThis` writes
+  (`conciv/no-module-state`). State is created by its owner and passed in: an id maker made once at engine start
+  (`Identifier.makeMaker()`), caches owned by the component that reads them. A constant lookup is an array or object
+  literal.
+- No code exists for tests. A test reaches the product through what a user or host has (the rpc, the plugin API, the
+  config); a test-only option, export or branch in product code is refused.
+
 ## Toolchain
 
 - pnpm (exact version pinned in root `package.json` `packageManager`), Node >= 26. Monorepo orchestrated by turbo.
@@ -35,7 +84,7 @@ README.md; this file is the non-obvious operational rules.
   `turbo run quality:fix`.
 - Lint and format are turbo ROOT tasks (`//#lint`, `//#format`, `//#quality` in `turbo.json`), as Turborepo's
   Oxc guide: one oxlint and one oxfmt over the whole repo, no per-package `lint` script. `//#lint` depends on
-  `@conciv/uno-preset#build` alone, because the `unocss/order` rule loads each folder's `uno.config.ts`, which
+  `@internal/uno-preset#build` alone, because the `unocss/order` rule loads each folder's `uno.config.ts`, which
   imports the preset's `dist`; no other build is read. A root task's inputs are every file in the repo, so any
   edit misses its cache; that is the guide's stated trade-off. A `--filter` run never selects a root task.
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.
@@ -52,9 +101,9 @@ README.md; this file is the non-obvious operational rules.
   `futureFlags.affectedUsingTaskInputs`, so `--affected` selects a TASK when a changed file is one of its
   inputs or a task it depends on is selected: a test-only edit reruns that package's `test` and `typecheck`
   and no dependent and no build, a `src` edit reruns every dependent through `^build`, and a file another
-  package's build scans (the UnoCSS `$TURBO_ROOT$/...` build inputs in `packages/embed`, `apps/conciv`,
+  package's build scans (the UnoCSS `$TURBO_ROOT$/...` build inputs in `packages/app`, `packages/frontend-defaults`,
   `packages/ui-kit-chat`, `packages/ui-kit-chat-tools` and `packages/ui-kit-tap`) reruns that build. That holds
-  only while every task `test` and `typecheck` depend on (`build`, `build:types`, `kit-runtime`) excludes tests,
+  only while every task `test` and `typecheck` depend on (`build`) excludes tests,
   specs and stories from its `inputs`, and while each `$TURBO_ROOT$` build input carries the same exclusion as
   the `content.filesystem` globs in that package's `uno.config.ts`. `--filter=...[ref]` ignores the flag and
   still selects whole packages plus manifest dependents.
@@ -76,12 +125,12 @@ README.md; this file is the non-obvious operational rules.
   restaged. `pnpm install` auto-activates the hook via the `prepare` script; no per-clone step.
   Whole-project gates (typecheck/build/test) are not in hooks; run them manually.
 - Dev loop: every host consumes workspace `@conciv/*` packages from `dist`, exactly like a consumer;
-  nothing is served from `src/`. `pnpm dev:watch` runs `turbo watch dev --filter=@conciv/app`: the
-  `apps/conciv` dev server plus a rebuild of each dependency's `build` when its sources change, so a
+  nothing is served from `src/`. `pnpm dev:watch` runs `turbo watch dev --filter=@internal/frontend-defaults`:
+  the shell's dev server plus a rebuild of each dependency's `build` when its sources change, so a
   kit edit rebuilds that package's `dist` and Vite reloads the page. Outside that loop, rebuild a
   package with `pnpm --filter <pkg> build`; restart the dev server for server-side edits. NEW
-  UnoCSS utility classes added in ui-kit src appear after the embed rebuild (css is generated at
-  embed build).
+  UnoCSS utility classes added in ui-kit src appear after the `@conciv/app` rebuild (the widget css is
+  generated at that build).
 - Vite 8 auto-enables `server.forwardConsole` when it detects an agent env (`AI_AGENT` checked first,
   then `CLAUDECODE` etc.); combined with `@tanstack/devtools-vite`'s server-to-browser console pipe,
   a single page `console.error` round-trips forever as growing `[Server] ...` entries (12+ GB tabs
@@ -96,11 +145,11 @@ README.md; this file is the non-obvious operational rules.
 ## Code style
 
 - Functions, not classes. (Sole exception: `DelegatingTextAdapter` behind `makeTextAdapter`
-  in `packages/ai/src/adapters/adapters.ts`, which the library's typing forces.)
+  in `packages/harness/src/adapters/adapters.ts`, which the library's typing forces.)
 - No IIFEs unless explicitly required.
 - No identifier ending in "Of" (`conciv/no-of-suffix`): name a function with a verb first that says what its body does,
-  e.g. `readApprovalAsk`, not `approvalAskOf`. Files copied from opencode in `packages/plugin-host/src`,
-  `packages/plugin/src` and `apps/conciv/src/runtime/{plugin,persistence}` keep the source's names.
+  e.g. `readApprovalAsk`, not `approvalAskOf`. Files copied from opencode in `packages/backend-app-api/src`,
+  `packages/frontend-plugin-api/src` and `packages/frontend-defaults/src/runtime/{plugin,persistence}` keep the source's names.
 - Zero code comments in TS/JS (only tool directives like `@ts-`/`eslint-` survive). The
   `conciv/no-comments` lint rule autofix-DELETES anything else, so don't write comments and let lint
   strip them; write self-explanatory code.
@@ -134,95 +183,132 @@ README.md; this file is the non-obvious operational rules.
 
 ## Testing
 
-The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test plan is `docs/specs/test-split/`.
+Tests are laid out as Backstage's and run as opencode's. The plan and its rules are
+`docs/specs/test-rewrite-after-port.md`.
 
-- Layout: every package and app has `test/unit`, `test/it`, `test/e2e`, `test/fixtures` and `test/utils` (an empty one
-  holds a `.gitkeep`). The name carries the kind of its folder: `test/unit/x.unit.test.ts` is plain vitest in node or
-  happy-dom that starts nothing; `test/it/x.it.test.ts` runs in node and starts real things (an engine, files, CLIs);
-  `test/e2e/x.e2e.test.tsx` runs in vitest browser mode (Chromium, the kit's `mount`), and a perf file is
-  `test/e2e/x.perf.e2e.test.tsx`. Helpers and fakes live in `test/utils`, fixture files in `test/fixtures`. Playwright
-  Test exists only in the repo-root `e2e/` apps, never in a package's `test/e2e` (`conciv/playwright-test-in-e2e`).
-  Never jsdom.
-- vitest collects tests only from those folders: the `unit` and `it` projects of `concivTest()` and the kit's `browser`
-  and `perf` projects include `test/{unit,it,e2e}/**` alone, and no `vite.config.ts` points `include` anywhere else.
-  A test file anywhere else never runs, so `conciv/test-file-budget` fails it.
-- One `vite.config.ts` per package and no `vitest*.config` file: `concivTest()` (`@internal/vitest-config/conciv-test`)
-  adds the `unit` and `it` projects and `concivKitTest()` (`@conciv/plugin-testkit/vitest`) the `browser` and `perf`
-  ones; `conciv()` (`@conciv/unplugin`) adds nothing under vitest. `test/unit` runs in node unless the package passes
-  `concivTest({environment: 'happy-dom'})`; one file may override it with a first-line `// @vitest-environment happy-dom`.
-- A behaviour lives in the cheapest place that proves it, and only there: node, then happy-dom, then browser mode,
-  then `e2e/` (the built bundle in a real host app, real harness CLIs). Mounted behaviour (anything that mounts the
-  app or a plugin) is tested in a real browser on the kit's browser `mount` (`@conciv/plugin-testkit/browser`);
-  happy-dom is for tests that mount nothing (functions, models, reducers), as opencode
-  (`_ref/opencode/packages/app/happydom.ts`).
-- A framework app under e2e/ holds ONE test: the user signs in and the widget opens with no error in that framework.
-  It gets a second test only for something that broke in that framework, and the test title or its ledger row names
-  what broke. Behaviour that needs the real built widget in a real browser but is not about a framework (reload, real
-  windows and downloads, the file chooser, focus between the host page and the widget, real CLIs, the CLI binary) is
-  tested once, in one host app, never per framework.
-- Layout and budgets (`conciv/test-file-budget`): a package lacking one of the five folders fails; a `*.test.*` or
-  `*.spec.*` file outside `test/unit`, `test/it` and `test/e2e` (fixtures aside) fails; a name whose kind is not its
-  folder fails; never more test files than source files in a package; a test file is at most 1,000 lines.
-- Test budget (`test-budget.json`, `conciv-publish check-test-budget`, CI repo checks): it counts test cases in every
-  test file. The budget is a review gate, not a counter to bump. Before you raise any
-  number: (1) list every new test case in the package over its budget, by file and test name; (2) for each one, name
-  the existing test or suite you checked and say why it does not already cover this; (3) fold it into an existing
-  journey test when one fits (one journey, not one test per behaviour); (4) only a test that survives this gets a
-  raised number, and the PR body carries this account, test by test, for the maintainer to approve.
-- The kits. `@conciv/plugin-testkit`: `createEngine(config, start)`, `TestLLM`. `@conciv/plugin-testkit/browser`:
-  `mount` and `createEngineRouterHistory`; `mount({engine, history})` opens the app on a tab's last screen (`createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})`, written to sessionStorage) or on any TanStack `RouterHistory`. `@conciv/harness-testkit`: `createHarnessEngine`, for harness authors. `config` is the product's own
-  `ConcivConfig`; `start` is only what is not product config (`directory`, `timeouts`, `harnesses`, `env`, `fs`,
-  `clock`, `tokensPerSecond`). The engine is real and its chat is TanStack AI's `fakeText`, scripted with
-  `engine.reply(...)`, which takes only `TestLLM` replies (`text`, `toolCall`, `failAfter`, `hang`);
-  `engine.gate()` holds a reply.
-  Nothing else is exported; a new kit export or option needs the maintainer's yes.
-- Every package's `test` script is plain `vitest run`. `concivTest()` adds `@internal/vitest-config/isolated-home` as a vitest
-  `globalSetup`: the run gets a home of its own (removed after the run) and none of the developer's secrets or `CONCIV_*`
-  variables; it keeps the developer's Playwright browsers folder.
-- A package that runs kit tests lists the kit in its own `devDependencies`. The kits' builds are leaves: they depend on
-  no workspace package's build and name what they need as `peerDependencies`, except the private `@conciv/app` and
-  `@conciv/uno-preset`, which `@conciv/plugin-testkit` lists as `devDependencies` (`mount` works in this repo only
-  until the app is published). So `apps/conciv` and the kit test each other: a loop is allowed when it closes through a
-  devDependency or a peer, never through `dependencies` alone (`conciv-publish check-dependency-loops`, CI repo checks).
-- Who mounts the app. A package the app is made of (a dependency of `apps/conciv`: the page, terminal and tanstack
-  plugins, the plugin SDK, the ui kits, the mascot) never mounts the app: it keeps node tests of its machines, models,
-  tools and rpc, and stories of its components, and its on-screen journeys live in the app's tests under
-  `apps/conciv/src`. The app, and a plugin the app does not contain (test-runner, whiteboard, recorder, try-it), mount
-  the app from their own package.
+### Where a test lives
+
+- Every package and app has `test/unit`, `test/it`, `test/e2e`, `test/fixtures` and `test/utils` (an empty one holds a
+  `.gitkeep`). The file name carries its folder's kind:
+  - `test/unit/x.unit.test.ts`: plain vitest in node (or happy-dom) that starts nothing: functions, models, reducers,
+    machines.
+  - `test/it/x.it.test.ts`: node, starts real things: an engine, files, git, a CLI.
+  - `test/e2e/x.e2e.test.tsx`: vitest browser mode (Chromium), mounts the app or a plugin; a perf file is
+    `test/e2e/x.perf.e2e.test.tsx`.
+  - Helpers and fakes in `test/utils`, fixture files in `test/fixtures`.
+- The repo-root `e2e/` holds the real-host suites (Playwright Test, the built widget bundle in real host apps, real
+  harness CLIs). Playwright exists only there (`conciv/playwright-test-in-e2e`). Never jsdom.
+- A test lives in the package whose code it tests, and only there: an engine behaviour in `backend-defaults`, a shell
+  behaviour in `frontend-defaults`, a plugin's tools and screens in that plugin's package. Nothing tests another
+  package's internals.
+- A behaviour lives in the cheapest place that proves it, and only there: unit, then it, then e2e (browser mode), then
+  the root `e2e/` host app. Happy-dom is for code that mounts nothing, as opencode (`_ref/opencode/packages/app/happydom.ts`).
+- Only `packages/cli`'s own tests spawn the CLI, as opencode's `packages/cli`. No other package depends on `@conciv/cli`.
+- A framework app under `e2e/` holds ONE test: the user signs in and the widget opens with no error in that framework.
+  It gets a second test only for something that broke in that framework, named in its title. Behaviour that needs the
+  real built widget in a real browser but is not about a framework (reload, real windows and downloads, the file
+  chooser, focus between host page and widget, real CLIs, real pty) is tested once, in the one e2e host app.
+  `e2e/host-app-pending/` holds the journeys waiting for that app (see its README); nothing runs them yet.
+- Never add tests under `apps/examples/*` (demos). Exception: `apps/examples/tanstack-start` carries demo tests so the
+  in-chat test runner has something to run.
+
+### The test utilities
+
+As Backstage: the backend kit starts the real engine, the frontend kit renders the real shell against a fake engine.
+Nothing else is exported; a new export or option on any of them needs the maintainer's yes.
+
+- `@conciv/backend-test-utils` (published, as `@backstage/backend-test-utils`): `test`, `TestLLM`, `pluginDirectory`.
+  `test` is vitest's `test` extended with a `createEngine` fixture:
+
+  ```ts
+  import {test as it, TestLLM} from '@conciv/backend-test-utils'
+  import page from '../../src/page.js'
+
+  it('the agent reads the page', async ({createEngine}) => {
+    const engine = await createEngine({}, {plugins: [page]})
+    await engine.reply(TestLLM.text('done'))
+    await engine.session.send('Look at the page')
+  })
+  ```
+
+  `createEngine(config, start)` starts the REAL engine (`createBackend` from `@conciv/backend-defaults/backend`) on a
+  free port, as Backstage's `startTestBackend`, with the simulation's scripted model. `config` is the product's own
+  `ConcivConfig`; `start` is only what is not product config (`plugins`, `directory`, `timeouts`, `harnesses`, `env`,
+  `fs`, `clock`, `tokensPerSecond`). The engine ships no plugin: a test passes the plugins it needs in
+  `start.plugins`. Replies are scripted with `engine.reply(...)`, which takes only `TestLLM` replies (`text`,
+  `toolCall`, `failAfter`, `hang`); `engine.gate()` holds a reply. The fixture stops every engine its test started when
+  the test ends, pass or fail; a test never stops one itself.
+
+- `@internal/engine-kit` (private): the engine kit itself, taking `createBackend` as an argument so it depends on
+  neither backend-defaults nor backend-test-utils. `backend-test-utils` bundles it; `backend-defaults` uses it from its
+  own `test/utils` (it cannot depend on backend-test-utils, which depends on it). Nobody else imports it.
+- `@internal/frontend-test-utils` (private, as `@backstage/frontend-test-utils`): it depends on
+  `@internal/frontend-defaults`, the real shell, as Backstage's depends on `plugin-app`.
+  - `renderInTestApp({plugins, engine})`: a minimal host with one plugin's parts and the shell's chrome off, for a
+    plugin's own screens.
+  - `renderTestApp({plugins, engine})` (`@internal/frontend-test-utils/app`): the full shell from frontend-defaults
+    with the given plugins, for journeys through the chat.
+  - `createExtensionTester(...)`: one extension (a tool card, a tab) on its own.
+  - `useFakeEngine(engine?)`: the fake engine the render uses.
+- `@conciv/client/testing`: `createFakeEngine()` and `FakeLLM`. The fake engine is built with oRPC's
+  `implement(contract)` on the real contract (`@conciv/protocol`), reached through an in-memory link, so it answers
+  every procedure with the contract's own types; per-procedure handlers can be overridden for one test. A plugin keeps
+  its own rpc fake in its `test/utils` (`createFakeWhiteboard`, `fake-page.ts`), built the same way on that plugin's
+  contract. When the fake cannot do something a test needs, extend the fake to match the real engine; never drop the
+  step.
+- `@internal/vitest-config`: `concivTest({environment?, browser?})` in each package's one `vite.config.ts` (no
+  `vitest*.config` file) adds the `unit` and `it` projects, and with `browser: true` the `browser` and `perf` ones.
+  `conciv()` (`@conciv/unplugin`) adds nothing under vitest. `test/unit` runs in node unless the package passes
+  `environment: 'happy-dom'`; one file may override it with a first-line `// @vitest-environment happy-dom`. vitest
+  collects tests only from `test/{unit,it,e2e}/**`.
+- Every package's `test` script is plain `vitest run`. `concivTest()` adds a `globalSetup` that gives the run its own
+  home (removed after) with none of the developer's secrets or `CONCIV_*` variables; it keeps the developer's
+  Playwright browsers folder.
+- A package lists the test utilities it uses in its own `devDependencies`, and that must close no loop (a plugin
+  dev-depends on `@internal/frontend-test-utils`, never the reverse).
+
+### How a test is written
+
 - Tests do what a user does: queries by role, label and text, `user-event` (never `fireEvent`, except
   `fireEvent.keyDown` with `isComposing` for the IME guard). No CSS, DOM or geometry reads (`toHaveCSS`,
   `getComputedStyle`, `page.evaluate` reads), no class or id locators, no test-ids.
 - Assert with the jest-dom matchers (`toBeVisible`, `toHaveAccessibleName`, `toBeDisabled`, ...), never
-  `toBeDefined()` or `toBeTruthy()` on a Testing Library query: a `find`/`get` query already throws when nothing
-  matches, so those asserts prove nothing. One visible match is `getByRole(...)` (it throws on two) then
-  `toBeVisible()`. The kit loads the matchers in happy-dom and their types come with `@conciv/plugin-testkit`;
-  browser mode uses vitest's own.
+  `toBeDefined()` or `toBeTruthy()` on a Testing Library query. One visible match is `getByRole(...)` then
+  `toBeVisible()`.
 - No mocks or stubs (`vi.fn`, `vi.mock`, `vi.spyOn`, `vi.stubGlobal`, `vi.stubEnv`, fake modules). A fake is a real
-  implementation the product accepts (the scripted harness, an in-memory draft store). Config goes through Effect
-  `ConfigProvider`, never env writes.
+  implementation the product accepts (the scripted harness, the fake engine, an in-memory store). Config goes through
+  Effect `ConfigProvider` or the product's config, never env writes.
 - No sleeps and no per-call timeouts. A product timer a test must cross becomes an option the product reads, default
   unchanged; fake timers are allowed.
-- One `describe` per user flow, consecutive steps in one test; inputs as `it.each` tables. A test is never written per
-  old test or per spec line.
-- Tests never write app state outside their temp dirs, and never add `afterEach`/`onTestFinished` for kit resources:
-  the kit cleans up.
-- The calm perf gate (frame-gap budgets) is `pnpm --filter @conciv/app test:perf`, kept out of `pnpm test`;
-  run it locally in Chromium and Firefox before merging a chat-plane change.
-- Flame graph of a slow test: `NODE_OPTIONS='--cpu-prof --cpu-prof-dir=/tmp/prof' pnpm exec vitest run <file>`; every test process
-  writes a `.cpuprofile` there. Open it in Chrome DevTools (Performance, Load profile) or speedscope.
-- `e2e/` suites load the PREBUILT bundle (`packages/embed/dist/conciv-widget.global.js`): rebuild it
-  (`pnpm turbo run build --filter=@conciv/embed`) before running them, or you test stale code. Use
-  `browser.newPage()`, not `newContext()` (contexts leak and spike CPU/memory), and never wait for Playwright
-  `networkidle` on a page with the live widget: its stream keeps the network busy forever; wait for
-  `domcontentloaded` (or a UI signal).
-- Never add tests under `apps/examples/*`: example apps are demos; verify behavior via the owning
-  package's tests, `@conciv/plugin-testkit`, or an `e2e/` consumer app. Sanctioned exception:
-  `apps/examples/tanstack-start` carries a handful of demo tests so the in-chat test runner has
-  something to run out of the box; they are demo content, not behavior verification.
-- zod validates every untrusted input where it enters: RPC procedures declare `oc.input(...)` in
-  `packages/contract/src/contract.ts`; plain Hono routes zod-parse each piece they read (body,
-  params, query, headers), e.g. `NativeFileSchema.safeParse(c.req.param('file'))` in
-  `packages/core/src/api/native-page.ts`.
+- One `describe` per user flow, consecutive steps in one test; inputs as `it.each`/`it.for` tables.
+- Tests never write app state outside their temp dirs, and never add `afterEach`/`onTestFinished` for a kit resource:
+  the fixtures and the render helpers clean up.
+- Budgets (`conciv/test-file-budget`): a package lacking one of the five folders fails; a test file outside
+  `test/unit`, `test/it` and `test/e2e` fails; a name whose kind is not its folder fails; never more test files than
+  source files; a test file is at most 1,000 lines.
+- Test budget (`test-budget.json`, `conciv-publish check-test-budget`): it counts test cases. It is a review gate, not a
+  counter to bump. Before you raise a number: (1) list every new test case over budget, by file and name; (2) for each,
+  name the existing test you checked and why it does not cover this; (3) fold it into an existing journey when one
+  fits; (4) only a survivor gets a raised number, and the PR body carries the account for the maintainer.
+
+### Running
+
+- One package: `turbo run test --filter=<pkg>`; one file: `pnpm vitest run <file>` in that package.
+- The calm perf gate (frame-gap budgets) is `pnpm --filter @internal/frontend-defaults test:perf`, kept out of
+  `pnpm test`; run it locally in Chromium and Firefox before merging a chat-plane change.
+- Flame graph of a slow test: `NODE_OPTIONS='--cpu-prof --cpu-prof-dir=/tmp/prof' pnpm vitest run <file>`; each test
+  process writes a `.cpuprofile`. Open it in Chrome DevTools (Performance, Load profile) or speedscope.
+- `e2e/` suites load the PREBUILT widget bundle (`packages/app/dist/conciv-widget.global.js`): rebuild it
+  (`pnpm turbo run build --filter=@conciv/app`) before running them, or you test stale code. Use `browser.newPage()`,
+  not `newContext()`, and never wait for Playwright `networkidle` on a page with the live widget; wait for
+  `domcontentloaded` or a UI signal.
+
+### Untrusted input
+
+- zod validates every untrusted input where it enters: rpc procedures declare `oc.input(...)` in
+  `packages/protocol/src/contract.ts` (a plugin, in its own contract); plain Hono routes zod-parse each piece they read
+  (body, params, query, headers), e.g. `ChunkFileSchema.safeParse(c.req.param('file'))` in
+  `packages/backend-defaults/src/engine/api/widget-page.ts`.
 
 ## Codebase analysis (fallow)
 
@@ -253,7 +339,7 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
 - All `@conciv/*` share ONE version: `.changeset/config.json` sets `fixed: [["@conciv/*"]]`, so a single
   changeset bumps the whole set in lockstep (currently the 0.0.x patch line). One changeset entry naming
   any `@conciv/*` package is enough to release them all.
-- EVERY PR that changes published packages (including `apps/conciv`, which ships inside `@conciv/embed`)
+- EVERY PR that changes published packages (including `@internal/frontend-defaults`, which ships inside the `@conciv/app` widget bundle)
   needs a changeset or the `no-changeset` label — CI `check-changesets --require-coverage` blocks
   otherwise. Verify locally before handoff:
   `pnpm exec conciv-publish check-changesets --require-coverage --base origin/main`.
@@ -294,7 +380,7 @@ The plan and its rules are `docs/specs/test-rewrite-after-port.md`; the per-test
 - Whiteboard (TanStack DB collections): never write to the db inside a collection subscription,
   effect, or render body: it triggers a re-render storm. Writes go in event handlers only.
 - The widget bundle must externalize the shared Ark/Solid deps; a second bundled copy splits the
-  Solid/Ark context and plugin popovers render at 0,0. Guarded by the mount-externals build test (`packages/embed/src/mount-impl.test.ts`);
+  Solid/Ark context and plugin popovers render at 0,0. Guarded by the mount-externals build test (`packages/app/test/unit/mount-impl.unit.test.ts`);
   don't weaken it.
 
 ## Security & safety

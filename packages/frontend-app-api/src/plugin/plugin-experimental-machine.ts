@@ -13,8 +13,6 @@ export type LoadedPluginExperimental = {
 
 type Cache = ReadonlyMap<string, LoadedPluginExperimental>
 
-const EMPTY: Cache = new Map()
-
 export type PluginExperimentalState =
   | {readonly status: 'awaiting'; readonly attempt: number}
   | {
@@ -77,14 +75,15 @@ export function transitionPluginExperimental(
     return {state: {status: 'disposed'}, effects: state.status === 'awaiting' ? [TIMER_STOP] : []}
 
   if (state.status === 'awaiting') {
-    if (event.type === 'pushed') return receive(state.attempt + 1, false, EMPTY, event.experimentals, true)
+    if (event.type === 'pushed') return receive(state.attempt + 1, false, new Map(), event.experimentals, true)
 
     if (event.type !== 'initial.resolved' && event.type !== 'initial.failed' && event.type !== 'timeout')
       return {state, effects: []}
 
     if (event.attempt !== state.attempt) return {state, effects: []}
 
-    if (event.type === 'initial.resolved') return receive(state.attempt + 1, false, EMPTY, event.experimentals, true)
+    if (event.type === 'initial.resolved')
+      return receive(state.attempt + 1, false, new Map(), event.experimentals, true)
 
     return {
       state: {status: 'failed', attempt: state.attempt},
@@ -103,11 +102,17 @@ export function transitionPluginExperimental(
     if (state.status === 'evaluating')
       return receive(state.attempt + 1, state.settled, state.cache, event.experimentals, false)
 
-    return receive(state.attempt + 1, true, state.status === 'loaded' ? state.cache : EMPTY, event.experimentals, false)
+    return receive(
+      state.attempt + 1,
+      true,
+      state.status === 'loaded' ? state.cache : new Map(),
+      event.experimentals,
+      false,
+    )
   }
 
   if (state.status === 'failed' && event.type === 'initial.resolved' && event.attempt === state.attempt)
-    return receive(state.attempt + 1, true, EMPTY, event.experimentals, false)
+    return receive(state.attempt + 1, true, new Map(), event.experimentals, false)
 
   if (state.status !== 'evaluating') return {state, effects: []}
 

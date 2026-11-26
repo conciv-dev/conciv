@@ -1,21 +1,22 @@
-export * as Tool from './tool.js'
-
 import {Effect, JsonSchema, Schema} from 'effect'
 import type {StandardSchemaV1} from '@standard-schema/spec'
-import type {Agent} from './agent.js'
-import type {Session} from './session.js'
-import type {SessionMessage} from './session-message.js'
+import type * as Agent from './agent.js'
+import type * as Session from './session.js'
+import type * as SessionMessage from './session-message.js'
 
 export type Metadata = Readonly<Record<string, any>>
 
 export const CallId = Schema.String.pipe(Schema.brand('Tool.CallID'))
 export type CallId = typeof CallId.Type
 
+export type Origin = 'hub' | 'chat'
+
 export interface Context {
   readonly sessionId: Session.Id
   readonly agent: Agent.Id
   readonly messageId: SessionMessage.Id | undefined
   readonly id: CallId
+  readonly origin: Origin
   readonly progress: (update: Metadata) => Effect.Effect<void>
   readonly cancel?: Effect.Effect<void>
 }

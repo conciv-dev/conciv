@@ -1,5 +1,3 @@
-export * as Location from './location.js'
-
 import {Schema, Struct} from 'effect'
 import {AbsolutePath, optional} from './schema.js'
 import {ProjectId} from './project-id.js'

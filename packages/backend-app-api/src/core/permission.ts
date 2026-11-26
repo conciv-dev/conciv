@@ -1,16 +1,15 @@
-export * as Permission from './permission.js'
-
 import {Context, Deferred, Effect, Layer, Schema} from 'effect'
-import {Permission} from '@conciv/protocol/schema/permission'
-import type {Session} from '@conciv/protocol/schema/session'
-import type {Tool} from '@conciv/protocol/schema/tool'
-import {Bus} from './bus.js'
-import {Location} from './location.js'
-import {Agent} from './agent.js'
-import {SessionErrors} from './session/error.js'
-import {Wildcard} from './util/wildcard.js'
-import {PermissionSaved} from './permission/saved.js'
-import {PluginHooks} from './plugin/hooks.js'
+import * as Permission from '@conciv/protocol/schema/permission'
+import * as Identifier from '@conciv/protocol/schema/identifier'
+import type * as Session from '@conciv/protocol/schema/session'
+import type * as Tool from '@conciv/protocol/schema/tool'
+import * as Bus from './bus.js'
+import * as Location from './location.js'
+import * as Agent from './agent.js'
+import * as SessionErrors from './session/error.js'
+import * as Wildcard from './util/wildcard.js'
+import * as PermissionSaved from './permission/saved.js'
+import * as PluginHooks from './plugin/hooks.js'
 
 const PermissionEffect = Permission.Effect
 export {PermissionEffect as Effect}
@@ -156,6 +155,7 @@ export const layer = Layer.effect(
     const sessions = yield* PermissionSessions
     const saved = yield* PermissionSaved.Service
     const hooks = yield* PluginHooks.Service
+    const ids = yield* Identifier.Service
     const pending = new Map<Id, Pending>()
     let closed = false
 
@@ -239,7 +239,7 @@ export const layer = Layer.effect(
 
     function request(input: AssertInput, message?: string): Request {
       return {
-        id: input.id ?? Id.create(),
+        id: input.id ?? Id.create(ids),
         sessionId: input.sessionId,
         action: input.action,
         resources: input.resources,
@@ -272,7 +272,7 @@ export const layer = Layer.effect(
       )
 
     const ask = Effect.fn('Permission.ask')(function* (input: AssertInput) {
-      if (closed) return {id: input.id ?? Id.create(), effect: 'deny' as const}
+      if (closed) return {id: input.id ?? Id.create(ids), effect: 'deny' as const}
       const result = yield* evaluateInput(input)
       const value = request(input, result.message)
       if (result.effect === 'ask') yield* create(value, input)

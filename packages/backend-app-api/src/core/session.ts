@@ -1,5 +1,3 @@
-export * as Session from './session.js'
-
 import {Context, type Effect} from 'effect'
 import type {
   Location,
@@ -18,9 +16,9 @@ import type {
   NotFoundError,
   SyntheticConflictError,
 } from './session/error.js'
-import type {SessionInbox} from '@conciv/protocol/schema/session-inbox'
+import type * as SessionInbox from '@conciv/protocol/schema/session-inbox'
 import type {SessionId as ProtocolSessionId} from '@conciv/protocol/schema/session-id'
-import type {SessionMessage} from '@conciv/protocol/schema/session-message'
+import type * as SessionMessage from '@conciv/protocol/schema/session-message'
 
 type SessionId = SessionInfo['id']
 type Metadata = NonNullable<SessionInfo['metadata']>

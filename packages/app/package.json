@@ -62,8 +62,9 @@
     "solid-js": "catalog:"
   },
   "devDependencies": {
-    "@conciv/plugin-testkit": "workspace:*",
+    "@internal/frontend-app-api": "workspace:*",
     "@internal/frontend-defaults": "workspace:*",
+    "@internal/plugin-terminal": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
     "@internal/vitest-config": "workspace:*",

@@ -138,12 +138,12 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - A test file reads top-down like a spec: imports, one shared boot, `describe` per feature, `it`
   named by user-visible behaviour, short arrange/act/assert; helper functions hoisted at the bottom.
   Tests go through the package's public entries, never test-only exports.
-- Widget and plugin behaviour tests run in vitest node + happy-dom on plugin-testkit `mount`; a real browser only for layout, scrolling, canvas, real focus and the built bundle. Flag jsdom, and flag a browser test whose behaviour needs none of those.
-- Testkits (`@conciv/plugin-testkit`, `@conciv/harness-testkit`, `apps/conciv/test/commands`, e2e
-  helpers) run the real product path and fake only expensive externals (the LLM harness, CLIs). A testkit
-  client that stands in for the browser uses the same transport and client as the product (browser rpc
-  over the `/rpc-ws` socket through `makeBrowserRpcClient`), never a parallel HTTP or
-  hand-rolled path. Intercepting a call to observe or fault it (`page.routeWebSocket`, `page.route`) is
+- Mounted behaviour (the shell or a plugin on screen) is tested in vitest browser mode with `@internal/frontend-test-utils` (`renderInTestApp`, `renderTestApp`, `createExtensionTester`) against the fake engine from `@conciv/client/testing`; happy-dom only for code that mounts nothing. Flag jsdom, and flag a mounted test that does not use the test utilities. See AGENTS.md, Testing.
+- Test utilities (`@conciv/backend-test-utils` and `@internal/engine-kit`, `@internal/frontend-test-utils`, the
+  fake engine in `@conciv/client/testing`, e2e helpers) run the real product path and fake only expensive
+  externals (the model, CLIs). The engine kit's browser client uses the same transport and client as the
+  product (browser rpc over the `/rpc-ws` socket, `@conciv/client`), never a parallel HTTP or hand-rolled
+  path; the fake engine implements the real oRPC contract (`implement(contract)`). Intercepting a call to observe or fault it (`page.routeWebSocket`, `page.route`) is
   fine; swapping the transport is not. Flag a PR that changes a product transport or client without
   moving the testkits onto it in the same PR, and any test that waits on or hooks a transport the
   product no longer uses.
@@ -169,16 +169,16 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - Widget integration tests use `browser.newPage()`, never `browser.newContext()`: contexts leak and
   spike CPU/memory. Whatever a test creates it closes in teardown.
 - Widget integration tests exercise the PREBUILT bundle
-  (`packages/embed/dist/conciv-widget.global.js`), built first with
-  `pnpm turbo run build --filter=@conciv/embed`.
+  (`packages/app/dist/conciv-widget.global.js`), built first with
+  `pnpm turbo run build --filter=@conciv/app`.
 - Never wait for Playwright `networkidle` on a page with the live widget: its SSE stream keeps the
   network busy forever. `domcontentloaded` or a UI signal instead.
 - No tests under `apps/examples/*` (example apps are demos), except the handful of demo tests in
   `apps/examples/tanstack-start`. Behaviour is verified by the owning package's tests,
-  `@conciv/plugin-testkit`, or an `e2e/` consumer app.
-- Every node test project in a Solid package's `vitest.config.ts` pins `test: {environment: 'node'}`, or
-  `vite-plugin-solid` injects jsdom and the run exits 1 with all tests passing. Browser projects keep
-  their browser config.
+  its test utilities, or an `e2e/` consumer app.
+- A package's tests are configured only through `concivTest(...)` in its one `vite.config.ts` (no
+  `vitest*.config` file); it pins node test projects to `node` so `vite-plugin-solid` never injects jsdom.
+  Flag a hand-written test project or environment.
 - A bug fix ships with a regression test that fails without the fix.
 - A flaky-test "fix" that only bumps a timeout or adds a retry is not acceptable. The mechanism gets
   fixed, or named explicitly in the PR.

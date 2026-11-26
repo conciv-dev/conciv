@@ -40,12 +40,9 @@ export type AttachmentAdapter = {
   send: (attachment: PendingAttachment) => Promise<CompleteAttachment>
 }
 
-let fallbackId = 0
-
 export function attachmentId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
-  fallbackId += 1
-  return `attachment-${fallbackId}`
+  return `attachment-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -103,24 +100,12 @@ export async function fileToDataSource(file: File): Promise<{type: 'data'; value
   return {type: 'data', value: dataUrl.slice(separator + 1), mimeType}
 }
 
-const IMAGE_EXTENSIONS = new Set([
-  '.avif',
-  '.bmp',
-  '.gif',
-  '.ico',
-  '.jpeg',
-  '.jpg',
-  '.png',
-  '.svg',
-  '.tif',
-  '.tiff',
-  '.webp',
-])
+const IMAGE_EXTENSIONS = ['.avif', '.bmp', '.gif', '.ico', '.jpeg', '.jpg', '.png', '.svg', '.tif', '.tiff', '.webp']
 
 function matchesWildcard(value: string, mimeType: string, extension: string): boolean {
   if (!value.endsWith('/*')) return false
   if (mimeType) return mimeType.startsWith(value.slice(0, -1))
-  return value === 'image/*' && IMAGE_EXTENSIONS.has(extension)
+  return value === 'image/*' && IMAGE_EXTENSIONS.includes(extension)
 }
 
 export function fileMatchesAccept(file: Pick<File, 'name' | 'type'>, accept: string): boolean {
@@ -141,10 +126,10 @@ export function fileMatchesAccept(file: Pick<File, 'name' | 'type'>, accept: str
 
 const MAX_IMAGE_BYTES = MAX_ATTACHMENT_RAW_BYTES
 const MAX_IMAGE_MEGABYTES = MAX_IMAGE_BYTES / (1024 * 1024)
-const UNSUPPORTED_IMAGE_MIME = new Set(['image/svg+xml'])
+const UNSUPPORTED_IMAGE_MIME = ['image/svg+xml']
 
 function imageFileError(file: Pick<File, 'name' | 'size'>, mimeType: string): string | undefined {
-  if (UNSUPPORTED_IMAGE_MIME.has(mimeType)) return `${file.name}: SVG images are not supported`
+  if (UNSUPPORTED_IMAGE_MIME.includes(mimeType)) return `${file.name}: SVG images are not supported`
   if (file.size > MAX_IMAGE_BYTES) return `${file.name} exceeds the ${MAX_IMAGE_MEGABYTES}MB image limit`
   return undefined
 }

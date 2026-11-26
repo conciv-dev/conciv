@@ -5,6 +5,7 @@ import {FetchHttpClient} from 'effect/http'
 import {OtlpExporter, OtlpSerialization} from 'effect/observability'
 import * as Logging from './observability/logging.js'
 import * as Otlp from './observability/otlp.js'
+import {makeRunId} from './observability/shared.js'
 
 export const Options = Schema.Struct({
   endpoint: Schema.optional(Schema.String),
@@ -23,7 +24,10 @@ export function layer(options: Options) {
     channel: options.channel ?? 'local',
     instance: options.instance,
   }
-  const local = Logger.layer(Logging.loggers(app.channel === 'local', app.channel), {mergeWithExisting: false}).pipe(
+  const run = makeRunId()
+  const local = Logger.layer(Logging.loggers(run, app.channel === 'local', app.channel), {
+    mergeWithExisting: false,
+  }).pipe(
     Layer.provide(NodeFileSystem.layer),
     Layer.orDie,
     Layer.merge(Layer.succeed(References.MinimumLogLevel, Logging.minimumLogLevel())),
@@ -31,7 +35,7 @@ export function layer(options: Options) {
   return Layer.unwrap(
     Effect.gen(function* () {
       const logs = Logger.layer(
-        [...Logging.loggers(app.channel === 'local', app.channel), ...Otlp.loggers(options, app)],
+        [...Logging.loggers(run, app.channel === 'local', app.channel), ...Otlp.loggers(options, app, run)],
         {mergeWithExisting: false},
       ).pipe(
         Layer.provide(NodeFileSystem.layer),
@@ -41,7 +45,7 @@ export function layer(options: Options) {
         Layer.orDie,
         Layer.merge(Layer.succeed(References.MinimumLogLevel, Logging.minimumLogLevel())),
       )
-      return Layer.merge(logs, yield* Otlp.tracingLayer(options, app))
+      return Layer.merge(logs, yield* Otlp.tracingLayer(options, app, run))
     }),
   ).pipe(Layer.catchCause(() => local))
 }

@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest'
-import {CodeModeCatalog} from '../../src/core/codemode/catalog.js'
-import {CodeModeInstructions} from '../../src/core/codemode/instructions.js'
+import * as CodeModeCatalog from '../../src/core/codemode/catalog.js'
+import * as CodeModeInstructions from '../../src/core/codemode/instructions.js'
 
 describe('the code-mode catalog', () => {
   test.each([

@@ -9,7 +9,7 @@ import {
   type PageFailure,
   type PageResult,
   isPageFailure,
-} from '@conciv/types/page-types'
+} from './page-types.js'
 import type {
   CssBundle,
   ElementCapture,

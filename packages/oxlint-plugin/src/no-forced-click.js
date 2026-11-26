@@ -1,7 +1,7 @@
 import {isIdentifier, readCalleeName} from './ast-walk.js'
 
 const TEST_SUFFIX = /\.(?:test|spec)\.[jt]sx?$/
-const CLICK_NAMES = new Set(['click', 'dblclick'])
+const CLICK_NAMES = ['click', 'dblclick']
 const FORCE_KEY = 'force'
 
 function readKeyName(property) {
@@ -35,7 +35,7 @@ export default {
       CallExpression(node) {
         if (!TEST_SUFFIX.test(context.filename)) return
         const name = readCalleeName(node.callee)
-        if (!CLICK_NAMES.has(name)) return
+        if (!CLICK_NAMES.includes(name)) return
         for (const argument of node.arguments) {
           const force = findForceTrue(argument)
           if (force) context.report({node: force, messageId: 'noForcedClick', data: {name}})

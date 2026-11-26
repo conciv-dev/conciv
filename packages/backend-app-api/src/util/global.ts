@@ -26,5 +26,3 @@ const acquire = (input: Interface) =>
   })
 
 export const layerWith = (input: Interface) => Layer.effect(Service, acquire(input))
-
-export * as Global from './global.js'

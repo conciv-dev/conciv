@@ -1,5 +1,3 @@
-export * as InstancePlugins from './instance.js'
-
 import type {Plugin} from '@conciv/backend-plugin-api/effect/plugin'
 import {Context, Layer} from 'effect'
 import type {Generation} from '../plugin.js'

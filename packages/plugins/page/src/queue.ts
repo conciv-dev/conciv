@@ -7,13 +7,11 @@ import {
   PAGE_QUEUE_STOPPED,
   PAGE_QUEUE_SYNC_MS,
   type PageQueueHandle,
-  type PageQueueProgress,
   type PageQueueResult,
   PageRaisedErrorSchema as Raised,
-} from '@conciv/types/page-types'
-import type {Tool} from '@conciv/protocol/schema/tool'
+} from './page-types.js'
+import type * as Tool from '@conciv/protocol/schema/tool'
 import {
-  awaitsDelivery,
   createQueueState,
   findQueue,
   OWED_QUEUES,
@@ -21,6 +19,7 @@ import {
   readProgress,
   selectStartedBy,
   selectUndelivered,
+  type OwedFilter,
   transitionQueue,
   type Landed,
   type QueueEntry,
@@ -35,7 +34,7 @@ export type RequestSettlement =
 
 type Queueing = Extract<Action, {readonly type: 'queue' | 'queue_async'}>
 
-export type QueueStart = {agentId: string; action: Queueing; toolCallId: string}
+export type QueueStart = {agentId: string; action: Queueing; toolCallId: string; origin: Tool.Origin}
 
 type Play = (
   sessionId: SessionId,
@@ -152,6 +151,7 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
       queueId,
       sessionId,
       toolCallId: given.toolCallId,
+      origin: given.origin,
       tools: actions.map((action) => action.tool),
       settled: actions.map(() => undefined),
       result: null,
@@ -181,23 +181,24 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
     return findQueue(machine.state, sessionId, queueId) ?? entry
   })
 
-  const wait = Effect.fn('PageQueue.wait')(function* (sessionId: SessionId, queueId: string, waitMs: number) {
+  const claim = Effect.fn('PageQueue.claim')(function* (sessionId: SessionId, queueId: string, waitMs: number) {
     const entry = yield* reached(sessionId, queueId, waitMs)
-    if (entry.result === null) return readProgress(entry)
-    yield* dispatch({type: 'delivered', queueIds: [queueId]})
-    return entry.result
+    return entry.result ?? readProgress(entry)
   })
 
-  const claim = Effect.fn('PageQueue.claim')(function* (
-    sessionId: SessionId,
-    queueId: string,
-    waitMs: number,
-  ): Effect.fn.Return<{result: PageQueueResult; before: 'owed' | null} | PageQueueProgress, Error> {
-    const entry = yield* reached(sessionId, queueId, waitMs)
-    if (entry.result === null) return readProgress(entry)
-    if (!awaitsDelivery(entry)) return {result: entry.result, before: null}
-    yield* dispatch({type: 'claimed', queueIds: [queueId]})
-    return {result: entry.result, before: 'owed'}
+  const settle = (sessionId: SessionId, queueIds: readonly string[]) =>
+    Effect.suspend(() =>
+      dispatch({
+        type: 'delivered',
+        queueIds: queueIds.filter((queueId) => findQueue(machine.state, sessionId, queueId) !== undefined),
+      }),
+    )
+
+  const wait = Effect.fn('PageQueue.wait')(function* (sessionId: SessionId, queueId: string, waitMs: number) {
+    const claimed = yield* claim(sessionId, queueId, waitMs)
+    if (claimed.status === 'playing') return claimed
+    yield* settle(sessionId, [queueId])
+    return claimed
   })
 
   const play = (sessionId: SessionId, given: QueueStart) =>
@@ -205,23 +206,20 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
       Effect.flatMap(({queueId}) => wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS)),
     )
 
-  const undelivered = (sessionId: SessionId, toolCallIds: readonly string[]) =>
+  const undelivered = (sessionId: SessionId, filter: OwedFilter) =>
     Effect.suspend(() => {
-      const owed = selectUndelivered(machine.state, sessionId, toolCallIds)
+      const owed = selectUndelivered(machine.state, sessionId, filter)
       return dispatch({type: 'delivered', queueIds: owed.map((each) => each.queueId)}).pipe(
         Effect.as(owed.map((each) => each.result)),
       )
     })
 
-  const owed = (sessionId: SessionId) => Effect.sync(() => selectUndelivered(machine.state, sessionId, undefined))
-
   const startedBy = (sessionId: SessionId, toolCallIds: readonly string[]) =>
     Effect.sync(() => selectStartedBy(machine.state, sessionId, toolCallIds))
 
-  const settle = (sessionId: SessionId, queueIds: readonly string[], delivery: 'owed' | 'delivered') =>
-    dispatch({type: 'settled', sessionId, queueIds, delivery})
-
   const cancelSession = (sessionId: SessionId) => dispatch({type: 'session.cancelled', sessionId})
 
-  return {start, play, wait, claim, undelivered, startedBy, owed, settle, cancelSession}
+  return {start, play, wait, claim, settle, undelivered, startedBy, cancelSession}
 })
+
+export type Queues = Effect.Success<ReturnType<typeof makeQueues>>

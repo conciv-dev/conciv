@@ -1,7 +1,6 @@
 import {Effect, FileSystem, Formatter, Logger, Option, Schedule, Stream, type LogLevel} from 'effect'
 import path from 'path'
-import {Global} from '@conciv/backend-app-api/util/global'
-import {runID} from './shared.js'
+import * as Global from '@conciv/backend-app-api/util/global'
 
 export const LOG_MAX_BYTES = 50 * 1024 * 1024
 export const LOG_KEEP_BYTES = 25 * 1024 * 1024
@@ -9,7 +8,7 @@ export const LOG_TRIM_INTERVAL = '1 hour'
 export const LOG_TRIM_LOCK_STALE_MS = 5 * 60 * 1000
 const LOG_TRIM_CHUNK = 64 * 1024
 
-function formatter(id: string = runID()) {
+function formatter(id: string) {
   return Logger.map(Logger.formatStructured, (output) => {
     const messages = Array.isArray(output.message) ? output.message : [output.message]
     return [
@@ -58,7 +57,7 @@ export const file = Effect.fnUntraced(function* (local = true, channel = 'local'
   return path.join(global.log, `conciv-${channel.replace(/[^a-zA-Z0-9._-]/g, '-')}.log`)
 })
 
-export function fileLogger(target: string, id: string = runID()) {
+export function fileLogger(target: string, id: string) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
     yield* fs.makeDirectory(path.dirname(target), {recursive: true})
@@ -127,10 +126,12 @@ function lineStart(handle: FileSystem.File, from: number) {
   })
 }
 
-const stderrLogger = Logger.make((options) => {
-  if (process.env.CONCIV_PRINT_LOGS !== '1') return
-  process.stderr.write(formatter().log(options) + '\n')
-})
+function stderrLogger(id: string) {
+  return Logger.make((options) => {
+    if (process.env.CONCIV_PRINT_LOGS !== '1') return
+    process.stderr.write(formatter(id).log(options) + '\n')
+  })
+}
 
 const levels = {
   DEBUG: 'Debug',
@@ -148,6 +149,6 @@ export function minimumLogLevel() {
   return value && isLevelName(value) ? levels[value] : levels.INFO
 }
 
-export function loggers(local = true, channel = 'local') {
-  return [file(local, channel).pipe(Effect.flatMap((target) => fileLogger(target))), stderrLogger]
+export function loggers(run: string, local = true, channel = 'local') {
+  return [file(local, channel).pipe(Effect.flatMap((target) => fileLogger(target, run))), stderrLogger(run)]
 }

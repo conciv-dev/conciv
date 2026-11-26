@@ -1,8 +1,9 @@
 import {describe, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+import {createFakeEngine, FakeLLM} from '@conciv/client/testing'
 import {watchCalm} from '../fixtures/calm-watch.js'
+import {mountShell, shellEngine} from '../utils/mount-shell.js'
+import {seededSession} from '../utils/seeded-session.js'
 
 describe('the calm chat plane', () => {
   test('a multi-tool run streams without dropped frames', async ({task}) => {
@@ -38,13 +39,13 @@ describe('the calm chat plane', () => {
       'Read',
     ]
     const steps = [...twenty, ...twenty, ...twenty]
-    const engine = await createEngine()
-    await engine.reply(
-      ...steps.map((name, index) => TestLLM.toolCall(`step-${index}`, name, inputs[name](index))),
-      TestLLM.text('All sixty steps are done.'),
+    const engine = shellEngine()
+    const held = engine.gate()
+    engine.reply(
+      ...steps.map((name, index) => FakeLLM.toolCall(`step-${index}`, name, inputs[name](index))),
+      FakeLLM.text('All sixty steps are done.'),
     )
-    const held = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine})
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
 
     await input.fill('run sixty tools then answer')
@@ -54,7 +55,7 @@ describe('the calm chat plane', () => {
     const watch = watchCalm(task.name)
     await watch.checkpoint()
     const end = watch.endWhenDrawn('All sixty steps are done.')
-    await held.release()
+    held.release()
     await end
     await expect.element(page.getByText('All sixty steps are done.', {exact: true})).toBeVisible()
 
@@ -62,21 +63,14 @@ describe('the calm chat plane', () => {
   })
 
   test('a long thread at the virtualization boundary streams a run without dropped frames', async ({task}) => {
-    const engine = await createEngine({}, {tokensPerSecond: 20})
-    await engine.reply(...Array.from({length: 5}, (_, index) => TestLLM.text(`seeded answer ${index}`)))
-    for (const index of [0, 1, 2, 3, 4]) {
-      await engine.session.send(`seeded exchange ${index}`)
-    }
-    await engine.reply(
-      TestLLM.toolCall('fill', 'Edit', {file_path: 'form.tsx', old_string: 'name', new_string: 'Ada'}),
-      TestLLM.toolCall('save', 'Bash', {command: 'save the form'}),
-      TestLLM.text('The long thread is done.'),
+    const engine = shellEngine(createFakeEngine({sessions: [seededSession([0, 1, 2, 3, 4])], tokensPerSecond: 20}))
+    const held = engine.gate()
+    engine.reply(
+      FakeLLM.toolCall('fill', 'Edit', {file_path: 'form.tsx', old_string: 'name', new_string: 'Ada'}),
+      FakeLLM.toolCall('save', 'Bash', {command: 'save the form'}),
+      FakeLLM.text('The long thread is done.'),
     )
-    const held = await engine.gate()
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
-    })
+    await mountShell({engine, initialEntries: ['/panel/ses_seeded?open=true']})
     await expect.element(page.getByRole('article', {name: 'You: seeded exchange 4'})).toBeVisible()
     await expect.element(page.getByRole('article', {name: 'You: seeded exchange 0'})).toBeInTheDocument()
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -88,7 +82,7 @@ describe('the calm chat plane', () => {
     const watch = watchCalm(task.name)
     await watch.checkpoint()
     const end = watch.endWhenDrawn('The long thread is done.')
-    await held.release()
+    held.release()
     await end
     await expect.element(page.getByText('The long thread is done.', {exact: true})).toBeVisible()
 
@@ -100,9 +94,10 @@ describe('the calm chat plane', () => {
       {length: 40},
       (_, index) => `  const step${index} = await resolve(input.steps[${index}], {retries: ${index % 4}})`,
     )
-    const engine = await createEngine({}, {tokensPerSecond: 100})
-    await engine.reply(
-      TestLLM.text(
+    const engine = shellEngine(createFakeEngine({tokensPerSecond: 100}))
+    const held = engine.gate()
+    engine.reply(
+      FakeLLM.text(
         [
           'Here is the helper you asked for.',
           '',
@@ -117,8 +112,7 @@ describe('the calm chat plane', () => {
         ].join('\n'),
       ),
     )
-    const held = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine})
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
 
     await input.fill('write the helper that resolves every step')
@@ -130,7 +124,7 @@ describe('the calm chat plane', () => {
     const watch = watchCalm(task.name)
     await watch.checkpoint()
     const end = watch.endWhenDrawn('That is the whole helper.')
-    await held.release()
+    held.release()
     await expect.element(page.getByRole('button', {name: /^\d+ more lines?$/})).toBeVisible()
     await expect.element(page.getByRole('button', {name: /^[2-9]\d more lines$/})).toBeVisible()
     await end
@@ -141,14 +135,9 @@ describe('the calm chat plane', () => {
 
   test('Latest from far up in a long chat glides to the end without dropped frames', async ({task}) => {
     const exchanges = Array.from({length: 25}, (_, index) => index)
-    const engine = await createEngine()
-    await engine.reply(...exchanges.map((index) => TestLLM.text(`seeded answer ${index}`)))
-    for (const index of exchanges) {
-      await engine.session.send(`seeded exchange ${index}`)
-    }
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
+    await mountShell({
+      engine: shellEngine(createFakeEngine({sessions: [seededSession(exchanges)]})),
+      initialEntries: ['/panel/ses_seeded?open=true'],
     })
     const last = page.getByRole('article', {name: 'You: seeded exchange 24'})
     const latest = page.getByRole('button', {name: 'Scroll to bottom', includeHidden: true})

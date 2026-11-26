@@ -92,7 +92,7 @@ tester.run('no-hand-made-temp-dir', rule, {
     {
       name: 'a testkit source',
       code: `${fsImports}await mkdir('/tmp/run')`,
-      filename: '/repo/packages/plugin-testkit/src/engine.ts',
+      filename: '/repo/packages/backend-test-utils/src/engine.ts',
       errors: [{messageId: 'testkitTempDir'}],
     },
     {

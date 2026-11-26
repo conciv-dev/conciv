@@ -1,5 +1,5 @@
-import {Agent} from '@conciv/protocol/schema/agent'
-import {Permission} from '@conciv/protocol/schema/permission'
+import * as Agent from '@conciv/protocol/schema/agent'
+import * as Permission from '@conciv/protocol/schema/permission'
 import {Schema} from 'effect'
 
 export const AssertInput = Schema.Struct({

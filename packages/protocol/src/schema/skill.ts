@@ -1,5 +1,3 @@
-export * as Skill from './skill.js'
-
 import {Schema} from 'effect'
 import {optional} from './schema.js'
 import {AbsolutePath} from './schema.js'

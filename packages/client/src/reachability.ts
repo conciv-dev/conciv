@@ -1,18 +1,12 @@
 import {createEffect, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {Debouncer} from '@tanstack/pacer'
 import {onlineManager} from '@tanstack/query-core'
-import {
-  defaultEngineConnectionTimings,
-  isEngineUnreachable,
-  subscribeRpcReachability,
-  type EngineConnectionTimings,
-} from './browser-transport.js'
+import {defaultEngineConnectionTimings} from './engine-connection-machine.js'
+import {isEngineUnreachable, type EngineConnection} from './engine-connection.js'
 
 export function isReachabilityError(error: unknown): boolean {
   return isEngineUnreachable(error)
 }
-
-type OnlineSetup = (setOnline: (online: boolean) => void) => (() => void) | undefined
 
 function defaultBrowserSetup(setOnline: (online: boolean) => void): (() => void) | undefined {
   if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined
@@ -30,47 +24,21 @@ function browserOnline(): boolean {
   return typeof navigator === 'undefined' || navigator.onLine !== false
 }
 
-type ReachabilityHub = {
-  setOnline: ((online: boolean) => void) | undefined
-  detachNative: (() => void) | undefined
-  registrationCount: number
-}
-
-const hub: ReachabilityHub = {setOnline: undefined, detachNative: undefined, registrationCount: 0}
-
-const hubSetup: OnlineSetup = (setOnline) => {
-  hub.setOnline = setOnline
-  hub.detachNative = defaultBrowserSetup(setOnline)
+export function setupEngineReachability(connection: EngineConnection): () => void {
+  onlineManager.setEventListener((setOnline) => {
+    const detachNative = defaultBrowserSetup(setOnline)
+    const unsubscribe = connection.subscribeReachability(setOnline)
+    return () => {
+      detachNative?.()
+      unsubscribe()
+    }
+  })
+  const state = {disposed: false}
   return () => {
-    hub.detachNative?.()
-    hub.detachNative = undefined
-    hub.setOnline = undefined
-  }
-}
-
-function registerReachabilitySource(): () => void {
-  if (hub.registrationCount === 0) onlineManager.setEventListener(hubSetup)
-  hub.registrationCount += 1
-  let released = false
-  return () => {
-    if (released) return
-    released = true
-    hub.registrationCount -= 1
-    if (hub.registrationCount > 0) return
+    if (state.disposed) return
+    state.disposed = true
     onlineManager.setEventListener(defaultBrowserSetup)
     onlineManager.setOnline(browserOnline())
-  }
-}
-
-export function setupEngineReachability(apiBase: string, timings?: Partial<EngineConnectionTimings>): () => void {
-  const releaseSource = registerReachabilitySource()
-  const unsubscribeRpc = subscribeRpcReachability(apiBase, (reachable) => hub.setOnline?.(reachable), timings)
-  let disposed = false
-  return () => {
-    if (disposed) return
-    disposed = true
-    unsubscribeRpc()
-    releaseSource()
   }
 }
 

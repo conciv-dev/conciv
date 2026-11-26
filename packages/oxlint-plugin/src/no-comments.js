@@ -3,7 +3,7 @@ const DIRECTIVE_RE =
 
 const TAG_LINE_RE = /^\s*\*?\s*@[A-Za-z]/
 
-const DECLARATIONS = new Set([
+const DECLARATIONS = [
   'ExportNamedDeclaration',
   'ExportDefaultDeclaration',
   'FunctionDeclaration',
@@ -14,18 +14,18 @@ const DECLARATIONS = new Set([
   'TSEnumDeclaration',
   'TSModuleDeclaration',
   'TSDeclareFunction',
-])
+]
 
-const DECLARATION_PARENTS = new Set(['Program', 'ExportNamedDeclaration', 'ExportDefaultDeclaration', 'TSModuleBlock'])
+const DECLARATION_PARENTS = ['Program', 'ExportNamedDeclaration', 'ExportDefaultDeclaration', 'TSModuleBlock']
 
-const MEMBERS = new Set([
+const MEMBERS = [
   'TSPropertySignature',
   'TSMethodSignature',
   'TSCallSignatureDeclaration',
   'TSConstructSignatureDeclaration',
   'TSIndexSignature',
   'TSEnumMember',
-])
+]
 
 export default {
   meta: {
@@ -85,6 +85,6 @@ function nodesStartingAt(node, start) {
 }
 
 function isDocumentable(node) {
-  if (MEMBERS.has(node.type)) return true
-  return DECLARATIONS.has(node.type) && DECLARATION_PARENTS.has(node.parent?.type)
+  if (MEMBERS.includes(node.type)) return true
+  return DECLARATIONS.includes(node.type) && DECLARATION_PARENTS.includes(node.parent?.type)
 }

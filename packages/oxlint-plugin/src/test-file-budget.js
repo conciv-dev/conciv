@@ -8,7 +8,7 @@ const LAYOUT_FOLDERS = ['test/unit', 'test/it', 'test/e2e', 'test/fixtures', 'te
 const KIND_FOLDER = /^test\/(unit|it|e2e)\//
 const FIXTURE_FOLDER = /^test\/fixtures\//
 const DEFAULT_PACKAGES = ['packages/*', 'packages/plugins/*', 'apps/*']
-const IGNORED_DIRECTORIES = new Set([
+const IGNORED_DIRECTORIES = [
   'node_modules',
   'dist',
   '__screenshots__',
@@ -18,9 +18,8 @@ const IGNORED_DIRECTORIES = new Set([
   'test-results',
   '.turbo',
   '.conciv',
-])
+]
 const MAX_LINES = 1000
-const filesByPackage = new Map()
 
 function hasPackageJson(directory) {
   return existsSync(join(directory, 'package.json'))
@@ -34,7 +33,7 @@ function findPackageDirectory(filename) {
 }
 
 function isWalkedDirectory(path, name) {
-  return !IGNORED_DIRECTORIES.has(name) && !hasPackageJson(path)
+  return !IGNORED_DIRECTORIES.includes(name) && !hasPackageJson(path)
 }
 
 function entryCodeFiles(directory, entry) {
@@ -65,7 +64,7 @@ function readPackageFiles(packageDirectory) {
   }
 }
 
-function packageFiles(packageDirectory) {
+function packageFiles(filesByPackage, packageDirectory) {
   const cached = filesByPackage.get(packageDirectory)
   if (cached !== undefined) return cached
   const files = readPackageFiles(packageDirectory)
@@ -84,8 +83,8 @@ function findLayoutPackage(filename, patterns) {
   return patterns.some((pattern) => matchesGlob(shown, pattern)) ? packageDirectory : undefined
 }
 
-function checkFolders(node, context, packageDirectory) {
-  const {files, missing} = packageFiles(packageDirectory)
+function checkFolders(node, context, packageDirectory, filesByPackage) {
+  const {files, missing} = packageFiles(filesByPackage, packageDirectory)
   if (missing.length === 0 || files[0] !== context.filename) return
   context.report({
     node,
@@ -94,8 +93,8 @@ function checkFolders(node, context, packageDirectory) {
   })
 }
 
-function checkOverSources(node, context, packageDirectory) {
-  const {tests, sources} = packageFiles(packageDirectory)
+function checkOverSources(node, context, packageDirectory, filesByPackage) {
+  const {tests, sources} = packageFiles(filesByPackage, packageDirectory)
   if (tests.length <= sources.length || tests[0] !== context.filename) return
   context.report({
     node,
@@ -120,15 +119,15 @@ function checkLength(node, context) {
   context.report({node, messageId: 'tooLong', data: {lines, max: MAX_LINES}})
 }
 
-function checkProgram(node, context) {
+function checkProgram(node, context, filesByPackage) {
   const patterns = context.options[0]?.packages ?? DEFAULT_PACKAGES
   const packageDirectory = findLayoutPackage(context.filename, patterns)
   if (packageDirectory === undefined) return
   const file = packagePath(packageDirectory, context.filename)
   if (FIXTURE_FOLDER.test(file)) return
-  checkFolders(node, context, packageDirectory)
+  checkFolders(node, context, packageDirectory, filesByPackage)
   if (!TEST_FILE.test(basename(context.filename))) return
-  checkOverSources(node, context, packageDirectory)
+  checkOverSources(node, context, packageDirectory, filesByPackage)
   checkPlace(node, context, file)
   checkLength(node, context)
 }
@@ -155,10 +154,11 @@ export default {
       },
     ],
   },
-  create(context) {
+  createOnce(context) {
+    const filesByPackage = new Map()
     return {
       Program(node) {
-        checkProgram(node, context)
+        checkProgram(node, context, filesByPackage)
       },
     }
   },

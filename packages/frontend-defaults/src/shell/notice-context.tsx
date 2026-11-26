@@ -1,15 +1,15 @@
 import {createContext, createEffect, useContext, type JSX} from 'solid-js'
 import {useEngineReachability, type EngineReachability} from '../app/reachability.js'
-import {acknowledgeLocalStorageNotice, localStorageNoticePending} from '@internal/frontend-app-api/persistence/storage'
+import type {LocalPersistence} from '@internal/frontend-app-api/persistence/storage'
 import {createNoticeStore, type NoticeStore} from './notices.js'
 
 const NoticeStoreContext = createContext<NoticeStore>()
 
-export function NoticeContextProvider(props: {children: JSX.Element}): JSX.Element {
+export function NoticeContextProvider(props: {localPersistence: LocalPersistence; children: JSX.Element}): JSX.Element {
   const store = createNoticeStore()
   createEffect(() => {
-    if (!localStorageNoticePending()) return
-    acknowledgeLocalStorageNotice()
+    if (!props.localPersistence.noticePending()) return
+    props.localPersistence.acknowledgeNotice()
     store.notify('Some changes are not being saved', {
       tone: 'danger',
       description: "This browser's storage is full or unavailable, so plugin settings may be lost when you reload.",

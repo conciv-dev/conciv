@@ -1,5 +1,3 @@
-export * as SkillScan from './skill-scan.js'
-
 import {FSUtil} from '@conciv/backend-app-api/util/fs-util'
 import path from 'path'
 import {Effect} from 'effect'

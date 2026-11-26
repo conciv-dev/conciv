@@ -32,6 +32,7 @@
     "conciv/no-inline-timeouts": "error",
     "conciv/no-locator-poll": "error",
     "conciv/no-mocks": "error",
+    "conciv/no-module-state": "error",
     "conciv/no-of-suffix": "error",
     "conciv/no-signal-ref": "error",
     "conciv/no-teardown-hooks": "error",
@@ -246,6 +247,7 @@
         "packages/client/src/chat.ts",
         "packages/client/src/session/**",
         "packages/client/src/testing.ts",
+        "packages/client/src/fake-engine.ts",
         "packages/simulation/src/ai-testkit.ts",
         "packages/types/**"
       ],
@@ -391,7 +393,7 @@
       }
     },
     {
-      "files": ["packages/backend/src/pty/**", "packages/ui-kit-terminal/**"],
+      "files": ["packages/backend-defaults/src/engine/pty/**", "packages/ui-kit-terminal/**"],
       "rules": {
         "no-control-regex": "off"
       }
@@ -435,7 +437,11 @@
       }
     },
     {
-      "files": ["packages/backend/src/**", "packages/backend-defaults/src/*.ts"],
+      "files": [
+        "packages/backend/src/**",
+        "packages/backend-defaults/src/*.ts",
+        "packages/backend-defaults/src/engine/**"
+      ],
       "rules": {
         "conciv/core-purity": "error"
       }
@@ -477,7 +483,7 @@
         "**/vite.config.*",
         "packages/vitest-config/**",
         "e2e/e2e-utils/**",
-        "packages/plugin-testkit/src/**",
+        "packages/engine-kit/src/**",
         "packages/simulation/src/**"
       ],
       "rules": {
@@ -491,7 +497,7 @@
       }
     },
     {
-      "files": ["packages/simulation/src/**", "packages/plugin-testkit/src/**"],
+      "files": ["packages/simulation/src/**", "packages/engine-kit/src/**"],
       "rules": {
         "conciv/no-predicate-waits": "error"
       }
@@ -509,13 +515,7 @@
       }
     },
     {
-      "files": ["packages/simulation/src/harness-engine.ts"],
-      "rules": {
-        "conciv/no-hand-made-temp-dir": "off"
-      }
-    },
-    {
-      "files": ["packages/plugin-testkit/src/node.ts"],
+      "files": ["packages/engine-kit/src/harness-engine.ts"],
       "rules": {
         "conciv/no-hand-made-temp-dir": "off"
       }

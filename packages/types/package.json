@@ -69,10 +69,6 @@
       "types": "./dist/config-types.d.ts",
       "import": "./dist/config-types.js"
     },
-    "./page-types": {
-      "types": "./dist/page-types.d.ts",
-      "import": "./dist/page-types.js"
-    },
     "./tool-view-types": {
       "types": "./dist/tool-view-types.d.ts",
       "import": "./dist/tool-view-types.js"

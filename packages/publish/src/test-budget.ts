@@ -9,7 +9,7 @@ const BUDGET_FILE = 'test-budget.json'
 const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/
 const FIXTURE_SEGMENT = /(^|\/)fixtures\//
 const TEST_FUNCTIONS = ['test', 'it']
-const CASE_MODIFIERS = new Set([
+const CASE_MODIFIERS = [
   'concurrent',
   'sequential',
   'skip',
@@ -22,7 +22,7 @@ const CASE_MODIFIERS = new Set([
   'for',
   'skipIf',
   'runIf',
-])
+]
 
 const budgetSchema = z.record(z.string(), z.number().int().nonnegative())
 
@@ -60,7 +60,8 @@ function countTestCases(filename: string, source: string): number {
       if (node.callee.type === 'CallExpression') curried.add(node.callee)
       if (curried.has(node)) return
       const chain = readTestChain(node.callee)
-      if (chain && testNames.has(chain.name) && chain.members.every((member) => CASE_MODIFIERS.has(member))) count++
+      if (chain && testNames.has(chain.name) && chain.members.every((member) => CASE_MODIFIERS.includes(member)))
+        count++
     },
   })
   visitor.visit(parsed.program)

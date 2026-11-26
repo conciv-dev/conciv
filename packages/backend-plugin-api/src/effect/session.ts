@@ -1,10 +1,10 @@
-import type {Session} from '@conciv/protocol/schema/session'
+import type * as Session from '@conciv/protocol/schema/session'
 import type {Effect, JsonSchema} from 'effect'
 import type {ModelMessage} from '@conciv/types/chat-message-types'
-import type {Model} from '@conciv/protocol/schema/model'
+import type * as Model from '@conciv/protocol/schema/model'
 import type {PromptInput, SessionCompactionResult, SessionRequestOptions, SystemPart} from '../promise/session.js'
-import type {Agent} from '@conciv/protocol/schema/agent'
-import type {SessionInbox} from '@conciv/protocol/schema/session-inbox'
+import type * as Agent from '@conciv/protocol/schema/agent'
+import type * as SessionInbox from '@conciv/protocol/schema/session-inbox'
 import type {
   InstructionEntryInfo,
   SessionCreateInput,

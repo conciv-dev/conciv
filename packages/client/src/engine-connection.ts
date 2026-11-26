@@ -37,7 +37,7 @@ import {
 } from 'effect'
 import {Socket} from 'effect/socket'
 import {CONCIV_SESSION_HEADER} from '@conciv/types/chat-types'
-import {CONCIV_AUTH_TOKEN_QUERY_PARAM, RPC_WS_PATH} from '@conciv/types/rpc-types'
+import {CONCIV_AUTH_TOKEN_QUERY_PARAM, CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/types/rpc-types'
 import {contract, SOCKET_TRUST_FRAME, type ExchangeResult} from '@conciv/protocol'
 import {
   createConnectionState,
@@ -75,8 +75,8 @@ export type EngineConnection = {
   readonly link: ClientLink<RpcClientContext>
   readonly trust: EngineTrust
   readonly reset: () => void
-  readonly useTokenSource: (source: EngineTokenSource) => void
   readonly subscribeReachability: (listener: ReachabilityListener) => () => void
+  readonly version: () => Promise<string | null>
 }
 
 const MIN_UPTIME = Duration.seconds(1)
@@ -195,6 +195,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
   key: string,
   timings: EngineConnectionTimings = defaultEngineConnectionTimings,
   engineToken?: string,
+  engineTokenSource?: EngineTokenSource,
 ) {
   const services = yield* Effect.context<never>()
   const run = Effect.runPromiseWith(services)
@@ -203,11 +204,9 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
   const lifetime = yield* Effect.scope
   const makeWebSocket = yield* Socket.WebSocketConstructor
   const live = yield* Ref.make(Option.none<Socket.WebSocketLike>())
-  const tokenSource = yield* Ref.make<EngineTokenSource | undefined>(undefined)
   const connectToken = Effect.gen(function* () {
     if (engineToken !== undefined) return engineToken
-    const source = yield* Ref.get(tokenSource)
-    return source === undefined ? undefined : yield* sourcedToken(source)
+    return engineTokenSource === undefined ? undefined : yield* sourcedToken(engineTokenSource)
   })
   const socket = yield* Socket.fromWebSocket(
     Effect.acquireRelease(
@@ -481,7 +480,7 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
   const ask = (storedOnly: boolean): Effect.Effect<boolean> =>
     Effect.gen(function* () {
       const held = current().token ?? (yield* readStoredToken(key)) ?? ''
-      const source = yield* Ref.get(tokenSource)
+      const source = engineTokenSource
       if (source === undefined) return yield* askWithToken(held)
       return yield* askHeldThenSource(held, source, storedOnly)
     }).pipe(
@@ -541,11 +540,11 @@ export const makeEngineConnection = Effect.fn('EngineConnection.make')(function*
     reset: () => {
       runDetached(dispatch({type: 'reset-requested'}))
     },
-    useTokenSource: (source) => runNow(Ref.set(tokenSource, source)),
     subscribeReachability: (listener) =>
       listen((signal) => {
         if (signal.type === 'reachable') listener(signal.reachable)
       }),
+    version: async () => (await fetch(`${key}/health`)).headers.get(CONCIV_VERSION_HEADER),
   }
   return connection
 })

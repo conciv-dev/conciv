@@ -1,3 +1,4 @@
+import {IconRegistryProvider} from '@conciv/ui-kit-chat'
 import {
   createMemo,
   createResource,
@@ -16,7 +17,7 @@ import type {PluginOptions} from '@conciv/frontend-plugin-api'
 import type {ConcivClient} from '@conciv/backend-plugin-api'
 import {useRouteContext} from '@tanstack/solid-router'
 import {useApiBase, useAppData, useEnvironment} from '../../app/context'
-import {builtins, BUILTINS_WITH_ENGINE_HALF} from './builtins'
+import type {BuiltinPlugins} from './builtins'
 import {
   createBundleSource,
   type BundleSource,
@@ -43,9 +44,16 @@ const PluginsContext = createContext<{
   set: (plugins: readonly PluginExperimental[], reserved: readonly string[]) => void
   reserved: () => readonly string[]
   reported: () => readonly string[] | undefined
+  builtin: (id: string) => boolean
 }>()
 
 const PluginHotReload = import.meta.env.DEV ? lazy(() => import('@internal/frontend-app-api/plugin/hmr')) : undefined
+
+export function useBuiltinPlugin() {
+  const plugins = useContext(PluginsContext)
+
+  return (id: string) => plugins?.builtin(id) ?? false
+}
 
 export function useReservedPlugins() {
   const plugins = useContext(PluginsContext)
@@ -80,26 +88,32 @@ export function usePluginsKnown() {
 
 export type ComposedPlugin = readonly [plugin: Entry, options: PluginOptions]
 
-export function reserveComposedPlugins(composed: readonly ComposedPlugin[]): readonly ComposedPlugin[] {
+export function reserveComposedPlugins(
+  composed: readonly ComposedPlugin[],
+  builtins: BuiltinPlugins,
+): readonly ComposedPlugin[] {
   composed.reduce<readonly Entry[]>((taken, [plugin]) => {
     if (!pluginIdAvailable(plugin.id, taken)) throw new Error(`The plugin id "${plugin.id}" is already taken`)
 
     return [...taken, plugin]
-  }, builtins)
+  }, builtins.entries)
 
   return composed
 }
 
-export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin[]; servers: boolean}>) {
+export function PluginRoot(
+  props: ParentProps<{composed: readonly ComposedPlugin[]; builtins: BuiltinPlugins; servers: boolean}>,
+) {
   const apis = createHostApis()
   const apiBase = useApiBase()
   const bound = createMemo(() => !props.servers || apiBase() !== '')
   const appData = useAppData()
   const environment = useEnvironment()
   const login = useRouteContext({strict: false, select: (context) => context.login})
-  const timings = useRouteContext({strict: false, select: (context) => context.timings})
+  const connection = useRouteContext({strict: false, select: (context) => context.connection})
   const composed = untrack(() => props.composed)
-  const local = [...builtins, ...composed.map(([plugin]) => plugin)]
+  const builtins = untrack(() => props.builtins)
+  const local = [...builtins.entries, ...composed.map(([plugin]) => plugin)]
   const trusted = createMemo(() => {
     const engine = login()
 
@@ -120,8 +134,8 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
         client: apis.engine.client,
         apiBase,
         builtins: local,
-        engineHalf: BUILTINS_WITH_ENGINE_HALF,
-        engineTimings: untrack(timings)?.engine,
+        engineHalf: builtins.engineHalf,
+        connection: () => untrack(connection)?.(),
       })
 
       first.resolve(created)
@@ -199,6 +213,7 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
           },
           set: (plugins, reserved) => setLoaded({settled: true, plugins, reserved}),
           reserved: () => loaded().reserved,
+          builtin: (id) => builtins.entries.some((definition) => definition.id === id),
           reported: () => {
             if ((login()?.status() ?? 'trusted') !== 'trusted') return undefined
 
@@ -206,28 +221,31 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
           },
         }}
       >
-        <PluginHostProvider
-          definitions={definitions}
-          installed={installed}
-          builtins={builtinIds}
-          servers={props.servers}
-          options={(id) => composed.find(([plugin]) => plugin.id === id)?.[1] ?? untrack(bundle)?.builtinOptions(id)}
-          apis={apis.apis}
-          whenMounted={apis.whenMounted}
-          plugin={(id) => loaded().plugins.find((plugin) => plugin.definition.id === id)}
-          unavailableClient={apis.unavailableClient}
-          queryClient={apis.queryClient}
-        >
-          <PluginStyles root={environment.rootNode} />
-          {PluginHotReload && (
-            <Suspense>
-              <PluginHotReload />
-            </Suspense>
-          )}
-          <PluginServersProvider servers={props.servers} apiBase={apiBase}>
-            {props.children}
-          </PluginServersProvider>
-        </PluginHostProvider>
+        <IconRegistryProvider>
+          <PluginHostProvider
+            definitions={definitions}
+            installed={installed}
+            builtins={builtinIds}
+            servers={props.servers}
+            options={(id) => composed.find(([plugin]) => plugin.id === id)?.[1] ?? untrack(bundle)?.builtinOptions(id)}
+            apis={apis.apis}
+            storeLoads={apis.storeLoads}
+            whenMounted={apis.whenMounted}
+            plugin={(id) => loaded().plugins.find((plugin) => plugin.definition.id === id)}
+            unavailableClient={apis.unavailableClient}
+            queryClient={apis.queryClient}
+          >
+            <PluginStyles root={environment.rootNode} />
+            {PluginHotReload && (
+              <Suspense>
+                <PluginHotReload />
+              </Suspense>
+            )}
+            <PluginServersProvider servers={props.servers} apiBase={apiBase}>
+              {props.children}
+            </PluginServersProvider>
+          </PluginHostProvider>
+        </IconRegistryProvider>
       </PluginsContext.Provider>
     </HostApisProvider>
   )

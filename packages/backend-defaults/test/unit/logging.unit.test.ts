@@ -4,7 +4,7 @@ import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import {Effect, Layer, Logger} from 'effect'
 import {describe, expect, test} from 'vitest'
 import {tempDir} from '@internal/vitest-config/temp-dir'
-import {Global} from '@conciv/backend-app-api/util/global'
+import * as Global from '@conciv/backend-app-api/util/global'
 import {file, fileLogger} from '../../src/util/observability/logging.js'
 
 describe('Logging', () => {

@@ -11,7 +11,8 @@ import {
   PageQueueResultSchema,
   PageRaisedErrorSchema,
   SymbolicateSchema,
-} from '@conciv/types/page-types'
+  type PageQueueResult,
+} from './page-types.js'
 import {SourceLocSchema} from '@conciv/protocol'
 
 export const PAGE_NAMESPACE = 'page'
@@ -620,39 +621,24 @@ export const Definition = Rpc.define({
       output: z.union([PageQueueResultSchema, PageQueueProgressSchema]),
       errors,
     },
-    'queue.claim': {
-      input: z.object({sessionId: SessionId, queueId: z.string().min(1), waitMs: z.number().int().min(0)}),
-      output: z.union([
-        z.object({result: PageQueueResultSchema, before: z.literal('owed').nullable()}),
-        PageQueueProgressSchema,
-      ]),
-      errors,
-    },
     'queue.startedBy': {
       input: z.object({sessionId: SessionId, toolCallIds: z.array(z.string())}),
       output: z.array(PageQueueHandleSchema),
       errors,
     },
-    'queue.undelivered': {
-      input: z.object({
-        sessionId: SessionId,
-        toolCallIds: z.array(z.string()),
-      }),
-      output: z.array(PageQueueResultSchema),
-      errors,
-    },
-    'queue.owed': {
-      input: z.object({sessionId: SessionId}),
-      output: z.array(z.object({queueId: z.string(), toolCallId: z.string(), result: PageQueueResultSchema})),
+    'queue.claim': {
+      input: z.object({sessionId: SessionId, queueId: z.string().min(1), waitMs: z.number().int().min(0)}),
+      output: z.union([PageQueueResultSchema, PageQueueProgressSchema]),
       errors,
     },
     'queue.settle': {
-      input: z.object({
-        sessionId: SessionId,
-        queueIds: z.array(z.string()),
-        delivery: z.enum(['owed', 'delivered']),
-      }),
-      output: OkResult,
+      input: z.object({sessionId: SessionId, queueIds: z.array(z.string().min(1))}),
+      output: z.void(),
+      errors,
+    },
+    'queue.undelivered': {
+      input: z.object({sessionId: SessionId, origin: z.enum(['hub', 'chat'])}),
+      output: z.array(PageQueueResultSchema),
       errors,
     },
   },
@@ -669,8 +655,6 @@ export const Definition = Rpc.define({
     },
   },
 })
-
-export const CLI_HIDDEN_FIELDS: readonly string[] = ['tabId']
 
 export type CliEntry = {
   readonly asks: ((input: unknown) => AskedPermission) | undefined
@@ -692,8 +676,8 @@ type NamedOperation<Name extends Method> = Extract<Operation, {readonly name: Na
 
 export const PAGE_TOOL_PREFIX = `${PAGE_NAMESPACE}_`
 
-export const PAGE_ACT_TOOL_NAMES: ReadonlySet<string> = new Set(
-  Operations.filter((operation) => operation.mutating).map((operation) => `${PAGE_TOOL_PREFIX}${operation.name}`),
+export const PAGE_ACT_TOOL_NAMES: readonly string[] = Operations.filter((operation) => operation.mutating).map(
+  (operation) => `${PAGE_TOOL_PREFIX}${operation.name}`,
 )
 
 export function pageOperation<const Name extends Method>(name: Name): NamedOperation<Name> {
@@ -705,4 +689,8 @@ export function pageOperation<const Name extends Method>(name: Name): NamedOpera
 export function pageVerbOfTool(name: string): string {
   if (!name.startsWith(PAGE_TOOL_PREFIX)) throw new Error(`"${name}" is not a page tool`)
   return name.slice(PAGE_TOOL_PREFIX.length)
+}
+
+export function queueNotice(result: PageQueueResult): string {
+  return `queue ${result.queueId} ${result.status}: ${result.played} played, ${result.failed} failed\n${JSON.stringify(result)}`
 }

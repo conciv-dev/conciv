@@ -22,9 +22,9 @@ import {
 import {z} from 'zod'
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import type {RpcRegistration} from '@conciv/backend-plugin-api/effect/rpc'
-import {Tool} from '@conciv/protocol/schema/tool'
+import * as Tool from '@conciv/protocol/schema/tool'
 import type {SessionId} from '@conciv/types/chat-types'
-import {PAGE_QUEUE_REFUSED, PAGE_QUEUE_STOPPED, PageRaisedErrorSchema} from '@conciv/types/page-types'
+import {PAGE_QUEUE_REFUSED, PAGE_QUEUE_STOPPED, PageRaisedErrorSchema} from './page-types.js'
 import {
   ACCESS,
   createConnectionState,
@@ -51,6 +51,7 @@ import {
   type PageChangeEntry,
   type Result,
   type Work,
+  queueNotice,
 } from './rpc.js'
 import type {Symbolicator} from './symbolicate.js'
 import {PageCaptureBundleSchema, type PageCaptureBundle, type SessionCaptures} from './element-capture-types.js'
@@ -78,7 +79,7 @@ export type TabGone = typeof TabGone.Type & globalThis.Error
 const makeTabGone = (fields: Omit<typeof TabGone.Type, '_tag'>): TabGone =>
   Object.assign(new globalThis.Error('The page tab went away'), TabGone.make(fields), {name: 'PageTabGone'})
 
-export type PageError = Tool.Error | TabGone
+type PageError = Tool.Error | TabGone
 
 const PageCall = Request.TaggedClass('PageCall')<
   {
@@ -422,16 +423,33 @@ export const make = Effect.fn('PageConnection.make')(function* (
     return played.map(({reply}) => reply)
   })
 
-  const queues = yield* PageQueue.makeQueues({
+  const queues: PageQueue.Queues = yield* PageQueue.makeQueues({
     play: playQueue,
     journal: (sessionId, change) => records.append(sessionId, change),
     finished: (entry) => {
       if (entry.result === null) return Effect.void
-      const {sessionId, queueId, toolCallId, result} = entry
+      const {sessionId, queueId, toolCallId, result, origin} = entry
+      const notify = queues.undelivered(sessionId, {toolCallIds: [toolCallId]}).pipe(
+        Effect.flatMap((owed) =>
+          Effect.forEach(
+            owed,
+            (finished) =>
+              ctx.session.synthetic({
+                sessionID: sessionId,
+                text: queueNotice(finished),
+                description: `Queued page actions ${finished.status}`,
+                metadata: {source: 'page-queue', queueId: finished.queueId, state: finished.status},
+              }),
+            {discard: true},
+          ),
+        ),
+        Effect.catchCause((cause) => Effect.logWarning(`Queue ${queueId} could not reach its session`, cause)),
+      )
       return Effect.forkIn(
-        registration.events
-          .emit('queue.finished', {sessionId, queueId, toolCallId, result})
-          .pipe(Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause))),
+        registration.events.emit('queue.finished', {sessionId, queueId, toolCallId, result}).pipe(
+          Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause)),
+          Effect.andThen(origin === 'hub' ? Effect.void : notify),
+        ),
         work,
       ).pipe(Effect.asVoid)
     },
@@ -573,15 +591,13 @@ export const make = Effect.fn('PageConnection.make')(function* (
         queues
           .wait(input.sessionId, input.queueId, input.waitMs)
           .pipe(Effect.mapError((error) => call.error('unavailable', error.message, {}))),
+      'queue.startedBy': (input) => queues.startedBy(input.sessionId, input.toolCallIds),
       'queue.claim': (input, call) =>
         queues
           .claim(input.sessionId, input.queueId, input.waitMs)
           .pipe(Effect.mapError((error) => call.error('unavailable', error.message, {}))),
-      'queue.startedBy': (input) => queues.startedBy(input.sessionId, input.toolCallIds),
-      'queue.undelivered': (input) => queues.undelivered(input.sessionId, input.toolCallIds),
-      'queue.owed': (input) => queues.owed(input.sessionId),
-      'queue.settle': (input) =>
-        queues.settle(input.sessionId, input.queueIds, input.delivery).pipe(Effect.as({ok: true as const})),
+      'queue.settle': (input) => queues.settle(input.sessionId, input.queueIds),
+      'queue.undelivered': (input) => queues.undelivered(input.sessionId, {origin: input.origin}),
     })
     .pipe(Effect.orDie)
 

@@ -4,7 +4,7 @@ import * as Fff from '#fff'
 import fuzzysort from 'fuzzysort'
 import {RelativePath} from '@conciv/protocol/schema/schema'
 import * as FileSystem from '../../schema/filesystem.js'
-import {Location} from '@conciv/backend-app-api/core/location'
+import * as Location from '@conciv/backend-app-api/core/location'
 import * as Ripgrep from '../ripgrep.js'
 import * as Protected from './protected.js'
 

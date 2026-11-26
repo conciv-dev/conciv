@@ -6,7 +6,7 @@ import {Cache, Duration, Effect, Exit} from 'effect'
 import type {RawFrame, SourceLoc} from '@conciv/protocol'
 
 const SERVER_PREFIX = /^about:\/\/React\/Server\//
-const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
+const LOOPBACK_HOSTS: readonly string[] = ['localhost', '127.0.0.1', '::1', '[::1]']
 const SOURCE_FETCH_TIMEOUT_MS = 5000
 const SOURCE_MAP_CAPACITY = 64
 const SOURCE_MAP_TIME_TO_LIVE = Duration.seconds(30)
@@ -26,7 +26,7 @@ function readFileInRoot(path: string, root: string) {
 
 function fetchLoopback(url: string) {
   return Effect.tryPromise(async (signal) => {
-    if (!LOOPBACK_HOSTS.has(new URL(url).hostname)) throw new Error(`refused: non-loopback host ${url}`)
+    if (!LOOPBACK_HOSTS.includes(new URL(url).hostname)) throw new Error(`refused: non-loopback host ${url}`)
     return (await fetch(url, {signal})).text()
   }).pipe(Effect.timeout(Duration.millis(SOURCE_FETCH_TIMEOUT_MS)))
 }

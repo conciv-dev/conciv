@@ -1,7 +1,8 @@
 import {implement} from '@orpc/server'
 import {Cause, Effect, Fiber, FiberSet, PubSub, Queue, Ref, Semaphore, Stream, type Scope} from 'effect'
 import type {Plugin} from '@conciv/backend-plugin-api/effect/plugin'
-import {SimulationControlServer, type Connection} from '../control-server.js'
+import {type Connection} from '../control-server.js'
+import * as SimulationControlServer from '../control-server.js'
 import {
   BACKEND_CAPABILITIES,
   backendContract,
@@ -11,7 +12,7 @@ import {
   type ModelRequest,
   type ProviderInvocation,
 } from '@conciv/protocol/simulation'
-import {SimulatedTools} from './simulated-tools.js'
+import * as SimulatedTools from './simulated-tools.js'
 
 const RESPONSE_LIMIT = 256
 
@@ -308,5 +309,3 @@ export const drive = (options: DriveOptions): Effect.Effect<Drive, Error, Scope.
     yield* Effect.sync(() => process.stderr.write(`conciv drive backend websocket: ${server.url}\n`))
     return {provider: {stream: driver.stream}, plugin: tools.plugin}
   })
-
-export * as SimulatedProvider from './simulated-provider.js'

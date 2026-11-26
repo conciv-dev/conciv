@@ -1,7 +1,8 @@
 import {convertSchemaToJsonSchema, EventType} from '@tanstack/ai'
 import {isEqual, keyBy} from 'es-toolkit'
 import {z} from 'zod'
-import {SessionMessage} from '@conciv/protocol/schema/session-message'
+import * as SessionMessage from '@conciv/protocol/schema/session-message'
+import type {Maker} from '@conciv/protocol/schema/identifier'
 import type {ModelMessage} from '@conciv/types/chat-message-types'
 import type {ChatEvent} from '@conciv/types/chat-event-types'
 import type {ChatTool} from '@conciv/types/chat-tool-types'
@@ -109,8 +110,12 @@ export function answeredMetadata(
   return {...metadata, conciv: result === undefined ? undefined : {answer: result}}
 }
 
-async function* answered(result: RequestResult, run: {threadId: string; runId: string}): AsyncIterable<ChatEvent> {
-  const messageId = SessionMessage.Id.create()
+async function* answered(
+  result: RequestResult,
+  run: {threadId: string; runId: string},
+  ids: Maker,
+): AsyncIterable<ChatEvent> {
+  const messageId = SessionMessage.Id.create(ids)
   const tokens = result.tokens
   yield {type: EventType.RUN_STARTED, ...run}
   yield {type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant'}
@@ -134,11 +139,11 @@ async function* answered(result: RequestResult, run: {threadId: string; runId: s
   }
 }
 
-export function answeredAdapter(adapter: TextAdapter): TextAdapter {
+export function answeredAdapter(adapter: TextAdapter, ids: Maker): TextAdapter {
   const chatStream: TextAdapter['chatStream'] = (options) => {
     const given = AnsweredSchema.safeParse(options.metadata)
     if (!given.success) return adapter.chatStream(options)
-    return answered(given.data.conciv.answer, {threadId: options.threadId ?? '', runId: options.runId ?? ''})
+    return answered(given.data.conciv.answer, {threadId: options.threadId ?? '', runId: options.runId ?? ''}, ids)
   }
   return new Proxy(adapter, {
     get: (target, key, receiver) => (key === 'chatStream' ? chatStream : Reflect.get(target, key, receiver)),

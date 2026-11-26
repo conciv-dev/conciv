@@ -67,16 +67,16 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsdown -c tsdown.types.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "build:types": "tsdown -c tsdown.types.config.ts",
     "test": "vitest run"
   },
   "dependencies": {
     "@conciv/app": "workspace:^",
     "@conciv/backend": "workspace:^",
+    "@conciv/backend-defaults": "workspace:^",
     "@conciv/cli": "workspace:^",
     "@conciv/types": "workspace:^",
     "@orpc/server": "catalog:",

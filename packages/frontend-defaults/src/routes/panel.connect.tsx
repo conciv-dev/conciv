@@ -1,6 +1,5 @@
 import {createFileRoute, useRouter} from '@tanstack/solid-router'
 import {useMutation} from '@conciv/client'
-import {resetBrowserRpcConnection} from '@conciv/client'
 import {Show, type JSX} from 'solid-js'
 import {createKeyed} from '@conciv/frontend-plugin-api'
 import {useConnectBinding} from '../app/context.js'
@@ -16,6 +15,7 @@ export const Route = createFileRoute('/panel/connect')({component: ConnectRoute}
 function ConnectRoute(): JSX.Element {
   const binding = useConnectBinding()
   const router = useRouter()
+  const connection = Route.useRouteContext({select: (context) => context.connection})
 
   const bind = useMutation(() => ({
     mutationFn: (server: ServerBinding) => binding.bind(server),
@@ -29,7 +29,7 @@ function ConnectRoute(): JSX.Element {
 
   const retry = (server: ServerBinding): void => {
     if (classifyRpcError(bind.error, BIND_FAILED_MESSAGE, GENERIC_ERROR_MESSAGE).transportFailure)
-      resetBrowserRpcConnection(server.apiBase)
+      connection()()?.reset()
     bind.mutate(server)
   }
 

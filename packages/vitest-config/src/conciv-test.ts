@@ -2,6 +2,7 @@ import {fileURLToPath} from 'node:url'
 import type {Plugin, UserConfig} from 'vite'
 import solidPlugin from 'vite-plugin-solid'
 import type {TestProjectInlineConfiguration} from 'vitest/config'
+import {z} from 'zod'
 import {ciReporters} from '@internal/vitest-config'
 
 const NODE_ONLY_CONDITIONS = ['browser', 'solid']
@@ -44,7 +45,6 @@ function testDefaults(test: AuthorTest = {}): AuthorTest {
       exclude: ['test/**', '**/test/**', '**/*.stories.*', '**/node_modules/**'],
       allowExternal: true,
       excludeAfterRemap: true,
-      // oxlint-disable-next-line conciv/banned-vocabulary -- vitest's own option name: coverage of the CLI child process
       autoAttachSubprocess: true,
     },
     testTimeout: TEST_TIMEOUT_MS,
@@ -106,11 +106,24 @@ function unitProject(
   }
 }
 
-function testProjects(
+const ProjectFilterSchema = z.object({project: z.union([z.string(), z.array(z.string())]).optional()})
+
+function selectedProjects(projects: TestProjectInlineConfiguration[], test: unknown): TestProjectInlineConfiguration[] {
+  const names = [ProjectFilterSchema.safeParse(test).data?.project ?? []].flat()
+  if (names.length === 0) return projects.filter((project) => project.test?.name !== 'perf')
+  return projects.filter((project) => typeof project.test?.name === 'string' && names.includes(project.test.name))
+}
+
+async function testProjects(
   environment: UnitEnvironment,
   authorPlugins: UserConfig['plugins'],
-): TestProjectInlineConfiguration[] {
+  browser: boolean,
+): Promise<TestProjectInlineConfiguration[]> {
+  const browserProjects = browser
+    ? (await import('@internal/vitest-config/browser-project')).browserProjects(authorPlugins)
+    : []
   return [
+    ...browserProjects,
     unitProject(environment, authorPlugins),
     {
       extends: true,
@@ -125,15 +138,16 @@ function testProjects(
   ]
 }
 
-export function concivTest(options: {environment?: UnitEnvironment} = {}): Plugin {
+export function concivTest(options: {environment?: UnitEnvironment; browser?: boolean} = {}): Plugin {
   const environment = options.environment ?? 'node'
   return {
     name: 'conciv:test',
-    config(config, env) {
+    async config(config, env) {
       if (env.mode !== 'test') return
       const defaults = testDefaults(config.test)
       if (config.test?.name !== undefined) return {test: defaults}
-      return {test: {...defaults, projects: testProjects(environment, config.plugins)}}
+      const projects = await testProjects(environment, config.plugins, options.browser ?? false)
+      return {test: {...defaults, projects: selectedProjects(projects, config.test)}}
     },
   }
 }

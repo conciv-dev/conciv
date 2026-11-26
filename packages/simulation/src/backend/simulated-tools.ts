@@ -568,5 +568,3 @@ export const make = Effect.gen(function* () {
     plugin,
   } satisfies Interface
 })
-
-export * as SimulatedTools from './simulated-tools.js'

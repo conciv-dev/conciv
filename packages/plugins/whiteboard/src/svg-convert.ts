@@ -79,7 +79,7 @@ function splitSubpaths(data: string): string[] {
 type ShapeContext = {matrix: DOMMatrix; scale: number; origin: Origin; roughness: number}
 type ShapeBuilder = (node: Element, context: ShapeContext) => ExcalidrawElementSkeleton[]
 
-const CONTAINERS = new Set(['g', 'svg'])
+const CONTAINERS: readonly string[] = ['g', 'svg']
 
 const readNumberAttribute = (node: Element, name: string, fallback = '0'): number =>
   parseFloat(node.getAttribute(name) ?? fallback) || 0
@@ -217,7 +217,7 @@ function convertNode(
 ): void {
   if (sink.length >= MAX_ELEMENTS) return
   const tag = node.tagName
-  if (CONTAINERS.has(tag)) {
+  if (CONTAINERS.includes(tag)) {
     Array.from(node.children).forEach((child) => convertNode(child, matrix, scale, origin, roughness, sink))
     return
   }
@@ -235,7 +235,7 @@ function rootTransform(svg: SVGSVGElement, options: ConvertOptions): {scale: num
   return {scale, origin: {x: (viewBox?.x ?? 0) * scale - options.x, y: (viewBox?.y ?? 0) * scale - options.y}}
 }
 
-const DRAWABLE_TAGS = new Set([...CONTAINERS, ...Object.keys(BUILDERS)])
+const DRAWABLE_TAGS: readonly string[] = [...CONTAINERS, ...Object.keys(BUILDERS)]
 const GEOMETRY_ATTRIBUTES = [
   'viewBox',
   'transform',
@@ -277,7 +277,7 @@ function copyPaint(source: Element, copy: SVGElement): void {
 }
 
 function drawableCopy(source: Element): SVGElement | null {
-  if (!DRAWABLE_TAGS.has(source.localName)) return null
+  if (!DRAWABLE_TAGS.includes(source.localName)) return null
   const copy = document.createElementNS(SVG_NAMESPACE, source.localName)
   GEOMETRY_ATTRIBUTES.forEach((name) => {
     const value = source.getAttribute(name)

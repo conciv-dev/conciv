@@ -8,7 +8,7 @@ import {COMPILER_LIMIT, findOwner, mapInChunks, readWorkspacePackages, type Work
 const TYPESCRIPT_PATHSPECS = ['*.ts', '*.tsx', '*.mts', '*.cts']
 const PRESET_PREFIX = '@internal/tsconfig/'
 const PRESET_OWNED_KEYS = ['include', 'exclude', 'files']
-const OFF_PRESET_PACKAGES = new Set([
+const OFF_PRESET_PACKAGES = [
   'apps/examples/nextjs-app',
   'apps/examples/tanstack-start',
   'e2e/astro',
@@ -26,7 +26,7 @@ const OFF_PRESET_PACKAGES = new Set([
   'e2e/vite-solid-component',
   'e2e/vite-vanilla',
   'native/swift',
-])
+]
 
 const tsconfigSchema = z.looseObject({extends: z.union([z.string(), z.array(z.string())]).optional()})
 
@@ -62,7 +62,7 @@ async function trackedTypescriptFiles(cwd: string): Promise<string[]> {
 async function packageViolations(pkg: WorkspacePackage, files: string[]): Promise<string[]> {
   const main = await readTsconfig(join(pkg.dir, 'tsconfig.json')).catch(() => undefined)
   const onPreset = main !== undefined && extendsPreset(main)
-  if (OFF_PRESET_PACKAGES.has(pkg.relativeDir)) {
+  if (OFF_PRESET_PACKAGES.includes(pkg.relativeDir)) {
     if (onPreset) return [`${pkg.relativeDir}: extends the @internal/tsconfig preset, so it leaves the off-preset list`]
     const repoOwned = files.filter(isRepoOwnedInScaffold)
     return repoOwned.length === 0 ? [] : uncheckedFiles(pkg, repoOwned)

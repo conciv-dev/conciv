@@ -1,10 +1,7 @@
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import {ConfigProvider, Effect, Exit, Layer, Scope} from 'effect'
-import type {App, Replacements} from '@conciv/simulation/backend'
-
-export type SimulationParts = Pick<Replacements, 'httpClient' | 'plugins'>
-
-export type Simulation = Replacements & {close: () => Promise<void>}
+import type {App} from '@conciv/simulation/backend'
+import type {Simulation} from '@conciv/backend-defaults/backend'
 
 export async function startSimulation(app: App, configProvider: ConfigProvider.ConfigProvider): Promise<Simulation> {
   const {simulationReplacements} = await import('@conciv/simulation/backend')

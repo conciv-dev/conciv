@@ -21,7 +21,6 @@ const ISOLATED_MARK = 'VITEST_ISOLATED_HOME'
 
 export default function setup(): () => void {
   if (process.env[ISOLATED_MARK] !== undefined) return () => undefined
-  // oxlint-disable-next-line conciv/no-hand-made-temp-dir -- the test run's own home, removed in teardown
   const home = mkdtempSync(join(tmpdir(), 'conciv-test-home-'))
   const temporary = join(home, 'tmp')
   mkdirSync(temporary)

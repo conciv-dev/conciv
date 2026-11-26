@@ -1,4 +1,3 @@
-export * as Plugin from './plugin.js'
 export {
   ChunkNotFound,
   Event,
@@ -13,7 +12,7 @@ export {
 import {readFile} from 'node:fs/promises'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {Plugin} from '@conciv/protocol/schema/plugin'
+import * as Plugin from '@conciv/protocol/schema/plugin'
 import * as NodeChildProcessSpawner from '@effect/platform-node/NodeChildProcessSpawner'
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
 import * as NodePath from '@effect/platform-node/NodePath'
@@ -34,10 +33,10 @@ import {
   Scope,
   Semaphore,
 } from 'effect'
-import {Bus} from './bus.js'
-import {PluginHost} from './plugin/host.js'
+import * as Bus from './bus.js'
+import * as PluginHost from './plugin/host.js'
 import {type Chunks, type Failure, type Generation, Service} from './plugin/service.js'
-import {State} from './state.js'
+import * as State from './state.js'
 
 export {awaitActivation, type Failure, type Generation, type Interface, Service} from './plugin/service.js'
 

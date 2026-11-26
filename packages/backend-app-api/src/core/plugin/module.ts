@@ -1,21 +1,19 @@
-export * as PluginModule from './module.js'
-
 import type {Plugin, Services, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
 import * as Host from '@conciv/backend-plugin-api/host'
 import {ExperimentalBundle, type Source} from '@conciv/protocol/schema/plugin'
 import {createPluginSources} from '../../plugin/source.js'
 import {Hash} from '../../util/hash.js'
-import {Npm} from '../../util/npm.js'
+import * as Npm from '../../util/npm.js'
 import {Deferred, Duration, Effect, FiberSet, PubSub, RcMap, Schema, Stream} from 'effect'
 import path from 'path'
 import {readFile, stat} from 'node:fs/promises'
 import {z} from 'zod'
 import {fileURLToPath, pathToFileURL} from 'url'
-import type {ConfigPluginSource} from '../config/plugin/source.js'
+import type * as ConfigPluginSource from '../config/plugin/source.js'
 import type {Chunks, Generation} from './service.js'
-import {PluginPromise} from './promise.js'
-import {ManagedPolicy} from '../managed-policy.js'
-import {Watcher} from '../filesystem/watcher.js'
+import * as PluginPromise from './promise.js'
+import * as ManagedPolicy from '../managed-policy.js'
+import * as Watcher from '../filesystem/watcher.js'
 
 export const make = Effect.fn('PluginModule.make')(function* () {
   const policies = yield* ManagedPolicy.ConfiguredPolicies

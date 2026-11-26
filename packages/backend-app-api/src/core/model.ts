@@ -1,7 +1,5 @@
-export * as Model from './model.js'
-
 import {Context, type Effect} from 'effect'
-import {Model} from '@conciv/protocol/schema/model'
+import * as Model from '@conciv/protocol/schema/model'
 
 export const Info: typeof Model.Info = Model.Info
 export type Info = Model.Info

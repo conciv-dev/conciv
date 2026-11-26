@@ -9,7 +9,7 @@ export interface ExperimentalOptions {
   readonly outFile?: string
 }
 
-const provided = new Set<string>([...pluginSharedModules, ...pluginWindowModules])
+const provided: readonly string[] = [...pluginSharedModules, ...pluginWindowModules]
 
 /**
  * Builds a plugin's `./plugin-experimental` bundle with Vite: compiles Solid JSX, writes a CommonJS entry plus one
@@ -57,10 +57,10 @@ export function experimental(options: ExperimentalOptions = {}): Plugin[] {
         })
       },
       resolveId(source) {
-        if (provided.has(source) || isBuiltin(source)) return {id: source, external: true}
+        if (provided.includes(source) || isBuiltin(source)) return {id: source, external: true}
 
         if (/^(effect|solid-js|@conciv)\//.test(source))
-          this.error(`${source} is not a module the conciv app provides to plugins: ${[...provided].join(', ')}`)
+          this.error(`${source} is not a module the conciv app provides to plugins: ${provided.join(', ')}`)
       },
     },
   ]

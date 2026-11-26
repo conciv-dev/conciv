@@ -1,8 +1,6 @@
-export * as KV from './kv.js'
-
 import {and, asc, eq, gt, gte, lt} from 'drizzle-orm'
 import {Context, Effect, Layer, Schema} from 'effect'
-import {Database} from './database/database.js'
+import * as Database from './database/database.js'
 import {KVTable} from './kv/sql.js'
 
 export type Value = Schema.Json

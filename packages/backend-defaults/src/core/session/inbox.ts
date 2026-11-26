@@ -1,5 +1,3 @@
-export * as SessionInbox from './inbox.js'
-
 import {and, asc, eq, or} from 'drizzle-orm'
 import {Context, DateTime, Effect, Layer, Option, Schema} from 'effect'
 import {chatMessages} from '@conciv/db'
@@ -19,12 +17,12 @@ import {
   User,
   UserPayload,
 } from '@conciv/protocol/schema/session-inbox'
-import {SessionEvent} from '@conciv/protocol/schema/session-event'
+import * as SessionEvent from '@conciv/protocol/schema/session-event'
 import type {SessionId} from '@conciv/protocol/schema/session-id'
-import {SessionMessage} from '@conciv/protocol/schema/session-message'
-import {Database} from '@conciv/backend-app-api/core/database/database'
-import {Bus} from '@conciv/backend-app-api/core/bus'
-import {KeyedMutex} from '@conciv/backend-app-api/core/effect/keyed-mutex'
+import * as SessionMessage from '@conciv/protocol/schema/session-message'
+import * as Database from '@conciv/backend-app-api/core/database/database'
+import * as Bus from '@conciv/backend-app-api/core/bus'
+import * as KeyedMutex from '@conciv/backend-app-api/core/effect/keyed-mutex'
 import {SessionInboxTable} from './sql.js'
 
 type DatabaseService = Database.Interface['db']

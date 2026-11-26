@@ -1,7 +1,5 @@
-export * as Image from './image.js'
-
 import {Context, Schema, type Effect} from 'effect'
-import type {State} from './state.js'
+import type * as State from './state.js'
 import type {DecodeError, ResizerUnavailableError, SizeError} from './image/error.js'
 
 export {

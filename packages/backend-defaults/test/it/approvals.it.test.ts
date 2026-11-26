@@ -1,8 +1,9 @@
-import {describe, expect, test} from 'vitest'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {describe, expect} from 'vitest'
+import {test} from '../utils/engine-test.js'
+import {TestLLM} from '../utils/engine.js'
 
 describe('ui questions', () => {
-  test('a question nobody answers tells the agent it is not answered yet', async () => {
+  test('a question nobody answers tells the agent it is not answered yet', async ({createEngine}) => {
     const engine = await createEngine({}, {timeouts: {uiCallWaitMs: 50, uiAnswerWaitMs: 50}})
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {

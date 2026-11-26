@@ -1,6 +1,6 @@
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
-import type {Permission} from '@conciv/protocol/schema/permission'
-import {Tool} from '@conciv/protocol/schema/tool'
+import type * as Permission from '@conciv/protocol/schema/permission'
+import * as Tool from '@conciv/protocol/schema/tool'
 import {Effect} from 'effect'
 import type {SourceUnreadable} from './anchor-confine.js'
 import type {StoreError} from './store.js'

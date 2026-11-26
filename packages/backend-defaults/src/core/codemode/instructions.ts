@@ -1,9 +1,7 @@
-export * as CodeModeInstructions from './instructions.js'
-
 import {executeToolName, searchSignature, toolExpression} from '../../codemode/codemode.js'
 import {Effect, Schema} from 'effect'
-import {Instructions} from '@conciv/backend-app-api/core/instructions/instructions'
-import {CodeModeCatalog} from './catalog.js'
+import * as Instructions from '@conciv/backend-app-api/core/instructions/instructions'
+import * as CodeModeCatalog from './catalog.js'
 
 const prompt = (hasMoreTools: boolean) => `# Code Mode
 

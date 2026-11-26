@@ -101,7 +101,7 @@ async function captureElement(el: Element): Promise<DomPreview> {
   const rules: string[] = []
   const runs: TextRun[] = []
   if (!isStyledElement(clone)) return {kind: 'dom', html: '', width: rect.width, height: rect.height}
-  inlineComputedStyles(el, clone, rules, runs)
+  inlineComputedStyles(el, clone, {id: crypto.randomUUID().slice(0, 8), rules}, runs)
   await correctFallbackMetrics(runs)
   neutralizeLayout(clone)
 
@@ -117,7 +117,7 @@ async function captureElement(el: Element): Promise<DomPreview> {
   return {kind: 'dom', html: node.outerHTML, width: rect.width, height: rect.height}
 }
 
-const SKIP_PROPS = new Set(['cursor', 'pointer-events', 'user-select', '-webkit-user-select'])
+const SKIP_PROPS: readonly string[] = ['cursor', 'pointer-events', 'user-select', '-webkit-user-select']
 
 function isTextRun(node: Element): boolean {
   return node.children.length === 0 && (node.textContent ?? '').trim() !== ''
@@ -126,32 +126,33 @@ function isTextRun(node: Element): boolean {
 function computedCssText(cs: CSSStyleDeclaration): string {
   let cssText = ''
   for (const prop of cs) {
-    if (SKIP_PROPS.has(prop) || prop.startsWith('--')) continue
+    if (SKIP_PROPS.includes(prop) || prop.startsWith('--')) continue
     cssText += `${prop}:${cs.getPropertyValue(prop)};`
   }
   return cssText
 }
 
-function inlineComputedStyles(src: Element, dst: StyledElement, rules: string[], runs: TextRun[]): void {
+function inlineComputedStyles(src: Element, dst: StyledElement, pseudo: PseudoRules, runs: TextRun[]): void {
   dst.style.cssText = computedCssText(getComputedStyle(src))
-  capturePseudo(src, dst, rules)
+  capturePseudo(src, dst, pseudo)
   if (isStyledElement(src) && isTextRun(src)) runs.push({source: src, clone: dst})
   const sk = src.children
   const dk = dst.children
   for (let i = 0; i < sk.length; i++) {
     const childSrc = sk[i]
     const childDst = dk[i]
-    if (childSrc && childDst && isStyledElement(childDst)) inlineComputedStyles(childSrc, childDst, rules, runs)
+    if (childSrc && childDst && isStyledElement(childDst)) inlineComputedStyles(childSrc, childDst, pseudo, runs)
   }
 }
 
-let pseudoSeq = 0
-function capturePseudo(src: Element, dst: StyledElement, rules: string[]): void {
+type PseudoRules = {id: string; rules: string[]}
+
+function capturePseudo(src: Element, dst: StyledElement, {id, rules}: PseudoRules): void {
   for (const pseudo of ['::before', '::after']) {
     const pcs = getComputedStyle(src, pseudo)
     const content = pcs.content
     if (!content || content === 'none' || content === 'normal') continue
-    const cls = `conciv-grab-pseudo-${pseudoSeq++}`
+    const cls = `conciv-grab-pseudo-${id}-${rules.length}`
     dst.classList.add(cls)
     let t = ''
     for (const prop of pcs) t += `${prop}:${pcs.getPropertyValue(prop)};`

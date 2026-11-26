@@ -1,11 +1,9 @@
 import {createMemo, from, onCleanup, onMount, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {
-  browserRpcConnection,
   forgetMagicLinkCode,
   readMagicLinkCode,
-  type EngineConnectionTimings,
-  type EngineTokenSource,
+  type EngineConnection,
   type EngineTrust,
   type TrustStatus,
 } from '@conciv/client'
@@ -30,20 +28,12 @@ const NOTICE_TEXT: Record<Exclude<LoginNotice, 'none'>, string> = {
   requestFailed: 'Could not ask the dev server for a code. Please try again.',
 }
 
-function trustStatus(trust: EngineTrust): Accessor<TrustStatus> {
+export function trustStatus(trust: EngineTrust): Accessor<TrustStatus> {
   return from<TrustStatus>((set) => trust.subscribe((status) => set(status)), trust.status())
 }
 
-export function createEngineLogin(options: {
-  apiBase: Accessor<string>
-  tokenSource?: EngineTokenSource
-  timings?: Partial<EngineConnectionTimings>
-}): EngineLogin {
-  const trust = createMemo(() => {
-    const connection = browserRpcConnection(options.apiBase(), options.tokenSource, options.timings)
-    onCleanup(connection.release)
-    return connection.trust
-  })
+export function createEngineLogin(connection: Accessor<EngineConnection>): EngineLogin {
+  const trust = createMemo(() => connection().trust)
   const status = createMemo(() => trustStatus(trust()))
   return {
     trust,

@@ -1,6 +1,6 @@
-import type {Conciv} from './client.js'
+import type * as Conciv from './client.js'
 
-export {Conciv} from './client.js'
+export * as Conciv from './client.js'
 export type {ClientConnectionOptions, ClientConnectionStatus} from './client.js'
 export type {EventSubscribeOutput as ConcivEvent} from './generated/types.js'
 

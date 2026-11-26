@@ -10,7 +10,7 @@ import {htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE, loadWidgetModule, resolveWidgetModule} from './widget-module.js'
 import {makeOpenInEditor} from './open-editor.js'
 import {makeViteBridge} from './vite-bridge.js'
-import {install as installShutdownDeadline, track} from './shutdown-deadline.js'
+import {createShutdownTracker, install as installShutdownDeadline} from './shutdown-deadline.js'
 import type {Builtins} from './boot.js'
 import {addSourceToJsx} from '@tanstack/devtools-bundler-core'
 
@@ -183,7 +183,7 @@ async function bootEngine(
   server: ViteDevServer,
   options: ConcivConfig,
   agentPath: string,
-  nativePageDir: string | undefined,
+  widgetPageDir: string | undefined,
 ): Promise<Engine> {
   const {start} = await import('@conciv/backend/start')
   return start({
@@ -193,7 +193,7 @@ async function bootEngine(
     bridge: await makeViteBridge(server),
     launchEditor: makeOpenInEditor(server.config.root),
     allowedOrigins: devOrigins(server),
-    nativePageDir,
+    widgetPageDir,
     devEndpointDir: options.devEndpointDir,
     homeDir: options.homeDir,
     log: {emit: (entry) => writeEngineLog(server, entry)},
@@ -297,6 +297,7 @@ function widgetSettings(widget: ConcivConfig['widget'], docked: boolean): Conciv
 export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}): DevToolsPlugin {
   const engines: Engine[] = []
   const deadlines: (() => void)[] = []
+  const shutdown = createShutdownTracker()
   let apiBase: string | undefined
 
   let managedExcludes: string[] = []
@@ -368,7 +369,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
     async configResolved(config) {
       testing = config.mode === 'test'
       if (testing) return
-      const {resolveConfig} = await import('@conciv/backend/config')
+      const {resolveConfig} = await import('@conciv/backend-defaults/backend')
       docked =
         options.widget !== false &&
         resolveConfig(options, config.root).enabled &&
@@ -387,7 +388,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
     transformIndexHtml: {
       order: 'pre',
       async handler(_html, ctx) {
-        const {resolveConfig} = await import('@conciv/backend/config')
+        const {resolveConfig} = await import('@conciv/backend-defaults/backend')
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
         const engine = engines.at(-1)
         if (!cfg.enabled || !engine) return []
@@ -399,23 +400,23 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
     },
     async configureServer(server: ViteDevServer) {
       if (testing) return
-      const {resolveConfig} = await import('@conciv/backend/config')
+      const {resolveConfig} = await import('@conciv/backend-defaults/backend')
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
       const booted = await bootEngine(
         server,
         options,
         await installConcivBinShim(concivStateDir(cfg.stateRoot)),
-        builtins.nativePageDir,
+        builtins.widgetPageDir,
       )
       engines.push(stopWhenHttpServerCloses(server, booted))
-      if (!server.config.server.middlewareMode) deadlines.push(installShutdownDeadline())
+      if (!server.config.server.middlewareMode) deadlines.push(installShutdownDeadline(shutdown))
       apiBase = `http://127.0.0.1:${booted.port}`
       devServer = server
       mountWidget(server, apiBase, options.widget)
     },
     async closeServer() {
-      const settle = track('conciv engine stopping')
+      const settle = shutdown.track('conciv engine stopping')
       await engines.shift()?.stop()
       settle()
       deadlines.shift()?.()

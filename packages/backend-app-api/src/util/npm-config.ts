@@ -1,14 +1,10 @@
-export * as NpmConfig from './npm-config.js'
-
 import {fileURLToPath} from 'url'
 import {Effect} from 'effect'
 
 export const load = (dir: string) =>
   Effect.tryPromise({
     try: async () => {
-      // @ts-expect-error npm does not publish types for this internal config API.
       const {default: Config} = await import('@npmcli/config')
-      // @ts-expect-error npm does not publish types for this internal config API.
       const {default: npmDefinitions} = await import('@npmcli/config/lib/definitions/index.js')
       const {definitions, flatten, nerfDarts, shorthands} = npmDefinitions
       const config = new Config({
@@ -25,10 +21,10 @@ export const load = (dir: string) =>
         warn: false,
       })
       await config.load()
-      return config.flat as Record<string, unknown>
+      return config.flat
     },
     catch: (cause) => cause,
-  }).pipe(Effect.orElseSucceed(() => ({}) as Record<string, unknown>))
+  }).pipe(Effect.orElseSucceed((): Record<string, unknown> => ({})))
 
 export const registry = (dir: string) =>
   load(dir).pipe(

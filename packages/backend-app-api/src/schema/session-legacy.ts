@@ -1,5 +1,3 @@
-export * as SessionLegacy from './session-legacy.js'
-
 const renames: Record<string, readonly [string, string]> = {
   'session.text.ended': ['state', 'native'],
   'session.reasoning.started': ['state', 'native'],

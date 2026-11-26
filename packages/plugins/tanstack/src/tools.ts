@@ -5,7 +5,7 @@ import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import type {RpcClient} from '@conciv/backend-plugin-api/effect/rpc'
 import type * as Bundler from '@conciv/protocol/schema/bundler'
 import type {SystemError} from '@conciv/protocol/schema/rpc'
-import {Tool} from '@conciv/protocol/schema/tool'
+import * as Tool from '@conciv/protocol/schema/tool'
 import {Definition as PageDefinition, State, TabId} from '@conciv/plugin-page/rpc'
 import {DiagnosticsService} from './diagnostics.js'
 import {

@@ -1,5 +1,3 @@
-export * as Provider from './provider.js'
-
 import {Effect, Schema} from 'effect'
 import {optional, statics} from './schema.js'
 

@@ -1,5 +1,3 @@
-export * as CodeModeCatalog from './catalog.js'
-
 import {Schema} from 'effect'
 
 export type Tool = {

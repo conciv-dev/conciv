@@ -1,5 +1,3 @@
-export * as Plugin from './plugin.js'
-
 import {Schema} from 'effect'
 import {ephemeral, inventory} from './event.js'
 import {optional} from './schema.js'

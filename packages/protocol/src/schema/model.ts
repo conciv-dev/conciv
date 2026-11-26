@@ -1,10 +1,8 @@
-export * as Model from './model.js'
-
 import {Schema, Struct} from 'effect'
 import {optional, statics} from './schema.js'
-import {Provider} from './provider.js'
+import * as Provider from './provider.js'
 import {Compatibility} from './model-compatibility.js'
-import {Money} from './money.js'
+import * as Money from './money.js'
 
 export const Id = Schema.String.pipe(Schema.brand('Model.ID'))
 export type Id = typeof Id.Type

@@ -3,8 +3,8 @@ import {Buffer} from 'node:buffer'
 import {Effect} from 'effect'
 import {z} from 'zod'
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
-import {Tool} from '@conciv/protocol/schema/tool'
-import {PageRaisedErrorSchema} from '@conciv/types/page-types'
+import * as Tool from '@conciv/protocol/schema/tool'
+import {PageRaisedErrorSchema} from './page-types.js'
 import {RawFrameSchema, SourceLocSchema} from '@conciv/protocol'
 import {toolFailure, type Connection} from './connection.js'
 import {PageFiles} from './files.js'
@@ -59,7 +59,7 @@ export const register = Effect.fn('PageTools.register')(function* (
   const root = ctx.location.directory
   const execute = Effect.fn('PageTools.execute')(function* (operation: Operation, action: Action, tool: Tool.Context) {
     if (action.type === 'tabs.list') return yield* exportResult(connection.tabs(tool.sessionId), [], root)
-    const queueing = {agentId: tool.agent, toolCallId: tool.id}
+    const queueing = {agentId: tool.agent, toolCallId: tool.id, origin: tool.origin}
     if (action.type === 'queue') {
       const played = yield* connection.queues
         .play(tool.sessionId, {...queueing, action})

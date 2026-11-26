@@ -28,19 +28,12 @@ async function fetchFontFile(assetPath: string, requestUrl: string): Promise<Uin
   return new Uint8Array(await response.arrayBuffer())
 }
 
-let cachedFonts: OgFont[] | undefined
-
 export async function loadOgFonts(requestUrl: string): Promise<OgFont[]> {
-  if (cachedFonts) return cachedFonts
-
-  const fonts = await Promise.all(
+  return Promise.all(
     FONT_FILES.map(async (file) => ({
       name: FONT_FAMILY,
       data: await fetchFontFile(file.assetPath, requestUrl),
       weight: file.weight,
     })),
   )
-
-  cachedFonts = fonts
-  return fonts
 }

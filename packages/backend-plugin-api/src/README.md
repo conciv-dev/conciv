@@ -245,6 +245,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - A failed tool call's `metadata` stays in the host and the model gets the message, but the session's recorded failure carries no metadata (as a successful result's metadata today): opencode keeps it on the stored failed part (`core/src/session/runner/step.ts:154-155`). The recorded tool result has no slot a server tool can fill.
 - `Tool.Freeform`, `Tool.FreeformFormat` and `Tool.Info.freeform` are absent: MCP takes JSON input only.
 - `Tool.Context.messageId`, `ToolContext.messageId` and the tool hooks' `messageId` are `string | undefined` (calls arrive from the CLI over MCP).
+- `Tool.Context.origin` (and `ToolContext.origin`), type `Tool.Origin` (`'hub' | 'chat'`), is conciv's: the engine sets `'hub'` for a call an outside (hub) agent made, from the call trace, and `'chat'` otherwise.
 - `Permission` `source.messageId` accepts `undefined` for the same reason.
 - `PluginFeatures`: `gui` is `experimental`; no `tui`.
 - RPC schemas are source's (`schema/src/rpc.ts`): methods and events take `Tool.ValueSchema`, Effect Schema included; the `Portable*` types leave Effect Schema out.

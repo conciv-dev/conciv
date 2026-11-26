@@ -1,5 +1,3 @@
-export * as Instruction from './instruction.js'
-
 import {Schema} from 'effect'
 
 export const Key = Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._/-]*$/u)).pipe(

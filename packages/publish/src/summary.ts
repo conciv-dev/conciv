@@ -32,7 +32,7 @@ export type PackageSummary = {
 
 export type RenderOptions = {title: string; details: boolean}
 
-const SKIPPED_DIRS = new Set(['node_modules', 'dist', '.turbo', '.git', 'test', 'src'])
+const SKIPPED_DIRS = ['node_modules', 'dist', '.turbo', '.git', 'test', 'src']
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -60,9 +60,7 @@ export function manifestName(dir: string): string {
   return name === '' ? dir : name
 }
 
-const packageByDir = new Map<string, string | null>()
-
-function owningPackage(dir: string): string | null {
+function owningPackage(packageByDir: Map<string, string | null>, dir: string): string | null {
   const cached = packageByDir.get(dir)
   if (cached !== undefined) return cached
   const parent = dirname(dir)
@@ -70,7 +68,7 @@ function owningPackage(dir: string): string | null {
     ? manifestName(dir)
     : parent === dir
       ? null
-      : owningPackage(parent)
+      : owningPackage(packageByDir, parent)
   packageByDir.set(dir, resolved)
   return resolved
 }
@@ -79,7 +77,7 @@ export function findFiles(roots: string[], fileName: string): string[] {
   const found: string[] = []
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, {withFileTypes: true})) {
-      if (entry.isDirectory() && !SKIPPED_DIRS.has(entry.name)) walk(join(dir, entry.name))
+      if (entry.isDirectory() && !SKIPPED_DIRS.includes(entry.name)) walk(join(dir, entry.name))
       if (entry.isFile() && entry.name === fileName) found.push(join(dir, entry.name))
     }
   }
@@ -258,14 +256,15 @@ function parsePlaywrightReport(reportPackage: string, report: Record<string, unk
   return [...named, summaryOfCases(reportPackage, crashes, 0)]
 }
 
-export function parseReport(reportPackage: string, raw: string): PackageSummary[] {
+function parseReport(reportPackage: string, raw: string): PackageSummary[] {
   const report: unknown = JSON.parse(raw)
   if (isRecord(report) && Array.isArray(report.suites)) return parsePlaywrightReport(reportPackage, report)
   const files = toRecords(isRecord(report) ? report.testResults : [])
+  const packageByDir = new Map<string, string | null>()
   const byPackage = groupBy(
     files.map((file): [string, Record<string, unknown>] => {
       const path = asString(file.name)
-      const owner = path === '' ? null : owningPackage(dirname(path))
+      const owner = path === '' ? null : owningPackage(packageByDir, dirname(path))
       return [owner ?? reportPackage, file]
     }),
   )
@@ -389,8 +388,9 @@ export function isWorkspaceSource(file: string): boolean {
 
 export function coverageByPackage(files: FileCoverage[], root: string): Map<string, Coverage> {
   const byPackage = new Map<string, Coverage>()
+  const packageByDir = new Map<string, string | null>()
   for (const {file, covered, total} of files) {
-    const name = owningPackage(dirname(resolve(root, file)))
+    const name = owningPackage(packageByDir, dirname(resolve(root, file)))
     if (name === null) continue
     const sum = byPackage.get(name) ?? {covered: 0, total: 0}
     byPackage.set(name, {covered: sum.covered + covered, total: sum.total + total})

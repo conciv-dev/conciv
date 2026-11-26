@@ -1,17 +1,17 @@
-export * as SessionSynthetic from './synthetic.js'
-
 import type {Effect as EffectType} from 'effect'
 import {Effect} from 'effect'
 import type {SessionId} from '@conciv/protocol/schema/session-id'
-import {SessionMessage} from '@conciv/protocol/schema/session-message'
+import * as SessionMessage from '@conciv/protocol/schema/session-message'
+import type {Maker} from '@conciv/protocol/schema/identifier'
 import {makeSyntheticConflictError, type NotFoundError} from '@conciv/backend-app-api/core/session/error'
-import {SessionInbox} from './inbox.js'
+import * as SessionInbox from './inbox.js'
 
 export type Store = {readonly get: (sessionID: SessionId) => EffectType.Effect<unknown, NotFoundError>}
 
 export const make = (
   store: Store,
   inbox: SessionInbox.Interface,
+  ids: Maker,
   wake: (sessionID: SessionId) => EffectType.Effect<void>,
 ) =>
   Effect.fn('Session.synthetic')(function* (input: {
@@ -25,7 +25,7 @@ export const make = (
   }) {
     const sessionID = input.sessionID
     yield* store.get(sessionID)
-    const id = input.id ?? SessionMessage.Id.create()
+    const id = input.id ?? SessionMessage.Id.create(ids)
     const admitted = yield* inbox
       .admit({
         id,

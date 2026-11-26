@@ -6,7 +6,7 @@ import Foundation
 // (packages/backend/src/lib/dev-endpoint.ts); the simulator shares the host filesystem
 // so a paired endpoint is read directly. `apiBase` in that file already carries the
 // /t/<token> prefix when the core minted an access token, so the WebView loads
-// apiBase/native token-scoped and RPC/SSE are path-scoped with zero extra work.
+// apiBase/widget token-scoped and RPC/SSE are path-scoped with zero extra work.
 
 public struct ConcivEndpoint: Equatable {
   public let apiBase: URL
@@ -51,7 +51,7 @@ public enum ConcivDiscovery {
 
   // The WebView loads the native page under the (possibly token-scoped) apiBase.
   public static func pageURL(for apiBase: URL) -> URL {
-    apiBase.appendingPathComponent("native")
+    apiBase.appendingPathComponent("widget")
   }
 
   public static func healthURL(for apiBase: URL) -> URL {
@@ -94,8 +94,8 @@ public enum ConcivDiscovery {
   }
 
   // The env-injected api base. ios.run launches the app with SIMCTL_CHILD_CONCIV_URL,
-  // which the child process reads as CONCIV_URL: a bare core api base with no /native
-  // suffix (the SDK appends /native itself). A missing, empty, or malformed value falls
+  // which the child process reads as CONCIV_URL: a bare core api base with no /widget
+  // suffix (the SDK appends /widget itself). A missing, empty, or malformed value falls
   // back to auto-discovery rather than crashing, so attach() is safe with no env at all.
   // A usable base carries both a scheme and a host; a scheme-less relative string (a
   // typo like "127.0.0.1:4599") is rejected as malformed and routed to discovery.

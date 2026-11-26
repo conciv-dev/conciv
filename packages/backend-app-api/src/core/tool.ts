@@ -1,19 +1,18 @@
-export * as Tool from './tool.js'
 export {CallId, Content, Error, FileContent, TextContent, makeError} from '@conciv/protocol/schema/tool'
 export type {Context, Metadata, Namespace, Options, Result} from '@conciv/protocol/schema/tool'
 
 import {makeToolDefinition, ToolDefinition, type ToolCall} from '../ai/effect.js'
-import {Tool} from '@conciv/protocol/schema/tool'
+import * as Tool from '@conciv/protocol/schema/tool'
 import {Context, Effect, Layer, Result, Schema, SchemaIssue, Types} from 'effect'
-import type {Agent} from '@conciv/protocol/schema/agent'
-import {Permission} from '@conciv/protocol/schema/permission'
-import {Image} from './image.js'
-import {PluginHooks} from './plugin/hooks.js'
-import {SessionMessage} from '@conciv/protocol/schema/session-message'
-import {Session as SessionSchema} from '@conciv/protocol/schema/session'
-import {State} from './state.js'
+import type * as Agent from '@conciv/protocol/schema/agent'
+import * as Permission from '@conciv/protocol/schema/permission'
+import * as Image from './image.js'
+import * as PluginHooks from './plugin/hooks.js'
+import * as SessionMessage from '@conciv/protocol/schema/session-message'
+import * as SessionSchema from '@conciv/protocol/schema/session'
+import * as State from './state.js'
 import {definition, effectiveName, execute, normalizedName, normalizeContent} from './tool/runtime.js'
-import {Wildcard} from './util/wildcard.js'
+import * as Wildcard from './util/wildcard.js'
 
 export const RegistrationError = Schema.TaggedStruct('Tool.RegistrationError', {
   name: Schema.String,
@@ -69,6 +68,7 @@ export interface Snapshot {
     readonly agent: Agent.Id
     readonly messageId: SessionMessage.Id | undefined
     readonly call: ToolCall
+    readonly origin: Tool.Origin
     readonly progress?: (update: Tool.Metadata) => Effect.Effect<void>
     readonly cancel?: Effect.Effect<void>
     readonly definitions?: ReadonlyMap<string, ToolDefinition>
@@ -275,6 +275,7 @@ export const layer = Layer.effect(
                 agent: input.agent,
                 messageId: input.messageId,
                 id: Tool.CallId.make(input.call.id),
+                origin: input.origin,
                 progress: input.progress ?? (() => Effect.void),
                 cancel: input.cancel,
               }

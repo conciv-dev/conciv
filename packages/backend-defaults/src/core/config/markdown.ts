@@ -1,5 +1,3 @@
-export * as ConfigMarkdown from './markdown.js'
-
 import {load} from 'js-yaml'
 
 const delimited = /^---\r?\n(?:([\s\S]*?)\r?\n)?---[^\S\r\n]*(?:\r?\n|$)/

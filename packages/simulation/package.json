@@ -1,7 +1,7 @@
 {
   "name": "@conciv/simulation",
   "version": "0.0.22",
-  "description": "The conciv engine's simulation, as opencode's: the scripted agent and fixed network table an engine started in simulation is built with, the control socket a driver answers model turns and tool calls through, and the driver; plus the harness engine tests boot.",
+  "description": "The conciv engine's simulation, as opencode's: the scripted agent and fixed network table an engine started in simulation is built with, the control socket a driver answers model turns and tool calls through, and the driver.",
   "keywords": [
     "conciv",
     "harness",
@@ -22,17 +22,13 @@
   ],
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./dist/harness-engine.d.ts",
-      "import": "./dist/harness-engine.js"
-    },
     "./test-llm": {
       "types": "./dist/test-llm.d.ts",
       "import": "./dist/test-llm.js"
     },
-    "./clock": {
-      "types": "./dist/clock-steps.d.ts",
-      "import": "./dist/clock-steps.js"
+    "./scripted-harness": {
+      "types": "./dist/scripted-harness.d.ts",
+      "import": "./dist/scripted-harness.js"
     },
     "./ai-testkit": {
       "types": "./dist/ai-testkit.d.ts",
@@ -59,13 +55,10 @@
   },
   "dependencies": {
     "@conciv/backend-app-api": "workspace:^",
-    "@conciv/backend-defaults": "workspace:^",
     "@conciv/backend-plugin-api": "workspace:^",
-    "@conciv/client": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/types": "workspace:^",
-    "@modelcontextprotocol/sdk": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
@@ -73,7 +66,6 @@
     "@tanstack/ai-client": "catalog:",
     "@tanstack/ai-sandbox": "catalog:",
     "effect": "catalog:",
-    "es-toolkit": "catalog:",
     "ws": "catalog:",
     "zod": "catalog:"
   },
@@ -87,8 +79,5 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
-  },
-  "peerDependencies": {
-    "@conciv/cli": "workspace:^"
   }
 }

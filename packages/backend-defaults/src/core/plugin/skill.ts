@@ -1,10 +1,8 @@
-export * as SkillPlugin from './skill.js'
-
 import {define, type Context} from '@conciv/backend-plugin-api/effect/plugin'
 import {Effect} from 'effect'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
-import {Skill} from '@conciv/backend-app-api/core/skill'
-import {ConfigPluginSource} from '@conciv/backend-app-api/core/config/plugin/source'
+import * as Skill from '@conciv/backend-app-api/core/skill'
+import * as ConfigPluginSource from '@conciv/backend-app-api/core/config/plugin/source'
 import os from 'os'
 import concivContent from './skill/conciv.md'
 import reportContent from './skill/report.md'

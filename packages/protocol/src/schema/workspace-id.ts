@@ -1,15 +1,15 @@
 import {Schema} from 'effect'
-import {ascending} from './identifier.js'
+import type {Maker} from './identifier.js'
 import {statics} from './schema.js'
 
 export const WorkspaceId = Schema.String.check(Schema.isStartingWith('wrk')).pipe(
   Schema.brand('Workspace.ID'),
   Schema.annotate({identifier: 'Workspace.ID'}),
   statics((schema) => {
-    const create = () => schema.make('wrk_' + ascending())
+    const create = (ids: Maker) => schema.make('wrk_' + ids.ascending())
     return {
-      ascending: (id?: string) => {
-        if (!id) return create()
+      ascending: (ids: Maker, id?: string) => {
+        if (!id) return create(ids)
         return schema.make(id)
       },
       create,

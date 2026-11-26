@@ -1,6 +1,6 @@
 import {ConfigProvider, Effect, FileSystem, Layer} from 'effect'
 import {describe, expect, it} from 'vitest'
-import {DriveManifest} from '../../src/manifest.js'
+import * as DriveManifest from '../../src/manifest.js'
 
 describe('drive manifest', () => {
   function driveFiles(contents: unknown, drive = 'test-instance') {

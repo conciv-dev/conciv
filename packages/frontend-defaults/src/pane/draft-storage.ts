@@ -8,7 +8,7 @@ import {DraftItemSchema, type DraftItem} from '@conciv/types/chat-types'
 import type {AttachmentState, ComposerDraft, ComposerDraftWriter} from '@conciv/ui-kit-chat'
 import {encodeAttachments} from '@conciv/ui-kit-chat/draft-storage'
 import {persistStore} from '@internal/frontend-app-api/persistence/persist'
-import {resolveBlobUrl, type BlobReference, type DraftStore} from '../runtime/persistence/drafts.js'
+import type {BlobReference, DraftStore} from '../runtime/persistence/drafts.js'
 import {
   dropLeavingCopy,
   keepLeavingCopy,
@@ -146,10 +146,10 @@ function readLocalDraft(drafts: DraftStore, sessionId: string): Promise<LocalDra
     })
 }
 
-async function readLocalFile(attachment: LocalAttachment): Promise<AttachmentState[]> {
+async function readLocalFile(drafts: DraftStore, attachment: LocalAttachment): Promise<AttachmentState[]> {
   const blob = attachment.blob
   if (!blob) return []
-  const url = await resolveBlobUrl(blob)
+  const url = await drafts.resolveBlobUrl(blob)
   if (!url) {
     console.error(`[conciv] the local draft has no bytes for ${attachment.name}`)
     return []
@@ -168,8 +168,8 @@ async function readLocalFile(attachment: LocalAttachment): Promise<AttachmentSta
   ]
 }
 
-function readLocalFiles(attachment: LocalAttachment): Promise<AttachmentState[]> {
-  return readLocalFile(attachment).catch((error: unknown) => {
+function readLocalFiles(drafts: DraftStore, attachment: LocalAttachment): Promise<AttachmentState[]> {
+  return readLocalFile(drafts, attachment).catch((error: unknown) => {
     console.error(`[conciv] could not read ${attachment.name} from the local draft`, error)
     return []
   })
@@ -403,9 +403,9 @@ function restoredDraft(
   }
 }
 
-async function readKeptFiles(stored: LocalDraft | null): Promise<AttachmentState[]> {
-  if (!stored) return []
-  return (await Promise.all(stored.attachments.map(readLocalFiles))).flat()
+async function readKeptFiles(drafts: DraftStore | null, stored: LocalDraft | null): Promise<AttachmentState[]> {
+  if (!drafts || !stored) return []
+  return (await Promise.all(stored.attachments.map((attachment) => readLocalFiles(drafts, attachment)))).flat()
 }
 
 function localRestored(stored: LocalDraft, kept: AttachmentState[], row: DraftRow | null): RestoredDraft {
@@ -508,8 +508,11 @@ function isEmptied(typed: DraftContent): boolean {
 
 type KeptBase = {base: LocalDraft; encoded: DraftRow['attachments'] | undefined}
 
-async function readLocalOnlyEncoded(stored: LocalDraft): Promise<DraftRow['attachments'] | undefined> {
-  const files = (await readKeptFiles(stored)).flatMap(({id, type, name, file}) =>
+async function readLocalOnlyEncoded(
+  drafts: DraftStore,
+  stored: LocalDraft,
+): Promise<DraftRow['attachments'] | undefined> {
+  const files = (await readKeptFiles(drafts, stored)).flatMap(({id, type, name, file}) =>
     file ? [{id, type, name, file}] : [],
   )
   if (differenceBy(stored.attachments, files, (attachment) => attachment.id).length > 0) return undefined
@@ -527,13 +530,14 @@ const readRowOrNone: ReadRow = (appData, sessionId) =>
 const readRowOrFail: ReadRow = (appData, sessionId) => appData.readDraft(sessionId)
 
 async function readKeptBase(appData: AppData, sessionId: string, readRow: ReadRow): Promise<KeptBase> {
-  const stored = appData.drafts ? await readLocalDraft(appData.drafts, sessionId) : null
-  if (!stored) {
+  const drafts = appData.drafts
+  const stored = drafts ? await readLocalDraft(drafts, sessionId) : null
+  if (!drafts || !stored) {
     const row = await readRow(appData, sessionId)
     return row ? {base: rowLocalDraft(row), encoded: row.attachments} : {base: EMPTY_LOCAL_DRAFT, encoded: []}
   }
   const row = appData.cachedDraft(sessionId)
-  if (row === undefined) return {base: stored, encoded: await readLocalOnlyEncoded(stored)}
+  if (row === undefined) return {base: stored, encoded: await readLocalOnlyEncoded(drafts, stored)}
   if (stored.syncedAt !== undefined && row === null) return {base: EMPTY_LOCAL_DRAFT, encoded: []}
   return {base: stored, encoded: row?.attachments ?? []}
 }
@@ -701,7 +705,7 @@ function readRowMoved(row: DraftRow | null): MovedDraft {
 }
 
 async function readStoredMoved(appData: AppData, sessionId: string, stored: LocalDraft): Promise<MovedDraft> {
-  const files = (await readKeptFiles(stored)).flatMap(({id, type, name, file}) =>
+  const files = (await readKeptFiles(appData.drafts, stored)).flatMap(({id, type, name, file}) =>
     file ? [{id, type, name, file}] : [],
   )
   const unfiled = differenceBy(stored.attachments, files, (attachment) => attachment.id)
@@ -935,7 +939,7 @@ export function makeDraftStorage(appData: AppData, keep: DraftWriteChain, sessio
     restore: async (apply, signal) => {
       const reading = readRow(signal)
       const stored = await readStored()
-      const kept = await readKeptFiles(stored)
+      const kept = await readKeptFiles(appData.drafts, stored)
       if (signal.aborted) return
       const shown = show(stored, kept, apply)
       const read = await reading

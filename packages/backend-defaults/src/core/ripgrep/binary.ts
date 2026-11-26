@@ -5,7 +5,7 @@ import {HttpClient, HttpClientRequest} from 'effect/http'
 import {ChildProcess} from 'effect/process'
 import {ChildProcessSpawner} from 'effect/process/ChildProcessSpawner'
 import {FSUtil} from '@conciv/backend-app-api/util/fs-util'
-import {Global} from '@conciv/backend-app-api/util/global'
+import * as Global from '@conciv/backend-app-api/util/global'
 import {which} from '../util/which.js'
 
 const VERSION = '15.1.0'

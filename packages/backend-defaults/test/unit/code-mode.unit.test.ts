@@ -3,9 +3,10 @@ import {z} from 'zod'
 import {defineTool} from '@conciv/types/chat-tool-types'
 import {test} from '../utils/ai-test.js'
 import {codeModeTools} from '../../src/ai/code-mode.js'
+import {makeMaker} from '@conciv/protocol/schema/identifier'
 
 describe('the agent runs its own program', () => {
-  test('a program that loops, calls a tool for each plant and logs gets its returned value and its logs back', async ({
+  test('a program that loops, calls a tool for each plant and logs gets its returned value and its logs back, and a capability that takes a secret-looking parameter is refused and never runs', async ({
     driver,
   }) => {
     const stock: Record<string, number> = {fern: 3, palm: 5}
@@ -32,6 +33,7 @@ describe('the agent runs its own program', () => {
         sandbox: false,
       },
       undefined,
+      makeMaker(),
     )
 
     const result = await coded?.execute.execute?.({
@@ -44,11 +46,7 @@ describe('the agent runs its own program', () => {
     })
 
     expect(result).toMatchObject({success: true, result: 8, logs: ['counted 2']})
-  })
-})
 
-describe('secrets', () => {
-  test('a capability that takes a secret-looking parameter is refused and never runs', async ({driver}) => {
     const opened: string[] = []
     const vaultOpen = defineTool({
       name: 'vault_open',
@@ -59,7 +57,7 @@ describe('secrets', () => {
       opened.push(apiKey)
       return {open: true}
     })
-    const coded = codeModeTools(
+    const guarded = codeModeTools(
       driver,
       [vaultOpen],
       null,
@@ -76,11 +74,14 @@ describe('secrets', () => {
         sandbox: false,
       },
       undefined,
+      makeMaker(),
     )
 
-    const result = await coded?.execute.execute?.({typescriptCode: "return await external_vault_open({apiKey: 'k-1'})"})
+    const refused = await guarded?.execute.execute?.({
+      typescriptCode: "return await external_vault_open({apiKey: 'k-1'})",
+    })
 
-    expect(result).toMatchObject({
+    expect(refused).toMatchObject({
       success: false,
       error: {
         message: expect.stringContaining(
@@ -132,6 +133,7 @@ describe('limits', () => {
           sandbox: false,
         },
         undefined,
+        makeMaker(),
         timeoutMs,
       )
 

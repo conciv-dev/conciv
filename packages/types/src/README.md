@@ -38,7 +38,7 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 
 ## Side Effects
 
-- `sharedEventTarget` (`event-bus.ts`): uses window, or creates globalThis.**CONCIV_EVENT_BUS_TARGET**
+- `createEventBus` / `createEventBusClient` (`event-bus.ts`): the caller passes the `EventTarget` (`target`); the browser passes `window`
 - `createEventBus` / `createEventBusClient` (`event-bus.ts`): add DOM listeners, dispatch CustomEvents, start retry timers
 
 ## Verification

@@ -1,8 +1,6 @@
-export * as ManagedPolicy from './managed-policy.js'
-
 import {Context} from 'effect'
-import {Wildcard} from './util/wildcard.js'
-import {ConfigPolicy} from '../schema/config/policy.js'
+import * as Wildcard from './util/wildcard.js'
+import * as ConfigPolicy from '../schema/config/policy.js'
 
 export const ConfiguredPolicies = Context.Service<readonly ConfigPolicy.Info[]>('@conciv/ConfiguredPolicies')
 

@@ -1,16 +1,11 @@
 import {createRouter, useRouteContext, useRouter, type ErrorComponentProps} from '@tanstack/solid-router'
+import {createLocalPersistence, type LocalPersistence} from '@internal/frontend-app-api/persistence/storage'
 import {once, uniq} from 'es-toolkit'
 import {z} from 'zod'
 import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient, setupEngineReachability, type ChatConnectionOptions} from '@conciv/client'
 import {createRoot, getOwner, onCleanup, runWithOwner, untrack, type JSX, createMemo, onMount} from 'solid-js'
-import {
-  browserRpcConnection,
-  type EngineConnectionTimings,
-  type RpcClient,
-  resetBrowserRpcConnection,
-  type TrustListener,
-} from '@conciv/client'
+import type {EngineConnection, EngineConnectionTimings, EngineTrust, RpcClient, TrustListener} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
 import {routeTree} from './routeTree.gen'
 import {QuickSearchSchema, quickPaneIds} from './lib/quick-search.js'
@@ -20,6 +15,7 @@ import {PendingPane} from './shell/pending.js'
 import {becameTrusted, engineLock, engineLocked, type EngineLogin} from './app/engine-login.js'
 import type {DraftStore} from './runtime/persistence/drafts.js'
 import type {ComposedPlugin} from './runtime/plugin/root.js'
+import {withShellBuiltins, type BuiltinPlugins} from './runtime/plugin/builtins.js'
 import {ErrorScreen} from './shell/error-screen.js'
 import {classifyRpcError, rpcErrorCode, type RpcErrorClassification} from './shell/rpc-error-message.js'
 
@@ -28,14 +24,13 @@ const GENERIC_ERROR_MESSAGE = 'Something went wrong. Try again.'
 
 function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
   const router = useRouter()
-  const apiBase = useRouteContext({strict: false, select: (context) => context.apiBase})
+  const connection = useRouteContext({strict: false, select: (context) => context.connection})
   const login = useRouteContext({strict: false, select: (context) => context.login})
-  const timings = useRouteContext({strict: false, select: (context) => context.timings})
   const classification = createMemo<RpcErrorClassification>(() =>
     classifyRpcError(props.error, ENGINE_UNREACHABLE_MESSAGE, GENERIC_ERROR_MESSAGE),
   )
   const retry = async (): Promise<void> => {
-    if (classification().transportFailure) resetBrowserRpcConnection(apiBase()?.() ?? '')
+    if (classification().transportFailure) connection()?.()?.reset()
     await login()?.requestTrust()
     await router.invalidate()
   }
@@ -43,10 +38,10 @@ function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
     if (becameTrusted(status, previous)) void retry()
   }
   onMount(() => {
-    const {trust, release} = browserRpcConnection(apiBase()?.() ?? '', undefined, timings()?.engine)
+    const trust = connection()?.()?.trust
+    if (trust === undefined) return
     if (trust.isTrusted() && rpcErrorCode(props.error) === 'UNAUTHORIZED') void retry()
     onCleanup(trust.subscribe(onTrustChange))
-    onCleanup(release)
   })
   return <ErrorScreen message={classification().message} onRetry={() => void retry()} />
 }
@@ -74,10 +69,12 @@ export type ConcivRouterContext = {
   data: AppData
   connected: () => boolean
   plugins: readonly ComposedPlugin[]
+  builtins: BuiltinPlugins
   servers: boolean
   bindApiBase?: (apiBase: string, token: string | undefined) => void
   grabProvider?: GrabProvider
   apiBase: () => string
+  connection: () => EngineConnection | undefined
   connectionGeneration: () => number
   bindActiveSession?: (read: () => string | null) => void
   timings: ConcivTimings
@@ -88,6 +85,7 @@ export type ConcivRouterContext = {
     bind: (lookup: PanelKeyLookup) => () => void
     status: PanelKeyLookup
   }
+  localPersistence: LocalPersistence
 }
 
 export type ConcivRouterConfig = {
@@ -97,10 +95,12 @@ export type ConcivRouterConfig = {
   settings: ConcivSettings
   connected?: () => boolean
   plugins?: readonly ComposedPlugin[]
+  builtins?: BuiltinPlugins
   servers?: boolean
   bindApiBase?: (apiBase: string, token: string | undefined) => void
   grabProvider?: GrabProvider
-  apiBase?: () => string
+  apiBase: () => string
+  connection: () => EngineConnection | undefined
   connectionGeneration?: () => number
   bindActiveSession?: (read: () => string | null) => void
   notifyInteractive?: () => void
@@ -111,27 +111,22 @@ export type ConcivRouterConfig = {
 
 type TrustHandlers = {rerunRefused: () => void; trusted: () => void; revoked: () => void}
 
-type HeldEngine = ReturnType<typeof browserRpcConnection>
-
 type EngineWiring = {dispose: () => void; locked: () => boolean; watch: (handlers: TrustHandlers) => void}
 
-function holdEngine(apiBase: string, timings: Partial<EngineConnectionTimings> | undefined): HeldEngine {
-  const stopReachability = setupEngineReachability(apiBase, timings)
-  const connection = browserRpcConnection(apiBase, undefined, timings)
-  onCleanup(() => {
-    stopReachability()
-    connection.release()
-  })
-  return connection
+function holdEngine(connection: EngineConnection | undefined): EngineTrust | undefined {
+  if (connection === undefined) return undefined
+  onCleanup(setupEngineReachability(connection))
+  return connection.trust
 }
 
-function watchTrust(connection: HeldEngine, handlers: TrustHandlers): void {
+function watchTrust(trust: EngineTrust | undefined, handlers: TrustHandlers): void {
+  if (trust === undefined) return
   untrack(() => {
-    if (connection.trust.isTrusted()) handlers.trusted()
-    if (engineLock(connection.trust.status()) === 'revoked') handlers.revoked()
+    if (trust.isTrusted()) handlers.trusted()
+    if (engineLock(trust.status()) === 'revoked') handlers.revoked()
   })
   onCleanup(
-    connection.trust.subscribe((status, previous) => {
+    trust.subscribe((status, previous) => {
       if (engineLock(status) === 'revoked') handlers.revoked()
       if (!becameTrusted(status, previous)) return
       handlers.rerunRefused()
@@ -155,14 +150,17 @@ function createPluginPanels(): ConcivRouterContext['pluginPanels'] {
   }
 }
 
-function wireEngine(apiBase: () => string, timings: Partial<EngineConnectionTimings> | undefined): EngineWiring {
+function wireEngine(connection: () => EngineConnection | undefined): EngineWiring {
   return createRoot((dispose) => {
     const owner = getOwner()
-    const connection = createMemo(() => holdEngine(apiBase(), timings))
+    const trust = createMemo(() => holdEngine(connection()))
     return {
       dispose,
-      locked: () => engineLocked(untrack(connection).trust.status()),
-      watch: (handlers) => runWithOwner(owner, () => createMemo(() => watchTrust(connection(), handlers))),
+      locked: () => {
+        const current = untrack(trust)
+        return current !== undefined && engineLocked(current.status())
+      },
+      watch: (handlers) => runWithOwner(owner, () => createMemo(() => watchTrust(trust(), handlers))),
     }
   })
 }
@@ -175,8 +173,8 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       queries: {staleTime: Infinity, refetchOnWindowFocus: 'always', ...(retryDelay === undefined ? {} : {retryDelay})},
     },
   })
-  const apiBase = config.apiBase ?? (() => '')
-  const engine = wireEngine(apiBase, timings.engine)
+  const apiBase = config.apiBase
+  const engine = wireEngine(config.connection)
   const lockedOut = (): boolean => engine.locked()
   const data = makeAppData(
     config.rpc,
@@ -184,7 +182,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
     config.draftStore?.(() => !lockedOut()) ?? null,
     lockedOut,
     apiBase,
-    timings.engine,
+    () => config.connection()?.trust,
   )
   const connected = config.connected ?? (() => true)
   const dispose = once(() => {
@@ -212,10 +210,12 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       data,
       connected,
       plugins: config.plugins ?? [],
+      builtins: config.builtins ?? withShellBuiltins(undefined),
       servers: config.servers ?? false,
       bindApiBase: config.bindApiBase,
       grabProvider: config.grabProvider,
       apiBase,
+      connection: config.connection,
       connectionGeneration: config.connectionGeneration ?? (() => 0),
       bindActiveSession: config.bindActiveSession,
       timings,
@@ -223,6 +223,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       notifyInteractive: config.notifyInteractive ?? (() => {}),
       login: config.login,
       pluginPanels: createPluginPanels(),
+      localPersistence: createLocalPersistence(),
     },
   })
   const shownSessions = (): string[] =>

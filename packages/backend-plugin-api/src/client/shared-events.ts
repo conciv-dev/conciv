@@ -1,5 +1,3 @@
-export * as SharedEvents from './shared-events.js'
-
 export type SelectedEvent<A extends {readonly type: string}, Type extends string> = A extends unknown
   ? [Extract<Type, A['type']>] extends [never]
     ? never

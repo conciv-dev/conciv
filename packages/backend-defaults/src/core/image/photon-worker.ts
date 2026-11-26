@@ -1,6 +1,6 @@
 import {parentPort} from 'node:worker_threads'
 import type {Limits} from '@conciv/backend-app-api/core/image'
-import {PhotonNormalize} from './photon-normalize.js'
+import * as PhotonNormalize from './photon-normalize.js'
 
 export type Request = {
   readonly content: PhotonNormalize.Content

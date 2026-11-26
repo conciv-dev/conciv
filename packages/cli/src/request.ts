@@ -15,7 +15,7 @@ import type {CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {engineOrigin} from './engine-origin.js'
 
-const OFFLINE_CODES = new Set([
+const OFFLINE_CODES = [
   'ECONNREFUSED',
   'ECONNRESET',
   'EHOSTUNREACH',
@@ -25,7 +25,7 @@ const OFFLINE_CODES = new Set([
   'EAI_AGAIN',
   'UND_ERR_SOCKET',
   'UND_ERR_CONNECT_TIMEOUT',
-])
+]
 
 const MAX_CAUSE_DEPTH = 5
 
@@ -127,7 +127,7 @@ function offline(error: unknown, depth: number): boolean {
   if (depth > MAX_CAUSE_DEPTH) return false
   const link = LinkSchema.safeParse(error)
   if (!link.success) return false
-  if (link.data.code !== undefined && OFFLINE_CODES.has(link.data.code)) return true
+  if (link.data.code !== undefined && OFFLINE_CODES.includes(link.data.code)) return true
   if (link.data.message === 'fetch failed') return true
   return offline(link.data.cause, depth + 1)
 }

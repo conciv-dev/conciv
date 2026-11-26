@@ -1,8 +1,6 @@
-export * as SdkPlugins from './sdk.js'
-
 import type {Plugin} from '@conciv/backend-plugin-api/effect/plugin'
 import {Context, Effect, Layer} from 'effect'
-import {Bus} from '../bus.js'
+import * as Bus from '../bus.js'
 import type {Generation} from '../plugin.js'
 
 export const Updated = Bus.ephemeral({type: 'sdk.plugin.updated', schema: {}})

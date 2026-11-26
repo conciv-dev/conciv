@@ -1,9 +1,7 @@
-export * as PluginUpdate from './update.js'
-
 import {Clock, Context, Effect, Exit, Layer, Option, PubSub, Stream} from 'effect'
-import {Npm} from '../../util/npm.js'
+import * as Npm from '../../util/npm.js'
 import {EffectFlock} from '../../util/effect-flock.js'
-import {KeyedMutex} from '../effect/keyed-mutex.js'
+import * as KeyedMutex from '../effect/keyed-mutex.js'
 
 const interval = 24 * 60 * 60 * 1_000
 

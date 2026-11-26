@@ -1,7 +1,7 @@
 {
   "name": "@conciv/backend",
   "version": "0.0.22",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv engine: a Hono server, served through @conciv/serve, exposing /health, /rpc/*, /rpc-ws and /api/mcp, with a harness registry seam.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv engine app: starts @conciv/backend-defaults' createBackend with the built-in page plugin, as Backstage's packages/backend.",
   "keywords": [
     "ai",
     "conciv",
@@ -30,18 +30,6 @@
       "types": "./dist/start.d.ts",
       "import": "./dist/start.js"
     },
-    "./app": {
-      "types": "./dist/app.d.ts",
-      "import": "./dist/app.js"
-    },
-    "./config": {
-      "types": "./dist/config.d.ts",
-      "import": "./dist/config.js"
-    },
-    "./runtime": {
-      "types": "./dist/runtime.d.ts",
-      "import": "./dist/runtime.js"
-    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -51,44 +39,20 @@
     "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only",
-    "test": "vitest run"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/backend-app-api": "workspace:^",
     "@conciv/backend-defaults": "workspace:^",
-    "@conciv/backend-plugin-api": "workspace:^",
-    "@conciv/db": "workspace:^",
-    "@conciv/harness": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
-    "@conciv/protocol": "workspace:^",
-    "@conciv/serve": "workspace:^",
     "@conciv/simulation": "workspace:^",
-    "@conciv/types": "workspace:^",
-    "@conciv/ui-kit-chat": "workspace:^",
     "@effect/platform-node": "catalog:",
-    "@effect/sql-sqlite-node": "catalog:",
-    "@lydell/node-pty": "catalog:",
-    "@orama/orama": "catalog:",
-    "@orpc/client": "catalog:",
-    "@orpc/server": "catalog:",
-    "@tanstack/pacer": "catalog:",
-    "devframe": "catalog:",
-    "drizzle-orm": "catalog:",
-    "effect": "catalog:",
-    "es-toolkit": "catalog:",
-    "hono": "catalog:",
-    "unstorage": "catalog:",
-    "zod": "catalog:"
+    "effect": "catalog:"
   },
   "devDependencies": {
-    "@conciv/client": "workspace:^",
-    "@conciv/plugin-testkit": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
-    "@types/ws": "catalog:",
     "solid-js": "catalog:",
     "storybook": "catalog:",
     "storybook-solidjs-vite": "catalog:",
@@ -97,8 +61,7 @@
     "unocss": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:",
-    "ws": "catalog:"
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

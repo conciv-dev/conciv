@@ -32,7 +32,7 @@ The one entry of `@conciv/app` (`ConcivApp` over a `Platform` a host builds), th
 - `index.tsx:ConcivApp`: listens for the `conciv:rebind` window event while a bound app is mounted
 - `index.tsx:tabHistory`: reads this tab's last screen from sessionStorage `conciv-last-screen` at boot and writes the href there on every navigation
 - `entry-standalone.tsx`: reads `window.location.search` and renders into `#app`
-- `router.tsx:watchEngine`: calls `setupEngineReachability(apiBase)` from `@conciv/client` and subscribes to the trust of the connection it holds through `browserRpcConnection(apiBase)` from `@conciv/contract`, releasing it when the watch stops
+- `router.tsx:wireEngine`: calls `setupEngineReachability(connection)` from `@conciv/client` on the engine connection the host passed in `Platform.engine` and subscribes to its trust, stopping when the connection changes or the router is disposed; the shell never opens a connection itself: a rebind or a picked server asks the host through `Platform.connect`
 - `runtime/plugin/plugin-boundary.tsx:reportCrash`: `console.error` with the crashed plugin's name and the error
 
 ## Verification

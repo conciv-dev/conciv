@@ -1,5 +1,3 @@
-export * as State from './state.js'
-
 import {Cause, Context, Effect, Exit, Fiber, Scope} from 'effect'
 
 type TransformCallback<Editor> = (editor: Editor) => void

@@ -7,7 +7,8 @@ import {
   codeModeResultEvent,
   type ChatEvent,
 } from '@conciv/types/chat-event-types'
-import {SessionMessage} from '@conciv/protocol/schema/session-message'
+import * as SessionMessage from '@conciv/protocol/schema/session-message'
+import type {Maker} from '@conciv/protocol/schema/identifier'
 import {CODE_MODE_EXTERNAL_PREFIX} from '@conciv/types/chat-types'
 import {isOutsideCallMessageId} from '@conciv/types/chat-message-types'
 
@@ -80,13 +81,13 @@ function childCallChunks(event: ChatEvent, parentToolCallId: string | null): Cha
   ]
 }
 
-function childResultChunks(event: ChatEvent, shapeResult: ShapeResult): ChatEvent[] | null {
+function childResultChunks(event: ChatEvent, shapeResult: ShapeResult, ids: Maker): ChatEvent[] | null {
   const settled = codeModeResultEvent.parse(event)
   if (settled === null) return null
   return [
     {
       type: ChatEventType.TOOL_CALL_RESULT,
-      messageId: SessionMessage.Id.create(),
+      messageId: SessionMessage.Id.create(ids),
       toolCallId: settled.callId,
       content: serialized(shapeResult(settled.result ?? null)),
     },
@@ -109,14 +110,14 @@ function deniedChild(event: ChatEvent): boolean {
   return failed?.outcome === 'denied'
 }
 
-function childErrorChunks(event: ChatEvent): ChatEvent[] | null {
+function childErrorChunks(event: ChatEvent, ids: Maker): ChatEvent[] | null {
   const failed = codeModeErrorEvent.parse(event)
   if (failed === null) return null
   const outcome = failed.outcome === undefined ? {} : {toolResultOutcome: failed.outcome}
   return [
     {
       type: ChatEventType.TOOL_CALL_RESULT,
-      messageId: SessionMessage.Id.create(),
+      messageId: SessionMessage.Id.create(ids),
       toolCallId: failed.callId,
       content: serialized({error: failed.error}),
       metadata: {tanstack: {state: 'output-error', ...outcome}},
@@ -128,12 +129,17 @@ export function childCardChunks(
   event: ChatEvent,
   parentToolCallId: string | null,
   shapeResult: ShapeResult,
+  ids: Maker,
 ): ChatEvent[] | null {
   if (event.type === ChatEventType.CUSTOM && LIBRARY_CHILD_EVENT.test(event.name)) return []
-  return childCallChunks(event, parentToolCallId) ?? childResultChunks(event, shapeResult) ?? childErrorChunks(event)
+  return (
+    childCallChunks(event, parentToolCallId) ??
+    childResultChunks(event, shapeResult, ids) ??
+    childErrorChunks(event, ids)
+  )
 }
 
-export function childCards(shapeResult: ShapeResult) {
+export function childCards(shapeResult: ShapeResult, ids: Maker) {
   const execution: {parent: string | null} = {parent: null}
   const deniedParents = new Set<string>()
   return defineChatMiddleware({
@@ -150,7 +156,7 @@ export function childCards(shapeResult: ShapeResult) {
       ) {
         return [withTanstackMetadata(chunk, {toolResultOutcome: 'denied'})]
       }
-      return childCardChunks(chunk, execution.parent, shapeResult) ?? undefined
+      return childCardChunks(chunk, execution.parent, shapeResult, ids) ?? undefined
     },
   })
 }

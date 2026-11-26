@@ -1,12 +1,10 @@
-export * as InstructionState from './instruction-state.js'
-
 import {and, eq, gte, inArray, sql} from 'drizzle-orm'
 import {Effect, Option, Schema} from 'effect'
-import type {Database} from '@conciv/backend-app-api/core/database/database'
-import type {Bus} from '@conciv/backend-app-api/core/bus'
-import {Instructions} from '@conciv/backend-app-api/core/instructions/instructions'
-import {SessionEvent} from '@conciv/protocol/schema/session-event'
-import {Session} from '@conciv/protocol/schema/session'
+import type * as Database from '@conciv/backend-app-api/core/database/database'
+import type * as Bus from '@conciv/backend-app-api/core/bus'
+import * as Instructions from '@conciv/backend-app-api/core/instructions/instructions'
+import * as SessionEvent from '@conciv/protocol/schema/session-event'
+import * as Session from '@conciv/protocol/schema/session'
 import {InstructionBlobTable, InstructionStateTable} from './sql.js'
 
 type DatabaseService = Database.Interface['db']

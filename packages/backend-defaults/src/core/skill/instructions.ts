@@ -1,9 +1,7 @@
-export * as SkillInstructions from './instructions.js'
-
 import {Context, Effect, Layer, Schema} from 'effect'
-import {Permission} from '@conciv/backend-app-api/core/permission'
-import {Skill} from '@conciv/backend-app-api/core/skill'
-import {Instructions} from '@conciv/backend-app-api/core/instructions/instructions'
+import * as Permission from '@conciv/backend-app-api/core/permission'
+import * as Skill from '@conciv/backend-app-api/core/skill'
+import * as Instructions from '@conciv/backend-app-api/core/instructions/instructions'
 
 const Summary = Schema.Struct({
   id: Skill.Id,

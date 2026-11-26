@@ -1,10 +1,8 @@
-export * as PluginHooks from './hooks.js'
-
 import type {SessionHooks} from '@conciv/backend-plugin-api/effect/session'
 import type {ToolFailures, ToolHooks} from '@conciv/backend-plugin-api/effect/tool'
 import type {PermissionHooks} from '@conciv/backend-plugin-api/effect/permission'
 import {Context, Effect, Layer, Scope} from 'effect'
-import {State} from '../state.js'
+import * as State from '../state.js'
 
 export interface Domains {
   readonly session: SessionHooks

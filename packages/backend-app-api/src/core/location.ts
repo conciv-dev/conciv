@@ -1,8 +1,6 @@
 import {Context} from 'effect'
 import {Info, Ref} from '@conciv/protocol/schema/location'
-import type {Project} from '../schema/project.js'
-
-export * as Location from './location.js'
+import type * as Project from '../schema/project.js'
 
 export {Info, Ref}
 

@@ -75,8 +75,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/plugin-testkit": "workspace:*",
+    "@conciv/backend-test-utils": "workspace:*",
     "@internal/frontend-app-api": "workspace:*",
+    "@internal/frontend-test-utils": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",

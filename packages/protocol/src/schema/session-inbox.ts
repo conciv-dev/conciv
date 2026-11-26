@@ -1,12 +1,10 @@
-export * as SessionInbox from './session-inbox.js'
-
 import {Schema} from 'effect'
-import {Location} from './location.js'
+import * as Location from './location.js'
 import {ProjectId} from './project-id.js'
 import {Attachment, Prompt} from './prompt.js'
 import {DateTimeUtcFromMillis, optional, RelativePath} from './schema.js'
 import {SessionId} from './session-id.js'
-import {SessionMessage} from './session-message.js'
+import * as SessionMessage from './session-message.js'
 
 export const Delivery = Schema.Literals(['steer', 'queue']).annotate({identifier: 'Session.Inbox.Delivery'})
 export type Delivery = typeof Delivery.Type

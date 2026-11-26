@@ -77,7 +77,12 @@ const installTransport = Effect.acquireRelease(
 
 const openPanelCommands = Effect.acquireRelease(
   Effect.sync(() =>
-    createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID, reconnectEveryMs: 500, maxRetries: 60}),
+    createEventBusClient<PanelCommandEventMap>({
+      pluginId: PANEL_PLUGIN_ID,
+      target: () => window,
+      reconnectEveryMs: 500,
+      maxRetries: 60,
+    }),
   ),
   (commands) => Effect.sync(() => commands.dispose()),
 )

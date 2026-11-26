@@ -9,17 +9,6 @@ const GROUP_POLL_MS = 100
 
 type Minted = {handle: SandboxHandle; signal: AbortSignal | undefined; spawned: SpawnHandle[]}
 
-const groups = new Set<number>()
-let hooked = false
-const killGroups = () =>
-  groups.forEach((pid) => {
-    try {
-      process.kill(-pid, 'SIGKILL')
-    } catch {
-      groups.delete(pid)
-    }
-  })
-
 export function localSandbox({
   dir,
   groupExitTimeoutMs = GROUP_EXIT_TIMEOUT_MS,
@@ -28,6 +17,25 @@ export function localSandbox({
   groupExitTimeoutMs?: number
 }): SandboxProvider {
   const provider = localProcessSandbox({dir})
+  const groups = new Set<number>()
+  const killGroups = () =>
+    groups.forEach((pid) => {
+      try {
+        process.kill(-pid, 'SIGKILL')
+      } catch {
+        groups.delete(pid)
+      }
+    })
+  const killOnExit = (spawned: SpawnHandle): void => {
+    if (process.platform === 'win32' || spawned.pid <= 0) return
+    if (groups.size === 0) process.once('exit', killGroups)
+    groups.add(spawned.pid)
+    const forget = () => {
+      groups.delete(spawned.pid)
+      if (groups.size === 0) process.off('exit', killGroups)
+    }
+    spawned.wait().then(forget, forget)
+  }
   let minted: Minted[] = []
   const track = (handle: SandboxHandle, signal: AbortSignal | undefined): SandboxHandle => {
     const entry: Minted = {handle, signal, spawned: []}
@@ -62,15 +70,6 @@ export function localSandbox({
       await Promise.all(entry.spawned.map((spawned) => killLeftovers(spawned, groupExitTimeoutMs)))
     },
   }
-}
-
-function killOnExit(spawned: SpawnHandle): void {
-  if (process.platform === 'win32' || spawned.pid <= 0) return
-  if (!hooked) process.once('exit', killGroups)
-  hooked = true
-  groups.add(spawned.pid)
-  const forget = () => groups.delete(spawned.pid)
-  spawned.wait().then(forget, forget)
 }
 
 function pickForDestroy(minted: Minted[], id: string): Minted | undefined {

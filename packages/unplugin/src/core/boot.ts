@@ -7,10 +7,10 @@ import {makeOpenInEditor} from './open-editor.js'
 
 export type Builtins = {
   embedEntry?: string
-  nativePageDir?: string
+  widgetPageDir?: string
 }
 
-const TRUTHY = new Set(['1', 'true'])
+const TRUTHY = ['1', 'true']
 
 function writeEngineLine(entry: LogEntry): void {
   const line = readEngineLine(entry)
@@ -31,11 +31,11 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
         root,
         port: options.port === undefined ? undefined : {exact: options.port},
         launchEditor: makeOpenInEditor(root),
-        nativePageDir: builtins.nativePageDir,
+        widgetPageDir: builtins.widgetPageDir,
         devEndpointDir: options.devEndpointDir,
         homeDir: options.homeDir,
         log: {emit: writeEngineLine},
-        simulation: TRUTHY.has(process.env.CONCIV_SIMULATE?.toLowerCase() ?? ''),
+        simulation: TRUTHY.includes(process.env.CONCIV_SIMULATE?.toLowerCase() ?? ''),
         childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
       })
     })

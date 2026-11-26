@@ -1,11 +1,11 @@
 import {isIdentifier, readCalleeName} from './ast-walk.js'
 import {isNewLayerTestFile} from '@internal/vitest-config/test-layout'
 
-const HOOK_NAMES = new Set(['afterEach', 'onTestFinished'])
+const HOOK_NAMES = ['afterEach', 'onTestFinished']
 
 function isDestructuredHook(node) {
   if (node.parent?.type !== 'ObjectPattern' || !isIdentifier(node.key)) return false
-  return HOOK_NAMES.has(node.key.name)
+  return HOOK_NAMES.includes(node.key.name)
 }
 
 function report(node, name, context) {
@@ -26,7 +26,7 @@ export default {
       CallExpression(node) {
         if (!isNewLayerTestFile(context.filename)) return
         const name = readCalleeName(node.callee)
-        if (!HOOK_NAMES.has(name)) return
+        if (!HOOK_NAMES.includes(name)) return
         report(node, name, context)
       },
       Property(node) {

@@ -17,7 +17,7 @@ import {
   type CodeModeTool,
   type IsolateDriver,
 } from '@tanstack/ai-code-mode'
-import {ascending} from '@conciv/protocol/schema/identifier'
+import type {Maker} from '@conciv/protocol/schema/identifier'
 import {CallId} from '@conciv/protocol/schema/tool'
 import {codeModeCallEvent, codeModeErrorEvent, codeModeResultEvent} from '@conciv/types/chat-event-types'
 import {ChatContentPartSchema, type ChatContentPart} from '@conciv/types/chat-types'
@@ -199,10 +199,11 @@ function childCall(
   secrets: ReadonlyMap<string, string>,
   run: CallParts[],
   tracer: Tracer | undefined,
+  ids: Maker,
 ): CodeModeTool {
   const execute = tool.execute
   if (!execute) return tool
-  const callTool = runChildCall(tool, execute, secrets, run)
+  const callTool = runChildCall(tool, execute, secrets, run, ids)
   return {
     ...converted,
     execute: (args, context) =>
@@ -215,9 +216,10 @@ function runChildCall(
   execute: NonNullable<CodeModeTool['execute']>,
   secrets: ReadonlyMap<string, string>,
   run: CallParts[],
+  ids: Maker,
 ) {
   return async (args: unknown, context?: ToolContext): Promise<unknown> => {
-    const callId = CallId.make('call_' + ascending())
+    const callId = CallId.make('call_' + ids.ascending())
     const parts: CallParts = {files: [], text: []}
     run.push(parts)
     context?.emitCustomEvent(codeModeCallEvent.name, {callId, function: tool.name, args})
@@ -290,6 +292,7 @@ export function codeModeTools(
   shapeResult: (value: unknown) => unknown,
   debug: DebugConfig,
   tracer: Tracer | undefined,
+  ids: Maker,
   timeoutMs = CODE_MODE_TIMEOUT_MS,
 ): CodeModeTools | null {
   const serverTools = tools.filter(isServerTool).map(convertedSchemas)
@@ -316,7 +319,7 @@ export function codeModeTools(
   }
   const codeMode = createCodeMode({
     ...config,
-    tools: serverTools.map((tool) => childCall(tool, secrets, [], tracer)),
+    tools: serverTools.map((tool) => childCall(tool, secrets, [], tracer, ids)),
     lazyToolsConfig: {includeDescription: 'first-sentence'},
   })
   const program: ChatTool = {
@@ -327,7 +330,7 @@ export function codeModeTools(
         const run: CallParts[] = []
         const {execute} = createCodeModeTool({
           ...config,
-          tools: serverTools.map((each) => childCall(each, secrets, run, tracer)),
+          tools: serverTools.map((each) => childCall(each, secrets, run, tracer, ids)),
         })
         if (!execute) throw new Error('the code mode tool has no execute')
         const result = ExecuteResultSchema.parse(await execute(ProgramInputSchema.parse(args), context))

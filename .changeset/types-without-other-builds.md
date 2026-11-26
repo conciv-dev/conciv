@@ -1,6 +1,6 @@
 ---
 '@conciv/unplugin': patch
-'@conciv/plugin-testkit': patch
+'@conciv/app': patch
 '@conciv/simulation': patch
 ---
 

@@ -5,11 +5,8 @@
     "build": {
       "outputs": ["dist/**", ".wrangler/deploy/**"]
     },
-    "typecheck": {
-      "dependsOn": ["^build", "^build:types", "@conciv/simulation#build"]
-    },
     "test:e2e": {
-      "dependsOn": ["^build", "build", "@conciv/cli#build"]
+      "dependsOn": ["^build", "build"]
     }
   }
 }

@@ -1,6 +1,30 @@
+import {createORPCClient} from '@orpc/client'
 import type {ConnectConnectionAdapter} from '@tanstack/ai-client'
-import {SessionMessage} from '@conciv/protocol/schema/session-message'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
+import {createFakeEngine} from './fake-engine.js'
+import type {RpcClient} from './rpc-client.js'
+
+export {
+  createFakeEngine,
+  FakeLLM,
+  type FakeAsk,
+  type FakeConnectOptions,
+  type FakeEngine,
+  type FakeEngineHandlers,
+  type FakeEngineOptions,
+  type FakeEngineReading,
+  type FakeGate,
+  type FakeOutside,
+  type FakeOutsideAgent,
+  type FakeOutsideReply,
+  type FakePluginCall,
+  type FakePluginHandler,
+  type FakeReply,
+  type FakeSend,
+  type FakeSession,
+  type FakeSynthetic,
+  type FakeTool,
+} from './fake-engine.js'
 
 export type StoryConnectionOptions = {
   chunks?: ChatEvent[]
@@ -9,6 +33,8 @@ export type StoryConnectionOptions = {
   error?: Error
   runsUntilStopped?: boolean
 }
+
+const STORY_SESSION = 'ses_story'
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
@@ -62,13 +88,37 @@ async function* runEnd(
   yield {type: ChatEventType.RUN_FINISHED, ...run, finishReason: 'stop'}
 }
 
+async function* storyRun(
+  options: StoryConnectionOptions,
+  run: {threadId: string; runId: string},
+  abortSignal?: AbortSignal,
+): AsyncGenerator<ChatEvent> {
+  yield {type: ChatEventType.RUN_STARTED, ...run}
+  yield* scriptedChunks(options, abortSignal)
+  yield* runEnd(options, run, abortSignal)
+}
+
 export function storyConnection(options: StoryConnectionOptions = {}): ConnectConnectionAdapter {
+  const threads = new Map<string, string>()
+  const engine = createFakeEngine({
+    handlers: {
+      chat: {
+        send: ({runId}, call) =>
+          storyRun(options, {threadId: threads.get(runId) ?? 'story-thread', runId}, call.signal),
+      },
+    },
+  })
+  const chat = createORPCClient<RpcClient>(engine.connection.link).chat
   return {
-    async *connect(_messages, _data, abortSignal, runContext) {
-      const run = {threadId: runContext?.threadId ?? 'story-thread', runId: runContext?.runId ?? 'story-run'}
-      yield {type: ChatEventType.RUN_STARTED, ...run}
-      yield* scriptedChunks(options, abortSignal)
-      yield* runEnd(options, run, abortSignal)
+    async *connect(messages, _data, abortSignal, runContext) {
+      const runId = runContext?.runId ?? 'story-run'
+      threads.set(runId, runContext?.threadId ?? 'story-thread')
+      const turn = messages.flatMap((message) =>
+        typeof message === 'object' && message !== null && 'id' in message && typeof message.id === 'string'
+          ? [{...message, id: message.id, role: String(message.role)}]
+          : [],
+      )
+      yield* await chat.send({sessionId: STORY_SESSION, runId, messages: turn}, {signal: abortSignal})
     },
   }
 }
@@ -96,13 +146,17 @@ type ToolResultChunkOptions = {
   state?: 'output-available' | 'output-error'
 }
 
-function createToolResultChunk(toolCallId: string, content: string, options?: ToolResultChunkOptions): ChatEvent {
+function createToolResultChunk(
+  toolCallId: string,
+  content: string,
+  options: ToolResultChunkOptions & {messageId: string},
+): ChatEvent {
   return {
     type: ChatEventType.TOOL_CALL_RESULT,
-    messageId: options?.messageId ?? SessionMessage.Id.create(),
+    messageId: options.messageId,
     toolCallId,
     content,
-    ...(options?.state === 'output-error' && {metadata: {tanstack: {state: 'output-error'}}}),
+    ...(options.state === 'output-error' && {metadata: {tanstack: {state: 'output-error'}}}),
   }
 }
 

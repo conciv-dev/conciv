@@ -1,21 +1,15 @@
-import {use, useId} from 'react'
+import {useId} from 'react'
+import {useSuspenseQuery} from '@tanstack/react-query'
 import {useTheme} from 'next-themes'
 
-const cache = new Map<string, Promise<unknown>>()
-
-function cachePromise<T>(key: string, setPromise: () => Promise<T>): Promise<T> {
-  const cached = cache.get(key)
-  if (cached) return cached as Promise<T>
-
-  const promise = setPromise()
-  cache.set(key, promise)
-  return promise
-}
+const KEPT = {staleTime: Infinity, gcTime: Infinity, structuralSharing: false} as const
 
 export function MermaidContent({chart}: {chart: string}) {
   const id = useId()
   const {resolvedTheme} = useTheme()
-  const {default: mermaid} = use(cachePromise('mermaid', () => import('mermaid')))
+  const {
+    data: {default: mermaid},
+  } = useSuspenseQuery({queryKey: ['mermaid'], queryFn: () => import('mermaid'), ...KEPT})
 
   mermaid.initialize({
     startOnLoad: false,
@@ -25,11 +19,13 @@ export function MermaidContent({chart}: {chart: string}) {
     theme: resolvedTheme === 'dark' ? 'dark' : 'default',
   })
 
-  const {svg, bindFunctions} = use(
-    cachePromise(`${chart}-${resolvedTheme}`, () => {
-      return mermaid.render(id, chart.replaceAll('\\n', '\n'))
-    }),
-  )
+  const {
+    data: {svg, bindFunctions},
+  } = useSuspenseQuery({
+    queryKey: ['mermaid-render', chart, resolvedTheme],
+    queryFn: () => mermaid.render(id, chart.replaceAll('\\n', '\n')),
+    ...KEPT,
+  })
 
   return (
     <div

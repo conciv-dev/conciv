@@ -14,7 +14,7 @@ import {createStore, produce, type Store} from 'solid-js/store'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {createORPCClient} from '@orpc/client'
 import {z} from 'zod'
-import {useLocation, useParams, useRouter, useRouterState, useSearch} from '@tanstack/solid-router'
+import {useLocation, useParams, useRouteContext, useRouter, useRouterState, useSearch} from '@tanstack/solid-router'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {useQuery} from '@conciv/client'
 import type {RpcClient} from '@conciv/client'
@@ -47,6 +47,7 @@ import {
   useGrabProvider,
   useHostTheme,
   useLiveSessions,
+  useLocalPersistence,
   useRpc,
 } from '../../app/context'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '@internal/frontend-app-api/lib/media-query'
@@ -79,6 +80,7 @@ import {
   projectStoreTarget,
   storeImports,
   storeName,
+  type StoreLoads,
 } from '@internal/frontend-app-api/plugin/stores'
 import {ui} from '@internal/frontend-app-api/plugin/ui'
 
@@ -134,6 +136,8 @@ function openInput(file: string, position: {line: number; column?: number} | und
 
 export function createHostApis() {
   const rpc = useRpc()
+  const storeLoads: StoreLoads = new WeakMap()
+  const localPersistence = useLocalPersistence()
   const apiBase = useApiBase()
   const connected = useConnected()
   const notices = useNotices()
@@ -151,7 +155,8 @@ export function createHostApis() {
     server: () => UNAVAILABLE,
   })
 
-  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase(), connected()))
+  const connection = useRouteContext({strict: false, select: (context) => context.connection})
+  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase(), connection()?.(), connected()))
   const engineStream = from<ClientConnectionStatus>((set) => {
     set(client.connection.status())
     return client.connection.on(set)
@@ -233,9 +238,9 @@ export function createHostApis() {
     storage: (plugin, owner) => ({
       store<S extends StandardSchemaV1<unknown, object>>(key: string, options: StoreOptions<S>) {
         const open = (at: Parameters<typeof persisted>[0]) => {
-          const pair = persisted(at, options.schema, options.initial, rpc, options.encode)
+          const pair = persisted(at, options.schema, options.initial, rpc, localPersistence, options.encode)
 
-          return persistedHandle({store: pair[0], set: pair[1], init: pair[3].promise})
+          return persistedHandle({store: pair[0], set: pair[1], init: pair[3].promise}, storeLoads)
         }
 
         const scope = options.scope
@@ -246,7 +251,8 @@ export function createHostApis() {
           const scoped = (connected: Attached | undefined) =>
             connected && open(target(plugin, key, scope, options.from, connected))
 
-          if (scope === 'project' || !('session' in scope)) return deferredHandle(createMemo(on(attached, scoped)))
+          if (scope === 'project' || !('session' in scope))
+            return deferredHandle(createMemo(on(attached, scoped)), storeLoads)
 
           const directory = createMemo(() => scope.session.location?.directory)
 
@@ -254,6 +260,7 @@ export function createHostApis() {
             createMemo(
               on([attached, directory], ([connected, value]) => (value === undefined ? undefined : scoped(connected))),
             ),
+            storeLoads,
           )
         })!
       },
@@ -275,9 +282,11 @@ export function createHostApis() {
       remove(key, options) {
         const scope = options?.scope
 
-        if (!scope || scope === 'global') return removePersisted(globalStoreTarget(plugin, key, options?.from), rpc)
+        if (!scope || scope === 'global')
+          return removePersisted(globalStoreTarget(plugin, key, options?.from), rpc, localPersistence)
 
-        const run = (connected: Attached) => removePersisted(target(plugin, key, scope, options?.from, connected), rpc)
+        const run = (connected: Attached) =>
+          removePersisted(target(plugin, key, scope, options?.from, connected), rpc, localPersistence)
 
         write((connected) => {
           if (
@@ -405,6 +414,7 @@ export function createHostApis() {
 
   return {
     apis,
+    storeLoads,
     engine,
     grabProvider: useGrabProvider(),
     unavailableClient: (): ConcivClient => unavailable,
@@ -456,7 +466,7 @@ export function createPluginAttachment(apis: HostApis) {
   const [composer, setComposer] = createSignal<ComposerBinder>()
   const refs = new Map<string, SessionRef>()
 
-  const project = useQuery(() => ({...appData.utils.tabs.list.queryOptions(), enabled: connection()}))
+  const project = useQuery(() => ({...appData.utils.meta.project.queryOptions(), enabled: connection()}))
 
   const sessionKey = (id: string) => `${engine.id}\n${id}`
 
@@ -476,7 +486,7 @@ export function createPluginAttachment(apis: HostApis) {
         server: engine,
         pending: false,
         get location() {
-          const root = project.isSuccess ? project.data?.project.root : undefined
+          const root = project.isSuccess ? project.data?.root : undefined
 
           return root === undefined ? undefined : {directory: AbsolutePath.make(root)}
         },
@@ -574,8 +584,8 @@ export function createPluginAttachment(apis: HostApis) {
 
   const draft = (plugin: string, input: Parameters<Layout['draft']>[0]) =>
     void queryClient
-      .ensureQueryData(appData.utils.tabs.list.queryOptions())
-      .then(async ({project: listed}) => {
+      .ensureQueryData(appData.utils.meta.project.queryOptions())
+      .then(async (listed) => {
         if (input.server !== engine.id || input.directory !== listed.root)
           return console.error(
             `[plugin] ${plugin}: a draft runs in ${listed.root} on the server "${engine.id}", not in ${input.directory} on "${input.server}"`,
@@ -640,7 +650,7 @@ export function createPluginAttachment(apis: HostApis) {
 
   return {
     engine,
-    root: () => (project.isSuccess ? project.data?.project.root : undefined),
+    root: () => (project.isSuccess ? project.data?.root : undefined),
     attach: (directory: string) => {
       const detach = apis.attach({...mounted, directory})
 

@@ -17,7 +17,7 @@ The framework-free mascot service. `createMascot` binds the head, eyes and anten
 - `mascot.ts:rootStyle` / `headStyle` / `eyesStyle` / `antennaStyle` / `effectHostStyle` - inline style records.
 - `style-merge.ts:isGeometryProperty` / `kebabCaseProperty` / `camelCaseProperty` - style merge helpers (also a build entry).
 - `slot-contract.ts:partAlreadyProvided` / `MascotPartName` - the one-slot-per-part error.
-- `stage-sheet.ts:installStageSize` - adopts a shared stage stylesheet into the element's root.
+- `stage-sheet.ts:installStageSize` - adopts a stage stylesheet into the element's root.
 - Subdirectories: [effects](./effects/README.md), [parts](./parts/README.md).
 
 ## Invariants
@@ -31,7 +31,7 @@ The framework-free mascot service. `createMascot` binds the head, eyes and anten
 
 - `mascot.ts:watchVisibility` - creates an `IntersectionObserver` on the stage when available; `teardown` disconnects it.
 - `mascot.ts:teardown` - disposes the controllers and puts the antenna back in place of the lean wrapper.
-- `stage-sheet.ts:installStageSize` - creates one `CSSStyleSheet` per document and appends it to `adoptedStyleSheets`.
+- `stage-sheet.ts:installStageSize` - appends a stage `CSSStyleSheet` to the root's `adoptedStyleSheets` unless one is already adopted there.
 - `config.ts:reduceMotion` - reads the `prefers-reduced-motion` media query.
 
 ## Verification

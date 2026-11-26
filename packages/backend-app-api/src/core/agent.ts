@@ -1,9 +1,7 @@
-export * as Agent from './agent.js'
-
 import {Array, Context, Effect, Layer, Types} from 'effect'
-import {Agent} from '@conciv/protocol/schema/agent'
-import {Bus} from './bus.js'
-import {State} from './state.js'
+import * as Agent from '@conciv/protocol/schema/agent'
+import * as Bus from './bus.js'
+import * as State from './state.js'
 
 export const Id = Agent.Id
 export type Id = typeof Id.Type

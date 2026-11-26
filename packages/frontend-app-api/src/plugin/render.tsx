@@ -140,12 +140,12 @@ export function PluginLinks(props: ParentProps<{session: MountedSession | undefi
   return <Links codeBlocks={codeBlocks}>{props.children}</Links>
 }
 
-const NO_CODE_BLOCKS = {
+const noCodeBlocks = () => ({
   renderers: new Map<string, Item<CodeBlock>>(),
   items: [],
   render: new Set<string>(),
   actions: new Set<string>(),
-}
+})
 
 function createCodeBlocks(
   session: () => MountedSession | undefined,
@@ -157,7 +157,7 @@ function createCodeBlocks(
 
   const current = createMemo(
     () => {
-      if (!session()) return NO_CODE_BLOCKS
+      if (!session()) return noCodeBlocks()
       const renderers = new Map<string, Item<CodeBlock>>()
       host.items(CodeBlock).forEach((item) =>
         item.value.languages.forEach((language) => {

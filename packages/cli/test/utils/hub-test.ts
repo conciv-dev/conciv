@@ -1,5 +1,5 @@
 import {createRequire} from 'node:module'
-import {test as base} from 'vitest'
+import {test as base} from '@conciv/backend-test-utils'
 import {createMCPClient, type MCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 

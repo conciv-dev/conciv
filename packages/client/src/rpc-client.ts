@@ -5,13 +5,12 @@ import {ResponseValidationPlugin} from '@orpc/contract/plugins'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM, CONCIV_VERSION_HEADER} from '@conciv/types/rpc-types'
 import {contract} from '@conciv/protocol'
 import contractManifest from '../../protocol/package.json' with {type: 'json'}
-import type {EngineConnectionTimings} from './engine-connection-machine.js'
 import {
-  heldBrowserRpcLink,
-  RPC_UNBOUND_MESSAGE,
+  engineUnreachable,
+  type EngineConnection,
   type RpcClientContext,
   type SessionAccessor,
-} from './browser-transport.js'
+} from './engine-connection.js'
 
 export type RpcClient = ContractRouterClient<typeof contract, RpcClientContext>
 
@@ -50,48 +49,19 @@ export function engineTooOld(error: unknown): boolean {
   return error instanceof ValidationError || (error instanceof ORPCError && error.code === 'NOT_FOUND')
 }
 
-export type BrowserRpcClientOptions = {
-  session?: SessionAccessor
-  timings?: Partial<EngineConnectionTimings>
-  token?: string
-}
+export const RPC_UNBOUND_MESSAGE = 'conciv core not connected yet'
 
-export type BrowserRpcClient = {
-  rpc: RpcClient
-  bound: () => boolean
-  bind: (apiBase: string, token?: string) => void
-  rebind: (apiBase: string) => void
-  close: () => void
+export function makeEngineRpcClient(
+  connection: () => EngineConnection | undefined,
+  session?: SessionAccessor,
+): RpcClient {
+  return createORPCClient<RpcClient>({
+    call: (path, input, options) => {
+      const current = connection()
+      if (current === undefined) throw engineUnreachable(RPC_UNBOUND_MESSAGE)
+      const sessionId = session?.()
+      const context = sessionId ? {...options.context, concivSessionId: sessionId} : options.context
+      return current.link.call(path, input, {...options, context})
+    },
+  })
 }
-
-export function makeBrowserRpcClient(
-  base: string | (() => string | null),
-  options: BrowserRpcClientOptions = {},
-): BrowserRpcClient {
-  const state: {accessor: () => string | null; token: string | undefined} = {
-    accessor: typeof base === 'function' ? base : () => base,
-    token: options.token,
-  }
-  const currentBase = (): string | null => state.accessor()
-  const {link, release} = heldBrowserRpcLink(currentBase, options.session, options.timings, () => state.token)
-  return {
-    rpc: createORPCClient(link),
-    bound: () => currentBase() !== null,
-    bind: (apiBase, token) => {
-      if (currentBase() !== null) throw new Error('conciv rpc client already bound')
-      if (apiBase === '') throw new Error('conciv rpc cannot bind an empty api base')
-      state.accessor = () => apiBase
-      state.token = token
-    },
-    rebind: (nextApiBase) => {
-      release()
-      state.accessor = () => nextApiBase
-    },
-    close: () => {
-      release()
-      state.accessor = () => null
-    },
-  }
-}
-
-export {RPC_UNBOUND_MESSAGE}

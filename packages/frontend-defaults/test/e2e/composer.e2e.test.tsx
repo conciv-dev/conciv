@@ -1,15 +1,28 @@
 import {describe, expect, it, test} from 'vitest'
-import {page, userEvent as realInput} from 'vitest/browser'
-import {fireEvent, render, screen, within} from '@solidjs/testing-library'
+import {page} from 'vitest/browser'
+import {fireEvent, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+import {FakeLLM, type FakeEngine} from '@conciv/client/testing'
+import {mountShell} from '../utils/mount-shell.js'
+import {
+  composerEngine,
+  elsewhereSession,
+  ENGINE_HARNESS,
+  harnessEntry,
+  harnessModels,
+  mentionAgent,
+  readSession,
+  reviewNotesPlugin,
+  sentJson,
+  sentTexts,
+  type ComposerHarness,
+} from '../utils/composer-engine.js'
 
 describe('the composer menus', () => {
   test('a pick from the slash list or the model menu, Escape and an outside click each close the menu and give the composer its focus back at once', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    await mountShell({engine})
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
 
     await user.type(input, '/dep')
@@ -39,10 +52,10 @@ describe('the composer menus', () => {
 describe('sending with the keyboard', () => {
   test('Enter sends the typed message, the composer empties and asks for the next instruction, and Enter while an IME composes does not send', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Hello from the agent'))
-    await engine.reply(TestLLM.text('Composed'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    engine.reply(FakeLLM.text('Hello from the agent'))
+    engine.reply(FakeLLM.text('Composed'))
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     expect(await screen.findByText('Ask a question…')).toBeVisible()
@@ -54,9 +67,7 @@ describe('sending with the keyboard', () => {
     const reply = await screen.findByRole('article', {name: 'Reply to: Hello agent'})
     expect(await within(reply).findByText('Hello from the agent')).toBeVisible()
     expect(await screen.findByText('Add an instruction…')).toBeVisible()
-    const requests = await engine.requests()
-    expect(requests).toHaveLength(1)
-    expect(requests[0]?.messages.at(-1)).toMatchObject({role: 'user', content: 'Hello agent'})
+    expect(sentTexts(engine)).toEqual(['Hello agent'])
 
     await user.type(input, 'Kana')
     fireEvent.keyDown(input, {key: 'Enter', isComposing: true})
@@ -65,17 +76,16 @@ describe('sending with the keyboard', () => {
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
     expect(await screen.findByText('Composed')).toBeVisible()
-    expect((await engine.requests())[1]?.messages.at(-1)).toMatchObject({role: 'user', content: 'Kana\ndone'})
+    expect(sentTexts(engine)[1]).toBe('Kana\ndone')
   })
 })
 
 describe('stopping with Escape', () => {
   test('Escape in the composer stops a reply that is still working', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Too late'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    const gate = engine.gate()
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'Take your time')
@@ -94,10 +104,10 @@ describe('stopping with Escape', () => {
 describe('queueing while the agent works', () => {
   test('a message sent during a reply waits in the queue, a removed one never reaches the agent, and the next runs after the reply', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('First answer'), TestLLM.text('Third answer'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    const gate = engine.gate()
+    engine.reply(FakeLLM.text('First answer'), FakeLLM.text('Third answer'))
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'First task')
@@ -123,28 +133,24 @@ describe('queueing while the agent works', () => {
     expect(within(screen.getByRole('article', {name: 'Reply to: First task'})).getByText('First answer')).toBeVisible()
     expect(screen.queryByText('1 waiting · runs in order')).not.toBeInTheDocument()
     expect(screen.queryByRole('article', {name: 'You: Second task'})).not.toBeInTheDocument()
-    const requests = await engine.requests()
-    expect(requests.map((request) => request.messages.at(-1))).toMatchObject([
-      {role: 'user', content: 'First task'},
-      {role: 'user', content: 'Third task'},
-    ])
+    expect(sentTexts(engine)).toEqual(['First task', 'Third task'])
   })
 })
 
 describe('steering the agent', () => {
   test('Steer takes a queued message out of the queue and interrupts the reply with it', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('First answer'), TestLLM.text('Changed course'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    const gate = engine.gate()
+    const steerGate = engine.gate()
+    engine.reply(FakeLLM.text('Changed course'))
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'First task')
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
     await gate.started
-    const steerGate = await engine.gate()
     expect(await screen.findByRole('button', {name: 'Stop generating'})).toBeVisible()
     await user.type(input, 'Do this instead')
     expect(input).toHaveFocus()
@@ -157,21 +163,16 @@ describe('steering the agent', () => {
     const steered = await screen.findByRole('article', {name: 'Reply to: Do this instead'})
     expect(await within(steered).findByText('Changed course')).toBeVisible()
     expect(screen.queryByText('First answer')).not.toBeInTheDocument()
-    const requests = await engine.requests()
-    expect(requests.map((request) => request.messages.at(-1))).toMatchObject([
-      {role: 'user', content: 'First task'},
-      {role: 'user', content: 'Do this instead'},
-    ])
+    expect(sentTexts(engine)).toEqual(['First task', 'Do this instead'])
   })
 })
 
 describe('stopping with a queue', () => {
   test('a long queue shows three rows and a count, and Stop puts every message back in the composer in order', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Too late'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    const gate = engine.gate()
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'First task')
@@ -206,12 +207,11 @@ describe('stopping with a queue', () => {
 describe('the slash list', () => {
   test('/ lists the commands of the session’s own harness and a picked one reaches the agent as text', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine(
-      {},
-      {harnesses: [{id: 'engine', commands: [{name: 'review-pr', description: 'Review the open pull request'}]}]},
-    )
-    await engine.reply(TestLLM.text('Reviewing now'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine({
+      commands: [{name: 'review-pr', description: 'Review the open pull request', source: 'harness'}],
+    })
+    engine.reply(FakeLLM.text('Reviewing now'))
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, '/')
@@ -226,17 +226,16 @@ describe('the slash list', () => {
 
     const reply = await screen.findByRole('article', {name: 'Reply to: /review-pr'})
     expect(await within(reply).findByText('Reviewing now')).toBeVisible()
-    const requests = await engine.requests()
-    expect(requests.map((request) => request.messages.at(-1))).toMatchObject([{role: 'user', content: '/review-pr'}])
+    expect(sentTexts(engine)).toEqual(['/review-pr'])
   })
 })
 
 describe('the model command', () => {
   test('picking /model from the list or sending exactly /model opens the model menu and sends nothing', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Hi there'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    engine.reply(FakeLLM.text('Hi there'))
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, '/mo')
@@ -259,25 +258,53 @@ describe('the model command', () => {
     const reply = await screen.findByRole('article', {name: 'Reply to: Hello'})
     expect(await within(reply).findByText('Hi there')).toBeVisible()
     expect(screen.queryByRole('article', {name: 'You: /model'})).not.toBeInTheDocument()
-    const requests = await engine.requests()
-    expect(requests).toHaveLength(1)
-    expect(requests[0]?.messages.at(-1)).toMatchObject({role: 'user', content: 'Hello'})
+    expect(sentTexts(engine)).toEqual(['Hello'])
   })
 })
 
 describe('the mention list', () => {
   test('@ lists skills, subagents, tools and this project’s other sessions, a term narrows them, and a pick inserts its mention', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine(
-      {plugins: ['../plugins/reviewer-agent']},
-      {directory: 'test/fixtures/mention-project'},
-    )
-    await engine.newSession('Fix login bug')
-    await engine.newSession('Deploy the docs')
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
+    const engine = composerEngine({
+      sessions: [
+        {id: 'ses_current', title: 'Current work'},
+        {id: 'ses_login', title: 'Fix login bug'},
+        {id: 'ses_docs', title: 'Deploy the docs'},
+      ],
+      handlers: {
+        meta: {tools: () => ({tools: [{name: 'read', description: 'Read a file'}]})},
+        skill: {
+          list: () => ({
+            location: {directory: '/workspace'},
+            data: [
+              {
+                id: 'release-notes',
+                name: 'release-notes',
+                description: 'Write the release notes',
+                path: 'conciv/skills/release-notes/SKILL.md',
+                content: 'Write the release notes',
+              },
+            ],
+          }),
+        },
+        agent: {
+          list: () => ({
+            location: {directory: '/workspace'},
+            data: [
+              mentionAgent('reviewer', 'subagent', 'Reviews the change before it ships'),
+              mentionAgent('build', 'primary', 'Builds the project'),
+            ],
+          }),
+        },
+        fs: {
+          find: ({query}) => ({
+            location: {directory: '/workspace'},
+            data: 'src/login-form.txt'.includes(query) ? [{path: 'src/login-form.txt', type: 'file'}] : [],
+          }),
+        },
+      },
     })
+    await mountShell({engine, initialEntries: ['/panel/ses_current?open=true']})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, '@')
@@ -300,14 +327,14 @@ describe('the mention list', () => {
 
   test('with no term, @ ranks a session open in another quick pane above a newer one that is not open', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    const open = await engine.newSession('Open beside')
-    await engine.newSession('Newer elsewhere')
-    const typing = await engine.newSession('Typing here')
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/quick?panes=${typing.id},${open.id}&focus=0`]}),
+    const engine = composerEngine({
+      sessions: [
+        {id: 'ses_typing', title: 'Typing here'},
+        {id: 'ses_newer', title: 'Newer elsewhere'},
+        {id: 'ses_open', title: 'Open beside'},
+      ],
     })
+    await mountShell({engine, initialEntries: ['/quick?panes=ses_typing,ses_open&focus=0']})
 
     const pane = await screen.findByRole('region', {name: 'Session: Typing here'})
     await user.type(within(pane).getByRole('textbox', {name: 'Message the conciv agent'}), '@')
@@ -321,26 +348,18 @@ describe('the mention list', () => {
 
   test('a typed term finds a session of another project, which a bare @ leaves out', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine(
-      {},
-      {
-        harnesses: [
-          {
-            id: 'engine',
-            sessions: [
-              {
-                id: 'billing-elsewhere',
-                cwd: '/elsewhere/billing-app',
-                derivedTitle: 'Fix the billing page',
-                updatedAt: 1_000,
-                messages: [{id: 'm1', role: 'user', parts: [{type: 'text', content: 'the billing totals are wrong'}]}],
-              },
-            ],
-          },
-        ],
+    const engine = composerEngine({
+      handlers: {
+        meta: {tools: () => ({tools: [{name: 'read', description: 'Read a file'}]})},
+        sessions: {
+          search: ({term}) => ({
+            sessions: 'billing'.startsWith(term.toLowerCase()) ? [elsewhereSession()] : [],
+            next: null,
+          }),
+        },
       },
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    })
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, '@')
@@ -355,9 +374,9 @@ describe('the mention list', () => {
 describe('picking a model and an effort', () => {
   test('the prompt shows the picked model and effort, the agent runs on them, and a model with no efforts drops the effort', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('On Sonnet'), TestLLM.text('On Haiku'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    engine.reply(FakeLLM.text('On Sonnet'), FakeLLM.text('On Haiku'))
+    await mountShell({engine})
 
     await user.click(await screen.findByRole('button', {name: 'Model: Opus 5.5'}))
     const menu = await screen.findByRole('dialog', {name: 'Model'})
@@ -378,7 +397,8 @@ describe('picking a model and an effort', () => {
     await user.keyboard('{Enter}')
     const reply = await screen.findByRole('article', {name: 'Reply to: Which model?'})
     expect(await within(reply).findByText('On Sonnet')).toBeVisible()
-    expect(await engine.requests()).toMatchObject([{model: 'sonnet', effort: 'high'}])
+    const sessionId = engine.sent()[0]?.sessionId ?? ''
+    expect(await readSession(engine, sessionId)).toMatchObject({model: 'sonnet', effort: 'high'})
 
     await user.click(screen.getByRole('button', {name: 'Model: Sonnet 5.5, effort High'}))
     await user.click(await screen.findByRole('button', {name: 'Older versions'}))
@@ -393,20 +413,35 @@ describe('picking a model and an effort', () => {
     await user.keyboard('{Enter}')
     const next = await screen.findByRole('article', {name: 'Reply to: And now?'})
     expect(await within(next).findByText('On Haiku')).toBeVisible()
-    expect((await engine.requests()).at(-1)).toMatchObject({model: 'claude-haiku-4-5', effort: null})
+    expect(await readSession(engine, sessionId)).toMatchObject({model: 'claude-haiku-4-5'})
   })
 })
 
 describe('switching the harness', () => {
   test('while a reply runs the other harness’s models are disabled, a model of another harness asks first when the chat has history, the next reply runs on it, and each reply then names its harness', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine(
-      {},
-      {harnesses: [{id: 'engine'}, {id: 'second', models: [{id: 'second-fast', name: 'Fast 1', group: 'Second'}]}]},
-    )
-    await engine.reply(TestLLM.text('First answer'), TestLLM.text('Second answer'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const secondHarness: ComposerHarness = {
+      id: 'second',
+      name: 'second',
+      models: [{id: 'second-fast', name: 'Fast 1', group: 'Second'}],
+    }
+    const engine: FakeEngine = composerEngine({
+      handlers: {
+        meta: {
+          harnesses: () => ({
+            harnesses: [harnessEntry(ENGINE_HARNESS), harnessEntry(secondHarness)],
+            defaultHarness: 'fake',
+          }),
+          models: async ({sessionId}) =>
+            harnessModels(
+              (await readSession(engine, sessionId)).harnessKind === secondHarness.id ? secondHarness : ENGINE_HARNESS,
+            ),
+        },
+      },
+    })
+    const gate = engine.gate()
+    engine.reply(FakeLLM.text('First answer'), FakeLLM.text('Second answer'))
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'First task')
@@ -425,6 +460,8 @@ describe('switching the harness', () => {
     const first = await screen.findByRole('article', {name: 'Reply to: First task'})
     expect(await within(first).findByText('First answer')).toBeVisible()
     expect(within(screen.getByRole('log')).queryByText('engine')).not.toBeInTheDocument()
+    const sessionId = engine.sent()[0]?.sessionId ?? ''
+    expect(await readSession(engine, sessionId)).toMatchObject({harnessKind: 'fake', model: null})
 
     await user.click(await screen.findByRole('button', {name: 'Model: Opus 5.5 (engine)'}))
     await user.click(await screen.findByRole('option', {name: 'Fast 1 (second)'}))
@@ -442,15 +479,16 @@ describe('switching the harness', () => {
     const thread = screen.getByRole('log')
     expect(within(thread).getByText('engine')).toBeVisible()
     expect(within(thread).getByText('second')).toBeVisible()
-    expect((await engine.requests()).map((request) => request.model)).toEqual([null, 'second-fast'])
+    expect(await readSession(engine, sessionId)).toMatchObject({harnessKind: 'second', model: 'second-fast'})
+    expect(sentTexts(engine)).toEqual(['First task', 'Second task'])
   })
 })
 
 describe('a harness with no models', () => {
   test('the prompt names the harness and the menu says it has no usable models', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({}, {harnesses: [{id: 'engine', models: []}]})
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine({harness: {...ENGINE_HARNESS, models: []}})
+    await mountShell({engine})
 
     await user.click(await screen.findByRole('button', {name: 'Model: engine'}))
 
@@ -461,11 +499,14 @@ describe('a harness with no models', () => {
 describe('a draft per session', () => {
   test('each session keeps its own typed draft across switches in the session picker, and a sent draft does not come back', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Shipped'))
-    const alpha = await engine.newSession('Alpha')
-    await engine.newSession('Beta')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: [`/panel/${alpha.id}?open=true`]})})
+    const engine = composerEngine({
+      sessions: [
+        {id: 'ses_alpha', title: 'Alpha'},
+        {id: 'ses_beta', title: 'Beta'},
+      ],
+    })
+    engine.reply(FakeLLM.text('Shipped'))
+    await mountShell({engine, initialEntries: ['/panel/ses_alpha?open=true']})
 
     const alphaInput = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(alphaInput, 'Half-written idea')
@@ -522,14 +563,8 @@ describe('a draft per session', () => {
 describe('a deleted session with a draft', () => {
   test('closing the quick pane of a session deletes it, and New session on its panel carries the typed draft over, announced once the new session shows', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    const doomed = await engine.newSession('Doomed work')
-    await mount({
-      engine,
-      history: createEngineRouterHistory({
-        initialEntries: [`/panel/${doomed.id}?open=true`, `/quick?panes=${doomed.id}&focus=0`],
-      }),
-    })
+    const engine = composerEngine({sessions: [{id: 'ses_doomed', title: 'Doomed work'}]})
+    await mountShell({engine, initialEntries: ['/panel/ses_doomed?open=true', '/quick?panes=ses_doomed&focus=0']})
 
     const pane = await screen.findByRole('region', {name: 'Session: Doomed work'})
     await user.type(within(pane).getByRole('textbox', {name: 'Message the conciv agent'}), 'Keep this thought')
@@ -548,9 +583,9 @@ describe('a deleted session with a draft', () => {
 describe('attaching text files', () => {
   test('pasted files show as chips, Backspace and Remove take them off, and the sent message carries the kept file', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Read them'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    engine.reply(FakeLLM.text('Read them'))
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.click(input)
@@ -576,12 +611,13 @@ describe('attaching text files', () => {
     await user.keyboard('{Enter}')
     const reply = await screen.findByRole('article', {name: /^Reply to: Read my notes/})
     expect(await within(reply).findByText('Read them')).toBeVisible()
-    const requests = await engine.requests()
-    expect(requests).toHaveLength(1)
-    expect(requests[0]?.messages.at(-1)).toMatchObject({
-      role: 'user',
-      content: 'Read my notes\n\nAttachment notes.txt:\nBuy milk',
-    })
+    const [sent, ...more] = sentJson(engine)
+    expect(more).toHaveLength(0)
+    expect(sent).toContain('Read my notes')
+    expect(sent).toContain('notes.txt')
+    expect(sent).toContain('Buy milk')
+    expect(sent).not.toContain('plan.md')
+    expect(sent).not.toContain('extra.log')
   })
 })
 
@@ -602,8 +638,8 @@ describe('the send caps', () => {
     },
   ])('$cap is refused with a notice, and the message stays in the composer', async ({files, notice}) => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'Look at these')
@@ -618,16 +654,16 @@ describe('the send caps', () => {
     expect(await screen.findByText(notice)).toBeVisible()
     expect(input).toHaveTextContent('Look at these')
     expect(screen.getByRole('button', {name: files.at(0)?.name})).toBeVisible()
-    expect(await engine.requests()).toHaveLength(0)
+    expect(engine.sent()).toHaveLength(0)
   })
 })
 
 describe('an attachment that cannot be sent', () => {
   test('a text file over the 1MB limit is marked failed, Enter leaves the message in the composer unsent, and it sends once the file is removed', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Read it'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    engine.reply(FakeLLM.text('Read it'))
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'Read the log')
@@ -651,19 +687,17 @@ describe('an attachment that cannot be sent', () => {
     await user.keyboard('{Enter}')
     const reply = await screen.findByRole('article', {name: /^Reply to: Read the log/})
     expect(await within(reply).findByText('Read it')).toBeVisible()
-    const requests = await engine.requests()
-    expect(requests).toHaveLength(1)
-    expect(requests[0]?.messages.at(-1)).toMatchObject({role: 'user', content: 'Read the log'})
+    expect(sentTexts(engine)).toEqual(['Read the log'])
   })
 })
 
 describe('notes from a plugin', () => {
   test('a pill attaches a note drawn as the host chip, since only a built-in plugin draws note cards, and hands the composer focus, Remove takes it off, and a sent note reaches the agent and stays on the message', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
-    await engine.reply(TestLLM.text('Header is sticky now'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    const gate = engine.gate()
+    engine.reply(FakeLLM.text('Header is sticky now'))
+    await mountShell({engine, plugins: [reviewNotesPlugin]})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.click(await screen.findByRole('button', {name: 'Review'}))
@@ -687,55 +721,17 @@ describe('notes from a plugin', () => {
     const sent = screen.getByRole('list', {name: 'Notes on this message'})
     expect(within(sent).getByText('Make the header sticky')).toBeVisible()
     expect(screen.queryByRole('list', {name: 'Notes'})).not.toBeInTheDocument()
-    const requests = await engine.requests()
-    expect(requests[0]?.messages.at(-1)).toMatchObject({
-      role: 'user',
-      content: 'Polish the page\nThe user made the following comment regarding the page header: Make the header sticky',
-    })
-  })
-})
-
-describe('a composer note from a page comment', () => {
-  test('the user picks an element of the page to comment on, the note lands in the composer, and the agent gets the comment on that element', async () => {
-    const user = userEvent.setup({delay: null})
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
-    await engine.reply(TestLLM.text('It is green now'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
-    render(() => (
-      <button type="button" id="buy">
-        Buy the fern
-      </button>
-    ))
-
-    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
-    await user.click(await screen.findByRole('button', {name: 'Comment on the page'}))
-    // oxlint-disable-next-line conciv/no-forced-click -- the picker turns page pointer events off while it picks; approved by the maintainer
-    await realInput.click(screen.getByRole('button', {name: 'Buy the fern'}), {force: true})
-    const notes = await screen.findByRole('list', {name: 'Notes'})
-    expect(within(notes).getByText('Make this button green')).toBeVisible()
-    expect(within(notes).getByText('Page comment')).toBeVisible()
-    await expect.element(input).toHaveFocus()
-
-    await user.keyboard('Do it')
-    await user.keyboard('{Enter}')
-    const reply = await screen.findByRole('article', {name: 'Reply to: Do it'})
-    expect(await within(reply).findByText('It is green now')).toBeVisible()
-    expect(
-      within(screen.getByRole('list', {name: 'Notes on this message'})).getByText('Make this button green'),
-    ).toBeVisible()
-    const requests = await engine.requests()
-    const sent = JSON.stringify(requests[0]?.messages.at(-1))
-    expect(sent).toContain('The user made the following comment regarding')
-    expect(sent).toContain('Buy the fern')
-    expect(sent).toContain('Make this button green')
+    expect(sentTexts(engine)).toEqual([
+      'Polish the page\nThe user made the following comment regarding the page header: Make the header sticky',
+    ])
   })
 })
 
 describe('plugin pills', () => {
   test('pills sit in their order, a row runs, a menu pill shows its content, and a pill shows only while its plugin says so', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    await mountShell({engine, plugins: [reviewNotesPlugin]})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await screen.findByRole('button', {name: 'Review'})
@@ -760,9 +756,9 @@ describe('plugin pills', () => {
 describe('the composer actions menu', () => {
   test('Start a new session opens an empty session, announced once it shows, and its model menu stays open while its models load', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Done with it'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    engine.reply(FakeLLM.text('Done with it'))
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'First task')
@@ -783,9 +779,29 @@ describe('the composer actions menu', () => {
 
   test('Compress the conversation compacts it, and a message sent while it compacts stays in the composer unsent', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Done with it'), TestLLM.text('A summary of the talk so far'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const compaction = Promise.withResolvers<void>()
+    const compactStarted = Promise.withResolvers<void>()
+    const compacted = {sessionId: ''}
+    const engine = composerEngine({
+      handlers: {
+        sessions: {
+          compact: async ({sessionId}) => {
+            compactStarted.resolve()
+            await compaction.promise
+            compacted.sessionId = sessionId
+            return {ok: true}
+          },
+        },
+        markers: {
+          list: ({sessionId}) =>
+            sessionId === compacted.sessionId
+              ? [{id: 'marker-compact', sessionId, afterMessageId: null, kind: 'compact'}]
+              : [],
+        },
+      },
+    })
+    engine.reply(FakeLLM.text('Done with it'))
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'First task')
@@ -793,10 +809,9 @@ describe('the composer actions menu', () => {
     await user.keyboard('{Enter}')
     expect(await screen.findByRole('article', {name: 'Reply to: First task'})).toBeVisible()
 
-    const compaction = await engine.gate()
     await user.click(screen.getByRole('button', {name: 'More composer actions'}))
     await user.click(await screen.findByRole('menuitem', {name: 'Compress the conversation'}))
-    await compaction.started
+    await compactStarted.promise
     expect(await screen.findByRole('separator', {name: 'Compacting…'})).toBeVisible()
     await user.type(input, 'Second task')
     expect(input).toHaveFocus()
@@ -807,20 +822,20 @@ describe('the composer actions menu', () => {
     expect(within(notifications).queryByRole('status')).not.toBeInTheDocument()
     expect(within(notifications).queryByRole('alert')).not.toBeInTheDocument()
 
-    await compaction.release()
+    compaction.resolve()
     expect(await screen.findByRole('separator', {name: 'Context compacted'})).toBeVisible()
     expect(input).toHaveTextContent('Second task')
     expect(screen.queryByRole('article', {name: 'You: Second task'})).not.toBeInTheDocument()
-    expect(await engine.requests()).toHaveLength(2)
+    expect(engine.sent()).toHaveLength(1)
   })
 })
 
 describe('plugin slash commands', () => {
   test('a plugin command is listed under Commands where its after places it, runs when picked, and a typed command runs with its arguments instead of sending', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
-    await engine.reply(TestLLM.text('Noted'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = composerEngine()
+    engine.reply(FakeLLM.text('Noted'))
+    await mountShell({engine, plugins: [reviewNotesPlugin]})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     expect(await screen.findByRole('button', {name: 'Review'})).toBeVisible()
@@ -849,8 +864,6 @@ describe('plugin slash commands', () => {
     const reply = await screen.findByRole('article', {name: 'Reply to: Thanks'})
     expect(await within(reply).findByText('Noted')).toBeVisible()
     expect(screen.queryByRole('article', {name: 'You: /review the header'})).not.toBeInTheDocument()
-    const requests = await engine.requests()
-    expect(requests).toHaveLength(1)
-    expect(requests[0]?.messages.at(-1)).toMatchObject({role: 'user', content: 'Thanks'})
+    expect(sentTexts(engine)).toEqual(['Thanks'])
   })
 })

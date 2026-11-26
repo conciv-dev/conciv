@@ -1,3 +1,4 @@
+import type {Origin as ToolOrigin} from '@conciv/protocol/schema/tool'
 import {and, eq, isNotNull} from 'drizzle-orm'
 import {Effect} from 'effect'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/types/chat-event-types'
@@ -18,10 +19,11 @@ import {isSessionId, SessionId} from '@conciv/types/chat-types'
 import type {UiAnswer} from '@conciv/types/ui-types'
 import {createUiChannel} from './approvals.js'
 import {MarkerId} from './marker-id.js'
+import type {Maker} from '@conciv/protocol/schema/identifier'
 import {RunId} from './run-id.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import type {ChatTool} from '@conciv/types/chat-tool-types'
-import type {CodeModeCatalog} from './backend-defaults.js'
+import type * as CodeModeCatalog from './core/codemode/catalog.js'
 import {clearThread, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {deletedSessionError, firstUserTitle, sessionDeleted, turnHooks, type TurnDeps} from './turn.js'
@@ -44,6 +46,7 @@ type ChatPlaneDeps = TurnDeps & {
   pendingPermissions: (sessionId: SessionId) => Promise<ChatPendingApproval[]>
   tracer: Tracer | undefined
   inbox: {promote: (sessionId: SessionId) => Promise<number | undefined>}
+  ids: Maker
 }
 
 export type CodeTool = {
@@ -87,6 +90,7 @@ export type ChatPlane = {
   codeRunner: (
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
+    origin: ToolOrigin,
     capabilities?: readonly CodeCapability[],
   ) => Promise<CodeRunner | null>
   wake: (sessionId: SessionId) => Promise<void>
@@ -131,6 +135,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     driver: deps.driver,
     askPermission: (threadId, ask, signal) => deps.askPermission(SessionId.parse(threadId), ask, signal),
     tracer: deps.tracer,
+    ids: deps.ids,
   })
 
   const hydrate = (sessionId: SessionId, window?: ChatHistoryWindow): Promise<ChatHydration> =>
@@ -184,7 +189,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     if (server.driving(sessionId) || (await stores.runs.findActiveRun(sessionId)) !== null) return
     const delivered = await deliveredMessages(sessionId, await deps.inbox.promote(sessionId))
     if (delivered.length === 0) return
-    const runId = RunId.create()
+    const runId = RunId.create(deps.ids)
     server
       .drive({threadId: sessionId, runId, kind: 'chat', delivered: deliveredIds(delivered)}, [])
       .catch((error: unknown) =>
@@ -207,28 +212,29 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
             .from(sessions)
             .where(and(eq(sessions.id, sessionId), isNotNull(sessions.deletedAt)))
           if (tombstone.length > 0) return false
-          yield* tx.insert(markers).values({id: MarkerId.create(), sessionId, afterMessageId, kind: 'compact'})
+          yield* tx.insert(markers).values({id: MarkerId.create(deps.ids), sessionId, afterMessageId, kind: 'compact'})
           return true
         }),
       ),
     )
     if (!marked) throw deletedSessionError(sessionId)
-    await server.drive({threadId: sessionId, runId: RunId.create(), kind: 'compact'}, [])
+    await server.drive({threadId: sessionId, runId: RunId.create(deps.ids), kind: 'compact'}, [])
   }
 
   const buildCodeRunner = async (
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
+    origin: ToolOrigin,
     given: readonly CodeCapability[] | undefined,
   ): Promise<CodeRunner | null> => {
     const model = (await deps.sessions.row(sessionId))?.model ?? null
     const capabilities = given ?? (await deps.capabilities(sessionId))
-    const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model}, deps.driver !== null)
+    const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model, origin}, deps.driver !== null)
     const runner = server.codeRunner(toolSet.codeMode, toolSet.search)
     if (runner === null && toolSet.direct.length === 0) return null
     const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
       const chunk: ChatEvent = {type: ChatEventType.CUSTOM, name, value, timestamp: Date.now()}
-      for (const card of childCardChunks(chunk, parentToolCallId, cappedValue) ?? [chunk]) {
+      for (const card of childCardChunks(chunk, parentToolCallId, cappedValue, deps.ids) ?? [chunk]) {
         if (card.type === ChatEventType.TOOL_CALL_START) {
           ui.noteToolCall(sessionId, card.toolCallId, card.toolCallName)
         }
@@ -294,9 +300,9 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       wake(sessionId).catch((error: unknown) =>
         deps.log(`[chat] waking session ${sessionId} for its inbox failed: ${String(error)}`),
       ),
-    codeRunner: (sessionId, publish, given) =>
+    codeRunner: (sessionId, publish, origin, given) =>
       inSpan(deps.tracer, 'ChatPlane.codeRunner', {'conciv.session.id': sessionId}, () =>
-        buildCodeRunner(sessionId, publish, given),
+        buildCodeRunner(sessionId, publish, origin, given),
       ),
   }
 }

@@ -1,6 +1,4 @@
-export * as Plugin from './service.js'
-
-import {Plugin} from '@conciv/protocol/schema/plugin'
+import * as Plugin from '@conciv/protocol/schema/plugin'
 import type {Plugin as PluginDefinition, Services, TaggedError} from '@conciv/backend-plugin-api/effect/plugin'
 import {Context, type Effect, type Exit} from 'effect'
 

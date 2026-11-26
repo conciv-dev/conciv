@@ -1,72 +1,105 @@
-import {createEffect, createResource, createRoot, type Accessor, createSignal} from 'solid-js'
+import {createResource, createRoot, type Accessor, createSignal} from 'solid-js'
 import {type Grab, type GrabActions, type ElementSource, type GrabFrame, composeGrabText} from '@conciv/grab'
 import type {SourceInfo} from 'react-grab'
 import {capturePreview} from './grab-preview.js'
 import {framesForElement, sourceFromAttr} from './react.js'
 import type {SourceLoc} from '@conciv/frontend-plugin-api/page'
 
-const [picking, setPicking] = createSignal(false)
-
-let cancelFn: (() => void) | null = null
-
-export function setCancelPick(fn: (() => void) | null): void {
-  cancelFn = fn
-}
-export function cancelPick(): void {
-  cancelFn?.()
-}
+export type ReactGrab = {api: GrabActions; dispose: () => void}
 
 type PendingPick = {resolve: (grab: Grab | null | Promise<Grab>) => void; grab: Promise<Grab> | null}
 
-let pending: PendingPick | null = null
+export function createReactGrab(): ReactGrab {
+  const [picking, setPickingSignal] = createSignal(false)
+  const state: {
+    cancel: (() => void) | null
+    pending: PendingPick | null
+    adapter: Promise<ReactGrabAdapter> | null
+    module: Promise<typeof import('react-grab')> | null
+    pickerLoaded: {ready: Accessor<boolean>; dispose: () => void} | null
+  } = {cancel: null, pending: null, adapter: null, module: null, pickerLoaded: null}
 
-createRoot(() => {
-  createEffect(() => {
-    if (picking()) return
-    const finished = pending
+  const setPicking = (active: boolean): void => {
+    const wasPicking = picking()
+    setPickingSignal(active)
+    if (active || !wasPicking) return
+    const finished = state.pending
     if (!finished) return
-    pending = null
+    state.pending = null
     finished.resolve(finished.grab)
-  })
-})
+  }
 
-function startPick(mode: 'activate' | 'comment'): Promise<Grab | null> {
-  return new Promise((resolve) => {
-    pending?.resolve(null)
-    const pick: PendingPick = {resolve, grab: null}
-    pending = pick
-    void getReactGrabAdapter().then(
-      (adapter) =>
-        adapter[mode]((grab) => {
-          if (pending !== pick) return
-          pick.grab = grab
-        }),
-      (cause: unknown) => {
-        console.error('[page] the element picker did not start', cause)
-        if (pending !== pick) return
-        pending = null
-        resolve(null)
-      },
+  const setCancelPick = (fn: (() => void) | null): void => {
+    state.cancel = fn
+  }
+
+  const cancelPick = (): void => {
+    state.cancel?.()
+  }
+
+  const loadReactGrab = (): Promise<typeof import('react-grab')> => {
+    if (state.module) return state.module
+    window.__REACT_GRAB_DISABLED__ = true
+    state.module = import('react-grab')
+    return state.module
+  }
+
+  const getReactGrabAdapter = (): Promise<ReactGrabAdapter> => {
+    state.adapter ??= loadReactGrab().then((rg) => createAdapter(rg, setPicking, setCancelPick))
+    return state.adapter
+  }
+
+  const startPick = (mode: 'activate' | 'comment'): Promise<Grab | null> =>
+    new Promise((resolve) => {
+      state.pending?.resolve(null)
+      const pick: PendingPick = {resolve, grab: null}
+      state.pending = pick
+      void getReactGrabAdapter().then(
+        (adapter) =>
+          adapter[mode]((grab) => {
+            if (state.pending !== pick) return
+            pick.grab = grab
+          }),
+        (cause: unknown) => {
+          console.error('[page] the element picker did not start', cause)
+          if (state.pending !== pick) return
+          state.pending = null
+          resolve(null)
+        },
+      )
+    })
+
+  const pickerReady = (): boolean => {
+    state.pickerLoaded ??= createRoot((dispose) => {
+      const [picker] = createResource(loadReactGrab)
+      return {ready: () => picker.state === 'ready', dispose}
+    })
+    return state.pickerLoaded.ready()
+  }
+
+  const dispose = (): void => {
+    const adapter = state.adapter
+    state.adapter = null
+    setCancelPick(null)
+    setPicking(false)
+    state.pickerLoaded?.dispose()
+    state.pickerLoaded = null
+    void adapter?.then(
+      (current) => current.dispose(),
+      () => undefined,
     )
-  })
-}
+  }
 
-let pickerLoaded: Accessor<boolean> | undefined
-
-function pickerReady(): boolean {
-  pickerLoaded ??= createRoot(() => {
-    const [picker] = createResource(loadReactGrab)
-    return () => picker.state === 'ready'
-  })
-  return pickerLoaded()
-}
-
-export const grabApi: GrabActions = {
-  pick: () => startPick('activate'),
-  comment: () => startPick('comment'),
-  cancel: cancelPick,
-  isActive: picking,
-  grabbable: pickerReady,
+  return {
+    api: {
+      pick: () => startPick('activate'),
+      comment: () => startPick('comment'),
+      cancel: cancelPick,
+      isActive: picking,
+      grabbable: pickerReady,
+    },
+    dispose,
+  }
 }
 
 type GrabSink = (grab: Promise<Grab>) => void
@@ -102,34 +135,11 @@ export type ReactGrabAdapter = {
   dispose: () => void
 }
 
-let adapterPromise: Promise<ReactGrabAdapter> | null = null
-let modulePromise: Promise<typeof import('react-grab')> | null = null
-
-export function loadReactGrab(): Promise<typeof import('react-grab')> {
-  if (modulePromise) return modulePromise
-  window.__REACT_GRAB_DISABLED__ = true
-  modulePromise = import('react-grab')
-  return modulePromise
-}
-
-function getReactGrabAdapter(): Promise<ReactGrabAdapter> {
-  if (!adapterPromise) adapterPromise = create()
-  return adapterPromise
-}
-
-export function disposeReactGrab(): void {
-  const adapter = adapterPromise
-  adapterPromise = null
-  setCancelPick(null)
-  setPicking(false)
-  void adapter?.then(
-    (current) => current.dispose(),
-    () => undefined,
-  )
-}
-
-async function create(): Promise<ReactGrabAdapter> {
-  const rg = await loadReactGrab()
+async function createAdapter(
+  rg: typeof import('react-grab'),
+  setPicking: (active: boolean) => void,
+  setCancelPick: (fn: (() => void) | null) => void,
+): Promise<ReactGrabAdapter> {
   const api = rg.init({telemetry: false})
 
   let sink: GrabSink | null = null
@@ -213,7 +223,7 @@ async function create(): Promise<ReactGrabAdapter> {
 const MAX_TEXT = 80
 const MAX_CLASS = 60
 const NAMED_ATTRS = ['id', 'role', 'aria-label']
-const VOID_TAGS = new Set([
+const VOID_TAGS: readonly string[] = [
   'area',
   'base',
   'br',
@@ -227,7 +237,7 @@ const VOID_TAGS = new Set([
   'source',
   'track',
   'wbr',
-])
+]
 
 function collapse(text: string): string {
   return text.replace(/\s+/g, ' ').trim()
@@ -250,7 +260,7 @@ function salientAttributes(element: Element): string {
 export function elementSnippet(element: Element): string {
   const tag = element.tagName.toLowerCase()
   const open = `<${tag}${salientAttributes(element)}>`
-  if (VOID_TAGS.has(tag)) return open
+  if (VOID_TAGS.includes(tag)) return open
   const text = truncate(collapse(element.textContent ?? ''), MAX_TEXT)
   if (!text) return open
   return `${open}${text}</${tag}>`

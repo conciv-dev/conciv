@@ -2,7 +2,7 @@ import {createMemo, createRoot, on, onCleanup, untrack, type Accessor} from 'sol
 import {difference, partition, uniq} from 'es-toolkit'
 import {type QueryClient, useChatSession, type ChatSession} from '@conciv/client'
 import {createStore, unwrap} from 'solid-js/store'
-import {browserRpcConnection, type RpcClient} from '@conciv/client'
+import type {EngineConnection, RpcClient} from '@conciv/client'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/types/chat-event-types'
 import type {QueuedMessage} from '@conciv/types/chat-message-types'
 import type {AppData} from '../data/app-data.js'
@@ -37,7 +37,7 @@ export type LiveSessions = {
 export type LiveSessionsDeps = {
   active: Accessor<string | null>
   rpc: RpcClient
-  apiBase: Accessor<string>
+  connection: Accessor<EngineConnection | undefined>
   generation: Accessor<number>
   appData: AppData
   queryClient: QueryClient
@@ -118,17 +118,17 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
 
   const liveChat = (sessionId: string, dispose: () => void): LiveChat => {
     const chat = createMemo(
-      on([deps.generation, deps.apiBase, () => state.retired[sessionId]], ([, apiBase, retired]) =>
-        openChat(sessionId, apiBase, retired !== undefined),
+      on([deps.generation, deps.connection, () => state.retired[sessionId]], ([, connection, retired]) =>
+        openChat(sessionId, connection, retired !== undefined),
       ),
     )
     return {sessionId, chat, dispose}
   }
 
-  const openChat = (sessionId: string, apiBase: string, reopened: boolean): ChatSession => {
+  const openChat = (sessionId: string, connection: EngineConnection | undefined, reopened: boolean): ChatSession => {
     const session = useChatSession({
       rpc: deps.rpc,
-      apiBase,
+      trust: connection?.trust,
       sessionId,
       onError: () => {
         if (reopened && session.loadFailed()) deps.announce('conciv could not load this conversation. Try again.')
@@ -136,7 +136,6 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
       },
       connection: {
         runReconnect: deps.timings?.chatRunReconnect,
-        engineTimings: deps.timings?.engine,
         onHydrated: (hydration) => hydrated(sessionId, hydration.lastRun),
         onLifecycle: (lifecycle) =>
           isRunPhaseTerminal(lifecycle.phase)
@@ -148,15 +147,14 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
             : start(sessionId, lifecycle),
       },
     })
-    const connection = browserRpcConnection(apiBase, undefined, deps.timings?.engine)
-    const stopTrust = connection.trust.subscribe((status, previous) => {
-      if (!becameTrusted(status, previous)) return
-      if (session.loadFailed()) return retire(sessionId, session)
-      session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
-    })
+    const stopTrust =
+      connection?.trust.subscribe((status, previous) => {
+        if (!becameTrusted(status, previous)) return
+        if (session.loadFailed()) return retire(sessionId, session)
+        session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
+      }) ?? (() => {})
     onCleanup(() => {
       stopTrust()
-      connection.release()
       if (untrack(session.runInProgress)) void deps.appData.invalidateSession(sessionId)
     })
     return session

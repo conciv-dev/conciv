@@ -7,9 +7,8 @@ import {pluginLabel} from './plugin-label'
 import {ActionRow, Group} from '@internal/frontend-app-api/plugin/settings-layout'
 import {Badge} from '../../settings/settings-ui'
 import {useNotices} from '../../shell/notice-context'
-import {builtins} from './builtins'
 import {usePluginHost} from '@internal/frontend-app-api/plugin/host'
-import {usePluginManager, useReservedPlugins} from './root'
+import {useBuiltinPlugin, usePluginManager, useReservedPlugins} from './root'
 
 const NotFoundSchema = z.object({code: z.literal('notFound')})
 
@@ -25,7 +24,7 @@ function createPluginRows(plugins: () => readonly PluginInfo[]) {
 
   const listed = createMemo(() => plugins().filter((plugin) => plugin.source.type !== 'builtin'))
 
-  const builtin = (id: string) => builtins.some((definition) => definition.id === id)
+  const builtin = useBuiltinPlugin()
 
   const itemOf = (id: string, kind: 'builtin' | 'config') =>
     host.installed().find((item) => item.id === id && item.builtin === (kind === 'builtin'))

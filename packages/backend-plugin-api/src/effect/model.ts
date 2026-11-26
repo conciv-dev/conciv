@@ -1,5 +1,5 @@
-import type {Location} from '@conciv/protocol/schema/location'
-import type {Model} from '@conciv/protocol/schema/model'
+import type * as Location from '@conciv/protocol/schema/location'
+import type * as Model from '@conciv/protocol/schema/model'
 import type {Effect} from 'effect'
 
 export interface ModelDomain {

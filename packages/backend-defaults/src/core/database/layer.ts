@@ -1,5 +1,3 @@
-export * as DatabaseLayer from './layer.js'
-
 import {makeWithDefaults} from 'drizzle-orm/effect-sqlite-node'
 import {Effect, FileSystem, Layer} from 'effect'
 import type {SqliteClient} from '@effect/sql-sqlite-node'

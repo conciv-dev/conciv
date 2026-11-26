@@ -1,7 +1,7 @@
 import {Effect, Fiber, Stream} from 'effect'
 import {describe, expect, it} from 'vitest'
 import {BACKEND_CAPABILITIES, UI_CAPABILITIES, type HandshakeParams} from '@conciv/protocol/simulation'
-import {SimulationControlServer} from '../../src/control-server.js'
+import * as SimulationControlServer from '../../src/control-server.js'
 import {connectDriver, text} from '../../src/driver.js'
 import {request} from '../utils/model-request.js'
 import {availableEndpoint, connect, driven} from '../utils/websocket.js'

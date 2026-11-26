@@ -27,7 +27,7 @@ const AbsolutePath = Schema.String.check(
 
 const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
 
-export const Manifest = Schema.Struct({
+const Manifest = Schema.Struct({
   endpoints: Schema.Struct({
     ui: Endpoint,
     backend: Endpoint,
@@ -98,5 +98,3 @@ export const resolve = Effect.fn('DriveManifest.resolve')(function* () {
     ),
   )
 })
-
-export * as DriveManifest from './manifest.js'

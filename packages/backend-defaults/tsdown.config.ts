@@ -4,6 +4,8 @@ export default defineConfig({
   sourcemap: true,
   entry: {
     'backend-defaults': 'src/backend-defaults.ts',
+    backend: 'src/backend.ts',
+    'search-index-worker': 'src/engine/sessions/search-index-worker.ts',
     ai: 'src/ai.ts',
     tools: 'src/tools.ts',
     'quickjs-worker': 'src/ai/quickjs-worker.ts',

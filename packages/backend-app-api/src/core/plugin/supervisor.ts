@@ -1,14 +1,12 @@
-export * as PluginSupervisor from './supervisor.js'
-
 import {Cause, Context, Effect, Layer, Option, Predicate, Queue, Schema, Stream} from 'effect'
-import {Plugin as PluginSchema} from '@conciv/protocol/schema/plugin'
-import {ConfigPluginSource} from '../config/plugin/source.js'
-import {Bus} from '../bus.js'
-import {Plugin} from '../plugin.js'
-import {InstancePlugins} from './instance.js'
-import {PluginModule} from './module.js'
-import {SdkPlugins} from './sdk.js'
-import {PluginUpdate} from './update.js'
+import * as PluginSchema from '@conciv/protocol/schema/plugin'
+import * as ConfigPluginSource from '../config/plugin/source.js'
+import * as Bus from '../bus.js'
+import * as Plugin from '../plugin.js'
+import * as InstancePlugins from './instance.js'
+import * as PluginModule from './module.js'
+import * as SdkPlugins from './sdk.js'
+import * as PluginUpdate from './update.js'
 
 export interface Builtins {
   readonly pre: readonly Plugin.Generation[]
@@ -18,7 +16,7 @@ export interface Builtins {
 
 export const BuiltinPlugins = Context.Service<Builtins>('@conciv/PluginSupervisor/BuiltinPlugins')
 
-const noBuiltins: Builtins = {pre: [], post: [], guarded: new Set()}
+const noBuiltins = (): Builtins => ({pre: [], post: [], guarded: new Set()})
 
 const isLoadError = (error: unknown): error is PluginModule.LoadError =>
   Predicate.isTagged(error, 'PluginModule.LoadError')
@@ -142,7 +140,7 @@ export const layer = Layer.effectDiscard(
     const modules = yield* PluginModule.make()
     const bus = yield* Bus.Service
     const updates = yield* PluginUpdate.Service
-    const internal = Option.getOrElse(yield* Effect.serviceOption(BuiltinPlugins), () => noBuiltins)
+    const internal = Option.getOrElse(yield* Effect.serviceOption(BuiltinPlugins), noBuiltins)
     let release: Effect.Effect<void> | undefined = yield* registry.hold()
     yield* Effect.addFinalizer(() => release ?? Effect.void)
     yield* Effect.addFinalizer(registry.close)

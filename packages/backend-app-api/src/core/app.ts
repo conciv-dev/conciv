@@ -1,5 +1,3 @@
-export * as App from './app.js'
-
 import {Context} from 'effect'
 
 export interface Info {

@@ -1,15 +1,14 @@
-export * as Rpc from './rpc.js'
 export {define} from '@conciv/protocol/schema/rpc'
 export type {Definition, EventPayload, Failure} from '@conciv/protocol/schema/rpc'
 
 import type {RpcClient, RpcDomain, RpcHandlers} from '@conciv/backend-plugin-api/effect/rpc'
-import type {Rpc} from '@conciv/protocol/schema/rpc'
-import {Event} from '@conciv/protocol/schema/event'
-import type {Tool} from '@conciv/protocol/schema/tool'
+import type * as Rpc from '@conciv/protocol/schema/rpc'
+import * as Event from '@conciv/protocol/schema/event'
+import type * as Tool from '@conciv/protocol/schema/tool'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {Context, Deferred, Effect, JsonSchema, Layer, Schema, SchemaRepresentation, Stream} from 'effect'
-import {Bus} from './bus.js'
-import {Location} from './location.js'
+import * as Bus from './bus.js'
+import * as Location from './location.js'
 import {optional, statics} from './schema.js'
 
 export interface Interface {
@@ -177,7 +176,6 @@ const fields = {
   location: optional(Location.Ref),
 }
 const EventData = Schema.Record(Schema.String, Schema.Unknown)
-const jsonSchemas = new WeakMap<JsonSchema.JsonSchema, Schema.Codec<unknown>>()
 
 function eventType<const D extends Rpc.Definition, const Name extends keyof D['events'] & string>(
   definition: D,
@@ -205,15 +203,10 @@ function parse(schema: Tool.ValueSchema, value: unknown): Effect.Effect<unknown,
     })
   }
   return Effect.try({
-    try: () => {
-      const existing = jsonSchemas.get(schema)
-      if (existing) return existing
-      const codec = Schema.make<Schema.Codec<unknown>>(
+    try: () =>
+      Schema.make<Schema.Codec<unknown>>(
         SchemaRepresentation.fromJsonSchemaDocument(JsonSchema.fromSchemaDraft2020_12(schema)).ast,
-      )
-      jsonSchemas.set(schema, codec)
-      return codec
-    },
+      ),
     catch: (cause) => cause,
   }).pipe(Effect.flatMap((codec) => Schema.decodeUnknownEffect(codec)(value)))
 }

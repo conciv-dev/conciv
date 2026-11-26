@@ -13,7 +13,7 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 - `TextBlock`, `ThinkingBlock`, `ToolUseBlock`, `ToolResultBlock` zod schemas; `canonicalToolName(name)` (strips `mcp__conciv__` / `mcp__plugin_conciv-connect_conciv__`); `contentText(raw)` (`history.ts`).
 - `imageRefs(images, cwd)`, `claudeExecutable(pluginDir, settingsFile?)`, `claudeChatConfig(deps)` (`chat.ts`): claudeCode adapter with `systemPromptMode: 'append'`, `allowedTools: ['mcp__tanstack']`, `disallowedTools: ['AskUserQuestion']`, `permissionMode: 'auto'`; `prepareMessages` swaps the last user text to `/compact` for `kind === 'compact'`, otherwise appends image refs.
 - `claudePluginDir()` (`plugin-dir.ts`): resolves to the first `plugins/claude` dir containing `.claude-plugin/plugin.json`, up to 6 levels above the module, or null.
-- `claudeSdkCommands(ctx)`, test hook `__commandsCacheSet(cwd, commands)` (`sdk.ts`).
+- `claudeSdkCommands(ctx, env, commandsByCwd)`, the cache owned by `claude()` (`sdk.ts`).
 - `resume.command({nativeId})` (`index.ts`): `claude --resume <nativeId>`, built by `claudeSessionArgs` (`args.ts`), the same helper `claudeConnectArgs` uses.
 - `claudeTtyCommand(ctx)` (`index.ts`): `{bin: 'claude', args, env TERM/COLORTERM, unsetEnvPrefixes}`.
 - `transcriptRoot(configDir, cwd)` (under `projects/`, the cwd resolved through symlinks like Claude and the Agent SDK do), `transcriptPath(configDir, cwd, id)`, `parseHistory`, `parseSessionMeta`, `contextTokensFromTranscript`, `withinProject(configDir, cwd, id)`, `claudeHistory(configDir)` (`history.ts`).

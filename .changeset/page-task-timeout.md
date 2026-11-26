@@ -1,7 +1,7 @@
 ---
 '@internal/frontend-defaults': patch
 '@conciv/plugin-page': patch
-'@conciv/plugin-testkit': patch
+'@conciv/app': patch
 '@conciv/backend-plugin-api': patch
 ---
 

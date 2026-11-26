@@ -10,16 +10,6 @@
         "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}",
         "!$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{test,spec,stories}.*"
       ]
-    },
-    "typecheck": {
-      "dependsOn": [
-        "^build",
-        "^build:types",
-        "@conciv/client#build",
-        "@conciv/backend-defaults#build",
-        "@conciv/backend#build",
-        "@conciv/harness#build"
-      ]
     }
   }
 }

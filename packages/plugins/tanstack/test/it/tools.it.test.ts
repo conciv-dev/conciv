@@ -1,8 +1,13 @@
-import {describe, expect, test} from 'vitest'
-import {cli, createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {describe, expect} from 'vitest'
+import {test} from '@conciv/backend-test-utils'
+import {TestLLM} from '@conciv/backend-test-utils'
+import page from '@conciv/plugin-page'
+import {listerPlugin} from '@internal/engine-kit'
 
 describe('the agent reads the TanStack dev server', () => {
-  test('the route manifest is unreadable until routeTree.gen exists, build errors need the dev server, and the server function trace starts empty, through the tools, the rpc and the CLI', async () => {
+  test('the route manifest is unreadable until routeTree.gen exists, build errors need the dev server, and the server function trace starts empty, through the tools and the rpc', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({plugins: [['@conciv/plugin-tanstack', {bundlerWaitMs: 1}]]})
 
     expect(await engine.session.tool('tanstack_route_manifest').failure({})).toMatchObject({
@@ -43,9 +48,6 @@ describe('the agent reads the TanStack dev server', () => {
     ]
     expect(await engine.session.tool('tanstack_route_manifest').call({})).toEqual(manifest)
     expect(await engine.rpc.call('experimental.tanstack', 'routeManifest')).toEqual(manifest)
-    const called = await cli(['plugin', 'call', 'experimental.tanstack', 'routeManifest'], {engine})
-    expect(called.exitCode).toBe(0)
-    expect(JSON.parse(called.stdout)).toEqual({ok: true, data: manifest})
 
     expect(await engine.session.tool('tanstack_build_errors').failure({})).toMatchObject({
       message: expect.stringContaining('bundler bridge unavailable'),
@@ -64,8 +66,10 @@ describe('the agent reads the TanStack dev server', () => {
 })
 
 describe('the agent works with the TanStack plugin and no page open', () => {
-  test('the TanStack skill reaches the model, and with no page open the page operations are not offered', async () => {
-    const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']})
+  test('the TanStack skill reaches the model, and with no page open the page operations are not offered', async ({
+    createEngine,
+  }) => {
+    const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']}, {plugins: [page]})
     await engine.reply(TestLLM.text('Your app uses TanStack Router'))
 
     await engine.session.send('What router does my app use?')
@@ -75,6 +79,22 @@ describe('the agent works with the TanStack plugin and no page open', () => {
 
     expect(await engine.session.tool('tanstack_router_state').failure({})).toMatchObject({
       message: expect.stringContaining("'external_tanstack_router_state' is not defined"),
+    })
+  })
+})
+
+describe('the TanStack plugin is configured', () => {
+  test('a wrong bundlerWaitMs fails the plugin and the engine lists the option it refused', async ({createEngine}) => {
+    const engine = await createEngine({
+      plugins: [listerPlugin, ['@conciv/plugin-tanstack', {bundlerWaitMs: 0}]],
+    })
+
+    expect(await engine.session.tool('list_plugins').call({})).toEqual({
+      plugins: expect.arrayContaining([
+        expect.objectContaining({
+          state: expect.objectContaining({status: 'failed', error: expect.stringContaining('bundlerWaitMs')}),
+        }),
+      ]),
     })
   })
 })

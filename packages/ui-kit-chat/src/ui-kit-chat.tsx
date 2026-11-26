@@ -36,7 +36,7 @@ export {
   type PartTypePaths,
 } from './store/grouping.js'
 export {ToolProvider, useToolCtx} from './store/tool-context.js'
-export {createTurnRollup, sessionTotals, summaryLine, turnRollup, type TurnRollup} from './store/turn-rollup.js'
+export {createTurnRollup, createSessionTotals, summaryLine, turnRollup, type TurnRollup} from './store/turn-rollup.js'
 export {activeCallInParts, activeToolCall} from './store/active-call.js'
 export {
   createSessionStatus,
@@ -192,4 +192,6 @@ export {MorphLabel} from './styled/morph-label.js'
 export {VirtualLines, type VirtualLinesProps} from './styled/virtual-lines.js'
 export {isIconName} from './icons/catalog.js'
 export {Icon, type IconProps} from './icons/icon.js'
-export {isRegisteredIconName, registerIcons} from './icons/registry.js'
+export {isRegisteredIconName} from './icons/registry.js'
+export {IconRegistryProvider, useIconRegistry} from './icons/icon-registry-provider.js'
+export type {IconRegistry} from './icons/registry.js'

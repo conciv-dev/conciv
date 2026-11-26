@@ -1,16 +1,14 @@
-export * as SessionProjector from './projector.js'
-
 import {eq, max} from 'drizzle-orm'
 import {Effect, Layer} from 'effect'
 import {chatMessages} from '@conciv/db'
 import type {SessionId} from '@conciv/protocol/schema/session-id'
 import type {SyntheticPayload} from '@conciv/protocol/schema/session-inbox'
-import type {SessionMessage} from '@conciv/protocol/schema/session-message'
-import {Database} from '@conciv/backend-app-api/core/database/database'
-import {Bus} from '@conciv/backend-app-api/core/bus'
-import {SessionEvent} from '@conciv/protocol/schema/session-event'
-import {InstructionState} from './instruction-state.js'
-import {SessionInbox} from './inbox.js'
+import type * as SessionMessage from '@conciv/protocol/schema/session-message'
+import * as Database from '@conciv/backend-app-api/core/database/database'
+import * as Bus from '@conciv/backend-app-api/core/bus'
+import * as SessionEvent from '@conciv/protocol/schema/session-event'
+import * as InstructionState from './instruction-state.js'
+import * as SessionInbox from './inbox.js'
 
 type DatabaseService = Database.Interface['db']
 

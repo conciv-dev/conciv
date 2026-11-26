@@ -5,7 +5,7 @@ import {extname, join} from 'node:path'
 import {Data, Effect} from 'effect'
 import {z} from 'zod'
 import {CONCIV_STATE_DIR} from '@conciv/types/state-types'
-import {Tool} from '@conciv/protocol/schema/tool'
+import * as Tool from '@conciv/protocol/schema/tool'
 import {MAX_FILE_BYTES, type File} from './rpc.js'
 
 const Coded = z.object({code: z.string()})

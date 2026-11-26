@@ -3,36 +3,36 @@ import {isIdentifier, walk} from './ast-walk.js'
 const SOURCE_EXTENSION = /\.[jt]sx?$/
 const TEST_SUFFIX = /\.(?:test|spec)\.[jt]sx?$/
 const HELPER_FILE = /(^|[\\/])packages[\\/]vitest-config[\\/]src[\\/]/
-const FS_SOURCES = new Set(['node:fs', 'node:fs/promises', 'fs', 'fs/promises'])
-const OS_SOURCES = new Set(['node:os', 'os'])
+const FS_SOURCES = ['node:fs', 'node:fs/promises', 'fs', 'fs/promises']
+const OS_SOURCES = ['node:os', 'os']
 const E2E_FILE = /(^|[\\/])e2e[\\/]/
-const TESTKIT_SOURCE = /(^|[\\/])packages[\\/][^\\/]+-testkit[\\/]src[\\/]/
-const CREATED_PATH_ARGUMENT = new Map([
-  ['mkdtemp', 0],
-  ['mkdtempSync', 0],
-  ['mkdir', 0],
-  ['mkdirSync', 0],
-  ['writeFile', 0],
-  ['writeFileSync', 0],
-  ['appendFile', 0],
-  ['appendFileSync', 0],
-  ['cp', 1],
-  ['cpSync', 1],
-  ['copyFile', 1],
-  ['copyFileSync', 1],
-  ['symlink', 1],
-  ['symlinkSync', 1],
-])
-const CREATING_NAMES = new Set(CREATED_PATH_ARGUMENT.keys())
+const TESTKIT_SOURCE = /(^|[\\/])packages[\\/][^\\/]+-test-utils[\\/]src[\\/]/
+const CREATED_PATH_ARGUMENT = {
+  mkdtemp: 0,
+  mkdtempSync: 0,
+  mkdir: 0,
+  mkdirSync: 0,
+  writeFile: 0,
+  writeFileSync: 0,
+  appendFile: 0,
+  appendFileSync: 0,
+  cp: 1,
+  cpSync: 1,
+  copyFile: 1,
+  copyFileSync: 1,
+  symlink: 1,
+  symlinkSync: 1,
+}
+const CREATING_NAMES = Object.keys(CREATED_PATH_ARGUMENT)
 const SOURCE_PLACES = [
   [E2E_FILE, 'e2e'],
   [TESTKIT_SOURCE, 'testkit'],
 ]
-const ENV_NAMES = new Set(['env'])
-const TMPDIR_ENV_NAMES = new Set(['TMPDIR'])
+const ENV_NAMES = ['env']
+const TMPDIR_ENV_NAMES = ['TMPDIR']
 const SYSTEM_TEMP = /^\/tmp(?:\/|$)/
-const TMPDIR_NAMES = new Set(['tmpdir'])
-const EXIT_LISTENERS = new Set(['on', 'once'])
+const TMPDIR_NAMES = ['tmpdir']
+const EXIT_LISTENERS = ['on', 'once']
 const CONFIG_FILE = /^(?:vitest|playwright)(?:\.[\w-]+)?\.config\.[cm]?[jt]s$/
 
 function isTestFile(filename) {
@@ -70,12 +70,12 @@ function importedName(imported) {
 
 function isImportedFunction(identifier, sourceCode, sources, names) {
   const binding = resolveImport(identifier, sourceCode)
-  return binding !== undefined && sources.has(binding.source) && names.has(binding.imported)
+  return binding !== undefined && sources.includes(binding.source) && names.includes(binding.imported)
 }
 
 function isModuleObject(identifier, sourceCode, sources) {
   const binding = resolveImport(identifier, sourceCode)
-  return binding !== undefined && sources.has(binding.source) && binding.imported === undefined
+  return binding !== undefined && sources.includes(binding.source) && binding.imported === undefined
 }
 
 function isNamedProperty(member, names) {
@@ -83,7 +83,7 @@ function isNamedProperty(member, names) {
     member.type === 'MemberExpression' &&
     !member.computed &&
     isIdentifier(member.property) &&
-    names.has(member.property.name)
+    names.includes(member.property.name)
   )
 }
 
@@ -193,7 +193,11 @@ function fsFunctionName(callee, sourceCode) {
 
 function createdPathArgument(node, sourceCode) {
   if (!isModuleFunction(node.callee, sourceCode, FS_SOURCES, CREATING_NAMES)) return undefined
-  return node.arguments[CREATED_PATH_ARGUMENT.get(fsFunctionName(node.callee, sourceCode)) ?? 0]
+  return node.arguments[
+    (Object.hasOwn(CREATED_PATH_ARGUMENT, fsFunctionName(node.callee, sourceCode))
+      ? CREATED_PATH_ARGUMENT[fsFunctionName(node.callee, sourceCode)]
+      : undefined) ?? 0
+  ]
 }
 
 function isHandMadeTempDir(node, sourceCode) {

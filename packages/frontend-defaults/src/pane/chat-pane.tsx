@@ -13,6 +13,7 @@ import {
 } from 'solid-js'
 import {useQuery, type ChatSession, useMutationState, useIsFetching} from '@conciv/client'
 import {z} from 'zod'
+import {useRouteContext} from '@tanstack/solid-router'
 import {compact, uniq} from 'es-toolkit'
 import {
   activeToolCall,
@@ -27,7 +28,9 @@ import {
   useMessage,
   useThread,
   type ComposerDraft,
+  defaultGrouper,
   type GroupEntry,
+  type Grouper,
   type Grouping,
   type TurnItem,
   type TurnPrefixSource,
@@ -36,7 +39,6 @@ import {
 } from '@conciv/ui-kit-chat'
 import type {DraftItem, PermissionReply} from '@conciv/types/chat-types'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
-import {createPageSessionGrouper, pageSessionEntry} from '@conciv/plugin-page/client'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/ui-kit-chat-tools'
 import {coreToolCards} from '@conciv/ui-kit-chat-tools'
@@ -82,6 +84,7 @@ import {
 } from './plugin-session-parts.js'
 import {createToolRender} from './tool-registry-render.js'
 import {Contribution} from '@internal/frontend-app-api/plugin/render'
+import type {DeclaredToolGroup} from '../runtime/plugin/builtins.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {StandingNotice} from '../shell/notices.js'
 import {Button} from '@conciv/ui-kit-system'
@@ -249,16 +252,17 @@ function DraftUnsavedNotice(props: {
   )
 }
 
-const PAGE_SESSION_ENTRIES: readonly GroupEntry[] = [
-  {
-    key: pageSessionEntry.key,
+function createToolGroups(declared: readonly DeclaredToolGroup[]): {grouper: Grouper; entries: GroupEntry[]} {
+  const entries = declared.map((group): GroupEntry => ({
+    key: group.entry.key,
     render: (props) => (
-      <Contribution plugin="conciv.page" fallback={() => props.children}>
-        {() => pageSessionEntry.render(props)}
+      <Contribution plugin={group.plugin} fallback={() => props.children}>
+        {() => group.entry.render(props)}
       </Contribution>
     ),
-  },
-]
+  }))
+  return {grouper: declared.at(-1)?.createGrouper() ?? defaultGrouper, entries}
+}
 
 type SyntheticTag = {description?: string; metadata?: Record<string, unknown>}
 
@@ -475,8 +479,9 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
 
   const toolRender = createToolRender()
   const tools = (): ToolCardEntry[] => [...concivToolCards, ...coreToolCards, ...builtinToolCards]
-  const pageSessionGrouper = createPageSessionGrouper()
-  const grouping = (): Grouping => ({grouper: pageSessionGrouper, context: {toolEntries: tools()}})
+  const builtinPlugins = useRouteContext({strict: false, select: (context) => context.builtins})
+  const toolGroups = createToolGroups(untrack(builtinPlugins)?.toolGroups ?? [])
+  const grouping = (): Grouping => ({grouper: toolGroups.grouper, context: {toolEntries: tools()}})
 
   const compacting = messaging.compacting
 
@@ -603,7 +608,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       turnPrefix={renderTurnPrefix}
                       promptSuffix={renderPromptSuffix}
                       grouping={grouping()}
-                      groupEntries={PAGE_SESSION_ENTRIES}
+                      groupEntries={toolGroups.entries}
                       refreshDisabled={!messaging.resendAllowed()}
                     />
                     <Show when={lastTurnStopped()}>

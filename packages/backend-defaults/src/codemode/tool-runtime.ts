@@ -87,59 +87,6 @@ type WordIndex = {
   readonly words: ReadonlyArray<string>
 }
 
-const wordIndexes = new WeakMap<ReadonlyArray<SearchEntry>, WordIndex>()
-
-const shared =
-  typeof WeakRef === 'undefined' || typeof FinalizationRegistry === 'undefined'
-    ? undefined
-    : {
-        indexes: new Map<string, WeakRef<WordIndex>>(),
-        cleanup: new FinalizationRegistry<{key: string; ref: WeakRef<WordIndex>}>(({key, ref}) => {
-          if (shared?.indexes.get(key) === ref) shared.indexes.delete(key)
-        }),
-      }
-
-const wordIndexFor = (index: ReadonlyArray<SearchEntry>): WordIndex => {
-  const cached = wordIndexes.get(index)
-  if (cached) return cached
-  const texts = index.map((entry) => entry.text())
-  const key = shared ? textKey(texts) : undefined
-  const reused = key === undefined ? undefined : shared?.indexes.get(key)?.deref()
-  if (reused) {
-    wordIndexes.set(index, reused)
-    return reused
-  }
-  const built = buildWordIndex(texts)
-  wordIndexes.set(index, built)
-  if (shared && key !== undefined) {
-    const ref = new WeakRef(built)
-    shared.indexes.set(key, ref)
-    shared.cleanup.register(built, {key, ref})
-  }
-  return built
-}
-
-const textKey = (texts: ReadonlyArray<Readonly<Record<SearchField, ReadonlyArray<string>>>>) => {
-  let first = 0x811c9dc5
-  let second = 0x9e3779b9
-  const add = (text: string) => {
-    for (let i = 0; i < text.length; i++) {
-      const code = text.charCodeAt(i)
-      first = Math.imul(first ^ code, 0x01000193)
-      second = Math.imul(second ^ code, 0x5bd1e995)
-      second ^= second >>> 15
-    }
-    first = Math.imul(first ^ 0x1f, 0x01000193)
-    second = Math.imul(second ^ 0x1f, 0x5bd1e995)
-  }
-  for (const text of texts)
-    for (const field of searchFields) {
-      for (const part of text[field]) add(part)
-      add('\u0000')
-    }
-  return `${texts.length}:${(first >>> 0).toString(36)}:${(second >>> 0).toString(36)}`
-}
-
 const buildWordIndex = (texts: ReadonlyArray<Readonly<Record<SearchField, ReadonlyArray<string>>>>): WordIndex => {
   const cache = new Map<string, ReadonlyArray<string>>()
   const words = (texts: ReadonlyArray<string>) => texts.flatMap((text) => fieldWords(text, cache))
@@ -203,11 +150,11 @@ const rank = (
   entries: ReadonlyArray<SearchEntry>,
   query: string,
   index: ReadonlyArray<SearchEntry>,
+  words: WordIndex,
 ): Array<SearchEntry> => {
   const terms = searchWords(query)
   if (terms.length === 0)
     return [...entries].sort((left, right) => compareText(left.description.path, right.description.path))
-  const words = wordIndexFor(index)
   const allowed = entries === index ? undefined : new Set(entries.map((entry) => entry.position))
   const scores = new Map<number, number>()
   for (const term of terms) {
@@ -245,45 +192,51 @@ export type SearchTool = {
   readonly execute: (input: unknown) => Effect.Effect<typeof SearchOutput.Type>
 }
 
-export const makeSearchTool = (searchIndex: ReadonlyArray<SearchEntry>): SearchTool => ({
-  description: 'Search available tools',
-  input: SearchInput,
-  output: SearchOutput,
-  execute: (input) =>
-    Effect.sync(() => {
-      const request = input as typeof SearchInput.Type
-      const query = request.query ?? ''
-      const offset = request.offset ?? 0
-      let ns = request.namespace
-      if (ns !== undefined && !searchIndex.some((entry) => entry.description.path.startsWith('tools.'))) {
-        if (ns === 'tools') ns = undefined
-        else if (ns.startsWith('tools.')) ns = ns.slice('tools.'.length)
-      }
-      const scoped =
-        ns === undefined
-          ? searchIndex
-          : searchIndex.filter((entry) => entry.description.path === ns || entry.description.path.startsWith(`${ns}.`))
-      const trimmed = query.trim()
-      const pathQuery = trimmed.startsWith('tools.') ? trimmed.slice('tools.'.length) : trimmed
-      const exact =
-        pathQuery === ''
-          ? undefined
-          : scoped.find(
-              (entry) => entry.description.path === pathQuery || toolExpression(entry.description.path) === trimmed,
-            )
-      const ranked = exact !== undefined ? [exact] : rank(scoped, pathQuery, searchIndex)
-      const items = ranked.slice(offset, offset + (request.limit ?? defaultSearchLimit)).map(({description}) => ({
-        ...description,
-        path: toolExpression(description.path),
-      }))
-      const remaining = Math.max(0, ranked.length - offset - items.length)
-      return {
-        items,
-        remaining,
-        next: remaining > 0 ? {offset: offset + items.length} : null,
-      }
-    }),
-})
+export const makeSearchTool = (searchIndex: ReadonlyArray<SearchEntry>): SearchTool => {
+  const built: {words?: WordIndex} = {}
+  const words = (): WordIndex => (built.words ??= buildWordIndex(searchIndex.map((entry) => entry.text())))
+  return {
+    description: 'Search available tools',
+    input: SearchInput,
+    output: SearchOutput,
+    execute: (input) =>
+      Effect.sync(() => {
+        const request = input as typeof SearchInput.Type
+        const query = request.query ?? ''
+        const offset = request.offset ?? 0
+        let ns = request.namespace
+        if (ns !== undefined && !searchIndex.some((entry) => entry.description.path.startsWith('tools.'))) {
+          if (ns === 'tools') ns = undefined
+          else if (ns.startsWith('tools.')) ns = ns.slice('tools.'.length)
+        }
+        const scoped =
+          ns === undefined
+            ? searchIndex
+            : searchIndex.filter(
+                (entry) => entry.description.path === ns || entry.description.path.startsWith(`${ns}.`),
+              )
+        const trimmed = query.trim()
+        const pathQuery = trimmed.startsWith('tools.') ? trimmed.slice('tools.'.length) : trimmed
+        const exact =
+          pathQuery === ''
+            ? undefined
+            : scoped.find(
+                (entry) => entry.description.path === pathQuery || toolExpression(entry.description.path) === trimmed,
+              )
+        const ranked = exact !== undefined ? [exact] : rank(scoped, pathQuery, searchIndex, words())
+        const items = ranked.slice(offset, offset + (request.limit ?? defaultSearchLimit)).map(({description}) => ({
+          ...description,
+          path: toolExpression(description.path),
+        }))
+        const remaining = Math.max(0, ranked.length - offset - items.length)
+        return {
+          items,
+          remaining,
+          next: remaining > 0 ? {offset: offset + items.length} : null,
+        }
+      }),
+  }
+}
 
 export const searchSignature: string = `search({
   query?: string,

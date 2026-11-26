@@ -1,8 +1,10 @@
-import {describe, expect, test} from 'vitest'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {describe, expect} from 'vitest'
+import {test} from '@conciv/backend-test-utils'
+import {TestLLM} from '@conciv/backend-test-utils'
+import {listerPlugin} from '@internal/engine-kit'
 
 describe('the ios plugin with no options', () => {
-  test('every ios tool answers that the plugin is not configured, without an ask', async () => {
+  test('every ios tool answers that the plugin is not configured, without an ask', async ({createEngine}) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-ios']})
     const notConfigured = {ok: false, error: 'ios plugin not configured'}
 
@@ -14,7 +16,9 @@ describe('the ios plugin with no options', () => {
 })
 
 describe('the ios rules in the system prompt', () => {
-  test('a configured app adds the overlay and app rules to the model request, and no options add none', async () => {
+  test('a configured app adds the overlay and app rules to the model request, and no options add none', async ({
+    createEngine,
+  }) => {
     const configured = await createEngine({
       plugins: [['@conciv/plugin-ios', {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}]],
     })
@@ -44,7 +48,9 @@ describe('the ios rules in the system prompt', () => {
 })
 
 describe('building and running a configured app', () => {
-  test('the agent asks before ios_build and before ios_run, and a stopped turn runs neither', async () => {
+  test('the agent asks before ios_build and before ios_run, and a stopped turn runs neither', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({
       plugins: [['@conciv/plugin-ios', {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}]],
     })
@@ -68,7 +74,7 @@ describe('building and running a configured app', () => {
 })
 
 describe('the ios plugin with bad options', () => {
-  test.each([
+  test.for([
     [
       'a missing bundle id',
       {projectRoot: 'PayApp'},
@@ -76,21 +82,21 @@ describe('the ios plugin with bad options', () => {
     ],
     [
       'a concivUrl with a page path',
-      {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', concivUrl: 'http://127.0.0.1:4732/native/panel'},
+      {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', concivUrl: 'http://127.0.0.1:4732/widget/panel'},
       {
         status: 'failed',
         error: expect.stringContaining(
-          'concivUrl must be the core api base with no page path (an optional /t/<token> prefix is allowed): the swift sdk appends /native itself',
+          'concivUrl must be the core api base with no page path (an optional /t/<token> prefix is allowed): the swift sdk appends /widget itself',
         ),
       },
     ],
     [
-      'a concivUrl that ends in /native',
-      {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', concivUrl: 'http://127.0.0.1:4732/native'},
+      'a concivUrl that ends in /widget',
+      {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', concivUrl: 'http://127.0.0.1:4732/widget'},
       {status: 'active'},
     ],
-  ])('the engine lists the ios plugin state for %s', async (_case, options, state) => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/lister', ['@conciv/plugin-ios', options]]})
+  ] as const)('the engine lists the ios plugin state for %s', async ([_case, options, state], {createEngine}) => {
+    const engine = await createEngine({plugins: [listerPlugin, ['@conciv/plugin-ios', options]]})
 
     expect(await engine.session.tool('list_plugins').call({})).toEqual({
       plugins: expect.arrayContaining([expect.objectContaining({id: 'ios', state})]),

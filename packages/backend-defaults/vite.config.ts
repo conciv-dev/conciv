@@ -1,7 +1,14 @@
 import {defineConfig} from 'vite'
 import {concivTest} from '@internal/vitest-config/conciv-test'
-import {concivKitTest} from '@conciv/plugin-testkit/vitest'
 
 export default defineConfig({
-  plugins: [concivTest(), concivKitTest()],
+  plugins: [
+    {
+      name: 'conciv:markdown-text',
+      transform(code, id) {
+        if (id.endsWith('.md')) return `export default ${JSON.stringify(code)}`
+      },
+    },
+    concivTest(),
+  ],
 })

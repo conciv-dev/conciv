@@ -17,7 +17,7 @@ plugins: [['@conciv/plugin-ios', {projectRoot: 'ios/PayApp', bundleId: 'dev.conc
   build loop, no filesystem-wide searches) to the system prompt of every model request; without options it adds
   nothing.
 - Invariant: `concivUrl` is the engine api base with no page path (an optional `/t/<token>` prefix is allowed); a
-  trailing `/native` is stripped because the Swift SDK appends `/native` itself. Without it the app gets the url of
+  trailing `/widget` is stripped because the Swift SDK appends `/widget` itself. Without it the app gets the url of
   the engine's own server.
 - Side effect: `ios_build` and `ios_run` start child processes and write the `build/<module>.app` bundle in swiftc
   mode; `ios_run` boots the simulator and installs and launches the app.
@@ -93,11 +93,11 @@ on any port is found. `ConcivConfig` accepts a `port`, and the ios dev loop docu
 
 `ios_run` injects the core API base into the launched app as
 `SIMCTL_CHILD_CONCIV_URL` (the app reads it as `CONCIV_URL`, which `ConcivWidget.attach()`
-picks up). The value is the core's own apiBase with no `/native` suffix: the SDK appends
-the `/native` route itself, so passing a URL that already ends in `/native` would load
-`/native/native`. It carries the `/t/<token>` prefix when the core minted an access
+picks up). The value is the core's own apiBase with no `/widget` suffix: the SDK appends
+the `/widget` route itself, so passing a URL that already ends in `/widget` would load
+`/widget/widget`. It carries the `/t/<token>` prefix when the core minted an access
 token. Set `concivUrl` in this plugin's options to override it, again as the API base
-without `/native`.
+without `/widget`.
 
 ## Pairing file and discovery
 
@@ -107,7 +107,7 @@ and removes it on shutdown. The simulator shares the host filesystem, so the Swi
 SDK reads that file to discover the core deterministically, validates it with
 `GET <apiBase>/health`, and falls back to probing a short candidate port list on
 `127.0.0.1` (the pinned `4599` first). `apiBase` already carries `/t/<token>` when the
-core is token-scoped, so the WebView loads `<apiBase>/native` token-scoped with no
+core is token-scoped, so the WebView loads `<apiBase>/widget` token-scoped with no
 extra work. The origin pin stays `scheme://host:port`.
 
 The port probe runs whenever the pairing file does not yield a live core: the file is

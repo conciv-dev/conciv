@@ -17,20 +17,11 @@ import {
   PermissionRuleSchema,
   ReasoningEffortSchema,
   SessionId,
-  TabOpenSchema,
-  TabsSchema,
 } from '@conciv/types/chat-types'
 import {UiAnswerValueSchema} from '@conciv/types/ui-types'
-import {
-  PageQueueHandleSchema,
-  PageQueueProgressSchema,
-  PageQueueResultSchema,
-  SymbolicateSchema,
-} from '@conciv/types/page-types'
 import {TtyServerControlSchema} from '@conciv/types/terminal-types'
 import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
-import {SourceLocSchema} from './source-location.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
@@ -147,8 +138,6 @@ const HubOutcome = z
   .object({ok: z.literal(true), note: z.string().optional()})
   .or(z.object({ok: z.literal(false), message: z.string()}))
 const registryCallErrors = {
-  NO_PAGE_CLIENT: {message: 'no widget connected'},
-  PAGE_TIMEOUT: {message: 'page did not reply (no widget connected?)'},
   UNKNOWN_TOOL: {message: 'no registered tool answers to that name'},
   INVALID_ARGS: {message: 'the tool rejected the arguments'},
   HANDLER_ERROR: {message: 'the tool failed to run'},
@@ -185,6 +174,15 @@ export const EngineStalenessSchema = z.object({
 
 export type EngineStaleness = z.infer<typeof EngineStalenessSchema>
 
+export const ProjectSchema = z.object({
+  name: z.string().nullable(),
+  root: z.string(),
+  branch: z.string().nullable(),
+  instructions: z.string().nullable().describe("the project's system prompt text, null when it has none"),
+})
+
+export type Project = z.infer<typeof ProjectSchema>
+
 export const LOGIN_CODE_PATTERN = /^\d{6}$/
 
 export const ExchangeRefusalSchema = z.enum(['mismatch', 'expired'])
@@ -212,8 +210,7 @@ const CodeSessionInput = z.object({sessionId: SessionId.optional()})
 const CodeDelivery = {
   logs: z.array(z.string()),
   files: z.array(ChatContentPartSchema).optional(),
-  queued: z.array(PageQueueHandleSchema),
-  finished: z.array(PageQueueResultSchema),
+  calls: z.array(z.string()).describe('the tool call ids of the capability calls this run made'),
 }
 
 export const CodeExecuteResultSchema = z.discriminatedUnion('ok', [
@@ -227,7 +224,7 @@ export const CodeExecuteResultSchema = z.discriminatedUnion('ok', [
 
 export type CodeExecuteResult = z.infer<typeof CodeExecuteResultSchema>
 
-export const CodeDiscoverResultSchema = z.object({tools: z.unknown(), finished: z.array(PageQueueResultSchema)})
+export const CodeDiscoverResultSchema = z.object({tools: z.unknown()})
 
 export type CodeDiscoverResult = z.infer<typeof CodeDiscoverResultSchema>
 
@@ -236,8 +233,6 @@ export const CodeDescriptionsSchema = z.object({execute: z.string(), discover: z
 export type CodeDescriptions = z.infer<typeof CodeDescriptionsSchema>
 
 const noCodeMode = {NO_CODE_MODE: {message: 'code mode is unavailable on this engine'}}
-
-const noQueue = {NO_QUEUE: {message: 'no such queue on this tab'}}
 
 const pluginRpcFailed = {
   PLUGIN_RPC: {
@@ -511,10 +506,6 @@ export const contract = {
       .input(z.object({name: z.string().min(1), input: z.record(z.string(), z.unknown())}))
       .output(z.unknown()),
   },
-  tabs: {
-    list: oc.output(TabsSchema),
-    get: oc.input(SessionIdInput).output(TabOpenSchema),
-  },
   code: {
     describe: oc.errors({...noCodeMode, ...approvalDenied}).output(CodeDescriptionsSchema),
     execute: oc
@@ -526,21 +517,13 @@ export const contract = {
       .input(CodeSessionInput.extend({toolNames: z.array(z.string())}))
       .output(CodeDiscoverResultSchema),
   },
-  page: {
-    queue: {
-      wait: oc
-        .errors({...noQueue, ...approvalDenied})
-        .input(SessionIdInput.extend({queueId: z.string().min(1), waitMs: z.number().int().min(0)}))
-        .output(z.discriminatedUnion('status', [PageQueueResultSchema, PageQueueProgressSchema])),
-    },
-    symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
-  },
   meta: {
     models: oc.errors(approvalDenied).input(SessionIdInput).output(ChatModelsSchema),
     harnesses: oc.output(ChatHarnessesSchema),
     commands: oc.errors(approvalDenied).input(SessionIdInput).output(ChatCommandsSchema),
     tools: oc.input(SessionIdInput).output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
+    project: oc.output(ProjectSchema),
     hubAgents: oc.output(eventIterator(HubAgentsSchema)),
     connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
     disconnectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),

@@ -18,7 +18,7 @@ import {
   type ApprovalAsk,
 } from '@conciv/types/chat-event-types'
 import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/types/chat-types'
-import {browserRpcConnection, type EngineConnectionTimings, type RpcClientContext} from './browser-transport.js'
+import type {EngineTrust, RpcClientContext} from './engine-connection.js'
 import {type RpcClient} from './rpc-client.js'
 import {type ChatHistoryWindow, type ChatHydration} from '@conciv/protocol'
 
@@ -77,10 +77,9 @@ export type ChatConnectionOptions = {
   onLiveAgain?: () => void
   joinsRun?: (runId: string) => Promise<boolean>
   runReconnect?: {attempts?: number; firstDelayMs?: number; maxDelayMs?: number}
-  engineTimings?: Partial<EngineConnectionTimings>
 }
 
-type Engine = {apiBase: string; timings: Partial<EngineConnectionTimings> | undefined}
+type Engine = {trust: EngineTrust | undefined}
 
 type RunReconnect = {attempts: number; firstDelayMs: number; maxDelayMs: number}
 
@@ -372,21 +371,18 @@ function watching(
 }
 
 function trustedAgain(engine: Engine, signal: AbortSignal): Promise<void> {
-  const {trust, release} = browserRpcConnection(engine.apiBase, undefined, engine.timings)
-  if (trust.isTrusted() || signal.aborted) {
-    release()
-    return Promise.resolve()
-  }
+  const {trust} = engine
+  if (trust?.isTrusted() === true || signal.aborted) return Promise.resolve()
   return new Promise((resolve) => {
     const settle = (): void => {
       stopTrust()
       signal.removeEventListener('abort', settle)
-      release()
       resolve()
     }
-    const stopTrust = trust.subscribe((status) => {
-      if (status === 'trusted') settle()
-    })
+    const stopTrust =
+      trust?.subscribe((status) => {
+        if (status === 'trusted') settle()
+      }) ?? (() => {})
     signal.addEventListener('abort', settle)
   })
 }
@@ -459,12 +455,12 @@ function lastTurn<Message extends {role: string}>(messages: Message[]): Message[
 
 export function chatConnection(
   rpc: RpcClient,
-  apiBase: string,
+  trust: EngineTrust | undefined,
   sessionId: string,
   options: ChatConnectionOptions = {},
 ): ChatConnection {
   const lifetime = new AbortController()
-  const engine: Engine = {apiBase, timings: options.engineTimings}
+  const engine: Engine = {trust}
   const reconnect: RunReconnect = {
     attempts: options.runReconnect?.attempts ?? RUN_RECONNECT_ATTEMPTS,
     firstDelayMs: options.runReconnect?.firstDelayMs ?? RUN_RECONNECT_FIRST_DELAY_MS,

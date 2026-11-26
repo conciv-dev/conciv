@@ -90,8 +90,9 @@ export const Route = createRootRouteWithContext<ConcivRouterContext>()({
 })
 
 function RootComponent() {
+  const app = Route.useRouteContext()
   return (
-    <NoticeContextProvider>
+    <NoticeContextProvider localPersistence={app().localPersistence}>
       <AppRoot />
     </NoticeContextProvider>
   )
@@ -140,7 +141,7 @@ function AppRoot() {
   const liveSessions = makeLiveSessions({
     active: activeSession,
     rpc: app.rpc,
-    apiBase: app.apiBase,
+    connection: app.connection,
     generation: app.connectionGeneration,
     appData: app.data,
     queryClient: app.queryClient,
@@ -182,6 +183,7 @@ function AppRoot() {
     notifyInteractive: app.notifyInteractive,
     theme,
     preferences,
+    localPersistence: app.localPersistence,
   }
 
   createEffect(() => {
@@ -196,7 +198,7 @@ function AppRoot() {
     window.dispatchEvent(new CustomEvent(CONNECTION_CHANGED_EVENT, {detail: {connected: isConnected}}))
   })
 
-  const reachability = makeEngineReachability(app.apiBase, app.timings.engine)
+  const reachability = makeEngineReachability(app.connection, app.timings.engine)
 
   return (
     <EnvironmentProvider value={() => app.environment.rootNode}>
@@ -205,7 +207,7 @@ function AppRoot() {
           <LayersContext.Provider value={value.layers}>
             <EngineReachabilityContext.Provider value={reachability}>
               <DialogProvider>
-                <PluginRoot composed={app.plugins} servers={app.servers}>
+                <PluginRoot composed={app.plugins} builtins={app.builtins} servers={app.servers}>
                   <PluginAttachment>
                     <PluginPanelKeys />
                     <RootChrome
@@ -382,8 +384,8 @@ function RootChrome(props: {
     onCleanup(() => cancelAnimationFrame(frame))
   })
 
-  const eventBus = createEventBus()
-  const panelCommands = createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID})
+  const eventBus = createEventBus({target: () => window})
+  const panelCommands = createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID, target: () => window})
 
   onMount(() => {
     const opensOnLoad = () =>

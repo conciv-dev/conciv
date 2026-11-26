@@ -1,14 +1,12 @@
-export * as PermissionSaved from './permission-saved.js'
-
 import {Schema} from 'effect'
-import {ascending} from '@conciv/protocol/schema/identifier'
+import type {Maker} from '@conciv/protocol/schema/identifier'
 import {ProjectId} from '@conciv/protocol/schema/project-id'
 import {DateTimeUtcFromMillis, statics} from '@conciv/protocol/schema/schema'
 
 export const Id = Schema.String.pipe(
   Schema.brand('PermissionSaved.ID'),
   Schema.annotate({identifier: 'PermissionSaved.ID'}),
-  statics((schema) => ({create: () => schema.make('psv_' + ascending())})),
+  statics((schema) => ({create: (ids: Maker) => schema.make('psv_' + ids.ascending())})),
 )
 export type Id = typeof Id.Type
 

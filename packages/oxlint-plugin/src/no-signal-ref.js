@@ -3,7 +3,7 @@ import {isIdentifier, isNode} from './ast-walk.js'
 const CREATE_SIGNAL = 'createSignal'
 const REF_ATTRIBUTE = 'ref'
 const HANDLER_ATTRIBUTE = /^on[A-Z]/
-const FUNCTION_TYPES = new Set(['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration'])
+const FUNCTION_TYPES = ['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration']
 
 function visitEntry(value, parent, visit) {
   if (Array.isArray(value)) {
@@ -58,7 +58,7 @@ function collectSignalDeclarators(program) {
 function collectFunctionAncestors(program) {
   const map = new Map()
   visitWithAncestors(program, [], (node, ancestors) => {
-    if (FUNCTION_TYPES.has(node.type)) map.set(node, ancestors)
+    if (FUNCTION_TYPES.includes(node.type)) map.set(node, ancestors)
   })
   return map
 }
@@ -92,7 +92,7 @@ function isCallCallee(node, ancestors) {
 
 function nearestFunction(ancestors) {
   for (let index = ancestors.length - 1; index >= 0; index -= 1) {
-    if (FUNCTION_TYPES.has(ancestors[index].type)) return ancestors[index]
+    if (FUNCTION_TYPES.includes(ancestors[index].type)) return ancestors[index]
   }
   return undefined
 }

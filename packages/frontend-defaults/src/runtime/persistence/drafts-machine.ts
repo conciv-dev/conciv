@@ -71,10 +71,6 @@ export type DraftRetentionTransition = {
 
 const none: readonly DraftRetentionEffect[] = []
 
-const empty: ReadonlySet<string> = new Set()
-
-const noSaves: ReadonlyMap<number, ReadonlySet<string>> = new Map()
-
 export function createDraftRetentionState(): DraftRetentionState {
   return {
     nextAttempt: 1,
@@ -107,8 +103,8 @@ export function transitionDraftRetention(
     storeId: event.storeId,
     latestMutation: 0,
     revision: 0,
-    committed: empty,
-    saves: noSaves,
+    committed: new Set(),
+    saves: new Map(),
   }
   if (event.type === 'save.started') {
     const attempt = state.nextAttempt
@@ -141,7 +137,7 @@ export function transitionDraftRetention(
     return reconcile(
       {...state, nextAttempt: state.nextAttempt + 1},
       name,
-      {...doc, revision: state.nextAttempt, committed: empty},
+      {...doc, revision: state.nextAttempt, committed: new Set()},
       event.graceMs,
     )
   }

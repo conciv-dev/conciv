@@ -1,10 +1,8 @@
-export * as Rpc from './rpc.js'
-
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import type {JsonSchema, Schema} from 'effect'
-import type {Event} from './event.js'
-import type {Location} from './location.js'
-import type {Tool} from './tool.js'
+import type * as Event from './event.js'
+import type * as Location from './location.js'
+import type * as Tool from './tool.js'
 
 export type ErrorMap = Readonly<Record<string, Tool.ValueSchema>> & {
   readonly [Name in `rpc.${string}`]?: never

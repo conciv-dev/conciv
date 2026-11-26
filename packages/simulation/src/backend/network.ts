@@ -65,5 +65,3 @@ export const make = Effect.fn('SimulationNetwork.make')(function* (routes: reado
 
 export const layer = (routes: readonly Route[] = []) =>
   Layer.effect(HttpClient.HttpClient, make(routes).pipe(Effect.map((run) => run.client)))
-
-export * as SimulationNetwork from './network.js'

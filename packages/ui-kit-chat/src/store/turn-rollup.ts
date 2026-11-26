@@ -67,7 +67,7 @@ function lineCount(text: string): number {
   return trimmed.split('\n').length
 }
 
-const FILE_EDIT_TOOL_NAMES = new Set(['Edit', 'MultiEdit', 'Write'])
+const FILE_EDIT_TOOL_NAMES = ['Edit', 'MultiEdit', 'Write']
 
 function fileEditInfo(part: ToolCallPart): FileEditInfo {
   const input = parseInput(FileEditInput, part)
@@ -103,7 +103,7 @@ export function turnRollup(turn: Pick<Turn, 'parts'>): TurnRollup {
   const toolCalls = turn.parts.filter((part): part is ToolCallPart => part.type === 'tool-call')
   const applied = toolCalls.filter((call) => !isFailedCall(call, byCallId.get(call.id)))
   const patchInfos = applied.filter((call) => call.name === 'apply_patch').map(applyPatchInfo)
-  const editInfos = applied.filter((call) => FILE_EDIT_TOOL_NAMES.has(call.name)).map(fileEditInfo)
+  const editInfos = applied.filter((call) => FILE_EDIT_TOOL_NAMES.includes(call.name)).map(fileEditInfo)
   const editInfoAll = [...patchInfos, ...editInfos]
   const files = [...new Set(editInfoAll.flatMap((info) => info.files))]
   const adds = editInfoAll.reduce((sum, info) => sum + info.added, 0)
@@ -150,7 +150,7 @@ export function summaryLine(rollup: TurnRollup): string {
   return [...rollupFacts(rollup), ...approval].join(' · ')
 }
 
-export function sessionTotals(
+export function createSessionTotals(
   turnsAccessor: Accessor<ReadonlyArray<Turn>>,
 ): Accessor<{files: number; adds: number; dels: number}> {
   const totals = createMemo(() => {

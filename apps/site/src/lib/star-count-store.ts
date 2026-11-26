@@ -1,12 +1,5 @@
+import {useQuery} from '@tanstack/react-query'
 import {starsResponseSchema} from './star-count'
-
-let stars: number | null = null
-let started = false
-const listeners = new Set<() => void>()
-
-function notify(): void {
-  for (const listener of listeners) listener()
-}
 
 async function parseStarsResponse(response: Response): Promise<number | null> {
   if (!response.ok) return null
@@ -14,28 +7,15 @@ async function parseStarsResponse(response: Response): Promise<number | null> {
   return result.success ? result.data.stars : null
 }
 
-async function loadStarCount(): Promise<void> {
+async function loadStarCount(): Promise<number | null> {
   try {
-    stars = await parseStarsResponse(await fetch('/api/stars'))
+    return await parseStarsResponse(await fetch('/api/stars'))
   } catch {
-    stars = null
+    return null
   }
-  notify()
 }
 
-export function subscribeStarCount(onChange: () => void): () => void {
-  listeners.add(onChange)
-  if (!started) {
-    started = true
-    void loadStarCount()
-  }
-  return () => listeners.delete(onChange)
-}
-
-export function getStarCountSnapshot(): number | null {
-  return stars
-}
-
-export function getServerStarCountSnapshot(): number | null {
-  return null
+export function useStarCount(): number | null {
+  const {data} = useQuery({queryKey: ['github-stars'], queryFn: loadStarCount, staleTime: Infinity, gcTime: Infinity})
+  return data ?? null
 }

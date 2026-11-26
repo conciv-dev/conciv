@@ -1,9 +1,13 @@
-import {describe, test} from 'vitest'
+import {describe} from 'vitest'
+import {test} from '@conciv/backend-test-utils'
 import {z} from 'zod'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {TestLLM} from '@conciv/backend-test-utils'
 
 describe.concurrent('the agent is told about the recorder', () => {
-  test('the model request lists the recorder skill and the recording tool namespace', async ({expect}) => {
+  test('the model request lists the recorder skill and the recording tool namespace', async ({
+    createEngine,
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-recorder']})
     await engine.reply(TestLLM.text('I can record the page for you'))
     await engine.session.send('Watch what happens when I pay')
@@ -23,6 +27,7 @@ describe.concurrent('the agent is told about the recorder', () => {
 
 describe.concurrent('the agent records what the user does on the page', () => {
   test('a recording started while the page streams stops into an action log, a pull adds a keyframe, and the saved recording reads back by its id', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-recorder']})
@@ -107,7 +112,7 @@ describe.concurrent('the agent records what the user does on the page', () => {
     })
   })
 
-  test('the agent is told the recorded page content is untrusted page data', async ({expect}) => {
+  test('the agent is told the recorded page content is untrusted page data', async ({createEngine, expect}) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-recorder']})
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {
@@ -147,6 +152,7 @@ describe.concurrent('the agent records what the user does on the page', () => {
 
 describe.concurrent('the agent records with nothing to record', () => {
   test('a start with no page open gives up after 5 s, an unknown capture cannot stop, and a pull finds no activity', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-recorder']}, {clock: 'test'})
@@ -165,6 +171,7 @@ describe.concurrent('the agent records with nothing to record', () => {
 
 describe.concurrent('the plugin is configured', () => {
   test('the page reads the configured options, and options the plugin refuses leave its rpc unavailable', async ({
+    createEngine,
     expect,
   }) => {
     const configured = await createEngine({
@@ -183,6 +190,7 @@ describe.concurrent('the plugin is configured', () => {
 
 describe.concurrent('the page streams its events', () => {
   test('a flush over 5000 events or 8 MB is refused, and a reset clears the window for a fresh snapshot', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-recorder']})
@@ -231,7 +239,7 @@ describe.concurrent('the page streams its events', () => {
     })
   })
 
-  test('a viewer turns capture live and leaving turns it off', async ({expect}) => {
+  test('a viewer turns capture live and leaving turns it off', async ({createEngine, expect}) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-recorder']})
 
     expect(await engine.rpc.call('recorder', 'state')).toEqual({live: false})
@@ -247,6 +255,7 @@ describe.concurrent('the page streams its events', () => {
 
 describe.concurrent('the user sends and exports a recording', () => {
   test('a save keeps the 50 newest recordings, refuses an empty or oversized window, and exports as webm', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-recorder']})

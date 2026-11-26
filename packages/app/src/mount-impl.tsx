@@ -1,11 +1,17 @@
+import {untrack} from 'solid-js'
 import {render} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {createMemoryHistory} from '@tanstack/solid-router'
-import {ConcivApp, WIDGET_LAYER, openBrowserDraftStore, type Platform} from '@internal/frontend-defaults'
+import {
+  ConcivApp,
+  WIDGET_LAYER,
+  createBrowserEngine,
+  openBrowserDraftStore,
+  type Platform,
+} from '@internal/frontend-defaults'
 import type {ConcivSettingsInit, ConcivSurface} from '@conciv/types/config-types'
 import type {ConcivInit} from './mount.js'
-
-type Engine = ReturnType<Platform['engine']>
+import {builtins} from './builtins.js'
 
 declare global {
   interface Window {
@@ -15,7 +21,7 @@ declare global {
 
 const KEYBOARD_EVENTS = ['keydown', 'keypress', 'keyup'] as const
 
-const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
+const EDITABLE_TAGS: readonly string[] = ['INPUT', 'TEXTAREA', 'SELECT']
 
 const SELECTING_ATTRIBUTE = 'data-conciv-selecting'
 
@@ -59,7 +65,7 @@ function connectPath(settings: ConcivSettingsInit): string {
 function isEditableInsideWidget(root: ShadowRoot, target: EventTarget | undefined): boolean {
   if (!(target instanceof HTMLElement)) return false
   if (!root.contains(target)) return false
-  return EDITABLE_TAGS.has(target.tagName) || target.isContentEditable
+  return EDITABLE_TAGS.includes(target.tagName) || target.isContentEditable
 }
 
 function keepEditableKeysOffTheHostPage(root: ShadowRoot): Array<() => void> {
@@ -123,10 +129,10 @@ function createShadowRoot(host: HTMLElement, surface: ConcivSurface): {root: Sha
   }
 }
 
-function initialEngine(init: ConcivInit): Engine {
+function initialApiBase(init: ConcivInit): string | undefined {
   const apiBase = init.apiBase ?? resolveApiBase()
-  if (!apiBase && (init.plugins ?? []).length > 0) return {kind: 'servers'}
-  return {kind: 'bound', apiBase, token: init.engineToken}
+  if (!apiBase && (init.plugins ?? []).length > 0) return undefined
+  return apiBase
 }
 
 export function mountImpl(
@@ -139,15 +145,21 @@ export function mountImpl(
   host.setAttribute('data-conciv-root', '')
   el.appendChild(host)
   const shadow = createShadowRoot(host, settings.surface === 'dock' ? 'dock' : 'page')
-  const first = initialEngine(init)
-  const servers = first.kind === 'servers'
+  const engine = createBrowserEngine({
+    apiBase: initialApiBase(init),
+    tokenSource: init.engineToken,
+    timings: init.timings?.engine,
+  })
+  const servers = untrack(engine.engine).kind === 'servers'
   const interactive = Promise.withResolvers<void>()
   const platform: Platform = {
-    engine: () => first,
+    engine: engine.engine,
+    connect: engine.connect,
     navigation: servers ? {history: createMemoryHistory({initialEntries: [connectPath(settings)]})} : 'tab',
     root: shadow.root,
     settings,
     plugins: init.plugins,
+    builtins,
     grabProvider: init.grabProvider,
     onInteractive: interactive.resolve,
     timings: init.timings,
@@ -175,6 +187,7 @@ export function mountImpl(
     try {
       disposeApp()
     } finally {
+      engine.dispose()
       host.remove()
       window.__TSR_ROUTER__ = hostRouter
       interactive.resolve()

@@ -13,21 +13,22 @@ import {
 
 const persistSaveDelay = 100
 
-const pending = new Set<(leaving: boolean) => void>()
-
 const EDITED: PersistStoreEvent = Object.freeze({type: 'edited', baseline: undefined})
 
 const LEFT: PersistStoreEvent = Object.freeze({type: 'left'})
 
-function flushPersisted(leaving = false) {
-  for (const save of [...pending]) save(leaving)
-}
-
-if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flushPersisted()
-  })
-  window.addEventListener('pagehide', () => flushPersisted(true))
+function flushWhenLeaving(save: (leaving: boolean) => void): () => void {
+  if (typeof document === 'undefined') return () => {}
+  const hidden = () => {
+    if (document.visibilityState === 'hidden') save(false)
+  }
+  const left = () => save(true)
+  document.addEventListener('visibilitychange', hidden)
+  window.addEventListener('pagehide', left)
+  return () => {
+    document.removeEventListener('visibilitychange', hidden)
+    window.removeEventListener('pagehide', left)
+  }
 }
 
 export function persistStore<T extends object>(input: {
@@ -47,6 +48,7 @@ export function persistStore<T extends object>(input: {
   const initial = createPersistStoreState(init instanceof Promise ? {async: true} : {raw: init})
   const [persistState, setPersistState] = createSignal(initial.state)
   let timer: ReturnType<typeof setTimeout> | undefined
+  const unload: {stop: (() => void) | undefined} = {stop: undefined}
 
   const stopSave = () => {
     clearTimeout(timer)
@@ -59,8 +61,11 @@ export function persistStore<T extends object>(input: {
 
     if (next.state === prev && next.effects.length === 0) return
 
-    if (holdsUnsavedWork(next.state)) pending.add(save)
-    else pending.delete(save)
+    if (holdsUnsavedWork(next.state)) unload.stop ??= flushWhenLeaving(save)
+    else {
+      unload.stop?.()
+      unload.stop = undefined
+    }
 
     batch(() => {
       setPersistState(next.state)

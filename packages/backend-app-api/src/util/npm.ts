@@ -1,12 +1,10 @@
-export * as Npm from './npm.js'
-
 import path from 'path'
 import {createHash, randomUUID} from 'node:crypto'
 import {Clock, Effect, Schema, Context, Layer, Option, FileSystem} from 'effect'
 import {FSUtil} from './fs-util.js'
-import {Global} from './global.js'
+import * as Global from './global.js'
 import {EffectFlock} from './effect-flock.js'
-import {NpmConfig} from './npm-config.js'
+import * as NpmConfig from './npm-config.js'
 
 export const InstallFailedError = Schema.TaggedStruct('NpmInstallFailedError', {
   add: Schema.Array(Schema.String).pipe(Schema.optional),

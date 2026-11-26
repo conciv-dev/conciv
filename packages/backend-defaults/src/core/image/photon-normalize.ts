@@ -1,5 +1,3 @@
-export * as PhotonNormalize from './photon-normalize.js'
-
 import photonWasm from './photon-wasm.node.js'
 import type {Content as ImageContent, Limits} from '@conciv/backend-app-api/core/image'
 

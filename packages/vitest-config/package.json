@@ -16,13 +16,18 @@
     "./test-layout": "./src/test-layout.ts",
     "./temp-dir": "./src/temp-dir.ts",
     "./isolated-env": "./src/isolated-env.ts",
-    "./conciv-test": "./src/conciv-test.ts"
+    "./conciv-test": "./src/conciv-test.ts",
+    "./browser-project": "./src/browser-project.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@testing-library/jest-dom": "catalog:"
+    "@testing-library/jest-dom": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "playwright": "catalog:",
+    "unocss": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@internal/tsconfig": "workspace:*",

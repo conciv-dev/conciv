@@ -19,13 +19,13 @@ export type QuickJSTask = {
 
 type RunError = {name: string; message: string}
 
-const RETIRING_ERRORS: ReadonlySet<string> = new Set([
+const RETIRING_ERRORS: readonly string[] = [
   'TimeoutError',
   'MemoryLimitError',
   'StackOverflowError',
   'WasmRuntimeError',
   'RuntimeError',
-])
+]
 
 const loaded = await createQuickJSIsolateDriver().createContext({bindings: {}})
 await loaded.dispose()
@@ -71,7 +71,7 @@ function failedRun(error: unknown): ExecutionResult {
 }
 
 function retiringError(result: ExecutionResult): RunError | null {
-  if (result.success || result.error === undefined || !RETIRING_ERRORS.has(result.error.name)) return null
+  if (result.success || result.error === undefined || !RETIRING_ERRORS.includes(result.error.name)) return null
   return {name: result.error.name, message: result.error.message}
 }
 

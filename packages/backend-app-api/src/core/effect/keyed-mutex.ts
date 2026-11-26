@@ -1,5 +1,3 @@
-export * as KeyedMutex from './keyed-mutex.js'
-
 import {Effect, Semaphore} from 'effect'
 
 export interface KeyedMutex<in Key> {

@@ -49,6 +49,7 @@
     "@conciv/types": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
+    "@orpc/server": "catalog:",
     "@orpc/standard-server-peer": "catalog:",
     "@orpc/tanstack-query": "catalog:",
     "@solid-primitives/event-listener": "catalog:",

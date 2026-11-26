@@ -4,18 +4,13 @@ import {DATA_MATCHERS} from './test-time.js'
 const CAPS = {expect: 10_000, test: 30_000}
 const SLOW_FACTOR = 3
 const RESOLVE_DEPTH = 8
-const TEST_NAMES = new Set(['test', 'it', 'describe'])
-const TEST_INFO_OWNERS = new Set(['test', 'testInfo'])
-const VITEST_TIMEOUT_KEYS = new Set(['testTimeout', 'hookTimeout'])
-const CONFIG_CALLS = new Set(['defineConfig', 'defineProject'])
+const TEST_NAMES = ['test', 'it', 'describe']
+const TEST_INFO_OWNERS = ['test', 'testInfo']
+const VITEST_TIMEOUT_KEYS = ['testTimeout', 'hookTimeout']
+const CONFIG_CALLS = ['defineConfig', 'defineProject']
 const MATCHER = /^to[A-Z]/
-const TYPE_WRAPPERS = new Set([
-  'TSAsExpression',
-  'TSSatisfiesExpression',
-  'TSNonNullExpression',
-  'ParenthesizedExpression',
-])
-const FUNCTION_TYPES = new Set(['ArrowFunctionExpression', 'FunctionExpression'])
+const TYPE_WRAPPERS = ['TSAsExpression', 'TSSatisfiesExpression', 'TSNonNullExpression', 'ParenthesizedExpression']
+const FUNCTION_TYPES = ['ArrowFunctionExpression', 'FunctionExpression']
 const ARITHMETIC = {
   '+': (left, right) => left + right,
   '-': (left, right) => left - right,
@@ -38,7 +33,7 @@ function readRootName(node) {
 }
 
 function unwrap(node) {
-  if (TYPE_WRAPPERS.has(node?.type)) return unwrap(node.expression)
+  if (TYPE_WRAPPERS.includes(node?.type)) return unwrap(node.expression)
   return node
 }
 
@@ -117,7 +112,7 @@ function isConfigValue(node, depth) {
 }
 
 function isConfigCall(call, depth) {
-  return CONFIG_CALLS.has(readCalleeName(call.callee)) || isConfigValue(call, depth)
+  return CONFIG_CALLS.includes(readCalleeName(call.callee)) || isConfigValue(call, depth)
 }
 
 function isConfigObject(object, sourceCode, depth = 0) {
@@ -133,7 +128,7 @@ function isConfigObject(object, sourceCode, depth = 0) {
 }
 
 function isTestCall(call) {
-  return TEST_NAMES.has(readRootName(call.callee))
+  return TEST_NAMES.includes(readRootName(call.callee))
 }
 
 function isExpectMatcherCall(call) {
@@ -141,7 +136,7 @@ function isExpectMatcherCall(call) {
   if (callee.type !== 'MemberExpression' || readRootName(callee) !== 'expect') return false
   if (isIdentifier(callee.object)) return true
   const name = readCalleeName(callee) ?? ''
-  return MATCHER.test(name) && !DATA_MATCHERS.has(name)
+  return MATCHER.test(name) && !DATA_MATCHERS.includes(name)
 }
 
 function readCallOptionKind(object) {
@@ -166,20 +161,20 @@ function readTimeoutKind(object, sourceCode) {
 
 function classifyProperty(property, sourceCode) {
   const name = readKeyName(property)
-  if (VITEST_TIMEOUT_KEYS.has(name)) return {node: property.value, kind: 'test'}
+  if (VITEST_TIMEOUT_KEYS.includes(name)) return {node: property.value, kind: 'test'}
   if (name !== 'timeout' || property.parent?.type !== 'ObjectExpression') return undefined
   const kind = readTimeoutKind(property.parent, sourceCode)
   return kind && {node: property.value, kind}
 }
 
 function isTestInfoCall(call, name) {
-  return readCalleeName(call.callee) === name && TEST_INFO_OWNERS.has(readRootName(call.callee))
+  return readCalleeName(call.callee) === name && TEST_INFO_OWNERS.includes(readRootName(call.callee))
 }
 
 function readPositionalTimeout(call) {
   const [, second, third] = call.arguments
   if (third === undefined || second?.type === 'ObjectExpression') return undefined
-  if (FUNCTION_TYPES.has(third.type) || third.type === 'ObjectExpression') return undefined
+  if (FUNCTION_TYPES.includes(third.type) || third.type === 'ObjectExpression') return undefined
   return third
 }
 

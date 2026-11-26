@@ -1,12 +1,10 @@
-export * as SessionEvent from './session-event.js'
-
 import {Schema} from 'effect'
 import {optional} from './schema.js'
-import {Event} from './event.js'
-import {Instruction} from './instruction.js'
+import * as EventDefinition from './event.js'
+import * as Instruction from './instruction.js'
 import {SessionId} from './session-id.js'
-import {SessionInbox} from './session-inbox.js'
-import {SessionMessage} from './session-message.js'
+import * as SessionInbox from './session-inbox.js'
+import * as SessionMessage from './session-message.js'
 
 const Base = {
   sessionID: SessionId,
@@ -19,7 +17,7 @@ const options = {
   },
 } as const
 
-export const Created = Event.durable({
+export const Created = EventDefinition.durable({
   type: 'session.created',
   ...options,
   schema: {
@@ -29,7 +27,7 @@ export const Created = Event.durable({
 })
 export type Created = typeof Created.Type
 
-export const Renamed = Event.durable({
+export const Renamed = EventDefinition.durable({
   type: 'session.renamed',
   ...options,
   schema: {
@@ -39,7 +37,7 @@ export const Renamed = Event.durable({
 })
 export type Renamed = typeof Renamed.Type
 
-export const Viewed = Event.durable({
+export const Viewed = EventDefinition.durable({
   type: 'session.viewed',
   ...options,
   schema: {
@@ -49,21 +47,21 @@ export const Viewed = Event.durable({
 })
 export type Viewed = typeof Viewed.Type
 
-export const Archived = Event.durable({
+export const Archived = EventDefinition.durable({
   type: 'session.archived',
   ...options,
   schema: Base,
 })
 export type Archived = typeof Archived.Type
 
-export const Unarchived = Event.durable({
+export const Unarchived = EventDefinition.durable({
   type: 'session.unarchived',
   ...options,
   schema: Base,
 })
 export type Unarchived = typeof Unarchived.Type
 
-export const Deleted = Event.durable({
+export const Deleted = EventDefinition.durable({
   type: 'session.deleted',
   durable: {
     aggregate: 'sessionID',
@@ -74,20 +72,20 @@ export const Deleted = Event.durable({
 export type Deleted = typeof Deleted.Type
 
 export namespace Execution {
-  export const Started = Event.durable({type: 'session.execution.started', ...options, schema: Base})
+  export const Started = EventDefinition.durable({type: 'session.execution.started', ...options, schema: Base})
   export type Started = typeof Started.Type
 
-  export const Succeeded = Event.durable({type: 'session.execution.succeeded', ...options, schema: Base})
+  export const Succeeded = EventDefinition.durable({type: 'session.execution.succeeded', ...options, schema: Base})
   export type Succeeded = typeof Succeeded.Type
 
-  export const Failed = Event.durable({
+  export const Failed = EventDefinition.durable({
     type: 'session.execution.failed',
     ...options,
     schema: {...Base, error: Schema.String},
   })
   export type Failed = typeof Failed.Type
 
-  export const Interrupted = Event.durable({
+  export const Interrupted = EventDefinition.durable({
     type: 'session.execution.interrupted',
     ...options,
     schema: {...Base, reason: Schema.Literals(['user', 'shutdown', 'superseded', 'inactivity'])},
@@ -95,7 +93,7 @@ export namespace Execution {
   export type Interrupted = typeof Interrupted.Type
 }
 
-export const InstructionsUpdated = Event.durable({
+export const InstructionsUpdated = EventDefinition.durable({
   type: 'session.instructions.updated',
   durable: {
     aggregate: 'sessionID',
@@ -109,7 +107,7 @@ export const InstructionsUpdated = Event.durable({
 })
 export type InstructionsUpdated = typeof InstructionsUpdated.Type
 
-export const Synthetic = Event.durable({
+export const Synthetic = EventDefinition.durable({
   type: 'session.synthetic',
   ...options,
   schema: {
@@ -126,14 +124,14 @@ const InboxRef = {
   inboxID: SessionMessage.Id,
 }
 
-export const InboxDelivered = Event.durable({
+export const InboxDelivered = EventDefinition.durable({
   type: 'session.inbox.delivered',
   ...options,
   schema: InboxRef,
 })
 export type InboxDelivered = typeof InboxDelivered.Type
 
-export const InboxEnqueued = Event.durable({
+export const InboxEnqueued = EventDefinition.durable({
   type: 'session.inbox.enqueued',
   ...options,
   schema: {
@@ -143,21 +141,21 @@ export const InboxEnqueued = Event.durable({
 })
 export type InboxEnqueued = typeof InboxEnqueued.Type
 
-export const InboxCancelled = Event.durable({
+export const InboxCancelled = EventDefinition.durable({
   type: 'session.inbox.cancelled',
   ...options,
   schema: InboxRef,
 })
 export type InboxCancelled = typeof InboxCancelled.Type
 
-export const InboxDeliveryChanged = Event.durable({
+export const InboxDeliveryChanged = EventDefinition.durable({
   type: 'session.inbox.delivery.changed',
   ...options,
   schema: {...InboxRef, delivery: SessionInbox.Delivery},
 })
 export type InboxDeliveryChanged = typeof InboxDeliveryChanged.Type
 
-export const Definitions = Event.inventory(
+export const Definitions = EventDefinition.inventory(
   Created,
   Renamed,
   Viewed,
@@ -176,11 +174,11 @@ export const Definitions = Event.inventory(
   InboxDeliveryChanged,
 )
 
-export const DurableDefinitions = Event.inventory(
+export const DurableDefinitions = EventDefinition.inventory(
   ...Definitions.filter((definition) => definition.durability === 'durable'),
 )
-export const EphemeralDefinitions = Event.inventory(
-  ...Definitions.filter((definition: Event.Definition) => definition.durability === 'ephemeral'),
+export const EphemeralDefinitions = EventDefinition.inventory(
+  ...Definitions.filter((definition: EventDefinition.Definition) => definition.durability === 'ephemeral'),
 )
 
 export const Durable = Schema.Union(DurableDefinitions, {mode: 'oneOf'})

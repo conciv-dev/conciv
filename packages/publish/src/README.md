@@ -12,8 +12,8 @@ The `conciv-publish` citty command tree. It runs release guards (workspace root,
   - `check-catalog`: `assertSharedDependenciesCatalogued`.
   - `check-typecheck-coverage`: `assertTypecheckCoversTrackedFiles`.
   - `check-test-budget`: `assertTestsWithinBudget`, then prints its notes.
-  - `check-turbo-depends-on`: `assertBuildDependsOnCoversImports`, then `assertTypeTasksDependOnDistReads`. A package whose `build` is `tsdown` alone and whose types come from `build:types` (the testkits) is skipped by the first, since its transpile reads no other dist; the second checks both `typecheck` and `build:types`, and asks for `<name>#build:types` when the package read has one, else `<name>#build`. A read counts whether the import comes from the package's own source or from another package's built d.ts it reads (a testkit's types importing `@conciv/core/start`): a consumer that reads a dist only through another dist still waits for it, or its typecheck races that dist's build and sees the import as untyped `any`.
-  - `check-dependency-loops`: `assertNoRuntimeDependencyLoop`. Workspace packages may form a loop only through a devDependency or a peerDependency (the kit and the app it mounts test each other); a loop made of `dependencies` and `optionalDependencies` alone, the edges a build and an install follow, fails. pnpm's `disallowWorkspaceCycles` cannot make that split: it counts every kind of edge.
+  - `check-turbo-depends-on`: `assertBuildDependsOnCoversImports`, then `assertTypeTasksDependOnDistReads`. The first checks a `build.dependsOn` without `^build`; the second checks that each `typecheck` waits for `<name>#build` of every package whose dist it reads. A read counts whether the import comes from the package's own source or from another package's built d.ts it reads (a testkit's types importing `@conciv/core/start`): a consumer that reads a dist only through another dist still waits for it, or its typecheck races that dist's build and sees the import as untyped `any`.
+  - `check-dependency-loops`: `assertNoDependencyLoop`. No loop between workspace packages, counting every edge: `dependencies`, `devDependencies`, `peerDependencies` and `optionalDependencies`. Each loop prints as its package path with the field of each edge.
   - `check-plugin-ui-kit`: `assertPluginsDrawThroughContextUi`.
   - `check`: `pnpm exec turbo run build publint attw`.
   - `release`: `assertPublicSet`, `assertPublicDepsPublic`, `assertVersioned`, turbo build/publint/attw, `changeset publish`.
@@ -21,7 +21,7 @@ The `conciv-publish` citty command tree. It runs release guards (workspace root,
   - `sync` (`--dry-run`, `--json`): plans from `registryRecord` states and applies publish/trust/tag actions.
   - `swift-mirror` (`--dry-run`): constants `MIRROR_REPOSITORY` = `'conciv-dev/conciv-swift'`, `MIRROR_TREE` = `'native/swift'`, `BRIDGE_MANIFEST` = `'packages/plugins/ios/package.json'`.
 - `PUBLIC_PACKAGES` (`guards.ts`): the 42 public `@conciv/*` package names.
-- Guards (`guards.ts`): `assertWorkspaceRoot`, `assertValidTag`, `assertVersioned`, `assertBootstrappable`, `assertChangesetsResolve`, `assertPublishedChangesCovered`, `assertPublicSet`, `assertPublicDepsPublic`, `assertNoRuntimeDependencyLoop`, `assertSharedDependenciesCatalogued`.
+- Guards (`guards.ts`): `assertWorkspaceRoot`, `assertValidTag`, `assertVersioned`, `assertBootstrappable`, `assertChangesetsResolve`, `assertPublishedChangesCovered`, `assertPublicSet`, `assertPublicDepsPublic`, `assertNoDependencyLoop`, `assertSharedDependenciesCatalogued`.
 - `qualifiesForCoverage(path, filesAllowlist)` (`guards.ts`).
 - `assertTypecheckCoversTrackedFiles(cwd)` (`typecheck-coverage.ts`).
 - `assertTestsWithinBudget(cwd)`, `countTestCasesByPackage(cwd)`, `countTestCases(filename, source)` (`test-budget.ts`).

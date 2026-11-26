@@ -1,7 +1,7 @@
 ---
 '@conciv/backend': patch
 '@conciv/simulation': patch
-'@conciv/plugin-testkit': patch
+'@conciv/app': patch
 '@internal/frontend-defaults': patch
 '@conciv/backend-plugin-api': patch
 ---

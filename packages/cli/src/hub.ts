@@ -9,7 +9,6 @@ import {
   cappedText,
   codeDiscoverReply,
   codeExecuteReply,
-  queueNotice,
   type CodeDescriptions,
   type CodeDiscoverResult,
   type CodeReply,
@@ -20,12 +19,10 @@ import {
   CONCIV_CLIENT_HEADER,
   CONCIV_ORIGIN_HEADER,
   SessionId,
-  type TabOpen,
 } from '@conciv/types/chat-types'
-import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/types/page-types'
 import type {InitHarnessId} from '@conciv/types/harness-types'
-import {PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
-import {ascending} from '@conciv/protocol/schema/identifier'
+import {Definition as Page, PAGE_NAMESPACE, queueNotice} from '@conciv/plugin-page/rpc'
+import {makeMaker} from '@conciv/protocol/schema/identifier'
 import cliManifest from '../package.json' with {type: 'json'}
 import type {CliOutcome} from './envelope.js'
 import {
@@ -37,12 +34,14 @@ import {
   homeRead,
   listTabs,
   liveEngines,
+  pageCall,
   PROBE_MS,
   runningEngines,
   silence,
   TOO_OLD,
   type Silent,
   type TabAsk,
+  type TabOpen,
 } from './engine-read.js'
 
 const EXECUTE_TOOL_NAME = 'execute_typescript'
@@ -107,11 +106,26 @@ const FALLBACK_DESCRIPTIONS = {
 
 type ToolName = keyof typeof FALLBACK_DESCRIPTIONS
 
+type PageMethods = typeof Page.methods
+
+type PolledState = z.output<PageMethods['queue.claim']['output']>
+
+type PageQueueResult = Exclude<PolledState, {status: 'playing'}>
+
+type PageQueueHandle = z.output<PageMethods['queue.startedBy']['output']>[number]
+
 type Reply = CodeReply
 
 type Runner = {root: string; rpc: RpcClient; described: CodeDescriptions | null}
 
-type TabOwner = {root: string; apiBase: string; token: string; instructions: string | null; rpc: RpcClient}
+type TabOwner = {
+  root: string
+  apiBase: string
+  token: string
+  instructions: string | null
+  rpc: RpcClient
+  page: RpcClient
+}
 
 type TabEntry = {owner: Promise<TabOwner> | null; greeted: boolean}
 
@@ -130,7 +144,7 @@ type QueueTask =
 
 type GoneQueue = {queueId: string; status: 'gone'}
 
-type PolledQueue = PageQueueResult | PageQueueProgress | GoneQueue
+type PolledQueue = PolledState | GoneQueue
 
 type EngineCall<Value> = (rpc: RpcClient, signal: AbortSignal | undefined) => Promise<Value>
 
@@ -153,6 +167,7 @@ type Picked = {runner: Runner | null; unusable: string[]}
 
 export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<CliOutcome> {
   const home = concivHome({env})
+  const ids = makeMaker()
   const held: {runner: Promise<Runner> | null} = {runner: null}
   const tabs = new Map<SessionId, TabEntry>()
   const queueTasks = new Map<string, QueueTask>()
@@ -269,14 +284,17 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
       codeExecuteReply,
       signal,
     )
-    settleDelivered(executed.value?.finished ?? [])
-    const queued = executed.value?.queued ?? []
-    if (tab === undefined || queued.length === 0 || !TasksCapableSchema.safeParse(envelope).success) {
-      return executed.reply
-    }
-    const taskId = TaskIdSchema.parse('tsk_' + ascending())
+    if (tab === undefined) return executed.reply
+    const finished = await finishedQueues(tab, signal)
+    const reply = withFinished(executed.reply, finished)
+    const calls = executed.value?.calls ?? []
+    if (calls.length === 0 || !TasksCapableSchema.safeParse(envelope).success) return reply
+    const delivered = new Set(finished.map((result) => result.queueId))
+    const queued = (await startedQueues(tab, calls, signal)).filter((handle) => !delivered.has(handle.queueId))
+    if (queued.length === 0) return reply
+    const taskId = TaskIdSchema.parse('tsk_' + ids.ascending())
     const now = new Date().toISOString()
-    queueTasks.set(taskId, {status: 'working', tab, queued, createdAt: now, lastUpdatedAt: now, reply: executed.reply})
+    queueTasks.set(taskId, {status: 'working', tab, queued, createdAt: now, lastUpdatedAt: now, reply})
     return {
       content: [],
       resultType: 'task',
@@ -300,11 +318,38 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
     expireTasks()
     const delivered = new Set(finished.map((result) => result.queueId))
     for (const [taskId, task] of queueTasks) {
-      if (task.status === 'working') {
-        task.queued = task.queued.filter((handle) => !delivered.has(handle.queueId))
-        if (task.queued.length === 0) queueTasks.delete(taskId)
+      if (task.status !== 'working') continue
+      const queued = task.queued.filter((handle) => !delivered.has(handle.queueId))
+      if (queued.length === 0) {
+        queueTasks.delete(taskId)
+        continue
       }
+      queueTasks.set(taskId, {...task, queued})
     }
+  }
+
+  async function finishedQueues(tab: SessionId, signal: AbortSignal): Promise<PageQueueResult[]> {
+    const owner = await tabs.get(tab)?.owner?.catch(() => null)
+    if (owner === undefined || owner === null || signal.aborted) return []
+    const finished = await pageCall(owner.page, 'queue.undelivered', {sessionId: tab, origin: 'hub'}, {signal})
+      .then((owed) => Page.methods['queue.undelivered'].output.parse(owed))
+      .catch((error: unknown) => {
+        logHub(`reading the finished page queues of tab ${tab} failed; the next call asks again`, error)
+        return []
+      })
+    settleDelivered(finished)
+    return finished
+  }
+
+  async function startedQueues(tab: SessionId, calls: string[], signal: AbortSignal): Promise<PageQueueHandle[]> {
+    const owner = await tabs.get(tab)?.owner
+    if (owner === undefined || owner === null) return []
+    return pageCall(owner.page, 'queue.startedBy', {sessionId: tab, toolCallIds: calls}, {signal})
+      .then((started) => Page.methods['queue.startedBy'].output.parse(started))
+      .catch((error: unknown) => {
+        logHub(`reading the page queues tab ${tab} started failed; the reply carries no task`, error)
+        return []
+      })
   }
 
   function knownTask(taskId: string): QueueTask {
@@ -320,13 +365,12 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
     if (task.status === 'settled') return task.answer
     const polled = await Promise.all(
       task.queued.map(async ({queueId}) => {
-        const waited = await routed(
-          task.tab,
-          (rpc, aborted) => pollQueue(rpc, task.tab, queueId, aborted),
-          () => ({content: []}),
-          AbortSignal.timeout(TASK_POLL_MS),
-        )
-        return waited.value
+        const owner = await tabs.get(task.tab)?.owner?.catch(() => null)
+        if (owner === undefined || owner === null) return null
+        return pollQueue(owner.page, task.tab, queueId, AbortSignal.timeout(TASK_POLL_MS)).catch((error: unknown) => {
+          logHub(`polling queue ${queueId} failed; the next poll asks again`, error)
+          return null
+        })
       }),
     )
     const current = knownTask(taskId)
@@ -347,7 +391,20 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
     }
     const answer = settledAnswer(stamped, current.reply, settled)
     queueTasks.set(taskId, {status: 'settled', createdAt: current.createdAt, answer})
+    await settleClaimed(current.tab, settled)
     return answer
+  }
+
+  async function settleClaimed(tab: SessionId, settled: readonly PolledQueue[]): Promise<void> {
+    const queueIds = settled.flatMap((state) => (state.status === 'gone' ? [] : [state.queueId]))
+    const owner = await tabs.get(tab)?.owner?.catch(() => null)
+    if (owner === undefined || owner === null || queueIds.length === 0) return
+    await pageCall(
+      owner.page,
+      'queue.settle',
+      {sessionId: tab, queueIds},
+      {signal: AbortSignal.timeout(TASK_POLL_MS)},
+    ).catch((error: unknown) => logHub(`settling the delivered queues of tab ${tab} failed; they stay owed`, error))
   }
 
   async function discoverCall(input: z.infer<typeof DiscoverInputSchema>, signal: AbortSignal): Promise<Reply> {
@@ -359,8 +416,8 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
       (value) => codeDiscoverReply(notePageTools(value, toolNames)),
       signal,
     )
-    settleDelivered(discovered.value?.finished ?? [])
-    return discovered.reply
+    if (tab === undefined) return discovered.reply
+    return withFinished(discovered.reply, await finishedQueues(tab, signal))
   }
 
   function serveQueueTasks(server: McpServer): void {
@@ -494,6 +551,7 @@ function ownerAmong(tab: SessionId, probes: TabAsk[], silent: Silent, headers: R
     token: only.row.token,
     instructions: only.answer.instructions,
     rpc: makeRpcClient(only.row.apiBase, {token: only.row.token, headers}),
+    page: makeRpcClient(only.row.apiBase, {token: only.row.token}),
   }
 }
 
@@ -542,16 +600,23 @@ function queueNoticePart(result: PageQueueResult): {type: 'text'; text: string} 
   return {type: 'text', text: cappedText(queueNotice(result))}
 }
 
+function withFinished(reply: Reply, finished: readonly PageQueueResult[]): Reply {
+  if (finished.length === 0) return reply
+  return {...reply, content: [...finished.map(queueNoticePart), ...reply.content]}
+}
+
 async function pollQueue(
   rpc: RpcClient,
   sessionId: SessionId,
   queueId: string,
-  signal: AbortSignal | undefined,
+  signal: AbortSignal,
 ): Promise<PolledQueue> {
   try {
-    return await rpc.page.queue.wait({sessionId, queueId, waitMs: 0}, {signal})
+    return Page.methods['queue.claim'].output.parse(
+      await pageCall(rpc, 'queue.claim', {sessionId, queueId, waitMs: 0}, {signal}),
+    )
   } catch (error) {
-    if (error instanceof ORPCError && error.code === 'NO_QUEUE') return {queueId, status: 'gone'}
+    if (error instanceof ORPCError && error.code === 'PLUGIN_RPC') return {queueId, status: 'gone'}
     throw error
   }
 }

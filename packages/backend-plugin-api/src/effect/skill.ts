@@ -1,5 +1,5 @@
-import type {Location} from '@conciv/protocol/schema/location'
-import {Skill} from '@conciv/protocol/schema/skill'
+import type * as Location from '@conciv/protocol/schema/location'
+import * as Skill from '@conciv/protocol/schema/skill'
 import type {Effect, Types} from 'effect'
 import type {Transform} from './registration.js'
 

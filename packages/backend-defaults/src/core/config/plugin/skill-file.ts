@@ -1,11 +1,9 @@
-export * as SkillFile from './skill-file.js'
-
 import path from 'path'
 import {isRecord} from '@conciv/backend-app-api/util/record'
 import {Result, Schema, type SchemaIssue, SchemaParser} from 'effect'
-import {ConfigMarkdown} from '../markdown.js'
+import * as ConfigMarkdown from '../markdown.js'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
-import {Skill} from '@conciv/backend-app-api/core/skill'
+import * as Skill from '@conciv/backend-app-api/core/skill'
 
 const Frontmatter = Schema.Struct({
   name: Schema.String.pipe(Schema.optional),

@@ -36,17 +36,17 @@ function matchedTerm(name, terms) {
   return terms.find((term) => containsTerm(segments, term.segments))
 }
 
-const PATTERN_HANDLERS = new Map([
-  ['Identifier', (pattern) => [pattern]],
-  ['AssignmentPattern', (pattern) => patternNames(pattern.left)],
-  ['RestElement', (pattern) => patternNames(pattern.argument)],
-  ['ArrayPattern', (pattern) => pattern.elements.flatMap((element) => patternNames(element))],
-  ['ObjectPattern', (pattern) => pattern.properties.flatMap((property) => propertyPatternNames(property))],
-])
+const PATTERN_HANDLERS = {
+  Identifier: (pattern) => [pattern],
+  AssignmentPattern: (pattern) => patternNames(pattern.left),
+  RestElement: (pattern) => patternNames(pattern.argument),
+  ArrayPattern: (pattern) => pattern.elements.flatMap((element) => patternNames(element)),
+  ObjectPattern: (pattern) => pattern.properties.flatMap((property) => propertyPatternNames(property)),
+}
 
 function patternNames(pattern) {
   if (!isNode(pattern)) return []
-  const handler = PATTERN_HANDLERS.get(pattern.type)
+  const handler = Object.hasOwn(PATTERN_HANDLERS, pattern.type) ? PATTERN_HANDLERS[pattern.type] : undefined
   return handler === undefined ? [] : handler(pattern)
 }
 
@@ -73,28 +73,28 @@ function exportedIdentifier(node) {
   return isIdentifier(node.exported) ? [node.exported] : []
 }
 
-const DECLARATION_HANDLERS = new Map([
-  ['VariableDeclarator', (node) => patternNames(node.id)],
-  ['FunctionDeclaration', functionIdentifiers],
-  ['FunctionExpression', functionIdentifiers],
-  ['ArrowFunctionExpression', functionIdentifiers],
-  ['ClassDeclaration', ownIdentifier],
-  ['ClassExpression', ownIdentifier],
-  ['TSTypeAliasDeclaration', ownIdentifier],
-  ['TSInterfaceDeclaration', ownIdentifier],
-  ['TSEnumDeclaration', ownIdentifier],
-  ['TSModuleDeclaration', ownIdentifier],
-  ['TSEnumMember', ownIdentifier],
-  ['Property', keyIdentifier],
-  ['PropertyDefinition', keyIdentifier],
-  ['MethodDefinition', keyIdentifier],
-  ['TSPropertySignature', keyIdentifier],
-  ['TSMethodSignature', keyIdentifier],
-  ['ExportSpecifier', exportedIdentifier],
-])
+const DECLARATION_HANDLERS = {
+  VariableDeclarator: (node) => patternNames(node.id),
+  FunctionDeclaration: functionIdentifiers,
+  FunctionExpression: functionIdentifiers,
+  ArrowFunctionExpression: functionIdentifiers,
+  ClassDeclaration: ownIdentifier,
+  ClassExpression: ownIdentifier,
+  TSTypeAliasDeclaration: ownIdentifier,
+  TSInterfaceDeclaration: ownIdentifier,
+  TSEnumDeclaration: ownIdentifier,
+  TSModuleDeclaration: ownIdentifier,
+  TSEnumMember: ownIdentifier,
+  Property: keyIdentifier,
+  PropertyDefinition: keyIdentifier,
+  MethodDefinition: keyIdentifier,
+  TSPropertySignature: keyIdentifier,
+  TSMethodSignature: keyIdentifier,
+  ExportSpecifier: exportedIdentifier,
+}
 
 function declarationIdentifiers(node) {
-  const handler = DECLARATION_HANDLERS.get(node.type)
+  const handler = Object.hasOwn(DECLARATION_HANDLERS, node.type) ? DECLARATION_HANDLERS[node.type] : undefined
   return handler === undefined ? [] : handler(node)
 }
 
@@ -182,9 +182,8 @@ const REWRITE_BANNED_TERMS = [
 const PREEXISTING_MODULES = ['packages/harness/src/init/claude/bridge.ts', 'packages/oxlint-plugin/src/']
 
 const DEV_BUNDLER_BRIDGE_PATHS = [
-  'packages/backend/src/app.ts',
-  'packages/backend/src/start.ts',
-  'packages/plugin-testkit/src/core-kit.ts',
+  'packages/backend-defaults/src/engine/app.ts',
+  'packages/backend-defaults/src/engine/start.ts',
   'packages/unplugin/src/',
 ]
 
@@ -207,9 +206,14 @@ const HARNESS_CONNECT_ATTACH_PATHS = ['packages/harness/src/codex/history.ts']
 
 const COMPOSER_ATTACHMENT_INGRESS_PATHS = ['packages/frontend-defaults/src/pane/chat-pane.tsx']
 
+const EXTERNAL_API_ATTACH_PATHS = [
+  'packages/vitest-config/src/conciv-test.ts',
+  'packages/frontend-test-utils/src/frontend-test-utils.tsx',
+]
+
 const PRE_REWRITE_ATTACH_PATHS = [
   'apps/site/src/components/landing/',
-  'packages/backend/src/pty/pty-sessions.ts',
+  'packages/backend-defaults/src/engine/pty/pty-sessions.ts',
   'packages/plugins/page/src/react.ts',
   'packages/try/src/cli.ts',
   'packages/publish/src/summary.ts',
@@ -241,7 +245,12 @@ const PREEXISTING_TERM_SITES = [
   },
   {
     term: 'attach',
-    paths: [...HARNESS_CONNECT_ATTACH_PATHS, ...COMPOSER_ATTACHMENT_INGRESS_PATHS, ...PRE_REWRITE_ATTACH_PATHS],
+    paths: [
+      ...HARNESS_CONNECT_ATTACH_PATHS,
+      ...COMPOSER_ATTACHMENT_INGRESS_PATHS,
+      ...EXTERNAL_API_ATTACH_PATHS,
+      ...PRE_REWRITE_ATTACH_PATHS,
+    ],
   },
 ]
 

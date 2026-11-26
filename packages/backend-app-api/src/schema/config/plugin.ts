@@ -1,5 +1,3 @@
-export * as ConfigPlugin from './plugin.js'
-
 import {Schema} from 'effect'
 
 export const Entry = Schema.Tuple([Schema.String, Schema.Record(Schema.String, Schema.Json)])

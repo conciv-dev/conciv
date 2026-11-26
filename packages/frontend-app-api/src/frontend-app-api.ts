@@ -1,5 +1,6 @@
 import type {JSX} from 'solid-js'
 import {createOpaqueType, type OpaqueType} from '@internal/frontend-app-api/opaque'
+import type {GroupEntry, Grouper} from '@conciv/ui-kit-chat'
 import {
   Registry,
   type IconName,
@@ -111,3 +112,8 @@ export const OpaqueNoteCard: OpaqueType<OpaqueNoteCardShape> = createOpaqueType<
 })
 
 export const NoteCard: PublicNoteCard = OpaqueNoteCard.createInstance('v1', Registry.define('note-card'))
+
+export interface ToolGroup {
+  readonly entry: GroupEntry
+  createGrouper(): Grouper
+}

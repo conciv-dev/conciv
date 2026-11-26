@@ -31,7 +31,7 @@ import {
   type StoreWrite,
 } from './store-machine'
 
-const loads = new WeakMap<object, Promise<void>>()
+export type StoreLoads = WeakMap<object, Promise<void>>
 
 export function storeName(plugin: string, key: string) {
   return `plugin.${plugin}.${key}`
@@ -58,11 +58,14 @@ function copySpec(from: StoreFrom): CopyFrom {
   return typeof from === 'string' ? {key: from} : from
 }
 
-export function persistedHandle<T extends object>(input: {
-  readonly store: T
-  readonly set: SetStoreFunction<T>
-  readonly init: Promise<unknown> | undefined
-}) {
+export function persistedHandle<T extends object>(
+  input: {
+    readonly store: T
+    readonly set: SetStoreFunction<T>
+    readonly init: Promise<unknown> | undefined
+  },
+  loads: StoreLoads,
+) {
   const [loadState, setLoadState] = createSignal(createStoreLoadState<T>(input.init !== undefined))
   const settled = input.init && Promise.withResolvers<void>()
 
@@ -125,11 +128,11 @@ export function persistedHandle<T extends object>(input: {
   return handle
 }
 
-export function whenLoaded<T>(handle: Persisted<T>) {
+export function whenLoaded<T>(handle: Persisted<T>, loads: StoreLoads) {
   return loads.get(handle) ?? Promise.resolve()
 }
 
-export function deferredHandle<T>(store: Accessor<Persisted<T> | undefined>): Persisted<T> {
+export function deferredHandle<T>(store: Accessor<Persisted<T> | undefined>, loads: StoreLoads): Persisted<T> {
   const machine = {state: createDeferredStoreState<Persisted<T>, T>()}
   const opened = Promise.withResolvers<Persisted<T>>()
 
@@ -174,7 +177,7 @@ export function deferredHandle<T>(store: Accessor<Persisted<T> | undefined>): Pe
     set: (next) => write({kind: 'set', value: next}),
   }
 
-  const loaded = opened.promise.then((inner) => whenLoaded(inner))
+  const loaded = opened.promise.then((inner) => whenLoaded(inner, loads))
 
   void loaded.catch(() => undefined)
   loads.set(handle, loaded)
@@ -187,16 +190,17 @@ function forward<T>(handle: Persisted<T>, write: StoreWrite<T>) {
   handle.update(write.mutate)
 }
 
-export function locatedHandle<T>(session: SessionRef, open: () => Persisted<T>) {
+export function locatedHandle<T>(session: SessionRef, open: () => Persisted<T>, loads: StoreLoads) {
   const directory = createMemo(() => session.location?.directory)
 
-  return deferredHandle(createMemo(on(directory, (value) => (value === undefined ? undefined : open()))))
+  return deferredHandle(createMemo(on(directory, (value) => (value === undefined ? undefined : open()))), loads)
 }
 
 export function createSessionStore<T extends object>(input: {
   readonly open: (session: SessionRef) => Persisted<T>
   readonly owner: Owner | null
   readonly sessions: {list(): readonly SessionRef[]; current(): SessionRef | undefined}
+  readonly loads: StoreLoads
 }) {
   type Opened = {readonly handle: Persisted<T>; readonly dispose: () => void}
 
@@ -236,7 +240,10 @@ export function createSessionStore<T extends object>(input: {
       },
     }
 
-    return createRoot((dispose) => ({handle: locatedHandle(ref, () => input.open(ref)), dispose}), input.owner)
+    return createRoot(
+      (dispose) => ({handle: locatedHandle(ref, () => input.open(ref), input.loads), dispose}),
+      input.owner,
+    )
   }
 
   return {

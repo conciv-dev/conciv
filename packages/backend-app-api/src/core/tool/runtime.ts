@@ -1,20 +1,13 @@
 import {emptyInputJsonSchema, type ToolDefinition} from '../../ai/effect.js'
 import {isRecord} from '../../util/record.js'
-import {Tool} from '@conciv/protocol/schema/tool'
+import * as Tool from '@conciv/protocol/schema/tool'
 import type {StandardJSONSchemaV1, StandardSchemaV1} from '@standard-schema/spec'
 import {Effect, JsonPointer, JsonSchema, Result, Schema, SchemaIssue, SchemaRepresentation} from 'effect'
 import {$ZodType, toJSONSchema} from 'zod/v4/core'
 
 const formatEffectIssues = SchemaIssue.makeFormatterStandardSchemaV1()
 
-const jsonSchemas = new WeakMap<object, Schema.Codec<unknown> | undefined>()
-
-const codecFor = (schema: JsonSchema.JsonSchema) => {
-  if (jsonSchemas.has(schema)) return jsonSchemas.get(schema)
-  const codec = Result.try(() => jsonSchema(schema)).pipe(Result.getOrUndefined)
-  jsonSchemas.set(schema, codec)
-  return codec
-}
+const codecFor = (schema: JsonSchema.JsonSchema) => Result.try(() => jsonSchema(schema)).pipe(Result.getOrUndefined)
 
 export const definition = (tool: Tool.Info<any, any>): ToolDefinition => ({
   type: 'tool',

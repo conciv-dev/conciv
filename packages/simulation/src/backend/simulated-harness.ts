@@ -6,7 +6,7 @@ import type {HarnessAdapter} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
 import type {HarnessChatDeps} from '@conciv/types/harness-types'
 import type {FinishReason, Item, ModelRequest} from '@conciv/protocol/simulation'
-import type {SimulatedProvider} from './simulated-provider.js'
+import type * as SimulatedProvider from './simulated-provider.js'
 
 type StreamOptions = Parameters<Parameters<typeof makeTextAdapter>[1]>[0]
 
@@ -236,5 +236,3 @@ export function refusedHarness(message: string): (harness: HarnessAdapter) => Ha
     chatConfig: async () => ({adapter: makeTextAdapter(harness.id, () => refusedRun(message))}),
   })
 }
-
-export * as SimulatedHarness from './simulated-harness.js'

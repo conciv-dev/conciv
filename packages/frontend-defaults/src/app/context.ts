@@ -12,6 +12,7 @@ import type {HostTheme} from '../lib/color-scheme.js'
 import type {LauncherAnchor} from '../lib/draggable-position.js'
 import type {PreferencesApi} from '../settings/preferences-schema.js'
 import type {ServerBinding} from '@internal/frontend-app-api/plugin/servers'
+import type {LocalPersistence} from '@internal/frontend-app-api/persistence/storage'
 
 export type AppContextValue = {
   rpc: RpcClient
@@ -35,6 +36,7 @@ export type AppContextValue = {
   notifyInteractive: () => void
   theme: Accessor<HostTheme>
   preferences: PreferencesApi
+  localPersistence: LocalPersistence
 }
 
 export const AppContext = createContext<AppContextValue>()
@@ -47,6 +49,10 @@ function useAppScope<Selected>(hook: string, select: (app: AppContextValue) => S
 
 export function useRpc(): RpcClient {
   return useAppScope('useRpc', (app) => app.rpc)
+}
+
+export function useLocalPersistence(): LocalPersistence {
+  return useAppScope('useLocalPersistence', (app) => app.localPersistence)
 }
 
 export function useSettings(): ConcivSettings {

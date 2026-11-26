@@ -1,9 +1,7 @@
 import {Show, createEffect, onCleanup, onMount, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
-import {isReachabilityError, useQuery} from '@conciv/client'
+import {isReachabilityError, useQuery, type EngineConnection} from '@conciv/client'
 import {useChildMatches, useRouteContext, useRouter} from '@tanstack/solid-router'
-import {resetBrowserRpcConnection} from '@conciv/client'
-import {CONCIV_VERSION_HEADER} from '@conciv/types/rpc-types'
 import lt from 'semver/functions/lt'
 import valid from 'semver/functions/valid'
 import appManifest from '../../package.json' with {type: 'json'}
@@ -56,8 +54,9 @@ export function EngineStaleNotice(): JSX.Element {
 
 export function EngineOutdatedNotice(): JSX.Element {
   const apiBase = useApiBase()
+  const connection = useRouteContext({strict: false, select: (context) => context.connection})
   const connected = useConnected()
-  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase(), connected()))
+  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase(), connection()?.(), connected()))
   const outdated = (): boolean => engineVersion.isSuccess && engineOlderThanWidget(engineVersion.data)
   return (
     <Show when={outdated()}>
@@ -66,11 +65,15 @@ export function EngineOutdatedNotice(): JSX.Element {
   )
 }
 
-export function engineVersionQueryOptions(apiBase: string, connected: boolean) {
+export function engineVersionQueryOptions(
+  apiBase: string,
+  connection: EngineConnection | undefined,
+  connected: boolean,
+) {
   return {
     queryKey: ['conciv', 'engine-version', apiBase],
-    enabled: connected,
-    queryFn: async () => (await fetch(`${apiBase}/health`)).headers.get(CONCIV_VERSION_HEADER),
+    enabled: connected && connection !== undefined,
+    queryFn: () => connection?.version() ?? Promise.resolve(null),
   }
 }
 
@@ -82,14 +85,14 @@ export function engineOlderThanWidget(version: string | null): boolean {
 export function EngineUnreachableNotice(): JSX.Element {
   const reachability = useEngineReachability()
   const notices = useNotices()
-  const apiBase = useApiBase()
+  const connection = useRouteContext({strict: false, select: (context) => context.connection})
   const router = useRouter()
   const login = useRouteContext({strict: false, select: (context) => context.login})
   const errorScreenShowsUnreachable = useChildMatches({
     select: (matches) => matches.some((match) => match.status === 'error' && isReachabilityError(match.error)),
   })
   const retry = async (): Promise<void> => {
-    resetBrowserRpcConnection(apiBase())
+    connection()?.()?.reset()
     await login()?.requestTrust()
     await router.invalidate()
   }

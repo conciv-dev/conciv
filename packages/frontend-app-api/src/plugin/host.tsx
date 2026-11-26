@@ -21,7 +21,7 @@ import {
 } from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {LifetimeContext, liveAccessor, PluginContext, type Entry} from '@conciv/frontend-plugin-api/host'
-import {registerIcons} from '@conciv/ui-kit-chat'
+import {useIconRegistry, type IconRegistry} from '@conciv/ui-kit-chat'
 import {useDialog} from './dialog-stack'
 import {
   LinkHandler,
@@ -66,7 +66,7 @@ import {
 } from './instance-machine'
 import {createStartupGate, type InstalledSource} from './startup'
 import {assertStoreDefinition} from '../persistence/schema'
-import {createSessionStore, storeName, whenLoaded} from './stores'
+import {createSessionStore, storeName, whenLoaded, type StoreLoads} from './stores'
 
 type Contribution = {key: string; registry: string; plugin: string; value: Accessor<unknown>}
 
@@ -135,6 +135,7 @@ type HostInput = {
   builtins?: ReadonlySet<string>
   servers?: boolean
   apis: HostApiFactories
+  storeLoads: StoreLoads
   whenMounted: (run: () => void) => () => void
   plugin?: (id: string) => PluginInput | undefined
   options?: (id: string) => PluginOptions | undefined
@@ -143,12 +144,12 @@ type HostInput = {
 }
 
 export function PluginHostProvider(props: ParentProps<HostInput>) {
-  const host = createHost(props)
+  const host = createHost(props, useIconRegistry())
 
   return <HostContext.Provider value={host}>{props.children}</HostContext.Provider>
 }
 
-function createHost(input: HostInput) {
+function createHost(input: HostInput, iconRegistry: IconRegistry) {
   const owner = getOwner()
   const provided = new Map<string, {live: Live<unknown> & {readonly status: 'active'}}>()
   const generations = new Map<string, number>()
@@ -589,13 +590,15 @@ function createHost(input: HostInput) {
 
     const icons = Object.fromEntries(declared.map((icon) => [icon.name, icon.id]))
 
-    own(registerIcons(Object.fromEntries(declared.map((icon) => [icon.id, icon.source]))))
+    own(iconRegistry.registerIcons(Object.fromEntries(declared.map((icon) => [icon.id, icon.source]))))
 
     const experimental = input.plugin?.(plugin)
 
     const context = {
       id: plugin,
-      options: experimental?.options ?? input.options?.(plugin) ?? {},
+      get options() {
+        return experimental?.options ?? input.options?.(plugin) ?? {}
+      },
       get client() {
         return experimental?.client() ?? input.unavailableClient()
       },
@@ -691,13 +694,14 @@ function createHost(input: HostInput) {
 
             stores[name] = handle
 
-            return [whenLoaded(handle)]
+            return [whenLoaded(handle, input.storeLoads)]
           }
 
           const store = createSessionStore({
             open: (session) => storage.store(name, {...options, scope: {session}}),
             owner: root,
             sessions: typed.sessions,
+            loads: input.storeLoads,
           })
 
           stores[name] = store.get

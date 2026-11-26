@@ -1,8 +1,11 @@
-import {describe, expect, it} from 'vitest'
-import {cli, createEngine} from '@conciv/plugin-testkit'
+import {describe, expect} from 'vitest'
+import {test as it} from '@conciv/backend-test-utils'
+import {cli} from '../utils/cli.js'
 
 describe('session', () => {
-  it('a bad CONCIV_SESSION_ID is refused, and an asking tool run in the named session waits until it is approved', async () => {
+  it('a bad CONCIV_SESSION_ID is refused, and an asking tool run in the named session waits until it is approved', async ({
+    createEngine,
+  }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
     await engine.newSession('Later work')
 

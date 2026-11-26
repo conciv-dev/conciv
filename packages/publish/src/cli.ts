@@ -8,7 +8,7 @@ import {
   PUBLIC_PACKAGES,
   assertBootstrappable,
   assertChangesetsResolve,
-  assertNoRuntimeDependencyLoop,
+  assertNoDependencyLoop,
   assertPublicDepsPublic,
   assertPublicTypesPublic,
   assertPublicSet,
@@ -129,7 +129,7 @@ const checkTurboDependsOn = defineCommand({
   meta: {
     name: 'check-turbo-depends-on',
     description:
-      'Fail when a turbo.json build.dependsOn without "^build" misses the build of a workspace package its build sources import, or a typecheck or build:types is not ordered after the task that writes the types of a workspace package whose dist its program reads; a build that only runs tsdown, with its types in build:types, is not checked for imports',
+      'Fail when a turbo.json build.dependsOn without "^build" misses the build of a workspace package its build sources import, or a typecheck is not ordered after the build of a workspace package whose dist its program reads',
   },
   async run() {
     const {cwd} = await atRoot()
@@ -142,11 +142,11 @@ const checkDependencyLoops = defineCommand({
   meta: {
     name: 'check-dependency-loops',
     description:
-      'Fail when workspace packages form a loop through dependencies and optionalDependencies alone; a loop that needs a devDependency or a peerDependency passes',
+      'Fail when workspace packages form any loop through dependencies, devDependencies, peerDependencies or optionalDependencies, and print each loop with the field of every edge',
   },
   async run() {
     const {cwd} = await atRoot()
-    await assertNoRuntimeDependencyLoop(cwd)
+    await assertNoDependencyLoop(cwd)
   },
 })
 

@@ -1,19 +1,7 @@
-declare const window: EventTarget | undefined
-
-declare global {
-  var __CONCIV_EVENT_BUS_TARGET__: EventTarget | undefined
-}
-
 export const DISPATCH_EVENT = 'conciv-dispatch-event'
 export const CONNECT_EVENT = 'conciv-connect'
 export const CONNECT_SUCCESS_EVENT = 'conciv-connect-success'
 export const GLOBAL_EVENT = 'conciv-global'
-
-function sharedEventTarget(): EventTarget {
-  if (typeof window !== 'undefined') return window
-  if (globalThis.__CONCIV_EVENT_BUS_TARGET__ === undefined) globalThis.__CONCIV_EVENT_BUS_TARGET__ = new EventTarget()
-  return globalThis.__CONCIV_EVENT_BUS_TARGET__
-}
 
 export type EventBusTarget = () => EventTarget
 
@@ -58,7 +46,7 @@ function readEnvelope(event: Event): EventBusEnvelope | null {
 }
 
 export type EventBusOptions = {
-  target?: EventBusTarget
+  target: EventBusTarget
 }
 
 export type EventBus = {
@@ -66,8 +54,8 @@ export type EventBus = {
   stop: () => void
 }
 
-export function createEventBus(options: EventBusOptions = {}): EventBus {
-  const target = options.target ?? sharedEventTarget
+export function createEventBus(options: EventBusOptions): EventBus {
+  const target = options.target
   let started = false
 
   function redispatch(event: Event): void {
@@ -102,7 +90,7 @@ export type EventBusClientState = 'idle' | 'connecting' | 'ready' | 'failed'
 
 export type EventBusClientOptions = {
   pluginId: string
-  target?: EventBusTarget
+  target: EventBusTarget
   scheduler?: EventBusScheduler
   reconnectEveryMs?: number
   maxRetries?: number
@@ -123,7 +111,7 @@ export type EventBusClient<TEventMap extends Record<string, unknown>> = {
 export function createEventBusClient<TEventMap extends Record<string, unknown>>(
   options: EventBusClientOptions,
 ): EventBusClient<TEventMap> {
-  const target = options.target ?? sharedEventTarget
+  const target = options.target
   const scheduler = options.scheduler ?? defaultScheduler()
   const reconnectEveryMs = options.reconnectEveryMs ?? 300
   const maxRetries = options.maxRetries ?? 5

@@ -1,5 +1,3 @@
-export * as PluginSourceDirectory from './source-directory.js'
-
 import {FSUtil} from '../../util/fs-util.js'
 import {Effect, Option} from 'effect'
 import path from 'path'

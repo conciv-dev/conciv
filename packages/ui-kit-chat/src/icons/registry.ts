@@ -16,149 +16,159 @@ const namespace = 'http://www.w3.org/2000/svg'
 
 const spriteID = 'conciv-icon-registered'
 
-const structural = new Set(['xmlns', 'width', 'height', 'viewBox', 'id'])
-
-const state = {
-  artwork: new Map<string, Artwork>(),
-  mounted: new Map<IconRoot, Map<string, number>>(),
-  drawn: new Map<IconRoot, Map<string, Artwork>>(),
-  symbols: new Map<string, string>(),
-  sprites: new Map<IconRoot, () => void>(),
-}
+const structural = ['xmlns', 'width', 'height', 'viewBox', 'id']
 
 export function isRegisteredIconName(name: string): name is RegisteredIconName {
   return name.includes(':')
 }
 
-export function registerIcons(sources: Readonly<Record<RegisteredIconName, string>>): () => void {
-  const parsed = Object.entries(sources).map(([name, source]) => ({name, artwork: parse(name, source)}))
+export type IconRegistry = {
+  readonly registerIcons: (sources: Readonly<Record<RegisteredIconName, string>>) => () => void
+  readonly mountRegisteredIcon: (name: RegisteredIconName, root: IconRoot) => () => void
+  readonly registeredIconSymbol: (name: string) => string
+}
 
-  parsed.forEach((entry) => {
-    state.artwork.set(entry.name, entry.artwork)
-    draw(entry.name)
-  })
+export function createIconRegistry(): IconRegistry {
+  const state = {
+    artwork: new Map<string, Artwork>(),
+    mounted: new Map<IconRoot, Map<string, number>>(),
+    drawn: new Map<IconRoot, Map<string, Artwork>>(),
+    symbols: new Map<string, string>(),
+    sprites: new Map<IconRoot, () => void>(),
+  }
 
-  return () =>
+  function registerIcons(sources: Readonly<Record<RegisteredIconName, string>>): () => void {
+    const parsed = Object.entries(sources).map(([name, source]) => ({name, artwork: parse(name, source)}))
+
     parsed.forEach((entry) => {
-      if (state.artwork.get(entry.name) !== entry.artwork) return
-
-      state.artwork.delete(entry.name)
+      state.artwork.set(entry.name, entry.artwork)
       draw(entry.name)
     })
-}
 
-export function mountRegisteredIcon(name: RegisteredIconName, root: IconRoot): () => void {
-  const names = state.mounted.get(root) ?? new Map<string, number>()
-  const count = names.get(name) ?? 0
+    return () =>
+      parsed.forEach((entry) => {
+        if (state.artwork.get(entry.name) !== entry.artwork) return
 
-  names.set(name, count + 1)
-  state.mounted.set(root, names)
-
-  if (count === 0) draw(name)
-
-  return () => {
-    const left = (names.get(name) ?? 1) - 1
-
-    if (left > 0) return void names.set(name, left)
-
-    names.delete(name)
-    if (names.size === 0 && state.mounted.get(root) === names) state.mounted.delete(root)
-    queueMicrotask(() => {
-      draw(name)
-      if (!state.mounted.has(root)) release(root)
-    })
-  }
-}
-
-function release(root: IconRoot) {
-  state.drawn.delete(root)
-  state.sprites.get(root)?.()
-  state.sprites.delete(root)
-  root.getElementById(spriteID)?.remove()
-}
-
-export function registeredIconSymbol(name: string): string {
-  const existing = state.symbols.get(name)
-
-  if (existing) return existing
-
-  const id = `${spriteID}-${state.symbols.size + 1}`
-
-  state.symbols.set(name, id)
-
-  return id
-}
-
-function draw(name: string) {
-  new Set([...state.mounted.keys(), ...state.drawn.keys()]).forEach((root) => drawIn(root, name))
-}
-
-function drawIn(root: IconRoot, name: string) {
-  const id = registeredIconSymbol(name)
-  const drawn = state.drawn.get(root) ?? new Map<string, Artwork>()
-  const artwork = state.mounted.get(root)?.has(name) ? state.artwork.get(name) : undefined
-  const current = root.getElementById(id)
-
-  if (!artwork) {
-    drawn.delete(name)
-    if (drawn.size === 0) state.drawn.delete(root)
-
-    return void current?.remove()
+        state.artwork.delete(entry.name)
+        draw(entry.name)
+      })
   }
 
-  if (current && drawn.get(name) === artwork) return
+  function mountRegisteredIcon(name: RegisteredIconName, root: IconRoot): () => void {
+    const names = state.mounted.get(root) ?? new Map<string, number>()
+    const count = names.get(name) ?? 0
 
-  drawn.set(name, artwork)
-  state.drawn.set(root, drawn)
+    names.set(name, count + 1)
+    state.mounted.set(root, names)
 
-  const symbol = document.createElementNS(namespace, 'symbol')
+    if (count === 0) draw(name)
 
-  symbol.id = id
-  symbol.setAttribute('viewBox', artwork.viewBox)
-  artwork.attributes.forEach((attribute) =>
-    symbol.setAttributeNS(attribute.namespaceURI, attribute.name, attribute.value),
-  )
-  symbol.append(artwork.content.cloneNode(true))
+    return () => {
+      const left = (names.get(name) ?? 1) - 1
 
-  if (current) return void current.replaceWith(symbol)
+      if (left > 0) return void names.set(name, left)
 
-  sprite(root).append(symbol)
-}
-
-function sprite(root: IconRoot) {
-  const existing = root.getElementById(spriteID)
-
-  if (existing) return existing
-
-  const svg = document.createElementNS(namespace, 'svg')
-
-  svg.id = spriteID
-  svg.setAttribute('aria-hidden', 'true')
-  svg.setAttribute('width', '0')
-  svg.setAttribute('height', '0')
-  svg.style.position = 'absolute'
-  svg.style.overflow = 'hidden'
-  const parent = isDocument(root) ? root.body : root
-  parent.insertBefore(svg, parent.firstChild)
-
-  const settle = (reduced: boolean) => {
-    if (!reduced) return svg.unpauseAnimations()
-
-    svg.pauseAnimations()
-    svg.setCurrentTime(0)
+      names.delete(name)
+      if (names.size === 0 && state.mounted.get(root) === names) state.mounted.delete(root)
+      queueMicrotask(() => {
+        draw(name)
+        if (!state.mounted.has(root)) release(root)
+      })
+    }
   }
 
-  state.sprites.set(
-    root,
-    createRoot((dispose) => {
-      makeMediaQueryListener('(prefers-reduced-motion: reduce)', (event) => settle(event.matches))
+  function release(root: IconRoot) {
+    state.drawn.delete(root)
+    state.sprites.get(root)?.()
+    state.sprites.delete(root)
+    root.getElementById(spriteID)?.remove()
+  }
 
-      return dispose
-    }),
-  )
-  settle(prefersReducedMotion())
+  function registeredIconSymbol(name: string): string {
+    const existing = state.symbols.get(name)
 
-  return svg
+    if (existing) return existing
+
+    const id = `${spriteID}-${state.symbols.size + 1}`
+
+    state.symbols.set(name, id)
+
+    return id
+  }
+
+  function draw(name: string) {
+    new Set([...state.mounted.keys(), ...state.drawn.keys()]).forEach((root) => drawIn(root, name))
+  }
+
+  function drawIn(root: IconRoot, name: string) {
+    const id = registeredIconSymbol(name)
+    const drawn = state.drawn.get(root) ?? new Map<string, Artwork>()
+    const artwork = state.mounted.get(root)?.has(name) ? state.artwork.get(name) : undefined
+    const current = root.getElementById(id)
+
+    if (!artwork) {
+      drawn.delete(name)
+      if (drawn.size === 0) state.drawn.delete(root)
+
+      return void current?.remove()
+    }
+
+    if (current && drawn.get(name) === artwork) return
+
+    drawn.set(name, artwork)
+    state.drawn.set(root, drawn)
+
+    const symbol = document.createElementNS(namespace, 'symbol')
+
+    symbol.id = id
+    symbol.setAttribute('viewBox', artwork.viewBox)
+    artwork.attributes.forEach((attribute) =>
+      symbol.setAttributeNS(attribute.namespaceURI, attribute.name, attribute.value),
+    )
+    symbol.append(artwork.content.cloneNode(true))
+
+    if (current) return void current.replaceWith(symbol)
+
+    sprite(root).append(symbol)
+  }
+
+  function sprite(root: IconRoot) {
+    const existing = root.getElementById(spriteID)
+
+    if (existing) return existing
+
+    const svg = document.createElementNS(namespace, 'svg')
+
+    svg.id = spriteID
+    svg.setAttribute('aria-hidden', 'true')
+    svg.setAttribute('width', '0')
+    svg.setAttribute('height', '0')
+    svg.style.position = 'absolute'
+    svg.style.overflow = 'hidden'
+    const parent = isDocument(root) ? root.body : root
+    parent.insertBefore(svg, parent.firstChild)
+
+    const settle = (reduced: boolean) => {
+      if (!reduced) return svg.unpauseAnimations()
+
+      svg.pauseAnimations()
+      svg.setCurrentTime(0)
+    }
+
+    state.sprites.set(
+      root,
+      createRoot((dispose) => {
+        makeMediaQueryListener('(prefers-reduced-motion: reduce)', (event) => settle(event.matches))
+
+        return dispose
+      }),
+    )
+    settle(prefersReducedMotion())
+
+    return svg
+  }
+
+  return {registerIcons, mountRegisteredIcon, registeredIconSymbol}
 }
 
 function parse(name: string, source: string): Artwork {
@@ -174,7 +184,7 @@ function parse(name: string, source: string): Artwork {
   return {
     viewBox: root.getAttribute('viewBox') ?? frame(name, root),
     attributes: Array.from(root.attributes).filter(
-      (attribute) => !structural.has(attribute.name) && attribute.prefix !== 'xmlns',
+      (attribute) => !structural.includes(attribute.name) && attribute.prefix !== 'xmlns',
     ),
     content,
   }

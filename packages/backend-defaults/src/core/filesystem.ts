@@ -1,5 +1,3 @@
-export * as FileSystem from './filesystem.js'
-
 import {Context, Effect, Layer} from 'effect'
 import {Entry, FindInput} from '../schema/filesystem.js'
 import * as FileSystemSearch from './filesystem/search.js'

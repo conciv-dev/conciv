@@ -1,5 +1,4 @@
-import type {ChatConnectionOptions} from '@conciv/client'
-import type {EngineConnectionTimings} from '@conciv/client'
+import type {ChatConnectionOptions, EngineConnectionTimings} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
 import type {Entry} from '@conciv/frontend-plugin-api/host'
@@ -48,6 +47,7 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
     panelCommandsPromise = import('@conciv/types/event-bus').then((eventBus) =>
       eventBus.createEventBusClient<PanelCommandEventMap>({
         pluginId: eventBus.PANEL_PLUGIN_ID,
+        target: () => window,
         reconnectEveryMs: 500,
         maxRetries: 60,
       }),

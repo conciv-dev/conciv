@@ -108,7 +108,7 @@ Teach the agent new tricks with a plugin. List it in `plugins` (an npm package o
 directory, with options as `['name', {...}]`) or drop it in `conciv/plugins/`, and the engine loads
 it live. A plugin adds agent tools, a result card per tool and panels in the widget, and can be
 added or removed while the app runs. Plugins ship
-with a real test harness: [`@conciv/plugin-testkit`](./packages/plugin-testkit) boots the real
+with a real test harness: [`@conciv/backend-test-utils`](./packages/backend-test-utils) boots the real
 engine with your plugin loaded and a fake model.
 
 Two first-party plugins show what the contracts can do, the whiteboard and test-runner plugins (the built-ins are the page and terminal plugins):
@@ -128,12 +128,11 @@ Two first-party plugins show what the contracts can do, the whiteboard and test-
 
 Install these. Everything else on npm under `@conciv/*` is internal and comes in automatically:
 
-| Package                                                        | What it is                                                                                                  |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| [`@conciv/it`](./packages/it)                                  | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite` (+ webpack/rspack/rollup/esbuild/nextjs).  |
-| [`@conciv/plugin-testkit`](./packages/plugin-testkit)          | Boots the real engine with your plugin loaded and a fake model, for plugin tests through the real contract. |
-| [`@conciv/plugin-test-runner`](./packages/plugins/test-runner) | The test-runner plugin: `plugins: [['@conciv/plugin-test-runner', {runner: 'vitest'}]]`.                    |
-| [`@conciv/try`](./packages/try)                                | `npx @conciv/try --token <t>`: try conciv live on conciv.dev with the agent already on your machine.        |
+| Package                                                        | What it is                                                                                                 |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [`@conciv/it`](./packages/it)                                  | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite` (+ webpack/rspack/rollup/esbuild/nextjs). |
+| [`@conciv/plugin-test-runner`](./packages/plugins/test-runner) | The test-runner plugin: `plugins: [['@conciv/plugin-test-runner', {runner: 'vitest'}]]`.                   |
+| [`@conciv/try`](./packages/try)                                | `npx @conciv/try --token <t>`: try conciv live on conciv.dev with the agent already on your machine.       |
 
 Under the hood (installed automatically by `@conciv/it`):
 

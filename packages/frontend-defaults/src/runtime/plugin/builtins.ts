@@ -1,32 +1,28 @@
 import {compose, type Entry} from '@conciv/frontend-plugin-api/host'
-import page from '@conciv/plugin-page/renderer'
-import terminal from '@internal/plugin-terminal/client'
 import type {Plugin} from '@conciv/frontend-plugin-api'
 import {GrabPicker} from '@conciv/frontend-plugin-api/grab'
-import {BUILTINS_UPDATED} from '@internal/frontend-app-api/plugin/hmr'
+import type {ToolGroup} from '@internal/frontend-app-api'
 import {useHostApis} from './host-apis-context'
+
+export type DeclaredToolGroup = ToolGroup & {readonly plugin: string}
+
+export type BuiltinPlugins = {
+  readonly entries: readonly Entry[]
+  readonly engineHalf: readonly string[]
+  readonly toolGroups?: readonly DeclaredToolGroup[]
+}
 
 const provideGrab: Plugin.Setup = (ctx) => {
   const provider = useHostApis().grabProvider
   if (provider) ctx.add(GrabPicker, provider())
 }
 
-function staticEntry({setup, ...declarations}: Plugin.Definition): Omit<Entry, 'id'> {
-  return {...declarations, windowEntry: setup && (() => Promise.resolve({default: setup}))}
+const shellBuiltins = compose({grab: {windowEntry: () => Promise.resolve({default: provideGrab})}})
+
+export function withShellBuiltins(builtins: BuiltinPlugins | undefined): BuiltinPlugins {
+  return {
+    entries: [...shellBuiltins, ...(builtins?.entries ?? [])],
+    engineHalf: builtins?.engineHalf ?? [],
+    toolGroups: builtins?.toolGroups ?? [],
+  }
 }
-
-export const builtins = compose({
-  grab: {windowEntry: () => Promise.resolve({default: provideGrab})},
-  terminal: staticEntry(terminal),
-  'conciv.page': staticEntry(page),
-})
-
-export const BUILTINS_WITH_ENGINE_HALF: ReadonlySet<string> = new Set(['conciv.page'])
-
-if (import.meta.hot)
-  import.meta.hot.accept('@internal/plugin-terminal/client', (module) => {
-    if (module)
-      window.dispatchEvent(
-        new CustomEvent(BUILTINS_UPDATED, {detail: compose({terminal: staticEntry(module.default)})}),
-      )
-  })

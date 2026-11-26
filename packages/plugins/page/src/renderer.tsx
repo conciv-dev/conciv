@@ -20,7 +20,7 @@ import {CONCIV_UI_SELECTOR} from './conciv-ui.js'
 import {addRef, type Refs} from './snapshot.js'
 import {dehydrate} from './dehydrate.js'
 import {describe, installReactBridge, locate, makeTracker, reactBridge, rootFibers} from './react.js'
-import {disposeReactGrab, grabApi} from './grab.js'
+import {createReactGrab} from './grab.js'
 import {makeGrabNotePicker} from './grab-note.js'
 import {GrabNoteCard} from './grab-card.js'
 import {GRAB_NOTE_ORIGIN} from './rpc.js'
@@ -32,7 +32,6 @@ export default Plugin.define({
   enforce: 'pre',
   beforeRegister: installReactBridge,
   setup(ctx) {
-    const {taskTimeoutMs} = PageOptionsSchema.parse(ctx.options)
     const connectionId = crypto.randomUUID()
     const tabId = `tab_${crypto.randomUUID()}`
     const routed = () => ctx.sessions.current()
@@ -51,7 +50,7 @@ export default Plugin.define({
       makeSimulator({
         session: () => routed()?.id ?? null,
         running: (sessionId) => routed()?.id === sessionId && routed()?.run.status() === 'running',
-        taskTimeoutMs,
+        taskTimeoutMs: () => PageOptionsSchema.parse(ctx.options).taskTimeoutMs,
         onStop: (sessionId) => {
           const session = routed()
 
@@ -135,9 +134,10 @@ export default Plugin.define({
         }),
       ),
     )
+    const grab = createReactGrab()
     ctx.add(
       GrabPicker,
-      makeGrabNotePicker(grabApi, {
+      makeGrabNotePicker(grab.api, {
         session: routed,
         screen: ctx.screen,
         symbolicate: (input) => symbolicate(input.frames),
@@ -151,14 +151,14 @@ export default Plugin.define({
       toast: (message, tone) =>
         void ctx.toast.show({title: message, variant: tone === 'error' || tone === 'success' ? tone : 'default'}),
       capture: {exclude: CONCIV_UI_SELECTOR, plugins: capturePlugins},
-      pick: () => grabApi.comment(),
+      pick: () => grab.api.comment(),
       symbolicate: (input) => symbolicate(input.frames),
     })
     ctx.provide(ReactTree, makeReactTree())
 
     return () => {
       operations.dispose()
-      disposeReactGrab()
+      grab.dispose()
     }
   },
 })

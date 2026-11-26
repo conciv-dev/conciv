@@ -1,9 +1,7 @@
-export * as SessionErrors from './error.js'
-
 import {Schema} from 'effect'
-import {Agent} from '@conciv/protocol/schema/agent'
-import {Session} from '@conciv/protocol/schema/session'
-import {SessionMessage} from '@conciv/protocol/schema/session-message'
+import * as Agent from '@conciv/protocol/schema/agent'
+import * as Session from '@conciv/protocol/schema/session'
+import * as SessionMessage from '@conciv/protocol/schema/session-message'
 
 export const NotFoundError = Schema.TaggedStruct('Session.NotFoundError', {
   sessionId: Session.Id,

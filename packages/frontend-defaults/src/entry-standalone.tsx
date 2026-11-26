@@ -1,17 +1,16 @@
 import {render} from 'solid-js/web'
-import {ConcivApp, openBrowserDraftStore} from './frontend-defaults.js'
+import {ConcivApp, createBrowserEngine, openBrowserDraftStore} from './frontend-defaults.js'
 import {readSettingsInit} from './data/settings.js'
 
-const params = new URLSearchParams(window.location.search)
-const core = params.get('core') ?? ''
-const root = document.getElementById('app')
-
-if (root)
+function start(root: HTMLElement): void {
+  const params = new URLSearchParams(window.location.search)
+  const engine = createBrowserEngine({apiBase: params.get('core') ?? ''})
   render(
     () => (
       <ConcivApp
         platform={{
-          engine: () => ({kind: 'bound', apiBase: core}),
+          engine: engine.engine,
+          connect: engine.connect,
           navigation: 'browser',
           root: document,
           settings: readSettingsInit(params.get('settings') ?? ''),
@@ -21,3 +20,7 @@ if (root)
     ),
     root,
   )
+}
+
+const root = document.getElementById('app')
+if (root) start(root)

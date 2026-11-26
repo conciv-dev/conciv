@@ -1,5 +1,3 @@
-export * as Project from './project.js'
-
 import {Schema} from 'effect'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
 import {ProjectId} from '@conciv/protocol/schema/project-id'

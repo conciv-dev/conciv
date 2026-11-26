@@ -2,13 +2,17 @@ import {execFile} from 'node:child_process'
 import {relative} from 'node:path'
 import {promisify} from 'node:util'
 import {fileURLToPath} from 'node:url'
-import {describe, test} from 'vitest'
+import {describe} from 'vitest'
+import {test} from '@conciv/backend-test-utils'
 import {z} from 'zod'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
+import {TestLLM} from '@conciv/backend-test-utils'
 import {humanSourceComment} from '../utils/human-source-comment.js'
 
 describe.concurrent('the agent is told about the whiteboard', () => {
-  test('the model request lists the whiteboard skill and the whiteboard tool namespace', async ({expect}) => {
+  test('the model request lists the whiteboard skill and the whiteboard tool namespace', async ({
+    createEngine,
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
     await engine.reply(TestLLM.text('I can draw that on the whiteboard'))
     await engine.session.send('Sketch the login flow')
@@ -28,6 +32,7 @@ describe.concurrent('the agent is told about the whiteboard', () => {
 
 describe.concurrent('the agent works a comment thread on the board', () => {
   test('a comment takes a reply, reads back with its thread, lists alone, its pin moves and floats, and resolving and deleting ask the user first; deleting a reply keeps the thread, deleting the root takes its pin', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
@@ -75,6 +80,29 @@ describe.concurrent('the agent works a comment thread on the board', () => {
     expect(await engine.session.tool('whiteboard_comment_list').call({})).toMatchObject({
       comments: [{cid: 'hero-note'}],
     })
+    const human = {
+      ...humanSourceComment('human-answer', {anchor: null, anchorFile: null, anchorComponent: null, anchorHash: null}),
+      threadId: 'hero-note',
+      parentId: 'hero-note',
+      kind: 'floating',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      parts: [
+        {type: 'text', text: 'On it '},
+        {type: 'mention', id: 'claude-test', label: 'claude-test'},
+      ],
+    }
+    await engine.rpc.call('whiteboard', 'comments.insert', {room, row: human})
+    expect(await engine.session.tool('whiteboard_comment_read').call({cid: 'hero-note'})).toMatchObject({
+      replies: [
+        {cid: reply.cid},
+        {
+          authorKind: 'human',
+          parts: expect.arrayContaining([expect.objectContaining({type: 'mention', label: 'claude-test'})]),
+        },
+      ],
+    })
+    expect(await engine.rpc.call('whiteboard', 'comments.remove', {room, id: human.id})).toEqual({deleted: true})
     expect(await engine.session.tool('whiteboard_comment_list').call({status: 'resolved'})).toEqual({comments: []})
     expect(await engine.session.tool('whiteboard_comment_read').failure({cid: 'no-such-note'})).toMatchObject({
       message: expect.stringContaining('comment no-such-note not found'),
@@ -130,6 +158,7 @@ describe.concurrent('the agent works a comment thread on the board', () => {
 
 describe.concurrent('a source-linked comment follows its element as the code changes', () => {
   test('the agent finds a component, anchors a comment to it, and the anchor reads fresh, moved, ambiguous, then orphaned or drifted', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
@@ -277,6 +306,7 @@ describe.concurrent('a source-linked comment follows its element as the code cha
 
 describe.concurrent('in a git project a source-linked comment records the commit it was made on', () => {
   test('the anchor records HEAD, and after a committed edit moves the element it reads moved at its new line', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']}, {git: true})
@@ -325,7 +355,10 @@ describe.concurrent('in a git project a source-linked comment records the commit
 })
 
 describe.concurrent('a human comment on a source element gets its source details from the engine', () => {
-  test('a human comment that names only a file and line is given its component, snippet and hash', async ({expect}) => {
+  test('a human comment that names only a file and line is given its component, snippet and hash', async ({
+    createEngine,
+    expect,
+  }) => {
     const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
     const room = engine.session.id
     await engine.write(
@@ -373,6 +406,7 @@ describe.concurrent('a human comment on a source element gets its source details
 
 describe.concurrent('a draft left when a turn ends is sent to be published', () => {
   test('the turn ends with a draft on the board and the engine queues one commit for the canvas, never a second', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
@@ -398,6 +432,7 @@ describe.concurrent('a draft left when a turn ends is sent to be published', () 
 
 describe.concurrent('anchors never leak secrets or reach outside the project', () => {
   test('a snippet has its secrets redacted, a secret file keeps no snippet, and a file outside the project is not read', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
@@ -459,7 +494,8 @@ describe.concurrent('anchors never leak secrets or reach outside the project', (
 })
 
 describe.concurrent('with no canvas open, the canvas tools answer without waiting on one', () => {
-  test('preview and commit have nothing to work on, drawing and png export fail, bad svg and oversized diagrams are refused', async ({
+  test('preview and commit have nothing to work on, drawing and png export fail, bad svg and oversized diagrams are refused, a commit with no tab times out and keeps its draft, update, delete and read work on the published board, and a draw a canvas tab takes is pending and its commit after the tab left times out and keeps the draft', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({
@@ -506,11 +542,84 @@ describe.concurrent('with no canvas open, the canvas tools answer without waitin
         mermaid: ['graph TD', ...Array.from({length: 501}, (_, edge) => `A${edge} --> B${edge}`)].join('\n'),
       }),
     ).toMatchObject({message: expect.stringContaining('diagram exceeds 500 edges')})
+
+    const room = engine.session.id
+    await engine.rpc.call('whiteboard', 'elements.upsert', {
+      room,
+      scope: 'draft',
+      row: {elementId: 'draft-box', data: {type: 'rectangle', x: 0, y: 0, width: 80, height: 40}, version: 1},
+    })
+    expect(await engine.session.tool('whiteboard_canvas_commit').failure({})).toMatchObject({
+      message: expect.stringContaining('commit timed out: no canvas tab is connected to perform it'),
+    })
+    expect(await engine.session.tool('whiteboard_canvas_read').call({scope: 'draft'})).toMatchObject({
+      scope: 'draft',
+      elements: [{type: 'rectangle'}],
+    })
+    expect(await engine.session.tool('whiteboard_canvas_discard').call({})).toEqual({discarded: 1})
+
+    await engine.rpc.call('whiteboard', 'elements.bulkUpsert', {
+      room,
+      scope: 'live',
+      rows: [
+        {elementId: 'cart', data: {id: 'cart', type: 'rectangle', x: 0, y: 0}, version: 1},
+        {elementId: 'pay', data: {id: 'pay', type: 'rectangle', x: 240, y: 0}, version: 1},
+        {elementId: 'cart-pay', data: {id: 'cart-pay', type: 'arrow', x: 120, y: 30}, version: 1},
+      ],
+    })
+    expect(
+      await engine.session
+        .tool('whiteboard_canvas_update')
+        .call({elementId: 'cart', patch: {backgroundColor: '#ffc9c9'}}),
+    ).toEqual({updated: true})
+    expect(await engine.session.tool('whiteboard_canvas_update').call({elementId: 'gone', patch: {x: 1}})).toEqual({
+      updated: false,
+    })
+    const [deleted] = await Promise.all([
+      engine.session.tool('whiteboard_canvas_delete').call({elementId: 'pay'}),
+      engine.session.approve(),
+    ])
+    expect(deleted).toEqual({deleted: 'pay'})
+    const live = await engine.session.tool('whiteboard_canvas_read').call({scope: 'live'})
+    expect(live).toHaveProperty('elements.length', 2)
+    expect(live).toMatchObject({
+      scope: 'live',
+      elements: expect.arrayContaining([
+        expect.objectContaining({id: 'cart', backgroundColor: '#ffc9c9'}),
+        expect.objectContaining({type: 'arrow'}),
+      ]),
+    })
+
+    const withTab = await createEngine({
+      plugins: [['@internal/plugin-whiteboard', {drawDeadlineMs: 10_000, commitDeadlineMs: 50}]],
+    })
+    const board = withTab.session.id
+    const box = {type: 'rectangle', x: 0, y: 0, width: 80, height: 40}
+    const asked = await withTab.event('rpc.whiteboard.changed', {
+      data: {room: board, table: 'canvasPending', type: 'upsert'},
+    })
+    const drawn = withTab.session.tool('whiteboard_canvas_draw').call({elements: [{...box, id: 'tab-box'}]})
+    const {key} = z.object({key: z.string()}).parse((await asked.arrived).data)
+    expect(await withTab.rpc.call('whiteboard', 'canvasPending.claim', {room: board, id: key})).toEqual({claimed: true})
+    await withTab.rpc.call('whiteboard', 'elements.upsert', {
+      room: board,
+      scope: 'draft',
+      row: {elementId: 'tab-box', data: {...box, id: 'tab-box'}, version: 1},
+    })
+    await withTab.rpc.call('whiteboard', 'canvasPending.remove', {room: board, id: key})
+    expect(await drawn).toHaveProperty('pending')
+    expect(await withTab.session.tool('whiteboard_canvas_commit').failure({})).toMatchObject({
+      message: expect.stringContaining('commit timed out: no canvas tab is connected to perform it'),
+    })
+    expect(await withTab.session.tool('whiteboard_canvas_read').call({scope: 'draft'})).toMatchObject({
+      scope: 'draft',
+      elements: [{id: 'tab-box', type: 'rectangle'}],
+    })
   })
 })
 
 describe.concurrent('the board lives in the engine state', () => {
-  test('comments and canvas elements are still there after the engine restarts', async ({expect}) => {
+  test('comments and canvas elements are still there after the engine restarts', async ({createEngine, expect}) => {
     const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})
     const room = engine.session.id
     await engine.session.tool('whiteboard_comment_create').call({
@@ -541,6 +650,7 @@ describe.concurrent('the board lives in the engine state', () => {
 
 describe.concurrent("a canvas tab keeps the board through the plugin's rpc", () => {
   test('rows are written, read, conflicted, claimed and removed, each change is announced and since replays them', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine({plugins: ['@internal/plugin-whiteboard']})

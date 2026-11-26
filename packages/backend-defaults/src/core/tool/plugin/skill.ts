@@ -1,11 +1,9 @@
-export * as SkillTool from './skill.js'
-
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import {makeToolFailure} from '@conciv/backend-app-api/ai/effect'
 import {Effect, Schema} from 'effect'
 import {FSUtil} from '@conciv/backend-app-api/util/fs-util'
-import {Skill} from '@conciv/backend-app-api/core/skill'
-import {Permission} from '@conciv/backend-app-api/core/permission'
+import * as Skill from '@conciv/backend-app-api/core/skill'
+import * as Permission from '@conciv/backend-app-api/core/permission'
 
 export const name = 'skill'
 

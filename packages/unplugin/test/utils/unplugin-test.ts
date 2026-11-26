@@ -16,7 +16,9 @@ import {tempDir} from '@internal/vitest-config/temp-dir'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
 import type {ConcivConfig} from '@conciv/types/config-types'
 import {concivStateDir} from '@conciv/types/state-types'
-import {makeBrowserRpcClient, type BrowserRpcClient} from '@conciv/client'
+import {makeBrowserEngineConnection, makeEngineRpcClient, type RpcClient} from '@conciv/client'
+
+type BrowserRpcClient = {rpc: RpcClient; close: () => void}
 
 type Engine = ChildProcessByStdio<null, Readable, Readable>
 type Hung = {engine: Engine; lines: AsyncIterator<string>}
@@ -28,9 +30,10 @@ function startHung(deadline: number): Hung {
     join(import.meta.dirname, '..', '..', 'src', 'core', 'shutdown-deadline.ts'),
   ).href
   const program = [
-    `import {install, track} from ${JSON.stringify(deadlineModule)}`,
-    `install(${deadline})`,
-    "track('conciv engine stopping')",
+    `import {createShutdownTracker, install} from ${JSON.stringify(deadlineModule)}`,
+    'const tracker = createShutdownTracker()',
+    `install(tracker, ${deadline})`,
+    "tracker.track('conciv engine stopping')",
     'process.on("SIGTERM", () => {',
     `  setTimeout(() => process.exit(0), ${deadline * 10})`,
     "  console.log('SIGTERM_SEEN')",
@@ -273,7 +276,8 @@ export const test = base.extend<UnpluginFixtures>({
   browser: async ({task: _task}, use) => {
     const clients: BrowserRpcClient[] = []
     await use((url, token) => {
-      const client = makeBrowserRpcClient(url, {token})
+      const connection = makeBrowserEngineConnection(url, {token})
+      const client = {rpc: makeEngineRpcClient(() => connection), close: connection.dispose}
       clients.push(client)
       return client
     })

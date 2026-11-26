@@ -1,5 +1,5 @@
-import {describe, test} from 'vitest'
-import {createEngine} from '@conciv/plugin-testkit'
+import {describe} from 'vitest'
+import {test} from '../utils/engine-test.js'
 
 describe.concurrent('server tools', () => {
   test.for([
@@ -9,19 +9,25 @@ describe.concurrent('server tools', () => {
     {tool: 'server_graph', input: {file: 'src/main.ts'}},
     {tool: 'server_transform', input: {url: '/src/main.ts'}},
     {tool: 'server_restart', input: {}},
-  ])('with no dev server attached $tool answers that none is attached', async ({tool, input}, {expect}) => {
-    const engine = await createEngine()
+  ])(
+    'with no dev server attached $tool answers that none is attached',
+    async ({tool, input}, {createEngine, expect}) => {
+      const engine = await createEngine()
 
-    const failure = await engine.session.tool(tool).failure(input)
+      const failure = await engine.session.tool(tool).failure(input)
 
-    expect(JSON.parse(failure.message)).toEqual(
-      expect.objectContaining({
-        error: expect.objectContaining({message: expect.stringContaining('no dev server is attached to conciv')}),
-      }),
-    )
-  })
+      expect(JSON.parse(failure.message)).toEqual(
+        expect.objectContaining({
+          error: expect.objectContaining({message: expect.stringContaining('no dev server is attached to conciv')}),
+        }),
+      )
+    },
+  )
 
-  test('with no dev server attached the server rpc answers with its declared unavailable error', async ({expect}) => {
+  test('with no dev server attached the server rpc answers with its declared unavailable error', async ({
+    createEngine,
+    expect,
+  }) => {
     const engine = await createEngine()
 
     expect(await engine.rpc.failure('server', 'config')).toEqual({
@@ -32,6 +38,7 @@ describe.concurrent('server tools', () => {
   })
 
   test('the server rpc open sends the file to the editor, with the column only when a line is given', async ({
+    createEngine,
     expect,
   }) => {
     const engine = await createEngine()

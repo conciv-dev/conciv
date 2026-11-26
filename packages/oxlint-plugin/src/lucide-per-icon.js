@@ -11,9 +11,7 @@ function kebabCase(name) {
     .toLowerCase()
 }
 
-const resolutionCache = new Map()
-
-function resolvesOnDisk(filename, iconPath) {
+function resolvesOnDisk(resolutionCache, filename, iconPath) {
   const cacheKey = `${dirname(filename)}::${iconPath}`
   const cached = resolutionCache.get(cacheKey)
   if (cached !== undefined) return cached
@@ -68,8 +66,8 @@ function iconImportPath(specifier) {
   return `${LUCIDE_MODULE}/icons/${kebabCase(importedName(specifier))}`
 }
 
-function unresolvedSpecifier(filename, valueSpecifiers) {
-  return valueSpecifiers.find((specifier) => !resolvesOnDisk(filename, iconImportPath(specifier)))
+function unresolvedSpecifier(resolutionCache, filename, valueSpecifiers) {
+  return valueSpecifiers.find((specifier) => !resolvesOnDisk(resolutionCache, filename, iconImportPath(specifier)))
 }
 
 function valueImportLines(valueSpecifiers) {
@@ -101,18 +99,18 @@ function reportUnresolved(node, context, blocker) {
   })
 }
 
-function reportBlockedOrResolved(node, context, valueSpecifiers, typeSpecifiers) {
-  const blocker = unresolvedSpecifier(context.filename, valueSpecifiers)
+function reportBlockedOrResolved(node, context, resolutionCache, valueSpecifiers, typeSpecifiers) {
+  const blocker = unresolvedSpecifier(resolutionCache, context.filename, valueSpecifiers)
   if (blocker === undefined) reportResolved(node, context, valueSpecifiers, typeSpecifiers)
   else reportUnresolved(node, context, blocker)
 }
 
-function reportBarrelImport(node, context) {
+function reportBarrelImport(node, context, resolutionCache) {
   if (node.source.value !== LUCIDE_MODULE) return
   if (isTypeOnlyDeclaration(node)) return
   const {valueSpecifiers, typeSpecifiers} = splitSpecifiers(node)
   if (valueSpecifiers.length === 0) return
-  reportBlockedOrResolved(node, context, valueSpecifiers, typeSpecifiers)
+  reportBlockedOrResolved(node, context, resolutionCache, valueSpecifiers, typeSpecifiers)
 }
 
 export default {
@@ -128,9 +126,10 @@ export default {
     schema: [],
   },
   createOnce(context) {
+    const resolutionCache = new Map()
     return {
       ImportDeclaration(node) {
-        reportBarrelImport(node, context)
+        reportBarrelImport(node, context, resolutionCache)
       },
     }
   },

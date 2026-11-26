@@ -3,17 +3,29 @@ import {page, userEvent as browserInput} from 'vitest/browser'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {resolveModifier} from '@tanstack/hotkeys'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+import {ORPCError} from '@orpc/client'
+import {createFakeEngine, FakeLLM, type FakeSession} from '@conciv/client/testing'
 import {pastSessions} from '../fixtures/past-sessions.js'
+import {mountShell, shellEngine} from '../utils/mount-shell.js'
+import {
+  addSession,
+  forgetQuickHeight,
+  pagedList,
+  pagedPreview,
+  reportsUsage,
+  sessionRow,
+  textMessage,
+  titleSentSession,
+  twoHarnesses,
+} from '../utils/sessions-engine.js'
 
 describe('find and switch sessions', () => {
   test('the user searches the sessions, switches to one and starts a new one', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine()
-    await engine.newSession('Alpha')
-    await engine.newSession('Beta')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = shellEngine()
+    await addSession(engine, 'Alpha')
+    await addSession(engine, 'Beta')
+    await mountShell({engine})
 
     await user.click(await screen.findByRole('button', {name: 'Beta, session options'}))
     await user.click(await screen.findByRole('button', {name: 'Session: Beta'}))
@@ -47,7 +59,7 @@ describe('find and switch sessions', () => {
     await user.click(await screen.findByRole('button', {name: 'New session'}))
     expect(await screen.findByText('Started a new session')).toBeVisible()
 
-    await engine.newSession('Gamma')
+    await addSession(engine, 'Gamma')
     await user.click(await screen.findByRole('button', {name: 'New session, session options'}))
     await user.click(await screen.findByRole('button', {name: 'Session: New session'}))
     expect(await screen.findByRole('option', {name: /^Gamma, Edited/})).toBeVisible()
@@ -57,10 +69,10 @@ describe('find and switch sessions', () => {
 describe('a run in the list', () => {
   test('the picker marks the running session and names each harness, the user starts a new session, previews the running one, and hears the reply finish as the row stops running', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine({}, {harnesses: [{id: 'alpha'}, {id: 'beta'}]})
-    await engine.reply(TestLLM.text('Done'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = shellEngine(createFakeEngine({handlers: {meta: twoHarnesses()}}))
+    const gate = engine.gate()
+    engine.reply(FakeLLM.text('Done'))
+    await mountShell({engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Keep going')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -71,6 +83,7 @@ describe('a run in the list', () => {
     expect(await screen.findByRole('option', {name: /, Edited .* · alpha, running$/})).toBeVisible()
     await user.click(await screen.findByRole('button', {name: 'New session'}))
     expect(await screen.findByText('Started a new session')).toBeVisible()
+    await titleSentSession(engine, 'Keep going')
     expect(await screen.findByRole('button', {name: 'New session, session options'})).toBeVisible()
 
     await user.click(screen.getByRole('button', {name: 'New session, session options'}))
@@ -87,7 +100,7 @@ describe('a run in the list', () => {
 
     await user.keyboard('{Escape}')
     await expect.element(page.getByRole('dialog', {name: 'Preview of Keep going', exact: true})).not.toBeInTheDocument()
-    await gate.release()
+    gate.release()
     expect(await screen.findByText('conciv replied.')).toBeVisible()
     expect(await screen.findByRole('option', {name: /^Keep going, Edited .* · alpha$/})).toBeVisible()
   })
@@ -96,23 +109,23 @@ describe('a run in the list', () => {
 describe('paging the list', () => {
   test('the user moves past the first page of sessions and the next page loads', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = await createEngine(
-      {},
-      {
-        harnesses: [
-          {
-            id: 'engine',
-            sessions: Array.from({length: 31}, (_, offset) => ({
-              id: `paged-${offset + 1}`,
-              derivedTitle: `Session ${offset + 1}`,
-              updatedAt: Date.now() - (31 - offset) * 1000,
-              messages: [],
-            })),
+    const rows: FakeSession[] = [
+      {id: 'ses_pagednew'},
+      ...Array.from({length: 31}, (_, offset) => ({id: `ses_paged${31 - offset}`, title: `Session ${31 - offset}`})),
+    ]
+    const engine = shellEngine(
+      createFakeEngine({
+        sessions: rows,
+        handlers: {
+          sessions: {
+            list: pagedList(
+              rows.map((row, index) => sessionRow(row.id, row.title ?? 'New session', rows.length - index)),
+            ),
           },
-        ],
-      },
+        },
+      }),
     )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine})
 
     await user.click(await screen.findByRole('button', {name: 'New session, session options'}))
     await user.click(await screen.findByRole('button', {name: 'Session: New session'}))
@@ -130,10 +143,10 @@ describe('paging the list', () => {
 describe('swap a quick pane’s session', () => {
   test('the user picks another session from a quick pane’s pill', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.newSession('Alpha')
-    await engine.newSession('Beta')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/quick']})})
+    const engine = shellEngine()
+    await addSession(engine, 'Alpha')
+    await addSession(engine, 'Beta')
+    await mountShell({engine, initialEntries: ['/quick']})
 
     const terminal = await screen.findByRole('dialog', {name: 'conciv quick terminal'})
     await user.click(await within(terminal).findByRole('button', {name: 'Session: Beta'}))
@@ -147,13 +160,14 @@ describe('swap a quick pane’s session', () => {
 describe('preview a session', () => {
   test('the user highlights an earlier session, reads its thread in the preview, moves between the thread and the search with the Alt arrows and closes it with Escape', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('The plan has three steps'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = shellEngine()
+    engine.reply(FakeLLM.text('The plan has three steps'))
+    await mountShell({engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Show me the plan')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     expect(await screen.findByText('conciv replied.')).toBeVisible()
+    await titleSentSession(engine, 'Show me the plan')
 
     await user.click(await screen.findByRole('button', {name: 'Show me the plan, session options'}))
     await user.click(await screen.findByRole('button', {name: 'Session: Show me the plan'}))
@@ -187,10 +201,20 @@ describe('preview a session', () => {
 describe('preview a session that has no messages', () => {
   test('the user highlights a session nobody wrote in and the preview says it couldn’t load the session, with a Retry', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.newSession('Alpha')
-    await engine.newSession('Beta')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = shellEngine(
+      createFakeEngine({
+        handlers: {
+          sessions: {
+            preview: () => {
+              throw new ORPCError('NOT_FOUND', {message: 'session not found'})
+            },
+          },
+        },
+      }),
+    )
+    await addSession(engine, 'Alpha')
+    await addSession(engine, 'Beta')
+    await mountShell({engine})
 
     await user.click(await screen.findByRole('button', {name: 'Beta, session options'}))
     await user.click(await screen.findByRole('button', {name: 'Session: Beta'}))
@@ -215,14 +239,8 @@ describe('past sessions the CLI started', () => {
     onTestFinished(() => {
       vi.useRealTimers()
     })
-    const engine = await createEngine({}, pastSessions())
-    await engine.newSession('Alpha')
-    await mount({
-      engine,
-      history: createEngineRouterHistory({
-        initialEntries: ['/panel/latest?open=true&sessionSearch=checkout&allProjects=true'],
-      }),
-    })
+    const engine = shellEngine(createFakeEngine(pastSessions()))
+    await mountShell({engine, initialEntries: ['/panel/latest?open=true&sessionSearch=checkout&allProjects=true']})
 
     await user.click(await screen.findByRole('button', {name: 'Alpha, session options'}))
     await user.click(await screen.findByRole('button', {name: 'Session: Alpha'}))
@@ -305,28 +323,17 @@ describe('past sessions the CLI started', () => {
 describe('a long past session in the preview', () => {
   test('the user previews the newest page, moves into the thread with Alt+ArrowRight, goes to its start and the earlier messages load', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine(
-      {},
-      {
-        harnesses: [
-          {
-            id: 'engine',
-            sessions: [
-              {
-                id: 'past-migration',
-                derivedTitle: 'Plan the migration',
-                updatedAt: Date.now() - 60 * 60 * 1000,
-                messages: Array.from({length: 25}, (_, index) => index + 1).flatMap((number) => [
-                  {id: `question-${number}`, role: 'user', parts: [{type: 'text', content: `Question ${number}`}]},
-                  {id: `answer-${number}`, role: 'assistant', parts: [{type: 'text', content: `Answer ${number}`}]},
-                ]),
-              },
-            ],
-          },
-        ],
-      },
+    const messages = Array.from({length: 25}, (_, index) => index + 1).flatMap((number) => [
+      textMessage(`question-${number}`, 'user', `Question ${number}`),
+      textMessage(`answer-${number}`, 'assistant', `Answer ${number}`),
+    ])
+    const engine = shellEngine(
+      createFakeEngine({
+        sessions: [{id: 'ses_migrationnew'}, {id: 'ses_pastmigration', title: 'Plan the migration', messages}],
+        handlers: {sessions: {preview: pagedPreview(messages)}},
+      }),
     )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine})
 
     await user.click(await screen.findByRole('button', {name: 'New session, session options'}))
     await user.click(await screen.findByRole('button', {name: 'Session: New session'}))
@@ -353,10 +360,10 @@ describe('a long past session in the preview', () => {
 describe('open the chat', () => {
   test('the launcher opens the chat on the newest session', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.newSession('Older')
-    await engine.newSession('Newest')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/']})})
+    const engine = shellEngine()
+    await addSession(engine, 'Older')
+    await addSession(engine, 'Newest')
+    await mountShell({engine, initialEntries: ['/']})
 
     await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
 
@@ -367,10 +374,10 @@ describe('open the chat', () => {
 describe('the launcher while a run works', () => {
   test('the launcher says it is busy until the reply finishes', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Finished'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/']})})
+    const engine = shellEngine()
+    const gate = engine.gate()
+    engine.reply(FakeLLM.text('Finished'))
+    await mountShell({engine, initialEntries: ['/']})
 
     await user.click(await screen.findByRole('button', {name: 'Open conciv chat', busy: false}))
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Run something long')
@@ -381,7 +388,7 @@ describe('the launcher while a run works', () => {
     expect(await screen.findByRole('button', {name: 'Open conciv chat', busy: true})).toBeVisible()
     expect(screen.queryByRole('button', {name: 'Open conciv chat', busy: false})).not.toBeInTheDocument()
 
-    await gate.release()
+    gate.release()
     expect(await screen.findByRole('button', {name: 'Open conciv chat', busy: false})).toBeVisible()
     expect(screen.queryByRole('button', {name: 'Open conciv chat', busy: true})).not.toBeInTheDocument()
   })
@@ -390,14 +397,11 @@ describe('the launcher while a run works', () => {
 describe('the launcher while a run waits', () => {
   test('the launcher tells the user a run waits for their Allow', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_release_ship({branch: 'main'})",
-      }),
-      TestLLM.text('Done'),
+    const engine = shellEngine(
+      createFakeEngine({tools: {release_ship: {ask: {title: 'release_ship main', always: true}}}}),
     )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/']})})
+    engine.reply(FakeLLM.toolCall('c1', 'release_ship', {branch: 'main'}, {shipped: true}), FakeLLM.text('Done'))
+    await mountShell({engine, initialEntries: ['/']})
 
     await user.click(await screen.findByRole('button', {name: 'Open conciv chat'}))
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship main')
@@ -419,10 +423,10 @@ describe('the launcher while a run waits', () => {
 describe('a run fails with a message queued', () => {
   test('the queued message goes back to the composer when the reply fails', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.failAfter(new Error('The model is unavailable')))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = shellEngine()
+    const gate = engine.gate()
+    engine.reply(FakeLLM.failAfter(new Error('The model is unavailable')))
+    await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'First task')
@@ -434,7 +438,7 @@ describe('a run fails with a message queued', () => {
     await user.keyboard('{Enter}')
     expect(await screen.findByText('1 waiting · runs in order')).toBeVisible()
 
-    await gate.release()
+    gate.release()
     expect(await screen.findByRole('alert', {name: 'The model is unavailable'})).toBeVisible()
     expect(await within(input).findByText('Second task')).toBeVisible()
     expect(screen.queryByText('1 waiting · runs in order')).not.toBeInTheDocument()
@@ -445,9 +449,9 @@ describe('quick terminal', () => {
   test('the user opens the quick terminal on the latest session with the hotkey, splits it with Mod+D, closes one of the two panes, closes it with the hotkey, and reopens it to split and close it with the buttons', async () => {
     const mod = resolveModifier('Mod')
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.newSession('Latest work')
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/']})})
+    const engine = shellEngine()
+    await addSession(engine, 'Latest work')
+    await mountShell({engine, initialEntries: ['/']})
 
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     expect(document.body).toHaveFocus()
@@ -489,8 +493,8 @@ describe('quick terminal', () => {
 describe('quick terminal height', () => {
   test('the user resizes the quick terminal from the keyboard down to its floor', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/quick']})})
+    forgetQuickHeight()
+    await mountShell({engine: shellEngine(), initialEntries: ['/quick']})
 
     const handle = await screen.findByRole('separator', {name: 'Resize quick terminal height', value: {now: 416}})
     expect(handle).toBeVisible()
@@ -521,12 +525,8 @@ describe('quick terminal height', () => {
   })
 
   test('the quick terminal opens at the height the user left it', async () => {
-    const engine = await createEngine()
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: ['/quick']}),
-      seed: {storage: {'conciv-qt-height': '300'}},
-    })
+    forgetQuickHeight('300')
+    await mountShell({engine: shellEngine(), initialEntries: ['/quick']})
 
     expect(
       await screen.findByRole('separator', {name: 'Resize quick terminal height', value: {now: 300}}),
@@ -542,12 +542,7 @@ describe('the host turns the quick terminal off', () => {
 
   test('the quick terminal route and hotkey do nothing', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: ['/quick']}),
-      host: {quickTerminal: false},
-    })
+    await mountShell({engine: shellEngine(), initialEntries: ['/quick'], settings: {quickTerminal: false}})
 
     const launcher = await screen.findByRole('button', {name: 'Open conciv chat'})
     expect(launcher).toBeVisible()
@@ -564,12 +559,7 @@ describe('the host turns the quick terminal off', () => {
 
   test('the host moves the quick terminal to its own hotkey', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: ['/']}),
-      host: {quickTerminal: {hotkey: 'Mod+K'}},
-    })
+    await mountShell({engine: shellEngine(), initialEntries: ['/'], settings: {quickTerminal: {hotkey: 'Mod+K'}}})
 
     expect(await screen.findByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     expect(document.body).toHaveFocus()
@@ -588,9 +578,9 @@ describe('the host turns the quick terminal off', () => {
 describe('quick pane context usage', () => {
   test('after a reply the quick pane shows how much of the model context the session used', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Here is the summary'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/quick']})})
+    const engine = shellEngine(reportsUsage({inputTokens: 1200, outputTokens: 5}))
+    engine.reply(FakeLLM.text('Here is the summary'))
+    await mountShell({engine, initialEntries: ['/quick']})
 
     const terminal = await screen.findByRole('dialog', {name: 'conciv quick terminal'})
     const input = await within(terminal).findByRole('textbox', {name: 'Message the conciv agent'})
@@ -613,8 +603,7 @@ describe('quick pane context usage', () => {
 describe('rename a session', () => {
   test('the user hears a rename fail, then renames the session', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine: shellEngine()})
 
     expect(await screen.findByRole('button', {name: 'New session, session options'})).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Rename session'}))
@@ -641,10 +630,9 @@ describe('rename a session', () => {
 
 describe('pop out', () => {
   test('the user is told the pop-out window could not be reopened', async () => {
-    const engine = await createEngine()
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true&popOut=lost`]}),
+    await mountShell({
+      engine: shellEngine(createFakeEngine({sessions: [{id: 'ses_popout'}]})),
+      initialEntries: ['/panel/ses_popout?open=true&popOut=lost'],
     })
 
     expect(await screen.findByText('The pop-out window could not be reopened.')).toBeVisible()

@@ -1,5 +1,3 @@
-export * as Database from './database.js'
-
 import type {makeWithDefaults} from 'drizzle-orm/effect-sqlite-node'
 import {Context, Schema, type Effect} from 'effect'
 

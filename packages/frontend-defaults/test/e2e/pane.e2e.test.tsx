@@ -2,18 +2,27 @@ import {describe, expect, test} from 'vitest'
 import {page, userEvent as browserInput} from 'vitest/browser'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import {createEngine, TestLLM} from '@conciv/plugin-testkit'
-import {createEngineRouterHistory, mount} from '@conciv/plugin-testkit/browser'
+import {createFakeEngine, FakeLLM} from '@conciv/client/testing'
+import {mountShell, shellEngine} from '../utils/mount-shell.js'
+import {reviewNotesPlugin} from '../utils/composer-engine.js'
+import {pluginBundles} from '../utils/fake-plugins.js'
+import releaseTrain from '../fixtures/plugins/release-train/plugin-experimental.js?raw'
+import {
+  noticeMessage,
+  PANE_SESSION,
+  paneEngine,
+  releaseTrainSlotsPlugin,
+  released,
+  SESSION_ADDRESS,
+  shipped,
+  uiQuestion,
+} from '../utils/pane-engine.js'
 
 describe('a saved session that failed', () => {
   test('the run failure shows again when the user comes back to the session, with its Retry', async () => {
-    const engine = await createEngine()
-    await engine.reply(TestLLM.failAfter(new Error('The model is unavailable')))
-    await expect(engine.session.send('Are you there')).rejects.toThrow('The model is unavailable')
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
-    })
+    const pane = paneEngine()
+    await pane.send('Are you there', () => ({failed: 'The model is unavailable'}))
+    await mountShell({engine: pane.engine, initialEntries: [SESSION_ADDRESS]})
 
     expect(await screen.findByRole('article', {name: 'You: Are you there'})).toBeVisible()
     const alert = await screen.findByRole('alert', {name: 'The model is unavailable'})
@@ -24,13 +33,13 @@ describe('a saved session that failed', () => {
 describe('a reply with a diagram', () => {
   test('the user reads a drawn diagram, a code block as code, and a diagram that fails to draw as its source in plain text', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.text(
+    const engine = shellEngine(createFakeEngine())
+    engine.reply(
+      FakeLLM.text(
         '```mermaid\nthis is not a diagram\n```\n\n```mermaid\ngraph TD\n  A[Start] --> B[Done]\n```\n\n```ts\nconst total = 1 + 1\n```\n\nOne of them draws.',
       ),
     )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Draw both')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -50,21 +59,15 @@ describe('a reply with a diagram', () => {
 describe('a long saved session', () => {
   test('the user scrolls to the start, earlier messages load in order, and Latest brings the end back', async () => {
     await page.viewport(1280, 500)
-    const engine = await createEngine()
-    await engine.reply(
-      ...Array.from({length: 26}, (_, index) =>
-        TestLLM.text(
-          `Answer ${index + 1}\n\nThe migration moves each table in its own step, checks the row counts on both sides, and keeps the old table readable until the new one has served a full day of traffic without a single error.`,
-        ),
-      ),
-    )
+    const pane = paneEngine()
     for (const index of Array.from({length: 26}, (_, offset) => offset + 1)) {
-      await engine.session.send(`Question ${index}`)
+      await pane.send(`Question ${index}`, (run) =>
+        run.say(
+          `Answer ${index}\n\nThe migration moves each table in its own step, checks the row counts on both sides, and keeps the old table readable until the new one has served a full day of traffic without a single error.`,
+        ),
+      )
     }
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
-    })
+    await mountShell({engine: pane.engine, initialEntries: [SESSION_ADDRESS]})
 
     const last = await screen.findByRole('article', {name: 'Reply to: Question 26'})
     expect(await within(last).findByText('Answer 26')).toBeVisible()
@@ -97,9 +100,9 @@ describe('a long saved session', () => {
 describe('a fresh session', () => {
   test('the user starts a conversation from a starter', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('This page is a demo shop'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = shellEngine(createFakeEngine())
+    engine.reply(FakeLLM.text('This page is a demo shop'))
+    await mountShell({engine})
 
     expect(await screen.findByText('How can I help you today?')).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Explain this page'}))
@@ -115,9 +118,9 @@ describe('a fresh session', () => {
 describe('a markdown reply', () => {
   test('the user reads a reply with a heading, a list and inline code', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('## Plan\n\n- Read the page\n- Change the color\n\nRun `pnpm test` after.'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = shellEngine(createFakeEngine())
+    engine.reply(FakeLLM.text('## Plan\n\n- Read the page\n- Change the color\n\nRun `pnpm test` after.'))
+    await mountShell({engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Make a plan')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -138,9 +141,12 @@ describe('a markdown reply', () => {
 describe('a reply that thinks before it answers', () => {
   test('the user reads the plan row with its first line, the whole plan below it, and the trace summed up as reasoning', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.thinking('Read the cart first\nThen check the price', 'The fern costs ten euros'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine()
+    pane.turns((run) => {
+      run.think('Read the cart first\nThen check the price')
+      run.say('The fern costs ten euros')
+    })
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'What does the fern cost')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -158,9 +164,9 @@ describe('a reply that thinks before it answers', () => {
 describe('a message with no words', () => {
   test('a note sent alone reads as a note', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/review-notes']})
-    await engine.reply(TestLLM.text('The header is sticky now'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = shellEngine(createFakeEngine())
+    engine.reply(FakeLLM.text('The header is sticky now'))
+    await mountShell({engine, plugins: [reviewNotesPlugin]})
 
     await user.click(await screen.findByRole('button', {name: 'Review'}))
     expect(await screen.findByRole('list', {name: 'Notes'})).toBeVisible()
@@ -174,21 +180,26 @@ describe('a message with no words', () => {
 describe('stopping and sending again', () => {
   test('the user stops a streaming reply, keeps its text marked stopped, and sends again', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({}, {tokensPerSecond: 400})
-    await engine.reply(
-      TestLLM.text(`Halfway there. ${'More words keep coming. '.repeat(500)}The very last words.`),
-      TestLLM.text('Short answer'),
+    const pane = paneEngine()
+    const thinking = released()
+    pane.turns(
+      async (run) => {
+        await thinking.hold()
+        run.say('Halfway there. ')
+        await run.hold()
+        run.say('The very last words.')
+      },
+      (run) => run.say('Short answer'),
     )
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Take your time')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
-    await gate.started
+    await thinking.started
     expect(await screen.findByText('Thinking…')).toBeVisible()
-    await gate.release()
+    thinking.release()
     const stopped = await screen.findByRole('article', {name: 'Reply to: Take your time'})
-    expect(await within(stopped).findByText('there.')).toBeVisible()
+    expect(await within(stopped).findByText(/there\./)).toBeVisible()
     expect(screen.getByText('Responding…')).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Stop generating'}))
 
@@ -209,10 +220,10 @@ describe('stopping and sending again', () => {
 
   test('a Stop before the first word shows STOPPING and Stopping… until the run ends, then STOPPED, and the next turn leaves no reply for the stopped one', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Never shown'), TestLLM.text('Here it is'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = shellEngine(createFakeEngine())
+    const gate = engine.gate()
+    engine.reply(FakeLLM.text('Here it is'))
+    await mountShell({engine})
 
     const bar = await screen.findByRole('toolbar', {name: 'Session status'})
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Wait for it')
@@ -233,16 +244,15 @@ describe('stopping and sending again', () => {
     const reply = await screen.findByRole('article', {name: 'Reply to: Try again'})
     expect(await within(reply).findByText('Here it is')).toBeVisible()
     expect(screen.queryByRole('article', {name: 'Reply to: Wait for it'})).not.toBeInTheDocument()
-    expect(screen.queryByText('Never shown')).not.toBeInTheDocument()
   })
 })
 
 describe('the actions under a reply', () => {
   test('the user copies a reply and hears it, then asks for the reply again and reads the new answer', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('The first answer'), TestLLM.text('The second answer'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const engine = shellEngine(createFakeEngine())
+    engine.reply(FakeLLM.text('The first answer'), FakeLLM.text('The second answer'))
+    await mountShell({engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Answer me')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -261,20 +271,23 @@ describe('the actions under a reply', () => {
 describe('refreshing the conversation', () => {
   test('the session menu refuses a refresh while a reply runs, shows the reply token counts, then refreshes and says so', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(TestLLM.text('Here is the page'))
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine({usage: {inputTokens: 1200, outputTokens: 300}})
+    const answer = released()
+    pane.turns(async (run) => {
+      await answer.hold()
+      run.say('Here is the page')
+    })
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Read the page')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
-    await gate.started
+    await answer.started
     await user.click(await screen.findByRole('button', {name: /, session options$/}))
     const options = await screen.findByRole('dialog', {name: 'Session options'})
     const refresh = within(options).getByRole('button', {name: 'Refresh the conversation'})
     expect(refresh).toBeDisabled()
 
-    await gate.release()
+    answer.release()
     expect(await screen.findByText('Here is the page')).toBeVisible()
     expect(await screen.findByRole('button', {name: 'Send message'})).toBeVisible()
     expect(refresh).toBeEnabled()
@@ -290,9 +303,9 @@ describe('refreshing the conversation', () => {
 describe('how full the model context is', () => {
   test('after a reply the session menu shows the share of the context window used and a bar filled to it', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({}, {harnesses: [{id: 'engine', contextTokens: 24_000, contextWindow: 200_000}]})
-    await engine.reply(TestLLM.text('Counted'))
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine({usage: {contextTokens: 24_000, contextWindow: 200_000, inputTokens: 24_000}})
+    pane.turns((run) => run.say('Counted'))
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Count the tokens')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -310,26 +323,30 @@ describe('how full the model context is', () => {
 describe('a conversation too long for the model', () => {
   test('the user compacts from the overflow row, watches it compact, and goes on after the Context compacted mark', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.failAfter(Object.assign(new Error('prompt is too long'), {code: 'context_overflow'})),
-      TestLLM.text('A summary of the talk so far'),
-      TestLLM.text('Back to work'),
+    const compaction = released()
+    const pane = paneEngine({
+      compaction: async () => {
+        await compaction.hold()
+        return 'A summary of the talk so far'
+      },
+    })
+    pane.turns(
+      () => ({failed: 'prompt is too long', code: 'context_overflow'}),
+      (run) => run.say('Back to work'),
     )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Keep going')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     const overflow = await screen.findByRole('alert', {
       name: 'This conversation is too long for the model. Compact it to keep going.',
     })
-    const compaction = await engine.gate()
     await user.click(within(overflow).getByRole('button', {name: 'Compact conversation'}))
     await compaction.started
 
     expect(await screen.findByRole('separator', {name: 'Compacting…'})).toBeVisible()
     expect(screen.getByRole('status', {name: 'Compacting context…'})).toBeVisible()
-    await compaction.release()
+    compaction.release()
     expect(await screen.findByRole('separator', {name: 'Context compacted'})).toBeVisible()
     expect(
       screen.queryByRole('alert', {name: 'This conversation is too long for the model. Compact it to keep going.'}),
@@ -345,14 +362,12 @@ describe('a conversation too long for the model', () => {
 describe('the agent asks for permission', () => {
   test('the ask is announced and listed with its target, the run waits, Allow once lets the tool run, and the answered card leaves the list', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_release_ship({branch: 'main'})",
-      }),
-      TestLLM.text('Main is shipped'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine()
+    pane.turns(async (run) => {
+      await shipped(run, 'c1', 'main')
+      run.say('Main is shipped')
+    })
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship main')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -374,23 +389,18 @@ describe('the agent asks for permission', () => {
   })
 
   test('a panel opened while a reply waits on its ask shows the reply so far, and an ask answered from another window leaves it without its buttons and the whole reply once', async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    const asked = await engine.event('permission.asked')
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_release_ship({branch: 'main'})",
-      }),
-      TestLLM.text('Main is shipped'),
-    )
-    const replied = engine.session.send('Ship main')
-    await asked.arrived
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine()
+    const replied = pane.send('Ship main', async (run) => {
+      await shipped(run, 'c1', 'main')
+      run.say('Main is shipped')
+    })
+    await mountShell({engine: pane.engine})
 
     const reply = await screen.findByRole('article', {name: 'Reply to: Ship main'})
     expect(await within(reply).findByRole('img', {name: 'running'})).toBeVisible()
     expect(await screen.findByRole('button', {name: 'Allow once'})).toBeVisible()
 
-    await engine.session.approve()
+    pane.approve()
     await replied
 
     expect(await screen.findByText('Main is shipped')).toBeVisible()
@@ -402,20 +412,14 @@ describe('the agent asks for permission', () => {
 
   test('Deny refuses an ask and the tool reads denied, then on the focused card Escape denies the next ask and Ctrl+Enter allows the one after', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_release_ship({branch: 'main'})",
-      }),
-      TestLLM.toolCall('c2', 'execute_typescript', {
-        typescriptCode: "return await external_release_ship({branch: 'next'})",
-      }),
-      TestLLM.toolCall('c3', 'execute_typescript', {
-        typescriptCode: "return await external_release_ship({branch: 'beta'})",
-      }),
-      TestLLM.text('Beta is shipped'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine()
+    pane.turns(async (run) => {
+      await shipped(run, 'c1', 'main')
+      await shipped(run, 'c2', 'next')
+      await shipped(run, 'c3', 'beta')
+      run.say('Beta is shipped')
+    })
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship a branch')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -442,27 +446,23 @@ describe('the agent asks for permission', () => {
 
   test('an ask that cannot be saved offers no Allow always', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine()
+    await mountShell({engine: pane.engine})
 
-    const call = engine.session.tool('release_rollback').call({branch: 'main'})
+    const reply = pane.ask({title: 'release_rollback main', always: false})
     const ask = await screen.findByRole('group', {name: 'Permission request'})
     expect(within(ask).getByRole('button', {name: 'Allow once'})).toBeVisible()
     expect(within(ask).queryByRole('button', {name: 'Allow always'})).not.toBeInTheDocument()
 
     await user.click(within(ask).getByRole('button', {name: 'Allow once'}))
-    await expect(call).resolves.toEqual({rolledBack: true})
+    await expect(reply).resolves.toBe('once')
   })
 
   test('Stop while the card is open takes the ask away', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_release_ship({branch: 'main'})",
-      }),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine()
+    pane.turns((run) => shipped(run, 'c1', 'main'))
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Ship main')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -477,13 +477,13 @@ describe('the agent asks for permission', () => {
 describe('the engine goes away for a moment', () => {
   test('while the engine restarts Refresh waits and a failed reply hides its error, and once it is back the error and its Retry return and Retry gets the new reply', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.text('Here is the page'),
-      TestLLM.failAfter(new Error('The model is unavailable')),
-      TestLLM.text('I am back'),
+    const engine = shellEngine(createFakeEngine())
+    engine.reply(
+      FakeLLM.text('Here is the page'),
+      FakeLLM.failAfter(new Error('The model is unavailable')),
+      FakeLLM.text('I am back'),
     )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Read the page')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -491,10 +491,10 @@ describe('the engine goes away for a moment', () => {
     const refresh = page.getByRole('toolbar', {name: 'Message actions'}).getByRole('button', {name: 'Refresh'})
     await expect.element(refresh).toBeEnabled()
 
-    const firstRestart = engine.restart()
+    engine.drop()
     expect(await screen.findByText('conciv lost connection to the engine.')).toBeVisible()
     await expect.element(refresh).toBeDisabled()
-    await firstRestart
+    engine.recover()
     await expect.element(page.getByText('conciv lost connection to the engine.')).not.toBeInTheDocument()
     await expect.element(refresh).toBeEnabled()
 
@@ -503,10 +503,10 @@ describe('the engine goes away for a moment', () => {
     const failed = await screen.findByRole('alert', {name: 'The model is unavailable'})
     expect(within(failed).getByRole('button', {name: 'Retry'})).toBeVisible()
 
-    const secondRestart = engine.restart()
+    engine.drop()
     expect(await screen.findByText('conciv lost connection to the engine.')).toBeVisible()
     await expect.element(page.getByRole('alert', {name: 'The model is unavailable'})).not.toBeInTheDocument()
-    await secondRestart
+    engine.recover()
     const back = await screen.findByRole('alert', {name: 'The model is unavailable'})
     await user.click(within(back).getByRole('button', {name: 'Retry'}))
 
@@ -519,14 +519,14 @@ describe('the engine goes away for a moment', () => {
 describe('the session status chip', () => {
   test('a fresh session shows no chip, a run shows RUNNING and RUNNING 1/2 with a queued message, then DONE, and a failed run shows FAILED with its reason', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.text('First answer'),
-      TestLLM.text('Second answer'),
-      TestLLM.failAfter(new Error('The model is unavailable')),
+    const engine = shellEngine(createFakeEngine())
+    const gate = engine.gate()
+    engine.reply(
+      FakeLLM.text('First answer'),
+      FakeLLM.text('Second answer'),
+      FakeLLM.failAfter(new Error('The model is unavailable')),
     )
-    const gate = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine})
 
     const bar = await screen.findByRole('toolbar', {name: 'Session status'})
     expect(within(bar).queryByRole('status')).not.toBeInTheDocument()
@@ -544,7 +544,7 @@ describe('the session status chip', () => {
     await user.keyboard('{Enter}')
     expect(await within(bar).findByText('RUNNING 1/2')).toBeVisible()
 
-    await gate.release()
+    gate.release()
     const second = await screen.findByRole('article', {name: 'Reply to: Second task'})
     expect(await within(second).findByText('Second answer')).toBeVisible()
     expect(await within(bar).findByText('DONE')).toBeVisible()
@@ -562,12 +562,17 @@ describe('the session status chip', () => {
 
   test('an edit that failed changed no file, so the status bar counts no files or lines', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.toolCall('c1', 'Edit', {file_path: 'src/app.ts', old_string: 'one', new_string: 'two\nthree'}),
-      TestLLM.text('The edit did not go through'),
+    const engine = shellEngine(createFakeEngine())
+    engine.reply(
+      FakeLLM.toolError(
+        'c1',
+        'Edit',
+        {file_path: 'src/app.ts', old_string: 'one', new_string: 'two\nthree'},
+        'File does not exist.',
+      ),
+      FakeLLM.text('The edit did not go through'),
     )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine})
 
     const bar = await screen.findByRole('toolbar', {name: 'Session status'})
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Change the app')
@@ -584,15 +589,12 @@ describe('the session status chip', () => {
 describe('the agent asks a choice', () => {
   test('the user picks one of the offered answers and the agent goes on with it', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode:
-          "return await external_conciv_ui({kind: 'choices', question: 'Which color?', options: ['Red', 'Blue']})",
-      }),
-      TestLLM.text('Blue it is'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine()
+    pane.turns(async (run) => {
+      await uiQuestion(run, 'c1', {kind: 'choices', question: 'Which color?', options: ['Red', 'Blue']})
+      run.say('Blue it is')
+    })
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Pick a color with me')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -610,24 +612,19 @@ describe('the agent asks a choice', () => {
     const reply = screen.getByRole('article', {name: 'Reply to: Pick a color with me'})
     expect(within(reply).getByText('Blue')).toBeVisible()
     expect(within(reply).queryByRole('button', {name: 'Red'})).not.toBeInTheDocument()
-    const answer = (await engine.requests()).at(-1)?.messages.at(-1)
-    expect(answer?.role).toBe('tool')
-    expect(answer?.content).toContain('"value":"Blue"')
+    expect(pane.answers()).toEqual(['Blue'])
   })
 })
 
 describe('the user stops while the agent asks', () => {
   test('the open question ends as interrupted at once and stays so after the next reply', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode:
-          "return await external_conciv_ui({kind: 'choices', question: 'Which color?', options: ['Red', 'Blue']})",
-      }),
-      TestLLM.text('Here it is'),
+    const pane = paneEngine()
+    pane.turns(
+      (run) => uiQuestion(run, 'c1', {kind: 'choices', question: 'Which color?', options: ['Red', 'Blue']}),
+      (run) => run.say('Here it is'),
     )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Pick a color with me')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -652,20 +649,25 @@ describe('the user stops while the agent asks', () => {
 describe('a plugin draws its own tool cards', () => {
   test('a plugin card shows open with the icon the plugin declares, a failed call draws the plugin error card, a card that throws falls back to the generic card, and the icon draws on its settings tab and leaves with the plugin', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_release_check({branch: 'main'})",
-      }),
-      TestLLM.toolCall('c2', 'execute_typescript', {
-        typescriptCode: "return await external_release_block({branch: 'main'})",
-      }),
-      TestLLM.toolCall('c3', 'execute_typescript', {
-        typescriptCode: "return await external_release_notes({branch: 'main'})",
-      }),
-      TestLLM.text('Main is checked'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const bundles = [{id: 'release-train', code: releaseTrain, server: true}]
+    const pane = paneEngine({plugin: pluginBundles(() => bundles)})
+    pane.turns((run) => {
+      const release = (id: string, tool: string): void => {
+        run.call(id, 'execute_typescript', {typescriptCode: `return await external_${tool}({branch: 'main'})`})
+        run.call(`call_${id}`, tool, {branch: 'main'}, id)
+      }
+      release('c1', 'release_check')
+      run.result('call_c1', {verdict: 'ready'})
+      run.result('c1', {success: true, result: {verdict: 'ready'}})
+      release('c2', 'release_block')
+      run.result('call_c2', 'The release train is frozen', 'error')
+      run.result('c2', {success: false, error: {message: 'The release train is frozen'}}, 'error')
+      release('c3', 'release_notes')
+      run.result('call_c3', {notes: 'Faster login'})
+      run.result('c3', {success: true, result: {notes: 'Faster login'}})
+      run.say('Main is checked')
+    })
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Can main ship')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -695,8 +697,7 @@ describe('a plugin draws its own tool cards', () => {
 
 describe('a plugin fills the session header and status', () => {
   test('the header slot and the status slot show what the plugin draws', async () => {
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine: shellEngine(createFakeEngine()), plugins: [releaseTrainSlotsPlugin]})
 
     expect(await screen.findByText('Release train: on time')).toBeVisible()
     expect(await screen.findByText('Next train at noon')).toBeVisible()
@@ -706,21 +707,24 @@ describe('a plugin fills the session header and status', () => {
 describe('opening a tool card while the turn goes on', () => {
   test('the user opens the card of a tool with no card of its own and hides the trace while the reply waits; the trace stays hidden when the answer arrives, and shown again the card is still open', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_release_window({branch: 'main'})",
-      }),
-      TestLLM.text('The window is set'),
-    )
-    const toolCall = await engine.gate()
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine()
+    const toolCall = released()
+    const answer = released()
+    pane.turns(async (run) => {
+      await toolCall.hold()
+      run.call('c1', 'execute_typescript', {typescriptCode: "return await external_release_window({branch: 'main'})"})
+      run.call('call_c1', 'release_window', {branch: 'main'}, 'c1')
+      run.result('call_c1', {window: 'noon to two'})
+      run.result('c1', {success: true, result: {window: 'noon to two'}})
+      await answer.hold()
+      run.say('The window is set')
+    })
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'When can we ship')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
     await toolCall.started
-    const answer = await engine.gate()
-    await toolCall.release()
+    toolCall.release()
     await answer.started
     const reply = await screen.findByRole('article', {name: 'Reply to: When can we ship'})
     expect(await within(reply).findAllByText('"noon to two"')).toHaveLength(1)
@@ -730,7 +734,7 @@ describe('opening a tool card while the turn goes on', () => {
     await expect.element(opened.last()).toBeVisible()
 
     await user.click(within(reply).getByRole('button', {name: /Hide trace/}))
-    await answer.release()
+    answer.release()
 
     expect(await screen.findByText('The window is set')).toBeVisible()
     expect(within(reply).getByRole('button', {name: /Show trace/})).toHaveFocus()
@@ -746,15 +750,18 @@ describe('opening a tool card while the turn goes on', () => {
 describe('the agent asks other kinds of question', () => {
   test('a multi-select question submits the pressed options and a typed other, and Submit waits for a choice', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode:
-          "return await external_conciv_ui({kind: 'choices', question: 'Which toppings?', options: ['Olives', 'Basil', 'Garlic'], multiSelect: true, allowOther: true})",
-      }),
-      TestLLM.text('Pizza ordered'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine()
+    pane.turns(async (run) => {
+      await uiQuestion(run, 'c1', {
+        kind: 'choices',
+        question: 'Which toppings?',
+        options: ['Olives', 'Basil', 'Garlic'],
+        multiSelect: true,
+        allowOther: true,
+      })
+      run.say('Pizza ordered')
+    })
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Order a pizza')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -769,41 +776,48 @@ describe('the agent asks other kinds of question', () => {
     await user.click(screen.getByRole('button', {name: 'Submit'}))
 
     expect(await screen.findByText('Pizza ordered')).toBeVisible()
-    const answer = (await engine.requests()).at(-1)?.messages.at(-1)
-    expect(answer?.role).toBe('tool')
-    expect(answer?.content).toContain('"value":["Basil","Chili"]')
+    expect(pane.answers()).toEqual([['Basil', 'Chili']])
   })
 
   test.each([
     {
       kind: 'confirm',
-      call: "return await external_conciv_ui({kind: 'confirm', question: 'Delete the build folder?', detail: 'rm -r dist'})",
+      input: {kind: 'confirm', question: 'Delete the build folder?', detail: 'rm -r dist'},
       prompt: 'Clean the build',
       question: 'Delete the build folder?',
       detail: 'rm -r dist',
       other: 'Deny',
       button: 'Approve',
       reply: 'Build folder deleted',
-      value: '"value":"yes"',
+      value: 'yes',
     },
     {
       kind: 'diff',
-      call: "return await external_conciv_ui({kind: 'diff', question: 'Apply this change?', file: 'src/title.ts', before: 'export const title = 1', after: 'export const title = 2'})",
+      input: {
+        kind: 'diff',
+        question: 'Apply this change?',
+        file: 'src/title.ts',
+        before: 'export const title = 1',
+        after: 'export const title = 2',
+      },
       prompt: 'Bump the title',
       question: 'Apply this change?',
       detail: 'src/title.ts',
       other: 'Apply',
       button: 'Reject',
       reply: 'Change dropped',
-      value: '"value":"reject"',
+      value: 'reject',
     },
   ])(
     'a $kind question shows its detail, offers $other, and $button sends its answer',
-    async ({call, prompt, question, detail, other, button, reply, value}) => {
+    async ({input, prompt, question, detail, other, button, reply, value}) => {
       const user = userEvent.setup()
-      const engine = await createEngine()
-      await engine.reply(TestLLM.toolCall('c1', 'execute_typescript', {typescriptCode: call}), TestLLM.text(reply))
-      await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+      const pane = paneEngine()
+      pane.turns(async (run) => {
+        await uiQuestion(run, 'c1', input)
+        run.say(reply)
+      })
+      await mountShell({engine: pane.engine})
 
       await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), prompt)
       await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -813,21 +827,25 @@ describe('the agent asks other kinds of question', () => {
       await user.click(screen.getByRole('button', {name: button}))
 
       expect(await screen.findByText(reply)).toBeVisible()
-      expect((await engine.requests()).at(-1)?.messages.at(-1)?.content).toContain(value)
+      expect(pane.answers()).toEqual([value])
     },
   )
 
   test('a form question sends the typed text and the first select option by default, and shows the answers', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode:
-          "return await external_conciv_ui({kind: 'form', title: 'New page', fields: [{name: 'path', label: 'Path', type: 'text'}, {name: 'layout', label: 'Layout', type: 'select', options: ['Wide', 'Narrow']}]})",
-      }),
-      TestLLM.text('Page created'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine()
+    pane.turns(async (run) => {
+      await uiQuestion(run, 'c1', {
+        kind: 'form',
+        title: 'New page',
+        fields: [
+          {name: 'path', label: 'Path', type: 'text'},
+          {name: 'layout', label: 'Layout', type: 'select', options: ['Wide', 'Narrow']},
+        ],
+      })
+      run.say('Page created')
+    })
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Make a page')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -839,9 +857,7 @@ describe('the agent asks other kinds of question', () => {
     await user.click(screen.getByRole('button', {name: 'Submit'}))
 
     expect(await screen.findByText('Page created')).toBeVisible()
-    expect((await engine.requests()).at(-1)?.messages.at(-1)?.content).toContain(
-      '"value":{"path":"/pricing","layout":"Wide"}',
-    )
+    expect(pane.answers()).toEqual([{path: '/pricing', layout: 'Wide'}])
     const reply = screen.getByRole('article', {name: 'Reply to: Make a page'})
     expect(within(reply).getByText('/pricing')).toBeVisible()
   })
@@ -850,15 +866,15 @@ describe('the agent asks other kinds of question', () => {
 describe('the agent runs a program', () => {
   test('each run shows as an exec card with its first code line and status, the logs and result of one and the error of the other', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "console.log('counting the items')\nreturn 2 + 3",
-      }),
-      TestLLM.toolCall('c2', 'execute_typescript', {typescriptCode: "throw new Error('The cart is empty')"}),
-      TestLLM.text('Five items'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine()
+    pane.turns((run) => {
+      run.call('c1', 'execute_typescript', {typescriptCode: "console.log('counting the items')\nreturn 2 + 3"})
+      run.result('c1', {success: true, result: 5, logs: ['counting the items']})
+      run.call('c2', 'execute_typescript', {typescriptCode: "throw new Error('The cart is empty')"})
+      run.result('c2', {success: false, logs: [], error: {name: 'Error', message: 'The cart is empty'}})
+      run.say('Five items')
+    })
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Count them')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -882,12 +898,18 @@ describe('the agent runs a program', () => {
 describe('an outside agent calls a tool', () => {
   test('a panel opened while an outside call waits on its ask shows the running call tagged with the agent, its result once allowed, and a later call in the open panel too, and each agent gets its result', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/release-train']})
-    const outside = engine.outside({client: 'conciv-test', tab: engine.session.id})
-    const asked = await engine.event('permission.asked')
+    const engine = shellEngine(
+      createFakeEngine({
+        sessions: [{id: PANE_SESSION, title: 'New session'}],
+        tools: {
+          release_ship: {ask: {title: 'release_ship main', always: true}, run: () => ({shipped: true})},
+          release_window: {run: () => ({window: 'noon to two'})},
+        },
+      }),
+    )
+    const outside = engine.outside({client: 'conciv-test', session: PANE_SESSION})
     const shipReply = outside.call('release_ship', {branch: 'main'})
-    await asked.arrived
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    await mountShell({engine, initialEntries: [SESSION_ADDRESS]})
 
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
     expect((await screen.findAllByText('from conciv-test')).at(0)).toBeVisible()
@@ -914,14 +936,12 @@ describe('an outside agent calls a tool', () => {
 describe('the agent opens a file in the editor', () => {
   test('the open card names the file and line and says it opened, and the editor gets the file at that line', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine()
-    await engine.reply(
-      TestLLM.toolCall('c1', 'execute_typescript', {
-        typescriptCode: "return await external_open({file: 'src/app.ts', line: 12})",
-      }),
-      TestLLM.text('It is open'),
-    )
-    await mount({engine, history: createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})})
+    const pane = paneEngine()
+    pane.turns((run) => {
+      run.open('c1', 'src/app.ts', 12)
+      run.say('It is open')
+    })
+    await mountShell({engine: pane.engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Show me the app file')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
@@ -931,29 +951,28 @@ describe('the agent opens a file in the editor', () => {
     expect(within(reply).getByText('open')).toBeVisible()
     expect(within(reply).getByText('src/app.ts:12')).toBeVisible()
     expect(within(reply).getByText('Opened in your editor.')).toBeVisible()
-    expect(await engine.opened()).toEqual([{file: 'src/app.ts', line: 12}])
+    expect(pane.opened()).toEqual([{file: 'src/app.ts', line: 12}])
   })
 })
 
 describe('a notice from a plugin', () => {
   test('a notice shows in the thread: one with a description is its own row under that label and its turn answers, not a message from the user; one with no description, or only spaces, shows no row; and a failed one with no description shows its text as its row', async () => {
     const user = userEvent.setup()
-    const engine = await createEngine({plugins: ['./test/fixtures/plugins/build-notices']})
-    await engine.reply(TestLLM.text('The build is green'), TestLLM.text('Shipping it'), TestLLM.text('Looking into it'))
-    await mount({
-      engine,
-      history: createEngineRouterHistory({initialEntries: [`/panel/${engine.session.id}?open=true`]}),
-    })
+    const pane = paneEngine()
+    pane.turns((run) => run.say('Shipping it'))
+    await mountShell({engine: pane.engine, initialEntries: [SESSION_ADDRESS]})
     expect(await screen.findByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
 
-    await engine.session.tool('notice').call({text: 'The build finished in 42 s', description: 'Build finished'})
+    await pane.notice(noticeMessage('The build finished in 42 s', 'Build finished'), (run) =>
+      run.say('The build is green'),
+    )
 
     expect(await screen.findByRole('note', {name: 'Build finished'})).toBeVisible()
     expect(await screen.findByText('The build is green')).toBeVisible()
     expect(screen.queryByText('The build finished in 42 s')).not.toBeInTheDocument()
     expect(screen.queryByRole('article', {name: /^You:/})).not.toBeInTheDocument()
 
-    await engine.session.tool('notice').call({text: 'Quiet note', resume: false})
+    await pane.notice(noticeMessage('Quiet note'))
     await user.type(screen.getByRole('textbox', {name: 'Message the conciv agent'}), 'Ship it')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
 
@@ -963,8 +982,10 @@ describe('a notice from a plugin', () => {
     expect(screen.queryByText('Quiet note')).not.toBeInTheDocument()
     expect(screen.getByRole('note', {name: 'Build finished'})).toBeVisible()
 
-    await engine.session.tool('notice').call({text: 'Blank label', description: '   ', resume: false})
-    await engine.session.tool('notice').call({text: 'The deploy failed', metadata: {state: 'error'}})
+    await pane.notice(noticeMessage('Blank label', '   '))
+    await pane.notice(noticeMessage('The deploy failed', undefined, {state: 'error'}), (run) =>
+      run.say('Looking into it'),
+    )
 
     expect(await screen.findByText('Looking into it')).toBeVisible()
     expect(screen.getByRole('note', {name: 'The deploy failed'})).toBeVisible()

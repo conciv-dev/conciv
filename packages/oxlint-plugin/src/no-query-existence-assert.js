@@ -2,9 +2,9 @@ import {readTestKind} from '@internal/vitest-config/test-layout'
 
 const QUERY_PREFIXES = ['findAllBy', 'findBy', 'getAllBy', 'getBy', 'queryAllBy', 'queryBy']
 const QUERY_SUFFIXES = ['AltText', 'DisplayValue', 'LabelText', 'PlaceholderText', 'Role', 'TestId', 'Text', 'Title']
-const QUERY_NAMES = new Set(QUERY_PREFIXES.flatMap((prefix) => QUERY_SUFFIXES.map((suffix) => prefix + suffix)))
+const QUERY_NAMES = QUERY_PREFIXES.flatMap((prefix) => QUERY_SUFFIXES.map((suffix) => prefix + suffix))
 
-const EXISTENCE_MATCHERS = new Set([
+const EXISTENCE_MATCHERS = [
   'toBeDefined',
   'toBeUndefined',
   'toBeNull',
@@ -12,16 +12,16 @@ const EXISTENCE_MATCHERS = new Set([
   'toBeFalsy',
   'toBeNil',
   'toBeNullable',
-])
-const NULL_ARGUMENT_MATCHERS = new Set(['toBe', 'toEqual', 'toStrictEqual'])
+]
+const NULL_ARGUMENT_MATCHERS = ['toBe', 'toEqual', 'toStrictEqual']
 const LENGTH_MATCHER = 'toHaveLength'
 const IN_DOCUMENT_MATCHER = 'toBeInTheDocument'
 
-const DOM_TEST_KINDS = new Set(['unit', 'e2e'])
+const DOM_TEST_KINDS = ['unit', 'e2e']
 const SOLID_TESTING_LIBRARY = '@solidjs/testing-library'
 const TESTING_LIBRARY_SCOPE = '@testing-library/'
 
-const WRAPPERS = new Set(['AwaitExpression', 'TSAsExpression', 'TSNonNullExpression', 'TSSatisfiesExpression'])
+const WRAPPERS = ['AwaitExpression', 'TSAsExpression', 'TSNonNullExpression', 'TSSatisfiesExpression']
 
 function isStaticMember(node) {
   return node?.type === 'MemberExpression' && node.computed !== true && node.property?.type === 'Identifier'
@@ -42,7 +42,7 @@ function importsTestingLibrary(program) {
 }
 
 function unwrapped(node) {
-  if (node !== undefined && WRAPPERS.has(node.type)) return unwrapped(node.expression ?? node.argument)
+  if (node !== undefined && WRAPPERS.includes(node.type)) return unwrapped(node.expression ?? node.argument)
   return node
 }
 
@@ -56,7 +56,7 @@ function queryCallName(node) {
   const call = unwrapped(node)
   if (call?.type !== 'CallExpression') return undefined
   const name = calleeName(call.callee)
-  return QUERY_NAMES.has(name) ? name : undefined
+  return QUERY_NAMES.includes(name) ? name : undefined
 }
 
 function constInitializer(identifier, sourceCode) {
@@ -101,9 +101,9 @@ function isNullLiteral(node) {
 
 function provesExistenceOnly(assertion, matcherCall, query) {
   const name = assertion.name
-  if (EXISTENCE_MATCHERS.has(name)) return true
+  if (EXISTENCE_MATCHERS.includes(name)) return true
   if (name === IN_DOCUMENT_MATCHER) return !assertion.negated && !query.startsWith('query')
-  if (NULL_ARGUMENT_MATCHERS.has(name)) return isNullLiteral(matcherCall.arguments[0])
+  if (NULL_ARGUMENT_MATCHERS.includes(name)) return isNullLiteral(matcherCall.arguments[0])
   if (name === LENGTH_MATCHER) return !query.includes('AllBy')
   return false
 }
@@ -130,7 +130,7 @@ export default {
     const file = {checked: false}
     return {
       Program(node) {
-        file.checked = DOM_TEST_KINDS.has(readTestKind(context.filename)) || importsTestingLibrary(node)
+        file.checked = DOM_TEST_KINDS.includes(readTestKind(context.filename)) || importsTestingLibrary(node)
       },
       CallExpression(node) {
         if (!file.checked) return
