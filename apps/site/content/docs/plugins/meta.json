@@ -1,4 +1,4 @@
 {
   "title": "Plugins",
-  "pages": ["index", "engine", "browser", "testing", "built-ins", "terminal"]
+  "pages": ["index", "first-plugin", "guides", "built-ins", "reference"]
 }
