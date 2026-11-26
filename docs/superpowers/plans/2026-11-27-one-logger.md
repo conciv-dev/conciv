@@ -202,8 +202,16 @@ Port these files as they are, adapted only to repo rules (no comments, functions
 - `runtime/tasks/evlog-cleanup.js`: `db.delete(...).where(lt(createdAt, cutoff))` with `cutoff = now - totalMs`.
   Nitro's scheduled task becomes an Effect fiber: run once at engine start, then on Effect's `Schedule.cron` built from
   `retentionToCron(retention)`. Their `console.log`/`console.error` become `Effect.logDebug`/`Effect.logWarning`.
-- Not ported: `runtime/api/_cron/evlog-cleanup.js` and the Vercel cron (no serverless host here; the fiber is enough),
-  and the MySQL/PostgreSQL schemas (we run SQLite only).
+- `src/runtime/api/_cron/evlog-cleanup.ts` (github.com/evloghq/evlog, packages/nuxthub; the maintainer pointed at it):
+  a route that runs the cleanup task on demand, behind `Authorization: Bearer $CRON_SECRET` when set, answering
+  `{success: true, ...result}`. Ported as the procedure `logs.cleanup` (no input) that runs the same cleanup Effect the
+  fiber runs and answers `{result: 'success' | 'error', deleted}`. Its guard is the engine's own trust (every procedure
+  already requires a trusted caller), so no `CRON_SECRET`. Reachable by outside agents through the hub and by
+  `conciv logs cleanup` in the CLI.
+- Not ported: the Vercel cron entry (no serverless host here; the fiber is the schedule), and the MySQL/PostgreSQL
+  schemas (we run SQLite only).
+- The port reads the TypeScript source on GitHub (`packages/nuxthub/src/runtime/{db/schema,drain.ts,tasks,utils,api}`)
+  rather than the built `dist`, where both exist.
 - Contract: `logs.query({since?, until?, level?: LogLevel[], source?: 'engine' | 'client', text?, sessionId?, limit (default
   200, max 2000)})` is one drizzle query on `log_events` (filters become WHERE clauses on the indexed columns; `text`
   matches `message` and `data`), newest first. `logs.tail({level?, source?})` streams new events as they are inserted
