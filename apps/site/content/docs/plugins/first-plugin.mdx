@@ -1,0 +1,302 @@
+---
+title: Build your first plugin
+description: Build a plugin from an empty folder to a tool the agent calls and a card you see in the chat.
+---
+
+Let's build a plugin from an empty folder. It gives the agent a `project_version` tool that reads your project's
+`package.json`. Then it draws each call as a card in the chat. Every code block is a whole file, so you can copy them
+as you go.
+
+You need a project where conciv already runs. See the [quick start](/docs/quick-start).
+
+## Promise or Effect?
+
+You write a plugin's engine part in one of two styles. Both are first-class and can do the same things:
+
+- **Promise.** Plain `async` and `await`. Pick it if you do not use Effect.
+- **Effect.** Pick it if your code already uses [Effect](https://effect.website). You get typed errors, interruption
+  that stops your work when the user stops the turn, and Effect's services.
+
+Every example has a tab for each. Your choice is remembered across the docs.
+
+<Steps>
+<Step>
+
+### Install what the plugin imports
+
+<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
+<Tab value="Promise">
+
+```package-install
+-D @conciv/backend-plugin-api zod
+```
+
+</Tab>
+<Tab value="Effect">
+
+```package-install
+-D @conciv/backend-plugin-api @conciv/protocol effect zod
+```
+
+</Tab>
+</Tabs>
+
+- `@conciv/backend-plugin-api` is the API your engine part is written with.
+- `zod` writes the schemas of your tool's input and output.
+- In the Effect tab, `@conciv/protocol` holds the `Tool` error type.
+
+</Step>
+<Step>
+
+### Write the tool
+
+Make a folder for the plugin in your project and add its engine part:
+
+<Files>
+  <Folder name="plugins" defaultOpen>
+    <Folder name="project-version" defaultOpen>
+      <File name="server.ts" />
+    </Folder>
+  </Folder>
+</Files>
+
+<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
+<Tab value="Promise">
+
+```ts twoslash title="plugins/project-version/server.ts"
+import {readFile} from 'node:fs/promises'
+import path from 'node:path'
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api'
+
+const Manifest = z.object({name: z.string(), version: z.string()})
+
+export default Plugin.define({
+  id: 'project-version',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'project_version',
+        description: "Read the project's name and version from its package.json.",
+        input: z.object({}),
+        output: Manifest,
+        options: {codemode: false},
+        execute: async () => {
+          const text = await readFile(path.join(ctx.location.directory, 'package.json'), 'utf8')
+          return {output: Manifest.parse(JSON.parse(text))}
+        },
+      })
+    })
+  },
+})
+```
+
+</Tab>
+<Tab value="Effect">
+
+```ts twoslash title="plugins/project-version/server.ts"
+import {readFile} from 'node:fs/promises'
+import path from 'node:path'
+import {Effect} from 'effect'
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api/effect'
+import * as Tool from '@conciv/protocol/schema/tool'
+
+const Manifest = z.object({name: z.string(), version: z.string()})
+
+export default Plugin.define({
+  id: 'project-version',
+  effect: (ctx) =>
+    ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'project_version',
+        description: "Read the project's name and version from its package.json.",
+        input: z.object({}),
+        output: Manifest,
+        options: {codemode: false},
+        execute: () =>
+          Effect.tryPromise({
+            try: () => readFile(path.join(ctx.location.directory, 'package.json'), 'utf8'),
+            catch: () => Tool.toolError({message: 'The project has no readable package.json.'}),
+          }).pipe(Effect.map((text) => ({output: Manifest.parse(JSON.parse(text))}))),
+      })
+    }),
+})
+```
+
+</Tab>
+</Tabs>
+
+- `server.ts` is the file name the engine looks for in a plugin folder.
+- `Plugin.define` is the plugin. Its `id` is how conciv names it.
+- In the Promise tab, `setup` runs once when the engine loads the plugin.
+- In the Effect tab, `effect` runs then instead.
+- `ctx` is what the engine gives your plugin. `ctx.location.directory` is your project folder.
+- `tools.add` adds one tool.
+- `description` is what the agent reads to decide when to call it.
+- `input` is the schema the agent's input must match. This tool takes none.
+- `output` is the schema of the result. What you return under it is what the agent reads.
+- `options: {codemode: false}` makes the agent call the tool by its name. Each call then gets its own card in the
+  chat.
+- In the Effect tab, `Tool.toolError` is the message the agent reads when the file cannot be read.
+
+</Step>
+<Step>
+
+### Add it to your config
+
+List the folder in the `plugins` option:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: ['./plugins/project-version'], // [!code ++]
+    }),
+  ],
+})
+```
+
+- The path starts with `./`, so it resolves from your project folder.
+- Your bundler may have its own config file. The option is the same in each. See the
+  [quick start](/docs/quick-start).
+
+</Step>
+<Step>
+
+### Ask the agent
+
+Restart your dev server and open your app. Ask in the chat:
+
+```text
+What version is this project?
+```
+
+What you see:
+
+- The agent calls `project_version`.
+- The call shows as a card in the chat. It is the generic card for now.
+- The agent answers with your project's name and version.
+
+</Step>
+<Step>
+
+### Draw the card
+
+Now add a browser part that draws `project_version` calls as your own card. Install what it is built with:
+
+```package-install
+-D @conciv/frontend-plugin-api solid-js vite vite-plugin-solid
+```
+
+Add the browser part next to the engine part:
+
+<Files>
+  <Folder name="plugins" defaultOpen>
+    <Folder name="project-version" defaultOpen>
+      <File name="server.ts" />
+      <File name="plugin-experimental.tsx" />
+      <File name="vite.config.ts" />
+    </Folder>
+  </Folder>
+</Files>
+
+The browser part is written with Solid components and plain async functions:
+
+```tsx twoslash title="plugins/project-version/plugin-experimental.tsx"
+// @jsx: preserve
+// @jsxImportSource: solid-js
+// ---cut---
+import {Plugin, ToolRegistry} from '@conciv/frontend-plugin-api'
+import {z} from 'zod'
+
+const Manifest = z.object({name: z.string(), version: z.string()})
+
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(ToolRegistry, {
+      name: 'project_version',
+      render: (props) => {
+        const manifest = () => Manifest.safeParse(JSON.parse(props.output ?? 'null')).data
+        return (
+          <p>
+            <ctx.ui.Icon name="box" size="small" />
+            {manifest() ? `${manifest()?.name} ${manifest()?.version}` : 'Reading package.json'}
+          </p>
+        )
+      },
+    })
+  },
+})
+```
+
+- The browser part's `Plugin.define` has no `id`. It takes the engine part's.
+- `ctx.add(ToolRegistry, ...)` adds a card. The `name` field says which tool it draws.
+- `render` draws one call.
+- `props.output` is the tool's result as JSON text. It is empty while the call runs.
+- `manifest` reads that result with the same schema the tool used.
+- `ctx.ui.Icon` draws an icon from the widget's own set.
+
+</Step>
+<Step>
+
+### Build the browser part
+
+The engine loads a built bundle, not your `.tsx` file. Add a Vite config to the plugin folder:
+
+```ts twoslash title="plugins/project-version/vite.config.ts"
+import {defineConfig} from 'vite'
+import {experimental} from '@conciv/frontend-plugin-api/vite'
+
+export default defineConfig({
+  root: import.meta.dirname,
+  publicDir: false,
+  plugins: [experimental({entry: 'plugin-experimental.tsx', outFile: 'plugin-experimental.cjs'})],
+})
+```
+
+- `experimental()` builds a browser part the way the widget loads it.
+- `entry` is your browser part's source file.
+- `outFile` is the bundle it writes.
+- The engine looks in the plugin folder for a bundle named `plugin-experimental.cjs`, or the same name ending
+  in .js.
+- `root` makes both paths resolve from the plugin folder.
+
+Build it from your project folder:
+
+```bash
+npx vite build --config plugins/project-version/vite.config.ts
+```
+
+What it writes into `plugins/project-version`:
+
+- `plugin-experimental.cjs`: the bundle the engine serves to the widget.
+- `plugin-experimental.cjs.manifest.json`: the list of the bundle's files.
+- `plugin-experimental.d.cts`: the bundle's types.
+
+Run the build again after each change to the browser part.
+
+</Step>
+<Step>
+
+### See the card
+
+Reload your app and ask again:
+
+```text
+What version is this project?
+```
+
+The call now shows your card, with a box icon and your project's name and version.
+
+</Step>
+</Steps>
+
+## Next
+
+- [Add a tool](/docs/plugins/guides/tool): namespaces, failures, and more about cards.
+- [Share an RPC method](/docs/plugins/guides/rpc): let the browser part call the engine part.
+- [Test your plugin](/docs/plugins/guides/testing): check this plugin in a test.
