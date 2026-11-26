@@ -6,6 +6,8 @@ export default defineConfig({
     'src/schema/workspace-id.ts',
     'src/schema/session-id.ts',
     'src/schema/session-event.ts',
+    'src/schema/browser-tab.ts',
+    'src/schema/browser-tab-event.ts',
     'src/schema/project-id.ts',
     'src/schema/instruction.ts',
     'src/schema/identifier.ts',

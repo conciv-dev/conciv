@@ -23,6 +23,8 @@ import {widgetCaller} from '../../lib/cors.js'
 import {engineMcpUrl} from '../../engine-login.js'
 import {rowById} from '../../sessions/session-rows.js'
 import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './sessions.js'
+import {relayEvents} from './relay-events.js'
+import {tabsRouter} from './tabs.js'
 import {readProject} from '../../lib/project.js'
 import {
   admitOutsideCall,
@@ -300,21 +302,6 @@ async function* ptyEvents(events: AsyncIterable<PtyOutputEvent>) {
   }
 }
 
-async function* relayEvents<Value>(events: AsyncIterator<Value>, signal: AbortSignal | undefined) {
-  const stop = () => void events.return?.()
-  signal?.addEventListener('abort', stop, {once: true})
-  try {
-    for (;;) {
-      const step = await events.next()
-      if (step.done === true) return
-      yield step.value
-    }
-  } finally {
-    signal?.removeEventListener('abort', stop)
-    await events.return?.()
-  }
-}
-
 function locationResponse<Data, Failure, Services>(data: Effect.Effect<Data, Failure, Services>) {
   return Effect.gen(function* () {
     const location = yield* Location.Service
@@ -402,6 +389,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
   return os.use(makeHubAdmission(deps)).router({
     auth: deps.auth,
     sessions: sessionsRouter(deps),
+    tabs: tabsRouter(deps),
     chat: chatRouter(deps, sessionOs),
     settings: {
       all: os.settings.all.handler(async ({input}) => (await deps.settings.file(input.scope, input.namespace)).read()),

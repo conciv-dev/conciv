@@ -434,6 +434,10 @@ export function fromPromise(plugin: Plugin.Plugin) {
             hook: (name, callback) =>
               register(host.tool.hook(name, (event) => toolHook[name](() => Promise.resolve(callback(event))))),
           },
+          browserTabs: {
+            list: (sessionId) => run(host.browserTabs.list(sessionId)),
+            sessions: () => run(host.browserTabs.sessions()),
+          },
           session: {
             hook: (name, callback) =>
               register(host.session.hook(name, (event) => Effect.promise(() => Promise.resolve(callback(event))))),
