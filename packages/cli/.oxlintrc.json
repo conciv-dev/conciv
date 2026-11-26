@@ -8,7 +8,7 @@
           {
             "name": "@hono/node-server",
             "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
-            "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve — the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+            "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve: the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
           }
         ],
         "patterns": [
@@ -26,7 +26,7 @@
           {
             "group": ["@ark-ui", "@ark-ui/**"],
             "allowImportNames": ["useListCollection", "useFilter"],
-            "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly — only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
+            "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly; only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
           }
         ]
       }

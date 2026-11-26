@@ -121,7 +121,7 @@ function MascotPlayground(props: StageProps): JSX.Element {
 
 const COMPONENT_DOCS = `
 \`binaryEffect\` mounts five binary digits (alternating \`1\`/\`0\`) that rise out of the antenna tip in two
-staggered lanes, each staggered 0.42s behind the last on a 2.2s cycle, fading in then out as they climb — the
+staggered lanes, each staggered 0.42s behind the last on a 2.2s cycle, fading in then out as they climb; the
 shipped FAB effect, riding the default \`curve: 'auto'\`, which measures the room above the antenna tip and
 picks a straight rise or a bend away from the viewport edge accordingly. Toggle **working** on to see it mount;
 it stays anchored to the antenna tip as the robot leans. \`configureBinaryEffect({curve})\` pins one path

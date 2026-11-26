@@ -104,7 +104,7 @@ function planLine(row: PlanRow, width: number): string {
 
 function rowDetail(row: PlanRow): string {
   if (row.already) return 'already wired'
-  if (row.wouldEdit.length === 0) return 'manual — prints instructions'
+  if (row.wouldEdit.length === 0) return 'manual, prints instructions'
   return row.wouldEdit.join(', ')
 }
 
@@ -200,6 +200,6 @@ const docsPackQuestion =
   'Add the @conciv/skills docs pack (setup, develop, debug and harness guides) and TanStack intent skill-loading guidance?'
 
 function frameworkQuestion(framework: Framework): string {
-  if (framework === 'unknown') return 'No known framework detected — show manual wiring instructions?'
+  if (framework === 'unknown') return 'No known framework detected. Show manual wiring instructions?'
   return `Wire the detected ${framework} config for conciv?`
 }
