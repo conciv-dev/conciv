@@ -1,7 +1,7 @@
 import {createORPCClient, ORPCError} from '@orpc/client'
 import {RPCLink, type RPCLinkOptions} from '@orpc/client/fetch'
-import {ValidationError, type ContractRouterClient} from '@orpc/contract'
-import {ResponseValidationPlugin} from '@orpc/contract/plugins'
+import {ValidationError, type RouterContractClient} from '@orpc/contract'
+import {ResponseValidationLinkPlugin} from '@orpc/contract/plugins'
 import {CONCIV_AUTH_TOKEN_QUERY_PARAM, CONCIV_VERSION_HEADER} from '@conciv/types/rpc-types'
 import {contract} from '@conciv/protocol'
 import contractManifest from '../../../protocol/package.json' with {type: 'json'}
@@ -12,7 +12,7 @@ import {
   type SessionAccessor,
 } from './engine-connection.js'
 
-export type EngineClient = ContractRouterClient<typeof contract, RpcClientContext>
+export type EngineClient = RouterContractClient<typeof contract, RpcClientContext>
 
 export type RpcClientOptions = {
   token?: string
@@ -20,33 +20,23 @@ export type RpcClientOptions = {
   interceptors?: RPCLinkOptions<RpcClientContext>['interceptors']
 }
 
-export function abortableFetch(
-  request: Request,
-  init: RequestInit,
-  options: {signal?: AbortSignal | undefined},
-): Promise<Response> {
-  return fetch(request, {...init, signal: options.signal ?? null})
-}
-
-function rpcUrl(apiBase: string, token: string | undefined): string {
-  const url = new URL(`${apiBase}/rpc`)
-  if (token !== undefined && token !== '') url.searchParams.set(CONCIV_AUTH_TOKEN_QUERY_PARAM, token)
-  return url.href
-}
-
 export function makeRpcClient(apiBase: string, options: RpcClientOptions = {}): EngineClient {
+  const target = new URL(`${apiBase}/rpc`)
+  if (options.token !== undefined && options.token !== '')
+    target.searchParams.set(CONCIV_AUTH_TOKEN_QUERY_PARAM, options.token)
   const link = new RPCLink<RpcClientContext>({
-    url: rpcUrl(apiBase, options.token),
-    fetch: abortableFetch,
+    origin: target.origin,
+    url: `/${target.pathname.slice(1)}${target.search}`,
     headers: {...options.headers, [CONCIV_VERSION_HEADER]: contractManifest.version},
     interceptors: [...(options.interceptors ?? [])],
-    plugins: [new ResponseValidationPlugin(contract)],
+    plugins: [new ResponseValidationLinkPlugin(contract)],
   })
   return createORPCClient(link)
 }
 
 export function engineTooOld(error: unknown): boolean {
-  return error instanceof ValidationError || (error instanceof ORPCError && error.code === 'NOT_FOUND')
+  if (!(error instanceof ORPCError)) return false
+  return error.cause instanceof ValidationError || error.code === 'NOT_FOUND'
 }
 
 export const RPC_UNBOUND_MESSAGE = 'conciv core not connected yet'
