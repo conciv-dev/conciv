@@ -1,4 +1,4 @@
-import type {ChatConnectionOptions, EngineConnectionTimings} from '@conciv/client'
+import type {EngineConnectionTimings} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
 import type {Entry} from '@conciv/frontend-plugin-api/host'
@@ -17,7 +17,6 @@ export type ConcivInit = {
   engineToken?: () => Promise<string>
   timings?: {
     engine?: Partial<EngineConnectionTimings>
-    chatRunReconnect?: ChatConnectionOptions['runReconnect']
     queryRetryDelayMs?: number
   }
 }

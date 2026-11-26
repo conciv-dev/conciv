@@ -39,7 +39,6 @@ export {
 import {safe} from '@orpc/client'
 import {createChatSession, type ChatSession} from './chat.js'
 import type {EngineClient} from './connection/rpc-client.js'
-import type {EngineTrust} from './connection/engine-connection.js'
 import {chatConnection, type ChatConnectionOptions} from './chat/chat-connection.js'
 export type {ChatSession} from './chat.js'
 import {createTanstackQueryUtils, type RouterUtils} from '@orpc/tanstack-query'
@@ -52,7 +51,6 @@ export type QueryUtils = ReturnType<typeof makeQueryUtils>
 
 export type UseChatSessionOptions = {
   rpc: EngineClient
-  trust: EngineTrust | undefined
   sessionId: string
   connection?: ChatConnectionOptions
   onError?: (error: Error) => void
@@ -63,7 +61,7 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     sessionId: options.sessionId,
     onError: options.onError,
     connect: (session) =>
-      chatConnection(options.rpc, options.trust, options.sessionId, {
+      chatConnection(options.rpc, options.sessionId, {
         ...options.connection,
         onLifecycle: (lifecycle) => {
           options.connection?.onLifecycle?.(lifecycle)

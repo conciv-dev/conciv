@@ -3,7 +3,7 @@ import {createLocalPersistence, type LocalPersistence} from '@internal/frontend-
 import {once, uniq} from 'es-toolkit'
 import {z} from 'zod'
 import type {RouterHistory} from '@tanstack/solid-router'
-import {QueryClient, setupEngineReachability, type ChatConnectionOptions} from '@conciv/client'
+import {QueryClient, setupEngineReachability} from '@conciv/client'
 import {createRoot, getOwner, onCleanup, runWithOwner, untrack, type JSX, createMemo, onMount} from 'solid-js'
 import type {EngineConnection, EngineConnectionTimings, EngineTrust, EngineClient, TrustListener} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
@@ -50,7 +50,6 @@ const PaneParamsSchema = z.object({sessionId: z.string()})
 
 export type ConcivTimings = {
   engine?: Partial<EngineConnectionTimings>
-  chatRunReconnect?: ChatConnectionOptions['runReconnect']
   queryRetryDelayMs?: number
   picker?: {searchWaitMs?: number; previewWaitMs?: number}
 }

@@ -18,7 +18,6 @@ import {engineToken, testEntry, useFakeEngine, type RealEngine, type TestPlugin}
 
 const SHELL_TIMINGS: NonNullable<Platform['timings']> = {
   engine: {offlineGraceMs: 10},
-  chatRunReconnect: {firstDelayMs: 10, maxDelayMs: 50},
   queryRetryDelayMs: 10,
   picker: {searchWaitMs: 0, previewWaitMs: 0},
 }

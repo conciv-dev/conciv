@@ -128,14 +128,12 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const openChat = (sessionId: string, connection: EngineConnection | undefined, reopened: boolean): ChatSession => {
     const session = useChatSession({
       rpc: deps.rpc,
-      trust: connection?.trust,
       sessionId,
       onError: () => {
         if (reopened && session.loadFailed()) deps.announce('conciv could not load this conversation. Try again.')
         returnLostQueue(sessionId, session)
       },
       connection: {
-        runReconnect: deps.timings?.chatRunReconnect,
         onHydrated: (hydration) => hydrated(sessionId, hydration.lastRun),
         onLifecycle: (lifecycle) =>
           isRunPhaseTerminal(lifecycle.phase)
