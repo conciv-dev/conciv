@@ -890,6 +890,7 @@
   "entry": [
     "packages/backend-app-api/src/core/database/**",
     "packages/brand/src/brand-guidelines.mdx",
+    "packages/app/src/global-entry.ts",
     "packages/app/src/native-entry.ts",
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",
     "packages/home/drizzle.config.ts",

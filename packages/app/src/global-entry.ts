@@ -1,3 +1,3 @@
-import {mountConciv} from '../../src/mount.js'
+import {mountConciv} from './mount.js'
 
 void mountConciv()
