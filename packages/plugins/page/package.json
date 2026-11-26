@@ -119,5 +119,8 @@
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"
+  },
+  "conciv": {
+    "builtin": true
   }
 }
