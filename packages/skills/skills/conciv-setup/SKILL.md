@@ -125,7 +125,7 @@ the Next.js component host does (`e2e/nextjs-component/app/conciv-widget-client.
 ## Manual mount: `@conciv/app`
 
 `createConciv(init)` returns a handle: `mount(el)`, `unmount()`, `open()`, `close()`, `toggle()` and
-`rebind(apiBase)` (`packages/app/src/mount.ts:25-32`, `packages/app/src/mount.ts:54-144`). `mount`
+`rebind(apiBase)` (`packages/app/src/mount.ts:25-32`, `packages/app/src/mount.ts:38-124`). `mount`
 does nothing when the handle is not `unmounted`, and a failed mount resets it and rethrows. `open`,
 `close` and `toggle` send panel commands over the window event bus, which the widget answers once it
 is mounted. `rebind` does nothing unless the widget is mounted. `ConcivInit` is
@@ -133,7 +133,7 @@ is mounted. `rebind` does nothing unless the widget is mounted. `ConcivInit` is
 
 `mountConciv(plugins?)` is the one-shot form: it appends a `[data-conciv-script-root]` div to
 `document.body` and mounts there, and does nothing when that element already exists or inside a
-capture frame (`packages/app/src/mount.ts:154-167`). It returns no handle. conciv.dev mounts its own
+capture frame (`packages/app/src/mount.ts:134-147`). It returns no handle. conciv.dev mounts its own
 widget this way (`apps/site/src/lib/mount-live-widget.ts:65`).
 
 `@conciv/react`'s `ConcivWidget` is the reference wrapper: it creates the handle in an effect, mounts it
