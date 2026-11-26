@@ -1,5 +1,5 @@
 ---
-'@conciv/protocol': patch
+'@conciv/types': patch
 '@conciv/harness': patch
 ---
 

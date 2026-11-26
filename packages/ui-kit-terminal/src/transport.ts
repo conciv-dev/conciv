@@ -1,5 +1,5 @@
 import type {Terminal as Xterm} from '@xterm/xterm'
-import type {TtyServerControl} from '@conciv/protocol/terminal-types'
+import type {TtyServerControl} from '@conciv/types/terminal-types'
 
 export type TerminalSize = {cols: number; rows: number}
 

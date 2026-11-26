@@ -2,32 +2,20 @@
 
 ## Overview
 
-CLI and library that gzip-measure every non-private package's dist JS/CSS, the embed widget (its first load and its lazy chunks as two rows), and the apps/site worker (through a wrangler dry-run). The CLI renders a markdown size table with deltas against a baseline JSON file and fails when the worker exceeds a 3 MiB gzip budget.
+CLI and library that gzip-measure every non-private package's dist JS/CSS (under `packages/` and `packages/plugins/`), the widget bundle of `@conciv/app` (its first load and its lazy chunks as two rows), and the apps/site worker (through a wrangler dry-run). The CLI renders a markdown size table with deltas against a baseline JSON file and fails when the worker exceeds a 3 MiB gzip budget.
 
 ## Interface
 
-- CLI `conciv-bundle-size` (`cli.ts`): measures from process.cwd(); `--output <path>` writes sizes JSON, `--baseline <path>` reads the baseline to diff against
-- `PackageSize` type (`measure.ts`): {name, raw, gzip, files}
-- `WorkerReport` type (`measure.ts`): {size: PackageSize, chunks: {file, gzip}[]}
-- `WORKER_NAME` (`measure.ts`): 'conciv.dev worker (apps/site)'
-- `WORKER_LIMIT_KIB` (`measure.ts`): 3 * 1024 (3072 KiB gzip budget)
-- `measureSizes(root)` (`measure.ts`): widget first load (the `conciv-widget.global.js` loader plus the static-import closure of its entry chunk and the `mount-impl` chunk the widget imports at mount) and widget lazy chunks (every other `dist/widget` chunk) first, then non-private packages under packages/ sorted by name
-- `parseSizes(raw)` (`measure.ts`): parses baseline JSON leniently into PackageSize[]
-- `parseWorkerSize(wranglerOutput)` (`measure.ts`): strips ANSI codes and extracts 'Total Upload: X KiB / gzip: Y KiB' as bytes
-- `workerIsOverBudget(report, limitKib)` (`measure.ts`): true when gzip &gt; limitKib*1024
-- `workerIsBuilt(root)` (`measure.ts`): checks that apps/site/dist/server/wrangler.json exists
-- `measureWorker(root)` (`measure.ts`): runs a wrangler dry-run and returns the total plus per-chunk gzip sizes sorted descending
-- `formatWorkerOverBudget(report, limitKib)` (`measure.ts`): message listing the top 10 chunks
-- `renderSizes(current, baseline)` (`measure.ts`): markdown '## Bundle size' table with total and per-package delta against main
+- CLI `conciv-bundle-size` (`cli.ts`): measures from `process.cwd()`; `--output <path>` writes sizes JSON, `--baseline <path>` reads the baseline to diff against.
 
 ## Invariants
 
 - `publishedPackages` (`measure.ts`): skips dirs without package.json and manifests with private === true or a non-string name
 - `distFiles` (`measure.ts`): counts only .js/.mjs/.cjs/.css files under dist, recursively
-- `measureSizes` (`measure.ts`): drops packages with 0 dist files; the two widget rows are included only if packages/embed/dist/conciv-widget.global.js and packages/embed/dist/widget exist
+- `measureSizes` (`measure.ts`): drops packages with 0 dist files; the two widget rows are included only if `packages/app/dist/conciv-widget.global.js` and `packages/app/dist/widget` exist; the first-load row is the loader plus the static-import closure of its entry chunk and the `mount-impl` chunk, the lazy row every other `dist/widget` chunk
 - `parseSizes` (`measure.ts`): invalid JSON or a non-array gives []; entries without a string name are dropped; non-number raw/gzip/files default to 0
 - `parseWorkerSize` (`measure.ts`): throws unless exactly one wrangler size line matches, and on non-finite numbers
-- `measureWorker` (`measure.ts`): throws if apps/site/dist/server/wrangler.json is missing, naming `pnpm exec turbo run build --filter=site`
+- The worker budget is 3 MiB gzip (`WORKER_LIMIT_KIB`); `measureWorker` (`measure.ts`) throws if apps/site/dist/server/wrangler.json is missing, naming `pnpm exec turbo run build --filter=site`
 - `cli.ts`: measureWorker runs unconditionally, so the CLI throws when the site worker is not built; a missing baseline file means no baseline
 
 ## Side Effects
@@ -41,5 +29,4 @@ CLI and library that gzip-measure every non-private package's dist JS/CSS, the e
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/bundle-size` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/bundle-size && pnpm typecheck`, then `pnpm lint` at the repo root
+- Typecheck: `pnpm exec turbo run typecheck --filter=@conciv/bundle-size` from the repo root (the package has no `test` script)

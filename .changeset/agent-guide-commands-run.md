@@ -1,5 +1,5 @@
 ---
-'@conciv/harness-init': patch
+'@conciv/harness': patch
 '@conciv/cli': patch
 ---
 

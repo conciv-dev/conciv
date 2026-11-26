@@ -1,5 +1,5 @@
 ---
-'@conciv/embed': patch
+'@conciv/app': patch
 ---
 
 Widget test helpers move from the extension testkit into the private @conciv/plugin-testkit; no behaviour change.

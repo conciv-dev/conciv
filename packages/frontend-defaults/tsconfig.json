@@ -1,0 +1,7 @@
+{
+  "extends": "@internal/tsconfig/tsconfig.solid.json",
+  "compilerOptions": {
+    "types": ["vite/client"],
+    "allowImportingTsExtensions": true
+  }
+}

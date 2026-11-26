@@ -4,10 +4,10 @@ import solidPlugin from 'vite-plugin-solid'
 export default defineConfig({
   sourcemap: true,
   entry: [
-    'src/core/index.ts',
+    'src/core/core.ts',
     'src/core/style-merge.ts',
     'src/core/adapter.ts',
-    'src/solid/index.ts',
+    'src/solid/solid.ts',
     'src/core/effects/binary.ts',
     'src/core/effects/matrix.ts',
     'src/core/effects/thought-cloud.ts',

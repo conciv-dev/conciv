@@ -1,5 +1,5 @@
 ---
-'@conciv/embed': patch
+'@conciv/app': patch
 '@conciv/plugin-test-runner': patch
 ---
 

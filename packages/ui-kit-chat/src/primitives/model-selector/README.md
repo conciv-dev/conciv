@@ -1,4 +1,4 @@
-# primitives/model-selector
+# ui-kit-chat/src/primitives/model-selector
 
 ## Overview
 
@@ -18,4 +18,4 @@ The harness model menu's state and its row building, rendered by `styled/harness
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

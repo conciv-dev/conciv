@@ -1,6 +1,6 @@
 import {writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
-import {CONCIV_BIN, CONCIV_COMMAND_GUIDE, CONCIV_RANKING_SENTENCE} from '@conciv/harness-init/agent-guide'
+import {CONCIV_BIN, CONCIV_COMMAND_GUIDE, CONCIV_RANKING_SENTENCE} from '@conciv/harness/init/agent-guide'
 import {harnessAgentsMdNote, type HarnessId} from '../../harness-detect.js'
 import {captureFile, pathExists, readOptionalText} from '../../interrupt.js'
 import type {ManualCard} from '../../ledger.js'

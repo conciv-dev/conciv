@@ -3,12 +3,12 @@ title: webpack
 description: Add conciv to a webpack app.
 ---
 
-In a development build the webpack plugin puts the widget on every page of your app, and in watch mode
-(the dev server or `--watch`) it also starts the engine. A one-shot development build only adds the
-widget, so run the dev server or turn on watch mode. A config with `mode: 'production'` or no `mode` counts as
-production and gets neither; `mode: 'development'` and `mode: 'none'` get both.
+In a development build the webpack plugin puts the widget on every page of your app, and in watch mode (the dev server
+or `--watch`) it also starts the engine. A one-off development build only adds the widget, so run the dev server or
+turn on watch mode. A config with `mode: 'production'` or no `mode` counts as production and gets neither;
+`mode: 'development'` and `mode: 'none'` get both.
 
-<Tabs items={['init', 'Manual']}>
+<Tabs items={['init', 'By hand']}>
 
 <Tab value="init">
 
@@ -16,15 +16,14 @@ production and gets neither; `mode: 'development'` and `mode: 'none'` get both.
 npx @conciv/cli@latest init
 ```
 
-init detects webpack from your package.json, installs `@conciv/it` with your package manager, and
-adds the `@conciv/it/plugin/webpack` plugin to your webpack config.
-
-init prints the whole plan and asks once before it writes anything; `--yes` approves it up front and
-`--dry-run` prints it and exits. It refuses a dirty git tree; commit first or pass `--force`.
+init finds webpack in your `package.json`, installs `@conciv/it`, and adds conciv to the `plugins` of your webpack
+config: `require` and `conciv.default()` in a CommonJS config, `import` and `conciv()` in an ES module config. If it
+cannot read the shape of your config, it prints the snippet to paste instead. See [Quick start](/docs/quick-start) for
+what it asks.
 
 </Tab>
 
-<Tab value="Manual">
+<Tab value="By hand">
 
 <Steps>
 <Step>
@@ -44,10 +43,11 @@ npm install -D @conciv/it
 const conciv = require('@conciv/it/plugin/webpack')
 
 module.exports = {
-  mode: 'development',
   plugins: [conciv.default()],
 }
 ```
+
+Set `mode: 'development'` in the config, or pass `--mode development`, for the widget and the engine.
 
 </Step>
 </Steps>
@@ -57,11 +57,11 @@ module.exports = {
 </Tabs>
 
 <Callout>
-  webpack is less complete than [Vite](/docs/quick-start/vite). The live page bridge is Vite only. Chat, tests, and
-  approvals work in the widget your dev build serves.
+  webpack is less complete than [Vite](/docs/quick-start/vite): the agent cannot read your dev server's config or module
+  graph, and its `server_*` tools answer `no dev server is attached to conciv`. The chat and the page tools work in the
+  widget your dev build serves.
 </Callout>
 
-The engine listens on the `port` you pass when it is free. With no `port`, it prefers the port it
-used last time in this project, else a port picked from the project folder (one of 1000 from 24170 up), so two projects
-started together rarely ask for the same one. When the port is taken, the plugin picks a free port before the first watch build and builds the widget with it, so
-two projects can run side by side. If the engine still cannot start, the build fails with the reason.
+The plugin picks the engine port before the first watch build and builds the widget with it. See
+[Configuration](/docs/configuration#port) for how the port is chosen. If the engine cannot start, the build fails with
+`conciv: the engine failed to start` and the reason. Stopping the watch, or closing the compiler, stops the engine.

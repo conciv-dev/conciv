@@ -11,16 +11,12 @@ umbrella package; install that:
 npm install -D @conciv/it
 ```
 
-## Interface
-
-- [src/README.md](./src/README.md): all types, `sourceLabel`, `composeGrabText`.
-- `exports["."]` -> `dist/grab.js` (from `src/grab.ts`) (`package.json`).
-- Only runtime dependency: `@conciv/plugin`. Scripts: `build` (`tsdown`), `typecheck`, `lint` (`oxlint`), `test` (`vitest run --passWithNoTests`), `publint`, `attw`.
-
 ## Invariants
 
-- `tsconfig.json` uses `lib: [ES2024, DOM, DOM.Iterable]`, `types: []`, and takes its include from the shared config (`src`, `test` and root `*.ts`).
-- Payload size and shape rules are in [src/README.md](./src/README.md#invariants).
+- The grab data types are owned by `@conciv/frontend-plugin-api/grab`, this package's only runtime dependency; it
+  re-exports them and adds the picker shape (`GrabActions`, `GrabProvider`) and two label helpers (`src/grab.ts`).
+- `tsconfig.json` extends `@internal/tsconfig/tsconfig.web.json` (`lib: [ES2025, DOM, DOM.Iterable]`) with
+  `types: []`.
 
 ## Side Effects
 

@@ -4,20 +4,13 @@
 
 Landing page sections: nav, hero with the demo, framework install tabs with pre-highlighted snippets, features, how it works, bundler band, footer, and widget controls.
 
-## Interface
+## Subdirectories & Boundaries
 
-- `LandingPage` (`landing-page.tsx`): composes the landing sections
-- `Hero` (`hero.tsx`): hero with the lazy `Demo` from `./demo/demo`
-- `FrameworkTabs` (`framework-tabs.tsx`): compound `Root`, `List`, `Trigger`, `Panel`, `FileBar`, `Copy`, `Code`, `Note`
-- `CopyButton` (`copy-button.tsx`): compound `Root`, `Trigger`, `Feedback`
-- `TryLiveButton` (`try-live-button.tsx`): a router link to `/?try=1`; the widget panel follows that param, so a click before hydration still opens it
-- `SiteNav`, `SiteFooter`, `FeaturesSection`, `HowItWorks`, `BundlerBand`, `InstallChip`, `GitHubStarLink`, `RobotFab`, `SparkMark`, `ThemeToggle`
-- `SmoothScroll`, `useSmoothAnchor` (`smooth-scroll.tsx`): Lenis smooth scrolling
-- `LandingMotion` (`lazy-motion.tsx`): lazy `domMax` motion features from `motion-features.ts`
-- Subdirectories: [demo](./demo/README.md)
+- [demo](./demo/README.md)
 
 ## Invariants
 
+- `try-live-button.tsx`: the button is a router link that adds `?try=1`; the widget panel follows that param, so a click before hydration still opens it.
 - `copy-button.tsx`, `framework-tabs.tsx`: parts throw when used outside their `Root`
 - `smooth-scroll.tsx:SmoothScroll`: smooth wheel scrolling is off under reduced motion
 - `framework-tabs.tsx`: snippet data and its pre-highlighted output come from the `site-snippets` workspace package

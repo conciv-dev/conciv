@@ -24,7 +24,7 @@ import {
 export const SCROLL_END_THRESHOLD_PX = 1
 const NEAR_START_VIEWPORTS = 3
 const GLIDE_VIEWPORTS = 2
-const SCROLLABLE_OVERFLOW = new Set(['auto', 'scroll'])
+const SCROLLABLE_OVERFLOW = ['auto', 'scroll']
 
 type ViewportAnchor = {mode: 'resume-following'} | {mode: 'preserve-reader-anchor'; offset: number}
 
@@ -454,6 +454,6 @@ function remainingBelow(element: Element): number {
 function takesDownwardWheel(target: EventTarget): boolean {
   if (!(target instanceof Element) || target.scrollHeight <= target.clientHeight) return false
   const style = getComputedStyle(target)
-  if (!SCROLLABLE_OVERFLOW.has(style.overflowY)) return false
+  if (!SCROLLABLE_OVERFLOW.includes(style.overflowY)) return false
   return remainingBelow(target) > SCROLL_END_THRESHOLD_PX || style.overscrollBehaviorY !== 'auto'
 }

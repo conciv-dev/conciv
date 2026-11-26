@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [solid()],
   build: {
     lib: {
-      entry: {index: fileURLToPath(new URL('src/index.tsx', import.meta.url))},
+      entry: {'ui-kit-tap': fileURLToPath(new URL('src/ui-kit-tap.tsx', import.meta.url))},
       formats: ['es'],
     },
     rollupOptions: {

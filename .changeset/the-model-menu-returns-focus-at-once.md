@@ -1,5 +1,5 @@
 ---
-'@conciv/embed': patch
+'@conciv/app': patch
 '@conciv/ui-kit-tap': patch
 ---
 

@@ -1,21 +1,20 @@
 ---
 title: What is conciv
-description: Claude Code, living inside your running app. Chat, page control, and live tests, injected via a build plugin.
+description: An AI dev agent inside your running app. Chat, page control and live tests, added by a build plugin.
 icon: Rocket
 ---
 
-conciv puts an AI dev agent inside the app you are already running. Add one plugin, and a conciv button
-appears in your dev build. Open it to chat with an agent that sees the page you are on, drives and
-edits it, and runs your tests, without leaving the app. The name is the pitch: say `@conciv/it` out
-loud, and conceive it.
+conciv puts an AI dev agent inside the app you are already running. Add one build plugin, and a conciv button appears
+in your dev build. Open it to chat with an agent that reads the page you are on, drives and edits it, and runs your
+tests, without leaving the app. The name is the pitch: say `@conciv/it` out loud, and conceive it.
+
+This is the Vite config `conciv init` writes:
 
 ```ts title="vite.config.ts"
 import {defineConfig} from 'vite'
 import conciv from '@conciv/it/plugin/vite'
 
-export default defineConfig({
-  plugins: [conciv()],
-})
+export default defineConfig({plugins: [conciv()]})
 ```
 
 ## What you can do
@@ -24,32 +23,32 @@ export default defineConfig({
   <Card
     title="Chat"
     href="/docs/usage/chat"
-    description="Talk to the agent about the page you are looking at. It grounds on the real DOM."
+    description="Talk to the agent about the page you are looking at. It reads the rendered page first."
   />
   <Card
     title="Page control"
     href="/docs/usage/page-control"
-    description="The agent reads and drives your live page, then persists the change to source."
+    description="The agent reads and drives your live page, then writes the change to your source."
   />
   <Card
     title="Live tests"
     href="/docs/usage/live-tests"
-    description="Ask it to run your tests and watch results stream into a card."
+    description="Ask it to run your tests and read the result in the thread."
   />
   <Card
     title="Whiteboard"
     href="/docs/usage/whiteboard"
-    description="A shared Excalidraw canvas. You sketch, the AI draws back real elements."
+    description="A shared Excalidraw canvas over the page. You sketch, the agent draws back."
   />
   <Card
     title="Approvals"
     href="/docs/usage/approvals"
-    description="Risky commands surface a permission card (Allow once or Deny) before they run."
+    description="Risky actions show a Permission card (Allow once or Deny) before they run."
   />
   <Card
-    title="Extensions"
-    href="/docs/extending"
-    description="Teach the agent new tools with one file in conciv/extensions/."
+    title="Plugins"
+    href="/docs/plugins"
+    description="Give the agent new tools and the widget new panels with a plugin."
   />
 </Cards>
 

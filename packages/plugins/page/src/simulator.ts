@@ -82,7 +82,7 @@ type SimulatorOptions = {
   session: () => string | null
   onStop: (sessionId: string) => void
   running: (sessionId: string) => boolean
-  taskTimeoutMs?: number | undefined
+  taskTimeoutMs: () => number | undefined
 }
 
 export type Simulator = {
@@ -206,7 +206,6 @@ export function makeSimulator(options: SimulatorOptions): Effect.Effect<Simulato
     const queues = yield* FiberMap.make<string>()
     const runTimer = yield* FiberMap.runtime(timers)()
     const runQueue = yield* FiberMap.runtime(queues)()
-    const taskTimeoutMs = options.taskTimeoutMs ?? TASK_TIMEOUT_MS
     const machine = {state: initialSimulatorState}
     const handles: Handles = {root: null, run: null, cursor: '', lastClicked: null, pacing: false}
     const cursors = makeCursors()
@@ -269,7 +268,7 @@ export function makeSimulator(options: SimulatorOptions): Effect.Effect<Simulato
         interrupt(timers, 'confirm')
         hint({cursors, cursor: handles.cursor})?.classList.remove(HINT_SHOWN_CLASS)
       },
-      'start-timeout': () => later('timeout', taskTimeoutMs, {type: 'task.ended'}),
+      'start-timeout': () => later('timeout', options.taskTimeoutMs() ?? TASK_TIMEOUT_MS, {type: 'task.ended'}),
       'cancel-timeout': () => interrupt(timers, 'timeout'),
     }
 

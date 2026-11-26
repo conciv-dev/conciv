@@ -13,7 +13,6 @@ const WORKSPACE_IMPORT =
   /(?:\bfrom|\bimport|\bimport\.meta\.resolve\(|\bimport\(|\brequire\()\s*['"](@conciv\/[a-z0-9-]+)(?:\/[^'"]*)?['"]/g
 
 const PLUGIN_ROOT = 'packages/plugins/'
-const KIT_BUILT_INS = ['@conciv/plugin-page', '@conciv/plugin-terminal']
 const UI_KIT = /^@conciv\/ui-kit(?:-|$)/
 
 type DependencyField = 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'peerDependencies'
@@ -26,7 +25,7 @@ const DEPENDENCY_FIELDS: DependencyField[] = [
 
 type SourceImports = {path: string; imports: string[]}
 
-const TYPE_TASKS = ['typecheck', 'build:types']
+const TYPE_TASKS = ['typecheck']
 
 const turboSchema = z.looseObject({
   tasks: z.record(z.string(), z.looseObject({dependsOn: z.array(z.string()).optional()})).optional(),
@@ -37,7 +36,7 @@ export async function assertBuildDependsOnCoversImports(cwd: string): Promise<vo
   const buildable = new Set(packages.filter((pkg) => pkg.manifest.scripts?.build !== undefined).map(readName))
   const explicit = await Promise.all(
     packages
-      .filter((pkg) => !isTranspileOnly(pkg) && pkg.manifest.scripts?.build !== undefined)
+      .filter((pkg) => pkg.manifest.scripts?.build !== undefined)
       .map(async (pkg) => ({pkg, dependsOn: await readBuildDependsOn(pkg)})),
   )
   const violations = await Promise.all(
@@ -60,14 +59,6 @@ export async function assertBuildDependsOnCoversImports(cwd: string): Promise<vo
 
 function readName(pkg: WorkspacePackage): string {
   return pkg.manifest.name ?? pkg.relativeDir
-}
-
-function isTranspileOnly(pkg: WorkspacePackage): boolean {
-  return pkg.manifest.scripts?.build === 'tsdown' && pkg.manifest.scripts['build:types'] !== undefined
-}
-
-function readTypesTask(pkg: WorkspacePackage): string {
-  return pkg.manifest.scripts?.['build:types'] === undefined ? 'build' : 'build:types'
 }
 
 async function readBuildDependsOn(pkg: WorkspacePackage): Promise<string[] | undefined> {
@@ -130,7 +121,7 @@ export async function assertTypeTasksDependOnDistReads(cwd: string): Promise<voi
       return reads.flatMap((name) => {
         const read = packages.find((other) => readName(other) === name && other.manifest.scripts?.build !== undefined)
         if (read === undefined) return []
-        const needed = `${name}#${readTypesTask(read)}`
+        const needed = `${name}#build`
         return before.has(needed) ? [] : [`${task} reads ${name} dist but does not depend on ${needed}`]
       })
     })
@@ -139,7 +130,7 @@ export async function assertTypeTasksDependOnDistReads(cwd: string): Promise<voi
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
   throw new Error(
-    `a typecheck or build:types depends on the task that writes the types of every workspace package whose dist its program reads (build:types where a package has one, else build), directly or through a package it reads from source:\n${messages.join('\n')}`,
+    `a typecheck depends on the build of every workspace package whose dist its program reads, directly or through a package it reads from source:\n${messages.join('\n')}`,
   )
 }
 
@@ -214,8 +205,9 @@ function readProgramFile(root: string, packages: WorkspacePackage[], file: strin
 
 export async function assertPluginsDrawThroughContextUi(cwd: string): Promise<void> {
   const packages = await readWorkspacePackages(cwd)
+  const builtIns = packages.filter((pkg) => pkg.manifest.conciv?.builtin === true).map(readName)
   const plugins = packages.filter(
-    (pkg) => pkg.relativeDir.startsWith(PLUGIN_ROOT) && !KIT_BUILT_INS.includes(readName(pkg)),
+    (pkg) => pkg.relativeDir.startsWith(PLUGIN_ROOT) && pkg.manifest.conciv?.builtin !== true,
   )
   const violations = await Promise.all(
     plugins.map(async (pkg) => {
@@ -234,6 +226,6 @@ export async function assertPluginsDrawThroughContextUi(cwd: string): Promise<vo
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
   throw new Error(
-    `a plugin under packages/plugins draws through ctx.ui (conciv's own plugins read conciv's members with OpaqueUi.toInternal), never with @conciv/ui-kit*; only the built-ins ${KIT_BUILT_INS.join(' and ')} draw with the kit directly, like opencode's gui plugins:\n${messages.join('\n')}`,
+    `a plugin under packages/plugins draws through ctx.ui (conciv's own plugins read conciv's members with OpaqueUi.toInternal), never with @conciv/ui-kit*; only the built-ins ${builtIns.join(' and ')} ("conciv": {"builtin": true} in package.json) draw with the kit directly:\n${messages.join('\n')}`,
   )
 }

@@ -1,5 +1,5 @@
-import type {ModelMessage} from '@conciv/protocol/chat-message-types'
-import type {HarnessImage} from '@conciv/protocol/harness-types'
+import type {ModelMessage} from '@conciv/types/chat-message-types'
+import type {HarnessImage} from '@conciv/types/harness-types'
 
 export function lastUserModelText(messages: ModelMessage[]): string {
   const last = messages.findLast((m) => m.role === 'user')

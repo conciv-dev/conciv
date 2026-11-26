@@ -5,10 +5,10 @@ import type {Grab} from '@conciv/grab'
 import {NativeToPageSchema, type GrabMode, type PageToNativeMessage} from './rpc.js'
 import {IosBridgeMachine} from './bridge-machine.js'
 
-const NATIVE_ROUTE = '/native'
+const WIDGET_ROUTE = '/widget'
 
 export function nativePageBase(location: {origin: string; pathname: string}): string {
-  const index = location.pathname.lastIndexOf(NATIVE_ROUTE)
+  const index = location.pathname.lastIndexOf(WIDGET_ROUTE)
   const prefix = index >= 0 ? location.pathname.slice(0, index) : ''
   return `${location.origin}${prefix}`
 }

@@ -2,6 +2,7 @@ import {
   createContext,
   createMemo,
   createSignal,
+  createUniqueId,
   onCleanup,
   onMount,
   Show,
@@ -9,7 +10,7 @@ import {
   type JSX,
   type ParentProps,
 } from 'solid-js'
-import {mapValues, memoize} from 'es-toolkit'
+import {mapValues, memoize, once} from 'es-toolkit'
 import {ReactiveMap} from '@solid-primitives/map'
 import {Highlight} from '@conciv/ui-kit-system'
 import {
@@ -41,7 +42,6 @@ function createBoundedCache<Value>() {
 const highlights = createBoundedCache<HastElement>()
 const diagrams = createBoundedCache<string>()
 const latestStreamedCode = createBoundedCache<string>()
-const pendingHighlights = new Set<string>()
 const [backendReadyTick, bumpBackendReadyTick] = createSignal(0, {equals: false})
 
 function cacheKey(language: string, code: string): string {
@@ -61,6 +61,7 @@ function createWorkerBackend(worker: Promise<Worker | null>): HighlightBackend {
   let nextId = 0
   const resultCallbacks = new Map<string, (pre: HastElement | null) => void>()
   const streamingRequests = new Map<string, DeferredHighlight | null>()
+  const pendingHighlights = new Set<string>()
 
   function isSupportedLanguage(language: string): boolean {
     return (regexLanguages?.has(language) ?? false) || (precompiledLanguages?.has(language) ?? false)
@@ -125,26 +126,9 @@ function createBackend(): HighlightBackend | null {
   )
 }
 
-let backend: HighlightBackend | null = null
-let backendResolved = false
-
-function ensureBackend(): HighlightBackend | null {
-  if (!backendResolved) {
-    backend = createBackend()
-    backendResolved = true
-  }
-  return backend
-}
-
-let started = false
-
-export function isHighlighterWarming(): boolean {
-  return started
-}
+const ensureBackend = once(createBackend)
 
 export function warmHighlighter(): void {
-  if (started) return
-  started = true
   ensureBackend()
 }
 
@@ -175,8 +159,6 @@ type DiagramStyle = {
   themeVariables: Record<keyof typeof DIAGRAM_TOKENS, string>
 }
 
-let diagramCount = 0
-
 function resolvedColor(element: HTMLElement, token: string): string {
   const probe = document.createElement('span')
   probe.style.color = `var(${token})`
@@ -192,7 +174,7 @@ function diagramStyle(element: HTMLElement): DiagramStyle {
   return {darkMode: computed.colorScheme.trim() === 'dark', fontFamily: computed.fontFamily, themeVariables}
 }
 
-async function renderDiagram(source: string, style: DiagramStyle): Promise<string> {
+async function renderDiagram(id: string, source: string, style: DiagramStyle): Promise<string> {
   const {default: mermaid} = await import('mermaid')
   mermaid.initialize({
     startOnLoad: false,
@@ -202,35 +184,42 @@ async function renderDiagram(source: string, style: DiagramStyle): Promise<strin
     theme: 'base',
     themeVariables: {...style.themeVariables, darkMode: style.darkMode, fontFamily: style.fontFamily},
   })
-  diagramCount += 1
-  const {svg} = await mermaid.render(`conciv-diagram-${diagramCount}`, source)
+  const {svg} = await mermaid.render(id, source)
   return svg
 }
 
+type DiagramState = {status: 'drawing'} | {status: 'drawn'; svg: string} | {status: 'source'}
+
 function MermaidDiagram(props: {code: string}): JSX.Element {
-  const [svg, setSvg] = createSignal<string>()
+  const id = `conciv-diagram-${createUniqueId()}`
+  const [diagram, setDiagram] = createSignal<DiagramState>({status: 'drawing'})
+  const drawn = createMemo(() => {
+    const current = diagram()
+    return current.status === 'drawn' ? current.svg : undefined
+  })
   let source: HTMLPreElement | undefined
   onMount(() => {
-    if (!source) return
+    if (!source) return setDiagram({status: 'source'})
     const style = diagramStyle(source)
     const key = cacheKey(`mermaid:${JSON.stringify(style)}`, props.code)
     const cached = diagrams.entries.get(key)
-    if (cached !== undefined) return setSvg(cached)
-    void renderDiagram(props.code, style)
+    if (cached !== undefined) return setDiagram({status: 'drawn', svg: cached})
+    void renderDiagram(id, props.code, style)
       .then((markup) => {
         diagrams.remember(key, markup)
-        setSvg(markup)
+        setDiagram({status: 'drawn', svg: markup})
       })
-      .catch(() => undefined)
+      .catch(() => setDiagram({status: 'source'}))
   })
   return (
     <Show
-      when={svg()}
+      when={drawn()}
       fallback={
         <pre
           ref={(element) => {
             source = element
           }}
+          aria-busy={diagram().status === 'drawing' ? 'true' : undefined}
         >
           <code>{props.code}</code>
         </pre>

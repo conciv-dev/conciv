@@ -57,7 +57,7 @@ const rawSchema = {
 const rawPlugins: Pluggable[] = [rehypeRaw, [rehypeSanitize, rawSchema]]
 const defaultLinkPrefixes: string[] = ['*']
 const defaultImagePrefixes: string[] = ['*']
-const unmarkedTags = new Set(['code', 'pre'])
+const unmarkedTags = ['code', 'pre']
 const heldLocalLinkTag = 'sd-local-link'
 
 export type StreamdownProps = {
@@ -350,7 +350,7 @@ function rehypeMark(words: readonly string[]) {
 function markedChildren(children: HastContent[], words: readonly string[]): HastContent[] {
   return children.flatMap((child): HastContent[] => {
     if (child.type === 'text') return markedText(child.value, words)
-    if (child.type !== 'element' || unmarkedTags.has(child.tagName)) return [child]
+    if (child.type !== 'element' || unmarkedTags.includes(child.tagName)) return [child]
     return [{...child, children: markedChildren(child.children, words)}]
   })
 }

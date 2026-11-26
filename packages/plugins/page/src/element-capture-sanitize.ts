@@ -6,9 +6,9 @@ export type SanitizableNode = {
   childNodes?: SanitizableNode[]
 }
 
-const DANGEROUS_TAGS = new Set(['iframe', 'object', 'embed', 'script', 'link', 'style', 'meta'])
+const DANGEROUS_TAGS: readonly string[] = ['iframe', 'object', 'embed', 'script', 'link', 'style', 'meta']
 
-const URL_ATTRIBUTES = new Set([
+const URL_ATTRIBUTES: readonly string[] = [
   'action',
   'background',
   'data',
@@ -19,7 +19,7 @@ const URL_ATTRIBUTES = new Set([
   'srcdoc',
   'srcset',
   'xlink:href',
-])
+]
 
 const LOCAL_REFERENCE_PATTERN = /^(?:#|data:)/i
 
@@ -71,7 +71,7 @@ export function isLocalReference(value: string): boolean {
 }
 
 export function isDangerousTag(node: SanitizableNode): boolean {
-  return node.tagName !== undefined && DANGEROUS_TAGS.has(node.tagName.toLowerCase())
+  return node.tagName !== undefined && DANGEROUS_TAGS.includes(node.tagName.toLowerCase())
 }
 
 function isRasterDataUrl(value: unknown): boolean {
@@ -86,7 +86,7 @@ export function isDroppableAttribute(name: string, value: unknown): boolean {
   if (lowered.startsWith('on')) return true
   if (lowered === 'style') return typeof value === 'string' && CSS_URL_PATTERN.test(value)
   if (lowered === INLINE_IMAGE_ATTRIBUTE) return !isRasterDataUrl(value)
-  if (!URL_ATTRIBUTES.has(lowered)) return false
+  if (!URL_ATTRIBUTES.includes(lowered)) return false
   return typeof value !== 'string' || !isLocalReference(value)
 }
 

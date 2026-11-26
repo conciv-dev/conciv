@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {Rpc} from '@conciv/plugin/rpc'
+import * as Rpc from '@conciv/protocol/schema/rpc'
 
 export const FrameworkInfo = z.object({
   name: z.enum(['tanstack-start']),

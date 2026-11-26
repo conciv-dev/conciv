@@ -2,46 +2,38 @@
 
 ## Overview
 
-Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and content, AG-UI custom chat events, page tool errors and queue handles, element captures, terminal control messages, bundler config and module-graph schemas, and harness types. A few runtime helpers: a CustomEvent event bus, a node sanitizer, path and port helpers, and a payload budget. No RPC method names are defined here.
+Defines the oRPC `contract` router between the engine and its clients (auth, sessions, tabs, jobs, settings, drafts,
+markers, chat, registry, code, meta, skill, agent, fs, plugin, experimental, event) and the zod row schemas
+those procedures use.
 
-## Interface
-
-- Paths and headers (`chat-types.ts`): CHAT_HISTORY_PAGE_SIZE 50, CONCIV_SESSION_HEADER 'conciv-session-id', CONCIV_CLAUDE_SESSION_HEADER, MAX_ATTACHMENT_RAW_BYTES, CODE_MODE_TIMEOUT_MS 150000 (the code-mode execute timeout)
-- Chat schemas (`chat-types.ts`): ChatContentPartSchema, SessionId, HarnessSessionId, SessionRecordSchema (with a nullable `effort` and nullable `permissions`, a list of PermissionRuleSchema `{action, resource, effect}`, and nullable `metadata`, a record of JSON values, its type `SessionMetadata`), ReasoningEffortSchema (`low` `medium` `high` `xhigh` `max`), HarnessModelSchema (optional `efforts`), PermissionDecisionSchema, NavigationStateSchema, ChatModelsSchema, HarnessMetaSchema, HarnessMenuEntrySchema (a harness with its `models`, `defaultModel` and `modelsFailed`), ChatHarnessesSchema, ChatCommandsSchema, ChatToolsSchema and more, with `isSessionId` / `isHarnessSessionId`
-- Chat events (`chat-event-types.ts`): `defineChatEvent`; 'approval-requested', 'conciv.run-lifecycle', 'conciv.session-run', 'conciv.idle-failed' (`{runId}`: the run's `experimental.idle` hook failed and its record now carries the error); `readApprovalAsk`, `isRunPhaseTerminal`; `CONTEXT_OVERFLOW_CODE` (re-exported from `@tanstack/ai`) and `SESSION_DELETED_CODE` (`'session_deleted'`, the `code` of a turn or compaction refused because its session is deleted), each a `RUN_ERROR` / `Error` `code`
-- Chat messages (`chat-message-types.ts`): @tanstack/ai aliases, `toModelMessages`, `CompactionMetadataSchema`, `OutsideCallMetadataSchema` (the `{conciv: {origin: 'hub', client, run}}` marker an outside agent's call carries), `isContentParts`, and `imagesIn` / `withoutImages` / `imageBlocks` (find image parts anywhere in a value, replace them with a stub, and turn them into MCP image blocks)
-- `chatBusy` (`chat-busy.ts`); `ChatTool` / `defineTool` (`chat-tool-types.ts`)
-- Page protocol (`page-types.ts`): PAGE_ERROR_CODES, SymbolicateSchema, OpenSourceResultSchema, `pageFailure`, PageQueueHandleSchema (`{queueId, actions}`), PAGE_QUEUE_SYNC_MS (`CODE_MODE_TIMEOUT_MS` minus 30 s)
-- UI markers (`ui-types.ts`): PLUGIN_OVERLAY_ATTR. Every plugin overlay host (`ctx.overlay`) carries it, so page captures and selection skip all of them.
-- Terminal control (`terminal-types.ts`): TtyClientControlSchema (resize, inject), TtyServerControlSchema (exit, busy, error)
-- UI input (`ui-types.ts`): UiInputSchema, UiAnswerSchema, `aguiSnapshotFor`
-- Usage helpers (`usage-types.ts`)
-- Bundler (`bundler-types.ts`): BundlerConfigSchema, ModuleNodeSchema (the bridge itself is `@conciv/plugin/schema/bundler`)
-- Harness contracts (`harness-types.ts`): HarnessCapabilities, HarnessInit
-- RPC (`rpc-types.ts`): WS_MAX_PAYLOAD_BYTES (16 MiB), WS_RPC_PAYLOAD_BUDGET_BYTES, `CONCIV_VERSION_HEADER` (`'x-conciv-version'`), `RPC_WS_PATH` (`'/rpc-ws'`), RpcContext (with optional `clientVersion` and `socket`, the per-connection `RpcSocketTrust` `{allows(path), admit(token)}` a socket-served call carries, and `replied`, a per-request promise that resolves true once that call's reply has gone out and false when it did not), `rpcHeader`
-- Event bus (`event-bus.ts`): `createEventBus`, `createEventBusClient`, DISPATCH_EVENT, CONNECT_EVENT, GLOBAL_EVENT, PANEL_PLUGIN_ID
-- Config (`config-types.ts`): ConcivConfig, ConcivSettingsInit, ExtensionRegistry, `defineConfig`
-- Tool views (`tool-view-types.ts`): ToolCardProps, ToolCardEntry, ToolUIComponent
-- Ports and state (`connect-ports.ts`, `state-types.ts`): CONNECT_FIRST_PORT 4732 to CONNECT_LAST_PORT 4741, CONCIV_STATE_DIR '.conciv', `concivStateDir`
+- `contract.ts`: the router. `event.subscribe` is an eventIterator of
+  `EventEnvelopeSchema`, the engine's one event stream; its envelope is not a typed union, the precise union is the
+  SDK's type.
+- `rows.ts`: the session, draft and marker row schemas.
+- `source-location.ts`: the one declaration of the source-location types.
+- `code-reply.ts`: the one formatter from a code execution result to MCP content, used by the engine's MCP endpoint (`packages/backend-defaults/src/engine/api/mcp.ts`) and the CLI hub (`packages/cli/src/hub.ts`).
+- `schema/`: the event, session, message, permission, tool, job and plugin schemas, and the
+  browser tab schemas (`browser-tab.ts`) with their durable `tab.opened`, `tab.updated` and `tab.closed` events
+  (`browser-tab-event.ts`).
+- `execute-schemas.ts`: the `execute_typescript` tool's input and output schemas.
+- `simulation.ts`: the drive contract (`uiContract`) the widget serves in drive mode.
+- `protocol.ts`: the `.` entry, re-exports `rows.ts`, `source-location.ts`, `contract.ts` and `code-reply.ts`.
 
 ## Invariants
 
-- `SessionId` (`chat-types.ts`): /^ses_[A-Za-z0-9_-]{1,128}$/ (validator only; ids are made by `@conciv/plugin/schema/session-id`); `HarnessSessionId` /^[A-Za-z0-9_-]{1,128}$/
-- `ChatContentPartSchema` (`chat-types.ts`): image and document payloads must be non-empty valid base64 within the base64 length of MAX_ATTACHMENT_RAW_BYTES
-- `RenameSessionSchema` (`chat-types.ts`): title at most 120 chars; `PermissionDecisionSchema` carries opencode's reply: `once`, `always` (saves a project rule, offered only for an ask with `save`) or `reject`
-- `defineChatEvent` (`chat-event-types.ts`): create() throws on invalid input; parse() returns null on mismatch
-- `isRunPhaseTerminal` (`chat-event-types.ts`): completed, failed and aborted are terminal
-- `TtyClientControlSchema` (`terminal-types.ts`): cols and rows 2..500; inject text 1..4096 chars
-- `SymbolicateSchema` (`page-types.ts`): 1..32 frames
-- `aguiSnapshotFor` (`ui-types.ts`): throws unless the chunk is a MESSAGES_SNAPSHOT
-- `createEventBusClient` (`event-bus.ts`): queues events until the connect handshake succeeds; retries every 300ms up to 5 times, then 'failed'
+- `sessions.rename` requires `title` of 1-120 characters and declares `NOT_FOUND`; `sessions.model` declares `NOT_FOUND` and `UNKNOWN_MODEL`; `sessions.effort` takes a `ReasoningEffortSchema` value or null and declares `NOT_FOUND` and `UNSUPPORTED_EFFORT`; `sessions.switchHarness` takes a non-empty `harnessId` and an optional non-empty `model` and declares `NOT_FOUND`, `UNKNOWN_HARNESS`, `UNKNOWN_MODEL` and `SESSION_RUNNING`; `SessionMetaSchema` carries a nullable `effort` and `lastRunAt: number | null`, the start of the session's newest run (null until it has run) (`contract.ts`, `rows.ts`).
+- `chat.stop` requires each of `runIds` to be a non-empty string; `chat.permissionDecision` and `chat.uiReply` declare `UNKNOWN_REQUEST` (`contract.ts`).
+- `registry.call` requires a non-empty `name` and `input` as `record<string, unknown>`, and declares the `registryCallErrors` set (`contract.ts`).
+- `ToolCommandSignatureSchema.errors` defaults to `[]` (`contract.ts`).
+- `BrowserTabId` is `tab_` plus a 36-character UUID; a tab's `url` is at most 16 384 characters and its `title` at most 2 048 (`schema/browser-tab.ts`). `jobs.wait` takes 1-256 ids and `waitMs` 0-30 000; `jobs.list` at most 256 `toolCallIds` (`contract.ts:41-43`).
+- `StreamChunkSchema` checks only that a chunk is a non-null object, then casts it to `ChatEvent` (`contract.ts`).
+- `DraftRowSchema` requires `selectionStart` / `selectionEnd` to be integers >= 0 and maps null `attachments` to `[]`; `drafts.set` takes the whole row, `updatedAt` included, which the engine stores as sent (`rows.ts`, `contract.ts`). `MarkerRowSchema.afterMessageId` is the id of the message the marker follows, `null` before the first message (`rows.ts`).
+- `code-reply.ts`: every text is capped at `RESULT_CAP_CHARS` (50000) characters to a `conciv:truncated` envelope keeping the first 4000.
 
 ## Side Effects
 
-- `sharedEventTarget` (`event-bus.ts`): uses window, or creates globalThis.**CONCIV_EVENT_BUS_TARGET**
-- `createEventBus` / `createEventBusClient` (`event-bus.ts`): add DOM listeners, dispatch CustomEvents, start retry timers
+- None: schemas and pure formatters.
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/protocol` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/protocol && pnpm typecheck`, then `pnpm lint` at the repo root
+- `pnpm typecheck` in `packages/protocol`, and `pnpm lint` at the repo root

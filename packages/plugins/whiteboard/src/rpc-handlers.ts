@@ -1,4 +1,4 @@
-import type {RpcHandlers} from '@conciv/plugin/effect/rpc'
+import type {RpcHandlers} from '@conciv/backend-plugin-api/effect/rpc'
 import {Effect, Schema} from 'effect'
 import type {Whiteboard} from './rpc.js'
 import {StoreError, type RowNotFound, type Store} from './store.js'

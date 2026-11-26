@@ -1,6 +1,6 @@
 ---
-'@conciv/harness-testkit': patch
-'@conciv/plugin-testkit': patch
+'@conciv/simulation': patch
+'@conciv/backend-test-utils': patch
 ---
 
 `TestLLM.thinking(value, answer)` scripts a reply that reasons before it answers.

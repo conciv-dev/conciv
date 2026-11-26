@@ -1,4 +1,4 @@
-import {expect, test} from '@conciv/e2e-utils/fixtures'
+import {expect, test} from '@internal/e2e-utils/fixtures'
 
 test.describe('a CLI that is not signed in', () => {
   const NOT_LOGGED_IN: Record<string, string | null> = {

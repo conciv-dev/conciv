@@ -1,11 +1,12 @@
-import {useSyncExternalStore} from 'react'
+import {useCallback, useSyncExternalStore} from 'react'
+import {type QueryClient, useQueryClient} from '@tanstack/react-query'
 import {Link} from '@tanstack/react-router'
 import {Button} from '@/components/ui/button'
 import {
   CONNECTION_CHANGED_EVENT,
   type EventBusClientState,
   type WidgetConnectionChangedDetail,
-} from '@conciv/protocol/event-bus'
+} from '@conciv/types/event-bus'
 import {panelCommands} from '@/lib/panel-commands'
 import {tryButtonLabel} from '@/lib/try-state'
 
@@ -15,11 +16,12 @@ declare global {
   }
 }
 
-let connected = false
+const CONNECTED_KEY = ['conciv-connected']
 
-function subscribeConnection(onChange: () => void): () => void {
+function subscribeConnection(queryClient: QueryClient, onChange: () => void): () => void {
+  queryClient.setQueryDefaults(CONNECTED_KEY, {gcTime: Infinity})
   const handler = (event: WindowEventMap[typeof CONNECTION_CHANGED_EVENT]) => {
-    connected = event.detail.connected
+    queryClient.setQueryData(CONNECTED_KEY, event.detail.connected)
     onChange()
   }
   window.addEventListener(CONNECTION_CHANGED_EVENT, handler)
@@ -27,9 +29,11 @@ function subscribeConnection(onChange: () => void): () => void {
 }
 
 function useConcivConnected(): boolean {
+  const queryClient = useQueryClient()
+  const subscribe = useCallback((onChange: () => void) => subscribeConnection(queryClient, onChange), [queryClient])
   return useSyncExternalStore(
-    subscribeConnection,
-    () => connected,
+    subscribe,
+    () => queryClient.getQueryData<boolean>(CONNECTED_KEY) ?? false,
     () => false,
   )
 }

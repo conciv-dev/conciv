@@ -1,8 +1,8 @@
 {
-  "name": "@conciv/brand",
+  "name": "@internal/brand",
   "version": "0.0.22",
   "private": true,
-  "description": "Official conciv brand assets: the crimson chat-bubble robot mark, Geist SemiBold outlined wordmark, favicons, social tiles, and the Solid logo component (React lives in @conciv/brand-react).",
+  "description": "Official conciv brand assets: the crimson chat-bubble robot mark, Geist SemiBold outlined wordmark, favicons, social tiles, and the Solid logo component (React lives in @internal/brand-react).",
   "keywords": [
     "brand",
     "conciv",
@@ -25,7 +25,7 @@
   "sideEffects": false,
   "exports": {
     "./solid": {
-      "types": "./dist/solid/conciv-lockup.d.ts",
+      "types": "./src/solid/conciv-lockup.tsx",
       "import": "./dist/solid.js"
     },
     "./logos.json": "./assets/manifest.json",
@@ -40,8 +40,8 @@
     "motion": "catalog:"
   },
   "devDependencies": {
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/uno-preset": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/uno-preset": "workspace:*",
     "@storybook/addon-docs": "catalog:",
     "@types/node": "catalog:",
     "solid-js": "catalog:",

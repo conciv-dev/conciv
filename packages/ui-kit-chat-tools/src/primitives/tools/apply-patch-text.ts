@@ -1,4 +1,4 @@
-import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
+import type {ToolCallPart} from '@conciv/types/chat-message-types'
 
 export type ApplyPatchBlock = {type: 'Update' | 'Add' | 'Delete'; path: string; body: string}
 export type ApplyPatchInfo = {files: string[]; added: number; removed: number}

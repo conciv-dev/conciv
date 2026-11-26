@@ -1,8 +1,8 @@
 import {Effect, Fiber, Stream, type ManagedRuntime} from 'effect'
 import {getEventMeta} from '@orpc/client'
 import type {TerminalListener, TerminalTransport} from '@conciv/ui-kit-terminal'
-import type {ServerRef} from '@conciv/plugin/experimental'
-import type {TtyServerControl} from '@conciv/protocol/terminal-types'
+import type {ServerRef} from '@conciv/frontend-plugin-api'
+import type {TtyServerControl} from '@conciv/types/terminal-types'
 
 export type PtyClient = ServerRef['client']['experimental']['persistentPty']
 

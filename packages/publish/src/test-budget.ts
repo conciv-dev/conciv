@@ -9,9 +9,7 @@ const BUDGET_FILE = 'test-budget.json'
 const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/
 const FIXTURE_SEGMENT = /(^|\/)fixtures\//
 const TEST_FUNCTIONS = ['test', 'it']
-const CASE_MODIFIERS = new Set([
-  'effect',
-  'live',
+const CASE_MODIFIERS = [
   'concurrent',
   'sequential',
   'skip',
@@ -24,7 +22,12 @@ const CASE_MODIFIERS = new Set([
   'for',
   'skipIf',
   'runIf',
-])
+  'effect',
+  'live',
+  'scoped',
+  'scopedLive',
+  'prop',
+]
 
 const budgetSchema = z.record(z.string(), z.number().int().nonnegative())
 
@@ -45,6 +48,20 @@ function readTestChain(callee: Expression | Super): TestChain | undefined {
   return node.type === 'Identifier' ? {name: node.name, members} : undefined
 }
 
+function wrapsTest(call: CallExpression, testNames: Set<string>): boolean {
+  const [wrapped] = call.arguments
+  if (!wrapped || wrapped.type === 'SpreadElement') return false
+  const chain = readTestChain(wrapped)
+  return chain !== undefined && testNames.has(chain.name)
+}
+
+function makesTest(call: CallExpression, testNames: Set<string>): boolean {
+  const chain = readTestChain(call.callee)
+  if (chain === undefined) return false
+  if (chain.name === 'makeMethods') return wrapsTest(call, testNames)
+  return testNames.has(chain.name) && chain.members.includes('extend')
+}
+
 function countTestCases(filename: string, source: string): number {
   const parsed = parseSync(filename, source)
   const [error] = parsed.errors
@@ -53,16 +70,20 @@ function countTestCases(filename: string, source: string): number {
   const curried = new Set<CallExpression>()
   let count = 0
   const visitor = new Visitor({
+    ImportSpecifier(node) {
+      if (node.imported.type === 'Identifier' && TEST_FUNCTIONS.includes(node.imported.name))
+        testNames.add(node.local.name)
+    },
     VariableDeclarator(node) {
       if (node.id.type !== 'Identifier' || node.init?.type !== 'CallExpression') return
-      const chain = readTestChain(node.init.callee)
-      if (chain && testNames.has(chain.name) && chain.members.includes('extend')) testNames.add(node.id.name)
+      if (makesTest(node.init, testNames)) testNames.add(node.id.name)
     },
     CallExpression(node) {
       if (node.callee.type === 'CallExpression') curried.add(node.callee)
       if (curried.has(node)) return
       const chain = readTestChain(node.callee)
-      if (chain && testNames.has(chain.name) && chain.members.every((member) => CASE_MODIFIERS.has(member))) count++
+      if (chain && testNames.has(chain.name) && chain.members.every((member) => CASE_MODIFIERS.includes(member)))
+        count++
     },
   })
   visitor.visit(parsed.program)

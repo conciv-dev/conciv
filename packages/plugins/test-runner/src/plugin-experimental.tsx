@@ -3,14 +3,15 @@ import {createMemo, createUniqueId, For, Match, onCleanup, Show, Switch, type JS
 import {
   Panel,
   Plugin,
+  Style,
   ToolRegistry,
   type Context,
   type PanelTab,
   type SessionRef,
   type SessionScreen,
   type ToolComponent,
-} from '@conciv/plugin/experimental'
-import {OpaqueUi, type InternalUi} from '@internal/plugin'
+} from '@conciv/frontend-plugin-api'
+import {OpaqueUi, type InternalUi} from '@internal/frontend-app-api'
 import type {Summary, TestError, TestRow} from './events.js'
 import {followRunView, type TestRunnerRuntime} from './follow.js'
 import {initialRunView, selectSummary, selectTests, type RunView} from './run-state.js'
@@ -31,6 +32,7 @@ import {
   testFiles,
   type FileGroup,
 } from './view.js'
+import pluginCss from 'virtual:uno.css?inline'
 
 type Actions = {
   readonly ui: InternalUi
@@ -330,6 +332,7 @@ function testRunCard(ctx: Context, runtime: TestRunnerRuntime, ui: InternalUi): 
 
 const runner: Plugin.Definition = Plugin.define({
   setup(ctx) {
+    ctx.add(Style, pluginCss)
     const runtime = ManagedRuntime.make(Layer.empty)
     onCleanup(() => void runtime.dispose())
     const tab: PanelTab = {

@@ -1,7 +1,7 @@
 import {createMemo, Match, splitProps, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {Dynamic} from 'solid-js/web'
-import type {ToolComponent, ToolProps, ToolRegistry} from '@conciv/plugin/experimental'
+import type {ToolComponent, ToolProps, ToolRegistry} from '@conciv/frontend-plugin-api'
 import {BasicTool, GenericTool} from './basic-tool.js'
 import {ToolErrorCard} from './tool-error-card.js'
 import {ToolPartProvider} from './card-chrome.js'

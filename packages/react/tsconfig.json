@@ -1,9 +1,9 @@
 {
-  "extends": "@conciv/tsconfig/tsconfig.react.json",
+  "extends": "@internal/tsconfig/tsconfig.react.json",
   "compilerOptions": {
     "types": ["vite/client", "node"],
     "paths": {
-      "@conciv/react": ["./src/index.ts"]
+      "@conciv/react": ["./src/react.ts"]
     }
   }
 }

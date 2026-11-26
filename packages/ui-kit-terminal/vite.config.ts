@@ -1,9 +1,9 @@
 import {defineConfig} from 'vite'
-import {solidLibConfig} from '@conciv/vitest-config/vite-lib'
+import {solidLibConfig} from '@internal/vite-config'
 
 export default defineConfig(
   solidLibConfig({
-    entry: new URL('src/index.tsx', import.meta.url),
+    entry: new URL('src/ui-kit-terminal.tsx', import.meta.url),
     external: [/^solid-js/, /^@conciv\//, /^@xterm\/(?!xterm\/css)/],
   }),
 )

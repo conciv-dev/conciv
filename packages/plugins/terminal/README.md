@@ -1,8 +1,8 @@
-# @conciv/plugin-terminal
+# @internal/plugin-terminal
 
-Private. The browser part of the session's CLI terminal, built in and always on (id `terminal`). The app lists its
-`./client` default export in `apps/conciv/src/runtime/plugin/builtins.ts`; the embed bundles it into the published
-widget. The shell process stays in core (`packages/core/src/pty`), reached over `experimental.persistentPty`.
+Private. The browser part of the session's CLI terminal, built in and always on (id `terminal`). `@conciv/app` composes its
+`./builtins` list in `packages/app/src/builtins.ts` and bundles it into the published widget. The shell process
+stays in the engine (`packages/backend-defaults/src/engine/pty`), reached over `experimental.persistentPty`.
 
 - A pinned Terminal tab in the session's pane, listed for a session whose harness has a terminal. The CLI starts only
   when the tab first opens (the xterm surface loads then too) and is replayed after a reload.

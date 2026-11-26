@@ -6,21 +6,15 @@ Headless per-tool primitives. Each file defines a Solid context, a `Root` provid
 
 ## Interface
 
-- `ApplyPatch` / `useApplyPatch` / `readPatchText` / `patchInfo` / `parseClaudePatchBlocks` / `claudeBlockToUnifiedDiff` (`apply-patch.tsx`)
-- `Bash` / `useBash` / `parseBashOutput` / `BashOutput` (`bash.tsx`)
-- `FileEdit` / `useFileEdit` / `FileEditDiff` (`file-edit.tsx`)
-- `FileRead` / `useFileRead` (`file-read.tsx`)
-- `Search` / `useSearch` (`search.tsx`)
-- `Todo` / `useTodo` / `todoItems` / `TodoItem` / `TodoItemStatus` (`todo.tsx`)
-- `inlineValue` / `truncate` / `basename` / `shortenPath` / `SUMMARY_KEYS` (`inline-tool.tsx`)
+- One file per tool (`apply-patch.tsx`, `bash.tsx`, `file-edit.tsx`, `file-read.tsx`, `search.tsx`, `todo.tsx`), each a `Root` and its `useX` hook; the pure parsers are beside them (`apply-patch-text.ts`, `bash-output.ts`) and `inline-tool.tsx` holds the inline-row value helpers.
 
 ## Invariants
 
 - `useApplyPatch`, `useBash`, `useFileEdit`, `useFileRead`, `useSearch`, `useTodo`: throw when used outside their `X.Root`
-- `bash.tsx`, `apply-patch.tsx`, `inline-tool.tsx`: malformed JSON arguments give ''/null instead of throwing
+- `bash.tsx`, `apply-patch-text.ts`, `inline-tool.tsx`: malformed JSON arguments give ''/null instead of throwing
 - `Bash.Root` (`bash.tsx`): `isError` for a non-zero exitCode or status 'error' when the result has no `outcome`; `outcome` and `stoppedReason` for a denied or cancelled result
 - `fileContents` (`file-read.tsx`): strips line-number prefixes and caps at `MAX_LINES` = 200
-- `parseClaudePatchBlocks` (`apply-patch.tsx`): only Update, Add and Delete headers are recognized
+- `parseClaudePatchBlocks` (`apply-patch-text.ts`): only Update, Add and Delete headers are recognized
 
 ## Side Effects
 

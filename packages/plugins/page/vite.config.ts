@@ -1,7 +1,7 @@
 import {fileURLToPath} from 'node:url'
 import {defineConfig, type Plugin} from 'vite'
 import solid from 'vite-plugin-solid'
-import {concivTest} from '@conciv/plugin-testkit/vitest'
+import {concivTest} from '@internal/vitest-config/conciv-test'
 
 const sourceDir = fileURLToPath(new URL('src/', import.meta.url))
 
@@ -16,12 +16,14 @@ const rpcFromPackage: Plugin = {
 }
 
 export default defineConfig({
-  plugins: [rpcFromPackage, solid(), concivTest()],
+  plugins: [rpcFromPackage, solid(), concivTest({browser: true})],
   build: {
     lib: {
       entry: {
         client: fileURLToPath(new URL('src/client.ts', import.meta.url)),
         renderer: fileURLToPath(new URL('src/renderer.tsx', import.meta.url)),
+        builtins: fileURLToPath(new URL('src/builtins.ts', import.meta.url)),
+        'test-utils': fileURLToPath(new URL('src/test-utils.ts', import.meta.url)),
       },
       formats: ['es'],
     },

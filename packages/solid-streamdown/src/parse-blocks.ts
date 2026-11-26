@@ -4,7 +4,7 @@ const footnoteReferencePattern = /\[\^[\w-]{1,200}\](?!:)/
 const footnoteDefinitionPattern = /\[\^[\w-]{1,200}\]:/
 const openingTagPattern = /<(\w+)[\s>]/
 
-const voidElements = new Set([
+const voidElements = [
   'area',
   'base',
   'br',
@@ -19,31 +19,20 @@ const voidElements = new Set([
   'source',
   'track',
   'wbr',
-])
-
-const openTagPatternCache = new Map<string, RegExp>()
-const closeTagPatternCache = new Map<string, RegExp>()
+]
 
 function getOpenTagPattern(tagName: string): RegExp {
   const normalizedTag = tagName.toLowerCase()
-  const cached = openTagPatternCache.get(normalizedTag)
-  if (cached) return cached
-  const pattern = new RegExp(`<${normalizedTag}(?=[\\s>/])[^>]*>`, 'gi')
-  openTagPatternCache.set(normalizedTag, pattern)
-  return pattern
+  return new RegExp(`<${normalizedTag}(?=[\\s>/])[^>]*>`, 'gi')
 }
 
 function getCloseTagPattern(tagName: string): RegExp {
   const normalizedTag = tagName.toLowerCase()
-  const cached = closeTagPatternCache.get(normalizedTag)
-  if (cached) return cached
-  const pattern = new RegExp(`</${normalizedTag}(?=[\\s>])[^>]*>`, 'gi')
-  closeTagPatternCache.set(normalizedTag, pattern)
-  return pattern
+  return new RegExp(`</${normalizedTag}(?=[\\s>])[^>]*>`, 'gi')
 }
 
 function countNonSelfClosingOpenTags(block: string, tagName: string): number {
-  if (voidElements.has(tagName.toLowerCase())) return 0
+  if (voidElements.includes(tagName.toLowerCase())) return 0
   const matches = block.match(getOpenTagPattern(tagName))
   if (!matches) return 0
   let count = 0

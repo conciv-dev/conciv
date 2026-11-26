@@ -1,9 +1,9 @@
 const DIRECTIVE_RE =
-  /^(?:\/|!|@ts-|@__PURE__|#__PURE__|@__NO_SIDE_EFFECTS__|#__NO_SIDE_EFFECTS__|eslint-|oxlint-|global\b|globals\b|exported\b|prettier-ignore|oxfmt-ignore|@vite-ignore|@jsxImportSource\b|webpack[A-Z]|v8 ignore|c8 ignore|istanbul ignore|@license|@preserve|sourceMappingURL|#\s*sourceMappingURL)/
+  /^(?:\/|!|@ts-|@__PURE__|#__PURE__|@__NO_SIDE_EFFECTS__|#__NO_SIDE_EFFECTS__|eslint-|oxlint-|global\b|globals\b|exported\b|prettier-ignore|oxfmt-ignore|@vite-ignore|@jsxImportSource\b|@vitest-environment\b|webpack[A-Z]|v8 ignore|c8 ignore|istanbul ignore|@license|@preserve|sourceMappingURL|#\s*sourceMappingURL)/
 
 const TAG_LINE_RE = /^\s*\*?\s*@[A-Za-z]/
 
-const DECLARATIONS = new Set([
+const DECLARATIONS = [
   'ExportNamedDeclaration',
   'ExportDefaultDeclaration',
   'FunctionDeclaration',
@@ -14,18 +14,18 @@ const DECLARATIONS = new Set([
   'TSEnumDeclaration',
   'TSModuleDeclaration',
   'TSDeclareFunction',
-])
+]
 
-const DECLARATION_PARENTS = new Set(['Program', 'ExportNamedDeclaration', 'ExportDefaultDeclaration', 'TSModuleBlock'])
+const DECLARATION_PARENTS = ['Program', 'ExportNamedDeclaration', 'ExportDefaultDeclaration', 'TSModuleBlock']
 
-const MEMBERS = new Set([
+const MEMBERS = [
   'TSPropertySignature',
   'TSMethodSignature',
   'TSCallSignatureDeclaration',
   'TSConstructSignatureDeclaration',
   'TSIndexSignature',
   'TSEnumMember',
-])
+]
 
 export default {
   meta: {
@@ -85,6 +85,6 @@ function nodesStartingAt(node, start) {
 }
 
 function isDocumentable(node) {
-  if (MEMBERS.has(node.type)) return true
-  return DECLARATIONS.has(node.type) && DECLARATION_PARENTS.has(node.parent?.type)
+  if (MEMBERS.includes(node.type)) return true
+  return DECLARATIONS.includes(node.type) && DECLARATION_PARENTS.includes(node.parent?.type)
 }

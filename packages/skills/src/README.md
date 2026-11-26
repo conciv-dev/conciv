@@ -30,5 +30,4 @@ Reference checker for skill markdown across the repo. It confirms that each SKIL
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/skills` from the repo root (turbo builds the package and its dependencies first)
-- Typecheck and lint: `cd packages/skills && pnpm typecheck`, then `pnpm lint` at the repo root
+- Run: `pnpm --filter @conciv/skills check:refs` (the citation check); typecheck: `pnpm exec turbo run typecheck --filter=@conciv/skills` from the repo root

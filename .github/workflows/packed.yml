@@ -3,7 +3,7 @@ name: Packed
 # The packed install suites build the @conciv closure, `pnpm pack` it and install the
 # tarballs into throwaway consumer fixtures, the way an npm user gets conciv. They are
 # the only place pack runs: `pnpm test`, `test:e2e` and the CI planner never select
-# them, and every pack helper (@conciv/vitest-config/pack) throws outside GitHub Actions.
+# them, and every pack helper (@internal/vitest-config/pack) throws outside GitHub Actions.
 # Each suite is a `test:packed` script:
 #   - e2e/nextjs: packed/test-packed.ts packs, installs the committed packed/app fixture twice
 #     (Turbopack and webpack) and runs its test/packed-*.spec.ts with playwright.packed.config.ts
@@ -52,8 +52,8 @@ on:
       - pnpm-workspace.yaml
       - patches/**
       - packages/**/package.json
-      - apps/conciv/package.json
-      - packages/vitest-config/src/pack.ts
+      - packages/frontend-defaults/package.json
+      - e2e/e2e-utils/src/pack.ts
       - e2e/vite-react/**
       - e2e/vite-react-packed/**
       - e2e/nextjs/packed/**
@@ -113,7 +113,7 @@ jobs:
       # Build the workspace packages e2e-utils imports (contract, protocol) and the CLI;
       # the e2e suites build their closure themselves.
       - name: Build packed packages
-        run: pnpm exec turbo run build --filter=@conciv/contract --filter=@conciv/protocol --filter=@conciv/cli
+        run: pnpm exec turbo run build --filter=@conciv/protocol --filter=@conciv/types --filter=@conciv/cli
       # Each suite runs even when an earlier one failed, so one run reports them all.
       - name: nextjs
         if: ${{ !cancelled() }}
@@ -132,7 +132,7 @@ jobs:
           if-no-files-found: warn
 
       # A drifted fixture install writes the lockfile it produced over the committed one
-      # (@conciv/vitest-config/pack assertLockNotDrifted), so a failed run carries the refresh.
+      # (@internal/vitest-config/pack assertLockNotDrifted), so a failed run carries the refresh.
       - name: Summarize fixture lockfile changes
         if: failure()
         run: |

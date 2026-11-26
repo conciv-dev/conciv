@@ -1,5 +1,5 @@
 ---
-'@conciv/app': patch
+'@internal/frontend-defaults': patch
 ---
 
 The dev server keeps its engine across a reload: the root route retains `?core` on every navigation.

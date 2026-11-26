@@ -1,5 +1,5 @@
 {
-  "name": "@conciv/publish",
+  "name": "@internal/publish",
   "version": "0.0.22",
   "private": true,
   "description": "Internal release tooling for the aidx monorepo: normalize package metadata, version, and publish via changesets. citty command tree.",
@@ -11,6 +11,7 @@
     "directory": "packages/publish"
   },
   "bin": {
+    "conciv-ci-shards": "./src/ci-shards.ts",
     "conciv-publish": "./src/cli.ts"
   },
   "type": "module",
@@ -26,13 +27,14 @@
     "js-yaml": "catalog:",
     "minimatch": "10.2.6",
     "oxc-parser": "catalog:",
+    "vite-plugin-solid": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
     "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@turbo/gen": "catalog:",
     "@types/node": "catalog:",
     "effect": "catalog:",

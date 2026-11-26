@@ -1,7 +1,7 @@
 {
   "name": "@conciv/harness",
   "version": "0.0.22",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). Harness adapters (claude, codex, + stubs) behind the @conciv/protocol HarnessAdapter contract.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). Harness adapters (claude, codex, + stubs) behind the @conciv/types HarnessAdapter contract.",
   "keywords": [
     "ai",
     "claude",
@@ -37,20 +37,72 @@
       "import": "./dist/_shared/page.js"
     },
     "./claude": {
-      "types": "./dist/claude/index.d.ts",
-      "import": "./dist/claude/index.js"
+      "types": "./dist/claude/claude.d.ts",
+      "import": "./dist/claude/claude.js"
     },
     "./codex": {
-      "types": "./dist/codex/index.d.ts",
-      "import": "./dist/codex/index.js"
+      "types": "./dist/codex/codex.d.ts",
+      "import": "./dist/codex/codex.js"
     },
     "./opencode": {
-      "types": "./dist/opencode/index.d.ts",
-      "import": "./dist/opencode/index.js"
+      "types": "./dist/opencode/opencode.d.ts",
+      "import": "./dist/opencode/opencode.js"
     },
     "./pi": {
-      "types": "./dist/pi/index.d.ts",
-      "import": "./dist/pi/index.js"
+      "types": "./dist/pi/pi.d.ts",
+      "import": "./dist/pi/pi.js"
+    },
+    "./init/registry": {
+      "types": "./dist/init/registry.d.ts",
+      "import": "./dist/init/registry.js"
+    },
+    "./init/hub": {
+      "types": "./dist/init/hub.d.ts",
+      "import": "./dist/init/hub.js"
+    },
+    "./init/detect": {
+      "types": "./dist/init/detect.d.ts",
+      "import": "./dist/init/detect.js"
+    },
+    "./init/agent-guide": {
+      "types": "./dist/init/agent-guide.d.ts",
+      "import": "./dist/init/agent-guide.js"
+    },
+    "./init/claude": {
+      "types": "./dist/init/claude/init.d.ts",
+      "import": "./dist/init/claude/init.js"
+    },
+    "./init/claude/endpoint": {
+      "types": "./dist/init/claude/endpoint.d.ts",
+      "import": "./dist/init/claude/endpoint.js"
+    },
+    "./init/claude/files": {
+      "types": "./dist/init/claude/plugin-files.d.ts",
+      "import": "./dist/init/claude/plugin-files.js"
+    },
+    "./init/claude/names": {
+      "types": "./dist/init/claude/names.d.ts",
+      "import": "./dist/init/claude/names.js"
+    },
+    "./init/claude/state": {
+      "types": "./dist/init/claude/install-state.d.ts",
+      "import": "./dist/init/claude/install-state.js"
+    },
+    "./init/json": {
+      "types": "./dist/init/json.d.ts",
+      "import": "./dist/init/json.js"
+    },
+    "./init/paths": {
+      "types": "./dist/init/paths.d.ts",
+      "import": "./dist/init/paths.js"
+    },
+    "./local-sandbox": {
+      "types": "./dist/local-sandbox.d.ts",
+      "import": "./dist/local-sandbox.js"
+    },
+    "./adapters": {
+      "types": "./dist/adapters/adapters.d.ts",
+      "import": "./dist/adapters/adapters.js"
     }
   },
   "publishConfig": {
@@ -61,22 +113,26 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.312",
-    "@conciv/ai": "workspace:^",
-    "@conciv/harness-init": "workspace:^",
-    "@conciv/protocol": "workspace:^",
+    "@conciv/home": "workspace:^",
+    "@conciv/types": "workspace:^",
+    "@tanstack/ai": "catalog:",
+    "@tanstack/ai-acp": "catalog:",
+    "@tanstack/ai-claude-code": "catalog:",
+    "@tanstack/ai-codex": "catalog:",
+    "@tanstack/ai-opencode": "catalog:",
+    "@tanstack/ai-sandbox": "catalog:",
+    "@tanstack/ai-sandbox-local-process": "catalog:",
     "effect": "catalog:",
     "smol-toml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin-testkit": "workspace:*",
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

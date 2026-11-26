@@ -1,5 +1,5 @@
 import {Context, Effect, Schema} from 'effect'
-import {CONCIV_AUTH_TOKEN_QUERY_PARAM} from '@conciv/protocol/rpc-types'
+import {CONCIV_AUTH_TOKEN_QUERY_PARAM} from '@conciv/types/rpc-types'
 
 const ProbeFailed = Schema.TaggedStruct('TryIt.ProbeFailed', {port: Schema.Int, cause: Schema.Defect()})
 type ProbeFailed = typeof ProbeFailed.Type & globalThis.Error

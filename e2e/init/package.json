@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "@conciv/cli": "workspace:*",
-    "@conciv/tsconfig": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"

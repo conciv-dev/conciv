@@ -4,10 +4,6 @@
 
 Build-time scripts: build a JSON manifest of the site's own source.
 
-## Interface
-
-- `buildManifest(siteDir)` (`build-source-manifest.mjs`): maps text files under `src/` plus `package.json` to their contents; run directly it writes `public/site-source.json`
-
 ## Invariants
 
 - `build-source-manifest.mjs:isSecretFile`: paths matching `SECRET_PATTERN` (env, secret, credential, key, token, password segments) are never included

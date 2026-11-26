@@ -1,7 +1,7 @@
 import type {NextConfig} from 'next'
 import {pathToFileURL} from 'node:url'
 import {withConciv} from '@conciv/it/plugin/nextjs'
-import {e2ePluginCopyDir} from '@conciv/e2e-utils/dev-endpoint'
+import {e2ePluginCopyDir} from '@internal/e2e-utils/dev-endpoint'
 
 const nextConfig: NextConfig = {experimental: {agentUpgrade: false}}
 

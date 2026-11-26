@@ -1,5 +1,5 @@
 import {createContext, onCleanup, untrack, useContext, type JSX} from 'solid-js'
-import type {Context} from '@conciv/plugin/experimental'
+import type {Context} from '@conciv/frontend-plugin-api'
 import {createWhiteboardDb, type WhiteboardDb} from './whiteboard-db.js'
 import {useWhiteboardRuntime} from './solid-runtime.js'
 

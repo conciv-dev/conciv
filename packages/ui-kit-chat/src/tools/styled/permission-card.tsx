@@ -3,7 +3,7 @@ import Check from 'lucide-solid/icons/check'
 import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import ShieldCheck from 'lucide-solid/icons/shield-check'
 import X from 'lucide-solid/icons/x'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps} from '@conciv/types/tool-view-types'
 import {Permission, usePermission} from '../primitives/permission.js'
 import {ActionRow, ActionButton} from './action-row.js'
 

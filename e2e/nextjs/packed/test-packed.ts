@@ -1,7 +1,7 @@
 import {spawnSync} from 'node:child_process'
 import {cpSync, mkdirSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {buildAndPack, installPacked, readManifest} from '@conciv/vitest-config/pack'
+import {buildAndPack, installPacked, readManifest} from '@internal/e2e-utils/pack'
 import {BUNDLERS, PACKED_ROOT, packedAppDir} from './packed-app-dir.ts'
 
 const CONFIG_DIR = join(import.meta.dirname, '..')

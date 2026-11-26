@@ -1,5 +1,5 @@
 import {Effect, Schedule, Stream, SubscriptionRef} from 'effect'
-import type {Context} from '@conciv/plugin/experimental'
+import type {Context} from '@conciv/frontend-plugin-api'
 import {z} from 'zod'
 import {Whiteboard} from './rpc.js'
 import {cursorEvent, type CursorEvent} from './rows.js'

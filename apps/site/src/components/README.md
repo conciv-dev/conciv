@@ -4,14 +4,9 @@
 
 Shared React components for the site: MDX component map, client-only Mermaid, the live widget mount, the 404 page, and GSAP/pointer animation components.
 
-## Interface
+## Subdirectories & Boundaries
 
-- `LiveWidgetMount` (`live-widget-mount.tsx`): client-only lazy `LiveWidget` driven by the root `widget` and `try` search params
-- `useMDXComponents` / `getMDXComponents` (`mdx.tsx`): MDX component map for fumadocs pages
-- `Mermaid({chart})` (`mermaid.tsx`), `MermaidContent` (`mermaid-content.tsx`): client-only diagram rendering
-- `NotFound` (`not-found.tsx`): default not-found component
-- `AnimatedContent`, `SplitText` (GSAP `ScrollTrigger`), `ClickSpark`, `Magnet`, `VariableProximity`, `LogoLoop`, `LogoItem` (default or named exports of their files)
-- Subdirectories: [brand](./brand/README.md), [landing](./landing/README.md), [ui](./ui/README.md)
+- [brand](./brand/README.md), [landing](./landing/README.md), [ui](./ui/README.md)
 
 ## Invariants
 

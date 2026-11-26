@@ -36,17 +36,17 @@ function matchedTerm(name, terms) {
   return terms.find((term) => containsTerm(segments, term.segments))
 }
 
-const PATTERN_HANDLERS = new Map([
-  ['Identifier', (pattern) => [pattern]],
-  ['AssignmentPattern', (pattern) => patternNames(pattern.left)],
-  ['RestElement', (pattern) => patternNames(pattern.argument)],
-  ['ArrayPattern', (pattern) => pattern.elements.flatMap((element) => patternNames(element))],
-  ['ObjectPattern', (pattern) => pattern.properties.flatMap((property) => propertyPatternNames(property))],
-])
+const PATTERN_HANDLERS = {
+  Identifier: (pattern) => [pattern],
+  AssignmentPattern: (pattern) => patternNames(pattern.left),
+  RestElement: (pattern) => patternNames(pattern.argument),
+  ArrayPattern: (pattern) => pattern.elements.flatMap((element) => patternNames(element)),
+  ObjectPattern: (pattern) => pattern.properties.flatMap((property) => propertyPatternNames(property)),
+}
 
 function patternNames(pattern) {
   if (!isNode(pattern)) return []
-  const handler = PATTERN_HANDLERS.get(pattern.type)
+  const handler = Object.hasOwn(PATTERN_HANDLERS, pattern.type) ? PATTERN_HANDLERS[pattern.type] : undefined
   return handler === undefined ? [] : handler(pattern)
 }
 
@@ -73,28 +73,28 @@ function exportedIdentifier(node) {
   return isIdentifier(node.exported) ? [node.exported] : []
 }
 
-const DECLARATION_HANDLERS = new Map([
-  ['VariableDeclarator', (node) => patternNames(node.id)],
-  ['FunctionDeclaration', functionIdentifiers],
-  ['FunctionExpression', functionIdentifiers],
-  ['ArrowFunctionExpression', functionIdentifiers],
-  ['ClassDeclaration', ownIdentifier],
-  ['ClassExpression', ownIdentifier],
-  ['TSTypeAliasDeclaration', ownIdentifier],
-  ['TSInterfaceDeclaration', ownIdentifier],
-  ['TSEnumDeclaration', ownIdentifier],
-  ['TSModuleDeclaration', ownIdentifier],
-  ['TSEnumMember', ownIdentifier],
-  ['Property', keyIdentifier],
-  ['PropertyDefinition', keyIdentifier],
-  ['MethodDefinition', keyIdentifier],
-  ['TSPropertySignature', keyIdentifier],
-  ['TSMethodSignature', keyIdentifier],
-  ['ExportSpecifier', exportedIdentifier],
-])
+const DECLARATION_HANDLERS = {
+  VariableDeclarator: (node) => patternNames(node.id),
+  FunctionDeclaration: functionIdentifiers,
+  FunctionExpression: functionIdentifiers,
+  ArrowFunctionExpression: functionIdentifiers,
+  ClassDeclaration: ownIdentifier,
+  ClassExpression: ownIdentifier,
+  TSTypeAliasDeclaration: ownIdentifier,
+  TSInterfaceDeclaration: ownIdentifier,
+  TSEnumDeclaration: ownIdentifier,
+  TSModuleDeclaration: ownIdentifier,
+  TSEnumMember: ownIdentifier,
+  Property: keyIdentifier,
+  PropertyDefinition: keyIdentifier,
+  MethodDefinition: keyIdentifier,
+  TSPropertySignature: keyIdentifier,
+  TSMethodSignature: keyIdentifier,
+  ExportSpecifier: exportedIdentifier,
+}
 
 function declarationIdentifiers(node) {
-  const handler = DECLARATION_HANDLERS.get(node.type)
+  const handler = Object.hasOwn(DECLARATION_HANDLERS, node.type) ? DECLARATION_HANDLERS[node.type] : undefined
   return handler === undefined ? [] : handler(node)
 }
 
@@ -179,12 +179,11 @@ const REWRITE_BANNED_TERMS = [
   'presence',
 ]
 
-const PREEXISTING_MODULES = ['packages/harness-init/src/claude/bridge.ts', 'packages/oxlint-plugin/src/']
+const PREEXISTING_MODULES = ['packages/harness/src/init/claude/bridge.ts', 'packages/oxlint-plugin/src/']
 
 const DEV_BUNDLER_BRIDGE_PATHS = [
-  'packages/core/src/app.ts',
-  'packages/core/src/start.ts',
-  'packages/plugin-testkit/src/core-kit.ts',
+  'packages/backend-defaults/src/engine/app.ts',
+  'packages/backend-defaults/src/engine/start.ts',
   'packages/unplugin/src/',
 ]
 
@@ -198,28 +197,37 @@ const NATIVE_AND_REACT_BRIDGE_PATHS = [
   'packages/plugins/page/src/renderer.tsx',
   'packages/plugins/page/src/operations.ts',
   'packages/plugins/page/src/grab.ts',
-  'packages/embed/src/mount-impl.tsx',
+  'packages/app/src/mount-impl.tsx',
 ]
 
-const PRE_REWRITE_BRIDGE_PATHS = ['packages/harness-init/src/']
+const PRE_REWRITE_BRIDGE_PATHS = ['packages/harness/src/init/']
 
 const HARNESS_CONNECT_ATTACH_PATHS = ['packages/harness/src/codex/history.ts']
 
-const COMPOSER_ATTACHMENT_INGRESS_PATHS = ['apps/conciv/src/pane/chat-pane.tsx']
+const COMPOSER_ATTACHMENT_INGRESS_PATHS = ['packages/frontend-defaults/src/pane/chat-pane.tsx']
+
+const EXTERNAL_API_ATTACH_PATHS = [
+  'packages/vitest-config/src/conciv-test.ts',
+  'packages/frontend-test-utils/src/frontend-test-utils.tsx',
+]
 
 const PRE_REWRITE_ATTACH_PATHS = [
   'apps/site/src/components/landing/',
-  'packages/core/src/pty/pty-sessions.ts',
+  'packages/backend-defaults/src/engine/pty/pty-sessions.ts',
   'packages/plugins/page/src/react.ts',
   'packages/try/src/cli.ts',
-  'packages/vitest-config/src/summary.ts',
+  'packages/publish/src/summary.ts',
 ]
 
 const PREEXISTING_TERM_SITES = [
   {term: 'bridge', paths: [...DEV_BUNDLER_BRIDGE_PATHS, ...NATIVE_AND_REACT_BRIDGE_PATHS, ...PRE_REWRITE_BRIDGE_PATHS]},
   {
     term: 'epoch',
-    paths: ['packages/db/src/run-schema.ts', 'packages/ai/src/server/chat-stores.ts'],
+    paths: [
+      'packages/backend-defaults/src/db/run-schema.ts',
+      'packages/backend-defaults/src/ai/chat-stores.ts',
+      'packages/backend-app-api/src/core/session/sql.ts',
+    ],
   },
   {
     term: 'presence',
@@ -232,16 +240,22 @@ const PREEXISTING_TERM_SITES = [
   {
     term: 'pipeline',
     paths: [
-      'apps/conciv/uno.config.ts',
-      'packages/embed/uno.config.ts',
+      'packages/frontend-defaults/uno.config.ts',
+      'packages/app/uno.config.ts',
       'packages/ui-kit-chat/uno.config.ts',
       'packages/ui-kit-chat-tools/uno.config.ts',
       'packages/ui-kit-system/uno.config.ts',
+      'packages/uno-preset/src/uno-preset.ts',
     ],
   },
   {
     term: 'attach',
-    paths: [...HARNESS_CONNECT_ATTACH_PATHS, ...COMPOSER_ATTACHMENT_INGRESS_PATHS, ...PRE_REWRITE_ATTACH_PATHS],
+    paths: [
+      ...HARNESS_CONNECT_ATTACH_PATHS,
+      ...COMPOSER_ATTACHMENT_INGRESS_PATHS,
+      ...EXTERNAL_API_ATTACH_PATHS,
+      ...PRE_REWRITE_ATTACH_PATHS,
+    ],
   },
 ]
 
@@ -260,7 +274,7 @@ export const corePurity = makeVocabularyRule({
   exemptFiles: [],
   allowedTermPaths: [],
   message:
-    "'{{name}}' drags '{{term}}' vocabulary into @conciv/core (spec conciv-dev/conciv#190): core stays harness- and terminal-agnostic; home it in the owning plugin or rename it.",
+    "'{{name}}' drags '{{term}}' vocabulary into @conciv/backend (spec conciv-dev/conciv#190): core stays harness- and terminal-agnostic; home it in the owning plugin or rename it.",
 })
 
 const OF_SUFFIX = /.Of$/
@@ -270,10 +284,14 @@ const LANGUAGE_NAMES = ['valueOf', 'indexOf', 'lastIndexOf', 'getPrototypeOf', '
 const FOREIGN_KEYS = ['allOf', 'anyOf', 'oneOf', 'isPartOf']
 
 const PORTED_FILE_PATTERNS = [
-  'packages/plugin-host/src/',
-  'packages/plugin/src/',
-  'apps/conciv/src/runtime/plugin/',
-  'apps/conciv/src/runtime/persistence/',
+  'packages/backend-app-api/src/',
+  'packages/backend-plugin-api/src/',
+  'packages/frontend-plugin-api/src/',
+  'packages/protocol/src/schema/',
+  'packages/frontend-defaults/src/runtime/plugin/',
+  'packages/frontend-defaults/src/runtime/persistence/',
+  'packages/frontend-app-api/src/plugin/',
+  'packages/frontend-app-api/src/persistence/',
 ]
 
 const ALLOWED_NAMES = [...LANGUAGE_NAMES, ...FOREIGN_KEYS]

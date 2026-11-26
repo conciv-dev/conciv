@@ -1,9 +1,9 @@
 ---
-'@conciv/contract': patch
 '@conciv/protocol': patch
-'@conciv/core': patch
-'@conciv/plugin': patch
-'@conciv/embed': patch
+'@conciv/types': patch
+'@conciv/backend': patch
+'@conciv/backend-plugin-api': patch
+'@conciv/app': patch
 '@conciv/ui-kit-tap': patch
 '@conciv/ui-kit-system': patch
 ---

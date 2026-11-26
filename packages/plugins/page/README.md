@@ -2,47 +2,38 @@
 
 ## Overview
 
-conciv's built-in page plugin, both halves in one package (as opencode's `plugin-browser` and `gui-plugins/browser`):
+conciv's built-in page plugin, both halves in one package:
 the engine part (`.`: the plugin `conciv.page`, its connection, tools, skill and queue), the RPC contract (`./rpc`),
 the browser part the widget runs eagerly (`./client`: what the widget calls directly), the window
-setup loaded lazily by the built-ins (`./renderer`).
+setup loaded lazily by the built-ins (`./renderer`), and the built-ins lists the hosts compose: the widget's (`./builtins`)
+and the engine's (`./engine-builtins`).
 
-The engine part, the plugin `conciv.page` (`.`), registers the RPC `experimental.page` (`./rpc`) and answers it: each
-tab's attachment and the commands it runs, page operations, live changes, captures, action queues and `symbolicate`.
-Core passes it to the plugin host as a post built-in and asks it over that RPC.
+`./test-utils` is for other packages' tests: the page built-in as a test app renders it, so a plugin's tests run with the page half loaded.
 
-The widget's entry (`./client`), inlined into the widget by `@conciv/embed`: the React bridge install, the element
-picker, the grab preview fit, a toast, the attachment and session cards and the page tool names. They hold no
+The engine part, the plugin `conciv.page` (`.`), registers the RPC `experimental.page` (`./rpc`) and answers it: the
+commands it sends a tab, page operations, live changes, captures, action queues and `symbolicate`.
+The engine reaches the plugin only through the plugin API: `@conciv/backend` passes the plugin's engine built-ins list (`./engine-builtins`) and `@conciv/backend-defaults` imports no plugin, so without it the engine answers no tabs and no page tools. A queue starts a core job (`ctx.job.start`, type `page-queue`, recovery `{kind: 'page-queue', sessionID, queueId}`, metadata `toolCallId` and `origin`) whose output is the queue's notice: a chat-started queue's notice is posted into its session as a `session.synthetic` once the job ends (description `Queued page actions <status>`), which wakes the chat agent; a hub-started queue's job is read by the hub.
+
+The widget's entry (`./client`), inlined into the widget by `@conciv/app` through `./builtins`: the React bridge install, the element
+picker, the grab preview fit, a toast, the session cards and the page tool names. They hold no
 connection to the engine themselves.
 
-A built-in: it draws with the UI kits directly, like opencode's gui plugins, and is one of the two plugin packages
-`conciv-publish check-plugin-ui-kit` lets import `@conciv/ui-kit*`. The app composes its `./renderer` in
-`apps/conciv/src/runtime/plugin/builtins.ts`.
+A built-in: it draws with the UI kits directly and is one of the two plugin packages
+`conciv-publish check-plugin-ui-kit` lets import `@conciv/ui-kit*`. `@conciv/app` composes its `./builtins` list in
+`packages/app/src/builtins.ts`.
 
-## Interface
+## Options
 
-- default export (`index.ts`): the engine plugin `conciv.page`
-- `symbolicateFrames` (`symbolicate.ts`, internal): an Effect that maps frames (`RawFrame`) to original source
-  (`SourceLoc`, both from `@conciv/contract`) with @jridgewell/trace-mapping; the `symbolicate`
-  method answers with `symbolicateFrames`
-- `Definition` (`rpc.ts`, `./rpc`): the RPC `experimental.page`
-- `CliTools` (`rpc.ts`, `./rpc`): per operation, the permission the call asks (`page_eval` for `eval`)
-- `attach` refuses a session that does not exist with the error type `missing` (`connection.ts`), every other refusal with `unavailable`
-- option `pageReplyTimeoutMs` (`connection.ts`, milliseconds, default 5 000): how long a tab has to answer an action that declares no timeout of its own, and to accept a queue
-- option `queuedActionTimeoutMs` (`connection.ts`, milliseconds, default 7 000): how long each queued action has to confirm once the tab reaches it
-- option `permissionSyncTimeoutMs` (`connection.ts`, milliseconds, default 10 000): how long granting or revoking a tab's page permissions on its session may take before the attach is refused (the tab retries on its back-off)
-- `client.ts` (`./client`): the DOM helpers, `reactBridge` as a namespace, `pageSessionEntry`, `PAGE_ACT_TOOL_NAMES`, `PAGE_TOOL_PREFIX`
-- `renderer.tsx` (`./renderer`): the window setup (default export) the built-ins load lazily
-- `grab.ts:getReactGrabAdapter` - creates the adapter once and returns `{activate(onGrab), comment(onGrab), deactivate(), isActive()}` (`ReactGrabAdapter`).
-- `grab.ts:GrabSink` - `(grab: Promise<Grab>) => void`: called as soon as an element is picked, before react-grab deactivates, so a pick never resolves before its capture ends.
-- `grab.ts:picking` / `setPicking` - Solid signal for pick mode; `setCancelPick` / `cancelPick`.
-- `grab-preview.ts:capturePreview` - returns an `ImagePreview` (`kind: 'image'`, a WebP data URL drawn by snapdom, as `page_screenshot` draws) for an element, or a `DomPreview` (`kind: 'dom'`, html, width, height) when drawing fails.
-- `grab.ts:elementSnippet` / `groundGrabText` - an element's opening tag and text, with its source location from `sourceFromAttr`.
-- `grab-preview.ts:correctFallbackMetrics` / `isStyledElement` - adjust cloned text runs whose web fonts fall back.
+- `pageReplyTimeoutMs` (milliseconds, default 5 000): how long a tab has to answer an action that declares no timeout
+  of its own, and to accept a queue (`connection.ts`).
+- `queuedActionTimeoutMs` (milliseconds, default 7 000): how long each queued action has to confirm once the tab
+  reaches it.
+- `permissionSyncTimeoutMs` (milliseconds, default 10 000): how long granting or revoking a session's page permissions
+  may take before the sync is given up with a warning.
 
 ## Browser part
 
-The browser part of `experimental.page`: one attachment per tab to its engine half (`@conciv/plugin-page`), the
+The browser part of `experimental.page`: the command channel of the browser tab the shell opened, to its engine half (`@conciv/plugin-page`), the
 operations it runs on the page, and the members other plugins read (`Page`, `ReactTree`).
 
 The `highlight` page effect (`src/highlight.tsx`) draws in the plugin's `ctx.overlay` layer, under the widget: the
@@ -52,101 +43,74 @@ capture layer opts back into pointer events, and `elementAt` skips the widget ro
 host. The layer sits under the widget, so the box is not drawn over the open panel. Holding Alt while focus is outside
 an input, textarea or contenteditable shows the inspector too, until Alt is released or Esc is pressed.
 
-The routed session attaches while its server is compatible and its event stream is connected (`ServerRef.connected`):
-a dropped stream or an engine restart ends the attachment and the reconnect starts a new one, with nobody touching the
-tab. In opencode the desktop's own stream ends with the connection, the attachment ends `closed` and the pane registers
-again on a backoff (`gui-plugins/src/browser/pane-machine.ts:254-279` `closeReason`, `machine.ts:736-737`, `:772-796`);
-here the stream reopens under its reader, so its reconnect is the cue. An `unsupported` or `unavailable` end stops
-attaching until the server reconnects or the panel routes another session, as the source's unsupported server is
-watched until `server.connected` (`model.ts:382-409`, `machine.ts:386-395`), not until a reload. An attachment the
-engine ends while the stream stays up waits for the user to focus, click or type in the tab (`woken`), as the source's
-suspended pane waits for those edges (`machine.ts:739-748`, `model.ts:513-528`). An attach the engine refuses because the session
-does not exist (deleted, or a new session before its first send; the refusal type `missing`) waits on the event stream
-for `session.created` and nothing else, with no timer. An attach that fails for a passing reason (the refusal type
-`transient`: the session could not be read, or its page permissions could not be granted in time) tries again
-without end on `TRANSIENT_RETRY` in `attachment.ts`, 1 s doubling to at most 30 s, as the source's registration-closed
-back-off does. Any other refusal before it attached (the session belongs to
-another location, or the page plugin is shutting down; the type `unavailable`) stops attaching until the server
-reconnects or the panel routes another session.
+Open tabs are core (`tabs.*` in `@conciv/protocol`): the shell opens a browser tab for its mounted session
+(`frontend-defaults/src/runtime/browser-tab/open-browser-tab.ts`) and the engine lists it whether or not this plugin
+is installed. The page plugin holds no tab data. Its engine half reads `ctx.browserTabs.list`, and its widget half
+answers the commands addressed to `session.browserTab.id` (`answerCommands` in `attachment.ts`) while the routed
+session's server is compatible and connected.
 
-The tab reports its state again on focus, blur, a visibility change, a title change and a route change
-(`reportChanges` in `attachment.ts`). Route changes come from the Navigation API's `currententrychange`; in a browser
-without it (Firefox before 147, Safari before 26.2) `reportRouteChanges` subscribes to nothing, the tab still attaches,
-and a route change reaches the agent with the next report or attach.
-
-Every address the page hands out goes through `redactedUrl` (`redacted-url.ts`): the tab list's `url` and the
-`route` operation's `pathname`, `search` and `href`. It drops user info, and puts `[redacted]` in place of secret
+The `route` operation's `pathname`, `search` and `href` go through `redactedUrl` (`redacted-url.ts`), and the plugin contributes it as `BrowserTabUrl`, so the shell redacts the browser tab's `url` with it before the engine stores it. It drops user info, and puts `[redacted]` in place of secret
 query and hash values and secret route params. The same answer reaches the model, outside agents through the hub,
 the terminal and the thread's tool card.
 
-The terminal runs the page tools as `conciv tools page <verb>`, as main: core's `registry.call` runs the plugin's
+The terminal runs the page tools as `conciv tools page <verb>`: the engine's `registry.call` runs the plugin's
 tool for the session `--tab` or `CONCIV_SESSION_ID` names; `eval` from there asks as the cli README's 'Who is asked'
 says. Inside a chat turn the `eval` tool asks the user first.
 
-When the page plugin hears `session.deleted` it drops that session's queue records (`queue.ts` `cancelSession`), as
-the source's `jobs.cancelSession` does on delete: a result that lands later is never announced or owed, and
-`queue.wait` on it answers `no queue <id> on this tab`.
-`conciv plugin call experimental.page queue.wait` from a terminal is a peek: a caller who leaves (Ctrl-C) as the queue
-finishes may not see that result in their terminal; it stays in the queue's journal and card and can be read again with
+A queue hands its work to the core job service: `runQueue` (`src/connection.ts`) starts a job (`ctx.job.start`, id
+`pq_<queueId>`, recovery `{kind: 'page-queue', sessionID, queueId}`) whose run waits for the queue to finish. A
+blocking queue waits on `ctx.job.block` for up to `PAGE_QUEUE_SYNC_MS` and answers the result if the job finished;
+otherwise the job is backgrounded (`ctx.job.background`), the call answers the queue's progress, and for a queue the
+hub did not start the result is posted into the session as a `session.synthetic` once `ctx.job.wait` sees the job end
+(nothing is posted for a cancelled job), then `ctx.job.completeBackground` marks it delivered.
+`conciv plugin call experimental.page queue.wait` is a peek: it waits up to `waitMs` for the result and otherwise
+answers the progress (`{status: 'playing', done, of}`). A caller who leaves (Ctrl-C) as the queue finishes may not see
+that result in their terminal; it stays in the queue's journal and card and can be read again with
 `conciv plugin call experimental.page queue.wait --data '{"sessionId":"<sessionId>","queueId":"<queueId>","waitMs":0}'`,
-which answers the kept result again (`src/queue.ts` `wait` returns the result whatever its delivery; the
-newest 200 delivered queues are kept). The delivered-once guarantee belongs to the hub and the dedicated
-`page.queue.wait` forwarder.
-Deleting a session stops what its tabs are still playing: each request in flight gets the same `cancel` control a
-dropped request gets (`src/machine.ts` `cancelPending`), and the queue's next actions are never sent (the
-attachment is closed, so they settle `disconnected before dispatch`). The source only fails the request on delete
-(opencode `plugin-browser/src/machine.ts` `failPending`), without a cancel. A closed tab gets no cancel: nothing is
-left to receive it.
+which answers the kept result again (`src/queue.ts` `wait`; the newest 200 finished queues are kept,
+`KEPT_QUEUES` in `src/queue-machine.ts`).
+Deleting a session cancels its jobs (the core `Job.cancelSession`), and when the page plugin hears `session.deleted`
+it drops that session's queue records (`src/queue.ts` `cancelSession`), so `queue.wait` on one answers
+`no queue <id> on this tab`. It also stops what the session's tabs are still playing: each request in flight gets the
+same `cancel` control a dropped request gets (`src/connection.ts` `deleted`), and the queue's next actions are never
+sent (the session's tabs are gone, so they settle `disconnected before dispatch`). A closed tab gets no cancel:
+nothing is left to receive it.
 
-Core activates the engine half last, in the host's post position (`core/src/app.ts` `post: [concivPage]`, through
-`InstancePlugins.bound(plugins, post)`), as the source activates its browser plugin last (opencode
-`core/src/plugin/internal.ts:290-294`, `supervisor.ts:146-147`): the half pushes its page rules and the `page_eval`
-ask onto every agent, so it runs after every project plugin that adds one. The source lists that plugin in its own
-internal list; core cannot, because plugin-host would then import plugin-page, which imports the host's SDK.
-A tool call that arrives while its plugin restarts after a reload meets the restart window, as in opencode: work
-started after the reload waits for activation (opencode `core/src/session/prompt.ts:40`; conciv
-`core/src/runtime/plugin-runtime.ts` `Plugin.awaitActivation`), a call already in flight does not.
+The engine activates the plugins it is given in the host's post position (`InstancePlugins.bound([], {post:
+input.plugins})`, `packages/backend-defaults/src/engine/runtime/plugin-runtime.ts`), so the page half, which
+`@conciv/backend` passes from this package's `./engine-builtins` list, runs after every project plugin: the half
+pushes its page rules and the `page_eval` ask onto every agent. A tool call that arrives while its plugin restarts
+after a reload meets the restart window: work started after the reload waits for activation (`Plugin.awaitActivation`
+in `@conciv/backend-app-api`), a call already in flight does not.
 
-The engine half's `sessions.attached` answers the session ids with at least one tab attached
-(`src/machine.ts` `selectAttachedSessions`, beside `selectTabs`); core's `tabs.list` walks it and reads each
-session's tabs through the engine half's own non-asking `tabs.list` method (`selectTabs`), and `tabs.get` answers open when that read has a tab. This is a
-conciv addition: the source has no cross-session listing because it has no tabs listing. Only callers that may call
-`plugin.call` reach it, and the RPC mount refuses `plugin.call` to an outside agent (`core/src/api/rpc/mount.ts`
-`PLUGIN_PROCEDURES`), so it is no wider than `tabs.list`.
-
-Page tools are offered while a tab is attached. They carry `permission: 'page'`; the engine half denies `page` on
-every agent and grants it to the session while one of its tabs is attached, so with no tab neither the chat nor an
+Page tools are offered while a tab is open. They carry `permission: 'page'`; the engine half denies `page` on
+every agent and grants it to the session while one of its tabs is open (it follows `tab.opened` and `tab.closed`), so with no tab neither the chat nor an
 outside agent is offered a page tool, and they are gone again once the last tab goes.
 
-A page failure is the plugin's own error, a `[page.<code>]` message; the old registry's codes and behaviour for page tools map:
+A page failure is the plugin's own error, a `[page.<code>]` message:
 
-| Old registry                                 | Page plugin                                                                                                                                                                                                                                                                                                                              |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NO_PAGE_CLIENT`                             | `[page.disconnected]`                                                                                                                                                                                                                                                                                                                    |
-| `PAGE_TIMEOUT`                               | `[page.timeout]`                                                                                                                                                                                                                                                                                                                         |
-| `INVALID_ARGS`                               | a missing target: `[page.invalid-args] <the page's message>`                                                                                                                                                                                                                                                                             |
-| `INVALID_ARGS`, input that fails the schema  | in a chat turn or code mode, the tool runtime's own failure: `Invalid arguments for tool "page_<name>":`, one `- <field>: <message>` line per failing field, the arguments provided, then `Update the arguments and call the tool again.`; through `conciv tools page <verb>`, a user error with exit 1 before any call is made, as main |
-| `HANDLER_ERROR`                              | the action's own error as the page raised it, e.g. `[page.handler-error] <message>`                                                                                                                                                                                                                                                      |
-| `UNKNOWN_REQUEST`                            | no page error: a dropped request's page is told to stop (a `cancel` control for that request id) and the request is gone (`command` for it answers unavailable `Page request is no longer available.`); a late result for it while the tab is attached is accepted and ignored, as the source does                                       |
-| `registry.call` reaching a page tool         | runs the plugin's page tool for the caller's session (`conciv tools page <verb>`); an agent reaches them in code mode or through the MCP hub                                                                                                                                                                                             |
-| `page_eval` in the hub session's MCP listing | not listed: `page_eval` asks inside the tool, so an outside agent reaches it in code mode                                                                                                                                                                                                                                                |
-| a page that never answers, in `tabs.list`    | listed with the href its tab reported                                                                                                                                                                                                                                                                                                    |
-| `NO_TAB` for page tools on an outside run    | no page tools: with no tab attached an outside run is offered none, as opencode's browser plugin (`plugin-browser/src/connection.ts:21-28`, `core/src/tool.ts:260, :385-388`), so a call answers `external_page_<name> is not defined` and `discover_tools` does not list it                                                             |
-
-### Owed
-
-- **The halt inside a queued editor fill has no test.** `fillEditor` (`src/act.ts:104-120`) types by events,
-  waits one `pageTurn`, then calls `halt()` before it falls back to typing by commands. A test cannot hold the page
-  between those two steps: there is one `pageTurn` and no editor wait to gate. A probe run (2026-11-15, probes
-  removed) showed the order a session switch takes when it lands during the fill: `halt check` at 13350.4 ms,
-  `typing` at 13350.6 ms, and the attachment saw the new routed session only at 13391.3 ms, 41 ms after the typing.
-  So the halt check passes and the fill types into the session it was queued for, which is not a wrong-session write.
-  The app case "a queued fill released after a session switch does not type" covers the user-visible claim instead:
-  it holds the fill's `command` call by its input until the switch shows on screen, then releases it.
+- no tab to reach: `[page.disconnected]`; a tab that does not answer in time: `[page.timeout]`.
+- a missing target: `[page.invalid-args] <the page's message>`. Input that fails the schema is the tool runtime's own
+  failure in a chat turn or code mode (`Invalid arguments for tool "page_<name>":`, one `- <field>: <message>` line
+  per failing field, the arguments provided, then `Update the arguments and call the tool again.`), and a user error
+  with exit 1 before any call through `conciv tools page <verb>`.
+- the action's own error as the page raised it: `[page.handler-error] <message>`.
+- a dropped request's page is told to stop (a `cancel` control for that request id) and the request is gone
+  (`command` for it answers unavailable `Page request is no longer available.`); a late result for it is accepted and
+  ignored.
+- `page_eval` asks inside the tool, so it is not in the hub session's MCP listing: an outside agent reaches it in code
+  mode.
+- with no tab open an outside run is offered no page tools, so a call answers
+  `external_page_<name> is not defined` and `discover_tools` does not list it.
 
 ## Cards
 
-Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTool` row (through `PageTool` in `shared.tsx`) with the page operation's own label as its title. `cards.tsx` binds the cards to the page tool names, the page plugin registers one render per name in its setup, and each render reads its element captures through the page plugin's own captures query (`captures.tsx`). `SessionCard` is the group entry for `PAGE_SESSION_GROUP_KEY` groups and reads the same captures. An errored call never reaches a card: the plugin registers `PageFailedTool` (`shared.tsx`) as each name's `errorComponent`, the error card titled with the page operation. `session-card.tsx` turns a run of page tool calls into `PageSessionStep` rows. `story.fixtures.tsx` holds the builders the stories use.
+Each card draws a `BasicTool` row (through `PageTool` in `shared.tsx`) titled with the page operation's own label;
+`cards.tsx` binds the cards to the page tool names and the renderer (`renderer.tsx`) registers one render per name. Every
+card reads its element captures through the plugin's own captures query (`captures.tsx`), keyed exactly as the app
+invalidates it. An errored call never reaches a card: `PageFailedTool` is each name's `errorComponent`.
+`SessionCard` (`session-card.tsx`) is the group entry for `PAGE_SESSION_GROUP_KEY` groups and turns a run of page tool
+calls into steps.
 
 ## Invariants
 
@@ -156,50 +120,31 @@ Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTo
   and attaches the note. Its `NoteCard` draws the grab from the engine by id, in the composer and in the sent message.
 - The model reads the note's sentence (the grab's text with its source) and, for an image preview, the picture: the
   `session.prompt` hook adds it as an image file of the message (`grabs.ts:addPictures`).
-
-- `readFileInRoot` (`symbolicate.ts`): throws on a realpath outside the project root
-- `fetchLoopback` (`symbolicate.ts`): refuses hosts other than localhost, 127.0.0.1, ::1 or [::1]
-- `symbolicateFrames` (`symbolicate.ts`): skips node_modules results; a frame that fails to map counts as null; it runs in the calling host fiber, so its source fetch timeout is on the engine's clock
-- queued page plays (`connection.ts`) fork on the context the connection was built in, so their reply timeouts are on the engine's clock
-- `capture.ts:isSensitiveField` - `type=password` or an `autocomplete` containing `cc-`, `one-time-code`, `current-password` or `new-password` is sensitive; its value reads as `MASKED_VALUE`.
-- `snapshot.ts:selectDeep` - matches in the document first, then in the page's open shadow roots, never in the widget's own.
-- `react.ts:installTracker` - installs the commit hook only once.
-- `grab.ts:getReactGrabAdapter` - the adapter promise is cached; later calls reuse it.
-- A tab whose attachment ends (the engine closed it, a plugin reload) attaches again on that end event, with no wake,
-  until `end()` is called.
-- No core import anywhere in the package: core depends on it, so it never depends on core.
-- `cardErrorMessage` (`shared.tsx`) returns a message only when `result.state === 'error'`; it prefers a non-empty `result.error`, then non-empty result text
-- `elementTarget` (`shared.tsx`) picks the element target from the first non-empty string of `selector`, then `ref`, then `name`
-- `outputChips` (`shared.tsx`) returns [] unless the payload is a plain non-array object, and it drops undefined values
-- `pageSessionSteps` (`session-card.tsx`) keeps only parts whose name is in `actNames`; step state is 'error' or 'complete' from the result, otherwise 'streaming' if the group is streaming, else 'aborted'
-- `stepInput` (`session-card.tsx`) falls back to JSON.parse of `part.arguments` and returns {} on parse failure
-- `stepTarget` (`session-card.tsx`) uses this order: eval code first line, the fixed targets for css/eval/effect, capture accessibleName, selector/ref, input.name, then 'page'
-- `clipLine` (`session-card.tsx`) truncates targets and values to `CHIP_BUDGET` = 64 chars with an ellipsis
-- `pageSessionScripted` (`session-card.tsx`) is false for an empty step list
-- `SessionCard` (`session-card.tsx`) renders nothing when there are zero steps; `sessionStatus` is 'running' while streaming, else 'error' if any step or result errored
-- `sessionScripts` (`session-card.tsx`) excludes parts named in `PAGE_ACT_TOOL_NAMES` or prefixed with `PAGE_TOOL_PREFIX`, and keeps only inputs that have `typescriptCode`
-- `sessionLocation` (`session-card.tsx`) uses the href from the latest successful `${PAGE_TOOL_PREFIX}route` result; it falls back to `location` only while streaming
-- `EditLiveCard` (`cards.tsx`) has content for eval/css verbs or when a before-capture exists
-- `ConsoleCard` (`cards.tsx`) marks the row status 'error' if any entry has level 'error', 'uncaught' or 'unhandled'
-- `safeColor` (`grab-card.tsx`) accepts only CSS values that match `/^[\w\s%.,()/#-]+$/`, else it uses a fallback, before interpolating into srcdoc
-- `GrabSnapshotFrame` (`grab-card.tsx`) sets a CSP of `default-src 'none'; img-src data:; style-src 'unsafe-inline' data:; font-src data:` and an empty `sandbox`
-- `resolvePayload` (`grab-card.tsx`) returns null on a base64 decode failure; `GrabCard` shows 'Grabbed element could not be read' when the payload is null or errored
+- `symbolicate` reads only files whose realpath is inside the project root, fetches source maps only from localhost,
+  127.0.0.1 or ::1, skips node_modules results, and runs in the calling host fiber, so its fetch timeout is on the
+  engine's clock (`symbolicate.ts`). Queued page plays fork on the connection's context, so their reply timeouts are
+  on the engine's clock too (`connection.ts`).
+- A field with `type=password` or an `autocomplete` containing `cc-`, `one-time-code`, `current-password` or
+  `new-password` is read as `MASKED_VALUE` (`snapshot.ts:isSensitiveField`, `capture.ts` for captured attributes).
+- Selectors match in the document first, then in the page's open shadow roots, never in the widget's own
+  (`snapshot.ts:selectDeep`).
+- The React bridge is installed once, before the renderer registers (`react.ts:installReactBridge`); the react-grab adapter is created once and
+  reused (`grab.ts:getReactGrabAdapter`).
+- The package never imports `@conciv/backend-defaults`: the engine reaches the plugin only through the plugin API.
+- A grab snapshot is drawn in an iframe with an empty `sandbox` and the CSP `default-src 'none'; img-src data:;
+  style-src 'unsafe-inline' data:; font-src data:`, and only CSS values matching `/^[\w\s%.,()/#-]+$/` are
+  interpolated into its srcdoc (`grab-card.tsx`).
 
 ## Side Effects
 
-- `grabs.ts` writes one file per saved grab under `<project>/.conciv/page/grabs/`; nothing removes them.
-- `symbolicate.ts`: reads files and fetches source maps over loopback HTTP
-- `react.ts:installTracker` - instruments React through `bippy` `instrument({onCommitFiberRoot})`.
-- `toast.ts:showToast` - appends overlay elements to the page.
-- `capture.ts:makeSnapshotLoader` - imports `rrweb-snapshot` through `cacheImport` (`Effect.cachedWithTTL`: a success is kept, a failure is retried on the next call) and shows an error toast through the host `ctx.toast` once if it fails. `operations.ts` makes one per page operations instance and loads `@zumer/snapdom` the same way.
-
-- `grab.ts:create` - sets `window.__REACT_GRAB_DISABLED__ = true`, dynamically imports `react-grab` and registers the `conciv` react-grab plugin.
-- `grab-preview.ts` - appends a temporary `<iframe>` and a holder element to `document.body` to measure fonts.
-- `grab-preview.ts:capturePreview` - waits one `requestAnimationFrame`, draws the element with snapdom; on failure clones the element with inlined computed styles into a detached `<div>`, and returns its `outerHTML`.
-- `GrabNoteCard` (`grab-card.tsx`) reads the grab of a note (`href: page-grab:<id>`) from the engine with `grabs.get` through `useQuery`, keyed by the grab id
-- `GrabSnapshotFrame` (`grab-card.tsx`) reads `getComputedStyle` (`--chat-panel`, `--chat-fill`) on mount and renders a sandboxed srcdoc iframe
-- `sessionLocation` (`session-card.tsx`) reads global `location.host`/`location.pathname` while streaming
-- Every page render and `PageSessionCard` (`session-card.tsx`) run the page plugin's captures query on the app's QueryClient, keyed exactly as the app invalidates it
+- Writes one file per saved grab under `<project>/.conciv/page/grabs/` (`grabs.ts`); nothing removes them.
+- Reads project files and fetches source maps over loopback HTTP (`symbolicate.ts`).
+- Instruments React through `bippy` (`react.ts`), sets `window.__REACT_GRAB_DISABLED__ = true` and loads `react-grab`
+  with the `conciv` react-grab plugin (`grab.ts`).
+- Loads `rrweb-snapshot` and `@zumer/snapdom` on first use; a failed load is retried on the next call and shows an
+  error toast once (`capture.ts`, `operations.ts`).
+- Appends toast elements to the page (`toast.ts`), and a temporary `<iframe>` and holder element to `document.body`
+  to measure fonts for a grab preview (`grab-preview.ts`).
 
 ## Verification
 

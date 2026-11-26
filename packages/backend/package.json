@@ -1,0 +1,58 @@
+{
+  "name": "@conciv/backend",
+  "version": "0.0.22",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv engine app: starts @conciv/backend-defaults' createBackend with the built-in page plugin.",
+  "keywords": [
+    "ai",
+    "conciv",
+    "engine",
+    "hono",
+    "server"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/backend"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/start.d.ts",
+      "import": "./dist/start.js"
+    },
+    "./start": {
+      "types": "./dist/start.d.ts",
+      "import": "./dist/start.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/backend-defaults": "workspace:^",
+    "@conciv/plugin-page": "workspace:^",
+    "@conciv/simulation": "workspace:^"
+  },
+  "devDependencies": {
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

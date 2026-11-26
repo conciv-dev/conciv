@@ -1,6 +1,6 @@
 import {For, onCleanup, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {usePlugin} from '@conciv/plugin/experimental'
+import {usePlugin} from '@conciv/frontend-plugin-api'
 import {sceneToScreen} from './coords.js'
 import type {CommentRow} from './rows.js'
 import {useComments} from './comments.js'

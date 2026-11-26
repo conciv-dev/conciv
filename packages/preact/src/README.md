@@ -2,13 +2,7 @@
 
 ## Overview
 
-Single entry `index.ts`: a Preact component that renders an anchor `<div>` and mounts a `createConciv` handle from `@conciv/embed` on it, unmounting on cleanup.
-
-## Interface
-
-- `ConcivWidget(props: ConcivWidgetProps): JSX.Element` (`index.ts`): renders a `div` with `ref: setHost`, creates `createConciv(init)` from every `ConcivInit` prop and mounts it on the host.
-- `ConcivWidgetProps` = `ConcivInit` (`index.ts`).
-- Type re-exports `ConcivInit`, `ConcivSettingsInit` from `@conciv/embed` (`index.ts`).
+Single entry `preact.ts`: a Preact component that renders an anchor `<div>` and mounts a `createConciv` handle from `@conciv/app` on it, unmounting on cleanup. It re-exports the `ConcivInit` and `ConcivSettingsInit` types.
 
 ## Invariants
 
@@ -18,9 +12,9 @@ Single entry `index.ts`: a Preact component that renders an anchor `<div>` and m
 
 ## Side Effects
 
-- `handle.mount(host)` mounts the widget into the rendered div (`index.ts`).
+- `handle.mount(host)` mounts the widget into the rendered div (`preact.ts`).
 - Logs `console.error('conciv widget failed to mount', error)` when the mount promise rejects.
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/preact` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/preact` from the repo root (the package has no tests yet)

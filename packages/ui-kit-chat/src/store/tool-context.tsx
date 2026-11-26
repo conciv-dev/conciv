@@ -1,5 +1,5 @@
 import {createContext, useContext} from 'solid-js'
-import {INERT_TOOL_CATALOG, type ToolCardProps, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CATALOG, type ToolCardProps, type ToolViewCtx} from '@conciv/types/tool-view-types'
 
 export const INERT_ADD_RESULT: ToolCardProps['addResult'] = () => Promise.resolve()
 

@@ -34,7 +34,7 @@ final class DiscoveryTests: XCTestCase {
 
   func testPageAndHealthUrlsPreserveTheTokenPrefixWhileOriginStaysHostPort() {
     let apiBase = url("http://127.0.0.1:4599/t/secret")
-    XCTAssertEqual(ConcivDiscovery.pageURL(for: apiBase), url("http://127.0.0.1:4599/t/secret/native"))
+    XCTAssertEqual(ConcivDiscovery.pageURL(for: apiBase), url("http://127.0.0.1:4599/t/secret/widget"))
     XCTAssertEqual(ConcivDiscovery.healthURL(for: apiBase), url("http://127.0.0.1:4599/t/secret/health"))
     XCTAssertEqual(ConcivDiscovery.origin(of: apiBase), "http://127.0.0.1:4599")
     XCTAssertEqual(ConcivDiscovery.origin(of: url("https://example.test")), "https://example.test")
@@ -80,7 +80,7 @@ final class DiscoveryTests: XCTestCase {
 
   func testPageUrlAppendsNativeOnceToATokenlessBase() {
     let apiBase = url("http://127.0.0.1:8891")
-    XCTAssertEqual(ConcivDiscovery.pageURL(for: apiBase), url("http://127.0.0.1:8891/native"))
+    XCTAssertEqual(ConcivDiscovery.pageURL(for: apiBase), url("http://127.0.0.1:8891/widget"))
   }
 
   func testEnvApiBaseParsesAValidBaseRejectsMalformedAndTreatsUnsetAsDiscovery() {

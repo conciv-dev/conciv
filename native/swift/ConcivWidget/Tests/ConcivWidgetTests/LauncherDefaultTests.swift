@@ -25,7 +25,7 @@ final class LauncherDefaultTests: XCTestCase {
     XCTAssertEqual(controller.container.state.launcher, .mascot, message)
     XCTAssertEqual(
       controller.pageUrl,
-      url("http://127.0.0.1:59990/native?launcher=mascot"),
+      url("http://127.0.0.1:59990/widget?launcher=mascot"),
       "the default mount must ask the page for the mascot launcher: \(message)"
     )
   }
@@ -79,7 +79,7 @@ final class LauncherDefaultTests: XCTestCase {
     XCTAssertEqual(controller.container.state.launcher, .native, "the native FAB stays an explicit opt-in")
     XCTAssertEqual(
       controller.pageUrl,
-      url("http://127.0.0.1:59990/native"),
+      url("http://127.0.0.1:59990/widget"),
       "native mode loads the page with no launcher query"
     )
   }

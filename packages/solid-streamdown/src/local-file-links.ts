@@ -10,7 +10,7 @@ const lineHashSuffixPattern = /^(.*?)#L(\d+)(?:C\d+)?(?:-L?(\d+)(?:C\d+)?)?$/i
 
 const lineColonSuffixPattern = /^(.*?):(\d+)(?::\d+)?(?:-(\d+)(?::\d+)?)?:?$/
 
-const fileNames = new Set([
+const fileNames = [
   'CHANGELOG',
   'CODEOWNERS',
   'Containerfile',
@@ -23,7 +23,7 @@ const fileNames = new Set([
   'README',
   'Rakefile',
   'Vagrantfile',
-])
+]
 
 function toLineRange(first: number, second: number) {
   if (
@@ -151,7 +151,7 @@ export function isInlineCodePath(text: string) {
 
   const path = parsePathLineSuffix(text).path
 
-  if (fileNames.has(path)) return true
+  if (fileNames.includes(path)) return true
 
   return /[./\\]/.test(path) && /[a-z]/i.test(path)
 }

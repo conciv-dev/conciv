@@ -1,6 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
   "plugins": ["typescript", "react", "unicorn"],
+  "settings": {"unocss": {"configPath": "uno.config.ts"}},
   "jsPlugins": [
     {
       "name": "unocss",
@@ -32,6 +33,7 @@
     "conciv/no-inline-timeouts": "error",
     "conciv/no-locator-poll": "error",
     "conciv/no-mocks": "error",
+    "conciv/no-module-state": "error",
     "conciv/no-of-suffix": "error",
     "conciv/no-signal-ref": "error",
     "conciv/no-teardown-hooks": "error",
@@ -146,7 +148,7 @@
         "patterns": [
           {
             "group": ["@tanstack/ai", "@tanstack/ai-*", "@tanstack/ai/**", "@tanstack/ai-*/**"],
-            "message": "Only packages/ai and packages/protocol may import @tanstack/ai*; use @conciv/protocol and the @conciv/ai entries."
+            "message": "Only the chat engine (backend-defaults ai, the harness adapters, the client chat) and packages/types may import @tanstack/ai*; use @conciv/types and those entries."
           },
           {
             "group": ["@ark-ui", "@ark-ui/**"],
@@ -175,14 +177,19 @@
       }
     },
     {
-      "files": ["packages/plugin/src/**"],
+      "files": [
+        "packages/backend-plugin-api/src/**",
+        "packages/client/src/plugin/**",
+        "packages/frontend-plugin-api/src/**",
+        "packages/protocol/src/schema/**"
+      ],
       "rules": {
         "conciv/no-comments": ["error", {"keepDocComments": true}],
         "conciv/banned-vocabulary": "off"
       }
     },
     {
-      "files": ["apps/site/**", "apps/conciv/**"],
+      "files": ["apps/site/**", "packages/frontend-defaults/**"],
       "rules": {
         "conciv/router-idioms": "error"
       }
@@ -194,13 +201,58 @@
       }
     },
     {
-      "files": ["packages/ui-kit-*/src/**", "apps/conciv/src/**"],
+      "files": ["packages/ui-kit-*/src/**", "packages/frontend-defaults/src/**"],
       "rules": {
         "conciv/no-delegated-focus": "error"
       }
     },
     {
-      "files": ["packages/ai/**", "packages/protocol/**"],
+      "files": ["packages/client/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@hono/node-server",
+                "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
+                "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+              },
+              {
+                "name": "@effect/platform-node",
+                "message": "Import @effect/platform-node by subpath (@effect/platform-node/NodeFileSystem and the like), never the bare barrel: it loads about 770 extra modules, a redis client among them, into every engine process."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["@tanstack/ai", "@tanstack/ai-*", "@tanstack/ai/**", "@tanstack/ai-*/**"],
+                "message": "Only the chat engine (backend-defaults ai, the harness adapters, the client chat) and packages/types may import @tanstack/ai*; use @conciv/types and those entries."
+              },
+              {
+                "group": ["@ark-ui", "@ark-ui/**"],
+                "allowImportNames": ["useListCollection", "useFilter"],
+                "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly \u2014 only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/backend-defaults/src/ai/**",
+        "packages/backend-defaults/src/ai.ts",
+        "packages/backend-defaults/test/utils/ai-test.ts",
+        "packages/backend-defaults/test/unit/run-guard.unit.test.ts",
+        "packages/harness/src/adapters/**",
+        "packages/harness/src/local-sandbox.ts",
+        "packages/client/src/chat.ts",
+        "packages/client/src/chat/session.ts",
+        "packages/test-utils/src/test-utils.ts",
+        "packages/test-utils/src/fakes/fake-engine.ts",
+        "packages/simulation/src/ai-testkit.ts",
+        "packages/types/**"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -242,39 +294,7 @@
       }
     },
     {
-      "files": ["packages/client/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "paths": [
-              {
-                "name": "@hono/node-server",
-                "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
-                "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
-              },
-              {
-                "name": "@effect/platform-node",
-                "message": "Import @effect/platform-node by subpath (@effect/platform-node/NodeFileSystem and the like), never the bare barrel: it loads about 770 extra modules, a redis client among them, into every engine process."
-              }
-            ],
-            "patterns": [
-              {
-                "group": ["@tanstack/ai", "@tanstack/ai-*", "@tanstack/ai/**", "@tanstack/ai-*/**"],
-                "message": "Only packages/ai and packages/protocol may import @tanstack/ai*; use @conciv/protocol and the @conciv/ai entries."
-              },
-              {
-                "group": ["@ark-ui", "@ark-ui/**"],
-                "allowImportNames": ["useListCollection", "useFilter"],
-                "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly \u2014 only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["packages/plugin/**", "packages/plugins/*/src/**"],
+      "files": ["packages/backend-plugin-api/**", "packages/frontend-plugin-api/**", "packages/plugins/*/src/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -307,7 +327,7 @@
             "patterns": [
               {
                 "group": ["@tanstack/ai", "@tanstack/ai-*", "@tanstack/ai/**", "@tanstack/ai-*/**"],
-                "message": "Only packages/ai and packages/protocol may import @tanstack/ai*; use @conciv/protocol and the @conciv/ai entries."
+                "message": "Only the chat engine (backend-defaults ai, the harness adapters, the client chat) and packages/types may import @tanstack/ai*; use @conciv/types and those entries."
               },
               {
                 "group": ["@ark-ui", "@ark-ui/**"],
@@ -375,7 +395,7 @@
       }
     },
     {
-      "files": ["packages/core/src/pty/**", "packages/ui-kit-terminal/**"],
+      "files": ["packages/backend-defaults/src/engine/pty/**", "packages/ui-kit-terminal/**"],
       "rules": {
         "no-control-regex": "off"
       }
@@ -403,7 +423,7 @@
       }
     },
     {
-      "files": ["apps/**"],
+      "files": ["apps/**", "packages/frontend-defaults/**", "packages/frontend-app-api/**"],
       "rules": {
         "unocss/order": "off"
       }
@@ -419,13 +439,31 @@
       }
     },
     {
-      "files": ["packages/core/src/**", "packages/chat/src/**"],
+      "files": [
+        "packages/backend/src/**",
+        "packages/backend-defaults/src/*.ts",
+        "packages/backend-defaults/src/engine/**"
+      ],
       "rules": {
         "conciv/core-purity": "error"
       }
     },
     {
-      "files": ["packages/db/**", "packages/ai/**", "packages/chat/**", "packages/core/**", "packages/plugin-host/**"],
+      "files": [
+        "packages/home/**",
+        "packages/backend-defaults/src/ai/**",
+        "packages/backend-defaults/src/ai.ts",
+        "packages/backend-defaults/test/utils/ai-test.ts",
+        "packages/harness/src/adapters/**",
+        "packages/harness/src/local-sandbox.ts",
+        "packages/client/src/chat.ts",
+        "packages/client/src/chat/session.ts",
+        "packages/test-utils/src/test-utils.ts",
+        "packages/simulation/src/ai-testkit.ts",
+        "packages/backend-defaults/**",
+        "packages/backend/**",
+        "packages/backend-app-api/**"
+      ],
       "rules": {
         "conciv/no-await-effect-query": "error"
       }
@@ -447,8 +485,8 @@
         "**/vite.config.*",
         "packages/vitest-config/**",
         "e2e/e2e-utils/**",
-        "packages/plugin-testkit/src/**",
-        "packages/harness-testkit/src/**"
+        "packages/engine-kit/src/**",
+        "packages/simulation/src/**"
       ],
       "rules": {
         "conciv/max-test-timeout": "error"
@@ -461,7 +499,7 @@
       }
     },
     {
-      "files": ["packages/harness-testkit/src/**", "packages/plugin-testkit/src/**"],
+      "files": ["packages/simulation/src/**", "packages/engine-kit/src/**"],
       "rules": {
         "conciv/no-predicate-waits": "error"
       }
@@ -479,70 +517,64 @@
       }
     },
     {
-      "files": ["packages/harness-testkit/src/harness-engine.ts"],
+      "files": ["packages/engine-kit/src/harness-engine.ts"],
       "rules": {
         "conciv/no-hand-made-temp-dir": "off"
       }
     },
     {
-      "files": ["packages/plugin-testkit/src/node.ts"],
-      "rules": {
-        "conciv/no-hand-made-temp-dir": "off"
-      }
-    },
-    {
-      "files": ["packages/plugin-host/src/core/session/instruction-state.ts"],
+      "files": ["packages/backend-defaults/src/core/session/instruction-state.ts"],
       "rules": {
         "conciv/banned-vocabulary": "off"
       }
     },
     {
-      "files": ["packages/plugin-host/src/**"],
+      "files": ["packages/backend-app-api/src/**"],
       "rules": {
         "require-yield": "off"
       }
     },
     {
       "files": [
-        "apps/conciv/src/runtime/persistence/storage.ts",
-        "apps/conciv/src/runtime/plugin/dialog-stack.tsx",
-        "apps/conciv/src/runtime/plugin/dialogs.tsx",
-        "apps/conciv/src/runtime/plugin/host-apis.tsx",
-        "apps/conciv/src/runtime/plugin/host.tsx",
-        "apps/conciv/src/runtime/plugin/mobile.tsx",
-        "apps/conciv/src/runtime/plugin/panel-trigger.tsx",
-        "apps/conciv/src/runtime/plugin/panels.tsx",
-        "apps/conciv/src/runtime/plugin/plugins.tsx",
-        "apps/conciv/src/runtime/plugin/root.tsx"
+        "packages/frontend-app-api/src/persistence/storage.ts",
+        "packages/frontend-app-api/src/plugin/dialog-stack.tsx",
+        "packages/frontend-app-api/src/plugin/dialogs.tsx",
+        "packages/frontend-defaults/src/runtime/plugin/host-apis.tsx",
+        "packages/frontend-app-api/src/plugin/host.tsx",
+        "packages/frontend-defaults/src/runtime/plugin/mobile.tsx",
+        "packages/frontend-app-api/src/plugin/panel-trigger.tsx",
+        "packages/frontend-app-api/src/plugin/panels.tsx",
+        "packages/frontend-app-api/src/plugin/plugins.tsx",
+        "packages/frontend-defaults/src/runtime/plugin/root.tsx"
       ],
       "rules": {
         "solid/reactivity": "off"
       }
     },
     {
-      "files": ["apps/conciv/src/runtime/plugin/dialog-stack.tsx"],
+      "files": ["packages/frontend-app-api/src/plugin/dialog-stack.tsx"],
       "rules": {
         "no-unassigned-vars": "off"
       }
     },
     {
-      "files": ["apps/conciv/src/runtime/persistence/persist.ts"],
+      "files": ["packages/frontend-app-api/src/persistence/persist.ts"],
       "rules": {
         "unicorn/no-useless-spread": "off"
       }
     },
     {
       "files": [
-        "apps/conciv/src/runtime/plugin/attach-machine.ts",
-        "apps/conciv/src/runtime/plugin/bundle-source.ts",
-        "apps/conciv/src/runtime/plugin/host-apis.tsx",
-        "apps/conciv/src/runtime/plugin/link-check-machine.ts",
-        "apps/conciv/src/runtime/plugin/link-check.ts",
-        "apps/conciv/src/runtime/plugin/machine.ts",
-        "apps/conciv/src/runtime/plugin/manager.ts",
-        "apps/conciv/src/runtime/plugin/mounted-session.ts",
-        "apps/conciv/src/runtime/plugin/root.tsx",
-        "apps/conciv/src/runtime/plugin/startup.ts"
+        "packages/frontend-defaults/src/runtime/plugin/attach-machine.ts",
+        "packages/frontend-app-api/src/plugin/bundle-source.ts",
+        "packages/frontend-defaults/src/runtime/plugin/host-apis.tsx",
+        "packages/frontend-app-api/src/plugin/link-check-machine.ts",
+        "packages/frontend-app-api/src/plugin/link-check.ts",
+        "packages/frontend-app-api/src/plugin/machine.ts",
+        "packages/frontend-app-api/src/plugin/manager.ts",
+        "packages/frontend-defaults/src/runtime/plugin/mounted-session.ts",
+        "packages/frontend-defaults/src/runtime/plugin/root.tsx",
+        "packages/frontend-app-api/src/plugin/startup.ts"
       ],
       "rules": {
         "conciv/banned-vocabulary": "off"
@@ -550,17 +582,17 @@
     },
     {
       "files": [
-        "apps/conciv/src/runtime/plugin/host-apis.tsx",
-        "apps/conciv/src/runtime/plugin/host.tsx",
-        "apps/conciv/src/runtime/plugin/machine.ts",
-        "apps/conciv/src/runtime/plugin/mounted-session.ts"
+        "packages/frontend-defaults/src/runtime/plugin/host-apis.tsx",
+        "packages/frontend-app-api/src/plugin/host.tsx",
+        "packages/frontend-app-api/src/plugin/machine.ts",
+        "packages/frontend-defaults/src/runtime/plugin/mounted-session.ts"
       ],
       "rules": {
         "no-shadow": "off"
       }
     },
     {
-      "files": ["apps/conciv/src/runtime/plugin/session-store-machine.ts"],
+      "files": ["packages/frontend-app-api/src/plugin/session-store-machine.ts"],
       "rules": {
         "unicorn/no-array-sort": "off"
       }
@@ -575,7 +607,7 @@
     "**/*.gen.ts",
     "**/*.gen.tsx",
     "**/test-results",
-    "packages/oxlint-plugin/src/fixtures/test-file-budget",
+    "packages/oxlint-plugin/test/fixtures/test-file-budget",
     "e2e/solid-start/src",
     "e2e/svelte/src",
     "e2e/tanstack-start/src",

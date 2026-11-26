@@ -2,8 +2,8 @@ import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {test} from '@playwright/test'
 import {z} from 'zod'
-import {makeRpcClient} from '@conciv/contract'
-import {concivStateDir} from '@conciv/protocol/state-types'
+import {makeRpcClient} from '@conciv/client'
+import {concivStateDir} from '@conciv/types/state-types'
 
 const RecordedEngineSchema = z.object({port: z.number().int().min(1).max(65535), token: z.string().min(1)})
 

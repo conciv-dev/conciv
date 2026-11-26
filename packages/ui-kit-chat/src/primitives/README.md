@@ -1,4 +1,4 @@
-# primitives
+# ui-kit-chat/src/primitives
 
 ## Overview
 
@@ -26,4 +26,4 @@ Headless, unstyled compound components modeled on the assistant-ui API. Each fol
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

@@ -1,0 +1,51 @@
+{
+  "name": "@internal/frontend-test-utils",
+  "version": "0.0.22",
+  "private": true,
+  "description": "Private to conciv: renders a plugin's browser part in the real plugin host with a fake engine connection, for plugin browser tests.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/frontend-test-utils"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/frontend-test-utils.tsx",
+    "./app": {
+      "types": "./dist/render-test-app.d.ts",
+      "default": "./src/render-test-app.tsx"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@conciv/client": "workspace:^",
+    "@conciv/frontend-plugin-api": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
+    "@conciv/ui-kit-tap": "workspace:^",
+    "@internal/frontend-app-api": "workspace:*",
+    "@internal/frontend-defaults": "workspace:*",
+    "@internal/test-utils": "workspace:*",
+    "@solidjs/testing-library": "catalog:",
+    "@tanstack/solid-router": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@internal/tsconfig": "workspace:*",
+    "solid-js": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13",
+    "vitest": "^5.1.0"
+  }
+}

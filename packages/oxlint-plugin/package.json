@@ -1,5 +1,5 @@
 {
-  "name": "@conciv/oxlint-plugin",
+  "name": "@internal/oxlint-plugin",
   "version": "0.0.22",
   "private": true,
   "description": "Repo-local oxlint JS plugin: the conciv lint rules (no-comments, no-locator-poll, router-idioms) wired into .oxlintrc.json.",
@@ -18,9 +18,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@conciv/client": "workspace:^"
+  },
   "devDependencies": {
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@conciv/ui-kit-chat-tools": "workspace:^",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "lucide-solid": "catalog:",
     "oxlint": "catalog:",

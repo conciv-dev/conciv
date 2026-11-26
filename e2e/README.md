@@ -24,7 +24,7 @@ pnpm --filter conciv-e2e-vite-vanilla test:e2e   # one app (build @conciv/it fir
 
 `pnpm test` does not run these.
 
-Specs import `test` from `@conciv/e2e-utils/fixtures`: it signs `page` and `secondPage` in before each test
+Specs import `test` from `@internal/e2e-utils/fixtures`: it signs `page` and `secondPage` in before each test
 (`test.use({signedIn: false})` opts out). Every app starts its dev server and engine once per run, so its tests
 share one engine: a test that needs a session no other test has written to starts a new session from the
 session menu.
@@ -44,25 +44,27 @@ upgrade reminder. CI is not affected.
 
 ## Apps
 
-| App                     | Scaffold CLI               | Covers                                                          |
-| ----------------------- | -------------------------- | --------------------------------------------------------------- |
-| `vite-vanilla`          | `create vite` (vanilla-ts) | smallest consumer, dist widget in plain vite dev                |
-| `vite-react`            | `create vite` (react-ts)   | typical React consumer                                          |
-| `vite-solid`            | `create vite` (solid-ts)   | Solid host: dedupe/context-split hazards                        |
-| `svelte`                | `sv create` (SvelteKit)    | vite SSR host                                                   |
-| `solid-start`           | `create solid` (Start v2)  | Solid SSR host                                                  |
-| `tanstack-start`        | `create @tanstack/start`   | TanStack Start SSR + devtools defer path                        |
-| `nextjs`                | `create next-app`          | `@conciv/it/plugin/nextjs`, Turbopack                           |
-| `astro`                 | `create astro` (minimal)   | MPA vite host                                                   |
-| `vite-react-component`  | copy of `vite-react`       | `@conciv/react` `<ConcivWidget/>` path, plugin `widget: false`  |
-| `nextjs-component`      | copy of `nextjs`           | `@conciv/react` under app router: RSC `'use client'` boundary   |
-| `vite-preact-component` | copy of `vite-react`       | `@conciv/preact` `<ConcivWidget/>` path, plugin `widget: false` |
-| `vite-solid-component`  | copy of `vite-solid`       | `@conciv/solid` `<ConcivWidget/>` path, plugin `widget: false`  |
-| `vite-react-packed`     | copy of `vite-react`       | published-tarball pnpm install, catches dist/packaging bugs     |
+| App                     | Scaffold CLI               | Covers                                                           |
+| ----------------------- | -------------------------- | ---------------------------------------------------------------- |
+| `vite-vanilla`          | `create vite` (vanilla-ts) | smallest consumer, dist widget in plain vite dev                 |
+| `vite-react`            | `create vite` (react-ts)   | typical React consumer                                           |
+| `vite-solid`            | `create vite` (solid-ts)   | Solid host: dedupe/context-split hazards                         |
+| `svelte`                | `sv create` (SvelteKit)    | vite SSR host                                                    |
+| `solid-start`           | `create solid` (Start v2)  | Solid SSR host                                                   |
+| `tanstack-start`        | `create @tanstack/start`   | TanStack Start SSR + devtools defer path                         |
+| `nextjs`                | `create next-app`          | `@conciv/it/plugin/nextjs`, Turbopack                            |
+| `astro`                 | `create astro` (minimal)   | MPA vite host                                                    |
+| `vite-react-component`  | copy of `vite-react`       | `@conciv/react` `<ConcivWidget/>` path, plugin `widget: false`   |
+| `nextjs-component`      | copy of `nextjs`           | `@conciv/react` under app router: RSC `'use client'` boundary    |
+| `vite-preact-component` | copy of `vite-react`       | `@conciv/preact` `<ConcivWidget/>` path, plugin `widget: false`  |
+| `vite-solid-component`  | copy of `vite-solid`       | `@conciv/solid` `<ConcivWidget/>` path, plugin `widget: false`   |
+| `vite-react-packed`     | copy of `vite-react`       | published-tarball pnpm install, catches dist/packaging bugs      |
+| `tanstack-start-redact` | copy of `tanstack-start`   | TanStack Start with the `@tanstack/redact` vite plugin and nitro |
+| `harnesses`             | `create vite` (react-ts)   | real harness CLIs (`pi`, a signed-out CLI) through the widget    |
+| `init`                  | none                       | `conciv init` on a real project                                  |
 
 `vite-react-packed` installs conciv the way an npm user does, using the packing helpers in
-`packages/vitest-config/src/pack.ts` (`@conciv/vitest-config/pack`, shared with `nextjs/packed` and the
-packages' packed describes). Its `test:packed` runs `test/test-packed.ts`:
+`e2e/e2e-utils/src/pack.ts` (`@internal/e2e-utils/pack`, shared with `nextjs/packed`). Its `test:packed` runs `test/test-packed.ts`:
 it builds and `pnpm pack`s `@conciv/it`'s workspace dependency closure, copies `index.html`, `src/` and
 `public/` from `vite-react` into a temp dir outside the workspace, generates the `package.json` and
 `vite.config.ts`, overrides each `@conciv/*` to its tarball and runs `pnpm install` there, seeded from
@@ -82,38 +84,28 @@ CI planner, or on a laptop. Each suite is a `test:packed` script:
   their `package.json` generated), then runs `playwright.packed.config.ts`: one `next dev` web server and
   one project per bundler, each with its own engine port and `CONCIV_HOME`, running the specs named
   `test/packed-*.spec.ts`. The shared `e2eConfig` ignores that pattern, so `test:e2e` never picks them up.
-- `mascot`, `mascot-react`, `plugin-tanstack`: describes tagged `packed`; their vitest configs define the
-  `packed` tag as skipped unless vitest runs in `packed` mode, and `test:packed` runs
-  `vitest run --mode packed --tags-filter=packed` (with `--project <node project>` where the config has
-  several projects). Any other vitest run skips
-  them (hooks too).
-
-Every pack helper in `@conciv/vitest-config/pack` (`packTarball`, `buildAndPack`, the firewalled install)
-calls `assertPackAllowed()`, which throws outside GitHub Actions, so even a `vitest run <file>:<line>`
-that targets a packed test (a line filter overrides the tag skip) fails before anything is packed.
-Every fixture install goes through Socket Firewall (`sfw`) with the root `minimumReleaseAge`, and every
-produced lockfile is rejected if it resolves a remote tarball or git dependency outside the packed
-`@conciv/*@file:` entries.
+  Every pack helper in `@internal/e2e-utils/pack` (`packTarball`, `buildAndPack`, the firewalled install)
+  calls `assertPackAllowed()`, which throws outside GitHub Actions, so a packed suite started on a laptop
+  fails before anything is packed.
+  Every fixture install goes through Socket Firewall (`sfw`) with the root `minimumReleaseAge`, and every
+  produced lockfile is rejected if it resolves a remote tarball or git dependency outside the packed
+  `@conciv/*@file:` entries.
 
 The workflow runs on pull requests touching what can drift the two fixture lockfiles or change how a
 tarball is packed: the root `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` (the catalog),
-`patches/`, every `packages/**/package.json` and `apps/conciv/package.json`, the pack helper
-`packages/vitest-config/src/pack.ts`, `e2e/vite-react` (which `vite-react-packed` copies),
-`e2e/vite-react-packed`, `e2e/nextjs/packed`, the nextjs `test/packed-*.spec.ts` and
-`playwright.packed.config.ts`, and `packed.yml` itself; and the packed suites' own files:
-`e2e/nextjs/package.json` (its `test:packed` script), the `mascot`, `mascot-react` and
-`plugin-tanstack` test files holding the `packed` describes and their `vitest.config.ts` (which define
-the `packed` tag). It also runs on demand
+`patches/`, every `packages/**/package.json`, the pack helper `e2e/e2e-utils/src/pack.ts`, `e2e/vite-react`
+(which `vite-react-packed` copies), `e2e/vite-react-packed`, `e2e/nextjs/packed`, the nextjs
+`test/packed-*.spec.ts`, `playwright.packed.config.ts` and `package.json` (its `test:packed` script), and
+`packed.yml` itself. It also runs on demand
 (`gh workflow run packed.yml --ref <branch>`). On main it runs only from `release.yml`, on every push,
 and npm publish waits on it. A source-only change can still break a packed install; on a pull request
 that touches none of those paths, main's Packed run finds it and blocks publish.
 
-Every fixture install (the two locked fixtures, the tanstack resolution matrix and the nextjs trust-policy
-install) rejects any remote tarball or git resolution outside the packed `@conciv/*@file:` entries. Only the
+Every fixture install (the two locked fixtures and the nextjs trust-policy install) rejects any remote tarball or git resolution outside the packed `@conciv/*@file:` entries. Only the
 two locked fixtures, `e2e/vite-react-packed` and the nextjs packed install (`e2e/nextjs/packed`), also run
 the drift guard: when a registry dependency changes, it compares every registry package's `name@version`
-and integrity against that fixture's committed `fixture-lock.yaml` and fails the run. The tanstack matrix
-and the trust-policy install resolve fresh on every run and have no committed lock to drift from. On drift the CI run writes the lockfile it
+and integrity against that fixture's committed `fixture-lock.yaml` and fails the run. The trust-policy install
+resolves fresh on every run and has no committed lock to drift from. On drift the CI run writes the lockfile it
 produced over the committed one, shows the diff in the run summary and uploads both fixture locks as the
 `packed-fixture-locks` artifact. Refresh from that run, never locally:
 
@@ -135,7 +127,7 @@ second server through its pinned variable.
 1. Scaffold into `e2e/<name>` with the framework's official CLI.
 2. Add the app's name to the `E2EApp` names in `e2e-utils/src/config.ts`.
 3. Add `@conciv/it` (`workspace:*`) and wire the plugin the way the framework's docs say.
-4. Add `@conciv/e2e-utils` + `@playwright/test` dev deps, a `test:e2e` script, a
+4. Add `@internal/e2e-utils` + `@playwright/test` dev deps, a `test:e2e` script, a
    `playwright.config.ts` that exports `await e2eConfig(...)`, and a `test/widget.spec.ts`.
 5. Add `e2e/<name>/**` to `ignorePatterns` in `.fallowrc.json` (scaffold output is not audited,
    same as `apps/examples/**`).

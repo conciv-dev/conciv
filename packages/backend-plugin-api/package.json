@@ -1,0 +1,86 @@
+{
+  "name": "@conciv/backend-plugin-api",
+  "version": "0.0.22",
+  "description": "The conciv engine plugin API: Plugin.define for a plugin's engine part, the rpc contract helpers, the tool and context types a plugin author imports.",
+  "keywords": [
+    "conciv",
+    "plugin",
+    "plugins"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/backend-plugin-api"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/promise/promise.d.ts",
+      "import": "./dist/promise/promise.js"
+    },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "import": "./dist/host.js"
+    },
+    "./effect": {
+      "types": "./dist/effect/effect.d.ts",
+      "import": "./dist/effect/effect.js"
+    },
+    "./effect/permission": {
+      "types": "./dist/effect/permission.d.ts",
+      "import": "./dist/effect/permission.js"
+    },
+    "./effect/plugin": {
+      "types": "./dist/effect/plugin.d.ts",
+      "import": "./dist/effect/plugin.js"
+    },
+    "./effect/rpc": {
+      "types": "./dist/effect/rpc.d.ts",
+      "import": "./dist/effect/rpc.js"
+    },
+    "./effect/session": {
+      "types": "./dist/effect/session.d.ts",
+      "import": "./dist/effect/session.js"
+    },
+    "./effect/tool": {
+      "types": "./dist/effect/tool.d.ts",
+      "import": "./dist/effect/tool.js"
+    },
+    "./promise/adapter": {
+      "types": "./dist/promise/adapter.d.ts",
+      "import": "./dist/promise/adapter.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@conciv/client": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
+    "effect": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,7 +1,7 @@
 import {createMemo, For, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {z} from 'zod'
-import {usePlugin} from '@conciv/plugin/experimental'
+import {usePlugin} from '@conciv/frontend-plugin-api'
 import type {CommentRow} from './rows.js'
 import {useComments} from './comments.js'
 

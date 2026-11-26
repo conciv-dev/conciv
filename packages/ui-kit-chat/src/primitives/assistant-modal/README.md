@@ -1,4 +1,4 @@
-# primitives/assistant-modal
+# ui-kit-chat/src/primitives/assistant-modal
 
 ## Overview
 
@@ -6,7 +6,7 @@ Headless popover-based assistant modal built on `Popover` from `@conciv/ui-kit-s
 
 ## Interface
 
-- `assistant-modal.tsx:AssistantModal` - `{Root, Trigger, Anchor, Content}`; `Root` accepts `openOnRunStart` plus the `Popover.Root` props.
+- `assistant-modal.tsx`: the `AssistantModal` compound; `Root` takes `openOnRunStart` plus the `Popover.Root` props.
 
 ## Invariants
 
@@ -18,4 +18,4 @@ Headless popover-based assistant modal built on `Popover` from `@conciv/ui-kit-s
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

@@ -1,13 +1,13 @@
-import {Effect, Exit, Fiber, Layer, ManagedRuntime, Scope} from 'effect'
+import {Effect, Fiber, Layer, Scope} from 'effect'
 import {z} from 'zod'
 import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {useQueryClient} from '@conciv/client'
-import {createKeyed, NoteCard, Plugin, Slot, ToolRegistry} from '@conciv/plugin/experimental'
-import {OpaqueNoteCard} from '@internal/plugin'
-import {Page, PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
-import {GrabPicker} from '@conciv/plugin/experimental/grab'
-import {keepAttached, readTab, reportChanges} from './attachment.js'
+import {createScopedRuntime, createKeyed, Plugin, Slot, ToolRegistry} from '@conciv/frontend-plugin-api'
+import {NoteCard, OpaqueNoteCard} from '@internal/frontend-app-api'
+import {BrowserTabUrl, Page, PageOperation, ReactTree} from '@conciv/frontend-plugin-api/page'
+import {GrabPicker} from '@conciv/frontend-plugin-api/grab'
+import {answerCommands} from './attachment.js'
 import {makeHighlight} from './highlight.js'
 import {symbolicateInSession} from './open-source.js'
 import {makePageOperations} from './operations.js'
@@ -20,11 +20,12 @@ import {CONCIV_UI_SELECTOR} from './conciv-ui.js'
 import {addRef, type Refs} from './snapshot.js'
 import {dehydrate} from './dehydrate.js'
 import {describe, installReactBridge, locate, makeTracker, reactBridge, rootFibers} from './react.js'
-import {disposeReactGrab, grabApi} from './grab.js'
+import {createReactGrab} from './grab.js'
 import {makeGrabNotePicker} from './grab-note.js'
 import {GrabNoteCard} from './grab-card.js'
 import {GRAB_NOTE_ORIGIN} from './rpc.js'
 import {capturePlugins} from './screenshot.js'
+import {redactedUrl} from './redacted-url.js'
 
 const PageOptionsSchema = z.object({taskTimeoutMs: z.number().int().positive().optional()}).catch({})
 
@@ -32,9 +33,6 @@ export default Plugin.define({
   enforce: 'pre',
   beforeRegister: installReactBridge,
   setup(ctx) {
-    const {taskTimeoutMs} = PageOptionsSchema.parse(ctx.options)
-    const connectionId = crypto.randomUUID()
-    const tabId = `tab_${crypto.randomUUID()}`
     const routed = () => ctx.sessions.current()
 
     const queryClient = useQueryClient()
@@ -44,14 +42,12 @@ export default Plugin.define({
       opener: {symbolicate, desktop: ctx.desktop},
       toast: (title, variant) => void ctx.toast.show({title, variant}),
     })
-    const runtime = ManagedRuntime.make(Layer.empty)
-    const scope = runtime.runSync(Scope.make())
-    onCleanup(() => void runtime.runPromise(Scope.close(scope, Exit.void)).finally(() => runtime.dispose()))
+    const {runtime, scope} = createScopedRuntime(Layer.empty)
     const simulator = runtime.runSync(
       makeSimulator({
         session: () => routed()?.id ?? null,
         running: (sessionId) => routed()?.id === sessionId && routed()?.run.status() === 'running',
-        taskTimeoutMs,
+        taskTimeoutMs: () => PageOptionsSchema.parse(ctx.options).taskTimeoutMs,
         onStop: (sessionId) => {
           const session = routed()
 
@@ -68,8 +64,6 @@ export default Plugin.define({
       (title) => void ctx.toast.show({title, variant: 'error'}),
     )
 
-    const tab = () => readTab(tabId)
-
     createKeyed(
       () => {
         const session = routed()
@@ -77,19 +71,11 @@ export default Plugin.define({
         return session?.server.compatible && session.server.connected ? session : undefined
       },
       (session) => {
-        const kept = Effect.runFork(
-          keepAttached({
-            session,
-            connectionId,
-            tab,
-            changed: reportChanges,
-            operations,
-            registered: () => ctx.list(PageOperation),
-            notify: (title) => void ctx.toast.show({title, variant: 'error'}),
-          }),
+        const answering = Effect.runFork(
+          answerCommands({session, operations, registered: () => ctx.list(PageOperation)}),
         )
 
-        onCleanup(() => void Effect.runFork(Fiber.interrupt(kept)))
+        onCleanup(() => void Effect.runFork(Fiber.interrupt(answering)))
       },
     )
 
@@ -135,9 +121,10 @@ export default Plugin.define({
         }),
       ),
     )
+    const grab = createReactGrab()
     ctx.add(
       GrabPicker,
-      makeGrabNotePicker(grabApi, {
+      makeGrabNotePicker(grab.api, {
         session: routed,
         screen: ctx.screen,
         symbolicate: (input) => symbolicate(input.frames),
@@ -151,14 +138,15 @@ export default Plugin.define({
       toast: (message, tone) =>
         void ctx.toast.show({title: message, variant: tone === 'error' || tone === 'success' ? tone : 'default'}),
       capture: {exclude: CONCIV_UI_SELECTOR, plugins: capturePlugins},
-      pick: () => grabApi.comment(),
+      pick: () => grab.api.comment(),
       symbolicate: (input) => symbolicate(input.frames),
     })
     ctx.provide(ReactTree, makeReactTree())
+    ctx.add(BrowserTabUrl, {redact: redactedUrl})
 
     return () => {
       operations.dispose()
-      disposeReactGrab()
+      grab.dispose()
     }
   },
 })

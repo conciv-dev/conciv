@@ -1,0 +1,69 @@
+{
+  "name": "@conciv/backend-test-utils",
+  "version": "0.0.22",
+  "description": "Starts the real conciv engine with the simulation's scripted model for engine tests.",
+  "keywords": [
+    "conciv",
+    "engine",
+    "testing",
+    "testkit"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/backend-test-utils"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/backend-test-utils.d.ts",
+      "browser": "./dist/browser.js",
+      "import": "./dist/backend-test-utils.js"
+    },
+    "./vitest": {
+      "types": "./dist/vitest.d.ts",
+      "default": "./dist/vitest.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsdown -c tsdown.types.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/backend-defaults": "workspace:^",
+    "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/client": "workspace:^",
+    "@conciv/harness": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/simulation": "workspace:^",
+    "@conciv/types": "workspace:^",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "effect": "catalog:",
+    "es-toolkit": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@internal/engine-kit": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "vitest": "^5.1.0"
+  }
+}

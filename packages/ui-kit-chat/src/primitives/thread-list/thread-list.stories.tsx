@@ -1,7 +1,7 @@
 import {createSignal, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ChatSessionMeta} from '@conciv/protocol/chat-types'
+import type {ChatSessionMeta} from '@conciv/types/chat-types'
 import {ThreadList, ThreadListItem} from './thread-list.js'
 import {ThreadListProvider} from './thread-list-context.js'
 

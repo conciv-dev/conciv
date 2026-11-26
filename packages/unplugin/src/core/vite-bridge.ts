@@ -2,10 +2,10 @@ import type {IncomingMessage, ServerResponse} from 'node:http'
 import {join, resolve} from 'node:path'
 import {ORPCError} from '@orpc/server'
 import type {ErrorPayload, ModuleNode, ViteDevServer} from 'vite'
-import type * as Bundler from '@conciv/plugin/schema/bundler'
+import type * as Bundler from '@conciv/protocol/schema/bundler'
 
 export async function makeViteBridge(server: ViteDevServer): Promise<Bundler.BundlerBridge> {
-  const {defineBundlerBridge} = await import('@conciv/plugin/schema/bundler')
+  const {defineBundlerBridge} = await import('@conciv/protocol/schema/bundler')
   return defineBundlerBridge({
     id: 'vite',
     config: () => viteConfig(server),

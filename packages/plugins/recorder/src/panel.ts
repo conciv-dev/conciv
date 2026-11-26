@@ -1,5 +1,5 @@
 import {Effect, FiberSet, PubSub, Schedule, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
-import type {Context} from '@conciv/plugin/experimental'
+import type {Context} from '@conciv/frontend-plugin-api'
 import {makeMachineDriver} from './machine-driver.js'
 import {RecorderPanelMachine} from './panel-machine.js'
 import {Recorder} from './rpc.js'

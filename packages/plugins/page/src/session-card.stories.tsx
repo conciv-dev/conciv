@@ -1,7 +1,7 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Splitter} from '@conciv/ui-kit-system'
-import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
 import type {ElementCapture, ToolCaptureView} from './element-capture-types.js'
 import type {GroupNodeGroup} from '@conciv/ui-kit-chat'
 import {PAGE_SESSION_GROUP_KEY} from './page-session.js'

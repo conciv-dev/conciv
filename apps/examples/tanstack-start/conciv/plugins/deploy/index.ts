@@ -1,5 +1,5 @@
-import {Plugin, Skill} from '@conciv/plugin'
-import {AbsolutePath} from '@conciv/plugin/schema/schema'
+import {Plugin, Skill} from '@conciv/backend-plugin-api'
+import {AbsolutePath} from '@conciv/protocol/schema/schema'
 import {Deploy} from './rpc.js'
 
 const description = 'Deploy the current branch'

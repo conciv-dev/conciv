@@ -13,14 +13,13 @@ npm install -D @conciv/it
 
 ## Overview
 
-Package root: Vite library build plus tsc declarations; tests run in headless Chromium through Vitest browser mode.
+Package root: Vite library build plus tsc declarations; unit tests in node (`test/unit`).
 
 ## Interface
 
-- `exports['.']` (`package.json`): ./dist/index.js; publishes only dist
-- `scripts` (`package.json`): build (`vite build && tsc -p tsconfig.build.json`), typecheck, lint, test (`vitest run --passWithNoTests`), publint, attw
-- `vite.config.ts`: `solidLibConfig` with entry src/index.tsx
-- `vitest.config.ts`: browser project `ui-kit-chat-tools-browser` over test/**/*.browser.test.tsx
+- `exports['.']` (`package.json`): ./dist/ui-kit-chat-tools.js; publishes only dist
+- `scripts` (`package.json`): build (`vite build && tsc -p tsconfig.build.json`), typecheck, test (`vitest run`), publint, attw
+- `vite.config.ts`: `solidLibConfig` from `@internal/vite-config` with entry src/ui-kit-chat-tools.tsx, plus `concivTest()`
 - `uno.config.ts`: `presetConciv()` over this package and ../ui-kit-chat/src and ../ui-kit-system/src
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - the barrel and its primitives and styled cards
@@ -28,12 +27,11 @@ Package root: Vite library build plus tsc declarations; tests run in headless Ch
 ## Invariants
 
 - `exports` (`package.json`): only the root entry is public
-- `external` (`vite.config.ts`): @conciv/*, solid-js, zod, shiki and lucide-solid are not bundled
+- `external` (`vite.config.ts`): @conciv/\*, solid-js, zod, @pierre/diffs, shiki and lucide-solid are not bundled
 
 ## Side Effects
 
 - `build` script (`package.json`): writes dist/
-- `vitest.config.ts`: tests launch headless Chromium
 
 ## Verification
 

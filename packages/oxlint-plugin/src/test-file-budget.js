@@ -1,16 +1,25 @@
-import {existsSync, readdirSync, readFileSync} from 'node:fs'
-import {basename, dirname, join, relative, sep} from 'node:path'
+import {existsSync, readdirSync} from 'node:fs'
+import {basename, dirname, join, matchesGlob, relative, sep} from 'node:path'
+import {readTestKind} from '@internal/vitest-config/test-layout'
 
-const TEST_FILE = /\.test\.(?:ts|tsx|js)$/
-const BROWSER_TEST_FILE = /\.browser\.test\.(?:ts|tsx|js)$/
-const RUNNER_TAG = /\.(?:dom|perf)$/
-const CODE_FILE = /(?<!\.d)\.(?:ts|tsx|js|jsx)$/
-const SOURCE_EXTENSIONS = ['ts', 'tsx', 'js', 'jsx']
-const AREA_BROWSER_FILE = /^src\/[a-z0-9-]+\.browser\.test\.tsx$/
-const AREA_PACKAGE = '@conciv/app'
-const IGNORED_DIRECTORIES = new Set(['node_modules', 'dist', '__screenshots__', 'fixtures', 'host'])
-const EXAMPLE_APPS = /(^|[\\/])apps[\\/]examples[\\/]/
-const filesByPackage = new Map()
+const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/
+const CODE_FILE = /(?<!\.d|\.gen)\.(?:ts|tsx|js|jsx)$/
+const LAYOUT_FOLDERS = ['test/unit', 'test/it', 'test/e2e', 'test/fixtures', 'test/utils']
+const KIND_FOLDER = /^test\/(unit|it|e2e)\//
+const FIXTURE_FOLDER = /^test\/fixtures\//
+const DEFAULT_PACKAGES = ['packages/*', 'packages/plugins/*', 'apps/*']
+const IGNORED_DIRECTORIES = [
+  'node_modules',
+  'dist',
+  '__screenshots__',
+  'fixtures',
+  'host',
+  'build',
+  'test-results',
+  '.turbo',
+  '.conciv',
+]
+const MAX_LINES = 1000
 
 function hasPackageJson(directory) {
   return existsSync(join(directory, 'package.json'))
@@ -24,7 +33,7 @@ function findPackageDirectory(filename) {
 }
 
 function isWalkedDirectory(path, name) {
-  return !IGNORED_DIRECTORIES.has(name) && !hasPackageJson(path)
+  return !IGNORED_DIRECTORIES.includes(name) && !hasPackageJson(path)
 }
 
 function entryCodeFiles(directory, entry) {
@@ -37,27 +46,25 @@ function codeFilesUnder(directory) {
   return readdirSync(directory, {withFileTypes: true}).flatMap((entry) => entryCodeFiles(directory, entry))
 }
 
-function isSourceFile(filename, packageDirectory) {
-  return relative(packageDirectory, filename).split(sep)[0] === 'src' && !TEST_FILE.test(basename(filename))
+function packagePath(packageDirectory, filename) {
+  return relative(packageDirectory, filename).split(sep).join('/')
 }
 
-function readPackageName(packageDirectory) {
-  const manifest = JSON.parse(readFileSync(join(packageDirectory, 'package.json'), 'utf8'))
-  return typeof manifest.name === 'string' ? manifest.name : ''
+function isSourceFile(packageDirectory, filename) {
+  return packagePath(packageDirectory, filename).startsWith('src/') && !TEST_FILE.test(basename(filename))
 }
 
 function readPackageFiles(packageDirectory) {
   const files = codeFilesUnder(packageDirectory).toSorted()
-  const tests = files.filter((file) => TEST_FILE.test(basename(file)))
   return {
-    name: readPackageName(packageDirectory),
-    tests,
-    browserTests: tests.filter((file) => BROWSER_TEST_FILE.test(basename(file))),
-    sources: files.filter((file) => isSourceFile(file, packageDirectory)),
+    files,
+    tests: files.filter((file) => TEST_FILE.test(basename(file))),
+    sources: files.filter((file) => isSourceFile(packageDirectory, file)),
+    missing: LAYOUT_FOLDERS.filter((folder) => !existsSync(join(packageDirectory, folder))),
   }
 }
 
-function packageFiles(packageDirectory) {
+function packageFiles(filesByPackage, packageDirectory) {
   const cached = filesByPackage.get(packageDirectory)
   if (cached !== undefined) return cached
   const files = readPackageFiles(packageDirectory)
@@ -65,68 +72,29 @@ function packageFiles(packageDirectory) {
   return files
 }
 
-function isCountedTestFile(filename, packageDirectory) {
-  if (!TEST_FILE.test(basename(filename)) || EXAMPLE_APPS.test(filename)) return false
-  return relative(packageDirectory, filename)
-    .split(sep)
-    .slice(0, -1)
-    .every((segment) => !IGNORED_DIRECTORIES.has(segment))
-}
-
 function displayDirectory(packageDirectory) {
-  return relative(process.cwd(), packageDirectory) || basename(packageDirectory)
+  return relative(process.cwd(), packageDirectory).split(sep).join('/') || basename(packageDirectory)
 }
 
-function packagePath(packageDirectory, filename) {
-  return relative(packageDirectory, filename).split(sep).join('/')
-}
-
-function findCountedPackage(filename) {
+function findLayoutPackage(filename, patterns) {
   const packageDirectory = findPackageDirectory(filename)
-  if (packageDirectory === undefined || !isCountedTestFile(filename, packageDirectory)) return undefined
-  return packageDirectory
+  if (packageDirectory === undefined) return undefined
+  const shown = displayDirectory(packageDirectory)
+  return patterns.some((pattern) => matchesGlob(shown, pattern)) ? packageDirectory : undefined
 }
 
-function testedSourceName(filename) {
-  return basename(filename).replace(TEST_FILE, '').replace(RUNNER_TAG, '')
-}
-
-function hasSourceBeside(filename) {
-  const source = testedSourceName(filename)
-  return SOURCE_EXTENSIONS.some((extension) => existsSync(join(dirname(filename), `${source}.${extension}`)))
-}
-
-function checkSourceBeside(node, context) {
-  if (hasSourceBeside(context.filename)) return
-  context.report({node, messageId: 'noSourceBeside', data: {source: testedSourceName(context.filename)}})
-}
-
-function checkAreaBrowserFile(node, context, packageDirectory) {
-  const file = packagePath(packageDirectory, context.filename)
-  if (AREA_BROWSER_FILE.test(file)) return
-  context.report({node, messageId: 'outsideArea', data: {file}})
-}
-
-function checkPackageBrowserFile(node, context, packageDirectory) {
-  const [first] = packageFiles(packageDirectory).browserTests
-  if (first === undefined || first === context.filename) return
+function checkFolders(node, context, packageDirectory, filesByPackage) {
+  const {files, missing} = packageFiles(filesByPackage, packageDirectory)
+  if (missing.length === 0 || files[0] !== context.filename) return
   context.report({
     node,
-    messageId: 'secondBrowserFile',
-    data: {packageDirectory: displayDirectory(packageDirectory), first: packagePath(packageDirectory, first)},
+    messageId: 'missingFolders',
+    data: {packageDirectory: displayDirectory(packageDirectory), folders: missing.join(', ')},
   })
 }
 
-function checkBrowserFile(node, context, packageDirectory) {
-  if (packageFiles(packageDirectory).name === AREA_PACKAGE) {
-    checkAreaBrowserFile(node, context, packageDirectory)
-    return
-  }
-  checkPackageBrowserFile(node, context, packageDirectory)
-}
-
-function checkOverSources(node, context, packageDirectory) {
-  const {tests, sources} = packageFiles(packageDirectory)
+function checkOverSources(node, context, packageDirectory, filesByPackage) {
+  const {tests, sources} = packageFiles(filesByPackage, packageDirectory)
   if (tests.length <= sources.length || tests[0] !== context.filename) return
   context.report({
     node,
@@ -135,36 +103,62 @@ function checkOverSources(node, context, packageDirectory) {
   })
 }
 
-function checkProgram(node, context) {
-  const packageDirectory = findCountedPackage(context.filename)
-  if (packageDirectory === undefined) return
-  checkOverSources(node, context, packageDirectory)
-  if (BROWSER_TEST_FILE.test(basename(context.filename))) {
-    checkBrowserFile(node, context, packageDirectory)
+function checkPlace(node, context, file) {
+  const folder = KIND_FOLDER.exec(file)?.[1]
+  if (folder === undefined) {
+    context.report({node, messageId: 'outsideLayout', data: {file}})
     return
   }
-  checkSourceBeside(node, context)
+  if (readTestKind(`/${file}`) === folder) return
+  context.report({node, messageId: 'wrongKind', data: {file, kind: folder}})
+}
+
+function checkLength(node, context) {
+  const lines = context.sourceCode.text.split('\n').length
+  if (lines <= MAX_LINES) return
+  context.report({node, messageId: 'tooLong', data: {lines, max: MAX_LINES}})
+}
+
+function checkProgram(node, context, filesByPackage) {
+  const patterns = context.options[0]?.packages ?? DEFAULT_PACKAGES
+  const packageDirectory = findLayoutPackage(context.filename, patterns)
+  if (packageDirectory === undefined) return
+  const file = packagePath(packageDirectory, context.filename)
+  if (FIXTURE_FOLDER.test(file)) return
+  checkFolders(node, context, packageDirectory, filesByPackage)
+  if (!TEST_FILE.test(basename(context.filename))) return
+  checkOverSources(node, context, packageDirectory, filesByPackage)
+  checkPlace(node, context, file)
+  checkLength(node, context)
 }
 
 export default {
   meta: {
     type: 'problem',
     messages: {
+      missingFolders:
+        '{{packageDirectory}} lacks {{folders}}. Every package and app has test/unit, test/it, test/e2e, test/fixtures and test/utils; an empty one holds a .gitkeep.',
+      outsideLayout:
+        '{{file}} is a test file outside test/unit, test/it and test/e2e, so vitest never runs it. Move it to test/unit/x.unit.test.ts (node or happy-dom, starts nothing), test/it/x.it.test.ts (node, starts real things) or test/e2e/x.e2e.test.tsx (vitest browser mode).',
+      wrongKind:
+        '{{file}} is in test/{{kind}} but its name does not end in .{{kind}}.test.ts, .{{kind}}.test.tsx or .{{kind}}.test.js. The name carries the kind of its folder.',
+      tooLong: 'This test file has {{lines}} lines. A test file is at most {{max}} lines: cut duplicate cases.',
       overSources:
-        '{{packageDirectory}} has {{count}} test files and {{sources}} source files under src/. A package never has more test files than source files: fold new tests into the test file of the source they test.',
-      secondBrowserFile:
-        '{{packageDirectory}} already has its browser-mode test file, {{first}}. A package has one browser-mode test file: add a describe to it, never a second file.',
-      outsideArea:
-        '{{file}} is a browser-mode test file outside src/<area>.browser.test.tsx. apps/conciv has one browser-mode file per product area, named src/<area>.browser.test.tsx: move these cases into their area file.',
-      noSourceBeside:
-        'This test has no {{source}}.ts, {{source}}.tsx, {{source}}.js or {{source}}.jsx beside it. A node or happy-dom test lives beside the source it tests: src/x.test.ts beside src/x.ts, src/x.dom.test.tsx beside src/x.tsx.',
+        '{{packageDirectory}} has {{count}} test files and {{sources}} source files under src/. A package never has more test files than source files: fold new tests into an existing test file.',
     },
-    schema: [],
+    schema: [
+      {
+        type: 'object',
+        properties: {packages: {type: 'array', items: {type: 'string'}}},
+        additionalProperties: false,
+      },
+    ],
   },
-  create(context) {
+  createOnce(context) {
+    const filesByPackage = new Map()
     return {
       Program(node) {
-        checkProgram(node, context)
+        checkProgram(node, context, filesByPackage)
       },
     }
   },

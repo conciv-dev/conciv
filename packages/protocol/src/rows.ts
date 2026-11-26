@@ -1,0 +1,69 @@
+import {z} from 'zod'
+import {DraftItemSchema, NativeSessionRefSchema, ReasoningEffortSchema, SessionId} from '@conciv/types/chat-types'
+import {UsageSnapshotSchema} from '@conciv/types/usage-types'
+
+export {UsageSnapshotSchema}
+export type UsageSnapshot = z.infer<typeof UsageSnapshotSchema>
+
+export const SessionMetaSchema = z.object({
+  id: SessionId,
+  title: z.string(),
+  updatedAt: z.number(),
+  sizeBytes: z.number().optional(),
+  running: z.boolean(),
+  origin: z.enum(['conciv', 'external']),
+  usage: UsageSnapshotSchema.nullable(),
+  model: z.string().nullable(),
+  effort: ReasoningEffortSchema.nullable(),
+  hidden: z.boolean(),
+  native: NativeSessionRefSchema.nullable(),
+  harnessKind: z.string(),
+  lastRunAt: z.number().nullable(),
+})
+export type SessionMeta = z.infer<typeof SessionMetaSchema>
+
+export const SessionHitSchema = SessionMetaSchema.extend({
+  excerpt: z.string().nullable(),
+  matched: z.array(z.string()),
+  cwd: z.string().nullable(),
+  resume: z.string().nullable(),
+  preview: NativeSessionRefSchema.nullable(),
+})
+export type SessionHit = z.infer<typeof SessionHitSchema>
+
+export const PersistedAttachmentSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  name: z.string(),
+  contentType: z.string(),
+  data: z.string(),
+})
+export type PersistedAttachment = z.infer<typeof PersistedAttachmentSchema>
+
+export const DraftRowSchema = z.object({
+  sessionId: SessionId,
+  text: z.string(),
+  selectionStart: z.number().int().min(0),
+  selectionEnd: z.number().int().min(0),
+  attachments: z
+    .array(PersistedAttachmentSchema)
+    .nullable()
+    .default([])
+    .transform((value) => value ?? []),
+  items: z
+    .array(DraftItemSchema)
+    .nullable()
+    .default([])
+    .transform((value) => value ?? []),
+  updatedAt: z.number(),
+})
+export type DraftRow = z.infer<typeof DraftRowSchema>
+
+export const MarkerKindSchema = z.enum(['new', 'compact'])
+export const MarkerRowSchema = z.object({
+  id: z.string(),
+  sessionId: SessionId,
+  afterMessageId: z.string().min(1).nullable(),
+  kind: MarkerKindSchema,
+})
+export type MarkerRow = z.infer<typeof MarkerRowSchema>

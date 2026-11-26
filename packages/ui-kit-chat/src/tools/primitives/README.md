@@ -1,4 +1,4 @@
-# tools/primitives
+# ui-kit-chat/src/tools/primitives
 
 ## Overview
 
@@ -6,12 +6,10 @@ Headless pieces for tool-call rendering: status derivation, toolkit definition, 
 
 ## Interface
 
-- `tool-status.ts:toolStatus`, type `ToolStatus` (`running`, `complete`, `error`, `approval`).
-- `define-toolkit.ts:defineToolkit` - maps `{name: entry}` to `ToolCardEntry[]`; `findToolEntry` picks the entry that draws a call.
-- `tool-util.ts:parseInput`, `resultText`, `parseResultPayload`, `stripReadLineNumbers`, `formatDuration`; `result-media.ts:parseResultMedia`; `schema-params.ts:schemaFields`, `schemaParams`.
-- `tool-row.ts:resolveRowMark`, `countLabel`, `shortToolLabel`, `primaryArgument`, `genericRowProjection`, `headerRowProjection`, `argumentRecord`, `clipTarget`; `now-title.ts:humanToolName`, `nowTitle`.
-- `tool-presentation.ts:cardPhase`, `displayValue`, `clip`, `MUTATING_BADGE`, `QUIET_TEXT_CLASS`, `DANGER_TEXT_CLASS`.
-- `permission.tsx:Permission`, `usePermission`; `tool-fallback.tsx:ToolFallback`, `useToolFallback`; `status-visual.tsx:StatusVisual`.
+- `tool-status.ts`: a call's status (`running`, `complete`, `error`, `approval`).
+- `define-toolkit.ts`: maps `{name: entry}` to `ToolCardEntry[]` and picks the entry that draws a call.
+- `tool-util.ts`, `result-media.ts`, `schema-params.ts`, `tool-row.ts`, `now-title.ts`, `tool-presentation.ts`, `tool-error-subtitle.ts`: parsing a call's input and result, and the labels and phases a row shows.
+- `permission.tsx`, `tool-fallback.tsx`, `status-visual.tsx`: headless roots for the permission ask and the fallback card, and the status mark.
 
 ## Invariants
 
@@ -27,4 +25,4 @@ Headless pieces for tool-call rendering: status derivation, toolkit definition, 
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

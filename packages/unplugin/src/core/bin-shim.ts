@@ -1,6 +1,6 @@
 import {access, mkdir, rm, symlink} from 'node:fs/promises'
 import {join, delimiter} from 'node:path'
-import {createConcivStateDir} from '@conciv/protocol/state-types'
+import {createConcivStateDir} from '@conciv/types/state-types'
 import {fileURLToPath} from 'node:url'
 
 async function linkConcivBin(binDir: string): Promise<void> {

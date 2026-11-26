@@ -1,6 +1,6 @@
 ---
 name: conciv-setup
-description: 'Use when installing or mounting the conciv dev-agent widget in an app: adding @conciv/it to a Vite/webpack/Rspack/Next.js/Rollup/esbuild build, wiring a manual createConciv/mountConciv setup for a bundler with no plugin, choosing/configuring a harness (claude/codex), or setting the conciv() / ConcivSettingsInit config surface. Covers first install through a working chat button in dev.'
+description: 'Use when installing or mounting the conciv dev-agent widget in an app: adding @conciv/it to a Vite/webpack/Rspack/Next.js build, rendering <ConcivWidget /> from @conciv/react, @conciv/preact or @conciv/solid, mounting it by hand with createConciv/mountConciv from @conciv/app, choosing a harness (claude/codex/opencode/gemini-cli), or setting the conciv() / ConcivSettingsInit config. Covers first install through a working chat button in dev.'
 metadata:
   package: '@conciv/skills'
 ---
@@ -10,60 +10,57 @@ metadata:
 ## Overview
 
 conciv is a dev-only chat widget plus an engine that lets a coding agent read and act on the running
-app. Two install paths exist and picking the wrong one is the recurring failure: `@conciv/it` is a
-bundler plugin that boots the engine process AND puts the widget on the page for you on Vite, Next.js,
-webpack and Rspack; its Rollup/esbuild entries are build-only no-ops today
-(`packages/it/README.md`, `apps/site/content/docs/quick-start/webpack.mdx`,
-`apps/site/content/docs/quick-start/rollup.mdx:21-23`). Reach for `@conciv/embed`'s
-`createConciv`/`mountConciv` directly whenever there is no bundler plugin to boot the engine for you
-(a custom framework, a webview, a React/Preact host) or whenever the widget itself needs to be
-mounted by hand.
+app. An app installs one package, `@conciv/it`, as a dev dependency. It is a bundler plugin that starts
+the engine AND puts the widget on the page, on Vite, Next.js, webpack and Rspack. Its Rollup and esbuild
+entries exist but do nothing (`packages/unplugin/src/unplugin.ts:157-158`,
+`apps/site/content/docs/quick-start/other-bundlers.mdx`).
 
-The second recurring failure is shipping the widget to production: conciv mounts in dev only by
-convention, not by a build-time strip: `enabled` defaults to `true`
-(`resolveConfig`, `packages/core/src/config.ts:27`), so a plugin call left unguarded stays live in a
-production bundle. Every quick-start gates it: `conciv({enabled: process.env.NODE_ENV !==
-'production'})` (`apps/site/content/docs/quick-start/vite.mdx:93-95`).
+The fastest path is `npx @conciv/cli@latest init` in the app's folder: it finds the framework, installs
+`@conciv/it` and wires the config (`apps/site/content/docs/quick-start/index.mdx`).
 
-## Decision: plugin vs manual mount
+conciv runs in the dev server only. The Vite plugin applies to `vite dev` alone (`apply: 'serve'`,
+`packages/unplugin/src/core/vite.ts:313`). webpack and Rspack do nothing in a `production` mode build,
+and an unset `mode` counts as production (`packages/unplugin/src/unplugin.ts:131`). Next.js starts no
+engine in production (`packages/unplugin/src/core/nextjs.ts:136`). `enabled: false` turns it off
+everywhere (default `true`, `packages/backend-defaults/src/engine/config.ts:87`).
 
-| Setup                                                        | Path                                                 | Injects widget?            | Boots engine?                                  |
-| ------------------------------------------------------------ | ---------------------------------------------------- | -------------------------- | ---------------------------------------------- |
-| Vite                                                         | `@conciv/it/plugin/vite`                             | yes (`transformIndexHtml`) | yes                                            |
-| Next.js                                                      | `@conciv/it/plugin/nextjs` + `/plugin/nextjs/widget` | yes (client entry)         | yes                                            |
-| webpack                                                      | `@conciv/it/plugin/webpack`                          | yes (dev entry)            | yes                                            |
-| Rspack                                                       | `@conciv/it/plugin/rspack`                           | yes (dev entry)            | yes                                            |
-| Rollup                                                       | `@conciv/it/plugin/rollup`                           | no-op today                | no-op today                                    |
-| esbuild                                                      | `@conciv/it/plugin/esbuild`                          | no-op today                | no-op today                                    |
-| Anything else (custom host, React/Preact wrapper, no plugin) | `@conciv/embed` `createConciv`/`mountConciv`         | you call `.mount(el)`      | you point it at a running engine via `apiBase` |
+## Decision: which path
 
-(`packages/it/package.json:23-46` lists the `./plugin/*` export map this table is built from;
-`apps/site/content/docs/quick-start/index.mdx:34-70` is the framework picker these come from.)
+| Setup                                       | Path                                                     | Puts the widget on the page? | Starts the engine?         |
+| ------------------------------------------- | -------------------------------------------------------- | ---------------------------- | -------------------------- |
+| Vite (and Astro)                            | `@conciv/it/plugin/vite`                                 | yes                          | yes                        |
+| Next.js                                     | `@conciv/it/plugin/nextjs` + `/plugin/nextjs/widget`     | yes (client instrumentation) | yes                        |
+| webpack                                     | `@conciv/it/plugin/webpack`                              | yes (a dev entry)            | yes                        |
+| Rspack                                      | `@conciv/it/plugin/rspack`                               | yes (a dev entry)            | yes                        |
+| Rollup, esbuild                             | `@conciv/it/plugin/rollup`, `/plugin/esbuild`            | no                           | no                         |
+| You place the widget in your own components | the plugin with `widget: false`, plus `<ConcivWidget />` | you render it                | yes (the plugin)           |
+| No framework wrapper, your own mount point  | `createConciv` / `mountConciv` from `@conciv/app`        | you call `mount(el)`         | no: point `apiBase` at one |
 
-## Zero-config: Vite
+(`packages/it/package.json:24-58` is the `./plugin/*` export map.)
+
+## Vite
+
+From `apps/site/content/docs/quick-start/vite.mdx`:
 
 ```ts title="vite.config.ts"
 import {defineConfig} from 'vite'
 import conciv from '@conciv/it/plugin/vite'
 
 export default defineConfig({
-  plugins: [conciv({enabled: process.env.NODE_ENV !== 'production'})],
+  plugins: [conciv()],
 })
 ```
 
-`pnpm add -D @conciv/it`, add the plugin, `vite dev`, click the conciv button
-(`apps/site/content/docs/quick-start/vite.mdx:28-95`).
+## Next.js
 
-## Zero-config: Next.js
-
-Next.js needs three files at the project root next to `next.config.ts`
-(`apps/site/content/docs/quick-start/nextjs.mdx:102-108`):
+The `withConciv` config and two instrumentation files, from `apps/site/content/docs/quick-start/nextjs.mdx:64-86`:
 
 ```ts title="next.config.ts"
 import type {NextConfig} from 'next'
 import {withConciv} from '@conciv/it/plugin/nextjs'
 
 const nextConfig: NextConfig = {}
+
 export default withConciv(nextConfig)
 ```
 
@@ -75,170 +72,153 @@ export {register} from '@conciv/it/plugin/nextjs'
 import '@conciv/it/plugin/nextjs/widget'
 ```
 
-(`apps/site/content/docs/quick-start/nextjs.mdx:64-88`.)
+Put the instrumentation files in the folder that holds `app` or `pages`: the project root, or `src/`.
+Options go in the second argument, `withConciv(nextConfig, options)`.
 
-## webpack / Rspack: plugin boots the engine and adds the widget
+## webpack and Rspack
+
+From `apps/site/content/docs/quick-start/webpack.mdx:42-48`:
 
 ```js title="webpack.config.js"
 const conciv = require('@conciv/it/plugin/webpack')
-module.exports = {mode: 'development', plugins: [conciv.default()]}
-```
 
-In any `mode` except production (`mode: 'development'` or `mode: 'none'`; `mode: 'production'` and an unset `mode` count as production) the plugin adds a generated client entry,
-`.conciv/widget-client.<port>.gen.js`, to every chunk entry and starts the engine on the first watch run. A
-production build gets no entry and no engine (`packages/unplugin/src/index.ts`). The engine port is
-the `port` you pass, else the port the project's engine last bound (`.conciv/server.json`), else a
-port picked per project (from 24170 up, from a hash of the project folder); when that one is taken,
-a free one. It is chosen before the client entry is built so both always agree.
-
-Rspack is the same shape, swap `@conciv/it/plugin/rspack`
-(`apps/site/content/docs/quick-start/rspack.mdx`). Rollup and esbuild plugin entries exist in
-`packages/it/package.json` but are documented as build-only no-ops: use Vite for the real
-integration instead (`apps/site/content/docs/quick-start/rollup.mdx:21-23`,
-`apps/site/content/docs/quick-start/esbuild.mdx:21-23`).
-
-## Manual mount: `@conciv/embed`
-
-Use this when no `@conciv/it` plugin boots the widget for you, or when you are wiring a
-framework-specific wrapper. `createConciv` returns a handle you mount into an element and tear down
-yourself; `mountConciv` is the one-shot, fire-and-forget version that appends its own root div to
-`document.body` (`packages/embed/src/mount.ts:32-117`, `packages/embed/src/mount.ts:127-140`). Gate the
-mount call yourself the same way a plugin's `enabled` option would:
-
-```ts
-import {createConciv, type ConcivInit} from '@conciv/embed'
-
-if (process.env.NODE_ENV !== 'production') {
-  const handle = createConciv({
-    apiBase: 'http://localhost:5178',
-  })
-  await handle.mount(document.getElementById('conciv-root')!)
-  // later: handle.unmount()
+module.exports = {
+  plugins: [conciv.default()],
 }
 ```
 
-`ConcivInit` fields: `plugins` (browser plugin entries, each `[plugin, options]`), `settings` (`ConcivSettingsInit`),
-`apiBase` (engine origin: required whenever the engine isn't served from the same origin/port the
-page loads from), `grabProvider`, `engineToken` (`packages/embed/src/mount.ts:14-21`). The handle also exposes
-`open()`/`close()`/`toggle()` (dispatch DOM `CustomEvent`s the widget listens for) and
-`rebind(apiBase)` to repoint an already-mounted widget at a different engine
-(`packages/embed/src/mount.ts:23-30`).
+Set `mode: 'development'` (or pass `--mode development`). In any mode but production the plugin writes
+`.conciv/widget-client.<port>.gen.js` and adds it as an entry of every chunk, then starts the engine on
+the compiler's first watch run (`packages/unplugin/src/unplugin.ts:130-149`). A one-off build starts no
+engine. Rspack is the same with `@conciv/it/plugin/rspack`.
 
-For a single always-on instance with no manual lifecycle, `mountConciv(plugins?)` is a bare
-fire-and-forget call — it no-ops if a `[data-conciv-script-root]` element already exists, so it is
-safe to call more than once (`packages/embed/src/mount.ts:127-140`):
+## Placing the widget yourself
 
-```ts
-import {mountConciv} from '@conciv/embed'
+`widget: false` keeps the engine and adds nothing to the page
+(`apps/site/content/docs/configuration.mdx`). Then render `<ConcivWidget />` from `@conciv/react`,
+`@conciv/preact` or `@conciv/solid`, so the page does not get two. The Solid one, from
+`e2e/vite-solid-component/src/vite-solid-component.tsx:1-16`:
 
-mountConciv()
+```tsx
+import {render} from 'solid-js/web'
+import {ConcivWidget} from '@conciv/solid'
+import './index.css'
+import App from './App.tsx'
+
+const root = document.getElementById('root')
+
+render(
+  () => (
+    <>
+      <App />
+      <ConcivWidget />
+    </>
+  ),
+  root!,
+)
 ```
 
-(Real `mountConciv` call site: `apps/site/src/lib/mount-live-widget.ts:69`.)
+`ConcivWidget`'s props are `ConcivInit` (`packages/react/src/react.ts:6`): `plugins`, `settings`,
+`apiBase`, `grabProvider`, `engineToken`. Pass `apiBase` when the engine is not on the page's origin, as
+the Next.js component host does (`e2e/nextjs-component/app/conciv-widget-client.tsx:7-10`).
 
-For a framework component that owns mount/unmount through its own lifecycle, wrap `createConciv`:
-`@conciv/react`'s `ConcivWidget` is the reference shape: it mounts on a ref'd div in an effect, tears
-down on unmount, and remounts only when its config actually changes
-(`packages/react/src/index.ts:8-22`).
+## Manual mount: `@conciv/app`
+
+`createConciv(init)` returns a handle: `mount(el)`, `unmount()`, `open()`, `close()`, `toggle()` and
+`rebind(apiBase)` (`packages/app/src/mount.ts:25-32`, `packages/app/src/mount.ts:38-124`). `mount`
+does nothing when the handle is not `unmounted`, and a failed mount resets it and rethrows. `open`,
+`close` and `toggle` send panel commands over the window event bus, which the widget answers once it
+is mounted. `rebind` does nothing unless the widget is mounted. `ConcivInit` is
+`packages/app/src/mount.ts:12-23`.
+
+`mountConciv(plugins?)` is the one-shot form: it appends a `[data-conciv-script-root]` div to
+`document.body` and mounts there, and does nothing when that element already exists or inside a
+capture frame (`packages/app/src/mount.ts:132-146`). It returns no handle. conciv.dev mounts its own
+widget this way (`apps/site/src/lib/mount-live-widget.ts:65`).
+
+`@conciv/react`'s `ConcivWidget` is the reference wrapper: it creates the handle in an effect, mounts it
+on its own div, unmounts in the effect's cleanup, and makes a new handle only when its config changes
+(`packages/react/src/react.ts:14-36`).
 
 ## Connecting a harness
 
-`harness` on the plugin config (or `ConcivConfig` passed to `createConciv`'s engine side) picks the
-agent CLI behind the chat. `claude` and `codex` are fully supported (`claude` is the default and needs
-the `claude` CLI on `PATH`). `gemini-cli` and `opencode` are also real, implemented adapters: ACP and
-opencode's own text adapter respectively (`packages/harness/src/gemini-cli/index.ts`,
-`packages/harness/src/opencode/index.ts`). Only `pi` is a stub: its `chatConfig` always returns a
-"not yet supported" error (`unsupportedChatConfig`, `packages/harness/src/pi/index.ts:9-16`,
-wired at `packages/harness/src/pi/index.ts:35`) even though its `history` sidecar is real
-(`packages/protocol/src/config-types.ts` for the `harness` field):
+`harness` picks the agent CLI a new chat starts with: `claude` (the default), `codex`, `opencode`,
+`gemini-cli` or `pi` (`apps/site/content/docs/configuration.mdx`). The CLI must be on the `PATH` of the
+shell that starts the dev server, and logged in. `pi` has no chat today: its `chatConfig` always ends
+the run with `pi is not installed or not yet supported` (`unsupportedChatConfig`,
+`packages/harness/src/pi/pi.ts:9-16`, wired at `packages/harness/src/pi/pi.ts:36`).
 
 ```ts
 conciv({harness: 'codex'})
 ```
 
-The adapter runs its CLI from the `PATH` the dev server sees. `claudeSessionId` is a deprecated alias
-for `sessionId`
-(`apps/site/content/docs/configuration.mdx`, `packages/protocol/src/config-types.ts`).
+To let an agent session in your own terminal find and drive your open conciv tabs, connect it:
+`conciv init` offers it, or run `npx @conciv/cli@latest mcp connect <agent>` with `claude`, `codex`,
+`gemini-cli` or `opencode`. It adds the `conciv-hub` MCP server (`conciv mcp serve --agent <agent>`,
+`packages/cli/src/hub.ts`) to that agent's config. `conciv mcp disconnect <agent>` removes it
+(`apps/site/content/docs/quick-start/agents.mdx`).
 
-To drive a conciv tab from an agent session outside the browser (any directory), pick "Connect <harness>"
-in the composer's "Connect agents" menu (or run `conciv mcp connect <harness>`; `conciv init` offers it for
-every detected agent not yet connected): conciv runs that harness's own `mcp add` command to install the
-`conciv-hub` MCP server (`conciv mcp serve --agent <harness>`, `packages/cli/src/hub.ts`). Claude Code, Codex,
-opencode and Gemini CLI are supported; pi has no MCP support. Disconnect from the chip above the composer or
-`conciv mcp disconnect <harness>`; conciv refuses a disconnected agent at once.
+## Config surface
 
-## Minimal config surface
+`ConcivConfig` is the object passed to `conciv({...})`. Every field is optional
+(`apps/site/content/docs/configuration.mdx`):
 
-`ConcivConfig` (the object passed to `conciv({...})`): every field optional, all default to sane
-values (`packages/protocol/src/config-types.ts:27-46`, `apps/site/content/docs/configuration.mdx:18-52`):
+| Field          | Default                 | Use for                                                               |
+| -------------- | ----------------------- | --------------------------------------------------------------------- |
+| `enabled`      | `true`                  | `false` starts no engine and adds no widget                           |
+| `harness`      | `'claude'`              | the agent CLI a new chat starts with                                  |
+| `port`         | the port used last time | the engine port; a taken one falls back to a free port with a warning |
+| `widget`       | both layouts on         | `{modal, quickTerminal}`, or `false` to render the widget yourself    |
+| `plugins`      | `[]`                    | plugins to load (see the conciv-develop skill)                        |
+| `systemPrompt` | the built-in prompt     | a string replaces it, `false` sends none                              |
 
-| Field          | Default         | Use for                                                                       |
-| -------------- | --------------- | ----------------------------------------------------------------------------- |
-| `enabled`      | `true`          | gate to dev: `enabled: process.env.NODE_ENV !== 'production'`                 |
-| `harness`      | `'claude'`      | pick the agent CLI                                                            |
-| `port`         | auto            | fix the engine port (required, not just preferred, on Next.js/webpack/Rspack) |
-| `systemPrompt` | built-in        | a string here REPLACES the built-in prompt, it does not append to it          |
-| `widget`       | both layouts on | `{modal, quickTerminal}`: position/hotkey or disable a layout                 |
-
-A string `systemPrompt` swaps out `CHAT_SYSTEM_PROMPT` entirely (`resolveSystemPrompt`,
-`packages/core/src/config.ts:18-22`). Plugins add their own rules after it through a session
-`context` hook (see the conciv-develop skill).
-
-`ConcivSettingsInit` is a **different, wider** type than `ConcivConfig.widget`: it's the `settings`
-field you pass directly to `createConciv`/`@conciv/react`'s `ConcivWidget`
-(`packages/embed/src/mount.ts:11`), and it additionally carries `defaultOpen` and
-`launcher: 'native' | 'mascot' | false` (`packages/protocol/src/config-types.ts:17-21`).
-`ConcivConfig.widget` is typed `WidgetConfig | false` (`packages/protocol/src/config-types.ts:33`),
-just `{modal, quickTerminal}`, no `defaultOpen`/`launcher`, so a bundler-plugin `conciv({widget: ...})`
-call cannot set those two; they only apply through a direct `createConciv({settings: ...})` call
-(manual mount, or a framework wrapper like `@conciv/react`). `ConcivSettingsInit` does extend
-`WidgetConfig`, so `modal`/`quickTerminal` are valid on `settings` too:
+`ConcivSettingsInit` is a **wider** type than `ConcivConfig.widget`: it extends `WidgetConfig` with
+`defaultOpen`, `launcher: 'native' | 'mascot' | false` and `surface`
+(`packages/types/src/config-types.ts:28-34`). It is the `settings` field of `createConciv` and
+`ConcivWidget`, so `defaultOpen` and `launcher` apply only there, not through `conciv({widget})`.
+From `apps/site/content/docs/configuration.mdx`:
 
 ```ts
 conciv({widget: {modal: {position: 'top-left'}}})
 conciv({widget: {quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}})
-conciv({widget: {quickTerminal: false}}) // corner modal only
+conciv({widget: {quickTerminal: false}})
+conciv({widget: {modal: false}})
 ```
-
-(`apps/site/content/docs/configuration.mdx:72-86`.)
 
 ## Red flags: stop and fix
 
-- `conciv()` (or `createConciv`) called with no `enabled`/env gate anywhere in the chain: it ships to
-  production by default.
-- `@conciv/it/plugin/rollup` or `/plugin/esbuild` added expecting the engine to boot: both are
-  documented no-ops; use Vite or a manual `@conciv/embed` mount instead.
-- `createConciv(...).mount(el)` called without ever calling `unmount()` in teardown (component
-  unmount, page navigation): leaks the mounted app and its subscriptions.
-- `mountConciv` called expecting a return value/handle to unmount later: it is fire-and-forget by
-  design; use `createConciv` if you need lifecycle control.
-- `harness: 'pi'` picked for real use: its `chatConfig` is a stub that always errors
-  (`packages/harness/src/pi/index.ts:35`); `claude`, `codex`, `gemini-cli`, and `opencode` all have a
-  real `chatConfig`.
-- Hand-rolling a `<script src=...>` injection for Vite, Next.js, webpack or Rspack: the plugin
-  already puts the widget on the page; a second manual mount double-mounts.
+- `@conciv/it/plugin/rollup` or `/plugin/esbuild` added expecting the engine to start: both do
+  nothing; serve the app with Vite instead.
+- A webpack or Rspack config with no `mode`: it counts as production, so there is no widget and no
+  engine.
+- `<ConcivWidget />` or `createConciv(...).mount(el)` with the plugin's widget still on: the page gets
+  two. Pass `widget: false` to the plugin.
+- `createConciv(...).mount(el)` with no `unmount()` in teardown: the mounted app and its connection stay.
+- `mountConciv` called expecting a handle to unmount later: it returns none; use `createConciv`.
+- `harness: 'pi'` for real use: its chat always fails.
 
 ## Sources
 
-- `packages/embed/src/mount.ts`
-- `packages/embed/package.json`
-- `packages/core/src/config.ts`
-- `packages/core/src/start.ts`
-- `packages/unplugin/src/index.ts`
-- `packages/it/README.md`
+- `packages/app/src/mount.ts`
+- `packages/app/package.json`
+- `packages/react/src/react.ts`
 - `packages/it/package.json`
-- `packages/protocol/src/config-types.ts`
-- `packages/react/src/index.ts`
-- `packages/cli/src/init/steps/framework/webpack-family.ts`
+- `packages/it/README.md`
+- `packages/unplugin/src/unplugin.ts`
+- `packages/unplugin/src/core/vite.ts`
+- `packages/unplugin/src/core/nextjs.ts`
+- `packages/backend-defaults/src/engine/config.ts`
+- `packages/types/src/config-types.ts`
+- `packages/harness/src/pi/pi.ts`
+- `packages/cli/src/hub.ts`
+- `e2e/vite-solid-component/src/vite-solid-component.tsx`
+- `e2e/nextjs-component/app/conciv-widget-client.tsx`
+- `apps/site/src/lib/mount-live-widget.ts`
 - `apps/site/content/docs/quick-start/index.mdx`
 - `apps/site/content/docs/quick-start/vite.mdx`
 - `apps/site/content/docs/quick-start/nextjs.mdx`
 - `apps/site/content/docs/quick-start/webpack.mdx`
 - `apps/site/content/docs/quick-start/rspack.mdx`
-- `apps/site/content/docs/quick-start/rollup.mdx`
-- `apps/site/content/docs/quick-start/esbuild.mdx`
+- `apps/site/content/docs/quick-start/other-bundlers.mdx`
+- `apps/site/content/docs/quick-start/agents.mdx`
 - `apps/site/content/docs/configuration.mdx`
-- `packages/harness/src/gemini-cli/index.ts`
-- `packages/harness/src/opencode/index.ts`
-- `packages/harness/src/pi/index.ts`
-- `packages/cli/src/hub.ts`

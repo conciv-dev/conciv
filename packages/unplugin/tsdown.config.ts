@@ -3,7 +3,7 @@ import {defineConfig} from 'tsdown'
 export default defineConfig({
   sourcemap: true,
   entry: [
-    'src/index.ts',
+    'src/unplugin.ts',
     'src/vite.ts',
     'src/webpack.ts',
     'src/rspack.ts',

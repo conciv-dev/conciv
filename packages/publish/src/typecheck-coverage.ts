@@ -6,9 +6,9 @@ import {z} from 'zod'
 import {COMPILER_LIMIT, findOwner, mapInChunks, readWorkspacePackages, type WorkspacePackage} from './workspace.ts'
 
 const TYPESCRIPT_PATHSPECS = ['*.ts', '*.tsx', '*.mts', '*.cts']
-const PRESET_PREFIX = '@conciv/tsconfig/'
+const PRESET_PREFIX = '@internal/tsconfig/'
 const PRESET_OWNED_KEYS = ['include', 'exclude', 'files']
-const OFF_PRESET_PACKAGES = new Set([
+const OFF_PRESET_PACKAGES = [
   'apps/examples/nextjs-app',
   'apps/examples/tanstack-start',
   'e2e/astro',
@@ -26,7 +26,7 @@ const OFF_PRESET_PACKAGES = new Set([
   'e2e/vite-solid-component',
   'e2e/vite-vanilla',
   'native/swift',
-])
+]
 
 const tsconfigSchema = z.looseObject({extends: z.union([z.string(), z.array(z.string())]).optional()})
 
@@ -50,7 +50,7 @@ export async function assertTypecheckCoversTrackedFiles(cwd: string): Promise<vo
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
   throw new Error(
-    `every package on the @conciv/tsconfig preset takes its include from the preset, and its "typecheck" script checks every tracked TypeScript file:\n${messages.join('\n')}`,
+    `every package on the @internal/tsconfig preset takes its include from the preset, and its "typecheck" script checks every tracked TypeScript file:\n${messages.join('\n')}`,
   )
 }
 
@@ -62,14 +62,14 @@ async function trackedTypescriptFiles(cwd: string): Promise<string[]> {
 async function packageViolations(pkg: WorkspacePackage, files: string[]): Promise<string[]> {
   const main = await readTsconfig(join(pkg.dir, 'tsconfig.json')).catch(() => undefined)
   const onPreset = main !== undefined && extendsPreset(main)
-  if (OFF_PRESET_PACKAGES.has(pkg.relativeDir)) {
-    if (onPreset) return [`${pkg.relativeDir}: extends the @conciv/tsconfig preset, so it leaves the off-preset list`]
+  if (OFF_PRESET_PACKAGES.includes(pkg.relativeDir)) {
+    if (onPreset) return [`${pkg.relativeDir}: extends the @internal/tsconfig preset, so it leaves the off-preset list`]
     const repoOwned = files.filter(isRepoOwnedInScaffold)
     return repoOwned.length === 0 ? [] : uncheckedFiles(pkg, repoOwned)
   }
   if (!onPreset) {
     return [
-      `${pkg.relativeDir}/tsconfig.json: extends neither the @conciv/tsconfig preset nor is on the off-preset list`,
+      `${pkg.relativeDir}/tsconfig.json: extends neither the @internal/tsconfig preset nor is on the off-preset list`,
     ]
   }
   const script = pkg.manifest.scripts?.typecheck
@@ -80,7 +80,7 @@ async function packageViolations(pkg: WorkspacePackage, files: string[]): Promis
   const configs = await Promise.all(configNames.map((name) => readTsconfig(join(pkg.dir, name))))
   const ownedKeys = configNames.flatMap((name, index) =>
     PRESET_OWNED_KEYS.filter((key) => key in (configs[index] ?? {})).map(
-      (key) => `${pkg.relativeDir}/${name}: sets "${key}", which the @conciv/tsconfig preset owns`,
+      (key) => `${pkg.relativeDir}/${name}: sets "${key}", which the @internal/tsconfig preset owns`,
     ),
   )
   return [...ownedKeys, ...(await uncheckedFiles(pkg, files))]
@@ -112,7 +112,7 @@ function parseJson(path: string, text: string): unknown {
   try {
     return JSON.parse(text)
   } catch (error: unknown) {
-    throw new Error(`${path}: a tsconfig on the @conciv/tsconfig preset is plain JSON`, {cause: error})
+    throw new Error(`${path}: a tsconfig on the @internal/tsconfig preset is plain JSON`, {cause: error})
   }
 }
 

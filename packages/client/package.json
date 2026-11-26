@@ -23,8 +23,12 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./chat": {
+      "types": "./dist/chat.d.ts",
+      "import": "./dist/chat.js"
     }
   },
   "publishConfig": {
@@ -37,18 +41,26 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/ai": "workspace:^",
-    "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
     "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
+    "@orpc/standard-server-peer": "catalog:",
     "@orpc/tanstack-query": "catalog:",
+    "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/scheduled": "catalog:",
+    "@tanstack/ai-client": "catalog:",
+    "@tanstack/ai-solid": "catalog:",
     "@tanstack/pacer": "catalog:",
     "@tanstack/query-core": "catalog:",
     "@tanstack/solid-query": "catalog:",
-    "solid-js": "catalog:"
+    "defu": "catalog:",
+    "effect": "catalog:",
+    "solid-js": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/tsconfig": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
     "tsdown": "catalog:",
     "typescript": "catalog:"
   }

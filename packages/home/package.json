@@ -1,0 +1,57 @@
+{
+  "name": "@conciv/home",
+  "version": "0.0.22",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The per-user conciv home registry: running engines and hub connections in home.db on node:sqlite.",
+  "keywords": [
+    "conciv",
+    "sqlite"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/home"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/home.d.ts",
+      "import": "./dist/home.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "gen-migrations": "node src/scripts/gen-migrations.ts",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@conciv/types": "workspace:^",
+    "drizzle-orm": "catalog:",
+    "env-paths": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "drizzle-kit": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=26.0.0"
+  }
+}

@@ -4,7 +4,7 @@ import {DEFAULT_MODEL, type CssPatch, type LoadProgress, type RunResult} from '.
 env.allowLocalModels = false
 env.useBrowserCache = true
 
-const ALLOWED = new Set([
+const ALLOWED = [
   'fontSize',
   'fontWeight',
   'fontStyle',
@@ -22,34 +22,19 @@ const ALLOWED = new Set([
   'textTransform',
   'textDecoration',
   'height',
-])
+]
 
-const PX_PROPS = new Set([
-  'fontSize',
-  'letterSpacing',
-  'borderRadius',
-  'padding',
-  'paddingLeft',
-  'paddingRight',
-  'height',
-])
+const PX_PROPS = ['fontSize', 'letterSpacing', 'borderRadius', 'padding', 'paddingLeft', 'paddingRight', 'height']
 
 type ProgressEvent = {status: string; file?: string; progress?: number; loaded?: number; total?: number}
 
-let pipe: Promise<TextGenerationPipeline> | null = null
-let activeModel = DEFAULT_MODEL
-let device: 'webgpu' | 'wasm' = 'wasm'
-
 const hasWebGpu = () => typeof navigator !== 'undefined' && 'gpu' in navigator
 
-export const getDevice = () => device
+type ModelSlot = {pipe: Promise<TextGenerationPipeline>; modelId: string; device: 'webgpu' | 'wasm'}
 
-export function loadModel(modelId: string, onProgress: (p: LoadProgress) => void): Promise<TextGenerationPipeline> {
-  if (pipe && activeModel === modelId) return pipe
-  if (pipe) void pipe.then((p) => p.dispose()).catch(() => {})
-  activeModel = modelId
-  device = hasWebGpu() ? 'webgpu' : 'wasm'
-  pipe = pipeline('text-generation', modelId, {
+function startModel(modelId: string, onProgress: (p: LoadProgress) => void): ModelSlot {
+  const device = hasWebGpu() ? 'webgpu' : 'wasm'
+  const pipe = pipeline('text-generation', modelId, {
     device,
     dtype: device === 'webgpu' ? 'q4f16' : 'q4',
     progress_callback: (event: ProgressEvent) => {
@@ -62,7 +47,7 @@ export function loadModel(modelId: string, onProgress: (p: LoadProgress) => void
       })
     },
   })
-  return pipe
+  return {pipe, modelId, device}
 }
 
 const SYSTEM =
@@ -102,11 +87,11 @@ const extractJson = (text: string): unknown => {
   return JSON.parse(text.slice(start, end + 1))
 }
 
-const ENUMS: Record<string, Set<string>> = {
-  fontStyle: new Set(['normal', 'italic', 'oblique']),
-  textDecoration: new Set(['none', 'underline', 'line-through', 'overline']),
-  textAlign: new Set(['left', 'center', 'right', 'justify']),
-  textTransform: new Set(['none', 'uppercase', 'lowercase', 'capitalize']),
+const ENUMS: Record<string, readonly string[]> = {
+  fontStyle: ['normal', 'italic', 'oblique'],
+  textDecoration: ['none', 'underline', 'line-through', 'overline'],
+  textAlign: ['left', 'center', 'right', 'justify'],
+  textTransform: ['none', 'uppercase', 'lowercase', 'capitalize'],
 }
 
 const FONT_WEIGHTS: Record<string, number> = {
@@ -119,7 +104,7 @@ const FONT_WEIGHTS: Record<string, number> = {
 }
 
 const repair = (key: string, value: unknown): string | number | null => {
-  if (PX_PROPS.has(key)) {
+  if (PX_PROPS.includes(key)) {
     const numeric = typeof value === 'number' ? value : Number(String(value).replace(/px$/, ''))
     return Number.isFinite(numeric) ? numeric : null
   }
@@ -130,14 +115,14 @@ const repair = (key: string, value: unknown): string | number | null => {
   }
   if (ENUMS[key]) {
     const name = String(value).toLowerCase()
-    return ENUMS[key].has(name) ? name : null
+    return ENUMS[key].includes(name) ? name : null
   }
   return String(value)
 }
 
 const sanitize = (raw: unknown): CssPatch =>
   Object.entries(raw as Record<string, unknown>)
-    .filter(([key]) => ALLOWED.has(key))
+    .filter(([key]) => ALLOWED.includes(key))
     .reduce<CssPatch>((acc, [key, value]) => {
       const fixed = repair(key, value)
       return fixed === null ? acc : {...acc, [key]: fixed}
@@ -174,8 +159,11 @@ const generate = async (generator: TextGenerationPipeline, html: string, instruc
   return stripThink(generated)
 }
 
-export async function instructionToPatch(html: string, instruction: string): Promise<RunResult> {
-  const generator = await loadModel(activeModel, () => {})
+async function runInstruction(
+  generator: TextGenerationPipeline,
+  html: string,
+  instruction: string,
+): Promise<RunResult> {
   const started = performance.now()
   let raw = await generate(generator, html, instruction)
   let parsed: {patch: CssPatch; text?: string}
@@ -186,4 +174,20 @@ export async function instructionToPatch(html: string, instruction: string): Pro
     parsed = parse(raw)
   }
   return {...parsed, raw, ms: performance.now() - started}
+}
+
+export function createLocalModel() {
+  let slot: ModelSlot | undefined
+  const loadModel = (modelId: string, onProgress: (p: LoadProgress) => void): Promise<TextGenerationPipeline> => {
+    if (slot?.modelId === modelId) return slot.pipe
+    if (slot) void slot.pipe.then((p) => p.dispose()).catch(() => {})
+    slot = startModel(modelId, onProgress)
+    return slot.pipe
+  }
+  return {
+    loadModel,
+    getDevice: (): 'webgpu' | 'wasm' => slot?.device ?? 'wasm',
+    instructionToPatch: async (html: string, instruction: string): Promise<RunResult> =>
+      runInstruction(await loadModel(slot?.modelId ?? DEFAULT_MODEL, () => {}), html, instruction),
+  }
 }

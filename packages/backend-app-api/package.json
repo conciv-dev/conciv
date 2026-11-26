@@ -1,0 +1,87 @@
+{
+  "name": "@conciv/backend-app-api",
+  "version": "0.0.22",
+  "description": "Internal to @conciv/backend (installed automatically, do not install directly). The engine-side plugin host: replayable plugin state, the hook registry and the tool domain, in Effect.",
+  "keywords": [
+    "conciv",
+    "plugin",
+    "plugins"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/backend-app-api"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/backend-app-api.d.ts",
+      "import": "./dist/backend-app-api.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/client": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
+    "@effect/platform-node": "catalog:",
+    "@effect/sql-sqlite-node": "catalog:",
+    "@npmcli/arborist": "catalog:",
+    "@npmcli/config": "catalog:",
+    "@opentelemetry/api": "catalog:",
+    "@standard-schema/spec": "catalog:",
+    "detect-libc": "catalog:",
+    "drizzle-orm": "catalog:",
+    "effect": "catalog:",
+    "glob": "catalog:",
+    "npm-package-arg": "catalog:",
+    "pacote": "catalog:",
+    "picomatch": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/npm-package-arg": "catalog:",
+    "@types/npmcli__arborist": "catalog:",
+    "@types/pacote": "catalog:",
+    "@types/which": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "optionalDependencies": {
+    "@parcel/watcher-darwin-arm64": "catalog:",
+    "@parcel/watcher-darwin-x64": "catalog:",
+    "@parcel/watcher-linux-arm64-glibc": "catalog:",
+    "@parcel/watcher-linux-arm64-musl": "catalog:",
+    "@parcel/watcher-linux-x64-glibc": "catalog:",
+    "@parcel/watcher-linux-x64-musl": "catalog:",
+    "@parcel/watcher-win32-arm64": "catalog:",
+    "@parcel/watcher-win32-x64": "catalog:"
+  },
+  "engines": {
+    "node": ">=26.0.0"
+  }
+}

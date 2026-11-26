@@ -6,12 +6,9 @@ Solid components that create `@pierre/diffs` `File` / `FileDiff` instances on a 
 
 ## Interface
 
-- `SolidFileDiff` / `SolidFileDiffProps` `{oldFile, newFile, options?, class?, style?}` (`file-diff.tsx`).
-- `SolidCodeBlock` / `SolidCodeBlockProps` `{file, options?, class?, style?}` (`code-block.tsx`).
-- `SolidPatchDiff` / `SolidPatchDiffProps` `{patch, options?, class?, style?}` (`patch-diff.tsx`): parses `patch` with `getSingularPatch`.
-- `primeHighlightWorkerPool(options)`, `DiffsRenderOptions` (Pick of `theme`, `useTokenTransformer`, `tokenizeMaxLineLength`, `lineDiffType`, `maxLineDiffLength`) (`worker-pool.ts`).
-- Re-exports from `@pierre/diffs` (`index.tsx`): `registerCustomTheme`, types `CustomThemeLoader`, `FileContents`, `FileDiffOptions`, `FileOptions`.
-- Internal: `syncRender({target, payload, options})` (`render-sync.ts`), `highlightWorkerPool(options)` (`worker-pool.ts`).
+- `file-diff.tsx`, `code-block.tsx`, `patch-diff.tsx`: the three components (two files, one file, a patch parsed with `getSingularPatch`), each on `syncRender` (`render-sync.ts`).
+- `worker-pool.ts`: the shared highlight worker pool.
+- `solid-diffs.tsx`: the entry; also re-exports `registerCustomTheme` and a few types from `@pierre/diffs`.
 - `jsx.d.ts`: declares the `diffs-container` intrinsic element.
 
 ## Invariants
@@ -19,7 +16,7 @@ Solid components that create `@pierre/diffs` `File` / `FileDiff` instances on a 
 - Payload re-renders are throttled to `RENDER_INTERVAL_MS` = 100 (leading and trailing) through `createThrottledValue` (`render-sync.ts`).
 - The first effect run only records options, since `hydrate` does the initial render (`primed`); later runs call `setOptions` and force a render only when the options reference changed.
 - The worker pool is created only when `typeof Worker !== 'undefined'` (`highlightWorkerPool`, `primeHighlightWorkerPool`).
-- The pool is a process-wide singleton (`getOrCreateWorkerPoolSingleton`) with `HIGHLIGHT_WORKER_COUNT` = 2; the first creator's highlighter options apply.
+- The pool is `@pierre/diffs`'s process-wide singleton (`getOrCreateWorkerPoolSingleton`) with `HIGHLIGHT_WORKER_COUNT` = 2; the first creator's highlighter options apply.
 - Each component calls `instance.cleanUp()` in `onCleanup`.
 
 ## Side Effects
@@ -30,4 +27,4 @@ Solid components that create `@pierre/diffs` `File` / `FileDiff` instances on a 
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/solid-diffs` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/solid-diffs` from the repo root

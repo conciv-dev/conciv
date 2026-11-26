@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 
 async function mountWidget(): Promise<void> {
-  const {mountConciv} = await import('@conciv/embed')
+  const {mountConciv} = await import('@conciv/app')
   await mountConciv()
 }
 

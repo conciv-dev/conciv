@@ -1,5 +1,5 @@
-import type {TextAdapter} from '@conciv/ai/server'
-import type {ModelMessage} from '@conciv/protocol/chat-message-types'
+import type {TextAdapter} from '../adapters/adapters.js'
+import type {ModelMessage} from '@conciv/types/chat-message-types'
 import type {
   HarnessCapabilities,
   HarnessChatDeps,
@@ -10,8 +10,8 @@ import type {
   HarnessLogin,
   HarnessModels,
   HarnessResume,
-} from '@conciv/protocol/harness-types'
-import type {TtyCommand} from '@conciv/protocol/terminal-types'
+} from '@conciv/types/harness-types'
+import type {TtyCommand} from '@conciv/types/terminal-types'
 
 export type HarnessChatConfig = {
   adapter: TextAdapter

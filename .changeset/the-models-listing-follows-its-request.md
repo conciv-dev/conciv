@@ -1,5 +1,5 @@
 ---
-'@conciv/core': patch
+'@conciv/backend': patch
 '@conciv/harness': patch
 ---
 

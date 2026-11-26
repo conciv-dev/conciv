@@ -33,7 +33,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "node node_modules/@conciv/plugin-testkit/bin/conciv-test.js"
+    "test": "vitest run"
   },
   "dependencies": {
     "@ast-grep/napi": "^0.51.0"
@@ -41,16 +41,15 @@
   "devDependencies": {
     "@bomb.sh/router": "catalog:",
     "@clack/prompts": "catalog:",
-    "@conciv/contract": "workspace:^",
-    "@conciv/db": "workspace:^",
-    "@conciv/harness-init": "workspace:^",
-    "@conciv/harness-testkit": "workspace:*",
-    "@conciv/plugin": "workspace:^",
-    "@conciv/plugin-page": "workspace:^",
-    "@conciv/plugin-testkit": "workspace:*",
+    "@conciv/backend-plugin-api": "workspace:^",
+    "@conciv/backend-test-utils": "workspace:*",
+    "@conciv/client": "workspace:^",
+    "@conciv/harness": "workspace:^",
+    "@conciv/home": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@conciv/tsconfig": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
+    "@conciv/types": "workspace:^",
+    "@internal/tsconfig": "workspace:*",
+    "@internal/vitest-config": "workspace:*",
     "@orpc/client": "catalog:",
     "@tanstack/ai-mcp": "catalog:",
     "@types/node": "catalog:",

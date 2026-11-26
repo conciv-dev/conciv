@@ -24,7 +24,7 @@ const CAPABILITIES: Capability[] = [
   {
     icon: MousePointer2Icon,
     title: 'Page control',
-    body: 'It grabs elements, clicks, fills, and live-edits the DOM, then persists to source.',
+    body: 'It grabs elements, clicks, fills, and live-edits the DOM of the page you are on.',
   },
   {
     icon: TerminalIcon,
@@ -33,8 +33,8 @@ const CAPABILITIES: Capability[] = [
   },
   {
     icon: PlugConnectedIcon,
-    title: 'Extensions',
-    body: 'Drop a .tsx in conciv/extensions/ and the agent grows a new tool with its own UI.',
+    title: 'Plugins',
+    body: 'Add a plugin to your conciv config and the agent gets new tools, with their own cards in the chat.',
   },
   {
     icon: PenIcon,
@@ -44,7 +44,7 @@ const CAPABILITIES: Capability[] = [
   {
     icon: ShieldCheck,
     title: 'Approvals',
-    body: 'Risky commands surface an Approve / Deny card before they run.',
+    body: 'When the agent asks for permission, a card in the thread lets you approve or deny it.',
   },
 ]
 

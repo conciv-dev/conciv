@@ -1,6 +1,6 @@
 import type {ParsedLocation, RegisteredRouter} from '@tanstack/react-router'
-import type {PluginEntry} from '@conciv/embed'
-import {PANEL_TOGGLED_EVENT, type WidgetPanelToggledDetail} from '@conciv/protocol/event-bus'
+import type {PluginEntry} from '@conciv/app'
+import {PANEL_TOGGLED_EVENT, type WidgetPanelToggledDetail} from '@conciv/types/event-bus'
 import {panelCommands} from './panel-commands'
 import {rootSearchSchema} from './search-schemas'
 import {dismissTry, getTrySession} from './try-session.functions'
@@ -50,9 +50,9 @@ export async function mountLiveWidget(opts: {widgetOpen: boolean; router: Regist
   ensureWidgetMeta(defaultOpen)
 
   const [embed, tryIt, host] = await Promise.all([
-    import('@conciv/embed'),
+    import('@conciv/app'),
     import('@conciv/plugin-try-it'),
-    import('@conciv/plugin/experimental/host'),
+    import('@conciv/frontend-plugin-api/host'),
   ])
   if (document.querySelector('[data-conciv-root]')) return
   const setup = tryIt.default.setup

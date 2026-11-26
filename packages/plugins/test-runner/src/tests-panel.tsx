@@ -1,5 +1,5 @@
 import {createUniqueId, For, Show, type JSX} from 'solid-js'
-import type {IconName, Ui} from '@conciv/plugin/experimental'
+import type {IconName, Ui} from '@conciv/frontend-plugin-api'
 import type {Summary, TestError, TestRow} from './events.js'
 import {
   counts,

@@ -1,5 +1,5 @@
 ---
-'@conciv/plugin-terminal': patch
+'@internal/plugin-terminal': patch
 '@conciv/plugin-page': patch
 ---
 

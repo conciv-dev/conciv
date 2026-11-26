@@ -1,82 +1,139 @@
 ---
 title: Logging in
-description: Log a browser in to conciv with the code the dev server prints, and list or revoke logged-in browsers.
+description: The first time a browser opens conciv, it asks for a code from your dev server's terminal.
 ---
 
-conciv can read your project, run commands and open your editor, so each browser logs in once before it uses the
-widget.
+conciv can read your project, run commands and open your editor, so the engine only answers browsers it trusts. The
+first time a browser opens the panel, conciv asks for a 6-digit code, and the engine prints that code in the terminal
+running your dev server.
 
 ## Log in with the code
 
 <Steps>
 <Step>
 
-Open your app. The widget shows **Log in to use conciv on this page.** Click **Log in**.
+### Open the panel
+
+A browser that has not logged in shows the conciv button with an **Unauthorized** badge. Click it. The **Authorize
+conciv** dialog opens instead of the chat: "Enter the 6-digit code printed in the terminal running your dev server."
+
+<ImageZoom
+  src="/screenshots/login-locked-launcher.png"
+  alt="The conciv button in the corner of the app with a warning mark and an Unauthorized label"
+  width={1920}
+  height={1080}
+/>
+
+<ImageZoom
+  src="/screenshots/login-authorize-dialog.png"
+  alt="The Authorize conciv dialog with six empty boxes for the code and a Send a new code link"
+  width={1920}
+  height={1080}
+/>
 
 </Step>
 <Step>
 
-The terminal running your dev server prints a code and a link:
+### Read the code in your terminal
 
-```text
-conciv: a browser asks to connect to this engine
-From:    Chrome 142 | macOS at http://localhost:5173
-Code:    123456
-Link:    http://localhost:5173/#conciv_otp=123456
-Expires: 10:42:00
-```
+Opening the dialog asks the engine for a code. The engine prints it in a box with five lines:
+
+- `conciv: a browser asks to connect to this engine`
+- `From:` the browser, its version and system, and the page origin it asks from: `<browser> <version> | <system> at
+  <origin>`
+- `Code:` the six digits
+- `Link:` the page origin with the code in its address, `#conciv_otp=<code>`
+- `Expires:` the time the code stops working
 
 </Step>
 <Step>
 
-Type the code in the **Authorize conciv** dialog, or open the link in the same browser.
+### Type the code
+
+Type the six digits. conciv sends them when the last digit is in, and the chat opens. The browser keeps its login, so
+the next visit goes straight to the chat.
 
 </Step>
 </Steps>
 
-The browser stays logged in. The code expires a few minutes after it is printed, and too many wrong tries discard it.
-Click **Send a new code** for a fresh one.
+<Callout title="The code">
+  A code works once and lives 5 minutes. Opening the dialog again while a code is live reuses it. After 5 wrong tries
+  the code is dropped: click **Send a new code** and the engine prints a fresh one.
+</Callout>
 
-| Message                                                                  | What to do                                            |
-| ------------------------------------------------------------------------ | ----------------------------------------------------- |
-| That code didn't match. Check your terminal and try again.               | Type the code from the latest banner.                 |
-| That code expired. Send a new code and use the one your terminal prints. | Click **Send a new code**.                            |
-| Could not ask the dev server for a code. Please try again.               | Check that the dev server is running, then try again. |
+## Log in with the link
 
-## Log in from a terminal
+The `Link:` line is your page with the code in its address. Open it in the browser you want to log in. conciv reads the
+code on load, logs the browser in, then removes the code from the address bar.
 
-`conciv auth link` prints a one-time login link for a page your dev server serves. Run it in the project:
+To get a link without opening the dialog first, run `conciv auth link` with the page's address, from your project
+folder:
 
 ```bash
 conciv auth link http://localhost:5173/
 ```
 
-```json
-{"ok": true, "data": {"link": "http://localhost:5173/#conciv_otp=123456", "expiresAt": 1763460120000}}
-```
+It prints JSON: `data.link` is the page address with `conciv_otp=<code>` added to its `#` part (a `#` part the address
+already has is kept), and `data.expiresAt` is when the code stops working, in milliseconds since 1970.
 
-Opening the link logs that browser in.
+When the dev server starts it links the CLI as `.conciv/bin/conciv` in your project, so `.conciv/bin/conciv auth link`
+works without installing `@conciv/cli` globally. The command reads `.conciv/server.json` (in the folder you run it from,
+or a parent) to find the engine, so the dev server must have started there at least once.
 
-## Vite DevTools
+## See and revoke logged-in browsers
 
-When your Vite config also loads Vite DevTools, conciv adds a conciv dock to it. The widget in that dock logs in
-through DevTools, with no code. It is listed as `via Vite DevTools`.
-
-## List and revoke browsers
-
-Run `conciv auth revoke` in the project to list the logged-in browsers. Pass an id to revoke one, or `--all` to revoke every one:
+Each logged-in browser is a row in `.conciv/trusted-browsers.json`, with an `id`, a `hash` of its token, the
+`browser`, the `origin` it logged in from, and `grantedAt`. List them:
 
 ```bash
 conciv auth revoke
-conciv auth revoke 1a2b3c4d
+```
+
+Revoke one by its `id`, or all of them with `--all`:
+
+```bash
+conciv auth revoke <id>
 conciv auth revoke --all
 ```
 
-Each entry has an `id`, the `browser`, the `origin` it logged in from, and `grantedAt`. A revoked browser is
-disconnected at once and shows **This browser is no longer authorized to use conciv.** It can log in again with a new
-code.
+A revoked browser is cut off at once: the panel shows "This browser is no longer authorized to use conciv." with a **Log
+in** button that opens the code dialog again.
 
-## The engine is not reachable
+<ImageZoom
+  src="/screenshots/login-revoked.png"
+  alt="The chat panel with a red banner: This browser is no longer authorized to use conciv, and a Log in link"
+  width={1920}
+  height={1080}
+/>
 
-**conciv couldn't reach the engine. Check that the dev server is still running.** means the widget lost the engine,
-usually because the dev server stopped. Start it again and click **Retry**.
+## What the panel says
+
+<Accordions type="single">
+  <Accordion title="Log in to use conciv on this page.">
+    This browser has no login for this engine. Click **Log in** and enter the code from your terminal.
+  </Accordion>
+  <Accordion title="This browser is no longer authorized to use conciv.">
+    Someone ran `conciv auth revoke` for this browser, or with `--all`. Click **Log in** to log in again.
+  </Accordion>
+  <Accordion title="That code didn't match. Check your terminal and try again.">
+    The digits differ from the code in the newest box in your terminal. After 5 misses the code is dropped; click **Send
+    a new code**.
+  </Accordion>
+  <Accordion title="That code expired. Send a new code and use the one your terminal prints.">
+    The code is older than 5 minutes, or it was dropped after 5 misses. Click **Send a new code**.
+  </Accordion>
+  <Accordion title="Could not ask the dev server for a code. Please try again.">
+    The engine did not answer the dialog. Check that the dev server is running, then click **Send a new code**.
+  </Accordion>
+  <Accordion title="conciv lost connection to the engine.">
+    The engine stopped answering, usually because the dev server stopped. Start it again and click **Retry**.
+  </Accordion>
+  <Accordion title="conciv couldn't reach the engine. Check that the dev server is still running.">
+    The panel could not load from the engine. Start the dev server again and click **Retry**.
+  </Accordion>
+</Accordions>
+
+## Vite DevTools
+
+With Vite DevTools in your Vite plugins, conciv opens as a panel in the DevTools dock, and the DevTools page logs itself
+in. No code is asked for. It shows in `conciv auth revoke` as `via Vite DevTools`.

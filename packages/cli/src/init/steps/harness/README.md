@@ -2,18 +2,11 @@
 
 ## Overview
 
-Init steps that connect agent harnesses. They add a marked conciv section to AGENTS.md (and CLAUDE.md), and run each harness's file and command plan from the @conciv/harness-init registry.
-
-## Interface
-
-- `agentsMdStep(consented)` (`agents-md.ts`): InitStep 'agents' that adds or updates the conciv section in AGENTS.md and CLAUDE.md
-- `agentsSection(consented)` (`agents-md.ts`): builds the section between `<!-- conciv:start -->` and `<!-- conciv:end -->`
-- `harnessInitStep(init, consented, io)` (`install-harness.ts`): InitStep with id init.harnessId that writes plan files and runs plan commands
-- `HarnessInitIo` {home, run} (`install-harness.ts`)
-- `connectAgentStep(agent, consented, {concivHome, spawn})` (`connect-agent.ts`): InitStep `connect-<agent>` that connects the agent to conciv through `createHubConnections` (`@conciv/harness-init/hub`), running the agent CLI's `hub.add` with `serveArgv(agent)` through `spawn` with the hub's 30 s per-command timeout; detect is 'present' when the conciv home db already holds the connection; an agent not selected is skipped as 'not selected'; a failing add is manual with a `conciv mcp connect <agent>` card
+Init steps that connect agent harnesses. They add a marked conciv section to AGENTS.md (and CLAUDE.md), and run each harness's file and command plan from the `@conciv/harness/init` registry.
 
 ## Invariants
 
+- `connectAgentStep` (`connect-agent.ts`): connects the agent through `createHubConnections` (`@conciv/harness/init/hub`), running the agent CLI's `hub.add` with `serveArgv(agent)` under the hub's 30 s per-command timeout; detect is 'present' when the conciv home db already holds the connection; an agent not selected is skipped as 'not selected'; a failing add is manual with a `conciv mcp connect <agent>` card
 - `markerSpan` (`agents-md.ts`): more than one start or end marker, or an end before the start, is mismatched; apply then returns manual and writes nothing
 - `targets` (`agents-md.ts`): CLAUDE.md is also edited when it exists and has no `@AGENTS.md` line
 - `needsClaudeImport` (`agents-md.ts`): with 'claude' consented and no CLAUDE.md, it creates CLAUDE.md containing `@AGENTS.md`

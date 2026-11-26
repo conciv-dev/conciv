@@ -6,12 +6,10 @@ Package entry and the headless terminal model. `createTerminalModel` wraps an xt
 
 ## Interface
 
-- `index.tsx`: re-exports `createTerminalModel`, `translateBuffer`, `TerminalModel`, `TerminalModelOpts`, `TerminalStatus`, `TerminalTheme`, the transport types, `TerminalPrimitive`, `useTerminal`, `Terminal`
+- `ui-kit-terminal.tsx`: the entry: the model, the transport types, the primitives and the styled `Terminal`
 - `createTerminalModel(opts)` (`model.ts`): xterm (scrollback 5000) plus FitAddon plus a session over `opts.transport`
 - `TerminalTransport` (`transport.ts`): `(terminal, listener) => link`; the listener hears open, data, control and closed, the link writes, resizes and closes
-- `TerminalModel` (`model.ts`): terminal, status, busy, exitCode, errorMessage, connect, disconnect, fit, focus, paste, sendInput
 - `TerminalStatus` (`model.ts`): 'idle' | 'connecting' | 'open' | 'exited' | 'error' | 'closed'
-- `injectXtermCss(root)` (`primitives/terminal.tsx`)
 - Subdirectories:
   - primitives: [./primitives/README.md](./primitives/README.md) - headless compound components
   - styled: [./styled/README.md](./styled/README.md) - styled `Terminal`
@@ -33,5 +31,4 @@ Package entry and the headless terminal model. `createTerminalModel` wraps an xt
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-terminal` from the repo root (turbo builds the package and its dependencies first)
 - Typecheck and lint: `cd packages/ui-kit-terminal && pnpm typecheck`, then `pnpm lint` at the repo root

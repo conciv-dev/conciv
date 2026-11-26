@@ -1,5 +1,5 @@
 import {uniq} from 'es-toolkit'
-import type {Tool} from '@conciv/plugin'
+import type {Tool} from '@conciv/backend-plugin-api'
 import type {ActionLogEntry, ActionLogKind} from './distill.js'
 
 export type Keyframe = {ts: number; pngBase64: string}

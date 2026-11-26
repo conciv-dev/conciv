@@ -2,10 +2,10 @@ export * as PageTools from './tools.js'
 import {Buffer} from 'node:buffer'
 import {Effect} from 'effect'
 import {z} from 'zod'
-import type {Context} from '@conciv/plugin/effect/plugin'
-import {Tool} from '@conciv/plugin/schema/tool'
-import {PageRaisedErrorSchema} from '@conciv/protocol/page-types'
-import {RawFrameSchema, SourceLocSchema} from '@conciv/contract'
+import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
+import * as Tool from '@conciv/protocol/schema/tool'
+import {PageRaisedErrorSchema} from './page-types.js'
+import {RawFrameSchema, SourceLocSchema} from '@conciv/protocol'
 import {toolFailure, type Connection} from './connection.js'
 import {PageFiles} from './files.js'
 import {
@@ -52,23 +52,23 @@ function asToolError(message: string) {
 }
 
 export const register = Effect.fn('PageTools.register')(function* (
-  ctx: Pick<Context, 'tool' | 'skill' | 'location' | 'permission'>,
+  ctx: Pick<Context, 'tool' | 'skill' | 'location' | 'permission' | 'browserTabs'>,
   connection: Connection,
   symbolicator: Symbolicator,
 ) {
   const root = ctx.location.directory
   const execute = Effect.fn('PageTools.execute')(function* (operation: Operation, action: Action, tool: Tool.Context) {
-    if (action.type === 'tabs.list') return yield* exportResult(connection.tabs(tool.sessionId), [], root)
-    const queueing = {agentId: tool.agent, toolCallId: tool.id}
+    if (action.type === 'tabs.list') return yield* exportResult(yield* ctx.browserTabs.list(tool.sessionId), [], root)
+    const queueing = {agentId: tool.agent, toolCallId: tool.id, origin: tool.origin}
     if (action.type === 'queue') {
-      const played = yield* connection.queues
-        .play(tool.sessionId, {...queueing, action})
+      const played = yield* connection
+        .runQueue(tool.sessionId, {...queueing, action}, 'block')
         .pipe(Effect.mapError(asToolError('The queue could not be played')))
       return yield* exportResult(played, [], root)
     }
     if (action.type === 'queue_async') {
-      const started = yield* connection.queues
-        .start(tool.sessionId, {...queueing, action})
+      const started = yield* connection
+        .runQueue(tool.sessionId, {...queueing, action}, 'background')
         .pipe(Effect.mapError(asToolError('The queue could not be started')))
       return yield* exportResult(started, [], root)
     }

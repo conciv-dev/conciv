@@ -4,16 +4,6 @@
 
 Init steps that install dependencies: @conciv/it as a dev dependency and the optional @conciv/skills docs pack (dependency plus a TanStack intent install that adds a block to AGENTS.md). It also holds a zod-validated package.json reader and the framework and harness step groups.
 
-## Interface
-
-- `installItStep(add, packageManager)` (`install-it.ts`): InitStep 'install' that adds @conciv/it as a dev dependency
-- `addWithNypm` / `AddDep` / `hasIt(pkg)` (`install-it.ts`): default adder through nypm addDevDependency
-- `docsPackStep(add, spawn)` (`docs-pack.ts`): InitStep 'docs-pack'; adds @conciv/skills and runs `@tanstack/intent@latest install` through the package manager's dlx command
-- `readManifest(cwd)` / `hasDependency(pkg, name)` / `PackageJson` (`manifest.ts`)
-- Subdirectories:
-  - framework: [./framework/README.md](./framework/README.md) - bundler config wiring
-  - harness: [./harness/README.md](./harness/README.md) - AGENTS.md section and harness plans
-
 ## Invariants
 
 - `docsPackStep.detect` (`docs-pack.ts`): present only when @conciv/skills is declared and AGENTS.md has both intent-skills markers

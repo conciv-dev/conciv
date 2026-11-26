@@ -1,5 +1,5 @@
 import type {Deferred} from 'effect'
-import type {ElementRect} from '@conciv/plugin/experimental/grab'
+import type {ElementRect} from '@conciv/frontend-plugin-api/grab'
 import type {ComposeTarget} from './comments-model.js'
 
 export * as WhiteboardComposeMachine from './comment-compose-machine.js'

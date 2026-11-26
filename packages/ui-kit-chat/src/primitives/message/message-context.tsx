@@ -1,5 +1,5 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-import type {ChatPart} from '@conciv/protocol/chat-message-types'
+import type {ChatPart} from '@conciv/types/chat-message-types'
 import type {Turn} from '../../store/grouping.js'
 import type {createTurnParts} from '../../store/turn-parts.js'
 

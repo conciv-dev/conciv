@@ -1,5 +1,5 @@
 import type {FileOptions} from '@conciv/solid-diffs'
-import type {ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {ToolResultPart} from '@conciv/types/chat-message-types'
 import type {StatusDotTone} from '@conciv/ui-kit-system'
 import {codeTheme} from '../../theme/code-theme.js'
 import type {ToolStatus} from './tool-status.js'

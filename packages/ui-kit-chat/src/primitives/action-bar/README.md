@@ -1,4 +1,4 @@
-# primitives/action-bar
+# ui-kit-chat/src/primitives/action-bar
 
 ## Overview
 
@@ -6,10 +6,7 @@ Headless per-message action bar (copy, reload, edit, export, speak, feedback) an
 
 ## Interface
 
-- `action-bar.tsx:ActionBar` - `{Root, Copy, Reload, Edit, ExportMarkdown, Speak, StopSpeaking, FeedbackPositive, FeedbackNegative}`; exported as `ActionBarPrimitive`.
-- `action-bar.tsx:useCopyStatus` - copy status accessor, `'idle'` without a provider; `action-bar.tsx:useExportMarkdown`.
-- `action-handlers.tsx:ActionHandlersProvider`, `action-handlers.tsx:useActionHandlers`, type `ActionHandlers`.
-- `interaction-context.tsx:ActionBarInteractionProvider`, `interaction-context.tsx:useActionBarInteraction` - `acquireInteractionLock`.
+- `action-bar.tsx`: the `ActionBar` compound (copy, reload, edit, export, speak, feedback), exported as `ActionBarPrimitive`; `action-handlers.tsx` and `interaction-context.tsx`: the handlers and the interaction lock it reads.
 
 ## Invariants
 
@@ -23,4 +20,4 @@ Headless per-message action bar (copy, reload, edit, export, speak, feedback) an
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

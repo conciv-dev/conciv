@@ -1,5 +1,5 @@
-import {Skill} from '@conciv/plugin/effect'
-import {AbsolutePath} from '@conciv/plugin/schema/schema'
+import {Skill} from '@conciv/backend-plugin-api/effect'
+import {AbsolutePath} from '@conciv/protocol/schema/schema'
 
 const OPERATIONS = [
   ['canvas_read', 'list the elements of the published canvas, or of the hidden draft with scope "draft"'],

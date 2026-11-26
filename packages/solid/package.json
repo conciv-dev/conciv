@@ -24,9 +24,9 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "types": "./dist/solid.d.ts",
+      "import": "./dist/solid.js",
+      "default": "./dist/solid.js"
     }
   },
   "publishConfig": {
@@ -39,10 +39,10 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/embed": "workspace:^"
+    "@conciv/app": "workspace:^"
   },
   "devDependencies": {
-    "@conciv/tsconfig": "workspace:*",
+    "@internal/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "publint": "catalog:",
     "solid-js": "catalog:",

@@ -7,7 +7,7 @@ export default defineConfig({
   build: {
     lib: {
       entry: {
-        index: fileURLToPath(new URL('src/index.tsx', import.meta.url)),
+        'ui-kit-system': fileURLToPath(new URL('src/ui-kit-system.tsx', import.meta.url)),
       },
       formats: ['es'],
     },

@@ -1,8 +1,8 @@
 import {createContext, createMemo, Show, untrack, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
 import {createStore, type SetStoreFunction} from 'solid-js/store'
 import {keyArray} from '@solid-primitives/keyed'
-import type {ChatMessage, QueuedMessage, SendContent} from '@conciv/protocol/chat-message-types'
-import {chatBusy, type ChatBusySource} from '@conciv/protocol/chat-busy'
+import type {ChatMessage, QueuedMessage, SendContent} from '@conciv/types/chat-message-types'
+import {chatBusy, type ChatBusySource} from '@conciv/types/chat-busy'
 import {diffTurns, type Turn} from './grouping.js'
 
 export type ViewState = {

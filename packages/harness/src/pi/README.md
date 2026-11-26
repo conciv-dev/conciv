@@ -2,15 +2,11 @@
 
 ## Overview
 
-Pi harness, published as `./pi`. Chat is unsupported (`unsupportedChatConfig`). The adapter can launch `pi` in a TTY and reads pi's per-cwd JSONL session transcripts, following the `parentId` chain along the active branch.
-
-## Interface
-
-- `pi(provider)` (`index.ts`): reads `PI_CODING_AGENT_DIR` as Effect Config under the provider; id/binName `'pi'`, displayName `'Pi'`; capabilities resume false, `permissionGate: 'none'`, transcriptHistory true, compaction false, `systemPrompt: 'flag'`, `mcp: 'none'`, `slashCommands: 'none'`, imageInput false, `init: 'none'`; `chatConfig: unsupportedChatConfig('pi', 'pi')`; no models; `resume.command({nativeId})` is `pi --session <nativeId>` (pi matches the id against this project's sessions first, then every project's).
-- `encodeSessionDir(cwd)`, `piSessionsRoot(agentDir)` -> `$PI_CODING_AGENT_DIR/sessions` (default `~/.pi/agent` when unset or empty, the same rule pi follows), `sessionsDir(root, cwd)` -> `<root>/<encoded>`, `activePath(entries)`, `piHistory(root)` `{messages, tail, observe, transcriptPath, transcriptRoot, list, meta}` (`history.ts`). `list({cwd}, page)` reads `sessionsDir(cwd)`, `list({everywhere: true}, page)` every folder under `$PI_CODING_AGENT_DIR/sessions`; each meta's `cwd` comes from the session header (`{type: 'session', cwd}`), never from the lossy folder name, and a session with no header cwd is left out of an `everywhere` listing.
+Pi harness, published as `./pi` (`pi.ts`). Chat is unsupported (`unsupportedChatConfig`), and it has no models. The adapter can launch `pi` in a TTY and reads pi's per-cwd JSONL session transcripts under `$PI_CODING_AGENT_DIR/sessions` (default `~/.pi/agent` when unset or empty, the same rule pi follows), following the `parentId` chain along the active branch.
 
 ## Invariants
 
+- A session's `cwd` comes from the session header (`{type: 'session', cwd}`), never from the lossy folder name; a session with no header cwd is left out of an `everywhere` listing (`history.ts`).
 - `messages` streams the transcript through `foldJsonlFile`.
 - Transcript reads go through `containedPath(sessionsDir, ...)`; a path outside it yields `[]` messages (`history.ts`).
 - Only entries on the active `parentId` chain become messages, with cycle protection (`activePath`); a `toolResult` attaches to the last assistant message or opens one (`collectMessages`).
@@ -21,7 +17,7 @@ Pi harness, published as `./pi`. Chat is unsupported (`unsupportedChatConfig`). 
 ## Side Effects
 
 - Reads `$PI_CODING_AGENT_DIR/sessions/<encoded cwd>/` and its JSONL files (`readdir`, `stat`, `open` and `createReadStream` in `history.ts`, none blocking).
-- `chatConfig` yields a `RUN_ERROR` "pi is not installed or not yet supported" (`index.ts`).
+- `chatConfig` yields a `RUN_ERROR` "pi is not installed or not yet supported" (`pi.ts`).
 
 ## Verification
 

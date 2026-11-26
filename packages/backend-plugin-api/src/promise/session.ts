@@ -1,0 +1,184 @@
+import type {SessionId} from '@conciv/types/chat-types'
+import type {ModelMessage} from '@conciv/types/chat-message-types'
+import type {JsonSchema} from 'effect'
+import type {RpcCallOptions} from '@conciv/client'
+import type {
+  InstructionEntryInfo,
+  PromptMention,
+  SessionCommandInput,
+  SessionCreateInput,
+  SessionInboxCompaction,
+  SessionInboxDelivery,
+  SessionInboxSynthetic,
+  SessionInfo,
+  SessionListInput,
+  SessionSyntheticInput,
+  SessionUpdateInput,
+  TokenUsageInfo,
+} from './session-info.js'
+import type {Ref} from '@conciv/protocol/schema/model'
+import type {Json} from '@conciv/types/json'
+import type {Hooks} from './registration.js'
+
+type SessionInput = {readonly sessionId: SessionId}
+
+type Mention = {-readonly [Key in keyof PromptMention]: PromptMention[Key]}
+
+export type PromptFileSource = {type: 'inline'} | {type: 'uri'; uri: string}
+
+export interface PromptInputFileAttachment {
+  uri: string
+  source?: PromptFileSource
+  name?: string
+  description?: string
+  mention?: Mention
+}
+
+export interface PromptAgentAttachment {
+  name: string
+  mention?: Mention
+}
+
+export interface PromptInputSkillAttachment {
+  id: string
+  mention?: Mention
+}
+
+export interface PromptInput {
+  text: string
+  files?: PromptInputFileAttachment[]
+  agents?: PromptAgentAttachment[]
+  skills?: PromptInputSkillAttachment[]
+}
+
+export interface SessionPrompt {
+  readonly sessionId: SessionId
+  readonly messageId: string
+  prompt: PromptInput
+  metadata?: Record<string, unknown>
+  delivery: SessionInboxDelivery
+}
+
+export interface SystemPart {
+  type: 'text'
+  text: string
+  metadata?: Record<string, unknown>
+}
+
+export type SessionRequestOptions = Record<string, unknown>
+
+export interface SessionRequest {
+  readonly sessionId: SessionId
+  readonly model: Ref
+  system: Array<SystemPart>
+  messages: Array<ModelMessage>
+  options: SessionRequestOptions
+}
+
+export interface SessionContext extends SessionRequest {
+  readonly agent: string
+  tools: Record<string, {description: string; input: JsonSchema.JsonSchema}>
+}
+
+export interface SessionCompactionResult {
+  summary: string
+  tokens?: TokenUsageInfo
+}
+
+export interface SessionCompaction extends SessionContext {
+  result?: SessionCompactionResult
+}
+
+export type SessionIdleBackground =
+  | {
+      readonly kind: 'shell'
+      readonly sessionId: SessionId
+      readonly shellId: string
+      readonly command: string
+    }
+  | {
+      readonly kind: 'subagent'
+      readonly sessionId: SessionId
+      readonly childSessionId: SessionId
+      readonly agent: string
+      readonly description: string
+    }
+  | {
+      readonly kind: 'image'
+      readonly sessionId: SessionId
+      readonly path: string
+      readonly model: string
+    }
+
+export interface SessionIdle {
+  readonly sessionId: SessionId
+  readonly background: ReadonlyArray<SessionIdleBackground>
+}
+
+export interface SessionHooks {
+  readonly prompt: SessionPrompt
+  readonly context: SessionContext
+  readonly compaction: SessionCompaction
+  readonly 'experimental.idle': SessionIdle
+}
+
+export interface SessionDomain {
+  readonly list: (
+    input?: SessionListInput,
+    requestOptions?: RpcCallOptions,
+  ) => Promise<{data: Array<SessionInfo>; cursor: {previous?: string | null; next?: string | null}}>
+  readonly create: (input?: SessionCreateInput, requestOptions?: RpcCallOptions) => Promise<SessionInfo>
+  readonly get: (input: SessionInput, requestOptions?: RpcCallOptions) => Promise<SessionInfo>
+  readonly remove: (input: SessionInput, requestOptions?: RpcCallOptions) => Promise<void>
+  readonly switchAgent: (
+    input: {readonly sessionId: SessionId; readonly agent: string},
+    requestOptions?: RpcCallOptions,
+  ) => Promise<void>
+  readonly switchModel: (
+    input: {readonly sessionId: SessionId; readonly model: Ref},
+    requestOptions?: RpcCallOptions,
+  ) => Promise<void>
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  readonly generate:
+    | ((
+        input: {readonly sessionId: SessionId; readonly prompt: string},
+        requestOptions?: RpcCallOptions,
+      ) => Promise<{text: string; tokens: TokenUsageInfo; cost: number}>)
+    | undefined
+  /** @remarks Not implemented yet. Always undefined in this version. */
+  readonly command: ((input: SessionCommandInput, requestOptions?: RpcCallOptions) => Promise<void>) | undefined
+  readonly compact: (
+    input: {
+      readonly sessionId: SessionId
+      /** @remarks Not implemented yet. Always undefined in this version. */
+      readonly id?: string | undefined
+      /** @remarks Not implemented yet. Always undefined in this version. */
+      readonly delivery?: SessionInboxDelivery | undefined
+    },
+    requestOptions?: RpcCallOptions,
+  ) => Promise<SessionInboxCompaction>
+  readonly synthetic: (input: SessionSyntheticInput, requestOptions?: RpcCallOptions) => Promise<SessionInboxSynthetic>
+  readonly interrupt: (
+    input: {
+      readonly sessionId: SessionId
+      readonly resume?: boolean | undefined
+    },
+    requestOptions?: RpcCallOptions,
+  ) => Promise<{interrupted: boolean}>
+  readonly update: (input: SessionUpdateInput, requestOptions?: RpcCallOptions) => Promise<void>
+  readonly wait: (input: SessionInput, requestOptions?: RpcCallOptions) => Promise<void>
+  readonly instructions: {
+    readonly entry: {
+      readonly list: (input: SessionInput, requestOptions?: RpcCallOptions) => Promise<Array<InstructionEntryInfo>>
+      readonly put: (
+        input: {readonly sessionId: SessionId; readonly key: string; readonly value: Json},
+        requestOptions?: RpcCallOptions,
+      ) => Promise<void>
+      readonly remove: (
+        input: {readonly sessionId: SessionId; readonly key: string},
+        requestOptions?: RpcCallOptions,
+      ) => Promise<void>
+    }
+  }
+  readonly hook: Hooks<SessionHooks>
+}

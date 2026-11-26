@@ -12,7 +12,7 @@ import {
   type WorkspacePackage,
 } from './workspace.ts'
 
-const CODE_FILE_EXTENSIONS = new Set(['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'css', 'html', 'json'])
+const CODE_FILE_EXTENSIONS = ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'css', 'html', 'json']
 
 function isTestPath(packageRelativePath: string): boolean {
   const segments = packageRelativePath.split('/')
@@ -26,7 +26,7 @@ function isCodePath(packageRelativePath: string): boolean {
   const dotIndex = base.lastIndexOf('.')
   if (dotIndex <= 0) return true
   const extension = base.slice(dotIndex + 1).toLowerCase()
-  return CODE_FILE_EXTENSIONS.has(extension)
+  return CODE_FILE_EXTENSIONS.includes(extension)
 }
 
 function matchesGlob(packageRelativePath: string, pattern: string): boolean {
@@ -88,29 +88,27 @@ export const PUBLIC_PACKAGES = [
   '@conciv/unplugin',
   '@conciv/cli',
   '@conciv/try',
-  '@conciv/core',
+  '@conciv/backend',
   '@conciv/serve',
   '@conciv/harness',
-  '@conciv/harness-init',
+  '@conciv/types',
+  '@conciv/backend-defaults',
   '@conciv/protocol',
-  '@conciv/ai',
-  '@conciv/chat',
-  '@conciv/contract',
-  '@conciv/db',
+  '@conciv/home',
   '@conciv/storage-history',
   '@conciv/client',
   '@conciv/grab',
-  '@conciv/tools',
-  '@conciv/plugin',
-  '@conciv/plugin-host',
+  '@conciv/backend-plugin-api',
+  '@conciv/frontend-plugin-api',
+  '@conciv/backend-app-api',
   '@conciv/plugin-ios',
   '@conciv/plugin-page',
   '@conciv/plugin-recorder',
   '@conciv/plugin-tanstack',
   '@conciv/plugin-test-runner',
   '@conciv/plugin-try-it',
-  '@conciv/plugin-testkit',
-  '@conciv/harness-testkit',
+  '@conciv/simulation',
+  '@conciv/backend-test-utils',
   '@conciv/solid-diffs',
   '@conciv/solid-streamdown',
   '@conciv/ui-kit-system',
@@ -120,7 +118,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/ui-kit-terminal',
   '@conciv/mascot',
   '@conciv/mascot-react',
-  '@conciv/embed',
+  '@conciv/app',
   '@conciv/react',
   '@conciv/preact',
   '@conciv/solid',
@@ -376,31 +374,49 @@ export async function assertPublicTypesPublic(cwd: string): Promise<void> {
   if (all.length > 0) throw new Error(all.join('\n'))
 }
 
-function findLoop(graph: Map<string, string[]>): string[] | undefined {
-  const finished = new Set<string>()
-  const visit = (name: string, path: string[]): string[] | undefined => {
-    if (path.includes(name)) return [...path.slice(path.indexOf(name)), name]
-    if (finished.has(name)) return undefined
-    for (const next of graph.get(name) ?? []) {
-      const loop = visit(next, [...path, name])
-      if (loop !== undefined) return loop
-    }
-    finished.add(name)
-    return undefined
-  }
-  for (const name of graph.keys()) {
-    const loop = visit(name, [])
-    if (loop !== undefined) return loop
-  }
-  return undefined
+const LOOP_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const
+
+type LoopEdge = {to: string; field: (typeof LOOP_FIELDS)[number]}
+
+function readLoopEdges(pkg: WorkspacePackage, names: Set<string>): LoopEdge[] {
+  return LOOP_FIELDS.flatMap((field) =>
+    Object.keys(pkg.manifest[field] ?? {})
+      .filter((name) => names.has(name))
+      .map((to) => ({to, field})),
+  )
 }
 
-export async function assertNoRuntimeDependencyLoop(cwd: string): Promise<void> {
-  const graph = buildDependencyGraph(await readWorkspacePackages(cwd), ['dependencies', 'optionalDependencies'])
-  const loop = findLoop(graph)
-  if (loop !== undefined) {
+function formatLoop(start: string, edges: LoopEdge[]): string {
+  return edges.reduce((text, edge) => `${text} -(${edge.field})-> ${edge.to}`, start)
+}
+
+export function findDependencyLoops(packages: WorkspacePackage[]): string[] {
+  const named = packages.flatMap((pkg) =>
+    typeof pkg.manifest.name === 'string' ? [{name: pkg.manifest.name, pkg}] : [],
+  )
+  const names = new Set(named.map((entry) => entry.name))
+  const graph = new Map(named.map(({name, pkg}) => [name, readLoopEdges(pkg, names)]))
+  const finished = new Set<string>()
+  const loops = new Set<string>()
+  const visit = (name: string, path: string[], edges: LoopEdge[]): void => {
+    const start = path.indexOf(name)
+    if (start !== -1) {
+      loops.add(formatLoop(name, edges.slice(start)))
+      return
+    }
+    if (finished.has(name)) return
+    for (const edge of graph.get(name) ?? []) visit(edge.to, [...path, name], [...edges, edge])
+    finished.add(name)
+  }
+  for (const name of graph.keys()) visit(name, [], [])
+  return [...loops]
+}
+
+export async function assertNoDependencyLoop(cwd: string): Promise<void> {
+  const loops = findDependencyLoops(await readWorkspacePackages(cwd))
+  if (loops.length > 0) {
     throw new Error(
-      `workspace packages form a loop through dependencies and optionalDependencies alone: ${loop.join(' -> ')}. A loop may only close through a devDependency or a peerDependency, never through an edge a build or an install follows.`,
+      `workspace packages form ${loops.length} dependency loop(s); every edge counts (dependencies, devDependencies, peerDependencies, optionalDependencies):\n${loops.join('\n')}`,
     )
   }
 }

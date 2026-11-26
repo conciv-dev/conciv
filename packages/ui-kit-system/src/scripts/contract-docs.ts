@@ -1,4 +1,4 @@
-import {chatColors, chatEase, chatFont, chatRadius} from '@conciv/uno-preset'
+import {chatColors, chatEase, chatFont, chatRadius} from '@internal/uno-preset'
 import {
   SKIN_ANCHOR_DOCS,
   SKIN_ANCHOR_GROUPS,

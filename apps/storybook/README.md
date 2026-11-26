@@ -4,22 +4,16 @@
 
 Solid Storybook (`storybook-solidjs-vite`) that collects stories from `src/` and from the `packages/*` UI packages, and runs them as browser tests.
 
-## Interface
-
-- `config.stories` (`src/storybook/main.ts`, passed as `--config-dir src/storybook` to `storybook dev`/`build` and as `configDir` to the vitest plugin): globs `src/**` plus `packages/brand`, `ui-kit-system`, `mascot`, `ui-kit-chat`, `ui-kit-chat-tools`, `plugins/page`, `tools`, `core`, `ui-kit-tap`, `solid-diffs`, `solid-streamdown`
-- `storybookTest` project `storybook` (`vitest.config.ts`): runs every story's `play` in headless Chromium through Playwright
-- `uno.config.ts`: UnoCSS with `presetConciv`, scanning the same package sources
-- scripts (`package.json`): `storybook` (port 6006), `build-storybook`, `test`, `typecheck`, `lint`
-- Subdirectories: [src](./src/README.md)
-
 ## Invariants
 
-- `vitest.config.ts`: browser tests run with `reducedMotion: 'reduce'`, `maxWorkers: 2`, `testTimeout: 60_000`
-- `uno.config.ts`: a package whose stories use UnoCSS classes must be listed in `content.filesystem`, or its classes are not generated
+- `src/storybook/main.ts` is the one list of story globs: `src/**` plus the UI packages' `src`. Storybook gets it through `--config-dir src/storybook`, and the vitest `storybook` project (`vite.config.ts`) through `configDir`.
+- `vite.config.ts`: every story's `play` runs in headless Chromium with `reducedMotion: 'reduce'` and `maxWorkers: 2`.
+- `uno.config.ts`: a package whose stories use UnoCSS classes must be listed in `content.filesystem`, or its classes are not generated.
+- Subdirectories: [src](./src/README.md)
 
 ## Side Effects
 
-- `vitest.config.ts`: launches Playwright's bundled Chromium in new headless mode (`channel: 'chromium'`)
+- `vite.config.ts`: launches Playwright's bundled Chromium in new headless mode (`channel: 'chromium'`)
 
 ## Verification
 

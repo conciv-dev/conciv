@@ -71,11 +71,11 @@ function readRequiredModule(declarator: SgNode): string | null {
   return argument.text().slice(1, -1)
 }
 
-const declarationKinds: ReadonlySet<string | number> = new Set(['lexical_declaration', 'variable_declaration'])
+const declarationKinds: ReadonlyArray<string | number> = ['lexical_declaration', 'variable_declaration']
 
 function isTopLevel(declarator: SgNode): boolean {
   const declaration = declarator.parent()
-  if (declaration === null || !declarationKinds.has(declaration.kind())) return false
+  if (declaration === null || !declarationKinds.includes(declaration.kind())) return false
   const enclosing = declaration.parent()
   if (enclosing === null) return false
   if (enclosing.kind() === 'program') return true
@@ -210,10 +210,10 @@ function exportedExpression(root: SgNode): SgNode | null {
   return defaultExportExpression(root) ?? moduleExportsExpression(root)
 }
 
-const configWrapperNames: ReadonlySet<string> = new Set(['defineConfig'])
+const configWrapperNames: ReadonlyArray<string> = ['defineConfig']
 
 function wrapperArgument(call: SgNode): SgNode | null {
-  if (!configWrapperNames.has(call.field('function')?.text() ?? '')) return null
+  if (!configWrapperNames.includes(call.field('function')?.text() ?? '')) return null
   const args =
     call
       .field('arguments')
@@ -394,12 +394,12 @@ export function addToPluginsArrayRequire(
   return commit(root, source, [...callEdits, requireEdit])
 }
 
-const wrappableKinds: ReadonlySet<string | number> = new Set(['identifier', 'call_expression', 'member_expression'])
+const wrappableKinds: ReadonlyArray<string | number> = ['identifier', 'call_expression', 'member_expression']
 
 export function wrapDefaultExport(source: string, wrapperName: string, importFrom: string): Transform {
   const root = parse(Lang.TypeScript, source).root()
   const expression = defaultExportExpression(root)
-  if (!expression || !wrappableKinds.has(expression.kind())) return unmatched
+  if (!expression || !wrappableKinds.includes(expression.kind())) return unmatched
   const state = bindingState(root, importFrom, wrapperName, 'named')
   if (state === 'conflict') return unmatched
   const wrapped = expression.kind() === 'call_expression' && expression.field('function')?.text() === wrapperName

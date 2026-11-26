@@ -1,4 +1,4 @@
-# primitives/activity
+# ui-kit-chat/src/primitives/activity
 
 ## Overview
 
@@ -6,9 +6,7 @@ Headless `Activity` root that derives turns, tool results by call id, live state
 
 ## Interface
 
-- `activity.tsx:Activity` - `{Root}`; exported as `ActivityPrimitive`.
-- `activity.tsx:useActivity` - returns `turns`, `resultFor`, `live`, `label`, `isLastTurn`, `activeCall`.
-- `activity.tsx:ActivityLabeler` type.
+- `activity.tsx`: the `Activity` root and `useActivity`, exported as `ActivityPrimitive`.
 
 ## Invariants
 
@@ -21,4 +19,4 @@ Headless `Activity` root that derives turns, tool results by call id, live state
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/ui-kit-chat` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run build typecheck --filter=@conciv/ui-kit-chat` from the repo root

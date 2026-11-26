@@ -1,14 +1,14 @@
 import {isIdentifier, readCalleeName, readMemberObjectName} from './ast-walk.js'
-import {isNewLayerTestFile} from '@conciv/vitest-config/new-layer'
+import {isNewLayerTestFile} from '@internal/vitest-config/test-layout'
 
-const TIMER_NAMES = new Set(['setTimeout', 'setInterval', 'setImmediate'])
-const BARE_SLEEPS = new Set(['wait', 'sleep', 'delay'])
-const TIMEOUT_KEYS = new Set(['timeout', 'interval'])
-const EXPECT_WAITS = new Set(['element', 'poll', 'soft'])
-const TEST_NAMES = new Set(['test', 'it', 'describe'])
+const TIMER_NAMES = ['setTimeout', 'setInterval', 'setImmediate']
+const BARE_SLEEPS = ['wait', 'sleep', 'delay']
+const TIMEOUT_KEYS = ['timeout', 'interval']
+const EXPECT_WAITS = ['element', 'poll', 'soft']
+const TEST_NAMES = ['test', 'it', 'describe']
 const LIBRARY_WAIT = /^(?:waitFor\w*|find(?:All)?By\w+)$/
 const MATCHER = /^to[A-Z]/
-export const DATA_MATCHERS = new Set([
+export const DATA_MATCHERS = [
   'toBe',
   'toEqual',
   'toStrictEqual',
@@ -22,7 +22,7 @@ export const DATA_MATCHERS = new Set([
   'toBeOneOf',
   'toThrow',
   'toThrowError',
-])
+]
 
 const TIMER_MESSAGE =
   '{{name}} schedules test-side time. Await the async surface the product already exposes (a callback, a stream chunk, a websocket message, a web-first assertion) instead of a timer.'
@@ -38,7 +38,7 @@ function isPropertyKey(node, parent) {
 }
 
 function checkTimer(node, context) {
-  if (!TIMER_NAMES.has(node.name)) return
+  if (!TIMER_NAMES.includes(node.name)) return
   const parent = node.parent
   if (isReadOfHostObject(node, parent)) return
   if (isPropertyKey(node, parent)) return
@@ -47,17 +47,17 @@ function checkTimer(node, context) {
 
 function isExpectWait(callee) {
   if (isIdentifier(callee)) return callee.name === 'expect'
-  return readMemberObjectName(callee) === 'expect' && EXPECT_WAITS.has(readCalleeName(callee))
+  return readMemberObjectName(callee) === 'expect' && EXPECT_WAITS.includes(readCalleeName(callee))
 }
 
 function isTestCallee(callee) {
-  if (isIdentifier(callee)) return TEST_NAMES.has(callee.name)
-  return TEST_NAMES.has(readMemberObjectName(callee))
+  if (isIdentifier(callee)) return TEST_NAMES.includes(callee.name)
+  return TEST_NAMES.includes(readMemberObjectName(callee))
 }
 
 function isWaitName(name) {
   if (LIBRARY_WAIT.test(name)) return true
-  return MATCHER.test(name) && !DATA_MATCHERS.has(name)
+  return MATCHER.test(name) && !DATA_MATCHERS.includes(name)
 }
 
 function isOptionsWait(callee) {
@@ -65,12 +65,12 @@ function isOptionsWait(callee) {
 }
 
 function isSleep(callee) {
-  if (isIdentifier(callee)) return BARE_SLEEPS.has(callee.name)
+  if (isIdentifier(callee)) return BARE_SLEEPS.includes(callee.name)
   return readCalleeName(callee) === 'waitForTimeout'
 }
 
 function isTimeoutKey(property) {
-  return property.type === 'Property' && isIdentifier(property.key) && TIMEOUT_KEYS.has(property.key.name)
+  return property.type === 'Property' && isIdentifier(property.key) && TIMEOUT_KEYS.includes(property.key.name)
 }
 
 function findTimeoutKey(argument) {

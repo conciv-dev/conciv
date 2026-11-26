@@ -1,4 +1,4 @@
-import logos from '@conciv/brand/logos.json'
+import logos from '@internal/brand/logos.json'
 
 export type BrandFile = (typeof logos.files)[number]
 

@@ -1,0 +1,12 @@
+import {Context, type Effect} from 'effect'
+import * as Model from '@conciv/protocol/schema/model'
+
+export const Info: typeof Model.Info = Model.Info
+export type Info = Model.Info
+
+export interface Interface {
+  readonly available: (types?: readonly Model.Type[]) => Effect.Effect<readonly Info[]>
+  readonly default: () => Effect.Effect<Info | undefined>
+}
+
+export const Service = Context.Service<Interface>('@conciv/Model')

@@ -1,6 +1,6 @@
 ---
-'@conciv/plugin': patch
-'@conciv/plugin-whiteboard': patch
+'@conciv/backend-plugin-api': patch
+'@internal/plugin-whiteboard': patch
 '@conciv/plugin-recorder': patch
 '@conciv/plugin-test-runner': patch
 '@conciv/plugin-tanstack': patch

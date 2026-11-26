@@ -1,5 +1,5 @@
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
+import {CONCIV_SESSION_HEADER} from '@conciv/types/chat-types'
+import type {HarnessConnectContext} from '@conciv/types/harness-types'
 
 export const CLAUDE_BIN = 'claude'
 
