@@ -2,7 +2,7 @@
 
 ## The contract
 
-`Rpc.define({id, methods, events})` from `@conciv/backend-plugin-api/rpc`. Each method has an `input`
+`Rpc.define({id, methods, events})` from `@conciv/protocol/schema/rpc`. Each method has an `input`
 and an `output` schema and optional named `errors`; each event has a `schema`. An error name that starts
 with `rpc.` is reserved and throws (`packages/protocol/src/schema/rpc.ts:53-56`). Keep the contract in
 its own module so the engine part, the browser part and the terminal import the same object.
@@ -47,7 +47,7 @@ ask is a tool.
 ## Calling it
 
 - Another plugin's engine part: `ctx.rpc(Contract)` returns a typed client. The TanStack plugin calls
-  the page plugin this way (`ctx.rpc(PageDefinition)`, `packages/plugins/tanstack/src/tools.ts:105-109`).
+  the page plugin this way (`ctx.rpc(PageDefinition)`, `packages/plugins/tanstack/src/tools.ts:106-110`).
 - The browser part: `ctx.client.rpc(Contract).method(input, {signal})`. Events arrive on
   `ctx.client.event.subscribe({types: ['rpc.<id>.<event>']})`, and `server.connected` marks the moment
   to read the current state again (`packages/plugins/test-runner/src/follow.ts:24-42`).

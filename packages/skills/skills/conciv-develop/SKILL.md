@@ -23,7 +23,7 @@ here is the public contract of two published packages:
 | Part         | Runs in                     | Written with                                                               | In a folder                           | In a package                       |
 | ------------ | --------------------------- | -------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------- |
 | Engine part  | the conciv engine (Node)    | `Plugin.define` from `@conciv/backend-plugin-api/effect` or the root entry | a `server` file, else an `index` file | the `./server` export, else `.`    |
-| RPC contract | both parts and the terminal | `Rpc.define({id, methods, events})` from `@conciv/backend-plugin-api/rpc`  | an `rpc` file                         | the `./rpc` export                 |
+| RPC contract | both parts and the terminal | `Rpc.define({id, methods, events})` from `@conciv/protocol/schema/rpc`     | an `rpc` file                         | the `./rpc` export                 |
 | Browser part | the widget (Solid)          | `Plugin.define({setup})` from `@conciv/frontend-plugin-api`                | `plugin-experimental.cjs` or `.js`    | the `./plugin-experimental` export |
 
 The engine finds the parts with `resolve` in `packages/backend-plugin-api/src/host.ts:17-42`.
@@ -89,7 +89,7 @@ The `Rpc.define` contract, from `apps/examples/tanstack-start/conciv/plugins/dep
 
 ```ts
 import {z} from 'zod'
-import {Rpc} from '@conciv/backend-plugin-api/rpc'
+import * as Rpc from '@conciv/protocol/schema/rpc'
 
 export const Deploy = Rpc.define({
   id: 'deploy',
@@ -237,7 +237,8 @@ Registries for `ctx.add` (`packages/frontend-plugin-api/src/registries.ts:414-57
 session pane), `Slot` (`window.bottom`, `session.header`, `session.status`, `page.overlay`),
 `ComposerPill`, `Command` (keybind and slash command), `SettingsPage`, `ToolRegistry` (a card for a
 tool's calls), `CodeBlock`, `CodeBlockAction`, `LinkHandler`, `Server` and `Style` (CSS imported with
-`?inline`), and the page plugin's `PageOperation` from `@conciv/frontend-plugin-api/page`. `ctx.add`
+`?inline`; the widget fences every rule of it to the plugin's own `data-conciv-plugin` area,
+`packages/frontend-app-api/src/plugin/render.tsx:92-131`), and the page plugin's `PageOperation` from `@conciv/frontend-plugin-api/page`. `ctx.add`
 takes an item, or a function that returns one (or `undefined` for none). `Plugin.define({stores})`
 declares `Store.global`, `Store.project` and `Store.session` values
 (`packages/frontend-plugin-api/src/core.ts:219-260`). `ctx.provide` and `ctx.use` share contracts
@@ -247,12 +248,23 @@ returns the `Grab`). Follow a changing source with `createKeyed`
 (`packages/frontend-plugin-api/src/reactive.ts:59`). Draw with `ctx.ui` components, so the plugin looks
 like the widget.
 
+The widget's sheet holds the classes of the widget, its kits and the built-in plugins
+(`packages/app/uno.config.ts`), nothing else. Any other plugin ships its own: in this repo its
+`uno.config.ts` is `pluginSheetConfig(import.meta.url)` (`packages/uno-preset/src/uno-preset.ts:49-61`) and its
+browser part adds `virtual:uno.css?inline` with `ctx.add(Style, css)`
+(`packages/plugins/whiteboard/src/plugin-experimental.tsx:19,56`). A popover it opens keeps the fence through
+`LayerAreaContext` (`packages/ui-kit-system/src/layer-portal.tsx`).
+
+A mounted session's `browserTab` (`packages/frontend-plugin-api/src/host-apis.ts:213`) is the browser tab this
+widget opened for it, the id the engine lists in `tabs.list`; the engine part reads the list with
+`ctx.browserTabs` (`packages/backend-plugin-api/src/effect/plugin.ts:50-53`).
+
 `experimental()` from `@conciv/frontend-plugin-api/vite` builds `src/plugin-experimental.tsx` into
 `dist/plugin-experimental.cjs` by default; `entry` and `outFile` change both
 (`packages/frontend-plugin-api/src/vite.ts:7-44`). The widget provides `effect`, `zod`, `solid-js`,
 `solid-js/web`, `solid-js/store`, `@conciv/client`, `@conciv/frontend-plugin-api`,
 `@conciv/frontend-plugin-api/page`, `@conciv/frontend-plugin-api/grab` and
-`@conciv/backend-plugin-api/rpc` (`packages/frontend-plugin-api/src/modules.ts:1-15`). The build keeps
+`@conciv/protocol/schema/rpc` (`packages/frontend-plugin-api/src/modules.ts:1-15`). The build keeps
 them external and fails on any other `effect`, `solid-js` or `@conciv` import.
 
 ## Testing
