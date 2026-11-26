@@ -119,7 +119,7 @@ const startNativeService = Effect.fn('ios.native.start')(function* () {
   const client = yield* IosBridge.makeNativeClient({
     transport,
     clientId: `native-${crypto.randomUUID()}`,
-    apiBase: IosBridge.nativePageBase(window.location),
+    apiBase: window.location.origin,
   })
   const run = yield* FiberSet.makeRuntime<never, unknown, unknown>()
   const runPromise = yield* FiberSet.makeRuntimePromise<never, unknown, unknown>()

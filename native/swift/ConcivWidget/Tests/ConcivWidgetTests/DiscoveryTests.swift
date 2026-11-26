@@ -14,9 +14,9 @@ final class DiscoveryTests: XCTestCase {
   }
 
   func testParsePairingFileReadsBaseTokenAndPid() {
-    let json = #"{"apiBase":"http://127.0.0.1:4599/t/secret","token":"secret","pid":4242}"#
+    let json = #"{"apiBase":"http://127.0.0.1:4599","token":"secret","pid":4242}"#
     let endpoint = ConcivDiscovery.parsePairingFile(Data(json.utf8))
-    XCTAssertEqual(endpoint?.apiBase, url("http://127.0.0.1:4599/t/secret"))
+    XCTAssertEqual(endpoint?.apiBase, url("http://127.0.0.1:4599"))
     XCTAssertEqual(endpoint?.token, "secret")
     XCTAssertEqual(endpoint?.pid, 4242)
   }
@@ -32,10 +32,11 @@ final class DiscoveryTests: XCTestCase {
     XCTAssertNil(ConcivDiscovery.parsePairingFile(Data(#"{"token":null,"pid":1}"#.utf8)))
   }
 
-  func testPageAndHealthUrlsPreserveTheTokenPrefixWhileOriginStaysHostPort() {
-    let apiBase = url("http://127.0.0.1:4599/t/secret")
-    XCTAssertEqual(ConcivDiscovery.pageURL(for: apiBase), url("http://127.0.0.1:4599/t/secret/widget"))
-    XCTAssertEqual(ConcivDiscovery.healthURL(for: apiBase), url("http://127.0.0.1:4599/t/secret/health"))
+  func testPageUrlCarriesTheTokenAsTheAuthQueryWhileHealthAndOriginStayBare() {
+    let apiBase = url("http://127.0.0.1:4599")
+    let endpoint = ConcivEndpoint(apiBase: apiBase, token: "secret", pid: 1)
+    XCTAssertEqual(ConcivDiscovery.pageURL(for: endpoint), url("http://127.0.0.1:4599/widget?conciv_auth_token=secret"))
+    XCTAssertEqual(ConcivDiscovery.healthURL(for: apiBase), url("http://127.0.0.1:4599/health"))
     XCTAssertEqual(ConcivDiscovery.origin(of: apiBase), "http://127.0.0.1:4599")
     XCTAssertEqual(ConcivDiscovery.origin(of: url("https://example.test")), "https://example.test")
   }
@@ -78,16 +79,16 @@ final class DiscoveryTests: XCTestCase {
     XCTAssertFalse(ConcivDiscovery.isSameCore(previous: a, discovered: probed))
   }
 
-  func testPageUrlAppendsNativeOnceToATokenlessBase() {
-    let apiBase = url("http://127.0.0.1:8891")
-    XCTAssertEqual(ConcivDiscovery.pageURL(for: apiBase), url("http://127.0.0.1:8891/widget"))
+  func testPageUrlAppendsWidgetOnceToATokenlessEndpoint() {
+    let endpoint = ConcivEndpoint(apiBase: url("http://127.0.0.1:8891"), token: nil, pid: nil)
+    XCTAssertEqual(ConcivDiscovery.pageURL(for: endpoint), url("http://127.0.0.1:8891/widget"))
+    let emptyToken = ConcivEndpoint(apiBase: url("http://127.0.0.1:8891"), token: "", pid: nil)
+    XCTAssertEqual(ConcivDiscovery.pageURL(for: emptyToken), url("http://127.0.0.1:8891/widget"))
   }
 
   func testEnvApiBaseParsesAValidBaseRejectsMalformedAndTreatsUnsetAsDiscovery() {
     let valid = ConcivDiscovery.envApiBase(environment: ["CONCIV_URL": "http://127.0.0.1:4599"])
     XCTAssertEqual(valid, url("http://127.0.0.1:4599"))
-    let tokenScoped = ConcivDiscovery.envApiBase(environment: ["CONCIV_URL": "http://127.0.0.1:4599/t/secret"])
-    XCTAssertEqual(tokenScoped, url("http://127.0.0.1:4599/t/secret"))
 
     XCTAssertNil(ConcivDiscovery.envApiBase(environment: [:]))
     XCTAssertNil(ConcivDiscovery.envApiBase(environment: ["CONCIV_URL": ""]))
@@ -111,14 +112,14 @@ final class DiscoveryTests: XCTestCase {
 
   func testDiscoverPrefersHealthyPairingFile() {
     let pairing = url("file:///tmp/dev-endpoint.json")
-    let json = #"{"apiBase":"http://127.0.0.1:4599/t/secret","token":"secret","pid":77}"#
+    let json = #"{"apiBase":"http://127.0.0.1:4599","token":"secret","pid":77}"#
     let discoverer = ConcivDiscoverer(
       pairingFileURL: pairing,
       readFile: { $0 == pairing ? Data(json.utf8) : nil },
-      probe: { $0 == ConcivDiscovery.healthURL(for: self.url("http://127.0.0.1:4599/t/secret")) }
+      probe: { $0 == ConcivDiscovery.healthURL(for: self.url("http://127.0.0.1:4599")) }
     )
     let endpoint = discoverer.discover()
-    XCTAssertEqual(endpoint?.apiBase, url("http://127.0.0.1:4599/t/secret"))
+    XCTAssertEqual(endpoint?.apiBase, url("http://127.0.0.1:4599"))
     XCTAssertEqual(endpoint?.token, "secret")
     XCTAssertEqual(endpoint?.pid, 77)
   }

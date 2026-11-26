@@ -8,7 +8,7 @@ const DEFAULT_DEVELOPER_DIR = '/Applications/Xcode.app/Contents/Developer'
 const WIDGET_SUFFIX = '/widget'
 
 const CONCIV_URL_RULE =
-  'concivUrl must be the engine api base with no page path (an optional /t/<token> prefix is allowed): the swift sdk appends /widget itself, see packages/plugins/ios/README.md'
+  'concivUrl must be the engine api base with no path: the swift sdk appends /widget itself, see packages/plugins/ios/README.md'
 
 function withoutTrailingSlashes(raw: string): string {
   return raw.replace(/\/+$/, '')
@@ -20,7 +20,7 @@ function stripNativeSuffix(raw: string): string {
 }
 
 function isBareApiBase(raw: string): boolean {
-  return URL.canParse(raw) && /^(\/t\/[^/]+)?$/.test(withoutTrailingSlashes(new URL(raw).pathname))
+  return URL.canParse(raw) && withoutTrailingSlashes(new URL(raw).pathname) === ''
 }
 
 const ConcivUrlSchema = z.string().url().transform(stripNativeSuffix).refine(isBareApiBase, {message: CONCIV_URL_RULE})
