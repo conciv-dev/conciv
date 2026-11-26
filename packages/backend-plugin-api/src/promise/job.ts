@@ -16,4 +16,5 @@ export interface JobDomain {
   readonly get: (id: string) => Promise<JobInfo | undefined>
   readonly wait: (input: JobWaitInput) => Promise<JobWaitResult>
   readonly cancel: (id: string) => Promise<JobInfo | undefined>
+  readonly completeBackground: (notificationID: string) => Promise<void>
 }

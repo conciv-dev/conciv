@@ -450,6 +450,7 @@ export function fromPromise(plugin: Plugin.Plugin) {
             get: (id) => run(host.job.get(id)),
             wait: (input) => run(host.job.wait(input)),
             cancel: (id) => run(host.job.cancel(id)),
+            completeBackground: (notificationID) => run(host.job.completeBackground(notificationID)),
           },
           session: {
             hook: (name, callback) =>

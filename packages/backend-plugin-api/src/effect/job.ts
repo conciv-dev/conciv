@@ -37,4 +37,5 @@ export interface JobDomain {
   readonly get: (id: string) => Effect.Effect<JobInfo | undefined>
   readonly wait: (input: JobWaitInput) => Effect.Effect<JobWaitResult>
   readonly cancel: (id: string) => Effect.Effect<JobInfo | undefined>
+  readonly completeBackground: (notificationID: string) => Effect.Effect<void>
 }

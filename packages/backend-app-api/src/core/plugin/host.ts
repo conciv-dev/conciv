@@ -183,7 +183,17 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
       hook: (name, callback) => hooks.register('tool', name, callback),
     },
     browserTabs: {list: browserTabs.list, sessions: browserTabs.sessions},
-    job: {start: jobs.start, get: jobs.get, wait: jobs.wait, cancel: jobs.cancel},
+    job: {
+      start: jobs.start,
+      get: jobs.get,
+      wait: jobs.wait,
+      cancel: jobs.cancel,
+      completeBackground: (notificationID) =>
+        Schema.decodeUnknownEffect(SessionMessage.Id)(notificationID).pipe(
+          Effect.flatMap(jobs.completeBackground),
+          Effect.catchTag('SchemaError', () => Effect.void),
+        ),
+    },
     session: {
       hook: (name, callback) => hooks.register('session', name, callback),
       list: sessions.list,
