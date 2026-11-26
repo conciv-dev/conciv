@@ -31,6 +31,7 @@ the browser, oxlint `no-console`.
       precedence, computed by one function.
 - [ ] On at runtime by an agent: outside (`logs.setLevel` over the hub, `conciv logs level <level>`) and inside (the
       `set_log_level` tool), for the engine, the widget, or both; `logs.level` shows the current levels live.
+- [ ] Agents read the logs: `logs.query`/`logs.tail` over the hub and the CLI (`conciv logs`), and code mode inside.
 - [ ] Every inventory row classed **log** is converted; every **output** row is untouched and listed.
 - [ ] No feature lost: every message that was logged before still exists at a level.
 - [ ] No test added where an existing journey can carry it; the test budget is unchanged or each raise is accounted.
@@ -154,3 +155,37 @@ listed above.
   and tab id as fields instead.
 - **Tests:** fold one step into the `frontend-defaults` e2e that already sets settings: with `logs.setLevel` to
   `debug` for the widget, an action that logs reaches the engine sink with `source: 'client'`.
+
+### Task 6: Agents can read the logs (outside and in)
+
+The maintainer: "we must expose an API for the agent to query the logs". evlog has no MCP server or agent tools (read
+2026-11-27: `evlog@2.37.1` exports, `@evlog/cli` 0.13.0 has `init`, `agents`, `map` only, the signals pages have no read
+path). It does ship the storage and the reads:
+
+- `evlog/fs`: `createFsDrain` writes NDJSON per day (`.evlog/logs/2026-03-14.jsonl`, size rotation);
+  `readFsLogs({dir, since, until, level, filter})` (async generator of `WideEvent`) and `tailFsLogs` (follow).
+- `evlog/memory`: `createMemoryDrain({store, maxEvents: 1000})` ring buffer; `readMemoryLogs({store, since, until,
+  level, filter, limit})`.
+
+Steps:
+
+- The one sink (Task 2) writes through `createFsDrain` into the engine's existing log folder (the one
+  `util/observability/logging.ts` `file(...)` uses today) and `createMemoryDrain` (`maxEvents` 2000). Every log entry,
+  engine and client, is one `WideEvent` (level, timestamp, message, fields, `source`). This replaces the hand-written file
+  logger; the format on disk becomes evlog's NDJSON.
+- Contract: `logs.query({since?, until?, level?: LogLevel[], source?: 'engine' | 'client', text?, sessionId?, limit (default
+  200, max 2000)})` reads the memory ring first and falls back to `readFsLogs` for older ranges; `text` and `sessionId`
+  become the `filter` predicate. `logs.tail({level?, source?})` streams new events (`tailFsLogs`, as an async iterator).
+  Both `.effect` handlers once the oRPC 2 PR lands; plain handlers until then.
+- Outside agent: through the hub like any procedure, and `conciv logs [--level <l>] [--since <time>] [--grep <text>]
+  [--follow]` in the CLI.
+- Inside agent: code mode gets them as `external_logs_query` / the tail as a stream, like every engine capability
+  (read how core capabilities reach code mode and follow it). Reading logs does not ask permission; widget events carry
+  page data, so `source: 'client'` events are redacted through evlog's redaction config (read `evlog.dev/learn/redaction`)
+  before they are stored.
+- Logs off means nothing is stored and `logs.query` answers `[]` with `{level: 'off'}` so the agent knows to raise it.
+- Not now: `@evlog/signals` (model judgments on each event through an external AI gateway, a cost and egress decision for
+  the maintainer later).
+- **Tests:** fold into the Task 4 step in `router.it.test.ts`: after `logs.setLevel('debug')`, a call's log entry comes
+  back from `logs.query({text})`.
+- Goals checklist addition: "Agents read the logs: `logs.query`/`logs.tail` over the hub and CLI, and code mode inside."
