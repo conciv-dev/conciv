@@ -39,7 +39,7 @@
   "conciv-e2e-vite-solid-component": 1,
   "conciv-e2e-vite-vanilla": 1,
   "site": 3,
-  "@internal/frontend-app-api": 1,
+  "@internal/frontend-app-api": 2,
   "@conciv/client": 9,
   "@conciv/frontend-plugin-api": 4,
   "@conciv/protocol": 3
