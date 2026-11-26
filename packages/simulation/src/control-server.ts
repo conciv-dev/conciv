@@ -1,4 +1,5 @@
 import {AsyncIteratorClass, ORPCError, type Router} from '@orpc/server'
+import '@orpc/effect/extensions/effect'
 import {RPCHandler} from '@orpc/server/websocket'
 import {Effect, Queue, type Scope} from 'effect'
 import {WebSocketServer, type WebSocket} from 'ws'
@@ -41,9 +42,12 @@ function nextValue<A>(queue: Queue.Dequeue<A>, connection: Connection): Promise<
 export function notifications<A>(
   queue: Queue.Dequeue<A>,
   connection: Connection,
-  cleanup: () => Promise<void>,
+  release: Effect.Effect<void>,
 ): AsyncIteratorClass<A, undefined> {
-  return new AsyncIteratorClass(() => nextValue(queue, connection), cleanup)
+  return new AsyncIteratorClass(
+    () => nextValue(queue, connection),
+    () => Effect.runPromise(release),
+  )
 }
 
 function oneAtATime() {

@@ -214,10 +214,6 @@ const makeControllers = (driver: Driver) =>
     return {take, release}
   })
 
-function run<A, E>(effect: Effect.Effect<A, E>, refuse: (failure: E) => Error): Promise<A> {
-  return Effect.runPromise(effect.pipe(Effect.mapError(refuse)))
-}
-
 const makeRouter = (
   driver: Driver,
   controllers: Effect.Success<ReturnType<typeof makeControllers>>,
@@ -226,65 +222,83 @@ const makeRouter = (
 ) => {
   const os = implement(backendContract).$context<SimulationControlServer.Context>()
   return os.router({
-    handshake: os.handshake.handler(({input, errors}) => {
+    handshake: os.handshake.effect(function* ({input, errors}) {
       const outcome = dispatchHandshake(
         {role: 'backend', server: {name: 'conciv', version}, capabilities: BACKEND_CAPABILITIES},
         input,
       )
       if (outcome.type === 'accepted') return outcome.response
       const refused = outcome.refusal
-      if (refused.code === 'ROLE_MISMATCH') throw errors.ROLE_MISMATCH(refused)
-      if (refused.code === 'UNSUPPORTED_PROTOCOL') throw errors.UNSUPPORTED_PROTOCOL(refused)
-      throw errors.MISSING_CAPABILITY(refused)
+      if (refused.code === 'ROLE_MISMATCH') return yield* Effect.fail(errors.ROLE_MISMATCH(refused))
+      if (refused.code === 'UNSUPPORTED_PROTOCOL') return yield* Effect.fail(errors.UNSUPPORTED_PROTOCOL(refused))
+      return yield* Effect.fail(errors.MISSING_CAPABILITY(refused))
     }),
     llm: {
-      subscribe: os.llm.subscribe.handler(async ({context, errors}) => {
-        const attachment = await run(controllers.take(context.connection), (failure) =>
-          errors.CONTROLLER_DISCONNECTED({message: failure.message}),
-        )
-        return SimulationControlServer.notifications(attachment.notifications, context.connection, () =>
-          Effect.runPromise(controllers.release(context.connection, attachment)),
+      subscribe: os.llm.subscribe.effect(function* ({context, errors}) {
+        const attachment = yield* controllers
+          .take(context.connection)
+          .pipe(Effect.mapError((failure) => errors.CONTROLLER_DISCONNECTED({message: failure.message})))
+        return SimulationControlServer.notifications(
+          attachment.notifications,
+          context.connection,
+          controllers.release(context.connection, attachment),
         )
       }),
-      pending: os.llm.pending.handler(async () => ({invocations: await Effect.runPromise(driver.pending)})),
-      chunk: os.llm.chunk.handler(async ({input, errors}) => {
-        await run(driver.push(input.id, input.items), (failure) =>
-          errors.INVOCATION_NOT_FOUND({message: failure.message, data: {id: input.id}}),
-        )
+      pending: os.llm.pending.effect(function* () {
+        return {invocations: yield* driver.pending}
+      }),
+      chunk: os.llm.chunk.effect(function* ({input, errors}) {
+        yield* driver
+          .push(input.id, input.items)
+          .pipe(
+            Effect.mapError((failure) => errors.INVOCATION_NOT_FOUND({message: failure.message, data: {id: input.id}})),
+          )
         return {ok: true}
       }),
-      finish: os.llm.finish.handler(async ({input, errors}) => {
-        await run(driver.finish(input.id, input.reason), (failure) =>
-          errors.INVOCATION_NOT_FOUND({message: failure.message, data: {id: input.id}}),
-        )
+      finish: os.llm.finish.effect(function* ({input, errors}) {
+        yield* driver
+          .finish(input.id, input.reason)
+          .pipe(
+            Effect.mapError((failure) => errors.INVOCATION_NOT_FOUND({message: failure.message, data: {id: input.id}})),
+          )
         return {ok: true}
       }),
-      disconnect: os.llm.disconnect.handler(async ({input, errors}) => {
-        await run(driver.disconnect(input.id), (failure) =>
-          errors.INVOCATION_NOT_FOUND({message: failure.message, data: {id: input.id}}),
-        )
+      disconnect: os.llm.disconnect.effect(function* ({input, errors}) {
+        yield* driver
+          .disconnect(input.id)
+          .pipe(
+            Effect.mapError((failure) => errors.INVOCATION_NOT_FOUND({message: failure.message, data: {id: input.id}})),
+          )
         return {ok: true}
       }),
     },
     tool: {
-      register: os.tool.register.handler(async ({input, context, errors}) => {
-        const notifications = await run(tools.install(context.connection, input.tools), (failure) =>
-          SimulatedTools.refusal(failure, errors),
-        )
-        return SimulationControlServer.notifications(notifications, context.connection, () =>
-          Effect.runPromise(tools.release(context.connection, notifications)),
+      register: os.tool.register.effect(function* ({input, context, errors}) {
+        const notifications = yield* tools
+          .install(context.connection, input.tools)
+          .pipe(Effect.mapError((failure) => SimulatedTools.refusal(failure, errors)))
+        return SimulationControlServer.notifications(
+          notifications,
+          context.connection,
+          tools.release(context.connection, notifications),
         )
       }),
-      update: os.tool.update.handler(async ({input, context, errors}) => {
-        await run(tools.update(context.connection, input), (failure) => SimulatedTools.refusal(failure, errors))
+      update: os.tool.update.effect(function* ({input, context, errors}) {
+        yield* tools
+          .update(context.connection, input)
+          .pipe(Effect.mapError((failure) => SimulatedTools.refusal(failure, errors)))
         return {ok: true}
       }),
-      finish: os.tool.finish.handler(async ({input, context, errors}) => {
-        await run(tools.finish(context.connection, input), (failure) => SimulatedTools.refusal(failure, errors))
+      finish: os.tool.finish.effect(function* ({input, context, errors}) {
+        yield* tools
+          .finish(context.connection, input)
+          .pipe(Effect.mapError((failure) => SimulatedTools.refusal(failure, errors)))
         return {ok: true}
       }),
-      fail: os.tool.fail.handler(async ({input, context, errors}) => {
-        await run(tools.fail(context.connection, input), (failure) => SimulatedTools.refusal(failure, errors))
+      fail: os.tool.fail.effect(function* ({input, context, errors}) {
+        yield* tools
+          .fail(context.connection, input)
+          .pipe(Effect.mapError((failure) => SimulatedTools.refusal(failure, errors)))
         return {ok: true}
       }),
     },
