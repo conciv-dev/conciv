@@ -41,7 +41,9 @@ The rest:
 - `@conciv/protocol` (the oRPC contract and shared schemas), `@conciv/types` (wire types), `@conciv/client` (the
   browser's engine connection and rpc client, plus the fake engine in `@conciv/client/testing`), `@conciv/home` (the per-user home registry),
   `@conciv/harness` (harness adapters), `@conciv/serve` (the node HTTP server), `@conciv/simulation` (opencode's
-  simulation: the scripted agent and fixed network table), `@conciv/cli`, `@conciv/unplugin` and `@conciv/it` (the
+  simulation: the scripted agent and fixed network table, switched on with `CONCIV_SIMULATE`; and the driver side of
+  the widget's drive mode, `@conciv/simulation/frontend`: with `CONCIV_DRIVE` set the widget connects out to the
+  driver and serves `uiContract` from `@conciv/protocol/simulation`, as opencode's `OPENCODE_DRIVE`), `@conciv/cli`, `@conciv/unplugin` and `@conciv/it` (the
   host-side install), the `ui-kit-*` packages, `@conciv/mascot`.
 - Test utilities, as Backstage's `backend-test-utils` and `frontend-test-utils` (see Testing): `@conciv/backend-test-utils`,
   `@internal/frontend-test-utils`, `@internal/engine-kit` (the engine kit both backend-defaults' own tests and
@@ -215,8 +217,12 @@ Tests are laid out as Backstage's and run as opencode's. The plan and its rules 
 
 ### The test utilities
 
-As Backstage: the backend kit starts the real engine, the frontend kit renders the real shell against a fake engine.
-Nothing else is exported; a new export or option on any of them needs the maintainer's yes.
+The point of the test utilities, as Backstage's: a plugin tests EVERYTHING about itself from its own package, against
+the real engine or the fake one, in node or the browser, with the same calls. The utilities provide every fake a
+plugin needs (as Backstage's `mockApis`); a plugin's `test/utils` holds only that plugin's own sample data, never a
+re-implementation of engine or shell behaviour. If a plugin's test has to live anywhere else, the utilities are
+missing something: add it there. Nothing else is exported; a new export or option on any of them needs the
+maintainer's yes.
 
 - `@conciv/backend-test-utils` (published, as `@backstage/backend-test-utils`): `test`, `TestLLM`, `pluginDirectory`.
   `test` is vitest's `test` extended with a `createEngine` fixture:
@@ -260,11 +266,16 @@ Nothing else is exported; a new export or option on any of them needs the mainta
   - `createExtensionTester(...)`: one extension (a tool card, a tab) on its own.
   - `useFakeEngine(engine?)`: the fake engine the render uses.
 - `@conciv/client/testing`: `createFakeEngine()` and `FakeLLM`. The fake engine is built with oRPC's
-  `implement(contract)` on the real contract (`@conciv/protocol`), reached through an in-memory link, so it answers
-  every procedure with the contract's own types; per-procedure handlers can be overridden for one test. A plugin keeps
-  its own rpc fake in its `test/utils` (`createFakeWhiteboard`, `fake-page.ts`), built the same way on that plugin's
-  contract. When the fake cannot do something a test needs, extend the fake to match the real engine; never drop the
-  step.
+  `implement(contract)` on the real contract (`@conciv/protocol`), reached through an in-memory link, and answers like
+  the real engine: sessions and paging, past CLI sessions, compaction, harness models, run events, permission asks,
+  plugin bundles (`servePluginBundle` in `@internal/frontend-test-utils/app` serves a plugin's built bundle as the
+  engine does, so the shell loads it through its real loader). Per-procedure handlers can be overridden for one test,
+  and `plugins: {<id>: handlers}` answers a plugin's own rpc. When the fake cannot do something a test needs, extend
+  the fake to match the real engine; never drop the step.
+- A plugin's own fakes ship from the plugin, as Backstage's `@backstage/plugin-catalog-react/testUtils`
+  (`catalogApiMock`): a `./test-utils` subpath, e.g. `@conciv/plugin-page/test-utils` (`pageTestPlugin`, the page
+  built-in as the test app renders it) and `@conciv/plugin-test-runner/test-utils` (`createTestRunState`). Other
+  plugins' tests import them; nothing re-creates them.
 - `@internal/vitest-config`: `concivTest({environment?, browser?})` in each package's one `vite.config.ts` (no
   `vitest*.config` file) adds the `unit` and `it` projects, and with `browser: true` the `browser` and `perf` ones.
   `conciv()` (`@conciv/unplugin`) adds nothing under vitest. `test/unit` runs in node unless the package passes
