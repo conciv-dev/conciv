@@ -6,8 +6,9 @@ import * as Permission from './permission.js'
 import * as Plugin from './plugin.js'
 import * as Skill from './skill.js'
 import * as SessionEvent from './session-event.js'
+import * as BrowserTabEvent from './browser-tab-event.js'
 
-const coreDefinitions = Event.inventory(...SessionEvent.Definitions)
+const coreDefinitions = Event.inventory(...SessionEvent.Definitions, ...BrowserTabEvent.Definitions)
 
 const foundationDefinitions = Event.inventory(...Agent.Event.Definitions, ...coreDefinitions)
 

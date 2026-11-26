@@ -22,6 +22,7 @@ import {UiAnswerValueSchema} from '@conciv/types/ui-types'
 import {TtyServerControlSchema} from '@conciv/types/terminal-types'
 import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
+import {BrowserTabOpen, BrowserTabList, BrowserTabsChange} from './schema/browser-tab.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
@@ -132,6 +133,7 @@ export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 const Ok = z.object({ok: z.literal(true)})
 
 const notFound = {NOT_FOUND: {message: 'session not found'}}
+const tabUnavailable = {UNAVAILABLE: {message: 'the tab is not open on this engine'}}
 const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
 const HubHarnessInput = z.object({harness: z.enum(INIT_HARNESS_IDS)})
 const HubOutcome = z
@@ -464,6 +466,16 @@ export const contract = {
       })
       .input(SessionIdInput.extend({harnessId: z.string().min(1), model: z.string().min(1).optional()}))
       .output(z.object({harnessId: z.string()})),
+  },
+  tabs: {
+    open: oc
+      .errors({...notFound, ...tabUnavailable})
+      .input(BrowserTabOpen)
+      .output(z.enum(['closed', 'replaced'])),
+    state: oc.errors(tabUnavailable).input(BrowserTabOpen).output(Ok),
+    list: oc.input(SessionIdInput).output(BrowserTabList),
+    sessions: oc.output(z.array(SessionId)),
+    changes: oc.output(eventIterator(BrowserTabsChange)),
   },
   settings: {
     all: oc.input(SettingsInput).output(SettingsSnapshotSchema),

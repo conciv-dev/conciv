@@ -104,6 +104,14 @@
       "types": "./dist/schema/skill.d.ts",
       "import": "./dist/schema/skill.js"
     },
+    "./schema/browser-tab": {
+      "types": "./dist/schema/browser-tab.d.ts",
+      "import": "./dist/schema/browser-tab.js"
+    },
+    "./schema/browser-tab-event": {
+      "types": "./dist/schema/browser-tab-event.d.ts",
+      "import": "./dist/schema/browser-tab-event.js"
+    },
     "./schema/tool": {
       "types": "./dist/schema/tool.d.ts",
       "import": "./dist/schema/tool.js"

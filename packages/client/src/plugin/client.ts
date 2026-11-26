@@ -29,6 +29,7 @@ export function make(
   const groups = {
     auth: raw.auth,
     sessions: raw.sessions,
+    tabs: raw.tabs,
     settings: raw.settings,
     drafts: raw.drafts,
     markers: raw.markers,
