@@ -1,0 +1,99 @@
+---
+title: Call your plugin from a terminal
+description: Run one of your plugin's RPC methods on the running engine with conciv plugin call, and read its JSON answer.
+---
+
+`conciv plugin call` runs one of your plugin's RPC methods on the running engine and prints the answer. Use it to try
+a method while you write it, or to call your plugin from a script.
+
+## Call a method
+
+Start your dev server, then run the method from your project folder:
+
+```bash
+conciv plugin call plant-shelf count --data '{"plant": "fern"}'
+```
+
+```json
+{"ok": true, "data": {"plant": "fern", "count": 3}}
+```
+
+- `plant-shelf` is the id of the plugin's RPC contract. See [Share an RPC method](/docs/plugins/guides/rpc).
+- `count` is the method.
+- `--data` is the method's input, as JSON. Leave it out for a method that takes no input. `-d` is the short form.
+- The answer is one line of JSON. On success it holds `ok: true`, and the output is under data.
+- The command exits `0` on success.
+
+The plugins conciv ships answer the same way. This reads the test runner's last result:
+
+```bash
+conciv plugin call test-runner status
+```
+
+## Read a failure
+
+A failure prints `ok: false` and an error. The command exits `1`. A method's own error carries its name as
+`type`, with its message and data. Here the shelf has no ferns left:
+
+```bash
+conciv plugin call plant-shelf sell --data '{"plant": "fern"}'
+```
+
+```json
+{
+  "ok": false,
+  "error": {
+    "kind": "user",
+    "message": "fern is sold out",
+    "code": "PLUGIN_RPC",
+    "type": "sold-out",
+    "data": {"plant": "fern"}
+  }
+}
+```
+
+The engine answers some errors itself:
+
+- `rpc.unavailable`: no plugin registered that contract id.
+- `rpc.method_not_found`: the contract has no such method.
+- `rpc.invalid_input`: the data does not match the method's input.
+- `rpc.internal`: the method threw. The code is `PLUGIN_RPC_INTERNAL`.
+- `rpc.invalid_output`: the method returned something its output schema refuses. The code is `PLUGIN_RPC_INTERNAL`.
+
+Data that is not JSON is refused before anything is sent:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "kind": "user",
+    "message": "--data is not JSON: {plant: fern}",
+    "hint": "pass the method's input as JSON, for example --data '{}'"
+  }
+}
+```
+
+## Which engine answers
+
+The command finds the engine in this order:
+
+1. The port in `CONCIV_PORT`, when it is set. `CONCIV_TOKEN` is the token it sends.
+2. The engine recorded in the `.conciv` folder of the current folder, or of the nearest folder above it.
+3. The engine that started last on this machine.
+4. Port 5173 on `127.0.0.1`, when no engine was ever registered.
+
+<Accordions>
+<Accordion title="When no engine answers">
+
+An engine that is registered but silent prints `no conciv dev server answered`, with a hint. A dev server still
+starting answers once it is ready, so run the command again. Restart the dev server if it stays silent.
+
+The call runs outside any session, so it takes no `--tab`.
+
+</Accordion>
+</Accordions>
+
+## Next
+
+- [Share an RPC method](/docs/plugins/guides/rpc): write the methods this command calls.
+- [CLI](/docs/cli): every conciv command.
