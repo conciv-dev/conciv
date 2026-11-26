@@ -1,46 +1,82 @@
 ---
 title: Whiteboard
-description: A shared Excalidraw canvas over your app. You sketch, the agent draws back.
+description: Sketch on a canvas over your app, and have the agent build it or draw back.
 ---
 
-The whiteboard is a shared [Excalidraw](https://excalidraw.com) canvas that opens over your dev app. You and the agent
-draw on the same surface: sketch a rough layout and ask the agent to build it, or ask it to diagram the thing you are
-both looking at.
+Open the whiteboard, sketch a rough layout over your app, and ask the agent to build it:
+
+```text
+Build the layout I sketched on the whiteboard, using our Card component.
+```
+
+The whiteboard is an [Excalidraw](https://excalidraw.com) canvas that you and the agent share. You both draw on the same
+surface.
 
 <Callout type="warn">
-  The whiteboard comes from the whiteboard plugin, `@internal/plugin-whiteboard`. conciv does not ship it, and the
-  package is not published to npm yet. Inside the conciv repo, the example apps load it from its folder (see
-  [Examples](/docs/examples)).
+  The whiteboard plugin is not on npm yet. Today it runs only in the example apps inside the conciv repo, which load
+  it from its folder. See [Examples](/docs/examples).
 </Callout>
 
-## Open it
+## Open the canvas
 
-The **Whiteboard** button above the composer ("Open the whiteboard canvas") opens the canvas over the page, with the chat
-still usable above it. Escape closes it. Once opened, the canvas stays mounted while hidden, so the agent keeps drawing
-into it. The canvas is transparent so the page shows through; **Canvas background** in the general settings turns that
-off for a solid canvas.
+Click **Whiteboard** above the composer. The canvas opens over the page, and the chat stays usable above it. Press
+Escape to close it.
 
-## The agent draws real elements
+The canvas is see-through, so your page shows under your sketch. For a solid canvas, turn off **Canvas background** in
+the general settings.
 
-When the agent draws, it writes real, editable Excalidraw elements onto the canvas, not an image. You can move,
-restyle and delete anything it drew. It can draw shapes, convert SVG, turn a mermaid diagram into native shapes and
-connect elements with arrows. It draws into a draft first and commits it to the shared canvas; a draft left when a
-turn ends is committed for it.
+## Have the agent draw
 
-The agent calls the whiteboard tools from code mode as `external_whiteboard_*`, such as
-`external_whiteboard_canvas_diagram`.
+Ask for a diagram of what you are both looking at:
 
-## Comments anchored to your source
+```text
+Draw a diagram of how the checkout page loads its data.
+```
 
-Comments and pins attach to your source, not only to canvas coordinates. The agent can leave a comment on the
-component it is talking about, reply, resolve a thread when it is addressed, and pick up threads you started. The
-**Comment** button above the composer ("Comment on an element") lets you pick an element on the page and comment on it.
+The agent draws real Excalidraw shapes, not a picture. Move, restyle or delete anything it drew. It can draw shapes,
+connect them with arrows, convert an SVG, and turn a mermaid diagram into shapes.
 
-These agent actions ask you first, with a [Permission card](/docs/usage/approvals): deleting an element, clearing the
-canvas, resolving a comment and deleting a comment.
+## Comment on an element
 
-## Where the board lives
+Click **Comment** above the composer, then click an element on the page. The comment is tied to the component's
+source, not to a spot on the canvas.
 
-Each chat session has its own board. The engine keeps it in the plugin's storage under your project's state root, so
-it stays on your machine and a second engine on the same state root reads it back. Every open tab follows the board as
-it changes.
+The agent can comment too, and reply to yours:
+
+```text
+Leave a comment on each component that still uses the old button.
+```
+
+Ask it to work through the open comments:
+
+```text
+Go through my comments on the whiteboard and fix each one. Resolve the ones you fixed.
+```
+
+## Details
+
+<Accordions type="single">
+  <Accordion title="What asks you first">
+    Deleting an element, clearing the canvas, resolving a comment and deleting a comment each show a [Permission
+    card](/docs/usage/approvals) first.
+  </Accordion>
+  <Accordion title="The agent draws in a draft">
+    The agent draws into a draft first, then adds it to the shared canvas. A draft still open when its turn ends is
+    added for it.
+  </Accordion>
+  <Accordion title="Where the board is kept">
+    Each chat session has its own board. The engine keeps it in your project's conciv state, on your machine. Every
+    open tab shows the same board as it changes.
+  </Accordion>
+  <Accordion title="Closing keeps the board">
+    Closing the canvas only hides it. It stays loaded, so the agent can keep drawing while it is closed.
+  </Accordion>
+  <Accordion title="The tool names">
+    In code mode the tools are called `external_whiteboard_*`, such as `external_whiteboard_canvas_diagram`.
+  </Accordion>
+</Accordions>
+
+## Next
+
+- [Page control](/docs/usage/page-control): have the agent change the page directly.
+- [Plugins conciv ships](/docs/plugins/built-ins): the whiteboard and the other plugins.
