@@ -1,0 +1,91 @@
+---
+title: Add a skill
+description: Ship instructions with your plugin, so the agent knows when and how to use its tools.
+---
+
+A skill is a page of instructions the agent reads when a task needs it. Ship one with your plugin when its tools need
+a how-to: which tool to call first, what the results mean, what to avoid.
+
+A skill only teaches. If you want the agent to follow your steps without running new code, a skill file in your
+project is enough. See [Skills](/docs/usage/skills).
+
+## Add the skill
+
+Add skills inside `ctx.skill.transform` in your plugin's engine part:
+
+<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
+<Tab value="Promise">
+
+```ts twoslash title="conciv/plugins/tickets/server.ts"
+import {Plugin, Skill} from '@conciv/backend-plugin-api'
+import {AbsolutePath} from '@conciv/protocol/schema/schema'
+
+const tickets: Skill.Info = {
+  id: Skill.Id.make('tickets'),
+  name: Skill.Name.make('Tickets'),
+  description: 'Read and close tickets in the team tracker. Load it before your first ticket tool call.',
+  path: AbsolutePath.make('skill://tickets/SKILL.md'),
+  content: [
+    '# Tickets',
+    '',
+    'Read a ticket with ticket_read before you change it.',
+    'Never close a ticket whose id starts with SEC-: the security team closes those.',
+  ].join('\n'),
+}
+
+export default Plugin.define({
+  id: 'tickets',
+  async setup(ctx) {
+    await ctx.skill.transform((skills) => skills.add(tickets))
+  },
+})
+```
+
+</Tab>
+<Tab value="Effect">
+
+```ts twoslash title="conciv/plugins/tickets/server.ts"
+import {Plugin, Skill} from '@conciv/backend-plugin-api/effect'
+import {AbsolutePath} from '@conciv/protocol/schema/schema'
+
+const tickets: Skill.Info = {
+  id: Skill.Id.make('tickets'),
+  name: Skill.Name.make('Tickets'),
+  description: 'Read and close tickets in the team tracker. Load it before your first ticket tool call.',
+  path: AbsolutePath.make('skill://tickets/SKILL.md'),
+  content: [
+    '# Tickets',
+    '',
+    'Read a ticket with ticket_read before you change it.',
+    'Never close a ticket whose id starts with SEC-: the security team closes those.',
+  ].join('\n'),
+}
+
+export default Plugin.define({
+  id: 'tickets',
+  effect: (ctx) => ctx.skill.transform((skills) => skills.add(tickets)),
+})
+```
+
+</Tab>
+</Tabs>
+
+- `id` names the skill. Keep it the same as your plugin's id, so the two are easy to match.
+- `name` is the display name of the skill.
+- `description` is what the agent always sees. It decides from this line when to load the skill, so say what the
+  skill covers and when to load it.
+- `path` is where the skill says it lives. A `skill://` path works for a skill that is not a file.
+- `content` is the instructions, in Markdown. The agent reads them only when it loads the skill.
+
+The agent gets the skill's name and description in every turn. When it starts a ticket task, it loads the content
+and follows it.
+
+## Keep a skill out of the list
+
+A skill with no `description` is not listed to the agent. Neither is one with `autoinvoke: false`. Use that for a
+skill the user attaches to a message on purpose.
+
+## Next
+
+- [Add a tool](/docs/plugins/guides/tool): the tools your skill teaches.
+- [Skills](/docs/usage/skills): skills written as files in your project.
