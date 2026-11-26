@@ -8,6 +8,7 @@ import {Accordion, Accordions} from 'fumadocs-ui/components/accordion'
 import {ImageZoom} from 'fumadocs-ui/components/image-zoom'
 import {Mermaid} from './mermaid'
 import {ConfigOptions} from './config-options'
+import {CopyPrompt, SetupPrompt} from './setup-prompt'
 import type {MDXComponents} from 'mdx/types'
 
 function getMDXComponents(components?: MDXComponents) {
@@ -24,6 +25,8 @@ function getMDXComponents(components?: MDXComponents) {
     ImageZoom,
     Mermaid,
     ConfigOptions,
+    SetupPrompt,
+    CopyPrompt,
     ...components,
   } satisfies MDXComponents
 }
