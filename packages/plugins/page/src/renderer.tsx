@@ -1,9 +1,9 @@
-import {Effect, Exit, Fiber, Layer, ManagedRuntime, Scope} from 'effect'
+import {Effect, Fiber, Layer, Scope} from 'effect'
 import {z} from 'zod'
 import {onCleanup} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {useQueryClient} from '@conciv/client'
-import {createKeyed, Plugin, Slot, ToolRegistry} from '@conciv/frontend-plugin-api'
+import {createScopedRuntime, createKeyed, Plugin, Slot, ToolRegistry} from '@conciv/frontend-plugin-api'
 import {NoteCard, OpaqueNoteCard} from '@internal/frontend-app-api'
 import {Page, PageOperation, ReactTree} from '@conciv/frontend-plugin-api/page'
 import {GrabPicker} from '@conciv/frontend-plugin-api/grab'
@@ -43,9 +43,7 @@ export default Plugin.define({
       opener: {symbolicate, desktop: ctx.desktop},
       toast: (title, variant) => void ctx.toast.show({title, variant}),
     })
-    const runtime = ManagedRuntime.make(Layer.empty)
-    const scope = runtime.runSync(Scope.make())
-    onCleanup(() => void runtime.runPromise(Scope.close(scope, Exit.void)).finally(() => runtime.dispose()))
+    const {runtime, scope} = createScopedRuntime(Layer.empty)
     const simulator = runtime.runSync(
       makeSimulator({
         session: () => routed()?.id ?? null,

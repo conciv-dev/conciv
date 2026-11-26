@@ -215,12 +215,16 @@ export async function installPacked(options: PackedInstallOptions): Promise<void
 
 const REGISTRY_PINNED = /(?<![\w/@-])@conciv\/[a-z0-9-]+@(?!file:)\d/
 
+function namesNpmRegistry(line: string): boolean {
+  return line.split(/[\s{},]+/).some((token) => URL.canParse(token) && new URL(token).host === 'registry.npmjs.org')
+}
+
 export function assertClosed(root: string): void {
   const lock = readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8')
   const leaks: string[] = []
   for (const line of lock.split('\n')) {
     if (!line.includes('conciv')) continue
-    if (REGISTRY_PINNED.test(line) || line.includes('registry.npmjs.org')) leaks.push(line.trim())
+    if (REGISTRY_PINNED.test(line) || namesNpmRegistry(line)) leaks.push(line.trim())
   }
   if (leaks.length > 0) {
     throw new Error(`fixture install not closed; registry-resolved conciv packages:\n${leaks.join('\n')}`)

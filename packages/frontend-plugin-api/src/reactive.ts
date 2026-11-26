@@ -11,6 +11,7 @@ import {
   type Accessor,
 } from 'solid-js'
 import {createStore} from 'solid-js/store'
+import {Exit, ManagedRuntime, Scope, type Layer} from 'effect'
 import type {Live} from './core.js'
 import {isLiveAccessor, LifetimeContext} from './internal.js'
 import {usePlugin} from './solid.js'
@@ -207,4 +208,11 @@ function activeRun(read: KeyedSource, callbacks: KeyedCallbacks): Accessor<Run> 
   )
 
   return identity
+}
+
+export function createScopedRuntime<R, E>(layer: Layer.Layer<R, E, never>) {
+  const runtime = ManagedRuntime.make(layer)
+  const scope = runtime.runSync(Scope.make())
+  onCleanup(() => void runtime.runPromise(Scope.close(scope, Exit.void)).finally(() => runtime.dispose()))
+  return {runtime, scope}
 }

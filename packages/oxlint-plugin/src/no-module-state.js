@@ -1,21 +1,20 @@
 import {isIdentifier} from './ast-walk.js'
 
-const PRODUCT_SOURCE = /(?:^|[\\/])(?:packages|apps)[\\/](?:[^\\/]+[\\/])*?src[\\/]/
 const SCRIPT_FILE = /\.[cm]?[jt]sx?$/
-const NOT_PRODUCT_FILE = /\.(?:test|spec|stories|config|d)\.[cm]?[jt]sx?$|\.config\.[^\\/]+$/
-const NOT_PRODUCT_FOLDER = /(?:^|[\\/])(?:test|tests|scripts|__tests__)[\\/]/
+const NOT_PRODUCT_FILE = /\.(?:test|spec|stories|config|d)\.[cm]?[jt]sx?$/
+const PRODUCT_ROOTS = ['packages', 'apps']
+const NOT_PRODUCT_FOLDERS = ['test', 'tests', 'scripts', '__tests__']
 const COLLECTIONS = ['Map', 'Set', 'WeakMap', 'WeakSet']
 const STATEFUL_MAKER = /^(?:create|make|open)(?:[A-Z]\w*)?(?:Engine|Connection|Socket|Store|Queue|Registry)$/
 const TYPE_WRAPPERS = ['TSAsExpression', 'TSSatisfiesExpression', 'TSNonNullExpression', 'ParenthesizedExpression']
 
 function isProductSource(filename) {
-  const tail = filename.slice(filename.search(PRODUCT_SOURCE))
-  return (
-    PRODUCT_SOURCE.test(filename) &&
-    SCRIPT_FILE.test(filename) &&
-    !NOT_PRODUCT_FILE.test(filename) &&
-    !NOT_PRODUCT_FOLDER.test(tail)
-  )
+  const segments = filename.split(/[\\/]/)
+  const base = segments.at(-1) ?? ''
+  const root = segments.findIndex((segment) => PRODUCT_ROOTS.includes(segment))
+  if (root === -1 || !SCRIPT_FILE.test(base) || NOT_PRODUCT_FILE.test(base) || base.includes('.config.')) return false
+  const folders = segments.slice(root + 1, -1)
+  return folders.includes('src') && !folders.some((segment) => NOT_PRODUCT_FOLDERS.includes(segment))
 }
 
 function unwrapTypes(node) {
