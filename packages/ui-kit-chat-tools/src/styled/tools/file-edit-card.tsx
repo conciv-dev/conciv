@@ -1,6 +1,7 @@
 import {Show, type JSX} from 'solid-js'
 import FilePen from 'lucide-solid/icons/file-pen'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/types/tool-view-types'
+import type {ToolCardProps} from '@conciv/types/tool-view-types'
+import type {ToolCardEntry} from '@conciv/ui-kit-chat/tools'
 import {FileEdit, useFileEdit} from '../../primitives/tools/file-edit.js'
 import {DiffBlock, ToolCard} from '@conciv/ui-kit-chat/tools'
 

@@ -1,4 +1,3 @@
-import type {Component} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from './chat-message-types.js'
 import type {PermissionReply} from './chat-types.js'
 import type {UiAnswerValue} from './ui-types.js'
@@ -37,18 +36,4 @@ export type ToolCardProps = {
   ctx: ToolViewCtx
   addResult: (value: UiAnswerValue) => Promise<void>
   durationMs?: number
-}
-
-export type ToolUIComponent = Component<ToolCardProps>
-
-export type ToolBodyPredicate = (part: ToolCallPart, result: ToolResultPart | undefined, ctx: ToolViewCtx) => boolean
-
-export type ToolCardView = {
-  render: ToolUIComponent
-  hasEmbeddedBody: ToolBodyPredicate
-}
-
-export type ToolCardEntry = ToolCardView & {
-  names: string[]
-  display?: 'standalone'
 }

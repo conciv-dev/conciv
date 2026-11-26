@@ -1,6 +1,7 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/types/tool-view-types'
+import type {ToolCardProps} from '@conciv/types/tool-view-types'
+import type {ToolCardEntry} from '@conciv/ui-kit-chat/tools'
 import {
   clip,
   CodeBlock,

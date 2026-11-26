@@ -8,7 +8,7 @@ import {
   type ToolResultPart,
   type ChatMessage,
 } from '@conciv/types/chat-message-types'
-import type {ToolCardEntry} from '@conciv/types/tool-view-types'
+import type {ToolCardEntry} from '../tools/primitives/define-toolkit.js'
 import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 
 export type ToolCallPartWithParent = ToolCallPart & {metadata?: {parentToolCallId?: unknown}}

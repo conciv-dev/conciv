@@ -7,7 +7,13 @@ export {StatusVisual} from './tools/primitives/status-visual.js'
 export {ToolFallback as ToolFallbackPrimitive, useToolFallback} from './tools/primitives/tool-fallback.js'
 export {Permission, usePermission} from './tools/primitives/permission.js'
 export {PermissionCard} from './tools/styled/permission-card.js'
-export {defineToolkit} from './tools/primitives/define-toolkit.js'
+export {
+  defineToolkit,
+  type ToolBodyPredicate,
+  type ToolCardEntry,
+  type ToolCardView,
+  type ToolUIComponent,
+} from './tools/primitives/define-toolkit.js'
 export {
   parseInput,
   resultText,

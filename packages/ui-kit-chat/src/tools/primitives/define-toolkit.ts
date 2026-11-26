@@ -1,5 +1,20 @@
-import type {ToolCallPart} from '@conciv/types/chat-message-types'
-import type {ToolCardEntry, ToolCardView} from '@conciv/types/tool-view-types'
+import type {Component} from 'solid-js'
+import type {ToolCallPart, ToolResultPart} from '@conciv/types/chat-message-types'
+import type {ToolCardProps, ToolViewCtx} from '@conciv/types/tool-view-types'
+
+export type ToolUIComponent = Component<ToolCardProps>
+
+export type ToolBodyPredicate = (part: ToolCallPart, result: ToolResultPart | undefined, ctx: ToolViewCtx) => boolean
+
+export type ToolCardView = {
+  render: ToolUIComponent
+  hasEmbeddedBody: ToolBodyPredicate
+}
+
+export type ToolCardEntry = ToolCardView & {
+  names: string[]
+  display?: 'standalone'
+}
 
 type ToolkitEntry = ToolCardView & {display?: 'standalone'}
 

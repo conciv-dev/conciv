@@ -42,7 +42,8 @@ import {nowTitle} from '@conciv/ui-kit-chat-tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/ui-kit-chat-tools'
 import {coreToolCards} from '@conciv/ui-kit-chat-tools'
-import type {ToolCardEntry, ToolCatalogView, ToolViewCtx} from '@conciv/types/tool-view-types'
+import type {ToolCatalogView, ToolViewCtx} from '@conciv/types/tool-view-types'
+import type {ToolCardEntry} from '@conciv/ui-kit-chat/tools'
 import {type MarkerRow, DraftRowSchema} from '@conciv/protocol'
 import {
   SyntheticMetadataSchema,
