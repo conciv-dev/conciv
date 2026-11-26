@@ -1,0 +1,284 @@
+---
+title: Add a tool
+description: Give the agent a tool that runs your code, and draw its calls as your own card in the chat.
+---
+
+Add a tool when the agent needs to run your code or reach something it cannot see. This page builds `ticket_read`,
+a tool that reads a ticket from your tracker by its id.
+
+## Write the tool
+
+Add tools inside `ctx.tool.transform` in your plugin's engine part:
+
+<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
+<Tab value="Promise">
+
+```ts twoslash title="conciv/plugins/tickets/server.ts"
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api'
+
+const Ticket = z.object({title: z.string(), status: z.string()})
+
+export default Plugin.define({
+  id: 'tickets',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'ticket_read',
+        description: 'Read a ticket from the tracker by its id, such as OPS-42.',
+        input: z.object({id: z.string().regex(/^OPS-[0-9]+$/)}),
+        output: Ticket,
+        options: {codemode: false},
+        execute: async ({id}, context) => {
+          const response = await fetch(`https://tickets.example.com/api/${id}`, {signal: context.signal})
+          return {output: Ticket.parse(await response.json())}
+        },
+      })
+    })
+  },
+})
+```
+
+</Tab>
+<Tab value="Effect">
+
+```ts twoslash title="conciv/plugins/tickets/server.ts"
+import {Effect} from 'effect'
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api/effect'
+import * as Tool from '@conciv/protocol/schema/tool'
+
+const Ticket = z.object({title: z.string(), status: z.string()})
+
+export default Plugin.define({
+  id: 'tickets',
+  effect: (ctx) =>
+    ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'ticket_read',
+        description: 'Read a ticket from the tracker by its id, such as OPS-42.',
+        input: z.object({id: z.string().regex(/^OPS-[0-9]+$/)}),
+        output: Ticket,
+        options: {codemode: false},
+        execute: ({id}) =>
+          Effect.tryPromise({
+            try: (signal) =>
+              fetch(`https://tickets.example.com/api/${id}`, {signal}).then((response) => response.json()),
+            catch: () => Tool.toolError({message: `The tracker did not answer for ${id}.`}),
+          }).pipe(Effect.map((ticket) => ({output: Ticket.parse(ticket)}))),
+      })
+    }),
+})
+```
+
+</Tab>
+</Tabs>
+
+- `name` is what the agent calls. Use letters, digits and `_`.
+- `description` is how the agent decides when to call it. Say what it does and what input it expects.
+- `input` is checked before your code runs. Here the regex refuses any id that is not `OPS-` and a number.
+- `output` is the shape of the result. What you return as `output` is what the agent reads.
+- `options: {codemode: false}` makes it a direct tool. See the next section.
+- In the Promise tab, `context.signal` aborts when the user stops the turn. Pass it to `fetch` so the request stops
+  too.
+- In the Effect tab, `Effect.tryPromise` passes the same signal. A stopped turn interrupts the effect.
+
+Ask the agent about a ticket:
+
+```text
+What is the status of OPS-42?
+```
+
+The agent calls `ticket_read` with the id OPS-42. It answers from the ticket it gets back.
+
+## Choose how the agent calls it
+
+A tool is a code-mode tool unless you say otherwise:
+
+- **Code mode** (the default). The agent writes a short TypeScript program that calls your tool as
+  `external_ticket_read`. It can call several tools in one go and work with their results. The call shows inside the
+  agent's code card.
+- **Direct** (`codemode: false`). The agent calls the tool by its name, one call at a time. Each call gets its own
+  card, which your plugin can draw.
+
+Pick direct when the user should see each call, or when you draw a card for it.
+
+## Group tools under a namespace
+
+A namespace puts related tools under one name and one description:
+
+<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
+<Tab value="Promise">
+
+```ts twoslash title="conciv/plugins/tickets/server.ts"
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api'
+
+export default Plugin.define({
+  id: 'tickets',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.namespace({name: 'ticket', description: 'The team tracker: read and search tickets.'})
+      tools.add({
+        name: 'read',
+        description: 'Read a ticket by its id, such as OPS-42.',
+        input: z.object({id: z.string()}),
+        options: {namespace: 'ticket'},
+        execute: async ({id}) => ({content: `${id} is open.`}),
+      })
+    })
+  },
+})
+```
+
+</Tab>
+<Tab value="Effect">
+
+```ts twoslash title="conciv/plugins/tickets/server.ts"
+import {Effect} from 'effect'
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api/effect'
+
+export default Plugin.define({
+  id: 'tickets',
+  effect: (ctx) =>
+    ctx.tool.transform((tools) => {
+      tools.namespace({name: 'ticket', description: 'The team tracker: read and search tickets.'})
+      tools.add({
+        name: 'read',
+        description: 'Read a ticket by its id, such as OPS-42.',
+        input: z.object({id: z.string()}),
+        options: {namespace: 'ticket'},
+        execute: ({id}) => Effect.succeed({content: `${id} is open.`}),
+      })
+    }),
+})
+```
+
+</Tab>
+</Tabs>
+
+- `tools.namespace` describes the group once. The agent reads it to decide which group to look at.
+- `options.namespace` puts the tool in the group. Its full name becomes `ticket_read`.
+- `content` is text for the agent. Here it takes the place of an output, and a result can carry both.
+
+## Fail a call
+
+Fail a call when the tool cannot do what was asked. The agent reads the message and can try something else.
+
+<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
+<Tab value="Promise">
+
+```ts twoslash title="conciv/plugins/tickets/server.ts"
+import {z} from 'zod'
+import {Plugin, Tool} from '@conciv/backend-plugin-api'
+
+export default Plugin.define({
+  id: 'tickets',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'ticket_close',
+        description: 'Close a ticket by its id.',
+        input: z.object({id: z.string()}),
+        execute: async ({id}) => {
+          if (id.startsWith('SEC-'))
+            throw Tool.toolError({message: 'Security tickets are closed by the security team.'})
+          return {content: `${id} is closed.`}
+        },
+      })
+    })
+  },
+})
+```
+
+</Tab>
+<Tab value="Effect">
+
+```ts twoslash title="conciv/plugins/tickets/server.ts"
+import {Effect} from 'effect'
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api/effect'
+import * as Tool from '@conciv/protocol/schema/tool'
+
+export default Plugin.define({
+  id: 'tickets',
+  effect: (ctx) =>
+    ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'ticket_close',
+        description: 'Close a ticket by its id.',
+        input: z.object({id: z.string()}),
+        execute: ({id}) =>
+          id.startsWith('SEC-')
+            ? Effect.fail(Tool.toolError({message: 'Security tickets are closed by the security team.'}))
+            : Effect.succeed({content: `${id} is closed.`}),
+      })
+    }),
+})
+```
+
+</Tab>
+</Tabs>
+
+- `Tool.toolError` makes the error the agent reads. Its `message` is what the agent sees.
+- In the Promise tab, any other thrown error also fails the call, with that error's message.
+- In the Effect tab, the failure type is `Tool.Error`. Turn a typed error of your own into one with `catchTag`.
+
+## Draw a card
+
+Each call of a direct tool shows as a card in the chat. Without your own card it shows the generic one. Your
+plugin's browser part draws its own. The browser part is written with Solid components and plain async functions:
+
+```tsx twoslash title="plugin-experimental.tsx"
+// @jsx: preserve
+// @jsxImportSource: solid-js
+// ---cut---
+import {Plugin, ToolRegistry} from '@conciv/frontend-plugin-api'
+
+export default Plugin.define({
+  setup(ctx) {
+    ctx.add(ToolRegistry, {
+      name: 'ticket_read',
+      render: (props) => (
+        <p>
+          {props.status === 'completed' ? `${props.input.id}: ${JSON.parse(props.output ?? '{}').status}` : 'Reading'}
+        </p>
+      ),
+    })
+  },
+})
+```
+
+- `ctx.add(ToolRegistry, ...)` adds a card. The `name` field says which tool it draws.
+- `render` draws one call. It runs again as the call moves on.
+- `props.input` is the input the agent sent.
+- `props.status` says where the call is, such as running or completed.
+- `props.output` is the result, as JSON text.
+
+<Accordions>
+<Accordion title="Schemas a tool accepts">
+
+A tool's input and output schemas can be:
+
+- a zod schema
+- any other Standard Schema, such as Valibot or ArkType
+- an Effect Schema
+- a raw JSON Schema object
+
+</Accordion>
+<Accordion title="Where a call came from">
+
+The tool context has `origin`, the place a call came from:
+
+- `chat`: a turn in the widget's chat.
+- `hub`: an agent outside the widget, such as your own terminal agent connected to conciv.
+
+</Accordion>
+</Accordions>
+
+## Next
+
+- [Ask for permission](/docs/plugins/guides/permission): make the user approve a call before it runs.
+- [Test your plugin](/docs/plugins/guides/testing): call your tool on a real engine in a test.
+- [Plugin API reference](/docs/plugins/reference): every `ctx` domain.
