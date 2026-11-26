@@ -4,7 +4,7 @@ import {checkEngines, listEngines, prepareHome, withHomeDb, type EngineRow, type
 import {Conciv} from '@conciv/client'
 import {PluginHost} from '@conciv/backend-app-api'
 import {Context, Effect, Latch, Layer, Ref, Schedule, Semaphore, Stream} from 'effect'
-import {isEqual, memoize, uniqBy} from 'es-toolkit'
+import {differenceBy, isEqual, memoize, uniqBy} from 'es-toolkit'
 import {homeDbReads} from '../lib/home-db-watch.js'
 
 const SERVER_HEALTH_POLL_MS = 10_000
@@ -19,7 +19,11 @@ type Snapshot = {rows: ReadonlyArray<EngineRow>; reached: ReadonlyArray<string>}
 
 type ServersSourceInput = {home: string; engineId: string}
 
-function connect(row: EngineRow, tooOld: (apiBase: string) => void): ServerRef['client'] {
+type Connected = {client: ServerRef['client']; dispose: () => void}
+
+const connectionKey = (row: EngineRow): string => `${row.apiBase} ${row.token}`
+
+function connect(row: EngineRow, tooOld: (apiBase: string) => void): Connected {
   const {apiBase, token} = row
   const connection = makeBrowserEngineConnection(apiBase, {token})
   const link: EngineConnection['link'] = {
@@ -29,10 +33,13 @@ function connect(row: EngineRow, tooOld: (apiBase: string) => void): ServerRef['
         throw error
       }),
   }
-  return Conciv.make(
-    makeEngineRpcClient(() => ({...connection, link})),
-    {server: () => apiBase},
-  )
+  return {
+    client: Conciv.make(
+      makeEngineRpcClient(() => ({...connection, link})),
+      {server: () => apiBase},
+    ),
+    dispose: connection.dispose,
+  }
 }
 
 type HomeReach = {ok: true; home: PreparedHome} | {ok: false; error: Error}
@@ -80,7 +87,7 @@ function makeServerRef(
   first: EngineRow,
   current: () => Snapshot,
   engineId: string,
-  clientAt: (row: EngineRow) => ServerRef['client'],
+  clientAt: (row: EngineRow) => Connected,
   incompatible: () => ReadonlyArray<EngineRow>,
 ): ServerRef {
   const row = (): EngineRow => current().rows.find((candidate) => candidate.id === first.id) ?? first
@@ -93,7 +100,7 @@ function makeServerRef(
       return row().apiBase
     },
     get client() {
-      return clientAt(row())
+      return clientAt(row()).client
     },
     local: true,
     builtin: first.id === engineId,
@@ -115,8 +122,23 @@ export function provideServersSource(input: ServersSourceInput) {
       const read = yield* Latch.make()
       const serial = yield* Semaphore.make(1)
       const current = (): Snapshot => Ref.getUnsafe(snapshot)
+      const incompatible = yield* Ref.make<ReadonlyArray<EngineRow>>([])
+      const markTooOld = (apiBase: string): void =>
+        Effect.runSync(
+          Ref.update(incompatible, (marked) =>
+            uniqBy([...current().rows.filter((row) => row.apiBase === apiBase), ...marked], (row) => row.id),
+          ),
+        )
+      const clientAt = memoize((row: EngineRow) => connect(row, markTooOld), {getCacheKey: connectionKey})
+      const retire = (before: Snapshot, next: Snapshot): void => {
+        differenceBy(before.rows, next.rows, connectionKey).forEach((row) => {
+          clientAt.cache.get(connectionKey(row))?.dispose()
+          clientAt.cache.delete(connectionKey(row))
+        })
+      }
+      yield* Effect.addFinalizer(() => Effect.sync(() => retire(current(), {rows: [], reached: []})))
       const refresh = Effect.tryPromise(() => checked(input.home, reach)).pipe(
-        Effect.flatMap((next) => Ref.set(snapshot, next)),
+        Effect.flatMap((next) => Ref.getAndSet(snapshot, next).pipe(Effect.map((before) => retire(before, next)))),
         Effect.catch((error) =>
           Effect.logError('[core] the conciv engines could not be listed').pipe(
             Effect.annotateLogs({home: input.home, error: errorText(error.cause)}),
@@ -135,16 +157,6 @@ export function provideServersSource(input: ServersSourceInput) {
         Latch.openUnsafe(read)
         return listedIn(reach)
       }
-      const incompatible = yield* Ref.make<ReadonlyArray<EngineRow>>([])
-      const markTooOld = (apiBase: string): void =>
-        Effect.runSync(
-          Ref.update(incompatible, (marked) =>
-            uniqBy([...current().rows.filter((row) => row.apiBase === apiBase), ...marked], (row) => row.id),
-          ),
-        )
-      const clientAt = memoize((row: EngineRow) => connect(row, markTooOld), {
-        getCacheKey: (row) => `${row.apiBase} ${row.token}`,
-      })
       const serverRef = memoize(
         (first: EngineRow) =>
           makeServerRef(first, current, input.engineId, clientAt, () => Ref.getUnsafe(incompatible)),
