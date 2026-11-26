@@ -13,7 +13,8 @@ const WORKSPACE_IMPORT =
   /(?:\bfrom|\bimport|\bimport\.meta\.resolve\(|\bimport\(|\brequire\()\s*['"](@conciv\/[a-z0-9-]+)(?:\/[^'"]*)?['"]/g
 
 const PLUGIN_ROOT = 'packages/plugins/'
-const KIT_BUILT_INS = ['@conciv/plugin-page', '@internal/plugin-terminal']
+const BUILT_INS_LIST = 'packages/app/src/builtins.ts'
+const BUILT_IN_IMPORT = /\bfrom\s*['"](@[a-z0-9-]+\/[a-z0-9-]+)\/builtins['"]/g
 const UI_KIT = /^@conciv\/ui-kit(?:-|$)/
 
 type DependencyField = 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'peerDependencies'
@@ -206,9 +207,8 @@ function readProgramFile(root: string, packages: WorkspacePackage[], file: strin
 
 export async function assertPluginsDrawThroughContextUi(cwd: string): Promise<void> {
   const packages = await readWorkspacePackages(cwd)
-  const plugins = packages.filter(
-    (pkg) => pkg.relativeDir.startsWith(PLUGIN_ROOT) && !KIT_BUILT_INS.includes(readName(pkg)),
-  )
+  const builtIns = await readBuiltIns(cwd)
+  const plugins = packages.filter((pkg) => pkg.relativeDir.startsWith(PLUGIN_ROOT) && !builtIns.includes(readName(pkg)))
   const violations = await Promise.all(
     plugins.map(async (pkg) => {
       const sources = await readBuildSourceImports(cwd, packages, pkg)
@@ -226,6 +226,11 @@ export async function assertPluginsDrawThroughContextUi(cwd: string): Promise<vo
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
   throw new Error(
-    `a plugin under packages/plugins draws through ctx.ui (conciv's own plugins read conciv's members with OpaqueUi.toInternal), never with @conciv/ui-kit*; only the built-ins ${KIT_BUILT_INS.join(' and ')} draw with the kit directly, like opencode's gui plugins:\n${messages.join('\n')}`,
+    `a plugin under packages/plugins draws through ctx.ui (conciv's own plugins read conciv's members with OpaqueUi.toInternal), never with @conciv/ui-kit*; only the built-ins ${builtIns.join(' and ')} (${BUILT_INS_LIST}) draw with the kit directly, like opencode's gui plugins:\n${messages.join('\n')}`,
   )
+}
+
+async function readBuiltIns(cwd: string): Promise<string[]> {
+  const text = await readFile(join(cwd, BUILT_INS_LIST), 'utf8')
+  return [...text.matchAll(BUILT_IN_IMPORT)].flatMap((match) => match[1] ?? [])
 }
