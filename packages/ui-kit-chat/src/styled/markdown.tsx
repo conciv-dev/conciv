@@ -254,8 +254,6 @@ type CodeToken = {content: string; style?: string}
 
 type CodeLine = readonly CodeToken[]
 
-type HighlightResult = {style?: string; lines: readonly CodeLine[]}
-
 function cachedHighlight(language: string, code: string): HastElement | undefined {
   backendReadyTick()
   const active = ensureBackend()
@@ -312,15 +310,31 @@ function withRawRest(highlighted: readonly CodeLine[], raw: readonly CodeLine[])
   return [...highlighted.slice(0, shared - 1), rest ? [...open, {content: rest}] : open, ...raw.slice(shared)]
 }
 
+function reuseToken(previous: CodeToken | undefined, next: CodeToken): CodeToken {
+  return previous?.content === next.content && previous.style === next.style ? previous : next
+}
+
+function reuseLine(previous: CodeLine | undefined, next: CodeLine): CodeLine {
+  if (previous === undefined) return next
+  const tokens = next.map((token, index) => reuseToken(previous[index], token))
+  return tokens.length === previous.length && tokens.every((token, index) => token === previous[index])
+    ? previous
+    : tokens
+}
+
+function reuseLines(previous: readonly CodeLine[], next: readonly CodeLine[]): readonly CodeLine[] {
+  return next.map((line, index) => reuseLine(previous[index], line))
+}
+
 const STREAMED_CODE =
   'not-prose min-w-0 [--shiki-background:transparent] [&_pre]:m-0 [&_pre]:p-2 [&_pre]:whitespace-pre-wrap [&_pre]:[overflow-wrap:anywhere] [&_pre]:[font-family:var(--chat-mono)]'
 
-function StreamedCodeRows(props: {result: HighlightResult}): JSX.Element {
+function StreamedCodeRows(props: {style: string | undefined; lines: readonly CodeLine[]}): JSX.Element {
   return (
     <div class={STREAMED_CODE}>
-      <pre style={props.result.style}>
+      <pre style={props.style}>
         <code>
-          <Index each={props.result.lines}>
+          <Index each={props.lines}>
             {(line) => (
               <span class="block">
                 <Show when={lineText(line()) !== ''} fallback={'\n'}>
@@ -339,15 +353,19 @@ function StreamedCodeBody(props: {language: string; code: string}): JSX.Element 
   const code = createMemo(() => trimTrailingNewlines(props.code))
   const raw = createMemo(() => rawLines(code()))
   const cached = createMemo(() => cachedHighlight(props.language, code()))
+  const style = createMemo(() => {
+    const pre = cached()
+    return pre && hastStyle(pre)
+  })
   const highlighted = createMemo(() => {
     const pre = cached()
-    return pre && {style: hastStyle(pre), lines: highlightedLines(pre)}
+    return pre && highlightedLines(pre)
   })
-  const result = createMemo((): HighlightResult => {
+  const lines = createMemo((previous: readonly CodeLine[]) => {
     const current = highlighted()
-    return current ? {style: current.style, lines: withRawRest(current.lines, raw())} : {lines: raw()}
-  })
-  return <StreamedCodeRows result={result()} />
+    return reuseLines(previous, current ? withRawRest(current, raw()) : raw())
+  }, [])
+  return <StreamedCodeRows style={style()} lines={lines()} />
 }
 
 export type MarkdownProps = {
