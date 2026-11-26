@@ -349,6 +349,8 @@ export type MarkdownProps = {
 
 const NO_LINK_PREFIXES: string[] = []
 
+const PROSE = 'prose-chat [&>[data-code-surface]]:my-2'
+
 const MarkdownHighlightContext = createContext<readonly string[]>([])
 
 export const MarkdownHighlightProvider = MarkdownHighlightContext.Provider
@@ -534,7 +536,7 @@ function FullMarkdown(props: Omit<MarkdownProps, 'compact'>): JSX.Element {
   return (
     <MarkdownStreamingContext.Provider value={streaming}>
       <Streamdown
-        class={props.streaming ? 'prose-chat chat-caret-live' : 'prose-chat'}
+        class={props.streaming ? `${PROSE} chat-caret-live` : PROSE}
         isAnimating={props.streaming === true}
         caret={props.streaming ? 'block' : false}
         highlightCode={highlightCode}
