@@ -1,14 +1,13 @@
 {
   "pages": [
-    "---Getting started---",
+    "---Get started---",
     "index",
     "quick-start",
     "how-it-works",
-    "---Using conciv---",
+    "---Use conciv---",
     "...usage",
-    "---Plugins---",
+    "---Build plugins---",
     "...plugins",
-    "skills",
     "---Reference---",
     "configuration",
     "harnesses",
