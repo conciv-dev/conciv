@@ -23,6 +23,7 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 - Config (`config-types.ts`): ConcivConfig, ConcivSettingsInit, ExtensionRegistry, `defineConfig`
 - Tool views (`tool-view-types.ts`): ToolCardProps, ToolCardEntry, ToolUIComponent
 - Ports and state (`connect-ports.ts`, `state-types.ts`): CONNECT_FIRST_PORT 4732 to CONNECT_LAST_PORT 4741, CONCIV_STATE_DIR '.conciv', `concivStateDir`
+- Migration lock (`migration-lock.ts`, node only): `openDatabase` (node:sqlite, 5000 ms busy timeout) and `takeMigrationLock` (`BEGIN EXCLUSIVE` on a sibling lock file), the one lock `home.db` (`@conciv/home`) and the engine's `conciv.db` (`@conciv/backend-defaults`) migrate under. It lives here because both openers already depend on this package and it depends on no workspace package.
 
 ## Invariants
 

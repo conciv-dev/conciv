@@ -1,12 +1,13 @@
+import {it} from '@effect/vitest'
 import {Effect, Exit} from 'effect'
 import {HttpClientRequest} from 'effect/http'
 import {TestClock} from 'effect/testing'
-import {describe, expect, it} from 'vitest'
+import {describe, expect} from 'vitest'
 import * as SimulationNetwork from '../../src/backend/network.js'
 
 describe('simulation network', () => {
-  it('keeps routes and request logs local to each network', async () => {
-    const program = Effect.gen(function* () {
+  it.effect('keeps routes and request logs local to each network', () =>
+    Effect.gen(function* () {
       yield* TestClock.setTime(1_234)
       const first = yield* SimulationNetwork.make([
         SimulationNetwork.json('GET', 'https://example.test/value', {source: 'first'}),
@@ -24,8 +25,6 @@ describe('simulation network', () => {
       expect(yield* second.log()).toEqual([
         {time: 1_234, method: 'GET', url: 'https://example.test/value', matched: false},
       ])
-    })
-
-    await Effect.runPromise(program.pipe(Effect.provide(TestClock.layer())))
-  })
+    }),
+  )
 })

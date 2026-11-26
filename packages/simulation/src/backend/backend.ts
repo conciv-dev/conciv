@@ -7,6 +7,7 @@ import * as SimulationNetwork from './network.js'
 import {ENGINE_HARNESS, scriptedHarness} from './scripted-harness.js'
 import {refusedHarness, simulatedHarness} from './simulated-harness.js'
 import * as SimulatedProvider from './simulated-provider.js'
+import {widgetDrivePlugin} from './simulated-ui.js'
 
 const UNDRIVEN = 'the simulation has no driver: CONCIV_DRIVE is not set, so every model call is refused'
 
@@ -45,6 +46,9 @@ export const simulationReplacements: (
     if (!drive) return replaced(app, refusedHarness(UNDRIVEN), [])
     const manifest = yield* DriveManifest.resolve()
     const driven = yield* SimulatedProvider.drive({endpoint: manifest.endpoints.backend, version: app.version})
-    return replaced(app, simulatedHarness(driven.provider), [driven.plugin])
+    return replaced(app, simulatedHarness(driven.provider), [
+      driven.plugin,
+      widgetDrivePlugin({endpoint: manifest.endpoints.ui, version: app.version}),
+    ])
   },
 )

@@ -6,7 +6,8 @@ import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import envPaths from 'env-paths'
 import {z} from 'zod'
 import {homeMigrations} from './home-migrations.gen.js'
-import {openDatabase, openMigratedDb} from '../migrated-db.js'
+import {openDatabase} from '@conciv/types/migration-lock'
+import {openMigratedDb} from './migrated-db.js'
 import {engines, hubConnections as hubConnectionsTable, hubOperations, hubRevocations} from './home-schema.js'
 
 const ConcivHomeSchema = z.string().min(1).optional().catch(undefined)

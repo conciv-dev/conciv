@@ -3,7 +3,6 @@ import {tanstackRouter} from '@tanstack/router-plugin/vite'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 import {concivTest} from '@internal/vitest-config/conciv-test'
-import {driveCommands} from './test/utils/drive-commands.js'
 
 export default defineConfig({
   plugins: [
@@ -12,6 +11,5 @@ export default defineConfig({
     solidPlugin(),
     concivTest({environment: 'happy-dom', browser: true}),
   ],
-  test: {browser: {commands: driveCommands()}},
   server: {fs: {allow: [searchForWorkspaceRoot(process.cwd()), '/__uno.css', '/__uno.css?inline']}},
 })

@@ -49,20 +49,14 @@ const DOCK_RENDERER = [
   `}`,
 ]
 
-export type WidgetGlobals = {
-  readonly apiBase: string | undefined
-  readonly drive: string | undefined
-}
-
-function globalLine(name: string, value: string | undefined): string[] {
-  return value === undefined ? [] : [`if (typeof window !== 'undefined') window.${name} ??= ${JSON.stringify(value)}`]
-}
-
-function widgetModuleSource(surface: 'page' | 'dock', globals: WidgetGlobals, embedEntry: string): string {
+function widgetModuleSource(surface: 'page' | 'dock', apiBase: string | undefined, embedEntry: string): string {
+  const apiBaseLine =
+    apiBase === undefined
+      ? []
+      : [`if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ ??= ${JSON.stringify(apiBase)}`]
   return [
     `import {${surface === 'dock' ? 'createConciv' : 'mountConciv'}} from ${JSON.stringify(embedEntry)}`,
-    ...globalLine('__CONCIV_API_BASE__', globals.apiBase),
-    ...globalLine('__CONCIV_DRIVE__', globals.drive),
+    ...apiBaseLine,
     ...(surface === 'dock' ? [...HOST_WIDGET_SETTINGS, ...DOCK_RENDERER] : PAGE_MOUNT),
     '',
   ].join('\n')
@@ -75,7 +69,7 @@ export function resolveWidgetModule(id: string): string | null {
   return bareId === WIDGET_ROUTE ? WIDGET_RESOLVED_ID : null
 }
 
-export function loadWidgetModule(id: string, globals: WidgetGlobals, embedEntry = '@conciv/app'): string | null {
-  if (id === WIDGET_DOCK_RESOLVED_ID) return widgetModuleSource('dock', globals, embedEntry)
-  return id === WIDGET_RESOLVED_ID ? widgetModuleSource('page', globals, embedEntry) : null
+export function loadWidgetModule(id: string, apiBase: string | undefined, embedEntry = '@conciv/app'): string | null {
+  if (id === WIDGET_DOCK_RESOLVED_ID) return widgetModuleSource('dock', apiBase, embedEntry)
+  return id === WIDGET_RESOLVED_ID ? widgetModuleSource('page', apiBase, embedEntry) : null
 }

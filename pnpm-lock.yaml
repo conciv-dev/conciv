@@ -2838,9 +2838,6 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/server':
-        specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
       '@solid-primitives/active-element':
         specifier: ^2.1.6
         version: 2.1.6(solid-js@1.9.17)
@@ -2908,9 +2905,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/simulation':
-        specifier: workspace:*
-        version: link:../simulation
       '@internal/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -2947,9 +2941,6 @@ importers:
       '@unocss/reset':
         specifier: 'catalog:'
         version: 66.13.0
-      get-port:
-        specifier: 'catalog:'
-        version: 7.2.0
       react:
         specifier: 'catalog:'
         version: 19.3.1
@@ -3179,6 +3170,9 @@ importers:
 
   packages/home:
     dependencies:
+      '@conciv/types':
+        specifier: workspace:^
+        version: link:../types
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)
@@ -5024,24 +5018,15 @@ importers:
       '@conciv/cli':
         specifier: workspace:^
         version: link:../cli
-      '@conciv/simulation':
-        specifier: workspace:^
-        version: link:../simulation
       '@conciv/types':
         specifier: workspace:^
         version: link:../types
-      '@effect/platform-node':
-        specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
       '@tanstack/devtools-bundler-core':
         specifier: 'catalog:'
         version: 0.1.3(@emnapi/core@2.0.0-beta.3)(@emnapi/runtime@2.0.0-beta.3)
-      effect:
-        specifier: 'catalog:'
-        version: 4.1.0
       get-port:
         specifier: 'catalog:'
         version: 7.2.0

@@ -42,8 +42,9 @@ The rest:
   browser's engine connection and rpc client, plus the fake engine in `@conciv/client/testing`), `@conciv/home` (the per-user home registry),
   `@conciv/harness` (harness adapters), `@conciv/serve` (the node HTTP server), `@conciv/simulation` (opencode's
   simulation: the scripted agent and fixed network table, switched on with `CONCIV_SIMULATE`; and the driver side of
-  the widget's drive mode, `@conciv/simulation/frontend`: with `CONCIV_DRIVE` set the widget connects out to the
-  driver and serves `uiContract` from `@conciv/protocol/simulation`, as opencode's `OPENCODE_DRIVE`), `@conciv/cli`, `@conciv/unplugin` and `@conciv/it` (the
+  the widget's drive mode, `@conciv/simulation/frontend`: with `CONCIV_DRIVE` set the engine listens on the manifest's
+  `ui` endpoint and serves `uiContract` from `@conciv/protocol/simulation`, as opencode's `OPENCODE_DRIVE`, and asks
+  the widget over its own engine socket; dev builds only), `@conciv/cli`, `@conciv/unplugin` and `@conciv/it` (the
   host-side install), the `ui-kit-*` packages, `@conciv/mascot`.
 - Test utilities, as Backstage's `backend-test-utils` and `frontend-test-utils` (see Testing): `@conciv/backend-test-utils`,
   `@internal/frontend-test-utils`, `@internal/engine-kit` (the engine kit both backend-defaults' own tests and

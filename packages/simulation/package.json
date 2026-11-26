@@ -78,6 +78,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@internal/tsconfig": "workspace:*",
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",

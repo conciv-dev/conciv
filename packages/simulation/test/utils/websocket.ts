@@ -54,13 +54,12 @@ export function nextRequest(turns: AsyncIterator<LlmNotification>) {
 
 export function withProvider<A, E>(
   body: (endpoint: string, provider: SimulatedProvider.Interface) => Effect.Effect<A, E, Scope.Scope>,
-): Promise<A> {
-  return Effect.runPromise(
-    Effect.gen(function* () {
-      const endpoint = yield* Effect.promise(availableEndpoint)
-      return yield* Effect.scoped(driven(endpoint).pipe(Effect.flatMap(({provider}) => body(endpoint, provider))))
-    }),
-  )
+): Effect.Effect<A, E | Error, Scope.Scope> {
+  return Effect.gen(function* () {
+    const endpoint = yield* Effect.promise(availableEndpoint)
+    const {provider} = yield* driven(endpoint)
+    return yield* body(endpoint, provider)
+  })
 }
 
 export function openDriver(endpoint: string) {

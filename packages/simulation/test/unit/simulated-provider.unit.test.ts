@@ -1,10 +1,11 @@
+import {it} from '@effect/vitest'
 import {Deferred, Effect, Fiber, Stream} from 'effect'
-import {describe, expect, it} from 'vitest'
+import {describe, expect} from 'vitest'
 import {request} from '../utils/model-request.js'
 import {attached, handshake, nextRequest, openDriver, withProvider} from '../utils/websocket.js'
 
 describe('simulated provider', () => {
-  it('streams a driver-controlled response and removes the finished invocation', () =>
+  it.live('streams a driver-controlled response and removes the finished invocation', () =>
     withProvider((endpoint, provider) =>
       Effect.gen(function* () {
         const drive = yield* openDriver(endpoint)
@@ -37,9 +38,10 @@ describe('simulated provider', () => {
         )
         expect(late).toMatchObject({code: 'INVOCATION_NOT_FOUND', data: {id: opened.id}})
       }),
-    ))
+    ),
+  )
 
-  it('replays a waiting invocation to each controller that attaches, the newest replacing the last', () =>
+  it.live('replays a waiting invocation to each controller that attaches, the newest replacing the last', () =>
     withProvider((endpoint, provider) =>
       Effect.gen(function* () {
         const response = yield* provider.stream(request).pipe(Stream.runCollect, Effect.forkScoped)
@@ -62,9 +64,10 @@ describe('simulated provider', () => {
         yield* Effect.promise(() => third.client.llm.finish({id: again.id, reason: 'stop'}))
         expect(Array.from(yield* Fiber.join(response))).toEqual([{type: 'finish', reason: 'stop'}])
       }),
-    ))
+    ),
+  )
 
-  it('removes an invocation when its response stream is interrupted', () =>
+  it.live('removes an invocation when its response stream is interrupted', () =>
     withProvider((endpoint, provider) =>
       Effect.gen(function* () {
         const drive = yield* openDriver(endpoint)
@@ -76,9 +79,10 @@ describe('simulated provider', () => {
 
         expect(yield* Effect.promise(() => drive.client.llm.pending())).toEqual({invocations: []})
       }),
-    ))
+    ),
+  )
 
-  it('releases a backpressured response when its consumer is interrupted', () =>
+  it.live('releases a backpressured response when its consumer is interrupted', () =>
     withProvider((endpoint, provider) =>
       Effect.gen(function* () {
         const drive = yield* openDriver(endpoint)
@@ -102,9 +106,10 @@ describe('simulated provider', () => {
         yield* Fiber.interrupt(response)
         expect(['sent', 'refused']).toContain(yield* Fiber.join(chunk))
       }),
-    ))
+    ),
+  )
 
-  it('fails the provider stream when the driver disconnects the invocation', () =>
+  it.live('fails the provider stream when the driver disconnects the invocation', () =>
     withProvider((endpoint, provider) =>
       Effect.gen(function* () {
         const drive = yield* openDriver(endpoint)
@@ -119,5 +124,6 @@ describe('simulated provider', () => {
           message: 'Simulated model provider disconnected',
         })
       }),
-    ))
+    ),
+  )
 })

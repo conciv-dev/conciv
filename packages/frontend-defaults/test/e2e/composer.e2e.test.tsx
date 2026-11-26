@@ -1,12 +1,10 @@
 import {describe, expect, it, test} from 'vitest'
-import {commands, page} from 'vitest/browser'
+import {page} from 'vitest/browser'
 import {fireEvent, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {FakeLLM, type FakeEngine} from '@conciv/client/testing'
 import {readSession, sentJson, sentTexts} from '../utils/engine-client.js'
 import {mountShell} from '../utils/mount-shell.js'
-import {startDrive} from '../../src/drive/drive.js'
-import type {} from '../utils/drive-commands.js'
 import {composerEngine} from '../utils/sample-engines.js'
 import {elsewhereSession, ENGINE_HARNESS, harness, mentionAgent} from '../utils/sample-data.js'
 import {reviewNotesPlugin} from '../utils/sample-plugins.js'
@@ -828,27 +826,5 @@ describe('plugin slash commands', () => {
     expect(await within(reply).findByText('Noted')).toBeVisible()
     expect(screen.queryByRole('article', {name: 'You: /review the header'})).not.toBeInTheDocument()
     expect(sentTexts(engine)).toEqual(['Thanks'])
-  })
-})
-
-describe('drive mode', () => {
-  test('a driver outside the browser types into the composer by its label, sends with the send button by its role, and reads the answer', async () => {
-    const engine = composerEngine()
-    engine.reply(FakeLLM.text('Driven answer'))
-    await mountShell({engine})
-    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
-    const drive = startDrive(await commands.driveListen(), document)
-
-    expect(await commands.driveTypeInto('textbox', 'Message the conciv agent', 'Hello from the driver')).toBe(true)
-    expect(input).toHaveFocus()
-    expect(input).toHaveTextContent('Hello from the driver')
-    await commands.driveClickByRole('button', 'Send message')
-
-    const reply = await screen.findByRole('article', {name: 'Reply to: Hello from the driver'})
-    expect(await within(reply).findByText('Driven answer')).toBeVisible()
-    expect(sentTexts(engine)).toEqual(['Hello from the driver'])
-    expect(await commands.driveMatches('Driven answer')).toBe(true)
-    drive.close()
-    await commands.driveClose()
   })
 })
