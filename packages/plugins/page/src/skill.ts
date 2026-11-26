@@ -18,6 +18,7 @@ export const info: Skill.Info = {
     '',
     '## Basics',
     '',
+    '- Page tools (`external_page_*`) are offered only for a tab whose page is open and connected: if none are listed, that page is closed or still connecting, so ask the user to open the app in the browser and call again with that tab.',
     '- A session can have several tabs open. Every page operation takes an optional `tabId` from `page.tabs.list`; without one, the tab the user focused last serves the call.',
     '- Read the page with `snapshot`, `screenshot`, `text`, `value`, `query` and `console`. `snapshot` returns every control with its current value, checked state and a `ref`; `click`, `fill`, `select`, `check`, `press`, `hover` and the other element tools take that `ref`, a CSS `selector`, or a React component `name`. Take a fresh snapshot after anything changes the page.',
     '- After editing a file, wait for the hot update to land with `hmr` before reading the page.',
