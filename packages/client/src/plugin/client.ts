@@ -30,6 +30,7 @@ export function make(
     auth: raw.auth,
     sessions: raw.sessions,
     tabs: raw.tabs,
+    jobs: raw.jobs,
     settings: raw.settings,
     drafts: raw.drafts,
     markers: raw.markers,

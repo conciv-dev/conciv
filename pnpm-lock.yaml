@@ -2532,9 +2532,6 @@ importers:
       '@conciv/home':
         specifier: workspace:^
         version: link:../home
-      '@conciv/plugin-page':
-        specifier: workspace:^
-        version: link:../plugins/page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

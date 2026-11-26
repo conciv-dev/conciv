@@ -72,6 +72,7 @@ import type {ResolvedConcivConfig} from '../config.js'
 import * as EventFeed from '../event-feed.js'
 import * as Tab from '../../core/tab/tab.js'
 import * as TabProjector from '../../core/tab/projector.js'
+import * as Job from '../../core/job/job.js'
 import {provideInstructionEntries} from './instruction-entries.js'
 import {permissionSessions} from './permission-cards.js'
 import {provideSessions} from './plugin-sessions.js'
@@ -284,6 +285,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
       ),
     ),
     Layer.provideMerge(Tab.layer.pipe(Layer.provide(TabProjector.layer))),
+    Layer.provideMerge(Job.layer),
     Layer.provideMerge(provideSessions(input.sessions)),
     Layer.provideMerge(SessionInbox.layer),
     Layer.provideMerge(Bus.configured()),

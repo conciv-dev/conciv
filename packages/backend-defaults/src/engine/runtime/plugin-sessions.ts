@@ -11,6 +11,7 @@ import {
   type SessionRecord,
 } from '@conciv/types/chat-types'
 import {Agent, type Bus, type KV, Session, SessionErrors} from '@conciv/backend-app-api'
+import type * as Job from '@conciv/backend-app-api/core/job'
 import {SessionInbox, SessionSynthetic} from '../../backend-defaults.js'
 import * as Model from '@conciv/protocol/schema/model'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
@@ -26,7 +27,7 @@ type SessionKeyDeps = {
   chat: ChatContext
   runtime: Pick<CoreRuntime, 'forSession'>
   search: Pick<ReturnType<typeof createSessionSearch>, 'retitle' | 'pages' | 'listed'>
-  pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
+  pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface | Job.Interface, never>
 }
 
 type SessionInfo = Effect.Success<ReturnType<Session.Interface['get']>>

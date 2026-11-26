@@ -108,6 +108,10 @@
       "types": "./dist/schema/browser-tab.d.ts",
       "import": "./dist/schema/browser-tab.js"
     },
+    "./schema/job": {
+      "types": "./dist/schema/job.d.ts",
+      "import": "./dist/schema/job.js"
+    },
     "./schema/browser-tab-event": {
       "types": "./dist/schema/browser-tab-event.d.ts",
       "import": "./dist/schema/browser-tab-event.js"

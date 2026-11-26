@@ -15,7 +15,7 @@ envelope with a suggested fix.
   registry catalog (`registry.catalog`), one group per tool-name prefix (`page_snapshot` is `page snapshot`) plus the
   fixed `tabs` command; every group verb calls `registry.call` (`tools.ts`). With no engine running, `conciv tools ...`
   (help included) fails with the `No conciv dev server` envelope.
-- Engine lookup (`engine-origin.ts`): with `--tab`, the live engine whose page plugin says the tab is open, else a user
+- Engine lookup (`engine-origin.ts`): with `--tab`, the live engine whose core tab list (`tabs.list`) has the tab open, else a user
   failure naming the tab; otherwise `CONCIV_PORT`, `.conciv/server.json` in cwd or an ancestor, the most recently
   registered live engine in the home db (`CONCIV_HOME`), then port 5173. The home db is checked with 300 ms
   (`PROBE_MS`), and engines that stayed silent are asked once more with `ENGINE_READ_MS` (2 s) before the CLI reports
@@ -33,9 +33,10 @@ envelope with a suggested fix.
 - The hub re-sends a call only when nothing ran: a connection refused (`ECONNREFUSED`) or `UNAUTHORIZED` (an engine
   restarted with a new token) is sent once more after a fresh pick; any other transport failure is never re-sent,
   since the block may already have acted on a page (`hub.ts`).
-- Page queues started from the hub are delivered once: each reply leads with the notices of the tab's finished queues
-  not yet delivered (`queue.undelivered`), and a client that negotiated MCP tasks gets a task for queues still playing,
-  polled with `queue.claim` and marked delivered with `queue.settle` (`hub.ts`).
+- Jobs a hub call started are reported once: after a run on a tab the hub lists the core jobs its calls started
+  (`jobs.list` by tool call id), and each later reply on that tab leads with the results of those that finished
+  (`jobs.wait`, which reports a finished job once); a client that negotiated MCP tasks gets a task for the jobs still
+  running, which completes once none are (`hub.ts`).
 - `conciv mcp disconnect` revokes like the widget's: the disconnect it records in the home db voids every running
   engine's outside Allow (`mcp.ts`, `@conciv/harness/init/hub`).
 - Errors: oRPC-defined errors, 4xx responses and an `APPROVAL_DENIED` refusal become user failures with no stack or

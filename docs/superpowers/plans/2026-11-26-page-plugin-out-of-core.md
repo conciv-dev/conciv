@@ -116,15 +116,14 @@ The held call is `tabs.open` (returns `'closed' | 'replaced'`), not attach. Even
 
 - [ ] Commit.
 
-### Task 6: Queued page results reach an outside agent with no hub page code (lanes CLI-HUB core+hub, WIDGET-PAGE page)
+### Task 6: Port opencode's Job; queued page work is a core job (lanes CLI-HUB core+hub, WIDGET-PAGE page)
 
-Today: hub polls page `queue.undelivered`/`queue.startedBy`/`queue.claim`/`queue.settle` and appends notices, and serves MCP `tasks/get` (`hub.ts:274-410, 599-644`); page skips its in-chat notice for `origin === 'hub'` (`connection.ts:451`).
-**Core (CLI-HUB):** durable event `session.outside_notice {sessionID, id, toolCallId, text}` projected into core table `outside_notice(id pk, session_id fk cascade, tool_call_id, text, delivered integer, created_at)`; `Session.Interface.notifyOutside(input)`; plugin view `ctx.session.notifyOutside`; contract `sessions.outsideNotices: oc.input({sessionId, toolCallIds?: string[], waitMs: number}).output(z.array({id, toolCallId, text}))` returning undelivered notices (waiting up to `waitMs` when `toolCallIds` given) and marking them delivered.
-**Hub (CLI-HUB):** after each `execute_typescript`/`discover_tools` reply on a tab, append `sessions.outsideNotices({sessionId: tab, waitMs: 0})`; MCP task for a call: `tasks/get` waits on `sessions.outsideNotices({sessionId, toolCallIds: calls, waitMs: TASK_POLL_MS})`. Delete the page queue code in `hub.ts` (types `PolledState`..`GoneQueue`, `finishedQueues`, `startedQueues`, `settleClaimed`, `pollQueue`, `withFinished`, `queueNoticePart`, `goneNotice`).
-**Page (WIDGET-PAGE):** `connection.ts:426-456`: origin `hub` → `ctx.session.notifyOutside({sessionId, toolCallId, text: queueNotice(finished)})`; other origins unchanged (`ctx.session.synthetic`). Delete `queue.startedBy`, `queue.undelivered`'s `origin` input if no caller remains (check with grep).
-**Tests:** page `test/it/tools.it.test.ts` journey "the agent reads the page in code mode" gains the outside-agent step: an outside call (`engine.outside()`) queues an action, it finishes, `sessions.outsideNotices` returns the notice once. CLI `hub.it` gains: a queued page action from the hub comes back on the next reply as a notice (page loaded by name in the test engine config, no import).
+Ruled 2026-11-26: opencode has a core concept for work a tool call starts that finishes later (`_ref/opencode/packages/core/src/job.ts`, `job/sql.ts`, `job/recovery.ts`, `job/list.ts`, used by `codemode/job.ts` and `session/background.ts`); we port it. The bespoke `outside_notice` table, `expectOutside`, `notifyOutside` and `sessions.outsideNotices` are deleted.
 
-- [ ] Commit per lane.
+**Core (CLI-HUB):** port `job.ts`, `job/sql.ts`, `job/recovery.ts`, `job/list.ts` VERBATIM: every type, method, recovery kind, flag and behaviour, same names, same file split, adapted only to repo guidelines (functions not classes: `Context.Service<Interface>('@conciv/Job')` instead of `class Service extends Context.Service`; no comments; no `Of` suffix; our module paths and our `Identifier`/`Database`/`SessionMessage` equivalents). Interface in `backend-app-api/src/core/job.ts` + `core/job/*.ts`, implementation in `backend-defaults/src/core/job/`. Add our recovery kind `page-queue {sessionID, queueId}` next to opencode's. Plugin view `ctx.job` wired in `backend-app-api/src/core/plugin/host.ts`. Job metadata carries `toolCallId` and `origin`. Contract read surface for the hub: `jobs.list({sessionId, toolCallIds?})`, `jobs.wait({ids, waitMs})`, served in backend-defaults. Where a ported piece needs a core service we do not have, stop and report it, do not stub it.
+**Hub (CLI-HUB):** after each tab reply, prepend the notices of jobs that finished for hub-origin calls of that session and were not yet reported to the hub (opencode's consumed/reported flags); open an MCP task only when `jobs.list({toolCallIds: calls})` has running jobs; `tasks/get` waits with `jobs.wait`.
+**Page (WIDGET-PAGE):** the queue starts a core job (`ctx.job.start({type: 'page-queue', recovery: {kind: 'page-queue', sessionID, queueId}, metadata: {toolCallId, origin}, run})`); the in-widget agent hears the result through the job's session notice (as opencode `codemode/job.ts` notice), replacing page's own `ctx.session.synthetic` queue notice; page's `queue.startedBy`, `queue.undelivered`, `queue.settle`, `queue.claim` lose their hub callers and go if nothing else calls them (grep).
+**Tests:** page `tools.it` "the agent reads the page in code mode" gains: an outside call queues an action, its job ends `completed`, the next hub-style read returns its notice once. CLI `hub.it` gains: a queued page action from the hub comes back on the next reply, and an MCP task completes when its job does. backend-defaults `session.it` journey gains: a running job is cancelled by an engine restart with the restart notice.
 
 ### Task 7: Built-ins as opencode; backend, app, storybook, publish (lane BUILTINS)
 
@@ -132,6 +131,15 @@ Today: hub polls page `queue.undelivered`/`queue.startedBy`/`queue.claim`/`queue
 **Tests:** app and backend existing tests pass; a widget bundle build; the shipped bundle's entry is not under `test/`.
 
 - [ ] Commit.
+
+### Task 8a: Root e2e folders hold only what needs them (orchestrator audits, a lane fixes)
+
+Rule (AGENTS.md Testing, maintainer 2026-11-26): a framework app under `e2e/` holds ONE test (sign in, widget opens with no error); a second only for something that broke in that framework, named in its title. Behaviour that needs the real built widget in a real browser but is not about a framework (reload, windows, downloads, file chooser, focus between host and widget, real CLIs, the CLI binary) is tested once in one host app (`e2e/vite-react`). App-level behaviour never lives in `e2e/`.
+Today: `e2e/vite-react` has 19 tests, `e2e/nextjs` 3, `e2e/harnesses` 2, every other app 1.
+
+- [ ] For each `e2e/vite-react` test: keep only if it needs the real bundle for a reason in the list above; otherwise move its behaviour to the owning package's browser-mode test (the journey file of that area) or delete it if already covered there (name the covering test).
+- [ ] `e2e/nextjs`: the 2 extra tests name the Next.js break they guard, or go.
+- [ ] `e2e/harnesses`: real harness CLIs, allowed; confirm each test is about a CLI.
 
 ### Task 8: Proof (orchestrator)
 

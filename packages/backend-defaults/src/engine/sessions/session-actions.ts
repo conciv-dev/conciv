@@ -6,13 +6,14 @@ import {sessions} from '@conciv/backend-app-api/core/session/sql'
 import type {ConcivDb} from '../../db/connection.js'
 import {SessionId} from '@conciv/protocol/schema/session-id'
 import {Bus, KV, SessionEvent, SessionSchema} from '@conciv/backend-app-api'
+import * as Job from '@conciv/backend-app-api/core/job'
 import {runInOrder} from '../lib/shutdown.js'
 import {removeInstructionEntries} from '../runtime/instruction-entries.js'
 import {createRow, rowById, tombstoneRow, type FreshRowInput, type RowScope} from './session-rows.js'
 import type {createSessionSearch} from './session-search.js'
 import type {CoreRuntime} from '../runtime/scope-types.js'
 
-type PluginHost = ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
+type PluginHost = ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface | Job.Interface, never>
 
 type SessionRenaming = {
   db: ConcivDb
@@ -87,6 +88,7 @@ const deletionFailed = 'conciv: deleting the session failed'
 export async function deleteSession(deletion: SessionDeletion, sessionId: SessionId): Promise<void> {
   await deletion.runtime.forSession(sessionId).run.stop()
   await deletion.plane.endRuns(sessionId)
+  await deletion.pluginHost.runPromise(Job.Service.use((jobs) => jobs.cancelSession(SessionSchema.Id.make(sessionId))))
   await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
   await tombstoneRow(deletion.db, sessionId)
   const draftFailures = await Effect.runPromise(

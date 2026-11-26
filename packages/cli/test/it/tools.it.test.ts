@@ -1,10 +1,9 @@
 import {describe, expect} from 'vitest'
 import {test as it} from '@conciv/backend-test-utils'
-import page from '@conciv/plugin-page'
 import {cli} from '../utils/cli.js'
 
 describe('tools', () => {
-  it("the plugin's group is listed, its verb runs with flags spelled from its schema, a mistyped verb gets a fix, a page tool with no page open answers that no page is open, and a plugin rpc method runs through plugin call", async ({
+  it("the plugin's group is listed, its verb runs with flags spelled from its schema, a mistyped verb gets a fix, and a plugin rpc method runs through plugin call", async ({
     createEngine,
   }) => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
@@ -38,16 +37,6 @@ describe('tools', () => {
         message: "Unknown command 'lable' for conciv tools shelf. Did you mean 'label'?",
         hint: 'run conciv tools shelf --help to list its commands',
       },
-    })
-
-    const paged = await createEngine({}, {plugins: [page]})
-    const pageHelp = await cli(['tools', '--help'], {engine: paged})
-    expect(pageHelp.stdout).toMatch(/^ {2}page +the page tools the running dev server serves/m)
-    const noPage = await cli(['tools', 'page', 'route'], {engine: paged})
-    expect(noPage.exitCode).toBe(1)
-    expect(JSON.parse(noPage.stdout)).toMatchObject({
-      ok: false,
-      error: {message: expect.stringContaining('No tool named "page_route" is currently available')},
     })
 
     const counted = await engine.rpc.call('plant-shelf', 'count', {plant: 'fern'})

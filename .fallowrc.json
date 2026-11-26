@@ -659,6 +659,10 @@
       "exports": ["Failure", "Rpc"]
     },
     {
+      "file": "packages/backend-plugin-api/src/{effect,promise}/job.ts",
+      "exports": ["JobDomain", "JobStartInput"]
+    },
+    {
       "file": "packages/backend-app-api/src/core/session.ts",
       "exports": ["Session"]
     },
