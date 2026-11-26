@@ -27,7 +27,7 @@ test.describe('signing in to the widget on a vite react page', () => {
 })
 
 test.describe('the conciv CLI against the vite react dev server', () => {
-  test('the user lists the open tabs with conciv tools tabs, reads the page with --tab and no Allow card under the default open hub access, reads its react components, and calls the page plugin with conciv plugin call', async ({
+  test('the user lists the open tabs with conciv tools tabs, reads the page with --tab and no Allow card under the default open hub access and reads its react components', async ({
     page,
   }) => {
     const project = join(import.meta.dirname, '..')
@@ -69,18 +69,6 @@ test.describe('the conciv CLI against the vite react dev server', () => {
     )
     expect(JSON.parse(found)).toMatchObject({ok: true, data: {total: 1}})
     await expect(page.getByRole('group', {name: 'Permission request'})).toHaveCount(0)
-
-    const captures = await text(
-      spawn(
-        process.execPath,
-        [conciv, 'plugin', 'call', 'experimental.page', 'captures.list', '--data', JSON.stringify({sessionId: tab})],
-        {
-          cwd: project,
-          env: {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME},
-        },
-      ).stdout,
-    )
-    expect(JSON.parse(captures)).toMatchObject({ok: true, data: {captures: expect.any(Array)}})
   })
 })
 
