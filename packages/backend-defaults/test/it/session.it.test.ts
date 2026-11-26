@@ -1,4 +1,5 @@
 import {describe} from 'vitest'
+import {makeRpcClient} from '@conciv/client'
 import {test} from '../utils/engine-test.js'
 import {TestLLM} from '../utils/engine.js'
 
@@ -272,4 +273,103 @@ describe.concurrent('session.synthetic', () => {
       expect(requests[2]?.messages.at(-1)).toMatchObject({role: 'user', content: 'Keep going'})
     },
   )
+
+  test('a browser tab opens, a second joins, focus moves, the first reopens, the second closes, the engine restarts and a deleted session takes its tabs', async ({
+    createEngine,
+    expect,
+  }) => {
+    const engine = await createEngine(
+      {},
+      {
+        harnesses: [
+          {
+            id: 'engine',
+            sessions: [
+              {
+                id: 'past-login',
+                cwd: '/workspace/shop',
+                derivedTitle: 'Fix the login form',
+                updatedAt: 1_000,
+                messages: [{id: 'm1', role: 'user', parts: [{type: 'text', content: 'Why does login fail?'}]}],
+              },
+            ],
+          },
+        ],
+      },
+    )
+    const FIRST_TAB = 'tab_00000000-0000-4000-8000-000000000001'
+    const SECOND_TAB = 'tab_00000000-0000-4000-8000-000000000002'
+    const openTab = (id: string, focused: boolean) => ({
+      id,
+      url: 'http://localhost:5173/shelf',
+      title: 'Plant shelf',
+      focused,
+      visible: true,
+    })
+    const widget = makeRpcClient(engine.address.apiBase, {token: engine.address.token})
+    const {sessionId} = await widget.sessions.create({})
+    const changes = (await widget.tabs.changes())[Symbol.asyncIterator]()
+    await changes.next()
+    const secondWidget = new AbortController()
+
+    const firstOpen = widget.tabs.open({sessionId, connectionId: 'widget-1', tab: openTab(FIRST_TAB, false)})
+    await changes.next()
+    const secondOpen = widget.tabs.open(
+      {sessionId, connectionId: 'widget-2', tab: openTab(SECOND_TAB, true)},
+      {signal: secondWidget.signal},
+    )
+    await changes.next()
+    await expect(widget.tabs.list({sessionId})).resolves.toEqual({
+      tabs: [openTab(SECOND_TAB, true), openTab(FIRST_TAB, false)],
+      focusedTabId: SECOND_TAB,
+    })
+    await expect(widget.tabs.sessions()).resolves.toEqual([sessionId])
+
+    await widget.tabs.state({sessionId, connectionId: 'widget-1', tab: openTab(FIRST_TAB, true)})
+    await changes.next()
+    await expect(widget.tabs.list({sessionId})).resolves.toEqual({
+      tabs: [openTab(FIRST_TAB, true), openTab(SECOND_TAB, false)],
+      focusedTabId: FIRST_TAB,
+    })
+
+    const reopen = widget.tabs.open({sessionId, connectionId: 'widget-1', tab: openTab(FIRST_TAB, true)})
+    await expect(firstOpen).resolves.toBe('replaced')
+    await changes.next()
+    await expect(widget.tabs.list({sessionId})).resolves.toMatchObject({tabs: [{id: FIRST_TAB}, {id: SECOND_TAB}]})
+
+    secondWidget.abort()
+    await expect(secondOpen).rejects.toThrow()
+    await changes.next()
+    await expect(widget.tabs.list({sessionId})).resolves.toEqual({
+      tabs: [openTab(FIRST_TAB, true)],
+      focusedTabId: FIRST_TAB,
+    })
+    await expect(
+      widget.tabs.state({sessionId, connectionId: 'widget-2', tab: openTab(SECOND_TAB, true)}),
+    ).rejects.toThrow(expect.objectContaining({code: 'UNAVAILABLE'}))
+
+    await engine.restart()
+    await Promise.allSettled([reopen])
+    await expect(widget.tabs.sessions()).resolves.toEqual([])
+    await expect(widget.tabs.list({sessionId})).resolves.toEqual({tabs: [], focusedTabId: null})
+
+    const restarted = (await widget.tabs.changes())[Symbol.asyncIterator]()
+    await restarted.next()
+    const afterRestart = widget.tabs.open({sessionId, connectionId: 'widget-3', tab: openTab(FIRST_TAB, false)})
+    await restarted.next()
+    await expect(widget.tabs.sessions()).resolves.toEqual([sessionId])
+    await widget.sessions.delete({sessionId})
+    await expect(afterRestart).resolves.toBe('closed')
+    await expect(widget.tabs.list({sessionId})).resolves.toEqual({tabs: [], focusedTabId: null})
+    await expect(widget.tabs.sessions()).resolves.toEqual([])
+
+    const elsewhere = await widget.sessions.open({
+      harnessKind: 'engine',
+      cwd: '/workspace/shop',
+      nativeId: 'past-login',
+    })
+    await expect(
+      widget.tabs.open({sessionId: elsewhere.sessionId, connectionId: 'widget-4', tab: openTab(SECOND_TAB, false)}),
+    ).rejects.toThrow(expect.objectContaining({code: 'UNAVAILABLE'}))
+  })
 })
