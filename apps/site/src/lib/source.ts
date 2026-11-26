@@ -1,43 +1,16 @@
 import {createElement} from 'react'
 import {loader} from 'fumadocs-core/source'
 import {docs} from 'collections/server'
-import {
-  Bot,
-  Boxes,
-  FlaskConical,
-  FolderCode,
-  LifeBuoy,
-  MousePointerClick,
-  Puzzle,
-  Rocket,
-  Settings,
-  SquareTerminal,
-  Workflow,
-  Zap,
-  type LucideIcon,
-} from 'lucide-react'
+import {pixelIcons} from '../components/pixel-icons'
 import {docsRoute} from './shared'
-
-const docsIcons: Record<string, LucideIcon> = {
-  Bot,
-  Boxes,
-  FlaskConical,
-  FolderCode,
-  LifeBuoy,
-  MousePointerClick,
-  Puzzle,
-  Rocket,
-  Settings,
-  SquareTerminal,
-  Workflow,
-  Zap,
-}
 
 function docsIcon(name: string | undefined) {
   if (name === undefined) return undefined
-  const icon = docsIcons[name]
+  const icon = pixelIcons[name]
   if (icon === undefined) {
-    throw new Error(`docs icon "${name}" is not in docsIcons in apps/site/src/lib/source.ts; add the lucide icon there`)
+    throw new Error(
+      `docs icon "${name}" is not in pixelIcons in apps/site/src/components/pixel-icons.tsx; draw it there`,
+    )
   }
   return createElement(icon)
 }

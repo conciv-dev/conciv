@@ -1,5 +1,5 @@
 {
   "title": "Quick start",
-  "icon": "Zap",
+  "icon": "PixelPlug",
   "pages": ["index", "vite", "nextjs", "webpack", "rspack", "ios", "other-bundlers", "agents"]
 }
