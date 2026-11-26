@@ -42,6 +42,7 @@ describe('engine spans', () => {
       const bridge = await askingToolProvisioner(
         async () => ({allowed: false, message: 'no asks here'}),
         observability.tracer,
+        {runFork: () => undefined},
       ).provision([], {threadId: 'spans-bridge', provider: 'local-process'})
       try {
         const headers = {authorization: `Bearer ${bridge.token}`}

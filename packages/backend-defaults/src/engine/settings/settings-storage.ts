@@ -11,7 +11,7 @@ import type {Maker} from '@conciv/protocol/schema/identifier'
 import {statics} from '@conciv/protocol/schema/schema'
 import {SettingsNamespaceSchema, type SettingsScope, type SettingsSnapshot} from '@conciv/protocol'
 import type {SettingsState} from '@conciv/client'
-import type {Log} from '../lib/logging.js'
+import type {EngineRuntime} from '../lib/logging.js'
 
 const WRITE_DEBOUNCE_MS = 100
 
@@ -52,12 +52,12 @@ const SettingsGeneration = Schema.String.check(Schema.isStartingWith('gen_')).pi
   statics((schema) => ({create: (ids: Maker) => schema.make('gen_' + ids.ascending())})),
 )
 
-export function createSettingsStorage(storages: SettingsStorages, log: Log, ids: Maker) {
+export function createSettingsStorage(storages: SettingsStorages, runtime: EngineRuntime, ids: Maker) {
   const generation = SettingsGeneration.create(ids)
   const files = new Map<string, Promise<SettingsFile>>()
   const file = (scope: SettingsScope, namespace: string): Promise<SettingsFile> => {
     const key = settingsKey(namespace)
-    const opened = files.get(`${scope}:${key}`) ?? openSettingsFile(storages[scope], key, generation, log)
+    const opened = files.get(`${scope}:${key}`) ?? openSettingsFile(storages[scope], key, generation, runtime)
     files.set(`${scope}:${key}`, opened)
     return opened
   }
@@ -78,14 +78,16 @@ function settingsKey(namespace: string): string {
 
 type SettingsFile = Awaited<ReturnType<typeof openSettingsFile>>
 
-async function openSettingsFile(storage: Storage, key: string, generation: string, log: Log) {
+async function openSettingsFile(storage: Storage, key: string, generation: string, runtime: EngineRuntime) {
   const value = await readSaved(storage, key).catch((error: unknown) => {
-    log(Effect.logWarning('[core] a settings file is unreadable, starting empty until the next change', {key, error}))
+    runtime.runFork(
+      Effect.logWarning('[core] a settings file is unreadable, starting empty until the next change', {key, error}),
+    )
     return {}
   })
   const state = createSharedState<SettingsSnapshot>({initialValue: {generation, version: 0, value}})
   const write = debounce(
-    (snapshot: SettingsSnapshot) => writeSaved(storage, key, snapshot.value, log),
+    (snapshot: SettingsSnapshot) => writeSaved(storage, key, snapshot.value, runtime),
     WRITE_DEBOUNCE_MS,
   )
   state.on('updated', (snapshot) => write(snapshot))
@@ -132,10 +134,15 @@ async function readSaved(storage: Storage, key: string): Promise<Record<string, 
   return SavedSettingsSchema.parse((await storage.getItem(key)) ?? {})
 }
 
-async function writeSaved(storage: Storage, key: string, value: Record<string, unknown>, log: Log): Promise<void> {
+async function writeSaved(
+  storage: Storage,
+  key: string,
+  value: Record<string, unknown>,
+  runtime: EngineRuntime,
+): Promise<void> {
   try {
     await storage.setItem(key, `${JSON.stringify(value, null, 2)}\n`)
   } catch (error) {
-    log(Effect.logError('[core] writing a settings file failed', {key, error}))
+    runtime.runFork(Effect.logError('[core] writing a settings file failed', {key, error}))
   }
 }

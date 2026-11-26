@@ -229,7 +229,7 @@ async function hubTraced<Result>(
     publish: scope.stream.publish,
     record: scope.run.record,
     driving: () => deps.code.driving(scope.id),
-    log: deps.code.log,
+    runtime: deps.code.runtime,
   })
   await mirror.publish(trace.start(mirrored, name, input))
   try {
@@ -556,11 +556,13 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     meta: {
       models: os.meta.models.handler(async ({input, signal = new AbortController().signal}) => {
         const harness = await chat.harnessFor(input.sessionId)
-        const {models, defaultModel, modelsFailed, login} = await buildHarnessMenuEntry(harness, signal, chat.log)
+        const {models, defaultModel, modelsFailed, login} = await buildHarnessMenuEntry(harness, signal, chat.runtime)
         return {models, defaultModel, modelsFailed, harness: buildHarnessMeta(harness), login}
       }),
       harnesses: os.meta.harnesses.handler(async ({signal = new AbortController().signal}) => ({
-        harnesses: await Promise.all(chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, signal, chat.log))),
+        harnesses: await Promise.all(
+          chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, signal, chat.runtime)),
+        ),
         defaultHarness: chat.defaultHarness.id,
       })),
       commands: os.meta.commands.handler(({input, context}) =>

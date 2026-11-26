@@ -1,6 +1,7 @@
-import {Effect, FileSystem, Formatter, Logger, Option, Schedule, Stream, type LogLevel} from 'effect'
+import {Effect, FileSystem, Formatter, Logger, Option, Schedule, Stream} from 'effect'
 import path from 'path'
 import * as Global from '@conciv/backend-app-api/util/global'
+import {gate, type Enabled} from './log-level.js'
 
 export const LOG_MAX_BYTES = 50 * 1024 * 1024
 export const LOG_KEEP_BYTES = 25 * 1024 * 1024
@@ -126,29 +127,15 @@ function lineStart(handle: FileSystem.File, from: number) {
   })
 }
 
-function stderrLogger(id: string) {
+export function stderrLogger(id: string) {
   return Logger.make((options) => {
-    if (process.env.CONCIV_PRINT_LOGS !== '1') return
     process.stderr.write(formatter(id).log(options) + '\n')
   })
 }
 
-const levels = {
-  DEBUG: 'Debug',
-  INFO: 'Info',
-  WARN: 'Warn',
-  ERROR: 'Error',
-} as const satisfies Record<string, LogLevel.LogLevel>
-
-function isLevelName(value: string): value is keyof typeof levels {
-  return Object.hasOwn(levels, value)
-}
-
-export function minimumLogLevel() {
-  const value = process.env.CONCIV_LOG_LEVEL?.toUpperCase()
-  return value && isLevelName(value) ? levels[value] : levels.INFO
-}
-
-export function loggers(run: string, local = true, channel = 'local') {
-  return [file(local, channel).pipe(Effect.flatMap((target) => fileLogger(target, run))), stderrLogger(run)]
+export function gatedFileLogger(run: string, local: boolean, channel: string, enabled: Enabled) {
+  return file(local, channel).pipe(
+    Effect.flatMap((target) => fileLogger(target, run)),
+    Effect.map((logger) => gate(enabled, logger)),
+  )
 }

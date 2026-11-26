@@ -3,7 +3,7 @@ import type {SessionId} from '@conciv/types/chat-types'
 import type {EngineStaleness} from '@conciv/protocol'
 import type {ChatPlane} from '../../backend-defaults.js'
 import {sessionRunEvent, type ChatEvent} from '@conciv/types/chat-event-types'
-import type {Log} from '../lib/logging.js'
+import type {EngineRuntime} from '../lib/logging.js'
 import type {SessionPrimitives} from './primitives.js'
 import type {CoreRuntime, EngineScope, SessionScope} from './scope-types.js'
 
@@ -13,7 +13,7 @@ export type CoreRuntimeDeps = {
   model: (sessionId: SessionId) => Promise<string | null>
   staleness: () => Promise<EngineStaleness>
   interruptIdle: (sessionId: SessionId, stopped: boolean) => Promise<boolean>
-  log: Log
+  runtime: EngineRuntime
 }
 
 function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
@@ -29,7 +29,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     stream: {
       publish: (chunk) => stream.publish(id, chunk),
       listen: (onChunk) => stream.listen(id, onChunk),
-      events: (signal) => caughtUpThenLive(stream.events(id, signal), () => deps.plane.catchUp(id), deps.log),
+      events: (signal) => caughtUpThenLive(stream.events(id, signal), () => deps.plane.catchUp(id), deps.runtime),
     },
     asks: {ui: () => deps.plane.askUi(id)},
     history: {
@@ -55,11 +55,11 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
 async function* caughtUpThenLive(
   live: AsyncGenerator<ChatEvent>,
   missed: () => Promise<ChatEvent[]>,
-  log: Log,
+  runtime: EngineRuntime,
 ): AsyncGenerator<ChatEvent> {
   const first = live.next()
   const caught = await missed().catch((error: unknown): ChatEvent[] => {
-    log(Effect.logError('[core] reading what a new subscriber missed failed', {error}))
+    runtime.runFork(Effect.logError('[core] reading what a new subscriber missed failed', {error}))
     return []
   })
   yield* caught

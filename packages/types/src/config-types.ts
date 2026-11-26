@@ -12,6 +12,19 @@ const TriggerPositionSchema = z.enum([
 
 export type TriggerPosition = z.infer<typeof TriggerPositionSchema>
 
+export const LogLevelSchema = z.enum(['off', 'error', 'warn', 'info', 'debug', 'trace'])
+export type LogLevel = z.infer<typeof LogLevelSchema>
+
+export function readLogLevel(sources: {
+  readonly flag?: string | undefined
+  readonly env?: string | undefined
+  readonly config?: LogLevel | undefined
+}): LogLevel {
+  const named = [sources.flag, sources.env, sources.config].find((value) => value !== undefined && value !== '')
+  const parsed = LogLevelSchema.safeParse(named?.toLowerCase())
+  return parsed.success ? parsed.data : 'off'
+}
+
 const ModalConfigSchema = z.object({position: TriggerPositionSchema.optional()})
 
 const QuickTerminalConfigSchema = z.object({hotkey: z.union([z.string(), z.array(z.string())]).optional()})

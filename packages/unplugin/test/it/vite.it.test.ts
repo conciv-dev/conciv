@@ -37,7 +37,7 @@ describe.concurrent('the vite dev server', () => {
     )
     const server = spawn(process.execPath, [viteBin], {
       cwd: project,
-      env: {...childEnv(bin, home), CONCIV_DISABLE_FILEWATCHER: 'false', CONCIV_PRINT_LOGS: ''},
+      env: {...childEnv(bin, home), CONCIV_DISABLE_FILEWATCHER: 'false'},
       stdio: ['pipe', 'pipe', 'pipe'],
     })
     if (server.pid !== undefined) started.push(server.pid)
