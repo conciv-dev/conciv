@@ -29,6 +29,7 @@ import {defaultConfigProvider} from './lib/default-config-provider.js'
 import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '../tools.js'
+import {exposesPageData} from '../tools/log-level.js'
 import {
   type ChatTool,
   type HarnessSessionId,
@@ -123,6 +124,7 @@ import type {OpenInEditor} from './editor/open.js'
 import {writePrivateFile} from './lib/dev-endpoint.js'
 import type {EngineRuntime} from './lib/logging.js'
 import type {LogOptions} from '../util/observability/host-sink.js'
+import * as LogLevel from '../util/observability/log-level.js'
 import type {SimulationParts} from './lib/simulation.js'
 
 type ServeBindings = Parameters<ServeFetch>[1]
@@ -695,6 +697,19 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const sessionModel = (sessionId: SessionId): Promise<string | null> => readModel(db, sessionId)
   const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({
     askUi: () => runtime.forSession(sessionId).asks.ui(),
+    setLogLevel: async (input) => {
+      if (exposesPageData(input)) {
+        const answer = await askPermission(
+          sessionId,
+          {action: 'logs.setLevel', resources: [input.scope], metadata: {level: input.level}},
+          engineLife.signal,
+        )
+        if (!answer.allowed) return {refused: answer.message}
+      }
+      return pluginHost.runPromise(
+        LogLevel.Service.use((levels) => levels.set(input.level, input.scope).pipe(Effect.andThen(levels.get))),
+      )
+    },
   })
 
   const startPlugins = (): PluginRuntime => {

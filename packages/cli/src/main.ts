@@ -4,6 +4,7 @@ import {authRoute} from './auth.js'
 import {envelopeFlag} from './envelope.js'
 import {logLevelFlag, verboseFlag} from './log-flags.js'
 import {initCommand} from './init.js'
+import {logsRoute} from './logs.js'
 import {mcpRoute} from './mcp.js'
 import {pluginRoute} from './plugin.js'
 import {tabFlag} from './tab-flag.js'
@@ -21,5 +22,6 @@ export const main = route(
   initCommand,
   authRoute,
   mcpRoute,
+  logsRoute,
   pluginRoute,
 )

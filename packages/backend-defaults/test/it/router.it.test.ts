@@ -77,7 +77,7 @@ describe.concurrent('outside agents', () => {
     )
   })
 
-  test("an outside agent that is disconnected from conciv is refused, and a connected one can't answer an ask, connect agents, read the event stream, use plugin routes or the session terminal", async ({
+  test("an outside agent that is disconnected from conciv is refused, and a connected one can't answer an ask, connect agents, read the event stream, use plugin routes, the session terminal or the widget's logs, and it can switch the log levels", async ({
     createEngine,
     expect,
   }) => {
@@ -111,6 +111,16 @@ describe.concurrent('outside agents', () => {
     await expect(outside.experimental.persistentPty.create({sessionId: engine.session.id})).rejects.toMatchObject(
       refused("outside agents can't use the session terminal; use it in the tab"),
     )
+    await expect(outside.logs.write({events: []})).rejects.toMatchObject(
+      refused("outside agents can't write the widget's logs"),
+    )
+
+    const levels = await outside.logs.level()
+    expect((await levels.next()).value).toEqual({engine: 'off', widget: 'off'})
+    expect(await outside.logs.setLevel({level: 'debug', scope: 'engine'})).toEqual({engine: 'debug', widget: 'off'})
+    expect((await levels.next()).value).toEqual({engine: 'debug', widget: 'off'})
+    expect(await outside.logs.setLevel({level: 'off', scope: 'all'})).toEqual({engine: 'off', widget: 'off'})
+    await levels.return()
   })
 
   test('with project access a call into a session waits until the user allows it', async ({createEngine, expect}) => {

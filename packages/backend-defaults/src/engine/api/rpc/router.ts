@@ -26,6 +26,7 @@ import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './session
 import {relayEvents} from './relay-events.js'
 import {tabsRouter} from './tabs.js'
 import {jobsRouter} from './jobs.js'
+import {logsRouter} from './logs.js'
 import {readProject} from '../../lib/project.js'
 import {
   admitOutsideCall,
@@ -392,6 +393,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     sessions: sessionsRouter(deps),
     tabs: tabsRouter(deps),
     jobs: jobsRouter(deps),
+    logs: logsRouter(deps),
     chat: chatRouter(deps, sessionOs),
     settings: {
       all: os.settings.all.handler(async ({input}) => (await deps.settings.file(input.scope, input.namespace)).read()),
