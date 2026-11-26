@@ -1,6 +1,7 @@
 import {
   batch,
   createMemo,
+  createRenderEffect,
   createSignal,
   from,
   getOwner,
@@ -11,6 +12,10 @@ import {
   type Accessor,
 } from 'solid-js'
 import {createStore, produce, type Store} from 'solid-js/store'
+import {Effect, Fiber} from 'effect'
+import {BrowserTabId} from '@conciv/protocol/schema/browser-tab'
+import {BrowserTabUrl} from '@conciv/frontend-plugin-api/page'
+import {openBrowserTab} from '../browser-tab/open-browser-tab'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {createORPCClient} from '@orpc/client'
 import {z} from 'zod'
@@ -512,6 +517,29 @@ export function createPluginAttachment(apis: HostApis) {
     return key && view?.key === key ? view : undefined
   })
 
+  const browserTab = Object.freeze({
+    id: BrowserTabId.parse(`tab_${crypto.randomUUID()}`),
+    connectionId: crypto.randomUUID(),
+  })
+  const notices = useNotices()
+  const redact = (href: string) => host.list(BrowserTabUrl).reduce((url, entry) => entry.redact(url), href)
+
+  createRenderEffect(
+    on([current, connection], ([view, connected]) => {
+      if (!view || !connected || !view.server.compatible) return
+      const held = Effect.runFork(
+        openBrowserTab({
+          client: view.server.client,
+          sessionId: view.id,
+          browserTab,
+          redact: (href) => untrack(() => redact(href)),
+          refused: (title) => void notices.notify(title, {tone: 'danger'}),
+        }).pipe(Effect.andThen(Effect.never), Effect.scoped),
+      )
+      onCleanup(() => void Effect.runFork(Fiber.interrupt(held)))
+    }),
+  )
+
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
   const mobileViews = createMobileViews()
 
@@ -653,6 +681,7 @@ export function createPluginAttachment(apis: HostApis) {
 
   return {
     engine,
+    browserTab,
     root: () => (project.isSuccess ? project.data?.root : undefined),
     attach: (directory: string) => {
       const detach = apis.attach({...mounted, directory})

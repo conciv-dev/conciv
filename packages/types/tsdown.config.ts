@@ -23,6 +23,7 @@ export default defineConfig({
     'src/engine-trust.ts',
     'src/event-bus.ts',
     'src/tool-call-types.ts',
+    'src/secret-key.ts',
   ],
   format: 'esm',
   fixedExtension: false,

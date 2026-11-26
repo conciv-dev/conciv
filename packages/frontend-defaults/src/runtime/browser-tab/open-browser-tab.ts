@@ -2,11 +2,14 @@ import {Cause, Duration, Effect, Option, Schedule, Semaphore, Stream} from 'effe
 import {z} from 'zod'
 import type {ConcivClient} from '@conciv/client'
 import {BrowserTab, type BrowserTabId} from '@conciv/protocol/schema/browser-tab'
+import {SECRET_KEY} from '@conciv/types/secret-key'
 
 export type OpenBrowserTab = {
   readonly client: Pick<ConcivClient, 'tabs' | 'event'>
   readonly sessionId: string
   readonly browserTab: {readonly id: BrowserTabId; readonly connectionId: string}
+  readonly redact: (href: string) => string
+  readonly refused: (title: string) => void
 }
 
 const TAB_EVENTS = ['focus', 'blur']
@@ -15,8 +18,7 @@ const URL_MAX = BrowserTab.shape.url.maxLength ?? Number.POSITIVE_INFINITY
 
 const TITLE_MAX = BrowserTab.shape.title.maxLength ?? Number.POSITIVE_INFINITY
 
-const SECRET_KEY =
-  /pass(word|wd)?|secret|token|api[-_]?key|authorization|bearer|jwt|cookie|credential|private[-_]?key|session/i
+const REFUSED = 'This page couldn’t open in this session. Reload the page or start a new session.'
 
 const STATE_RETRY = Schedule.max([Schedule.exponential(Duration.millis(250)), Schedule.recurs(6)])
 
@@ -41,10 +43,10 @@ function redactedUrl(href: string): string {
   return url.href
 }
 
-export function readBrowserTab(id: BrowserTabId): BrowserTab {
+export function readBrowserTab(id: BrowserTabId, redact: (href: string) => string): BrowserTab {
   return {
     id,
-    url: redactedUrl(location.href).slice(0, URL_MAX),
+    url: redact(redactedUrl(location.href)).slice(0, URL_MAX),
     title: document.title.slice(0, TITLE_MAX),
     focused: document.hasFocus(),
     visible: document.visibilityState === 'visible',
@@ -94,7 +96,7 @@ function held(input: OpenBrowserTab, signal: AbortSignal): Effect.Effect<void, u
         {
           sessionId: input.sessionId,
           connectionId: input.browserTab.connectionId,
-          tab: readBrowserTab(input.browserTab.id),
+          tab: readBrowserTab(input.browserTab.id, input.redact),
         },
         {signal},
       ),
@@ -106,6 +108,10 @@ function held(input: OpenBrowserTab, signal: AbortSignal): Effect.Effect<void, u
       (cause) => readCode(cause) === 'NOT_FOUND',
       () => sessionCreated(input, signal).pipe(Effect.flatMap((born) => (born ? held(input, signal) : Effect.void))),
     ),
+    Effect.catchIf(
+      (cause) => readCode(cause) === 'UNAVAILABLE',
+      () => Effect.sync(() => input.refused(REFUSED)),
+    ),
   )
 }
 
@@ -116,7 +122,7 @@ function reported(input: OpenBrowserTab, signal: AbortSignal) {
         {
           sessionId: input.sessionId,
           connectionId: input.browserTab.connectionId,
-          tab: readBrowserTab(input.browserTab.id),
+          tab: readBrowserTab(input.browserTab.id, input.redact),
         },
         {signal},
       ),

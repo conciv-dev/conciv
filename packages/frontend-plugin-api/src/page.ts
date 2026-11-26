@@ -39,6 +39,12 @@ export interface PageOperation {
 
 export const PageOperation = Registry.define<PageOperation>('page.operation')
 
+export interface BrowserTabUrl {
+  readonly redact: (href: string) => string
+}
+
+export const BrowserTabUrl = Registry.define<BrowserTabUrl>('browser-tab.url')
+
 export type DehydrateOptions = {
   maxDepth?: number
   maxItems?: number

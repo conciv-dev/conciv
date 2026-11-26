@@ -1,17 +1,15 @@
 import type {DehydrateOptions} from '@conciv/frontend-plugin-api/page'
+import {SECRET_KEY} from '@conciv/types/secret-key'
 
 const REACT_ELEMENT = Symbol.for('react.element')
 const REACT_TRANSITIONAL_ELEMENT = Symbol.for('react.transitional.element')
-
-const DEFAULT_REDACT =
-  /pass(word|wd)?|secret|token|api[-_]?key|authorization|bearer|jwt|cookie|credential|private[-_]?key|session/i
 
 const DEFAULTS: Required<Omit<DehydrateOptions, 'redact'>> & {redact: RegExp | null} = {
   maxDepth: 2,
   maxItems: 50,
   stringCap: 200,
   maxNodes: 300,
-  redact: DEFAULT_REDACT,
+  redact: SECRET_KEY,
 }
 
 export function navigatePath(root: unknown, path: string): {found: boolean; value: unknown} {

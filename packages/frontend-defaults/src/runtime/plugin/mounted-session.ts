@@ -16,9 +16,6 @@ import type {Composer, MountedSession, SessionScreen} from '@conciv/frontend-plu
 import type {DraftItem} from '@conciv/types/chat-types'
 import {AbsolutePath} from '@conciv/protocol/schema/schema'
 import {useQuery} from '@conciv/client'
-import {Effect, Fiber} from 'effect'
-import {BrowserTabId} from '@conciv/protocol/schema/browser-tab'
-import {openBrowserTab} from '../browser-tab/open-browser-tab'
 import {useAppData, useConnected, useLiveSessions} from '../../app/context'
 import {usePluginAttachment} from './attachment'
 import {decodeNotes, NoteContextItem, noteItem, noteValue} from '../../composer/note-schema'
@@ -92,10 +89,6 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
   const engine = attachment.engine
   const listed = useQuery(() => ({...appData.utils.meta.project.queryOptions(), enabled: connection()}))
   const owner = getOwner()
-  const browserTab = Object.freeze({
-    id: BrowserTabId.parse(`tab_${crypto.randomUUID()}`),
-    connectionId: crypto.randomUUID(),
-  })
   const [binding, setBinding] = createSignal<BoundComposer>()
   const bound = createMemo(() => binding() !== undefined)
 
@@ -263,7 +256,7 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
       key: `${engine.id}\n${id}`,
       id,
       tab: input.tab,
-      browserTab,
+      browserTab: attachment.browserTab,
       visit: input.visit,
       server: engine,
       pending: false,
@@ -315,19 +308,6 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
   createRenderEffect(
     on(mounted, (view) => {
       if (view) attachment.preload(view)
-    }),
-  )
-
-  createRenderEffect(
-    on([mounted, connection], ([view, connected]) => {
-      if (!view || !connected || !view.server.compatible) return
-      const held = Effect.runFork(
-        openBrowserTab({client: view.server.client, sessionId: view.id, browserTab}).pipe(
-          Effect.andThen(Effect.never),
-          Effect.scoped,
-        ),
-      )
-      onCleanup(() => void Effect.runFork(Fiber.interrupt(held)))
     }),
   )
   const binder = {

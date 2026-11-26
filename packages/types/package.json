@@ -100,6 +100,10 @@
     "./json": {
       "types": "./dist/json.d.ts",
       "import": "./dist/json.js"
+    },
+    "./secret-key": {
+      "types": "./dist/secret-key.d.ts",
+      "import": "./dist/secret-key.js"
     }
   },
   "publishConfig": {

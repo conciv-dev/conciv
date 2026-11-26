@@ -5,7 +5,7 @@ import {Dynamic} from 'solid-js/web'
 import {useQueryClient} from '@conciv/client'
 import {createScopedRuntime, createKeyed, Plugin, Slot, ToolRegistry} from '@conciv/frontend-plugin-api'
 import {NoteCard, OpaqueNoteCard} from '@internal/frontend-app-api'
-import {Page, PageOperation, ReactTree} from '@conciv/frontend-plugin-api/page'
+import {BrowserTabUrl, Page, PageOperation, ReactTree} from '@conciv/frontend-plugin-api/page'
 import {GrabPicker} from '@conciv/frontend-plugin-api/grab'
 import {answerCommands} from './attachment.js'
 import {makeHighlight} from './highlight.js'
@@ -25,6 +25,7 @@ import {makeGrabNotePicker} from './grab-note.js'
 import {GrabNoteCard} from './grab-card.js'
 import {GRAB_NOTE_ORIGIN} from './rpc.js'
 import {capturePlugins} from './screenshot.js'
+import {redactedUrl} from './redacted-url.js'
 
 const PageOptionsSchema = z.object({taskTimeoutMs: z.number().int().positive().optional()}).catch({})
 
@@ -141,6 +142,7 @@ export default Plugin.define({
       symbolicate: (input) => symbolicate(input.frames),
     })
     ctx.provide(ReactTree, makeReactTree())
+    ctx.add(BrowserTabUrl, {redact: redactedUrl})
 
     return () => {
       operations.dispose()

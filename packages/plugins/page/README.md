@@ -49,7 +49,7 @@ is installed. The page plugin holds no tab data. Its engine half reads `ctx.brow
 answers the commands addressed to `session.browserTab.id` (`answerCommands` in `attachment.ts`) while the routed
 session's server is compatible and connected.
 
-The `route` operation's `pathname`, `search` and `href` go through `redactedUrl` (`redacted-url.ts`). It drops user info, and puts `[redacted]` in place of secret
+The `route` operation's `pathname`, `search` and `href` go through `redactedUrl` (`redacted-url.ts`), and the plugin contributes it as `BrowserTabUrl`, so the shell redacts the browser tab's `url` with it before the engine stores it. It drops user info, and puts `[redacted]` in place of secret
 query and hash values and secret route params. The same answer reaches the model, outside agents through the hub,
 the terminal and the thread's tool card.
 
