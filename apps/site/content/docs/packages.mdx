@@ -1,131 +1,114 @@
 ---
 title: Packages
-description: The packages you install, and how the rest of conciv is laid out.
+description: Which package to open for the change you want to make to conciv.
 ---
 
-An app installs one package, `@conciv/it`, as a dev dependency. The rest of conciv comes with it.
+An app installs one package, `@conciv/it`. Everything else comes with it.
 
-```bash
-pnpm add -D @conciv/it
-```
+This page is for working on conciv itself. Find the change you want to make, and it names the package to open. Each
+package lives in its own folder under `packages/` in the repo.
 
-## What you install
+## Install conciv in an app
 
-| Package       | What it is                                                                                                                                                                        |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@conciv/it`  | The build plugin. Import paths: `@conciv/it/plugin/vite`, `/plugin/webpack`, `/plugin/rspack`, `/plugin/nextjs`, `/plugin/nextjs/widget`, `/plugin/rollup` and `/plugin/esbuild`. |
-| `@conciv/cli` | The `conciv` command: `init`, `tools`, `auth`, `mcp` and `plugin`. Run `npx @conciv/cli@latest init` to set a project up. The build plugin also puts it on the agent's `PATH`.    |
+- `@conciv/it` is what an app installs. It holds the build plugin for each bundler. See [Quick
+  start](/docs/quick-start).
+- `@conciv/cli` is the `conciv` command. See [CLI](/docs/cli).
 
-The Vite, webpack and rspack entries start the engine and add the widget, in development only. The Rollup and esbuild
-entries do nothing today. See [Quick start](/docs/quick-start) and [CLI](/docs/cli).
+## Change the engine
 
-## How the rest is laid out
+The engine runs in node, next to the dev server. Open the package for the layer you change:
 
-conciv has two sides. The engine runs in node next to your dev server. The widget runs in the browser, on your page.
-Each side has the same four kinds of package, from the most stable to the most specific:
+- `@conciv/backend-defaults` is the engine itself. Change it for the HTTP and rpc surface, login, chat and code mode.
+- `@conciv/backend-app-api` runs plugins. Change it for the plugin host, the tool service, permissions and hooks.
+- `@conciv/backend-plugin-api` is what a plugin author imports. Change it only to change the plugin API.
+- `@conciv/backend` is the shipped engine. Change it to add or remove a plugin the engine always loads.
 
-| Kind       | Engine side                  | Widget side                   | Holds                                                                                                |
-| ---------- | ---------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Plugin API | `@conciv/backend-plugin-api` | `@conciv/frontend-plugin-api` | What a plugin author imports: `Plugin.define`, the rpc contract helpers, the tool and context types. |
-| App API    | `@conciv/backend-app-api`    | `@internal/frontend-app-api`  | The machinery behind the plugin API. Plugins never import it.                                        |
-| Defaults   | `@conciv/backend-defaults`   | `@internal/frontend-defaults` | The product with no plugin in it.                                                                    |
-| App        | `@conciv/backend`            | `@conciv/app`                 | The shipped product: the defaults plus the plugins conciv ships.                                     |
+See [How it works](/docs/how-it-works) for how the engine and the widget talk.
 
-In more detail:
+## Change the widget
 
-- **Plugin API.** Public and stable, with no implementation in it. `@conciv/backend-plugin-api` is the engine part's
-  API, `@conciv/frontend-plugin-api` the browser part's. See [Plugins](/docs/plugins).
-- **App API.** On the engine side: the plugin host, the tool service, permissions and hooks. On the widget side: the
-  definitions the app and plugins share, plugin loading and persistence.
-- **Defaults.** `@conciv/backend-defaults` is the engine: its HTTP, rpc, MCP and login surface, chat, code mode, the
-  open browser tabs and jobs.
-  `@internal/frontend-defaults` is the widget shell: router, pane, composer, sessions and settings. Neither ships a
-  plugin.
-- **App.** The plugins conciv ships are listed in one place per side, from each built-in's own list.
-  `@conciv/backend` calls `createBackend` from `@conciv/backend-defaults` with the page plugin's `./engine-builtins`
-  list. `@conciv/app` composes the page and terminal plugins' `./builtins` lists in `packages/app/src/builtins.ts`, and
-  builds the widget bundle from `packages/app/src/global-entry.ts`. See [Built-in plugins](/docs/plugins/built-ins).
+The widget runs in the browser, on the reader's page. The same four layers:
 
-In this layout a plugin depends only on a small, stable API, and the product is the defaults plus a list of
-plugins, so a plugin can be added or removed without touching the engine or the shell.
+- `@internal/frontend-defaults` is the widget shell. Change it for the router, the pane, the composer, sessions and
+  settings.
+- `@internal/frontend-app-api` loads plugins in the browser and keeps what they save.
+- `@conciv/frontend-plugin-api` is what a plugin's browser part imports.
+- `@conciv/app` is the shipped widget. Change it to add or remove a built-in plugin. It also builds the widget bundle.
 
-## Plugins
+The widget's components are the `@conciv/ui-kit-*` packages. Change `ui-kit-system` for the base parts, `ui-kit-chat`
+for the thread and composer, `ui-kit-chat-tools` for tool cards, and `ui-kit-terminal` for the terminal.
+
+## Change a plugin
 
 Each plugin is one package under `packages/plugins/`, with its engine part and its browser part together. A plugin's
-code lives only there, never in the defaults or the app.
+code lives only there.
 
-| Package                       | What it adds                                                                                       |
-| ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| `@conciv/plugin-page`         | The agent's actions inside an open tab: its tools and their cards. Shipped in both apps.           |
-| `@internal/plugin-terminal`   | The session's terminal tab, over the engine's terminal. Shipped in `@conciv/app`.                  |
-| `@conciv/plugin-test-runner`  | Runs your tests and streams each run into the Tests tab. See [Live tests](/docs/usage/live-tests). |
-| `@conciv/plugin-recorder`     | Records the page with rrweb and gives the agent an action log with keyframes.                      |
-| `@conciv/plugin-tanstack`     | Build errors, the route manifest and server function traces of a TanStack Router or Start app.     |
-| `@conciv/plugin-ios`          | Builds and runs a native iOS app on the simulator. See [iOS](/docs/quick-start/ios).               |
-| `@conciv/plugin-try-it`       | Lets a visitor on conciv.dev start a local engine with `npx` and connect to it.                    |
-| `@internal/plugin-whiteboard` | A canvas you and the agent share. See [Whiteboard](/docs/usage/whiteboard).                        |
+- `plugin-page`: the agent's actions in an open tab. See [Page control](/docs/usage/page-control).
+- `plugin-terminal`: the session's **Terminal** tab.
+- `plugin-test-runner`: runs tests into the **Tests** tab. See [Live tests](/docs/usage/live-tests).
+- `plugin-recorder`: records the page for the agent.
+- `plugin-tanstack`: TanStack Router and Start tools.
+- `plugin-ios`: builds and runs an iOS app in the simulator. See [iOS](/docs/quick-start/ios).
+- `plugin-whiteboard`: the shared canvas. See [Whiteboard](/docs/usage/whiteboard).
+- `plugin-try-it`: starts a local engine from the conciv.dev site.
 
-The plugins conciv ships are on [Built-in plugins](/docs/plugins/built-ins).
+See [Plugins](/docs/plugins) to write a new one, and [Plugins conciv ships](/docs/plugins/built-ins) for what each one
+adds.
 
-## Shared packages
+## Change what both sides share
 
-| Package              | What it is                                                                                                           |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `@conciv/protocol`   | The oRPC contract between widget and engine, and the zod schemas both sides share.                                   |
-| `@conciv/types`      | Wire types and constants, such as the `.conciv` folder name and the rpc socket path.                                 |
-| `@conciv/client`     | The browser's connection to the engine, its rpc client and plugins' rpc client. `./chat` holds the chat session.     |
-| `@conciv/home`       | The per-user home registry. See [The home folder](#the-home-folder).                                                 |
-| `@conciv/harness`    | The harness adapters: Claude Code, Codex, Gemini CLI, opencode and Pi. See [Harnesses](/docs/harnesses).             |
-| `@conciv/serve`      | The node HTTP server the engine listens with. It binds `127.0.0.1` only.                                             |
-| `@conciv/simulation` | The scripted agent and fixed network table an engine runs with under `CONCIV_SIMULATE`, and the driver side.         |
-| `@conciv/cli`        | The `conciv` command.                                                                                                |
-| `@conciv/unplugin`   | The build plugin itself, which `@conciv/it` wraps with the widget bundle's location.                                 |
-| `@conciv/it`         | The package you install.                                                                                             |
-| `@conciv/ui-kit-*`   | The widget's Solid components: `ui-kit-system`, `ui-kit-chat`, `ui-kit-chat-tools`, `ui-kit-tap`, `ui-kit-terminal`. |
-| `@conciv/mascot`     | The robot mascot. `@conciv/mascot-react` is its React version.                                                       |
+- `@conciv/protocol` is the contract between the widget and the engine. Change it to add or change an rpc call.
+- `@conciv/types` holds the wire types and the config schema. Change it to add a conciv option.
+- `@conciv/client` is the browser's connection to the engine.
 
-`@conciv/react`, `@conciv/preact` and `@conciv/solid` render `<ConcivWidget />` for an app that places the widget itself.
+## Change an agent CLI
 
-### The home folder
+`@conciv/harness` holds one adapter per agent CLI: Claude Code, Codex, Gemini CLI, opencode and Pi. Change it to add a
+CLI or change how one runs. See [Harnesses](/docs/harnesses).
 
-`@conciv/home` keeps one SQLite file, `home.db`, per user, so every engine on the machine and the `conciv` command can
-find each other. It holds:
+## Change the build plugin
 
-- the running engines: id, process id, project root, address and token. Each engine adds itself when it starts and
-  marks itself gone when it stops.
-- the agent CLIs connected to the conciv hub (`conciv init` connects them), and the hub's revocations.
+`@conciv/unplugin` is the build plugin for every bundler. `@conciv/it` wraps it and points it at the widget bundle.
+Change `@conciv/unplugin` to change how conciv starts with a dev server.
 
-The folder is `CONCIV_HOME` when set, else the user data folder:
+## Change how engines find each other
 
-| System  | Folder                                                |
-| ------- | ----------------------------------------------------- |
-| macOS   | `~/Library/Application Support/conciv`                |
-| Linux   | `$XDG_DATA_HOME/conciv`, else `~/.local/share/conciv` |
-| Windows | `%LOCALAPPDATA%\conciv\Data`                          |
+`@conciv/home` keeps one small database per user, so every engine on the machine and the `conciv` command can find
+each other. Change it for the list of running engines and connected agent CLIs.
 
-It is created with mode `0700`, and `home.db` and `home.lock` with `0600`. The `conciv` command reads it to find the
-engine to talk to, and checks each listed engine's `/health` first. An engine whose process, project folder or port is
-gone is marked retired. Nothing is ever deleted from it. The engine also keeps its global settings in a `settings`
-folder there.
+## Test your change
 
-## Test utilities
+- `@conciv/backend-test-utils` starts the real engine with a scripted model, for engine and plugin tests.
+- `@internal/frontend-test-utils` renders a plugin's screens, or the whole widget, against a fake or a real engine.
+- `@internal/test-utils` is the fake engine those renders use.
+- `@conciv/simulation` runs the engine with a driver in place of the model. See [Simulation](/docs/simulation).
 
-| Package                         | What it is                                                                                  |
-| ------------------------------- | ------------------------------------------------------------------------------------------- |
-| `@conciv/backend-test-utils`    | `test`, with a `createEngine` fixture that starts the real engine on a scripted model.      |
-| `@internal/frontend-test-utils` | Renders a plugin's browser part, or the whole shell, against the fake engine or a real one. |
-| `@internal/test-utils`          | The fake engine and its scripted model.                                                     |
-| `@internal/engine-kit`          | The engine kit `@conciv/backend-test-utils` is built on.                                    |
-| `@internal/vitest-config`       | The shared vitest projects and the isolated home folder each test run gets.                 |
+A test lives in the package whose code it tests. The repo's `AGENTS.md` has the full rules.
 
-See [Testing a plugin](/docs/plugins/testing).
+## Details
 
-## Published and private
+<Accordions type="single">
+  <Accordion title="Published and private">
+    A `@conciv/*` package is published to npm. An `@internal/*` package is never published: it is built into the
+    package that uses it. For example, `@internal/frontend-defaults` ships inside the `@conciv/app` widget bundle.
+  </Accordion>
+  <Accordion title="No dependency loops">
+    No package may depend on another in a loop, through any dependency field, dev dependencies included. CI checks
+    this. So a package builds only on the ones below it: the plugin API never needs the engine, and the engine never
+    needs a plugin.
+  </Accordion>
+  <Accordion title="Where the home folder is">
+    The home folder is `CONCIV_HOME` when set. Otherwise it is `~/Library/Application Support/conciv` on macOS,
+    `~/.local/share/conciv` on Linux, and `%LOCALAPPDATA%\conciv\Data` on Windows. The engine also keeps its global
+    settings there.
+  </Accordion>
+  <Accordion title="Rendering the widget yourself">
+    `@conciv/react`, `@conciv/preact` and `@conciv/solid` render the widget as a component, for an app that places it
+    itself.
+  </Accordion>
+</Accordions>
 
-A `@conciv/*` package is published to npm. An `@internal/*` package is private: never published, and built into the
-package that uses it. `@internal/frontend-defaults`, for example, ships inside the `@conciv/app` widget bundle.
+## Next
 
-No workspace package may depend on another in a loop, through any of `dependencies`, `devDependencies`,
-`peerDependencies` or `optionalDependencies`. CI checks this with `conciv-publish check-dependency-loops`. The loop rule
-is what keeps the layout honest: a package can only build on the ones below it, so the plugin API can never come to
-need the defaults, and the defaults can never need a plugin.
+- [How it works](/docs/how-it-works): the engine and the widget, and how they connect.
+- [Plugins](/docs/plugins): add a feature as a plugin, the usual way to change conciv.
