@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The engine-test entry for plugin and engine authors: a vitest `test` whose `createEngine` fixture starts the `@internal/engine-kit` engine on `@conciv/backend-defaults/backend`'s `createBackend` and stops every engine it started when the test ends, as Backstage's `startTestBackend`. The kit is bundled into this package's build.
+The engine-test entry for plugin and engine authors: a vitest `test` whose `createEngine` fixture starts the `@internal/engine-kit` engine on `@conciv/backend-defaults/backend`'s `createBackend` and stops every engine it started when the test ends. The kit is bundled into this package's build.
 
 ## Invariants
 

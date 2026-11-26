@@ -6,7 +6,7 @@ The package entries are `backend.ts` (`createBackend`, the engine, from `engine/
 and `tools.ts` (the sandbox tools in `tools/`). `backend-defaults.ts` is the chat plane: `createChatPlane` builds on the
 chat server to run turns, hydrate and clear threads, import harness transcripts, and replay the permission service's
 pending asks as cards. The engine serves it over oRPC. `turn.ts`, `transcript.ts`, `code-mode.ts`, `approvals.ts` and
-`stores.ts` are its parts; `core/` holds the engine services ported from opencode (code mode, config, database, filesystem,
+`stores.ts` are its parts; `core/` holds the engine services (code mode, config, database, filesystem,
 image, job, plugin, ripgrep, session, skill, tool) and the browser tabs (`core/tab/`).
 
 ## Invariants

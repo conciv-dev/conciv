@@ -1,6 +1,6 @@
 # @conciv/backend
 
-The shipped conciv engine, as Backstage's `packages/backend`: `start(opts)` runs `@conciv/backend-defaults`'
+The shipped conciv engine: `start(opts)` runs `@conciv/backend-defaults`'
 `createBackend` with the plugins conciv ships (the page plugin) and, when asked, the simulation. `@conciv/it` installs
 it.
 

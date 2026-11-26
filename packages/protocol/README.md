@@ -3,7 +3,7 @@
 ## Overview
 
 The oRPC contract (procedures plus zod schemas) shared by the engine and its clients, the event and session schemas
-ported from opencode (`src/schema`), the execute tool's schemas, and the simulation drive contract.
+(`src/schema`), the execute tool's schemas, and the simulation drive contract.
 `package.json` describes it as internal to `@conciv/it`; it is published with `publishConfig.access: public`. ESM only.
 
 ## Interface

@@ -19,13 +19,13 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Observability
 
-The engine's Effect spans (`Effect.fn` and `Effect.withSpan`) and Effect logs are exported over OTLP/HTTP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, as opencode does (`src/util/observability.ts`, `src/util/observability/otlp.ts`). With it unset nothing is exported.
+The engine's Effect spans (`Effect.fn` and `Effect.withSpan`) and Effect logs are exported over OTLP/HTTP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (`src/util/observability.ts`, `src/util/observability/otlp.ts`). With it unset nothing is exported.
 
 - `OTEL_EXPORTER_OTLP_ENDPOINT`: the collector's base URL; traces go to `<endpoint>/v1/traces`, logs to `<endpoint>/v1/logs`.
 - `OTEL_EXPORTER_OTLP_HEADERS`: `key=value` pairs, comma separated, sent with every export (for example an auth header).
 - `OTEL_RESOURCE_ATTRIBUTES`: `key=value` pairs, comma separated and URI encoded, added to the resource. The `conciv.*` and `service.instance.id` attributes cannot be overridden.
 
-Every engine Effect log line is written to a log file, whether or not an endpoint is set, as opencode does (`src/util/observability/logging.ts`); nothing is printed to the terminal. The file is `<conciv home>/log/conciv-local.log` (by default the conciv home is `~/Library/Application Support/conciv` on macOS, or `CONCIV_HOME`). Every engine process on the machine appends to the same file, each line tagged with its `run`; once an hour the file is trimmed in place to its last 25 MB when it has grown past 50 MB.
+Every engine Effect log line is written to a log file, whether or not an endpoint is set (`src/util/observability/logging.ts`); nothing is printed to the terminal. The file is `<conciv home>/log/conciv-local.log` (by default the conciv home is `~/Library/Application Support/conciv` on macOS, or `CONCIV_HOME`). Every engine process on the machine appends to the same file, each line tagged with its `run`; once an hour the file is trimmed in place to its last 25 MB when it has grown past 50 MB.
 
 - `CONCIV_PRINT_LOGS=1`: also print every log line to stderr.
 - `CONCIV_LOG_LEVEL`: the lowest level kept, `DEBUG`, `INFO` (the default), `WARN` or `ERROR`.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The npm packages that make up conciv, laid out as Backstage lays out its packages. `@conciv/it` is the one users
+The npm packages that make up conciv. `@conciv/it` is the one users
 install; it pulls in the engine, the bundler plugin, the browser widget, the agent harness adapters and the built-in
 plugins. Each side has four kinds of package: a plugin API (what a plugin author imports), an app API (the machinery
 behind it), defaults (the product with no plugin in it) and the app (the defaults plus the plugins conciv ships).

@@ -6,13 +6,13 @@ Defines the oRPC `contract` router between the engine and its clients (auth, ses
 markers, chat, registry, code, meta, skill, agent, fs, plugin, experimental, event) and the zod row schemas
 those procedures use.
 
-- `contract.ts`: the router. `event.subscribe` is opencode's `event.subscribe`: an eventIterator of
+- `contract.ts`: the router. `event.subscribe` is an eventIterator of
   `EventEnvelopeSchema`, the engine's one event stream; its envelope is not a typed union, the precise union is the
   SDK's type.
 - `rows.ts`: the session, draft and marker row schemas.
 - `source-location.ts`: the one declaration of the source-location types.
 - `code-reply.ts`: the one formatter from a code execution result to MCP content, used by the engine's MCP endpoint (`packages/backend-defaults/src/engine/api/mcp.ts`) and the CLI hub (`packages/cli/src/hub.ts`).
-- `schema/`: the event, session, message, permission, tool, job and plugin schemas ported from opencode, and the
+- `schema/`: the event, session, message, permission, tool, job and plugin schemas, and the
   browser tab schemas (`browser-tab.ts`) with their durable `tab.opened`, `tab.updated` and `tab.closed` events
   (`browser-tab-event.ts`).
 - `execute-schemas.ts`: the `execute_typescript` tool's input and output schemas.
