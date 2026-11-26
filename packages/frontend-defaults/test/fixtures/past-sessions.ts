@@ -1,4 +1,4 @@
-import type {FakeEngineOptions} from '@conciv/client/testing'
+import type {FakeEngineOptions} from '@internal/test-utils'
 import {textMessage} from '../utils/sample-data.js'
 
 const HOUR_MS = 60 * 60 * 1000

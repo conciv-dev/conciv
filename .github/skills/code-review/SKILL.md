@@ -140,9 +140,9 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - A test file reads top-down like a spec: imports, one shared boot, `describe` per feature, `it`
   named by user-visible behaviour, short arrange/act/assert; helper functions hoisted at the bottom.
   Tests go through the package's public entries, never test-only exports.
-- Mounted behaviour (the shell or a plugin on screen) is tested in vitest browser mode with `@internal/frontend-test-utils` (`renderInTestApp`, `renderTestApp`, `createExtensionTester`) against the fake engine from `@conciv/client/testing`; happy-dom only for code that mounts nothing. Flag jsdom, and flag a mounted test that does not use the test utilities. See AGENTS.md, Testing.
+- Mounted behaviour (the shell or a plugin on screen) is tested in vitest browser mode with `@internal/frontend-test-utils` (`renderInTestApp`, `renderTestApp`, `createExtensionTester`) against the fake engine from `@internal/test-utils`; happy-dom only for code that mounts nothing. Flag jsdom, and flag a mounted test that does not use the test utilities. See AGENTS.md, Testing.
 - Test utilities (`@conciv/backend-test-utils` and `@internal/engine-kit`, `@internal/frontend-test-utils`, the
-  fake engine in `@conciv/client/testing`, e2e helpers) run the real product path and fake only expensive
+  fake engine in `@internal/test-utils`, e2e helpers) run the real product path and fake only expensive
   externals (the model, CLIs). The engine kit's browser client uses the same transport and client as the
   product (browser rpc over the `/rpc-ws` socket, `@conciv/client`), never a parallel HTTP or hand-rolled
   path; the fake engine implements the real oRPC contract (`implement(contract)`). Intercepting a call to observe or fault it (`page.routeWebSocket`, `page.route`) is

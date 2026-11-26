@@ -10,7 +10,6 @@ Source for @conciv/client: one client, `ConcivClient` (`Conciv.make`), over the 
 - `chat/`: the Solid chat session and the chat connection that carries it over the rpc socket.
 - `settings/`: settings queries.
 - `plugin/`: `Conciv.make` and its `ConcivClient`, the one client every reader uses (the widget UI, the plugin host and plugins as `ctx.client`, the engine's server list, the cli): the contract's groups over the plain contract client (`ContractClient`, `connection/rpc-client.ts`), typed plugin rpc (`client.rpc(definition)`, a `PluginRpcClient`), and the shared event stream, plus `ServerRef`/`Servers`. Exported from the main entry `@conciv/client`; browser and engine both use it, and it imports nothing from a backend package.
-- `testing/`: the fake engine behind `@conciv/client/testing`.
 - The src root holds the entry files only, one per `package.json` export.
 
 ## Invariants

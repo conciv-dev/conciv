@@ -4,7 +4,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createChat} from '@conciv/client/chat'
 import type {ChatMessage} from '@conciv/types/chat-message-types'
 import {ChatProvider} from '../store/chat-context.js'
-import {storyConnection, createTextChunks} from '@conciv/client/testing'
+import {storyConnection, createTextChunks} from '@internal/test-utils'
 import type {SuggestionData} from '../primitives/suggestion/suggestion.js'
 import {FollowUpSuggestions} from './follow-up-suggestions.js'
 

@@ -10,7 +10,7 @@ import {
   createReasoningChunks,
   createToolCallChunks,
   type StoryConnectionOptions,
-} from '@conciv/client/testing'
+} from '@internal/test-utils'
 import {Thread} from './thread.js'
 import {Message} from '../message/message.js'
 import {Suggestion, type SuggestionData} from '../suggestion/suggestion.js'

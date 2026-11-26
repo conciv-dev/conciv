@@ -85,7 +85,7 @@ skills:
       - 'tools: fields, name rule, Tool.Error, approvals via ctx.permission.assert'
       - 'Rpc.define and ctx.rpc.register'
       - 'browser part: @conciv/frontend-plugin-api registries and the experimental() vite build'
-      - 'testing with @conciv/backend-test-utils and the fake engine from @conciv/client/testing'
+      - 'testing with @conciv/backend-test-utils and the fake engine from @internal/test-utils'
     tasks:
       - 'add a tool that calls out to project infrastructure'
       - 'add a panel, slot or composer pill to the widget'

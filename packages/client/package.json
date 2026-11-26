@@ -29,10 +29,6 @@
     "./chat": {
       "types": "./dist/chat.d.ts",
       "import": "./dist/chat.js"
-    },
-    "./testing": {
-      "types": "./dist/testing.d.ts",
-      "import": "./dist/testing.js"
     }
   },
   "publishConfig": {
@@ -49,7 +45,6 @@
     "@conciv/types": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
-    "@orpc/server": "catalog:",
     "@orpc/standard-server-peer": "catalog:",
     "@orpc/tanstack-query": "catalog:",
     "@solid-primitives/event-listener": "catalog:",

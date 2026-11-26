@@ -10,7 +10,7 @@ utilities hand it every fake it needs, so a plugin's own `test/utils` holds only
 | Package                         | Published  | What it gives a test                                                                                          |
 | ------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------- |
 | `@conciv/backend-test-utils`    | yes        | `test` with the `createEngine` fixture (the real engine), `TestLLM`, `pluginDirectory`                        |
-| `@conciv/client/testing`        | yes        | `createFakeEngine()` and `FakeLLM`: a fake engine that answers like the real one                              |
+| `@internal/test-utils`          | no         | `createFakeEngine()` and `FakeLLM`: a fake engine that answers like the real one                              |
 | `@internal/frontend-test-utils` | no         | `renderInTestApp`, `createExtensionTester`, `useFakeEngine`; `renderTestApp` and `servePluginBundle` (`/app`) |
 | a plugin's `./test-utils`       | per plugin | that plugin's fakes for other plugins' tests, for example `pageTestPlugin`                                    |
 
@@ -259,7 +259,7 @@ built in.
 
 ## The fake engine
 
-`createFakeEngine()` from `@conciv/client/testing` is a fake engine built on the real RPC contract. It answers like the
+`createFakeEngine()` from `@internal/test-utils` is a fake engine built on the real RPC contract. It answers like the
 real engine: sessions and paging, past CLI sessions, compaction, harness models, run events, permission asks, plugin
 bundles. `useFakeEngine(engine)` hands it to the render, disposes it when the test ends, and fails the test if the app
 asked it for something no test gave it.
@@ -429,8 +429,8 @@ queue test does with a fake-timer fixture (`packages/plugins/page/test/unit/queu
 
 ## A plugin outside this repo
 
-`@conciv/backend-test-utils` and `@conciv/client/testing` are published, so a plugin in its own repo can start the
-real engine with `createEngine`, script it with `TestLLM`, and use the fake engine. `@internal/frontend-test-utils`
+`@conciv/backend-test-utils` is published, so a plugin in its own repo can start the
+real engine with `createEngine` and script it with `TestLLM`. `@internal/frontend-test-utils`
 and `@internal/vitest-config` are private: they are not published, and the frontend utilities' package points at its
 TypeScript source and depends on the widget's private packages. A plugin outside this repo cannot install them, so it
 has no `renderInTestApp`, `renderTestApp` or `concivTest()` today. The browser commands that browser-mode

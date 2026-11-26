@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createChat, type Chat} from '@conciv/client/chat'
 import {ChatProvider} from '../../store/chat-context.js'
-import {storyConnection} from '@conciv/client/testing'
+import {storyConnection} from '@internal/test-utils'
 import {Error} from './error.js'
 
 const meta: Meta = {title: 'ui-kit-chat/primitives/Error'}

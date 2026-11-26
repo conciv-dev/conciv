@@ -414,6 +414,7 @@
   },
   "overrides": [],
   "ignoreDependencies": [
+    "@internal/test-utils",
     "@parcel/watcher-darwin-arm64",
     "@parcel/watcher-darwin-x64",
     "@parcel/watcher-linux-arm64-glibc",

@@ -257,8 +257,8 @@ them external and fails on any other `effect`, `solid-js` or `@conciv` import.
 
 ## Testing
 
-`@conciv/backend-test-utils` and `@conciv/client/testing` are published, so a plugin in its own repo can
-use them. `test` from `@conciv/backend-test-utils` is vitest's `test` with a `createEngine` fixture:
+`@conciv/backend-test-utils` is published, so a plugin in its own repo can
+use it. `test` from `@conciv/backend-test-utils` is vitest's `test` with a `createEngine` fixture:
 `createEngine(config, start)` starts the real engine on a free port with a scripted model in place of
 the agent's CLI. `config` is the product's own conciv config, so a test adds the plugin the way a user
 does. From `packages/plugins/test-runner/test/it/tools.it.test.ts:1-21`:

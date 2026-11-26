@@ -1,7 +1,7 @@
 import {createORPCClient} from '@orpc/client'
 import {z} from 'zod'
 import type {ContractClient} from '@conciv/client'
-import type {FakeEngine} from '@conciv/client/testing'
+import type {FakeEngine} from '@internal/test-utils'
 import type {SessionMeta} from '@conciv/protocol'
 import {SessionId} from '@conciv/types/chat-types'
 import {PANE_SESSION} from './sample-data.js'

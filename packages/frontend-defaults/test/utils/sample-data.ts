@@ -1,4 +1,4 @@
-import type {FakeHarness, FakeSession} from '@conciv/client/testing'
+import type {FakeHarness, FakeSession} from '@internal/test-utils'
 import type {SessionHit} from '@conciv/protocol'
 import type {ChatMessage} from '@conciv/types/chat-message-types'
 import {SessionId, type ChatCommand, type HarnessModelInfo} from '@conciv/types/chat-types'

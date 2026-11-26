@@ -1,0 +1,37 @@
+{
+  "name": "@internal/test-utils",
+  "version": "0.0.22",
+  "private": true,
+  "description": "Private to conciv: the fake engine and its scripted model, built on the real rpc contract, for tests and stories.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/test-utils"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/test-utils.d.ts",
+      "default": "./src/test-utils.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@conciv/client": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
+    "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
+    "@orpc/server": "catalog:",
+    "@tanstack/ai-client": "catalog:"
+  },
+  "devDependencies": {
+    "@internal/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

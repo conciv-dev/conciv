@@ -1,4 +1,4 @@
-import type {FakeBundle} from '@conciv/client/testing'
+import type {FakeBundle} from '@internal/test-utils'
 import {Command, ComposerPill, Plugin, Slot} from '@conciv/frontend-plugin-api'
 import type {ShellPlugin} from './mount-shell.js'
 

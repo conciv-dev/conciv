@@ -3,7 +3,7 @@ import {defineConfig} from 'tsdown'
 export default defineConfig([
   {
     sourcemap: true,
-    entry: ['src/client.ts', 'src/testing.ts'],
+    entry: ['src/client.ts'],
     format: 'esm',
     fixedExtension: false,
     dts: false,

@@ -39,7 +39,7 @@ The rest:
   knows nothing about tabs. pty is the exception that stays in the engine (`backend-defaults`), as opencode keeps it in
   `packages/core/src/pty`.
 - `@conciv/protocol` (the oRPC contract and shared schemas), `@conciv/types` (wire types), `@conciv/client` (the
-  browser's engine connection and rpc client, plus the fake engine in `@conciv/client/testing`), `@conciv/home` (the per-user home registry),
+  browser's engine connection and rpc client), `@conciv/home` (the per-user home registry),
   `@conciv/harness` (harness adapters), `@conciv/serve` (the node HTTP server), `@conciv/simulation` (opencode's
   simulation: the scripted agent and fixed network table, switched on with `CONCIV_SIMULATE`; and the driver side of
   the widget's drive mode, `@conciv/simulation/frontend`: with `CONCIV_DRIVE` set the engine listens on the manifest's
@@ -267,7 +267,7 @@ maintainer's yes.
     `renderInTestApp` takes the same two.
   - `createExtensionTester(...)`: one extension (a tool card, a tab) on its own.
   - `useFakeEngine(engine?)`: the fake engine the render uses.
-- `@conciv/client/testing`: `createFakeEngine()` and `FakeLLM`. The fake engine is built with oRPC's
+- `@internal/test-utils`: `createFakeEngine()` and `FakeLLM`. The fake engine is built with oRPC's
   `implement(contract)` on the real contract (`@conciv/protocol`), reached through an in-memory link, and answers like
   the real engine: sessions and paging, past CLI sessions, compaction, harness models, run events, permission asks,
   plugin bundles (`servePluginBundle` in `@internal/frontend-test-utils/app` serves a plugin's built bundle as the

@@ -72,7 +72,7 @@ The plugins conciv ships are on [Built-in plugins](/docs/plugins/built-ins).
 | -------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `@conciv/protocol`   | The oRPC contract between widget and engine, and the zod schemas both sides share.                                   |
 | `@conciv/types`      | Wire types and constants, such as the `.conciv` folder name and the rpc socket path.                                 |
-| `@conciv/client`     | The browser's connection to the engine and its rpc client. `@conciv/client/testing` is the fake engine.              |
+| `@conciv/client`     | The browser's connection to the engine and its rpc client..                                                          |
 | `@conciv/home`       | The per-user home registry. See [The home folder](#the-home-folder).                                                 |
 | `@conciv/harness`    | The harness adapters: Claude Code, Codex, Gemini CLI, opencode and Pi. See [Harnesses](/docs/harnesses).             |
 | `@conciv/serve`      | The node HTTP server the engine listens with. It binds `127.0.0.1` only.                                             |
@@ -113,7 +113,7 @@ folder there.
 | ------------------------------- | ------------------------------------------------------------------------------------------- |
 | `@conciv/backend-test-utils`    | `test`, with a `createEngine` fixture that starts the real engine on a scripted model.      |
 | `@internal/frontend-test-utils` | Renders a plugin's browser part, or the whole shell, against the fake engine or a real one. |
-| `@conciv/client/testing`        | The fake engine and its scripted model.                                                     |
+| `@internal/test-utils`          | The fake engine and its scripted model.                                                     |
 | `@internal/engine-kit`          | The engine kit `@conciv/backend-test-utils` is built on.                                    |
 | `@internal/vitest-config`       | The shared vitest projects and the isolated home folder each test run gets.                 |
 

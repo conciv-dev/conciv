@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import {createFakeEngine, FakeLLM} from '@conciv/client/testing'
+import {createFakeEngine, FakeLLM} from '@internal/test-utils'
 import {watchCalm} from '../fixtures/calm-watch.js'
 import {mountShell, shellEngine} from '../utils/mount-shell.js'
 import {seededSession} from '../utils/sample-data.js'

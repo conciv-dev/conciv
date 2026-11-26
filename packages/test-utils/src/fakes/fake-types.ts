@@ -3,7 +3,7 @@ import type {contract, DraftRow} from '@conciv/protocol'
 import type {ChatMessage} from '@conciv/types/chat-message-types'
 import type {ChatCommand, ChatModels} from '@conciv/types/chat-types'
 import type {UsageSnapshot} from '@conciv/types/usage-types'
-import type {EngineConnection, EngineTokenSource} from '../connection/engine-connection.js'
+import type {EngineConnection, EngineTokenSource} from '@conciv/client'
 
 export type Promisable<T> = T | Promise<T>
 

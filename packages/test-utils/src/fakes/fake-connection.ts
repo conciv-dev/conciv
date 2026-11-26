@@ -6,15 +6,9 @@ import {
   transitionConnection,
   type ConnectionEvent,
   type ConnectionState,
-} from '../connection/engine-connection-machine.js'
-import type {
-  EngineConnection,
-  EngineTrust,
-  ReachabilityListener,
-  RpcClientContext,
-  TrustListener,
-} from '../connection/engine-connection.js'
-import type {ContractClient} from '../connection/rpc-client.js'
+} from '@conciv/client'
+import type {EngineConnection, EngineTrust, ReachabilityListener, RpcClientContext, TrustListener} from '@conciv/client'
+import type {ContractClient} from '@conciv/client'
 import {lookup} from './fake-router.js'
 import type {FakeConnectOptions} from './fake-types.js'
 

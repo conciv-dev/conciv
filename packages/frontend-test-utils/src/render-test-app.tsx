@@ -3,7 +3,7 @@ import {onTestFinished} from 'vitest'
 import {createMemoryHistory} from '@tanstack/solid-router'
 import {z} from 'zod'
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
-import type {FakeBundle, FakeEngine, FakeEngineOptions} from '@conciv/client/testing'
+import type {FakeBundle, FakeEngine, FakeEngineOptions} from '@internal/test-utils'
 import type {ConcivSettingsInit} from '@conciv/types/config-types'
 import {
   ConcivApp,

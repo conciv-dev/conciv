@@ -1,4 +1,4 @@
-import {createFakeEngine, type FakeEngine, type FakeEngineOptions} from '@conciv/client/testing'
+import {createFakeEngine, type FakeEngine, type FakeEngineOptions} from '@internal/test-utils'
 import shellBoard from '../fixtures/plugins/shell-board/plugin-experimental.js?raw'
 import {shellEngine} from './mount-shell.js'
 import {ENGINE_HARNESS, PANE_SESSION} from './sample-data.js'

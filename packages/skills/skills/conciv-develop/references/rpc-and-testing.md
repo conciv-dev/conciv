@@ -87,7 +87,7 @@ expect((await started.arrived).data).toMatchObject({
 })
 ```
 
-`@conciv/client/testing` (published) gives `createFakeEngine()` and `FakeLLM`: a fake engine built on
+`@internal/test-utils` (private) gives `createFakeEngine()` and `FakeLLM`: a fake engine built on
 the real RPC contract that answers like the real one. Inside this repo the widget render helpers
 (`renderInTestApp`, `renderTestApp`, `createExtensionTester` from `@internal/frontend-test-utils`) and
 `concivTest()` (from `@internal/vitest-config`, which registers the browser commands browser-mode

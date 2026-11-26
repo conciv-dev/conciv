@@ -95,7 +95,7 @@ pnpm build:affected
   tested in vitest browser mode (Chromium), never jsdom; happy-dom only for code that mounts nothing.
 - A test lives in the package whose code it tests, in the cheapest place that proves it: unit, then it,
   then e2e. A plugin tests itself from its own package with the test utilities
-  (`@conciv/backend-test-utils`, `@internal/frontend-test-utils`, `@conciv/client/testing`).
+  (`@conciv/backend-test-utils`, `@internal/frontend-test-utils`).
 - The `e2e/` suites load the prebuilt widget bundle, so rebuild it first or you'll be testing stale
   code: `pnpm turbo run build --filter=@conciv/app`.
 - Don't add tests under `apps/examples/*`: example apps are demos, not test subjects. Verify

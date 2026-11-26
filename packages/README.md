@@ -28,7 +28,7 @@ Widget (browser):
 - frontend-app-api: [frontend-app-api/README.md](./frontend-app-api/README.md) - `@internal/frontend-app-api`, the opaque definitions, plugin loading and persistence behind the browser plugin API.
 - frontend-defaults: [frontend-defaults/README.md](./frontend-defaults/README.md) - `@internal/frontend-defaults`, the shell with no plugin in it: router, pane, composer, sessions and settings.
 - app: [app/README.md](./app/README.md) - `@conciv/app`, the shipped widget: the shell plus the page and terminal renderers (`app/src/builtins.ts`), built into `app/dist/conciv-widget.global.js`.
-- client: [client/README.md](./client/README.md) - `@conciv/client`, the browser's engine connection and rpc client, plus the fake engine in `@conciv/client/testing`.
+- client: [client/README.md](./client/README.md) - `@conciv/client`, the browser's engine connection and rpc client.
 - storage-history: [storage-history/README.md](./storage-history/README.md) - A TanStack `RouterHistory` persisted in Web Storage.
 - ui-kit-system: [ui-kit-system/README.md](./ui-kit-system/README.md) - The Solid design system: Ark UI wrappers, custom primitives, skins and generated tokens.
 - ui-kit-chat: [ui-kit-chat/README.md](./ui-kit-chat/README.md) - Solid chat UI kit on the assistant-ui API: headless primitives and a styled set.

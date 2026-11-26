@@ -4,8 +4,12 @@ import {makeEngineConnection, type EngineConnection, type EngineTokenSource} fro
 import {defaultEngineConnectionTimings, type EngineConnectionTimings} from './engine-connection-machine.js'
 
 export {
+  createConnectionState,
   defaultEngineConnectionTimings,
   REVOKED_SOCKET_CLOSE_CODE,
+  transitionConnection,
+  type ConnectionEvent,
+  type ConnectionState,
   type EngineConnectionTimings,
   type TrustStatus,
 } from './engine-connection-machine.js'

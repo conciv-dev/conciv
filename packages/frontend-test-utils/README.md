@@ -1,6 +1,6 @@
 # @internal/frontend-test-utils
 
-Private, never published: renders a plugin's browser part on the fake engine of `@conciv/client/testing` or on a real engine from
+Private, never published: renders a plugin's browser part on the fake engine of `@internal/test-utils` or on a real engine from
 `createEngine` of `@conciv/backend-test-utils`, the way
 `@backstage/frontend-test-utils` does for Backstage.
 

@@ -3,7 +3,6 @@ import {createRoot, observable} from 'solid-js'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
 import type {ChatMessage} from '@conciv/types/chat-message-types'
 import {createChatSession, type ChatSessionHydration} from '../../src/chat/session.js'
-import {createTextChunks} from '../../src/testing.js'
 
 describe('a refresh racing a send', () => {
   test('keeps the sent message and its streamed reply alongside the older history the refresh fetched, and keeps a message the server has not stored yet until a fetch holds it', async () => {
@@ -11,7 +10,13 @@ describe('a refresh racing a send', () => {
     const held = Promise.withResolvers<void>()
     const refreshes = [fetched.promise]
     const gates = [Promise.resolve(), held.promise]
-    const replies = [createTextChunks('Short answer', 'reply')]
+    const replies: ChatEvent[][] = [
+      [
+        {type: ChatEventType.TEXT_MESSAGE_START, messageId: 'reply', role: 'assistant'},
+        {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: 'reply', delta: 'Short answer'},
+        {type: ChatEventType.TEXT_MESSAGE_END, messageId: 'reply'},
+      ],
+    ]
     const saved: ChatMessage[] = []
     const events = new TransformStream<ChatEvent, ChatEvent>()
     const engine = events.writable.getWriter()

@@ -32,6 +32,7 @@
     "@conciv/ui-kit-tap": "workspace:^",
     "@internal/frontend-app-api": "workspace:*",
     "@internal/frontend-defaults": "workspace:*",
+    "@internal/test-utils": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/solid-router": "catalog:",
     "zod": "catalog:"
