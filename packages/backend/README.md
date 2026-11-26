@@ -17,4 +17,3 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 ## Side Effects
 
 - `build` (`package.json`): writes `dist/`.
-- `uno.config.ts`: scans `src/**/*.{ts,tsx}` with `presetConciv` (read by the lint's UnoCSS plugin).
