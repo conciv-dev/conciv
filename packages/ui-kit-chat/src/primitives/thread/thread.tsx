@@ -263,11 +263,7 @@ function VirtualMessages(props: {
       <For each={virtualizer.items}>
         {(item) => (
           <div
-            ref={(element) =>
-              onMount(() => {
-                if (settledEstimate(item.index)?.exact !== true) virtualizer.measureRow(element)
-              })
-            }
+            ref={(element) => onMount(() => virtualizer.measureRow(element))}
             data-index={item.index}
             class={ROW}
             style={{transform: `translateY(${item.start - metrics.scrollMargin}px)`}}
