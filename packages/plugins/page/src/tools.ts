@@ -61,14 +61,14 @@ export const register = Effect.fn('PageTools.register')(function* (
     if (action.type === 'tabs.list') return yield* exportResult(yield* ctx.browserTabs.list(tool.sessionId), [], root)
     const queueing = {agentId: tool.agent, toolCallId: tool.id, origin: tool.origin}
     if (action.type === 'queue') {
-      const played = yield* connection.queues
-        .play(tool.sessionId, {...queueing, action})
+      const played = yield* connection
+        .runQueue(tool.sessionId, {...queueing, action}, 'block')
         .pipe(Effect.mapError(asToolError('The queue could not be played')))
       return yield* exportResult(played, [], root)
     }
     if (action.type === 'queue_async') {
-      const started = yield* connection.queues
-        .start(tool.sessionId, {...queueing, action})
+      const started = yield* connection
+        .runQueue(tool.sessionId, {...queueing, action}, 'background')
         .pipe(Effect.mapError(asToolError('The queue could not be started')))
       return yield* exportResult(started, [], root)
     }

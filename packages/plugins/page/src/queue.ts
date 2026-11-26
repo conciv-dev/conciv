@@ -5,7 +5,6 @@ import type {SessionId} from '@conciv/types/chat-types'
 import {
   PAGE_QUEUE_REFUSED,
   PAGE_QUEUE_STOPPED,
-  PAGE_QUEUE_SYNC_MS,
   type PageQueueHandle,
   type PageQueueResult,
   PageRaisedErrorSchema as Raised,
@@ -14,8 +13,6 @@ import type * as Tool from '@conciv/protocol/schema/tool'
 import {
   createQueueState,
   findQueue,
-  OWED_QUEUES,
-  readOwing,
   readProgress,
   transitionQueue,
   type Landed,
@@ -81,9 +78,6 @@ function toAction(queued: {tool: string}): Action {
 export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
   play: Play
   journal: (sessionId: SessionId, change: Omit<PageChangeEntry, 'seq'>) => Effect.Effect<void, unknown>
-  started: (entry: QueueEntry) => Effect.Effect<void>
-  delivered: (queueId: string) => Effect.Effect<void>
-  finished: (entry: QueueEntry) => Effect.Effect<void>
   syncMs?: number
 }) {
   const scope = yield* Effect.scope
@@ -93,20 +87,9 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
     Effect.suspend(() => {
       const next = transitionQueue(machine.state, event)
       machine.state = next.state
-      return Effect.forEach(
-        next.effects,
-        (effect) =>
-          effect.type === 'resolve'
-            ? Deferred.succeed(effect.entry.done, effect.result)
-            : deps
-                .finished(effect.entry)
-                .pipe(
-                  Effect.catchCause((cause) =>
-                    Effect.logWarning(`Delivering queue ${effect.entry.queueId} failed`, cause),
-                  ),
-                ),
-        {discard: true},
-      )
+      return Effect.forEach(next.effects, (effect) => Deferred.succeed(effect.entry.done, effect.result), {
+        discard: true,
+      })
     })
 
   const journaled = (entry: QueueEntry, index: number, queued: {tool: string}) =>
@@ -136,10 +119,6 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
 
   const start = Effect.fn('PageQueue.start')(function* (sessionId: SessionId, given: QueueStart) {
     const actions = given.action.actions
-    if (readOwing(machine.state) >= OWED_QUEUES)
-      return yield* Effect.fail(
-        new Error(`${OWED_QUEUES} queue results are still undelivered; collect them before queueing more`),
-      )
     const queueId = `q_${crypto.randomUUID()}`
     const parsed = yield* Effect.try({
       try: () => ({action: Action.parse({...given.action, type: 'queue'}), actions: actions.map(toAction)}),
@@ -154,25 +133,20 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
       tools: actions.map((action) => action.tool),
       settled: actions.map(() => undefined),
       result: null,
-      delivery: 'owed',
       done: yield* Deferred.make<PageQueueResult>(),
     }
     yield* dispatch({type: 'started', entry})
-    yield* deps
-      .started(entry)
-      .pipe(Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause)))
     yield* Effect.forEach(
       played,
       (reply, index) =>
         Deferred.await(reply).pipe(Effect.flatMap((settlement) => land(entry, index, actions[index], settlement))),
       {concurrency: 'unbounded', discard: true},
-    ).pipe(
-      Effect.andThen(dispatch({type: 'finished', queueId})),
-      Effect.andThen(Effect.sleep(0)),
-      Effect.andThen(dispatch({type: 'announce', queueId})),
-      Effect.forkIn(scope),
-    )
-    const handle: PageQueueHandle = {queueId, actions: actions.length}
+    ).pipe(Effect.andThen(dispatch({type: 'finished', queueId})), Effect.forkIn(scope))
+    const handle: PageQueueHandle & {done: Deferred.Deferred<PageQueueResult>} = {
+      queueId,
+      actions: actions.length,
+      done: entry.done,
+    }
     return handle
   })
 
@@ -183,37 +157,14 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
     return findQueue(machine.state, sessionId, queueId) ?? entry
   })
 
-  const claim = Effect.fn('PageQueue.claim')(function* (sessionId: SessionId, queueId: string, waitMs: number) {
+  const wait = Effect.fn('PageQueue.wait')(function* (sessionId: SessionId, queueId: string, waitMs: number) {
     const entry = yield* reached(sessionId, queueId, waitMs)
     return entry.result ?? readProgress(entry)
   })
 
-  const settle = (sessionId: SessionId, queueIds: readonly string[]) =>
-    Effect.suspend(() =>
-      dispatch({
-        type: 'delivered',
-        queueIds: queueIds.filter((queueId) => findQueue(machine.state, sessionId, queueId) !== undefined),
-      }),
-    )
-
-  const wait = Effect.fn('PageQueue.wait')(function* (sessionId: SessionId, queueId: string, waitMs: number) {
-    const claimed = yield* claim(sessionId, queueId, waitMs)
-    if (claimed.status === 'playing') return claimed
-    yield* settle(sessionId, [queueId])
-    yield* deps
-      .delivered(queueId)
-      .pipe(Effect.catchCause((cause) => Effect.logWarning(`Reporting queue ${queueId} failed`, cause)))
-    return claimed
-  })
-
-  const play = (sessionId: SessionId, given: QueueStart) =>
-    start(sessionId, given).pipe(
-      Effect.flatMap(({queueId}) => wait(sessionId, queueId, deps.syncMs ?? PAGE_QUEUE_SYNC_MS)),
-    )
-
   const cancelSession = (sessionId: SessionId) => dispatch({type: 'session.cancelled', sessionId})
 
-  return {start, play, wait, settle, cancelSession}
+  return {start, wait, cancelSession}
 })
 
 export type Queues = Effect.Success<ReturnType<typeof makeQueues>>

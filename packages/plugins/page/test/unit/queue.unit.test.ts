@@ -23,9 +23,6 @@ describe('waiting on a queue', () => {
         const queues = yield* makeQueues({
           play: () => Effect.succeed([reply]),
           journal: () => Effect.void,
-          started: () => Effect.void,
-          delivered: () => Effect.void,
-          finished: () => Effect.void,
         })
         const {queueId} = yield* queues.start(sessionId, {
           agentId: 'agent',

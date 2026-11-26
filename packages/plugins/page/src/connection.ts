@@ -22,7 +22,14 @@ import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import type {RpcRegistration} from '@conciv/backend-plugin-api/effect/rpc'
 import * as Tool from '@conciv/protocol/schema/tool'
 import type {SessionId} from '@conciv/types/chat-types'
-import {PAGE_QUEUE_REFUSED, PAGE_QUEUE_STOPPED, PageRaisedErrorSchema, type PageQueueResult} from './page-types.js'
+import {
+  PAGE_QUEUE_REFUSED,
+  PAGE_QUEUE_STOPPED,
+  PAGE_QUEUE_SYNC_MS,
+  PageRaisedErrorSchema,
+  type PageQueueHandle,
+  type PageQueueResult,
+} from './page-types.js'
 import {ACCESS, disconnectedBeforeDispatch, reconcilePagePermissions, selectTarget} from './machine.js'
 import {PageQueue} from './queue.js'
 import type {GrabStore} from './grabs.js'
@@ -400,50 +407,69 @@ export const make = Effect.fn('PageConnection.make')(function* (
   const queues: PageQueue.Queues = yield* PageQueue.makeQueues({
     play: playQueue,
     journal: (sessionId, change) => records.append(sessionId, change),
-    started: (entry) =>
-      ctx.job
-        .start({
-          id: queueJobId(entry.queueId),
+  }).pipe(Scope.provide(work))
+
+  const runQueue = Effect.fn('PageConnection.runQueue')(function* (
+    sessionId: SessionId,
+    given: PageQueue.QueueStart,
+    mode: 'block' | 'background',
+  ) {
+    const started = yield* queues.start(sessionId, given)
+    const id = queueJobId(started.queueId)
+    yield* Deferred.await(started.done).pipe(
+      Effect.flatMap((result) =>
+        registration.events.emit('queue.finished', {
+          sessionId,
+          queueId: started.queueId,
+          toolCallId: given.toolCallId,
+          result,
+        }),
+      ),
+      Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${started.queueId} failed`, cause)),
+      Effect.forkIn(work),
+    )
+    return yield* Effect.uninterruptibleMask((restore) =>
+      Effect.gen(function* () {
+        yield* ctx.job.start({
+          id,
           type: 'page-queue',
           title: 'Queued page actions',
-          metadata: {toolCallId: entry.toolCallId, origin: entry.origin},
-          recovery: {kind: 'page-queue', sessionID: entry.sessionId, queueId: entry.queueId},
-          background: true,
-          run: Deferred.await(entry.done).pipe(Effect.map(queueNotice)),
+          metadata: {toolCallId: given.toolCallId, origin: given.origin},
+          recovery: {kind: 'page-queue', sessionID: sessionId, queueId: started.queueId},
+          run: Deferred.await(started.done).pipe(Effect.map(queueNotice)),
         })
-        .pipe(
-          Effect.asVoid,
-          Effect.catchCause((cause) => Effect.logWarning(`Queue ${entry.queueId} could not start its job`, cause)),
-        ),
-    delivered: (queueId) =>
-      ctx.job
-        .wait({id: queueJobId(queueId)})
-        .pipe(
-          Effect.flatMap(({info}) =>
-            info?.notificationID === undefined ? Effect.void : ctx.job.completeBackground(info.notificationID),
-          ),
-        ),
-    finished: (entry) => {
-      const {sessionId, queueId, toolCallId, result} = entry
-      if (result === null) return Effect.void
-      const notify = Effect.gen(function* () {
-        const {info} = yield* ctx.job.wait({id: queueJobId(queueId)})
-        if (info?.notificationID === undefined || info.status === 'cancelled') return
-        yield* ctx.session
-          .synthetic({id: info.notificationID, sessionID: sessionId, ...queueJobNotice(info.id, result)})
-          .pipe(Effect.catchIf(SessionNotFound, () => Effect.void))
-        yield* ctx.job.completeBackground(info.notificationID)
-      }).pipe(Effect.catchCause((cause) => Effect.logWarning(`Queue ${queueId} could not reach its session`, cause)))
-      return Effect.forkIn(
-        queues.settle(sessionId, [queueId]).pipe(
-          Effect.andThen(registration.events.emit('queue.finished', {sessionId, queueId, toolCallId, result})),
-          Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause)),
-          Effect.andThen(entry.origin === 'hub' ? Effect.void : notify),
-        ),
-        work,
-      ).pipe(Effect.asVoid)
-    },
-  }).pipe(Scope.provide(work))
+        if (mode === 'block') {
+          const blocked = yield* restore(
+            ctx.job.block({id, sessionID: sessionId}).pipe(Effect.timeoutOption(Duration.millis(PAGE_QUEUE_SYNC_MS))),
+          ).pipe(Effect.onInterrupt(() => ctx.job.cancel(id)))
+          if (Option.isSome(blocked) && blocked.value?.type === 'finished') return yield* Deferred.await(started.done)
+        }
+        const job = yield* ctx.job.background(id)
+        if (!job?.notificationID) return yield* Effect.interrupt
+        const notificationID = job.notificationID
+        if (given.origin !== 'hub')
+          yield* Effect.gen(function* () {
+            const {info} = yield* ctx.job.wait({id})
+            if (!info || info.status === 'cancelled') return
+            const result = yield* Deferred.await(started.done)
+            yield* ctx.session
+              .synthetic({id: notificationID, sessionID: sessionId, ...queueJobNotice(id, result)})
+              .pipe(Effect.catchIf(SessionNotFound, () => Effect.void))
+            yield* ctx.job.completeBackground(notificationID)
+          }).pipe(
+            Effect.catchCause((cause) =>
+              Effect.logWarning(`Queue ${started.queueId} could not reach its session`, cause),
+            ),
+            Effect.forkIn(work),
+          )
+        if (mode === 'background') {
+          const handle: PageQueueHandle = {queueId: started.queueId, actions: started.actions}
+          return handle
+        }
+        return yield* queues.wait(sessionId, started.queueId, 0)
+      }),
+    )
+  })
 
   const registration: RpcRegistration<typeof Definition> = yield* ctx.rpc
     .register(Definition, {
@@ -564,6 +590,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
   return {
     run,
     queues,
+    runQueue,
     records: {
       ...records,
       capture: (sessionId: SessionId, toolCallId: string, bundle: PageCaptureBundle) =>

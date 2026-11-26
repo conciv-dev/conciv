@@ -8,8 +8,6 @@ export type Landed = 'played' | 'stopped' | 'lost'
 
 export type Settled = {readonly outcome: PageQueueOutcome; readonly landed: Landed}
 
-type Delivery = 'owed' | 'delivered'
-
 export type QueueEntry = {
   readonly queueId: string
   readonly sessionId: SessionId
@@ -18,7 +16,6 @@ export type QueueEntry = {
   readonly tools: readonly string[]
   readonly settled: readonly (Settled | undefined)[]
   readonly result: PageQueueResult | null
-  readonly delivery: Delivery
   readonly done: Deferred.Deferred<PageQueueResult>
 }
 
@@ -28,19 +25,13 @@ export type QueueEvent =
   | {readonly type: 'started'; readonly entry: QueueEntry}
   | {readonly type: 'landed'; readonly queueId: string; readonly index: number; readonly settled: Settled}
   | {readonly type: 'finished'; readonly queueId: string}
-  | {readonly type: 'announce'; readonly queueId: string}
-  | {readonly type: 'delivered'; readonly queueIds: readonly string[]}
   | {readonly type: 'session.cancelled'; readonly sessionId: SessionId}
 
-export type QueueEffect =
-  | {readonly type: 'resolve'; readonly entry: QueueEntry; readonly result: PageQueueResult}
-  | {readonly type: 'announce'; readonly entry: QueueEntry}
+export type QueueEffect = {readonly type: 'resolve'; readonly entry: QueueEntry; readonly result: PageQueueResult}
 
 export type QueueTransition = {readonly state: QueueState; readonly effects: readonly QueueEffect[]}
 
 export const KEPT_QUEUES = 200
-
-export const OWED_QUEUES = 1000
 
 const QUEUE_RESULT_CHARS = RESULT_CAP_CHARS - 5000
 
@@ -62,21 +53,11 @@ export function transitionQueue(state: QueueState, event: QueueEvent): QueueTran
     const next = updated(state, event.queueId, (each) => ({...each, result}))
     return {state: next.state, effects: [{type: 'resolve', entry, result}]}
   }
-  if (event.type === 'announce') {
-    const entry = state.entries.find((each) => each.queueId === event.queueId)
-    if (entry === undefined || entry.result === null || entry.delivery !== 'owed') return {state, effects: []}
-    return {state, effects: [{type: 'announce', entry}]}
-  }
-  if (event.type === 'delivered') return redelivered(state, event.queueIds)
   return {state: {entries: state.entries.filter((entry) => entry.sessionId !== event.sessionId)}, effects: []}
 }
 
 export function findQueue(state: QueueState, sessionId: SessionId, queueId: string): QueueEntry | undefined {
   return state.entries.find((entry) => entry.queueId === queueId && entry.sessionId === sessionId)
-}
-
-export function readOwing(state: QueueState): number {
-  return state.entries.filter((entry) => entry.delivery !== 'delivered').length
 }
 
 export function readProgress(entry: QueueEntry): PageQueueProgress {
@@ -95,20 +76,9 @@ function updated(state: QueueState, queueId: string, change: (entry: QueueEntry)
   }
 }
 
-function redelivered(state: QueueState, queueIds: readonly string[]): QueueTransition {
-  return {
-    state: {
-      entries: state.entries.map((entry) =>
-        queueIds.includes(entry.queueId) ? {...entry, delivery: 'delivered'} : entry,
-      ),
-    },
-    effects: [],
-  }
-}
-
 function kept(entries: readonly QueueEntry[]): readonly QueueEntry[] {
-  const delivered = entries.filter((entry) => entry.result !== null && entry.delivery === 'delivered')
-  const dropped = delivered.slice(0, Math.max(0, delivered.length - KEPT_QUEUES))
+  const finished = entries.filter((entry) => entry.result !== null)
+  const dropped = finished.slice(0, Math.max(0, finished.length - KEPT_QUEUES))
   return entries.filter((entry) => !dropped.includes(entry))
 }
 
