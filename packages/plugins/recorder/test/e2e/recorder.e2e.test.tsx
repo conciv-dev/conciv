@@ -110,9 +110,11 @@ describe('the agent records during a reply', () => {
       }),
     )
     render(() => <button type="button">Pay now</button>)
-    const attached = await engine.event('rpc.experimental.page.control', {data: {type: 'attached'}})
+    const served = await engine.event('rpc.experimental.page.permissions.synced', {
+      data: {sessionId: engine.session.id, allow: true},
+    })
     await renderTestApp({engine, plugins: [pageTestPlugin]})
-    await attached.arrived
+    await served.arrived
     const capture = z.object({captureId: z.string()}).parse(await engine.session.tool('recording_start').call({}))
     await realInput.click(screen.getByRole('button', {name: 'Pay now'}))
     await engine.reply(

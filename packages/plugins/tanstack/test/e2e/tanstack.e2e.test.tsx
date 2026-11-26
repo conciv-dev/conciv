@@ -38,12 +38,14 @@ describe('the TanStack cards', () => {
 describe('the agent finds the tab through the TanStack plugin', () => {
   test('the TanStack tab list names the focused tab', async ({createEngine}) => {
     const engine = await createEngine({plugins: ['@conciv/plugin-tanstack']}, {plugins: ['@conciv/plugin-page']})
-    const control = await engine.event('rpc.experimental.page.control')
+    const served = await engine.event('rpc.experimental.page.permissions.synced', {
+      data: {sessionId: engine.session.id, allow: true},
+    })
     await renderTestApp({
       engine,
       plugins: [pageTestPlugin],
     })
-    await control.arrived
+    await served.arrived
 
     expect(await engine.session.tool('tanstack_tabs_list').call({})).toMatchObject({
       tabs: [{focused: true, visible: true}],

@@ -197,13 +197,15 @@ describe('the terminal', () => {
   }) => {
     const user = userEvent.setup()
     const engine = await createEngine({}, {plugins: ['@conciv/plugin-page']})
-    const control = await engine.event('rpc.experimental.page.control')
+    const served = await engine.event('rpc.experimental.page.permissions.synced', {
+      data: {sessionId: engine.session.id, allow: true},
+    })
     await renderTestApp({
       engine,
       plugins: [{id: 'terminal', plugin: terminal, builtin: true}, pageTestPlugin],
       initialEntries: ['/panel/latest?open=true'],
     })
-    await control.arrived
+    await served.arrived
     render(() => (
       <button type="button" id="buy">
         Buy the fern
