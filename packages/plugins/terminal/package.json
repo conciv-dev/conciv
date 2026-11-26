@@ -15,9 +15,9 @@
   ],
   "type": "module",
   "exports": {
-    "./client": {
-      "types": "./src/client.tsx",
-      "import": "./dist/client.js"
+    "./builtins": {
+      "types": "./src/builtins.ts",
+      "import": "./dist/builtins.js"
     },
     "./package.json": "./package.json"
   },
