@@ -17,7 +17,7 @@ import {z} from 'zod'
 import {useLocation, useParams, useRouteContext, useRouter, useRouterState, useSearch} from '@tanstack/solid-router'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {useQuery} from '@conciv/client'
-import type {ContractClient} from '@conciv/client'
+import type {EngineClient} from '@conciv/client'
 import {writeClipboardText} from '@conciv/ui-kit-system'
 import type {ComposerContextValue} from '@conciv/ui-kit-chat'
 import {Conciv, type ClientConnectionStatus, type ConcivClient} from '@conciv/client'
@@ -152,7 +152,7 @@ export function createHostApis() {
   const client = appData.client
   const data = createServerData(appData.utils)
   const unavailable = Conciv.make(
-    createORPCClient<ContractClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}),
+    createORPCClient<EngineClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}),
     {
       server: () => UNAVAILABLE,
     },

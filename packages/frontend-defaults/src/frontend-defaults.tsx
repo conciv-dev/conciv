@@ -1,7 +1,7 @@
 import {Show, createMemo, createRoot, getOwner, on, onCleanup, untrack, type Accessor, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {RouterProvider, createBrowserHistory, createMemoryHistory, type RouterHistory} from '@tanstack/solid-router'
-import {makeEngineRpcClient, normalizeApiBase, type EngineConnection, type ContractClient} from '@conciv/client'
+import {makeEngineRpcClient, normalizeApiBase, type EngineConnection, type EngineClient} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
 import type {ConcivSettingsInit} from '@conciv/types/config-types'
 import {createConcivRouter, disposeConcivRouter, type ConcivRouterConfig, type ConcivTimings} from './router.js'
@@ -77,7 +77,7 @@ function navigationHistory(navigation: Platform['navigation']): RouterHistory {
 
 function routerConfig(
   parts: AppParts,
-  rpc: ContractClient,
+  rpc: EngineClient,
   history: RouterHistory,
   session: {read: () => string | null},
 ) {

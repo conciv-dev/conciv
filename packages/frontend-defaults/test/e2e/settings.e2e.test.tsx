@@ -3,7 +3,7 @@ import {screen, within, render} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createORPCClient} from '@orpc/client'
 import {createFakeEngine, type FakePluginInfo} from '@internal/test-utils'
-import type {ContractClient} from '@conciv/client'
+import type {EngineClient} from '@conciv/client'
 import {Plugin} from '@conciv/frontend-plugin-api'
 import {mountShell, shellEngine} from '../utils/mount-shell.js'
 import {localBundle} from '../utils/sample-plugins.js'
@@ -38,7 +38,7 @@ describe('settings for this project and for all projects', () => {
   test('a value saved for all projects shows here until this project overrides it, also when another client writes it', async () => {
     const user = userEvent.setup()
     const engine = shellEngine(createFakeEngine({settings: {'global:conciv': {colorScheme: 'dark'}}}))
-    const otherClient = createORPCClient<ContractClient>(engine.connect().link)
+    const otherClient = createORPCClient<EngineClient>(engine.connect().link)
     await mountShell({engine})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
 

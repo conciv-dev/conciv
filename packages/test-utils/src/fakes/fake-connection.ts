@@ -8,7 +8,7 @@ import {
   type ConnectionState,
 } from '@conciv/client'
 import type {EngineConnection, EngineTrust, ReachabilityListener, RpcClientContext, TrustListener} from '@conciv/client'
-import type {ContractClient} from '@conciv/client'
+import type {EngineClient} from '@conciv/client'
 import {lookup} from './fake-router.js'
 import type {FakeConnectOptions} from './fake-types.js'
 
@@ -99,7 +99,7 @@ export function fakeConnection(
   const link: ClientLink<RpcClientContext> = {
     call: (path, input, callOptions) => invoke(path, input, callOptions.signal),
   }
-  const auth = createORPCClient<ContractClient>(link).auth
+  const auth = createORPCClient<EngineClient>(link).auth
   const trustWithToken = async (token: string): Promise<boolean> => {
     const {trusted} = await auth.trust({token})
     dispatch(trusted ? {type: 'trusted', token} : {type: 'trust-refused', token})

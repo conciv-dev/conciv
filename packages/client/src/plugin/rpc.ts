@@ -1,4 +1,4 @@
-import type {ContractClient} from '../connection/rpc-client.js'
+import type {EngineClient} from '../connection/rpc-client.js'
 import {z} from 'zod'
 import type * as Rpc from '@conciv/protocol/schema/rpc'
 import type {ConcivEvent, RpcEvent} from './events.js'
@@ -68,7 +68,7 @@ export type RpcMethod<D extends Rpc.PortableDefinition, Name extends keyof D['me
   }
 }
 
-export type PluginRpcClient<D extends Rpc.PortableDefinition, Options = RpcCallOptions> = {
+export type PluginClient<D extends Rpc.PortableDefinition, Options = RpcCallOptions> = {
   readonly [Name in keyof D['methods'] & string]: RpcMethod<D, Name, Options>
 } & {
   readonly events: {
@@ -98,7 +98,7 @@ export type RpcEventPayload<
 > = {[K in Name]: RpcEventPayloadFor<D, K>}[Name]
 
 export interface RpcApi<Options = RpcCallOptions> {
-  <D extends Rpc.PortableDefinition>(definition: D): PluginRpcClient<D, Options>
+  <D extends Rpc.PortableDefinition>(definition: D): PluginClient<D, Options>
 }
 
 const RpcError = z.object({
@@ -108,7 +108,7 @@ const RpcError = z.object({
 })
 
 export function makeRpc(
-  raw: ContractClient,
+  raw: EngineClient,
   events: {subscribe(options?: RpcCallOptions): AsyncIterable<ConcivEvent>},
   server: () => string,
 ): RpcApi {
@@ -190,7 +190,7 @@ export function makeRpc(
           },
         },
       },
-    ) as PluginRpcClient<typeof definition>
+    ) as PluginClient<typeof definition>
   }
 }
 

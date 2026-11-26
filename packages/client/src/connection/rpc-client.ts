@@ -12,7 +12,7 @@ import {
   type SessionAccessor,
 } from './engine-connection.js'
 
-export type ContractClient = ContractRouterClient<typeof contract, RpcClientContext>
+export type EngineClient = ContractRouterClient<typeof contract, RpcClientContext>
 
 export type RpcClientOptions = {
   token?: string
@@ -34,7 +34,7 @@ function rpcUrl(apiBase: string, token: string | undefined): string {
   return url.href
 }
 
-export function makeRpcClient(apiBase: string, options: RpcClientOptions = {}): ContractClient {
+export function makeRpcClient(apiBase: string, options: RpcClientOptions = {}): EngineClient {
   const link = new RPCLink<RpcClientContext>({
     url: rpcUrl(apiBase, options.token),
     fetch: abortableFetch,
@@ -54,8 +54,8 @@ export const RPC_UNBOUND_MESSAGE = 'conciv core not connected yet'
 export function makeEngineRpcClient(
   connection: () => EngineConnection | undefined,
   session?: SessionAccessor,
-): ContractClient {
-  return createORPCClient<ContractClient>({
+): EngineClient {
+  return createORPCClient<EngineClient>({
     call: (path, input, options) => {
       const current = connection()
       if (current === undefined) throw engineUnreachable(RPC_UNBOUND_MESSAGE)

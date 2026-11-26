@@ -2,7 +2,7 @@ import {writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {test as base, vi, type TestAPI} from 'vitest'
 import {tempDir} from '@internal/vitest-config/temp-dir'
-import type {ContractClient} from '@conciv/client'
+import type {EngineClient} from '@conciv/client'
 import {
   browserClient,
   createEngine,
@@ -16,7 +16,7 @@ import {
 import {createBackend} from '../../src/backend.js'
 import type {ConcivConfig} from '@conciv/types/config-types'
 
-type Launched = {engine: Engine; client: ContractClient}
+type Launched = {engine: Engine; client: EngineClient}
 
 type Running = {started: StartedEngine; client: BrowserClient}
 
@@ -30,8 +30,8 @@ async function stopAll(running: Running[]): Promise<void> {
 type Fixtures = EngineFixtures & {
   engine: Engine
   launch: (config?: ConcivConfig, options?: EngineStart) => Promise<Launched>
-  connect: (engine: Engine) => ContractClient
-  untrusted: (engine: Engine) => ContractClient
+  connect: (engine: Engine) => EngineClient
+  untrusted: (engine: Engine) => EngineClient
   agentPath: (bins: string[]) => string
   fakeTimers: (config: Parameters<typeof vi.useFakeTimers>[0]) => void
 }

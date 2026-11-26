@@ -19,7 +19,7 @@ import {
 } from '@conciv/types/chat-event-types'
 import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/types/chat-types'
 import {trustedAgain, type EngineTrust, type RpcClientContext} from '../connection/engine-connection.js'
-import {type ContractClient} from '../connection/rpc-client.js'
+import {type EngineClient} from '../connection/rpc-client.js'
 import {type ChatHistoryWindow, type ChatHydration} from '@conciv/protocol'
 
 export async function* readingValues<T>(readable: ReadableStream<T>): AsyncGenerator<T> {
@@ -211,7 +211,7 @@ async function* boundedRun(
 }
 
 function overRpc(
-  rpc: ContractClient,
+  rpc: EngineClient,
   engine: Engine,
   sessionId: string,
   lifetime: AbortSignal,
@@ -375,7 +375,7 @@ function refused(error: unknown): boolean {
 }
 
 async function* sessionEvents(
-  rpc: ContractClient,
+  rpc: EngineClient,
   engine: Engine,
   sessionId: string,
   signal: AbortSignal,
@@ -437,7 +437,7 @@ function lastTurn<Message extends {role: string}>(messages: Message[]): Message[
 }
 
 export function chatConnection(
-  rpc: ContractClient,
+  rpc: EngineClient,
   trust: EngineTrust | undefined,
   sessionId: string,
   options: ChatConnectionOptions = {},

@@ -3,7 +3,7 @@ export type {SelectedEvent, SubscribeOptions} from './plugin/shared-events.js'
 export type {PluginInfo} from './plugin/plugin-info.js'
 export type {ClientConnectionOptions, ClientConnectionStatus, ConcivClient, ConcivEvent} from './plugin/conciv.js'
 export type {
-  PluginRpcClient,
+  PluginClient,
   RpcApi,
   RpcArguments,
   RpcCallOptions,
@@ -38,20 +38,20 @@ export {
 } from '@tanstack/solid-query'
 import {safe} from '@orpc/client'
 import {createChatSession, type ChatSession} from './chat.js'
-import type {ContractClient} from './connection/rpc-client.js'
+import type {EngineClient} from './connection/rpc-client.js'
 import type {EngineTrust} from './connection/engine-connection.js'
 import {chatConnection, type ChatConnectionOptions} from './chat/chat-connection.js'
 export type {ChatSession} from './chat.js'
 import {createTanstackQueryUtils, type RouterUtils} from '@orpc/tanstack-query'
 
-export function makeQueryUtils(client: ContractClient): RouterUtils<ContractClient> {
+export function makeQueryUtils(client: EngineClient): RouterUtils<EngineClient> {
   return createTanstackQueryUtils(client)
 }
 
 export type QueryUtils = ReturnType<typeof makeQueryUtils>
 
 export type UseChatSessionOptions = {
-  rpc: ContractClient
+  rpc: EngineClient
   trust: EngineTrust | undefined
   sessionId: string
   connection?: ChatConnectionOptions

@@ -13,7 +13,7 @@ import {
   type CodeDiscoverResult,
   type CodeReply,
 } from '@conciv/protocol'
-import {engineTooOld, makeRpcClient, type ContractClient} from '@conciv/client'
+import {engineTooOld, makeRpcClient, type EngineClient} from '@conciv/client'
 import {
   CODE_MODE_EXTERNAL_PREFIX,
   CONCIV_CLIENT_HEADER,
@@ -116,15 +116,15 @@ type PageQueueHandle = z.output<PageMethods['queue.startedBy']['output']>[number
 
 type Reply = CodeReply
 
-type Runner = {root: string; rpc: ContractClient; described: CodeDescriptions | null}
+type Runner = {root: string; rpc: EngineClient; described: CodeDescriptions | null}
 
 type TabOwner = {
   root: string
   apiBase: string
   token: string
   instructions: string | null
-  rpc: ContractClient
-  page: ContractClient
+  rpc: EngineClient
+  page: EngineClient
 }
 
 type TabEntry = {owner: Promise<TabOwner> | null; greeted: boolean}
@@ -146,7 +146,7 @@ type GoneQueue = {queueId: string; status: 'gone'}
 
 type PolledQueue = PolledState | GoneQueue
 
-type EngineCall<Value> = (rpc: ContractClient, signal: AbortSignal | undefined) => Promise<Value>
+type EngineCall<Value> = (rpc: EngineClient, signal: AbortSignal | undefined) => Promise<Value>
 
 type TaskReply = {
   content: Reply['content']
@@ -606,7 +606,7 @@ function withFinished(reply: Reply, finished: readonly PageQueueResult[]): Reply
 }
 
 async function pollQueue(
-  rpc: ContractClient,
+  rpc: EngineClient,
   sessionId: SessionId,
   queueId: string,
   signal: AbortSignal,

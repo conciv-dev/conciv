@@ -8,7 +8,7 @@ import {
   isSessionId,
   type SessionId,
 } from '@conciv/types/chat-types'
-import {makeRpcClient, type ContractClient} from '@conciv/client'
+import {makeRpcClient, type EngineClient} from '@conciv/client'
 import {initContributions} from '@conciv/harness/init/registry'
 import {INIT_HARNESS_IDS} from '@conciv/types/harness-types'
 import type {CliOutcome} from './envelope.js'
@@ -66,7 +66,7 @@ async function sessionId(origin: string, token: string | undefined): Promise<Ses
 
 export type CliTarget = {tab: SessionId | null}
 
-type RpcCall = (rpc: ContractClient, sessionId: SessionId) => Promise<unknown>
+type RpcCall = (rpc: EngineClient, sessionId: SessionId) => Promise<unknown>
 
 type EngineOrigin = Awaited<ReturnType<typeof engineOrigin>>
 
