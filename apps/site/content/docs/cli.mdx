@@ -1,131 +1,204 @@
 ---
 title: CLI
-description: The conciv CLI the agent drives your app with. You can use it too.
+description: Run the conciv commands the agent drives your app with, from your own terminal.
 ---
 
-The agent's hands are a CLI. When it inspects your page or clicks a button, it is running `conciv` commands against
-the live dev server. The dev server puts `conciv` in place for the agents it starts, and `npx @conciv/cli` runs the same
-CLI anywhere, so everything the agent can do, you can script.
+The agent drives your app with the `conciv` CLI. You can run the same commands. Run one against your dev server:
+
+```bash
+npx @conciv/cli tools page snapshot
+```
+
+- `npx @conciv/cli` runs the CLI anywhere. The agents conciv starts already have `conciv` on their `PATH`.
+- `tools page snapshot` reads the open page, as the agent does.
+
+Every command accepts `--help` for its full list of flags, for example `conciv auth link --help`. The full list of
+commands and flags is at the [end of the page](#all-commands).
+
+<Callout>
+  Every command prints one JSON document: `{"ok":true,"data":...}` or `{"ok":false,"error":...}`. Pipe it to `jq` in a
+  script.
+</Callout>
+
+## init
+
+Sets a project up: installs `@conciv/it`, wires your bundler config, and connects your agents.
+
+```bash
+npx @conciv/cli@latest init
+```
+
+Accept every detected default, with no prompts.
+
+```bash
+npx @conciv/cli@latest init --yes
+```
+
+Print the plan without touching anything.
+
+```bash
+npx @conciv/cli@latest init --dry-run
+```
+
+Run even with uncommitted git changes.
+
+```bash
+npx @conciv/cli@latest init --force
+```
+
+Print one JSON result instead of prompting.
+
+```bash
+npx @conciv/cli@latest init --yes --json
+```
+
+See [Quick start](/docs/quick-start).
+
+## tools
+
+Reads and drives the live page through your running dev server. The commands under `tools` come from the server's own
+tool list, so a plugin's tools show up as soon as the server loads it.
 
 ```bash
 conciv tools page snapshot
 conciv tools page click --name SubmitButton
+conciv tools page text --selector .price
+```
+
+- `page` is the tool group. `snapshot`, `click` and `text` are its tools.
+- A tool that targets an element takes `--selector` (CSS), `--ref` (from the last snapshot) or `--name` (a React
+  component).
+
+List every tool the running server serves.
+
+```bash
+conciv tools --help
+```
+
+List the open conciv tabs of every running dev server on this machine.
+
+```bash
+conciv tools tabs
+```
+
+Act on one tab, on whichever dev server holds it.
+
+```bash
+conciv tools page snapshot --tab ses_01JD8X
+```
+
+See [Page control](/docs/usage/page-control) for what the `page` tools do.
+
+## plugin call
+
+Calls a method a plugin registered on the running engine and prints its output.
+
+```bash
 conciv plugin call server urls
 ```
 
-## Commands
+- `server` is the plugin's RPC id.
+- `urls` is the method.
 
-<TypeTable
-  type={{
-    init: {
-      required: true,
-      type: 'command',
-      description:
-        'Sets a project up: installs @conciv/it, wires your config, teaches and connects your agents. See Quick start.',
-    },
-    tools: {
-      required: true,
-      type: 'command',
-      description: "The running dev server's tools, one group per tool prefix, such as page, plus tools tabs.",
-    },
-    'plugin call <rpcId> <method>': {
-      required: true,
-      type: 'command',
-      description:
-        "Calls a method a plugin registered on the running engine. --data (or -d) is the method's input as JSON.",
-    },
-    'auth link <url>': {
-      required: true,
-      type: 'command',
-      description: 'Prints a one-time login link for a page served with the conciv dev server. See Logging in.',
-    },
-    'auth revoke [id] [--all]': {
-      required: true,
-      type: 'command',
-      description: 'With no id, lists the logged-in browsers; with an id, or --all, logs them out.',
-    },
-    'mcp connect | disconnect | list | serve': {
-      required: true,
-      type: 'command',
-      description: 'Connects outside agents to conciv. See Connect your agents.',
-    },
-  }}
-/>
-
-`conciv tools` finds your running dev server itself: from `CONCIV_PORT`, then `.conciv/server.json` in this folder or a
-parent, then the most recently started dev server on this machine. Its groups come from the server's live tool
-catalog, so a plugin's tools appear as soon as the server loads it, and `conciv tools --help` lists them. Without a
-running dev server, `conciv tools` (and its `--help`) prints the "No conciv dev server" error.
-
-`conciv tools tabs` lists the open conciv tabs of every running dev server on this machine. Add `--tab <id>` (an id from
-`conciv tools tabs`) to a `tools` command to act on that tab, on whichever dev server holds it.
-
-<Callout>
-  Every command prints one JSON document on stdout: `{"ok":true,"data":...}` or `{"ok":false,"error":...}`. Outputs
-  compose with `jq` in scripts the same way the agent reads them. `--help` prints usage instead, and `conciv --version`
-  (or `-v`) prints the CLI version.
-</Callout>
-
-## `conciv tools page`
-
-Read and drive the live page. Verbs that target an element take `--selector` (a CSS selector), `--ref` (an element ref
-from the latest snapshot), or `--name` (a React component name, the first match). The attribute verbs name the
-attribute with `--attribute`, so `--name` always means the component.
-
-- **Read**: `route`, `dom`, `query`, `console`, `text`, `value`, `attr`, `exists`, `snapshot`, `screenshot`,
-  `tabs_list`
-- **Act**: `click`, `fill`, `fill_form`, `select`, `check`, `uncheck`, `press`, `hover`, `scroll`, `submit`, `wait`,
-  `reload`, `queue`, `queue_async`
-- **Edit live**: `setattr`, `removeattr`, `addclass`, `removeclass`, `setstyle`, `settext`, `sethtml`, `remove`,
-  `insert`, `css`, `eval`
-- **Journal**: `changes` lists every live edit made this session (`--clear` empties it)
-- **Hot updates**: `hmr` waits, after you save a file, until the page applied the update
-- **Visual effects**: `effect` enables, disables, toggles, reports or lists the visual effects the host page registered
+Send the method's input as JSON.
 
 ```bash
-conciv tools page snapshot
-conciv tools page text --selector .price
-conciv tools page changes --clear
+conciv plugin call server open --data '{"file":"src/routes/index.tsx","line":12}'
 ```
 
-Live edits are wiped on the next hot reload: they preview a change, and the journal is how the agent knows what to
-write to source afterwards. See [Page control](/docs/usage/page-control).
+`-d` is short for `--data`. See [Dev server](/docs/usage/dev-server) for the `server` plugin's methods.
 
-### React components
+## auth link
 
-The `page` group also inspects and edits live React components: `inspect`, `tree`, `find`, `locate`, `override`,
-`track`.
+Prints a one-time login link for a page served with the conciv dev server.
 
 ```bash
-conciv tools page inspect --name PricingCard
-conciv tools page override props --name PricingCard --path plan --json '"pro"'
+conciv auth link http://localhost:5173/
 ```
 
-`override` patches `props`, `state`, `hooks`, or `context` on the live instance, named as its first argument. `track`
-records re-renders page-wide: `--action start` begins recording, `--action report` lists them, `--name` narrows the
-report to one component, and `--action stop` ends recording.
+Open the link in the browser you want to log in. See [Logging in](/docs/usage/logging-in).
 
-## The dev server
+## auth revoke
 
-Ask the dev server about itself through its plugin: `config`, `urls`, `resolve`, `graph`, `transform`. The input goes
-in `--data` as JSON. These need Vite; with webpack or Rspack they answer that no dev server is attached.
+Lists the browsers that logged in to this project's engine.
 
 ```bash
-conciv plugin call server resolve --data '{"spec":"@/components/Header","importer":"src/routes/index.tsx"}'
-conciv plugin call server graph --data '{"file":"src/routes/index.tsx"}'
+conciv auth revoke
 ```
 
-`importer` resolves the specifier as if it were imported from that file. There is no command to force a hot update:
-save the file, and `conciv tools page hmr` waits until the page applied it.
-
-### Open a file in your editor
-
-The same plugin's `open` method opens a file in your editor, at a line and column when you pass them.
+Log one browser out by its id.
 
 ```bash
-conciv plugin call server open --data '{"file":"src/routes/index.tsx","line":12,"column":4}'
+conciv auth revoke 3f2a9c1d
 ```
 
-Interactive questions need no CLI: the agent calls its built-in `conciv_ui` tool, which renders choices, confirm, diff
-or form cards in the chat thread and waits until you answer. The cards are described in
-[Chat](/docs/usage/chat#generative-ui).
+Log every browser out.
+
+```bash
+conciv auth revoke --all
+```
+
+## mcp connect
+
+Adds conciv to an agent CLI, so that agent can find and drive your open conciv tabs.
+
+```bash
+conciv mcp connect claude
+```
+
+The agent is one of `claude`, `codex`, `gemini-cli` or `opencode`. See
+[Connect your agents](/docs/quick-start/agents).
+
+## mcp disconnect
+
+Removes conciv from an agent CLI.
+
+```bash
+conciv mcp disconnect codex
+```
+
+## mcp list
+
+Lists the agents connected to conciv.
+
+```bash
+conciv mcp list
+```
+
+## mcp serve
+
+Serves conciv to an outside agent over MCP stdio. `mcp connect` writes this command into the agent's config for you,
+so you rarely run it yourself.
+
+```bash
+conciv mcp serve --agent claude
+```
+
+## All commands
+
+This list is generated from the CLI's own command tree. A flag listed under a command applies to the commands below it
+too.
+
+<CliCommands />
+
+<Accordions>
+  <Accordion title="How conciv tools finds your dev server">
+    It reads `CONCIV_PORT` first. Then it looks for `.conciv/server.json` in this folder or a parent. Then it takes the
+    most recently started dev server on this machine. With no dev server running, `conciv tools` prints the "No conciv
+    dev server" error, and so does its `--help`.
+  </Accordion>
+  <Accordion title="Live page edits are wiped on the next hot reload">
+    The `page` tools that edit the page live (`settext`, `setstyle` and the rest) preview a change. The next hot reload
+    wipes them. `conciv tools page changes` lists every live edit made this session, which is how the agent knows what
+    to write to source afterwards.
+  </Accordion>
+  <Accordion title="Print the CLI version">
+    `conciv --version`, or `-v`, prints the version instead of a JSON document.
+  </Accordion>
+</Accordions>
+
+## Next
+
+- [Page control](/docs/usage/page-control): what the agent does with `conciv tools page`.
+- [Connect your agents](/docs/quick-start/agents): add conciv to Claude Code, Codex and the rest.
+- [Configuration](/docs/configuration): the options the dev server reads.
