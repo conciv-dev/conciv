@@ -1,7 +1,6 @@
 import {z} from 'zod'
 import {Plugin} from '@conciv/backend-plugin-api'
 import * as Rpc from '@conciv/protocol/schema/rpc'
-import type {SessionId} from '@conciv/types/chat-types'
 
 const Plant = z.object({plant: z.string()})
 
@@ -21,7 +20,7 @@ export default Plugin.define({
   id: 'plant-shelf',
   async setup(ctx) {
     const stock = {count: 1}
-    const watering: Array<{sessionId: SessionId; toolCallId: string}> = []
+    const watering: Array<(text: string) => void> = []
     await ctx.rpc.register(Shelf, {
       count: async ({plant}) => ({plant, count: stock.count}),
       sell: async ({plant}, call) => {
@@ -31,15 +30,7 @@ export default Plugin.define({
       },
       watered: async ({plant}) => {
         const told = watering.splice(0)
-        await Promise.all(
-          told.map((call) =>
-            ctx.session.notifyOutside({
-              sessionId: call.sessionId,
-              toolCallId: call.toolCallId,
-              text: `${plant} is watered`,
-            }),
-          ),
-        )
+        for (const finish of told) finish(`${plant} is watered`)
         return {plant, told: told.length}
       },
     })
@@ -67,8 +58,16 @@ export default Plugin.define({
         input: Plant,
         output: z.object({plant: z.string(), watering: z.boolean()}),
         execute: async ({plant}, tool) => {
-          await ctx.session.expectOutside({sessionId: tool.sessionId, toolCallId: tool.id})
-          watering.push({sessionId: tool.sessionId, toolCallId: tool.id})
+          const finished = Promise.withResolvers<string>()
+          watering.push(finished.resolve)
+          await ctx.job.start({
+            id: tool.id,
+            type: 'page-queue',
+            background: true,
+            recovery: {kind: 'page-queue', sessionID: tool.sessionId, queueId: tool.id},
+            metadata: {toolCallId: tool.id, origin: tool.origin},
+            run: () => finished.promise,
+          })
           return {output: {plant, watering: true}}
         },
       })

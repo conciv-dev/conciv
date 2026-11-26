@@ -33,9 +33,10 @@ envelope with a suggested fix.
 - The hub re-sends a call only when nothing ran: a connection refused (`ECONNREFUSED`) or `UNAUTHORIZED` (an engine
   restarted with a new token) is sent once more after a fresh pick; any other transport failure is never re-sent,
   since the block may already have acted on a page (`hub.ts`).
-- Work a plugin started for the hub is reported once: each reply on a tab leads with the tab's undelivered core
-  outside notices (`sessions.outsideNotices`), and a client that negotiated MCP tasks gets a task for the calls core
-  still lists as pending, which completes once none of them are (`hub.ts`).
+- Jobs a hub call started are reported once: after a run on a tab the hub lists the core jobs its calls started
+  (`jobs.list` by tool call id), and each later reply on that tab leads with the results of those that finished
+  (`jobs.wait`, which reports a finished job once); a client that negotiated MCP tasks gets a task for the jobs still
+  running, which completes once none are (`hub.ts`).
 - `conciv mcp disconnect` revokes like the widget's: the disconnect it records in the home db voids every running
   engine's outside Allow (`mcp.ts`, `@conciv/harness/init/hub`).
 - Errors: oRPC-defined errors, 4xx responses and an `APPROVAL_DENIED` refusal become user failures with no stack or

@@ -86,9 +86,7 @@ const FALLBACK_DESCRIPTIONS = {
 
 type ToolName = keyof typeof FALLBACK_DESCRIPTIONS
 
-type OutsideNotices = Awaited<ReturnType<EngineClient['sessions']['outsideNotices']>>
-
-type OutsideNotice = OutsideNotices['notices'][number]
+type Waited = Awaited<ReturnType<EngineClient['jobs']['wait']>>['data'][number]
 
 type Reply = CodeReply
 
@@ -102,17 +100,16 @@ type TabOwner = {
   rpc: EngineClient
 }
 
-type TabEntry = {owner: Promise<TabOwner> | null; greeted: boolean}
+type TabEntry = {owner: Promise<TabOwner> | null; greeted: boolean; jobs: string[]}
 
 type TaskAnswer = Record<string, unknown>
 
-type OutsideTask =
+type JobTask =
   | {
       status: 'working'
-      tab: SessionId
       rpc: EngineClient
-      calls: string[]
-      notices: OutsideNotice[]
+      jobs: string[]
+      finished: Waited[]
       createdAt: string
       lastUpdatedAt: string
       reply: Reply
@@ -143,7 +140,7 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
   const ids = makeMaker()
   const held: {runner: Promise<Runner> | null} = {runner: null}
   const tabs = new Map<SessionId, TabEntry>()
-  const outsideTasks = new Map<string, OutsideTask>()
+  const jobTasks = new Map<string, JobTask>()
   const headers = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: agent}
 
   function currentRunner(): Promise<Runner> {
@@ -192,7 +189,7 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
   function ensureEntry(tab: SessionId): TabEntry {
     const existing = tabs.get(tab)
     if (existing !== undefined) return existing
-    const created: TabEntry = {owner: null, greeted: false}
+    const created: TabEntry = {owner: null, greeted: false, jobs: []}
     tabs.set(tab, created)
     return created
   }
@@ -258,20 +255,22 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
       signal,
     )
     if (tab === undefined) return executed.reply
-    const owed = await owedNotices(tab, signal)
-    const reply = withNotices(executed.reply, owed.notices)
-    const owner = await tabs.get(tab)?.owner?.catch(() => null)
-    const waiting = (executed.value?.calls ?? []).filter((call) => owed.pending.includes(call))
-    if (waiting.length === 0 || owner === undefined || owner === null) return reply
-    if (!TasksCapableSchema.safeParse(envelope).success) return reply
+    const entry = ensureEntry(tab)
+    const owner = await entry.owner?.catch(() => null)
+    if (owner === undefined || owner === null) return executed.reply
+    const started = await startedJobs(owner.rpc, tab, executed.value?.calls ?? [], signal)
+    const finished = await reportedJobs(owner.rpc, entry, [...entry.jobs, ...started], signal)
+    const reply = withFinished(executed.reply, finished)
+    const running = started.filter((id) => entry.jobs.includes(id))
+    if (running.length === 0 || !TasksCapableSchema.safeParse(envelope).success) return reply
+    entry.jobs = entry.jobs.filter((id) => !running.includes(id))
     const taskId = TaskIdSchema.parse('tsk_' + ids.ascending())
     const now = new Date().toISOString()
-    outsideTasks.set(taskId, {
+    jobTasks.set(taskId, {
       status: 'working',
-      tab,
       rpc: owner.rpc,
-      calls: waiting,
-      notices: [],
+      jobs: running,
+      finished: [],
       createdAt: now,
       lastUpdatedAt: now,
       reply,
@@ -290,46 +289,69 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
 
   function expireTasks(): void {
     const expired = Date.now() - TASK_TTL_MS
-    for (const [taskId, task] of outsideTasks) {
-      if (Date.parse(task.createdAt) < expired) outsideTasks.delete(taskId)
+    for (const [taskId, task] of jobTasks) {
+      if (Date.parse(task.createdAt) < expired) jobTasks.delete(taskId)
     }
   }
 
-  async function owedNotices(tab: SessionId, signal: AbortSignal): Promise<OutsideNotices> {
-    const owner = await tabs.get(tab)?.owner?.catch(() => null)
-    if (owner === undefined || owner === null || signal.aborted) return {notices: [], pending: []}
-    return owner.rpc.sessions.outsideNotices({sessionId: tab, waitMs: 0}, {signal}).catch((error: unknown) => {
-      logHub(`reading the outside notices of tab ${tab} failed; the next call asks again`, error)
-      return {notices: [], pending: []}
-    })
+  async function startedJobs(
+    rpc: EngineClient,
+    tab: SessionId,
+    calls: string[],
+    signal: AbortSignal,
+  ): Promise<string[]> {
+    if (calls.length === 0 || signal.aborted) return []
+    return rpc.jobs.list({sessionId: tab, toolCallIds: calls}, {signal}).then(
+      (listed) => listed.data.map((job) => job.id),
+      (error: unknown) => {
+        logHub(`listing the jobs the calls on tab ${tab} started failed; their results are not reported`, error)
+        return []
+      },
+    )
   }
 
-  function knownTask(taskId: string): OutsideTask {
+  async function reportedJobs(
+    rpc: EngineClient,
+    entry: TabEntry,
+    owed: string[],
+    signal: AbortSignal,
+  ): Promise<Waited[]> {
+    entry.jobs = owed
+    if (owed.length === 0 || signal.aborted) return []
+    const waited = await rpc.jobs.wait({ids: owed, waitMs: 0}, {signal}).catch((error: unknown) => {
+      logHub('reading the jobs owed to this hub failed; the next call asks again', error)
+      return null
+    })
+    if (waited === null) return []
+    const stillRunning = waited.data.filter((job) => job.status === 'running').map((job) => job.id)
+    entry.jobs = entry.jobs.filter((id) => stillRunning.includes(id))
+    return waited.data.filter((job) => job.status !== 'running')
+  }
+
+  function knownTask(taskId: string): JobTask {
     expireTasks()
-    const task = outsideTasks.get(taskId)
-    if (task === undefined) throw Object.assign(new Error(`no outside task ${taskId}`), {code: UNKNOWN_TASK})
+    const task = jobTasks.get(taskId)
+    if (task === undefined) throw Object.assign(new Error(`no job task ${taskId}`), {code: UNKNOWN_TASK})
     return task
   }
 
-  async function outsideTask(params: unknown): Promise<TaskAnswer> {
+  async function jobTask(params: unknown): Promise<TaskAnswer> {
     const {taskId} = TaskIdParamsSchema.parse(params)
     const task = knownTask(taskId)
     if (task.status === 'settled') return task.answer
-    const polled = await task.rpc.sessions
-      .outsideNotices(
-        {sessionId: task.tab, toolCallIds: task.calls, waitMs: TASK_POLL_MS},
-        {signal: AbortSignal.timeout(2 * TASK_POLL_MS)},
-      )
+    const polled = await task.rpc.jobs
+      .wait({ids: task.jobs, waitMs: TASK_POLL_MS}, {signal: AbortSignal.timeout(2 * TASK_POLL_MS)})
       .catch((error: unknown) => {
-        logHub(`polling the outside notices of task ${taskId} failed; the next poll asks again`, error)
+        logHub(`polling the jobs of task ${taskId} failed; the next poll asks again`, error)
         return null
       })
     const current = knownTask(taskId)
     if (current.status === 'settled') return current.answer
-    const notices = [...current.notices, ...(polled?.notices ?? [])]
+    const running = polled?.data.filter((job) => job.status === 'running').map((job) => job.id) ?? current.jobs
+    const finished = [...current.finished, ...(polled?.data.filter((job) => job.status !== 'running') ?? [])]
     const stamped = {taskId, createdAt: current.createdAt, ttlMs: TASK_TTL_MS}
-    if (polled === null || polled.pending.length > 0) {
-      outsideTasks.set(taskId, {...current, notices})
+    if (running.length > 0) {
+      jobTasks.set(taskId, {...current, jobs: running, finished})
       return {
         resultType: 'complete',
         ...stamped,
@@ -338,7 +360,7 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
         pollIntervalMs: TASK_POLL_MS,
       }
     }
-    const result = {...current.reply, content: [...current.reply.content, ...notices.map(noticePart)]}
+    const result = {...current.reply, content: [...current.reply.content, ...finished.map(jobPart)]}
     const answer = {
       resultType: 'complete',
       ...stamped,
@@ -346,7 +368,7 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
       lastUpdatedAt: new Date().toISOString(),
       result,
     }
-    outsideTasks.set(taskId, {status: 'settled', createdAt: current.createdAt, answer})
+    jobTasks.set(taskId, {status: 'settled', createdAt: current.createdAt, answer})
     return answer
   }
 
@@ -360,7 +382,10 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
       signal,
     )
     if (tab === undefined) return discovered.reply
-    return withNotices(discovered.reply, (await owedNotices(tab, signal)).notices)
+    const entry = ensureEntry(tab)
+    const owner = await entry.owner?.catch(() => null)
+    if (owner === undefined || owner === null) return discovered.reply
+    return withFinished(discovered.reply, await reportedJobs(owner.rpc, entry, entry.jobs, signal))
   }
 
   function serveTools(server: McpServer): void {
@@ -379,7 +404,7 @@ export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Prom
       {description: LIST_TABS_DESCRIPTION, inputSchema: ListTabsInputSchema},
       async () => listTabsCall(home),
     )
-    server.server.setRequestHandler('tasks/get', {params: TaskIdParamsSchema}, outsideTask)
+    server.server.setRequestHandler('tasks/get', {params: TaskIdParamsSchema}, jobTask)
   }
 
   const descriptions = await currentRunner().then(
@@ -538,13 +563,13 @@ function buildSessionInput(tab: SessionId | undefined): {sessionId?: SessionId} 
   return tab === undefined ? {} : {sessionId: tab}
 }
 
-function noticePart(notice: OutsideNotice): {type: 'text'; text: string} {
-  return {type: 'text', text: cappedText(notice.text)}
+function jobPart(job: Waited): {type: 'text'; text: string} {
+  return {type: 'text', text: cappedText(job.output ?? job.error ?? job.status)}
 }
 
-function withNotices(reply: Reply, notices: readonly OutsideNotice[]): Reply {
-  if (notices.length === 0) return reply
-  return {...reply, content: [...notices.map(noticePart), ...reply.content]}
+function withFinished(reply: Reply, finished: readonly Waited[]): Reply {
+  if (finished.length === 0) return reply
+  return {...reply, content: [...finished.map(jobPart), ...reply.content]}
 }
 
 function unrun(error: unknown): boolean {
