@@ -50,6 +50,7 @@ import {
   type PluginDialogEffect,
   type PluginDialogEvent,
 } from './dialog-machine'
+import {PLUGIN_AREA_ATTRIBUTE} from '../lib/plugin-fence'
 import {PluginAlertDialog, PluginConfirmDialog, PluginPromptDialog, PluginSelectDialog} from './dialogs'
 import {selectDisabled, selectHostReady, selectInstalled, selectServersReady} from './machine'
 import {
@@ -359,18 +360,20 @@ function createHost(input: HostInput, iconRegistry: IconRegistry) {
               onCleanup(() => dispatch({type: 'dismissed'}))
 
               return (
-                <ErrorBoundary
-                  fallback={(error) => {
-                    onMount(() => {
-                      handle.close()
-                      fail(plugin, error)
-                    })
+                <div {...{[PLUGIN_AREA_ATTRIBUTE]: plugin}} class="contents">
+                  <ErrorBoundary
+                    fallback={(error) => {
+                      onMount(() => {
+                        handle.close()
+                        fail(plugin, error)
+                      })
 
-                    return null
-                  }}
-                >
-                  <PluginContext.Provider value={context}>{untrack(() => render(handle))}</PluginContext.Provider>
-                </ErrorBoundary>
+                      return null
+                    }}
+                  >
+                    <PluginContext.Provider value={context}>{untrack(() => render(handle))}</PluginContext.Provider>
+                  </ErrorBoundary>
+                </div>
               )
             },
             () => dispatch({type: 'dismissed'}),

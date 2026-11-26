@@ -52,6 +52,7 @@
     "es-toolkit": "catalog:",
     "fuzzysort": "catalog:",
     "lucide-solid": "catalog:",
+    "postcss-selector-parser": "catalog:",
     "semver": "catalog:",
     "solid-js": "catalog:",
     "zod": "catalog:"

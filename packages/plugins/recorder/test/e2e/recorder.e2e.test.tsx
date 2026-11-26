@@ -40,6 +40,7 @@ describe('the user records the page and sends it to the agent', () => {
 
     expect(await screen.findByRole('tab', {name: 'Recorder', selected: true})).toBeVisible()
     expect(await screen.findByText('LIVE')).toBeVisible()
+    expect(within(screen.getByRole('tab', {name: /^Chat/})).getByText('Chat')).toBeVisible()
     expect(cardNumber).toHaveFocus()
     await realInput.type(cardNumber, '4242')
     await realInput.click(screen.getByRole('button', {name: 'Pay now'}))

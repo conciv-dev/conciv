@@ -34,6 +34,7 @@ import {PluginContext} from '@conciv/frontend-plugin-api/host'
 import {usePluginHost, type Item} from './host'
 import {createLinkCheck} from './link-check'
 import {createStyleSheet} from '../lib/style-sheet'
+import {fenceSelector, PLUGIN_AREA_ATTRIBUTE} from '../lib/plugin-fence'
 
 export function Contribution(props: {
   plugin: string
@@ -47,18 +48,20 @@ export function Contribution(props: {
   return (
     <Show when={host.context(props.plugin)} keyed fallback={props.fallback?.()}>
       {(context) => (
-        <ErrorBoundary
-          fallback={(error, reset) => {
-            onMount(() => {
-              host.fail(props.plugin, error)
-              props.failed?.()
-            })
+        <div {...{[PLUGIN_AREA_ATTRIBUTE]: props.plugin}} class="contents">
+          <ErrorBoundary
+            fallback={(error, reset) => {
+              onMount(() => {
+                host.fail(props.plugin, error)
+                props.failed?.()
+              })
 
-            return props.crashed?.(reset) ?? props.fallback?.() ?? null
-          }}
-        >
-          <PluginContext.Provider value={context}>{untrack(props.children)}</PluginContext.Provider>
-        </ErrorBoundary>
+              return props.crashed?.(reset) ?? props.fallback?.() ?? null
+            }}
+          >
+            <PluginContext.Provider value={context}>{untrack(props.children)}</PluginContext.Provider>
+          </ErrorBoundary>
+        </div>
       )}
     </Show>
   )
@@ -85,13 +88,16 @@ export function PluginSlot<At extends keyof SlotMap>(props: {at: At; input: Slot
   )
 }
 
-export function AdoptedStyle(props: {root: ShadowRoot | Document; css: string}) {
+export function AdoptedStyle(props: {root: ShadowRoot | Document; css: string; plugin?: string}) {
   const root = untrack(() => props.root)
   const doc = isShadowRoot(root) ? root.ownerDocument : root
   const sheet = createStyleSheet(
     untrack(() => props.css),
     doc,
   )
+  const plugin = untrack(() => props.plugin)
+
+  if (plugin !== undefined) fenceRules(sheet, plugin, readView(doc))
 
   addSheet(root, sheet)
   if (isShadowRoot(root)) addSheet(doc, createStyleSheet(readPropertyRules(sheet, doc), doc))
@@ -106,10 +112,26 @@ function addSheet(root: ShadowRoot | Document, sheet: CSSStyleSheet) {
   })
 }
 
-function readPropertyRules(sheet: CSSStyleSheet, doc: Document): string {
+function readView(doc: Document): Window & typeof globalThis {
   const view = doc.defaultView
 
-  if (!view) throw new Error('The document has no window to register CSS properties in')
+  if (!view) throw new Error('The document has no window to register CSS in')
+
+  return view
+}
+
+function fenceRules(group: CSSStyleSheet | CSSGroupingRule, plugin: string, view: Window & typeof globalThis): void {
+  Array.from(group.cssRules).forEach((rule) => {
+    if (rule instanceof view.CSSStyleRule) {
+      rule.selectorText = fenceSelector(rule.selectorText, plugin)
+      return
+    }
+    if (rule instanceof view.CSSGroupingRule) fenceRules(rule, plugin, view)
+  })
+}
+
+function readPropertyRules(sheet: CSSStyleSheet, doc: Document): string {
+  const view = readView(doc)
 
   return Array.from(sheet.cssRules)
     .filter((rule) => rule instanceof view.CSSPropertyRule)
@@ -120,7 +142,11 @@ function readPropertyRules(sheet: CSSStyleSheet, doc: Document): string {
 export function PluginStyles(props: {root: ShadowRoot | Document}) {
   const host = usePluginHost()
 
-  return <For each={host.items(Style)}>{(item) => <AdoptedStyle root={props.root} css={item.value} />}</For>
+  return (
+    <For each={host.items(Style)}>
+      {(item) => <AdoptedStyle root={props.root} css={item.value} plugin={item.plugin} />}
+    </For>
+  )
 }
 
 export function PluginLinks(props: ParentProps<{session: MountedSession | undefined; active?: boolean}>) {

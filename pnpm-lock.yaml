@@ -480,6 +480,9 @@ catalogs:
     postcss:
       specifier: ^8.5.32
       version: 8.5.32
+    postcss-selector-parser:
+      specifier: ^7.1.7
+      version: 7.1.7
     preact:
       specifier: ^11.1.0
       version: 11.1.0
@@ -2747,6 +2750,9 @@ importers:
       fuzzysort:
         specifier: 'catalog:'
         version: 3.1.0
+      postcss-selector-parser:
+        specifier: 'catalog:'
+        version: 7.1.7
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -2874,6 +2880,9 @@ importers:
       lucide-solid:
         specifier: 'catalog:'
         version: 1.66.0(solid-js@1.9.17)
+      postcss-selector-parser:
+        specifier: 'catalog:'
+        version: 7.1.7
       semver:
         specifier: 'catalog:'
         version: 7.8.5

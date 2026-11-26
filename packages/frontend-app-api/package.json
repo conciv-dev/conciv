@@ -58,6 +58,7 @@
     "effect": "catalog:",
     "es-toolkit": "catalog:",
     "fuzzysort": "catalog:",
+    "postcss-selector-parser": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
