@@ -1,190 +1,220 @@
 ---
 title: Plugins
-description: What a plugin is, where conciv finds plugins, how you add one, and the test-runner plugin as a worked example.
+description: Add a plugin to give the agent new tools and the widget new screens, from npm or from a folder in your project.
 ---
 
-A plugin is one package that adds to conciv. It has up to three parts, and they live together in that package:
+A plugin adds to conciv. It can give the agent a tool, draw that tool's calls as a card, or add a screen to the
+widget. Add one with the `plugins` option, or write your own.
 
-- **The engine part** runs inside the conciv engine, in node. It adds tools the agent calls, skills it reads, and RPC
-  methods. It is written with `@conciv/backend-plugin-api`. See [Engine part](/docs/plugins/engine).
-- **The RPC contract** names the methods and events the two parts share. It is its own module, so both parts import
-  it.
-- **The browser part** runs in the widget. It adds panels, slots, composer pills, settings and tool cards. It is
-  written with `@conciv/frontend-plugin-api`. See [Browser part](/docs/plugins/browser).
+## What a plugin can do
 
-A plugin tests all of this from its own package. See [Testing a plugin](/docs/plugins/testing). You can call any
-plugin's RPC methods from a terminal with [`conciv plugin call`](/docs/plugins/terminal).
+- **Give the agent a tool.** The agent calls it like any built-in tool. The test runner plugin adds
+  `test_runner_run`, so you can say "run the tests" in the chat.
+- **Draw a card in the chat.** A tool's calls show as your own component instead of the generic card. The test runner
+  shows each finished run as a list of passed and failed tests.
+- **Add a panel.** A tab in the session's pane, next to the chat. The test runner's Tests tab follows a run live.
+- **Add a slot or a pill.** Content at a fixed place in the widget, or a pill above the composer. The whiteboard adds
+  a pill that opens its canvas.
 
-## Add a plugin in the conciv options
+This is a whole plugin with one tool. It reads your project's `package.json` and tells the agent its name and
+version:
 
-List plugins in the `plugins` option of `conciv()` by package name. An entry is a string, or `[name, options]`:
+<Tabs groupId="plugin-api" persist items={['Promise', 'Effect']}>
+<Tab value="Promise">
 
-```ts title="vite.config.ts"
-conciv({
-  plugins: ['@conciv/plugin-test-runner', ['@conciv/plugin-tanstack', {bundlerWaitMs: 5000}]],
+```ts twoslash title="conciv/plugins/project-version/server.ts"
+import {readFile} from 'node:fs/promises'
+import path from 'node:path'
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api'
+
+const Manifest = z.object({name: z.string(), version: z.string()})
+
+export default Plugin.define({
+  id: 'project-version',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'project_version',
+        description: "Read the project's name and version from its package.json.",
+        input: z.object({}),
+        output: Manifest,
+        execute: async () => {
+          const text = await readFile(path.join(ctx.location.directory, 'package.json'), 'utf8')
+          return {output: Manifest.parse(JSON.parse(text))}
+        },
+      })
+    })
+  },
 })
 ```
 
-A plugin of your own is listed as a path to its folder that starts with `./`, such as `'./tools/my-plugin'`. It
-resolves against the project folder the engine runs in (Vite's `root`, else the folder the dev server started in),
-not against the config file.
+</Tab>
+<Tab value="Effect">
 
-What the engine does with each entry:
+```ts twoslash title="conciv/plugins/project-version/server.ts"
+import {readFile} from 'node:fs/promises'
+import path from 'node:path'
+import {Effect} from 'effect'
+import {z} from 'zod'
+import {Plugin} from '@conciv/backend-plugin-api/effect'
+import * as Tool from '@conciv/protocol/schema/tool'
 
-- Any string that is not a path is a package name. The engine installs that package from npm into its own cache
-  folder and loads it from there, not from your project's `node_modules`.
-- A path that starts with `./` or `../` resolves from the project folder, and an absolute path or a `file://` URL is
-  used as it is. The engine loads the plugin from that folder. A configured
-  path must be a folder: a file is skipped with the warning `configured plugin path must be a directory`.
-- A string that starts with `-` turns off the plugin with that id, for example one loaded from `conciv/plugins`.
-- Every option value must be JSON: a string, number, boolean, null, array or object. The engine part reads them as
-  `ctx.options`, and so does the browser part.
+const Manifest = z.object({name: z.string(), version: z.string()})
 
-## Add a plugin in the project
+export default Plugin.define({
+  id: 'project-version',
+  effect: (ctx) =>
+    ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'project_version',
+        description: "Read the project's name and version from its package.json.",
+        input: z.object({}),
+        output: Manifest,
+        execute: () =>
+          Effect.tryPromise({
+            try: () => readFile(path.join(ctx.location.directory, 'package.json'), 'utf8'),
+            catch: () => Tool.toolError({message: 'The project has no readable package.json.'}),
+          }).pipe(Effect.map((text) => ({output: Manifest.parse(JSON.parse(text))}))),
+      })
+    }),
+})
+```
 
-The engine also loads every plugin in a `conciv/plugins` or `conciv/plugin` folder at the project root. Each `.ts`
-or `.js` file there is a plugin, and so is each folder. No config entry is needed.
+</Tab>
+</Tabs>
+
+- `Plugin.define` declares the plugin. Its `id` is the name you use in your config.
+- `ctx` is what the engine gives your plugin. `ctx.location.directory` is your project folder.
+- `ctx.tool.transform` is where you add tools. Each `tools.add` call adds one.
+- `description` is what the agent reads to decide when to call the tool. Write it for the agent.
+- `input` is a zod schema. The engine checks the agent's input against it before your code runs.
+- `output` is the schema of what the tool returns.
+- What `execute` returns as `output` is what the agent gets back.
+
+A file in your project's `conciv/plugins` folder loads with no config. Ask the agent "What version is this
+project?" and it calls `project_version`.
+
+## Plugin or skill?
+
+Start with the smallest thing that does the job:
+
+| You want the agent to                                 | Use                                                                                                    |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Follow your steps for a kind of task                  | a [skill](/docs/usage/skills)                                                                          |
+| Run code you wrote, or read something it cannot reach | a plugin with a [tool](/docs/plugins/guides/tool)                                                      |
+| Show you something in the widget                      | a plugin with a [panel](/docs/plugins/guides/panel) or a [card](/docs/plugins/guides/tool#draw-a-card) |
+
+## Add a plugin
+
+List plugins in the `plugins` option of `conciv()` in your bundler config:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: ['@conciv/plugin-test-runner', './tools/deploy-plugin'], // [!code ++]
+    }),
+  ],
+})
+```
+
+- `'@conciv/plugin-test-runner'` is a package name. The engine installs it from npm into its own cache. You do not add
+  it to your `package.json`.
+- `'./tools/deploy-plugin'` is a folder in your project. It resolves from your project folder, not from the config
+  file.
+
+The other bundlers take the same option. See the [quick start](/docs/quick-start) for your bundler's config.
+
+### Pass options
+
+Write an entry as `[name, options]` to configure that plugin:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]], // [!code ++]
+    }),
+  ],
+})
+```
+
+Every option value must be JSON: a string, number, boolean, null, array or object. The plugin reads them as
+`ctx.options`.
+
+### Turn a plugin off
+
+Put `-` before a plugin's id:
+
+```ts twoslash title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: ['-project-version'], // [!code ++]
+    }),
+  ],
+})
+```
+
+This turns off a plugin that loads on its own, such as one in `conciv/plugins`.
+
+## Add a plugin from your project
+
+Every plugin in a `conciv/plugins` folder at your project root loads with no config entry. A plugin there is one
+`.ts` or `.js` file, or a folder:
 
 <Files>
   <Folder name="conciv" defaultOpen>
     <Folder name="plugins" defaultOpen>
+      <File name="project-version.ts" />
       <Folder name="deploy" defaultOpen>
         <File name="server.ts" />
-        <File name="rpc.ts" />
       </Folder>
     </Folder>
   </Folder>
 </Files>
 
-The engine watches these folders and the configured plugin paths, and loads a plugin again when its files change.
+The engine watches these files. Save a change and the plugin loads again.
 
-## Where conciv looks inside a plugin
+<Accordions>
+<Accordion title="Every way to name a plugin">
 
-| Part         | In a package                                | In a folder                           |
-| ------------ | ------------------------------------------- | ------------------------------------- |
-| Engine part  | the `./server` export, else the `.` export  | a `server` file, else an `index` file |
-| RPC contract | the `./rpc` export                          | an `rpc` file                         |
-| Browser part | the `./plugin-experimental` export (`.cjs`) | `plugin-experimental.cjs` or `.js`    |
+- A string that is not a path is a package name, installed from npm.
+- A path that starts with `./` or `../` resolves from your project folder.
+- An absolute path or a `file://` URL is used as it is.
+- A configured path must be a folder. A file there is skipped with the warning
+  `configured plugin path must be a directory`.
+- A string that starts with `-` turns off the plugin with that id.
 
-A file in a folder can be `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.mjs`, `.cts` or `.cjs`. A folder whose
-`package.json` has a `name` and `exports` is read like a package. A plugin with no engine part gets the package name
-as its id.
-
-## The package's exports
-
-The test-runner package has every export a plugin can have:
-
-```json title="packages/plugins/test-runner/package.json"
-"exports": {
-  ".": {"types": "./dist/test-runner.d.ts", "import": "./dist/test-runner.js"},
-  "./server": {"types": "./dist/test-runner.d.ts", "import": "./dist/test-runner.js"},
-  "./rpc": {"types": "./dist/rpc.d.ts", "import": "./dist/rpc.js"},
-  "./test-utils": {"types": "./dist/test-utils.d.ts", "import": "./dist/test-utils.js"},
-  "./plugin-experimental": {"types": "./dist/plugin-experimental.d.cts", "default": "./dist/plugin-experimental.cjs"},
-  "./package.json": "./package.json"
-}
-```
-
-| Export                  | What it is                                                                                                                  |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `.` and `./server`      | The engine part. The test utilities start a plugin named by package from its `.` export.                                    |
-| `./rpc`                 | The RPC contract, imported by the browser part and by other plugins.                                                        |
-| `./plugin-experimental` | The browser part, a CommonJS bundle built with `experimental()` from `@conciv/frontend-plugin-api/vite`.                    |
-| `./test-utils`          | The plugin's own fakes for other packages' tests, here `createTestRunState`. See [Testing a plugin](/docs/plugins/testing). |
-
-## Worked example: the test runner
-
-[`@conciv/plugin-test-runner`](https://github.com/conciv-dev/conciv/tree/main/packages/plugins/test-runner) powers
-[live tests](/docs/usage/live-tests). It uses only the public plugin APIs for its engine part.
-
-<Steps>
-<Step>
-
-**Options.** The engine part parses `ctx.options` with zod. `runner` defaults to `vitest`.
-
-```ts title="packages/plugins/test-runner/src/test-runner.ts"
-const testRunnerConfig = z.object({
-  runner: z.enum(['vitest', 'jest', 'node-test', 'playwright']).default('vitest'),
-})
-```
-
-</Step>
-<Step>
-
-**The engine part.** `Plugin.define` from `@conciv/backend-plugin-api/effect` names the plugin and runs `effect` when
-the engine loads it. It adds the tools, a skill and the RPC handlers, then sends each live test event to the browser.
-
-```ts title="packages/plugins/test-runner/src/test-runner.ts"
-export default Plugin.define<RunnerServices>({
-  id: 'test-runner',
-  effect: Effect.fn('TestRunner.plugin')(function* (ctx: Context) {
-    const config = testRunnerConfig.safeParse(ctx.options)
-    if (!config.success) return yield* Effect.die(config.error)
-    const adapter = getRunner(config.data.runner) ?? vitest
-    const manager = yield* adapter
-      .create(ctx.location.directory)
-      .pipe(Effect.catchTag('TestRunner.RunnerUnavailable', (error) => Effect.die(error)))
-    yield* register(ctx, manager)
-    yield* ctx.skill.transform((editor) => editor.add(info))
-    const registration = yield* registerRpc(ctx.rpc, manager).pipe(Effect.orDie)
-    yield* manager.events.pipe(
-      Stream.runForEach((event) =>
-        registration.events
-          .emit('event', event)
-          .pipe(Effect.catchCause((cause) => Effect.logError('a live test event was not delivered', cause))),
-      ),
-      Effect.forkScoped({startImmediately: true}),
-    )
-  }),
-})
-```
-
-</Step>
-<Step>
-
-**Tools.** `test_runner_run` and `test_runner_status` are direct tools the agent calls by name. `list` stays in code
-mode, where the agent calls it as `external_test_runner_list`. See [Tools](/docs/plugins/engine#tools).
-
-</Step>
-<Step>
-
-**RPC.** The contract in `src/rpc.ts` declares `status`, `current`, `list`, `run` and `stop`, and one `event` event.
-The Tests tab calls these methods and follows the events. See [RPC](/docs/plugins/engine#rpc).
-
-</Step>
-<Step>
-
-**Browser part.** `src/plugin-experimental.tsx` adds the Tests tab as a [panel](/docs/plugins/browser#panel) and draws
-the `test_runner_run` and `test_runner_status` calls in the thread as [tool cards](/docs/plugins/browser#toolregistry).
-
-</Step>
-<Step>
-
-**Tests.** `test/it/tools.it.test.ts` drives the tools and RPC on the real engine, and
-`test/e2e/tests-panel.e2e.test.tsx` drives the Tests tab and the cards in a browser. See
-[Testing a plugin](/docs/plugins/testing).
-
-</Step>
-</Steps>
+</Accordion>
+</Accordions>
 
 ## Next
 
 <Cards>
   <Card
-    title="Engine part"
-    href="/docs/plugins/engine"
-    description="Plugin.define, tools, skills, RPC and permissions."
+    title="Add a tool"
+    href="/docs/plugins/guides/tool"
+    description="Write the tool the agent calls, and its card."
   />
   <Card
-    title="Browser part"
-    href="/docs/plugins/browser"
-    description="Panels, slots, pills, settings and tool cards."
+    title="Built-in plugins"
+    href="/docs/plugins/built-ins"
+    description="The plugins conciv ships, and how to add each."
   />
   <Card
-    title="Testing a plugin"
-    href="/docs/plugins/testing"
-    description="The real engine, the fake one, node and the browser."
+    title="Test your plugin"
+    href="/docs/plugins/guides/testing"
+    description="Run your plugin on a real engine in a test."
   />
-  <Card title="Built-in plugins" href="/docs/plugins/built-ins" description="The plugins conciv ships." />
-  <Card title="From the terminal" href="/docs/plugins/terminal" description="conciv plugin call." />
 </Cards>
