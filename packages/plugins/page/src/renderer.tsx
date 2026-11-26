@@ -7,7 +7,7 @@ import {createScopedRuntime, createKeyed, Plugin, Slot, ToolRegistry} from '@con
 import {NoteCard, OpaqueNoteCard} from '@internal/frontend-app-api'
 import {Page, PageOperation, ReactTree} from '@conciv/frontend-plugin-api/page'
 import {GrabPicker} from '@conciv/frontend-plugin-api/grab'
-import {keepAttached, readTab, reportChanges} from './attachment.js'
+import {answerCommands} from './attachment.js'
 import {makeHighlight} from './highlight.js'
 import {symbolicateInSession} from './open-source.js'
 import {makePageOperations} from './operations.js'
@@ -32,8 +32,6 @@ export default Plugin.define({
   enforce: 'pre',
   beforeRegister: installReactBridge,
   setup(ctx) {
-    const connectionId = crypto.randomUUID()
-    const tabId = `tab_${crypto.randomUUID()}`
     const routed = () => ctx.sessions.current()
 
     const queryClient = useQueryClient()
@@ -65,8 +63,6 @@ export default Plugin.define({
       (title) => void ctx.toast.show({title, variant: 'error'}),
     )
 
-    const tab = () => readTab(tabId)
-
     createKeyed(
       () => {
         const session = routed()
@@ -74,19 +70,11 @@ export default Plugin.define({
         return session?.server.compatible && session.server.connected ? session : undefined
       },
       (session) => {
-        const kept = Effect.runFork(
-          keepAttached({
-            session,
-            connectionId,
-            tab,
-            changed: reportChanges,
-            operations,
-            registered: () => ctx.list(PageOperation),
-            notify: (title) => void ctx.toast.show({title, variant: 'error'}),
-          }),
+        const answering = Effect.runFork(
+          answerCommands({session, operations, registered: () => ctx.list(PageOperation)}),
         )
 
-        onCleanup(() => void Effect.runFork(Fiber.interrupt(kept)))
+        onCleanup(() => void Effect.runFork(Fiber.interrupt(answering)))
       },
     )
 

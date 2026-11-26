@@ -1,4 +1,5 @@
 import {IconRegistryProvider} from '@conciv/ui-kit-chat'
+import {BrowserTabId} from '@conciv/protocol/schema/browser-tab'
 import {createMemo, For, mergeProps, onMount, Show, untrack, type JSX, type ParentProps} from 'solid-js'
 import {createStore, produce} from 'solid-js/store'
 import {render} from '@solidjs/testing-library'
@@ -163,6 +164,7 @@ function createTestApp(engine: BoundEngine, client: ConcivClient, open: readonly
     key: `${server.id}\n${SESSION}`,
     id: SESSION,
     tab: SESSION,
+    browserTab: {id: BrowserTabId.parse(`tab_${crypto.randomUUID()}`), connectionId: crypto.randomUUID()},
     server,
     pending: false,
     location: {directory: AbsolutePath.make(engine.directory)},

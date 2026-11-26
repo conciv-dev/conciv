@@ -52,13 +52,13 @@ function asToolError(message: string) {
 }
 
 export const register = Effect.fn('PageTools.register')(function* (
-  ctx: Pick<Context, 'tool' | 'skill' | 'location' | 'permission'>,
+  ctx: Pick<Context, 'tool' | 'skill' | 'location' | 'permission' | 'browserTabs'>,
   connection: Connection,
   symbolicator: Symbolicator,
 ) {
   const root = ctx.location.directory
   const execute = Effect.fn('PageTools.execute')(function* (operation: Operation, action: Action, tool: Tool.Context) {
-    if (action.type === 'tabs.list') return yield* exportResult(connection.tabs(tool.sessionId), [], root)
+    if (action.type === 'tabs.list') return yield* exportResult(yield* ctx.browserTabs.list(tool.sessionId), [], root)
     const queueing = {agentId: tool.agent, toolCallId: tool.id, origin: tool.origin}
     if (action.type === 'queue') {
       const played = yield* connection.queues

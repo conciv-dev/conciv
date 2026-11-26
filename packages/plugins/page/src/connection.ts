@@ -6,8 +6,6 @@ import {
   Duration,
   Effect,
   Exit,
-  Fiber,
-  FiberMap,
   Option,
   Predicate,
   RcMap,
@@ -25,21 +23,7 @@ import type {RpcRegistration} from '@conciv/backend-plugin-api/effect/rpc'
 import * as Tool from '@conciv/protocol/schema/tool'
 import type {SessionId} from '@conciv/types/chat-types'
 import {PAGE_QUEUE_REFUSED, PAGE_QUEUE_STOPPED, PageRaisedErrorSchema} from './page-types.js'
-import {
-  ACCESS,
-  createConnectionState,
-  disconnectedBeforeDispatch,
-  isAttachedConnection,
-  isConnectionDisposed,
-  reconcilePagePermissions,
-  selectAttachedSessions,
-  selectNextAttempt,
-  selectTabs,
-  selectTarget,
-  transitionConnection,
-  type ConnectionEffect,
-  type ConnectionEvent,
-} from './machine.js'
+import {ACCESS, disconnectedBeforeDispatch, reconcilePagePermissions, selectTarget} from './machine.js'
 import {PageQueue} from './queue.js'
 import type {GrabStore} from './grabs.js'
 import {
@@ -84,8 +68,7 @@ type PageError = Tool.Error | TabGone
 const PageCall = Request.TaggedClass('PageCall')<
   {
     readonly sessionId: SessionId
-    readonly connectionId: string
-    readonly attempt: number
+    readonly tabId: string
     readonly requestId: string
     readonly command: Command
   },
@@ -95,7 +78,7 @@ const PageCall = Request.TaggedClass('PageCall')<
 
 type PageCall = InstanceType<typeof PageCall>
 
-type SyncEffect = Extract<ConnectionEffect, {readonly type: 'sync-permissions'}>
+type Target = {readonly sessionId: SessionId; readonly tabId: string}
 
 export type Call = {
   readonly sessionId: SessionId
@@ -179,8 +162,14 @@ function timedOut(action: Work, timeoutMs: number) {
 
 const SessionNotFound = Predicate.isTagged('Session.NotFoundError')
 
+const withLane = <K, A, E>(lanes: RcMap.RcMap<K, Semaphore.Semaphore>, key: K, effect: Effect.Effect<A, E>) =>
+  RcMap.get(lanes, key).pipe(
+    Effect.flatMap((lane) => lane.withPermit(effect)),
+    Effect.scoped,
+  )
+
 export const make = Effect.fn('PageConnection.make')(function* (
-  ctx: Pick<Context, 'agent' | 'rpc' | 'session' | 'location' | 'event' | 'storage' | 'options'>,
+  ctx: Pick<Context, 'agent' | 'rpc' | 'session' | 'browserTabs' | 'location' | 'event' | 'storage' | 'options'>,
   symbolicator: Symbolicator,
   grabs: GrabStore,
 ) {
@@ -192,108 +181,83 @@ export const make = Effect.fn('PageConnection.make')(function* (
   )
   const work = yield* Scope.make()
   yield* Effect.addFinalizer((exit) => Scope.close(work, exit))
-  const machine = {state: createConnectionState()}
   const records = fromStorage(ctx.storage)
-  const attachments = yield* RcMap.make({
-    lookup: (_attempt: number) => Deferred.make<'closed' | 'replaced', 'unavailable'>(),
+  const calls = yield* RcMap.make({
+    lookup: (_call: PageCall) => Effect.all({reply: Deferred.make<Outcome>(), gone: Deferred.make<void>()}),
   }).pipe(Scope.provide(work))
-  const tabs = yield* FiberMap.make<number>()
-  const calls = yield* RcMap.make({lookup: (_call: PageCall) => Deferred.make<Outcome>()}).pipe(Scope.provide(work))
   const lanes = yield* RcMap.make({lookup: (_sessionId: SessionId) => Semaphore.make(1)}).pipe(Scope.provide(work))
-  const drained = Deferred.makeUnsafe<void>()
-  const lock = Semaphore.makeUnsafe(1)
-  const step = (event: ConnectionEvent): Effect.Effect<void> =>
-    Effect.suspend(() => {
-      const next = transitionConnection(machine.state, event)
-      machine.state = next.state
-      return Effect.forEach(
-        next.effects,
-        (effect) => perform(effect).pipe(Effect.catchCause((cause) => Effect.logWarning('Page effect failed', cause))),
-        {discard: true},
-      )
-    })
-  const dispatch = (event: ConnectionEvent) => lock.withPermit(step(event))
-  const perform = (effect: ConnectionEffect): Effect.Effect<void, unknown> => {
-    if (effect.type === 'sync-permissions') return Effect.asVoid(Effect.forkIn(syncPermissions(effect), work))
-    if (effect.type === 'close-attachment')
-      return RcMap.getOption(attachments, effect.attempt).pipe(
-        Effect.flatMap(
-          Option.match({
-            onNone: () => Effect.void,
-            onSome: (closed) =>
-              FiberMap.remove(tabs, effect.attempt).pipe(
-                Effect.andThen(
-                  Deferred.done(
-                    closed,
-                    effect.outcome === 'unavailable' ? Exit.fail(effect.outcome) : Exit.succeed(effect.outcome),
-                  ),
-                ),
-                Effect.asVoid,
-              ),
-          }),
-        ),
-        Effect.scoped,
-      )
-    if (effect.type === 'emit-control') return registration.events.emit('control', effect.control)
-    if (effect.type === 'warn') return Effect.logWarning(effect.message, effect.error)
-    return Deferred.done(drained, Exit.void).pipe(Effect.asVoid)
-  }
-  const syncPermissions = (effect: SyncEffect) =>
-    ctx.session.get({sessionId: effect.sessionId}).pipe(
-      Effect.flatMap((session) => {
-        const permissions = reconcilePagePermissions(session.permissions, effect.allow)
-        return permissions ? ctx.session.update({sessionId: effect.sessionId, permissions}) : Effect.void
+  const grants = yield* RcMap.make({lookup: (_sessionId: SessionId) => Semaphore.make(1)}).pipe(Scope.provide(work))
+
+  const syncPermissions = (sessionId: SessionId, allow?: boolean) =>
+    withLane(
+      grants,
+      sessionId,
+      Effect.gen(function* () {
+        const open = allow ?? (yield* ctx.browserTabs.list(sessionId)).tabs.length > 0
+        const session = yield* ctx.session.get({sessionId})
+        const permissions = reconcilePagePermissions(session.permissions, open)
+        if (permissions) yield* ctx.session.update({sessionId, permissions})
       }),
+    ).pipe(
       Effect.timeoutOption(Duration.millis(permissionSyncTimeoutMs)),
-      Effect.matchCauseEffect({
-        onSuccess: (done) =>
-          dispatch({
-            type: Option.isSome(done) ? 'permissions.synced' : 'permissions.timed-out',
-            sessionId: effect.sessionId,
-            attempt: effect.attempt,
-          }),
-        onFailure: (cause) =>
-          dispatch({
-            type: 'permissions.failed',
-            sessionId: effect.sessionId,
-            attempt: effect.attempt,
-            error: Cause.squash(cause),
-          }),
-      }),
+      Effect.flatMap(
+        Option.match({
+          onNone: () => Effect.logWarning(`Page permission sync for ${sessionId} timed out`),
+          onSome: () => Effect.void,
+        }),
+      ),
+      Effect.catchIf(SessionNotFound, () => Effect.void),
+      Effect.catchCause((cause) => Effect.logWarning(`Page permission sync for ${sessionId} failed`, cause)),
     )
-  const emitCancel = (connectionId: string, requestId: string) =>
+
+  const emitCancel = (tabId: string, requestId: string) =>
     registration.events
-      .emit('control', {type: 'cancel', connectionId, requestId})
+      .emit('control', {type: 'cancel', tabId, requestId})
       .pipe(Effect.catchCause((cause) => Effect.logWarning('Cancelling a page request failed', cause)))
 
   const pendingCall = (requestId: string) =>
     RcMap.keys(calls).pipe(Effect.map((keys) => Arr.findFirst(keys, (call) => call.requestId === requestId)))
 
-  const ownedBy = (call: PageCall, owner: {readonly sessionId: SessionId; readonly connectionId: string}) =>
-    call.sessionId === owner.sessionId && call.connectionId === owner.connectionId
+  const ownedBy = (call: PageCall, owner: Target) => call.sessionId === owner.sessionId && call.tabId === owner.tabId
+
+  const ended = (gone: (call: PageCall) => boolean) =>
+    RcMap.keys(calls).pipe(
+      Effect.flatMap((keys) =>
+        Effect.forEach(
+          Arr.filter(keys, gone),
+          (call) =>
+            RcMap.getOption(calls, call).pipe(
+              Effect.flatMap(
+                Option.match({
+                  onNone: () => Effect.void,
+                  onSome: (pending) => Deferred.succeed(pending.gone, undefined),
+                }),
+              ),
+              Effect.scoped,
+            ),
+          {discard: true},
+        ),
+      ),
+    )
 
   const exchange = (call: PageCall): Effect.Effect<Result, PageError> =>
     Effect.gen(function* () {
-      const reply = yield* RcMap.get(calls, call)
-      const tab = yield* lock.withPermit(
-        Effect.gen(function* () {
-          const live = yield* FiberMap.get(tabs, call.attempt)
-          if (Option.isNone(live)) return yield* Effect.fail(makeTabGone({dispatched: false}))
-          if (yield* Deferred.isDone(reply)) return yield* Effect.interrupt
-          yield* registration.events
-            .emit('control', {type: 'command', connectionId: call.connectionId, requestId: call.requestId})
-            .pipe(Effect.mapError((error) => dispatchFailed(call.command.action, error)))
-          return live.value
-        }),
-      )
+      const pending = yield* RcMap.get(calls, call)
+      const listed = yield* ctx.browserTabs.list(call.sessionId)
+      if (!listed.tabs.some((tab) => tab.id === call.tabId) || (yield* Deferred.isDone(pending.gone)))
+        return yield* Effect.fail(makeTabGone({dispatched: false}))
+      if (yield* Deferred.isDone(pending.reply)) return yield* Effect.interrupt
+      yield* registration.events
+        .emit('control', {type: 'command', tabId: call.tabId, requestId: call.requestId})
+        .pipe(Effect.mapError((error) => dispatchFailed(call.command.action, error)))
       const outcome = yield* Effect.raceFirst(
-        Deferred.await(reply),
-        Fiber.await(tab).pipe(Effect.andThen(Effect.fail(makeTabGone({dispatched: true})))),
+        Deferred.await(pending.reply),
+        Deferred.await(pending.gone).pipe(Effect.andThen(Effect.fail(makeTabGone({dispatched: true})))),
       ).pipe(
         Effect.timeoutOrElse({
           duration: Duration.millis(call.command.timeoutMs),
           orElse: () =>
-            emitCancel(call.connectionId, call.requestId).pipe(
+            emitCancel(call.tabId, call.requestId).pipe(
               Effect.andThen(Effect.fail(timedOut(call.command.action, call.command.timeoutMs))),
             ),
         }),
@@ -313,26 +277,25 @@ export const make = Effect.fn('PageConnection.make')(function* (
     Effect.gen(function* () {
       const pending = yield* pendingCall(requestId)
       if (Option.isNone(pending)) return
-      const reply = yield* RcMap.getOption(calls, pending.value)
-      yield* emitCancel(pending.value.connectionId, requestId)
-      if (Option.isSome(reply)) yield* Deferred.interrupt(reply.value)
+      const entry = yield* RcMap.getOption(calls, pending.value)
+      yield* emitCancel(pending.value.tabId, requestId)
+      if (Option.isSome(entry)) yield* Deferred.interrupt(entry.value.reply)
     }).pipe(Effect.scoped)
 
-  const deliver = (
-    target: {readonly sessionId: SessionId; readonly connectionId: string; readonly attempt: number},
-    command: Command,
-  ) => {
+  const deliver = (target: Target, command: Command) => {
     const requestId = crypto.randomUUID()
     return Effect.request(new PageCall({...target, requestId, command}), resolver).pipe(
       Effect.onInterrupt(() => cancelled(requestId)),
     )
   }
 
-  const selected = (sessionId: SessionId, tabId: string | undefined) =>
-    Effect.suspend(() => {
-      const chosen = selectTarget(machine.state, sessionId, tabId)
-      return chosen.ok ? Effect.succeed({sessionId, ...chosen}) : Effect.fail(chosen.error)
-    })
+  const selected = (sessionId: SessionId, tabId: string | undefined): Effect.Effect<Target, Tool.Error> =>
+    ctx.browserTabs.list(sessionId).pipe(
+      Effect.flatMap((list) => {
+        const chosen = selectTarget(list, tabId)
+        return chosen.ok ? Effect.succeed({sessionId, tabId: chosen.tab.id}) : Effect.fail(chosen.error)
+      }),
+    )
 
   const servingAgain = (sessionId: SessionId, tabId: string | undefined, remainingMs: number) =>
     selected(sessionId, tabId).pipe(
@@ -342,11 +305,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
       Effect.catch(() => Effect.succeed(undefined)),
     )
 
-  const serialized = <A, E>(sessionId: SessionId, effect: Effect.Effect<A, E>) =>
-    RcMap.get(lanes, sessionId).pipe(
-      Effect.flatMap((lane) => lane.withPermit(effect)),
-      Effect.scoped,
-    )
+  const serialized = <A, E>(sessionId: SessionId, effect: Effect.Effect<A, E>) => withLane(lanes, sessionId, effect)
 
   const resent = (call: Call, command: Command, deadline: number, first: PageError) =>
     Effect.gen(function* () {
@@ -384,8 +343,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
     },
   ) {
     const tabId = play.action.type === 'tabs.list' ? undefined : play.action.tabId
-    const chosen = selectTarget(machine.state, sessionId, tabId)
-    if (!chosen.ok) return yield* Effect.fail(raise(chosen.error))
+    yield* selected(sessionId, tabId).pipe(Effect.mapError(raise))
     const of = play.actions.length
     const played = yield* Effect.forEach(play.actions, (action) =>
       Deferred.make<PageQueue.RequestSettlement>().pipe(Effect.map((reply) => ({action, reply}))),
@@ -426,6 +384,10 @@ export const make = Effect.fn('PageConnection.make')(function* (
   const queues: PageQueue.Queues = yield* PageQueue.makeQueues({
     play: playQueue,
     journal: (sessionId, change) => records.append(sessionId, change),
+    started: (entry) =>
+      entry.origin === 'hub'
+        ? ctx.session.expectOutside({sessionId: entry.sessionId, toolCallId: entry.toolCallId})
+        : Effect.void,
     finished: (entry) => {
       if (entry.result === null) return Effect.void
       const {sessionId, queueId, toolCallId, result, origin} = entry
@@ -434,12 +396,14 @@ export const make = Effect.fn('PageConnection.make')(function* (
           Effect.forEach(
             owed,
             (finished) =>
-              ctx.session.synthetic({
-                sessionID: sessionId,
-                text: queueNotice(finished),
-                description: `Queued page actions ${finished.status}`,
-                metadata: {source: 'page-queue', queueId: finished.queueId, state: finished.status},
-              }),
+              origin === 'hub'
+                ? ctx.session.notifyOutside({sessionId, toolCallId, text: queueNotice(finished)})
+                : ctx.session.synthetic({
+                    sessionID: sessionId,
+                    text: queueNotice(finished),
+                    description: `Queued page actions ${finished.status}`,
+                    metadata: {source: 'page-queue', queueId: finished.queueId, state: finished.status},
+                  }),
             {discard: true},
           ),
         ),
@@ -448,7 +412,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
       return Effect.forkIn(
         registration.events.emit('queue.finished', {sessionId, queueId, toolCallId, result}).pipe(
           Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause)),
-          Effect.andThen(origin === 'hub' ? Effect.void : notify),
+          Effect.andThen(notify),
         ),
         work,
       ).pipe(Effect.asVoid)
@@ -457,66 +421,6 @@ export const make = Effect.fn('PageConnection.make')(function* (
 
   const registration: RpcRegistration<typeof Definition> = yield* ctx.rpc
     .register(Definition, {
-      attach: (input, call) =>
-        Effect.gen(function* () {
-          const session = yield* ctx.session.get({sessionId: input.sessionId}).pipe(
-            Effect.catchIf(
-              SessionNotFound,
-              () => Effect.fail(call.error('missing', `session "${input.sessionId}" does not exist`, {})),
-              (error) =>
-                Effect.logWarning(`Page could not open session ${input.sessionId}`, error).pipe(
-                  Effect.andThen(
-                    Effect.fail(
-                      call.error(
-                        'transient',
-                        `Session ${input.sessionId} could not be opened: ${error instanceof Error ? error.message : String(error)}`,
-                        {},
-                      ),
-                    ),
-                  ),
-                ),
-            ),
-          )
-          if (session.location.directory !== ctx.location.directory)
-            return yield* Effect.fail(call.error('unavailable', 'Session belongs to another location.', {}))
-          return yield* Effect.acquireUseRelease(
-            lock.withPermit(
-              Effect.gen(function* () {
-                if (isConnectionDisposed(machine.state))
-                  return yield* Effect.fail(call.error('unavailable', 'Page is unavailable.', {}))
-                const attempt = selectNextAttempt(machine.state)
-                const closed = yield* RcMap.get(attachments, attempt)
-                yield* FiberMap.run(tabs, attempt, Effect.never)
-                yield* step({
-                  type: 'attach.started',
-                  sessionId: input.sessionId,
-                  attempt,
-                  connectionId: input.connectionId,
-                })
-                return {attempt, closed}
-              }),
-            ),
-            (attached) =>
-              Deferred.await(attached.closed).pipe(
-                Effect.mapError(() => call.error('transient', 'Page permissions could not be granted.', {})),
-              ),
-            (attached) =>
-              dispatch({type: 'attach.closed', sessionId: input.sessionId, attempt: attached.attempt}).pipe(
-                Effect.andThen(FiberMap.remove(tabs, attached.attempt)),
-              ),
-          ).pipe(Effect.scoped)
-        }),
-      state: (input, call) =>
-        Effect.suspend(() =>
-          isAttachedConnection(machine.state, input.sessionId, input.connectionId)
-            ? dispatch({
-                type: 'state.updated',
-                sessionId: input.sessionId,
-                connectionId: input.connectionId,
-                tab: input.state,
-              })
-            : Effect.fail(call.error('unavailable', 'Page is unavailable.', {})),
-        ),
       command: (input, call) =>
         pendingCall(input.requestId).pipe(
           Effect.flatMap((pending) =>
@@ -531,12 +435,10 @@ export const make = Effect.fn('PageConnection.make')(function* (
             return yield* Effect.fail(
               call.error('unavailable', `The page cannot report ${input.outcome.code}; only the engine does.`, {}),
             )
-          if (!isAttachedConnection(machine.state, input.sessionId, input.connectionId))
-            return yield* Effect.fail(call.error('unavailable', 'Page is unavailable.', {}))
           const pending = yield* pendingCall(input.requestId)
           if (Option.isNone(pending) || !ownedBy(pending.value, input)) return
-          const reply = yield* RcMap.getOption(calls, pending.value)
-          if (Option.isSome(reply)) yield* Deferred.succeed(reply.value, input.outcome)
+          const entry = yield* RcMap.getOption(calls, pending.value)
+          if (Option.isSome(entry)) yield* Deferred.succeed(entry.value.reply, input.outcome)
         }).pipe(Effect.scoped),
       operate: (input, call) =>
         run({
@@ -584,45 +486,60 @@ export const make = Effect.fn('PageConnection.make')(function* (
           ),
         ),
       'grabs.get': (input) => grabs.get(input.id),
-      'sessions.attached': () => Effect.sync(() => selectAttachedSessions(machine.state)),
-      'tabs.list': (input) => Effect.sync(() => selectTabs(machine.state, input.sessionId)),
       symbolicate: (input) => symbolicator.frames(input.frames),
       'queue.wait': (input, call) =>
         queues
           .wait(input.sessionId, input.queueId, input.waitMs)
           .pipe(Effect.mapError((error) => call.error('unavailable', error.message, {}))),
-      'queue.startedBy': (input) => queues.startedBy(input.sessionId, input.toolCallIds),
       'queue.claim': (input, call) =>
         queues
           .claim(input.sessionId, input.queueId, input.waitMs)
           .pipe(Effect.mapError((error) => call.error('unavailable', error.message, {}))),
       'queue.settle': (input) => queues.settle(input.sessionId, input.queueIds),
-      'queue.undelivered': (input) => queues.undelivered(input.sessionId, {origin: input.origin}),
+      'queue.undelivered': (input) => queues.undelivered(input.sessionId, {}),
     })
     .pipe(Effect.orDie)
 
   const deleted = (sessionId: SessionId) =>
     Effect.gen(function* () {
       yield* RcMap.invalidate(lanes, sessionId)
+      yield* RcMap.invalidate(grants, sessionId)
       yield* queues.cancelSession(sessionId)
-      yield* lock.withPermit(
-        Effect.gen(function* () {
-          const owned = Arr.filter(yield* RcMap.keys(calls), (call) => call.sessionId === sessionId)
-          yield* Effect.forEach(owned, ({connectionId, requestId}) => emitCancel(connectionId, requestId), {
-            discard: true,
-          })
-          yield* records.forget(sessionId)
-          yield* step({type: 'session.deleted', sessionId})
-        }),
-      )
+      const owned = Arr.filter(yield* RcMap.keys(calls), (call) => call.sessionId === sessionId)
+      yield* Effect.forEach(owned, ({tabId, requestId}) => emitCancel(tabId, requestId), {discard: true})
+      yield* ended((call) => call.sessionId === sessionId)
+      yield* records.forget(sessionId)
     })
 
-  yield* ctx.event.subscribe({types: ['session.deleted']}).pipe(
-    Stream.runForEach((event) => deleted(event.data.sessionID)),
-    Effect.catchCause((cause) => Effect.logWarning('Page stopped following deleted sessions', cause)),
+  yield* ctx.event.subscribe({types: ['tab.opened', 'tab.closed', 'session.deleted']}).pipe(
+    Stream.runForEach((event) =>
+      event.type === 'session.deleted'
+        ? deleted(event.data.sessionID)
+        : ended((call) => call.tabId === event.data.tabId).pipe(
+            Effect.andThen(Effect.forkIn(syncPermissions(event.data.sessionID), work)),
+            Effect.asVoid,
+          ),
+    ),
+    Effect.catchCause((cause) => Effect.logWarning('Page stopped following browser tabs', cause)),
     Effect.forkScoped({startImmediately: true}),
   )
-  yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}).pipe(Effect.andThen(Deferred.await(drained))))
+  yield* ctx.browserTabs
+    .sessions()
+    .pipe(
+      Effect.flatMap((open) =>
+        Effect.forEach(open, (sessionId) => Effect.forkIn(syncPermissions(sessionId), work), {discard: true}),
+      ),
+    )
+  yield* Effect.addFinalizer(() =>
+    ctx.browserTabs.sessions().pipe(
+      Effect.flatMap((open) =>
+        Effect.forEach(open, (sessionId) => syncPermissions(sessionId, false), {
+          concurrency: 'unbounded',
+          discard: true,
+        }),
+      ),
+    ),
+  )
 
   return {
     run,
@@ -634,7 +551,6 @@ export const make = Effect.fn('PageConnection.make')(function* (
           .capture(sessionId, toolCallId, bundle)
           .pipe(Effect.andThen(registration.events.emit('captures.saved', {sessionId}))),
     },
-    tabs: (sessionId: SessionId) => selectTabs(machine.state, sessionId),
   }
 })
 

@@ -32,7 +32,7 @@ export const info: Skill.Info = {
     '## When something fails',
     '',
     '- `[page.disconnected]`: no page of this session is open. Ask the user to open the page with the conciv panel; repeating the call will not help.',
-    '- After the engine restarts or the connection drops, an open tab attaches again by itself once its connection is back. A tab the engine let go of while it stayed connected (its session was deleted, or the page permission was withdrawn) attaches again only when the user focuses, clicks or types in it.',
+    '- After the engine restarts or the connection drops, an open tab is listed again by itself once its connection is back. A tab whose session was deleted comes back once the user moves the conciv panel to another session.',
     '- After a timeout, cancellation or disconnect, a changing action may already have run. Inspect the page with `snapshot` before you repeat a click, a fill or an `eval`.',
     '- Search the capability catalog for the verb you need before reaching for `eval`: it is the last resort for what none of the others can express, and it asks the user for approval on every call.',
     '',

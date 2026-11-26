@@ -2,7 +2,7 @@ import type {Deferred} from 'effect'
 import type * as Tool from '@conciv/protocol/schema/tool'
 import {RESULT_CAP_CHARS} from '@conciv/protocol'
 import type {SessionId} from '@conciv/types/chat-types'
-import type {PageQueueHandle, PageQueueOutcome, PageQueueProgress, PageQueueResult} from './page-types.js'
+import type {PageQueueOutcome, PageQueueProgress, PageQueueResult} from './page-types.js'
 
 export type Landed = 'played' | 'stopped' | 'lost'
 
@@ -98,25 +98,12 @@ function awaitsDelivery(entry: QueueEntry): boolean {
   return entry.delivery === 'owed' && entry.result !== null
 }
 
-export function selectStartedBy(
-  state: QueueState,
-  sessionId: SessionId,
-  toolCallIds: readonly string[],
-): PageQueueHandle[] {
-  return state.entries.flatMap((entry) =>
-    entry.sessionId === sessionId && entry.result === null && toolCallIds.includes(entry.toolCallId)
-      ? [{queueId: entry.queueId, actions: entry.tools.length}]
-      : [],
-  )
-}
-
-export type OwedFilter = {readonly toolCallIds?: readonly string[]; readonly origin?: Tool.Origin}
+export type OwedFilter = {readonly toolCallIds?: readonly string[]}
 
 export function selectUndelivered(state: QueueState, sessionId: SessionId, filter: OwedFilter): Owed[] {
   return state.entries.flatMap((entry) =>
     entry.sessionId === sessionId &&
     (filter.toolCallIds === undefined || filter.toolCallIds.includes(entry.toolCallId)) &&
-    (filter.origin === undefined || filter.origin === entry.origin) &&
     entry.result !== null &&
     awaitsDelivery(entry)
       ? [{queueId: entry.queueId, toolCallId: entry.toolCallId, result: entry.result}]

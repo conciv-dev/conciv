@@ -2,9 +2,8 @@ import {describe, expect} from 'vitest'
 import {test as it} from '@conciv/backend-test-utils'
 import {z} from 'zod'
 import {TestLLM} from '@conciv/backend-test-utils'
-import {makeBrowserEngineConnection, makeEngineRpcClient} from '@conciv/client'
 import page from '../../src/page.js'
-import {answerCommands, attachPage, CONNECTION, nextCommand, REDACTED_URL, SHOT} from '../utils/page-attachment.js'
+import {answerCommands, nextCommand, openPage, REDACTED_URL, SHOT, TAB, widgetClient} from '../utils/page-attachment.js'
 
 describe('with no page open, the agent is offered no page tools', () => {
   it('leaves the page tools and the page skill out of the request and out of reach of a call, and a grabbed element reaches the model with its picture', async ({
@@ -61,11 +60,11 @@ describe('with no page open, the agent is offered no page tools', () => {
 })
 
 describe('the agent reads the page in code mode', () => {
-  it('with a page open the tools and the skill reach the agent and an outside agent, a screenshot reaches the model as an image, the changes are journaled, a queued list wakes the agent when it finishes, and the page that leaves takes its tools along', async ({
+  it('with a page open the tools and the skill reach the agent and an outside agent, a screenshot reaches the model as an image, the changes are journaled, a queued list wakes the agent when it finishes, an outside agent gets its queued list back once as a notice, and the page that leaves takes its tools along', async ({
     createEngine,
   }) => {
     const engine = await createEngine({}, {plugins: [page]})
-    const {ended} = await attachPage(engine)
+    const {ended} = await openPage(engine)
     await engine.reply(
       TestLLM.toolCall('c1', 'execute_typescript', {typescriptCode: 'return await external_page_tabs_list({})'}),
       TestLLM.toolCall('c2', 'execute_typescript', {typescriptCode: 'return await external_page_screenshot({})'}),
@@ -129,38 +128,32 @@ describe('the agent reads the page in code mode', () => {
     })
     expect(await changes.call({})).toEqual({changes: []})
 
-    const bravo = await engine.newSession('Bravo')
-    const widget = makeBrowserEngineConnection(engine.address.apiBase, {token: engine.address.token})
-    const widgetRpc = makeEngineRpcClient(() => widget)
-    const switched = new AbortController()
-    const bravoTab = {sessionId: bravo.id, connectionId: 'bravo-tab'}
-    const onBravo = await engine.event('rpc.experimental.page.control', {
-      data: {type: 'attached', connectionId: bravoTab.connectionId},
+    const outsideAnswered = answerCommands(engine, await nextCommand(engine), [
+      (command) => ({value: {queueId: command.queued?.id ?? '', status: 'playing', done: 0, of: 1}, files: []}),
+      () => ({value: {ok: true}, files: []}),
+    ])
+    await engine.outside({tab: engine.session.id}).call('execute_typescript', {
+      typescriptCode: "return await external_page_queue_async({actions: [{tool: 'page_click', selector: '#buy'}]})",
     })
-    const leaving = widgetRpc.plugin
-      .call({rpcId: 'experimental.page', method: 'attach', input: {...bravoTab, version: 1}}, {signal: switched.signal})
-      .then(
-        () => 'answered',
-        () => 'left',
-      )
-    await onBravo.arrived
-    await widgetRpc.plugin.call({
-      rpcId: 'experimental.page',
-      method: 'state',
-      input: {
-        ...bravoTab,
-        state: {
-          id: 'tab_33333333-3333-4333-8333-333333333333',
-          url: 'http://localhost:3000/bravo',
-          title: 'Bravo',
-          focused: true,
-          visible: true,
-        },
-      },
+    await outsideAnswered
+    const widget = widgetClient(engine)
+    await expect
+      .poll(() => widget.sessions.outsideNotices({sessionId: engine.session.id, waitMs: 0}))
+      .toMatchObject([{text: expect.stringContaining('finished: 1 played, 0 failed')}])
+    await expect(widget.sessions.outsideNotices({sessionId: engine.session.id, waitMs: 0})).resolves.toEqual([])
+
+    const bravo = await engine.newSession('Bravo')
+    const switched = new AbortController()
+    const leaving = await openPage(engine, {
+      session: bravo,
+      id: 'tab_33333333-3333-4333-8333-333333333333',
+      url: 'http://localhost:3000/bravo',
+      title: 'Bravo',
+      signal: switched.signal,
     })
     expect(await bravo.tool('page_tabs_list').call({})).toMatchObject({tabs: [{url: 'http://localhost:3000/bravo'}]})
     switched.abort()
-    expect(await leaving).toBe('left')
+    expect(await leaving.ended).toBe('closed')
     await expect
       .poll(() =>
         bravo
@@ -173,7 +166,6 @@ describe('the agent reads the page in code mode', () => {
       message: expect.stringContaining("'external_page_route' is not defined"),
     })
     expect(await engine.session.tool('page_tabs_list').call({})).toMatchObject({tabs: [{url: REDACTED_URL}]})
-    widget.dispose()
 
     await engine.restart()
     expect(await ended).toBe('closed')
@@ -188,14 +180,14 @@ describe('the page never answers what the agent asked', () => {
     createEngine,
   }) => {
     const engine = await createEngine({plugins: [['conciv.page', {queuedActionTimeoutMs: 1}]]}, {plugins: [page]})
-    const {ended} = await attachPage(engine)
+    const {ended} = await openPage(engine)
     const command = await nextCommand(engine)
 
     const queued = engine.session.tool('page_queue').call({actions: [{tool: 'page_click', selector: '#buy'}]})
     const acceptance = z.object({requestId: z.string()}).parse((await command.arrived).data)
     await engine.rpc.call('experimental.page', 'result', {
       sessionId: engine.session.id,
-      connectionId: CONNECTION,
+      tabId: TAB,
       requestId: acceptance.requestId,
       outcome: {type: 'success', result: {value: null, files: []}},
     })
@@ -222,7 +214,7 @@ describe('the page never answers what the agent asked', () => {
       {plugins: [['conciv.page', {pageReplyTimeoutMs: 1}]], permission: {page_eval: 'deny'}},
       {plugins: [page]},
     )
-    const {ended} = await attachPage(engine)
+    const {ended} = await openPage(engine)
     const timeout = expect.stringContaining('[page.timeout] page.wait did not finish within 0.001 seconds')
 
     expect(await engine.session.tool('page_wait').failure({selector: '#never', state: 'visible'})).toMatchObject({

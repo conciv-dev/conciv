@@ -17,7 +17,6 @@ import {
   OWED_QUEUES,
   readOwing,
   readProgress,
-  selectStartedBy,
   selectUndelivered,
   type OwedFilter,
   transitionQueue,
@@ -84,6 +83,7 @@ function toAction(queued: {tool: string}): Action {
 export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
   play: Play
   journal: (sessionId: SessionId, change: Omit<PageChangeEntry, 'seq'>) => Effect.Effect<void, unknown>
+  started: (entry: QueueEntry) => Effect.Effect<void>
   finished: (entry: QueueEntry) => Effect.Effect<void>
   syncMs?: number
 }) {
@@ -159,6 +159,9 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
       done: yield* Deferred.make<PageQueueResult>(),
     }
     yield* dispatch({type: 'started', entry})
+    yield* deps
+      .started(entry)
+      .pipe(Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause)))
     yield* Effect.forEach(
       played,
       (reply, index) =>
@@ -214,12 +217,9 @@ export const makeQueues = Effect.fn('PageQueue.makeQueues')(function* (deps: {
       )
     })
 
-  const startedBy = (sessionId: SessionId, toolCallIds: readonly string[]) =>
-    Effect.sync(() => selectStartedBy(machine.state, sessionId, toolCallIds))
-
   const cancelSession = (sessionId: SessionId) => dispatch({type: 'session.cancelled', sessionId})
 
-  return {start, play, wait, claim, settle, undelivered, startedBy, cancelSession}
+  return {start, play, wait, claim, settle, undelivered, cancelSession}
 })
 
 export type Queues = Effect.Success<ReturnType<typeof makeQueues>>
