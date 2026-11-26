@@ -24,3 +24,5 @@
 ## Verification
 
 - Typecheck and lint: run the `typecheck` script in `{{directory}}`, then `pnpm lint` at the repo root.
+- Tests: the package has no `test` script yet, because `vitest run` with no test file fails. Add
+  `"test": "vitest run"` to `package.json` with the first test, in `test/unit`, `test/it` or `test/e2e`.

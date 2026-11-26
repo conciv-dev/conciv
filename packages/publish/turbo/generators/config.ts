@@ -9,8 +9,9 @@ const VERSION_SOURCE = 'packages/it/package.json'
 const GUARDS = 'packages/publish/src/guards.ts'
 const FALLOW_CONFIG = '.fallowrc.json'
 const REPOSITORY_URL = 'git+https://github.com/conciv-dev/conciv.git'
+const TEST_FOLDERS = ['unit', 'it', 'e2e', 'fixtures', 'utils']
 
-const Kind = Schema.Literals(['published', 'private', 'internal'])
+const Kind = Schema.Literals(['published', 'internal'])
 const Runtime = Schema.Literals(['node', 'browser', 'both'])
 const Install = Schema.Literals(['install', 'skip'])
 
@@ -54,19 +55,12 @@ function packageName(spec: Spec): string {
     case 'internal':
       return `@internal/${spec.name}`
     case 'published':
-    case 'private':
       return `@conciv/${spec.name}`
   }
 }
 
 function directory(spec: Spec): string {
-  switch (spec.kind) {
-    case 'internal':
-      return `packages/${spec.name}-internal`
-    case 'published':
-    case 'private':
-      return `packages/${spec.name}`
-  }
+  return `packages/${spec.name}`
 }
 
 function changesetPath(spec: Spec): string {
@@ -86,19 +80,18 @@ function nodeTypes(spec: Spec): Record<string, string> {
 function tsconfig(spec: Spec): object {
   switch (spec.runtime) {
     case 'node':
-      return {extends: '@conciv/tsconfig/tsconfig.base.json', compilerOptions: {types: ['node']}}
+      return {extends: '@internal/tsconfig/tsconfig.base.json', compilerOptions: {types: ['node']}}
     case 'browser':
-      return {extends: '@conciv/tsconfig/tsconfig.web.json'}
+      return {extends: '@internal/tsconfig/tsconfig.web.json'}
     case 'both':
-      return {extends: '@conciv/tsconfig/tsconfig.web.json', compilerOptions: {types: ['node']}}
+      return {extends: '@internal/tsconfig/tsconfig.web.json', compilerOptions: {types: ['node']}}
   }
 }
 
 function devDependencies(spec: Spec, build: Record<string, string>): Record<string, string> {
   return {
-    '@conciv/harness-testkit': 'workspace:*',
-    '@conciv/plugin-testkit': 'workspace:*',
-    '@conciv/tsconfig': 'workspace:*',
+    '@internal/tsconfig': 'workspace:*',
+    '@internal/vitest-config': 'workspace:*',
     ...nodeTypes(spec),
     ...build,
     typescript: 'catalog:',
@@ -118,34 +111,16 @@ function sourceOnlyManifest(spec: Spec, version: string): object {
     license: 'MIT',
     repository: {type: 'git', url: REPOSITORY_URL, directory: directory(spec)},
     type: 'module',
-    main: entry,
-    types: entry,
     exports: {'.': `./${entry}`},
     scripts: {typecheck: 'tsc -p tsconfig.json --noEmit'},
     devDependencies: devDependencies(spec, {}),
   }
 }
 
-type BuiltFields = {visibility: object; publish: object; publishScripts: object}
-
-function builtFields(kind: 'published' | 'private'): BuiltFields {
-  switch (kind) {
-    case 'published':
-      return {
-        visibility: {},
-        publish: {publishConfig: {access: 'public'}},
-        publishScripts: {publint: 'publint', attw: 'attw --pack . --profile esm-only'},
-      }
-    case 'private':
-      return {visibility: {private: true}, publish: {}, publishScripts: {}}
-  }
-}
-
-function builtManifest(spec: Spec, version: string, fields: BuiltFields): object {
+function publishedManifest(spec: Spec, version: string): object {
   return {
     name: packageName(spec),
     version,
-    ...fields.visibility,
     description: spec.description,
     keywords: ['conciv'],
     homepage: 'https://conciv.dev',
@@ -155,11 +130,12 @@ function builtManifest(spec: Spec, version: string, fields: BuiltFields): object
     files: ['dist'],
     type: 'module',
     exports: {'.': {types: `./dist/${spec.name}.d.ts`, import: `./dist/${spec.name}.js`}},
-    ...fields.publish,
+    publishConfig: {access: 'public'},
     scripts: {
       build: 'tsdown && tsc -p tsconfig.build.json',
       typecheck: 'tsc -p tsconfig.json --noEmit',
-      ...fields.publishScripts,
+      publint: 'publint',
+      attw: 'attw --pack . --profile esm-only',
     },
     devDependencies: devDependencies(spec, {tsdown: 'catalog:'}),
   }
@@ -170,8 +146,7 @@ function manifest(spec: Spec, version: string): object {
     case 'internal':
       return sourceOnlyManifest(spec, version)
     case 'published':
-    case 'private':
-      return builtManifest(spec, version, builtFields(spec.kind))
+      return publishedManifest(spec, version)
   }
 }
 
@@ -185,7 +160,6 @@ function templatedFiles(spec: Spec): Array<[string, string]> {
     case 'internal':
       return shared
     case 'published':
-    case 'private':
       return [...shared, ['tsdown.config.ts', 'tsdown.config.ts']]
   }
 }
@@ -199,10 +173,9 @@ function jsonFiles(spec: Spec, version: string): Array<[string, object]> {
     case 'internal':
       return shared
     case 'published':
-    case 'private':
       return [
         ...shared,
-        ['tsconfig.build.json', {extends: ['./tsconfig.json', '@conciv/tsconfig/tsconfig.build.json']}],
+        ['tsconfig.build.json', {extends: ['./tsconfig.json', '@internal/tsconfig/tsconfig.build.json']}],
       ]
   }
 }
@@ -264,6 +237,9 @@ const writePackage = Effect.fn('writePackage')(function* (context: GeneratorCont
   for (const [file, value] of jsonFiles(spec, version)) {
     yield* writeFile(paths.join(folder, file), `${JSON.stringify(value, null, 2)}\n`)
   }
+  for (const testFolder of TEST_FOLDERS) {
+    yield* writeFile(paths.join(folder, 'test', testFolder, '.gitkeep'), '')
+  }
   return `${directory(spec)}: written`
 })
 
@@ -289,9 +265,8 @@ const registerShared = Effect.fn('registerShared')(function* (context: Generator
   switch (spec.kind) {
     case 'published':
       return yield* registerPublished(context, spec)
-    case 'private':
     case 'internal':
-      return `${packageName(spec)}: ${spec.kind}, so no shared file changes`
+      return `${packageName(spec)}: internal, so no shared file changes`
   }
 })
 
@@ -299,7 +274,6 @@ function writtenPaths(spec: Spec): string[] {
   switch (spec.kind) {
     case 'published':
       return [directory(spec), GUARDS, FALLOW_CONFIG, changesetPath(spec)]
-    case 'private':
     case 'internal':
       return [directory(spec)]
   }
@@ -356,8 +330,7 @@ export default function generator(plop: PlopTypes.NodePlopAPI): void {
       {
         type: 'list',
         name: 'kind',
-        message:
-          'published (@conciv/*, on npm), private (@conciv/*, built, not on npm) or internal (@internal/*, source only)',
+        message: 'published (@conciv/*, built, on npm) or internal (@internal/*, private, source only)',
         choices: [...Kind.literals],
       },
       {

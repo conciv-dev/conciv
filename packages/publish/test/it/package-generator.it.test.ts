@@ -7,14 +7,9 @@ import {tempDir} from '@internal/vitest-config/temp-dir'
 describe('turbo gen package', () => {
   const GENERATORS = 'packages/publish/turbo/generators'
   const LINKED_DEPENDENCIES = ['node_modules', 'packages/publish/node_modules']
-  const BUILT_FILES = [
-    'README.md',
-    'package.json',
-    'tsconfig.build.json',
-    'tsconfig.json',
-    'tsdown.config.ts',
-    'vite.config.ts',
-  ]
+  const TEST_FOLDERS = ['e2e', 'fixtures', 'it', 'unit', 'utils'].map((folder) => `test/${folder}/.gitkeep`)
+  const SOURCE_FILES = ['README.md', 'package.json', 'tsconfig.json', 'vite.config.ts', ...TEST_FOLDERS]
+  const BUILT_FILES = [...SOURCE_FILES, 'tsconfig.build.json', 'tsdown.config.ts']
 
   const output = Effect.fn('output')(function* (cwd: string, command: string, args: string[]) {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
@@ -74,8 +69,8 @@ describe('turbo gen package', () => {
 
       const [
         publishedOutput,
-        privateOutput,
-        internalOutput,
+        browserOutput,
+        bothOutput,
         unknownKindOutput,
         badNameOutput,
         declaredNameOutput,
@@ -83,17 +78,23 @@ describe('turbo gen package', () => {
       ] = yield* Effect.all(
         [
           generate('published', 'gen-check-node', 'A published node package the generator test made.', 'node', 'skip'),
-          generate('private', 'gen-check-web', 'A private browser package the generator test made.', 'browser', 'skip'),
+          generate(
+            'internal',
+            'gen-check-web',
+            'An internal browser package the generator test made.',
+            'browser',
+            'skip',
+          ),
           generate('internal', 'gen-check-both', 'An internal package the generator test made.', 'both', 'skip'),
-          generate('public', 'gen-check-bad', 'x', 'node', 'skip'),
+          generate('private', 'gen-check-bad', 'x', 'node', 'skip'),
           generate('published', 'Bad', 'x', 'node', 'skip'),
           generate('published', 'plugin-page', 'x', 'node', 'skip'),
-          generate('private', 'opaque-internal', 'x', 'node', 'skip'),
+          generate('internal', 'plugins', 'x', 'node', 'skip'),
         ],
         {concurrency: 'unbounded'},
       )
 
-      expect([publishedOutput, privateOutput, internalOutput]).toEqual([
+      expect([publishedOutput, browserOutput, bothOutput]).toEqual([
         expect.stringContaining('Success'),
         expect.stringContaining('Success'),
         expect.stringContaining('Success'),
@@ -101,7 +102,7 @@ describe('turbo gen package', () => {
       expect(badNameOutput).toContain('use kebab-case')
       expect(unknownKindOutput).toContain('did not recognize')
       expect(declaredNameOutput).toContain('@conciv/plugin-page is already declared by packages/plugins/page')
-      expect(existingFolderOutput).toContain('packages/opaque-internal already exists')
+      expect(existingFolderOutput).toContain('packages/plugins already exists')
       const changed = yield* output(copy, 'git', [
         'status',
         '--porcelain',
@@ -114,7 +115,7 @@ describe('turbo gen package', () => {
         ' M .fallowrc.json',
         ' M packages/publish/src/guards.ts',
         '?? .changeset/add-gen-check-node-package.md',
-        '?? packages/gen-check-both-internal/',
+        '?? packages/gen-check-both/',
         '?? packages/gen-check-node/',
         '?? packages/gen-check-web/',
       ])
@@ -123,10 +124,10 @@ describe('turbo gen package', () => {
         [...BUILT_FILES, 'src/gen-check-node.ts'].toSorted(),
       )
       expect(yield* listFiles(path.join(packages, 'gen-check-web'))).toEqual(
-        [...BUILT_FILES, 'src/gen-check-web.ts'].toSorted(),
+        [...SOURCE_FILES, 'src/gen-check-web.ts'].toSorted(),
       )
-      expect(yield* listFiles(path.join(packages, 'gen-check-both-internal'))).toEqual(
-        ['README.md', 'package.json', 'src/gen-check-both.ts', 'tsconfig.json', 'vite.config.ts'].toSorted(),
+      expect(yield* listFiles(path.join(packages, 'gen-check-both'))).toEqual(
+        [...SOURCE_FILES, 'src/gen-check-both.ts'].toSorted(),
       )
 
       const publishedManifest = yield* readJson(path.join(packages, 'gen-check-node/package.json'))
@@ -135,34 +136,39 @@ describe('turbo gen package', () => {
         publishConfig: {access: 'public'},
         exports: {'.': {types: './dist/gen-check-node.d.ts', import: './dist/gen-check-node.js'}},
         scripts: {build: expect.any(String), publint: 'publint', attw: expect.any(String)},
-        devDependencies: {'@types/node': 'catalog:'},
+        devDependencies: {'@types/node': 'catalog:', tsdown: 'catalog:'},
       })
       expect(publishedManifest).not.toHaveProperty('private')
-      const privateManifest = yield* readJson(path.join(packages, 'gen-check-web/package.json'))
-      expect(privateManifest).toMatchObject({
-        name: '@conciv/gen-check-web',
-        private: true,
-        scripts: {build: expect.any(String)},
-      })
-      expect(privateManifest).not.toHaveProperty('publishConfig')
-      expect(privateManifest).not.toHaveProperty('scripts.publint')
-      expect(privateManifest).not.toHaveProperty(['devDependencies', '@types/node'])
-      const internalManifest = yield* readJson(path.join(packages, 'gen-check-both-internal/package.json'))
-      expect(internalManifest).toMatchObject({
+      const browserManifest = yield* readJson(path.join(packages, 'gen-check-web/package.json'))
+      expect(browserManifest).toMatchObject({name: '@internal/gen-check-web', private: true})
+      expect(browserManifest).not.toHaveProperty(['devDependencies', '@types/node'])
+      const bothManifest = yield* readJson(path.join(packages, 'gen-check-both/package.json'))
+      expect(bothManifest).toMatchObject({
         name: '@internal/gen-check-both',
         private: true,
-        main: 'src/gen-check-both.ts',
         exports: {'.': './src/gen-check-both.ts'},
+        scripts: {typecheck: expect.any(String)},
       })
-      expect(internalManifest).not.toHaveProperty('scripts.build')
-      for (const manifest of [publishedManifest, privateManifest, internalManifest]) {
+      for (const manifest of [browserManifest, bothManifest]) {
+        expect(manifest).not.toHaveProperty('main')
+        expect(manifest).not.toHaveProperty('types')
+        expect(manifest).not.toHaveProperty('publishConfig')
+        expect(manifest).not.toHaveProperty('scripts.build')
+        expect(manifest).not.toHaveProperty(['devDependencies', 'tsdown'])
+      }
+      for (const manifest of [publishedManifest, browserManifest, bothManifest]) {
+        expect(manifest).toMatchObject({
+          devDependencies: {'@internal/tsconfig': 'workspace:*', '@internal/vitest-config': 'workspace:*'},
+        })
         expect(manifest).not.toHaveProperty('scripts.lint')
+        expect(manifest).not.toHaveProperty('scripts.test')
       }
 
       expect(yield* read('packages/gen-check-node/tsdown.config.ts')).toContain("entry: ['src/gen-check-node.ts']")
-      expect(yield* read('packages/gen-check-node/tsconfig.json')).toContain('tsconfig.base.json')
-      expect(yield* read('packages/gen-check-web/tsconfig.json')).toContain('tsconfig.web.json')
-      expect(yield* read('packages/gen-check-both-internal/tsconfig.json')).toMatch(/tsconfig\.web\.json[\s\S]*"node"/)
+      expect(yield* read('packages/gen-check-node/tsconfig.json')).toContain('@internal/tsconfig/tsconfig.base.json')
+      expect(yield* read('packages/gen-check-web/tsconfig.json')).toContain('@internal/tsconfig/tsconfig.web.json')
+      expect(yield* read('packages/gen-check-both/tsconfig.json')).toMatch(/tsconfig\.web\.json[\s\S]*"node"/)
+      expect(yield* read('packages/gen-check-both/vite.config.ts')).toContain('@internal/vitest-config/conciv-test')
 
       const guards = yield* read('packages/publish/src/guards.ts')
       const fallow = yield* read('.fallowrc.json')
@@ -175,7 +181,7 @@ describe('turbo gen package', () => {
         '--check',
         'packages/gen-check-node',
         'packages/gen-check-web',
-        'packages/gen-check-both-internal',
+        'packages/gen-check-both',
         'packages/publish/src/guards.ts',
         '.fallowrc.json',
       ])
