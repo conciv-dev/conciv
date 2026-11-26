@@ -145,17 +145,15 @@ describe('the agent reads the page in code mode', () => {
       },
       () => ({value: {ok: true}, files: []}),
     ])
-    await engine.outside({tab: engine.session.id}).call('execute_typescript', {
-      typescriptCode: "return await external_page_queue_async({actions: [{tool: 'page_click', selector: '#buy'}]})",
-    })
+    await engine
+      .outside({tab: engine.session.id})
+      .call('page_queue_async', {actions: [{tool: 'page_click', selector: '#buy'}]})
     await outsideAnswered
     const widget = widgetClient(engine)
     expect(await widget.jobs.wait({ids: [`pq_${outsideQueue.id}`], waitMs: 30_000})).toMatchObject({
       data: [{status: 'completed', output: expect.stringContaining('finished: 1 played, 0 failed')}],
     })
-    expect(await widget.jobs.list({sessionId: engine.session.id})).toMatchObject({
-      data: expect.arrayContaining([expect.objectContaining({type: 'page-queue', status: 'completed'})]),
-    })
+    expect(await widget.jobs.wait({ids: [`pq_${outsideQueue.id}`], waitMs: 0})).toEqual({data: []})
 
     const bravo = await engine.newSession('Bravo')
     const switched = new AbortController()
