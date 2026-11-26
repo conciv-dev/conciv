@@ -296,24 +296,26 @@ export function makeAuthRouter(deps: {
   now: () => number
 }) {
   return {
-    trust: os.auth.trust.handler(({input, context}) => {
-      const trusted = deps.trust.trusts(input.token)
-      if (trusted) context.socket?.admit(input.token)
-      return {trusted}
+    trust: os.auth.trust.effect(function* ({input, context}) {
+      return yield* Effect.sync(() => {
+        const trusted = deps.trust.trusts(input.token)
+        if (trusted) context.socket?.admit(input.token)
+        return {trusted}
+      })
     }),
-    exchange: os.auth.exchange.handler(async ({input, context}) => {
+    exchange: os.auth.exchange.effect(function* ({input, context}) {
       const outcome = deps.codes.exchange(input.code)
       if (outcome !== 'trusted') return {refused: outcome}
-      const token = await deps.browsers.grant(describeRequester(context), deps.now())
+      const token = yield* Effect.promise(() => deps.browsers.grant(describeRequester(context), deps.now()))
       context.socket?.admit(token)
       return {token}
     }),
-    requestCode: os.auth.requestCode.handler(({input, context}) =>
-      deps.codes.request(describeRequester(context), input.reissue ?? false),
-    ),
-    issueCode: os.auth.issueCode.handler(({context, errors}) => {
-      if (!context.engineCaller) throw errors.FORBIDDEN()
-      return deps.codes.issue()
+    requestCode: os.auth.requestCode.effect(function* ({input, context}) {
+      return yield* Effect.sync(() => deps.codes.request(describeRequester(context), input.reissue ?? false))
+    }),
+    issueCode: os.auth.issueCode.effect(function* ({context, errors}) {
+      if (!context.engineCaller) return yield* Effect.fail(errors.FORBIDDEN())
+      return yield* Effect.sync(() => deps.codes.issue())
     }),
   }
 }

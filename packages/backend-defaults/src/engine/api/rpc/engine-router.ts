@@ -1,8 +1,8 @@
 import type {ContractedRouter} from '@orpc/server'
 import type {contract} from '@conciv/protocol'
-import type {RpcContext} from '@conciv/types/rpc-types'
+import type {EngineRpcContext} from './mount.js'
 
-type EngineRouter = ContractedRouter<typeof contract, RpcContext>
+type EngineRouter = ContractedRouter<typeof contract, EngineRpcContext>
 
 const engineRouterKey: unique symbol = Symbol('conciv.engineRouter')
 

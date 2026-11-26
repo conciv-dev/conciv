@@ -1,10 +1,8 @@
 import type {ContractedRouter} from '@orpc/server'
 import {Effect} from 'effect'
 import type {contract} from '@conciv/protocol'
-import type {RpcContext} from '@conciv/types/rpc-types'
 import * as Job from '@conciv/backend-app-api/core/job'
-import type {RpcDeps} from './mount.js'
-import {os} from './mount.js'
+import {os, type EngineRpcContext} from './mount.js'
 
 const RESTARTED = 'Interrupted by server restart.'
 
@@ -42,39 +40,29 @@ const waitOne = Effect.fn('JobsRpc.wait')(function* (jobs: Job.Interface, id: st
   ]
 })
 
-export function jobsRouter(deps: RpcDeps): ContractedRouter<typeof contract.jobs, RpcContext> {
-  const host = deps.pluginHost
+export function jobsRouter(): ContractedRouter<typeof contract.jobs, EngineRpcContext> {
   return {
-    list: os.jobs.list.handler(({input, signal}) =>
-      host.runPromise(
-        Job.Service.use((jobs) =>
-          Effect.gen(function* () {
-            const owned = (yield* jobs.backgroundJobs).filter((item) => item.sessionID === input.sessionId)
-            const called = input.toolCallIds
-            if (called === undefined) return {data: owned}
-            const data = yield* Effect.filter(owned, (item) =>
-              jobs.get(item.id).pipe(
-                Effect.map((info) => {
-                  const toolCallId = info?.metadata?.toolCallId
-                  return typeof toolCallId === 'string' && called.includes(toolCallId)
-                }),
-              ),
-            )
-            return {data}
+    list: os.jobs.list.effect(function* ({input}) {
+      const jobs = yield* Job.Service
+      const owned = (yield* jobs.backgroundJobs).filter((item) => item.sessionID === input.sessionId)
+      const called = input.toolCallIds
+      if (called === undefined) return {data: owned}
+      const data = yield* Effect.filter(owned, (item) =>
+        jobs.get(item.id).pipe(
+          Effect.map((info) => {
+            const toolCallId = info?.metadata?.toolCallId
+            return typeof toolCallId === 'string' && called.includes(toolCallId)
           }),
         ),
-        {signal},
-      ),
-    ),
-    wait: os.jobs.wait.handler(({input, signal}) =>
-      host.runPromise(
-        Job.Service.use((jobs) =>
-          Effect.forEach(input.ids, (id) => waitOne(jobs, id, input.waitMs), {concurrency: 'unbounded'}).pipe(
-            Effect.map((waited) => ({data: waited.flat()})),
-          ),
-        ),
-        {signal},
-      ),
-    ),
+      )
+      return {data}
+    }),
+    wait: os.jobs.wait.effect(function* ({input}) {
+      const jobs = yield* Job.Service
+      const waited = yield* Effect.forEach(input.ids, (id) => waitOne(jobs, id, input.waitMs), {
+        concurrency: 'unbounded',
+      })
+      return {data: waited.flat()}
+    }),
   }
 }
