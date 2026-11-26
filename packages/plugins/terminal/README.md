@@ -1,7 +1,7 @@
 # @internal/plugin-terminal
 
-Private. The browser part of the session's CLI terminal, built in and always on (id `terminal`). `@conciv/app` lists its
-`./client` default export in `packages/app/src/builtins.ts` and bundles it into the published widget. The shell process
+Private. The browser part of the session's CLI terminal, built in and always on (id `terminal`). `@conciv/app` composes its
+`./builtins` list in `packages/app/src/builtins.ts` and bundles it into the published widget. The shell process
 stays in the engine (`packages/backend-defaults/src/engine/pty`), reached over `experimental.persistentPty`.
 
 - A pinned Terminal tab in the session's pane, listed for a session whose harness has a terminal. The CLI starts only
