@@ -1,111 +1,63 @@
 ---
 title: Vite
-description: Add conciv to a Vite app, or to a framework built on Vite such as Astro.
+description: Add conciv to a Vite app, or to a framework built on Vite such as Astro or TanStack Start.
 ---
 
-Add conciv to your Vite config. In `vite dev` it starts the engine, adds the widget to every page the dev server
-serves, and gives the agent your dev server's config, URLs and module graph. `vite build` leaves it out.
+Copy this prompt into your coding agent. It sets conciv up in your Vite app:
 
-<Tabs items={['init', 'By hand']}>
+<SetupPrompt framework="vite" />
 
-<Tab value="init">
+What you get:
 
-```bash
-npx @conciv/cli@latest init
-```
+- conciv starts with `vite dev`, and adds a conciv button to every page the dev server serves.
+- The agent can read your dev server's config, URLs and module graph.
+- `vite build` leaves conciv out.
 
-init finds Vite (or Astro) in your `package.json`, installs `@conciv/it`, and adds `conciv()` to the `plugins` of
-your config. If it cannot read the shape of your config, it prints the snippet to paste instead. See
-[Quick start](/docs/quick-start) for what it asks.
+## Set up by hand
 
-</Tab>
-
-<Tab value="By hand">
+<Accordions>
+<Accordion id="by-hand" title="Install and wire conciv yourself">
 
 <Steps>
 <Step>
 
 ### Install
 
-<Tabs items={['pnpm', 'npm', 'yarn']}>
-
-<Tab value="pnpm">
-
-```bash
-pnpm add -D @conciv/it
-```
-
-</Tab>
-
-<Tab value="npm">
-
-```bash
+```package-install
 npm install -D @conciv/it
 ```
-
-</Tab>
-
-<Tab value="yarn">
-
-```bash
-yarn add -D @conciv/it
-```
-
-</Tab>
-
-</Tabs>
 
 </Step>
 <Step>
 
 ### Add conciv to your config
 
-<Tabs items={['vite.config.ts', 'astro.config.mjs']}>
+Add the import and the `conciv()` call:
 
-<Tab value="vite.config.ts">
-
-```ts title="vite.config.ts"
+```ts twoslash title="vite.config.ts"
 import {defineConfig} from 'vite'
-import conciv from '@conciv/it/plugin/vite'
+import react from '@vitejs/plugin-react'
+import conciv from '@conciv/it/plugin/vite' // [!code ++]
 
 export default defineConfig({
-  plugins: [conciv()],
+  plugins: [
+    react(),
+    conciv(), // [!code ++]
+  ],
 })
 ```
 
-</Tab>
-
-<Tab value="astro.config.mjs">
-
-```js title="astro.config.mjs"
-import {defineConfig} from 'astro/config'
-import conciv from '@conciv/it/plugin/vite'
-
-export default defineConfig({
-  vite: {
-    plugins: [conciv()],
-  },
-})
-```
-
-</Tab>
-
-</Tabs>
+- `@conciv/it/plugin/vite` is the Vite plugin.
+- `conciv()` takes no options here. Options go in its one argument: see [Configuration](/docs/configuration).
+- Your other plugins stay as they are.
 
 </Step>
-</Steps>
-
-</Tab>
-
-</Tabs>
-
-<Steps>
 <Step>
 
 ### Start your dev server
 
 ```bash
-pnpm dev
+npm run dev
 ```
 
 </Step>
@@ -113,15 +65,49 @@ pnpm dev
 
 ### Open your app and log in
 
-Click the conciv button. The first time, it asks for the 6-digit code your dev server just printed in its terminal.
-See [Logging in](/docs/usage/logging-in).
+Click the conciv button in the corner. Type the 6-digit code your dev server prints in its terminal. See
+[Logging in](/docs/usage/logging-in).
 
 </Step>
 </Steps>
 
-<Callout>
-  With Vite DevTools in your plugins, conciv opens in the DevTools dock instead of the corner, and logs in with no code.
-  See [Logging in](/docs/usage/logging-in#vite-devtools).
-</Callout>
+</Accordion>
+</Accordions>
 
-Next: [Usage](/docs/usage) to see what the agent can do, and [Configuration](/docs/configuration) for the options.
+## Edge cases
+
+<Accordions>
+<Accordion id="astro" title="Astro">
+
+Astro takes Vite plugins under its `vite` key:
+
+```js title="astro.config.mjs"
+import {defineConfig} from 'astro/config'
+import conciv from '@conciv/it/plugin/vite' // [!code ++]
+
+export default defineConfig({
+  vite: {
+    plugins: [conciv()], // [!code ++]
+  },
+})
+```
+
+</Accordion>
+<Accordion id="devtools" title="Vite DevTools">
+
+With Vite DevTools in your plugins, conciv opens in the DevTools dock instead of the corner. It logs in with no code.
+See [Logging in](/docs/usage/logging-in#vite-devtools).
+
+</Accordion>
+<Accordion id="card" title="init printed a snippet instead of editing the config">
+
+init edits only a config shape it can read. Otherwise it prints the snippet to paste. Add it as in the manual steps
+above.
+
+</Accordion>
+</Accordions>
+
+## Next
+
+- [Usage](/docs/usage): what the agent can do in your app.
+- [Configuration](/docs/configuration): the options `conciv()` takes.
