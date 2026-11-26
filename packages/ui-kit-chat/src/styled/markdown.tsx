@@ -3,13 +3,17 @@ import {
   createMemo,
   createSignal,
   createUniqueId,
+  For,
+  Match,
   onCleanup,
   onMount,
   Show,
+  Switch,
   useContext,
   type JSX,
   type ParentProps,
 } from 'solid-js'
+import {Dynamic} from 'solid-js/web'
 import {mapValues, memoize, once} from 'es-toolkit'
 import {ReactiveMap} from '@solid-primitives/map'
 import {Highlight} from '@conciv/ui-kit-system'
@@ -23,7 +27,7 @@ import {
   type OpenLocalFile,
 } from '@conciv/solid-streamdown'
 import type {WorkerToMainMessage} from './highlight-shared.js'
-import {CodeBlock} from '../tools/styled/code-block.js'
+import {CodeBlock, CodeFrame, CodeHeader} from '../tools/styled/code-block.js'
 
 const MAX_CACHE_ENTRIES = 512
 
@@ -260,17 +264,70 @@ function streamedPrefix(language: string, fenceText: string): HastElement | unde
   return highlightedWithTail(language, prefix, fenceText)
 }
 
-function codeBlock(fenceText: string, lang: string | undefined, streaming: boolean): FencedView['fallback'] {
+function streamedHighlight(language: string, fenceText: string): HastElement | undefined {
   backendReadyTick()
-  const requested = fenceLanguage(lang)
-  if (requested === 'mermaid') return streaming ? undefined : MermaidDiagram
   const active = ensureBackend()
-  if (!active || !active.isSupported(requested)) return undefined
+  if (!active || !active.isSupported(language)) return undefined
   const code = fenceCode(fenceText)
-  const highlighted = highlightedWithTail(requested, code, fenceText)
+  const highlighted = highlightedWithTail(language, code, fenceText)
   if (highlighted) return highlighted
-  active.requestHighlight(cacheKey(requested, code), requested, code, streaming)
-  return streamedPrefix(requested, fenceText)
+  active.requestHighlight(cacheKey(language, code), language, code, true)
+  return streamedPrefix(language, fenceText)
+}
+
+type HastChild = HastElement['children'][number]
+
+function hastClass(value: unknown): string | undefined {
+  if (typeof value === 'string') return value
+  return Array.isArray(value) ? value.join(' ') : undefined
+}
+
+function hastStyle(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function HastElementView(props: {element: HastElement}): JSX.Element {
+  return (
+    <Dynamic
+      component={props.element.tagName}
+      class={hastClass(props.element.properties.class ?? props.element.properties.className)}
+      style={hastStyle(props.element.properties.style)}
+    >
+      <For each={props.element.children}>{(child) => <HastNodeView node={child} />}</For>
+    </Dynamic>
+  )
+}
+
+function HastNodeView(props: {node: HastChild}): JSX.Element {
+  return (
+    <Switch>
+      <Match when={props.node.type === 'text' ? props.node : undefined}>{(text) => text().value}</Match>
+      <Match when={props.node.type === 'element' ? props.node : undefined}>
+        {(element) => <HastElementView element={element()} />}
+      </Match>
+    </Switch>
+  )
+}
+
+const STREAMED_CODE =
+  'not-prose min-w-0 [--shiki-background:transparent] [&_pre]:m-0 [&_pre]:p-2 [&_pre]:whitespace-pre-wrap [&_pre]:[overflow-wrap:anywhere] [&_pre]:[font-family:var(--chat-mono)]'
+
+function StreamedCode(props: {language: string; code: string}): JSX.Element {
+  const highlighted = createMemo(() => streamedHighlight(props.language, props.code))
+  return (
+    <div class={STREAMED_CODE}>
+      <Show
+        when={highlighted()}
+        fallback={
+          <pre>
+            <code>{fenceCode(props.code)}</code>
+          </pre>
+        }
+      >
+        {(element) => <HastElementView element={element()} />}
+      </Show>
+    </div>
+  )
 }
 
 export type MarkdownProps = {
@@ -382,12 +439,36 @@ function highlightableLanguage(language: string): string {
   return ensureBackend()?.isSupported(language) ? language : 'text'
 }
 
+const MarkdownStreamingContext = createContext<() => boolean>(() => false)
+
+function FenceCard(props: {language: string; code: string}): JSX.Element {
+  const streaming = useContext(MarkdownStreamingContext)
+  const title = () => props.language || 'text'
+  return (
+    <Show
+      when={streaming()}
+      fallback={
+        <CodeBlock
+          title={title()}
+          maxHeight="log"
+          file={{name: title(), lang: highlightableLanguage(props.language), contents: fenceCode(props.code)}}
+        />
+      }
+    >
+      <CodeFrame label={title()} text={fenceCode(props.code)} cap="log" headed>
+        {(actions) => (
+          <>
+            <CodeHeader title={title()}>{actions()}</CodeHeader>
+            <StreamedCode language={props.language} code={props.code} />
+          </>
+        )}
+      </CodeFrame>
+    </Show>
+  )
+}
+
 const sharedFenceView = memoize((language: string): FenceView => (props) => (
-  <CodeBlock
-    title={language || 'text'}
-    maxHeight="log"
-    file={{name: language || 'text', lang: highlightableLanguage(language), contents: fenceCode(props.code)}}
-  />
+  <FenceCard language={language} code={props.code} />
 ))
 
 function fenceLanguage(lang: string | undefined): string {
@@ -421,25 +502,30 @@ export function Markdown(props: MarkdownProps): JSX.Element {
 function FullMarkdown(props: Omit<MarkdownProps, 'compact'>): JSX.Element {
   warmHighlighter()
   const markdown = useMarkdown()
-  const highlightCode: HighlightCode = (code, lang) => {
+  const streaming = () => props.streaming === true
+  const fenceFallback = (language: string): FencedView['fallback'] => {
+    if (language !== 'mermaid') return sharedFenceView(language)
+    return streaming() ? undefined : MermaidDiagram
+  }
+  const highlightCode: HighlightCode = (_code, lang) => {
     const language = fenceLanguage(lang)
-    const content = props.streaming !== true && markdown?.codeBlocks?.current().render.has(language)
-    const kitFence = props.streaming === true || language === 'mermaid'
-    const fallback = kitFence ? codeBlock(code, lang, props.streaming === true) : sharedFenceView(language)
-    if (content) return {view: codeBlockView(language), fallback}
-    return fallback
+    const fallback = fenceFallback(language)
+    if (streaming() || !markdown?.codeBlocks?.current().render.has(language)) return fallback
+    return {view: codeBlockView(language), fallback}
   }
   return (
-    <Streamdown
-      class={props.streaming ? 'prose-chat chat-caret-live' : 'prose-chat'}
-      isAnimating={props.streaming === true}
-      caret={props.streaming ? 'block' : false}
-      highlightCode={highlightCode}
-      highlight={props.highlight}
-      openLocalFile={markdown?.openLocalFile}
-      localFileExists={markdown?.localFileExists}
-    >
-      {props.content}
-    </Streamdown>
+    <MarkdownStreamingContext.Provider value={streaming}>
+      <Streamdown
+        class={props.streaming ? 'prose-chat chat-caret-live' : 'prose-chat'}
+        isAnimating={props.streaming === true}
+        caret={props.streaming ? 'block' : false}
+        highlightCode={highlightCode}
+        highlight={props.highlight}
+        openLocalFile={markdown?.openLocalFile}
+        localFileExists={markdown?.localFileExists}
+      >
+        {props.content}
+      </Streamdown>
+    </MarkdownStreamingContext.Provider>
   )
 }

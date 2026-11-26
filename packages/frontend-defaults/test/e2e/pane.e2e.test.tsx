@@ -184,7 +184,11 @@ describe('stopping and sending again', () => {
     const user = userEvent.setup()
     const engine = paneEngine()
     const thinking = engine.gate()
-    engine.reply(FakeLLM.partialText('Halfway there. '), FakeLLM.hang(), FakeLLM.text('Short answer'))
+    engine.reply(
+      FakeLLM.partialText('Halfway there.\n\n```ts\nconst total = 1\n```\n\n'),
+      FakeLLM.hang(),
+      FakeLLM.text('Short answer'),
+    )
     await mountShell({engine})
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Take your time')
@@ -194,6 +198,10 @@ describe('stopping and sending again', () => {
     thinking.release()
     const stopped = await screen.findByRole('article', {name: 'Reply to: Take your time'})
     expect(await within(stopped).findByText(/there\./)).toBeVisible()
+    expect(screen.getByText('Responding…')).toBeVisible()
+    const streamedCode = page.getByRole('article', {name: 'Reply to: Take your time'}).getByRole('group', {name: 'ts'})
+    await expect.element(streamedCode.getByText('const total = 1')).toBeVisible()
+    await expect.element(streamedCode.getByRole('button', {name: 'Copy'})).toBeVisible()
     expect(screen.getByText('Responding…')).toBeVisible()
     await user.click(screen.getByRole('button', {name: 'Stop generating'}))
 
