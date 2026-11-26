@@ -2,276 +2,151 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Open widgets ("tabs") become a core engine concept stored in the core DB, read one way by everyone; no core package (cli, backend, app, defaults, kits, storybook, publish) imports `@conciv/plugin-page`; no feature is lost.
+**Goal:** Open widgets ("browser tabs") become a core engine concept stored in the core DB and read one way by everyone; no core package imports `@conciv/plugin-page`; no feature is lost.
 
-**Architecture:** The widget itself attaches to the engine as a tab (core contract `tabs.*`, core service `Tab`, core table `tabs`, core events `tab.*`). The page plugin stops owning tabs and reads the core list; it keeps only actions inside a tab (operate, snapshot, grab, react, queue, captures). The CLI and hub read tabs from core only and treat plugins generically. Plugins may call other plugins' exported rpc (ruled 2026-11-26, as opencode `gui-plugins/src/browser/pane.ts:2` importing `@opencode/plugin-browser/rpc`).
+**Architecture:** The widget attaches to the engine as a browser tab (core contract `tabs.*`, core service `Tab.Service`, core table `tabs` written only by a projector of durable `tab.*` events, boot reconcile). The page plugin stops owning tabs, reads the core list, and keeps only actions inside a tab. The CLI and hub read tabs from core and treat plugins generically. A plugin may call another plugin's exported rpc (ruled 2026-11-26, as opencode `packages/gui-plugins/src/browser/pane.ts:2` imports `@opencode/plugin-browser/rpc`).
 
-**Tech Stack:** Effect 4, oRPC contract (`@conciv/protocol`), drizzle sqlite (`backend-app-api/src/core/*/sql.ts`), Solid widget (`frontend-defaults`), zod.
+**Tech Stack:** Effect 4, oRPC contract (`@conciv/protocol`), drizzle sqlite, Solid widget, solid-query, zod, vitest (node + browser mode).
 
-**Spec:** maintainer rulings of 2026-11-26 in this conversation (recorded in the "Rulings" section below).
+**Spec:** maintainer rulings of 2026-11-26 (section "Rulings"); opencode reference `_ref/opencode/packages/core/src/{bus.ts,session/projector.ts,job.ts}`.
 
 ## Rulings (2026-11-26)
 
-1. Nobody imports the page plugin except the page plugin. Applies to core packages; plugins may use another plugin's exported rpc.
-2. Tabs are core: the widget registers with the engine, every hub sees all tabs regardless of the page plugin.
+1. No core package imports the page plugin. Plugins may use another plugin's exported rpc.
+2. Tabs are core: the widget registers with the engine; every hub sees all tabs whether or not the page plugin is installed.
 3. The tab list is stored in the core DB.
-4. One way to get the data: whatever moves to core is deleted from the page plugin, no duplicate registry, no duplicate method.
+4. One way to get the data: what moves to core is deleted from page; no duplicate registry, method or schema.
 5. The hub connects to every plugin the same way and has no page code.
-6. No feature lost (feature list below is the acceptance check).
+6. No feature lost.
 
-## How the work runs (tests and gates)
+## PR goals checklist (the work is not done until every line is true)
 
-- Parallel lanes, one agent per worktree (each its own `git worktree` off `refactor/backstage-packages`, `pnpm install`
-  run there; the orchestrator merges each lane into the branch):
-  - Wave 1: lane CORE = Task 1; lane BUILTINS = Task 7 (app, backend start, vite config, storybook, publish; touches no
-    tab file).
-  - Wave 2, after CORE is merged: lane WIDGET-PAGE = Tasks 2 + 3 + the page half of Task 6 (`connection.ts:426-456`,
-    one owner for page files); lane CLI-HUB = Task 5 + the core and hub half of Task 6 (`sessions.notices`, `hub.ts`,
-    one owner for `hub.ts`); lane TANSTACK = Task 4.
-  - Task 8 by the orchestrator after every lane is merged.
-    Lanes never share a file; where two tasks touch one file, one lane owns it (listed above).
-- Each lane's agent (opus). Its brief: write the task's code and its test changes; run only
-  typecheck, build and lint on touched packages; commit locally; never push; no tests, fallow, guards or dry runs.
-- After each lane the orchestrator reads the full diff and merges it. No tests run until the code is complete.
-- Tests follow AGENTS.md Testing: act like a user (roles, labels, text), no mocks, no sleeps, no geometry; extend the
-  existing journey and file, never a new file over the package budget; `test-budget.json` raised only with a
-  per-test account in the PR body.
-- Final gate, once, after Task 8, by the orchestrator: `pnpm lint`, `pnpm format`, fallow audit, `conciv-publish`
-  guards (dependency loops, catalog, test budget, typecheck coverage, turbo dependsOn, changesets), the affected
-  dry-run table, the full test suite in the background with a pid check, the widget shots. Then push; CI is the gate
-  of record; each red is reproduced locally and fixed at its root.
+- [ ] Plugins out of core: no core package (cli, backend, backend-defaults, backend-app-api, app, frontend-defaults, frontend-app-api, kits, storybook, publish) imports any plugin; only the app's built-ins composition and the backend's built-in list name built-ins (as opencode `app/src/runtime/plugin/builtins.ts:1`). Proof: grep over every plugin package name.
+- [ ] Every plugin tests fully from its own package with the test utilities it needs.
+- [ ] Browser code never imports backend code (no `@conciv/backend*` reachable from widget, kit, plugin renderer/client entries; widget bundle contains none).
+- [ ] Turbo `--affected` works: dry-run table after an edit in each plugin, `client`, `protocol`, `publish`.
+- [ ] Every turbo.json hack removed; each remaining `turbo.json` listed with its reason.
+- [ ] Tabs are core and in the core DB; page holds no tab data.
+- [ ] No feature lost (table at the end).
+- [ ] CI green on #1191.
 
-## How the tab table stays valid (as opencode)
+## How the work runs
 
-Read from `_ref/opencode/packages/core/src`:
-
-- Tables are projections of durable events, written in the same transaction as the event: `bus.ts:107`
-  (`commit` "projection committed atomically with a new durable event"), `bus.ts:883` `project(definition, projector)`,
-  `session/projector.ts`. A row never disagrees with the event log.
-- Rows describing live work are reconciled at boot: `job.ts:174` `runningBackground` and `job/recovery.ts` recover or
-  close jobs a dead process left running.
-- The client reads with solid-query and refreshes on the change stream (`app/package.json:82`); no client-side store of
-  its own.
-
-Ours already has the same pieces: `backend-app-api/src/core/bus.ts:109` (`commit`), `:159`/`:833` (`project`), our
-`backend-defaults/src/core/session/projector.ts:53-88`, and the widget's `sessions.changes` stream with solid-query
-(`frontend-defaults/src/app/live-sessions.ts`). So tabs follow it exactly:
-
-- `tab.attached`, `tab.updated`, `tab.detached` are durable events; `backend-defaults/src/core/tab/projector.ts`
-  projects them into the `tabs` table with `bus.project`. Nothing writes the table except the projector.
-- Engine start publishes `tab.detached` for every row still `attached` (the boot reconcile, as opencode's job
-  recovery), so after a crash or restart the table is valid before the first widget attaches.
-- `tabs.attach` is a scoped call: acquiring publishes `tab.attached`, release (widget closed, socket dropped, engine
-  stopping) publishes `tab.detached`. One writer path per transition.
-- Contract `tabs.changes: oc.output(eventIterator(TabChangeSchema))`, like `sessions.changes`; CLI, hub, widget and
-  plugins read `tabs.list` and refresh on `tabs.changes` (widget through solid-query invalidation). TanStack DB is not
-  used here: it is for edited synced collections (ruling "one tool per job"), and tabs are read-only to clients.
+- Lanes in parallel, one agent per git worktree off `refactor/backstage-packages`, herdr tab per lane, reports as files in the orchestrator inbox. Lanes never share a file.
+  - Wave 1: CORE = Task 1. BUILTINS = Task 7.
+  - Wave 2 (after CORE merged): WIDGET-PAGE = Tasks 2, 3 and Task 6 page half. CLI-HUB = Task 5 and Task 6 core + hub half. TANSTACK = Task 4.
+- Agents write code and test changes; run only typecheck, build, lint; commit locally; never push.
+- The orchestrator reads each lane's full diff against this plan (every Interfaces block, every deletion listed) and merges it. No tests run until all code is complete.
+- Final gate once, by the orchestrator: lint, format, fallow, every `conciv-publish` guard, affected table, full test suite (background, pid watched), widget shots, then push; CI is the gate of record.
 
 ## Global Constraints
 
 - No comments in TS/JS; functions, not classes; no IIFEs; no `Of` suffix; no barrels; kebab-case files.
-- zod validates every contract input (`oc.input(...)` in `packages/protocol/src/contract.ts`).
-- Core tables live in `packages/backend-app-api/src/core/<name>/sql.ts` (as `session/sql.ts`, `kv/sql.ts`, `event/sql.ts`); migrations through the existing `gen-migrations` task.
-- Durable events are declared like `packages/protocol/src/schema/session-event.ts` (`EventDefinition.durable`).
-- Agents write code and run only typecheck, build and lint. The orchestrator runs tests.
-- One reconnect path: the widget's tab attachment rides the engine connection's single retry path (`client/src/connection/engine-connection.ts` `retryDelay`, socket back-off in `engine-connection-machine.ts`). The page plugin's own attach back-off (`plugins/page/src/attachment-machine.ts:32-53`, 1 s to 30 s) is deleted, not moved.
+- Contract inputs zod-validated in `packages/protocol/src/contract.ts`.
+- Core tables in `packages/backend-app-api/src/core/<name>/sql.ts`; migrations through the `gen-migrations` task.
+- Durable events declared like `packages/protocol/src/schema/session-event.ts`.
+- Tests: act like a user, no mocks, no sleeps, no geometry; extend the existing journey in the existing file; `test-budget.json` unchanged unless the PR body carries a per-test account. `@conciv/backend-app-api` has budget 0 and no tests: core behaviour is tested through the engine in `backend-defaults/test/it/`.
+- One reconnect path: the widget's attach rides the engine client's single retry path (`client/src/connection/engine-connection.ts` `retryDelay`). Page's own back-off (`plugins/page/src/attachment-machine.ts:32-53`) is deleted, not moved.
+- Naming: `MountedSession.tab` already exists (`frontend-defaults/src/runtime/plugin/mounted-session.ts:336`, `tab = id`, the panel tab) and `ctx.tabs` already exists in the widget plugin API (`host-apis.tsx:367`, panel view tabs). The new concept is the **browser tab**: contract group `tabs`, engine service `Tab`, engine plugin view `ctx.browserTabs`, widget field `MountedSession.browserTab`. Never reuse the widget's `tab`/`tabs` names.
 
-## What moves out of the page plugin (deleted there, created once in core)
+## How the tab table stays valid (as opencode)
 
-| Today in page                                                                                                                                                                                    | Becomes (core, the only copy)                                                                                                      |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `rpc.ts:24-25` `TabId`, `rpc.ts:73-81` `Tab`, `State`                                                                                                                                            | `packages/protocol/src/schema/tab.ts` (`TabId`, `Tab`, `TabList = {tabs, focusedTabId}`)                                           |
-| `rpc.ts:571-577` `attachment`, `Control.attached`; methods `attach`, `state`, `sessions.attached`, `tabs.list` (`rpc.ts:584-617`)                                                                | contract group `tabs`: `attach`, `state`, `list`, `attached` in `packages/protocol/src/contract.ts` next to `sessions` (~line 418) |
-| `attachment.ts` `connectOnce` attach half, `readTab`, `reportChanges`, `reportRouteChanges` (`attachment.ts:102-227` attach part, `266-300`)                                                     | `packages/frontend-defaults/src/runtime/tab/attach-tab.ts`: the widget attaches once per mounted session                           |
-| `attachment-machine.ts` (whole file)                                                                                                                                                             | deleted; the engine connection's retry path reopens `tabs.attach`                                                                  |
-| `machine.ts` tab bookkeeping: `Attachment`, `attachments`, `focusedConnectionId`, `selectTabs`, `selectAttachedSessions`, `lastFocused`, `selectTarget` tab choice, `updateTabState`, `closeTab` | `packages/backend-app-api/src/core/tab.ts` (`Tab.Service`) + `core/tab/sql.ts` (table) + `core/tab/tab.ts` (implementation)        |
-| `connection.ts:460-519` `attach`/`state` handlers, session location check (`480-481`)                                                                                                            | core `tabs.attach`/`tabs.state` handlers `packages/backend-defaults/src/engine/api/rpc/tabs.ts`                                    |
-| `connection.ts:587-588` `sessions.attached`, `tabs.list`                                                                                                                                         | deleted (core `tabs.attached`, `tabs.list`)                                                                                        |
+- Table = projection of durable events written in the event's transaction (opencode `bus.ts:107` `commit`, `bus.ts:883` `project`; ours `backend-app-api/src/core/bus.ts:109,159,833`, used by `backend-defaults/src/core/session/projector.ts:53-88`). The projector is the table's only writer.
+- Boot reconcile (opencode `job.ts:174` `runningBackground`): on engine start publish `tab.detached` for every row still attached.
+- `tabs.attach` is scoped: acquire publishes `tab.attached`, release (widget gone, socket dropped, engine stopping) publishes `tab.detached`.
+- Clients read `tabs.list` and refresh on `tabs.changes` (`eventIterator`, like `sessions.changes`, `contract.ts:423`, served at `backend-defaults/src/engine/api/rpc/sessions.ts:302`). No TanStack DB: tabs are read-only to clients.
 
-What STAYS in the page plugin (page-only behaviour):
+## Core shapes (Task 1 produces; all later tasks consume)
 
-- Commands into a tab: `command`, `result`, `operate`, `hmr.wait` and the `control` event's `command`/`cancel` (`rpc.ts:576-577`), keyed by the core tab's `connectionId`.
-- The page permission grant while a session has a tab and revoke when its last tab closes (`machine.ts` `sync-permissions`, `reconcilePagePermissions`, `connection.ts:241-263`), now driven by core `tab.attached` / `tab.detached` events.
-- Queue, captures, grabs, symbolicate, every action file (`react.ts`, `act.ts`, `snapshot.ts`, `grab*.ts`, `screenshot.ts`, ...).
-- Target choice reads the core list: `selectTarget(tabs: TabList, tabId?)` keeps its error texts, pointing to core `tabs.list` instead of `page.tabs.list`.
+- `packages/protocol/src/schema/browser-tab.ts`: `BrowserTabId = z.string().regex(/^tab_[a-f0-9-]{36}$/u)`; `BrowserTab = {id, url (max as page rpc.ts:73-80), title (max as rpc.ts), focused: boolean, visible: boolean}`; `BrowserTabList = {tabs: BrowserTab[], focusedTabId: BrowserTabId | null}`; `BrowserTabAttach = {sessionId: SessionId, connectionId: string, tab: BrowserTab}`; `BrowserTabsChange = {version: number}`.
+- `packages/protocol/src/schema/browser-tab-event.ts`: durable, aggregate `sessionID`: `tab.attached {sessionID, tabId, connectionId, tab}`, `tab.updated {sessionID, tabId, tab}`, `tab.detached {sessionID, tabId, connectionId}`.
+- Contract group `tabs` (after `sessions`, `contract.ts:~467`): `attach: oc.errors({...notFound, unavailable}).input(BrowserTabAttach).output(z.enum(['closed','replaced']))`; `state: oc.errors({unavailable}).input(BrowserTabAttach).output(Ok)`; `list: oc.input(z.object({sessionId: SessionId})).output(BrowserTabList)`; `attached: oc.output(z.array(SessionId))`; `changes: oc.output(eventIterator(BrowserTabsChange))`.
+- `packages/backend-app-api/src/core/tab.ts`: `Interface {attach(input): Effect<'closed'|'replaced', NotFoundError|UnavailableError, Scope>; update(input): Effect<void, UnavailableError>; list(sessionId): Effect<BrowserTabList>; attached(): Effect<SessionId[]>; changes: Stream<BrowserTabsChange>}`, `Service = Context.Service<Interface>('@conciv/Tab')`.
+- `packages/backend-app-api/src/core/tab/sql.ts`: `tabs(id text pk, session_id text not null references sessions.id on delete cascade, connection_id text not null, url text not null, title text not null, visible integer not null, focused_at integer, attached integer not null, updated_at integer not null)`, index `(session_id, attached)`.
+- Engine plugin view: `backend-plugin-api` `Context.browserTabs: {list(sessionId), attached()}`, wired in `backend-app-api/src/core/plugin/host.ts:44-63` as `const browserTabs = yield* Tab.Service` next to `sessions` (line 58) and exposed beside `session` (lines 183-207); `plugin.ts:99` picks the requirement up from `PluginHost.make`'s services; `Tab.Service` is provided in `backend-defaults/src/engine/runtime/plugin-runtime.ts` next to `provideSessions` (line 284).
+- Widget view: `frontend-plugin-api/src/host-apis.ts:210` `MountedSession.browserTab: {readonly id: BrowserTabId; readonly connectionId: string}`, built in `frontend-defaults/src/runtime/plugin/mounted-session.ts` `create` (line 327-355); ids made once per mounted widget.
 
-## Core shapes (produced by Task 1, used by every later task)
+## Review Focus (each pinned by a test in its task)
 
-```ts
-// packages/protocol/src/schema/tab.ts
-export const TabId = z.string().regex(/^tab_[a-f0-9-]{36}$/u)
-export const Tab = z.object({
-  id: TabId,
-  url: z.string().max(2048),
-  title: z.string().max(512),
-  focused: z.boolean(),
-  visible: z.boolean(),
-})
-export const TabList = z.object({tabs: z.array(Tab), focusedTabId: TabId.nullable()})
-export const TabAttachInput = z.object({sessionId: SessionId, connectionId: z.string(), tab: Tab})
-```
-
-(`url`/`title` maxima copied from today's `rpc.ts:73-80`.)
-
-Contract (`contract.ts`, group `tabs`):
-
-- `attach: oc.errors({...notFound, unavailable}).input(TabAttachInput).output(z.enum(['closed', 'replaced']))` held open while the widget lives.
-- `state: oc.input(TabAttachInput).output(Ok)`.
-- `list: oc.input(z.object({sessionId: SessionId})).output(TabList)`.
-- `attached: oc.output(z.array(SessionId))`.
-
-Core service (`backend-app-api/src/core/tab.ts`):
-
-```ts
-export interface Interface {
-  readonly attach: (
-    input: TabAttachInput,
-  ) => Effect.Effect<'closed' | 'replaced', NotFoundError | UnavailableError, Scope.Scope>
-  readonly update: (input: TabAttachInput) => Effect.Effect<void, UnavailableError>
-  readonly list: (sessionId: SessionId) => Effect.Effect<TabList>
-  readonly attached: () => Effect.Effect<SessionId[]>
-}
-export const Service = Context.Service<Interface>('@conciv/Tab')
-```
-
-Table (`core/tab/sql.ts`): `tabs(id text pk, session_id text not null references sessions.id on delete cascade, connection_id text not null, url text, title text, focused_at integer, visible integer, attached integer not null, updated_at integer not null)`; index on `(session_id, attached)`. Engine start sets every row `attached = 0`.
-
-Events (`protocol/src/schema/tab-event.ts`, durable, aggregate `sessionID`): `tab.attached {sessionID, tabId, connectionId}`, `tab.updated {sessionID, tabId}`, `tab.detached {sessionID, tabId, connectionId}`.
-
-Plugin view (`backend-plugin-api`): `ctx.tabs.list(sessionId)`, `ctx.tabs.attached()`; events reach plugins through the existing `ctx.event.subscribe`.
-Widget view (`frontend-plugin-api`): `MountedSession` gains `tab: {id: TabId, connectionId: string}` so the page renderer uses the core tab's ids instead of making its own (`renderer.tsx:35-36`).
-
-## Review Focus
-
-- Two widgets on the same session: both rows listed, focused one first, `focusedTabId` follows the last focused (today `lastFocused`, `machine.ts:507-514`).
-- Same widget reconnects (socket drop): row is re-attached, not duplicated, and the old attach call returns `replaced` (today `machine.ts:161-205`).
-- Engine restart: no row reports `attached` until a widget attaches again.
-- Session deleted: its rows go (cascade) and page cancels its pending commands (today `connection.ts:604-618`).
-- Session from another project location: `tabs.attach` refuses with `unavailable` (today `connection.ts:480-481`).
+1. Two widgets on one session: both listed, the last focused first, `focusedTabId` follows focus (today `machine.ts:507-514`). Task 1.
+2. The same widget reattaches after a socket drop: one row, the older attach returns `replaced` (today `machine.ts:161-205`). Task 1.
+3. Engine restart: no row is attached until a widget attaches again (`engine.restart()`). Task 1.
+4. Session deleted: its rows go; page cancels its pending commands (today `connection.ts:604-618`). Tasks 1 and 3.
+5. Session from another project location: `tabs.attach` refuses `unavailable` (today `connection.ts:480-481`). Task 1.
 
 ---
 
-### Task 1: Core tab schema, contract, table and service
+### Task 1: Core browser tabs (lane CORE)
 
-**Files:**
+**Files:** create the shapes above; `contract.ts`; `backend-app-api/src/core/tab.ts`, `core/tab/sql.ts`; `backend-defaults/src/core/tab/projector.ts` (only writer), `backend-defaults/src/core/tab/tab.ts` (service layer), `backend-defaults/src/engine/api/rpc/tabs.ts` + `router.ts:404` (`tabs: tabsRouter(deps)`); `plugin-runtime.ts:284` (provide); `host.ts` + `backend-plugin-api` (`ctx.browserTabs`); `frontend-plugin-api/src/host-apis.ts:210` (`browserTab` type only); migration via `gen-migrations`.
+**Test:** extend `packages/backend-defaults/test/it/session.it.test.ts` with one journey test (the session file already tests engine session behaviour through `createEngine`): a fake widget is an `EngineClient` from `makeRpcClient(engine.address.apiBase, {token: engine.address.token})` (`client/src/connection/rpc-client.ts:37`).
 
-- Create: `packages/protocol/src/schema/tab.ts`, `packages/protocol/src/schema/tab-event.ts`
-- Modify: `packages/protocol/src/contract.ts` (group `tabs` after `sessions`, ~line 467)
-- Create: `packages/backend-app-api/src/core/tab.ts`, `core/tab/sql.ts`, `core/tab/tab.ts`
-- Modify: backend-defaults DB migrations via `gen-migrations` (new folder under `packages/backend-defaults/drizzle/`, regenerated `src/db/migrations.gen.ts`)
-- Create: `packages/backend-defaults/src/engine/api/rpc/tabs.ts`; Modify: `packages/backend-defaults/src/engine/api/rpc/router.ts:404` (add `tabs: tabsRouter(deps)`)
-- Test: `packages/backend-app-api/src/core/tab/tab.test.ts`
+- [ ] Test "a browser tab attaches, a second joins, focus moves, the first reattaches, closes, the engine restarts and a deleted session takes its tabs": steps assert `tabs.list` (`tabs` ids in order, `focusedTabId`), `tabs.attached()`, the first attach resolving `'replaced'`, after `engine.restart()` `tabs.attached()` is `[]`, after session delete `tabs.list` is empty; a session of another location refused with `unavailable`. (Covers Review Focus 1, 2, 3, 5 and the core half of 4.)
+- [ ] Commit `feat(engine): browser tabs are core, stored by a projector of tab events`.
 
-**Interfaces:** Produces every shape in "Core shapes".
+### Task 2: The widget attaches as a browser tab (lane WIDGET-PAGE)
 
-- [ ] Write `tab.test.ts`: `it.each` over attach / second widget / reconnect replaced / detach / engine start / session deleted; assertions on `list(sessionId)` (`tabs`, `focusedTabId`) and `attached()`.
-- [ ] Orchestrator runs it: FAIL (no service).
-- [ ] Implement schema, table, events, `backend-defaults/src/core/tab/projector.ts` (only writer of the table, `bus.project` per event), service (`attach` publishes `tab.attached` on acquire and `tab.detached` on release; `update` publishes `tab.updated`; `list` reads the table, focused first then newest), boot reconcile (publish `tab.detached` for rows still attached), `tabs.changes` stream, router handlers (location check as `connection.ts:480-481`), migration.
-- [ ] Orchestrator runs it: PASS. Commit `feat(engine): tabs are a core table and contract`.
+**Files:** create `frontend-defaults/src/runtime/browser-tab/attach-browser-tab.ts` (`attachBrowserTab(input: {client: EngineClient; sessionId: string; browserTab: {id; connectionId}}): Effect<void, never, Scope>`; `readBrowserTab(id)`, `reportBrowserTabChanges(report, signal)` moved verbatim from `plugins/page/src/attachment.ts:266-300`); `mounted-session.ts` `create` sets `browserTab` and the mounted memo runs `attachBrowserTab` scoped to the mounted session (released when the panel's session changes or the widget unmounts).
+**Test:** extend `frontend-defaults/test/e2e/sessions.e2e.test.tsx` (sessions journey, browser mode, real engine): "an open widget is a browser tab the engine lists, and switching sessions moves it": render the app on a session, assert core `tabs.list` for that session names one tab with the page title, switch session, assert the old list is empty and the new one has it.
 
-### Task 2: The widget attaches as a tab
+- [ ] Commit `feat(widget): every open widget is a browser tab the engine knows`.
 
-**Files:**
+### Task 3: The page plugin uses core tabs (lane WIDGET-PAGE)
 
-- Create: `packages/frontend-defaults/src/runtime/tab/attach-tab.ts` (`attachTab(session, connection): Effect<void, never, Scope>`; `readTab(id)`, `reportChanges(report, signal)` moved verbatim from `plugins/page/src/attachment.ts:266-300`)
-- Modify: `packages/frontend-defaults/src/runtime/plugin/host-apis.tsx` (each mounted session gets `tab: {id, connectionId}` and runs `attachTab`)
-- Modify: `packages/frontend-plugin-api/src/host-apis.ts:210` (`MountedSession.tab`)
-- Test: the app's browser test file for the panel area (`frontend-defaults/test/e2e/...`, the existing one that opens the panel): "an open widget is listed by the engine as a tab" via `engine.rpc` `tabs.list`.
+**Delete from page:** `rpc.ts` `TabId`, `Tab`, `State` (24-25, 73-81), `attachment` + `Control.attached` (571-575), methods `attach`, `state`, `sessions.attached`, `tabs.list` (584-617); `attachment-machine.ts` (file); `attachment.ts` attach half (`connectOnce` attach/state parts, `keepAttached`, `readTab`, `reportChanges`, `reportRouteChanges`); `machine.ts` tab bookkeeping (`Attachment`, `attachments`, `focusedConnectionId`, `attach`, `join`, `closeTab`, `updateTabState`, `selectTabs`, `selectAttachedSessions`, `lastFocused`); `connection.ts` handlers `attach`, `state`, `sessions.attached`, `tabs.list` (460-519, 587-588); `renderer.tsx:35-36` own ids.
+**Keep and rewire:** command channel (`command`, `result`, `operate`, `hmr.wait`, control `command`/`cancel`) keyed by `browserTab.connectionId`; `selectTarget(list: BrowserTabList, tabId?)` with its error texts naming core `tabs.list`; permission grant/revoke (`reconcilePagePermissions`, `syncPermissions`) driven by `tab.attached`/`tab.detached` events via `ctx.event.subscribe`; the agent tool `page_tabs_list` (`tools.ts:61`) answers from `ctx.browserTabs.list` (same output shape); session-deleted cancel (604-618).
+**Tests:** rewrite `plugins/page/test/utils/page-attachment.ts` `attachPage` to attach through core `tabs.attach` (fake widget client as Task 1) then answer commands as today; `test/unit/machine.unit.test.ts` keeps the permission and target tests over a `BrowserTabList` input (its tab-bookkeeping cases move to Task 1's journey); `test/unit/attachment.unit.test.ts` ("a browser without the Navigation API") moves with `reportBrowserTabChanges` to frontend-defaults `test/unit/` (same name). `test/it/tools.it.test.ts` and `test/e2e/page.e2e.test.tsx` unchanged in behaviour, passing.
 
-**Interfaces:** Consumes Task 1 `tabs.attach`/`tabs.state`. Produces `MountedSession.tab`.
+- [ ] Commit `refactor(plugin-page): tabs come from core; the plugin keeps only actions in a tab`.
 
-- [ ] Add the assertion to the existing panel journey (no new test file). Orchestrator runs: FAIL.
-- [ ] Implement; the attach call goes through the engine client like every streaming call (one retry path), no own back-off.
-- [ ] Orchestrator runs: PASS. Commit `feat(widget): every open widget is a tab the engine knows`.
+### Task 4: TanStack reads core tabs (lane TANSTACK)
 
-### Task 3: The page plugin uses core tabs and drops its own
+**Files:** `plugins/tanstack/src/tools.ts:9,33-37,109-193`: `TabId`/`State` from `@conciv/protocol/schema/browser-tab`; tab list from `ctx.browserTabs.list`; `operate` stays on page's exported rpc. **Test:** `tanstack/test/e2e/tanstack.e2e.test.tsx` "the TanStack tab list names the focused tab" unchanged, passing.
 
-**Files:**
+- [ ] Commit.
 
-- Modify: `packages/plugins/page/src/rpc.ts` (delete `TabId`, `Tab`, `State`, `attachment` part of `Control`, methods `attach`, `state`, `sessions.attached`, `tabs.list`; import tab shapes from `@conciv/protocol/schema/tab`)
-- Delete: `packages/plugins/page/src/attachment-machine.ts`
-- Modify: `packages/plugins/page/src/attachment.ts` (keep only the command half: subscribe to `control`, answer `command`, send `result`; `connectionId` from `session.tab`), `renderer.tsx:35-36,60-90` (no own ids, no `keepAttached` of tabs)
-- Modify: `packages/plugins/page/src/machine.ts` (delete tab bookkeeping listed above; keep permission sync driven by `tab.attached`/`tab.detached`; `selectTarget(tabs: TabList, tabId?)`)
-- Modify: `packages/plugins/page/src/connection.ts` (delete `attach`/`state`/`sessions.attached`/`tabs.list` handlers; subscribe to core tab events; targets via `ctx.tabs.list`); error texts name core `tabs.list`
-- Modify: `packages/plugins/page/src/tools.ts` and `skill.ts` where they tell the agent to call `page.tabs.list`
-- Test: page's existing test files (`packages/plugins/page/test/...`), adjusted, no new file.
+### Task 5: CLI and hub read core tabs (lane CLI-HUB)
 
-**Interfaces:** Consumes `ctx.tabs`, `MountedSession.tab`, tab events.
+**Files:** `cli/src/engine-read.ts:80-150` (delete `pageCall`; `readState` = `rpc.tabs.list`; `engineTabs` uses `rpc.tabs.attached`); `cli/src/hub.ts` (delete `Page` import, `PAGE_TOOL_PREFIX`, `PAGE_TOOLS_NOTE` and its use in descriptions `:97,102,502`, `notePageTools` `:676-683`, `TabOwner.page`); `cli/package.json` drops `@conciv/plugin-page`.
+**Tests:** `cli/test/it/hub.it.test.ts` and `tools.it.test.ts`: drop `import page`; open a browser tab through core with the fake widget client; `list_tabs` lists it (JSON shape unchanged); `tools.it` "a page tool with no page open answers that no page is open" keeps its assertion via the page plugin loaded by name only if it is a page assertion, else moves to page `tools.it`. `engine-origin.it.test.ts` drops `import page`.
 
-- [ ] Adjust page tests to attach through core. Orchestrator runs: FAIL.
-- [ ] Implement deletions and rewiring.
-- [ ] Orchestrator runs page tests: PASS. Commit `refactor(plugin-page): tabs come from core; the plugin keeps only actions in a tab`.
+- [ ] Commit.
 
-### Task 4: TanStack reads tabs from core
+### Task 6: Queued page results reach an outside agent with no hub page code (lanes CLI-HUB core+hub, WIDGET-PAGE page)
 
-**Files:** Modify `packages/plugins/tanstack/src/tools.ts:9,33,109-193` (`State`/`TabId` from `@conciv/protocol/schema/tab`, tab list from `ctx.tabs.list`; `operate` still through page's exported rpc, ruling 1). Test: `packages/plugins/tanstack/test/e2e/tanstack.e2e.test.tsx` "the TanStack tab list names the focused tab" unchanged and passing.
+Today: hub polls page `queue.undelivered`/`queue.startedBy`/`queue.claim`/`queue.settle` and appends notices, and serves MCP `tasks/get` (`hub.ts:274-410, 599-644`); page skips its in-chat notice for `origin === 'hub'` (`connection.ts:451`).
+**Core (CLI-HUB):** durable event `session.outside_notice {sessionID, id, toolCallId, text}` projected into core table `outside_notice(id pk, session_id fk cascade, tool_call_id, text, delivered integer, created_at)`; `Session.Interface.notifyOutside(input)`; plugin view `ctx.session.notifyOutside`; contract `sessions.outsideNotices: oc.input({sessionId, toolCallIds?: string[], waitMs: number}).output(z.array({id, toolCallId, text}))` returning undelivered notices (waiting up to `waitMs` when `toolCallIds` given) and marking them delivered.
+**Hub (CLI-HUB):** after each `execute_typescript`/`discover_tools` reply on a tab, append `sessions.outsideNotices({sessionId: tab, waitMs: 0})`; MCP task for a call: `tasks/get` waits on `sessions.outsideNotices({sessionId, toolCallIds: calls, waitMs: TASK_POLL_MS})`. Delete the page queue code in `hub.ts` (types `PolledState`..`GoneQueue`, `finishedQueues`, `startedQueues`, `settleClaimed`, `pollQueue`, `withFinished`, `queueNoticePart`, `goneNotice`).
+**Page (WIDGET-PAGE):** `connection.ts:426-456`: origin `hub` → `ctx.session.notifyOutside({sessionId, toolCallId, text: queueNotice(finished)})`; other origins unchanged (`ctx.session.synthetic`). Delete `queue.startedBy`, `queue.undelivered`'s `origin` input if no caller remains (check with grep).
+**Tests:** page `test/it/tools.it.test.ts` journey "the agent reads the page in code mode" gains the outside-agent step: an outside call (`engine.outside()`) queues an action, it finishes, `sessions.outsideNotices` returns the notice once. CLI `hub.it` gains: a queued page action from the hub comes back on the next reply as a notice (page loaded by name in the test engine config, no import).
 
-- [ ] Implement. Orchestrator runs tanstack tests: PASS. Commit.
+- [ ] Commit per lane.
 
-### Task 5: The CLI and hub read core tabs and know no plugin
+### Task 7: Built-ins as opencode; backend, app, storybook, publish (lane BUILTINS)
 
-**Files:**
+**Files:** `plugins/page/src/builtins.ts` (export `./builtins`); `app/src/builtins.ts` composes built-ins exports, names no page id or function; `backend/src/start.ts` + `package.json` (built-ins by package name from the defaults' list, no page import); `app/vite.config.ts:9-14` inline list, `:24` widget entry from `src/` (move `test/fixtures/global-entry.ts`'s behaviour into a src entry); `apps/storybook/package.json:22`; `publish/src/workspace-imports.ts:16`.
+**Tests:** app and backend existing tests pass; a widget bundle build; the shipped bundle's entry is not under `test/`.
 
-- Modify: `packages/cli/src/engine-read.ts` (delete `pageCall`, `readState` via page; use `rpc.tabs.list` / `rpc.tabs.attached`; `TabRow` fields unchanged)
-- Modify: `packages/cli/src/hub.ts` (delete `PAGE_*`, `PageMethods`, `PolledState`, `PageQueueResult`, `PageQueueHandle`, `QueueTask`, `finishedQueues`, `startedQueues`, `settleClaimed`, `pollQueue`, `withFinished`, `queueNoticePart`, `goneNotice`, `notePageTools`, `tasks/get` handler; `TabOwner.page` field)
-- Modify: `packages/cli/package.json` (drop `@conciv/plugin-page`)
-- Modify: `packages/cli/test/it/{hub,engine-origin,tools}.it.test.ts` (no page import; tabs come from a widget attached through core in the test, using the existing CLI fixtures)
-- Move: page-specific hub assertions (queued action finished, task polling) to page's tests per Task 6.
+- [ ] Commit.
 
-- [ ] Adjust tests. Orchestrator runs: FAIL. Implement. Orchestrator runs cli tests: PASS. `conciv tools list_tabs` JSON identical to before on the same fixture (orchestrator diff). Commit.
+### Task 8: Proof (orchestrator)
 
-### Task 6: Queued page results reach a hub agent without hub page code
-
-Today the hub polls page's queue and appends "queued actions finished" notices to every reply, and serves MCP `tasks/get` for queued work (`hub.ts:274-410, 599-644`); page skips its in-chat notice when `origin === 'hub'` (`connection.ts:451`).
-
-**Design:** page's queue result is posted through core for every origin: `ctx.session.synthetic` with `metadata: {source: 'page-queue', queueId, toolCallId, origin}` (the `origin === 'hub'` skip at `connection.ts:451` goes). Core gains one generic read for outside agents: contract `sessions.notices({sessionId, origin, toolCallIds?, waitMs})` returning the session's synthetic notices for that origin not yet delivered to it, and marks them delivered; synthetic notices whose `origin` is `hub` are not sent into conciv's own chat run. The hub appends `sessions.notices` results to each reply and serves MCP `tasks/get` by waiting on `sessions.notices` for the call's tool call ids. No plugin name in the hub; any plugin's notices for an outside agent arrive the same way.
-
-**Files:** `packages/protocol/src/contract.ts` (`sessions.notices`), `packages/backend-app-api/src/core/session.ts` (`notices`), session inbox delivery filter in `backend-defaults` (where synthetic inbox entries are delivered to the run), `plugins/page/src/connection.ts:426-456`, `cli/src/hub.ts` (generic notices + tasks), page's queue test (moved hub assertions), cli `hub.it.test.ts`.
-
-- [ ] Move the hub queue assertions into page's queue test, driven through `sessions.notices`. Orchestrator runs: FAIL. Implement. Orchestrator runs page + cli tests: PASS. Commit.
-
-### Task 7: Built-ins wired as opencode; backend, app, storybook, publish
-
-**Files:**
-
-- `packages/plugins/page/src/builtins.ts` (new export `./builtins`: renderer entry, tool group `pageSessionEntry` + `createPageSessionGrouper`, `engineHalf: true`); `packages/app/src/builtins.ts` composes it with terminal's and the drive entry, no page id or function named
-- `packages/backend/src/start.ts`: built-in engine plugins come from the defaults' built-in list by package name; `packages/backend/package.json` drops `@conciv/plugin-page`
-- `packages/app/vite.config.ts:9-14` inline list names the built-ins entries; `:24` widget entry is `src/` not `test/fixtures/global-entry.ts` (shipping bug)
-- `apps/storybook/package.json:22` drops page (stories already globbed, `main.ts:13`)
-- `packages/publish/src/workspace-imports.ts:16` `KIT_BUILT_INS` read from the built-ins list
-
-- [ ] Implement. Orchestrator runs app + backend tests, a widget bundle build, and opens the widget: page renderer loads, sidebar groups page tool calls per session. Commit.
-
-### Task 8: Proof
-
-- [ ] `grep -rn "plugin-page" packages apps --include=*.ts --include=*.tsx --include=package.json` outside `packages/plugins/` returns only `packages/app` built-ins composition if any remains by name, and nothing in cli, backend, defaults, kits, storybook, publish.
-- [ ] `grep -rn "tabs.list\|sessions.attached\|selectTabs\|TabId =" packages/plugins/page/src` returns nothing that defines tabs (one way to get the data).
-- [ ] `TURBO_SCM_BASE=<base> turbo run build test typecheck --affected --dry=json` after a page edit: page plugin + app bundle only.
-- [ ] Full test suite; CLI `list_tabs` and hub journey output identical; widget shots of page cards and sidebar grouping.
-
-## PR goals checklist (the plan is not done until every line is true)
-
-Goals of PR #1191, set by the maintainer:
-
-- [ ] Plugins move out of core: no core package (cli, backend, backend-defaults, backend-app-api, app, frontend-defaults, frontend-app-api, kits, storybook, publish) imports any plugin; only the app's built-ins composition and the backend's built-in list name built-ins by package (as opencode `app/src/runtime/plugin/builtins.ts:1`). Proof: grep over every plugin name, not only page.
-- [ ] Every plugin tests fully from its own package, with test utilities that provide every fake it needs. Proof: each plugin's `test` passes with only its own devDependencies; page's moved hub/CLI assertions run in page.
-- [ ] Browser code never imports backend code. Proof: no `@conciv/backend*` import reachable from `frontend-*`, `ui-kit-*`, `app` widget entries, plugin renderer/client entries; widget bundle contains none.
-- [ ] Turbo `--affected` works: dry-run table after an edit in each plugin, in `client`, in `protocol`, in `publish`, each selects only real dependents.
-- [ ] Every turbo.json hack removed: no `$TURBO_ROOT$` inputs, no root workspace dependencies, no cross-package task edges beyond `^build`/`^sync-injected`; list every remaining `turbo.json` and why it exists.
-- [ ] Tabs are core and stored in the core DB, synced as above; the page plugin holds no tab data (one way to get the data).
-- [ ] No feature lost (table below).
-- [ ] CI green on #1191.
+- [ ] grep every plugin package name outside `packages/plugins/`: only built-ins composition.
+- [ ] grep page src for `tabs.list` definitions, `selectTabs`, `TabId =`, `attach:`: none (one way).
+- [ ] Affected dry-run table; full test suite; lint, format, fallow, guards; shots of page cards and sidebar grouping; then the goals checklist above.
 
 ## Feature check (nothing lost)
 
-| Feature                                                           | Proved by                |
-| ----------------------------------------------------------------- | ------------------------ |
-| List open tabs (CLI `tools list_tabs`, hub `list_tabs`)           | Task 5 output diff       |
-| Hub routes a call to the engine holding the tab                   | cli `hub.it`             |
-| Page actions target focused / named tab, same error texts         | page tests (Task 3)      |
-| Page permission granted while a tab is open, revoked after        | page tests (Task 3)      |
-| Queued page action result reaches the in-widget agent             | page queue test          |
-| Queued page action result reaches a hub agent (notice + MCP task) | Task 6 tests             |
-| TanStack tab list names the focused tab                           | tanstack e2e             |
-| Recorder, whiteboard, terminal journeys with page                 | their e2e suites         |
-| Sidebar groups page tool calls per session                        | app test + shot (Task 7) |
+| Feature                                                         | Proved by                                                                         |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| List open tabs (CLI `tools list_tabs`, hub `list_tabs`)         | Task 5 tests, JSON shape unchanged                                                |
+| Agent lists tabs (`page_tabs_list`)                             | page `tools.it`                                                                   |
+| Hub routes a call to the engine holding the tab                 | cli `hub.it`                                                                      |
+| Page actions target focused / named tab, same error texts       | page `machine.unit` + `page.e2e`                                                  |
+| Page permission granted while a tab is open, revoked after      | page `machine.unit`                                                               |
+| Queued page result reaches the in-widget agent                  | page `tools.it`                                                                   |
+| Queued page result reaches an outside agent (notice + MCP task) | Task 6 tests                                                                      |
+| TanStack tab list names the focused tab                         | tanstack e2e                                                                      |
+| Recorder, whiteboard, terminal journeys with page               | their e2e suites                                                                  |
+| Sidebar groups page tool calls per session                      | app test + shot                                                                   |
+| Widget follows the session the user switches to                 | page `page.e2e` "the page follows the session the user switches to" + Task 2 test |
