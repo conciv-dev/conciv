@@ -2,7 +2,14 @@ import {Show, splitProps, type JSX} from 'solid-js'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
 import Maximize2 from 'lucide-solid/icons/maximize-2'
 import {TraceClamp, type TraceClampSize} from './clamp.js'
-import {CodeFrame, CodeHeader} from '../../tools/styled/code-block.js'
+import {
+  CodeBlock,
+  CodeBlockActions,
+  CodeBlockCopyButton,
+  CodeBlockHeader,
+  CodeBlockTitle,
+  CodeBlockViewport,
+} from '../../tools/styled/code-block.js'
 
 export type TraceOutputTone = 'normal' | 'error'
 
@@ -81,25 +88,24 @@ export function TraceOutputBlock(props: {
     </Show>
   )
   return (
-    <CodeFrame
+    <CodeBlock
       label={label()}
       text={local.text}
       lines={local.lines}
       overflowLabel={local.overflowLabel}
-      cap="result"
-      headed
+      maxHeight="result"
       tone={tone()}
-      copy={{labels: COPY_LABELS, resetMs: COPY_RESET_MS, writeText: local.writeText}}
-      extraActions={openAction()}
     >
-      {(actions) => (
-        <>
-          <CodeHeader title={label()} tone={tone()}>
-            {actions()}
-          </CodeHeader>
-          <div class={CONTENT}>{local.children}</div>
-        </>
-      )}
-    </CodeFrame>
+      <CodeBlockHeader>
+        <CodeBlockTitle>{label()}</CodeBlockTitle>
+        <CodeBlockActions>
+          <CodeBlockCopyButton labels={COPY_LABELS} resetMs={COPY_RESET_MS} writeText={local.writeText} />
+          {openAction()}
+        </CodeBlockActions>
+      </CodeBlockHeader>
+      <CodeBlockViewport>
+        <div class={CONTENT}>{local.children}</div>
+      </CodeBlockViewport>
+    </CodeBlock>
   )
 }

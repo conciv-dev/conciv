@@ -27,7 +27,15 @@ import {
   type OpenLocalFile,
 } from '@conciv/solid-streamdown'
 import type {WorkerToMainMessage} from './highlight-shared.js'
-import {CodeBlock, CodeFrame, CodeHeader} from '../tools/styled/code-block.js'
+import {
+  CodeBlock,
+  CodeBlockActions,
+  CodeBlockContent,
+  CodeBlockCopyButton,
+  CodeBlockHeader,
+  CodeBlockTitle,
+  CodeBlockViewport,
+} from '../tools/styled/code-block.js'
 
 const MAX_CACHE_ENTRIES = 512
 
@@ -410,7 +418,7 @@ export function MarkdownProvider(
 
 export const useMarkdown = () => useContext(MarkdownContext)
 
-function CodeBlockContent(props: {language: string; code: string; fallback: () => void}): JSX.Element {
+function RenderedFenceContent(props: {language: string; code: string; fallback: () => void}): JSX.Element {
   const markdown = useMarkdown()
   const block = createMemo(() => ({code: fenceCode(props.code), language: props.language}))
   return (
@@ -431,7 +439,7 @@ function CodeBlockContent(props: {language: string; code: string; fallback: () =
 }
 
 const codeBlockView = memoize((language: string): FenceView => (props) => (
-  <CodeBlockContent language={language} code={props.code} fallback={props.fallback} />
+  <RenderedFenceContent language={language} code={props.code} fallback={props.fallback} />
 ))
 
 function highlightableLanguage(language: string): string {
@@ -444,26 +452,26 @@ const MarkdownStreamingContext = createContext<() => boolean>(() => false)
 function FenceCard(props: {language: string; code: string}): JSX.Element {
   const streaming = useContext(MarkdownStreamingContext)
   const title = () => props.language || 'text'
+  const code = () => fenceCode(props.code)
   return (
-    <Show
-      when={streaming()}
-      fallback={
-        <CodeBlock
-          title={title()}
-          maxHeight="log"
-          file={{name: title(), lang: highlightableLanguage(props.language), contents: fenceCode(props.code)}}
-        />
-      }
-    >
-      <CodeFrame label={title()} text={fenceCode(props.code)} cap="log" headed>
-        {(actions) => (
-          <>
-            <CodeHeader title={title()}>{actions()}</CodeHeader>
-            <StreamedCode language={props.language} code={props.code} />
-          </>
-        )}
-      </CodeFrame>
-    </Show>
+    <CodeBlock label={title()} text={code()} maxHeight="log">
+      <CodeBlockHeader>
+        <CodeBlockTitle>{title()}</CodeBlockTitle>
+        <CodeBlockActions>
+          <CodeBlockCopyButton />
+        </CodeBlockActions>
+      </CodeBlockHeader>
+      <Show
+        when={streaming()}
+        fallback={
+          <CodeBlockContent file={{name: title(), lang: highlightableLanguage(props.language), contents: code()}} />
+        }
+      >
+        <CodeBlockViewport>
+          <StreamedCode language={props.language} code={props.code} />
+        </CodeBlockViewport>
+      </Show>
+    </CodeBlock>
   )
 }
 

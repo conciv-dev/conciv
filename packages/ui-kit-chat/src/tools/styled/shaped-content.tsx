@@ -1,5 +1,5 @@
 import {Match, Switch, type JSX} from 'solid-js'
-import {CodeBlock} from './code-block.js'
+import {CodeBlock, CodeBlockActions, CodeBlockContent, CodeBlockCopyButton} from './code-block.js'
 import {JsonTree} from './json-tree.js'
 
 type ContentShape = {kind: 'tree'; data: object} | {kind: 'code'; lang: string; contents: string}
@@ -24,7 +24,14 @@ function ShapedContent(props: {name: string; shape: ContentShape}): JSX.Element 
       <Match when={props.shape.kind === 'tree' && props.shape}>{(shape) => <JsonTree data={shape().data} />}</Match>
       <Match when={props.shape.kind === 'code' && props.shape}>
         {(shape) => (
-          <CodeBlock file={{name: `${props.name}.${shape().lang}`, lang: shape().lang, contents: shape().contents}} />
+          <CodeBlock label={`${props.name}.${shape().lang}`} text={shape().contents}>
+            <CodeBlockActions>
+              <CodeBlockCopyButton />
+            </CodeBlockActions>
+            <CodeBlockContent
+              file={{name: `${props.name}.${shape().lang}`, lang: shape().lang, contents: shape().contents}}
+            />
+          </CodeBlock>
         )}
       </Match>
     </Switch>
