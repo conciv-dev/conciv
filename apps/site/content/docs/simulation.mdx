@@ -1,143 +1,173 @@
 ---
-title: Simulation and drive mode
-description: Run the real engine with a driven model in place of the agent, and drive the widget from a program outside the browser.
+title: Simulation
+description: Run conciv with a small program of yours in place of the model, and drive the widget from outside the browser.
 ---
 
-Simulation runs the real engine with no agent CLI behind it. A program you write, the driver, answers every model call
-and can act on the widget: read what it shows, type into it and click it. The driver reaches the engine through two
-control endpoints: on one it answers the model, on the other it acts on the widget with `ui.*` calls.
+Simulation runs conciv with no model behind the chat. A small program you write, the driver, gives every answer the
+model would give. The driver can also read the widget, type into it and click it.
 
-## Turn it on
+Use it to show a scripted demo, or to try a flow end to end without paying for a model. We build a driver that types a
+message, sends it, and answers it. Every block is complete, so you can copy them as you go.
 
-Two environment variables, read by the dev server and the engine:
+## Step 1: Start the dev server in simulation
 
-| Variable          | Read by                   | Does                                                                                   |
-| ----------------- | ------------------------- | -------------------------------------------------------------------------------------- |
-| `CONCIV_SIMULATE` | the build plugin          | `1` or `true` starts the engine in simulation                                          |
-| `CONCIV_DRIVE`    | the engine, in simulation | names the drive manifest: the two endpoints the driver uses. Unset, nothing is driven. |
+Start your dev server with two variables set:
 
-```sh
+```bash
 CONCIV_SIMULATE=1 CONCIV_DRIVE=1 pnpm dev
 ```
 
-In simulation the engine changes three things and keeps the rest real:
+- `CONCIV_SIMULATE=1` starts the engine in simulation.
+- `CONCIV_DRIVE=1` opens two local sockets for your driver. One answers the model, the other acts on the widget.
 
-- The harness is answered by the simulated provider: each model call waits for the driver's answer.
-- Outbound HTTP goes through a fixed network table. A destination it does not list is refused with
-  `Simulation denied unregistered network destination: <method> <url>`.
-- When driven, tools the driver registers are offered to the agent next to the plugins' tools.
+When both sockets listen, the dev server prints:
 
-With `CONCIV_SIMULATE` set and `CONCIV_DRIVE` unset, no control endpoint opens and every model call is refused with
-`the simulation has no driver: CONCIV_DRIVE is not set, so every model call is refused`.
-
-## The drive manifest
-
-`CONCIV_DRIVE=1` uses the default endpoints:
-
-| Endpoint  | Address                | Serves                                               |
-| --------- | ---------------------- | ---------------------------------------------------- |
-| `backend` | `ws://127.0.0.1:40950` | the model and the driver's tools (`backendContract`) |
-| `ui`      | `ws://127.0.0.1:40900` | the widget (`uiContract`)                            |
-
-Any other value is an instance name. The engine reads `<name>.json` from `DRIVE_REGISTRY_DIR`, else from
-`$XDG_STATE_HOME/conciv-drive/instances` (`~/.local/state/conciv-drive/instances` when `XDG_STATE_HOME` is unset). The
-file holds the endpoints, each a `ws://127.0.0.1:<port>` address:
-
-```json
-{"endpoints": {"ui": "ws://127.0.0.1:40900", "backend": "ws://127.0.0.1:40950"}}
+```text
+conciv drive backend websocket: ws://127.0.0.1:40950
+conciv drive ui websocket: ws://127.0.0.1:40900
 ```
 
-A missing or invalid file stops the simulation with `Drive manifest not found: <file>` or
-`Invalid Drive manifest: <file>: ...`. Each endpoint prints one line on stderr once it listens:
-`conciv drive backend websocket: ws://127.0.0.1:40950` and `conciv drive ui websocket: ws://127.0.0.1:40900`. A `ui`
-endpoint that cannot listen is logged as `conciv drive ui websocket did not start`, and the engine runs on without it.
+Open your app in the browser and log in, so a widget is on the page.
 
-## How the widget is driven
+## Step 2: Write a driver
 
-The engine listens on the manifest's `ui` endpoint and answers the driver's handshake with role `ui`. A browser page
-cannot listen on a port, so the engine stands in for the UI: it forwards each `ui.*` call to the widget over the
-widget's own engine socket, as the `call` event of the `conciv.simulation.ui` plugin, and the widget answers with that
-plugin's `result` method. The driver always dials the engine, never the widget. A widget
-reload only rejoins the engine socket, and a call waits until a widget answers it or the driver aborts it.
+Install the driver package in your project:
 
-The widget answers `ui.state`, `ui.snapshot`, `ui.matches`, `ui.type`, `ui.press`, `ui.enter`, `ui.arrow`, `ui.focus`
-and `ui.click`. `ui.capture`, `ui.recording.finish`, `ui.mouse` and `ui.resize` are refused with
-`the widget does not support <call>`. A snapshot lists the widget's elements by role and label
-(`conciv-ui-snapshot-v1`), so a driver finds a control the way a test does.
-
-The widget's part of drive mode is built into development builds only: a production build of `@conciv/app` leaves it
-out.
-
-## Writing a driver
-
-`@conciv/simulation` holds the driver side:
-
-- `@conciv/simulation/driver`: `connectDriver(endpoint)` dials the `backend` endpoint and `serve(handler)` answers every
-  model request. The answers are `text`, `thinking`, `toolCall`, `toolCalls`, `disconnect` and `hang`.
-- `@conciv/simulation/frontend`: `connectUi(endpoint, signal?)` dials the `ui` endpoint and shakes hands, asking for
-  `ui.snapshot`, `ui.state`, `ui.click.semantic`, `ui.focus`, `ui.type` and `ui.press`. `byRole`, `clickByRole` and
-  `typeInto` act on the widget by role and label.
-- `@conciv/protocol/simulation`: the contracts (`backendContract`, `uiContract`), the handshake and every schema.
-
-The test kit's own driver connects both endpoints this way:
-
-```ts title="packages/engine-kit/src/drive.ts"
-export async function connectDrive(endpoints: DriveEndpoints): Promise<EngineDrive & {close: () => Promise<void>}> {
-  const backend = await connectDriver(endpoints.backend)
-  const ui = await connectUi(endpoints.ui).catch(async (error: unknown) => {
-    await backend.close()
-    throw error
-  })
-  return {
-    answer: async (value) => backend.serve(() => text(value)),
-    typeInto: (role, label, value) => typeInto(ui.client, role, label, value),
-    clickByRole: (role, label) => clickByRole(ui.client, role, label),
-    snapshot: () => ui.client.ui.snapshot(),
-    close: async () => {
-      ui.close()
-      await backend.close()
-    },
-  }
-}
+```package-install
+@conciv/simulation -D
 ```
 
-## In a test
+Create the driver next to your `package.json`:
 
-`createEngine` from `@conciv/backend-test-utils` takes `simulation: true` in its `start` options. The fixture writes a
-drive manifest with two free loopback ports under the engine's temporary state, sets `CONCIV_DRIVE` for that engine
-only, and starts it in simulation. `engine.drive()` connects to both endpoints and gives `answer`, `typeInto`,
-`clickByRole` and `snapshot`, in node and through the browser commands in browser mode. The fixture closes the driver
-when the test ends. `engine.drive()` on an engine started without `simulation: true` fails with
-`this engine is not driven: make it with simulation: true`.
+```js title="driver.mjs"
+import {connectDriver, text} from '@conciv/simulation/driver'
+import {clickByRole, connectUi, typeInto} from '@conciv/simulation/frontend'
 
-```tsx title="packages/frontend-defaults/test/e2e/composer.e2e.test.tsx"
-const engine = await createEngine({}, {simulation: true})
-const connection = makeBrowserEngineConnection(engine.address.apiBase, {
-  tokenSource: () => Promise.resolve(engine.address.token),
+const model = await connectDriver('ws://127.0.0.1:40950')
+model.serve(() => text('Hello from the driver'))
+
+const widget = await connectUi('ws://127.0.0.1:40900')
+await typeInto(widget.client, 'textbox', 'Message the conciv agent', 'Say hello')
+await clickByRole(widget.client, 'button', 'Send message')
+```
+
+- `connectDriver` dials the model socket.
+- `serve` gets every model call and returns the answer. Here every call gets the same text.
+- `connectUi` dials the widget socket.
+- `typeInto` finds the message box by its role and its label, focuses it, and types.
+- `clickByRole` clicks the button labelled **Send message**.
+
+The driver finds controls the way a user does: by what they are and what they say.
+
+## Step 3: Run it
+
+```bash
+node driver.mjs
+```
+
+"Say hello" appears in the composer and is sent. The reply "Hello from the driver" streams into the thread. The driver
+keeps answering until you stop it with Ctrl C.
+
+## Step 4: Answer with a tool call
+
+A real model often calls a tool first, then answers. Return a different answer for each call:
+
+```js title="driver.mjs"
+import {connectDriver, text, toolCall} from '@conciv/simulation/driver'
+
+const model = await connectDriver('ws://127.0.0.1:40950')
+let turn = 0
+model.serve(() => {
+  turn += 1
+  if (turn === 1)
+    return toolCall('call-1', 'execute_typescript', {typescriptCode: 'return await external_server_urls()'})
+  return text('The app listens on the address in the tool card above.')
 })
-await mountShell({
-  engine: {apiBase: engine.address.apiBase, connection},
-  plugins: [{id: 'conciv.simulation.ui', plugin: {setup: drive}, builtin: true, server: true}],
-})
-const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
-const driver = await engine.drive()
-
-expect((await driver.snapshot()).nodes).toContainEqual(
-  expect.objectContaining({role: 'textbox', label: 'Message the conciv agent'}),
-)
-await driver.answer('Driven answer')
-expect((await driver.typeInto('textbox', 'Message the conciv agent', 'Hello from the driver')).focused.editor).toBe(
-  true,
-)
-expect(input).toHaveFocus()
-expect(input).toHaveTextContent('Hello from the driver')
-const finished = await engine.event('session.execution.succeeded')
-await driver.clickByRole('button', 'Send message')
-
-await finished.arrived
-const reply = await screen.findByRole('article', {name: 'Reply to: Hello from the driver'})
-expect(within(reply).getByText('Driven answer')).toBeVisible()
 ```
 
-For most plugin tests the scripted model is enough: see [Testing a plugin](/docs/plugins/testing). Drive mode is for a
-program that acts on the widget from outside the browser.
+- The first model call answers with a tool call. `execute_typescript` is the agent's code mode tool: it runs the code,
+  which asks the dev server where it listens. The card shows in the thread.
+- The next call, after the tool's result, answers with text.
+
+Stop the first driver, run this one, and send any message from the widget. The handler also gets the model request,
+so it can answer from the messages instead of counting turns.
+
+The driver has one function per kind of answer:
+
+- `text(value)` answers with text.
+- `thinking(reasoning, answer)` shows a reasoning part, then the answer.
+- `toolCall(id, name, input)` calls one tool. `toolCalls(...)` calls several at once.
+- `disconnect()` drops the call, as a network failure would.
+- `hang()` never answers, so you see what the widget does while it waits.
+
+## Step 5: Read the widget
+
+`connectUi` returns a `client` that acts on the widget. A snapshot lists every element by its role and label:
+
+```js title="driver.mjs"
+import {byRole, connectUi} from '@conciv/simulation/frontend'
+
+const widget = await connectUi('ws://127.0.0.1:40900')
+const snapshot = await widget.client.ui.snapshot()
+const input = byRole(snapshot, 'textbox', 'Message the conciv agent')
+console.log(input.label)
+widget.close()
+```
+
+- `ui.snapshot()` reads the widget as it is now.
+- `byRole` picks one element out of the snapshot. It throws when the widget shows no such element.
+- `close` hangs up, so the script ends.
+
+The client has one call per action: `snapshot`, `state`, `matches`, `type`, `press`, `enter`, `arrow`, `focus` and
+`click`, all under `client.ui`.
+
+## What changes in simulation
+
+Only the model is fake. The engine, the tools, the widget and your app are all real. Two more things change:
+
+- The engine's own network calls go through a fixed list of allowed addresses. Others are refused.
+- Tools your driver registers on the model socket are offered to the agent, next to the plugins' tools.
+
+## Details
+
+<Accordions type="single">
+  <Accordion title="the simulation has no driver: CONCIV_DRIVE is not set, so every model call is refused">
+    You set `CONCIV_SIMULATE` without `CONCIV_DRIVE`. No socket opens, so nothing can answer the model. Set both.
+  </Accordion>
+  <Accordion title="Simulation denied unregistered network destination">
+    The engine tried to reach an address that is not on the simulation's fixed list. The message names the method and
+    the address.
+  </Accordion>
+  <Accordion title="the widget does not support <call>">
+    The widget does not answer `ui.capture`, `ui.recording.finish`, `ui.mouse` or `ui.resize`.
+  </Accordion>
+  <Accordion title="Use other ports">
+    Any value of `CONCIV_DRIVE` other than `1` is an instance name. The engine reads `<name>.json` with the two
+    addresses:
+
+    ```json title="~/.local/state/conciv-drive/instances/demo.json"
+    {"endpoints": {"ui": "ws://127.0.0.1:41900", "backend": "ws://127.0.0.1:41950"}}
+    ```
+
+    Start with `CONCIV_DRIVE=demo`. The folder is `DRIVE_REGISTRY_DIR` when set, else `conciv-drive/instances` under
+    `XDG_STATE_HOME`, else the path above. Both addresses must be `ws://127.0.0.1` with a port. A missing or broken
+    file stops the engine with `Drive manifest not found` or `Invalid Drive manifest`.
+  </Accordion>
+  <Accordion title="conciv drive ui websocket did not start">
+    The widget socket could not listen, for example because its port is taken. The engine runs on without it, and
+    the model socket still works.
+  </Accordion>
+  <Accordion title="Development builds only">
+    The widget takes driver calls only in a development build. A production build of the widget leaves drive mode out.
+  </Accordion>
+  <Accordion title="How the widget is reached">
+    A browser page cannot listen on a port, so the engine listens for it. It passes each widget call to the widget over
+    the widget's own connection, and passes the answer back. A widget call waits until a widget answers it, so a
+    reload in between is fine.
+  </Accordion>
+</Accordions>
+
+## Next
+
+- [Plugins](/docs/plugins): a plugin's own tests script the model for you, with no driver.
+- [Configuration](/docs/configuration): every conciv option.
