@@ -1,4 +1,5 @@
-import {Config, Effect, type FileSystem, type Layer, type Scope} from 'effect'
+import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
+import {Config, ConfigProvider, Effect, Exit, Layer, Scope, type FileSystem} from 'effect'
 import type {HttpClient} from 'effect/http'
 import type {Plugin} from '@conciv/backend-plugin-api/effect/plugin'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -52,3 +53,18 @@ export const simulationReplacements: (
     ])
   },
 )
+
+export type Simulation = Replacements & {readonly close: () => Promise<void>}
+
+export async function startSimulation(app: App, configProvider: ConfigProvider.ConfigProvider): Promise<Simulation> {
+  const scope = Effect.runSync(Scope.make())
+  const close = (): Promise<void> => Effect.runPromise(Scope.close(scope, Exit.void))
+  const services = Layer.mergeAll(NodeFileSystem.layer, ConfigProvider.layer(configProvider))
+  const replacements = await Effect.runPromise(
+    simulationReplacements(app).pipe(Scope.provide(scope), Effect.provide(services)),
+  ).catch(async (error: unknown) => {
+    await close()
+    throw error
+  })
+  return {...replacements, close}
+}

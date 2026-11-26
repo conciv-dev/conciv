@@ -48,6 +48,20 @@ function readTestChain(callee: Expression | Super): TestChain | undefined {
   return node.type === 'Identifier' ? {name: node.name, members} : undefined
 }
 
+function wrapsTest(call: CallExpression, testNames: Set<string>): boolean {
+  const [wrapped] = call.arguments
+  if (!wrapped || wrapped.type === 'SpreadElement') return false
+  const chain = readTestChain(wrapped)
+  return chain !== undefined && testNames.has(chain.name)
+}
+
+function makesTest(call: CallExpression, testNames: Set<string>): boolean {
+  const chain = readTestChain(call.callee)
+  if (chain === undefined) return false
+  if (chain.name === 'makeMethods') return wrapsTest(call, testNames)
+  return testNames.has(chain.name) && chain.members.includes('extend')
+}
+
 function countTestCases(filename: string, source: string): number {
   const parsed = parseSync(filename, source)
   const [error] = parsed.errors
@@ -56,14 +70,13 @@ function countTestCases(filename: string, source: string): number {
   const curried = new Set<CallExpression>()
   let count = 0
   const visitor = new Visitor({
+    ImportSpecifier(node) {
+      if (node.imported.type === 'Identifier' && TEST_FUNCTIONS.includes(node.imported.name))
+        testNames.add(node.local.name)
+    },
     VariableDeclarator(node) {
       if (node.id.type !== 'Identifier' || node.init?.type !== 'CallExpression') return
-      const chain = readTestChain(node.init.callee)
-      if (chain && testNames.has(chain.name) && chain.members.includes('extend')) testNames.add(node.id.name)
-      const [wrapped] = node.init.arguments
-      if (chain?.name !== 'makeMethods' || !wrapped || wrapped.type === 'SpreadElement') return
-      const wrappedChain = readTestChain(wrapped)
-      if (wrappedChain && testNames.has(wrappedChain.name)) testNames.add(node.id.name)
+      if (makesTest(node.init, testNames)) testNames.add(node.id.name)
     },
     CallExpression(node) {
       if (node.callee.type === 'CallExpression') curried.add(node.callee)

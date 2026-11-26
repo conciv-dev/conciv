@@ -253,7 +253,7 @@ describe.concurrent('the page streams its events', () => {
   })
 })
 
-describe.concurrent('the user sends and exports a recording', () => {
+describe('the user sends and exports a recording', () => {
   test('a save keeps the 50 newest recordings, refuses an empty or oversized window, and exports as webm', async ({
     createEngine,
     expect,

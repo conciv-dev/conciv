@@ -2,7 +2,7 @@
 
 ## Purpose
 
-- `backend/backend.ts`: the `./backend` entry, `simulationReplacements(app)`: the harness, harnesses, HTTP client layer and plugins an engine in simulation is built with. Driven (`CONCIV_DRIVE` set), it resolves the manifest and opens the backend control socket in the caller's scope.
+- `backend/backend.ts`: the `./backend` entry, `simulationReplacements(app)`: the harness, harnesses, HTTP client layer and plugins an engine in simulation is built with. Driven (`CONCIV_DRIVE` set), it resolves the manifest and opens the backend control socket in the caller's scope. `startSimulation(app, configProvider)` runs it on a scope of its own with the node file system and returns the replacements with their `close`, the `StartSimulation` that `@conciv/backend` and `@internal/engine-kit` give `createBackend`.
 - `backend/simulated-provider.ts`: the driver-answered model provider and the backend control socket's router: one invocation per model turn, waiting until the driver answers it by id.
 - `backend/simulated-harness.ts`: a harness whose chat streams the simulated provider's answer as chat events; the refused harness of an undriven simulation.
 - `backend/simulated-ui.ts`: `widgetDrivePlugin`, the `conciv.simulation.ui` plugin of a driven engine: it listens on the manifest's `ui` endpoint with `control-server.ts`, answers the `ui` handshake as opencode's TUI server does, and forwards each supported `ui.*` call to the widget as a `call` event, waiting for the widget's `result` (capture, recording, mouse and resize are refused). Invariant: the driver dials the engine, never the widget, as in opencode.

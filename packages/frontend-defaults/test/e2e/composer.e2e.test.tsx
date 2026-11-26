@@ -1,8 +1,11 @@
-import {describe, expect, it, test} from 'vitest'
+import {describe, expect, it, onTestFinished, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {fireEvent, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
+import {makeBrowserEngineConnection} from '@conciv/client'
 import {FakeLLM, type FakeEngine} from '@conciv/client/testing'
+import {test as engineTest} from '@conciv/backend-test-utils'
+import drive from '../../src/drive/drive.js'
 import {readSession, sentJson, sentTexts} from '../utils/engine-client.js'
 import {mountShell} from '../utils/mount-shell.js'
 import {composerEngine} from '../utils/sample-engines.js'
@@ -827,4 +830,39 @@ describe('plugin slash commands', () => {
     expect(screen.queryByRole('article', {name: 'You: /review the header'})).not.toBeInTheDocument()
     expect(sentTexts(engine)).toEqual(['Thanks'])
   })
+})
+
+describe('drive mode', () => {
+  engineTest(
+    'a driver outside the browser finds the composer in the snapshot, types into it by its label, sends with the send button by its role, and the answer shows',
+    async ({createEngine}) => {
+      const engine = await createEngine({}, {simulation: true})
+      const connection = makeBrowserEngineConnection(engine.address.apiBase, {
+        tokenSource: () => Promise.resolve(engine.address.token),
+      })
+      onTestFinished(() => connection.dispose())
+      await mountShell({
+        engine: {apiBase: engine.address.apiBase, connection},
+        plugins: [{id: 'conciv.simulation.ui', plugin: {setup: drive}, builtin: true, engineHalf: true}],
+      })
+      const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+      const driver = await engine.drive()
+
+      expect((await driver.snapshot()).nodes).toContainEqual(
+        expect.objectContaining({role: 'textbox', label: 'Message the conciv agent'}),
+      )
+      await driver.answer('Driven answer')
+      expect(
+        (await driver.typeInto('textbox', 'Message the conciv agent', 'Hello from the driver')).focused.editor,
+      ).toBe(true)
+      expect(input).toHaveFocus()
+      expect(input).toHaveTextContent('Hello from the driver')
+      const finished = await engine.event('session.execution.succeeded')
+      await driver.clickByRole('button', 'Send message')
+
+      await finished.arrived
+      const reply = await screen.findByRole('article', {name: 'Reply to: Hello from the driver'})
+      expect(within(reply).getByText('Driven answer')).toBeVisible()
+    },
+  )
 })

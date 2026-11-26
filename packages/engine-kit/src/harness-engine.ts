@@ -26,6 +26,8 @@ import type {Gate, ModelRequest, Reply} from '@conciv/simulation/test-llm'
 import {isolatedEnv} from '@internal/vitest-config/isolated-env'
 import {commitAll, initGitProject} from './git-project.js'
 import {until} from './until.js'
+import {startSimulation} from '@conciv/simulation/backend'
+import {connectDrive, writeDriveManifest, type DriveEndpoints, type EngineDrive} from './drive.js'
 
 type EngineTimeouts = {
   firstChunkTimeoutMs?: number
@@ -51,6 +53,7 @@ export type EngineStart = {
   home?: string
   git?: boolean
   plugins?: readonly Plugin[]
+  simulation?: true
 }
 
 export type BackendStart = {
@@ -74,6 +77,7 @@ export type BackendStart = {
   port?: {exact: number}
   accessToken?: string
   plugins: readonly Plugin[] | undefined
+  simulation: typeof startSimulation | undefined
 }
 
 export type StartedBackend = {
@@ -149,6 +153,7 @@ export type HarnessEngine = {
   version: (version: string) => Promise<void>
   write: (path: string, content: string) => Promise<void>
   commit: (message: string) => Promise<void>
+  drive: () => Promise<EngineDrive>
   stop: () => Promise<void>
 }
 
@@ -414,17 +419,32 @@ function engineHome(root: string, options: HarnessEngineStart): string {
   return options.home ?? join(concivStateDir(root), 'home')
 }
 
-function isolatedProvider(root: string, options: HarnessEngineStart): ConfigProvider.ConfigProvider {
+function isolatedProvider(
+  root: string,
+  options: HarnessEngineStart,
+  driveEnv: Record<string, string>,
+): ConfigProvider.ConfigProvider {
   const temporary = join(concivStateDir(root), 'tmp')
   mkdirSync(temporary, {recursive: true})
   return ConfigProvider.fromEnvRecord(
     {
       ...isolatedEnv(process.env, engineHome(root, options), temporary),
       ...options.env,
+      ...driveEnv,
       ...(options.fs?.filewatcher === true ? {} : {CONCIV_DISABLE_FILEWATCHER: 'true'}),
     },
     {preserveEmptyStrings: true},
   )
+}
+
+function requireDrive(endpoints: DriveEndpoints | undefined): DriveEndpoints {
+  if (endpoints === undefined) throw new Error('this engine is not driven: make it with simulation: true')
+  return endpoints
+}
+
+async function closeDrive(connected: ReturnType<typeof connectDrive> | undefined): Promise<void> {
+  if (connected === undefined) return
+  await (await connected).close()
 }
 
 function repeatedId(harnesses: ScriptedHarness[]): string | undefined {
@@ -543,6 +563,7 @@ function bootApp(
     },
     ...portRequest(config, options.token, previous?.started, connectPort),
     plugins: options.plugins,
+    simulation: options.simulation === true ? startSimulation : undefined,
   })
 }
 
@@ -636,6 +657,7 @@ export async function createHarnessEngine(
   const removeRoot = (): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
   const heldClock = options.clock === 'test' ? await holdTestClock() : undefined
   const closeClock = async (): Promise<void> => heldClock?.close()
+  const driveManifest = options.simulation === true ? await writeDriveManifest(concivStateDir(root)) : undefined
   const boot: Boot = {
     createBackend,
     root,
@@ -643,7 +665,7 @@ export async function createHarnessEngine(
     harnesses,
     config,
     options,
-    configProvider: isolatedProvider(root, options),
+    configProvider: isolatedProvider(root, options, driveManifest?.env ?? {}),
     opened,
     live,
     heldClock,
@@ -661,6 +683,7 @@ export async function createHarnessEngine(
   }
   const state: {running: Running | undefined} = {running: {started: first, close: connect(engine, browser)}}
   const waits = new Set<OpenWait>()
+  const driving: {connected: ReturnType<typeof connectDrive> | undefined} = {connected: undefined}
   const halt = async (): Promise<unknown[]> => {
     engine.turns.closeAll()
     await engine.tools.close()
@@ -671,7 +694,10 @@ export async function createHarnessEngine(
   }
   const stop = async (): Promise<void> => {
     for (const wait of waits) wait.end()
-    const failures = [...(await halt()), ...(await settleInOrder([removeRoot, closeClock]))]
+    const failures = [
+      ...(await halt()),
+      ...(await settleInOrder([() => closeDrive(driving.connected), removeRoot, closeClock])),
+    ]
     if (failures.length > 0) throw new AggregateError(failures, 'the harness engine did not stop cleanly')
   }
   const started = await openFirstSession(engine, first.cfg.sessionId).catch((error: unknown) =>
@@ -720,6 +746,10 @@ export async function createHarnessEngine(
     commit: async (message) => {
       if (options.git !== true) throw new Error('this engine has no git project: make it with git: true')
       await commitAll(project, message)
+    },
+    drive: () => {
+      driving.connected ??= connectDrive(requireDrive(driveManifest?.endpoints))
+      return driving.connected
     },
     stop,
   }

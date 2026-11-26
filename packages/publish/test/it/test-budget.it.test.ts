@@ -7,6 +7,7 @@ import {assertTestsWithinBudget} from '../../src/test-budget.ts'
 
 test('a package over its budget fails with its count and budget, at budget passes, under budget asks to lower it', async () => {
   const spec = `import {makeMethods} from '@effect/vitest'
+import {test as engineTest} from '@conciv/backend-test-utils'
 import {describe, expect, it, test} from 'vitest'
 // test('a comment never counts', () => {})
 const note = "it('a string never counts', () => {})"
@@ -26,6 +27,7 @@ describe('cases', () => {
   it.scoped('scoped', () => {})
   it.live.each([1, 2])('live each %i', () => {})
   effectWithUser.live('effect extended', () => {})
+  engineTest('renamed import', () => {})
   test.describe('a playwright group is not a case', () => {})
   test.use({})
 })
@@ -47,11 +49,11 @@ describe('cases', () => {
     return root
   }
 
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 12}))).rejects.toThrow(
-    '@conciv/a: 13 tests, budget 12\n\nThe budget is a review gate, not a counter to bump.',
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 13}))).rejects.toThrow(
+    '@conciv/a: 14 tests, budget 13\n\nThe budget is a review gate, not a counter to bump.',
   )
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 13}))).resolves.toEqual([])
-  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 14}))).resolves.toEqual([
-    '@conciv/a: 13 tests, budget 14: lower it to 13 in test-budget.json',
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 14}))).resolves.toEqual([])
+  await expect(assertTestsWithinBudget(await scaffoldWorkspace({'@conciv/a': 15}))).resolves.toEqual([
+    '@conciv/a: 14 tests, budget 15: lower it to 14 in test-budget.json',
   ])
 })

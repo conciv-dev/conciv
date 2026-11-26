@@ -12,6 +12,7 @@ import type {
   ToolFailure,
 } from './engine.js'
 import type {Outside, OutsideAgent, OutsideReply} from './outside.js'
+import type {EngineDrive} from './drive.js'
 
 export type EngineHandle = {id: string; sessionId: string; address: EngineAddress; root: string; home: string}
 
@@ -54,6 +55,15 @@ export type EngineCommands = {
   concivVersion: (engineId: string, version: string) => Promise<void>
   concivCommit: (engineId: string, message: string) => Promise<void>
   concivWrite: (engineId: string, path: string, content: string) => Promise<void>
+  concivDriveAnswer: (engineId: string, value: string) => Promise<void>
+  concivDriveTypeInto: (
+    engineId: string,
+    role: string,
+    label: string,
+    value: string,
+  ) => ReturnType<EngineDrive['typeInto']>
+  concivDriveClickByRole: (engineId: string, role: string, label: string) => ReturnType<EngineDrive['clickByRole']>
+  concivDriveSnapshot: (engineId: string) => ReturnType<EngineDrive['snapshot']>
 }
 
 export type EngineCommandHandlers = {
@@ -172,6 +182,12 @@ export function engineCommands(
       concivVersion: (_context, engineId, version) => engine(engineId).version(version),
       concivCommit: (_context, engineId, message) => engine(engineId).commit(message),
       concivWrite: (_context, engineId, path, content) => engine(engineId).write(path, content),
+      concivDriveAnswer: async (_context, engineId, value) => (await engine(engineId).drive()).answer(value),
+      concivDriveTypeInto: async (_context, engineId, role, label, value) =>
+        (await engine(engineId).drive()).typeInto(role, label, value),
+      concivDriveClickByRole: async (_context, engineId, role, label) =>
+        (await engine(engineId).drive()).clickByRole(role, label),
+      concivDriveSnapshot: async (_context, engineId) => (await engine(engineId).drive()).snapshot(),
     },
   }
 }
