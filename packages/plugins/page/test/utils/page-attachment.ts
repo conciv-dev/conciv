@@ -49,7 +49,9 @@ export async function openPage(engine: Engine, opened?: OpenedTab): Promise<{end
   return {ended}
 }
 
-type Answer = (command: Command) => {value: unknown; files: readonly unknown[]}
+type Answered = {value: unknown; files: readonly unknown[]}
+
+type Answer = (command: Command) => Answered | Promise<Answered>
 
 export function nextCommand(engine: Engine) {
   return engine.event('rpc.experimental.page.control', {data: {type: 'command', tabId: TAB}})
@@ -67,7 +69,7 @@ export async function answerCommands(engine: Engine, waiting: Waiting, answers: 
   await engine.rpc.call('experimental.page', 'result', {
     ...owner,
     requestId,
-    outcome: {type: 'success', result: answer(command)},
+    outcome: {type: 'success', result: await answer(command)},
   })
   if (following !== undefined) await answerCommands(engine, following, rest)
 }

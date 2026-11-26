@@ -586,9 +586,9 @@ describe('the page plugin in the widget', () => {
       const engine = await openPage(createEngine)
       const redacted = `${address.origin}${address.pathname}?plant=fern&token=%5Bredacted%5D#jwt=%5Bredacted%5D`
 
-      await expect
-        .poll(() => engine.session.tool('page_tabs_list').call({}))
-        .toMatchObject({tabs: [{url: redacted, focused: true, visible: true}]})
+      expect(await engine.session.tool('page_tabs_list').call({})).toMatchObject({
+        tabs: [{url: redacted, focused: true, visible: true}],
+      })
       expect(await engine.session.tool('page_route').call({})).toEqual({
         pathname: address.pathname,
         search: '?plant=fern&token=%5Bredacted%5D',

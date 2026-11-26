@@ -90,20 +90,25 @@ describe('the agent reads the page in code mode', () => {
       TestLLM.text('The checkout tab is open'),
       TestLLM.text('Grace is saved too'),
     )
+    const wakeWatched = Promise.withResolvers<void>()
     const answered = answerCommands(engine, await nextCommand(engine), [
       () => ({value: {width: 1, height: 1}, files: [SHOT]}),
       () => ({value: {ok: true}, files: []}),
       () => ({value: {ok: true}, files: []}),
       (command) => ({value: {queueId: command.queued?.id ?? '', status: 'playing', done: 0, of: 1}, files: []}),
-      () => ({value: {ok: true, value: 'Grace'}, files: []}),
+      async () => {
+        await wakeWatched.promise
+        return {value: {ok: true, value: 'Grace'}, files: []}
+      },
     ])
     const finished = await engine.event('rpc.experimental.page.queue.finished')
     await engine.session.send('Which tabs are open?')
+    const woke = await engine.event('session.execution.succeeded')
+    wakeWatched.resolve()
     await answered
     expect((await finished.arrived).data).toMatchObject({result: {status: 'finished', played: 1, failed: 0}})
-    await expect
-      .poll(async () => JSON.stringify((await engine.requests()).at(-1)?.messages))
-      .toContain('finished: 1 played, 0 failed')
+    await woke.arrived
+    expect(JSON.stringify((await engine.requests()).at(-1)?.messages)).toContain('finished: 1 played, 0 failed')
 
     const requests = await engine.requests()
     const system = requests[0]?.system.join('\n')
