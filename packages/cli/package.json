@@ -23,7 +23,8 @@
   ],
   "type": "module",
   "exports": {
-    "./bin": "./dist/bin.js"
+    "./bin": "./dist/bin.js",
+    "./commands": "./dist/main.js"
   },
   "publishConfig": {
     "access": "public"

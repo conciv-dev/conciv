@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import {TypeTable, type TypeNode} from 'fumadocs-ui/components/type-table'
 import {ConcivConfigSchema} from '@conciv/types/config-types'
+import {TestRunnerConfigSchema} from '@conciv/plugin-test-runner/config'
 
 type Schema = z.core.JSONSchema._JSONSchema
 
@@ -49,11 +50,19 @@ function readOption(schema: Schema): TypeNode {
   }
 }
 
-export function ConfigOptions() {
-  const schema = z.toJSONSchema(ConcivConfigSchema, {io: 'input', unrepresentable: 'any'})
+function SchemaOptions(props: {schema: z.ZodObject}) {
+  const schema = z.toJSONSchema(props.schema, {io: 'input', unrepresentable: 'any'})
   const options = Object.entries(schema.properties ?? {}).map(([name, option]): [string, TypeNode] => [
     name,
     readOption(option),
   ])
   return <TypeTable type={Object.fromEntries(options)} />
+}
+
+export function ConfigOptions() {
+  return <SchemaOptions schema={ConcivConfigSchema} />
+}
+
+export function TestRunnerOptions() {
+  return <SchemaOptions schema={TestRunnerConfigSchema} />
 }

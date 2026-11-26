@@ -7,7 +7,8 @@ import {TypeTable} from 'fumadocs-ui/components/type-table'
 import {Accordion, Accordions} from 'fumadocs-ui/components/accordion'
 import {ImageZoom} from 'fumadocs-ui/components/image-zoom'
 import {Mermaid} from './mermaid'
-import {ConfigOptions} from './config-options'
+import {ConfigOptions, TestRunnerOptions} from './config-options'
+import {CliCommands, HarnessTable} from './reference-tables'
 import {CopyPrompt, SetupPrompt} from './setup-prompt'
 import type {MDXComponents} from 'mdx/types'
 
@@ -25,6 +26,9 @@ function getMDXComponents(components?: MDXComponents) {
     ImageZoom,
     Mermaid,
     ConfigOptions,
+    TestRunnerOptions,
+    CliCommands,
+    HarnessTable,
     SetupPrompt,
     CopyPrompt,
     ...components,

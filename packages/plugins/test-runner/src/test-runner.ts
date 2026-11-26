@@ -1,7 +1,6 @@
 import {Plugin} from '@conciv/backend-plugin-api/effect'
 import type {Context} from '@conciv/backend-plugin-api/effect/plugin'
 import {Effect, Stream} from 'effect'
-import {z} from 'zod'
 import type {RunnerServices, RunnerUnavailable, TestRunnerAdapter, TestRunnerManager} from './runner.js'
 import {TestRunner} from './rpc.js'
 import {info} from './skill.js'
@@ -9,6 +8,7 @@ import {register} from './tools.js'
 import {vitest} from './vitest.js'
 import {playwright} from './playwright.js'
 import {defineStubRunner} from './run.js'
+import {TestRunnerConfigSchema} from './config.js'
 
 const jest = defineStubRunner({
   id: 'jest',
@@ -25,10 +25,6 @@ const adapters: TestRunnerAdapter[] = [vitest, jest, nodeTest, playwright]
 function getRunner(id: string): TestRunnerAdapter | undefined {
   return adapters.find((adapter) => adapter.id === id)
 }
-
-const testRunnerConfig = z.object({
-  runner: z.enum(['vitest', 'jest', 'node-test', 'playwright']).default('vitest'),
-})
 
 const UNAVAILABLE_MESSAGE = 'runner unavailable'
 
@@ -61,7 +57,7 @@ function registerRpc(rpc: Context['rpc'], manager: TestRunnerManager) {
 export default Plugin.define<RunnerServices>({
   id: 'test-runner',
   effect: Effect.fn('TestRunner.plugin')(function* (ctx: Context) {
-    const config = testRunnerConfig.safeParse(ctx.options)
+    const config = TestRunnerConfigSchema.safeParse(ctx.options)
     if (!config.success) return yield* Effect.die(config.error)
     const adapter = getRunner(config.data.runner) ?? vitest
     const manager = yield* adapter

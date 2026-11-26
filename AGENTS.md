@@ -208,6 +208,7 @@ Tests are laid out as Backstage's and run as opencode's. The plan and its rules 
 - A behaviour lives in the cheapest place that proves it, and only there: unit, then it, then e2e (browser mode), then
   the root `e2e/` host app. Happy-dom is for code that mounts nothing, as opencode (`_ref/opencode/packages/app/happydom.ts`).
 - Only `packages/cli`'s own tests spawn the CLI, as opencode's `packages/cli`. No other package depends on `@conciv/cli`.
+- The site (`apps/site`) is the one exception: it lists `@conciv/cli` as a devDependency and reads its command tree (`@conciv/cli/commands`) at build for the generated CLI reference.
 - A framework app under `e2e/` holds ONE test: the user signs in and the widget opens with no error in that framework.
   It gets a second test only for something that broke in that framework, named in its title. Behaviour that needs the
   real built widget in a real browser but is not about a framework (reload, real windows and downloads, the file

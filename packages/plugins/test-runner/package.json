@@ -31,6 +31,10 @@
       "types": "./dist/test-runner.d.ts",
       "import": "./dist/test-runner.js"
     },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    },
     "./rpc": {
       "types": "./dist/rpc.d.ts",
       "import": "./dist/rpc.js"
