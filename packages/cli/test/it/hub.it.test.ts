@@ -13,7 +13,7 @@ describe('the hub', () => {
     const engine = await createEngine({plugins: ['./test/fixtures/plugins/plant-shelf']})
     withHomeDb(await prepareHome(engine.home), (db) => recordHubConnection(db, 'claude', Date.now()))
     const widget = makeRpcClient(engine.address.apiBase, {token: engine.address.token})
-    const {sessionId} = await widget.sessions.create({})
+    const {sessionId} = await widget.sessions.create()
     const changes = (await widget.tabs.changes())[Symbol.asyncIterator]()
     await changes.next()
     const widgetGone = new AbortController()

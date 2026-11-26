@@ -68,7 +68,7 @@ type Elsewhere = {cwd: string; project: string; resume: string | null}
 
 type PickerRow = Bucket | PickerSession
 
-type SessionPage = {next: HarnessListCursor | null}
+type PickerPage = {sessions: PickerSession[]; next: HarnessListCursor | null}
 
 function pickBucket(updatedAt: number, now: number): Bucket {
   if (updatedAt >= new Date(now).setHours(0, 0, 0, 0)) return 'Today'
@@ -154,30 +154,38 @@ export function SessionSelector(props: {
     searchWriter.maybeExecute(details.inputValue.trim())
     if (details.inputValue.trim() === '') searchWriter.flush()
   }
-  const indexed = useQuery(() => appData.utils.sessions.changes.experimental_liveOptions())
+  const indexed = useQuery(() => appData.utils.sessions.changes.liveOptions())
   const indexVersion = () => ({indexVersion: indexed.data?.version ?? null})
-  const listOptions = () => {
-    const input = (cursor: HarnessListCursor | null) => ({cursor, limit: PAGE_SIZE})
-    return appData.utils.sessions.list.infiniteOptions({
-      input,
+  const pageInput = (cursor: HarnessListCursor | null) => ({cursor, limit: PAGE_SIZE})
+  const searchInput = (term: string) => (cursor: HarnessListCursor | null) => ({
+    term,
+    cursor,
+    limit: PAGE_SIZE,
+    everywhere: allProjects(),
+  })
+  const pagesKey = (term: string) =>
+    term === ''
+      ? appData.utils.sessions.list.infiniteKey({input: pageInput, initialPageParam: null})
+      : [
+          ...appData.utils.sessions.search.infiniteKey({input: searchInput(term), initialPageParam: null}),
+          indexVersion(),
+        ]
+  const pages = (term: string, cursor: HarnessListCursor | null, signal: AbortSignal): Promise<PickerPage> =>
+    term === ''
+      ? appData.utils.sessions.list.call(pageInput(cursor), {signal})
+      : appData.utils.sessions.search.call(searchInput(term)(cursor), {signal})
+  const list = useInfiniteQuery(() => {
+    const term = search()
+    return {
+      queryKey: pagesKey(term),
+      queryFn: ({pageParam, signal}: {pageParam: HarnessListCursor | null; signal: AbortSignal}) =>
+        pages(term, pageParam, signal),
       initialPageParam: null,
-      getNextPageParam: (page: SessionPage) => page.next,
-    })
-  }
-  const searchOptions = (term: string) => {
-    const input = (cursor: HarnessListCursor | null) => ({term, cursor, limit: PAGE_SIZE, everywhere: allProjects()})
-    return appData.utils.sessions.search.infiniteOptions({
-      input,
-      initialPageParam: null,
-      getNextPageParam: (page: SessionPage) => page.next,
-      queryKey: [...appData.utils.sessions.search.infiniteKey({input, initialPageParam: null}), indexVersion()],
-    })
-  }
-  const list = useInfiniteQuery(() => ({
-    ...(search() === '' ? listOptions() : searchOptions(search())),
-    placeholderData: keepPreviousData,
-    reconcile: (previous, next) => reconcile(structuredClone(next), {key: 'id'})(previous),
-  }))
+      getNextPageParam: (page: PickerPage) => page.next,
+      placeholderData: keepPreviousData,
+      reconcile: (previous, next) => reconcile(structuredClone(next), {key: 'id'})(previous),
+    }
+  })
   const active = useQuery(() => {
     const sessionId = props.activeId()
     return {

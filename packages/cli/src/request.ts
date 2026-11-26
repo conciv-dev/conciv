@@ -1,4 +1,4 @@
-import {safe, toORPCError, type ORPCError} from '@orpc/client'
+import {ORPCError, safe} from '@orpc/client'
 import {z} from 'zod'
 import {
   CONCIV_CLIENT_HEADER,
@@ -32,10 +32,6 @@ const MAX_CAUSE_DEPTH = 5
 const TERMINAL_CLIENT = 'terminal'
 
 const LinkSchema = z.object({code: z.string().optional(), message: z.string().optional(), cause: z.unknown()})
-
-const RemoteSchema = z.object({status: z.number(), code: z.string()})
-
-const APPROVAL_DENIED = 'APPROVAL_DENIED'
 
 const PLUGIN_RPC_CODES: readonly string[] = ['PLUGIN_RPC', 'PLUGIN_RPC_INTERNAL']
 
@@ -84,9 +80,8 @@ async function withSession(engine: EngineOrigin, target: CliTarget, call: RpcCal
 export async function engineAnswer<Answer>(origin: string, pending: Promise<Answer>): Promise<Answer> {
   const result = await safe(pending)
   if (result.isSuccess) return result.data
-  if (result.isDefined) throw rpcFailure(toORPCError(result.error))
+  if (result.error instanceof ORPCError) throw rpcFailure(result.error)
   if (offline(result.error, 0)) throw offlineFailure(origin)
-  if (rejectedByServer(result.error)) throw rpcFailure(toORPCError(result.error))
   throw result.error
 }
 
@@ -103,12 +98,6 @@ function callingAgent(env: NodeJS.ProcessEnv): string {
       return variable !== undefined && Boolean(env[variable])
     }) ?? TERMINAL_CLIENT
   )
-}
-
-function rejectedByServer(error: unknown): boolean {
-  const remote = RemoteSchema.safeParse(error)
-  if (!remote.success) return false
-  return remote.data.code === APPROVAL_DENIED || (remote.data.status >= 400 && remote.data.status < 500)
 }
 
 function rpcFailure(error: ORPCError<string, unknown>): Error {
