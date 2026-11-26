@@ -1,8 +1,7 @@
 # @internal/frontend-test-utils
 
 Private, never published: renders a plugin's browser part on the fake engine of `@internal/test-utils` or on a real engine from
-`createEngine` of `@conciv/backend-test-utils`, the way
-`@backstage/frontend-test-utils` does for Backstage.
+`createEngine` of `@conciv/backend-test-utils`.
 
 - `renderInTestApp({engine, plugins, open})` mounts the plugins in the real plugin host of `@internal/frontend-app-api` with
   small fakes in place of the app shell: their pane panels as a tab strip, their dialogs, styles and toasts, the composer

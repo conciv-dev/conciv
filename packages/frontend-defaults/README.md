@@ -9,8 +9,8 @@ with the plugins conciv ships; standalone dev runs it against an engine: `pnpm d
 
 Routes are the layout: `/` closed, `/panel/$sessionId/$view` panel, `/quick` quick
 terminal layer, `/pip/$sessionId` picture-in-picture. Embedded runs use a memory
-history that starts on this tab's last screen (sessionStorage, as opencode keeps one URL per
-window); standalone uses browser history.
+history that starts on this tab's last screen (sessionStorage, one URL per window); standalone
+uses browser history.
 
 ## Interface
 

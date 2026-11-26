@@ -10,7 +10,7 @@ Subdirectories: [app](./app/README.md), [composer](./composer/README.md), [data]
 
 ## Invariants
 
-- `frontend-defaults.tsx:tabHistory`: only the last screen of the tab is restored, never a back stack (as opencode's per-window last URL); a fresh tab starts at `/`; a reload restores before the first render, with no wait for trust.
+- `frontend-defaults.tsx:tabHistory`: only the last screen of the tab is restored, never a back stack (one last URL per window); a fresh tab starts at `/`; a reload restores before the first render, with no wait for trust.
 - `frontend-defaults.tsx:ConcivApp`: the api base starts as the one `platform.engine()` gives at mount; a rebind is the `conciv:rebind` window event, and its handler is the only writer of the base: both the first base and a rebound one enter normalized (`normalizeApiBase` from `@conciv/client`: origin and path with no trailing slash; the empty same-origin base stays empty), so the rpc socket and the plugin bundles join onto a clean base and a rebind to an equivalent spelling of the current base is ignored; it sets the base, then resets the cached queries, then asks for trust; an empty base or the current one is ignored, and servers mode does not listen. The rest is derived from the base: the rpc client reads it on every call, the connection generation counts the distinct bases, and the engine-stored navigation lives only while the first base holds
 - `router.tsx:createConcivRouter`: the dispose function runs at most once (`once`)
 - `router.tsx:wireEngine`: reachability and the trust subscription are re-set up only when the connection changes, and the previous setup is cleaned up first
