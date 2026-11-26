@@ -604,6 +604,7 @@ export const Definition = Rpc.define({
   events: {
     control: {schema: Control},
     'captures.saved': {schema: z.object({sessionId: SessionId})},
+    'permissions.synced': {schema: z.object({sessionId: SessionId, allow: z.boolean()})},
     'queue.finished': {
       schema: z.object({
         sessionId: SessionId,

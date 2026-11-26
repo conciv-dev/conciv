@@ -1,4 +1,3 @@
-import {expect} from 'vitest'
 import {z} from 'zod'
 import type {Engine} from '@conciv/backend-test-utils'
 import {makeRpcClient} from '@conciv/client'
@@ -31,10 +30,10 @@ type OpenedTab = {
 
 export async function openPage(engine: Engine, opened?: OpenedTab): Promise<{ended: Promise<string>}> {
   const tab = opened ?? {session: engine.session, id: TAB, url: REDACTED_URL, title: 'Checkout'}
-  const widget = widgetClient(engine)
-  const changes = (await widget.tabs.changes())[Symbol.asyncIterator]()
-  await changes.next()
-  const call = widget.tabs.open(
+  const granted = await engine.event('rpc.experimental.page.permissions.synced', {
+    data: {sessionId: tab.session.id, allow: true},
+  })
+  const call = widgetClient(engine).tabs.open(
     {
       sessionId: tab.session.id,
       connectionId: `connection-${tab.id}`,
@@ -46,19 +45,7 @@ export async function openPage(engine: Engine, opened?: OpenedTab): Promise<{end
     (result) => (result === 'replaced' ? 'replaced' : 'closed'),
     () => 'closed',
   )
-  await changes.next()
-  await changes.return?.()
-  await expect
-    .poll(() =>
-      tab.session
-        .tool('page_tabs_list')
-        .call({})
-        .then(
-          () => true,
-          () => false,
-        ),
-    )
-    .toBe(true)
+  await granted.arrived
   return {ended}
 }
 

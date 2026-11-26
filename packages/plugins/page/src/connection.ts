@@ -213,6 +213,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
         const session = yield* ctx.session.get({sessionId})
         const permissions = reconcilePagePermissions(session.permissions, open)
         if (permissions) yield* ctx.session.update({sessionId, permissions})
+        yield* registration.events.emit('permissions.synced', {sessionId, allow: open})
       }),
     ).pipe(
       Effect.timeoutOption(Duration.millis(permissionSyncTimeoutMs)),
@@ -403,7 +404,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
     started: (entry) =>
       Effect.gen(function* () {
         const id = `pq_${entry.queueId}`
-        yield* ctx.job.start({
+        const job = yield* ctx.job.start({
           id,
           type: 'page-queue',
           title: 'Queued page actions',
@@ -412,13 +413,16 @@ export const make = Effect.fn('PageConnection.make')(function* (
           background: true,
           run: Deferred.await(entry.done).pipe(Effect.map(queueNotice)),
         })
-        if (entry.origin === 'hub') return
-        yield* ctx.job.wait({id}).pipe(
-          Effect.flatMap(({info}) =>
-            info === undefined || info.status === 'cancelled'
-              ? Effect.void
-              : ctx.session.synthetic({sessionID: entry.sessionId, ...queueJobNotice(info, entry.queueId)}),
-          ),
+        const notificationID = job.notificationID
+        if (entry.origin === 'hub' || notificationID === undefined) return
+        yield* Effect.gen(function* () {
+          const {info} = yield* ctx.job.wait({id})
+          if (!info || info.status === 'cancelled') return
+          yield* ctx.session
+            .synthetic({id: notificationID, sessionID: entry.sessionId, ...queueJobNotice(info, entry.queueId)})
+            .pipe(Effect.catchIf(SessionNotFound, () => Effect.void))
+          yield* ctx.job.completeBackground(notificationID)
+        }).pipe(
           Effect.catchCause((cause) => Effect.logWarning(`Queue ${entry.queueId} could not reach its session`, cause)),
           Effect.forkIn(work),
         )

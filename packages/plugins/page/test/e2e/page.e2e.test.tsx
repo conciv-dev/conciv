@@ -17,26 +17,15 @@ describe('the page plugin in the widget', () => {
     readonly plugins?: readonly TestPlugin[]
   }
 
-  type Session = Awaited<ReturnType<EngineFixtures['createEngine']>>['session']
-
-  async function pageServes(session: Session) {
-    await expect
-      .poll(() =>
-        session
-          .tool('page_tabs_list')
-          .call({})
-          .then(
-            () => true,
-            () => false,
-          ),
-      )
-      .toBe(true)
+  function pageServes(engine: Awaited<ReturnType<EngineFixtures['createEngine']>>, sessionId: string, allow = true) {
+    return engine.event('rpc.experimental.page.permissions.synced', {data: {sessionId, allow}})
   }
 
   async function openPage(createEngine: EngineFixtures['createEngine'], options: OpenPage = {}) {
     const engine = await createEngine(options.config, {plugins: ['@conciv/plugin-page']})
+    const served = await pageServes(engine, engine.session.id)
     await renderTestApp({engine, plugins: [options.page ?? pageTestPlugin, ...(options.plugins ?? [])]})
-    await pageServes(engine.session)
+    await served.arrived
     return engine
   }
 
@@ -454,25 +443,24 @@ describe('the page plugin in the widget', () => {
       const engine = await createEngine({}, {plugins: ['@conciv/plugin-page']})
       const alpha = await engine.newSession('Alpha')
       const bravo = await engine.newSession('Bravo')
+      const onBravo = await pageServes(engine, bravo.id)
       await renderTestApp({engine, plugins: [pageTestPlugin], initialEntries: [`/panel/${bravo.id}?open=true`]})
-      await pageServes(bravo)
+      await onBravo.arrived
       expect(await bravo.tool('page_route').call({})).toMatchObject({pathname: '/'})
 
       await user.click(await screen.findByRole('button', {name: 'Bravo, session options'}))
       await user.click(await screen.findByRole('button', {name: 'Session: Bravo'}))
+      const onAlpha = await pageServes(engine, alpha.id)
+      const offBravo = await pageServes(engine, bravo.id, false)
       await user.click(await screen.findByRole('option', {name: /^Alpha, Edited/}))
       expect(await screen.findByText('Switched to Alpha')).toBeVisible()
-      await pageServes(alpha)
+      await onAlpha.arrived
 
       expect(await alpha.tool('page_route').call({})).toMatchObject({pathname: '/'})
-      await expect
-        .poll(() =>
-          bravo
-            .tool('page_route')
-            .failure({})
-            .then((failure) => failure.message),
-        )
-        .toContain("'external_page_route' is not defined")
+      await offBravo.arrived
+      expect(await bravo.tool('page_route').failure({})).toMatchObject({
+        message: expect.stringContaining("'external_page_route' is not defined"),
+      })
     })
   })
 

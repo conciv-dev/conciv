@@ -2,11 +2,13 @@ import {describe, expect} from 'vitest'
 import {test as it} from '@conciv/backend-test-utils'
 import {z} from 'zod'
 import {TestLLM} from '@conciv/backend-test-utils'
+import {makeRpcClient} from '@conciv/client'
+import {CONCIV_SESSION_HEADER} from '@conciv/types/chat-types'
 import page from '../../src/page.js'
 import {answerCommands, nextCommand, openPage, REDACTED_URL, SHOT, TAB, widgetClient} from '../utils/page-attachment.js'
 
 describe('with no page open, the agent is offered no page tools', () => {
-  it('leaves the page tools and the page skill out of the request and out of reach of a call, and a grabbed element reaches the model with its picture', async ({
+  it('leaves the page tools and the page skill out of the request and out of reach of a call and of the terminal, and a grabbed element reaches the model with its picture', async ({
     createEngine,
   }) => {
     const engine = await createEngine({}, {plugins: [page]})
@@ -27,6 +29,13 @@ describe('with no page open, the agent is offered no page tools', () => {
     expect(await engine.outside().discover(['page_click'])).toMatchObject({
       content: [{type: 'text', text: expect.stringContaining("Unknown tool: 'page_click'")}],
     })
+    const terminal = makeRpcClient(engine.address.apiBase, {
+      token: engine.address.token,
+      headers: {[CONCIV_SESSION_HEADER]: engine.session.id},
+    })
+    await expect(terminal.registry.call({name: 'page_route', input: {}})).rejects.toThrow(
+      'No tool named "page_route" is currently available',
+    )
 
     const picture = `data:${SHOT.mime};base64,${SHOT.data}`
     const {id} = z.object({id: z.string()}).parse(
@@ -157,16 +166,15 @@ describe('the agent reads the page in code mode', () => {
       signal: switched.signal,
     })
     expect(await bravo.tool('page_tabs_list').call({})).toMatchObject({tabs: [{url: 'http://localhost:3000/bravo'}]})
+    const revoked = await engine.event('rpc.experimental.page.permissions.synced', {
+      data: {sessionId: bravo.id, allow: false},
+    })
     switched.abort()
     expect(await leaving.ended).toBe('closed')
-    await expect
-      .poll(() =>
-        bravo
-          .tool('page_tabs_list')
-          .failure({})
-          .then((failure) => failure.message),
-      )
-      .toContain("'external_page_tabs_list' is not defined")
+    await revoked.arrived
+    expect(await bravo.tool('page_tabs_list').failure({})).toMatchObject({
+      message: expect.stringContaining("'external_page_tabs_list' is not defined"),
+    })
     expect(await bravo.tool('page_route').failure({})).toMatchObject({
       message: expect.stringContaining("'external_page_route' is not defined"),
     })
