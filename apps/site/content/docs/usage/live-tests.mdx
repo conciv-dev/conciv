@@ -3,8 +3,8 @@ title: Live tests
 description: Run your tests from the chat and read the result in the thread.
 ---
 
-Ask the agent to run your tests. It calls `test_runner_run`, and a test card in the thread shows the
-finished result: how many passed and failed, and each failure with its message.
+Ask the agent to run your tests. It calls `test_runner_run`, and a test card in the thread shows the finished result:
+how many passed and failed, grouped by file, and each failure with its message.
 
 <ImageZoom
   src="/screenshots/test-card.png"
@@ -13,16 +13,21 @@ finished result: how many passed and failed, and each failure with its message.
   height={1080}
 />
 
-The Tests tab shows the run live. With the default `vitest` runner, rows stream in as each test passes or fails.
-With the `playwright` runner, the rows appear together when the run ends.
+The **Tests** tab in the panel shows the run live. With the default `vitest` runner, rows stream in as each test passes
+or fails. With the `playwright` runner, the rows appear together when the run ends.
 
-The agent reads the last result with `test_runner_status`. A vague request like "run the tests"
-makes it list your test files first (through code mode), and it may ask which to run. Name a target to skip that step.
+The agent has three tools:
 
-On a failure, it summarizes what broke and asks before changing anything. It does not edit your
-code unprompted.
+- `test_runner_run` runs every test, or with a `pattern` only the test files whose path matches it, and waits for the
+  result. Name a file or an area in your request and the agent can pass it as the pattern.
+- `test_runner_status` reads the last finished result without starting a run.
+- `external_test_runner_list`, in code mode, lists the test files without running them.
+
+When the runner cannot start (the framework is not installed, or its config fails to load), the call fails with a
+message that says why.
 
 <Callout>
-  Live tests need the test-runner plugin. Vitest is the default runner. Playwright is also supported. See [Test
+  Live tests come from the test-runner plugin, `@conciv/plugin-test-runner`. conciv does not ship it: install it and add
+  it to `plugins`. Vitest is the default runner, and Playwright is the other one. See [Test
   runners](/docs/test-runners).
 </Callout>
