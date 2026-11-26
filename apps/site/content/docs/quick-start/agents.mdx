@@ -3,48 +3,105 @@ title: Connect your agents
 description: Let the coding agent in your own terminal see and drive your open conciv tabs.
 ---
 
-The chat in the panel runs its own harness. Your own terminal agent, such as Claude Code or Codex in another window,
-is separate. Teach it the conciv CLI and connect it to conciv, and it can find your open conciv tabs and use the same
-tools the chat uses.
+Connect the agent in your terminal to conciv. It can then find your open conciv tabs and use the same tools the chat
+in the panel uses. `conciv init` does this for every agent it finds. To connect one yourself, pick your agent:
 
-`conciv init` does this for you. You can also do it by hand.
+<Tabs groupId="agent" persist items={['Claude Code', 'Codex', 'Gemini CLI', 'opencode']}>
+
+<Tab value="Claude Code">
+
+```bash
+npx @conciv/cli@latest mcp connect claude
+```
+
+This adds the `conciv-hub` MCP server to Claude Code for your user. It runs `claude mcp add -s user conciv-hub ...`.
+
+</Tab>
+
+<Tab value="Codex">
+
+```bash
+npx @conciv/cli@latest mcp connect codex
+```
+
+This adds the `conciv-hub` MCP server to Codex. It runs `codex mcp add conciv-hub ...`.
+
+</Tab>
+
+<Tab value="Gemini CLI">
+
+```bash
+npx @conciv/cli@latest mcp connect gemini-cli
+```
+
+This adds the `conciv-hub` MCP server to Gemini CLI for your user. It runs `gemini mcp add -s user conciv-hub ...`.
+
+</Tab>
+
+<Tab value="opencode">
+
+```bash
+npx @conciv/cli@latest mcp connect opencode
+```
+
+This adds the `conciv-hub` MCP server to opencode. It runs `opencode mcp add conciv-hub ...`.
+
+</Tab>
+
+</Tabs>
+
+On success it prints:
+
+```text
+{"ok":true,"data":{"connected":"claude"}}
+```
+
+## Try it
+
+With your dev server running and your app open, ask your agent:
+
+<CopyPrompt text="List my open conciv tabs. Then read the page in the first one and tell me what is on it." />
+
+The agent gets three tools:
+
+- `list_tabs` lists the open conciv tabs of every running dev server on this machine.
+- `discover_tools` lists the tools it can call on a tab.
+- `execute_typescript` runs those tools on the tab you name.
+
+The panel shows the same connections. A **Connected agents** row sits above the composer. A **Connect agents** menu
+sits in the composer toolbar.
 
 ## What init sets up
 
-<TypeTable
-  type={{
-    'AGENTS.md': {
-      required: true,
-      type: 'every harness',
-      description:
-        'A marked conciv section between <!-- conciv:start --> and <!-- conciv:end -->, ending with a "Set up for:" line naming the harnesses you picked. Re-running init updates it in place, and shows it as already wired when it is current.',
-    },
-    'CLAUDE.md': {
-      required: true,
-      type: 'claude',
-      description:
-        'The same section when you keep a CLAUDE.md that does not import AGENTS.md. With claude picked and no CLAUDE.md, init creates one holding @AGENTS.md.',
-    },
-    '.conciv/claude-connect': {
-      required: true,
-      type: 'claude',
-      description:
-        "A Claude Code plugin, conciv-connect, with a conciv skill and an MCP bridge, installed with Claude Code's plugin manager for this project only.",
-    },
-    'conciv-hub': {
-      required: true,
-      type: 'claude, codex, gemini-cli, opencode',
-      description: "An MCP server added to that agent's own config, one per agent you picked to connect.",
-    },
-  }}
-/>
+- A conciv section in `AGENTS.md`, between `<!-- conciv:start -->` and `<!-- conciv:end -->`. It tells the agent to
+  use `conciv tools page ...` for the browser, and `conciv tools --help` for the rest.
+- The same section in `CLAUDE.md`, when yours does not import `AGENTS.md`. With Claude Code and no `CLAUDE.md`, init
+  creates one that holds `@AGENTS.md`.
+- For Claude Code, the `conciv-connect` plugin in `.conciv/claude-connect`. It holds a conciv skill and an MCP bridge,
+  for this project only.
+- The `conciv-hub` MCP server in each agent you picked.
 
-The section in `AGENTS.md` tells the agent to use `conciv tools page ...` for anything in the running browser, and to
-run `conciv tools --help` for every command. If init cannot write it (for example the file has a start marker with no
-end marker), it prints the section as a card for you to paste.
+Re-running init updates the section in place.
 
-The Claude Code plugin's bridge reads the engine's address from `.conciv/mcp-endpoint.json`, which the engine writes
-when it starts. If the plugin install fails, init prints the commands to run yourself:
+## Edge cases
+
+<Accordions>
+<Accordion id="commands" title="The other mcp commands">
+
+- `conciv mcp disconnect <agent>` stops conciv answering that agent, and removes it from the agent's config.
+- `conciv mcp list` lists the connected agents.
+- `conciv mcp serve --agent <agent>` is the server the agent runs. connect registers it for you. You do not run it
+  yourself.
+
+</Accordion>
+<Accordion id="opencode-disconnect" title="Disconnecting opencode">
+
+The `conciv-hub` entry stays in `opencode.json`. conciv refuses it until you connect again.
+
+</Accordion>
+<Accordion id="claude-plugin" title="The Claude Code plugin failed to install">
+
+init prints the commands to run yourself:
 
 ```bash
 claude plugin marketplace add .conciv/claude-connect
@@ -52,47 +109,30 @@ claude plugin install conciv-connect@conciv --scope local
 claude plugin update conciv-connect@conciv --scope local
 ```
 
-## Connect by hand
+The plugin's bridge reads the engine address from `.conciv/mcp-endpoint.json`. The engine writes it when it starts.
 
-`conciv mcp connect` adds `conciv-hub` to that agent's MCP config. It takes `claude`, `codex`, `gemini-cli` or
-`opencode`.
+</Accordion>
+<Accordion id="agents-md" title="init could not write AGENTS.md">
 
-```bash
-npx @conciv/cli@latest mcp connect claude
-```
+When the file has a start marker with no end marker, init does not edit it. It prints the section as a card to paste.
 
-On success it prints `{"ok":true,"data":{"connected":"claude"}}`.
+</Accordion>
+<Accordion id="jobs" title="Long running work">
 
-<TypeTable
-  type={{
-    'mcp connect <agent>': {required: true, type: 'command', description: 'Adds conciv to that agent CLI.'},
-    'mcp disconnect <agent>': {
-      required: true,
-      type: 'command',
-      description:
-        'Stops conciv answering that agent and removes conciv from that agent CLI. For opencode the entry stays in opencode.json, and conciv refuses it until you connect again.',
-    },
-    'mcp list': {required: true, type: 'command', description: 'The agents connected to conciv.'},
-    'mcp serve --agent <agent>': {
-      required: true,
-      type: 'command',
-      description:
-        'The MCP server the agent runs over stdio. connect registers it for you as npx -y @conciv/cli@<version> mcp serve --agent <agent>; you do not run it yourself.',
-    },
-  }}
-/>
+Work a call leaves running, such as a queue of page actions, is a job on the engine. Its result comes back once, at
+the top of the next `execute_typescript` reply on that tab. An agent whose MCP client supports tasks gets a task
+instead. The task completes when the job ends.
 
-The connected agent gets three MCP tools: `list_tabs` lists the open conciv tabs of every running dev server on this
-machine, and `execute_typescript` and `discover_tools` run on the tab you name with `tab`.
+</Accordion>
+<Accordion id="access" title="Asking before an agent uses a tab">
 
-Work a call leaves running, such as a queue of page actions, is a job on the engine. Its result comes back at the top
-of the first `execute_typescript` reply on that tab after it ends, once. An agent whose MCP client supports tasks gets a task
-instead, which completes when the job ends.
+A connected agent can use any open tab with no question. Set `hubAccess: 'project'` to have the tab ask first. See
+[Configuration](/docs/configuration) and [Approvals](/docs/usage/approvals).
 
-The panel shows the same connections: a **Connected agents** row above the composer, and a **Connect agents** menu in the
-composer toolbar.
+</Accordion>
+</Accordions>
 
-## Letting an agent in
+## Next
 
-By default a connected agent can use any open tab with no question. Set `hubAccess: 'project'` to have the tab ask
-first. See [Configuration](/docs/configuration) and [Approvals](/docs/usage/approvals).
+- [Usage](/docs/usage): what the agent can do in your app.
+- [CLI](/docs/cli): every conciv command.
