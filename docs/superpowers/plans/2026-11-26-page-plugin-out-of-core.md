@@ -132,6 +132,15 @@ Ruled 2026-11-26: opencode has a core concept for work a tool call starts that f
 
 - [ ] Commit.
 
+### Task 8a: Root e2e folders hold only what needs them (orchestrator audits, a lane fixes)
+
+Rule (AGENTS.md Testing, maintainer 2026-11-26): a framework app under `e2e/` holds ONE test (sign in, widget opens with no error); a second only for something that broke in that framework, named in its title. Behaviour that needs the real built widget in a real browser but is not about a framework (reload, windows, downloads, file chooser, focus between host and widget, real CLIs, the CLI binary) is tested once in one host app (`e2e/vite-react`). App-level behaviour never lives in `e2e/`.
+Today: `e2e/vite-react` has 19 tests, `e2e/nextjs` 3, `e2e/harnesses` 2, every other app 1.
+
+- [ ] For each `e2e/vite-react` test: keep only if it needs the real bundle for a reason in the list above; otherwise move its behaviour to the owning package's browser-mode test (the journey file of that area) or delete it if already covered there (name the covering test).
+- [ ] `e2e/nextjs`: the 2 extra tests name the Next.js break they guard, or go.
+- [ ] `e2e/harnesses`: real harness CLIs, allowed; confirm each test is about a CLI.
+
 ### Task 8: Proof (orchestrator)
 
 - [ ] grep every plugin package name outside `packages/plugins/`: only built-ins composition.
