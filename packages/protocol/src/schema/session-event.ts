@@ -155,33 +155,6 @@ export const InboxDeliveryChanged = EventDefinition.durable({
 })
 export type InboxDeliveryChanged = typeof InboxDeliveryChanged.Type
 
-const OutsideRef = {
-  ...Base,
-  id: Schema.String,
-  toolCallId: Schema.String,
-}
-
-export const OutsideExpected = EventDefinition.durable({
-  type: 'session.outside_notice.expected',
-  ...options,
-  schema: OutsideRef,
-})
-export type OutsideExpected = typeof OutsideExpected.Type
-
-export const OutsideNotice = EventDefinition.durable({
-  type: 'session.outside_notice',
-  ...options,
-  schema: {...OutsideRef, text: Schema.String},
-})
-export type OutsideNotice = typeof OutsideNotice.Type
-
-export const OutsideDelivered = EventDefinition.durable({
-  type: 'session.outside_notice.delivered',
-  ...options,
-  schema: {...Base, ids: Schema.Array(Schema.String)},
-})
-export type OutsideDelivered = typeof OutsideDelivered.Type
-
 export const Definitions = EventDefinition.inventory(
   Created,
   Renamed,
@@ -199,9 +172,6 @@ export const Definitions = EventDefinition.inventory(
   InboxEnqueued,
   InboxCancelled,
   InboxDeliveryChanged,
-  OutsideExpected,
-  OutsideNotice,
-  OutsideDelivered,
 )
 
 export const DurableDefinitions = EventDefinition.inventory(

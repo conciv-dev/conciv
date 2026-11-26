@@ -122,8 +122,6 @@ export interface SessionHooks {
   readonly 'experimental.idle': SessionIdle
 }
 
-export type SessionOutsideCall = {readonly sessionId: SessionId; readonly toolCallId: string}
-
 export interface SessionDomain {
   readonly list: (
     input?: SessionListInput,
@@ -169,11 +167,6 @@ export interface SessionDomain {
   ) => Promise<{interrupted: boolean}>
   readonly update: (input: SessionUpdateInput, requestOptions?: RpcCallOptions) => Promise<void>
   readonly wait: (input: SessionInput, requestOptions?: RpcCallOptions) => Promise<void>
-  readonly expectOutside: (input: SessionOutsideCall, requestOptions?: RpcCallOptions) => Promise<void>
-  readonly notifyOutside: (
-    input: SessionOutsideCall & {readonly text: string},
-    requestOptions?: RpcCallOptions,
-  ) => Promise<void>
   readonly instructions: {
     readonly entry: {
       readonly list: (input: SessionInput, requestOptions?: RpcCallOptions) => Promise<Array<InstructionEntryInfo>>

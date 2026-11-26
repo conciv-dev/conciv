@@ -32,8 +32,6 @@ type RpcEvent = Event.Payload & {
   readonly location: Location.Ref
   readonly data: Readonly<Record<string, unknown>>
 }
-const outsideDropped = (error: {readonly sessionId: string}) =>
-  Effect.logWarning(`Session ${error.sessionId} is gone; its outside notice is dropped`)
 const isRpcType = (type: string): type is RpcEvent['type'] => type.startsWith('rpc.')
 const isRpcEvent = (event: Event.Payload): event is RpcEvent => isRpcType(event.type)
 const isPublicEvent = (event: Event.Payload): event is EventManifest.ServerEvent | RpcEvent =>
@@ -233,10 +231,6 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
       interrupt: (input) =>
         sessions.interrupt(input.sessionId, {resume: input.resume}).pipe(Effect.map((interrupted) => ({interrupted}))),
       wait: (input) => sessions.wait(input.sessionId),
-      expectOutside: (input) =>
-        sessions.expectOutside(input).pipe(Effect.catchTag('Session.NotFoundError', outsideDropped)),
-      notifyOutside: (input) =>
-        sessions.notifyOutside(input).pipe(Effect.catchTag('Session.NotFoundError', outsideDropped)),
       instructions: {
         entry: {
           list: Effect.fn(function* (input) {

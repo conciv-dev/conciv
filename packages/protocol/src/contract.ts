@@ -33,18 +33,6 @@ interface ChatEventStream extends Schema<
 const ChatEventStreamSchema: ChatEventStream = eventIterator(StreamChunkSchema)
 
 const SessionIdInput = z.object({sessionId: SessionId})
-
-const ToolCallId = z.string().min(1).max(256)
-
-const OutsideNoticesInput = SessionIdInput.extend({
-  toolCallIds: z.array(ToolCallId).max(256).optional(),
-  waitMs: z.number().int().min(0).max(30_000),
-})
-
-const OutsideNoticesSchema = z.object({
-  notices: z.array(z.object({id: z.string(), toolCallId: z.string(), text: z.string()})),
-  pending: z.array(z.string()),
-})
 const RunIdSchema = z.string().min(1)
 const ChatSendInput = SessionIdInput.extend({
   runId: RunIdSchema,
@@ -478,7 +466,6 @@ export const contract = {
       })
       .input(SessionIdInput.extend({harnessId: z.string().min(1), model: z.string().min(1).optional()}))
       .output(z.object({harnessId: z.string()})),
-    outsideNotices: oc.input(OutsideNoticesInput).output(OutsideNoticesSchema),
   },
   tabs: {
     open: oc

@@ -1,11 +1,10 @@
-import {and, eq, inArray, isNull, max} from 'drizzle-orm'
+import {eq, max} from 'drizzle-orm'
 import {Effect, Layer} from 'effect'
 import {chatMessages} from '../../db/run-schema.js'
 import type {SessionId} from '@conciv/protocol/schema/session-id'
 import type {SyntheticPayload} from '@conciv/protocol/schema/session-inbox'
 import type * as SessionMessage from '@conciv/protocol/schema/session-message'
 import * as Database from '@conciv/backend-app-api/core/database/database'
-import {OutsideNoticeTable} from '@conciv/backend-app-api/core/session/sql'
 import * as Bus from '@conciv/backend-app-api/core/bus'
 import * as SessionEvent from '@conciv/protocol/schema/session-event'
 import * as InstructionState from './instruction-state.js'
@@ -92,70 +91,6 @@ export const layer = Layer.effectDiscard(
         sessionID: event.data.sessionID,
         delivery: event.data.delivery,
       }),
-    )
-    yield* bus.project(SessionEvent.OutsideExpected, (event) =>
-      db
-        .insert(OutsideNoticeTable)
-        .values({
-          id: event.data.id,
-          session_id: event.data.sessionID,
-          tool_call_id: event.data.toolCallId,
-          text: null,
-          delivered: false,
-          created_at: event.created,
-        })
-        .onConflictDoNothing()
-        .run()
-        .pipe(Effect.orDie),
-    )
-    yield* bus.project(SessionEvent.OutsideNotice, (event) =>
-      db
-        .insert(OutsideNoticeTable)
-        .values({
-          id: event.data.id,
-          session_id: event.data.sessionID,
-          tool_call_id: event.data.toolCallId,
-          text: event.data.text,
-          delivered: false,
-          created_at: event.created,
-        })
-        .onConflictDoUpdate({target: OutsideNoticeTable.id, set: {text: event.data.text}})
-        .run()
-        .pipe(Effect.orDie),
-    )
-    yield* bus.project(SessionEvent.OutsideDelivered, (event) =>
-      db
-        .update(OutsideNoticeTable)
-        .set({delivered: true})
-        .where(
-          and(eq(OutsideNoticeTable.session_id, event.data.sessionID), inArray(OutsideNoticeTable.id, event.data.ids)),
-        )
-        .run()
-        .pipe(Effect.orDie),
-    )
-    yield* bus.project(SessionEvent.Deleted, (event) =>
-      db
-        .delete(OutsideNoticeTable)
-        .where(eq(OutsideNoticeTable.session_id, event.data.sessionID))
-        .run()
-        .pipe(Effect.orDie),
-    )
-    const lost = yield* db
-      .select()
-      .from(OutsideNoticeTable)
-      .where(isNull(OutsideNoticeTable.text))
-      .all()
-      .pipe(Effect.orDie)
-    yield* Effect.forEach(
-      lost,
-      (row) =>
-        bus.publish(SessionEvent.OutsideNotice, {
-          sessionID: row.session_id,
-          id: row.id,
-          toolCallId: row.tool_call_id,
-          text: `tool call ${row.tool_call_id} was lost: the engine restarted before it finished, so its actions may have partly run`,
-        }),
-      {discard: true},
     )
   }),
 )

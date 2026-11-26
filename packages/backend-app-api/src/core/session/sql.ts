@@ -1,4 +1,4 @@
-import {index, integer, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
+import {integer, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
 import type {Brand, Schema} from 'effect'
 import type {PermissionRule, ReasoningEffort, SessionId, SessionMetadata} from '@conciv/types/chat-types'
 import type {UsageSnapshot} from '@conciv/types/usage-types'
@@ -46,19 +46,3 @@ export const InstructionStateTable = sqliteTable('instruction_state', {
     .notNull()
     .$type<Readonly<Record<string, string & Brand.Brand<'Instruction.Hash'>>>>(),
 })
-
-export const OutsideNoticeTable = sqliteTable(
-  'outside_notice',
-  {
-    id: text().primaryKey(),
-    session_id: text()
-      .$type<SessionId>()
-      .notNull()
-      .references(() => sessions.id, {onDelete: 'cascade'}),
-    tool_call_id: text().notNull(),
-    text: text(),
-    delivered: integer({mode: 'boolean'}).notNull(),
-    created_at: integer().notNull(),
-  },
-  (table) => [index('outside_notice_session_delivered_idx').on(table.session_id, table.delivered)],
-)
