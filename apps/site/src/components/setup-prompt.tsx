@@ -3,20 +3,35 @@ import {useRef, useState} from 'react'
 import {Button} from '@/components/ui/button'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select'
 
-type Framework = {id: string; label: string; icon: string; steps: string[]}
+type FrameworkId = 'vite' | 'nextjs' | 'tanstack-start' | 'webpack' | 'rspack' | 'ios'
 
-const INIT = 'Run `npx @conciv/cli@latest init --yes` in my app folder, the one with package.json.'
-const RUNNER = 'If the project uses pnpm, yarn or bun, run the same command with pnpm dlx, yarn dlx or bunx instead.'
+type Framework = {id: FrameworkId; label: string; icon: string; steps: string[]}
+
+const INIT = 'In my app folder, the one with package.json, run `npx @conciv/cli@latest init --yes`.'
+const RUNNER = 'If the project uses pnpm, yarn or bun, run it with pnpm dlx, yarn dlx or bunx instead of npx.'
 const WHAT_INIT_DOES =
-  'init installs @conciv/it as a dev dependency. It wires conciv into my build config and prints the diff. It writes a conciv section to AGENTS.md, and to CLAUDE.md when I use Claude Code. It connects the agent CLIs it finds on my machine.'
+  'init installs @conciv/it as a dev dependency. It adds conciv to my build config and prints the diff. It writes a conciv section to AGENTS.md, and to CLAUDE.md for Claude Code. It connects the agent CLIs it finds on my machine.'
+const MANUAL = 'If init prints a card with a snippet instead of doing a step, do that step yourself from the snippet.'
 const DIRTY = 'If init stops on uncommitted changes, ask me before you commit or pass --force.'
 const BLOCKED =
   'If the install fails, stop and show me the error. A release age policy can block a new version. Do not change that policy yourself.'
 const LOG_IN =
-  'Log me in. Run `npx @conciv/cli@latest auth link <the app URL>` in the app folder and give me the link from its output. Or tell me to type the 6-digit code the dev server printed.'
+  'Log me in. In the app folder, run `npx @conciv/cli@latest auth link <the app URL>` and give me the link it prints. Or tell me to click the conciv button and type the 6-digit code the dev server prints.'
 
-function webSteps(wire: string, start: string): string[] {
-  return [INIT, RUNNER, WHAT_INIT_DOES, wire, DIRTY, BLOCKED, start, LOG_IN]
+function webSteps(wire: string[], start: string): string[] {
+  return [INIT, RUNNER, WHAT_INIT_DOES, ...wire, MANUAL, DIRTY, BLOCKED, start, LOG_IN]
+}
+
+const VITE_START =
+  'Start the dev server with my dev script. Open the app in the browser. A conciv button shows in the corner.'
+const BUNDLER_START =
+  'Start the dev server, or a build in watch mode. A one-off build starts no engine. Open the app in the browser. A conciv button shows in the corner.'
+
+function bundlerWire(name: string): string[] {
+  return [
+    `Check that init added conciv to the plugins of my ${name} config.`,
+    `Check that the config sets mode: 'development'. With no mode, ${name} builds for production and conciv stays off.`,
+  ]
 }
 
 const FRAMEWORKS: Framework[] = [
@@ -24,18 +39,19 @@ const FRAMEWORKS: Framework[] = [
     id: 'vite',
     label: 'Vite',
     icon: '/icons/vite.svg',
-    steps: webSteps(
-      'init adds conciv() to the plugins of my Vite config. Check that the diff did that.',
-      'Start the dev server with my dev script, then open the app in the browser. A conciv button shows in the corner.',
-    ),
+    steps: webSteps(['Check that init added conciv() to the plugins of my Vite config.'], VITE_START),
   },
   {
     id: 'nextjs',
     label: 'Next.js',
     icon: '/icons/nextjs.svg',
     steps: webSteps(
-      'init wraps my next config with withConciv. It creates instrumentation.ts and instrumentation-client.ts. Check that the diff did that.',
-      'Start the dev server with my dev script (next dev), then open the app in the browser. A conciv button shows in the corner.',
+      [
+        'Check that init wrapped my next config with withConciv.',
+        'Check that it created instrumentation.ts and instrumentation-client.ts in the app folder.',
+        'If my routes live in src/app or src/pages, move both files into src/.',
+      ],
+      'Start the dev server with my dev script (next dev). Open the app in the browser. A conciv button shows in the corner.',
     ),
   },
   {
@@ -43,42 +59,26 @@ const FRAMEWORKS: Framework[] = [
     label: 'TanStack Start',
     icon: '/icons/tanstack.svg',
     steps: webSteps(
-      'TanStack Start runs on Vite. init adds conciv() to the plugins of my Vite config. Check that the diff did that.',
-      'Start the dev server with my dev script, then open the app in the browser. A conciv button shows in the corner.',
+      ['TanStack Start runs on Vite. Check that init added conciv() to the plugins of my Vite config.'],
+      VITE_START,
     ),
   },
-  {
-    id: 'webpack',
-    label: 'webpack',
-    icon: '/icons/webpack.svg',
-    steps: webSteps(
-      "init adds conciv to the plugins of my webpack config. Check that the config sets mode: 'development'. With no mode, webpack builds for production and conciv stays off.",
-      'Start the webpack dev server, or a build in watch mode. A one-off build does not start conciv. Then open the app in the browser. A conciv button shows in the corner.',
-    ),
-  },
-  {
-    id: 'rspack',
-    label: 'Rspack',
-    icon: '/icons/rspack.svg',
-    steps: webSteps(
-      "init adds conciv to the plugins of my Rspack config. Check that the config sets mode: 'development'. With no mode, Rspack builds for production and conciv stays off.",
-      'Start the Rspack dev server, or a build in watch mode. A one-off build does not start conciv. Then open the app in the browser. A conciv button shows in the corner.',
-    ),
-  },
+  {id: 'webpack', label: 'webpack', icon: '/icons/webpack.svg', steps: webSteps(bundlerWire('webpack'), BUNDLER_START)},
+  {id: 'rspack', label: 'Rspack', icon: '/icons/rspack.svg', steps: webSteps(bundlerWire('Rspack'), BUNDLER_START)},
   {
     id: 'ios',
     label: 'iOS (alpha)',
     icon: '/icons/apple.svg',
     steps: [
-      'conciv for iOS needs a dev server that runs conciv. If my repo has none, ask me which web project to use.',
-      INIT + ' Use the web project that will run the engine.',
+      'conciv for iOS needs a web dev server that runs conciv. If my repo has none, ask me which web project to use.',
+      `${INIT} Use the web project that will run the engine.`,
       RUNNER,
       BLOCKED,
       'Add the Swift package https://github.com/conciv-dev/conciv-swift.git to my app. Use the version that matches the @conciv/it version init installed.',
       'Add the ConcivWidget product to the target that shows my UI.',
       'Call ConcivWidget.attach() once at app start, in my SwiftUI App init or my scene delegate.',
       'Start the dev server. Then build and run a Debug build in the iOS simulator. A Release build shows no widget.',
-      'Tell me to tap the conciv button and type the 6-digit code the dev server printed.',
+      'Tell me to tap the conciv button and type the 6-digit code the dev server prints.',
     ],
   },
 ]
@@ -124,8 +124,8 @@ function PromptText({text}: {text: string}) {
   )
 }
 
-export function SetupPrompt() {
-  const [frameworkId, setFrameworkId] = useState(FALLBACK.id)
+export function SetupPrompt({framework: initial}: {framework?: FrameworkId}) {
+  const [frameworkId, setFrameworkId] = useState<string>(initial ?? FALLBACK.id)
   const framework = FRAMEWORKS.find((entry) => entry.id === frameworkId) ?? FALLBACK
   const prompt = numbered(framework.steps)
   return (
