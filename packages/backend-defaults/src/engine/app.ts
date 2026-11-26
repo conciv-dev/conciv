@@ -5,7 +5,7 @@ import {setTimeout as delay} from 'node:timers/promises'
 import {Hono, type MiddlewareHandler} from 'hono'
 import {z} from 'zod'
 import {EngineStalenessSchema, type EngineStaleness} from '@conciv/protocol'
-import {upgradeWebSocket} from '@conciv/serve'
+import {upgradeWebSocket, type ServeFetch} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
 import {type HarnessAdapter, resolveHarnessModels} from '@conciv/harness'
 import {concivStateDir} from '@conciv/types/state-types'
@@ -123,6 +123,8 @@ import type {OpenInEditor} from './editor/open.js'
 import {writePrivateFile} from './lib/dev-endpoint.js'
 import {logOnContext, logOnRuntime, type Log, type LogOptions} from './lib/logging.js'
 import type {SimulationParts} from './lib/simulation.js'
+
+type ServeBindings = Parameters<ServeFetch>[1]
 
 const NO_TAB_MESSAGE = 'pass tab to execute_typescript; list_tabs lists the open tabs'
 
@@ -366,7 +368,7 @@ function composeRoutes(
   },
 ) {
   const traceCall = deps.tracer === undefined ? undefined : rpcSpan(deps.tracer)
-  const app = new Hono<{Variables: CoreVars}>()
+  const app = new Hono<{Variables: CoreVars; Bindings: ServeBindings}>()
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
       deps.log(Effect.logError('[core] unhandled route error', {path: c.req.path, error}))
@@ -387,7 +389,7 @@ function composeRoutes(
     )
     .post('/api/shutdown', (c) => {
       if (!deps.onShutdown) return c.json({message: 'shutdown not supported'}, 404)
-      setTimeout(deps.onShutdown, 50)
+      c.env.outgoing.once('close', deps.onShutdown)
       return c.json({ok: true})
     })
     .get(
@@ -433,7 +435,7 @@ async function mcpAttributes(request: Request): Promise<Record<string, string>> 
 
 export type AppType = ReturnType<typeof composeRoutes>
 
-export type EngineFetch = GatedFetch<unknown>
+export type EngineFetch = GatedFetch<ServeBindings>
 
 export type MadeApp = {
   app: AppType
@@ -958,7 +960,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       ),
     ).finally(releaseObservability)
 
-  const fetch = makeEngineGate<unknown>({
+  const fetch = makeEngineGate<ServeBindings>({
     fetch: (request, env) => app.fetch(request, env),
     trusts: trust.trusts,
     allowedOrigins: opts.allowedOrigins ?? [],

@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto'
+import {setTimeout} from 'node:timers/promises'
 import {serveHono, type ServeFetch} from '@conciv/serve'
 import {
   checkEngines,
@@ -157,17 +158,13 @@ function assertAccessToken(accessToken: string | undefined): void {
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? accessTokenMessage)
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 async function reservePort(fetchHandler: FetchHandler, port: number): Promise<Served | undefined> {
   for (let attempt = 0; attempt < PERSISTED_PORT_ATTEMPTS; attempt++) {
     try {
       return await serveHono({fetch: fetchHandler, port})
     } catch (error) {
       if (!isAddressInUse(error)) throw error
-      if (attempt < PERSISTED_PORT_ATTEMPTS - 1) await delay(PERSISTED_PORT_RETRY_MS)
+      if (attempt < PERSISTED_PORT_ATTEMPTS - 1) await setTimeout(PERSISTED_PORT_RETRY_MS)
     }
   }
   return undefined

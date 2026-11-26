@@ -132,6 +132,17 @@ export function whenLoaded<T>(handle: Persisted<T>, loads: StoreLoads) {
   return loads.get(handle) ?? Promise.resolve()
 }
 
+export function loadedHandle<T>(handle: Persisted<T>, initial: T): Persisted<T, T> {
+  return {
+    get value() {
+      return handle.value ?? initial
+    },
+    ready: () => handle.ready(),
+    update: (mutate) => handle.update(mutate),
+    set: (next) => handle.set(next),
+  }
+}
+
 export function deferredHandle<T>(store: Accessor<Persisted<T> | undefined>, loads: StoreLoads): Persisted<T> {
   const machine = {state: createDeferredStoreState<Persisted<T>, T>()}
   const opened = Promise.withResolvers<Persisted<T>>()

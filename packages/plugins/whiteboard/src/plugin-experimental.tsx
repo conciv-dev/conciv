@@ -1,4 +1,4 @@
-import {getOwner, onCleanup, type JSX} from 'solid-js'
+import {getOwner, onCleanup, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {Layer, ManagedRuntime, SubscriptionRef} from 'effect'
@@ -91,7 +91,11 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = Plugin.define({
       get hides() {
         return visible() && Boolean(comments()?.threadOpen() || comments()?.inboxOpen() || comments()?.prompting())
       },
-      render: () => <WhiteboardNotices ctx={ctx} runtime={runtime} surface={surface} layer={layer} />,
+      render: () => (
+        <Show when={visible()}>
+          <WhiteboardNotices ctx={ctx} runtime={runtime} surface={surface} layer={layer} />
+        </Show>
+      ),
     }
     const bindComments = (cover: ChatCover | undefined): void =>
       void runtime.runSync(SubscriptionRef.set(compose.cover, cover))
@@ -168,22 +172,23 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = Plugin.define({
     })
     ctx.add(ComposerPill, commentPill)
     whiteboardToolCards(OpaqueUi.toInternal(ctx.ui)).forEach((card) => ctx.add(ToolRegistry, card))
-    // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
-    ctx.add(Slot, () => (visible() ? overlay : undefined))
-    // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
-    ctx.add(Slot, (): Slot | undefined => {
-      const current = composing()
-      if (!current) return undefined
-      return {
-        at: 'page.overlay',
-        render: () => (
-          <ComposePopover
-            ui={ctx.ui}
-            anchor={current.anchor}
-            answer={(text) => void runtime.runFork(compose.answer(text))}
-          />
-        ),
-      }
+    ctx.add(Slot, overlay)
+    ctx.add(Slot, {
+      at: 'page.overlay',
+      get hides() {
+        return composing() !== undefined
+      },
+      render: () => (
+        <Show when={composing()} keyed>
+          {(current) => (
+            <ComposePopover
+              ui={ctx.ui}
+              anchor={current.anchor}
+              answer={(text) => void runtime.runFork(compose.answer(text))}
+            />
+          )}
+        </Show>
+      ),
     })
   },
 })

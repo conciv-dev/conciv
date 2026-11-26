@@ -25,7 +25,6 @@ import {replyScript, type ReplyScript, type ScriptedHarness} from '@conciv/simul
 import type {Gate, ModelRequest, Reply} from '@conciv/simulation/test-llm'
 import {isolatedEnv} from '@internal/vitest-config/isolated-env'
 import {commitAll, initGitProject} from './git-project.js'
-import {until} from './until.js'
 import {startSimulation} from '@conciv/simulation/backend'
 import {connectDrive, writeDriveManifest, type DriveEndpoints, type EngineDrive} from './drive.js'
 
@@ -287,10 +286,17 @@ async function asSession(engine: Engine, sessionId: string, use: (rpc: EngineCli
 
 function approvePending(engine: Engine, sessionId: string): Promise<void> {
   return asSession(engine, sessionId, async (rpc) => {
-    const pending = (): Promise<string[]> =>
-      rpc.chat.hydrate({sessionId}).then(({pendingApprovals}) => pendingApprovals.map((ask) => ask.approvalId))
-    await until(async () => (await pending()).length > 0)
-    for (const approvalId of await pending()) await rpc.chat.permissionDecision({approvalId, reply: 'once'})
+    const abort = new AbortController()
+    try {
+      const asks = await engine.rpc.event.subscribe({types: [ASKED_EVENT]}, {signal: abort.signal})
+      await asks.next()
+      const pending = (): Promise<string[]> =>
+        rpc.chat.hydrate({sessionId}).then(({pendingApprovals}) => pendingApprovals.map((ask) => ask.approvalId))
+      if ((await pending()).length === 0) await matching(asks, ASKED_EVENT, {data: {sessionId}})
+      for (const approvalId of await pending()) await rpc.chat.permissionDecision({approvalId, reply: 'once'})
+    } finally {
+      abort.abort()
+    }
   })
 }
 
@@ -349,6 +355,8 @@ async function matching(
 }
 
 const OPENING_EVENT = 'server.connected'
+
+const ASKED_EVENT = 'permission.asked'
 
 type OpenWait = {pause: () => void; renew: () => Promise<void>; end: () => void}
 
