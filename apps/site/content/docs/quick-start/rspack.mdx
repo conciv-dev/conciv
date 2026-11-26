@@ -3,34 +3,37 @@ title: Rspack
 description: Add conciv to an Rspack app.
 ---
 
-In a development build the Rspack plugin puts the widget on every page of your app, and in watch mode (the dev server
-or `--watch`) it also starts the engine. A one-off development build only adds the widget, so run the dev server or
-turn on watch mode. A config with `mode: 'production'` or no `mode` counts as production and gets neither;
-`mode: 'development'` and `mode: 'none'` get both.
+Copy this prompt into your coding agent. It sets conciv up in your Rspack app:
 
-<Tabs items={['init', 'By hand']}>
+<SetupPrompt framework="rspack" />
 
-<Tab value="init">
+What you get:
 
-```bash
-npx @conciv/cli@latest init
-```
+- The dev server, or a watch build, adds a conciv button to every page and starts the engine.
+- A one-off development build adds the button only. The engine does not start.
+- A production build leaves conciv out.
 
-init finds Rspack in your `package.json`, installs `@conciv/it`, and adds conciv to the `plugins` of your Rspack
-config: `require` and `conciv.default()` in a CommonJS config, `import` and `conciv()` in an ES module config. If it
-cannot read the shape of your config, it prints the snippet to paste instead. See [Quick start](/docs/quick-start) for
-what it asks.
+<Callout title="Set the mode">
+  conciv runs only when your config is not a production build:
 
-</Tab>
+- `mode: 'development'`: conciv is on.
+- `mode: 'none'`: conciv is on.
+- `mode: 'production'`: conciv is off.
+- No `mode`: Rspack builds for production, so conciv is off.
 
-<Tab value="By hand">
+</Callout>
+
+## Set up by hand
+
+<Accordions>
+<Accordion id="by-hand" title="Install and wire conciv yourself">
 
 <Steps>
 <Step>
 
 ### Install
 
-```bash
+```package-install
 npm install -D @conciv/it
 ```
 
@@ -39,29 +42,100 @@ npm install -D @conciv/it
 
 ### Add the plugin
 
+Add the `require`, the plugin call and a development mode:
+
 ```js title="rspack.config.js"
-const conciv = require('@conciv/it/plugin/rspack')
+const {rspack} = require('@rspack/core')
+const conciv = require('@conciv/it/plugin/rspack') // [!code ++]
 
 module.exports = {
-  plugins: [conciv.default()],
+  mode: 'development', // [!code ++]
+  plugins: [
+    new rspack.HtmlRspackPlugin(),
+    conciv.default(), // [!code ++]
+  ],
 }
 ```
 
-Set `mode: 'development'` in the config, or pass `--mode development`, for the widget and the engine.
+- `@conciv/it/plugin/rspack` is the Rspack plugin. A CommonJS `require` gets it as `.default`.
+- `mode: 'development'` turns conciv on. Skip it if you pass `--mode development` on the command line.
+- Your other plugins stay as they are.
+
+</Step>
+<Step>
+
+### Start your dev server
+
+```bash
+npx rspack serve
+```
+
+Or run a build in watch mode with `--watch`.
+
+</Step>
+<Step>
+
+### Open your app and log in
+
+Click the conciv button in the corner. Type the 6-digit code your dev server prints in its terminal. See
+[Logging in](/docs/usage/logging-in).
 
 </Step>
 </Steps>
 
-</Tab>
+</Accordion>
+</Accordions>
 
-</Tabs>
+## What works
 
 <Callout>
-  Rspack is less complete than [Vite](/docs/quick-start/vite): the agent cannot read your dev server's config or module
-  graph, and its `server_*` tools answer `no dev server is attached to conciv`. The chat and the page tools work in the
-  widget your dev build serves.
+  Rspack gives the agent less than [Vite](/docs/quick-start/vite) does. The chat and the page tools work. The agent
+  cannot read your dev server's config or module graph. Its `server_*` tools answer
+  `no dev server is attached to conciv`.
 </Callout>
 
-The plugin picks the engine port before the first watch build and builds the widget with it. See
-[Configuration](/docs/configuration#port) for how the port is chosen. If the engine cannot start, the build fails with
-`conciv: the engine failed to start` and the reason. Stopping the watch, or closing the compiler, stops the engine.
+## Edge cases
+
+<Accordions>
+<Accordion id="esm" title="An ES module config">
+
+In an ES module config, import the plugin and call it directly. init writes this form when your config uses `import`:
+
+```js title="rspack.config.js"
+import {rspack} from '@rspack/core'
+import conciv from '@conciv/it/plugin/rspack' // [!code ++]
+
+export default {
+  mode: 'development', // [!code ++]
+  plugins: [
+    new rspack.HtmlRspackPlugin(),
+    conciv(), // [!code ++]
+  ],
+}
+```
+
+</Accordion>
+<Accordion id="card" title="init printed a snippet instead of editing the config">
+
+init edits only a config it can read as CommonJS or as an ES module. Otherwise it prints the CommonJS snippet. Add it
+as in the manual steps above.
+
+</Accordion>
+<Accordion id="port" title="The engine port">
+
+The plugin picks the engine port before the first watch build. It builds the widget with that port. See
+[Configuration](/docs/configuration#port) for how the port is chosen.
+
+</Accordion>
+<Accordion id="fails" title="The build fails with: conciv: the engine failed to start">
+
+The engine could not start. The reason follows the message in the build output. Stopping the watch, or closing the
+compiler, stops the engine.
+
+</Accordion>
+</Accordions>
+
+## Next
+
+- [Usage](/docs/usage): what the agent can do in your app.
+- [Configuration](/docs/configuration): the options the plugin takes.
