@@ -644,13 +644,14 @@ describe('a plugin draws its own tool cards', () => {
       FakeLLM.text('Main is checked'),
     )
     await mountShell({engine})
+    expect(await screen.findByText('Release train: on time')).toBeVisible()
 
     await user.type(await screen.findByRole('textbox', {name: 'Message the conciv agent'}), 'Can main ship')
     await user.click(screen.getByRole('button', {name: 'Send message'}))
 
     expect(await screen.findByText('Main is checked')).toBeVisible()
     const reply = screen.getByRole('article', {name: 'Reply to: Can main ship'})
-    expect(within(reply).getByText('Release card for main')).toBeVisible()
+    expect(await within(reply).findByText('Release card for main')).toBeVisible()
     expect(within(reply).getByText(/^Release held: .*The release train is frozen/)).toBeVisible()
     expect(within(reply).getByRole('button', {name: /Called release_notes/})).toBeVisible()
 
