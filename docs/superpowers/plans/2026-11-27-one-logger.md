@@ -181,6 +181,29 @@ Steps (maintainer: "can't we store it in our db?" Yes: the engine's own database
   Nothing is written while the level is `off`. This replaces the hand-written file logger; no fs or memory adapter.
 - Retention: default 7 days, config `logRetention` (`'7d'`, `'24h'`), one delete on engine start and then every half of
   the window (the `@evlog/nuxthub` schedule), as an Effect fiber the engine owns.
+
+**Port from `@evlog/nuxthub@2.0.2` (battle tested, SQLite included; the maintainer's reference).** Its source, read
+2026-11-27, is in the published tarball (`npm pack @evlog/nuxthub@2.0.2`; the orchestrator's copy:
+`/private/tmp/claude-501/-Users-omrikatz-Public-web-aidx/5ce1036e-c16e-427d-ba99-bb3348610668/scratchpad/evlog-nuxthub/package/dist`).
+Port these files as they are, adapted only to repo rules (no comments, functions, Effect instead of Nitro):
+
+- `runtime/db/schema/events.sqlite.js` (`evlogEvents`, `sqliteTable('evlog_events', ...)`): our table takes the same
+  columns, types, `notNull`s and the six indexes, same names with our table name. Two additions, each a deliberate
+  deviation: `message` (text, our log entries have one) and `session_id` (text, indexed: agents filter by session).
+  `environment` is filled with the engine's channel (`util/observability.ts` `app.channel`, `'local'` by default).
+- `runtime/drain.js`: `extractRow` (the `INDEXED_FIELDS` split into columns vs the `data` JSON, `coalesceString`,
+  `parseDurationMs`, `error` to JSON text, `id: crypto.randomUUID()`, `createdAt: new Date().toISOString()`) and
+  `insertWithRetry` (3 attempts, 500 ms doubling). Their retryable codes are network database codes; for SQLite the
+  retryable one is `SQLITE_BUSY` (check the error shape our drizzle driver throws and match on it). Their final
+  `console.error` on a failed insert becomes a count the engine exposes in `logs.level` (`dropped`), never a log.
+- `runtime/utils/retention.js`: `parseRetention` (`^(\d+)(d|h|m)$`, the same error text without their link) and
+  `retentionToCron` (half the window: `*/N * * * *` under an hour, `0 */N * * *` under a day, `0 3 * * *` otherwise).
+  Config `logRetention` is validated with `parseRetention` at config parse time.
+- `runtime/tasks/evlog-cleanup.js`: `db.delete(...).where(lt(createdAt, cutoff))` with `cutoff = now - totalMs`.
+  Nitro's scheduled task becomes an Effect fiber: run once at engine start, then on Effect's `Schedule.cron` built from
+  `retentionToCron(retention)`. Their `console.log`/`console.error` become `Effect.logDebug`/`Effect.logWarning`.
+- Not ported: `runtime/api/_cron/evlog-cleanup.js` and the Vercel cron (no serverless host here; the fiber is enough),
+  and the MySQL/PostgreSQL schemas (we run SQLite only).
 - Contract: `logs.query({since?, until?, level?: LogLevel[], source?: 'engine' | 'client', text?, sessionId?, limit (default
   200, max 2000)})` is one drizzle query on `log_events` (filters become WHERE clauses on the indexed columns; `text`
   matches `message` and `data`), newest first. `logs.tail({level?, source?})` streams new events as they are inserted
