@@ -3,7 +3,7 @@ import {
   createMemo,
   createSignal,
   createUniqueId,
-  For,
+  Index,
   Match,
   onCleanup,
   onMount,
@@ -303,7 +303,7 @@ function HastElementView(props: {element: HastElement}): JSX.Element {
       class={hastClass(props.element.properties.class ?? props.element.properties.className)}
       style={hastStyle(props.element.properties.style)}
     >
-      <For each={props.element.children}>{(child) => <HastNodeView node={child} />}</For>
+      <Index each={props.element.children}>{(child) => <HastNodeView node={child()} />}</Index>
     </Dynamic>
   )
 }
