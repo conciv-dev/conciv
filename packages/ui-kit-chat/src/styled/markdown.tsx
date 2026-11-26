@@ -311,7 +311,7 @@ function HastElementView(props: {element: HastElement}): JSX.Element {
 function HastNodeView(props: {node: HastChild}): JSX.Element {
   return (
     <Switch>
-      <Match when={props.node.type === 'text' ? props.node : undefined}>{(text) => text().value}</Match>
+      <Match when={props.node.type === 'text' ? props.node : undefined}>{(text) => <>{text().value}</>}</Match>
       <Match when={props.node.type === 'element' ? props.node : undefined}>
         {(element) => <HastElementView element={element()} />}
       </Match>
