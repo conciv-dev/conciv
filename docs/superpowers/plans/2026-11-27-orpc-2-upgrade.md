@@ -17,6 +17,25 @@
 
 The v2 source paths quoted below (`client/src/...`, `server/src/...`, `contract/src/...`) are relative to `packages/` in that repo. `P/` is the `@standard-server/peer@0.16.0` tarball `dist/`.
 
+## Goals checklist (the plan is not done until every box is checked by the orchestrator)
+
+- [ ] Every `@orpc/*` package, `@orpc/effect`, `@orpc/evlog`, `@orpc/opentelemetry` and `@standard-server/peer` pinned to
+      exact versions in the pnpm catalog, all oRPC at `2.0.0-beta.53`. Proof: `pnpm why @orpc/client` shows one version.
+- [ ] No deprecated v1 name left (the `git grep` in section 5's global constraints returns nothing).
+- [ ] Every procedure and middleware is an Effect through `@orpc/effect`; no `runPromise`/`runPromiseExit`/`runFork`
+      inside a procedure (section 8's `git grep` proof).
+- [ ] Session-search change feed on Effect `PubSub`; `@orpc/publisher` not added.
+- [ ] One tracer: `@orpc/opentelemetry` spans with Effect spans nested; `rpcSpan`/`traceCall` deleted.
+- [ ] One logger: `Effect.log*` only; one wide event per rpc call through `@orpc/evlog` into the existing sink.
+- [ ] Every path in section 2 "Browser to engine traffic" still works: chat streams with resume, push feed, live
+      queries, plugin calls both ways, engine to page, terminal pty, auth and trust.
+- [ ] No feature lost; no test added where an existing journey can carry it.
+
+## Who runs what
+
+Agents write code and run ONLY typecheck, build, lint, format, fallow and the conciv-publish guards. Agents run NO
+tests of any kind. The orchestrator runs every test (section 6), reads the full diff, checks the goals above, and pushes.
+
 ## 1. What oRPC 2 is, and is it OK to adopt now
 
 ### Versions (npm registry, `npm view <pkg> dist-tags` and `time`)
