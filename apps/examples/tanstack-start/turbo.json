@@ -6,6 +6,7 @@
       "outputs": [
         "dist/**",
         "conciv/plugins/deploy/plugin-experimental.cjs",
+        "conciv/plugins/deploy/plugin-experimental.d.cts",
         "conciv/plugins/deploy/plugin-experimental.cjs.manifest.json"
       ]
     }

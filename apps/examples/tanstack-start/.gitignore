@@ -15,3 +15,4 @@ test-results
 playwright-report
 .playwright
 conciv/plugins/deploy/plugin-experimental.cjs*
+conciv/plugins/deploy/plugin-experimental.d.cts

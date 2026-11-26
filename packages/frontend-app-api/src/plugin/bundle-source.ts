@@ -203,7 +203,7 @@ const makeBundleSource = Effect.fn('BundleSource.make')(function* (input: {
   readonly address: string
   readonly addresses: Stream.Stream<string>
   readonly builtins: readonly Entry[]
-  readonly engineHalf: readonly string[]
+  readonly serverBuiltins: readonly string[]
 }) {
   const engine = yield* PluginEngine
   const local = input.builtins.map((definition) => definition.id)
@@ -466,7 +466,7 @@ const makeBundleSource = Effect.fn('BundleSource.make')(function* (input: {
       id: pluginId,
       builtin: true,
       enabled: enabled(pluginId),
-      ...(input.engineHalf.includes(pluginId) && inventory.builtinsListed
+      ...(input.serverBuiltins.includes(pluginId) && inventory.builtinsListed
         ? {server: inventory.builtinsListed.has(pluginId)}
         : {}),
     })),
@@ -572,7 +572,7 @@ export function createBundleSource(input: {
   readonly client: ConcivClient
   readonly apiBase: Accessor<string>
   readonly builtins: readonly Entry[]
-  readonly engineHalf: readonly string[]
+  readonly serverBuiltins: readonly string[]
   readonly connection: () => EngineConnection | undefined
 }): BundleSource {
   const runtime = ManagedRuntime.make(
@@ -582,7 +582,7 @@ export function createBundleSource(input: {
         address: untrack(input.apiBase),
         addresses: followApiBase(input.apiBase),
         builtins: input.builtins,
-        engineHalf: input.engineHalf,
+        serverBuiltins: input.serverBuiltins,
       }),
     ).pipe(
       Layer.provide(

@@ -92,7 +92,7 @@ export async function renderTestApp(options: RenderTestAppOptions = {}): Promise
       .map((plugin) => [testEntry(plugin), plugin.options ?? {}] as const),
     builtins: {
       entries: builtins.map(testEntry),
-      engineHalf: builtins.flatMap((plugin) => (plugin.engineHalf === true ? [plugin.id] : [])),
+      serverBuiltins: builtins.flatMap((plugin) => (plugin.server === true ? [plugin.id] : [])),
       toolGroups: builtins.flatMap((plugin) => (plugin.toolGroup ? [{...plugin.toolGroup, plugin: plugin.id}] : [])),
     },
     timings: SHELL_TIMINGS,

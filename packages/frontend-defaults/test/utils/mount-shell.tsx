@@ -62,7 +62,7 @@ export type ShellPlugin = {
   readonly plugin: Plugin.Definition
   readonly options?: PluginOptions
   readonly builtin?: boolean
-  readonly engineHalf?: boolean
+  readonly server?: boolean
 }
 
 export type MountShellOptions = {
@@ -122,7 +122,7 @@ export async function mountShell(options: MountShellOptions): Promise<void> {
       .map((plugin) => [shellEntry(plugin), plugin.options ?? {}] as const),
     builtins: {
       entries: builtins.map(shellEntry),
-      engineHalf: builtins.flatMap((plugin) => (plugin.engineHalf === true ? [plugin.id] : [])),
+      serverBuiltins: builtins.flatMap((plugin) => (plugin.server === true ? [plugin.id] : [])),
     },
     timings: TIMINGS,
     draftStore: memoryDrafts,

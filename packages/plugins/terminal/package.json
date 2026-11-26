@@ -58,5 +58,8 @@
   "peerDependencies": {
     "@conciv/frontend-plugin-api": "workspace:^",
     "solid-js": "catalog:"
+  },
+  "conciv": {
+    "builtin": true
   }
 }

@@ -13,8 +13,6 @@ import type {GrabMode} from './rpc.js'
 import {IosBridge} from './bridge.js'
 import {IosBridgeMachine} from './bridge-machine.js'
 
-export {nativePageBase} from './bridge.js'
-
 type NativeCall = (message: Record<string, unknown>) => void
 
 type NativeApi = {
@@ -44,7 +42,7 @@ type Incompatible = {nativeMinV: number; nativeMaxV: number}
 
 type BridgeView = {incompatible: Incompatible | null; grabbable: boolean; picking: boolean}
 
-export type NativeService = {
+type NativeService = {
   readonly grabProvider: GrabProvider
   readonly setup: Plugin.Setup
 }
