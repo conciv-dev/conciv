@@ -6,7 +6,6 @@ export {toolStatus, type ToolStatus} from './tools/primitives/tool-status.js'
 export {StatusVisual} from './tools/primitives/status-visual.js'
 export {ToolFallback as ToolFallbackPrimitive, useToolFallback} from './tools/primitives/tool-fallback.js'
 export {Permission, usePermission} from './tools/primitives/permission.js'
-export {PermissionCard} from './tools/styled/permission-card.js'
 export {
   defineToolkit,
   type ToolBodyPredicate,
