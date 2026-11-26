@@ -1,0 +1,123 @@
+---
+title: Skills
+description: Give the agent a written guide for one kind of work, in a Markdown file in your project.
+---
+
+A skill is a Markdown guide the agent reads when a task needs it. Write one when you keep telling the agent the same
+steps: how your team names components, how to add a route, what to check before a release.
+
+The agent sees each skill's name and description up front. It reads the full text only when your request matches.
+So a skill costs nothing until it is used.
+
+Use a skill when written steps are enough. When the agent needs a new tool, a card or a panel, write a
+[plugin](/docs/plugins) instead.
+
+## Create a skill
+
+Make a folder for the skill in `conciv/skills`, at your project root, with a `SKILL.md` inside:
+
+<Files>
+  <Folder name="conciv" defaultOpen>
+    <Folder name="skills" defaultOpen>
+      <Folder name="new-route" defaultOpen>
+        <File name="SKILL.md" />
+      </Folder>
+    </Folder>
+  </Folder>
+</Files>
+
+Start the file with a short frontmatter, then write the steps:
+
+```md title="conciv/skills/new-route/SKILL.md"
+---
+name: new-route
+description: How to add a page route in this app. Use when the user asks for a new page or URL.
+---
+
+1. Add the route file under `src/routes`, named after the URL.
+2. Export the route with `createFileRoute`.
+3. Add a link to it in `src/components/Nav.tsx`.
+4. Run the tests for the routes folder.
+```
+
+- `name` is what the agent sees. Without it, the folder name is used.
+- `description` decides when the agent picks the skill. Say what it does and when it applies. A skill with no
+  description is never offered on its own.
+- The body is plain Markdown. Write it as you would brief a new teammate.
+
+Save the file. The engine watches the folder, so the agent sees the skill without a restart.
+
+## Use it
+
+Ask for the work as you normally would. When the request matches the description, the agent reads the skill first:
+
+```text
+Add a /pricing page with a heading and a link back home.
+```
+
+To make sure it reads a skill, name it, or type `@` in the composer and pick the skill:
+
+```text
+Use the new-route skill to add a /pricing page.
+```
+
+## Add files to a skill
+
+Put examples, templates or scripts next to `SKILL.md`. When the agent loads the skill, it also gets the paths of those
+files, so the steps can point at them:
+
+```md title="conciv/skills/new-route/SKILL.md"
+---
+name: new-route
+description: How to add a page route in this app. Use when the user asks for a new page or URL.
+---
+
+Copy `template.tsx` from this skill's folder as the start of the new route file.
+```
+
+## Share a skill with every project
+
+Skills in `conciv/skills` belong to one project. For skills you want everywhere, use the `skills` folder in your conciv
+home folder instead. The home folder is `CONCIV_HOME` when you set it, else your user data folder:
+
+- macOS: `~/Library/Application Support/conciv`
+- Linux: `~/.local/share/conciv`
+- Windows: `%LOCALAPPDATA%\conciv\Data`
+
+## Use the built-in skills
+
+conciv comes with two skills of its own:
+
+- `conciv` answers questions about conciv itself: setup, configuration, harnesses, the widget, the CLI and plugins.
+- `report` files a bug about conciv. It collects diagnostics, adds your steps and opens the issue with the GitHub CLI.
+
+```text
+Something broke in the widget. Use the report skill to file an issue.
+```
+
+Plugins add skills too. The page plugin, which conciv ships, adds `page`. The test runner, TanStack, recorder and
+whiteboard plugins add a skill named after themselves when you load them.
+
+## Details
+
+<Accordions type="single">
+  <Accordion title="Hide a skill from the agent's list">
+    Add `disable-model-invocation: true` to the frontmatter. The agent then never picks the skill by itself. It still
+    reads it when you name it in your message.
+  </Accordion>
+  <Accordion title="A skill as a single file">
+    A `.md` file directly in `conciv/skills` is a skill too. Its file name is its id, so `conciv/skills/greet.md` is the
+    skill `greet`. A folder with `SKILL.md` is the better form: it can hold more files.
+  </Accordion>
+  <Accordion title="Other folder names">
+    `conciv/skill` works the same as `conciv/skills`. So do `skill` and `skills` in the conciv home folder.
+  </Accordion>
+  <Accordion title="The skill's id">
+    The id is the folder name. A project skill replaces a home folder skill with the same id.
+  </Accordion>
+</Accordions>
+
+## Next
+
+- [Chat](/docs/usage/chat): mention a skill with `@` in the composer.
+- [Plugins](/docs/plugins): when written steps are not enough, give the agent a tool.

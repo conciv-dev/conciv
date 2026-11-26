@@ -77,10 +77,10 @@ finds them, how to add one from the config or write one in the project, the [Eng
 [Calling a plugin from the terminal](https://conciv.dev/docs/plugins/terminal) for `conciv plugin call`. Read the
 page before writing code: the documentation is the source of truth for the installed version.
 
-## [Skills](https://conciv.dev/docs/skills)
+## [Skills](https://conciv.dev/docs/usage/skills)
 
 For the built-in skills and for adding your own skills from a folder in the project, fetch
-[Skills](https://conciv.dev/docs/skills).
+[Skills](https://conciv.dev/docs/usage/skills).
 
 ## [Troubleshooting](https://conciv.dev/docs/troubleshooting)
 
