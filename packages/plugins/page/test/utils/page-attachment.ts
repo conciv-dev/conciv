@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import type {Engine} from '@conciv/backend-test-utils'
-import {makeRpcClient} from '@conciv/client'
+import {makeRpcClient, type EngineClient} from '@conciv/client'
 import {Command} from '../../src/rpc.js'
 
 export const TAB = 'tab_11111111-1111-4111-8111-111111111111'
@@ -16,7 +16,7 @@ const Asked = z.object({requestId: z.string()})
 
 export const REDACTED_URL = 'http://localhost:3000/checkout?plant=fern&token=%5Bredacted%5D#jwt=%5Bredacted%5D'
 
-export function widgetClient(engine: Pick<Engine, 'address'>) {
+export function widgetClient(engine: Pick<Engine, 'address'>): EngineClient {
   return makeRpcClient(engine.address.apiBase, {token: engine.address.token})
 }
 

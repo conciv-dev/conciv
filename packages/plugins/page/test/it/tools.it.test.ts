@@ -137,8 +137,12 @@ describe('the agent reads the page in code mode', () => {
     })
     expect(await changes.call({})).toEqual({changes: []})
 
+    const outsideQueue = {id: ''}
     const outsideAnswered = answerCommands(engine, await nextCommand(engine), [
-      (command) => ({value: {queueId: command.queued?.id ?? '', status: 'playing', done: 0, of: 1}, files: []}),
+      (command) => {
+        outsideQueue.id = command.queued?.id ?? ''
+        return {value: {queueId: outsideQueue.id, status: 'playing', done: 0, of: 1}, files: []}
+      },
       () => ({value: {ok: true}, files: []}),
     ])
     await engine.outside({tab: engine.session.id}).call('execute_typescript', {
@@ -146,15 +150,12 @@ describe('the agent reads the page in code mode', () => {
     })
     await outsideAnswered
     const widget = widgetClient(engine)
-    await expect
-      .poll(() => widget.jobs.list({sessionId: engine.session.id}))
-      .toMatchObject([
-        expect.objectContaining({
-          type: 'page-queue',
-          status: 'completed',
-          output: expect.stringContaining('finished: 1 played, 0 failed'),
-        }),
-      ])
+    expect(await widget.jobs.wait({ids: [`pq_${outsideQueue.id}`], waitMs: 30_000})).toMatchObject({
+      data: [{status: 'completed', output: expect.stringContaining('finished: 1 played, 0 failed')}],
+    })
+    expect(await widget.jobs.list({sessionId: engine.session.id})).toMatchObject({
+      data: expect.arrayContaining([expect.objectContaining({type: 'page-queue', status: 'completed'})]),
+    })
 
     const bravo = await engine.newSession('Bravo')
     const switched = new AbortController()
