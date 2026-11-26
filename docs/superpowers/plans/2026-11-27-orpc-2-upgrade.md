@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Move every `@orpc/*` package from 1.16.1 to one exact 2.x release in a single PR. Every engine, widget, CLI, plugin and simulation path keeps working, and no feature or test journey is lost.
+**Goal:** Move every `@orpc/*` package from 1.16.1 to exactly 2.0.0-beta.53 in a single PR, with every procedure written as an Effect through `@orpc/effect`. Every engine, widget, CLI, plugin and simulation path keeps working, and no feature or test journey is lost.
 
 **Architecture:** This is a mechanical port. The contract, router, links and fake engine keep their shape. One thing is rebuilt: the widget's engine socket in `@conciv/client`. It moves from v1's `StandardRPCLink` with a custom `StandardLinkClient` to v2's `StandardLink` with a custom `StandardLinkTransport`. Its peer moves from `@orpc/standard-server-peer` to `@standard-server/peer`. Our Effect socket, trust frame, idle watchdog and reachability machine stay.
 
@@ -377,8 +377,141 @@ The orchestrator runs these. Agents do not.
 | The 400 fallback changes HTTP statuses that the CLI or hub show                                                              | `http.it.test.ts` folded 404 assertion, `cli/test/it/*`                         | `errorStatusMap` in `serve/rpc.ts` (row 7).                                                                                                                                                                                                                                                         |
 | hono `WSContext.send` or the `ws` types do not match `WebSocketLike` or the `upgrade` type                                   | tsc in Tasks 4 and 8                                                            | A typed adapter function in `serve/rpc.ts` or `control-server.ts`, with no cast.                                                                                                                                                                                                                    |
 
-## Open decisions (for the maintainer)
+## Decisions (maintainer, 2026-11-27)
 
-1. Adopt `2.0.0-beta.53` now (this plan), or bump to `1.16.6` now and port at 2.0.0 stable (section 1, verdict).
-2. Row 19: the session-search change feed, on (A) Effect `PubSub` (recommended; no new package) or (B) `@orpc/publisher` `MemoryPublisher`.
-3. Out of scope, named so it is not lost: `@orpc/effect` (Effect handlers and clients, `packages/effect` in the oRPC repo) could later replace our promise bridges in `engine-connection.ts`. It is not part of this PR.
+1. Port now, pinned to exactly `2.0.0-beta.53` through the catalog.
+2. Row 19: Effect `PubSub`.
+3. Every procedure is written with `@orpc/effect`, in this same PR (section 8).
+
+## 8. Every procedure on `@orpc/effect` (written by the orchestrator)
+
+Source: `@orpc/effect@2.0.0-beta.53` (`_ref/orpc/packages/effect/src`, repo at `fa04b52cf`) and its docs
+`_ref/orpc/apps/content/docs/integrations/effect.mdx` (published at `orpc.dev/docs/integrations/effect`). It depends on
+`@orpc/{client,server,shared,contract,json-schema}` at the same version and peers `effect >=4.0.0` (we are on 4.1).
+
+What it gives us, from the docs:
+
+- `.effect(function* ({input, context, errors, signal}) {...})` on an implementer, after a one-time side-effect import
+  `@orpc/effect/extensions/effect` (works on `implement(contract).x.y`). `handlerGen` is the same without the extension.
+- `middlewareGen(function* ({context, next}) {...})`: middleware as an Effect; downstream failures land in `next`'s
+  error channel.
+- Services through the oRPC context: the context type extends `WithEffectContext<R>`, and the caller passes
+  `'effect/context'` (a `Context` holding the services). The docs' pattern: build a `ManagedRuntime` once, pass
+  `await runtime.context()` per request. `Effect.provide` of a layer inside `'effect/wrap'` is forbidden (rebuilt per call).
+- Errors: `Effect.fail(errors.X(...))` is a typed, defined error like a thrown `ORPCError`; other failures pass to
+  interceptors as the original error. `'effect/wrap'` maps domain failures to `ORPCError` in one place.
+- Interruption: an aborted request interrupts the handler fiber (finalizers run). Handlers have no `Scope`.
+- `createEffectClient(client)`: every call becomes a lazy Effect (interrupt aborts the call).
+- `catchORPCError`, `catchORPCErrorCode(s)`.
+
+Today every engine procedure bridges by hand: `host.runPromise(...)` / `deps.pluginHost.runPromiseExit(...)` inside a
+promise handler (`backend-defaults/src/engine/api/rpc/router.ts` 14 sites, `tabs.ts` 4, `jobs.ts` 2, `sessions.ts` 2,
+plus `mount.ts`), and promise middleware (`makeSessionOs`, `makeToolCallOs`, `admitHubCaller` in `mount.ts:134-146`).
+
+### Global constraints for section 8
+
+- No `runPromise`, `runPromiseExit`, `runFork` or `Effect.runPromise` inside any procedure or middleware. Proof:
+  `git grep -nE "run(Promise|PromiseExit|Fork)\(" packages/backend-defaults/src/engine/api packages/simulation/src packages/test-utils/src` returns only the one place that builds the per-request context (Task 11).
+- The extension import `@orpc/effect/extensions/effect` appears once, in the module that defines `os`
+  (`mount.ts`), and once in each other package that implements procedures (simulation, test-utils).
+- Domain errors become `ORPCError` in one `'effect/wrap'` per handler set, not per procedure.
+- Procedures that return a stream (`chat.send`, `chat.join`, `chat.events`, `event.subscribe`, live `changes`,
+  pty streams) return the async iterator from the Effect (`Stream.toAsyncIterable` where the source is a `Stream`), so
+  oRPC's iterator handling, `withEventMeta` and resume stay as they are.
+
+### Task 11: The per-request Effect context in `@conciv/serve` and the engine app
+
+**Files:** `packages/serve/src/rpc.ts:100-160,199-271`, `packages/backend-defaults/src/engine/app.ts:360-420`,
+`packages/types/src/rpc-types.ts` (`RpcContext`).
+
+- `RpcContext` extends `WithEffectContext<EngineServices>`, where `EngineServices` is the union of the services the
+  procedures yield (read them off the handlers converted in Task 12; start from the services `host.runPromise` provides
+  today: `EventFeed.Service`, `Skill.Service`, `Agent.Service`, `FileSystem.Service`, the session runtime).
+- Where `serve/rpc.ts` builds `context` for `handler.handle` (`:110`, `:154`) and `handler.message` (`:259`), add
+  `'effect/context': await engineContext()`, a function the engine passes in `options` that returns the context of the
+  engine's existing runtime (the one behind `host.runPromise`; read how `pluginHost` builds it). Built once per engine,
+  read per request; never a layer per request.
+- `'effect/wrap'`: one function in `backend-defaults/src/engine/api/rpc/mount.ts` that maps the engine's tagged
+  failures to `ORPCError` with the codes the handlers use today (read each handler's current `catch`/`Exit` mapping,
+  e.g. `router.ts:192` `runPromiseExit`) and leaves `ORPCError` failures untouched.
+- **Tests:** `backend-defaults/test/it/rpc.it.test.ts`, `router.it.test.ts`, `untrusted-socket.it.test.ts`.
+
+### Task 12: Engine procedures and middleware as Effects (`backend-defaults`)
+
+**Files:** `src/engine/api/rpc/{mount,router,tabs,jobs,sessions,engine-router}.ts`.
+
+- Import `@orpc/effect/extensions/effect` at the top of `mount.ts`.
+- Every `os.x.y.handler(async (...) => host.runPromise(effect, {signal}))` becomes
+  `os.x.y.effect(function* (...) { return yield* effect })`. `signal` plumbing into `runPromise` goes: interruption
+  comes from the request abort.
+- `makeSessionOs`, `makeToolCallOs`, `admitHubCaller` become `middlewareGen`. `callerScope`'s `throw new ORPCError`
+  becomes `Effect.fail(new ORPCError(...))`.
+- `plugin.call` yields the plugin's handler Effect straight from the plugin host (no `runPromiseExit`); the host's
+  failure-to-`ORPCError` mapping moves into the Task 11 wrap.
+- Promise-only dependencies the handlers still call (`deps.chat.plane.send`, `admitOutside`, ...) are wrapped once with
+  `Effect.tryPromise`/`Effect.promise` at the call, with the abort signal from the handler options.
+- **Tests:** the whole `backend-defaults` node suite (`turbo run test --filter=@conciv/backend-defaults`), which covers
+  every procedure; `client.it.test.ts` for streaming and interruption on disconnect.
+
+### Task 13: Plugin RPC (`backend-plugin-api`, `backend-app-api`)
+
+**Files:** `packages/backend-plugin-api/src/effect/rpc.ts`, `src/promise/adapter.ts:234`,
+`packages/backend-app-api/src/core/plugin/host.ts`.
+
+- The Effect entry's `RpcHandlers` are already Effects; the host dispatches them to `plugin.call` as Effects (Task 12),
+  no promise round trip.
+- The promise entry keeps taking promise handlers from authors; `fromPromise` (`promise/adapter.ts:234`) adapts each
+  one once to an Effect with `Effect.tryPromise` (abort signal passed through), as today for the other domains.
+- **Tests:** `backend-defaults/test/it/rpc.it.test.ts` (plugin rpc from an outside client), the page, tanstack and
+  test-runner plugin suites (`turbo run test --filter=@conciv/plugin-page`, `--filter=@conciv/plugin-tanstack`,
+  `--filter=@conciv/plugin-test-runner`), which call plugin rpc both ways.
+
+### Task 14: Simulation and the fake engine
+
+**Files:** `packages/simulation/src/backend/{simulated-provider,simulated-ui,backend}.ts`, `src/control-server.ts`;
+`packages/test-utils/src/fakes/fake-router.ts`.
+
+- Same conversion: `.effect` handlers, the extension import once per package, context through `'effect/context'`.
+  `simulation` uses its own runtime for the context; the fake engine has no services, so its context is
+  `Context.empty()` and its handlers return `Effect.succeed`/`Effect.fail`.
+- **Tests:** `simulation` suite; every `frontend-defaults` e2e (fake engine).
+
+### Task 15: Clients as Effects where the caller is Effect code
+
+**Files:** Effect code that calls an oRPC client through a promise today: `git grep -n "Effect.promise\|Effect.tryPromise" `
+over files that also import `@orpc/client` or our `EngineClient` (start with `packages/cli/src`, `packages/engine-kit/src`,
+`packages/backend-defaults/src/ai/quickjs-thread.ts`, `session-search.ts`).
+
+- Wrap the client once with `createEffectClient(client)` and `yield*` its calls; drop the per-call promise wrappers.
+  Error handling moves to `catchORPCErrorCode(s)`.
+- Promise callers (the widget's Solid code, TanStack Query) keep the promise client.
+- **Tests:** `cli` suite, `code-mode.it.test.ts`, `sessions.it.test.ts`.
+
+### Task 16: TanStack AI over oRPC (checked against `orpc.dev/docs/integrations/tanstack-ai`)
+
+The doc's server side is what we do: `chat.send` returns TanStack AI's `chat()` stream as the procedure's async
+iterator (`router.ts:54`). The doc's client side passes an oRPC call as `useChat`'s `fetcher`. We use
+`rpcStream` from `@tanstack/ai-client` 1.2.0 in `packages/client/src/chat/chat-connection.ts`, with join, resume by
+`lastEventId` and handover on top; `@tanstack/ai-client` 1.2.0 has `fetcher` only on the video client, not on chat.
+
+- Keep `rpcStream` and our join/resume. Record in the plan's report which parts of `chat-connection.ts` the doc's
+  `fetcher` would replace once TanStack AI's chat client has it, and do not hand-roll it now.
+- The `chat.send` handler becomes `.effect` (Task 12) and keeps returning the stream; forward `threadId` and `runId` as
+  the doc says (we already do: `threadId: input.sessionId, runId: input.runId`).
+- **Tests:** `client/test/e2e/session.e2e.test.ts`, `client.it.test.ts`.
+
+### Task 17: Logging and tracing (answer to "how do we log on the server in oRPC")
+
+Today: server logs go through Effect's `Logger` (`backend-defaults/src/engine/lib/logging.ts`, `LogWriter`), and every
+rpc call gets a root span from our hand-written interceptor `rpcSpan` (`engine/app.ts:411`) through `traceCall` in
+`serve/rpc.ts:55-138`.
+
+- With Task 11, `Effect.log*` and `Effect.withSpan` inside handlers run on the engine's runtime context, so they reach
+  the same `Logger` and tracer with the request's fiber annotations. Annotate each handler with
+  `Effect.annotateLogs({'rpc.procedure': path})` in the Task 11 wrap (once, from `opts.path`), so every log line from a
+  call names its procedure.
+- oRPC's `@orpc/opentelemetry` (`ORPCInstrumentation`) would replace `rpcSpan` and `traceCall` with oRPC's own client
+  and server spans, and `@effect/opentelemetry` `OtelTracer.layerGlobal` nests Effect spans under them (effect.mdx,
+  "OpenTelemetry Integration"). That is a new dependency: **decision for the maintainer** before Task 17 removes
+  `rpcSpan`. Without a yes, Task 17 stops at the annotation.
+- **Tests:** none new; `backend-defaults` suite.
