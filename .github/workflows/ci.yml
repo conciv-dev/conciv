@@ -172,7 +172,6 @@ jobs:
           name: failure-screenshots-${{ matrix.shard }}
           path: |
             packages/frontend-defaults/.vitest/attachments/failure-screenshots/
-            packages/ai/.vitest/attachments/failure-screenshots/
             packages/app/.vitest/attachments/failure-screenshots/
             packages/plugins/recorder/.vitest/attachments/failure-screenshots/
             packages/plugins/test-runner/.vitest/attachments/failure-screenshots/

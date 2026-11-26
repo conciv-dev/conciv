@@ -3,7 +3,7 @@ import Foundation
 // Deterministic dev-core discovery (06 M5). Foundation-only so the pure logic runs
 // under the macOS-host `swift test` job; the URLSession prober and the re-pair UI
 // live in the UIKit-guarded files. The core writes ~/.conciv/dev-endpoint.json
-// (packages/backend/src/lib/dev-endpoint.ts); the simulator shares the host filesystem
+// (packages/backend-defaults/src/engine/lib/dev-endpoint.ts); the simulator shares the host filesystem
 // so a paired endpoint is read directly. `apiBase` in that file already carries the
 // /t/<token> prefix when the core minted an access token, so the WebView loads
 // apiBase/widget token-scoped and RPC/SSE are path-scoped with zero extra work.
@@ -28,7 +28,7 @@ struct DevEndpointFile: Codable {
   let pid: Int
 }
 
-// Codable mirror of the core /health payload (packages/backend/src/app.ts):
+// Codable mirror of the engine /health payload (packages/backend-defaults/src/engine/app.ts):
 // {"ok": true, "harness": "<id>"}. Extra keys are ignored so the shape can grow.
 struct HealthPayload: Codable {
   let ok: Bool

@@ -33,16 +33,6 @@ export interface ConcivSettingsInit extends WidgetConfig {
   surface?: ConcivSurface
 }
 
-export interface ExtensionRegistry {}
-
-const ExtensionPackageSchema = z.object({
-  server: z.string().min(1),
-  client: z.string().min(1),
-  config: z.unknown().optional(),
-})
-
-export type ExtensionPackage = z.infer<typeof ExtensionPackageSchema>
-
 const PolicyStatementSchema = z.object({
   action: z.enum([
     'provider.use',
