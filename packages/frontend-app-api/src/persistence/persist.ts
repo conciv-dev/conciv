@@ -114,18 +114,18 @@ export function persistStore<T extends object>(input: {
   }
   const save = (leaving: boolean) => (leaving ? flushLeaving : flush)()
 
-  const apply = input.setStore as unknown as (...values: unknown[]) => void
+  const setStore = new Proxy(input.setStore, {
+    apply(target, self, values) {
+      const current = untrack(persistState)
 
-  const setStore = ((...values: unknown[]) => {
-    const current = untrack(persistState)
+      const baseline =
+        current.status === 'hydrating' && !current.edit ? untrack(() => input.serialize(input.store)) : undefined
 
-    const baseline =
-      current.status === 'hydrating' && !current.edit ? untrack(() => input.serialize(input.store)) : undefined
+      Reflect.apply<unknown, unknown[], void>(target, self, values)
 
-    apply(...values)
-
-    dispatch(baseline === undefined ? EDITED : {type: 'edited', baseline})
-  }) as unknown as SetStoreFunction<T>
+      dispatch(baseline === undefined ? EDITED : {type: 'edited', baseline})
+    },
+  })
 
   initial.effects.forEach((effect) => run(effect))
 
