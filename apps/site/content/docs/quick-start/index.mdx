@@ -1,84 +1,32 @@
 ---
 title: Quick start
-description: One command sets your app up for conciv. Or pick your framework and wire it by hand.
+description: Copy one prompt into your coding agent, and it sets conciv up in your app.
 icon: PixelPlug
 ---
 
-## One command
+Pick your framework, copy the prompt, and paste it into your coding agent:
 
-Run it in your app's folder, the one with `package.json`:
+<SetupPrompt />
 
-```bash
-npx @conciv/cli@latest init
-```
+What you get:
 
-<Steps>
-<Step>
+- `@conciv/it` in your dev dependencies, and conciv in your build config.
+- A conciv section in `AGENTS.md`, so your agent knows the conciv commands.
+- Your dev server running, with a conciv button in the corner of your app.
+- A login link, or a 6-digit code to type in the panel.
 
-### It looks at your project
+## Give it a first task
 
-init finds your framework from the dependencies in `package.json`, your package manager, and the agent CLIs on your
-machine (`claude`, `codex`, `gemini`, `opencode`, `pi`).
+Ask your agent, in your terminal or in the conciv panel:
 
-</Step>
-<Step>
+<CopyPrompt text="Look at the page I have open in conciv. Change the main heading to say Hello from conciv. Edit the source file, then check that the page shows the new text." />
 
-### It asks
-
-- Teach these agent harnesses about conciv? (every one it found, all checked)
-- Connect these agents to conciv, so they can find and drive your open conciv tabs? (the ones not connected yet)
-- Wire the detected vite config for conciv? (your framework's name in place of vite)
-- Add the `@conciv/skills` docs pack (setup, develop, debug and harness guides) and TanStack intent skill-loading
-  guidance? (off by default)
-
-</Step>
-<Step>
-
-### It shows the plan, then asks "Run this plan?"
-
-The plan lists each step and the files it would edit. A step that is already done shows as `already wired`, and a step
-init cannot do for you shows as `manual — prints instructions`.
-
-</Step>
-<Step>
-
-### It runs each step
-
-It installs `@conciv/it` as a dev dependency with your package manager, adds conciv to your config and prints the diff,
-writes the conciv section of `AGENTS.md` (and `CLAUDE.md`), installs the conciv Claude Code plugin when you picked
-claude, and connects each agent you picked. A step it cannot do for you ends as a card with the snippet to paste.
-Ctrl-C while it runs puts your config back as it was.
-
-</Step>
-</Steps>
-
-<TypeTable
-  type={{
-    '--yes': {type: 'flag', description: 'Takes every default with no questions. Use it in CI or from an agent.'},
-    '--dry-run': {type: 'flag', description: 'Prints the plan and changes nothing.'},
-    '--force': {type: 'flag', description: 'Runs even with uncommitted git changes.'},
-    '--json': {type: 'flag', description: 'Prints one JSON result and never asks. Pair it with --yes or --dry-run.'},
-  }}
-/>
-
-init stops before it writes anything when:
-
-- there is no `package.json` in the folder: `no package.json here — run init from your app directory`
-- the git tree has uncommitted changes and you did not pass `--force`: `uncommitted changes — commit first or pass --force`
-- there is no terminal to ask in and you passed neither `--yes` nor `--dry-run`:
-  `Non-interactive terminal — re-run with --yes or --dry-run`
-
-When it is done it prints the next steps: start your app with your package manager's `dev` script, and ask your agent to
-run `conciv tools --help`.
-
-## Before you start
+The agent reads the live page, finds the heading in your source, and edits it. Your dev server reloads the page.
 
 <Callout>
-  The chat runs an agent CLI on your machine: `claude` by default, on the `PATH` of the shell that starts your dev
-  server, and logged in. See [Harnesses](/docs/harnesses) for the others.
+  The chat runs an agent CLI on your machine, `claude` by default. It must be on the `PATH` of the shell that starts
+  your dev server, and logged in. See [Harnesses](/docs/harnesses) for the others.
 </Callout>
-
-conciv runs in your dev server only: `vite build` leaves it out, and a Next.js production server does not start it.
 
 ## Pick your framework
 
@@ -87,7 +35,7 @@ conciv runs in your dev server only: `vite build` leaves it out, and a Next.js p
     title="Vite"
     href="/docs/quick-start/vite"
     icon={<img src="/icons/vite.svg" alt="" className="size-4" />}
-    description="Vite apps, and frameworks built on Vite such as Astro."
+    description="Vite apps, and frameworks built on Vite such as Astro and TanStack Start."
   />
   <Card
     title="Next.js"
@@ -99,27 +47,109 @@ conciv runs in your dev server only: `vite build` leaves it out, and a Next.js p
     title="webpack"
     href="/docs/quick-start/webpack"
     icon={<img src="/icons/webpack.svg" alt="" className="size-4" />}
-    description="Engine and widget in your development build. No live module graph."
+    description="The widget and the engine in your development build."
   />
   <Card
     title="Rspack"
     href="/docs/quick-start/rspack"
     icon={<img src="/icons/rspack.svg" alt="" className="size-4" />}
-    description="Engine and widget in your development build. No live module graph."
+    description="The widget and the engine in your development build."
   />
   <Card
     title="iOS (alpha)"
     href="/docs/quick-start/ios"
     icon={<img src="/icons/apple.svg" alt="" className="size-4" />}
-    description="A native app in the simulator, through the Swift SDK."
+    description="A native app in the simulator, through the Swift package."
   />
   <Card title="Rollup and esbuild" href="/docs/quick-start/other-bundlers" description="Not supported yet." />
 </Cards>
 
-## Then log in
+## Set up by hand
 
-The first time you open the panel, it asks for a 6-digit code that your dev server prints in its terminal. See
-[Logging in](/docs/usage/logging-in).
+<Accordions>
+<Accordion id="by-hand" title="Run conciv init yourself">
 
-Working with a coding agent in your own terminal? [Connect your agents](/docs/quick-start/agents) covers what init sets
-up for it.
+<Steps>
+<Step>
+
+### Run init
+
+Run it in your app folder, the one with `package.json`:
+
+```bash
+npx @conciv/cli@latest init
+```
+
+</Step>
+<Step>
+
+### Answer its questions
+
+init asks four things:
+
+- Teach these agent harnesses about conciv? Every agent CLI it found is checked.
+- Connect these agents to conciv, so they can find and drive your open conciv tabs?
+- Wire the detected config for conciv? It names your framework.
+- Add the `@conciv/skills` docs pack? This one is off by default.
+
+Then it shows the plan and asks "Run this plan?".
+
+</Step>
+<Step>
+
+### Read what it did
+
+For each step it prints a line, and the diff of every config it edits. A step it cannot do ends as a card with a
+snippet to paste.
+
+</Step>
+<Step>
+
+### Start your app and log in
+
+Start your dev server, then open your app. Click the conciv button and type the 6-digit code your dev server prints.
+See [Logging in](/docs/usage/logging-in).
+
+</Step>
+</Steps>
+
+To skip init, wire the config yourself: see your framework's page.
+
+</Accordion>
+</Accordions>
+
+## Edge cases
+
+<Accordions>
+<Accordion id="flags" title="init flags">
+
+- `--yes` takes every default and asks nothing. Use it in CI or from an agent.
+- `--dry-run` prints the plan and changes nothing.
+- `--force` runs even with uncommitted git changes.
+- `--json` prints one JSON result. Pair it with `--yes` or `--dry-run`.
+
+</Accordion>
+<Accordion id="stops" title="When init stops before it writes anything">
+
+- No `package.json` in the folder: `no package.json here — run init from your app directory`.
+- Uncommitted changes, without `--force`: `uncommitted changes — commit first or pass --force`.
+- No terminal to ask in, without `--yes` or `--dry-run`: `Non-interactive terminal — re-run with --yes or --dry-run`.
+
+</Accordion>
+<Accordion id="undo" title="Stopping init halfway">
+
+Press Ctrl-C while it runs. init puts your config back as it was.
+
+</Accordion>
+<Accordion id="production" title="Production builds">
+
+conciv runs in your dev server only. `vite build` leaves it out. A Next.js production server does not start it.
+
+</Accordion>
+</Accordions>
+
+## Next
+
+- [Connect your agents](/docs/quick-start/agents): what init sets up for the agent in your terminal.
+- [Usage](/docs/usage): a tour of the widget.
+- [How it works](/docs/how-it-works): what runs where.
