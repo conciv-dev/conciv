@@ -117,6 +117,10 @@ The fixture stops every engine its test started when the test ends, pass or fail
 | `engine.event(type, match)`                | waits for the next event of that type: `.arrived`                     |
 | `engine.gate()`                            | holds the next reply until the test releases it                       |
 | `engine.restart()`                         | restarts the engine                                                   |
+| `engine.drive()`                           | the driver of an engine started with `simulation: true`               |
+
+`start.simulation: true` starts the engine in simulation with a drive manifest of its own, and `engine.drive()` acts on
+the widget from outside the browser by role and label. See [Simulation and drive mode](/docs/simulation).
 
 ### TestLLM
 
@@ -378,6 +382,37 @@ describe('a page that attaches is offered to the agent', () => {
   })
 })
 ```
+
+## Effect code
+
+Code written with Effect is tested with `@effect/vitest`. `it.effect` runs a scoped Effect as the test, with Effect's
+test clock and console; `it.live` runs it with the live services, for code that waits on real time, files or
+processes. The iOS plugin's bridge test drives its native peer this way:
+
+```ts title="packages/plugins/ios/test/unit/bridge.unit.test.ts"
+import {it} from '@effect/vitest'
+import {describe, expect} from 'vitest'
+import {Effect, Fiber} from 'effect'
+
+describe('the native app talks to the widget', () => {
+  it.live(
+    'the native peer shakes hands, opens and closes the panel and answers a grab; an incompatible version is refused',
+    () =>
+      Effect.gen(function* () {
+        const apiBase = 'http://127.0.0.1:4111'
+        const peer = yield* connectPeer({clientId: 'page', apiBase})
+
+        expect(yield* peer.receive('bridge.ready')).toEqual({v: 1, type: 'bridge.ready'})
+        yield* peer.send({v: 1, seq: 1, type: 'handshake', apiBase, token: null})
+        expect(yield* peer.receive('bridge.ack')).toEqual({v: 1, type: 'bridge.ack', seq: 1})
+      }),
+  )
+})
+```
+
+`makeMethods(test.extend(...))` gives the same `it.effect` and `it.live` on a test with fixtures, as the page plugin's
+queue test does with a fake-timer fixture (`packages/plugins/page/test/unit/queue.unit.test.ts`). `layer(...)` from
+`@effect/vitest` shares a Layer across the tests of a `describe`; no test in this repo uses it yet.
 
 ## How a test is written
 

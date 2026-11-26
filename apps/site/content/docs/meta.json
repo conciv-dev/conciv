@@ -13,6 +13,7 @@
     "configuration",
     "harnesses",
     "test-runners",
+    "simulation",
     "cli",
     "packages",
     "troubleshooting",
