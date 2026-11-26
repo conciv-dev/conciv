@@ -21,6 +21,10 @@ export type JobWaitInput = {readonly id: string; readonly timeout?: number}
 
 export type JobWaitResult = {readonly info?: JobInfo; readonly timedOut: boolean}
 
+export type JobBlockInput = {readonly id: string; readonly sessionID: SessionId}
+
+export type JobBlockResult = {readonly type: 'finished' | 'backgrounded'; readonly info: JobInfo}
+
 export type JobStartInput = {
   readonly id: string
   readonly type: string
@@ -36,6 +40,8 @@ export interface JobDomain {
   readonly start: (input: JobStartInput) => Effect.Effect<JobInfo>
   readonly get: (id: string) => Effect.Effect<JobInfo | undefined>
   readonly wait: (input: JobWaitInput) => Effect.Effect<JobWaitResult>
+  readonly block: (input: JobBlockInput) => Effect.Effect<JobBlockResult | undefined>
+  readonly background: (id: string) => Effect.Effect<JobInfo | undefined>
   readonly cancel: (id: string) => Effect.Effect<JobInfo | undefined>
   readonly completeBackground: (notificationID: string) => Effect.Effect<void>
 }

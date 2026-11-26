@@ -449,6 +449,8 @@ export function fromPromise(plugin: Plugin.Plugin) {
               ),
             get: (id) => run(host.job.get(id)),
             wait: (input) => run(host.job.wait(input)),
+            block: (input) => run(host.job.block(input)),
+            background: (id) => run(host.job.background(id)),
             cancel: (id) => run(host.job.cancel(id)),
             completeBackground: (notificationID) => run(host.job.completeBackground(notificationID)),
           },

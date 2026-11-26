@@ -187,6 +187,8 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
       start: jobs.start,
       get: jobs.get,
       wait: jobs.wait,
+      block: jobs.block,
+      background: jobs.background,
       cancel: jobs.cancel,
       completeBackground: (notificationID) =>
         Schema.decodeUnknownEffect(SessionMessage.Id)(notificationID).pipe(
