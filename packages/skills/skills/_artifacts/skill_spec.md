@@ -2,56 +2,56 @@
 
 conciv is a dev-only chat widget plus an engine that lets a coding agent read and act on a running
 app. `@conciv/skills` packages the agent-facing knowledge for building with it: installing the
-widget, authoring plugins, wiring a new harness adapter, and debugging the sandbox/permission/SSE
+widget, authoring plugins, wiring a new harness adapter, and debugging the sandbox/permission/streaming
 runtime once it's live.
 
 ## Domains
 
-| Domain                  | Description                                                                            | Skills         |
-| ----------------------- | -------------------------------------------------------------------------------------- | -------------- |
-| Installation & mounting | Getting the widget script into a build and a running app for the first time            | conciv-setup   |
-| Plugin authoring        | Adding project-specific tools, skills, RPC methods and widget UI from a consuming app  | conciv-develop |
-| Harness adapters        | Wiring a new coding-agent CLI into conciv as the process behind the chat               | conciv-harness |
-| Runtime debugging       | Diagnosing the sandbox/permission/SSE runtime once the widget is installed and running | conciv-debug   |
+| Domain                  | Description                                                                                  | Skills         |
+| ----------------------- | -------------------------------------------------------------------------------------------- | -------------- |
+| Installation & mounting | Getting the widget script into a build and a running app for the first time                  | conciv-setup   |
+| Plugin authoring        | Adding project-specific tools, skills, RPC methods and widget UI from a consuming app        | conciv-develop |
+| Harness adapters        | Wiring a new coding-agent CLI into conciv as the process behind the chat                     | conciv-harness |
+| Runtime debugging       | Diagnosing the sandbox/permission/streaming runtime once the widget is installed and running | conciv-debug   |
 
 ## Skill Inventory
 
-| Skill          | Type | Domain            | What it covers                                                                           | Failure modes |
-| -------------- | ---- | ----------------- | ---------------------------------------------------------------------------------------- | ------------- |
-| conciv-setup   | core | installation      | plugin vs manual mount, harness selection, ConcivConfig/ConcivSettingsInit               | 2             |
-| conciv-develop | core | plugin-authoring  | Plugin.define, tool contract, Rpc.define, browser part, plugin-testkit                   | 2             |
-| conciv-harness | core | harness-adapters  | HarnessAdapter/HarnessCapabilities, chatConfig(), sandbox-virtual cwd                    | 2             |
-| conciv-debug   | core | runtime-debugging | widget mount/connect, permission card waits vs rule blocks, port fallback, SSE lifecycle | 2             |
+| Skill          | Type | Domain            | What it covers                                                                                   | Failure modes |
+| -------------- | ---- | ----------------- | ------------------------------------------------------------------------------------------------ | ------------- |
+| conciv-setup   | core | installation      | build plugin vs ConcivWidget vs manual mount, harness selection, ConcivConfig/ConcivSettingsInit | 2             |
+| conciv-develop | core | plugin-authoring  | Plugin.define, tool contract, Rpc.define, browser part, backend-test-utils                       | 2             |
+| conciv-harness | core | harness-adapters  | HarnessAdapter/HarnessCapabilities, chatConfig(), sandbox-virtual cwd                            | 2             |
+| conciv-debug   | core | runtime-debugging | widget mount/connect, permission card waits vs rule blocks, port fallback, stream lifecycle      | 2             |
 
 ## Failure Mode Inventory
 
 ### conciv-setup (2 failure modes)
 
-| #   | Mistake                                                | Priority | Source                        | Cross-skill? |
-| --- | ------------------------------------------------------ | -------- | ----------------------------- | ------------ |
-| 1   | assuming Rollup/esbuild plugin entries boot the engine | HIGH     | `packages/it/README.md`       | none         |
-| 2   | shipping the widget to production with no enabled gate | CRITICAL | `packages/core/src/config.ts` | none         |
+| #   | Mistake                                                                               | Priority | Source                              | Cross-skill? |
+| --- | ------------------------------------------------------------------------------------- | -------- | ----------------------------------- | ------------ |
+| 1   | assuming Rollup/esbuild plugin entries boot the engine                                | HIGH     | `packages/it/README.md`             | none         |
+| 2   | a webpack/Rspack config with no `mode`, which counts as production and gets no widget | HIGH     | `packages/unplugin/src/unplugin.ts` | none         |
 
 ### conciv-develop (2 failure modes)
 
-| #   | Mistake                                                                      | Priority | Source                                     | Cross-skill? |
-| --- | ---------------------------------------------------------------------------- | -------- | ------------------------------------------ | ------------ |
-| 1   | writing the engine part as `.tsx` or importing `./rpc` without its extension | HIGH     | `apps/site/content/docs/plugins/index.mdx` |              |
-| 2   | naming a tool with a hyphen                                                  | MEDIUM   | `packages/plugin-host/src/core/tool.ts`    | conciv-debug |
+| #   | Mistake                                                                       | Priority | Source                                      | Cross-skill? |
+| --- | ----------------------------------------------------------------------------- | -------- | ------------------------------------------- | ------------ |
+| 1   | writing the engine part as `.tsx` or with TypeScript syntax Node cannot strip | HIGH     | `apps/site/content/docs/plugins/index.mdx`  |              |
+| 2   | naming a tool with a hyphen                                                   | MEDIUM   | `packages/backend-app-api/src/core/tool.ts` | conciv-debug |
 
 ### conciv-harness (2 failure modes)
 
 | #   | Mistake                                                                                     | Priority | Source                                  | Cross-skill? |
 | --- | ------------------------------------------------------------------------------------------- | -------- | --------------------------------------- | ------------ |
-| 1   | spawning or decoding the CLI directly instead of returning a text adapter from chatConfig() | CRITICAL | `packages/chat/src/turn.ts`             | none         |
-| 2   | passing a host-absolute cwd into an adapter config                                          | HIGH     | `packages/ai/src/server/chat-server.ts` | none         |
+| 1   | spawning or decoding the CLI directly instead of returning a text adapter from chatConfig() | CRITICAL | `packages/backend-defaults/src/turn.ts` | none         |
+| 2   | passing a host-absolute cwd into an adapter config                                          | HIGH     | `packages/harness/src/local-sandbox.ts` | none         |
 
 ### conciv-debug (2 failure modes)
 
-| #   | Mistake                                                          | Priority | Source                                          | Cross-skill? |
-| --- | ---------------------------------------------------------------- | -------- | ----------------------------------------------- | ------------ |
-| 1   | treating every permission refusal as a user denial               | MEDIUM   | `packages/core/src/runtime/permission-cards.ts` | none         |
-| 2   | using Playwright networkidle against a page with the live widget | HIGH     | `packages/core/src/runtime/primitives.ts`       | none         |
+| #   | Mistake                                                          | Priority | Source                                                             | Cross-skill? |
+| --- | ---------------------------------------------------------------- | -------- | ------------------------------------------------------------------ | ------------ |
+| 1   | treating every permission refusal as a user denial               | MEDIUM   | `packages/backend-defaults/src/engine/runtime/permission-cards.ts` | none         |
+| 2   | using Playwright networkidle against a page with the live widget | HIGH     | `packages/backend-defaults/src/engine/runtime/primitives.ts`       | none         |
 
 ## Tensions
 
@@ -69,16 +69,16 @@ runtime once it's live.
 
 ## Subsystems & Reference Candidates
 
-| Skill          | Subsystems                                      | Reference candidates                                      |
-| -------------- | ----------------------------------------------- | --------------------------------------------------------- |
-| conciv-setup   | Vite, Next.js, webpack, Rspack, Rollup, esbuild | none                                                      |
-| conciv-develop | none                                            | tool contract (server/client/render/errors/approval/meta) |
-| conciv-harness | claude, codex adapters                          | HarnessCapabilities flag matrix                           |
-| conciv-debug   | none                                            | none                                                      |
+| Skill          | Subsystems                                      | Reference candidates                                                   |
+| -------------- | ----------------------------------------------- | ---------------------------------------------------------------------- |
+| conciv-setup   | Vite, Next.js, webpack, Rspack, Rollup, esbuild | none                                                                   |
+| conciv-develop | none                                            | tool contract (fields/names/results/errors/approvals), RPC and testing |
+| conciv-harness | claude, codex adapters                          | transcript history                                                     |
+| conciv-debug   | none                                            | none                                                                   |
 
 ## Remaining Gaps
 
-None open: all four skills were authored and reviewed against current source in this pass.
+None open.
 
 ## Recommended Skill File Structure
 
@@ -90,11 +90,11 @@ None open: all four skills were authored and reviewed against current source in 
 - **Composition skills:** none: cross-skill guidance is handled via cross-references, not a
   separate composition skill.
 - **Reference files:** conciv-develop and conciv-harness each carry a `references/` directory for
-  dense API surfaces (tool contract details, transcript-history internals); conciv-setup and
+  dense API surfaces (tool contract and RPC/testing details, transcript-history internals); conciv-setup and
   conciv-debug are self-contained.
 
 ## Composition Opportunities
 
-| Library      | Integration points                               | Composition skill needed?            |
-| ------------ | ------------------------------------------------ | ------------------------------------ |
-| @tanstack/ai | `chat()`, text adapters, sandbox/gate middleware | no: covered inline in conciv-harness |
+| Library      | Integration points                          | Composition skill needed?            |
+| ------------ | ------------------------------------------- | ------------------------------------ |
+| @tanstack/ai | `chat()`, text adapters, sandbox middleware | no: covered inline in conciv-harness |

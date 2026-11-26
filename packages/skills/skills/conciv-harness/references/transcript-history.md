@@ -1,7 +1,7 @@
 # HarnessHistory: the transcript-parsing deep dive
 
 This is the densest part of a real adapter. `codex` (`packages/harness/src/codex/history.ts`) is the
-clearest full example — it parses a JSONL rollout file into `UIMessage[]` and lists past sessions from a local SQLite state db. Read it alongside this file.
+clearest full example: it parses a JSONL rollout file into `UIMessage[]` and lists past sessions from a local SQLite state db. Read it alongside this file.
 
 ## The shape you're filling in
 
@@ -27,7 +27,7 @@ by setting that variable for the test process.
 
 Codex's transcript is JSON-Lines, one `{type, payload}` envelope per line
 (`EnvelopeSchema`, `packages/harness/src/codex/history.ts:98`). Each envelope's `payload` is validated
-with a `zod` `.loose()` schema per event kind — `user_message`, `agent_message`, `function_call`,
+with a `zod` `.loose()` schema per event kind: `user_message`, `agent_message`, `function_call`,
 `custom_tool_call`, `function_call_output`/`custom_tool_call_output`, `token_count`
 (`packages/harness/src/codex/history.ts:110-139`). `.loose()` (not `.strict()`) is deliberate: the CLI
 may add fields the adapter doesn't care about, and a strict schema would break on every upstream CLI
@@ -35,7 +35,7 @@ release.
 
 The fold: `spineEvent(payload)` classifies one parsed line into a `SpineEvent`
 (`packages/harness/src/codex/history.ts:177-226`), then `applyEvent` mutates a running `CodexSpine`
-(`{messages: UIMessage[], opened: number}`) — opening a new `UIMessage` on `user`/first-`assistant`
+(`{messages: UIMessage[], opened: number}`): opening a new `UIMessage` on `user`/first-`assistant`
 events, appending to the last assistant message on subsequent `assistant`/`call` events
 (`appendAssistant`, `packages/harness/src/codex/history.ts:234-238`), and attaching `tool-result` parts
 to whichever earlier message owns the matching `tool-call` id (`attachOutput`,
@@ -57,8 +57,8 @@ stops a stale/foreign session's transcript from being adopted into the wrong pro
 scoped by `cwd`, then `stat`s each row's rollout file for its `sizeBytes`; it never parses a
 transcript to build a meta. If your CLI has no session-index database, an alternative is scanning its
 transcript directory (`packages/harness/src/codex/history.ts:286-294`,
-`rolloutEntries`/`scanForRollout` — used as the `list()`-independent fallback path when a specific
+`rolloutEntries`/`scanForRollout`: used as the `list()`-independent fallback path when a specific
 session isn't in the db). Every `HarnessSessionMeta` needs at least `{id, derivedTitle, updatedAt}`
-(`packages/protocol/src/harness-types.ts`); `sizeBytes` (the transcript file's size, shown in the session
+(`packages/types/src/harness-types.ts`); `sizeBytes` (the transcript file's size, shown in the session
 picker) and the rest (`model`, `totalTokens`, `lastMessage`, `createdAt`) are best-effort. Build a meta from
 cheap reads only (a `stat`, the head up to the first prompt), never a whole-transcript parse.

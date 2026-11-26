@@ -85,20 +85,16 @@ skills:
       - 'tools: fields, name rule, Tool.Error, approvals via ctx.permission.assert'
       - 'Rpc.define and ctx.rpc.register'
       - 'browser part: @conciv/frontend-plugin-api registries and the experimental() vite build'
-      - '@conciv/plugin-testkit'
+      - 'testing with @conciv/backend-test-utils and the fake engine from @conciv/client/testing'
     tasks:
       - 'add a tool that calls out to project infrastructure'
       - 'add a panel, slot or composer pill to the widget'
       - 'expose an RPC method to the widget and the terminal'
-      - 'test a plugin with @conciv/plugin-testkit'
+      - 'test a plugin with @conciv/backend-test-utils'
     failure_modes:
-      - mistake: 'writing the engine part as .tsx or importing ./rpc without its extension'
-        mechanism: 'Node imports the engine part as source with types stripped; it cannot load .tsx and needs the real file name.'
-        wrong_pattern: |
-          import {Deploy} from './rpc'
-        correct_pattern: |
-          import {Deploy} from './rpc.ts'
-        source: 'apps/site/content/docs/plugins/index.mdx'
+      - mistake: 'writing the engine part as .tsx'
+        mechanism: 'Node imports the engine part as source with types stripped; it strips no JSX, so a .tsx engine file does not load.'
+        source: 'packages/backend-plugin-api/src/util/runtime/import.node.ts'
         priority: 'HIGH'
         status: 'active'
         skills: ['conciv-develop']

@@ -1,6 +1,6 @@
 ---
 name: conciv-develop
-description: Use when building a conciv plugin in your own app or as a package, a folder or file under conciv/plugins/ (or a package listed in the conciv() `plugins` option) that adds agent tools, skills, prompt rules or RPC methods to the engine with Plugin.define from @conciv/plugin/effect, and panels, slots, composer pills, commands or settings to the widget with @conciv/plugin/experimental. Covers the engine part, the RPC contract (Rpc.define), the browser part and its vite build, approvals, and testing with @conciv/plugin-testkit. This is the consumer-facing skill, for an app that depends on @conciv/plugin, not conciv's own source.
+description: Use when building a conciv plugin in your own app or as a package, a folder under conciv/plugins/ (or a package listed in the conciv() `plugins` option) that adds agent tools, skills, prompt rules or RPC methods to the engine with Plugin.define from @conciv/backend-plugin-api, and panels, slots, composer pills, commands, settings or tool cards to the widget with @conciv/frontend-plugin-api. Covers the engine part, the RPC contract (Rpc.define), the browser part and its vite build, approvals, and testing with @conciv/backend-test-utils. This is the consumer-facing skill, for an app that depends on the published plugin APIs, not conciv's own source.
 metadata:
   package: '@conciv/skills'
 ---
@@ -10,237 +10,347 @@ metadata:
 ## Who this is for
 
 You are a developer (or an agent working in a developer's app) adding a plugin to teach the conciv
-agent a new capability, or publishing a package that does the same for other people's apps.
-Everything here is the public contract of `@conciv/plugin`, installed as a normal dev dependency:
+agent a new capability, or publishing a package that does the same for other people's apps. Everything
+here is the public contract of two published packages:
 
-```bash
-pnpm add -D @conciv/plugin effect zod
-```
+- `@conciv/backend-plugin-api`: the engine part and the RPC contract. Add `zod`, and `effect` for the
+  Effect entry.
+- `@conciv/frontend-plugin-api`: the browser part, with `solid-js`, and `vite` plus `vite-plugin-solid`
+  for its build (optional peer dependencies of the package).
 
 ## The shape: up to three parts
 
-| Part         | Runs in                     | Written with                                                  | In a folder                        | In a package                        |
-| ------------ | --------------------------- | ------------------------------------------------------------- | ---------------------------------- | ----------------------------------- |
-| Engine part  | the conciv engine (Node)    | `Plugin.define({id, effect})` from `@conciv/plugin/effect`    | `server` file, else `index` file   | `./server` export, else main export |
-| RPC contract | both parts and the terminal | `Rpc.define({id, methods, events})` from `@conciv/plugin/rpc` | `rpc` file                         | `./rpc` export                      |
-| Browser part | the widget (Solid)          | `Plugin.define({setup})` from `@conciv/plugin/experimental`   | `plugin-experimental.cjs` or `.js` | `./plugin-experimental` export      |
+| Part         | Runs in                     | Written with                                                               | In a folder                           | In a package                       |
+| ------------ | --------------------------- | -------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------- |
+| Engine part  | the conciv engine (Node)    | `Plugin.define` from `@conciv/backend-plugin-api/effect` or the root entry | a `server` file, else an `index` file | the `./server` export, else `.`    |
+| RPC contract | both parts and the terminal | `Rpc.define({id, methods, events})` from `@conciv/backend-plugin-api/rpc`  | an `rpc` file                         | the `./rpc` export                 |
+| Browser part | the widget (Solid)          | `Plugin.define({setup})` from `@conciv/frontend-plugin-api`                | `plugin-experimental.cjs` or `.js`    | the `./plugin-experimental` export |
 
-conciv finds plugins two ways:
+The engine finds the parts with `resolve` in `packages/backend-plugin-api/src/host.ts:17-42`.
 
-- every top-level `.ts`/`.js` file and every folder in `conciv/plugins` (or `conciv/plugin`) at the
-  project root, with no config; the engine watches the folder and reloads a plugin when it changes;
-- the `plugins` option of `conciv()`: a package name, a `./` path, or `[name, options]`. The engine
-  installs a package name with npm into its own cache. `'-<id>'` turns off an earlier plugin,
-  built-ins included (`'-conciv.page'`); `'-*'` turns off all of them.
+conciv finds plugins two ways (`apps/site/content/docs/plugins/index.mdx`):
 
-Node imports the engine part as source, with types stripped: write it as `.ts`, `.js`, `.mts`,
-`.mjs`, `.cts` or `.cjs`, use only erasable syntax (no `enum`, no parameter properties), and import
-siblings by their real name (`./rpc.ts`). A `.tsx`/`.jsx` engine file fails: the plugin shows as
-failed with `Plugin failed to load`. The browser part is always a built bundle.
+- every `.ts`/`.js` file and every folder in `conciv/plugins` (or `conciv/plugin`) at the project
+  root, with no config. The engine watches these folders and loads a plugin again when its files
+  change.
+- the `plugins` option of `conciv()`: a package name, a path (`./` and `../` start at the project
+  folder), or `[name, options]` with JSON option values. The engine installs a package name with npm
+  into its own cache. A string that starts with `-` turns off the plugin with that id
+  (`parse`, `packages/backend-app-api/src/core/config/plugin/source.ts:183-191`).
 
-## The engine part
+Node imports the engine part itself, with its own type stripping: write it as `.ts` or `.js` (or
+`.mts`, `.mjs`, `.cts`, `.cjs`), with erasable syntax only (no `enum`, no parameter properties) and no
+JSX. A sibling import may name the `.js` twin of a `.ts` file, as the example's `./rpc.js` does. The
+browser part is always a built bundle. A plugin that fails to load shows as failed with its error, or
+`Plugin failed to load` (`packages/backend-app-api/src/core/plugin/supervisor.ts:67`).
+
+## A folder plugin: the example app's deploy plugin
+
+The engine part, `Plugin.define` with `setup` (the promise entry), from `apps/examples/tanstack-start/conciv/plugins/deploy/index.ts:1-34`:
 
 ```ts
-import {Plugin} from '@conciv/plugin/effect'
-import {Effect, Ref} from 'effect'
-import {z} from 'zod'
-import {Deploy} from './rpc.ts'
+import {Plugin, Skill} from '@conciv/backend-plugin-api'
+import {AbsolutePath} from '@conciv/protocol/schema/schema'
+import {Deploy} from './rpc.js'
+
+const description = 'Deploy the current branch'
+
+const run = async ({env}: {env: 'staging' | 'prod'}) => ({url: `https://${env}.example.com`})
 
 export default Plugin.define({
   id: 'deploy',
-  effect: (ctx) =>
-    Effect.gen(function* () {
-      const last = yield* Ref.make<string | null>(null)
-      const registration = yield* ctx.rpc.register(Deploy, {
-        last: () => Effect.map(Ref.get(last), (url) => ({url})),
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'run',
+        description,
+        input: Deploy.methods.run.input,
+        output: Deploy.methods.run.output,
+        options: {namespace: 'deploy'},
+        execute: async (input) => ({output: await run(input)}),
       })
-      yield* ctx.tool.transform((editor) => {
-        editor.namespace({name: 'deploy', description: 'Deploy a branch of this app to a preview URL.'})
-        editor.add({
-          name: 'run',
-          description: 'Deploy a branch to its preview URL and return the URL.',
-          input: z.object({branch: z.string().regex(/^[a-z0-9-]+$/)}),
-          output: z.object({url: z.string()}),
-          options: {namespace: 'deploy'},
-          execute: ({branch}) =>
-            Effect.gen(function* () {
-              const url = `https://${branch}.preview.example.com`
-              yield* Ref.set(last, url)
-              yield* registration.events.emit('deployed', {url}).pipe(Effect.ignore)
-              return {output: {url}}
-            }),
-        })
+    })
+    await ctx.skill.transform((skills) => {
+      skills.add({
+        id: Skill.Id.make('deploy'),
+        name: Skill.Name.make('Deploy'),
+        description: `${description}.`,
+        path: AbsolutePath.make('skill://deploy/SKILL.md'),
+        content: 'You can deploy from code mode with `external_deploy_run`.',
       })
-    }),
+    })
+    const registration = await ctx.rpc.register(Deploy, {run})
+    return () => registration.dispose()
+  },
 })
 ```
 
-The effect runs in a scope that closes when the plugin stops or reloads: every tool, skill and RPC
-handler it registered is removed, fibers forked with `forkScoped` are interrupted, finalizers run.
-`ctx.options` holds the `[name, options]` config value: parse it with zod and fail the effect with a
-tagged value on a bad one (`Plugin.define<Plugin.Services, ConfigInvalid>`), so the plugin shows as
-failed with that message.
-
-`ctx` domains: `options`, `location.directory`, `tool`, `skill`, `rpc`, `session`, `permission`,
-`agent`, `event`, `storage`, `servers`. Each returns an `Effect`. The promise entry `@conciv/plugin`
-is the same with `setup(ctx)` and `Promise`s.
-
-See [tool-contract](references/tool-contract.md) for every tool field, the name rule, errors, approvals, skills and
-prompt hooks.
-
-## The RPC contract
+The `Rpc.define` contract, from `apps/examples/tanstack-start/conciv/plugins/deploy/rpc.ts:1-8`:
 
 ```ts
-import {Rpc} from '@conciv/plugin/rpc'
 import {z} from 'zod'
+import {Rpc} from '@conciv/backend-plugin-api/rpc'
 
 export const Deploy = Rpc.define({
   id: 'deploy',
-  methods: {
-    last: {input: z.unknown(), output: z.object({url: z.string().nullable()})},
-  },
-  events: {
-    deployed: {schema: z.object({url: z.string()})},
-  },
+  methods: {run: {input: z.object({env: z.enum(['staging', 'prod'])}), output: z.object({url: z.string()})}},
+  events: {},
 })
 ```
 
-Call it from a terminal in the project: `conciv plugin call deploy last`. RPC methods never ask the
-user: an operation that must ask is a tool. See [rpc-and-testing](references/rpc-and-testing.md).
-
-## The browser part
+The browser part, `Plugin.define` with a `setup` that adds a `ComposerPill` and a `Slot`, from `apps/examples/tanstack-start/conciv/plugins/deploy/plugin-experimental.tsx:1-13`:
 
 ```tsx
-import {createSignal, onCleanup} from 'solid-js'
-import {ComposerPill, createKeyed, Plugin} from '@conciv/plugin/experimental'
-import {Deploy} from './rpc.ts'
+import {ComposerPill, Plugin, Slot, type ComposerPillView} from '@conciv/frontend-plugin-api'
 
 export default Plugin.define({
   setup(ctx) {
-    const [url, setUrl] = createSignal<string | null>(null)
-
-    createKeyed(
-      () => ctx.client,
-      (client) => {
-        const controller = new AbortController()
-        onCleanup(() => controller.abort())
-        const follow = async () => {
-          for await (const event of client.event.subscribe({
-            types: ['rpc.deploy.deployed'],
-            signal: controller.signal,
-          })) {
-            if (event.type === 'server.connected') {
-              const last = await client.rpc(Deploy).last(undefined, {signal: controller.signal})
-              setUrl(last.url)
-              continue
-            }
-            const deployed = Deploy.events.deployed.schema.safeParse(event.data)
-            if (deployed.success) setUrl(deployed.data.url)
-          }
-        }
-        follow().catch((error: unknown) => {
-          if (!controller.signal.aborted) console.error('[deploy] the deploy events stopped', error)
-        })
-      },
-    )
-
-    ctx.add(ComposerPill, {
-      id: 'deploy-preview',
-      show: () => {
-        const current = url()
-        if (current === null) return undefined
-        return {label: 'Preview', icon: 'external-link', title: current, run: () => window.open(current, '_blank')}
-      },
-    })
+    const view: ComposerPillView = {
+      label: 'Deploy',
+      icon: 'arrow-up',
+      run: () => ctx.toast.show({title: 'Deploy requested'}),
+    }
+    ctx.add(ComposerPill, {id: 'deploy', show: () => view})
+    ctx.add(Slot, {at: 'session.status', render: () => <span>env: staging</span>})
   },
 })
 ```
 
-Build it with vite (`pnpm add -D vite vite-plugin-solid solid-js`):
+Its build with `experimental`, from `apps/examples/tanstack-start/conciv/plugins/deploy/vite.config.ts:1-13`, run with
+`vite build --config conciv/plugins/deploy/vite.config.ts` (add `--watch` while you work):
 
 ```ts
 import {defineConfig} from 'vite'
-import {experimental} from '@conciv/plugin/experimental/vite'
+import {experimental} from '@conciv/frontend-plugin-api/vite'
 
 export default defineConfig({
   publicDir: false,
-  plugins: [experimental({entry: 'app.tsx', outFile: 'plugin-experimental.cjs'})],
+  logLevel: 'warn',
+  plugins: [
+    experimental({
+      entry: 'conciv/plugins/deploy/plugin-experimental.tsx',
+      outFile: 'conciv/plugins/deploy/plugin-experimental.cjs',
+    }),
+  ],
 })
 ```
 
-`experimental()` with no options builds `src/plugin-experimental.tsx` into
-`dist/plugin-experimental.cjs`. `vite build --watch` reloads only that plugin in the widget.
+Call it from a terminal in the project: `conciv plugin call deploy run --data '{"env":"staging"}'`
+(`apps/examples/tanstack-start/conciv/README.md`).
 
-Registries for `ctx.add`: `Panel` (tabs in the session pane), `Slot` (`window.bottom`,
-`session.header`, `session.status`, `page.overlay`), `ComposerPill`, `Command`
-(keybind and slash command), `SettingsPage`, `CodeBlock`, `CodeBlockAction`,
-`LinkHandler`, and the page plugin's `PageOperation`. `ctx.add` takes an item or a function that
-returns one (or `undefined` for none). Everything added is withdrawn on reload.
-`Plugin.define({stores})` declares `Store.global`, `Store.project` and `Store.session` values.
-`ctx.provide`/`ctx.use` share contracts between plugins: `Page` and `ReactTree` from
-`@conciv/plugin/experimental/page` (`Page.pick()` lets the user pick an element and returns the `Grab`). Draw with
-`ctx.ui` components.
+## The engine part with Effect
 
-The widget provides `effect`, `zod`, `solid-js`, `solid-js/web`, `solid-js/store`,
-`@conciv/plugin/experimental`, `@conciv/plugin/experimental/page`, `@conciv/plugin/experimental/grab`
-and `@conciv/plugin/rpc`; the build keeps them external and fails on another `effect`, `solid-js`
-or `@conciv` import.
+`@conciv/backend-plugin-api/effect` is the same API where every `ctx` domain returns an `Effect`. Every
+plugin conciv ships uses it. `Plugin.define({id, effect})` runs `effect(ctx)` in a scope that closes
+when the plugin stops, reloads or is turned off: every tool, skill and RPC handler it registered goes
+with it, and so does a fiber started with `Effect.forkScoped`. The test runner, from
+`packages/plugins/test-runner/src/test-runner.ts:61-82`:
+
+```ts
+export default Plugin.define<RunnerServices>({
+  id: 'test-runner',
+  effect: Effect.fn('TestRunner.plugin')(function* (ctx: Context) {
+    const config = testRunnerConfig.safeParse(ctx.options)
+    if (!config.success) return yield* Effect.die(config.error)
+    const adapter = getRunner(config.data.runner) ?? vitest
+    const manager = yield* adapter
+      .create(ctx.location.directory)
+      .pipe(Effect.catchTag('TestRunner.RunnerUnavailable', (error) => Effect.die(error)))
+    yield* register(ctx, manager)
+    yield* ctx.skill.transform((editor) => editor.add(info))
+    const registration = yield* registerRpc(ctx.rpc, manager).pipe(Effect.orDie)
+    yield* manager.events.pipe(
+      Stream.runForEach((event) =>
+        registration.events
+          .emit('event', event)
+          .pipe(Effect.catchCause((cause) => Effect.logError('a live test event was not delivered', cause))),
+      ),
+      Effect.forkScoped({startImmediately: true}),
+    )
+  }),
+})
+```
+
+`ctx.options` holds the `[name, options]` config value: parse it with zod. `Plugin.define<R, E>` takes
+the services the effect needs and a tagged error it may fail with
+(`packages/backend-plugin-api/src/effect/plugin.ts:52-59`). The `ctx` fields are `app`, `location`,
+`options`, `agent`, `event`, `model`, `permission`, `plugin`, `rpc`, `session`, `skill`, `storage`,
+`tool` and `servers` (`packages/backend-plugin-api/src/effect/plugin.ts:18-43`). The promise entry,
+`@conciv/backend-plugin-api`, has the same domains with `setup(ctx)` and `Promise`s; `setup` may
+return a cleanup.
+
+See [tool-contract](references/tool-contract.md) for every tool field, the name rule, errors,
+approvals, skills and prompt hooks.
+
+## The RPC contract
+
+The test runner's, from `packages/plugins/test-runner/src/rpc.ts:23-33`:
+
+```ts
+export const TestRunner = Rpc.define({
+  id: 'test-runner',
+  methods: {
+    status: {input: NoInputSchema, output: TestRunResultSchema},
+    current: {input: NoInputSchema, output: CurrentRunSchema},
+    list: {input: ListInputSchema, output: ListResultSchema, errors: unavailable},
+    run: {input: RunArgsSchema, output: TestRunResultSchema, errors: unavailable},
+    stop: {input: NoInputSchema, output: z.object({ok: z.boolean()})},
+  },
+  events: {event: {schema: TestEventSchema}},
+})
+```
+
+Keep it in its own module and export it as `./rpc`, so the engine part, the browser part, other plugins
+and the terminal import the same object. RPC methods never ask the user: an operation that must ask is
+a tool. See [rpc-and-testing](references/rpc-and-testing.md).
+
+## The browser part
+
+`Plugin.define({setup})` is the default export. It declares no id: the widget gives it the engine
+part's id as `ctx.id`. `setup` runs synchronously. Everything added with `ctx.add(Registry, item)` is
+removed when the plugin reloads or stops, and `ctx.signal` aborts then
+(`apps/site/content/docs/plugins/browser.mdx`).
+
+`ctx.client.rpc(Contract)` calls the plugin's own engine part, typed from the contract. The client is
+new after the engine restarts, so read `ctx.client` where you call it. From
+`packages/plugins/test-runner/src/follow.ts:26-36`:
+
+```ts
+function readRun(client: Client) {
+  return Effect.tryPromise({
+    try: async (signal) => {
+      const runner = client.rpc(TestRunner)
+      const status = await runner.status(undefined, {signal})
+      const current = await runner.current(undefined, {signal})
+      return {status, current}
+    },
+    catch: (cause) => makeReadFailed({cause}),
+  })
+}
+```
+
+Events arrive on `client.event.subscribe({types: ['rpc.<id>.<event>']})`. A `server.connected` event
+comes when the engine connection comes back: read the current state again then
+(`packages/plugins/test-runner/src/follow.ts:38-42`).
+
+Registries for `ctx.add` (`packages/frontend-plugin-api/src/registries.ts:414-574`): `Panel` (tabs in the
+session pane), `Slot` (`window.bottom`, `session.header`, `session.status`, `page.overlay`),
+`ComposerPill`, `Command` (keybind and slash command), `SettingsPage`, `ToolRegistry` (a card for a
+tool's calls), `CodeBlock`, `CodeBlockAction`, `LinkHandler`, `Server` and `Style` (CSS imported with
+`?inline`), and the page plugin's `PageOperation` from `@conciv/frontend-plugin-api/page`. `ctx.add`
+takes an item, or a function that returns one (or `undefined` for none). `Plugin.define({stores})`
+declares `Store.global`, `Store.project` and `Store.session` values
+(`packages/frontend-plugin-api/src/core.ts:219-260`). `ctx.provide` and `ctx.use` share contracts
+between plugins: `Page` and `ReactTree` from `@conciv/frontend-plugin-api/page`
+(`packages/frontend-plugin-api/src/page.ts:23-70`; `Page.pick()` lets the user pick an element and
+returns the `Grab`). Follow a changing source with `createKeyed`
+(`packages/frontend-plugin-api/src/reactive.ts:59`). Draw with `ctx.ui` components, so the plugin looks
+like the widget.
+
+`experimental()` from `@conciv/frontend-plugin-api/vite` builds `src/plugin-experimental.tsx` into
+`dist/plugin-experimental.cjs` by default; `entry` and `outFile` change both
+(`packages/frontend-plugin-api/src/vite.ts:7-44`). The widget provides `effect`, `zod`, `solid-js`,
+`solid-js/web`, `solid-js/store`, `@conciv/client`, `@conciv/frontend-plugin-api`,
+`@conciv/frontend-plugin-api/page`, `@conciv/frontend-plugin-api/grab` and
+`@conciv/backend-plugin-api/rpc` (`packages/frontend-plugin-api/src/modules.ts:1-15`). The build keeps
+them external and fails on any other `effect`, `solid-js` or `@conciv` import.
 
 ## Testing
 
-`@conciv/plugin-testkit` runs the real engine with a scripted model:
+`@conciv/backend-test-utils` and `@conciv/client/testing` are published, so a plugin in its own repo can
+use them. `test` from `@conciv/backend-test-utils` is vitest's `test` with a `createEngine` fixture:
+`createEngine(config, start)` starts the real engine on a free port with a scripted model in place of
+the agent's CLI. `config` is the product's own conciv config, so a test adds the plugin the way a user
+does. From `packages/plugins/test-runner/test/it/tools.it.test.ts:1-21`:
 
-- `createEngine({plugins})` (the package root, `@conciv/plugin-testkit`): the engine with your plugins; the first argument is the
-  product's own `ConcivConfig`. `engine.reply(...)` gives the model's answers in order, built with
-  `TestLLM`; `engine.write(path, content)` puts a file in the project. `engine.session.send(text)`,
-  `engine.session.tool(name).call(input)`, `engine.rpc.call(id, method, input)`, `engine.gate()`.
-- `mount({engine, history})` (`/browser`): the whole widget on that engine; `history` is
-  `createEngineRouterHistory({initialEntries: ['/panel/latest?open=true']})`, the engine's saved
-  history, or any TanStack `RouterHistory`; the test drives it by role and text.
-- Add `concivTest()` from `@conciv/plugin-testkit/vitest` to the package's `vite.config.ts` and run
-  tests with the `conciv-test` bin: node (`*.test.ts`), happy-dom (`*.dom.test.tsx`) and browser
-  (`*.browser.test.tsx`) projects come from it. Your own `test: {...}` settings win over the kit's.
+```ts
+import {describe} from 'vitest'
+import {test} from '@conciv/backend-test-utils'
+import {TestLLM} from '@conciv/backend-test-utils'
 
-See [rpc-and-testing](references/rpc-and-testing.md).
+describe("the agent runs the project's tests", () => {
+  test('the agent is told about the runner, lists the files, reads an empty status, runs everything, narrows a run with a pattern, reads the last run, and two runs asked at once each report their own tests', async ({
+    createEngine,
+    expect,
+  }) => {
+    const engine = await createEngine(
+      {plugins: ['@conciv/plugin-test-runner']},
+      {directory: 'test/fixtures/plant-shop'},
+    )
+    await engine.reply(TestLLM.text('I will run them'))
+    await engine.session.send('Run the tests')
+
+    const [request] = await engine.requests()
+    expect(request?.system.join('\n')).toContain('    <id>test-runner</id>')
+    expect(request?.tools.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(['test_runner_run', 'test_runner_status']),
+    )
+```
+
+A package name in `config.plugins` is the package under test, or one installed for it (`pluginDirectory`,
+`packages/engine-kit/src/plugin-directory.ts:15-28`), loaded from its built `.` export: build the plugin
+before a run. The fixture stops every engine its test started when the test ends. See
+[rpc-and-testing](references/rpc-and-testing.md) for what the engine gives a test.
+
+What a plugin outside this repo cannot use: `@internal/frontend-test-utils` (`renderInTestApp`,
+`renderTestApp`, `createExtensionTester`) and `@internal/vitest-config` (`concivTest()`) are private
+and not published. So it has no widget render helpers, and no browser-mode `createEngine`: the browser
+commands are exported from `@conciv/backend-test-utils/vitest`, but registering them is `concivTest()`'s
+job (`apps/site/content/docs/plugins/testing.mdx`). Test the engine part in node with `createEngine`.
 
 ## Publishing
 
-Export `.`/`./server`, `./rpc` and `./plugin-experimental` (the `.cjs`). Build with
-`tsdown && vite build && tsc -p tsconfig.build.json`. `@conciv/plugin` is a peer dependency (and a
-dev dependency); `effect` and `zod` are dependencies. Exclude `plugin-experimental` from attw.
+Export `.` and `./server` (the engine part), `./rpc` and `./plugin-experimental` (the `.cjs`), as the
+test runner does (`packages/plugins/test-runner/package.json`). The test runner builds with
+`tsdown && vite build && tsc -p tsconfig.build.json`. `@conciv/backend-plugin-api` and
+`@conciv/frontend-plugin-api` are peer dependencies (and dev dependencies); `effect`, `zod` and
+`@conciv/protocol` are dependencies.
 
 ## Red flags: stop and fix
 
-- A `.tsx` engine file, or an import of `./rpc` without its extension: Node cannot load it.
-- A tool name with `-`: the engine logs `Invalid tool name` and leaves the tool out.
+- A `.tsx` engine file, or TypeScript syntax Node cannot strip: Node cannot load it.
+- A tool name with `-`: the engine logs `Skipping invalid tool registration` with `Invalid tool name`
+  and leaves the tool out (`packages/backend-app-api/src/core/tool.ts:338-340`).
 - `{output}` returned from a tool with no `output` schema: the call fails with "Tool result declared
-  output without an output schema". Declare `output`, or return `{content}`.
-- A mutating tool with no ask rule and no `ctx.permission.assert`: add both.
+  output without an output schema" (`packages/backend-app-api/src/core/tool/runtime.ts:33`). Declare
+  `output`, or return `{content}`.
+- A tool that changes real state with no ask rule and no `ctx.permission.assert`: add both.
 - An RPC method that asks the user: make it a tool.
 - A browser part that bundles its own `solid-js` or `effect`: the build fails on purpose; import the
   provided modules.
-- Waiting for `networkidle` in a test with the widget: the socket never idles.
-- A test pointed at source instead of the built `dist`: rebuild first.
+- Waiting for `networkidle` in a test with the live widget: the socket never idles.
+- A test run against a stale `dist`: `createEngine` loads the built plugin, so rebuild first.
 
 ## Sources
 
-- `packages/plugin/package.json`
-- `packages/plugin/src/effect/rpc.ts`
-- `packages/plugin/src/effect/storage.ts`
-- `packages/plugin/src/experimental/registries.ts`
-- `packages/plugin/src/experimental/core.ts`
-- `packages/plugin-host/src/core/tool.ts`
-- `packages/plugin-testkit/README.md`
-- `packages/plugin-testkit/src/engine.ts`
-- `packages/plugin-testkit/src/mount.ts`
-- `packages/plugin-testkit/src/test-projects.ts`
-- `packages/plugins/tanstack/package.json`
-- `packages/plugins/tanstack/src/index.ts`
-- `packages/plugins/tanstack/src/plugin-experimental.tsx`
-- `packages/plugins/test-runner/src/index.ts`
-- `packages/plugins/test-runner/src/plugin-experimental.tsx`
-- `packages/plugins/recorder/src/tools.ts`
-- `packages/plugins/ios/src/tools.ts`
+- `packages/backend-plugin-api/package.json`
+- `packages/backend-plugin-api/src/host.ts`
+- `packages/backend-plugin-api/src/effect/plugin.ts`
+- `packages/backend-plugin-api/src/promise/promise.ts`
+- `packages/backend-app-api/src/core/config/plugin/source.ts`
+- `packages/backend-app-api/src/core/plugin/supervisor.ts`
+- `packages/backend-app-api/src/core/tool.ts`
+- `packages/backend-app-api/src/core/tool/runtime.ts`
+- `packages/frontend-plugin-api/package.json`
+- `packages/frontend-plugin-api/src/registries.ts`
+- `packages/frontend-plugin-api/src/core.ts`
+- `packages/frontend-plugin-api/src/page.ts`
+- `packages/frontend-plugin-api/src/reactive.ts`
+- `packages/frontend-plugin-api/src/vite.ts`
+- `packages/frontend-plugin-api/src/modules.ts`
+- `packages/backend-test-utils/src/backend-test-utils.ts`
+- `packages/engine-kit/src/plugin-directory.ts`
+- `apps/examples/tanstack-start/conciv/plugins/deploy/index.ts`
+- `apps/examples/tanstack-start/conciv/plugins/deploy/rpc.ts`
+- `apps/examples/tanstack-start/conciv/plugins/deploy/plugin-experimental.tsx`
+- `apps/examples/tanstack-start/conciv/plugins/deploy/vite.config.ts`
+- `apps/examples/tanstack-start/conciv/README.md`
+- `packages/plugins/test-runner/package.json`
+- `packages/plugins/test-runner/src/test-runner.ts`
+- `packages/plugins/test-runner/src/rpc.ts`
+- `packages/plugins/test-runner/src/follow.ts`
+- `packages/plugins/test-runner/test/it/tools.it.test.ts`
 - `apps/site/content/docs/plugins/index.mdx`
 - `apps/site/content/docs/plugins/engine.mdx`
 - `apps/site/content/docs/plugins/browser.mdx`
+- `apps/site/content/docs/plugins/testing.mdx`

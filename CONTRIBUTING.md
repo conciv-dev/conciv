@@ -36,14 +36,27 @@ in, so you get a live page with the widget attached.
 
 ## Repo layout
 
-| Path             | What's there                                                                                                                        |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/conciv`    | `@conciv/app`, the widget host app used for local dev                                                                               |
-| `apps/examples`  | Demo consumer apps (`tanstack-start`, `nextjs-app`, `ios`) that embed conciv                                                        |
-| `apps/site`      | conciv.dev, the marketing/docs site (React + TanStack Start)                                                                        |
-| `apps/storybook` | Component storybook for the Solid UI kits                                                                                           |
-| `native/swift`   | ConcivWidget iOS SDK, the ConcivDemo app, and the `ios-example` engine host (`pnpm exec turbo run dev --filter=ios-example`)        |
-| `packages/`      | ~40 published/internal packages: server/core logic, the browser client, plugin system, and the Solid `ui-kit-*` component libraries |
+| Path                 | What's there                                                                                                                 |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `packages/`          | The engine and widget packages, the shared packages, the test utilities and the Solid `ui-kit-*` component kits              |
+| `packages/plugins/*` | One package per plugin (page, terminal, tanstack, ios, recorder, test-runner, try-it, whiteboard)                            |
+| `apps/examples`      | Demo consumer apps (`tanstack-start`, `nextjs-app`) with conciv wired in                                                     |
+| `apps/site`          | conciv.dev, the marketing/docs site (React + TanStack Start)                                                                 |
+| `apps/storybook`     | Component storybook for the Solid UI kits                                                                                    |
+| `e2e/`               | Real host apps (Vite, Next.js, Astro, SvelteKit, ...) that run the built widget under Playwright                             |
+| `native/swift`       | ConcivWidget iOS SDK, the ConcivDemo app, and the `ios-example` engine host (`pnpm exec turbo run dev --filter=ios-example`) |
+
+The packages are laid out as Backstage lays out its packages. Each side has the same four kinds:
+
+| Kind       | Engine (node)                | Widget (browser)              | Holds                                                           |
+| ---------- | ---------------------------- | ----------------------------- | --------------------------------------------------------------- |
+| Plugin API | `@conciv/backend-plugin-api` | `@conciv/frontend-plugin-api` | what a plugin author imports                                    |
+| App API    | `@conciv/backend-app-api`    | `@internal/frontend-app-api`  | the machinery behind the plugin API; plugins never import it    |
+| Defaults   | `@conciv/backend-defaults`   | `@internal/frontend-defaults` | the product with no plugin in it                                |
+| App        | `@conciv/backend`            | `@conciv/app`                 | the shipped product: the defaults plus the plugins conciv ships |
+
+`@conciv/*` packages are published; `@internal/*` packages are private. See the package map in
+[`AGENTS.md`](./AGENTS.md) for what goes where.
 
 ## Everyday commands
 
@@ -78,9 +91,13 @@ pnpm build:affected
 
 ## Testing rules that matter to contributors
 
-- Widget UI is tested in a real browser (Playwright/Chromium), never jsdom or happy-dom.
-- Widget integration tests load the prebuilt embed bundle, so rebuild it first or you'll be
-  testing stale code: `pnpm turbo run build --filter=@conciv/embed`.
+- Every package has `test/unit`, `test/it`, `test/e2e`, `test/fixtures` and `test/utils`. Mounted UI is
+  tested in vitest browser mode (Chromium), never jsdom; happy-dom only for code that mounts nothing.
+- A test lives in the package whose code it tests, in the cheapest place that proves it: unit, then it,
+  then e2e. A plugin tests itself from its own package with the test utilities
+  (`@conciv/backend-test-utils`, `@internal/frontend-test-utils`, `@conciv/client/testing`).
+- The `e2e/` suites load the prebuilt widget bundle, so rebuild it first or you'll be testing stale
+  code: `pnpm turbo run build --filter=@conciv/app`.
 - Don't add tests under `apps/examples/*`: example apps are demos, not test subjects. Verify
   behavior through the owning package's own tests instead.
 
@@ -107,7 +124,8 @@ including router idioms, Solid/Ark landmines, and testing rules.
    newly introduced (dead code, unused exports, duplication, new circular deps). CI runs the same
    check and blocks on new findings.
 3. If your change touches a published package (anything under `packages/` that isn't `private`,
-   or `apps/conciv` since it ships inside `@conciv/embed`), add a changeset:
+   including `@internal/frontend-defaults` since it ships inside the `@conciv/app` widget bundle), add a
+   changeset:
    ```sh
    pnpm changeset
    ```
