@@ -188,8 +188,8 @@ Rules that hold the layout:
 
 ## Testing
 
-Tests are laid out as Backstage's and run as opencode's. The plan and its rules are
-`docs/specs/test-rewrite-after-port.md`.
+Tests are laid out as Backstage's and run as opencode's. The rules are this section; where the old tests are and the
+rulings the rewrite still carries are in `docs/specs/test-rewrite-after-port.md`.
 
 ### Where a test lives
 
