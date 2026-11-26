@@ -7,6 +7,7 @@ import type {ConcivClient} from '@conciv/client'
 import type {ServerRef as EngineServerRef, Servers as EngineServers} from '@conciv/client'
 import type {Persisted, StoreFrom, StoreType} from './core.js'
 import type {IconName, Link} from './registries.js'
+import type {BrowserTabId} from '@conciv/protocol/schema/browser-tab'
 
 export type SessionModels = Awaited<ReturnType<ConcivClient['meta']['models']>>
 
@@ -209,6 +210,7 @@ export interface Composer {
 
 export interface MountedSession extends SessionRef {
   readonly visit: object
+  readonly browserTab: {readonly id: BrowserTabId; readonly connectionId: string}
   readonly directory: string
   /** @remarks Not implemented yet. Always undefined in this version. */
   readonly local: boolean | undefined
