@@ -1,5 +1,5 @@
 import {AsyncIteratorClass, ORPCError, type Router} from '@orpc/server'
-import {RPCHandler} from '@orpc/server/ws'
+import {RPCHandler} from '@orpc/server/websocket'
 import {Effect, Queue, type Scope} from 'effect'
 import {WebSocketServer, type WebSocket} from 'ws'
 
@@ -83,7 +83,7 @@ function closeAll(server: WebSocketServer, cleanups: ReadonlySet<Promise<void>>)
 export type StartOptions = {
   readonly endpoint: URL
   readonly label: string
-  readonly router: Router<Record<never, never>, Context>
+  readonly router: Router<Context>
   readonly close: (connection: Connection) => Effect.Effect<void>
 }
 

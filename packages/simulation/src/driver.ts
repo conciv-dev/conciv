@@ -1,6 +1,6 @@
 import {createORPCClient, ORPCError} from '@orpc/client'
 import {RPCLink} from '@orpc/client/websocket'
-import type {ContractRouterClient} from '@orpc/contract'
+import type {RouterContractClient} from '@orpc/contract'
 import {
   backendContract,
   ItemSchema,
@@ -48,7 +48,7 @@ export function hang(): Answer {
   return {kind: 'hang'}
 }
 
-export type DriveClient = ContractRouterClient<typeof backendContract>
+export type DriveClient = RouterContractClient<typeof backendContract>
 
 export type Handler = (request: ModelRequest) => Answer | Promise<Answer>
 
@@ -114,7 +114,7 @@ async function listen(turns: AsyncIterable<LlmNotification>, client: DriveClient
 export async function connectDriver(url: string): Promise<Driver> {
   const websocket = new WebSocket(url)
   await opened(websocket)
-  const client: DriveClient = createORPCClient(new RPCLink({websocket}))
+  const client: DriveClient = createORPCClient(new RPCLink({connect: () => websocket}))
   const closing = new AbortController()
   const state: DriverState = {handler: undefined, waiting: [], answering: new Set(), failures: []}
   const turns = await client

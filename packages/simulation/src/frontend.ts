@@ -1,6 +1,6 @@
 import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/websocket'
-import type {ContractRouterClient} from '@orpc/contract'
+import type {RouterContractClient} from '@orpc/contract'
 import {WebSocket} from 'ws'
 import {
   PROTOCOL_VERSION,
@@ -10,7 +10,7 @@ import {
   type UiState,
 } from '@conciv/protocol/simulation'
 
-export type UiClient = ContractRouterClient<typeof uiContract>
+export type UiClient = RouterContractClient<typeof uiContract>
 
 export type UiDriver = {
   readonly client: UiClient
@@ -50,7 +50,7 @@ export async function connectUi(endpoint: string, signal?: AbortSignal): Promise
   const socket = await opened(endpoint, signal)
   const close = (): void => socket.close()
   try {
-    const client: UiClient = createORPCClient(new RPCLink({websocket: socket}))
+    const client: UiClient = createORPCClient(new RPCLink({connect: () => socket}))
     await client.handshake(
       {
         client: {name: 'conciv-simulation-driver', version: String(PROTOCOL_VERSION)},
