@@ -8,6 +8,7 @@ export default defineConfig({
     'src/schema/session-event.ts',
     'src/schema/browser-tab.ts',
     'src/schema/browser-tab-event.ts',
+    'src/schema/job.ts',
     'src/schema/project-id.ts',
     'src/schema/instruction.ts',
     'src/schema/identifier.ts',

@@ -274,12 +274,12 @@ describe.concurrent('session.synthetic', () => {
     },
   )
 
-  test('a browser tab opens, a second joins, focus moves, the first reopens, the second closes, the engine restarts and a deleted session takes its tabs', async ({
+  test('a browser tab opens, a second joins, focus moves, the first reopens, the second closes, the engine restarts and cancels a running job with the restart notice, and a deleted session takes its tabs', async ({
     createEngine,
     expect,
   }) => {
     const engine = await createEngine(
-      {},
+      {plugins: ['./test/fixtures/plugins/queue-jobs']},
       {
         harnesses: [
           {
@@ -348,8 +348,23 @@ describe.concurrent('session.synthetic', () => {
       widget.tabs.state({sessionId, connectionId: 'widget-2', tab: openTab(SECOND_TAB, true)}),
     ).rejects.toThrow(expect.objectContaining({code: 'UNAVAILABLE'}))
 
+    await expect(engine.rpc.call('queue-jobs', 'queue', {sessionId, queueId: 'queue-1'})).resolves.toEqual({
+      id: 'queue-1',
+      status: 'running',
+    })
+    await expect(widget.jobs.list({sessionId})).resolves.toMatchObject({
+      data: [{kind: 'page-queue', id: 'queue-1', sessionID: sessionId, status: 'running', queueId: 'queue-1'}],
+    })
+    await expect(widget.jobs.wait({ids: ['queue-1'], waitMs: 0})).resolves.toEqual({
+      data: [{id: 'queue-1', status: 'running'}],
+    })
+
     await engine.restart()
     await Promise.allSettled([reopen])
+    await expect(widget.jobs.wait({ids: ['queue-1'], waitMs: 0})).resolves.toEqual({
+      data: [{id: 'queue-1', status: 'cancelled', error: 'Interrupted by server restart.'}],
+    })
+    await expect(widget.jobs.wait({ids: ['queue-1'], waitMs: 0})).resolves.toEqual({data: []})
     await expect(widget.tabs.sessions()).resolves.toEqual([])
     await expect(widget.tabs.list({sessionId})).resolves.toEqual({tabs: [], focusedTabId: null})
 

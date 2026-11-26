@@ -15,6 +15,7 @@ import * as Location from '../location.js'
 import * as Model from '../model.js'
 import * as Session from '../session.js'
 import * as Tab from '../tab.js'
+import * as Job from '../job.js'
 import * as InstructionEntry from '../session/instruction-entry.js'
 import * as Rpc from '../rpc.js'
 import type {DeepMutable} from '../schema.js'
@@ -58,6 +59,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
   const hooks = yield* PluginHooks.Service
   const sessions = yield* Session.Service
   const browserTabs = yield* Tab.Service
+  const jobs = yield* Job.Service
   const instructionEntries = yield* InstructionEntry.Service
   const servers = yield* ServersSource
   const bundler = yield* BundlerSource
@@ -181,6 +183,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
       hook: (name, callback) => hooks.register('tool', name, callback),
     },
     browserTabs: {list: browserTabs.list, sessions: browserTabs.sessions},
+    job: {start: jobs.start, get: jobs.get, wait: jobs.wait, cancel: jobs.cancel},
     session: {
       hook: (name, callback) => hooks.register('session', name, callback),
       list: sessions.list,
