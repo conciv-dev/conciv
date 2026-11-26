@@ -7,6 +7,7 @@ import {TypeTable} from 'fumadocs-ui/components/type-table'
 import {Accordion, Accordions} from 'fumadocs-ui/components/accordion'
 import {ImageZoom} from 'fumadocs-ui/components/image-zoom'
 import {Mermaid} from './mermaid'
+import {ConfigOptions} from './config-options'
 import type {MDXComponents} from 'mdx/types'
 
 function getMDXComponents(components?: MDXComponents) {
@@ -22,6 +23,7 @@ function getMDXComponents(components?: MDXComponents) {
     Accordions,
     ImageZoom,
     Mermaid,
+    ConfigOptions,
     ...components,
   } satisfies MDXComponents
 }
