@@ -142,8 +142,17 @@ yield * ctx.session.hook('context', (event) => Effect.sync(() => event.system.pu
 ## Page work belongs to the page plugin
 
 A tool that acts on the user's page calls the page plugin's RPC (`ctx.rpc(PageDefinition)`, with
-`Definition` imported from `@conciv/plugin-page/rpc`; `packages/plugins/tanstack/src/tools.ts:9`), which
-runs the matching `PageOperation` the plugin's browser part added.
+`Definition` imported from `@conciv/plugin-page/rpc`; `packages/plugins/tanstack/src/tools.ts:10,110`), which
+runs the matching `PageOperation` the plugin's browser part added. The open tabs are the engine's, not the
+page plugin's: read them with `ctx.browserTabs.list(sessionId)` and take `BrowserTabId` and `BrowserTabList` from
+`@conciv/protocol/schema/browser-tab` (`packages/plugins/tanstack/src/tools.ts:9,189-192`).
+
+## Work that finishes later
+
+A tool that starts work it answers later starts a job: `ctx.job.start({id, type, run, background: true,
+recovery, metadata})` (`packages/backend-plugin-api/src/effect/job.ts:24-41`), with the call's `toolCallId` and
+`origin` in `metadata` so the hub can find it with `jobs.list`. The page plugin's queue is the example
+(`packages/plugins/page/src/connection.ts:404-430`).
 
 ## Sources
 

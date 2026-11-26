@@ -121,6 +121,10 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 
 - Component styles go through `packages/uno-preset` (keyframes, `anim-*` shortcuts, rules, preflights).
   A new `.css` file in a ui-kit `src/` is a blocker; only token/theme sheets are `.css`.
+- A plugin other than the built-ins (page, terminal, iOS, which `packages/app/uno.config.ts` scans) builds its own
+  sheet: `uno.config.ts` is `pluginSheetConfig(import.meta.url)` and the browser part adds `virtual:uno.css?inline`
+  with `ctx.add(Style, css)`. Adding a plugin's `src` to the app's or frontend-defaults' `uno.config.ts` is a
+  blocker.
 - Piles of arbitrary props (`[overflow-x:hidden]`, `[display:-webkit-box]`) where a preset utility
   exists (`truncate`, `line-clamp-N`).
 - Every value derives from existing design tokens (`var()` chains, `calc()`, `color-mix()`, the

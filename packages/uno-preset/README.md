@@ -2,7 +2,7 @@
 
 ## Overview
 
-Private shared UnoCSS preset reused by other packages' `uno.config.ts` files, built with tsc into `dist`. The repo's lint task builds it first, since the `unocss/order` rule loads each folder's `uno.config.ts`, which imports this `dist`. Source: [src/README.md](./src/README.md).
+Private shared UnoCSS preset reused by other packages' `uno.config.ts` files, built with tsc into `dist`. The lint's `unocss/order` rule reads the repo-root `uno.config.ts` (`.oxlintrc.json` `settings.unocss.configPath`), which loads this preset from its source, so the lint needs no build of it. Source: [src/README.md](./src/README.md).
 
 ## Invariants
 

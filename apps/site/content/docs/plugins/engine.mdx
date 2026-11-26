@@ -22,7 +22,7 @@ from `@conciv/backend-plugin-api/promise/adapter` first, so both run the same wa
 | `@conciv/backend-plugin-api/effect/rpc`        | the RPC domain's types (`RpcHandlers`, `RpcRegistration`)                |
 | `@conciv/backend-plugin-api/effect/permission` | the permission domain's types                                            |
 | `@conciv/backend-plugin-api/effect/session`    | the session domain's types                                               |
-| `@conciv/backend-plugin-api/rpc`               | `Rpc.define`, for the contract both parts import                         |
+| `@conciv/protocol/schema/rpc`               | `Rpc.define`, for the contract both parts import                         |
 | `@conciv/backend-plugin-api`                   | the promise entry: `Plugin`, `Tool`, `Skill`, `Rpc` and the domain types |
 | `@conciv/backend-plugin-api/promise/adapter`   | `fromPromise`                                                            |
 | `@conciv/backend-plugin-api/host`              | what a plugin host uses to find a plugin's entry files                   |
@@ -176,7 +176,8 @@ export interface Context {
 
 `origin` says where the call came from. `chat` is a call from a turn in the widget's chat. `hub` is a call from an
 agent outside the widget, which the engine knows by the `conciv-origin: hub` header on the request. The page plugin
-reads it: it tells the session that a queue of page actions finished only for a `chat` call.
+reads it when it starts a [job](#jobs) for a queue of page actions: for a `chat` call it posts the result into the
+session when the job ends, and for a `hub` call it leaves the result to the hub, which reads it with `jobs.wait`.
 
 In the promise entry, the context is `ToolContext`: the same fields, plus a `signal` that aborts when the call is
 cancelled, and a `progress` that returns a `Promise`.
@@ -239,11 +240,11 @@ export it as `./rpc`, so both parts import it.
 
 ### Rpc.define
 
-`Rpc.define({id, methods, events})` from `@conciv/backend-plugin-api/rpc` declares the contract. Each method has an
+`Rpc.define({id, methods, events})` from `@conciv/protocol/schema/rpc` declares the contract. Each method has an
 `input` and an `output` schema, and optional named `errors`. Each event has a `schema`.
 
 ```ts title="packages/plugins/test-runner/src/rpc.ts"
-import {Rpc} from '@conciv/backend-plugin-api/rpc'
+import * as Rpc from '@conciv/protocol/schema/rpc'
 import {z} from 'zod'
 
 const unavailable = {UNAVAILABLE: z.object({available: z.literal(false), error: z.string()})}
@@ -346,6 +347,45 @@ yield * ctx.agent.transform((editor) => editor.list().forEach((agent) => agent.p
 `fallback: 'ask'` asks even when the only rule that allows the action is a catch-all `*` rule. The page plugin passes
 it for the page actions that ask.
 
+## Browser tabs
+
+Every open widget is a browser tab the engine knows. The widget opens one for the session it shows with `tabs.open`
+and keeps it open while that session stays on screen; the engine stores the tabs and lists them whether or not any
+plugin is installed. A plugin reads them with `ctx.browserTabs`:
+
+```ts title="packages/backend-plugin-api/src/effect/plugin.ts"
+export interface BrowserTabDomain {
+  readonly list: (sessionId: SessionId) => Effect.Effect<BrowserTabList>
+  readonly sessions: () => Effect.Effect<SessionId[]>
+}
+```
+
+`list` gives a session's tabs, each with its `id`, `url`, `title`, `focused` and `visible`, and `focusedTabId`, the
+tab focused last. `sessions` gives the sessions that have a tab open. A plugin that acts inside a tab, as the page
+plugin does, addresses it by its id. When a tab opens or closes the engine publishes `tab.opened` or `tab.closed`, which
+a plugin hears with `ctx.event.subscribe`.
+
+## Jobs
+
+Work a tool call starts that finishes later is a job. `ctx.job.start` runs `run` in the background and keeps its
+result, `wait` waits for it, and `cancel` stops it:
+
+```ts title="packages/backend-plugin-api/src/effect/job.ts"
+export interface JobDomain {
+  readonly start: (input: JobStartInput) => Effect.Effect<JobInfo>
+  readonly get: (id: string) => Effect.Effect<JobInfo | undefined>
+  readonly wait: (input: JobWaitInput) => Effect.Effect<JobWaitResult>
+  readonly cancel: (id: string) => Effect.Effect<JobInfo | undefined>
+  readonly completeBackground: (notificationID: string) => Effect.Effect<void>
+}
+```
+
+A job ends `completed`, `error` or `cancelled`. A job started with `background: true` and a `recovery` is kept in the engine's database,
+so its result outlives the call that started it; one still running when the engine stopped reads as `cancelled`,
+`Interrupted by server restart.`, after it starts again. Clients read background jobs through the contract's
+`jobs.list` (a session's jobs, or the ones the given tool calls started) and `jobs.wait`. The page plugin starts one job per queue of page actions, with the call's `toolCallId` and
+`origin` in its `metadata`, so an agent outside the widget gets the queue's result on its next call through the hub.
+
 ## The promise entry
 
 `@conciv/backend-plugin-api` is the same engine part without Effect. `Plugin.define` takes `setup(ctx)` instead of
@@ -356,7 +396,7 @@ plugin is the fixture of the CLI's tests:
 ```ts title="packages/cli/test/fixtures/plugins/plant-shelf/server.ts"
 import {z} from 'zod'
 import {Plugin} from '@conciv/backend-plugin-api'
-import {Rpc} from '@conciv/backend-plugin-api/rpc'
+import * as Rpc from '@conciv/protocol/schema/rpc'
 
 const Plant = z.object({plant: z.string()})
 

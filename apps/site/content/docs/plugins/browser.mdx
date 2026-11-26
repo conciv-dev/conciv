@@ -156,6 +156,10 @@ ctx.add(Slot, {at: 'session.status', render: () => <InspectorChip ui={ctx.ui} lo
 | `session.status` | a session's status area         | `session`, `screen`                      |
 | `page.overlay`   | over the page                   | none                                     |
 
+The `session` a slot gets is the mounted session. Its `browserTab` is the browser tab this widget opened for it, the
+`id` the engine lists in `tabs.list` (`packages/frontend-plugin-api/src/host-apis.ts:213`). A plugin that acts inside
+the page, as the page plugin does, answers the commands addressed to that id.
+
 A `page.overlay` slot holds the focus inside it unless it sets `hides: false`. The whiteboard adds its overlay only
 while the canvas is visible:
 
@@ -221,6 +225,40 @@ A command runs from a keybind or a slash command:
 ctx.add(Command, {id: 'toggle', bind: 'mod+shift+e', title: 'Toggle', run: () => toggle()})
 ```
 
+## Style it
+
+The widget's own sheet holds the classes of the widget, its UI kits and the built-in plugins, and nothing else. Any
+other plugin ships its own sheet. In this repo a plugin's `uno.config.ts` is one line, and its browser part adds the
+sheet UnoCSS builds from its `src` with `Style`:
+
+```ts title="packages/plugins/whiteboard/uno.config.ts"
+import {pluginSheetConfig} from '@internal/uno-preset'
+
+export default pluginSheetConfig(import.meta.url)
+```
+
+```tsx title="packages/plugins/whiteboard/src/plugin-experimental.tsx"
+import pluginCss from 'virtual:uno.css?inline'
+```
+
+```tsx
+ctx.add(Style, pluginCss)
+```
+
+`pluginSheetConfig` scans the package's `src` (not its tests, specs or stories) with `presetConciv({sheet: 'plugin'})`:
+the preset's utilities, without the theme variables and the loader preflight, which the widget's sheet already
+has (`packages/uno-preset/src/uno-preset.ts:30-60`).
+
+A plugin's sheet applies only inside its own area. The widget draws each plugin's parts inside an element marked
+`data-conciv-plugin="<id>"`, and adds `:where([data-conciv-plugin="<id>"], [data-conciv-plugin="<id>"] *)` to every rule
+of that plugin's sheet (`packages/frontend-app-api/src/lib/plugin-fence.ts`), so a class in one plugin's sheet never
+restyles the widget or another plugin. A popover or menu a plugin opens portals outside that element; the kit's
+`LayerPortal` reads `LayerAreaContext` and wraps the portalled content in the same attribute, so the plugin's sheet
+still reaches it (`packages/ui-kit-system/src/layer-portal.tsx`).
+
+`@internal/uno-preset` is private. A plugin outside this repo writes its own UnoCSS config, or any CSS, and adds the
+result with `ctx.add(Style, css)` the same way; the fence applies to it all the same.
+
 ## Build it
 
 `experimental()` from `@conciv/frontend-plugin-api/vite` builds `src/plugin-experimental.tsx` into
@@ -231,11 +269,12 @@ one Vite config builds the bundle and sets up its tests:
 import {defineConfig} from 'vitest/config'
 import {experimental} from '@conciv/frontend-plugin-api/vite'
 import conciv from '@conciv/unplugin/vite'
+import UnoCSS from 'unocss/vite'
 import {concivTest} from '@internal/vitest-config/conciv-test'
 
 export default defineConfig({
   publicDir: false,
-  plugins: [experimental(), conciv(), concivTest({browser: true})],
+  plugins: [UnoCSS(), experimental(), conciv(), concivTest({browser: true})],
 })
 ```
 
@@ -249,7 +288,7 @@ The build keeps the modules the widget provides external, and Node built-ins:
 export const pluginSharedModules = [
   'effect',
   '@conciv/frontend-plugin-api',
-  '@conciv/backend-plugin-api/rpc',
+  '@conciv/protocol/schema/rpc',
   'zod',
 ] as const
 

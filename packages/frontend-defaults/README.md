@@ -21,7 +21,7 @@ window); standalone uses browser history.
 - `vite.config.ts`: `tanstackRouter({target: 'solid', autoCodeSplitting: false})`, `UnoCSS` (`unocss/vite`),
   `solidPlugin` and `concivTest({environment: 'happy-dom', browser: true})`, with the drive commands from
   `test/utils/drive-commands.ts`
-- `uno.config.ts`: `presetConciv`, scanning `src`, the ui-kits, `frontend-app-api` and the plugins' sources; the
+- `uno.config.ts`: `presetConciv`, scanning `src`, the ui-kits and `frontend-app-api`, and no plugin; the
   utilities reach the widget through `virtual:uno.css?inline` (`src/lib/widget-styles.ts`)
 - Subdirectories: [src](./src/README.md).
 

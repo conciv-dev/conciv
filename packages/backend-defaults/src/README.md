@@ -7,7 +7,7 @@ and `tools.ts` (the sandbox tools in `tools/`). `backend-defaults.ts` is the cha
 chat server to run turns, hydrate and clear threads, import harness transcripts, and replay the permission service's
 pending asks as cards. The engine serves it over oRPC. `turn.ts`, `transcript.ts`, `code-mode.ts`, `approvals.ts` and
 `stores.ts` are its parts; `core/` holds the engine services ported from opencode (code mode, config, database, filesystem,
-image, plugin, ripgrep, session, skill, tool).
+image, job, plugin, ripgrep, session, skill, tool) and the browser tabs (`core/tab/`).
 
 ## Invariants
 

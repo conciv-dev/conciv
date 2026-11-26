@@ -73,7 +73,7 @@ left to receive it.
 
 The engine activates the plugins it is given in the host's post position (`InstancePlugins.bound([], {post:
 input.plugins})`, `packages/backend-defaults/src/engine/runtime/plugin-runtime.ts`), so the page half, which
-`@conciv/backend` passes as `plugins: [page]`, runs after every project plugin, as the source activates its browser
+`@conciv/backend` passes from this package's `./engine-builtins` list, runs after every project plugin, as the source activates its browser
 plugin last (opencode `core/src/plugin/internal.ts:290-294`, `supervisor.ts:146-147`): the half pushes its page rules
 and the `page_eval` ask onto every agent. A tool call that arrives while its plugin restarts after a reload meets the
 restart window, as in opencode: work started after the reload waits for activation (opencode
