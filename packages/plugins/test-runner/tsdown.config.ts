@@ -5,6 +5,7 @@ export default defineConfig({
   entry: [
     'src/test-runner.ts',
     'src/rpc.ts',
+    'src/test-utils.ts',
     'src/vitest.ts',
     'src/vitest-child.ts',
     'src/playwright.ts',

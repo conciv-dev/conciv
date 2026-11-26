@@ -3,7 +3,7 @@ import {page, userEvent} from 'vitest/browser'
 import {createFakeEngine, FakeLLM} from '@conciv/client/testing'
 import {watchCalm} from '../fixtures/calm-watch.js'
 import {mountShell, shellEngine} from '../utils/mount-shell.js'
-import {seededSession} from '../utils/seeded-session.js'
+import {seededSession} from '../utils/sample-data.js'
 
 describe('the calm chat plane', () => {
   test('a multi-tool run streams without dropped frames', async ({task}) => {

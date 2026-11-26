@@ -27,7 +27,10 @@ import type {
   HarnessSessionPage,
 } from '@conciv/types/harness-types'
 import {SessionId as SessionIdMaker} from '@conciv/protocol/schema/session-id'
-import {anchorKey, chatMetadata, chatRuns, drafts, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
+import {anchorKey, chatMetadata, chatRuns, TRANSCRIPT_NAMESPACE} from '../../db/run-schema.js'
+import {drafts} from '../../db/schema.js'
+import {sessions} from '@conciv/backend-app-api/core/session/sql'
+import type {ConcivDb} from '../../db/connection.js'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
 import type {Log} from '../lib/logging.js'

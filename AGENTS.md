@@ -39,7 +39,7 @@ The rest:
   knows nothing about tabs. pty is the exception that stays in the engine (`backend-defaults`), as opencode keeps it in
   `packages/core/src/pty`.
 - `@conciv/protocol` (the oRPC contract and shared schemas), `@conciv/types` (wire types), `@conciv/client` (the
-  browser's engine connection and rpc client, plus the fake engine in `@conciv/client/testing`), `@conciv/db`,
+  browser's engine connection and rpc client, plus the fake engine in `@conciv/client/testing`), `@conciv/home` (the per-user home registry),
   `@conciv/harness` (harness adapters), `@conciv/serve` (the node HTTP server), `@conciv/simulation` (opencode's
   simulation: the scripted agent and fixed network table), `@conciv/cli`, `@conciv/unplugin` and `@conciv/it` (the
   host-side install), the `ui-kit-*` packages, `@conciv/mascot`.

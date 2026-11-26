@@ -2,7 +2,7 @@ import {z} from 'zod'
 import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
 import {toModelMessages, type ChatMessage} from '@conciv/types/chat-message-types'
 import {inSpan, type ChatStores, type Tracer} from './ai.js'
-import {anchorKey, TRANSCRIPT_NAMESPACE} from '@conciv/db'
+import {anchorKey, TRANSCRIPT_NAMESPACE} from './db/run-schema.js'
 import type {HarnessSessionId, SessionId} from '@conciv/types/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
 

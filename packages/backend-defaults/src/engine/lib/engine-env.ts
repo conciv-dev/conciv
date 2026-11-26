@@ -1,4 +1,4 @@
-import {concivHome} from '@conciv/db'
+import {concivHome} from '@conciv/home'
 import {Config, ConfigProvider, Effect, Option} from 'effect'
 import {range} from 'es-toolkit'
 

@@ -1,7 +1,18 @@
 import {Effect, Fiber, Stream} from 'effect'
 import {describe, expect, it} from 'vitest'
-import {BACKEND_CAPABILITIES, UI_CAPABILITIES, type HandshakeParams} from '@conciv/protocol/simulation'
-import * as SimulationControlServer from '../../src/control-server.js'
+import {
+  BACKEND_CAPABILITIES,
+  dispatchHandshake,
+  UI_CAPABILITIES,
+  uiContract,
+  type HandshakeAction,
+  type HandshakeParams,
+  type SemanticNode,
+  type UiState,
+} from '@conciv/protocol/simulation'
+import {implement} from '@orpc/server'
+import {RPCHandler} from '@orpc/server/websocket'
+import {byRole, clickByRole, listenUi, typeInto} from '../../src/frontend.js'
 import {connectDriver, text} from '../../src/driver.js'
 import {request} from '../utils/model-request.js'
 import {availableEndpoint, connect, driven} from '../utils/websocket.js'
@@ -90,7 +101,7 @@ describe('simulation handshake', () => {
 
   const expectingUi: HandshakeParams = {...params, expectedRole: 'ui'}
 
-  const backend: SimulationControlServer.HandshakeAction = {
+  const backend: HandshakeAction = {
     role: 'backend',
     server: {name: 'conciv', version: 'test'},
     capabilities: BACKEND_CAPABILITIES,
@@ -126,12 +137,12 @@ describe('simulation handshake', () => {
       outcome: {type: 'accepted', response: {capabilities: BACKEND_CAPABILITIES}},
     },
   ])('$name', ({given, outcome}) => {
-    expect(SimulationControlServer.dispatchHandshake(backend, given)).toMatchObject(outcome)
+    expect(dispatchHandshake(backend, given)).toMatchObject(outcome)
   })
 })
 
 describe('simulation ui protocol', () => {
-  const ui: SimulationControlServer.HandshakeAction = {
+  const ui: HandshakeAction = {
     role: 'ui',
     server: {name: 'conciv', version: 'test'},
     capabilities: UI_CAPABILITIES,
@@ -146,13 +157,98 @@ describe('simulation ui protocol', () => {
       optionalCapabilities: [],
     }
 
-    expect(SimulationControlServer.dispatchHandshake(ui, params)).toMatchObject({
+    expect(dispatchHandshake(ui, params)).toMatchObject({
       type: 'accepted',
       response: {role: 'ui', capabilities: UI_CAPABILITIES},
     })
-    expect(SimulationControlServer.dispatchHandshake({...ui, role: 'backend'}, params)).toMatchObject({
+    expect(dispatchHandshake({...ui, role: 'backend'}, params)).toMatchObject({
       type: 'refused',
       refusal: {code: 'ROLE_MISMATCH'},
+    })
+  })
+})
+
+describe('the widget drive ui endpoint', () => {
+  const button: SemanticNode = {id: 'node-7', role: 'button', label: 'Send message', element: 7}
+  const textbox: SemanticNode = {id: 'node-3', role: 'textbox', label: 'Message the conciv agent', element: 3}
+
+  function fakeWidget(endpoint: string, capabilities: readonly string[]) {
+    const typed: string[] = []
+    const focus = {target: 0}
+    const shown = (): UiState => ({focused: {renderable: focus.target, editor: focus.target === 3}, elements: []})
+    const os = implement(uiContract)
+    const refuse = (): never => {
+      throw new Error('the fake widget does not do that')
+    }
+    const router = os.router({
+      handshake: os.handshake.handler(({input, errors}) => {
+        const outcome = dispatchHandshake(
+          {role: 'ui', server: {name: 'fake-widget', version: 'test'}, capabilities},
+          input,
+        )
+        if (outcome.type === 'accepted') return outcome.response
+        if (outcome.refusal.code === 'MISSING_CAPABILITY') throw errors.MISSING_CAPABILITY(outcome.refusal)
+        if (outcome.refusal.code === 'ROLE_MISMATCH') throw errors.ROLE_MISMATCH(outcome.refusal)
+        throw errors.UNSUPPORTED_PROTOCOL(outcome.refusal)
+      }),
+      ui: {
+        state: os.ui.state.handler(shown),
+        snapshot: os.ui.snapshot.handler(() => ({format: 'conciv-ui-snapshot-v1' as const, nodes: [textbox, button]})),
+        matches: os.ui.matches.handler(({input}) => typed.join('').includes(input.text)),
+        type: os.ui.type.handler(({input}) => {
+          typed.push(input.text)
+          return shown()
+        }),
+        focus: os.ui.focus.handler(({input}) => {
+          focus.target = input.target
+          return shown()
+        }),
+        click: os.ui.click.handler(({input}) => {
+          focus.target = input.semantic?.element ?? 0
+          return shown()
+        }),
+        press: os.ui.press.handler(refuse),
+        enter: os.ui.enter.handler(refuse),
+        arrow: os.ui.arrow.handler(refuse),
+        capture: os.ui.capture.handler(refuse),
+        recording: {finish: os.ui.recording.finish.handler(refuse)},
+        mouse: os.ui.mouse.handler(refuse),
+        resize: os.ui.resize.handler(refuse),
+      },
+    })
+    const join = (): void => {
+      const socket = new WebSocket(endpoint)
+      socket.addEventListener('open', () => new RPCHandler(router).upgrade(socket), {once: true})
+      socket.addEventListener('error', join, {once: true})
+    }
+    join()
+  }
+
+  function widgetJoins(endpoint: string, capabilities: readonly string[]) {
+    const driving = listenUi(endpoint)
+    fakeWidget(endpoint, capabilities)
+    return driving
+  }
+
+  it('waits for the widget, types into the composer by its label and clicks send by its role, then refuses a widget without the ui actions', async () => {
+    const endpoint = await availableEndpoint()
+    const driver = await widgetJoins(endpoint, UI_CAPABILITIES)
+
+    const snapshot = await driver.client.ui.snapshot()
+    expect(byRole(snapshot, 'button', 'Send message')).toEqual(button)
+    expect(() => byRole(snapshot, 'button', 'Stop generating')).toThrow(
+      'the widget shows no button named Stop generating',
+    )
+    expect(await typeInto(driver.client, 'textbox', 'Message the conciv agent', 'Hello')).toMatchObject({
+      focused: {renderable: 3, editor: true},
+    })
+    expect(await driver.client.ui.matches({text: 'Hello'})).toBe(true)
+    expect(await clickByRole(driver.client, 'button', 'Send message')).toMatchObject({focused: {renderable: 7}})
+    await driver.close()
+
+    await expect(widgetJoins(endpoint, ['ui.state', 'ui.snapshot'])).rejects.toMatchObject({
+      code: 'MISSING_CAPABILITY',
+      data: {missing: ['ui.click.semantic', 'ui.focus', 'ui.type', 'ui.press']},
     })
   })
 })

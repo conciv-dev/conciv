@@ -40,8 +40,8 @@
   },
   "dependencies": {
     "@conciv/backend-plugin-api": "workspace:^",
-    "@conciv/db": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/types": "workspace:^",
     "@effect/platform-node": "catalog:",
     "@effect/sql-sqlite-node": "catalog:",
     "@npmcli/arborist": "catalog:",

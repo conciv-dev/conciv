@@ -1,6 +1,6 @@
 import {and, asc, eq, or} from 'drizzle-orm'
 import {Context, DateTime, Effect, Layer, Option, Schema} from 'effect'
-import {chatMessages} from '@conciv/db'
+import {chatMessages} from '../../db/run-schema.js'
 import {
   Compaction,
   CompactionPayload,

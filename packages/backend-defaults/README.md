@@ -1,6 +1,6 @@
 # @conciv/chat
 
-The conciv chat plane: turns, hydrate, transcript import, stop, compaction, boot recovery, the permission gate and the chat stores over `@conciv/db`'s tables, built on `@conciv/ai`.
+The conciv chat plane: turns, hydrate, transcript import, stop, compaction, boot recovery, the permission gate and the chat stores over the engine database tables (`src/db`), built on `@conciv/ai`.
 
 Part of [conciv](https://github.com/conciv-dev/conciv).
 
@@ -15,7 +15,7 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Side Effects
 
-- The package root (configs and manifest) has none. At runtime turns write the `@conciv/db` run and thread tables and publish chat events to the session stream that core serves over oRPC. Full list in [src/README.md](./src/README.md#side-effects).
+- The package root (configs and manifest) has none. At runtime turns write the run and thread tables (`src/db`) and publish chat events to the session stream that core serves over oRPC. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 

@@ -1,6 +1,6 @@
 import type {ToolDomain} from '../../backend-defaults.js'
 import type {ChatPendingApproval} from '@conciv/protocol'
-import type {ConcivDb} from '@conciv/db'
+import type {ConcivDb} from '../../db/connection.js'
 import type {HarnessPermissionAsk, HarnessPermissionVerdict} from '@conciv/types/harness-types'
 import {approvalRequestedEvent, approvalSettledEvent, type ChatEvent} from '@conciv/types/chat-event-types'
 import {SessionId, type PermissionRule} from '@conciv/types/chat-types'

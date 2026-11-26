@@ -1,6 +1,7 @@
 import {eq, sql} from 'drizzle-orm'
 import {Effect} from 'effect'
-import {chatMessages, chatMetadata, chatRuns, type ConcivDb} from '@conciv/db'
+import {chatMessages, chatMetadata, chatRuns} from './db/run-schema.js'
+import type {ConcivDb} from './db/connection.js'
 
 export async function runningThreadIds(db: ConcivDb): Promise<ReadonlySet<string>> {
   const rows = await Effect.runPromise(

@@ -31,7 +31,23 @@ export type ConcivHandle = {
   rebind: (apiBase: string) => Promise<void>
 }
 
+declare global {
+  interface Window {
+    __CONCIV_DRIVE__?: string
+  }
+}
+
 type MountState = 'unmounted' | 'mounting' | 'mounted'
+
+function startDrive(root: ShadowRoot): () => void {
+  const endpoint = window.__CONCIV_DRIVE__
+  if (endpoint === undefined) return () => {}
+  const drive = import('@internal/frontend-defaults/drive').then((module) => module.startDrive(endpoint, root))
+  drive.catch((error: unknown) => console.error('[conciv] drive mode failed to start', error))
+  return () => {
+    drive.then((started) => started.close()).catch(() => {})
+  }
+}
 
 type PanelCommandName = keyof PanelCommandEventMap & string
 
@@ -65,7 +81,11 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
       const {mountImpl} = await import('./mount-impl.js')
       if (controller.signal.aborted) return
       const impl = mountImpl(init, el)
-      teardown = impl.teardown
+      const stopDrive = startDrive(impl.root)
+      teardown = () => {
+        stopDrive()
+        impl.teardown()
+      }
       rebindImpl = impl.rebind
       state = 'mounted'
       await impl.ready

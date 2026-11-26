@@ -448,7 +448,7 @@
     },
     {
       "files": [
-        "packages/db/**",
+        "packages/home/**",
         "packages/backend-defaults/src/ai/**",
         "packages/backend-defaults/src/ai.ts",
         "packages/backend-defaults/test/utils/ai-test.ts",

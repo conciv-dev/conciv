@@ -14,7 +14,10 @@ import {
   type CodeDriver,
 } from './ai.js'
 import {cappedValue, type ChatHistoryWindow, type ChatHydration, type ChatPendingApproval} from '@conciv/protocol'
-import {chatRuns, markers, sessions, type ConcivDb} from '@conciv/db'
+import {chatRuns} from './db/run-schema.js'
+import {markers} from './db/schema.js'
+import {sessions} from '@conciv/backend-app-api/core/session/sql'
+import type {ConcivDb} from './db/connection.js'
 import {isSessionId, SessionId} from '@conciv/types/chat-types'
 import type {UiAnswer} from '@conciv/types/ui-types'
 import {createUiChannel} from './approvals.js'

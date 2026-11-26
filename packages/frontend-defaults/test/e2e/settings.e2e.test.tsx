@@ -2,12 +2,11 @@ import {describe, expect, test} from 'vitest'
 import {screen, within, render} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {createORPCClient} from '@orpc/client'
-import {createFakeEngine} from '@conciv/client/testing'
+import {createFakeEngine, type FakePluginInfo} from '@conciv/client/testing'
 import type {RpcClient} from '@conciv/client'
 import {Plugin} from '@conciv/frontend-plugin-api'
-import type {PluginInfo} from '@conciv/backend-plugin-api'
 import {mountShell, shellEngine} from '../utils/mount-shell.js'
-import {pluginBundles, pluginUpdates, type FakeBundle} from '../utils/fake-plugins.js'
+import {localBundle} from '../utils/sample-plugins.js'
 import releaseTrain from '../fixtures/plugins/release-train/plugin-experimental.js?raw'
 import shellBoard from '../fixtures/plugins/shell-board/plugin-experimental.js?raw'
 import terminal from '../fixtures/plugins/terminal/plugin-experimental.js?raw'
@@ -95,12 +94,11 @@ describe('resetting settings', () => {
 describe('plugins in settings', () => {
   test('a server plugin turned off elsewhere shows off in its settings row, and the user turns it on', async () => {
     const user = userEvent.setup()
-    const bundles = [{id: 'release-train', code: releaseTrain, server: true}]
     await mountShell({
       engine: shellEngine(
         createFakeEngine({
           settings: {'global:plugin-enable': {'release-train': false}},
-          handlers: {plugin: pluginBundles(() => bundles)},
+          bundles: [localBundle('release-train', releaseTrain, {server: true})],
         }),
       ),
     })
@@ -121,18 +119,15 @@ describe('plugins in settings', () => {
 
   test('a plugin added to the project while the Plugins section is open joins the list', async () => {
     const user = userEvent.setup()
-    const bundles: FakeBundle[] = [{id: 'release-train', code: releaseTrain, server: true}]
-    const updates = pluginUpdates()
-    await mountShell({
-      engine: shellEngine(createFakeEngine({handlers: {plugin: pluginBundles(() => bundles), event: updates.event}})),
-    })
+    const releaseTrainBundle = localBundle('release-train', releaseTrain, {server: true})
+    const engine = shellEngine(createFakeEngine({bundles: [releaseTrainBundle]}))
+    await mountShell({engine})
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     await user.click(await screen.findByRole('tab', {name: 'Plugins'}))
     expect(await screen.findByRole('switch', {name: 'release-train'})).toBeVisible()
     expect(screen.queryByText('desk-notes')).not.toBeInTheDocument()
 
-    bundles.push({id: 'desk-notes', code: terminal})
-    updates.announce()
+    engine.setBundles([releaseTrainBundle, localBundle('desk-notes', terminal)])
 
     expect(await screen.findByText('desk-notes')).toBeVisible()
     expect(screen.getByRole('switch', {name: 'release-train'})).toBeVisible()
@@ -140,11 +135,7 @@ describe('plugins in settings', () => {
 
   test('a plugin page joins the sections and its section shows in General, an unknown plugin page opens General, a plugin under a built-in ID is not loaded, and a plugin the engine failed to set up shows the option it refused', async () => {
     const user = userEvent.setup()
-    const bundles = [
-      {id: 'shell-board', code: shellBoard},
-      {id: 'terminal', code: terminal},
-    ]
-    const tanstack: PluginInfo = {
+    const tanstack: FakePluginInfo = {
       source: {type: 'package', target: '@conciv/plugin-tanstack'},
       features: {server: true},
       state: {status: 'failed', error: 'Invalid option bundlerWaitMs: expected a number of at least 1, received 0'},
@@ -154,7 +145,7 @@ describe('plugins in settings', () => {
       engine: shellEngine(
         createFakeEngine({
           sessions: [{id: 'ses_desk', title: 'Desk'}],
-          handlers: {plugin: pluginBundles(() => bundles, [tanstack])},
+          bundles: [localBundle('shell-board', shellBoard), localBundle('terminal', terminal), {info: tanstack}],
         }),
       ),
       plugins: [{id: 'terminal', plugin: Plugin.define({setup: () => undefined}), builtin: true}],

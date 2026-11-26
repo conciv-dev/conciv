@@ -223,7 +223,11 @@ const PREEXISTING_TERM_SITES = [
   {term: 'bridge', paths: [...DEV_BUNDLER_BRIDGE_PATHS, ...NATIVE_AND_REACT_BRIDGE_PATHS, ...PRE_REWRITE_BRIDGE_PATHS]},
   {
     term: 'epoch',
-    paths: ['packages/db/src/run-schema.ts', 'packages/backend-defaults/src/ai/chat-stores.ts'],
+    paths: [
+      'packages/backend-defaults/src/db/run-schema.ts',
+      'packages/backend-defaults/src/ai/chat-stores.ts',
+      'packages/backend-app-api/src/core/session/sql.ts',
+    ],
   },
   {
     term: 'presence',

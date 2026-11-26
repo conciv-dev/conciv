@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {argument, command, description, name, option, route, schema} from '@bomb.sh/router'
-import {concivHome} from '@conciv/db'
+import {concivHome} from '@conciv/home'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {handler} from './router/handler.js'

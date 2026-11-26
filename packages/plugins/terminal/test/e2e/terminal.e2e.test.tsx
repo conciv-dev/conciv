@@ -7,8 +7,7 @@ import {test} from '@conciv/backend-test-utils'
 import {useFakeEngine} from '@internal/frontend-test-utils'
 import {renderTestApp} from '@internal/frontend-test-utils/app'
 import type {ChatModels} from '@conciv/types/chat-types'
-import pageRenderer from '@conciv/plugin-page/renderer'
-import {createPageSessionGrouper, pageSessionEntry} from '@conciv/plugin-page/client'
+import {pageTestPlugin} from '@conciv/plugin-page/test-utils'
 import terminal from '../../src/client.js'
 
 describe('view tabs', () => {
@@ -23,7 +22,7 @@ describe('view tabs', () => {
     }
     const engine = useFakeEngine(
       createFakeEngine({
-        models,
+        harnesses: [models],
         handlers: {
           experimental: {
             persistentPty: {
@@ -201,16 +200,7 @@ describe('the terminal', () => {
     const control = await engine.event('rpc.experimental.page.control')
     await renderTestApp({
       engine,
-      plugins: [
-        {id: 'terminal', plugin: terminal, builtin: true},
-        {
-          id: 'conciv.page',
-          plugin: pageRenderer,
-          builtin: true,
-          engineHalf: true,
-          toolGroup: {entry: pageSessionEntry, createGrouper: createPageSessionGrouper},
-        },
-      ],
+      plugins: [{id: 'terminal', plugin: terminal, builtin: true}, pageTestPlugin],
       initialEntries: ['/panel/latest?open=true'],
     })
     await control.arrived

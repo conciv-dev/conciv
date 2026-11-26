@@ -138,7 +138,7 @@ function initialApiBase(init: ConcivInit): string | undefined {
 export function mountImpl(
   init: ConcivInit,
   el: HTMLElement,
-): {ready: Promise<void>; teardown: () => void; rebind: (apiBase: string) => Promise<void>} {
+): {ready: Promise<void>; root: ShadowRoot; teardown: () => void; rebind: (apiBase: string) => Promise<void>} {
   const hostRouter = window.__TSR_ROUTER__
   const settings = init.settings ?? metaSettings()
   const host = document.createElement('div')
@@ -193,5 +193,5 @@ export function mountImpl(
       interactive.resolve()
     }
   }
-  return {ready: interactive.promise, teardown, rebind}
+  return {ready: interactive.promise, root: shadow.root, teardown, rebind}
 }

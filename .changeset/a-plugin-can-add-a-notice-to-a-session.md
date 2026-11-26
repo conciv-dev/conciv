@@ -3,7 +3,6 @@
 '@conciv/backend-app-api': patch
 '@conciv/backend': patch
 '@conciv/backend-defaults': patch
-'@conciv/db': patch
 '@conciv/types': patch
 '@conciv/ui-kit-chat': patch
 '@conciv/app': patch

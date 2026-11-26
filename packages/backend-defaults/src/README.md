@@ -32,8 +32,8 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 
 ## Side Effects
 
-- `stores.ts:clearThread` - one SQLite transaction deletes the thread's rows from the `@conciv/db` chat run and chat message tables, and its `chatMetadata` keys prefixed `<threadId>:`.
-- `index.ts:ChatPlane.compact` - inserts a row with `kind: 'compact'` into the `@conciv/db` `markers` table. For a deleted session it rejects with `deletedSessionError` (`session "<id>" does not exist`, `code` `SESSION_DELETED_CODE`) before it stops anything or writes the marker.
+- `stores.ts:clearThread` - one SQLite transaction deletes the thread's rows from the chat run and chat message tables, and its `chatMetadata` keys prefixed `<threadId>:`.
+- `index.ts:ChatPlane.compact` - inserts a row with `kind: 'compact'` into the `markers` table (`db/schema.ts`). For a deleted session it rejects with `deletedSessionError` (`session "<id>" does not exist`, `code` `SESSION_DELETED_CODE`) before it stops anything or writes the marker.
 - `approvals.ts:createUiChannel` - sets a `setTimeout` per wait that resolves with a fallback value.
 - `turn.ts:turnHooks` - passes `deps.harnessEnv(sessionId)` to the harness process; the caller supplies it (core reads it from its ConfigProvider), chat reads no env itself.
 

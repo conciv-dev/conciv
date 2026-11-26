@@ -1,6 +1,6 @@
 import {eq, max} from 'drizzle-orm'
 import {Effect, Layer} from 'effect'
-import {chatMessages} from '@conciv/db'
+import {chatMessages} from '../../db/run-schema.js'
 import type {SessionId} from '@conciv/protocol/schema/session-id'
 import type {SyntheticPayload} from '@conciv/protocol/schema/session-inbox'
 import type * as SessionMessage from '@conciv/protocol/schema/session-message'

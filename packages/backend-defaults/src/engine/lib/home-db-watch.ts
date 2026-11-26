@@ -3,7 +3,7 @@ import {join} from 'node:path'
 import {setTimeout} from 'node:timers/promises'
 import {isEqual} from 'es-toolkit'
 import {z} from 'zod'
-import {closeHomeDb, openHomeDb, prepareHome, type HomeDb} from '@conciv/db'
+import {closeHomeDb, openHomeDb, prepareHome, type HomeDb} from '@conciv/home'
 
 const HOME_DB_POLL_MS = 1000
 

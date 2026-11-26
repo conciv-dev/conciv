@@ -2,7 +2,7 @@ import {command, description, dynamic, extend, name, route, type AnyRoute} from 
 import {groupBy, partition} from 'es-toolkit'
 import {z} from 'zod'
 import {ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/protocol'
-import {concivHome} from '@conciv/db'
+import {concivHome} from '@conciv/home'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {listTabs} from './engine-read.js'
 import {handler} from './router/handler.js'

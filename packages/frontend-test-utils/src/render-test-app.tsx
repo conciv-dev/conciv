@@ -3,7 +3,7 @@ import {onTestFinished} from 'vitest'
 import {createMemoryHistory} from '@tanstack/solid-router'
 import {z} from 'zod'
 import type {PluginOptions} from '@conciv/frontend-plugin-api'
-import type {FakeEngine, FakeEngineOptions} from '@conciv/client/testing'
+import type {FakeBundle, FakeEngine, FakeEngineOptions} from '@conciv/client/testing'
 import type {ConcivSettingsInit} from '@conciv/types/config-types'
 import {
   ConcivApp,
@@ -156,7 +156,6 @@ export function servePluginBundle(
   },
   options: FakeEngineOptions = {},
 ): FakeEngineOptions {
-  const location = {directory: options.directory ?? '/workspace'}
   const revision = `${plugin.id}-test`
   const files = Object.fromEntries(
     Object.entries(plugin.dist).map(([key, load]) => [key.slice(key.lastIndexOf('/') + 1), load] as const),
@@ -172,42 +171,28 @@ export function servePluginBundle(
     const listed = Object.values(await manifest).some((record) => record.isEntry !== true && record.file === file)
     return listed ? served([file]) : missingFile(plugin.id, file)
   }
-  return {
-    ...options,
-    handlers: {
-      ...options.handlers,
-      plugin: {
-        ...options.handlers?.plugin,
-        list: () => ({
-          location,
-          data: [
-            {
-              id: plugin.id,
-              source: {type: 'package', target: plugin.id},
-              features: {server: true, rpc: true, experimental: true},
-              state: {status: 'active'},
-              ...(plugin.options === undefined ? {} : {options: plugin.options}),
-            },
-          ],
-        }),
-        experimental: async () => {
-          const parsed = await manifest
-          const starts = Object.values(parsed).flatMap((record) =>
-            record.isEntry === true ? chunkFiles(parsed, record.imports) : [],
-          )
-          return {
-            location,
-            data: {
-              file: entry,
-              code: await text(entry),
-              revision,
-              options: OptionsSchema.parse(plugin.options ?? {}),
-              chunks: await served(starts),
-            },
-          }
-        },
-        experimentalChunk: async ({file}) => ({location, data: {revision, chunks: await chunk(file)}}),
-      },
+  const bundle: FakeBundle = {
+    info: {
+      id: plugin.id,
+      source: {type: 'package', target: plugin.id},
+      features: {server: true, rpc: true, experimental: true},
+      state: {status: 'active'},
+      ...(plugin.options === undefined ? {} : {options: plugin.options}),
     },
+    experimental: async () => {
+      const parsed = await manifest
+      const starts = Object.values(parsed).flatMap((record) =>
+        record.isEntry === true ? chunkFiles(parsed, record.imports) : [],
+      )
+      return {
+        file: entry,
+        code: await text(entry),
+        revision,
+        options: OptionsSchema.parse(plugin.options ?? {}),
+        chunks: await served(starts),
+      }
+    },
+    chunk,
   }
+  return {...options, bundles: [...(options.bundles ?? []), bundle]}
 }

@@ -4,7 +4,7 @@ import {differenceBy, partition} from 'es-toolkit'
 import {ORPCError} from '@orpc/client'
 import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
-import {concivHome, type EngineRow} from '@conciv/db'
+import {concivHome, type EngineRow} from '@conciv/home'
 import {
   cappedText,
   codeDiscoverReply,

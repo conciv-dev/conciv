@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/frontend-defaults.tsx",
+    "./drive": "./src/drive/drive.ts",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -33,6 +34,7 @@
     "@conciv/ui-kit-tap": "workspace:^",
     "@internal/frontend-app-api": "workspace:*",
     "@orpc/client": "catalog:",
+    "@orpc/server": "catalog:",
     "@solid-primitives/active-element": "^2.1.6",
     "@solid-primitives/date": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
@@ -47,6 +49,7 @@
     "@tanstack/solid-hotkeys": "catalog:",
     "@tanstack/solid-pacer": "catalog:",
     "@tanstack/solid-router": "catalog:",
+    "dom-accessibility-api": "catalog:",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
     "fuzzysort": "catalog:",
@@ -56,6 +59,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/simulation": "workspace:*",
     "@internal/tsconfig": "workspace:*",
     "@internal/uno-preset": "workspace:*",
     "@internal/vitest-config": "workspace:*",
@@ -68,6 +72,7 @@
     "@types/react-dom": "catalog:",
     "@types/semver": "catalog:",
     "@unocss/reset": "catalog:",
+    "get-port": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "storybook-solidjs-vite": "catalog:",

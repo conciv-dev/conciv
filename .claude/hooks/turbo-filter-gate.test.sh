@@ -136,7 +136,7 @@ run_case "quoted bare vitest false positive allowed" \
 
 # --- rule 5: separate cache store ---
 run_case "inline TURBO_CACHE_DIR on turbo blocked" \
-  "TURBO_CACHE_DIR=../.turbo-cache pnpm exec turbo run test --filter=@conciv/db" 2
+  "TURBO_CACHE_DIR=../.turbo-cache pnpm exec turbo run test --filter=@conciv/home" 2
 
 run_case "exported TURBO_CACHE_DIR before turbo blocked" \
   "export TURBO_CACHE_DIR=../.turbo-cache && turbo run build" 2
@@ -172,7 +172,7 @@ run_case "quoted --cache-dir argument blocked" \
   "pnpm exec turbo run build \"--cache-dir=/tmp/c\"" 2
 
 run_case "plain filtered turbo test allowed" \
-  "turbo run test --filter=@conciv/db" 0
+  "turbo run test --filter=@conciv/home" 0
 
 run_case "plain root pnpm build allowed" \
   "pnpm build" 0
@@ -184,10 +184,10 @@ run_case "quoted commit message mention allowed" \
   "git commit -m \"drop TURBO_CACHE_DIR and --cache-dir\"" 0
 
 run_case "quoted --cache-dir inside a message argument of turbo allowed" \
-  "pnpm exec turbo run build --summarize --filter=@conciv/db --log-prefix \"no --cache-dir\"" 0
+  "pnpm exec turbo run build --summarize --filter=@conciv/home --log-prefix \"no --cache-dir\"" 0
 
 TURBO_CACHE_DIR=/tmp/other run_case "inherited TURBO_CACHE_DIR blocks turbo" \
-  "turbo run test --filter=@conciv/db" 2
+  "turbo run test --filter=@conciv/home" 2
 
 TURBO_CACHE_DIR=/tmp/other run_case "inherited TURBO_CACHE_DIR blocks root pnpm build" \
   "pnpm build" 2

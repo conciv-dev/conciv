@@ -7,6 +7,8 @@ the engine part (`.`: the plugin `conciv.page`, its connection, tools, skill and
 the browser part the widget runs eagerly (`./client`: what the widget calls directly), the window
 setup loaded lazily by the built-ins (`./renderer`).
 
+`./test-utils` is for other packages' tests: the page built-in as a test app renders it, so a plugin's tests run with the page half attached.
+
 The engine part, the plugin `conciv.page` (`.`), registers the RPC `experimental.page` (`./rpc`) and answers it: each
 tab's attachment and the commands it runs, page operations, live changes, captures, action queues and `symbolicate`.
 The engine reaches the plugin only through the plugin API: `@conciv/backend` lists the plugin (`plugins: [page]`) and `@conciv/backend-defaults` imports no plugin, so without it the engine answers no tabs and no page tools. A queue records the `Tool.Context.origin` of the call that started it: a chat-started queue's finish is posted into its session as a `session.synthetic` notice (description `Queued page actions <status>`), which wakes the chat agent; a hub-started queue's finish is not posted and stays owed to the hub caller, which collects it in its next `execute_typescript` or `discover_tools` reply (`queue.undelivered` with `origin: 'hub'`, marked delivered at the hand-over), or by polling an MCP task with `queue.claim` (hands the result over without marking it) and `queue.settle` once the task's answer is built, so a hub that never answers its task leaves the result owed for its next call.

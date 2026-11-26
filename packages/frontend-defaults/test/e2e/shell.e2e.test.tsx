@@ -5,7 +5,7 @@ import userEvent, {type UserEvent} from '@testing-library/user-event'
 import {createFakeEngine, FakeLLM} from '@conciv/client/testing'
 import {SessionId} from '@conciv/types/chat-types'
 import {mountShell, shellEngine} from '../utils/mount-shell.js'
-import {boardEngine} from '../utils/board-engine.js'
+import {boardEngine} from '../utils/sample-engines.js'
 
 describe('the panel size', () => {
   test('the user resizes the panel from the keyboard, and a drag below the floor closes it', async () => {

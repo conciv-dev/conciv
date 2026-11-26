@@ -4,7 +4,6 @@
 '@conciv/protocol': patch
 '@conciv/types': patch
 '@conciv/serve': patch
-'@conciv/db': patch
 '@conciv/simulation': patch
 '@conciv/plugin-try-it': patch
 '@conciv/try': patch

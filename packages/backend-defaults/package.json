@@ -53,14 +53,15 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "vitest run"
+    "test": "vitest run",
+    "gen-migrations": "node src/scripts/gen-migrations.ts"
   },
   "dependencies": {
     "@conciv/backend-app-api": "workspace:^",
     "@conciv/backend-plugin-api": "workspace:^",
     "@conciv/client": "workspace:^",
-    "@conciv/db": "workspace:^",
     "@conciv/harness": "workspace:^",
+    "@conciv/home": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@conciv/simulation": "workspace:^",
@@ -108,6 +109,7 @@
     "@internal/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/which": "catalog:",
+    "drizzle-kit": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

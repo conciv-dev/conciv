@@ -150,6 +150,7 @@ catalog:
   class-variance-authority: '^0.7.1'
   defu: 6.1.7
   detect-libc: 1.0.3
+  dom-accessibility-api: 0.6.3
   drizzle-kit: '1.0.0-rc.5'
   drizzle-orm: '1.0.0-rc.5'
   effect: 4.1.0

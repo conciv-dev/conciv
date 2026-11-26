@@ -3,7 +3,9 @@ import {Effect} from 'effect'
 import type {MessagePage} from '@tanstack/ai-persistence'
 import type {ModelMessage} from '@conciv/types/chat-message-types'
 import type {ChatStores} from './chat-server.js'
-import {chatMessages, chatMetadata, chatRuns, sessions, type ConcivDb} from '@conciv/db'
+import {chatMessages, chatMetadata, chatRuns} from '../db/run-schema.js'
+import {sessions} from '@conciv/backend-app-api/core/session/sql'
+import type {ConcivDb} from '../db/connection.js'
 
 type RunRecord = NonNullable<Awaited<ReturnType<ChatStores['runs']['get']>>>
 

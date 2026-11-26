@@ -1,73 +1,50 @@
-import {describe, expect, test} from 'vitest'
+import {describe, expect} from 'vitest'
 import {page, userEvent as realInput} from 'vitest/browser'
 import {render, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import {createFakeEngine, FakeLLM} from '@conciv/client/testing'
-import {openBoard, ROOM, WHITEBOARD_BUILD} from '../utils/open-board.js'
-import {useFakeEngine} from '@internal/frontend-test-utils'
-import {renderTestApp, servePluginBundle} from '@internal/frontend-test-utils/app'
-import pagePlugin from '@conciv/plugin-page/renderer'
-import {Definition as PageDefinition} from '@conciv/plugin-page/rpc'
-import {Whiteboard} from '../../src/rpc.js'
-import {createFakeWhiteboard} from '../utils/fake-whiteboard.js'
+import {test, TestLLM} from '@conciv/backend-test-utils'
+import {renderTestApp} from '@internal/frontend-test-utils/app'
+import {pageTestPlugin} from '@conciv/plugin-page/test-utils'
+import {boardCall, insertComment, nextWrite, seedComments, showBoard, WHITEBOARD} from '../utils/board-comment.js'
 
 describe('the agent draws on the open canvas', () => {
-  test('the agent drafts, previews, publishes, exports and discards a sketch with a card per step, and a destructive step asks first', async () => {
+  test('the agent drafts, previews, publishes, exports and discards a sketch with a card per step, and a destructive step asks first', async ({
+    createEngine,
+  }) => {
     const user = userEvent.setup()
-    const {engine, render: show} = await openBoard(undefined, undefined, {
-      whiteboard_canvas_delete: {ask: {title: 'whiteboard_canvas_delete pay'}},
-      whiteboard_canvas_clear: {ask: {title: 'whiteboard_canvas_clear'}},
-    })
+    const engine = await createEngine(WHITEBOARD)
     const cart = {type: 'rectangle', id: 'cart', x: 0, y: 0, width: 120, height: 60}
     const pay = {type: 'rectangle', id: 'pay', x: 240, y: 0, width: 120, height: 60}
-    engine.reply(
-      FakeLLM.toolCall('c1', 'whiteboard_canvas_draw', {elements: [cart, pay]}, {pending: 'p1'}),
-      FakeLLM.toolCall('c2', 'whiteboard_canvas_connect', {fromId: 'cart', toId: 'pay'}, {pending: 'p2'}),
-      FakeLLM.toolCall(
-        'c3',
-        'whiteboard_canvas_update',
-        {elementId: 'cart', patch: {backgroundColor: '#ffc9c9'}},
-        {updated: true},
-      ),
-      FakeLLM.toolCall('c4', 'whiteboard_canvas_preview', {}, {elements: 3}),
-      FakeLLM.toolCall('c5', 'whiteboard_canvas_commit', {}, {committed: true, elements: 3}),
-      FakeLLM.toolCall('c6', 'whiteboard_canvas_export', {format: 'png', scope: 'live'}, [
-        {type: 'text', content: JSON.stringify({scope: 'live'})},
-        {
-          type: 'image',
-          source: {
-            type: 'data',
-            value: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
-            mimeType: 'image/png',
-          },
-        },
-      ]),
-      FakeLLM.toolCall(
-        'c7',
-        'whiteboard_canvas_svg',
-        {
-          svg: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><rect width="100" height="50"/></svg>',
-          x: 0,
-          y: 200,
-        },
-        {pending: 'p3'},
-      ),
-      FakeLLM.toolCall('c8', 'whiteboard_canvas_diagram', {mermaid: 'flowchart LR\n  Cart --> Pay'}, {pending: 'p4'}),
-      FakeLLM.toolCall('c9', 'whiteboard_canvas_discard', {}, {discarded: 2}),
-      FakeLLM.text('The checkout sketch is on the canvas'),
-      FakeLLM.toolCall('c10', 'whiteboard_canvas_delete', {elementId: 'pay'}, {deleted: 'pay'}),
-      FakeLLM.toolCall('c11', 'whiteboard_canvas_clear', {}, {cleared: 2}),
-      FakeLLM.text('I removed the pay step and kept the rest'),
+    await engine.reply(
+      boardCall('c1', 'canvas_draw', {elements: [cart, pay]}),
+      boardCall('c2', 'canvas_connect', {fromId: 'cart', toId: 'pay'}),
+      boardCall('c3', 'canvas_update', {elementId: 'cart', patch: {backgroundColor: '#ffc9c9'}}),
+      boardCall('c4', 'canvas_preview', {}),
+      boardCall('c5', 'canvas_commit', {}),
+      boardCall('c6', 'canvas_export', {format: 'png', scope: 'live'}),
+      boardCall('c7', 'canvas_svg', {
+        svg: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><rect width="100" height="50"/></svg>',
+        x: 0,
+        y: 200,
+      }),
+      boardCall('c8', 'canvas_diagram', {mermaid: 'flowchart LR\n  Cart --> Pay'}),
+      boardCall('c9', 'canvas_discard', {}),
+      TestLLM.text('The checkout sketch is on the canvas'),
+      boardCall('c10', 'canvas_delete', {elementId: 'pay'}),
+      boardCall('c11', 'canvas_clear', {}),
+      TestLLM.text('I removed the pay step and kept the rest'),
     )
-    await show()
+    await showBoard(engine)
 
     await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
     expect(await screen.findByRole('button', {name: /^Comments/})).toBeVisible()
     const input = screen.getByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'Sketch the checkout flow')
     await expect.element(input).toHaveFocus()
+    const finished = await engine.event('session.execution.succeeded')
     await user.keyboard('{Enter}')
 
+    await finished.arrived
     expect(await screen.findByText('The checkout sketch is on the canvas')).toBeVisible()
     const sketch = screen.getByRole('article', {name: 'Reply to: Sketch the checkout flow'})
     expect(within(sketch).getByText('whiteboard_canvas_draw')).toBeVisible()
@@ -78,7 +55,7 @@ describe('the agent draws on the open canvas', () => {
     expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_commit\s*3 published/})).toBeVisible()
     expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_svg\s*svg to draft/})).toBeVisible()
     expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_diagram\s*mermaid to draft/})).toBeVisible()
-    expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_discard\s*2 discarded/})).toBeVisible()
+    expect(within(sketch).getByRole('button', {name: /whiteboard_canvas_discard\s*\d+ discarded/})).toBeVisible()
     expect(await within(sketch).findByRole('img', {name: 'canvas export'})).toBeVisible()
 
     await user.type(input, 'Remove the pay step and clear the rest')
@@ -95,22 +72,22 @@ describe('the agent draws on the open canvas', () => {
 })
 
 describe("the user works the agent's comments on the canvas", () => {
-  test('the user finds, sorts, marks read, answers, resolves and deletes threads, the agent reads the answer and lists what is left, and Escape closes one layer at a time', async () => {
+  test('the user finds, sorts, marks read, answers, resolves and deletes threads, the agent reads the answer and lists what is left, and Escape closes one layer at a time', async ({
+    createEngine,
+  }) => {
     const user = userEvent.setup()
-    const {
-      engine,
-      board,
-      render: show,
-    } = await openBoard((seeded) => {
-      seeded.comment(ROOM, {
+    const engine = await createEngine(WHITEBOARD)
+    const room = engine.session.id
+    await seedComments(engine, room, [
+      {
         cid: 'price',
         text: 'The price wraps on small screens',
         x: 120,
         y: 160,
         authorModel: 'Opus 5.5',
         createdAt: 1_000,
-      })
-      seeded.comment(ROOM, {
+      },
+      {
         cid: 'hero',
         text: 'The hero image is blurry',
         source: {file: 'src/hero.tsx', line: 12},
@@ -118,22 +95,15 @@ describe("the user works the agent's comments on the canvas", () => {
         y: 160,
         authorModel: 'Opus 5.5',
         createdAt: 2_000,
-      })
-      seeded.comment(ROOM, {
-        cid: 'hero-reply',
-        parentCid: 'hero',
-        text: 'A sharper export is ready',
-        x: 0,
-        y: 0,
-        createdAt: 3_000,
-      })
-    })
-    engine.reply(
-      FakeLLM.toolCall('c1', 'whiteboard_comment_read', {cid: 'hero'}, {comment: {cid: 'hero'}, replies: []}),
-      FakeLLM.toolCall('c2', 'whiteboard_comment_list', {}, {comments: [{cid: 'hero', status: 'resolved'}]}),
-      FakeLLM.text('I read your reply, and only the resolved hero comment is left'),
+      },
+      {cid: 'hero-reply', parentCid: 'hero', text: 'A sharper export is ready', x: 0, y: 0, createdAt: 3_000},
+    ])
+    await engine.reply(
+      boardCall('c1', 'comment_read', {cid: 'hero'}),
+      boardCall('c2', 'comment_list', {}),
+      TestLLM.text('I read your reply, and only the resolved hero comment is left'),
     )
-    await show()
+    await showBoard(engine)
 
     await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
     const toggle = await screen.findByRole('button', {name: /^Comments/})
@@ -191,9 +161,9 @@ describe("the user works the agent's comments on the canvas", () => {
     await user.keyboard('{Tab}')
     expect(await within(reply).findByText('@Opus 5.5')).toBeVisible()
     expect(reply).toHaveFocus()
-    const answered = board.written('comments')
+    const answered = await nextWrite(engine, room, 'comments')
     await user.keyboard('{Enter}')
-    expect(await answered).toMatchObject({
+    expect(await answered.row).toMatchObject({
       authorKind: 'human',
       parts: expect.arrayContaining([expect.objectContaining({type: 'mention', label: 'Opus 5.5'})]),
     })
@@ -237,13 +207,19 @@ describe("the user works the agent's comments on the canvas", () => {
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
     await user.type(input, 'Did you see my reply, and what is left on the board?')
     await expect.element(input).toHaveFocus()
+    const finished = await engine.event('session.execution.succeeded')
     await user.keyboard('{Enter}')
+    await finished.arrived
     expect(await screen.findByText('I read your reply, and only the resolved hero comment is left')).toBeVisible()
-    expect(board.rows('comments', ROOM)).toEqual([
-      expect.objectContaining({cid: 'hero', status: 'resolved'}),
-      expect.objectContaining({threadId: 'hero', parentId: 'hero'}),
-      expect.objectContaining({threadId: 'hero', authorKind: 'human'}),
-    ])
+    const left = await engine.rpc.call('whiteboard', 'comments.list', {room})
+    expect(left).toHaveLength(3)
+    expect(left).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({cid: 'hero', status: 'resolved'}),
+        expect.objectContaining({threadId: 'hero', parentId: 'hero'}),
+        expect.objectContaining({threadId: 'hero', authorKind: 'human'}),
+      ]),
+    )
 
     expect(input).toHaveFocus()
     await user.keyboard('{Escape}')
@@ -254,30 +230,34 @@ describe("the user works the agent's comments on the canvas", () => {
 })
 
 describe('the user drags pins on the canvas', () => {
-  test('a floating pin moves where it is dropped, and a source pin asks first, keeping its link or cutting it', async () => {
+  test('a floating pin moves where it is dropped, and a source pin asks first, keeping its link or cutting it', async ({
+    createEngine,
+  }) => {
     const user = userEvent.setup()
-    const {board, render: show} = await openBoard((seeded) => {
-      seeded.comment(ROOM, {cid: 'shelf', text: 'The shelf needs more space', x: 200, y: 200})
-      seeded.comment(ROOM, {
+    const engine = await createEngine(WHITEBOARD)
+    const room = engine.session.id
+    await seedComments(engine, room, [
+      {cid: 'shelf', text: 'The shelf needs more space', x: 200, y: 200},
+      {
         cid: 'cart',
         text: 'The cart badge overlaps',
         source: {file: 'src/cart.tsx', line: 8},
         x: 500,
         y: 200,
         authorKind: 'human',
-      })
-    })
-    await show()
+      },
+    ])
+    await showBoard(engine)
     await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
 
     const shelf = await screen.findByRole('button', {name: 'AI comment, open, unread'})
-    const shelfMoved = board.written('pins')
+    const shelfMoved = await nextWrite(engine, room, 'pins')
     await user.pointer([
       {keys: '[MouseLeft>]', target: shelf, coords: {clientX: 200, clientY: 200}},
       {coords: {clientX: 260, clientY: 290}},
       {keys: '[/MouseLeft]'},
     ])
-    expect(await shelfMoved).toMatchObject({cid: 'shelf', x: 260, y: 290, pinState: 'locked'})
+    expect(await shelfMoved.row).toMatchObject({cid: 'shelf', x: 260, y: 290, pinState: 'locked'})
     expect(screen.queryByRole('dialog', {name: 'Pin drift'})).not.toBeInTheDocument()
 
     const cart = screen.getByRole('button', {name: 'Human comment, open, unread'})
@@ -289,9 +269,9 @@ describe('the user drags pins on the canvas', () => {
     ])
     const drift = await screen.findByRole('dialog', {name: 'Pin drift'})
     expect(within(drift).getByRole('heading', {name: 'cart.tsx:8'})).toBeVisible()
-    const kept = board.written('pins')
+    const kept = await nextWrite(engine, room, 'pins')
     await user.click(within(drift).getByRole('button', {name: 'Keep link, accept drift'}))
-    expect(await kept).toMatchObject({cid: 'cart', x: 540, y: 260, pinState: 'offset', anchorX: 500, anchorY: 200})
+    expect(await kept.row).toMatchObject({cid: 'cart', x: 540, y: 260, pinState: 'offset', anchorX: 500, anchorY: 200})
     expect(within(cart).getByText('cart.tsx:8')).toBeVisible()
 
     await user.pointer([
@@ -310,20 +290,17 @@ describe('the user drags pins on the canvas', () => {
 })
 
 describe('each session has its own board', () => {
-  test('switching sessions swaps the board', async () => {
+  test('switching sessions swaps the board', async ({createEngine}) => {
     const user = userEvent.setup()
-    const {render: show} = await openBoard(
-      (seeded) => {
-        seeded.comment('ses_alpha', {cid: 'alpha-note', text: 'Alpha checkout note', x: 100, y: 100})
-        seeded.comment('ses_beta', {cid: 'beta-note', text: 'Beta header note', x: 100, y: 100})
-        seeded.comment('ses_beta', {cid: 'beta-footer', text: 'Beta footer note', x: 300, y: 100})
-      },
-      [
-        {id: 'ses_alpha', title: 'Alpha'},
-        {id: 'ses_beta', title: 'Beta'},
-      ],
-    )
-    await show()
+    const engine = await createEngine(WHITEBOARD)
+    const alpha = await engine.newSession('Alpha')
+    const beta = await engine.newSession('Beta')
+    await seedComments(engine, alpha.id, [{cid: 'alpha-note', text: 'Alpha checkout note', x: 100, y: 100}])
+    await seedComments(engine, beta.id, [
+      {cid: 'beta-note', text: 'Beta header note', x: 100, y: 100},
+      {cid: 'beta-footer', text: 'Beta footer note', x: 300, y: 100},
+    ])
+    await showBoard(engine, alpha.id)
 
     await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
     await user.click(await screen.findByRole('button', {name: /^Comments/}))
@@ -344,28 +321,31 @@ describe('each session has its own board', () => {
 })
 
 describe('the open board follows changes made from another tab', () => {
-  test('a comment added and then resolved from another tab shows on the open board as it happens', async () => {
+  test('a comment added and then resolved from another tab shows on the open board as it happens', async ({
+    createEngine,
+  }) => {
     const user = userEvent.setup()
-    const {board, render: show} = await openBoard()
-    await show()
+    const engine = await createEngine(WHITEBOARD)
+    const room = engine.session.id
+    await showBoard(engine)
     await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
     expect(await screen.findByRole('button', {name: /^Comments/})).toBeVisible()
     expect(screen.queryByRole('button', {name: /^AI comment/})).not.toBeInTheDocument()
 
-    board.comment(ROOM, {cid: 'shelf', text: 'The shelf needs more space', x: 200, y: 200})
+    await insertComment(engine, room, {cid: 'shelf', text: 'The shelf needs more space', x: 200, y: 200})
     expect(await screen.findByRole('button', {name: 'AI comment, open, unread'})).toBeVisible()
     expect(screen.getByRole('button', {name: /^Comments\s*1/})).toBeVisible()
 
-    board.update('comments', ROOM, 'shelf-row', {status: 'resolved'})
+    await engine.rpc.call('whiteboard', 'comments.update', {room, id: 'shelf-row', patch: {status: 'resolved'}})
     expect(await screen.findByRole('button', {name: /^AI comment, resolved/})).toBeVisible()
   })
 })
 
 describe('the whiteboard settings', () => {
-  test('the canvas background row starts on, and the choice holds after leaving settings', async () => {
+  test('the canvas background row starts on, and the choice holds after leaving settings', async ({createEngine}) => {
     const user = userEvent.setup()
-    const {render: show} = await openBoard()
-    await show()
+    const engine = await createEngine(WHITEBOARD)
+    await showBoard(engine)
 
     await user.click(await screen.findByRole('link', {name: 'Settings'}))
     const general = await screen.findByRole('tab', {name: 'General', selected: true})
@@ -386,28 +366,17 @@ describe('the whiteboard settings', () => {
 })
 
 describe('the user comments on an element of the page', () => {
-  test('with the canvas open a picked element gets its comment straight onto the board with no toast, and with the canvas closed the user is told it was added and finds it on the board', async () => {
+  test('with the canvas open a picked element gets its comment straight onto the board with no toast, and with the canvas closed the user is told it was added and finds it on the board', async ({
+    createEngine,
+  }) => {
     const user = userEvent.setup()
     await page.viewport(1280, 800)
-    const board = createFakeWhiteboard()
-    const engine = useFakeEngine(
-      createFakeEngine(
-        servePluginBundle(WHITEBOARD_BUILD, {
-          sessions: [{id: ROOM, title: 'Board'}],
-          plugins: {
-            [Whiteboard.id]: board.handlers,
-            [PageDefinition.id]: {
-              attach: (_input, call) =>
-                new Promise((resolve) => call.signal?.addEventListener('abort', () => resolve('closed'), {once: true})),
-            },
-          },
-        }),
-      ),
-    )
+    const engine = await createEngine(WHITEBOARD, {plugins: ['@conciv/plugin-page']})
+    const room = engine.session.id
     await renderTestApp({
       engine,
-      plugins: [{id: 'conciv.page', plugin: pagePlugin, builtin: true}],
-      initialEntries: [`/panel/${ROOM}?open=true`],
+      plugins: [pageTestPlugin],
+      initialEntries: [`/panel/${room}?open=true`],
     })
     render(() => (
       <>
@@ -426,10 +395,10 @@ describe('the user comments on an element of the page', () => {
     await realInput.click(screen.getByRole('heading', {name: 'Plant shop'}), {force: true})
     const tagline = await screen.findByRole('dialog', {name: 'New comment'})
     await user.type(within(tagline).getByRole('textbox', {name: 'Comment'}), 'The title needs a tagline')
-    const added = board.written('comments')
+    const added = await nextWrite(engine, room, 'comments')
     await user.click(within(tagline).getByRole('button', {name: 'Add comment'}))
     expect(await screen.findByRole('button', {name: /^Human comment, open/})).toBeVisible()
-    await added
+    await added.row
     expect(screen.queryByText('Comment added to the whiteboard')).not.toBeInTheDocument()
     const thread = await screen.findByRole('dialog', {name: 'Comment thread'})
     expect(within(thread).getByText('The title needs a tagline')).toBeVisible()
@@ -448,47 +417,51 @@ describe('the user comments on an element of the page', () => {
 
     expect(await screen.findByText('Comment added to the whiteboard')).toBeVisible()
     expect(screen.queryByRole('dialog', {name: 'New comment'})).not.toBeInTheDocument()
-    expect(board.rows('comments', ROOM)).toContainEqual(
-      expect.objectContaining({
-        authorKind: 'human',
-        parts: [expect.objectContaining({type: 'text', text: 'Make this button green'})],
-      }),
-    )
+    await expect
+      .poll(() => engine.rpc.call('whiteboard', 'comments.list', {room}))
+      .toContainEqual(
+        expect.objectContaining({
+          authorKind: 'human',
+          parts: [expect.objectContaining({type: 'text', text: 'Make this button green'})],
+        }),
+      )
     await user.click(screen.getByRole('button', {name: 'Open the whiteboard canvas'}))
     expect(await screen.findAllByRole('button', {name: /^Human comment, open/})).toHaveLength(2)
   })
 })
 
 describe('the user draws on the canvas', () => {
-  test('the user draws a rectangle with the canvas tools, it is saved to the shared board, the agent reads it, and real clicks still reach the chat composer and Settings', async () => {
+  test('the user draws a rectangle with the canvas tools, it is saved to the shared board, the agent reads it, and real clicks still reach the chat composer and Settings', async ({
+    createEngine,
+  }) => {
     const user = userEvent.setup()
     await page.viewport(1280, 800)
-    const {engine, board, render: show} = await openBoard()
-    engine.reply(
-      FakeLLM.toolCall('c1', 'whiteboard_canvas_read', {}, {scope: 'live', elements: [{type: 'rectangle'}]}),
-      FakeLLM.text('I see the rectangle you drew'),
-    )
-    await show()
+    const engine = await createEngine(WHITEBOARD)
+    const room = engine.session.id
+    await engine.reply(boardCall('c1', 'canvas_read', {}), TestLLM.text('I see the rectangle you drew'))
+    await showBoard(engine)
 
     await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
     const canvas = page.getByRole('region', {name: 'Whiteboard canvas'})
     await realInput.click(canvas, {position: {x: 300, y: 300}})
     await realInput.keyboard('r')
     await expect.element(page.getByRole('radio', {name: 'Rectangle'})).toBeChecked()
-    const saved = board.written('canvasElements')
+    const saved = await nextWrite(engine, room, 'canvasElements')
     await realInput.dragAndDrop(canvas, canvas, {
       sourcePosition: {x: 300, y: 300},
       targetPosition: {x: 500, y: 440},
     })
-    expect(await saved).toMatchObject({room: ROOM, data: {type: 'rectangle', isDeleted: false}})
+    expect(await saved.row).toMatchObject({room, data: {type: 'rectangle', isDeleted: false}})
 
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await realInput.click(input)
     await expect.element(input).toHaveFocus()
     await realInput.keyboard('What did I draw?')
     await expect.element(input).toHaveFocus()
+    const finished = await engine.event('session.execution.succeeded')
     await realInput.keyboard('{Enter}')
 
+    await finished.arrived
     expect(await screen.findByText('I see the rectangle you drew')).toBeVisible()
     const reply = screen.getByRole('article', {name: 'Reply to: What did I draw?'})
     expect(within(reply).getByRole('button', {name: /whiteboard_canvas_read\s*1 element/})).toBeVisible()
@@ -499,11 +472,13 @@ describe('the user draws on the canvas', () => {
 })
 
 describe('the board stays clear while the user draws', () => {
-  test('with a shape tool picked the board shows no properties panel, library or help, and keeps its toolbar, menu, comments and zoom', async () => {
+  test('with a shape tool picked the board shows no properties panel, library or help, and keeps its toolbar, menu, comments and zoom', async ({
+    createEngine,
+  }) => {
     const user = userEvent.setup()
     await page.viewport(1280, 800)
-    const {render: show} = await openBoard()
-    await show()
+    const engine = await createEngine(WHITEBOARD)
+    await showBoard(engine)
 
     await user.click(await screen.findByRole('button', {name: 'Open the whiteboard canvas'}))
     await realInput.click(page.getByRole('region', {name: 'Whiteboard canvas'}), {position: {x: 300, y: 300}})

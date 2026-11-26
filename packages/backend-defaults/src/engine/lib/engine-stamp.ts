@@ -8,7 +8,7 @@ export type TrackedModule = {label: string; path: string}
 const TRACKED_PACKAGES: Record<string, string[]> = {
   '@conciv/harness': ['@conciv/harness'],
   '@conciv/backend-defaults': ['@conciv/backend-defaults', '@conciv/backend-defaults/backend'],
-  '@conciv/db': ['@conciv/db'],
+  '@conciv/home': ['@conciv/home'],
   '@conciv/backend-app-api': ['@conciv/backend-app-api'],
   '@conciv/serve': ['@conciv/serve', '@conciv/serve/rpc'],
 }

@@ -22,6 +22,7 @@ export default defineConfig({
       entry: {
         client: fileURLToPath(new URL('src/client.ts', import.meta.url)),
         renderer: fileURLToPath(new URL('src/renderer.tsx', import.meta.url)),
+        'test-utils': fileURLToPath(new URL('src/test-utils.ts', import.meta.url)),
       },
       formats: ['es'],
     },

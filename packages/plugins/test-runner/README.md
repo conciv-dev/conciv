@@ -3,6 +3,8 @@
 The conciv test-runner plugin. It runs the project's tests in a separate process (vitest by default, or
 playwright) and gives the agent three tools and one skill to drive it.
 
+`./test-utils` is for tests: a fake of the run state the widget reads, which a test fills with events and a last result.
+
 ```ts
 plugins: ['@conciv/plugin-test-runner']
 plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]

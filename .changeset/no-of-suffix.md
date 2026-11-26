@@ -3,7 +3,6 @@
 '@conciv/backend-defaults': patch
 '@conciv/cli': patch
 '@conciv/client': patch
-'@conciv/db': patch
 '@conciv/app': patch
 '@conciv/grab': patch
 '@conciv/harness': patch

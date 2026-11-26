@@ -1,5 +1,4 @@
 ---
-'@conciv/db': patch
 '@conciv/backend-app-api': patch
 ---
 

@@ -41,6 +41,14 @@
     "./driver": {
       "types": "./dist/driver.d.ts",
       "import": "./dist/driver.js"
+    },
+    "./frontend": {
+      "types": "./dist/frontend.d.ts",
+      "import": "./dist/frontend.js"
+    },
+    "./manifest": {
+      "types": "./dist/manifest.d.ts",
+      "import": "./dist/manifest.js"
     }
   },
   "publishConfig": {

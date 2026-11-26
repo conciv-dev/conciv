@@ -1,22 +1,15 @@
 import {describe, expect, it, test} from 'vitest'
-import {page} from 'vitest/browser'
+import {commands, page} from 'vitest/browser'
 import {fireEvent, screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import {FakeLLM, type FakeEngine} from '@conciv/client/testing'
+import {readSession, sentJson, sentTexts} from '../utils/engine-client.js'
 import {mountShell} from '../utils/mount-shell.js'
-import {
-  composerEngine,
-  elsewhereSession,
-  ENGINE_HARNESS,
-  harnessEntry,
-  harnessModels,
-  mentionAgent,
-  readSession,
-  reviewNotesPlugin,
-  sentJson,
-  sentTexts,
-  type ComposerHarness,
-} from '../utils/composer-engine.js'
+import {startDrive} from '../../src/drive/drive.js'
+import type {} from '../utils/drive-commands.js'
+import {composerEngine} from '../utils/sample-engines.js'
+import {elsewhereSession, ENGINE_HARNESS, harness, mentionAgent} from '../utils/sample-data.js'
+import {reviewNotesPlugin} from '../utils/sample-plugins.js'
 
 describe('the composer menus', () => {
   test('a pick from the slash list or the model menu, Escape and an outside click each close the menu and give the composer its focus back at once', async () => {
@@ -208,7 +201,12 @@ describe('the slash list', () => {
   test('/ lists the commands of the session’s own harness and a picked one reaches the agent as text', async () => {
     const user = userEvent.setup({delay: null})
     const engine = composerEngine({
-      commands: [{name: 'review-pr', description: 'Review the open pull request', source: 'harness'}],
+      harnesses: [
+        {
+          ...ENGINE_HARNESS,
+          commands: [{name: 'review-pr', description: 'Review the open pull request', source: 'harness'}],
+        },
+      ],
     })
     engine.reply(FakeLLM.text('Reviewing now'))
     await mountShell({engine})
@@ -420,25 +418,8 @@ describe('picking a model and an effort', () => {
 describe('switching the harness', () => {
   test('while a reply runs the other harness’s models are disabled, a model of another harness asks first when the chat has history, the next reply runs on it, and each reply then names its harness', async () => {
     const user = userEvent.setup({delay: null})
-    const secondHarness: ComposerHarness = {
-      id: 'second',
-      name: 'second',
-      models: [{id: 'second-fast', name: 'Fast 1', group: 'Second'}],
-    }
-    const engine: FakeEngine = composerEngine({
-      handlers: {
-        meta: {
-          harnesses: () => ({
-            harnesses: [harnessEntry(ENGINE_HARNESS), harnessEntry(secondHarness)],
-            defaultHarness: 'fake',
-          }),
-          models: async ({sessionId}) =>
-            harnessModels(
-              (await readSession(engine, sessionId)).harnessKind === secondHarness.id ? secondHarness : ENGINE_HARNESS,
-            ),
-        },
-      },
-    })
+    const secondHarness = harness('second', 'second', [{id: 'second-fast', name: 'Fast 1', group: 'Second'}])
+    const engine: FakeEngine = composerEngine({harnesses: [ENGINE_HARNESS, secondHarness]})
     const gate = engine.gate()
     engine.reply(FakeLLM.text('First answer'), FakeLLM.text('Second answer'))
     await mountShell({engine})
@@ -487,7 +468,7 @@ describe('switching the harness', () => {
 describe('a harness with no models', () => {
   test('the prompt names the harness and the menu says it has no usable models', async () => {
     const user = userEvent.setup()
-    const engine = composerEngine({harness: {...ENGINE_HARNESS, models: []}})
+    const engine = composerEngine({harnesses: [{...ENGINE_HARNESS, models: [], defaultModel: null}]})
     await mountShell({engine})
 
     await user.click(await screen.findByRole('button', {name: 'Model: engine'}))
@@ -779,28 +760,10 @@ describe('the composer actions menu', () => {
 
   test('Compress the conversation compacts it, and a message sent while it compacts stays in the composer unsent', async () => {
     const user = userEvent.setup({delay: null})
-    const compaction = Promise.withResolvers<void>()
-    const compactStarted = Promise.withResolvers<void>()
-    const compacted = {sessionId: ''}
-    const engine = composerEngine({
-      handlers: {
-        sessions: {
-          compact: async ({sessionId}) => {
-            compactStarted.resolve()
-            await compaction.promise
-            compacted.sessionId = sessionId
-            return {ok: true}
-          },
-        },
-        markers: {
-          list: ({sessionId}) =>
-            sessionId === compacted.sessionId
-              ? [{id: 'marker-compact', sessionId, afterMessageId: null, kind: 'compact'}]
-              : [],
-        },
-      },
-    })
+    const engine = composerEngine()
     engine.reply(FakeLLM.text('Done with it'))
+    const compaction = engine.gate()
+    engine.reply(FakeLLM.text('A summary of the work so far'))
     await mountShell({engine})
 
     const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
@@ -811,7 +774,7 @@ describe('the composer actions menu', () => {
 
     await user.click(screen.getByRole('button', {name: 'More composer actions'}))
     await user.click(await screen.findByRole('menuitem', {name: 'Compress the conversation'}))
-    await compactStarted.promise
+    await compaction.started
     expect(await screen.findByRole('separator', {name: 'Compacting…'})).toBeVisible()
     await user.type(input, 'Second task')
     expect(input).toHaveFocus()
@@ -822,7 +785,7 @@ describe('the composer actions menu', () => {
     expect(within(notifications).queryByRole('status')).not.toBeInTheDocument()
     expect(within(notifications).queryByRole('alert')).not.toBeInTheDocument()
 
-    compaction.resolve()
+    compaction.release()
     expect(await screen.findByRole('separator', {name: 'Context compacted'})).toBeVisible()
     expect(input).toHaveTextContent('Second task')
     expect(screen.queryByRole('article', {name: 'You: Second task'})).not.toBeInTheDocument()
@@ -865,5 +828,27 @@ describe('plugin slash commands', () => {
     expect(await within(reply).findByText('Noted')).toBeVisible()
     expect(screen.queryByRole('article', {name: 'You: /review the header'})).not.toBeInTheDocument()
     expect(sentTexts(engine)).toEqual(['Thanks'])
+  })
+})
+
+describe('drive mode', () => {
+  test('a driver outside the browser types into the composer by its label, sends with the send button by its role, and reads the answer', async () => {
+    const engine = composerEngine()
+    engine.reply(FakeLLM.text('Driven answer'))
+    await mountShell({engine})
+    const input = await screen.findByRole('textbox', {name: 'Message the conciv agent'})
+    const drive = startDrive(await commands.driveListen(), document)
+
+    expect(await commands.driveTypeInto('textbox', 'Message the conciv agent', 'Hello from the driver')).toBe(true)
+    expect(input).toHaveFocus()
+    expect(input).toHaveTextContent('Hello from the driver')
+    await commands.driveClickByRole('button', 'Send message')
+
+    const reply = await screen.findByRole('article', {name: 'Reply to: Hello from the driver'})
+    expect(await within(reply).findByText('Driven answer')).toBeVisible()
+    expect(sentTexts(engine)).toEqual(['Hello from the driver'])
+    expect(await commands.driveMatches('Driven answer')).toBe(true)
+    drive.close()
+    await commands.driveClose()
   })
 })

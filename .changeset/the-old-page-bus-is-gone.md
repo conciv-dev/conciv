@@ -1,7 +1,6 @@
 ---
 '@conciv/backend': patch
 '@conciv/protocol': patch
-'@conciv/db': patch
 '@conciv/plugin-page': patch
 '@conciv/app': patch
 '@conciv/types': patch

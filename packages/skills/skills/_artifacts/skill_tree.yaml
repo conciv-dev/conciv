@@ -114,7 +114,7 @@ coverage:
       reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/protocol'
       reason: 'internal to @conciv/it, not installed directly'
-    - name: '@conciv/db'
+    - name: '@conciv/home'
       reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/storage-history'
       reason: 'internal to @conciv/it, not installed directly'

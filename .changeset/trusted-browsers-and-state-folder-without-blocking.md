@@ -1,6 +1,5 @@
 ---
 '@conciv/types': patch
-'@conciv/db': patch
 '@conciv/harness': patch
 '@conciv/backend-defaults': patch
 '@conciv/backend': patch

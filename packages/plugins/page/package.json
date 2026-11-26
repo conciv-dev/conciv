@@ -36,6 +36,10 @@
       "types": "./dist/renderer.d.ts",
       "import": "./dist/renderer.js"
     },
+    "./test-utils": {
+      "types": "./dist/test-utils.d.ts",
+      "import": "./dist/test-utils.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {

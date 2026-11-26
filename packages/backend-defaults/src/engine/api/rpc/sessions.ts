@@ -22,7 +22,7 @@ import type {
   TranscriptTailOptions,
 } from '@conciv/types/harness-types'
 import {resolveHarnessLogin, resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
-import {sessions} from '@conciv/db'
+import {sessions} from '@conciv/backend-app-api/core/session/sql'
 import {
   ensureRow,
   listSessionMetas,

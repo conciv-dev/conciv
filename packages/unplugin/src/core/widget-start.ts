@@ -17,9 +17,10 @@ function canMount(port: number): boolean {
   return typeof window !== 'undefined' && process.env.NODE_ENV !== 'production' && isEnginePort(port)
 }
 
-export function startConcivWidget(port: number): void {
+export function startConcivWidget(port: number, drive?: string): void {
   if (!canMount(port)) return
   window.__CONCIV_API_BASE__ ??= `http://127.0.0.1:${port}`
+  if (drive) window.__CONCIV_DRIVE__ ??= drive
   if (document.readyState !== 'loading') return startWhenReady()
   document.addEventListener('DOMContentLoaded', startWhenReady, {once: true})
 }
@@ -27,5 +28,6 @@ export function startConcivWidget(port: number): void {
 declare global {
   interface Window {
     __CONCIV_API_BASE__?: string
+    __CONCIV_DRIVE__?: string
   }
 }

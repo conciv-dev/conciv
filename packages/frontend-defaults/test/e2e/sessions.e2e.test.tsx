@@ -6,18 +6,9 @@ import {resolveModifier} from '@tanstack/hotkeys'
 import {ORPCError} from '@orpc/client'
 import {createFakeEngine, FakeLLM, type FakeSession} from '@conciv/client/testing'
 import {pastSessions} from '../fixtures/past-sessions.js'
-import {mountShell, shellEngine} from '../utils/mount-shell.js'
-import {
-  addSession,
-  forgetQuickHeight,
-  pagedList,
-  pagedPreview,
-  reportsUsage,
-  sessionRow,
-  textMessage,
-  titleSentSession,
-  twoHarnesses,
-} from '../utils/sessions-engine.js'
+import {addSession, titleSentSession} from '../utils/engine-client.js'
+import {forgetQuickHeight, mountShell, shellEngine} from '../utils/mount-shell.js'
+import {harness, MODEL, textMessage} from '../utils/sample-data.js'
 
 describe('find and switch sessions', () => {
   test('the user searches the sessions, switches to one and starts a new one', async () => {
@@ -69,7 +60,9 @@ describe('find and switch sessions', () => {
 describe('a run in the list', () => {
   test('the picker marks the running session and names each harness, the user starts a new session, previews the running one, and hears the reply finish as the row stops running', async () => {
     const user = userEvent.setup({delay: null})
-    const engine = shellEngine(createFakeEngine({handlers: {meta: twoHarnesses()}}))
+    const engine = shellEngine(
+      createFakeEngine({harnesses: [harness('fake', 'alpha', MODEL), harness('beta', 'beta', MODEL)]}),
+    )
     const gate = engine.gate()
     engine.reply(FakeLLM.text('Done'))
     await mountShell({engine})
@@ -113,18 +106,7 @@ describe('paging the list', () => {
       {id: 'ses_pagednew'},
       ...Array.from({length: 31}, (_, offset) => ({id: `ses_paged${31 - offset}`, title: `Session ${31 - offset}`})),
     ]
-    const engine = shellEngine(
-      createFakeEngine({
-        sessions: rows,
-        handlers: {
-          sessions: {
-            list: pagedList(
-              rows.map((row, index) => sessionRow(row.id, row.title ?? 'New session', rows.length - index)),
-            ),
-          },
-        },
-      }),
-    )
+    const engine = shellEngine(createFakeEngine({sessions: rows}))
     await mountShell({engine})
 
     await user.click(await screen.findByRole('button', {name: 'New session, session options'}))
@@ -330,7 +312,6 @@ describe('a long past session in the preview', () => {
     const engine = shellEngine(
       createFakeEngine({
         sessions: [{id: 'ses_migrationnew'}, {id: 'ses_pastmigration', title: 'Plan the migration', messages}],
-        handlers: {sessions: {preview: pagedPreview(messages)}},
       }),
     )
     await mountShell({engine})
@@ -578,8 +559,8 @@ describe('the host turns the quick terminal off', () => {
 describe('quick pane context usage', () => {
   test('after a reply the quick pane shows how much of the model context the session used', async () => {
     const user = userEvent.setup()
-    const engine = shellEngine(reportsUsage({inputTokens: 1200, outputTokens: 5}))
-    engine.reply(FakeLLM.text('Here is the summary'))
+    const engine = shellEngine()
+    engine.reply(FakeLLM.usage({inputTokens: 1200, outputTokens: 5}), FakeLLM.text('Here is the summary'))
     await mountShell({engine, initialEntries: ['/quick']})
 
     const terminal = await screen.findByRole('dialog', {name: 'conciv quick terminal'})

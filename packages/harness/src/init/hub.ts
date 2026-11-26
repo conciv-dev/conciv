@@ -13,7 +13,7 @@ import {
   withHomeDb,
   type HubOperation,
   type PreparedHome,
-} from '@conciv/db'
+} from '@conciv/home'
 import {INIT_HARNESS_IDS, type InitHarnessId} from '@conciv/types/harness-types'
 import {initContributions} from './registry.js'
 

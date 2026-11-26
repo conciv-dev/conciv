@@ -3,7 +3,7 @@ import type {Plugin as EffectPlugin} from '@conciv/backend-plugin-api/effect/plu
 import * as Model from '@conciv/protocol/schema/model'
 import * as Identifier from '@conciv/protocol/schema/identifier'
 import type {createChatPlane} from '../../backend-defaults.js'
-import type {ConcivDb} from '@conciv/db'
+import type {ConcivDb} from '../../db/connection.js'
 import {dirname, join} from 'node:path'
 import * as NodeChildProcessSpawner from '@effect/platform-node/NodeChildProcessSpawner'
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'

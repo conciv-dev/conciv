@@ -94,7 +94,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/types',
   '@conciv/backend-defaults',
   '@conciv/protocol',
-  '@conciv/db',
+  '@conciv/home',
   '@conciv/storage-history',
   '@conciv/client',
   '@conciv/grab',

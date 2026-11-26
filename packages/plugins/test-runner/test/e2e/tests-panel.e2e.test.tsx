@@ -1,63 +1,30 @@
-import {assert, describe, expect, test} from 'vitest'
+import {assert, describe, expect} from 'vitest'
 import {screen, within} from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
+import {test, type EngineFixtures} from '@conciv/backend-test-utils'
 import {createFakeEngine, FakeLLM} from '@conciv/client/testing'
 import {renderInTestApp, useFakeEngine} from '@internal/frontend-test-utils'
 import {renderTestApp, servePluginBundle} from '@internal/frontend-test-utils/app'
 import testRunner from '../../src/plugin-experimental.js'
 import type {TestEvent, TestRow, TestRunResult} from '../../src/events.js'
+import {createTestRunState} from '../../src/test-utils.js'
 
 describe('the Tests tab', () => {
-  const SEEDS: TestRow = {
-    id: 't1',
-    file: '/workspace/beds/seeds.test.js',
-    name: 'the seeds sprout',
-    state: 'pass',
-    durationMs: 2,
+  const RUNNER = {plugins: ['@conciv/plugin-test-runner']}
+
+  const TEST_RUNNER = {id: '@conciv/plugin-test-runner', plugin: testRunner}
+
+  const testsTab = async (createEngine: EngineFixtures['createEngine']) => {
+    const engine = await createEngine(RUNNER, {directory: 'test/fixtures/greenhouse'})
+    const app = await renderInTestApp({engine, plugins: [TEST_RUNNER]})
+    return {engine, app}
   }
 
-  const ROSE: TestRow = {
-    id: 't2',
-    file: '/workspace/beds/pruning.test.js',
-    name: 'the pruned rose blooms',
-    state: 'fail',
-    durationMs: 3,
-    error: {
-      file: '/workspace/beds/pruning.test.js',
-      name: 'the pruned rose blooms',
-      message: 'expected 3 to be 4 // Object.is equality',
-      stack: 'expected 3 to be 4 // Object.is equality',
-      line: 4,
-    },
-  }
-
-  const NO_RUN: TestRunResult = {summary: {passed: 0, failed: 0, skipped: 0, durationMs: 0}, failures: [], tests: []}
-
-  const UNAVAILABLE = "vitest unavailable: Cannot find module 'vitest/node'"
-
-  const testsTab = async () => {
-    const runner: {status: TestRunResult; unavailable: string | null} = {status: NO_RUN, unavailable: null}
-    const engine = useFakeEngine(
-      createFakeEngine({
-        plugins: {
-          'test-runner': {
-            status: () => runner.status,
-            current: () => ({events: null, unavailable: runner.unavailable}),
-          },
-        },
-      }),
-    )
-    const event = (data: TestEvent) => {
-      if (data.type === 'run-end') runner.status = {summary: data.summary, failures: data.failures, tests: data.tests}
-      engine.emit('rpc.test-runner.event', data)
-    }
-    const app = await renderInTestApp({engine, plugins: [{id: '@conciv/plugin-test-runner', plugin: testRunner}]})
-    return {runner, engine, event, app}
-  }
-
-  test('the tab follows a run from no run yet through running to finished, and Fix this puts the failure in the composer and hides the tab', async () => {
+  test('the tab follows a run from no run yet through running to finished, and Fix this puts the failure in the composer and hides the tab', async ({
+    createEngine,
+  }) => {
     const user = userEvent.setup()
-    const {event, app} = await testsTab()
+    const {engine, app} = await testsTab(createEngine)
 
     await user.click(await screen.findByRole('tab', {name: 'Tests'}))
     const panel = await screen.findByRole('tabpanel', {name: 'Tests'})
@@ -66,14 +33,11 @@ describe('the Tests tab', () => {
       within(panel).getByText('Ask the agent to run the tests; the results show here as they come in.'),
     ).toBeVisible()
 
-    event({type: 'run-start', runId: 'r1', files: [SEEDS.file, ROSE.file]})
-    event({type: 'test', ...SEEDS})
-    event({type: 'test', ...ROSE})
+    const run = engine.rpc.call('test-runner', 'run', {})
     expect(await within(panel).findByText('Running tests: 1 passed, 1 failed, 0 skipped')).toBeVisible()
 
-    const summary = {passed: 1, failed: 1, skipped: 0, durationMs: 5}
-    const failures = ROSE.error === undefined ? [] : [ROSE.error]
-    event({type: 'run-end', runId: 'r1', summary, failures, tests: [SEEDS, ROSE]})
+    expect(await engine.rpc.call('test-runner', 'stop')).toEqual({ok: true})
+    await run
     expect(await within(panel).findByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toBeVisible()
     expect(within(panel).queryByText(/^Running tests/)).not.toBeInTheDocument()
     const failing = within(panel).getByRole('region', {name: '1 failing test'})
@@ -97,44 +61,50 @@ describe('the Tests tab', () => {
     expect(await within(reopened).findByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toBeVisible()
   })
 
-  test('a run stopped from outside ends in the tab with the results it had', async () => {
+  test('a run stopped from outside ends in the tab with the results it had', async ({createEngine}) => {
     const user = userEvent.setup()
-    const {event} = await testsTab()
+    const {engine} = await testsTab(createEngine)
 
     await user.click(await screen.findByRole('tab', {name: 'Tests'}))
     const panel = await screen.findByRole('tabpanel', {name: 'Tests'})
-    event({type: 'run-start', runId: 'r1', files: [SEEDS.file, ROSE.file, '/workspace/watering.test.js']})
-    event({type: 'test', ...SEEDS})
-    event({type: 'test', ...ROSE})
+    const run = engine.rpc.call('test-runner', 'run', {})
     expect(await within(panel).findByText('Running tests: 1 passed, 1 failed, 0 skipped')).toBeVisible()
 
-    const failures = ROSE.error === undefined ? [] : [ROSE.error]
-    const summary = {passed: 1, failed: 1, skipped: 0, durationMs: 5}
-    event({type: 'run-end', runId: 'r1', summary, failures, tests: [SEEDS, ROSE]})
+    expect(await engine.rpc.call('test-runner', 'stop')).toEqual({ok: true})
+    await run
     expect(await within(panel).findByText('Test run finished: 1 passed, 1 failed, 0 skipped')).toBeVisible()
     expect(within(panel).queryByText(/^Running tests/)).not.toBeInTheDocument()
     const failing = within(panel).getByRole('region', {name: '1 failing test'})
     expect(within(failing).getByText('the pruned rose blooms')).toBeVisible()
   })
 
-  test('after the engine connection drops and comes back, the tab reads the status again, and a project with no vitest says the runner could not start and why', async () => {
+  test('after the engine connection drops and comes back, the tab reads the status again, and a project with no vitest says the runner could not start and why', async ({
+    createEngine,
+  }) => {
     const user = userEvent.setup()
-    const {runner, engine, event} = await testsTab()
+    const {engine} = await testsTab(createEngine)
 
     await user.click(await screen.findByRole('tab', {name: 'Tests'}))
     const panel = await screen.findByRole('tabpanel', {name: 'Tests'})
-    event({type: 'run-start', runId: 'r2', files: [SEEDS.file]})
-    expect(await within(panel).findByText('Running tests: 0 passed, 0 failed, 0 skipped')).toBeVisible()
-    runner.status = NO_RUN
-    engine.reconnect()
+    const run = engine.rpc.call('test-runner', 'run', {})
+    expect(await within(panel).findByText('Running tests: 1 passed, 1 failed, 0 skipped')).toBeVisible()
+    expect(await engine.rpc.call('test-runner', 'stop')).toEqual({ok: true})
+    await run
+    await engine.restart()
     expect(await within(panel).findByText('No test run yet')).toBeVisible()
     expect(within(panel).queryByText(/^Running tests/)).not.toBeInTheDocument()
 
-    runner.unavailable = UNAVAILABLE
-    engine.reconnect()
-    expect(await within(panel).findByText("The project's test runner could not start")).toBeVisible()
-    expect(within(panel).getByText('The test runner is unavailable')).toBeVisible()
-    expect(within(panel).getByText(UNAVAILABLE)).toBeVisible()
+    const bare = await createEngine(RUNNER)
+    await renderInTestApp({engine: bare, plugins: [TEST_RUNNER]})
+    const bareTab = screen.getAllByRole('tab', {name: 'Tests'}).at(-1)
+    assert(bareTab !== undefined)
+    await user.click(bareTab)
+    expect(await bare.rpc.failure('test-runner', 'run', {})).toMatchObject({type: 'UNAVAILABLE'})
+    const barePanel = (await screen.findAllByRole('tabpanel', {name: 'Tests'})).at(-1)
+    assert(barePanel !== undefined)
+    expect(await within(barePanel).findByText("The project's test runner could not start")).toBeVisible()
+    expect(within(barePanel).getByText('The test runner is unavailable')).toBeVisible()
+    expect(within(barePanel).getByText(/vitest unavailable: Cannot find module 'vitest\/node'/)).toBeVisible()
   })
 })
 
@@ -170,10 +140,7 @@ describe('the run in the thread', () => {
       tests: [cart, discount],
     }
     const ran = Promise.withResolvers<TestRunResult>()
-    const seen: TestEvent[] = []
-    const last: {result: TestRunResult} = {
-      result: {summary: {passed: 0, failed: 0, skipped: 0, durationMs: 0}, failures: [], tests: []},
-    }
+    const runState = createTestRunState()
     const TEST_RUNNER_BUILD = {
       id: 'test-runner',
       dist: import.meta.glob<string>(['../../dist/*.cjs', '../../dist/*.cjs.manifest.json'], {
@@ -185,7 +152,7 @@ describe('the run in the thread', () => {
       createFakeEngine(
         servePluginBundle(TEST_RUNNER_BUILD, {
           directory: '/workspace/plant-shop',
-          plugins: {'test-runner': {status: () => last.result, current: () => ({events: seen, unavailable: null})}},
+          plugins: {'test-runner': runState.handlers},
         }),
       ),
     )
@@ -204,7 +171,7 @@ describe('the run in the thread', () => {
       {type: 'run-start', runId: 'r1', files: [cart.file, discount.file]},
       {type: 'test', ...cart},
     ]
-    seen.push(...started)
+    runState.events.push(...started)
     started.forEach((event) => engine.emit('rpc.test-runner.event', event))
     expect(await screen.findByText(/^Test run in progress/)).toBeVisible()
     await user.click(screen.getByRole('tab', {name: 'Tests'}))
@@ -219,7 +186,7 @@ describe('the run in the thread', () => {
       failures: run.failures,
       tests: run.tests,
     })
-    last.result = run
+    runState.last.result = run
     ran.resolve(run)
 
     const reply = await screen.findByRole('article', {name: 'Reply to: Run the tests'})

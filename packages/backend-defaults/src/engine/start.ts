@@ -8,7 +8,7 @@ import {
   withHomeDb,
   type EngineRow,
   type PreparedHome,
-} from '@conciv/db'
+} from '@conciv/home'
 import {type ConfigProvider, Effect, type Layer} from 'effect'
 import {z} from 'zod'
 import type * as Bundler from '@conciv/protocol/schema/bundler'

@@ -68,7 +68,13 @@ describe('withConciv', () => {
       options: {},
       expected: (port: number) => ({
         env: {NEXT_PUBLIC_CONCIV_PORT: String(port), CONCIV_OPTIONS: `{"port":${port}}`},
-        serverExternalPackages: ['@conciv/it', '@conciv/unplugin', '@conciv/backend', '@conciv/db', '@conciv/harness'],
+        serverExternalPackages: [
+          '@conciv/it',
+          '@conciv/unplugin',
+          '@conciv/backend',
+          '@conciv/home',
+          '@conciv/harness',
+        ],
         turbopack: {},
         webpack: expect.any(Function),
       }),
@@ -92,7 +98,7 @@ describe('withConciv', () => {
           '@conciv/backend',
           '@conciv/it',
           '@conciv/unplugin',
-          '@conciv/db',
+          '@conciv/home',
           '@conciv/harness',
         ],
         turbopack: {resolveAlias: {lodash: 'lodash-es'}},
@@ -105,7 +111,13 @@ describe('withConciv', () => {
       options: {widget: false} satisfies ConcivConfig,
       expected: (port: number) => ({
         env: {CONCIV_OPTIONS: `{"widget":false,"port":${port}}`},
-        serverExternalPackages: ['@conciv/it', '@conciv/unplugin', '@conciv/backend', '@conciv/db', '@conciv/harness'],
+        serverExternalPackages: [
+          '@conciv/it',
+          '@conciv/unplugin',
+          '@conciv/backend',
+          '@conciv/home',
+          '@conciv/harness',
+        ],
         turbopack: {},
         webpack: expect.any(Function),
       }),
@@ -118,7 +130,7 @@ describe('withConciv', () => {
   test('enabled false adds only the engine packages kept on the server', async () => {
     await expect(withConciv({env: {API_URL: 'https://api.example.test'}}, {enabled: false})).resolves.toEqual({
       env: {API_URL: 'https://api.example.test'},
-      serverExternalPackages: ['@conciv/it', '@conciv/unplugin', '@conciv/backend', '@conciv/db', '@conciv/harness'],
+      serverExternalPackages: ['@conciv/it', '@conciv/unplugin', '@conciv/backend', '@conciv/home', '@conciv/harness'],
     })
   })
 

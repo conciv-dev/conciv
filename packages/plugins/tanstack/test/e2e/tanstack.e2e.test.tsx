@@ -3,8 +3,7 @@ import {test} from '@conciv/backend-test-utils'
 import {screen, within} from '@solidjs/testing-library'
 import {createExtensionTester} from '@internal/frontend-test-utils'
 import {renderTestApp} from '@internal/frontend-test-utils/app'
-import pageRenderer from '@conciv/plugin-page/renderer'
-import {createPageSessionGrouper, pageSessionEntry} from '@conciv/plugin-page/client'
+import {pageTestPlugin} from '@conciv/plugin-page/test-utils'
 import tanstack from '../../src/plugin-experimental.js'
 
 describe('the TanStack cards', () => {
@@ -42,15 +41,7 @@ describe('the agent finds the tab through the TanStack plugin', () => {
     const control = await engine.event('rpc.experimental.page.control')
     await renderTestApp({
       engine,
-      plugins: [
-        {
-          id: 'conciv.page',
-          plugin: pageRenderer,
-          builtin: true,
-          engineHalf: true,
-          toolGroup: {entry: pageSessionEntry, createGrouper: createPageSessionGrouper},
-        },
-      ],
+      plugins: [pageTestPlugin],
     })
     await control.arrived
 

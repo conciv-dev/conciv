@@ -140,3 +140,10 @@ export async function mountShell(options: MountShellOptions): Promise<void> {
   render(() => <ConcivApp platform={platform} />, {container})
   await interactive.promise
 }
+
+const QUICK_HEIGHT_KEY = 'conciv-qt-height'
+
+export function forgetQuickHeight(seeded?: string): void {
+  onTestFinished(() => localStorage.removeItem(QUICK_HEIGHT_KEY))
+  if (seeded !== undefined) localStorage.setItem(QUICK_HEIGHT_KEY, seeded)
+}

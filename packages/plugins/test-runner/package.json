@@ -35,6 +35,10 @@
       "types": "./dist/rpc.d.ts",
       "import": "./dist/rpc.js"
     },
+    "./test-utils": {
+      "types": "./dist/test-utils.d.ts",
+      "import": "./dist/test-utils.js"
+    },
     "./plugin-experimental": {
       "types": "./dist/plugin-experimental.d.cts",
       "default": "./dist/plugin-experimental.cjs"

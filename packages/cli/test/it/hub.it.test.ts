@@ -1,5 +1,5 @@
 import {describe, expect} from 'vitest'
-import {prepareHome, recordHubConnection, withHomeDb} from '@conciv/db'
+import {prepareHome, recordHubConnection, withHomeDb} from '@conciv/home'
 import page from '@conciv/plugin-page'
 import {test} from '../utils/hub-test.js'
 

@@ -6,6 +6,7 @@ import * as SimulationControlServer from '../control-server.js'
 import {
   BACKEND_CAPABILITIES,
   backendContract,
+  dispatchHandshake,
   type FinishReason,
   type Item,
   type LlmNotification,
@@ -226,7 +227,7 @@ const makeRouter = (
   const os = implement(backendContract).$context<SimulationControlServer.Context>()
   return os.router({
     handshake: os.handshake.handler(({input, errors}) => {
-      const outcome = SimulationControlServer.dispatchHandshake(
+      const outcome = dispatchHandshake(
         {role: 'backend', server: {name: 'conciv', version}, capabilities: BACKEND_CAPABILITIES},
         input,
       )

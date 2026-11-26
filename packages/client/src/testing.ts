@@ -4,27 +4,33 @@ import {ChatEventType, type ChatEvent} from '@conciv/types/chat-event-types'
 import {createFakeEngine} from './fake-engine.js'
 import type {RpcClient} from './rpc-client.js'
 
-export {
-  createFakeEngine,
-  FakeLLM,
-  type FakeAsk,
-  type FakeConnectOptions,
-  type FakeEngine,
-  type FakeEngineHandlers,
-  type FakeEngineOptions,
-  type FakeEngineReading,
-  type FakeGate,
-  type FakeOutside,
-  type FakeOutsideAgent,
-  type FakeOutsideReply,
-  type FakePluginCall,
-  type FakePluginHandler,
-  type FakeReply,
-  type FakeSend,
-  type FakeSession,
-  type FakeSynthetic,
-  type FakeTool,
-} from './fake-engine.js'
+export {createFakeEngine} from './fake-engine.js'
+export {FakeLLM} from './fake-llm.js'
+export type {
+  FakeAsk,
+  FakeBundle,
+  FakeBundleBuild,
+  FakeBundleChunks,
+  FakeConnectOptions,
+  FakeEngine,
+  FakeEngineHandlers,
+  FakeEngineOptions,
+  FakeEngineReading,
+  FakeGate,
+  FakeHarness,
+  FakeOutside,
+  FakeOutsideAgent,
+  FakeOutsideReply,
+  FakePastSession,
+  FakePluginCall,
+  FakePluginHandler,
+  FakePluginInfo,
+  FakeReply,
+  FakeSend,
+  FakeSession,
+  FakeSynthetic,
+  FakeTool,
+} from './fake-types.js'
 
 export type StoryConnectionOptions = {
   chunks?: ChatEvent[]

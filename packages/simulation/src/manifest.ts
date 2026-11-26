@@ -27,7 +27,13 @@ const AbsolutePath = Schema.String.check(
 
 const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
 
-const Manifest = Schema.Struct({
+export type Manifest = {
+  readonly endpoints: {readonly ui: string; readonly backend: string}
+  readonly viewport?: {readonly cols: number; readonly rows: number}
+  readonly recording?: {readonly timeline: string}
+}
+
+const ManifestSchema = Schema.Struct({
   endpoints: Schema.Struct({
     ui: Endpoint,
     backend: Endpoint,
@@ -35,18 +41,24 @@ const Manifest = Schema.Struct({
   viewport: Schema.optionalKey(Schema.Struct({cols: PositiveInt, rows: PositiveInt})),
   recording: Schema.optionalKey(Schema.Struct({timeline: AbsolutePath})),
 })
-export type Manifest = typeof Manifest.Type
-
-export const ResolveError = Schema.TaggedStruct('DriveManifest.ResolveError', {
+const ResolveErrorSchema = Schema.TaggedStruct('DriveManifest.ResolveError', {
   reason: Schema.Literals(['config', 'not-found', 'read', 'decode']),
   path: Schema.optionalKey(Schema.String),
   message: Schema.String,
   cause: Schema.Defect(),
 })
-export type ResolveError = typeof ResolveError.Type & globalThis.Error
+export type ResolveError = globalThis.Error & {
+  readonly _tag: 'DriveManifest.ResolveError'
+  readonly reason: 'config' | 'not-found' | 'read' | 'decode'
+  readonly path?: string
+  readonly message: string
+  readonly cause: unknown
+}
 
-const makeResolveError = (fields: Omit<typeof ResolveError.Type, '_tag'>): ResolveError =>
-  Object.assign(new globalThis.Error(fields.message), ResolveError.make(fields), {name: 'DriveManifest.ResolveError'})
+const makeResolveError = (fields: Omit<typeof ResolveErrorSchema.Type, '_tag'>): ResolveError =>
+  Object.assign(new globalThis.Error(fields.message), ResolveErrorSchema.make(fields), {
+    name: 'DriveManifest.ResolveError',
+  })
 
 export const defaults: Manifest = {
   endpoints: {
@@ -55,12 +67,14 @@ export const defaults: Manifest = {
   },
 }
 
-const decode = Schema.decodeUnknownEffect(Schema.fromJsonString(Manifest))
+const decode = Schema.decodeUnknownEffect(Schema.fromJsonString(ManifestSchema))
 
 const configError = (cause: unknown) =>
   makeResolveError({reason: 'config', message: `Invalid Drive configuration: ${String(cause)}`, cause})
 
-export const resolve = Effect.fn('DriveManifest.resolve')(function* () {
+export const resolve: () => Effect.Effect<Manifest, ResolveError, FileSystem.FileSystem> = Effect.fn(
+  'DriveManifest.resolve',
+)(function* () {
   const name = yield* Config.schema(InstanceName, 'CONCIV_DRIVE').pipe(Effect.mapError(configError))
   if (name === '1') return defaults
 

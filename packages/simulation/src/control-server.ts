@@ -2,13 +2,6 @@ import {AsyncIteratorClass, ORPCError, type Router} from '@orpc/server'
 import {RPCHandler} from '@orpc/server/ws'
 import {Effect, Queue, type Scope} from 'effect'
 import {WebSocketServer, type WebSocket} from 'ws'
-import {
-  PROTOCOL_VERSION,
-  type EndpointRole,
-  type HandshakeParams,
-  type HandshakeResponse,
-  type Identity,
-} from '@conciv/protocol/simulation'
 
 const MAX_OUTBOUND_BYTES = 64 * 1024 * 1024
 
@@ -51,60 +44,6 @@ export function notifications<A>(
   cleanup: () => Promise<void>,
 ): AsyncIteratorClass<A, undefined> {
   return new AsyncIteratorClass(() => nextValue(queue, connection), cleanup)
-}
-
-type RoleMismatch = {
-  readonly code: 'ROLE_MISMATCH'
-  readonly message: string
-  readonly data: {expected: EndpointRole; actual: EndpointRole}
-}
-
-type UnsupportedProtocol = {
-  readonly code: 'UNSUPPORTED_PROTOCOL'
-  readonly message: string
-  readonly data: {offered: number[]; supported: number[]}
-}
-
-type MissingCapability = {
-  readonly code: 'MISSING_CAPABILITY'
-  readonly message: string
-  readonly data: {missing: string[]}
-}
-
-export type HandshakeRefusal = RoleMismatch | UnsupportedProtocol | MissingCapability
-
-export type HandshakeOutcome =
-  | {readonly type: 'accepted'; readonly response: HandshakeResponse}
-  | {readonly type: 'refused'; readonly refusal: HandshakeRefusal}
-
-export type HandshakeAction = {
-  readonly role: EndpointRole
-  readonly server: Identity
-  readonly capabilities: readonly string[]
-}
-
-export function dispatchHandshake(action: HandshakeAction, params: HandshakeParams): HandshakeOutcome {
-  if (params.expectedRole !== action.role) {
-    const message = `Expected simulation endpoint role ${params.expectedRole}, received ${action.role}`
-    const data = {expected: params.expectedRole, actual: action.role}
-    return {type: 'refused', refusal: {code: 'ROLE_MISMATCH', message, data}}
-  }
-  if (!params.offeredVersions.includes(PROTOCOL_VERSION)) {
-    const message = 'No mutually supported simulation protocol version'
-    const data = {offered: [...params.offeredVersions], supported: [PROTOCOL_VERSION]}
-    return {type: 'refused', refusal: {code: 'UNSUPPORTED_PROTOCOL', message, data}}
-  }
-  const installed = new Set(action.capabilities)
-  const missing = params.requiredCapabilities.filter((capability) => !installed.has(capability))
-  if (missing.length > 0) {
-    const message = `Simulation endpoint is missing required capabilities: ${missing.join(', ')}`
-    return {type: 'refused', refusal: {code: 'MISSING_CAPABILITY', message, data: {missing}}}
-  }
-  const capabilities = [...installed]
-  return {
-    type: 'accepted',
-    response: {protocolVersion: PROTOCOL_VERSION, role: action.role, server: action.server, capabilities},
-  }
 }
 
 function oneAtATime() {

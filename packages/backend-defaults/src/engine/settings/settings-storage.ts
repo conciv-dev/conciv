@@ -10,7 +10,7 @@ import {Effect, Schema} from 'effect'
 import type {Maker} from '@conciv/protocol/schema/identifier'
 import {statics} from '@conciv/protocol/schema/schema'
 import {SettingsNamespaceSchema, type SettingsScope, type SettingsSnapshot} from '@conciv/protocol'
-import {type SettingsState} from '@conciv/client'
+import type {SettingsState} from '@conciv/client'
 import type {Log} from '../lib/logging.js'
 
 const WRITE_DEBOUNCE_MS = 100
