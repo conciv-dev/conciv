@@ -4,9 +4,8 @@ description: Run the real engine with a driven model in place of the agent, and 
 ---
 
 Simulation runs the real engine with no agent CLI behind it. A program you write, the driver, answers every model call
-and can act on the widget: read what it shows, type into it and click it. conciv follows opencode's simulation here:
-the same two control endpoints, the same handshake and the same `ui.*` calls, so a driver written for opencode's drive
-mode talks to conciv the same way.
+and can act on the widget: read what it shows, type into it and click it. The driver reaches the engine through two
+control endpoints: on one it answers the model, on the other it acts on the widget with `ui.*` calls.
 
 ## Turn it on
 
@@ -55,10 +54,10 @@ endpoint that cannot listen is logged as `conciv drive ui websocket did not star
 
 ## How the widget is driven
 
-The engine listens on the manifest's `ui` endpoint, where opencode's TUI listens, and answers the driver's handshake
-with role `ui`. A browser page cannot listen on a port, so the engine stands in for the UI: it forwards each `ui.*`
-call to the widget over the widget's own engine socket, as the `call` event of the `conciv.simulation.ui` plugin, and
-the widget answers with that plugin's `result` method. The driver always dials the engine, never the widget. A widget
+The engine listens on the manifest's `ui` endpoint and answers the driver's handshake with role `ui`. A browser page
+cannot listen on a port, so the engine stands in for the UI: it forwards each `ui.*` call to the widget over the
+widget's own engine socket, as the `call` event of the `conciv.simulation.ui` plugin, and the widget answers with that
+plugin's `result` method. The driver always dials the engine, never the widget. A widget
 reload only rejoins the engine socket, and a call waits until a widget answers it or the driver aborts it.
 
 The widget answers `ui.state`, `ui.snapshot`, `ui.matches`, `ui.type`, `ui.press`, `ui.enter`, `ui.arrow`, `ui.focus`
@@ -71,7 +70,7 @@ out.
 
 ## Writing a driver
 
-`@conciv/simulation` holds the driver side, as opencode's drive packages do:
+`@conciv/simulation` holds the driver side:
 
 - `@conciv/simulation/driver`: `connectDriver(endpoint)` dials the `backend` endpoint and `serve(handler)` answers every
   model request. The answers are `text`, `thinking`, `toolCall`, `toolCalls`, `disconnect` and `hang`.

@@ -339,8 +339,8 @@ When the fake cannot do something a test needs, the fix is to make the fake answ
 
 ## A plugin's own test utilities
 
-A plugin that other plugins' tests need ships its fakes as a `./test-utils` export, as Backstage's
-`@backstage/plugin-catalog-react/testUtils` does. Other plugins import them, and nothing makes them again.
+A plugin that other plugins' tests need ships its fakes as a `./test-utils` export. Other plugins import
+them, and nothing makes them again.
 
 - `@conciv/plugin-page/test-utils` exports `pageTestPlugin`, the page plugin's browser part as the widget ships it:
   built in, with its engine half and its tool group.

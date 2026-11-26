@@ -47,7 +47,7 @@ In more detail:
   list. `@conciv/app` composes the page and terminal plugins' `./builtins` lists in `packages/app/src/builtins.ts`, and
   builds the widget bundle from `packages/app/src/global-entry.ts`. See [Built-in plugins](/docs/plugins/built-ins).
 
-The layout is Backstage's: a plugin depends only on a small, stable API, and the product is the defaults plus a list of
+In this layout a plugin depends only on a small, stable API, and the product is the defaults plus a list of
 plugins, so a plugin can be added or removed without touching the engine or the shell.
 
 ## Plugins

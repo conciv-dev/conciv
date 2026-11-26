@@ -226,6 +226,6 @@ export async function assertPluginsDrawThroughContextUi(cwd: string): Promise<vo
   const messages = violations.flat().toSorted()
   if (messages.length === 0) return
   throw new Error(
-    `a plugin under packages/plugins draws through ctx.ui (conciv's own plugins read conciv's members with OpaqueUi.toInternal), never with @conciv/ui-kit*; only the built-ins ${builtIns.join(' and ')} ("conciv": {"builtin": true} in package.json) draw with the kit directly, like opencode's gui plugins:\n${messages.join('\n')}`,
+    `a plugin under packages/plugins draws through ctx.ui (conciv's own plugins read conciv's members with OpaqueUi.toInternal), never with @conciv/ui-kit*; only the built-ins ${builtIns.join(' and ')} ("conciv": {"builtin": true} in package.json) draw with the kit directly:\n${messages.join('\n')}`,
   )
 }
