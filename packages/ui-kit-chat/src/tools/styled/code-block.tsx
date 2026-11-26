@@ -49,6 +49,7 @@ const HEADER_TEXT: Record<CodeBlockTone, string> = {
   normal: 'flex-1 min-w-0 truncate text-chat-xs leading-4 [font-family:var(--chat-mono)] text-chat-text-2',
   error: 'flex-1 min-w-0 truncate text-chat-xs leading-4 [font-family:var(--chat-mono)] text-chat-danger',
 }
+const TITLE_ROW = 'flex flex-1 min-w-0 items-center gap-1.5 text-chat-text-3'
 const CODE_CONTENT = `block w-full min-w-0 ${PAINTLESS_HIGHLIGHT} [font-family:var(--chat-mono)]`
 const STANDALONE_LINE = `overflow-auto whitespace-nowrap ${NO_GAPS}`
 
@@ -205,9 +206,14 @@ export function CodeBlockHeader(props: {children: JSX.Element}): JSX.Element {
   )
 }
 
-export function CodeBlockTitle(props: {children: JSX.Element}): JSX.Element {
+export function CodeBlockTitle(props: {icon?: JSX.Element; children: JSX.Element}): JSX.Element {
   const block = useCodeBlock()
-  return <span class={HEADER_TEXT[block.tone()]}>{props.children}</span>
+  return (
+    <span class={TITLE_ROW}>
+      {props.icon}
+      <span class={HEADER_TEXT[block.tone()]}>{props.children}</span>
+    </span>
+  )
 }
 
 export function CodeBlockActions(props: {children?: JSX.Element}): JSX.Element {

@@ -15,6 +15,8 @@ import {
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {mapValues, memoize, once} from 'es-toolkit'
+import {bundledLanguagesInfo} from 'shiki/langs'
+import CodeXml from 'lucide-solid/icons/code-xml'
 import {ReactiveMap} from '@solid-primitives/map'
 import {Highlight} from '@conciv/ui-kit-system'
 import {
@@ -449,14 +451,20 @@ function highlightableLanguage(language: string): string {
 
 const MarkdownStreamingContext = createContext<() => boolean>(() => false)
 
+function languageName(language: string): string {
+  if (!language) return 'Text'
+  const known = bundledLanguagesInfo.find((info) => info.id === language || info.aliases?.includes(language))
+  return known?.name ?? language
+}
+
 function FenceCard(props: {language: string; code: string}): JSX.Element {
   const streaming = useContext(MarkdownStreamingContext)
-  const title = () => props.language || 'text'
+  const title = () => languageName(props.language)
   const code = () => fenceCode(props.code)
   return (
     <CodeBlock label={title()} text={code()} maxHeight="log">
       <CodeBlockHeader>
-        <CodeBlockTitle>{title()}</CodeBlockTitle>
+        <CodeBlockTitle icon={<CodeXml class="shrink-0 size-3.5" aria-hidden="true" />}>{title()}</CodeBlockTitle>
         <CodeBlockActions>
           <CodeBlockCopyButton />
         </CodeBlockActions>
@@ -464,7 +472,9 @@ function FenceCard(props: {language: string; code: string}): JSX.Element {
       <Show
         when={streaming()}
         fallback={
-          <CodeBlockContent file={{name: title(), lang: highlightableLanguage(props.language), contents: code()}} />
+          <CodeBlockContent
+            file={{name: props.language || 'text', lang: highlightableLanguage(props.language), contents: code()}}
+          />
         }
       >
         <CodeBlockViewport>

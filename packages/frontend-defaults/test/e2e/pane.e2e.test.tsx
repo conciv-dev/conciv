@@ -51,9 +51,9 @@ describe('a reply with a diagram', () => {
     expect(within(reply).getByText('Done')).toBeVisible()
     expect(within(reply).getAllByRole('graphics-document')).toHaveLength(1)
     expect(within(reply).getByText('this is not a diagram')).toBeVisible()
-    await expect
-      .element(page.getByRole('article', {name: 'Reply to: Draw both'}).getByText('const total = 1 + 1'))
-      .toBeVisible()
+    const code = page.getByRole('article', {name: 'Reply to: Draw both'}).getByRole('group', {name: 'TypeScript'})
+    await expect.element(code.getByText('TypeScript', {exact: true})).toBeVisible()
+    await expect.element(code.getByText('const total = 1 + 1')).toBeVisible()
   })
 })
 
@@ -199,7 +199,9 @@ describe('stopping and sending again', () => {
     const stopped = await screen.findByRole('article', {name: 'Reply to: Take your time'})
     expect(await within(stopped).findByText(/there\./)).toBeVisible()
     expect(screen.getByText('Responding…')).toBeVisible()
-    const streamedCode = page.getByRole('article', {name: 'Reply to: Take your time'}).getByRole('group', {name: 'ts'})
+    const streamedCode = page
+      .getByRole('article', {name: 'Reply to: Take your time'})
+      .getByRole('group', {name: 'TypeScript'})
     await expect.element(streamedCode.getByText('const total = 1')).toBeVisible()
     await expect.element(streamedCode.getByRole('button', {name: 'Copy'})).toBeVisible()
     expect(screen.getByText('Responding…')).toBeVisible()
