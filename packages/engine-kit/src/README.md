@@ -11,14 +11,13 @@
 - `outside.ts`: `engine.outside({client?, tab?})`, an outside agent's call the way the conciv hub makes it: an rpc client with `conciv-origin: hub` and `conciv-client: <client>` (`terminal` when not given), the tab as the call's `sessionId`. `describe`, `discover(toolNames)` and `call(name, input?)` are `code.describe`, `code.discover` and `code.execute` (`return await external_<name>(input)`), their replies built by the hub's own `codeDiscoverReply` and `codeExecuteReply`; an error the engine answers resolves as the hub's error reply, `{content: [{type: 'text', text: message}], isError: true}`, and any other error rejects. A call with no tab is an outside run, which the engine answers with its no-tab error for a tab's tool. `hubAccess` (`'open'` or `'project'`) goes into the engine's config; not given, the product's `'open'`. A connected agent is not covered: only the agent's own CLI writes its connection row.
 - `browser-client.ts`: `browserClient(apiBase, {token?, session?})`, an rpc client over the browser engine connection, as the widget talks to the engine; `close` disposes the connection.
 - `fixtures/lister`: a plugin whose `list_plugins` tool lists the engine's plugins with their state; `listerPlugin` is its folder.
-- `until.ts`: the private wait `approve` uses until the session has a pending ask.
 
 ## Invariants
 
 - `send` resolves when the turn's run finishes, fails or is stopped. A RUN_FINISHED whose finish reason (top level, or `metadata.tanstack.finishReason` where @tanstack/ai puts it on a model call's RUN_FINISHED) is `tool_calls` ends one model call, not the run, as the TanStack chat client reads it.
 - `requests` is a copy of the model requests recorded so far, in arrival order, recorded before a gate holds them. Each is plain data: the system prompts as strings, the messages, each tool with its name, description and JSON Schema input, the model and effort the harness was configured with (or `null`), and the model options; after `send` resolves or a gate's `started` settles, it holds that request.
 - A session's `stop` sends the chat stop rpc, as a session-scoped client the way the widget's Stop does, for the session's active run and every run the kit started on it; it resolves when the engine answers, and the run's `send` then resolves.
-- `approve` waits up to 5000 ms for a pending ask, then answers every pending ask once.
+- `approve` subscribes to `permission.asked`, waits for the session's first ask when none is pending yet, then answers every pending ask once.
 - A tool call gives up after 60000 ms; a tool error rejects with its text, which `failure` returns.
 - `stop` ends open turns, stops the engine (`createBackend`'s stop: the dev endpoint, the home database row, the server, the app) and removes the project root; every step runs even when an earlier one fails, and the failures are rethrown as one `AggregateError`. A failed start undoes what it did the same way.
 
