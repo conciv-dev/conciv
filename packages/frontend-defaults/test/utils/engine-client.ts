@@ -46,6 +46,21 @@ export async function addSession(engine: FakeEngine, title: string): Promise<Ses
   return sessionId
 }
 
+export async function browserTabsOnceCounted(engine: FakeEngine, sessionId: SessionId, count: number) {
+  const client = engineClient(engine)
+  const watching = new AbortController()
+  try {
+    const changes = await client.tabs.changes(undefined, {signal: watching.signal})
+    for (let step = await changes.next(); step.done !== true; step = await changes.next()) {
+      const listed = await client.tabs.list({sessionId})
+      if (listed.tabs.length === count) return listed
+    }
+  } finally {
+    watching.abort()
+  }
+  throw new Error('the engine stopped reporting browser tab changes')
+}
+
 export async function titleSentSession(engine: FakeEngine, title: string): Promise<void> {
   const sent = engine.sent().at(-1)
   if (sent === undefined) throw new Error('nothing was sent to title')

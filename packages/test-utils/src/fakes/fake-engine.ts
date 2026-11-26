@@ -10,6 +10,7 @@ import {createPlugins} from './fake-plugins.js'
 import {buildRouter, withSendRecorded} from './fake-router.js'
 import {createSessions} from './fake-sessions.js'
 import {createSettings} from './fake-settings.js'
+import {createTabs} from './fake-tabs.js'
 import type {
   FakeConnectOptions,
   FakeEngine,
@@ -52,8 +53,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     data: Record<string, unknown>
     location: {directory: string}
   }>()
-  const publish = (type: string, data: Record<string, unknown>): void =>
+  const publish = (type: string, data: Record<string, unknown>): void => {
+    if (type === 'session.deleted') tabs.forget(String(data['sessionID']))
     events.push({id: crypto.randomUUID(), type, created: Date.now(), data, location})
+  }
   const store = createSessions(
     options.sessions ?? [],
     options.pastSessions ?? [],
@@ -73,6 +76,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     options,
     (messages) => modelMessagesToUIMessages(messages.flatMap(wireRow)),
   )
+  const tabs = createTabs({exists: (sessionId) => store.sessions.has(sessionId), now: store.now, publish})
   const plugins = createPlugins(options, location, unanswered, publish)
   const settings = createSettings(options.settings)
   const drafts = new Map<string, DraftRow>()
@@ -92,6 +96,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const builtins: FakeEngineHandlers = {
     auth: authHandlers(access),
     sessions: {...store.handlers, compact: ({sessionId}) => chat.compact(sessionId)},
+    tabs: tabs.handlers,
     settings,
     drafts: {
       get: ({sessionId}) => drafts.get(sessionId) ?? null,

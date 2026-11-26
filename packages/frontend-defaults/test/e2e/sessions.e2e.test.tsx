@@ -6,18 +6,20 @@ import {resolveModifier} from '@tanstack/hotkeys'
 import {ORPCError} from '@orpc/client'
 import {createFakeEngine, FakeLLM, type FakeSession} from '@internal/test-utils'
 import {pastSessions} from '../fixtures/past-sessions.js'
-import {addSession, titleSentSession} from '../utils/engine-client.js'
+import {addSession, browserTabsOnceCounted, titleSentSession} from '../utils/engine-client.js'
 import {forgetQuickHeight, mountShell, shellEngine} from '../utils/mount-shell.js'
 import {harness, MODEL, textMessage} from '../utils/sample-data.js'
 
 describe('find and switch sessions', () => {
-  test('the user searches the sessions, switches to one and starts a new one', async () => {
+  test('the user searches the sessions, switches to one and starts a new one, and the open widget is a browser tab that moves with the session', async () => {
     const user = userEvent.setup({delay: null})
     const engine = shellEngine()
-    await addSession(engine, 'Alpha')
-    await addSession(engine, 'Beta')
+    const alpha = await addSession(engine, 'Alpha')
+    const beta = await addSession(engine, 'Beta')
     await mountShell({engine})
 
+    const shown = await browserTabsOnceCounted(engine, beta, 1)
+    expect(shown.tabs.map((tab) => tab.title)).toEqual([document.title])
     await user.click(await screen.findByRole('button', {name: 'Beta, session options'}))
     await user.click(await screen.findByRole('button', {name: 'Session: Beta'}))
     expect(await screen.findByText('Today')).toBeVisible()
@@ -44,6 +46,9 @@ describe('find and switch sessions', () => {
     await user.click(await screen.findByRole('option', {name: /^Alpha, Edited/}))
     expect(await screen.findByText('Switched to Alpha')).toBeVisible()
     expect(await screen.findByRole('button', {name: 'Alpha, session options'})).toBeVisible()
+    const moved = await browserTabsOnceCounted(engine, alpha, 1)
+    expect(moved.tabs.map((tab) => tab.id)).toEqual(shown.tabs.map((tab) => tab.id))
+    await expect(browserTabsOnceCounted(engine, beta, 0)).resolves.toEqual({tabs: [], focusedTabId: null})
 
     await user.click(screen.getByRole('button', {name: 'Alpha, session options'}))
     await user.click(await screen.findByRole('button', {name: 'Session: Alpha'}))
