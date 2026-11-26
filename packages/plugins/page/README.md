@@ -2,7 +2,7 @@
 
 ## Overview
 
-conciv's built-in page plugin, both halves in one package (as opencode's `plugin-browser` and `gui-plugins/browser`):
+conciv's built-in page plugin, both halves in one package:
 the engine part (`.`: the plugin `conciv.page`, its connection, tools, skill and queue), the RPC contract (`./rpc`),
 the browser part the widget runs eagerly (`./client`: what the widget calls directly), the window
 setup loaded lazily by the built-ins (`./renderer`), and the built-ins lists the hosts compose: the widget's (`./builtins`)
@@ -18,7 +18,7 @@ The widget's entry (`./client`), inlined into the widget by `@conciv/app` throug
 picker, the grab preview fit, a toast, the session cards and the page tool names. They hold no
 connection to the engine themselves.
 
-A built-in: it draws with the UI kits directly, like opencode's gui plugins, and is one of the two plugin packages
+A built-in: it draws with the UI kits directly and is one of the two plugin packages
 `conciv-publish check-plugin-ui-kit` lets import `@conciv/ui-kit*`. `@conciv/app` composes its `./builtins` list in
 `packages/app/src/builtins.ts`.
 
@@ -57,28 +57,31 @@ The terminal runs the page tools as `conciv tools page <verb>`: the engine's `re
 tool for the session `--tab` or `CONCIV_SESSION_ID` names; `eval` from there asks as the cli README's 'Who is asked'
 says. Inside a chat turn the `eval` tool asks the user first.
 
-When the page plugin hears `session.deleted` it drops that session's queue records (`queue.ts` `cancelSession`), as
-the source's `jobs.cancelSession` does on delete: a result that lands later is never announced or owed, and
-`queue.wait` on it answers `no queue <id> on this tab`.
-`conciv plugin call experimental.page queue.wait` from a terminal is a peek: a caller who leaves (Ctrl-C) as the queue
-finishes may not see that result in their terminal; it stays in the queue's journal and card and can be read again with
+A queue hands its work to the core job service: `runQueue` (`src/connection.ts`) starts a job (`ctx.job.start`, id
+`pq_<queueId>`, recovery `{kind: 'page-queue', sessionID, queueId}`) whose run waits for the queue to finish. A
+blocking queue waits on `ctx.job.block` for up to `PAGE_QUEUE_SYNC_MS` and answers the result if the job finished;
+otherwise the job is backgrounded (`ctx.job.background`), the call answers the queue's progress, and for a queue the
+hub did not start the result is posted into the session as a `session.synthetic` once `ctx.job.wait` sees the job end
+(nothing is posted for a cancelled job), then `ctx.job.completeBackground` marks it delivered.
+`conciv plugin call experimental.page queue.wait` is a peek: it waits up to `waitMs` for the result and otherwise
+answers the progress (`{status: 'playing', done, of}`). A caller who leaves (Ctrl-C) as the queue finishes may not see
+that result in their terminal; it stays in the queue's journal and card and can be read again with
 `conciv plugin call experimental.page queue.wait --data '{"sessionId":"<sessionId>","queueId":"<queueId>","waitMs":0}'`,
-which answers the kept result again (`src/queue.ts` `wait` returns the result whatever its delivery; the
-newest 200 delivered queues are kept).
-Deleting a session stops what its tabs are still playing: each request in flight gets the same `cancel` control a
-dropped request gets (`src/connection.ts` `deleted`), and the queue's next actions are never sent (the
-session's tabs are gone, so they settle `disconnected before dispatch`). The source only fails the request on delete
-(opencode `plugin-browser/src/machine.ts` `failPending`), without a cancel. A closed tab gets no cancel: nothing is
-left to receive it.
+which answers the kept result again (`src/queue.ts` `wait`; the newest 200 finished queues are kept,
+`KEPT_QUEUES` in `src/queue-machine.ts`).
+Deleting a session cancels its jobs (the core `Job.cancelSession`), and when the page plugin hears `session.deleted`
+it drops that session's queue records (`src/queue.ts` `cancelSession`), so `queue.wait` on one answers
+`no queue <id> on this tab`. It also stops what the session's tabs are still playing: each request in flight gets the
+same `cancel` control a dropped request gets (`src/connection.ts` `deleted`), and the queue's next actions are never
+sent (the session's tabs are gone, so they settle `disconnected before dispatch`). A closed tab gets no cancel:
+nothing is left to receive it.
 
 The engine activates the plugins it is given in the host's post position (`InstancePlugins.bound([], {post:
 input.plugins})`, `packages/backend-defaults/src/engine/runtime/plugin-runtime.ts`), so the page half, which
-`@conciv/backend` passes from this package's `./engine-builtins` list, runs after every project plugin, as the source activates its browser
-plugin last (opencode `core/src/plugin/internal.ts:290-294`, `supervisor.ts:146-147`): the half pushes its page rules
-and the `page_eval` ask onto every agent. A tool call that arrives while its plugin restarts after a reload meets the
-restart window, as in opencode: work started after the reload waits for activation (opencode
-`core/src/session/prompt.ts:40`; conciv `Plugin.awaitActivation` in `@conciv/backend-app-api`), a call already in
-flight does not.
+`@conciv/backend` passes from this package's `./engine-builtins` list, runs after every project plugin: the half
+pushes its page rules and the `page_eval` ask onto every agent. A tool call that arrives while its plugin restarts
+after a reload meets the restart window: work started after the reload waits for activation (`Plugin.awaitActivation`
+in `@conciv/backend-app-api`), a call already in flight does not.
 
 Page tools are offered while a tab is open. They carry `permission: 'page'`; the engine half denies `page` on
 every agent and grants it to the session while one of its tabs is open (it follows `tab.opened` and `tab.closed`), so with no tab neither the chat nor an
@@ -94,17 +97,16 @@ A page failure is the plugin's own error, a `[page.<code>]` message:
 - the action's own error as the page raised it: `[page.handler-error] <message>`.
 - a dropped request's page is told to stop (a `cancel` control for that request id) and the request is gone
   (`command` for it answers unavailable `Page request is no longer available.`); a late result for it is accepted and
-  ignored, as the source does.
+  ignored.
 - `page_eval` asks inside the tool, so it is not in the hub session's MCP listing: an outside agent reaches it in code
   mode.
-- with no tab open an outside run is offered no page tools, as opencode's browser plugin
-  (`plugin-browser/src/connection.ts:21-28`, `core/src/tool.ts:260, :385-388`), so a call answers
+- with no tab open an outside run is offered no page tools, so a call answers
   `external_page_<name> is not defined` and `discover_tools` does not list it.
 
 ## Cards
 
 Each card draws a `BasicTool` row (through `PageTool` in `shared.tsx`) titled with the page operation's own label;
-`cards.tsx` binds the cards to the page tool names and the plugin registers one render per name in its setup. Every
+`cards.tsx` binds the cards to the page tool names and the renderer (`renderer.tsx`) registers one render per name. Every
 card reads its element captures through the plugin's own captures query (`captures.tsx`), keyed exactly as the app
 invalidates it. An errored call never reaches a card: `PageFailedTool` is each name's `errorComponent`.
 `SessionCard` (`session-card.tsx`) is the group entry for `PAGE_SESSION_GROUP_KEY` groups and turns a run of page tool
@@ -123,10 +125,10 @@ calls into steps.
   engine's clock (`symbolicate.ts`). Queued page plays fork on the connection's context, so their reply timeouts are
   on the engine's clock too (`connection.ts`).
 - A field with `type=password` or an `autocomplete` containing `cc-`, `one-time-code`, `current-password` or
-  `new-password` is read as `MASKED_VALUE` (`capture.ts:isSensitiveField`).
+  `new-password` is read as `MASKED_VALUE` (`snapshot.ts:isSensitiveField`, `capture.ts` for captured attributes).
 - Selectors match in the document first, then in the page's open shadow roots, never in the widget's own
   (`snapshot.ts:selectDeep`).
-- The React commit hook is installed once (`react.ts:installTracker`); the react-grab adapter is created once and
+- The React bridge is installed once, before the renderer registers (`react.ts:installReactBridge`); the react-grab adapter is created once and
   reused (`grab.ts:getReactGrabAdapter`).
 - The package never imports `@conciv/backend-defaults`: the engine reaches the plugin only through the plugin API.
 - A grab snapshot is drawn in an iframe with an empty `sandbox` and the CSP `default-src 'none'; img-src data:;
