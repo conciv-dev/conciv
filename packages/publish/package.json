@@ -39,6 +39,7 @@
     "@types/node": "catalog:",
     "effect": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }
